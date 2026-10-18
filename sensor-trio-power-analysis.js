@@ -59,13 +59,10 @@
   const O2COL = '#FFB84D',
     H10COL = '#3DE0D0',
     VERCOL = '#B98AFF',
-    FLAGCOL = '#FF6B7A',
     GRID = 'rgba(255,255,255,.06)',
     AXIS = 'rgba(255,255,255,.16)',
-    TXT = '#e6edf6',
     MUT = '#6f8096',
-    MUT2 = '#aab8cc',
-    BANDCOL = 'rgba(88,166,255,.16)';
+    MUT2 = '#aab8cc';
 
   // ── device truth (planted) ───────────────────────────────────────────────
   // RESTING total σ matches the real reference-free estimates. Each total σ is
@@ -146,7 +143,6 @@
       n = s.length;
     return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
   };
-  const pct = (sorted, p) => sorted[Math.max(0, Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1))))];
 
   // ── streaming per-cell reduction (fixed histogram + exact running moments) ────────────────
   // Replaces the unbounded per-trial median arrays, so trials/cell can reach the GPU's millions
@@ -321,7 +317,6 @@
     const stream = regime === 'dynamic' ? 1 : 2;
     const res = {};
     for (const k of DKEYS) res[k] = {};
-    const maxN = N_GRID[N_GRID.length - 1];
     for (let gi = 0; gi < N_GRID.length; gi++) {
       const N = N_GRID[gi];
       // Streaming reduction here too, so the serial last-resort path never holds O(trials)
@@ -546,7 +541,7 @@
     try {
       const l = JSON.parse(localStorage.getItem('striopwr_lock') || 'null');
       return l && Date.now() - l.ts < 6000 ? l : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -557,13 +552,13 @@
   function lockBeat() {
     try {
       localStorage.setItem('striopwr_lock', JSON.stringify({ id: RUN_ID, ts: Date.now() }));
-    } catch (e) {}
+    } catch {}
   }
   function lockRelease() {
     try {
       const l = lockFresh();
       if (l && l.id === RUN_ID) localStorage.removeItem('striopwr_lock');
-    } catch (e) {}
+    } catch {}
   }
 
   // ── durable checkpoint (IndexedDB) — survive a preview/tab reload mid-run ─
@@ -584,7 +579,7 @@
         tx.oncomplete = res;
         tx.onerror = res;
       });
-    } catch (e) {}
+    } catch {}
   }
   async function ckptLoad() {
     try {
@@ -595,7 +590,7 @@
         rq.onsuccess = () => res(rq.result || null);
         rq.onerror = () => res(null);
       });
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -608,7 +603,7 @@
         tx.oncomplete = res;
         tx.onerror = res;
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // ── worker pool ──────────────────────────────────────────────────────────
@@ -628,7 +623,7 @@
         let w;
         try {
           w = new Worker('sensor-trio-worker.js');
-        } catch (e) {
+        } catch {
           return;
         }
         const rec = { w: w, ready: false, _res: null };
@@ -736,7 +731,7 @@
   function persistRate(secs) {
     try {
       localStorage.setItem('striopwr_secPer500', String((secs * 500) / Math.max(1, CFG.trials)));
-    } catch (e) {}
+    } catch {}
   }
   function updEta() {
     const e = $('eta');
@@ -916,7 +911,7 @@
         let real = [];
         try {
           real = await loadReal();
-        } catch (e) {}
+        } catch {}
         assembleResult(dyn, rest, rhoS, real);
         render();
         clearInterval(_hb);
@@ -1073,7 +1068,7 @@
       if ($('winSec')) $('winSec').value = ck.winSec;
       setStatus('run', 'resuming previous run…');
       run(ck);
-    } catch (e) {}
+    } catch {}
   };
   function minNTable(sweep) {
     const o = {};
@@ -1139,7 +1134,6 @@
   // ════════════════════════════════════════════════════════════════════════
   //  RENDER
   // ════════════════════════════════════════════════════════════════════════
-  const f1 = (x) => (x == null ? '—' : x.toFixed(1));
   const f2 = (x) => (x == null ? '—' : x.toFixed(2));
 
   function render() {
@@ -1724,18 +1718,6 @@
     a.click();
     setTimeout(() => URL.revokeObjectURL(u), 1000);
   }
-  function hiRes(srcId, scale) {
-    const src = $(srcId);
-    const cc = document.createElement('canvas');
-    cc.width = src.width * scale;
-    cc.height = src.height * scale;
-    const x = cc.getContext('2d');
-    x.scale(scale, scale);
-    // re-run the matching draw at scale by drawing the existing canvas bitmap up
-    x.imageSmoothingEnabled = false;
-    x.drawImage(src, 0, 0);
-    return cc;
-  }
   function exportFig(srcId, fname) {
     // redraw at 2× into an offscreen canvas for crisp text
     const src = $(srcId);
@@ -2019,10 +2001,10 @@
     const band = RESULT.dynamic || { dev: { o2: {}, h10: {}, verity: {} } };
     try {
       drawReal($('realCanvas'), band, RESULT.real);
-    } catch (e) {}
+    } catch {}
     try {
       fillRealTbl();
-    } catch (e) {}
+    } catch {}
     const solved = RESULT.real.filter((w) => !w.skip).length;
     const hn = $('hRealN');
     if (hn) hn.textContent = solved;
@@ -2099,10 +2081,10 @@
     $('dlCsv').addEventListener('click', exportCsv);
     try {
       updEta();
-    } catch (e) {}
+    } catch {}
     try {
       window.__trioTryResume();
-    } catch (e) {}
+    } catch {}
     // folder-ingestion wiring (real-data arm)
     const fi = $('folderInput'),
       xi = $('fileInput'),

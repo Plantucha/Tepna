@@ -8,7 +8,7 @@
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { parseTimestamp, nu, triIdxGrade } = window.PulseDex._bare;
+const { parseTimestamp, triIdxGrade } = window.PulseDex._bare;
 // This surface spells the OK band 'good'; the shared owner returns the fleet 'ok'. Adapt the
 // vocabulary here rather than re-deriving the cut-points, so there is still exactly one decision.
 const _triCls = (g) => (g === 'ok' ? 'good' : g);
@@ -566,14 +566,14 @@ function loadProfile() {
         set('profRHR', man.hrRest != null ? man.hrRest : '');
         set('profElev', p.elevation != null ? p.elevation : '');
       }
-    } catch (e) {}
+    } catch {}
     renderProfileDerivedPx();
     return;
   }
   let saved = null;
   try {
     saved = JSON.parse(localStorage.getItem('pulsedex_profile') || 'null');
-  } catch (e) {}
+  } catch {}
   if (saved) {
     PX_PROFILE_KEYS.forEach((k) => {
       const el = document.getElementById(k);
@@ -607,7 +607,7 @@ function saveProfile() {
         if (document.getElementById('profRHR')) DexProfile.setManual('hrRest', num(g('profRHR')) > 0 ? num(g('profRHR')) : null);
         if (document.getElementById('profElev')) DexProfile.setManual('elevation', num(g('profElev')));
       }
-    } catch (e) {}
+    } catch {}
     return;
   }
   const o = {};
@@ -617,7 +617,7 @@ function saveProfile() {
   });
   try {
     localStorage.setItem('pulsedex_profile', JSON.stringify(o));
-  } catch (e) {}
+  } catch {}
 }
 
 // user edited a field → persist + mark it as a manual override + re-derive

@@ -65,7 +65,7 @@
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }

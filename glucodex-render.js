@@ -17,7 +17,7 @@
 function evBadge(label, fallback) {
   try {
     return (window.GlucoRegistry && window.GlucoRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -45,7 +45,7 @@ window.evBadge = evBadge;
   let _gluDispUnit = 'mgdl';
   try {
     if (typeof localStorage !== 'undefined' && localStorage.getItem('glucodex_dispUnit') === 'mmol') _gluDispUnit = 'mmol';
-  } catch (e) {}
+  } catch {}
   const GluDisp = {
     get unit() {
       return _gluDispUnit;
@@ -57,7 +57,7 @@ window.evBadge = evBadge;
       _gluDispUnit = u === 'mmol' ? 'mmol' : 'mgdl';
       try {
         localStorage.setItem('glucodex_dispUnit', _gluDispUnit);
-      } catch (e) {}
+      } catch {}
       return _gluDispUnit;
     },
     label() {
@@ -314,7 +314,6 @@ window.evBadge = evBadge;
       ctx.strokeStyle = 'rgba(61,224,208,.5)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      const step = Math.max(1, Math.floor(this.N / W));
       let pen = false;
       for (let px = 0; px < W; px++) {
         const i = Math.floor((px / W) * this.N);
@@ -445,7 +444,6 @@ window.evBadge = evBadge;
     const sx = (h) => P.l + (h / 24) * (W - P.l - P.r);
     const sy = (v) => H - P.b - ((Math.min(ymx, Math.max(ymn, v)) - ymn) / (ymx - ymn)) * (H - P.t - P.b);
     const band = (key0, key1) => {
-      let d = 'M';
       const up = [],
         dn = [];
       for (const b of pts) {

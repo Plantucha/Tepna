@@ -50,7 +50,7 @@
       st.id = ID;
       st.textContent = css;
       (document.head || document.documentElement).appendChild(st);
-    } catch (e) {}
+    } catch {}
   }
   inject();
   // re-assert once the parser has built <head>, in case this ran before it existed

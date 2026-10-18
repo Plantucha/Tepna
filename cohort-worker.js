@@ -409,7 +409,7 @@ function runECGfull(tl) {
   var rrVal = null;
   try {
     rrVal = ECGDSP.validateRR(r.nn, rec.deviceRR);
-  } catch (e) {}
+  } catch {}
   return {
     envelope: {
       schema: { name: 'ganglior.node-export', node: 'ECGDex' },
@@ -507,7 +507,7 @@ function doJob(seed) {
         try {
           var rg = runGluco(d.csv);
           if (rg && rg.score && rg.score.cv != null && isFinite(rg.score.cv)) perDay.push({ day: d.day, cv: rg.score.cv, mean: rg.score.mean });
-        } catch (e) {}
+        } catch {}
       });
     }
     t.gluco = +(performance.now() - tgi).toFixed(2);
@@ -542,7 +542,7 @@ function doJob(seed) {
           pulseC.push(rp);
           nocturnal.push({ n: nt.n, score: { mean: rg.score.mean, cv: rg.score.cv, nHypo: rg.score.nHypo || 0, winHypo: rg.score.winHypo || 0, dawnSurge: rg.score.dawnSurge } });
         }
-      } catch (e) {}
+      } catch {}
     });
     t.gluco = +(performance.now() - tcz).toFixed(2);
     return { meta: meta(pc), pulse: pulseC, nocturnal: nocturnal, timing: t };

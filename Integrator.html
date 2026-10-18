@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="efe1340a4a81" data-compute-hash="bc0bc98bb6a2"><head>
+<html lang="en" data-manifest-hash="05d29b7580cb" data-compute-hash="3dc24a184c82"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XAB1W+kfysba1zTN0PUaFMO2ct9XTn7Vx+SQYDQMb5k=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-nXVzW12i6pnqnnYehiY1j2aZWRgXId9paIIz36LUUM0=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-yreQr4anSIqvlwIe64Hk9l1nYCW361X993x+iD7+Yi4='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.19.0</title>
@@ -3172,7 +3172,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
       return crypto.subtle.digest('SHA-256', bytes).then(hex, function () {
         return null;
       });
-    } catch (e) {
+    } catch {
       return Promise.resolve(null);
     }
   }
@@ -3181,7 +3181,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
   function floatMs(inst) {
     try {
       return inst - new Date(inst).getTimezoneOffset() * 60000;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -3204,10 +3204,10 @@ body.light .cov-grid td.cg-node{ background:#fff; }
         parts.push(s.textContent || '');
       });
       if (parts.length) return parts.join('\n');
-    } catch (e) {}
+    } catch {}
     try {
       return document.documentElement.outerHTML;
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -3293,7 +3293,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
       sha256(content).then(function (h) {
         if (h) rec.sha256 = h.slice(0, 16);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Passive FileReader hook — records the File + its decoded result as a side
@@ -3310,17 +3310,17 @@ body.light .cov-grid td.cg-node{ background:#fff; }
             function () {
               try {
                 noteInput(file, self.result);
-              } catch (e) {}
+              } catch {}
             },
             { once: true }
           );
-        } catch (e) {}
+        } catch {}
         return orig.apply(this, arguments);
       };
       wrapped._gpWrapped = true;
       FileReader.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   // Passive Blob hook — captures nodes that ingest via Blob.text() / Blob.arrayBuffer()
   // instead of FileReader (PpgDex's f.text(), other large text reads). Only Files with
@@ -3338,17 +3338,17 @@ body.light .cov-grid td.cg-node{ background:#fff; }
               function (res) {
                 try {
                   noteInput(self, res);
-                } catch (e) {}
+                } catch {}
               },
               function () {}
             );
-        } catch (e) {}
+        } catch {}
         return p;
       };
       wrapped._gpWrapped = true;
       Blob.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   window.GangliorProvenance = {
     // Synchronous snapshot for splicing into an export's schema. buildHash is
@@ -4099,7 +4099,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -4165,14 +4165,14 @@ body.light .cov-grid td.cg-node{ background:#fff; }
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -15697,7 +15697,7 @@ window.IntegratorDSP = {
       s.id = 'dex-synth-css';
       s.textContent = CSS;
       (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
+    } catch {
       /* no-DOM (worker) — ignore */
     }
   }
@@ -15765,7 +15765,7 @@ window.IntegratorDSP = {
       s.id = 'long-synth-css';
       s.textContent = css;
       (global.document.head || global.document.documentElement).appendChild(s);
-    } catch (e) {}
+    } catch {}
   })();
   var fmtDate = D
     ? D.fmtDate
@@ -15776,7 +15776,6 @@ window.IntegratorDSP = {
         }
         return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
       };
-  var fmtDayShort = D ? D.fmtDayShort : fmtDate;
   var nodeColor = D
     ? D.nodeColor
     : function () {
@@ -16150,7 +16149,7 @@ window.IntegratorDSP = {
   function evBadge(def) {
     try {
       return def && def.evidence && global.MetricRegistry ? global.MetricRegistry.badge(def.evidence, def.cite) : '';
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -16329,14 +16328,14 @@ window.IntegratorDSP = {
   function _readSynthPref() {
     try {
       return localStorage.getItem(_synthPrefKey()) !== '0';
-    } catch (e) {
+    } catch {
       return true;
     }
   } // default: show
   function _writeSynthPref(inc) {
     try {
       localStorage.setItem(_synthPrefKey(), inc ? '1' : '0');
-    } catch (e) {}
+    } catch {}
   }
 
   function render() {
@@ -18044,7 +18043,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     if (L) {
       try {
         L.render();
-      } catch (e) {}
+      } catch {}
     }
   }
   function removeAt(i) {
@@ -18099,7 +18098,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           WARN.push('✓ Longitudinal: absorbed ' + li.rows + ' day-summary row' + (li.rows === 1 ? '' : 's') + ' from ' + li.nodes.join(', ') + ' (persisted).');
           _longDirty = true;
         }
-      } catch (e) {
+      } catch {
         /* never let longitudinal break fusion ingest */
       }
     }
@@ -18352,8 +18351,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     if (!b) return;
     b.addEventListener('click', function () {
       var files = ['uploads/trio/2026-06-12/ECGDex_2026-06-12.node-export.json', 'uploads/trio/2026-06-12/OxyDex_2026-06-12.node-export.json'];
-      var pending = files.length,
-        got = 0;
+      var pending = files.length;
       files.forEach(function (path) {
         fetch(path)
           .then(function (r) {
@@ -18362,7 +18360,6 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           })
           .then(function (json) {
             ingestJSON(json, path.split('/').pop());
-            got++;
           })
           .catch(function (err) {
             WARN.push('Sample "' + path + '" unavailable (' + err.message + ') — drag files in manually.');
@@ -18633,7 +18630,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       L.open().then(function () {
         try {
           L.render();
-        } catch (e) {}
+        } catch {}
       });
     }
     recompute();
@@ -18790,7 +18787,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         lk.forEach(function (k) {
           if (out.indexOf(k) < 0) out.push(k);
         });
-    } catch (e) {}
+    } catch {}
     return out;
   }
   // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
@@ -18808,7 +18805,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     if (ls === undefined) {
       try {
         ls = root.localStorage;
-      } catch (e) {
+      } catch {
         ls = null;
       }
     }
@@ -18817,14 +18814,14 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         try {
           if (ls.getItem(k) != null) removed.push(k);
           ls.removeItem(k);
-        } catch (e) {}
+        } catch {}
       });
     }
     var db = opts.indexedDB;
     if (db === undefined) {
       try {
         db = root.indexedDB;
-      } catch (e) {
+      } catch {
         db = null;
       }
     }
@@ -18833,7 +18830,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         try {
           db.deleteDatabase(name);
           idb.push(name);
-        } catch (e) {}
+        } catch {}
       });
     }
     return { removed: removed, idb: idb };
@@ -18865,16 +18862,16 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       var ok = true;
       try {
         ok = root.confirm('Erase ALL Tepna data on this device?\n\nThis removes your profile, every node’s saved readings, and the Integrator’s longitudinal history. It cannot be undone.');
-      } catch (e) {}
+      } catch {}
       if (!ok) return;
       eraseAll();
       try {
         btn.disabled = true;
         btn.textContent = 'Erased — reloading…';
-      } catch (e) {}
+      } catch {}
       try {
         root.location.reload();
-      } catch (e) {}
+      } catch {}
     });
 
     wrap.appendChild(note);

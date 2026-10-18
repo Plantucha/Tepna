@@ -17,7 +17,7 @@
 function evBadge(label, fallback) {
   try {
     return (window.PpgRegistry && window.PpgRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -446,8 +446,7 @@ window.evBadge = evBadge;
       H = 260,
       P = { l: 30, r: 16, t: 24, b: 34 };
     const beat = del.beat || mb.beat,
-      L = beat.length,
-      fs = mb.fs;
+      L = beat.length;
     let ymn = Infinity,
       ymx = -Infinity;
     for (const v of beat) {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d05c5e20c656" data-compute-hash="98764cfcd2c0">
+<html lang="en" data-manifest-hash="c5df8f59c24f" data-compute-hash="6d3112b5d0fb">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DVov9N3bSr4KfqTAmFvBFEn7yUKa4RvLB+6d+RVs8cU=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-FIeLhiVIwXlWli84JsO8pwB+w7MSraz2zlO2J/dl6jg=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-mLZfCITgcjZtNh01pmNgE3ul+98wFvTf5jQmsfIm+pI=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-k8fu83nAacZrNcYx/MA4TCalr+wx9BAx7R/iLo0gBWc=' 'sha256-m00R3jtNtLVD6NnR/TeCVDJ6j2P1VpjwzKxQpHJqBU4=' 'sha256-mLZfCITgcjZtNh01pmNgE3ul+98wFvTf5jQmsfIm+pI=' 'sha256-z2LO7DKiKLxhTtTu9yC7cEHNFi29kOzz+lNPjcodgv0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.19.0</title>
@@ -6587,7 +6587,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
       return crypto.subtle.digest('SHA-256', bytes).then(hex, function () {
         return null;
       });
-    } catch (e) {
+    } catch {
       return Promise.resolve(null);
     }
   }
@@ -6596,7 +6596,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   function floatMs(inst) {
     try {
       return inst - new Date(inst).getTimezoneOffset() * 60000;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -6619,10 +6619,10 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
         parts.push(s.textContent || '');
       });
       if (parts.length) return parts.join('\n');
-    } catch (e) {}
+    } catch {}
     try {
       return document.documentElement.outerHTML;
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -6708,7 +6708,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
       sha256(content).then(function (h) {
         if (h) rec.sha256 = h.slice(0, 16);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Passive FileReader hook — records the File + its decoded result as a side
@@ -6725,17 +6725,17 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
             function () {
               try {
                 noteInput(file, self.result);
-              } catch (e) {}
+              } catch {}
             },
             { once: true }
           );
-        } catch (e) {}
+        } catch {}
         return orig.apply(this, arguments);
       };
       wrapped._gpWrapped = true;
       FileReader.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   // Passive Blob hook — captures nodes that ingest via Blob.text() / Blob.arrayBuffer()
   // instead of FileReader (PpgDex's f.text(), other large text reads). Only Files with
@@ -6753,17 +6753,17 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
               function (res) {
                 try {
                   noteInput(self, res);
-                } catch (e) {}
+                } catch {}
               },
               function () {}
             );
-        } catch (e) {}
+        } catch {}
         return p;
       };
       wrapped._gpWrapped = true;
       Blob.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   window.GangliorProvenance = {
     // Synchronous snapshot for splicing into an export's schema. buildHash is
@@ -6847,7 +6847,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -8357,7 +8357,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -8423,14 +8423,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -8624,7 +8624,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       st.id = ID;
       st.textContent = css;
       (document.head || document.documentElement).appendChild(st);
-    } catch (e) {}
+    } catch {}
   }
   inject();
   // re-assert once the parser has built <head>, in case this ran before it existed
@@ -8734,7 +8734,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         lk.forEach(function (k) {
           if (out.indexOf(k) < 0) out.push(k);
         });
-    } catch (e) {}
+    } catch {}
     return out;
   }
   // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
@@ -8752,7 +8752,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     if (ls === undefined) {
       try {
         ls = root.localStorage;
-      } catch (e) {
+      } catch {
         ls = null;
       }
     }
@@ -8761,14 +8761,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         try {
           if (ls.getItem(k) != null) removed.push(k);
           ls.removeItem(k);
-        } catch (e) {}
+        } catch {}
       });
     }
     var db = opts.indexedDB;
     if (db === undefined) {
       try {
         db = root.indexedDB;
-      } catch (e) {
+      } catch {
         db = null;
       }
     }
@@ -8777,7 +8777,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         try {
           db.deleteDatabase(name);
           idb.push(name);
-        } catch (e) {}
+        } catch {}
       });
     }
     return { removed: removed, idb: idb };
@@ -8809,16 +8809,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       var ok = true;
       try {
         ok = root.confirm('Erase ALL Tepna data on this device?\n\nThis removes your profile, every node’s saved readings, and the Integrator’s longitudinal history. It cannot be undone.');
-      } catch (e) {}
+      } catch {}
       if (!ok) return;
       eraseAll();
       try {
         btn.disabled = true;
         btn.textContent = 'Erased — reloading…';
-      } catch (e) {}
+      } catch {}
       try {
         root.location.reload();
-      } catch (e) {}
+      } catch {}
     });
 
     wrap.appendChild(note);
@@ -8930,7 +8930,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         global.localStorage.getItem(STORAGE_KEY);
         return (_storeRef = global.localStorage);
       }
-    } catch (e) {}
+    } catch {}
     return (_storeRef = _memStore);
   }
   function _setStore(obj) {
@@ -9072,12 +9072,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var r = null;
     try {
       r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-    } catch (e) {}
+    } catch {}
     if (!r) {
       migrate();
       try {
         r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-      } catch (e) {}
+      } catch {}
     }
     _rec = r || _blank();
     if (!_rec.manual) _rec.manual = {};
@@ -9117,7 +9117,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (_chg) {
         try {
           _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-        } catch (e) {}
+        } catch {}
       }
     }
     if (!_rec.detected) _rec.detected = {};
@@ -9135,7 +9135,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     load();
     try {
       _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-    } catch (e) {}
+    } catch {}
     return _rec;
   }
 
@@ -9160,7 +9160,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function _readJSON(k) {
     try {
       return JSON.parse(_store().getItem(k) || 'null');
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -9272,14 +9272,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       try {
         _store().setItem(STORAGE_KEY, JSON.stringify(rec));
         saved = _store().getItem(STORAGE_KEY) != null;
-      } catch (e) {}
+      } catch {}
       _rec = rec;
       if (saved) {
         var st2 = _store();
         LEGACY_KEYS.forEach(function (k) {
           try {
             st2.removeItem(k);
-          } catch (e) {}
+          } catch {}
         });
       }
       return true;
@@ -9336,8 +9336,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
   // Flat resolved profile (metric) — what node compute code consumes (≈ legacy getProfile()).
   function get() {
-    var rec = load(),
-      pd = popDefaults(rec);
+    var rec = load();
     var p = { age: resolve('age').v, sex: rec.sex, units: rec.units || 'metric' };
     [
       'weight',
@@ -9504,7 +9503,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (_org && _org[f]) return _org[f];
       try {
         return resolve(f).origin;
-      } catch (e) {
+      } catch {
         return 'pop';
       }
     }
@@ -10017,7 +10016,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           try {
             _el.focus();
             if (_caret != null && _el.setSelectionRange) _el.setSelectionRange(_caret, _caret);
-          } catch (e) {}
+          } catch {}
         }
       }
       // SECURITY-REMEDIATION-2026-07-11 F5: append the shared "erase all data on this device"
@@ -10025,7 +10024,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       // innerHTML wipe, so it rides every panel re-render across the 6 profile apps.
       try {
         if (global.DexForget) global.DexForget.ensureControl(mount);
-      } catch (e) {}
+      } catch {}
     }
 
     function wire() {
@@ -10153,7 +10152,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // Run migration on load (idempotent; no-op if tepna_profile already exists).
   try {
     migrate();
-  } catch (e) {}
+  } catch {}
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script data-inline-src="oxydex-registry.js">/* ════════════════════════════════════════════════════════════════════════
@@ -11436,16 +11435,6 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     }
     const denom = V1 > 0 ? V1 - V2 / V1 : 0;
     return denom > 0 ? Math.sqrt(acc / denom) : 0;
-  }
-  function sd(a) {
-    if (a.length < 2) return 0;
-    const m = mean(a);
-    let s = 0;
-    for (const v of a) {
-      const d = v - m;
-      s += d * d;
-    }
-    return Math.sqrt(s / (a.length - 1));
   }
   function median(a) {
     if (!a.length) return NaN;
@@ -22956,7 +22945,6 @@ function oxyEventTimeline(events, multiNight) {
 // §4 · the clinical "bring-to-doctor" summary. Findings → KPIs → event timeline (each badged) →
 // provenance + intended-use disclaimer + dxl- stamp. Faithfully renders the EXPORT's stored values.
 function oxyClinicalSummary(review, nights) {
-  var s = _oxyBuildStamp(review);
   var asc = nights.slice().reverse(); // nights is DESC (newest first) → ascending for date range
   var first = asc[0],
     last = asc[asc.length - 1];
@@ -23619,7 +23607,6 @@ function renderAll() {
     // Apply global View Window (affects trend charts + night list)
     // nights are DESC-sorted (newest first); slice(0, N) keeps the N newest.
     if (_gcWin && _gcWin < 999 && nights.length > _gcWin) nights = nights.slice(0, _gcWin);
-    var single = nights.length === 1;
     var html = '';
 
     // ── SELF-INGEST review mode (SELF-INGEST-2026-06-27) ─────────────────────────────────────────────
@@ -25060,7 +25047,7 @@ function ssKPI(label, valHtml, cls, sublabel) {
 function evBadge(label, fallback) {
   try {
     return (window.OxyRegistry && window.OxyRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -25098,20 +25085,6 @@ function ssIssuesBars(top5, cat) {
       '</div></div>';
   });
   return h + '</div>';
-}
-function switchSStab(id, el) {
-  var card = el.closest('.smart-summary');
-  card.querySelectorAll('.ss-tab').forEach(function (t) {
-    t.classList.remove('active');
-  });
-  card.querySelectorAll('.ss-tab-content').forEach(function (t) {
-    t.classList.remove('active');
-  });
-  el.classList.add('active');
-  var tabs = card.querySelectorAll('.ss-tab-content');
-  tabs.forEach(function (t) {
-    if (t.id && t.id.startsWith('sstab-' + id)) t.classList.add('active');
-  });
 }
 function setGCWindow(days, el) {
   _gcWin = days;
@@ -26310,7 +26283,7 @@ function renderResearchMetrics(n) {
         if (typeof v === 'object') {
           try {
             v = Array.isArray(v) ? v.join(' / ') : JSON.stringify(v);
-          } catch (e) {
+          } catch {
             return;
           }
           if (v.length > 80) v = v.slice(0, 77) + '…';
@@ -26917,8 +26890,7 @@ function oxyEcgFusionSection(n, ecg) {
   if (!n || !ecg) return '';
   var F = oxyComputeFusion(n, ecg);
   if (!F) return '';
-  var s = n.stats || {},
-    hrv = n.hrv || {};
+  var hrv = n.hrv || {};
   var rec = F.rec,
     t = F.t,
     ap = F.ap,
@@ -27403,7 +27375,7 @@ function buildFullMetricsTable(n) {
         if (typeof v === 'object') {
           try {
             v = Array.isArray(v) ? v.slice(0, 12).join(' / ') : JSON.stringify(v);
-          } catch (e) {
+          } catch {
             return;
           }
           if (v.length > 90) v = v.slice(0, 87) + '…';
@@ -27475,7 +27447,7 @@ function oxyFrontFullTable(n) {
   var tbl;
   try {
     tbl = buildFullMetricsTable(n);
-  } catch (e) {
+  } catch {
     return '';
   }
   if (!tbl) return '';
@@ -27509,7 +27481,7 @@ function handleEcgJson(file) {
     var obj;
     try {
       obj = JSON.parse(rd.result);
-    } catch (e) {
+    } catch {
       setS('⚠ not valid JSON', false);
       return;
     }
@@ -27536,7 +27508,7 @@ function handleEcgJson(file) {
     // re-render so the hero card + fusion section pick up the paired ECG
     try {
       if (typeof renderAll === 'function' && typeof allNights !== 'undefined' && Object.keys(allNights).length) renderAll();
-    } catch (e) {}
+    } catch {}
   };
   rd.onerror = function () {
     setS('⚠ could not read file', false);
@@ -28832,7 +28804,7 @@ Object.assign(window, {
       s.id = 'dex-synth-css';
       s.textContent = CSS;
       (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
+    } catch {
       /* no-DOM (worker) — ignore */
     }
   }
@@ -31026,7 +30998,7 @@ function download(content, fname, type) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 1000);
-  } catch (e) {
+  } catch {
     window.open('data:' + type + ';charset=utf-8,' + encodeURIComponent(content), '_blank');
   }
 }

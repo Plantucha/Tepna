@@ -142,8 +142,7 @@ async function rateOf(file) {
     py = [];
   let t0 = null,
     d0 = null,
-    lastT = null,
-    lastD = null;
+    lastT = null;
   /* Delta distribution, to name the CAUSE rather than only the symptom (O2RING-SYNTHESISED-AXIS §5).
      A drawn axis is `sample_index x constant`, so essentially every consecutive delta is identical.
      Counted on EVERY row (not the subsample the slope uses) because quantization is a property of
@@ -194,7 +193,6 @@ async function rateOf(file) {
     py.push(y);
     kept++;
     lastT = ph;
-    lastD = dv;
   }
   if (kept < 50) return null;
   const den = kept * sxx - sx * sx;

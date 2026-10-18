@@ -124,7 +124,7 @@
       s.id = 'dex-synth-css';
       s.textContent = CSS;
       (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
+    } catch {
       /* no-DOM (worker) — ignore */
     }
   }

@@ -57,13 +57,6 @@
     var m = b.length >> 1;
     return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
   }
-  function mean(a) {
-    return a.length
-      ? a.reduce(function (s, x) {
-          return s + x;
-        }, 0) / a.length
-      : NaN;
-  }
   function fmtClock(ms) {
     if (ms == null || !isFinite(ms)) return '—';
     var d = new Date(ms),

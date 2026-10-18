@@ -310,9 +310,6 @@ function genAbbrIndex() {
 // ─── Generate CSS (page-specific overrides only) ───────────────────────────
 function genPageCSS() {
   const hex = manifest.accentHex || '#3DE0D0';
-  const hex10 = hex + '1a'; // ~10% opacity
-  const hex20 = hex + '33'; // ~20% opacity
-  const hex30 = hex + '4d'; // ~30% opacity
 
   return `
 /* ${manifest.node} — page-specific overrides (built by dex-gen.js) */

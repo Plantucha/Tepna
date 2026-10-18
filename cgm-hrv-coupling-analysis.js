@@ -35,8 +35,7 @@
 (function () {
   'use strict';
 
-  var harness = {},
-    pend = new Map(),
+  var pend = new Map(),
     seq = 1;
   var ROWS = []; // one per patient-night
   var SUBJ = []; // grouped per patient
@@ -145,7 +144,7 @@
         };
       });
       db.close();
-    } catch (e) {}
+    } catch {}
   }
   async function ckptLoad() {
     try {
@@ -162,7 +161,7 @@
       });
       db.close();
       return o;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -175,7 +174,7 @@
         tx.oncomplete = res;
       });
       db.close();
-    } catch (e) {}
+    } catch {}
   }
   function genVer() {
     return (window.CohortGen && CohortGen.VERSION) || '?';
@@ -185,7 +184,7 @@
     try {
       var l = JSON.parse(localStorage.getItem('cgmcpl_lock') || 'null');
       return l && Date.now() - l.ts < 6000 ? l : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -196,13 +195,13 @@
   function lockBeat() {
     try {
       localStorage.setItem('cgmcpl_lock', JSON.stringify({ id: RUN_ID, ts: Date.now() }));
-    } catch (e) {}
+    } catch {}
   }
   function lockRelease() {
     try {
       var l = lockFresh();
       if (l && l.id === RUN_ID) localStorage.removeItem('cgmcpl_lock');
-    } catch (e) {}
+    } catch {}
   }
   function fmtETA(sec) {
     if (!isFinite(sec) || sec < 0) return '—';
@@ -215,27 +214,6 @@
   //  Clock Contract: regex the zoned-ISO stamp into FLOATING wall-clock ms (the same
   //  frame as the night's t0Ms); never new Date(str). Glucose is 5-min cadence,
   //  seconds always 0, so the minute-resolution regex is exact.
-  function glucoTs(s) {
-    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
-  }
-  function sliceNocturnal(csv, t0Ms, durSec) {
-    var lines = (csv || '').split(/\r?\n/);
-    if (lines.length < 3) return null;
-    var header = lines[0],
-      end = t0Ms + durSec * 1000,
-      out = [header];
-    for (var i = 1; i < lines.length; i++) {
-      var ln = lines[i];
-      if (!ln.trim()) continue;
-      var comma = ln.indexOf(',');
-      if (comma < 10) continue;
-      var ms = glucoTs(ln.slice(0, comma).trim());
-      if (ms == null) continue;
-      if (ms >= t0Ms && ms <= end) out.push(ln);
-    }
-    return out.length >= 13 ? out.join('\n') + '\n' : null; // need ≥~1 h of 5-min readings
-  }
 
   // ── stats helpers ──
   function mean(a) {
@@ -303,7 +281,7 @@
       var pf;
       try {
         pf = CohortGen.sampleProfile(seed);
-      } catch (e) {
+      } catch {
         seed++;
         continue;
       }
@@ -406,14 +384,14 @@
     else ckptSave({ ver: ver, targetSubj: targetSubj, minNights: minNights, cursor: cursor, ROWS: ROWS, SUBJ: SUBJ, savedAt: Date.now() });
     try {
       localStorage.setItem('cgmcpl_ptPerSec', String(pdone / Math.max(0.001, elapsed)));
-    } catch (e) {}
+    } catch {}
 
     setProg(1);
     if ($('cancel')) $('cancel').style.display = 'none';
     setStatus((CANCEL ? 'cancelled — partial · ' : 'done · ') + SUBJ.length + ' patients · ' + ROWS.length + ' nights in ' + fmtETA(elapsed), CANCEL ? 'idle' : 'done');
     try {
       updEta();
-    } catch (e) {}
+    } catch {}
     if (ROWS.length) analyze();
     $('run').disabled = false;
     ['dlCsv', 'dlStats', 'dlFig'].forEach(function (id) {
@@ -581,7 +559,7 @@
     };
     try {
       window.CGM_HRV_COUPLING = RESULT;
-    } catch (e) {}
+    } catch {}
 
     drawScatter(yvar, glabel, within);
     drawDriver(within, partWin, rgA, rmA, yvar);
@@ -590,9 +568,6 @@
 
   function fmtR(r) {
     return r == null ? '—' : (r >= 0 ? '+' : '−') + Math.abs(r).toFixed(2);
-  }
-  function fmtMs(v) {
-    return v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' ms';
   }
   function r2obj(p) {
     return p ? { r: +p.r.toFixed(3), n: p.n, ci: [+p.lo.toFixed(3), +p.hi.toFixed(3)] } : null;
@@ -1037,7 +1012,7 @@
         if ($('minN')) $('minN').value = ck.minNights;
         setStatus('resuming previous run ' + ck.cursor + '…', 'run');
         run(ck);
-      } catch (e) {}
+      } catch {}
     }
     tryResume();
   })();

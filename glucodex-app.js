@@ -32,13 +32,13 @@ import './glucodex-profile.js';
   let MEALS = [];
   try {
     MEALS = JSON.parse(localStorage.getItem('glucodex_meals') || '[]');
-  } catch (e) {
+  } catch {
     MEALS = [];
   }
   function saveMeals() {
     try {
       localStorage.setItem('glucodex_meals', JSON.stringify(MEALS));
-    } catch (e) {}
+    } catch {}
   }
 
   // analyze with the profile's optional lab-A1c sensor-bias calibration folded in:
@@ -162,7 +162,7 @@ import './glucodex-profile.js';
         try {
           FUSION = computeFusion(r, ECGJSON);
           r.fusion = FUSION;
-        } catch (e) {
+        } catch {
           FUSION = null;
         }
       }
@@ -204,7 +204,7 @@ import './glucodex-profile.js';
     if (!g) return '';
     try {
       return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-    } catch (e) {
+    } catch {
       return String(g);
     }
   }
@@ -371,7 +371,7 @@ import './glucodex-profile.js';
     host.style.display = '';
     try {
       document.body.classList.add('has-data');
-    } catch (e) {}
+    } catch {}
   }
   function glucoClearReview() {
     var h = document.getElementById('glucoReviewCard');
@@ -472,7 +472,6 @@ import './glucodex-profile.js';
   }
 
   function renderKPI(r) {
-    const p = r.profile || {};
     const hypo = +(r.tir.tbr1 + r.tir.tbr2).toFixed(1);
     // Metabolic Age REMOVED 2026-06-21 (external-review WP-A)
     const personalized = [
@@ -811,7 +810,6 @@ import './glucodex-profile.js';
 
   function renderDaily(r) {
     // build per-day 24h overlay traces from cleaned series
-    const cad = r.cadence;
     const days = new Map();
     for (let i = 0; i < r.series.N; i++) {
       if (r.series.gF[i] === r.series.FLAG.WARMUP) continue;
@@ -890,7 +888,7 @@ import './glucodex-profile.js';
       let json;
       try {
         json = JSON.parse(e.target.result);
-      } catch (err) {
+      } catch {
         showErr('Could not parse ECGDex JSON.');
         return;
       }
@@ -1352,9 +1350,7 @@ import './glucodex-profile.js';
           : '';
         if (t) {
           const pts = t.pairs.map((p, i) => ({ x: i, y: p.qtc }));
-          const gpts = t.pairs.map((p, i) => ({ x: i, y: p.glu }));
           const rstr = t.r == null ? '—' : t.r;
-          const rsev = t.r == null ? 'neutral' : t.r <= -0.4 ? 'bad' : t.r <= -0.2 ? 'warn' : 'ok';
           return `<div class="mini-h" style="margin-top:12px">${evBadge('QTc')}Nocturnal QTc ⟷ glucose trend <span class="mini-sub">${t.n} epochs aligned · r = ${rstr}</span></div>
             ${twaPill ? `<div class="gang-summary">${twaPill}</div>` : ''}
             ${UI.lineChart(pts, UI.COLORS.red, { W: 680, H: 140, xfmt: (x) => 'e' + (x + 1) })}
@@ -1601,13 +1597,6 @@ import './glucodex-profile.js';
   }
   function csvDoc(rows) {
     return '\uFEFF' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
-  }
-  function csvClean(t) {
-    const s = String(t == null ? '' : t)
-      .replace(/[\u2191\u2193\u2192\u2197\u2198\u2B06\u2B07]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return s === '' || s === '—' || s === '–' || /^n\/?a$/i.test(s) ? '' : s;
   }
 
   function exportCleanCSV() {
@@ -1943,7 +1932,7 @@ import './glucodex-profile.js';
         if (!R || !R.idForLabel) return '';
         const id = R.idForLabel(label);
         return (id && R.REGISTRY[id] && R.REGISTRY[id].evidence) || '';
-      } catch (e) {
+      } catch {
         return '';
       }
     };
@@ -1963,23 +1952,6 @@ import './glucodex-profile.js';
     if (!RESULT) return;
     dl(_summaryCSV(), exportName({ node: 'GlucoDex', t0Ms: RESULT.t0Ms, kind: 'summary', ext: 'csv' }), 'text/csv');
     showOK('Summary CSV exported (tidy: metric · value · unit · range · status · notes).');
-  }
-  function exportGanglior() {
-    if (!RESULT) return;
-    const r = RESULT;
-    // ONE shared builder (glucodex-dsp.js) — same node-export compute() emits, so the
-    // app stream and the headless/Unifier export stay byte-identical (brief §1B parity).
-    const out = (window.GlucoDex || window.GLUDSP).buildNodeExport(r, {
-      kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-      provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null
-    });
-    dl(JSON.stringify(out, null, 2), exportName({ node: 'GlucoDex', t0Ms: r.t0Ms, kind: 'ganglior', ext: 'json' }), 'application/json;charset=utf-8');
-    showOK('Ganglior event stream exported (' + (r.events ? r.events.length : 0) + ' events).');
-  }
-  function copyTable() {
-    const rows = document.querySelectorAll('#tblWrap table tr');
-    const txt = [...rows].map((r) => [...r.cells].map((c) => c.textContent.trim()).join('\t')).join('\n');
-    navigator.clipboard.writeText(txt).then(() => showOK('Metrics table copied.'));
   }
 
   function resetAll() {
@@ -2094,7 +2066,7 @@ import './glucodex-profile.js';
     let r;
     try {
       r = analyzeWithProfile(LASTPARSED, null);
-    } catch (e) {
+    } catch {
       return;
     }
     RESULT = r;
@@ -2102,7 +2074,7 @@ import './glucodex-profile.js';
       try {
         FUSION = computeFusion(r, ECGJSON);
         r.fusion = FUSION;
-      } catch (e) {}
+      } catch {}
     }
     r.events = r.events.concat(FUSION && FUSION.events ? FUSION.events : []);
     if (window.GLUProfile) window.GLUProfile.render(r);

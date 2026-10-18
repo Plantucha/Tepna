@@ -74,7 +74,7 @@ export function walkRepoPaths(root, opts) {
     let ents;
     try {
       ents = readdirSync(dir);
-    } catch (e) {
+    } catch {
       return;
     }
     for (const name of ents) {
@@ -84,7 +84,7 @@ export function walkRepoPaths(root, opts) {
       let isDir = false;
       try {
         isDir = statSync(abs).isDirectory();
-      } catch (e) {
+      } catch {
         /* unreadable → treat as leaf */
       }
       // A nested repo/worktree is skipped ENTIRELY — not merely un-recursed — so its own directory

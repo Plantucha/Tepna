@@ -166,7 +166,7 @@ async function testBundle(browser, base, b) {
           await el.click();
           await page.waitForTimeout(1500);
         }
-      } catch (e) {
+      } catch {
         /* best-effort */
       }
     }

@@ -271,7 +271,7 @@
     workers.forEach(function (w) {
       try {
         w.w.terminate();
-      } catch (e) {}
+      } catch {}
     });
 
     setStatus('scoring PulseDex on ' + raw.length + ' windows…', 'run');
@@ -419,7 +419,7 @@
     RESULT.patJitterSdMs = patSD == null ? null : +patSD.toFixed(3);
     try {
       window.QRS_EQUIV = RESULT;
-    } catch (e) {}
+    } catch {}
 
     drawScatter(pulse, ecg, ppg);
     drawBA('baPpg', baPP, 'PpgDex − PulseDex', COL.ppg);

@@ -213,7 +213,7 @@ function main() {
       return null;
     }
   };
-  const { rows, violations } = evaluate(CHECKS, read);
+  const { rows } = evaluate(CHECKS, read);
   /* THE PAPERS, which had no gate at all. The share lives in clock.js, so it is read from there rather
      than restated here — a gate that carried its own copy of the number would be the third place to
      drift. A paper making no shipped-threshold claim is simply not judged. */

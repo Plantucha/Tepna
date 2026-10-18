@@ -18,7 +18,7 @@
 function evBadge(label, fallback) {
   try {
     return (window.EcgRegistry && window.EcgRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -570,8 +570,7 @@ window.evBadge = evBadge;
       H = 260,
       P = { l: 48, r: 16, t: 18, b: 30 };
     const beat = mb.beat,
-      L = beat.length,
-      fs = mb.fs;
+      L = beat.length;
     let ymn = Infinity,
       ymx = -Infinity;
     for (const v of beat) {
@@ -583,7 +582,6 @@ window.evBadge = evBadge;
     ymx += pad;
     const sx = (i) => P.l + (i / (L - 1)) * (W - P.l - P.r);
     const sy = (v) => H - P.b - ((v - ymn) / (ymx - ymn)) * (H - P.t - P.b);
-    const msAt = (i) => ((i - mb.pre) / fs) * 1000;
     const path = beat.map((v, i) => (i ? 'L' : 'M') + sx(i).toFixed(1) + ' ' + sy(v).toFixed(1)).join(' ');
     const m = del.marks,
       B = m.B;

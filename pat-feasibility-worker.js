@@ -71,16 +71,7 @@ var LAG_SEARCH_MS = 2000,
   BIN_MIN = 5, // bin WIDTH in minutes — NOT a minimum pair count. See BIN_MATCH_MIN.
   PHYS_LO = 200,
   PHYS_HI = 650,
-  FINGER_ANKLE_BAND = { lo: 0, hi: 400 }, // finger foot → ankle foot; under one RR, see coupledPAT
-  /* A bin earns a vote in the drift statistics by MATCH RATE, never by an absolute pair count
-     (PAT-DRIFT-STATISTIC-2026-08-10 §3). Until 2026-08-10 no minimum was applied at all, so a bin
-     holding a single paired beat contributed a full median to a max−min range. On 2026-08-03 finger
-     the bins setting the extremes held 6–24 paired beats against ~238 ECG beats in the same five
-     minutes (3–10 %) with within-bin IQR 106–228 ms, while the 100 %-match bins ran 7–26 ms. Those
-     survivors are also EDGE-CENSORED: as the true lag approaches PHYS_HI only the beats whose foot
-     lands under the ceiling get paired, so the surviving median is dragged to the window edge —
-     which is why they read 619 and 630 ms. Qualifying alone moves that night 404 → 222. */
-  BIN_MATCH_MIN = 0.8;
+  FINGER_ANKLE_BAND = { lo: 0, hi: 400 };
 
 function median(a) {
   if (!a.length) return NaN;

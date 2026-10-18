@@ -24,12 +24,6 @@ const DXP = () => window.DexProfile;
 // ══════════════════════════════════════════════════════════════════
 // INFER PROFILE FROM LOADED DATA
 // ══════════════════════════════════════════════════════════════════
-function clearEstimate(inputId, labelId) {
-  // User typed a value: drop the "estimated" border tint but KEEP the projection
-  // sublabel visible as a reference (matches OxyDex behavior).
-  const el = document.getElementById(inputId);
-  if (el) el.style.borderColor = '';
-}
 
 function inferFromData() {
   if (!allRows || allRows.length < 3) return;
@@ -97,7 +91,7 @@ function inferFromData() {
   if (DXP()) {
     try {
       DXP().prefillFrom({ hrRest: restingHR, vo2: vo2Est });
-    } catch (e) {}
+    } catch {}
   }
   /* ⚠️ NO READER — measured 2026-09-05, repo-wide: `_projVO2` occurs at exactly three sites and all
      three are WRITES or comments in this file (:89, :520, :524). The live refresh at :524 is real and
@@ -199,7 +193,7 @@ function loadProfile() {
         set('prof_hrrest', man.hrRest != null ? man.hrRest : '');
         set('prof_elev', p.elevation != null ? p.elevation : '');
       }
-    } catch (e) {}
+    } catch {}
     updateProfile();
     _hrvLoading = false;
     return;
@@ -347,7 +341,7 @@ function updateProfile() {
         DXP().setManual('hrMax', num(g('prof_hrmax')) > 0 ? num(g('prof_hrmax')) : null);
         DXP().setManual('hrRest', num(g('prof_hrrest')) > 0 ? num(g('prof_hrrest')) : null);
         DXP().setManual('elevation', num(g('prof_elev')));
-      } catch (e) {}
+      } catch {}
   } else {
     PROFILE_KEYS.forEach((k) => {
       const el = document.getElementById(k);

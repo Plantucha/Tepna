@@ -385,7 +385,6 @@ self.onmessage = function (e) {
       self.postMessage({ type: 'done', error: 'not ready' });
       return;
     }
-    var t0 = performance.now();
     try {
       var res = doJob(m.seed >>> 0);
       /* `reqId` and `wallMs` USED TO SHIP HERE and no consumer read either — found 2026-09-27 when the

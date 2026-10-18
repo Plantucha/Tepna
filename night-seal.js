@@ -254,7 +254,7 @@
     var text;
     try {
       text = dec().decode(entries['bag-info.txt']);
-    } catch (e) {
+    } catch {
       throw SealRefused('zip', 'bag-info.txt is not UTF-8');
     }
     var info = {};
@@ -269,7 +269,7 @@
     var text;
     try {
       text = dec().decode(entries[name]);
-    } catch (e) {
+    } catch {
       throw SealRefused('zip', name + ' is not UTF-8');
     }
     var want = {};

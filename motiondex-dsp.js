@@ -482,8 +482,7 @@
     gx /= mag;
     gy /= mag;
     gz /= mag;
-    var ax = Math.abs(gx),
-      ay = Math.abs(gy),
+    var ay = Math.abs(gy),
       az = Math.abs(gz);
     // Fixed-THRESHOLD, Z-first scheme — byte-for-byte the axis order + cutoffs of the two siblings
     // that read the SAME torso ACC (ECGDex `_posture`, PPGDex `_posturePPG`): |uz|>=0.7 ⇒ supine/prone
@@ -726,7 +725,6 @@
      offset, so applying it by default both smuggles one person's constant into every
      other user's data AND breaks the synthetic known-answer test (15 brpm reads 15.7).
      Callers who have re-derived it for their own subject pass `opts.biasBrpm`. */
-  var RR_BIAS_BRPM_CORPUS = 0.58; // documented, NOT applied by default
   var RR_CONF_MIN = 0.28; // abstain below this — abstention is the largest accuracy lever
 
   // Butterworth SOS via bilinear transform (order must be even).

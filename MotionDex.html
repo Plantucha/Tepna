@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="6e4937f1a956" data-compute-hash="4f80038cbb7a">
+<html lang="en" data-manifest-hash="3fabcc0e8f1c" data-compute-hash="1aa6deaa643e">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G5BXtAjRQy79thFFcZUkRa5Q3kI1Y9PylDq46Ww852s=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.19.0</title>
@@ -2913,7 +2913,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       return crypto.subtle.digest('SHA-256', bytes).then(hex, function () {
         return null;
       });
-    } catch (e) {
+    } catch {
       return Promise.resolve(null);
     }
   }
@@ -2922,7 +2922,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   function floatMs(inst) {
     try {
       return inst - new Date(inst).getTimezoneOffset() * 60000;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -2945,10 +2945,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         parts.push(s.textContent || '');
       });
       if (parts.length) return parts.join('\n');
-    } catch (e) {}
+    } catch {}
     try {
       return document.documentElement.outerHTML;
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -3034,7 +3034,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       sha256(content).then(function (h) {
         if (h) rec.sha256 = h.slice(0, 16);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Passive FileReader hook — records the File + its decoded result as a side
@@ -3051,17 +3051,17 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
             function () {
               try {
                 noteInput(file, self.result);
-              } catch (e) {}
+              } catch {}
             },
             { once: true }
           );
-        } catch (e) {}
+        } catch {}
         return orig.apply(this, arguments);
       };
       wrapped._gpWrapped = true;
       FileReader.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   // Passive Blob hook — captures nodes that ingest via Blob.text() / Blob.arrayBuffer()
   // instead of FileReader (PpgDex's f.text(), other large text reads). Only Files with
@@ -3079,17 +3079,17 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
               function (res) {
                 try {
                   noteInput(self, res);
-                } catch (e) {}
+                } catch {}
               },
               function () {}
             );
-        } catch (e) {}
+        } catch {}
         return p;
       };
       wrapped._gpWrapped = true;
       Blob.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   window.GangliorProvenance = {
     // Synchronous snapshot for splicing into an export's schema. buildHash is
@@ -3173,7 +3173,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -4199,7 +4199,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -4265,14 +4265,14 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -4466,7 +4466,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       st.id = ID;
       st.textContent = css;
       (document.head || document.documentElement).appendChild(st);
-    } catch (e) {}
+    } catch {}
   }
   inject();
   // re-assert once the parser has built <head>, in case this ran before it existed
@@ -4576,7 +4576,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         lk.forEach(function (k) {
           if (out.indexOf(k) < 0) out.push(k);
         });
-    } catch (e) {}
+    } catch {}
     return out;
   }
   // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
@@ -4594,7 +4594,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     if (ls === undefined) {
       try {
         ls = root.localStorage;
-      } catch (e) {
+      } catch {
         ls = null;
       }
     }
@@ -4603,14 +4603,14 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         try {
           if (ls.getItem(k) != null) removed.push(k);
           ls.removeItem(k);
-        } catch (e) {}
+        } catch {}
       });
     }
     var db = opts.indexedDB;
     if (db === undefined) {
       try {
         db = root.indexedDB;
-      } catch (e) {
+      } catch {
         db = null;
       }
     }
@@ -4619,7 +4619,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         try {
           db.deleteDatabase(name);
           idb.push(name);
-        } catch (e) {}
+        } catch {}
       });
     }
     return { removed: removed, idb: idb };
@@ -4651,16 +4651,16 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       var ok = true;
       try {
         ok = root.confirm('Erase ALL Tepna data on this device?\n\nThis removes your profile, every node’s saved readings, and the Integrator’s longitudinal history. It cannot be undone.');
-      } catch (e) {}
+      } catch {}
       if (!ok) return;
       eraseAll();
       try {
         btn.disabled = true;
         btn.textContent = 'Erased — reloading…';
-      } catch (e) {}
+      } catch {}
       try {
         root.location.reload();
-      } catch (e) {}
+      } catch {}
     });
 
     wrap.appendChild(note);
@@ -6192,8 +6192,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     gx /= mag;
     gy /= mag;
     gz /= mag;
-    var ax = Math.abs(gx),
-      ay = Math.abs(gy),
+    var ay = Math.abs(gy),
       az = Math.abs(gz);
     // Fixed-THRESHOLD, Z-first scheme — byte-for-byte the axis order + cutoffs of the two siblings
     // that read the SAME torso ACC (ECGDex `_posture`, PPGDex `_posturePPG`): |uz|>=0.7 ⇒ supine/prone
@@ -6436,7 +6435,6 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
      offset, so applying it by default both smuggles one person's constant into every
      other user's data AND breaks the synthetic known-answer test (15 brpm reads 15.7).
      Callers who have re-derived it for their own subject pass `opts.biasBrpm`. */
-  var RR_BIAS_BRPM_CORPUS = 0.58; // documented, NOT applied by default
   var RR_CONF_MIN = 0.28; // abstain below this — abstention is the largest accuracy lever
 
   // Butterworth SOS via bilinear transform (order must be even).

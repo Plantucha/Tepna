@@ -782,7 +782,6 @@ if (flag('--selftest')) {
     // ⑧ A marker that RECORDED its target is held to it: a re-pointed link or a different size is UNKNOWN
     //    and named, never a fold; a marker with no target (every one written before 2026-10-05) is unchanged.
     const KEEP = 'rig/Polar_VeritySense_x_20260815221142_PPG.txt';
-    const SMALL = 'nas/Polar_VeritySense_x_20260815221142_PPG.txt';
     const withTarget = (extra) => marker(KEEP, 'mid-write NAS snapshot') + extra;
     const tgt = (extra, resolvePath) => dedupeStream(pair(), { readMarker: onSmall(withTarget(extra)), isPrefixOf: () => true, resolvePath });
     const same = tgt('target: /mnt/nas/x_PPG.txt\nbytes: 100\n', () => '/mnt/nas/x_PPG.txt');

@@ -138,11 +138,6 @@ function spo2Series({ n = 600, base = 96, drop = 0, at = 200, dur = 30, invalidF
 }
 /* A pulse series whose VALID fraction is controlled: out-of-band values are what SELFGATE counts as
    invalid, so the floor at 0.5 can only be straddled by varying that fraction deliberately. */
-const invalidPulse = (validFrac, n = 600) => {
-  const a = new Float32Array(n);
-  for (let i = 0; i < n; i++) a[i] = i < Math.round(n * validFrac) ? 58 : 500;
-  return a;
-};
 const pulseSeries = ({ n = 600, bpm = 58, spikeAt = -1, spike = 0 } = {}) => {
   const a = new Float32Array(n);
   for (let i = 0; i < n; i++) a[i] = spikeAt >= 0 && i >= spikeAt && i < spikeAt + 20 ? bpm + spike : bpm;

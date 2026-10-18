@@ -80,13 +80,6 @@ const srt = (a) => a.slice().sort((x, y) => x - y);
 const q = (a, p) => (a.length ? srt(a)[Math.min(a.length - 1, Math.floor((a.length - 1) * p))] : Number.NaN);
 
 /* Sub-sample read of a bandpassed signal — feet are fractional, so this must interpolate. */
-function sampleAt(bp, i) {
-  if (!(i >= 0) || i > bp.length - 1) return Number.NaN;
-  const lo = Math.floor(i);
-  const hi = Math.ceil(i);
-  if (lo === hi) return bp[lo];
-  return bp[lo] + (i - lo) * (bp[hi] - bp[lo]);
-}
 
 /* ── the fiducial families, all measured on ONE upstroke [lo, peak] ─────────────────────────────
    `min` and `maxSlope` are INTEGER by nature and therefore carry the sample quantum (1/fs) in their

@@ -125,7 +125,7 @@
       var early = null;
       try {
         early = JSON.parse(text);
-      } catch (e) {
+      } catch {
         early = null;
       }
       if (early && typeof early === 'object') {
@@ -258,7 +258,7 @@
                     var f = new File([r.files[c.name]], c.name);
                     try {
                       Object.defineProperty(f, 'relPath', { value: prefix + c.name, configurable: true });
-                    } catch (e) {
+                    } catch {
                       f._relPath = prefix + c.name;
                     }
                     f.__seal = {
@@ -518,7 +518,6 @@
 
     renderManifest();
     renderFusion(FUSION, exports, WARN, RECS);
-    var ap = FUSION.apnea;
     setStatus('fused ' + RECS.length + ' recording' + (RECS.length === 1 ? '' : 's') + ' · ' + FUSION.findings.length + ' finding' + (FUSION.findings.length === 1 ? '' : 's'), 'done');
   }
 

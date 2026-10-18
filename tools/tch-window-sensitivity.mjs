@@ -194,8 +194,6 @@ for (const k of ['o2', 'h10', 'verity'])
   );
 
 // ── B: does Verity σ track window LENGTH? ───────────────────────────────
-const lens = base.map((b) => b.len),
-  vsig = base.map((b) => b.s.verity);
 const ok = base.filter((b) => b.s.verity > 0);
 console.log(
   `\nB · Verity σ vs window length: r = ${AS.pearson(
@@ -257,7 +255,6 @@ console.log(`    o2 ${f(pooled.o2)}   h10 ${f(pooled.h10)}   verity ${f(pooled.v
 console.log('\nF · per-night (sorted by Verity σ)');
 console.log('    night        len_s   r(H,V)  σ_H10  σ_Ver   σ_O2   meanC_V');
 for (const b of base.slice().sort((x, y) => (y.s.verity || 0) - (x.s.verity || 0))) {
-  const r = rows.find((z) => z.n === b.n);
   const mc = b.s.cV.reduce((a, c) => a + c, 0) / b.s.cV.length;
   console.log(`    ${b.n} ${String(b.len).padStart(7)}   ${b.s.rHV.toFixed(2)}   ${f(b.s.h10).padStart(5)}  ${f(b.s.verity).padStart(5)}  ${f(b.s.o2).padStart(5)}   ${mc.toFixed(3)}`);
 }

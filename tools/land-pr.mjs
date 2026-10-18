@@ -169,7 +169,7 @@ function snapshot(pr) {
   let readable = true;
   try {
     checks = JSON.parse(gh(['pr', 'checks', String(pr), '--json', 'name,bucket']));
-  } catch (e) {
+  } catch {
     /* `gh pr checks` exits non-zero when any check is failing — that is a VERDICT, not an error, and
        throwing it away would turn a red PR into an unreadable one. But a THROW here also covers the
        network dying, and those two must not produce the same snapshot: see the `readable` guard in

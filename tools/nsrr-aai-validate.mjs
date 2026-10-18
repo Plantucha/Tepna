@@ -49,7 +49,6 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ODI = await import('./nsrr-oxydex-odi.mjs');
 
 /* the pool builds one realm per worker and reuses it; the ODI module already co-loads exactly the

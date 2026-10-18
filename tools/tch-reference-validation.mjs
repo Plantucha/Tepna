@@ -118,7 +118,6 @@ const ECG = ctx.ECGDSP,
   PPG = ctx.PPGDSP,
   EDF = ctx.CpapEdf,
   CD = ctx.CpapDsp;
-const TCH = ctx.IntegratorTCH || ctx.INTEGRATOR_TCH || ctx.TCH || null;
 
 /* read only the first N minutes of a huge raw file (they are 180–330 MB each) */
 function readClip(file, approxBytes) {
@@ -131,10 +130,6 @@ function readClip(file, approxBytes) {
 }
 
 const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
-const std = (a) => {
-  const m = mean(a);
-  return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / (a.length - 1));
-};
 
 /* ── per-night: three respiration series on a shared epoch grid ── */
 function night(dateISO) {

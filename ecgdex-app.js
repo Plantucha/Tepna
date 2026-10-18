@@ -574,7 +574,6 @@ self.onmessage = async (e) => {
   }
 
   function renderKPI(r) {
-    const p = r.profile || {};
     /* ANS Age KPI tile REMOVED 2026-06-23 (BADGE-COVERAGE-AUDIT-FOLLOWUPS R9, external-review WP-A):
      discredited population-regression-as-age, already nulled in the node-export + deleted from the
      other nodes (OxyDex 2026-06-21, PulseDex R1). ECGDex UI had missed the removal. Do not reinstate. */
@@ -665,7 +664,6 @@ self.onmessage = async (e) => {
   }
 
   function renderQuality(r) {
-    const exReason = [];
     $('qualityCard').innerHTML = `
     <div class="q-grid">
       <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × coverage</div></div>
@@ -1661,7 +1659,7 @@ self.onmessage = async (e) => {
         if (!R || !R.idForLabel) return '';
         const id = R.idForLabel(label);
         return (id && R.REGISTRY[id] && R.REGISTRY[id].evidence) || '';
-      } catch (e) {
+      } catch {
         return '';
       }
     };
@@ -1929,7 +1927,7 @@ self.onmessage = async (e) => {
     if (!g) return '';
     try {
       return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-    } catch (e) {
+    } catch {
       return String(g);
     }
   }
@@ -2861,38 +2859,6 @@ self.onmessage = async (e) => {
       showOK('Exported ' + list.length + ' recordings (array of v2.0 envelopes + crossNight aggregates).');
     }
   }
-  function exportGanglior() {
-    if (!RESULT) return;
-    const r = RESULT;
-    // SIGNAL-ADAPTER-PHASE9 (ECGDex leg, node 3/4 · brief §1B): delegate to the SHARED
-    // ecgBuildNodeExport in the DSP so this app's Ganglior stream is byte-identical to the
-    // headless ECGDex.compute() the Data Unifier / OverDex emit. ONE event source
-    // (analyze→r.events), ONE envelope builder; kernel/provenance ride in via opts.
-    const build = (window.ECGDSP && ECGDSP.buildNodeExport) || (window.ECGDex && ECGDex.buildNodeExport) || null;
-    // MEASUREMENT-PROVENANCE-ROADMAP §12 — the running bundle's code identity, read off the <html>
-    // stamp HERE (the app layer) and passed in, because the born-clean DSP may not touch `document`.
-    const ds = document.documentElement.dataset;
-    const code = /^[0-9a-f]{12}$/.test(ds.manifestHash || '') && /^[0-9a-f]{12}$/.test(ds.computeHash || '') ? { manifestHash: ds.manifestHash, computeHash: ds.computeHash } : null;
-    const out = build
-      ? build(r, {
-          kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-          provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null,
-          offsetMin: r.offsetMin ?? null,
-          code
-        })
-      : null;
-    if (!out) {
-      showErr('Ganglior export unavailable — ECGDSP.buildNodeExport not loaded.');
-      return;
-    }
-    dl(JSON.stringify(out, null, 2), exportName({ node: 'ECGDex', t0Ms: r.t0Ms, kind: 'ganglior', ext: 'json' }), 'application/json;charset=utf-8');
-    showOK('Ganglior event stream exported (' + (out.ganglior_events ? out.ganglior_events.length : 0) + ' events).');
-  }
-  function copyTable() {
-    const rows = document.querySelectorAll('#tblWrap table tr');
-    const txt = [...rows].map((r) => [...r.cells].map((c) => c.textContent.trim()).join('\t')).join('\n');
-    navigator.clipboard.writeText(txt).then(() => showOK('Metrics table copied.'));
-  }
 
   function resetAll() {
     document.body.classList.remove('has-data');
@@ -3073,7 +3039,7 @@ self.onmessage = async (e) => {
       let stored = null;
       try {
         stored = localStorage.getItem('dex_depth_tier');
-      } catch (e) {}
+      } catch {}
       MetricRegistry.mountDepthSelector($('modeBar'));
       if (!stored) MetricRegistry.setTier('research');
     }
