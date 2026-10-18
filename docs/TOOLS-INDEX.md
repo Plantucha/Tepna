@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**266 tools** · 265 with a purpose line · **1 without**
+**267 tools** · 266 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -234,6 +234,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
 | [`stage-lab-core.mjs`](../tools/stage-lab-core.mjs) | PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with. |
+| [`stage-lab.mjs`](../tools/stage-lab.mjs) | Brief: briefs/STAGE-LAB-2026-09-27-BRIEF.md (bands and plants are PRE-STATED there, before any run). |
 | [`ste-lint.mjs`](../tools/ste-lint.mjs) | the writing rules, checked node tools/ste-lint.mjs <file.md> # exit 1 on any finding node tools/ste-lint.mjs - < body.md # a PR body on stdin node tools/ste-lint.mjs <file> --json # the… |
 | [`stitch-31d-run.mjs`](../tools/stitch-31d-run.mjs) | // stitch-31d-run.mjs — server-side 31-day fused-tool compute. |
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | LEVEL B — PSEUDO-TESTED STATEMENTS. Delete ONE statement and see whether anything notices. |

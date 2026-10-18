@@ -58480,6 +58480,113 @@
        count would have wrongly cleared — the single hit in tests/ is prose in a comment calling it a
        documented gap. `git grep -c` proves a string occurs; it never proves a symbol runs.
        NODE-ONLY: the realm is built with `node:vm` in run-tests.mjs, so the browser lane skips. */
+    /* ── STAGE-LAB (briefs/STAGE-LAB-2026-09-27-BRIEF.md) ─────────────────────────────────────────
+       Arithmetic and contracts only. Never evidence about staging accuracy: that needs expert PSG labels,
+       and REM-STAGING-FOLLOWUPS §1 bans validating staging on synthetic nights.
+       NODE-ONLY: .mjs modules imported by run-tests.mjs, so the browser lane skips. */
+    group('Stage-lab — GBDT, HMM, kappa, absence and the WFDB adapter (STAGE-LAB)', 'staging · gbdt · hmm · absence', function (T) {
+      var SL = env.StageLab;
+      if (!SL) {
+        T.skip('StageLab not in env (browser lane — .mjs)');
+        return;
+      }
+      var C = SL.core,
+        L = SL.cli;
+      // a learnable toy: class 3 is identifiable ONLY by its missing third feature, so NaN routing must work
+      var seed = 7,
+        rnd = function () {
+          seed = (seed * 1664525 + 1013904223) >>> 0;
+          return seed / 4294967296;
+        };
+      var n = 2000,
+        k = 3,
+        X = new Float32Array(n * k),
+        y = new Int8Array(n);
+      for (var i = 0; i < n; i++) {
+        var c = i % 4;
+        y[i] = c;
+        X[i * k] = c < 3 ? c + rnd() * 0.8 : rnd() * 3;
+        X[i * k + 1] = rnd();
+        X[i * k + 2] = c === 3 ? NaN : rnd();
+      }
+      var acc = function (m, labels) {
+        var P = C.predictProba(m, X, n, k),
+          ok = 0;
+        for (var r = 0; r < n; r++) {
+          var b = 0;
+          for (var q = 1; q < 4; q++) if (P[r * 4 + q] > P[r * 4 + b]) b = q;
+          if (b === labels[r]) ok++;
+        }
+        return ok / n;
+      };
+      var m = C.fitGBDT(X, y, n, k, { iters: 25, minLeaf: 20 });
+      T.ok('the GBDT learns the toy, including the class known only by a MISSING value', acc(m, y) > 0.97, 'acc=' + acc(m, y).toFixed(3));
+      var m2 = JSON.parse(JSON.stringify(m));
+      T.ok('the model survives a JSON round trip unchanged in output', acc(m2, y) === acc(m, y));
+      // NON-VACUITY: the same learner on shuffled labels must NOT look good
+      var ys = Int8Array.from(y);
+      for (var j = n - 1; j > 0; j--) {
+        var t = Math.floor(rnd() * (j + 1)),
+          tmp = ys[j];
+        ys[j] = ys[t];
+        ys[t] = tmp;
+      }
+      T.ok('…and on shuffled labels it scores near chance, so the first check can fail', acc(C.fitGBDT(X, ys, n, k, { iters: 25, minLeaf: 20 }), y) < 0.45);
+      var M = [Float64Array.from([20, 5]), Float64Array.from([10, 15])];
+      T.ok('kappa known answer: [[20,5],[10,15]] = 0.4', Math.abs(C.kappa(M) - 0.4) < 1e-12, C.kappa(M));
+      var lp = [Math.log(0.5), Math.log(0.5)],
+        Tm = [
+          [Math.log(0.99), Math.log(0.01)],
+          [Math.log(0.01), Math.log(0.99)]
+        ];
+      var path = Array.from(C.viterbi(Float64Array.from([0.9, 0.1, 0.9, 0.1, 0.4, 0.6, 0.9, 0.1, 0.9, 0.1]), 5, 2, Tm, lp)).join('');
+      T.ok('Viterbi smooths a one-epoch blip under a sticky transition prior', path === '00000', path);
+      var night = {
+        nEpochs: 60,
+        signals: {
+          spo2: {
+            fs: 1,
+            data: Float64Array.from({ length: 1800 }, function (_, i) {
+              return 95 + Math.sin(i / 40);
+            })
+          }
+        }
+      };
+      var F = C.nightFeatures(night, ['spo2']),
+        F0 = C.nightFeatures({ nEpochs: 60, signals: {} }, ['spo2']);
+      T.ok('an absent signal yields the IDENTICAL column layout (§∅)', F.k === F0.k && F.names.join() === F0.names.join(), F.k + ' vs ' + F0.k);
+      var allNaN = true;
+      for (var e = 0; e < 60; e++) for (var q2 = 0; q2 < F0.k - 1; q2++) if (!Number.isNaN(F0.X[e * F0.k + q2])) allNaN = false;
+      T.ok('…filled with NaN, never zero (time of night excepted)', allNaN);
+      var refused = false;
+      try {
+        C.nightFeatures(night, ['eeg']);
+      } catch (err) {
+        refused = /NOT IMPLEMENTED/.test(err.message);
+      }
+      T.ok('a declared-but-unimplemented block (eeg) is refused by name', refused);
+      var word = function (A, I) {
+        return [I & 0xff, ((A << 2) | (I >> 8)) & 0xff];
+      };
+      var aux = function (s) {
+        var b = word(63, s.length).concat(Array.from(Buffer.from(s, 'latin1')));
+        if (s.length & 1) b.push(0);
+        return b;
+      };
+      var ann = L.parseWfdbAnnotations(Buffer.from([].concat(word(22, 0), aux('W'), word(22, 1000), aux('N1'), [0, 0])));
+      T.ok('WFDB annotations: stage notes, aux text and sample times', ann.length === 2 && ann[1].aux === 'N1' && ann[1].sample === 1000, JSON.stringify(ann));
+      var yl = L.stagesFromAnnotations(
+        [
+          { sample: 0, aux: 'W' },
+          { sample: 6000, aux: 'N2' },
+          { sample: 12000, aux: 'R' }
+        ],
+        200,
+        18000
+      );
+      T.ok('stages forward-fill onto the 30 s grid (W · N2→Light · R→REM)', Array.from(yl).join(',') === '0,1,3', Array.from(yl).join(','));
+      T.ok('the pre-stated criterion is the published comparator offline 0.390', L.CRITERION.threshold === 0.39);
+    });
     group('Cohort worker — a KIND boots and returns a real envelope (DEEP-AUDIT-V-FOLLOWUPS Tier-4)', 'cohort · worker · realm', function (T) {
       var CW = env.CohortWorker;
       if (!CW) {

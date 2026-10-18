@@ -85,6 +85,7 @@
  *   node tools/ecg-physionet-differential.mjs --dir <mitdb-dir>  # score real records
  *   node tools/ecg-physionet-differential.mjs --dir <d> --json
  *   node tools/ecg-physionet-differential.mjs --dir <d> --pin    # record sha256s into the manifest
+ *   node tools/ecg-physionet-differential.mjs --dir <slpdb> --ann ecg --no-manifest   # another WFDB corpus
  */
 import { readFileSync, existsSync, readdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -150,7 +151,8 @@ export function parseHea(text) {
   if (!lines.length) throw new Error('empty .hea');
   const h = lines[0].split(/\s+/);
   const nsig = Number(h[1]);
-  const fs = Number(h[2]);
+  /* WFDB allows `fs/counter_freq(base_counter)` here (slpdb writes 250/0.033333333(94)); only fs is used. */
+  const fs = Number(String(h[2]).split('/')[0]);
   const nsamp = Number(h[3]);
   if (!Number.isFinite(nsig) || !Number.isFinite(fs) || nsig < 1) throw new Error('malformed .hea header line: ' + lines[0]);
   const signals = [];
@@ -514,7 +516,13 @@ export function scoreRecord(ctx, rec) {
      because it asserted only that both trains were NON-EMPTY. `alignmentSpanCheck` below now asserts
      the two trains occupy the same timebase, which is the assertion that would have caught it. */
   if (!Array.isArray(out.times)) throw new Error('ECGDSP.analyze returned no `times` array — the beat-time field moved; refusing to guess');
-  const detMs = out.times.map((s) => s * 1000);
+  const detMsAll = out.times.map((s) => s * 1000);
+  /* EC57 scores only annotated time. nsrdb annotates ~22 of ~25 recorded hours, so a detection outside the
+     reference span is not a false beat, it is an unscored one — COUNTED as detOutsideRefSpan, never dropped
+     silently (2026-09-28: this alone read as PPV 80 % on 18/18 nsrdb records). */
+  const lo = refMs.length ? refMs[0] - MATCH_MS : -Infinity,
+    hi = refMs.length ? refMs[refMs.length - 1] + MATCH_MS : Infinity;
+  const detMs = detMsAll.filter((t) => t >= lo && t <= hi);
 
   const m = matchBeats(refMs, detMs);
   return {
@@ -523,6 +531,7 @@ export function scoreRecord(ctx, rec) {
     lead: s0.desc,
     refBeats: refMs.length,
     detBeats: detMs.length,
+    detOutsideRefSpan: detMsAll.length - detMs.length,
     /* THE POPULATION AS AN EQUALITY, never a floor: refBeats + absence.refBeatsExcluded =
        absence.refBeatsTotal, always. And `checked` travels with the counts, because a stream that was
        never examined for absence and one that was examined and found clean both report 0 runs — the
@@ -560,14 +569,14 @@ function searchPaths(dirArg) {
   return p;
 }
 
-function findRecords(dir) {
+function findRecords(dir, ann = 'atr') {
   if (!dir || !existsSync(dir)) return [];
   const heas = readdirSync(dir).filter((f) => f.endsWith('.hea'));
   const recs = [];
   for (const h of heas) {
     const id = basename(h, '.hea');
     const dat = join(dir, id + '.dat'),
-      atr = join(dir, id + '.atr');
+      atr = join(dir, id + '.' + ann);
     if (existsSync(dat) && existsSync(atr)) recs.push({ id, hea: join(dir, h), dat, atr });
   }
   return recs.sort((a, b) => a.id.localeCompare(b.id));
@@ -902,12 +911,17 @@ function main(argv) {
   const pin = has('--pin');
   const di = argv.indexOf('--dir');
   const dirArg = di >= 0 ? argv[di + 1] : null;
+  /* Other WFDB beat-annotated corpora (ECG megalab, 2026-09-28): --ann <ext> names the annotation file (slpdb keeps
+     its beats in .ecg), --no-manifest drops the MIT-BIH manifest so recordsExpected is honestly null, not 48. */
+  const ai = argv.indexOf('--ann');
+  const ann = ai >= 0 ? argv[ai + 1] : 'atr';
+  const noMan = has('--no-manifest') || ann !== 'atr';
 
   const paths = searchPaths(dirArg);
   let dir = null,
     recs = [];
   for (const p of paths) {
-    const r = findRecords(p);
+    const r = findRecords(p, ann);
     if (r.length) {
       dir = p;
       recs = r;
@@ -931,7 +945,7 @@ function main(argv) {
     return 0;
   }
 
-  const man = loadManifest();
+  const man = noMan ? { records: {} } : loadManifest();
   const ctx = makeRealm();
   const rows = [];
   const pins = {};
@@ -981,6 +995,7 @@ function main(argv) {
   const summary = {
     status: 'scored',
     dir,
+    annExt: ann,
     records: scored.length,
     recordsExpected: expected || null,
     partialCorpus: expected ? scored.length < expected : null,
