@@ -138,6 +138,17 @@
             "statusMessage": "checking whether a memory file moved during that command"
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/board-hook.sh\" inbox",
+            "timeout": 10,
+            "statusMessage": "checking the agent board for new entries"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -148,6 +159,30 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tailnet.sh\"",
             "timeout": 90,
             "statusMessage": "joining the tailnet if this session was handed a key"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/board-hook.sh\" inbox",
+            "timeout": 10,
+            "statusMessage": "checking the agent board for new entries"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/board-hook.sh\" finish",
+            "timeout": 15,
+            "statusMessage": "checking a finished task has its board post"
           }
         ]
       }
