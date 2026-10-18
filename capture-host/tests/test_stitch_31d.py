@@ -9,7 +9,6 @@ timeline must make the discontinuity visible, not fabricate continuity.
 import json
 import os
 import re
-import subprocess
 
 
 import stitch_31d
@@ -377,47 +376,170 @@ def test_stitch_tool_skips_blank_lines_in_source_files(tmp_path):
     ], "the blank line vanished without becoming a row or a gap"
 
 
-# ── provenance helpers: _git_sha / _utc_now / _verdict_sample ─────────────────
+# ── the --verdict-sample object ─────────────────────────────────────────────────
 
 
-def test_git_sha_reports_the_running_tree(monkeypatch):
-    # Hermetic: the mutation gate runs a copy with no .git, so the test stubs git itself.
-    seen = {}
-
-    def fake_run(argv, **kw):
-        seen["argv"] = argv
-        return subprocess.CompletedProcess(argv, 0, stdout="9bb6267\n", stderr="")
-
-    monkeypatch.setattr("subprocess.run", fake_run)
-    assert stitch_31d._git_sha() == "9bb6267"
-    assert seen["argv"] == ["git", "rev-parse", "--short", "HEAD"]
-
-
-def test_git_sha_is_absence_when_git_prints_nothing(monkeypatch):
-    monkeypatch.setattr(
-        "subprocess.run", lambda argv, **kw: subprocess.CompletedProcess(argv, 128, stdout="", stderr="")
-    )
-    assert stitch_31d._git_sha() is None
-
-
-def test_git_sha_is_absence_when_git_fails(monkeypatch):
-    def boom(*a, **k):
-        raise OSError("no git here")
-
-    monkeypatch.setattr("subprocess.run", boom)
-    assert stitch_31d._git_sha() is None
+def test_verdict_sample_is_the_exact_validated_pass_object():
+    v = stitch_31d._verdict_sample(commit="9bb6267", at="2026-10-18T00:00:00Z")
+    assert v == {
+        "schema": "tepna.verdict/1",
+        "gate": "stitch-31d",
+        "status": "PASS",
+        "population": {"checked": 6, "eligible": 6, "excluded": 0},
+        "criterion": {
+            "name": "six fused tools stitched with null gaps",
+            "threshold": 6,
+            "unit": "tools",
+            "direction": "eq",
+        },
+        "result": {"tools": list(stitch_31d.TOOLS.keys()), "gaps_are_null": True},
+        "evidence": ["capture-host/stitch_31d.py", "capture-host/tests/test_stitch_31d.py"],
+        "reason": None,
+        "producedBy": {"tool": "capture-host/stitch_31d.py", "commit": "9bb6267"},
+        "at": "2026-10-18T00:00:00Z",
+        "scope": "internal",
+    }
 
 
-def test_utc_now_is_a_zulu_timestamp():
-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", stitch_31d._utc_now())
+def test_verdict_sample_without_a_checkout_carries_a_null_commit_and_a_now_stamp(monkeypatch):
+    import verdict
 
-
-def test_verdict_sample_is_a_pass_object():
+    monkeypatch.setattr(verdict, "commit_sha", lambda *a, **k: None)
     v = stitch_31d._verdict_sample()
-    assert v["schema"] == "tepna.verdict/1"
-    assert v["status"] == "PASS"
-    assert v["gate"] == "stitch-31d"
-    assert v["result"] == {"tools": list(stitch_31d.TOOLS.keys()), "gaps_are_null": True}
+    assert v["producedBy"]["commit"] is None and v["producedBy"]["commitReason"]
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", v["at"])
+
+
+# ── mutation-gate kills: each test names the behaviour a surviving mutant changed ──
+
+FULL_NIGHT_FILES = {
+    "Polar_H10_X_HR.txt": HR_HEADER + HR_ROWS_A,
+    "Polar_H10_X_ECG.txt": "Phone timestamp;ecg [uV]\n2026-10-16T23:10:08.702;12\n",
+    "Polar_VeritySense_X_PPG.txt": "Phone timestamp;channel 0\n2026-10-16T23:10:08.702;1\n",
+    "Wellue_O2Ring-S_X_SPO2.csv": "Time,SpO2\n23:10:08,97\n",
+    "Wellue_O2Ring-S_X_PPG.txt": "Time,PPG\n23:10:08,5\n",
+    "CLOCKSYNC.csv": "Phone timestamp;device;address;event;skew_sec;detail\nt;H10;a;sync;0.25;ok\n",
+    "LOSS-AUDIT.json": json.dumps({"devices": {"H10": {"span_min": 400}}}),
+}
+
+
+def test_every_file_the_stitch_opens_is_pinned_to_utf8(tmp_path, monkeypatch):
+    """The locale here is UTF-8, so only the open() call itself shows a dropped `encoding`."""
+    captures = str(tmp_path / "captures")
+    _make_night(captures, "2026-10-16", "PASS", FULL_NIGHT_FILES)
+    calls = []
+    real_open = open
+
+    def spy(path, mode="r", *a, **kw):
+        calls.append((os.path.basename(str(path)), kw.get("encoding"), kw.get("errors")))
+        return real_open(path, mode, *a, **kw)
+
+    monkeypatch.setattr(stitch_31d, "open", spy, raising=False)
+    stitch_31d.stitch_31d(captures, str(tmp_path / "stitched"))
+    names = {name for name, _, _ in calls}
+    assert {"SOLID-VERDICT.json", "CLOCKSYNC.csv", "LOSS-AUDIT.json", "MANIFEST.json", "SIDECARS.json"} <= names
+    assert {"Polar_H10_X_HR.txt", "Polar_H10_STITCHED_HR.txt"} <= names
+    assert [c for c in calls if c[1] != "utf-8"] == []
+    replaced = {name for name, _, err in calls if err == "replace"}
+    assert {"CLOCKSYNC.csv", "Polar_H10_X_HR.txt"} <= replaced
+
+
+def test_undecodable_bytes_are_replaced_not_fatal(tmp_path):
+    night = _make_night(str(tmp_path), "2026-10-16", "PASS")
+    with open(os.path.join(night, "CLOCKSYNC.csv"), "wb") as fh:
+        fh.write(b"Phone timestamp;device;address;event;skew_sec;detail\nt;H10;a;sync;0.25;\xff\n")
+    with open(os.path.join(night, "Polar_H10_X_HR.txt"), "wb") as fh:
+        fh.write(b"Phone timestamp;HR [bpm];\n2026-10-16T23:10:08.702;90\xff\n")
+    assert stitch_31d.collect_sidecars(night)["clock_offsets"] == {"H10": 0.25}
+    m = stitch_31d.stitch_tool(str(tmp_path), str(tmp_path / "out"), ("Polar_H10_*_HR.txt",), ["2026-10-16"])
+    assert m["inputs"]["Polar_H10_*_HR.txt"]["contributing"] == ["2026-10-16"]
+
+
+def test_clocksync_column_names_are_matched_after_stripping(tmp_path):
+    night = _make_night(
+        str(tmp_path), "2026-10-16", "PASS", {"CLOCKSYNC.csv": "Phone timestamp; device ;skew_sec \nt;H10;0.5\n"}
+    )
+    assert stitch_31d.collect_sidecars(night)["clock_offsets"] == {"H10": 0.5}
+
+
+def test_clocksync_without_a_skew_column_is_absence(tmp_path):
+    night = _make_night(str(tmp_path), "2026-10-16", "PASS", {"CLOCKSYNC.csv": "Phone timestamp;device\nt;H10\n"})
+    assert stitch_31d.collect_sidecars(night)["clock_offsets"] == {}
+    night = _make_night(str(tmp_path), "2026-10-17", "PASS", {"CLOCKSYNC.csv": "Phone timestamp;skew_sec\nt;0.5\n"})
+    assert stitch_31d.collect_sidecars(night)["clock_offsets"] == {}
+
+
+def test_a_non_string_verdict_status_is_absence(tmp_path):
+    night = os.path.join(str(tmp_path), "2026-10-16")
+    os.makedirs(night)
+    with open(os.path.join(night, "SOLID-VERDICT.json"), "w") as fh:
+        json.dump({"status": 1}, fh)
+    assert stitch_31d._verdict_status(night) is None
+
+
+def test_solid_nights_skips_near_miss_names_and_files_and_keeps_scanning(tmp_path):
+    for name in ("000-stray", "2026-10-16x", "2026-10x16"):
+        _make_night(str(tmp_path), name, "PASS")
+    with open(os.path.join(str(tmp_path), "2026-10-01"), "w"):
+        pass  # a file named like a night, sorted before the real one
+    _make_night(str(tmp_path), "2026-10-17", "PASS")
+    assert stitch_31d.solid_nights(str(tmp_path)) == ["2026-10-17"]
+
+
+def test_the_window_defaults_to_31_nights(tmp_path):
+    import datetime as dt
+
+    captures = str(tmp_path / "captures")
+    days = [(dt.date(2026, 7, 1) + dt.timedelta(days=i)).isoformat() for i in range(32)]
+    for day in days:
+        _make_night(captures, day, "PASS")
+    assert stitch_31d.solid_nights(captures) == days[1:]
+    manifests = stitch_31d.stitch_31d(captures, str(tmp_path / "stitched"))
+    assert manifests["3corner"]["nights"] == days[1:]
+
+
+def test_detect_delimiter_tie_goes_to_semicolon():
+    assert stitch_31d._detect_delimiter("a;b,c") == ";"
+    assert stitch_31d._detect_delimiter("") == ";"
+
+
+def test_stitch_tool_keeps_scanning_past_every_kind_of_gap(tmp_path):
+    _make_night(str(tmp_path), "2026-10-14", "PASS")  # no matching file
+    night = _make_night(str(tmp_path), "2026-10-15", "PASS")
+    os.makedirs(os.path.join(night, "Polar_H10_X_HR.txt"))  # matches, but cannot be read
+    _make_night(str(tmp_path), "2026-10-16", "PASS", {"Polar_H10_X_HR.txt": ""})  # empty
+    _make_night(str(tmp_path), "2026-10-17", "PASS", {"Polar_H10_X_HR.txt": HR_HEADER + HR_ROWS_B})
+    nights = ["2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17"]
+    m = stitch_31d.stitch_tool(str(tmp_path), str(tmp_path / "out"), ("Polar_H10_*_HR.txt",), nights)
+    assert m["inputs"]["Polar_H10_*_HR.txt"]["contributing"] == ["2026-10-17"]
+    assert m["inputs"]["Polar_H10_*_HR.txt"]["gaps"] == nights[:3]
+
+
+def test_stitch_tool_keeps_trailing_whitespace_verbatim(tmp_path):
+    """Captured bytes are immutable: only the newline is cut, never a trailing space or tab."""
+    src = "Phone timestamp;HR [bpm]; \n2026-10-16T23:10:08.702;90\t\n \n"
+    _make_night(str(tmp_path), "2026-10-16", "PASS", {"Polar_H10_X_HR.txt": src})
+    out = str(tmp_path / "out")
+    stitch_31d.stitch_tool(str(tmp_path), out, ("Polar_H10_*_HR.txt",), ["2026-10-16"])
+    with open(os.path.join(out, "Polar_H10_STITCHED_HR.txt"), "rb") as fh:
+        assert fh.read() == src.encode()
+
+
+def test_stitch_31d_reruns_over_its_own_output_and_writes_indented_json(tmp_path):
+    captures = str(tmp_path / "captures")
+    _make_night(captures, "2026-10-16", "PASS", FULL_NIGHT_FILES)
+    out = str(tmp_path / "stitched")
+    first = stitch_31d.stitch_31d(captures, out)
+    assert stitch_31d.stitch_31d(captures, out) == first
+    sidecars = {
+        "nights": ["2026-10-16"],
+        "sidecars": {"2026-10-16": stitch_31d.collect_sidecars(os.path.join(captures, "2026-10-16"))},
+    }
+    for tool, manifest in first.items():
+        with open(os.path.join(out, tool, "MANIFEST.json"), encoding="utf-8") as fh:
+            assert fh.read() == json.dumps(manifest, indent=2) + "\n"
+        with open(os.path.join(out, tool, "SIDECARS.json"), encoding="utf-8") as fh:
+            assert fh.read() == json.dumps(sidecars, indent=2) + "\n"
 
 
 def test_stitch_tool_writes_gap_rows_when_the_header_is_already_known(tmp_path):

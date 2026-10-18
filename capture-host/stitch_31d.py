@@ -91,16 +91,13 @@ def collect_sidecars(night_dir: str) -> dict[str, Any]:
     cpath = os.path.join(night_dir, "CLOCKSYNC.csv")
     try:
         with open(cpath, encoding="utf-8", errors="replace") as fh:
-            header = fh.readline().rstrip("\n")
-            cols = header.split(";")
-            try:
+            # Column names are stripped, so a CRLF header still finds its last column.
+            cols = [c.strip() for c in fh.readline().split(";")]
+            if "device" in cols and "skew_sec" in cols:
                 dev_i = cols.index("device")
                 skew_i = cols.index("skew_sec")
-            except ValueError:
-                dev_i, skew_i = -1, -1
-            if dev_i >= 0 and skew_i >= 0:
                 for line in fh:
-                    parts = line.rstrip("\n").split(";")
+                    parts = line.split(";")
                     if len(parts) > max(dev_i, skew_i):
                         dev = parts[dev_i].strip()
                         skew = parts[skew_i].strip()
@@ -180,12 +177,7 @@ def _find_input(night_dir: str, pattern: str) -> str | None:
 
 
 def _detect_delimiter(header: str) -> str:
-    """Detect `;` vs `,` delimiter from a header line."""
-    if ";" in header and "," not in header:
-        return ";"
-    if "," in header and ";" not in header:
-        return ","
-    # Both present: the one that appears more often wins.
+    """Detect `;` vs `,` delimiter from a header line: the more frequent one wins, `;` on a tie."""
     return ";" if header.count(";") >= header.count(",") else ","
 
 
@@ -225,8 +217,8 @@ def stitch_tool(
         contributing: list[str] = []
         gaps: list[str] = []
         header: str | None = None
-        delimiter = ";"
-        ncols = 0
+        # (delimiter, column count), set with the first header; a gap row needs both.
+        fmt: tuple[str, int] | None = None
         rows: list[str] = []
 
         for night in nights:
@@ -235,28 +227,27 @@ def stitch_tool(
             if src is None:
                 gaps.append(night)
                 # Gap row needs column count; use the header's if known.
-                if header is not None:
-                    rows.append(_gap_row(ncols, delimiter, night))
+                if fmt is not None:
+                    rows.append(_gap_row(fmt[1], fmt[0], night))
                 continue
             try:
                 with open(src, encoding="utf-8", errors="replace") as fh:
                     lines = fh.readlines()
             except OSError:
                 gaps.append(night)
-                if header is not None:
-                    rows.append(_gap_row(ncols, delimiter, night))
+                if fmt is not None:
+                    rows.append(_gap_row(fmt[1], fmt[0], night))
                 continue
             if not lines:
                 gaps.append(night)
-                if header is not None:
-                    rows.append(_gap_row(ncols, delimiter, night))
+                if fmt is not None:
+                    rows.append(_gap_row(fmt[1], fmt[0], night))
                 continue
             file_header = lines[0].rstrip("\n")
             if header is None:
                 header = file_header
                 delimiter = _detect_delimiter(header)
-                # Column count from the header.
-                ncols = len(header.split(delimiter))
+                fmt = (delimiter, len(header.split(delimiter)))
             contributing.append(night)
             # Append data rows only (skip this file's header).
             for line in lines[1:]:
@@ -315,42 +306,27 @@ def stitch_31d(
     return manifests
 
 
-def _git_sha():
-    import subprocess
+def _verdict_sample(commit=None, at=None):
+    """The `--verdict-sample` object the adoption gate reads, built and validated by `verdict.make`."""
+    import verdict as VD
 
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5
-        ).stdout.strip()
-        return out or None
-    except Exception:
-        return None
-
-
-def _utc_now():
-    from datetime import datetime, timezone
-
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _verdict_sample():
-    return {
-        "schema": "tepna.verdict/1",
-        "gate": "stitch-31d",
-        "status": "PASS",
-        "population": {"checked": 6, "eligible": 6, "excluded": 0},
-        "criterion": {
+    return VD.make(
+        gate="stitch-31d",
+        status="PASS",
+        population={"checked": 6, "eligible": 6, "excluded": 0},
+        criterion={
             "name": "six fused tools stitched with null gaps",
             "threshold": 6,
             "unit": "tools",
             "direction": "eq",
         },
-        "result": {"tools": list(TOOLS.keys()), "gaps_are_null": True},
-        "evidence": ["capture-host/stitch_31d.py", "capture-host/tests/test_stitch_31d.py"],
-        "producedBy": {"tool": "capture-host/stitch_31d.py", "commit": _git_sha()},
-        "at": _utc_now(),
-        "scope": "internal",
-    }
+        result={"tools": list(TOOLS.keys()), "gaps_are_null": True},
+        evidence=["capture-host/stitch_31d.py", "capture-host/tests/test_stitch_31d.py"],
+        reason=None,
+        tool=TOOL,
+        commit=commit,
+        at=at,
+    )
 
 
 if __name__ == "__main__":

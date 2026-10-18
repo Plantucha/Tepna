@@ -10,7 +10,6 @@ runs is `capture._qc_offload` and lives in tests/test_qc_offload.py.
 import json
 import os
 import re
-import subprocess
 
 import pytest
 
@@ -303,44 +302,37 @@ def test_an_empty_job_list_runs_nothing_and_returns_nothing(monkeypatch):
     assert qc_child.audit_and_compose([], [], [], set(), None) == []
 
 
-# ── provenance helpers: _git_sha / _utc_now / _verdict_sample ─────────────────
+# ── the --verdict-sample object ─────────────────────────────────────────────────
 
 
-def test_git_sha_reports_the_running_tree(monkeypatch):
-    # Hermetic: the mutation gate runs a copy with no .git, so the test stubs git itself.
-    seen = {}
-
-    def fake_run(argv, **kw):
-        seen["argv"] = argv
-        return subprocess.CompletedProcess(argv, 0, stdout="9bb6267\n", stderr="")
-
-    monkeypatch.setattr("subprocess.run", fake_run)
-    assert qc_child._git_sha() == "9bb6267"
-    assert seen["argv"] == ["git", "rev-parse", "--short", "HEAD"]
-
-
-def test_git_sha_is_absence_when_git_prints_nothing(monkeypatch):
-    monkeypatch.setattr(
-        "subprocess.run", lambda argv, **kw: subprocess.CompletedProcess(argv, 128, stdout="", stderr="")
-    )
-    assert qc_child._git_sha() is None
-
-
-def test_git_sha_is_absence_when_git_fails(monkeypatch):
-    def boom(*a, **k):
-        raise OSError("no git here")
-
-    monkeypatch.setattr("subprocess.run", boom)
-    assert qc_child._git_sha() is None
+def test_verdict_sample_is_the_exact_validated_pass_hook_object():
+    text = qc_child._verdict_sample(commit="9bb6267", at="2026-10-18T00:00:00Z")
+    v = json.loads(text)
+    assert text == json.dumps(v, indent=2)
+    assert v == {
+        "schema": "tepna.verdict/1",
+        "gate": "qc-child-stitch-hook",
+        "status": "PASS",
+        "population": {"checked": 1, "eligible": 1, "excluded": 0},
+        "criterion": {
+            "name": "PASS verdict triggers stitch; non-PASS skips",
+            "threshold": 1,
+            "unit": "hook",
+            "direction": "eq",
+        },
+        "result": {"trigger": "PASS", "skip": ["FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+        "evidence": ["capture-host/qc_child.py", "capture-host/tests/test_qc_child_stitch.py"],
+        "reason": None,
+        "producedBy": {"tool": "capture-host/qc_child.py", "commit": "9bb6267"},
+        "at": "2026-10-18T00:00:00Z",
+        "scope": "internal",
+    }
 
 
-def test_utc_now_is_a_zulu_timestamp():
-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", qc_child._utc_now())
+def test_verdict_sample_without_a_checkout_carries_a_null_commit_and_a_now_stamp(monkeypatch):
+    import verdict
 
-
-def test_verdict_sample_is_a_pass_hook_object():
+    monkeypatch.setattr(verdict, "commit_sha", lambda *a, **k: None)
     v = json.loads(qc_child._verdict_sample())
-    assert v["schema"] == "tepna.verdict/1"
-    assert v["status"] == "PASS"
-    assert v["gate"] == "qc-child-stitch-hook"
-    assert v["result"]["trigger"] == "PASS"
+    assert v["producedBy"]["commit"] is None and v["producedBy"]["commitReason"]
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", v["at"])
