@@ -1166,9 +1166,9 @@
    "bin": "decides",
    "status": "adopted",
    "emits": {
-    "file": "audits/MEASUREMENT-EMITTER-PERF-OXYDEX-2026-10-12.json"
+    "file": "audits/MEASUREMENT-EMITTER-PERF-OXYDEX-2026-10-18.json"
    },
-   "note": "§10 for the OxyDex emitter + the Integrator adapter (residue 2026-09-21-measurement-emitter-runtime-memory-unmeasured): --json emits one tepna.verdict/1 over five committed real O2Ring nights against the bands pre-stated 2026-09-22 (runtime ≤ +5 % and ≤ +50 ms · RSS ≤ +50 MB · export ≤ +4096 B) — FAIL names the band missed · UNDERPOWERED when a runtime delta over the absolute band is no larger than the same arm's own run-to-run spread · PASS otherwise · NOT_RUN if the baseline call site is not found exactly once. The manifest reads the committed record; re-running the tool re-derives it."
+   "note": "§10 for the OxyDex emitter + the Integrator adapter (residue 2026-09-21-measurement-emitter-runtime-memory-unmeasured): --json emits one tepna.verdict/1 over five committed real O2Ring nights against the bands pre-stated 2026-09-22 (runtime ≤ +5 % and ≤ +50 ms · RSS ≤ +50 MB · export ≤ +4096 B) — FAIL names the band missed · UNDERPOWERED when the ≤ 50 ms runtime band sits below the instrument's measured resolution, the same arm re-run spreading 299–598 ms · PASS otherwise · NOT_RUN if the baseline call site is not found exactly once. --prior <record> replays against an earlier record of this same instrument and counts the nights whose runtime delta changed sign; the 2026-10-12 record is the first arm and stays unedited. The manifest reads the committed record; re-running the tool re-derives it."
   },
   "tools/measurement-walk.mjs": {
    "bin": "decides",
@@ -1261,6 +1261,19 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
+  },
+  "tools/name-lease.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/name-lease.mjs",
+     "--json",
+     "tools/example-new-file-mg.mjs"
+    ]
+   },
+   "note": "who already holds a proposed filename (residue 2026-09-22-two-sessions-name-one-new-file): one tepna.verdict/1 over the paths named on argv, against the pre-stated criterion that a free name is held by no rail — origin/main, every local and remote-tracking ref of this checkout, and every sibling worktree's working tree on disk. FAIL names each holder, PASS states the ref and worktree counts it scanned, NOT_RUN when no path is proposed. Rails 2 and 3 are visible only because the fleet's worktrees share one object store, and the verdict's blindTo field says what no rail can see."
   },
   "tools/nearest-advocate.mjs": {
    "bin": "word-only",
