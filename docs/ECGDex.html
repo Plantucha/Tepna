@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cd7a62da1f7d" data-compute-hash="a99dac9a351b">
+<html lang="en" data-manifest-hash="8ff8a5eb3e8a" data-compute-hash="a99dac9a351b">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-X14KyJJxLR8/HKzEnkJbn34oAwBnF0kbzGCqjKgOu7g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tVgYMqIFMTmSfhst++Y/uSAWTLsBNE8tdlP+VByK2/k=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-X14KyJJxLR8/HKzEnkJbn34oAwBnF0kbzGCqjKgOu7g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.20.0</title>
@@ -16254,7 +16254,8 @@ window.evBadge = evBadge;
       this.times = rec.times || [];
       this.sqi = rec.sqi || [];
       this.types = rec.morph ? rec.morph.types : null; // N/V/S ectopy classes
-      // amplitude range (robust)
+      // whole-recording amplitude range — the MINI-MAP's scale only (the main view scales per
+      // window; see `_viewScale`)
       let lo = 32767,
         hi = -32768,
         step = Math.max(1, Math.floor(this.N / 40000));
@@ -16293,6 +16294,67 @@ window.evBadge = evBadge;
       return best;
     }
 
+    /* ── THE Y SCALE IS PER-WINDOW, NOT PER-RECORDING ──────────────────────────────────────────
+       `setData` measures the whole recording's min/max, and this used to be the scale for every
+       view. One end-of-recording artifact spike therefore set the scale for the entire session, so
+       a normal QRS drew as a small bump while the R-peak dots still sat in the right places —
+       detection was never wrong, only the drawing (owner report 2026-10-18).
+       The scale now comes from the window the view actually draws, read from the SAME source the
+       trace reads: raw int16 at factor 1, the envelope's `mins`/`maxs` above it. What the scale
+       covers is then what the path paints, at every zoom level.
+       Percentile-clipped at 0.5/99.5 so an artifact INSIDE the window cannot flatten the beats
+       beside it, and `draw` clips to the plot box so a clipped excursion stops at the axis. A
+       degenerate window (every sample equal) keeps the old ±100 pad rather than dividing by zero.
+       The MINI-MAP deliberately keeps the whole-recording scale: its job is the overview that shows
+       where the spike is.
+       Cached by `start|span|factor`, so re-drawing one view is identical every time and panning
+       cannot jitter the baseline. */
+    _viewScale(start, span, f) {
+      const key = start + '|' + span + '|' + f;
+      if (this._vsKey === key) return this._vs;
+      const CAP = 20000;
+      const lows = [],
+        highs = [];
+      if (f === 1) {
+        const i0 = Math.max(0, Math.floor(start)),
+          i1 = Math.min(this.N - 1, Math.ceil(start + span));
+        const step = Math.max(1, Math.floor((i1 - i0 + 1) / CAP));
+        for (let i = i0; i <= i1; i += step) {
+          const v = this.data.int16[i];
+          lows.push(v);
+          highs.push(v);
+        }
+      } else {
+        const env = this.pyr[f];
+        const b0 = Math.max(0, Math.floor(start / f)),
+          b1 = Math.min(env.mins.length - 1, Math.ceil((start + span) / f));
+        const step = Math.max(1, Math.floor((b1 - b0 + 1) / CAP));
+        for (let b = b0; b <= b1; b += step) {
+          lows.push(env.mins[b]);
+          highs.push(env.maxs[b]);
+        }
+      }
+      let out;
+      if (!lows.length) {
+        out = { lo: this.yLo, hi: this.yHi };
+      } else {
+        lows.sort((a, b) => a - b);
+        highs.sort((a, b) => a - b);
+        const q = (arr, pr) => arr[Math.min(arr.length - 1, Math.max(0, Math.round(pr * (arr.length - 1))))];
+        let lo = q(lows, 0.005),
+          hi = q(highs, 0.995);
+        if (!(hi > lo)) {
+          lo = lows[0];
+          hi = highs[highs.length - 1];
+        }
+        const pad = (hi - lo) * 0.08 || 100;
+        out = { lo: lo - pad, hi: hi + pad };
+      }
+      this._vsKey = key;
+      this._vs = out;
+      return out;
+    }
+
     draw() {
       if (!this.data) return;
       const ctx = this.ctx,
@@ -16307,7 +16369,10 @@ window.evBadge = evBadge;
       const plotW = W - padL - padR,
         plotH = H - padT - padB;
       const { start, span } = this.view;
-      const sy = (v) => padT + ((this.yHi - v) / (this.yHi - this.yLo)) * plotH;
+      const samplesPerPx = (span / plotW) * dpr;
+      const f = this._pickLevel(samplesPerPx);
+      const vs = this._viewScale(start, span, f);
+      const sy = (v) => padT + ((vs.hi - v) / (vs.hi - vs.lo)) * plotH;
 
       // baseline grid (major every 0.2 s on the time axis at this zoom)
       ctx.strokeStyle = C.grid;
@@ -16346,8 +16411,13 @@ window.evBadge = evBadge;
       }
 
       // ── waveform via envelope ──
-      const samplesPerPx = (span / plotW) * dpr;
-      const f = this._pickLevel(samplesPerPx);
+      /* CLIPPED to the plot box. The window scale can leave a sample outside it — a percentile-clipped
+         artifact, or an ectopy label at the top edge — and without the clip the path paints over the
+         time axis instead of stopping at it. */
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(padL, padT, plotW, plotH);
+      ctx.clip();
       ctx.strokeStyle = C.teal;
       ctx.lineWidth = 1 * dpr;
       ctx.beginPath();
@@ -16403,6 +16473,7 @@ window.evBadge = evBadge;
           }
         }
       }
+      ctx.restore();
     }
 
     drawMini() {
