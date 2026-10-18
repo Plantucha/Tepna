@@ -36154,6 +36154,234 @@
       else T.skip('adapters/o2ring-ppg.js source not in env.sources');
     });
 
+    /* ── SAMPLE-VALIDITY-ENVELOPE done-when 4 — A RATCHET ON THE CALLERS THAT READ NO VALIDITY ────────────
+       Six sample parsers accept the box's `…RUNS.txt` validity sidecar as `opts.runsText`: `parseECG` /
+       `parseECGText` (ecgdex-dsp), `parseDeviceACC` (ecgdex-dsp), `parsePPG` (ppgdex-dsp), `parsePPG2W`
+       (oxydex-dsp) and `parseSensorXYZ` (motiondex-dsp; ppgdex-dsp carries a same-named parser that takes
+       no sidecar at all). The done-when asks that no consumer can reach a sample value without its
+       validity, shown by a test that fails when the old read is reintroduced. Measured 2026-10-17 over
+       this population: most call sites pass no sidecar, and most of those are research tools. So this
+       gate does not claim the read is impossible; it PINS the callers that read no validity, per file,
+       with the reason, and reds on any change. A new bare call reds. A migrated call reds too, until the
+       pin drops in the same PR. Residue `2026-10-17-sample-parsers-called-without-their-sidecar` owns
+       the OPEN entries.
+       Known limit: a call through a local alias (`parseFn(text)` in `adapters/*.js`) is invisible to a
+       name scan. Those adapters are pinned by the §3.2 source-mirror groups above, not here.
+       Node-lane only — env.validitySidecarScan is fs-read; the browser lane SKIPs. */
+    group(
+      'SAMPLE-VALIDITY-ENVELOPE done-when 4 — no NEW caller reads a sample parser without its validity sidecar',
+      'ecgdex-dsp · ppgdex-dsp · oxydex-dsp · motiondex-dsp · §∅ · source-scan · ratchet',
+      function (T) {
+        var FILES = env.validitySidecarScan;
+        if (!FILES) {
+          T.skip('env.validitySidecarScan provided to the runner', 'Node-lane only — wire env.validitySidecarScan (run-tests.mjs readValiditySidecarScan)');
+          return;
+        }
+        var OPEN = 'OPEN — real capture input, no sidecar passed (residue 2026-10-17-sample-parsers-called-without-their-sidecar)';
+        var SYNTH = 'synthetic input — SYNTH.renderPPG text has no box sidecar';
+        /* [count of sidecar-less calls, reason] per file; the count is an equality, never a ceiling */
+        var PIN = {
+          'adapters/polar-sense-ppg.js': [3, 'ACC: ' + OPEN + ', and PPGDSP.parseSensorXYZ cannot take one · GYRO, MAGN: no RUNS writer for the stream'],
+          'cohort-worker.js': [1, SYNTH],
+          'ecgdex-app.js': [1, 'parseDeviceACC on the H10 `_ACC.txt`: ' + OPEN],
+          'ecgdex-dsp.js': [1, 'compute() text path parseECGText(txt): ' + OPEN],
+          'pat-feasibility-worker.js': [2, OPEN],
+          'ppgdex-app.js': [3, 'ACC: ' + OPEN + ', and PPGDSP.parseSensorXYZ cannot take one · GYRO, MAGN: no RUNS writer for the stream'],
+          'qrs-equiv-worker.js': [1, SYNTH],
+          'qrs-yield-worker.js': [1, SYNTH],
+          'resp-acc-analysis-app.js': [1, OPEN],
+          'sensor-trio-worker.js': [3, OPEN]
+        };
+
+        /* `tools/` is pinned as ONE population, never per file. The adoption gate (tools/, verdict manifest) counts a
+           tool as GATED when its stem occurs under `tests/`, so a table of tool names here would mark
+           38 research tools as gated by a test that runs none of them. The failure lists the files. */
+        var TOOLS_PIN = { files: 38, calls: 64, reason: 'research tools: ' + OPEN };
+
+        function blank(s) {
+          return s.replace(/[^\n]/g, '');
+        }
+        function code(t) {
+          return String(t || '')
+            .replace(/\/\*[\s\S]*?\*\//g, blank)
+            .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+        }
+        var CALL = /\b(parseECG|parseECGText|parsePPG|parsePPG2W|parseDeviceACC|parseSensorXYZ)\s*\(/g;
+        /* every call by name, with whether its OWN argument list names `runsText` (balanced parens, so a
+         nested call's arguments are inside and the next statement is outside) */
+        function calls(src) {
+          var c = code(src),
+            out = [];
+          for (const m of c.matchAll(CALL)) {
+            if (/\bfunction\s+$/.test(c.slice(Math.max(0, m.index - 12), m.index))) continue;
+            var start = m.index + m[0].length,
+              depth = 1,
+              end = c.length;
+            for (const [k, ch] of Array.from(c.slice(start)).entries()) {
+              if (ch === '(') depth++;
+              else if (ch === ')') depth--;
+              if (depth === 0) {
+                end = start + k;
+                break;
+              }
+            }
+            /* the guarded else-arm `rt ? parse(t, { runsText: rt }) : parse(t)` is the wired shape: with no
+             sidecar there is nothing to pass, so it counts with the arm that carries one */
+            var guarded = /\{\s*runsText\b[^;]*\}\s*\)\s*:\s*[\w$.]*$/.test(c.slice(Math.max(0, m.index - 240), m.index));
+            out.push({ name: m[1], carries: guarded || /\brunsText\b/.test(c.slice(start, end)) });
+          }
+          return out;
+        }
+        function bare(src) {
+          return calls(src).filter(function (x) {
+            return !x.carries;
+          }).length;
+        }
+
+        /* ── the classifier must DISCRIMINATE, in both directions, before it judges ── */
+        [
+          ['a bare call', 'var r = DSP.parseECG(text);', 1, 0],
+          ['a call that passes the sidecar', 'var r = DSP.parseECG(text, { runsText: rt });', 1, 1],
+          ['the same call after a reflow', 'var r = DSP.parsePPG(\n  text,\n  {\n    runsText: rt\n  }\n);', 1, 1],
+          ['the guarded ternary (no sidecar, nothing to pass)', 'rec = rt ? parsePPG(t, { runsText: rt }) : parsePPG(t);', 2, 2],
+          ['a bare call in the NEXT statement is not guarded', 'parsePPG(a, { runsText: r });\nvar b = parsePPG(c);', 2, 1],
+          ['an unguarded ternary', 'rec = rt ? parsePPG(t) : parsePPG(u);', 2, 0],
+          ['a nested call does not lend its sidecar to the outer one', 'f(parseSensorXYZ(a), g({ runsText: r }));', 1, 0],
+          ['a definition is not a call', 'function parseECGText(text, opts) { return 1; }', 0, 0],
+          ['an export is not a call', 'module.exports = { parsePPG2W: parsePPG2W };', 0, 0],
+          ['a commented-out call is not a call', '/* var r = parseECG(text); */\n// parsePPG(t)\nvar x = 1;', 0, 0],
+          ['a different parser is out of scope', 'var r = parseDevicePPI(text);', 0, 0]
+        ].forEach(function (p) {
+          var got = calls(p[1]);
+          T.eq('classifier · ' + p[0] + ' · calls', got.length, p[2]);
+          T.eq(
+            'classifier · ' + p[0] + ' · carry the sidecar',
+            got.filter(function (x) {
+              return x.carries;
+            }).length,
+            p[3]
+          );
+        });
+
+        /* ── the scan over the real population ── */
+        var names = Object.keys(FILES).sort();
+        var seen = {},
+          carried = [],
+          total = 0;
+        names.forEach(function (f) {
+          var cs = calls(FILES[f]);
+          total += cs.length;
+          cs.forEach(function (x) {
+            if (x.carries) carried.push(f + ' ' + x.name);
+          });
+          var n =
+            cs.length -
+            cs.filter(function (x) {
+              return x.carries;
+            }).length;
+          if (n) seen[f] = n;
+        });
+        T.ok('the scan has a denominator (' + names.length + ' authored sources)', names.length > 200, 'an empty scan reads exactly like a clean one');
+        T.ok('…and it read the adapters', names.indexOf('adapters/polar-h10-ecg.js') >= 0, 'adapters/*.js is out of the population');
+        T.ok('…and it SEES calls (' + total + ')', total >= 80, 'the call pattern matches nothing — the verdict below would be vacuous');
+        ['ecgdex-app.js parseECG', 'oxydex-dsp.js parsePPG2W', 'ppgdex-app.js parsePPG', 'motiondex-dsp.js parseSensorXYZ', 'adapters/polar-h10-ecg.js parseDeviceACC'].forEach(function (k) {
+          T.ok('…and it sees the WIRED caller `' + k + '` carry the sidecar', carried.indexOf(k) >= 0, 'carrying: ' + carried.join(' · '));
+        });
+
+        var added = [],
+          moved = [],
+          gone = [];
+        var toolFiles = [],
+          toolCalls = 0;
+        Object.keys(seen)
+          .sort()
+          .forEach(function (f) {
+            if (f.indexOf('tools/') === 0) {
+              toolFiles.push(f.slice(6) + ' ×' + seen[f]);
+              toolCalls += seen[f];
+            } else if (!PIN[f]) added.push(f + ' ×' + seen[f]);
+            else if (PIN[f][0] !== seen[f]) moved.push(f + ' pinned ' + PIN[f][0] + ', found ' + seen[f]);
+          });
+        Object.keys(PIN)
+          .sort()
+          .forEach(function (f) {
+            if (!seen[f]) gone.push(f);
+          });
+        T.ok(
+          'no NEW file calls a sample parser without its validity sidecar',
+          added.length === 0,
+          'pass `{ runsText }` from the stream sidecar (`…RUNS.txt`), or pin the file here with a reason a reviewer can check: ' + added.join(' · ')
+        );
+        T.ok('every pinned count still holds — a new bare call or a migrated one both move it', moved.length === 0, 'lower or raise the pin in the same PR, with the reason: ' + moved.join(' · '));
+        T.ok('no pinned file has left the population unannounced', gone.length === 0, 'remove the pin in the same PR that migrated or deleted the file: ' + gone.join(' · '));
+        T.ok(
+          '`tools/` still holds ' + TOOLS_PIN.calls + ' bare calls in ' + TOOLS_PIN.files + ' files — a new bare call or a migrated one both move it',
+          toolFiles.length === TOOLS_PIN.files && toolCalls === TOOLS_PIN.calls,
+          'found ' + toolCalls + ' in ' + toolFiles.length + ' files; move TOOLS_PIN in the same PR: ' + toolFiles.join(' · ')
+        );
+        var open = TOOLS_PIN.calls;
+        Object.keys(PIN).forEach(function (f) {
+          if (PIN[f][1].indexOf('OPEN') >= 0) open += PIN[f][0];
+        });
+        T.ok('the pinned set is stated with its reasons (' + (Object.keys(PIN).length + TOOLS_PIN.files) + ' files, ' + open + ' calls in files with an OPEN entry)', Object.keys(PIN).length > 0);
+      }
+    );
+
+    /* ── SAMPLE-VALIDITY-ENVELOPE done-when 3 — THE PpgDex LEG: A RUN ONLY THE SIDECAR SAW ────────────────
+       "A planted blanking run reaches a `null` or coverage-annotated metric and nothing else." Three legs
+       already assert it per node: the `_ECGRUNS` group above refuses the epoch, the ACC group nulls
+       `moving` ('blanking-run'), and the `_PPG2WRUNS` group refuses the SpO₂ bins. PpgDex had a test that
+       the sidecar populates `pinnedCrossCheck`, and one that a RAIL run the recompute finds is excluded —
+       but none that a run ONLY the sidecar saw reaches a metric. That is the case the sidecar exists for:
+       the writer's rule is `stuck` at ANY value, the recompute's is rail-pinned, so a held mid-range
+       value is invisible to the recompute. This plants exactly that and requires the exclusion and the
+       annotation, with the samples and the interval population left untouched ("nothing else"). */
+    group('SAMPLE-VALIDITY-ENVELOPE done-when 3 — a run only the _PPGRUNS sidecar saw is excluded and annotated, and nothing else moves', 'ppgdex-dsp · §∅ · sidecar · pinned', function (T) {
+      var P = env.PPGDSP;
+      if (!P || !P.analyze || !P.parsePPG || !P.compute) {
+        T.skip('PPGDSP.analyze/parsePPG/compute available', 'not wired into env');
+        return;
+      }
+      var hz = 55,
+        b0 = hz * 120,
+        rows = ['Phone timestamp;sensor timestamp [ns];channel 0'],
+        seed = 7;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+      for (var i = 0; i < hz * 240; i++) {
+        var t = i / hz;
+        var v = 117 + Math.round(9 * Math.sin(2 * Math.PI * 1.15 * t) + 2 * rnd());
+        if (i >= b0 && i < b0 + 220) v = 117; // HELD at a mid-range value for 220 samples — no rail
+        rows.push('2026-09-15 00:00:' + (Math.round(t * 1000) / 1000).toFixed(3).padStart(6, '0') + ';' + i * Math.round(1e9 / hz) + ';' + v);
+      }
+      var text = rows.join('\n');
+      var RUNS =
+        [
+          '# stream=ppg rule=stuck min_run=200 t_stuck=200 merge_gap_max=8',
+          'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+          '2026-09-15T00:02:00.000;channel 0;117;' + b0 + ';220;4000.0;1;stuck'
+        ].join('\n') + '\n';
+      var r0 = P.parsePPG(text),
+        r1 = P.parsePPG(text, { runsText: RUNS });
+      var a0 = P.analyze(r0, function () {}),
+        a1 = P.analyze(r1, function () {});
+      var c0 = (P.compute({ text: text }, { rich: true }).quality.pinnedCoverage || [])[0],
+        c1 = (P.compute({ text: text }, { rich: true, runsText: RUNS }).quality.pinnedCoverage || [])[0];
+      /* ANTI-VACUITY: the recompute must NOT see the plant, or the sidecar is not what the test measures */
+      T.eq('control · without the sidecar the recompute sees no pinned interval (the run is not at a rail)', a0 && a0.nPinSpanIntervals, 0);
+      T.eq('control · …and no pinned sample', c0 && c0.samplesUnmeasured, 0);
+      /* the property */
+      T.ok('the sidecar run reaches the metric as an EXCLUSION — intervals crossing it are not measurements', !!a1 && a1.nPinSpanIntervals > 0, 'nPinSpanIntervals ' + (a1 && a1.nPinSpanIntervals));
+      T.eq('…and the export ANNOTATES the coverage it cost: 220 samples absent on channel 0', c1 && c1.samplesAbsent, 220);
+      T.eq('…counted as one span', c1 && c1.spans, 1);
+      /* and nothing else */
+      T.eq('nothing else · the interval population is unchanged — an absence of VALUE, not of TIME', a1 && a1.nInputIntervals, a0 && a0.nInputIntervals);
+      T.ok('nothing else · the sample values are unchanged — the sidecar never writes into the stream', JSON.stringify(r1.ch) === JSON.stringify(r0.ch));
+      T.eq('nothing else · no row was dropped', r1.ch[0].length, r0.ch[0].length);
+    });
+
     group('Companion pick — DexIngest.pickNearestByStamp (PPG nearest-t0Ms, ECG-INGEST-FOLLOWUPS-IV §1)', 'dex-ingest · ppgdex-app', function (T) {
       var DI = env.DexIngest;
       if (!(DI && typeof DI.pickNearestByStamp === 'function')) {
