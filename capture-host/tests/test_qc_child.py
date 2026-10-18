@@ -182,6 +182,7 @@ def test_a_job_is_audited_then_composed_and_only_the_PROJECTIONS_come_back(tmp_p
             },
             "loss_error": None,
             "solid_error": None,
+            "stitch": None,
         }
     ]
 
