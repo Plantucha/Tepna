@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**261 tools** · 260 with a purpose line · **1 without**
+**262 tools** · 261 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -33,6 +33,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`beat-error-recovery.mjs`](../tools/beat-error-recovery.mjs) | beat-error-recovery — target 6 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE: inject beat-detection errors of KNOWN type and rate into a real beat train, run the shipped HRV path, and measure the… |
 | [`beat-injection-recovery.mjs`](../tools/beat-injection-recovery.mjs) | beat-injection-recovery — the artificial-star test for a beat detector. |
 | [`beat-leg-closure.mjs`](../tools/beat-leg-closure.mjs) | THREE-SOURCE DRIFT CLOSURE for H10 ↔ Verity ↔ capture host (WEARABLE-DRIFT-DIRECT §7.3/§7.4). |
+| [`board-corpus.mjs`](../tools/board-corpus.mjs) | THE AGENT BOARD AS A RULE 0 CORPUS (owner, 2026-10-17: "wire agent board to rule 0"). |
 | [`board.mjs`](../tools/board.mjs) | THE FLEET BOARD — one static page that answers "what is happening and what is wrong". |
 | [`box-sample.mjs`](../tools/box-sample.mjs) | // // box-sample.mjs — periodic resource sampler for a remote capture host. |
 | [`brief-gaps.mjs`](../tools/brief-gaps.mjs) | a text-network gap detector over the briefs node tools/brief-gaps.mjs # ranked reading list + verdict node tools/brief-gaps.mjs --json # the verdict alone node tools/brief-gaps.mjs… |
