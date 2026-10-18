@@ -1,0 +1,36 @@
+{
+  "schema": "tepna.mutation-prework/1",
+  "note": "Measured stats-pass seconds per (module, test-selection sha256[:12]), written by tools/mutate.py --record-prework from a run that observed both phase boundaries: generation's end and the first mutant verdict. It REPLACED a 2.0 trace factor that under-predicted capture.py by at least 5.6x. NEVER hand-edited: a typed number here is indistinguishable from a measured one. A key miss is absent, not a default, and the gate reports the absence instead of predicting.",
+  "prework": {
+    "acq_evidence_o2ring.py@38b7cdda91b2": {
+      "statsSec": 3.5,
+      "cleanSec": 0.3,
+      "measuredAt": "2026-10-17",
+      "host": "rig-x870"
+    },
+    "alerts.py@022aecd321dc": {
+      "statsSec": 50.7,
+      "cleanSec": 39.7,
+      "measuredAt": "2026-10-17",
+      "host": "rig-x870"
+    },
+    "clock_offset.py@4435903b0536": {
+      "statsSec": 70.8,
+      "cleanSec": 38.9,
+      "measuredAt": "2026-10-17",
+      "host": "rig-x870"
+    },
+    "localstamp.py@18d83e5995de": {
+      "statsSec": 1.1,
+      "cleanSec": 0.5,
+      "measuredAt": "2026-10-17",
+      "host": "rig-x870"
+    },
+    "mmeta.py@c05fd5911842": {
+      "statsSec": 42.4,
+      "cleanSec": 36.1,
+      "measuredAt": "2026-10-17",
+      "host": "rig-x870"
+    }
+  }
+}

@@ -108,6 +108,10 @@ from mutation_diff import (  # noqa: E402
     result_inconsistency,
     GATE_BUDGET_SEC,
     budget_refusal,
+    cached_stats_sec,
+    prework_record,
+    prework_unmeasured_note,
+    PREWORK_FILE,
     budget_exhaustion_verdict,
     memory_exhaustion_verdict,
     verdict_object,
@@ -507,6 +511,14 @@ def main(argv=None) -> int:
     # ── THE RUN BUDGET (mutation_diff.GATE_BUDGET_SEC) — a refusal is a verdict, a SIGTERM is not ──
     _gate_t0 = time.monotonic()
     _declared = load_exclusions()
+    # The committed stats-pass record, read ONCE: every CI run is a fresh scratch, so this file is the
+    # only measurement the pre-work bound ever has there. Unreadable or malformed reads as EMPTY, which
+    # means every module reports its bound unevaluated — loud, and never a fabricated prediction.
+    try:
+        _prework = prework_record((HERE / "tools" / PREWORK_FILE).read_text(encoding="utf-8"))
+    except OSError:
+        _prework = {}
+    _prework_unmeasured: list[str] = []  # modules whose pre-work bound examined nothing, with reasons
     _declared_modules: list[dict] = []  # modules retired by a MODULE-level declaration, with counts
     _refused_budget: list[str] = []
     _refused_memory: list[str] = []  # projected RSS over the cap — refused before starting
@@ -614,11 +626,19 @@ def main(argv=None) -> int:
         _clean = mut.clean_run_seconds(_tests) if _tests else (0.0, False)
         _prework_sec += time.monotonic() - _pre_t0
         _left = GATE_BUDGET_SEC - (time.monotonic() - _gate_t0 - _prework_sec)
-        _why_budget = budget_refusal(module, _clean[0], len(globs), _left)
+        # THE BOUND READS A MEASUREMENT OR SAYS IT HAS NONE. `budget_refusal` returning None means this
+        # bound raised no refusal — with an unmeasured stats pass that is NOT "the module fits", so the
+        # absence is printed and carried into the verdict rather than passing silently (§∅).
+        _stats_sec, _stats_basis = cached_stats_sec(_prework, module, _tests, _clean[0])
+        _why_budget = budget_refusal(module, _clean[0], len(globs), _left, _stats_sec, _stats_basis)
         if _why_budget:
             print(f"  ⊘ {_why_budget}", flush=True)
             _refused_budget.append(_why_budget)
             continue
+        if _stats_sec is None:
+            _note = prework_unmeasured_note(module, _clean[0], len(globs), _stats_basis)
+            _prework_unmeasured.append(_note)
+            print(f"  … {_note}", flush=True)
         # One mutmut invocation per function keeps a single slow function from hiding the others.
         for g in globs:
             _attempted += 1
@@ -1003,6 +1023,13 @@ def main(argv=None) -> int:
             "    Their mutants were never generated, so nothing below speaks to them. This is a\n"
             "    limitation of the TOOL, not a finding about the code."
         )
+
+    # THE BOUND THAT EXAMINED NOTHING TRAVELS WITH THE VERDICT, not only with the log. Set here, after
+    # the module loop and before every return below, so no exit path can drop it: a reader of the JSON
+    # must be able to tell a module whose pre-work was predicted and fitted from one whose stats pass
+    # has never been measured, and the old factor made those two look identical.
+    if _prework_unmeasured:
+        verdict["preworkUnmeasured"] = _prework_unmeasured
 
     # EVERY CHANGED FUNCTION WAS ONLY MOVED. The line scan found functions, the AST cleared all of
     # them, and there is nothing behavioural to mutate — which is NOT_APPLICABLE with the rule named,

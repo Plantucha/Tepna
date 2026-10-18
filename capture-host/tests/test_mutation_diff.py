@@ -677,25 +677,161 @@ def test_in_glob_scope_cannot_see_status_by_construction():
 
 # ── the RUN BUDGET — residue 2026-09-17-mutation-scope-selects-whole-functions ─────────────────────
 def test_budget_refusal_names_every_number_it_used():
-    """A refusal must be re-derivable by the reader: module, clean time, the factor, what was left."""
-    from mutation_diff import GATE_BUDGET_SEC, PREWORK_TRACE_FACTOR, budget_refusal, prework_estimate
+    """A refusal must be re-derivable by the reader: module, clean time, the stats pass, what was left.
 
-    assert prework_estimate(100.0) == 100.0 * (1.0 + PREWORK_TRACE_FACTOR)
-    assert prework_estimate(100.0, trace_factor=0.5) == 150.0
-    # the measured capture.py case: 936.7 s clean, five globs, a fresh budget → FITS (once per module)
-    assert budget_refusal("capture.py", 936.7, 5, GATE_BUDGET_SEC) is None
-    # …and the same selection with only 20 minutes of budget left → refused, with the numbers
-    why = budget_refusal("capture.py", 936.7, 5, 1200.0)
+    The numbers changed with the measurement (owner ruling, board #71 item 3, 2026-10-17): the
+    prediction was `clean x (1 + 2.0)` and is now `clean + this module's RECORDED stats pass`."""
+    from mutation_diff import GATE_BUDGET_SEC, budget_refusal, prework_estimate
+
+    assert prework_estimate(100.0, 240.0) == 340.0
+    # the measured capture.py case: 936.7 s clean, five globs, a fresh budget, and the >= 7556 s stats
+    # pass #3238 measured -> REFUSED, where the 2.0 factor predicted 2810 s and let the run start
+    why = budget_refusal("capture.py", 936.7, 5, GATE_BUDGET_SEC, 7556.0, "measured on the runner 2026-10-03")
     assert why is not None
-    for needle in ("capture.py", "936.7s", "2810s", "1200s", str(GATE_BUDGET_SEC), "5 function(s)", "REFUSAL", "not a"):
+    for needle in ("capture.py", "936.7s", "7556s", "8493s", str(GATE_BUDGET_SEC), "5 function(s)", "REFUSAL"):
         assert needle in why, (needle, why)
+    assert "measured on the runner 2026-10-03" in why, "the refusal must say where its number came from"
     assert "verdict on the diff" in why
+    # a cheap module with the same budget left still fits
+    assert budget_refusal("localstamp.py", 0.6, 1, GATE_BUDGET_SEC, 2.0, "measured here") is None
     # the boundary: an estimate exactly equal to what is left still fits
-    assert budget_refusal("m.py", 10.0, 1, prework_estimate(10.0)) is None
-    assert budget_refusal("m.py", 10.0, 1, prework_estimate(10.0) - 0.01) is not None
-    # the trace factor reaches the estimate: at 0.5 the same clean run fits where the default does not
-    assert budget_refusal("m.py", 10.0, 1, 16.0, trace_factor=0.5) is None
-    assert budget_refusal("m.py", 10.0, 1, 16.0) is not None
+    assert budget_refusal("m.py", 10.0, 1, prework_estimate(10.0, 6.0), 6.0) is None
+    assert budget_refusal("m.py", 10.0, 1, prework_estimate(10.0, 6.0) - 0.01, 6.0) is not None
+    # with no recorded stats pass there is NO prediction, so this bound raises no refusal...
+    assert prework_estimate(10.0, None) is None
+    assert budget_refusal("m.py", 10.0, 1, 0.5) is None
+    # ...and the provenance clause degrades to a named absence rather than an empty parenthesis
+    assert "provenance unrecorded" in (budget_refusal("m.py", 10.0, 1, 1.0, 6.0) or "")
+
+
+def test_an_unmeasured_prework_bound_says_it_examined_nothing_and_is_not_a_pass():
+    """🔴 THE DEFECT THE FACTOR HID. `budget_refusal` returning None used to mean one thing: the
+    module fits. With the factor gone it means two — the prediction fitted, or there was no
+    prediction — and those are a verdict and the absence of one (§∅, §🧾's NOT_RUN one bound down).
+    The note is what keeps them distinguishable in the log and in the JSON."""
+    from mutation_diff import prework_unmeasured_note
+
+    note = prework_unmeasured_note("writers.py", 12.3, 4, "no recorded stats pass for writers.py (abc123)")
+    assert "writers.py" in note and "12.3s" in note and "4 function(s)" in note
+    assert "NOT evaluated" in note
+    assert "not a verdict that the module fits" in note, "silence here is exactly what must not be a pass"
+    assert "--record-prework" in note, "an absence a reader cannot close is a permanent one"
+    assert "abc123" in note
+
+
+def test_the_stats_pass_is_measured_between_two_observed_boundaries_or_not_at_all():
+    """A run killed in generation and a run that tested nothing both have a well-formed elapsed time
+    and measured no stats pass — the #3238 shape, 618 spinner lines and zero mutant ticks."""
+    from mutation_diff import stats_pass_seconds
+
+    assert stats_pass_seconds(10.0, 310.0) == 300.0
+    assert stats_pass_seconds(None, 310.0) is None, "generation never finished: nothing was measured"
+    assert stats_pass_seconds(10.0, None) is None, "no mutant ever reported: nothing was measured"
+    assert stats_pass_seconds(None, None) is None
+    assert stats_pass_seconds(310.0, 10.0) is None, "out of order is not a negative stats pass"
+    assert stats_pass_seconds(10.0, 10.0) == 0.0, "a zero-length pass is still an observation"
+
+
+def test_the_prework_record_is_keyed_on_the_selection_and_a_miss_is_absence():
+    """The cost is the SELECTION's, so the key is the selection's. A miss must be absent and never
+    the nearest module, for the reason `mutants_size_record` states about a size from another hash."""
+    from mutation_diff import merge_prework, prework_record, selection_hash
+
+    a = selection_hash(["tests/test_b.py", "tests/test_a.py"])
+    assert a == selection_hash(["tests/test_a.py", "tests/test_b.py"]), "order is not part of the selection"
+    assert a != selection_hash(["tests/test_a.py"]), "a selection that lost a file is a different key"
+    assert len(a) == 12
+
+    text = merge_prework("", "localstamp.py", a, 2.0, 0.6, "2026-10-17", "rig-x870")
+    rec = prework_record(text)
+    assert rec[("localstamp.py", a)]["statsSec"] == 2.0
+    assert rec[("localstamp.py", a)]["cleanSec"] == 0.6
+    assert rec[("localstamp.py", a)]["host"] == "rig-x870"
+    assert rec[("localstamp.py", a)]["measuredAt"] == "2026-10-17"
+    assert text.endswith("\n") and '"schema": "tepna.mutation-prework/1"' in text
+
+    # a malformed or absent record is EMPTY, never a partial one a reader would trust
+    assert prework_record("") == {}
+    assert prework_record("{not json") == {}
+    assert prework_record("{}") == {}
+    assert prework_record('{"prework": null}') == {}
+    assert prework_record('{"prework": {"bad-key": {"statsSec": 2}}}') == {}, "a key with no @hash is not a row"
+    assert prework_record('{"prework": {"@abc": {"statsSec": 2}}}') == {}
+    assert prework_record('{"prework": {"m.py@": {"statsSec": 2}}}') == {}
+    assert prework_record('{"prework": {"m.py@abc": 2}}') == {}, "a bare number carries no provenance"
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": 0}}}') == {}, "zero is absence, not a pass"
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": -5}}}') == {}
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": "slow"}}}') == {}
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": true}}}') == {}, "a bool is not a measurement"
+    # the stats time can stand without a clean run; the clean run is then absent, never zero
+    for bad_clean in ("0", "-1", "true", '"quick"', "null"):
+        one = prework_record('{"prework": {"m.py@abc": {"statsSec": 2, "cleanSec": %s}}}' % bad_clean)
+        assert one[("m.py", "abc")]["cleanSec"] is None, bad_clean
+
+
+def test_a_replaced_measurement_keeps_the_number_it_replaced():
+    """The newer run describes this tree, so it wins — but a number that moved silently is the thing
+    `tools/mutation-sizes.json` keeps `supersedes` for, and the argument is identical here."""
+    from mutation_diff import merge_prework, prework_record
+
+    first = merge_prework("", "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "rig-x870")
+    again = merge_prework(first, "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "rig-x870")
+    assert "supersedes" not in again, "an unchanged measurement is not a supersession"
+    moved = merge_prework(first, "alerts.py", "abc", 9.0, 1.1, "2026-10-18", "vigil")
+    assert prework_record(moved)[("alerts.py", "abc")]["statsSec"] == 9.0
+    assert '"supersedes": 4.0' in moved
+    # a corrupt file is rebuilt rather than appended to, and the new row survives it
+    assert prework_record(merge_prework("{not json", "alerts.py", "abc", 4.0, 1.0, "2026-10-17", "h"))
+    # keys stay sorted, so two sessions recording different modules do not reorder each other's rows
+    two = merge_prework(first, "aaa.py", "abc", 1.0, 1.0, "2026-10-17", "rig-x870")
+    assert two.index('"aaa.py@abc"') < two.index('"alerts.py@abc"')
+
+
+def test_a_cached_stats_time_from_a_different_machine_is_absent_not_rescaled():
+    """🔴 THE SECOND ASSUMPTION THE UNIT REFUSED TO MAKE. A hosted runner measured 1432 s where the rig
+    measured 937 s on one module (#3202), so a cached stats time does not travel freely. The record
+    carries the clean run it was measured beside, and outside a pre-stated factor the number is
+    treated as ABSENT — never multiplied by a ratio, which would be the old factor in new clothes."""
+    from mutation_diff import PREWORK_CLEAN_DRIFT, cached_stats_sec, prework_stale_reason, selection_hash
+
+    assert PREWORK_CLEAN_DRIFT == 2.0
+    assert prework_stale_reason(10.0, 10.0) is None
+    assert prework_stale_reason(20.0, 10.0) is None, "exactly the factor still describes the run"
+    assert prework_stale_reason(5.0, 10.0) is None
+    assert "different machine" in (prework_stale_reason(20.1, 10.0) or "")
+    assert "different machine" in (prework_stale_reason(4.9, 10.0) or "")
+    assert "no clean run of its own" in (prework_stale_reason(10.0, None) or "")
+    assert "no clean run of its own" in (prework_stale_reason(10.0, 0) or "")
+
+    tests = ["tests/test_alerts.py"]
+    sel = selection_hash(tests)
+    rec = {("alerts.py", sel): {"statsSec": 4.0, "cleanSec": 1.0, "measuredAt": "2026-10-17", "host": "rig-x870"}}
+    secs, basis = cached_stats_sec(rec, "alerts.py", tests, 1.2)
+    assert secs == 4.0 and "rig-x870" in basis and "2026-10-17" in basis and sel in basis
+    # the same record, a machine three times slower: no number, and the reason says which check failed
+    secs, why = cached_stats_sec(rec, "alerts.py", tests, 3.1)
+    assert secs is None and "different machine" in why
+    # a module with no row at all names the selection it looked for, so the absence is closable
+    secs, why = cached_stats_sec(rec, "writers.py", tests, 1.0)
+    assert secs is None and "writers.py" in why and sel in why
+    # provenance that was never recorded is named as missing rather than printed as empty
+    thin = {("alerts.py", sel): {"statsSec": 4.0, "cleanSec": 1.0, "measuredAt": None, "host": None}}
+    _, basis = cached_stats_sec(thin, "alerts.py", tests, 1.0)
+    assert "an unnamed host" in basis and "on an unrecorded date" in basis
+
+
+def test_the_gate_both_reads_the_record_and_reports_the_absence():
+    """The two halves are one contract: `tools/mutate_diff.py` must pass the cached number to the
+    bound AND print the note when there is none. A caller that did only the first would turn an
+    unmeasured module into a silent pass, which is the state this unit left behind."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "tools", "mutate_diff.py"), encoding="utf-8") as fh:
+        src = fh.read()
+    assert "prework_record(" in src, "the committed record is what CI's fresh scratch has"
+    assert "cached_stats_sec(" in src
+    assert "prework_unmeasured_note(" in src
+    assert 'verdict["preworkUnmeasured"]' in src, "a reader of the JSON must see the bound that examined nothing"
+    assert "PREWORK_TRACE_FACTOR" not in src
 
 
 # ── tepna.verdict/1 — VERDICT-CONTRACT §3b step 5: the gate's ONE object ────────────────────────────

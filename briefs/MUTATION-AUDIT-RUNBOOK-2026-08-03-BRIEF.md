@@ -227,8 +227,14 @@ earlier rows attributed #2590's 98-minute death to the SIZE of the selected func
 five) and to a three-function "un-mutatable surface"; that survey measured a real thing which is the
 WRONG QUANTITY, and the gap it reported sizes nothing about the gate. The remedy that shipped (#2776) is
 once-per-module timing plus a pre-work refusal and a wall bound, not a size rule. ⚠️ `PREWORK_TRACE_FACTOR
-= 2.0` is an ASSUMPTION labelled as such in `capture-host/mutation_diff.py`; the stats-pass cost has not
-been measured on `capture.py` and the refusal prints the clean time it multiplied so a reader can check.
+= 2.0` is RETIRED (owner ruling, 2026-10-17). It was an assumption that said so of itself, and the
+measurements refuted it: across five modules measured 2026-10-17 on rig-x870 the real
+stats-pass-to-clean-run ratio runs 1.17 (`mmeta.py`) · 1.28 (`alerts.py`) · 1.82 (`clock_offset.py`) ·
+2.2 (`localstamp.py`) · 11.7 (`acq_evidence_o2ring.py`), against at least 5.6 on `capture.py` (#3238) —
+a spread no one constant covers. Each is ONE run and the two sub-second modules are ratios of two small
+numbers, so read the top of that range as a direction, not a figure; the bound binds at the large end. The pre-work bound now adds this module's RECORDED stats pass, read from
+`capture-host/tools/mutation-prework.json` and written by `tools/mutate.py --record-prework`; a module
+with no record is not predicted at all, and the gate prints that the bound examined nothing.
 
 ⚠️ **The compile is paid ONCE PER RUN, not per mutant** — mutmut imports the module in the parent and
 `fork()`s children that inherit it. That is why webmon averaged 1.5 s/mutant while its module took 26
