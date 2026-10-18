@@ -403,12 +403,30 @@ export function parseOwnerDecisions(txt) {
    Streak = consecutive PASS nights counting back from the most recent verdict. */
 function solidNights() {
   try {
-    const out = sh('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
-      '-o', 'StrictHostKeyChecking=no', '-F', process.env.HOME + '/.ssh/config', '-o', 'UserKnownHostsFile=/dev/null', 'vigil',
-      'python3', '/tmp/vigil_verdicts.py']);
-    const rows = out.split('\n').map((l) => l.trim()).filter(Boolean)
-      .map((l) => { const [date, status] = l.split(/\s+/); return { date, status }; })
-      .sort((a, b) => a.date < b.date ? -1 : 1);
+    const out = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'python3',
+      '/tmp/vigil_verdicts.py'
+    ]);
+    const rows = out
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [date, status] = l.split(/\s+/);
+        return { date, status };
+      })
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
     if (!rows.length) return fail('no SOLID-VERDICT.json files found on vigil');
     // Streak skips today if it's still in progress (UNKNOWN = night not finished yet).
     // A completed UNKNOWN/FAIL/NOT_APPLICABLE breaks the streak.
@@ -421,8 +439,8 @@ function solidNights() {
     }
     const recent = rows.slice(-15);
     const lines = recent.map((r) => `  ${r.date.slice(5)} ${r.status}`);
-    const text = `live from vigil (read ${new Date().toISOString().slice(0, 16)}Z) \u2014 last 15 of ${rows.length} nights\n` +
-      lines.join('\n') + `\ncurrent streak: ${streak} consecutive PASS night(s)`;
+    const text =
+      `live from vigil (read ${new Date().toISOString().slice(0, 16)}Z) \u2014 last 15 of ${rows.length} nights\n` + lines.join('\n') + `\ncurrent streak: ${streak} consecutive PASS night(s)`;
     return { ok: true, text, streak, nights: rows.length };
   } catch (e) {
     return fail('vigil solid-night read failed: ' + e.message);
@@ -432,30 +450,86 @@ function solidNights() {
 /* Vigil capture daemon + disk, read live over SSH. No tokens needed. */
 function vigilHealth() {
   try {
-    const active = sh('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
-      '-o', 'StrictHostKeyChecking=no', '-F', process.env.HOME + '/.ssh/config', '-o', 'UserKnownHostsFile=/dev/null', 'vigil',
-      'systemctl', 'is-active', 'tepna-capture.service']).trim();
-    const disk = sh('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
-      '-o', 'StrictHostKeyChecking=no', '-F', process.env.HOME + '/.ssh/config', '-o', 'UserKnownHostsFile=/dev/null', 'vigil',
-      'df', '-h', '/srv/tepna']).trim().split('\n').pop();
-    const sinceTs = new Date(Date.now() - 3600e3).toISOString().slice(0,19);
-    const journal = sh('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
-      '-o', 'StrictHostKeyChecking=no', '-F', process.env.HOME + '/.ssh/config', '-o', 'UserKnownHostsFile=/dev/null', 'vigil',
-      'journalctl', '-u', 'tepna-capture.service', '--since=' + sinceTs,
-      '--no-pager', '-n', '3']).trim();
+    const active = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'systemctl',
+      'is-active',
+      'tepna-capture.service'
+    ]).trim();
+    const disk = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'df',
+      '-h',
+      '/srv/tepna'
+    ])
+      .trim()
+      .split('\n')
+      .pop();
+    const sinceTs = new Date(Date.now() - 3600e3).toISOString().slice(0, 19);
+    const journal = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'journalctl',
+      '-u',
+      'tepna-capture.service',
+      '--since=' + sinceTs,
+      '--no-pager',
+      '-n',
+      '3'
+    ]).trim();
     // Vigil system health (via SSH)
-    const vigSys = sh('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
-      '-o', 'StrictHostKeyChecking=no', '-F', process.env.HOME + '/.ssh/config', '-o', 'UserKnownHostsFile=/dev/null', 'vigil',
-      'df -h / --output=pcent,avail | tail -1; free -h | grep Mem | awk \'{print $3"/"$2}\'; uptime | grep -o "load average.*"; uptime -p 2>/dev/null || uptime']).trim().split('\n');
+    const vigSys = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'df -h / --output=pcent,avail | tail -1; free -h | grep Mem | awk \'{print $3"/"$2}\'; uptime | grep -o "load average.*"; uptime -p 2>/dev/null || uptime'
+    ])
+      .trim()
+      .split('\n');
     const vigHealth = { disk: (vigSys[0] || '').trim(), mem: (vigSys[1] || '').trim(), load: (vigSys[2] || '').trim(), up: (vigSys[3] || '').trim() };
     // Rig health (local, no SSH needed)
     const rigDisk = sh('df', ['-h', '/', '--output=pcent,avail']).trim().split('\n').pop().trim();
     const rigMem = sh('sh', ['-c', 'free -h | grep Mem | awk \'{print $3"/"$2}\'']).trim();
     const rigLoad = sh('sh', ['-c', 'uptime | grep -o "load average.*"']).trim();
     const rigUp = sh('sh', ['-c', 'uptime -p 2>/dev/null || uptime']).trim();
-    return { ok: true, active, disk, journal: journal || '(no journal lines in the last hour)',
-      vig: vigHealth,
-      rig: { disk: rigDisk, mem: rigMem, load: rigLoad, up: rigUp } };
+    return { ok: true, active, disk, journal: journal || '(no journal lines in the last hour)', vig: vigHealth, rig: { disk: rigDisk, mem: rigMem, load: rigLoad, up: rigUp } };
   } catch (e) {
     return fail('vigil health check failed: ' + e.message);
   }
@@ -465,24 +539,28 @@ function vigilHealth() {
 function quotaFor(provider) {
   try {
     if (provider === 'openrouter') {
-      const out = sh('python3', ['-c',
-        'import urllib.request,json;'
-        + 'kp="/home/michal/.config/tepna/openrouter.env";'
-        + 'key=[l.split("=",1)[1].strip().strip(chr(34)+chr(39)) for l in open(kp) if "=" in l and not l.startswith("#")][0];'
-        + 'r=urllib.request.Request("https://openrouter.ai/api/v1/auth/key",'
-        + 'headers={"Authorization":"Bearer "+key,"User-Agent":"Tepna-fleet/1.0"});'
-        + 'd=json.load(urllib.request.urlopen(r,timeout=10))["data"];'
-        + 'print(f"{d[\"usage\"]:.4f} / {d[\"limit\"]}")']).trim();
+      const out = sh('python3', [
+        '-c',
+        'import urllib.request,json;' +
+          'kp="/home/michal/.config/tepna/openrouter.env";' +
+          'key=[l.split("=",1)[1].strip().strip(chr(34)+chr(39)) for l in open(kp) if "=" in l and not l.startswith("#")][0];' +
+          'r=urllib.request.Request("https://openrouter.ai/api/v1/auth/key",' +
+          'headers={"Authorization":"Bearer "+key,"User-Agent":"Tepna-fleet/1.0"});' +
+          'd=json.load(urllib.request.urlopen(r,timeout=10))["data"];' +
+          'print(f"{d[\"usage\"]:.4f} / {d[\"limit\"]}")'
+      ]).trim();
       return '$' + out + ' spent';
     }
-  } catch { /* fall through to static */ }
+  } catch {
+    /* fall through to static */
+  }
   const notes = {
-    'groq': 'free tier (no usage API)',
-    'mistral': 'free tier (no usage API)',
-    'gemini': 'free tier (no quota API)',
+    groq: 'free tier (no usage API)',
+    mistral: 'free tier (no usage API)',
+    gemini: 'free tier (no quota API)',
     'qwen-board': 'local, unlimited',
-    'codex': 'OUT until 2026-11-03',
-    'anthropic': 'zero credits',
+    codex: 'OUT until 2026-11-03',
+    anthropic: 'zero credits'
   };
   return notes[provider] || 'unknown';
 }
@@ -495,16 +573,19 @@ function wrapperHealth() {
     const keyFor = { 'qwen-board': null, 'groq-board': 'groq', 'mistral-board': 'mistral', 'openrouter-board': 'openrouter', 'gemini-board': 'gemini' };
     const cliCoders = [
       { name: 'codex', path: '/home/michal/.local/bin/codex', note: 'quota exhausted until 2026-11-03' },
-      { name: 'claude-code', path: '/home/michal/.nvm/versions/node/v22.23.1/bin/claude', note: 'npm global 2.1.300' },
+      { name: 'claude-code', path: '/home/michal/.nvm/versions/node/v22.23.1/bin/claude', note: 'npm global 2.1.300' }
     ];
     const rows = [];
     for (const w of wrappers) {
       const p = path.join(homedir(), '.local', 'bin', w);
-      let exe = false;
-      try { exe = (sh('test', ['-x', p]) === '') || existsSync(p); } catch { exe = existsSync(p); }
       // executable check via shell
       let okExe = false;
-      try { sh('sh', ['-c', `test -x "${p}"`]); okExe = true; } catch { okExe = false; }
+      try {
+        sh('sh', ['-c', `test -x "${p}"`]);
+        okExe = true;
+      } catch {
+        okExe = false;
+      }
       const kf = keyFor[w];
       let key = 'local (no key)';
       if (kf) {
@@ -512,13 +593,20 @@ function wrapperHealth() {
         try {
           const st = sh('sh', ['-c', `test -s "${kp}" && echo yes || echo no`]).trim();
           key = st === 'yes' ? 'key file present' : 'KEY FILE EMPTY/MISSING';
-        } catch { key = 'key file unreadable'; }
+        } catch {
+          key = 'key file unreadable';
+        }
       }
       rows.push({ wrapper: w, exe: okExe, key, quota: quotaFor(keyFor[w] || w) });
     }
     for (const c of cliCoders) {
       let okExe = false;
-      try { sh('sh', ['-c', `test -x "${c.path}"`]); okExe = true; } catch { okExe = false; }
+      try {
+        sh('sh', ['-c', `test -x "${c.path}"`]);
+        okExe = true;
+      } catch {
+        okExe = false;
+      }
       rows.push({ wrapper: c.name + ' (cli)', exe: okExe, key: c.note, quota: quotaFor(c.name) });
     }
     return { ok: true, rows };
@@ -532,15 +620,9 @@ function boardActivity() {
   try {
     const db = path.join(homedir(), '.agent-board', 'board.db');
     if (!existsSync(db)) return fail('no agent-board DB at ~/.agent-board/board.db');
-    const q = (sql) => sh('python3', ['-c',
-      'import sqlite3,json;db=sqlite3.connect("' + db + '");' +
-      'print(json.dumps(db.execute("""' + sql + '""").fetchall()))']);
-    const days = JSON.parse(q(
-      "SELECT substr(created_at,1,10) AS d, COUNT(*) FROM entries " +
-      "WHERE created_at >= date('now','-7 days') GROUP BY d ORDER BY d"));
-    const byAuthor = JSON.parse(q(
-      "SELECT author, COUNT(*) FROM entries " +
-      "WHERE created_at >= date('now','-7 days') GROUP BY author ORDER BY 2 DESC"));
+    const q = (sql) => sh('python3', ['-c', 'import sqlite3,json;db=sqlite3.connect("' + db + '");' + 'print(json.dumps(db.execute("""' + sql + '""").fetchall()))']);
+    const days = JSON.parse(q('SELECT substr(created_at,1,10) AS d, COUNT(*) FROM entries ' + "WHERE created_at >= date('now','-7 days') GROUP BY d ORDER BY d"));
+    const byAuthor = JSON.parse(q('SELECT author, COUNT(*) FROM entries ' + "WHERE created_at >= date('now','-7 days') GROUP BY author ORDER BY 2 DESC"));
     return { ok: true, days, byAuthor };
   } catch (e) {
     return fail('board activity unreadable: ' + e.message);
@@ -584,7 +666,8 @@ function openBriefs() {
     const dir = path.join(REPO, 'briefs');
     const files = sh('sh', ['-c', `ls "${dir}"/*.md 2>/dev/null | wc -l`]).trim();
     const done = sh('sh', ['-c', `grep -l "Status.*DONE" "${dir}"/*.md 2>/dev/null | wc -l`]).trim();
-    const total = parseInt(files, 10), doneN = parseInt(done, 10);
+    const total = parseInt(files, 10),
+      doneN = parseInt(done, 10);
     return { ok: true, total, done: doneN, open: total - doneN };
   } catch (e) {
     return fail('brief count failed: ' + e.message);
@@ -595,12 +678,8 @@ function agentBoard() {
   try {
     const db = path.join(homedir(), '.agent-board', 'board.db');
     if (!existsSync(db)) return fail('no agent-board DB at ~/.agent-board/board.db');
-    const q = (sql) => sh('python3', ['-c',
-      'import sqlite3,json;db=sqlite3.connect("' + db + '");' +
-      'print(json.dumps(db.execute("""' + sql + '""").fetchall()))']);
-    const latest = JSON.parse(q(
-      'SELECT e.id, t.title, e.author, e.kind, e.created_at, substr(e.body,1,200) ' +
-      'FROM entries e JOIN threads t ON e.thread_id=t.id ORDER BY e.id DESC LIMIT 1'));
+    const q = (sql) => sh('python3', ['-c', 'import sqlite3,json;db=sqlite3.connect("' + db + '");' + 'print(json.dumps(db.execute("""' + sql + '""").fetchall()))']);
+    const latest = JSON.parse(q('SELECT e.id, t.title, e.author, e.kind, e.created_at, substr(e.body,1,200) ' + 'FROM entries e JOIN threads t ON e.thread_id=t.id ORDER BY e.id DESC LIMIT 1'));
     const total = JSON.parse(q('SELECT COUNT(*) FROM entries'))[0][0];
     const threads = JSON.parse(q('SELECT COUNT(*) FROM threads'))[0][0];
     if (!latest.length) return { ok: true, total: 0, threads, latest: null };
@@ -741,7 +820,7 @@ function rule0Stamp() {
         lane: r0[1].trim().slice(0, 80),
         coder: fs ? fs[1].trim().slice(0, 40) : 'unstamped',
         mergedAt: pr.mergedAt,
-        ageHours: +((Date.now() - Date.parse(pr.mergedAt)) / 3.6e6).toFixed(1),
+        ageHours: +((Date.now() - Date.parse(pr.mergedAt)) / 3.6e6).toFixed(1)
       });
       if (stamps.length >= 5) break;
     }
@@ -845,17 +924,21 @@ const ago = (iso) => {
     if (h < 24) return h + 'h ago';
     const d = Math.floor(h / 24);
     return d + 'd ago';
-  } catch { return esc(iso); }
+  } catch {
+    return esc(iso);
+  }
 };
 /* "2026-10-17T08:50:31Z" -> "Oct 17, 04:50 EDT" */
 const fmtTime = (iso) => {
   try {
     const d = new Date(iso);
-    const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
     return `${mo} ${d.getDate()}, ${hh}:${mm}`;
-  } catch { return esc(iso); }
+  } catch {
+    return esc(iso);
+  }
 };
 const num = (n) => (typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '—');
 const m = (n) => (typeof n === 'number' && isFinite(n) ? `${(n / 1e6).toFixed(2)}M` : '—');
@@ -1036,7 +1119,14 @@ ${banners}
 </div>
 <main>
 <div class="cards3">
-<div class="mini-card"><h3>Backlog</h3>${b.residue.ok ? `<p class="big">${b.residue.open}</p><div class="sub">open residue rows (${b.residue.total} total)</div><div class="sub">${Object.keys(b.residue.byMonth).sort().map((m) => `${m}: ${b.residue.byMonth[m]}`).join(' &middot; ')}</div>` : `<p class="unread">not read</p>`}</div>
+<div class="mini-card"><h3>Backlog</h3>${
+    b.residue.ok
+      ? `<p class="big">${b.residue.open}</p><div class="sub">open residue rows (${b.residue.total} total)</div><div class="sub">${Object.keys(b.residue.byMonth)
+          .sort()
+          .map((m) => `${m}: ${b.residue.byMonth[m]}`)
+          .join(' &middot; ')}</div>`
+      : `<p class="unread">not read</p>`
+  }</div>
 <div class="mini-card"><h3>Release</h3>${b.releaseCount.ok ? `<p class="big">${b.releaseCount.tag}</p><div class="sub">+${b.releaseCount.commits} commits (${b.releaseCount.commitsLeft} left)</div><div class="sub">${b.releaseCount.days}d ago <span class="${b.releaseCount.daysLeft < 0 ? 'red' : ''}">(${b.releaseCount.daysLeft}d left)</span></div>` : `<p class="unread">not read</p>`}</div>
 <div class="mini-card"><h3>Briefs</h3>${b.briefs.ok ? `<p class="big">${b.briefs.open}</p><div class="sub">open (${b.briefs.done} done, ${b.briefs.total} total)</div>` : `<p class="unread">not read</p>`}</div>
 </div>
@@ -1147,13 +1237,6 @@ function runSelftest() {
     briefs: { ok: false, reason: 'br' },
     vigilHealth: { ok: false, reason: 'v' },
     wrapperHealth: { ok: false, reason: 'w' },
-    boardActivity: { ok: false, reason: 'ab' },
-    agentBoard: { ok: false, reason: 'a' },
-    residue: { ok: false, reason: 'rs' },
-    releaseCount: { ok: false, reason: 'rc' },
-    briefs: { ok: false, reason: 'br' },
-    vigilHealth: { ok: false, reason: 'v' },
-    wrapperHealth: { ok: false, reason: 'w' },
     boardActivity: { ok: false, reason: 'ab' }
   });
   ok(/not read —/.test(html) && !/>0</.test(html.replace(/width:0%/g, '')), 'an all-unread board renders "not read", never a 0');
@@ -1184,7 +1267,10 @@ function runSelftest() {
     boardActivity: { ok: false, reason: 'ab' }
   });
   const solidSec = htmlManual.split('Solid-night streak')[1]?.split('</section>')[0] ?? '';
-  ok(solidSec.includes('Current streak:') && solidSec.includes('live streak: 3') && !solidSec.includes('not read'), 'a live solid-night read renders its streak, and that section no longer reads as absent');
+  ok(
+    solidSec.includes('Current streak:') && solidSec.includes('live streak: 3') && !solidSec.includes('not read'),
+    'a live solid-night read renders its streak, and that section no longer reads as absent'
+  );
   ok(
     /&lt;script&gt;/.test(
       renderHtml({
@@ -1203,13 +1289,13 @@ function runSelftest() {
         solidNights: { ok: false, reason: 's' },
         evaluation: { ok: false, reason: 'e' },
         landing: { ok: false, reason: 'l' },
-    agentBoard: { ok: false, reason: 'a' },
-    residue: { ok: false, reason: 'rs' },
-    releaseCount: { ok: false, reason: 'rc' },
-    briefs: { ok: false, reason: 'br' },
-    vigilHealth: { ok: false, reason: 'v' },
-    wrapperHealth: { ok: false, reason: 'w' },
-    boardActivity: { ok: false, reason: 'ab' }
+        agentBoard: { ok: false, reason: 'a' },
+        residue: { ok: false, reason: 'rs' },
+        releaseCount: { ok: false, reason: 'rc' },
+        briefs: { ok: false, reason: 'br' },
+        vigilHealth: { ok: false, reason: 'v' },
+        wrapperHealth: { ok: false, reason: 'w' },
+        boardActivity: { ok: false, reason: 'ab' }
       })
     ),
     'every interpolated value is escaped — the board reads PR titles and journal text'
