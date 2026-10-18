@@ -1749,6 +1749,18 @@
    },
    "note": "the JS port of the stage-lab control net against the Python net on real nights (STAGE-LAB brief §24). Criterion pre-stated before the run: every compared night's max |Δ proba| ≤ 2e-3 (Python saves float16) and |κ_JS − κ_Python| ≤ 0.002; one night outside the band is FAIL; no Python probabilities to compare = NOT_RUN, never a pass by absence."
   },
+  "tools/stage-lab.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/stage-lab.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the sleep-stage lab's benchmark verdict (STAGE-LAB brief): grouped-CV Cohen kappa against the pre-stated offline comparator 0.390 — PASS at or above it, FAIL below, UNKNOWN while the half-night-shift plant does not fire, because a model that cannot be broken by a planted shift has not been tested; population = folds; the sample is a synthetic result and claims no code identity."
+  },
   "tools/ste-lint.mjs": {
    "bin": "decides",
    "status": "adopted",

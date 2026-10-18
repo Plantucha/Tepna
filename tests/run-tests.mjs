@@ -2730,6 +2730,16 @@ async function main() {
     console.error(paint('  ! cohort-worker realm failed to build: ' + e.message, C.yellow));
   }
 
+  let StageLab = null;
+  try {
+    StageLab = {
+      core: await import(new URL('../tools/stage-lab-core.mjs', import.meta.url).href),
+      cli: await import(new URL('../tools/stage-lab.mjs', import.meta.url).href)
+    };
+  } catch (e) {
+    console.error(paint('  ! stage-lab failed to load: ' + e.message, C.yellow));
+  }
+
   let PatFiducial = null;
   try {
     PatFiducial = await import(new URL('../tools/pat-fiducial.mjs', import.meta.url).href);
@@ -2785,6 +2795,7 @@ async function main() {
     nightqcSource: _readOpt('capture-host/nightqc.py'),
     PatStrict: PatStrict,
     PatFiducial: PatFiducial,
+    StageLab: StageLab,
     CohortWorker: CohortWorker,
     NsrrStage: NsrrStage,
     MutTriage: MutTriage,

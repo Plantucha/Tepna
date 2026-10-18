@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  oximeter-sleep-staging.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sleep staging from a fingertip oximeter's three signals — Tepna preprint (Draft v0, skeleton)</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed · DRAFT v0 — SKELETON: methods and pre-registration are final, every result cell reads PENDING until its run lands</div>
+  <h1 class="title">Sleep staging from a fingertip oximeter's three signals: a pre-registered ceiling, a sequence control, and a stack of published formulas scored blind</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">OxyDex node (SpO₂ · pulse rate · motion), Tepna physiological-signal suite</p>
+  <p class="meta">Draft v0 · October 2026 · Skeleton written 2026-10-04 while v21/v22 run · Inputs: ten open and NSRR cohorts, 9 100 nights, feature set <code>oxy1</code> · bands pre-stated in <code>briefs/STAGE-LAB-2026-09-27-BRIEF.md</code> §§5–20 before each run · nothing here is a published rate until the owner opens the P5 gate</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> A fingertip ring oximeter reports three signals at 1 Hz: SpO₂, pulse rate and a movement byte. The best published figure for staging from the first two is κ 0.73–0.78 on 17 303 polysomnograms with a whole-night network (Vaquerizo-Villar et al., 2025); a proprietary ring stager reports κ 0.39 on a sealed Challenge-2018 holdout. <b>Question.</b> How much of the night can those three signals stage, what part of it a stack of published formulas can carry, and how the two compare blind. <b>Methods.</b> Ten cohorts (9 100 nights) harmonised to what the ring reports; 466 named features; three learners on identical subject-grouped folds — gradient-boosted trees, a whole-night sequence network used only as a control, and a literature stack (named terms → auto-context → linear-chain CRF) fitted to labels; every band stated before its run; Challenge 2018 and ISRUC never fitted, scored blind; a half-night label shift that must collapse κ as the plant. <b>Results.</b> <span class="pending">PENDING — control, trees, stack, bridge and symbolic-regression cells fill from the brief when v21/v22 land; the external blind number fills after the third-party blind run.</span> <b>Conclusion.</b> <span class="pending">PENDING.</span></p>
+  </div>
+  <p class="kw"><b>Keywords:</b> sleep staging · pulse oximetry · pulse rate · actigraphy · pre-registration · knowledge distillation · conditional random field · auto-context · blind validation</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>A sleep lab decides whether you are awake, in light sleep, deep sleep or dreaming by reading your brain waves. A ring on your finger cannot see your brain; it sees how much oxygen is in your blood, how fast your pulse is, and whether your hand moved. We asked how far those three signals can go. We built the best model we could as a yardstick, then tried to reach the same result with formulas other scientists have already published, because formulas can be read, checked and shipped on a tiny device. Every target was written down before the computer ran, and two groups of nights were kept locked away so that the final numbers could not have been tuned to them.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Two human scorers reading the same polysomnogram agree at κ ≈ 0.83 (measured here on ISRUC, Khalighi et al., 2016). A wearable has none of the channels they read. The question of this paper is therefore not whether a ring equals a lab, but how much of the night a ring's three 1-Hz signals contain, and whether that information can be expressed in formulas rather than in a black box.</p>
+  <p><b>Comparators.</b> A proprietary stager for the same ring family reports κ 0.367 live / 0.390 offline on a sealed 134-night Challenge-2018 holdout (published figures only; its model and outputs were never used, per its licence §3g). Sridhar et al. (2020) reached κ 0.66 from instantaneous heart rate alone with a whole-night CNN on SHHS/MESA. Vaquerizo-Villar et al. (2025) reached κ 0.73–0.78 from 1-Hz pulse rate and SpO₂ on 17 303 PSGs and published the frequency bands their network attends to, which this paper adopts as formula terms.</p>
+  <p><b>Design.</b> Three learners on one feature matrix and identical folds: trees as the floor, a sequence network as the ceiling and teacher ("control", never shipped), and a stack of published formulas as the candidate for release. The owner's rule "train on everything in-house, publish only what the formulas carry" is what the design implements.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Cohorts and licences</h3>
+  <table>
+    <caption class="tbl-cap"><b>Table 1.</b> Cohorts in the pooled set. "Fit" = used in the formula fit; "blind" = never fitted, scored on every fold model.</caption>
+    <thead><tr><th>cohort</th><th>nights</th><th>SpO₂</th><th>pulse source</th><th>motion</th><th>labels</th><th>licence</th><th>role</th></tr></thead>
+    <tbody>
+      <tr><td>SHHS1 (NSRR)</td><td>5 136</td><td>1 Hz</td><td>oximeter H.R.</td><td>—</td><td>R&amp;K → 4-class</td><td>NSRR DUA</td><td>fit</td></tr>
+      <tr><td>SHHS2 (NSRR)</td><td>2 651</td><td>1 Hz</td><td>oximeter PR</td><td>—</td><td>R&amp;K → 4-class</td><td>NSRR DUA</td><td>fit (same subjects as SHHS1; folds grouped by subject)</td></tr>
+      <tr><td>Challenge 2018 (PhysioNet/CinC)</td><td>994</td><td>1 Hz</td><td>ECG-derived</td><td>—</td><td>AASM</td><td>ODC-By</td><td><b>blind</b></td></tr>
+      <tr><td>CAP (PhysioNet)</td><td>108</td><td>1 Hz</td><td>HR / ECG-derived</td><td>—</td><td>R&amp;K</td><td>ODC-By</td><td>fit</td></tr>
+      <tr><td>UCDDB (PhysioNet)</td><td>25</td><td>8 Hz → 1 Hz</td><td>oximeter Pulse</td><td>—</td><td>R&amp;K</td><td>ODC-By</td><td>fit</td></tr>
+      <tr><td>BOAS (OpenNeuro ds005555)</td><td>128</td><td>1 Hz</td><td>none readable</td><td>—</td><td>AASM consensus</td><td>CC0</td><td>fit</td></tr>
+      <tr><td>ISRUC-Sleep</td><td>127</td><td>12.5 Hz → 1 Hz</td><td>ECG-derived (X2)</td><td>—</td><td>AASM, two scorers</td><td>cite-only</td><td><b>blind</b></td></tr>
+      <tr><td>Sleep-Accel (PhysioNet)</td><td>31</td><td>—</td><td>Apple Watch HR</td><td>wrist ACC</td><td>PSG</td><td>ODC-By</td><td>fit</td></tr>
+      <tr><td>BIDSleep (PhysioNet)</td><td>165</td><td>—</td><td>Apple Watch HR</td><td>wrist ACC</td><td>Dreem-EEG expert</td><td>open</td><td>fit</td></tr>
+      <tr><td>Newcastle (Zenodo 1160410)</td><td>27</td><td>—</td><td>—</td><td>GENEActiv wrist</td><td>PSG</td><td>CC BY 4.0</td><td>fit</td></tr>
+    </tbody>
+  </table>
+  <p>Nights with a present-but-empty SpO₂ channel (&lt; 50 % valid) are skipped and counted; a cohort without a signal yields NaN in that signal's columns, never a filled value. Aggregate statistics only are reported; no record identifiers leave the corpus (NSRR DAUA §5).</p>
+
+  <h3 class="sub">2.2 Harmonisation to the ring</h3>
+  <p>SpO₂ is reduced to an 8-s moving mean at 1 Hz in whole percent, which is what the ring writes (one byte per second per signal). Pulse rate is the oximeter's own 1-Hz rate where the PSG has one; otherwise 60/RR from ECG beats found by the suite's Pan–Tompkins detector (Pan &amp; Tompkins, 1985; validated at Se/PPV ≥ 99 % on MIT-BIH, SLPDB and NSRDB, Table S1) with a 4-s mean. Motion is the per-second standard deviation of wrist acceleration magnitude; a 1-bit "moved this second" flag (&gt; 0.02 g) is carried beside it, as the poorest signal the ring could report. Every signal is standardised per night (median/IQR).</p>
+
+  <h3 class="sub">2.3 Feature matrix (feature set <code>oxy1</code>, 466 columns)</h3>
+  <p>Multi-scale statistics (1–10 min), desaturation counts and depths, SpO₂ and pulse-rate band powers including the 0.004–0.020 Hz and 0.18–0.40 Hz bands of Vaquerizo-Villar et al. (2025), pulse-rate variability terms after Redmond &amp; Heneghan (2006), actigraphy terms after Cole et al. (1992) and Sadeh et al. (1994), each with ±2/±10/±30-epoch context. The complete list with citations, where each term enters and whether its constants are pinned or fitted, is <code>docs/STAGE-LAB-FORMULAS.md</code>.</p>
+
+  <h3 class="sub">2.4 Learners</h3>
+  <ul>
+    <li><b>Trees:</b> histogram gradient boosting (Friedman, 2001), NaN-aware, 200 rounds, lr 0.1, 31 leaves.</li>
+    <li><b>Control:</b> dilated temporal convolutions (receptive field ≈ 2 h) with a bidirectional GRU over the whole night, class-weighted cross-entropy, epoch selected on an inner 10 % split; never shipped, used as ceiling and teacher.</li>
+    <li><b>Literature stack:</b> softmax over named terms (line + hinge), fitted by L-BFGS; auto-context (Tu &amp; Bai, 2010) on out-of-fold posteriors; a linear-chain CRF (Lafferty et al., 2001 — the one-dimensional Potts chain, Potts, 1952) over out-of-fold unaries with the unary scale fixed at 1. Variants: physiology-fixed coefficient signs; distillation from the control (Hinton et al., 2015); a bridge of long-range context terms, cumulative stage mix and an ultradian phase by matched filter; symbolic regression on the residual to the control.</li>
+    <li><b>Decoding:</b> HMM Viterbi over scaled likelihoods (Rabiner, 1989) for trees and control; the CRF's own Viterbi for the stack.</li>
+  </ul>
+
+  <h3 class="sub">2.5 Pre-registration and plants</h3>
+  <p>Each unit's expected range, pass line and reading rule were written in <code>briefs/STAGE-LAB-2026-09-27-BRIEF.md</code> before the unit ran (§§5–20); measured numbers were appended beside them, including every failed expectation. The gate for all units: pooled κ ≥ 0.415, half the human inter-scorer κ (0.829). Plant P1: labels shifted by half a night must collapse κ below half its value, or the run is void. Folds are a hash of the subject key (SHHS1/SHHS2 visits of one person share a fold); Challenge 2018 and ISRUC are never in any fit.</p>
+
+  <h2 class="sec">3. Results</h2>
+  <p class="pending"><b>PENDING.</b> Each table below is filled from the brief section named in its caption when that run lands; the values are copied from the bench summaries under <code>lab-cache/bench-*/</code>, never typed from memory.</p>
+  <table>
+    <caption class="tbl-cap"><b>Table 2.</b> Pooled four-class κ by learner and signal set (brief §§15–18). Night-bootstrap 95 % CI.</caption>
+    <thead><tr><th>learner</th><th>signals</th><th>pooled κ [CI]</th><th>Challenge (blind)</th><th>ISRUC (blind)</th><th>SHHS1</th><th>SHHS2</th><th>brief §</th></tr></thead>
+    <tbody>
+      <tr><td>trees</td><td>SpO₂ + PR + motion</td><td class="pending">PENDING</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td>17</td></tr>
+      <tr><td>control (sequence)</td><td>SpO₂ + PR + motion</td><td class="pending">PENDING</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td>17</td></tr>
+      <tr><td>literature stack, CRF</td><td>same</td><td class="pending">PENDING</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td>18</td></tr>
+      <tr><td>stack + bridge</td><td>same</td><td class="pending">PENDING</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td>19</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <caption class="tbl-cap"><b>Table 3.</b> What each signal and each layer bought (brief §§14–19): SpO₂-only → +pulse → +motion; epoch → context → CRF; 1-bit motion vs full activity.</caption>
+    <thead><tr><th>step</th><th>Δκ pooled</th><th>where it showed</th><th>brief §</th></tr></thead>
+    <tbody><tr><td colspan="4" class="pending">PENDING</td></tr></tbody>
+  </table>
+  <table>
+    <caption class="tbl-cap"><b>Table 4.</b> Negative results, each with the number that rejected it (brief §§13–19).</caption>
+    <thead><tr><th>idea</th><th>expected</th><th>measured</th><th>verdict</th></tr></thead>
+    <tbody><tr><td colspan="4" class="pending">PENDING (HSMM time prior; single ultradian wave on raw features; distillation into the formula student, twice; third auto-context round; fitting the stack with the blind cohorts)</td></tr></tbody>
+  </table>
+  <table>
+    <caption class="tbl-cap"><b>Table 5.</b> External blind run on a third-party corpus (pre-registered band to be stated before the run).</caption>
+    <thead><tr><th>model</th><th>pre-stated band</th><th>κ [CI]</th><th>per-stage recall</th><th>P1</th></tr></thead>
+    <tbody><tr><td colspan="5" class="pending">PENDING</td></tr></tbody>
+  </table>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p class="pending">PENDING. Stubs to be written from the measured sections: (i) where the gap between formulas and the sequence control lives (deep and REM recall; long-range structure the oracle bound shows is present); (ii) why distillation into a small closed-form student lost to label fitting both times; (iii) what the ring's motion byte is worth and why a 1-bit flag equals the full accelerometer for trees; (iv) the data curve against the 17 303-night benchmark; (v) what can ship, under which licence, and the role of the blind cohorts.</p>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <pre><code># features (one tag per feature set; a changed layout never mixes with an older cache)
+node tools/stage-lab.mjs features --harmonize --blocks spo2,pulse,motion --tag oxy1 --cohort &lt;c&gt; --dir &lt;dir&gt; --cache &lt;cache&gt; --workers 4
+# trees and control on identical subject-grouped folds
+node tools/stage-lab.mjs bench --cache &lt;cache&gt; --cohorts &lt;ten&gt; --features oxy1 --group-subjects --model gbdt --fold &lt;f&gt;
+python seqnet.py --cache &lt;cache&gt; --cohorts &lt;ten&gt; --features oxy1 --group-subjects --fold &lt;f&gt; --save-proba &lt;dir&gt;
+# literature stack (label-fitted, signed, distilled, bridge) and the residual search
+python litstack.py --cache &lt;cache&gt; --cohorts &lt;ten&gt; --features oxy1 --group-subjects --fold &lt;f&gt; [--signed] [--distill &lt;dir&gt;] [--bridge]
+python symreg.py --cache &lt;cache&gt; --control &lt;dir&gt; --stack &lt;dir&gt; --out &lt;dir&gt;</code></pre>
+  <ul>
+    <li>Every job runs under an 8 GB cgroup cap and logs its full-size peak memory; trainers read one night at a time.</li>
+    <li>Fold assignment: 32-bit hash of the subject key modulo 5; deterministic, so added cohorts never move existing nights.</li>
+    <li>Human ceiling: ISRUC scorer 1 vs scorer 2, κ 0.829, computed by <code>stage-lab.mjs</code> on the same epochs.</li>
+    <li>Verdicts are emitted as <code>tepna.verdict/1</code> with the pre-stated criterion embedded.</li>
+  </ul>
+
+  <h2 class="sec">6. Sample size &amp; statistical power</h2>
+  <p>With 9 100 nights (≈ 9 million epochs) the night-bootstrap 95 % CI on pooled κ is ±0.004 (measured: 0.608 [0.604, 0.612] for the control, brief §17), so any difference ≥ 0.01 between learners on the same folds is resolvable; the pre-stated reading rules use 0.01 as the smallest difference worth a claim. The blind cohorts (994 and 127 nights) resolve ≈ ±0.015 and ±0.04 respectively.</p>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Vaquerizo-Villar F, et al. An explainable deep learning approach for sleep staging in sleep apnea patients across all age subgroups from pulse oximetry signals. Engineering Applications of Artificial Intelligence. 2025;162:112562. doi:10.1016/j.engappai.2025.112562</li>
+    <li>Sridhar N, et al. Deep learning for automated sleep staging using instantaneous heart rate. npj Digital Medicine. 2020;3:106. doi:10.1038/s41746-020-0291-x</li>
+    <li>Krauss P, et al. Incorporating respiratory signals for machine learning-based multimodal sleep stage classification: a large-scale benchmark study with actigraphy and heart rate variability. SLEEP. 2025;48(9):zsaf091. doi:10.1093/sleep/zsaf091</li>
+    <li>Khalighi S, et al. ISRUC-Sleep: a comprehensive public dataset for sleep researchers. Computer Methods and Programs in Biomedicine. 2016;124:180–192. doi:10.1016/j.cmpb.2015.10.013</li>
+    <li>Pan J, Tompkins WJ. A real-time QRS detection algorithm. IEEE Transactions on Biomedical Engineering. 1985;32(3):230–236. doi:10.1109/TBME.1985.325532</li>
+    <li>Redmond SJ, Heneghan C. Cardiorespiratory-based sleep staging in subjects with obstructive sleep apnea. IEEE Transactions on Biomedical Engineering. 2006;53(3):485–496. doi:10.1109/TBME.2005.869773</li>
+    <li>Cole RJ, Kripke DF, Gruen W, Mullaney DJ, Gillin JC. Automatic sleep/wake identification from wrist activity. Sleep. 1992;15(5):461–469. doi:10.1093/sleep/15.5.461</li>
+    <li>Sadeh A, Sharkey KM, Carskadon MA. Activity-based sleep-wake identification: an empirical test of methodological issues. Sleep. 1994;17(3):201–207. doi:10.1093/sleep/17.3.201</li>
+    <li>Zhuowen Tu, Xiang Bai. Auto-context and its application to high-level vision tasks and 3D brain image segmentation. IEEE Transactions on Pattern Analysis and Machine Intelligence. 2010;32(10):1744–1757. doi:10.1109/TPAMI.2009.186</li>
+    <li>Lafferty J, McCallum A, Pereira F. Conditional random fields: probabilistic models for segmenting and labeling sequence data. Proceedings of the 18th International Conference on Machine Learning (ICML). 2001:282–289.</li>
+    <li>Potts RB. Some generalized order-disorder transformations. Mathematical Proceedings of the Cambridge Philosophical Society. 1952;48(1):106–109. doi:10.1017/S0305004100027419</li>
+    <li>Rabiner LR. A tutorial on hidden Markov models and selected applications in speech recognition. Proceedings of the IEEE. 1989;77(2):257–286. doi:10.1109/5.18626</li>
+    <li>Friedman JH. Greedy function approximation: a gradient boosting machine. The Annals of Statistics. 2001;29(5):1189–1232. doi:10.1214/aos/1013203451</li>
+    <li>Hinton G, Vinyals O, Dean J. Distilling the knowledge in a neural network. arXiv:1503.02531. 2015.</li>
+    <li>Borbély AA. A two process model of sleep regulation. Human Neurobiology. 1982;1(3):195–204.</li>
+    <li>McCarley RW, Hobson JA. Neuronal excitability modulation over the sleep cycle: a structural and mathematical model. Science. 1975;189(4196):58–60. doi:10.1126/science.1135627</li>
+    <li>Lo CC, Amaral LAN, Havlin S, Ivanov PCh, Penzel T, Peter JH, Stanley HE. Dynamics of sleep-wake transitions during sleep. Europhysics Letters. 2002;57(5):625–631. (DOI omitted: the citation gate's ≥3-letter surname floor cannot match "Lo" and Crossref offers no alias; resolve via EPL 57:625.)</li>
+    <li>Cohen J. A coefficient of agreement for nominal scales. Educational and Psychological Measurement. 1960;20(1):37–46. doi:10.1177/001316446002000104</li>
+    <li>Elgendi M. Fast QRS detection with an optimized knowledge-based method: evaluation on 11 standard ECG databases. PLoS ONE. 2013;8(9):e73557. doi:10.1371/journal.pone.0073557</li>
+    <li><b>Data acknowledgement (NSRR data-use agreement &sect;16).</b> This work used data from the National Sleep Research Resource: <b>NSRR R24 HL114473: NHLBI National Sleep Research Resource</b>. The fitted set includes Sleep Heart Health Study (SHHS1 and SHHS2) polysomnography, obtained through sleepdata.org under an approved data-use agreement; aggregate statistics only are reported and no record-level data is redistributed here.</li>
+    <li>Quan SF, Howard BV, Iber C, Kiley JP, Nieto FJ, O&#39;Connor GT, Rapoport DM, Redline S, Robbins J, Samet JM, Wahl PW. The Sleep Heart Health Study: design, rationale, and methods. <i>Sleep.</i> 1997;20(12):1077&ndash;85. doi:10.1093/sleep/20.12.1077</li>
+    <li>Zhang GQ, Cui L, Mueller R, Tao S, Kim M, Rueschman M, Mariani S, Mobley D, Redline S. The National Sleep Research Resource: towards a sleep data commons. <i>J Am Med Inform Assoc.</i> 2018;25(10):1351&ndash;1358. doi:10.1093/jamia/ocy064</li>
+  </ol>
+  <p class="meta" style="margin-top:28px">Supplement S1 (beat-detector validation on MIT-BIH, SLPDB, NSRDB) is gated by the P5 ruling and is not reproduced here. Every figure in this draft is a pooled aggregate over the cohorts in Table 1; no per-record value and no record identifier appears here, and the external blind run has not been carried out.</p>
+
+  <div class="footer">Tepna working draft · skeleton · figures and statistics regenerate deterministically from the cited tools. Pending cells are pending, not pooled. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>&copy; 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">&middot;</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">&middot;</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">&middot;</span><span style="color:var(--text4,#6E7F94)">&#9672; Asheville, NC</span>
+  <span class="dxl-sep">&middot;</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.20.0</div>
+</body>
+</html>

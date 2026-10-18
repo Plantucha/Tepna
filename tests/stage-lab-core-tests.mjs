@@ -41,7 +41,10 @@ const sig = (v, n) => ({ fs: 1, data: new Float64Array(EPOCH_S * n).fill(v) });
   ok(blockLayout('spo2').length === 135 && blockLayout('pulse').length === 120 && blockLayout('motion').length === 210, 'per-block counts 135 / 120 / 210');
   ok(f.names[0] === 'spo2.mean@60s' && f.names[f.names.length - 1] === 'time_of_night', 'first and last names');
   ok(STAGES.length === 4 && STAGES[1] === 'Light' && EPOCH_S === 30 && CONTEXT_EPOCHS.join(',') === '2,10,30', 'constants: four stages, 30 s epochs, context 2/10/30');
-  ok(!BLOCKS['ecg-hrv'].implemented && !BLOCKS.eeg.implemented, 'declared-but-unimplemented blocks stay declared');
+  /* `ecg-hrv` was declared-but-pending until the lab's beat-series block landed; `eeg` still is.
+     155 columns: the layout is the contract a trained weights file is keyed to. */
+  ok(BLOCKS['ecg-hrv'].implemented && blockLayout('ecg-hrv').length === 155, 'the ecg-hrv block is implemented, 155 columns wide');
+  ok(!BLOCKS.eeg.implemented, 'a declared-but-unimplemented block stays declared');
   let threw = false;
   try {
     nightFeatures({ nEpochs: 1, signals: {} }, ['eeg']);
