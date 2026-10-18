@@ -30,6 +30,106 @@ changesets.)
 
 ---
 
+## [2.20.0] — 2026-10-18
+
+### Added
+- Stage every loaded OxyDex night with the stage-lab control net from a user-loaded weights file, shown as a hypnogram card marked "control model — not shipped".
+- The first of the five §2 figures publishes its attribution. `tools/pat-three-corner.mjs --verdict` (`VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md`)
+- A hybrid search hit names the lines of its passage (`tools/xerj-load.mjs`, `tools/xerj-query.mjs`). The hit reads `file:812-840` and not `[chunk 34/259]`. (`XERJ-HYBRID-SEARCH-2026-10-10-BRIEF.md`)
+- Record every trio fold in a declared `provenance/trio-fold.json` run fragment: which nights, from which files, on which volumes, under which code digest. Red the gate when that fragment is absent, unreadable or malformed.
+- Score an AHI surrogate refit per harmonized definition under the owner's ratified rank-correlation band. (`AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md`)
+- **Four house rules read the syntax tree, and every hit on main is allow-listed with a reason.**
+- Publish the capture daemon's resident memory, both glibc allocator views and the gc counters on every status tick. A journal line at `mem.log_sec` keeps the series.
+- Build the frozen defect benchmark from closed residue rows. A task enters the set only with a proven fail-then-pass pair. Each oracle stores its test ids as an array, and `cmd` quotes them for a shell. (`DEFECT-BENCHMARK-2026-10-12-BRIEF.md`)
+- Add the benchmark's solver runner. It scores a local model's patch against each task's own oracle. (`DEFECT-BENCHMARK-2026-10-12-BRIEF.md`)
+- `THIRD-PARTY.md` gains a "Development tools (not shipped)" section: nineteen
+- **The three mutation ledgers merge over entry ids, and a duplicated id stops the merge.**
+- Name the scoring pool's hold-out order. `--seed` sets it, and the old literal is the default. (`AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md`)
+- `tools/pr-walker.mjs` with `tepna-pr-walker.{service,timer}`: the landing pipeline runs itself. The walker classifies every open PR each pass as held, conflict, red, pending, stuck, unknown or green. It marks green drafts ready under the cap of four, oldest first. It re-runs a red required check once per head SHA. It rebases a conflicting fleet branch with rebase-safe once per head SHA.
+- Score each device's continuity from co-wear and report the earlier gaps as `pre_cowear`. Exclude a gap the box's own restart caused. Declare a probe night NOT_APPLICABLE from the journal or a monitor toggle. (`SOLID-NIGHT-COWEAR-AND-PROBE-2026-10-13-BRIEF.md`)
+- Record every API coder lane verdict of 2026-10-13 in a brief and a ledger, with the proof state of each patch. (`API-LANE-FINDINGS-2026-10-13-BRIEF.md`)
+- Make the mutation lane resumable: per-group-coverage checkpoints each completed group, and mutation-suite gains --until-done.
+- Define the nadir clock rule: a desaturation nadir timestamp follows elapsed clock time, not sample position. detectDesats accepts spanSec and reports nadirSec/startSec/endSec. Without spanSec the times are null.
+- Gate a count-shaped assertion in a brief `**Status:**` header: freeze today's 782 tuples as a baseline that may only shrink. A header that gains a count must source it with `CLAIM <name> = <value> FROM <path>#<pointer>`, or the gate reds. (`BRIEF-HEADER-CLAIM-RATCHET-2026-10-17-BRIEF.md`)
+- The OxyDex known-answer fixture now drives the real DSP helpers. One new test group builds parsed rows from `tests/fixtures/oxydex-math-known-answer.json`. It asserts the hand-computed values against `computeStats` and `computeCTprecise` through `OxyDex._bare`: 20 assertions in both lanes. The fixture shipped in #3590 with only a shape check as its consumer.
+- A new full-tree mode in the residue id tool reads every merged commit for a close claim. It compares each claim with that row's state cell. A claim over a row that still reads OPEN, or over no row, fails the gate. The mode runs as a step in the full check and in CI.
+- Add the 31-day stitched results page and monitor integration. The page shows per-device sigma medians with 95 percent CIs, per-night charts, and gap accounting for each fused tool. The monitor gains 31-day buttons in the fused tool headers. The page fetches precomputed RESULT.json files through a new API route.
+- A hook gives each fleet session its new board entries on every turn. A timer prompts an idle session with unread entries every 3 hours.
+- Decode the committed AS11 Summary spool rounds to one JSON line per day and compare usage with the SD card STR.edf. (`CPAP-AS11-BLE-WIRE-NOW-2026-09-07-BRIEF.md`)
+- A new tool measures how long each sensor needs to settle at the start and the end of a session. It also finds the window that every sensor covers with clean signal. It reads the trio node exports and emits a verdict.
+- Adds a mutation-kill test group pinning four processNight boundary survivors. Each test passes on the original code and fails on its mutant. The L6321 hd90 survivor is a genuine equivalent and carries no test.
+- Add two instruments: the OxyDex emitter cost over five real nights, and a filename's current holders.
+- **Two gates now hold the validity sidecar to its readers.** (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- Give the HR three-cornered-hat reference check an `--axis host|wall` switch, a `--solid` night stratum and one verdict per population. Each run then names its nights, and the host-axis discipline becomes a measured leg. (`TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md`)
+- Fold a box night inside its own memory fence. A `tepna-fold` systemd unit and a daytime timer cap the fold at the brief's pre-stated bar. (`VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md`)
+- **Rule 0 now names what each code file in its hits declares and exposes.**
+
+### Changed
+- Raise the diff-scoped JS mutation job's cap from 25 to 45 minutes, by the owner's call, so the one PR
+- Make the unweighted three-cornered hat the canonical trio estimator and retire the fused-weight hat to a diagnostic. Withdraw every published σ the fused weighting produced. (`TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF.md`)
+- Every node-export and the Integrator read one shared allow-list, and the scrub names every key it dropped. (`EXPORT-SCRUB-ALLOWLIST-2026-10-07-BRIEF.md`)
+- Run the fixture-currency check as a blocking step of `npm run check`, where its one reader holds the corpus.
+- Replace every real SHHS record identifier with a synthetic one outside the cohort range. Drop each per-record value that sat beside one. Keep the aggregate. Rebuild the one analysis tool that inlines the carriers.
+- Carry the NSRR acknowledgement in six root sources. Name both cohort citations beside each SHHS measurement. Re-bundle the carriers.
+- Run the loss audit, the SOLID-NIGHT verdict and the wear scan in the QC poll's spawned child. The capture daemon then keeps neither their CPU nor their peak.
+- **The sentinel pattern in the project conventions names the waiter that outlives its producer.**
+- The Rule 0 search now reads the decisions, handoffs, findings and answers on the agent board. A new tool writes one Markdown file per entry, and the hourly index tick runs it first.
+- The fleet board on port 8766 gets its modern layout back. The layout lived only in an uncommitted copy of tools/board.mjs. This change carries it from that copy.
+- CLAUDE.md: the PR that discharges a brief item now stamps that brief in the same diff.
+- Replace the mutation gate's 2.0 pre-work trace factor with a measured per-module stats pass. (`MUTATION-AUDIT-RUNBOOK-2026-08-03-BRIEF.md`)
+
+### Removed
+- Biome now reports an unused variable as an error, after the removal of the dead code it flagged.
+
+### Fixed
+- Write a generated `README-SIDECARS.txt` beside the box-wide sidecars.
+- Drain three capture-host residue rows. A dark room no longer reads as skin. The kill helper reaches a forking child's whole group. Twelve new tests read what the 0x03 probe emits.
+- `tools/pr-compliance.mjs` now reads the PR's own changes from the merge base.
+- Report three absences as absences. A non-finite clock-seam step is now null beside a named reason. The mutation verdict counts an undecided mutant against the mutants it generated. A PPI stream gets no coverage figure at all.
+- End a capture child's whole process group, and record a loss verdict before replacing it.
+- Six RESIDUE rows close. Each patch came from the API coder lane. A local re-run proved each one: the new (`RESIDUE.md`)
+- **The journal template count in `loss_audit.py` carries a tally reason, so `verify:astgrep` passes on main again.**
+- Six guard hooks drain stdin before any hatch exits, so the harness writer never takes SIGPIPE. Each hook's test script watches the writer's exit code over a 100 KB payload. (`RESIDUE.md`)
+- **Six RESIDUE defects close, each with a test that fails on main and passes with the fix.**
+- **Fourteen residue defects close from the API lane, each proven red on main and green with its patch.**
+- Read the four harmonized `nsrr_ahi_*` columns, each named from the NSRR data dictionary. Key every row by its visit, so a pooled file cannot hand one night's AHI to another. Honour quoted fields, which a free-text column ahead of the AHI columns makes load-bearing. Stamp each scored row with its exact column name. (`AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md`)
+- Night QC publishes the bound of the gap measure it reports, places a zero-length session by
+- Ask `tools/tools-index.mjs` which `docs/` file it owns, so a conflict there auto-resolves. Keep `docs/MUTATION-INVENTORY.md` as source, because its builder stamps today and reads untracked journals. Fail closed when either builder cannot answer.
+- The trim hook declares a command ceiling under MAX_ARG_STRLEN and passes a longer command through with no jq noise. Its rewriting path is linear in the command length, because the quadratic last-stage expansion is gone. (`RESIDUE.md`)
+- The headless fold loads `export-schema.js` before `dex-export.js`. Since #3543 the scrub refuses without the allow-list. The fold timer's first run on that code threw on every ECGDex, PpgDex and OxyDex export. The trio verdict still read PASS, because its criterion is overlap hours. The closure test now pins the pair and the nine-module list. (`EXPORT-SCRUB-ALLOWLIST-2026-10-07-BRIEF.md`)
+- Let only the parent write `trio-batch-verdicts.json`, because each child rewrote it with its own one night. Report a run that judged nothing instead of crashing on it.
+- The walker now updates a held PR that falls behind main, at once and with no idleness gate. Kodiak never updates a held PR, so there is no race. Before this change the owner's merge button read "out-of-date" on every held PR after each merge to main.
+- The two guard hooks judge each heredoc on its own owner. A plain heredoc ahead of an interpreter one no longer blanks the program.
+- Two proven OxyDex defects from the API audit lane. Coverage segment edges leave as numbers, so the Integrator reads them. The advanced HR path skips an absent heart rate, like its sibling. Five OxyDex fixtures regenerate. (`API-LANE-FINDINGS-2026-10-13-BRIEF.md`)
+- Three API-lane patches on the test spine, each proven by a local re-run. A group compares the browser lane's two inventories. A group pins the five wired sources in both lanes. One realm manifest replaces six tool literals.
+- Close the *.src.html blind spot in the absence-regression and xss-sink gates.
+- Drop 16 orphaned mutation-equivalence entries and re-record 2 live ones, lowering 5 ratchet counts in the same commit.
+- Strengthen the tool build standard: checkpoint each phase, unattended auto-resume, machine-readable compliance. (`TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md`)
+- # Capture-host runtime libraries get licence docs
+- Pin three ECG mutant survivors with regression tests.
+- Remove 17 orphaned mutation-ledger entries from capture-host/tools/mutate-equivalence.json.
+- Close three mutation-tool gaps.
+- OxyDex accuracy harness: new `oxydex-accuracy.js` DSP module with `injectBias`
+- Render probe-night verdicts in the Nights view.
+- Do not resume a capture file-set with a stale stamp.
+- Redesign the Vigil monitor Overview: QC gaps grouped by device, lifted secondary-text contrast, clearer Disk and Alerts tiles.
+- Fleet board: the token table names each unread bird's own host, not the first failed remote. The remote usage fold passes `-F ~/.ssh/config`, so the board timer's sandbox reaches the box. The weekly bar reports a passed reset instead of a stale percentage.
+- Widen the daemon's verdict poll window from 14 to 31 nights. Old nights outside the window never get judged.
+- Fix three OxyDex issues. Reject CPAP .edf files early. Warn when metrics are stale. Show % on the readiness score.
+- The residue row for the unchecked close claim moves to the fixed state. PR 3605 shipped the full-tree gate it asked for. Only the state cell moves.
+- Verify D1 verdict exists. The queue holds the 2026-10-13 ruling. Close the stale row.
+- Split CLAUDE_ALLOW_UNFORMATTED into per-guard variables. Bypassing the format check no longer silently bypasses ruff.
+- Document the filename collision check for new tools in CLAUDE.md. Two sessions can derive the same filename. Check before writing.
+- Document the node_modules symlink convention for worktrees in CLAUDE.md. A worktree without the symlink runs the wrong biome from npx cache.
+- Add the 31-day stitch pipeline: stitcher, daemon hook, and server-side runner.
+- Reclaim the mDNS name when avahi renamed the box.
+- Correct the drawn-axis consequence note in `clock.js` to the measured consumer set.
+- ECGDex: RRacc is now the 30-s FFT peak refined between bins by a log-power parabola. The bare bin held RRacc to 1.875 br/min steps. That drew diagonal lines of slope −2 on the RRacc − EDR Bland–Altman plot, because x and y share EDR. The SNR gate still reads the bin powers, so the high and low confidence split does not change.
+- The local full gate now lints every Markdown file a branch adds. A long changeset sentence fails `npm run check` before it fails CI.
+- Residue ledger: three rows close on the PRs that fixed them.
+
+---
+
 ## [2.19.0] — 2026-10-13
 
 ### Added
@@ -3107,7 +3207,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.19.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.20.0...HEAD
+[2.20.0]: https://github.com/Plantucha/Tepna/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/Plantucha/Tepna/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/Plantucha/Tepna/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/Plantucha/Tepna/compare/v2.16.0...v2.17.0
