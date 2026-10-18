@@ -69238,6 +69238,41 @@
       T.eq('B2 · nothing scoreable ⇒ overallScore null, not 0', sm && sm.overallScore, null);
     });
 
+    group('OxyDex · Asleep/Awake strip per 30-s epoch', 'oxydex-dsp · sleepWake', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.computeSleepWake !== 'function') {
+        T.skip('OxyDex._bare.computeSleepWake exposed', 'not on the bare surface');
+        return;
+      }
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      // 2 h at 1 Hz: still, then 5 min of sustained movement at 60 min, then still
+      var rows = [];
+      for (var i = 0; i < 7200; i++) rows.push({ tMs: t0 + i * 1000, hr: 58, spo2: 96, motion: i >= 3600 && i < 3900 && i % 4 === 0 ? 3 : 0 });
+      var sw = B.computeSleepWake(rows, t0);
+      T.ok('a 2-h night yields a strip', !!sw && sw.nEpochs === 240);
+      T.eq('a still night opens with sleep (no 10-min run of wake before it)', sw && sw.onsetMin, 0);
+      var at = function (s, min) {
+        var cur = null;
+        for (var k = 0; k < s.segments.length && s.segments[k].tMin <= min; k++) cur = s.segments[k].stage;
+        return cur;
+      };
+      T.eq('sustained movement reads Awake', at(sw, 62), 'Wake');
+      T.eq('stillness reads Asleep', at(sw, 30), 'Asleep');
+      // ONE moved second is a twitch, not wake
+      var tw = rows.map(function (r, j) {
+        return { tMs: r.tMs, hr: 58, spo2: 96, motion: j === 1800 ? 5 : 0 };
+      });
+      T.eq('a single twitch stays Asleep', at(B.computeSleepWake(tw, t0), 15), 'Asleep');
+      // §∅ — a 20-min hole in the stamps is a null segment, never Asleep
+      var gap = rows.filter(function (r) {
+        return r.tMs < t0 + 1800000 || r.tMs >= t0 + 3000000;
+      });
+      T.eq('a span with no samples is a gap (null), not a state', at(B.computeSleepWake(gap, t0), 40), null);
+      // §∅ — unread motion is unknown, never still: with no motion and no pulse there is nothing to stage
+      T.eq('no stamps ⇒ no strip', B.computeSleepWake(rows, null), null);
+      T.eq('under 1 h ⇒ no strip', B.computeSleepWake(rows.slice(0, 3000), t0), null);
+    });
+
     group('OxyDex B3 · a derived metric over an unmeasured input is no metric', 'oxydex-dsp · derived · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B || typeof B.computeVagalIndex !== 'function') {
