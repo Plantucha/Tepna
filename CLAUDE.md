@@ -62,8 +62,10 @@ It runs, changes nothing, and exits 0. Symlink the primary `node_modules` into e
 **Check for filename collisions before creating a new tool.** Two sessions naming a new
 artifact after the same defect derive the same name (§🐦.2d's branch-name finding applied
 to FILES). A new file has no lease: it conflicts at merge if both sides are committed,
-and is overwritten silently if a session writes without looking. Before `muse.write` to
-`tools/<name>.mjs`, run `ls tools/<name>.mjs` and `git log --oneline --all -- tools/<name>.mjs`.
+and is overwritten silently if a session writes without looking. Before writing
+`tools/<name>.mjs`, run `node tools/name-lease.mjs tools/<name>.mjs`, which names every holder
+over three rails: `origin/main`, every local and remote-tracking ref, and every worktree on
+disk. It stays blind to a clone on another machine, and to a name claimed after it answered.
 `changes/` (dated keys) and the residue ledger (gate) have collision protection; `tools/` does not.
 
 ### 2 · Never blanket-stage, never destroy or re-point a tree you did not dirty
