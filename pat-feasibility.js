@@ -734,7 +734,7 @@
     if (!m.finger && !m.fingerError) {
       box.innerHTML = '<div class="muted">No O2Ring <code>_PPG.txt</code> for this night — the finger site and the hat need it.</div>';
       hb.innerHTML = '';
-      drawThree(null);
+      drawThree(null, null);
       drawHat(null);
       drawHistF(m);
       return;
@@ -742,7 +742,7 @@
     if (m.fingerError) {
       box.innerHTML = '<div class="muted" style="color:' + C.red + '">finger leg failed: ' + escHtml(m.fingerError) + '</div>';
       hb.innerHTML = '';
-      drawThree(null);
+      drawThree(null, null);
       drawHat(null);
       drawHistF(m);
       return;
@@ -832,12 +832,56 @@
       }
     } else hc.push(hcard('three-cornered hat', '—', '', h && h.reason ? h.reason : 'not solved', C.mut));
     hb.innerHTML = hc.join('');
-    drawThree(h);
+    drawThree(h, m);
     drawHat(h);
     drawHistF(m);
   }
-  function drawThree(h) {
-    var cv = el('threeChart');
+  /* ── THE THREE LEGS ACROSS THE NIGHT, THREE WAYS (owner 2026-10-18) ──────────────────────────────────────
+     a · raw receive stamps (`h` = the raw hat). b · every leg on every arrival-floor sidecar the night has
+     (`m.threeSide`), each leg computed from its own beat pairs. c · each leg DERIVED from the other two
+     computed legs of b, the computed leg drawn faint beside it. By the per-beat closure
+     (PAT-HAT-DRIFT-DIFFERENCED F5) a derived line tracks its computed twin by arithmetic, so c measures
+     the window medians' disagreement, not a second measurement. */
+  function drawThree(h, m) {
+    drawLegs('threeChart', h && h.windows, ['ab', 'ac', 'bc'], null, '5-min median lag (ms) vs time of night — raw receive stamps', 'needs all three sites coupled');
+    var s = m && m.threeSide,
+      note = el('threeSideNote'),
+      why = !m
+        ? 'needs all three sites coupled'
+        : !m.floorSync || !m.floorSync.available
+          ? 'no floor axis — ' + ((m.floorSync && m.floorSync.reason) || 'no arrival sidecars')
+          : !s
+            ? 'needs all three sites coupled'
+            : s.windows.length < 2
+              ? s.reason || 'fewer than 2 windows'
+              : null;
+    if (note)
+      note.innerHTML = !s
+        ? escHtml(why || '')
+        : (s.ringEnd === 'raw'
+            ? 'The finger end stays on its raw receive stamp: ' + escHtml(s.ringReason || 'the ring floor did not solve') + '. Each finger leg moves only its Polar end onto that device’s floor.'
+            : 'All three ends are on their own arrival floors.') +
+          (s.check && s.check.shiftedMedMs != null && s.check.corrMedMs != null
+            ? ' Check: chest → ankle shifted per beat ' +
+              s.check.shiftedMedMs.toFixed(0) +
+              ' ms vs computed on the floor axis ' +
+              s.check.corrMedMs.toFixed(0) +
+              ' ms (' +
+              s.check.droppedBeats +
+              ' beats without an anchor dropped).'
+            : '') +
+          (s.ok ? '' : ' ' + escHtml(s.reason || ''));
+    var W = why ? null : s.windows;
+    drawLegs('threeChartSide', W, ['ab', 'ac', 'bc'], null, '5-min median lag (ms) — every leg on its sidecars', why);
+    var D = W
+      ? W.map(function (x) {
+          return { t: x.t, ab: x.ab, ac: x.ac, bc: x.bc, dab: x.ac - x.bc, dac: x.ab + x.bc, dbc: x.ac - x.ab };
+        })
+      : null;
+    drawLegs('threeChartDer', D, ['dab', 'dac', 'dbc'], ['ab', 'ac', 'bc'], '5-min median lag (ms) — solid = derived from the other two, faint = computed', why);
+  }
+  function drawLegs(id, W, keys, faint, title, why) {
+    var cv = el(id);
     if (!cv) return;
     var g = prep(cv),
       ctx = g.ctx,
@@ -846,16 +890,18 @@
       pad = 44;
     ctx.fillStyle = C.mut;
     ctx.font = '10px monospace';
-    if (!h || !h.windows || h.windows.length < 2) {
-      ctx.fillText('needs all three sites coupled', pad, ht / 2);
+    if (!W || W.length < 2) {
+      ctx.fillText(why || 'needs all three sites coupled', pad, ht / 2);
       return;
     }
-    var W = h.windows,
-      t0 = W[0].t,
+    var t0 = W[0].t,
       t1 = W[W.length - 1].t,
-      all = [];
+      all = [],
+      ks = keys.concat(faint || []);
     W.forEach(function (x) {
-      all.push(x.ab, x.ac, x.bc);
+      ks.forEach(function (k) {
+        all.push(x[k]);
+      });
     });
     var lo = Math.max(-100, Math.floor(Math.min.apply(null, all) / 50) * 50 - 50),
       hi = Math.ceil(Math.max.apply(null, all) / 50) * 50 + 50;
@@ -875,15 +921,23 @@
       ctx.stroke();
       ctx.fillText(v.toFixed(0), 6, y + 3);
     }
-    ctx.fillText('5-min median lag (ms) vs time of night', pad, 12);
-    ['ab', 'ac', 'bc'].forEach(function (k) {
-      ctx.strokeStyle = LEG[k].col;
+    ctx.fillText(title, pad, 12);
+    var line = function (k, col, alpha) {
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = alpha;
       ctx.lineWidth = 2;
       ctx.beginPath();
       W.forEach(function (x, i) {
         i ? ctx.lineTo(X(x.t), Y(x[k])) : ctx.moveTo(X(x.t), Y(x[k]));
       });
       ctx.stroke();
+      ctx.globalAlpha = 1;
+    };
+    (faint || []).forEach(function (k) {
+      line(k, LEG[k].col, 0.3);
+    });
+    keys.forEach(function (k, i) {
+      line(k, LEG[(faint || keys)[i]].col, 1);
     });
     ctx.fillStyle = C.mut;
     for (var q = 0; q <= 4; q++) {
