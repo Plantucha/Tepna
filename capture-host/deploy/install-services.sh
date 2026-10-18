@@ -140,6 +140,21 @@ say "2/5  mDNS so the origin is a NAME, not an IP"
 apt-get install -y -qq avahi-daemon >/dev/null 2>&1 && echo "  ✓ avahi-daemon" || echo "  ✗ avahi install failed"
 systemctl enable --now avahi-daemon >/dev/null 2>&1 || true
 
+# ⚠️ AND RECLAIM THE NAME WHEN AVAHI TAKES IT AWAY. A boot soon after the previous one can collide with
+# the box's own stale record: on 2026-09-23 avahi renamed vigil to vigil-2 and kept it for four hours,
+# so http://vigil.local/monitor did not resolve while the monitor served 200 on localhost. The check is
+# its own unit, pulled in by the capture unit with Wants= and never ordered before it, so a slow avahi
+# restart cannot delay a capture start. RESIDUE 2026-09-23-avahi-renames-the-box-after-a-quick-reboot.
+if [ -f "$UPD_SRC/tepna-avahi-name.service" ]; then
+  install -m644 "$UPD_SRC/tepna-avahi-name.service" /etc/systemd/system/tepna-avahi-name.service
+  systemctl daemon-reload
+  systemctl enable --now tepna-avahi-name.service >/dev/null 2>&1 \
+    && echo "  ✓ tepna-avahi-name (mDNS name reclaimed at boot)" \
+    || echo "  ✗ tepna-avahi-name enable failed"
+else
+  echo "  ✗ tepna-avahi-name.service not found in $UPD_SRC"
+fi
+
 say "3/5  web server"
 # ── THE WEB CONFIG HAS ONE SOURCE, AND IT IS NOT THIS FILE ────────────────────────────────────────
 # This step used to write its own /etc/caddy/Caddyfile. It had drifted badly from the one

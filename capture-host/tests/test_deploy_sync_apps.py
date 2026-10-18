@@ -218,6 +218,7 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
         "tepna-radioclock.service",
         "tepna-fold.service",
         "tepna-fold.timer",
+        "tepna-avahi-name.service",
     ):
         (src / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
@@ -328,6 +329,7 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
         "tepna-radioclock.service",
         "tepna-fold.service",
         "tepna-fold.timer",
+        "tepna-avahi-name.service",
     ):
         (src / "systemd" / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")

@@ -123,6 +123,7 @@ systemd/tepna-update.timer|$ETC_SYSTEMD/tepna-update.timer|MANAGED|0644
 systemd/tepna-update-pending.service|$ETC_SYSTEMD/tepna-update-pending.service|MANAGED|0644
 systemd/tepna-update-pending.timer|$ETC_SYSTEMD/tepna-update-pending.timer|MANAGED|0644
 systemd/tepna-radioclock.service|$ETC_SYSTEMD/tepna-radioclock.service|MANAGED|0644
+systemd/tepna-avahi-name.service|$ETC_SYSTEMD/tepna-avahi-name.service|MANAGED|0644
 systemd/tepna-sniff.service|$ETC_SYSTEMD/tepna-sniff.service|MANAGED|0644
 systemd/tepna-sniff.timer|$ETC_SYSTEMD/tepna-sniff.timer|MANAGED|0644
 systemd/tepna-fold.service|$ETC_SYSTEMD/tepna-fold.service|MANAGED|0644
