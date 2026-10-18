@@ -109,7 +109,11 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     generation_timeout_reason,
     results_timeout_reason,
     merge_mutants_size,
+    merge_prework,
     mutants_size_record,
+    PREWORK_FILE,
+    selection_hash,
+    stats_pass_seconds,
     reap_group_on_signal,
     stream_bounded,
     workers_that_fit,
@@ -123,6 +127,11 @@ RESULTS_CAP_SEC = 300.0
 SIZES_FILE = "mutation-sizes.json"
 # The COMMITTED generated-size record, beside this tool. Read on every fresh scratch — which is every CI
 # run — and written only by `--record-sizes`, so an ordinary run never dirties the tree.
+
+# The COMMITTED stats-pass record, on exactly those terms and for the same reason: `mutation_diff`
+# names the file, the gate reads it, and only `--record-prework` writes it. It is what replaced the
+# 2.0 trace factor, so the one thing that must never happen to it is a hand-typed number.
+PREWORK_RECORD_FILE = PREWORK_FILE
 
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK,
@@ -666,6 +675,12 @@ def run_one(
     # A set rather than a bool because the reader runs in another thread: `_gen_done.add` from the drain
     # and `bool(_gen_done)` from the waiter need no lock, where rebinding a name would.
     _gen_done: "set[bool]" = set()
+    # THE TWO PHASE BOUNDARIES THAT BRACKET THE STATS PASS, each stamped by the emitter that proves it
+    # happened: mutmut's own generation line, and the first distinct mutant id. Lists for the same
+    # no-lock reason as `_gen_done`, and the arithmetic is `mutation_diff.stats_pass_seconds` so it
+    # sits inside the coverage floor rather than out here.
+    _gen_at: "list[float]" = []
+    _first_mutant_at: "list[float]" = []
     # `proc.stdout` is Optional in the stubs; it is not None here because the Popen above is
     # created with stdout=PIPE. Asserting states that rather than guarding a case that cannot arise.
     assert proc.stdout is not None
@@ -689,6 +704,7 @@ def run_one(
             # means generation is over, and #3202 proved the converse matters — that log carries this
             # line 0 times against 618 spinner lines, which is how we know it never left this phase.
             _gen_done.add(True)
+            _gen_at.append(time.monotonic())
             mark_generation_complete(scratch)
             _beat(f"generation finished at {time.monotonic() - t0:.0f}s — mutants start now")
             return
@@ -706,6 +722,11 @@ def run_one(
                 if not mid or mid.group(0) in seen_ids:
                     break
                 seen_ids.add(mid.group(0))
+                if not _first_mutant_at:
+                    # The stats pass ENDS when a mutant's verdict appears, not when one is scheduled:
+                    # #3238 carried 618 spinner lines and zero mutant ticks, and the elapsed time of
+                    # that run is not a stats pass measurement.
+                    _first_mutant_at.append(time.monotonic())
                 seen[key] += 1
                 seen["n"] += 1
                 el = time.monotonic() - t0
@@ -776,6 +797,11 @@ def run_one(
         "mutant_generation": src_hash,
         "generation_finished": bool(_gen_done),
         "generation_cap_sec": round(_gen_cap, 1),
+        # `None` unless BOTH boundaries were observed — the measurement `--record-prework` writes and
+        # the pre-work bound reads. An unobserved phase is absent here, never the elapsed time.
+        "stats_sec": stats_pass_seconds(
+            _gen_at[0] if _gen_at else None, _first_mutant_at[0] if _first_mutant_at else None
+        ),
         "results": _results_text,
         "tail": tail,
         "work": str(work),
@@ -843,6 +869,13 @@ def main(argv=None) -> int:
         f"record CI reads on its always-fresh scratch. Off by default, so an ordinary "
         f"run never dirties the tree",
     )
+    ap.add_argument(
+        "--record-prework",
+        action="store_true",
+        help=f"merge each run's MEASURED stats pass into tools/{PREWORK_RECORD_FILE}, the committed "
+        f"record the diff-scoped gate's pre-work bound reads. Off by default, on the same terms as "
+        f"--record-sizes; a run that never reached a mutant records nothing",
+    )
     a = ap.parse_args(argv)
     if a.list:
         for m in modules():
@@ -881,6 +914,28 @@ def main(argv=None) -> int:
             )
             print(
                 f"  recorded {r['mutants_bytes']} bytes for {m}@{r['mutant_generation']} in tools/{SIZES_FILE}",
+                flush=True,
+            )
+        if a.record_prework and r.get("stats_sec") and r.get("clean_run_sec") and r.get("tests"):
+            # Keyed to the SELECTION this run actually used, and written only when the run observed
+            # both phase boundaries: a run killed in generation has `stats_sec` None and records
+            # nothing, which is the absence the gate is meant to report.
+            _sel = selection_hash(r["tests"])
+            _pf = HERE / "tools" / PREWORK_RECORD_FILE
+            _pf.write_text(
+                merge_prework(
+                    _pf.read_text(encoding="utf-8") if _pf.exists() else "",
+                    m,
+                    _sel,
+                    r["stats_sec"],
+                    r["clean_run_sec"],
+                    time.strftime("%Y-%m-%d"),
+                    platform.node(),
+                ),
+                encoding="utf-8",
+            )
+            print(
+                f"  recorded a {r['stats_sec']:.1f}s stats pass for {m}@{_sel} in tools/{PREWORK_RECORD_FILE}",
                 flush=True,
             )
         # ⚠️ THE VERDICT FIELDS COME FIRST AND ARE NEVER TRUNCATED. This used to be a flat

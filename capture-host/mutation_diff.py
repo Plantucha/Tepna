@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import ast
 import fnmatch
+import hashlib
 import json
 import os
 import pathlib
@@ -52,8 +53,17 @@ from typing import Final, TypedDict
 
 __all__ = [
     "GATE_BUDGET_SEC",
-    "PREWORK_TRACE_FACTOR",
+    "PREWORK_FILE",
+    "PREWORK_SCHEMA",
+    "PREWORK_CLEAN_DRIFT",
+    "selection_hash",
+    "prework_record",
+    "merge_prework",
+    "prework_stale_reason",
+    "cached_stats_sec",
+    "stats_pass_seconds",
     "prework_estimate",
+    "prework_unmeasured_note",
     "budget_refusal",
     "budget_exhaustion_verdict",
     "stream_bounded",
@@ -1024,39 +1034,221 @@ def classify(entries, survivors, killed, generated=(), not_required=(), unchecke
 # selection is the whole suite", not "three functions over 800 lines" — the size row measured the
 # wrong quantity. Two bounds, both stated as numbers before any run, both REFUSALS (a refusal is a
 # verdict with a reason; a SIGTERM is not):
-#   · PRE-WORK: the clean run is timed ONCE per module and the predicted pre-work
-#     (clean × (1 + TRACE_FACTOR)) must fit in what is left of the gate budget, or the module is
-#     refused BEFORE any mutant is generated, naming the module, its clean time and the prediction.
+#   · PRE-WORK: the clean run is timed ONCE per module and the predicted pre-work (that clean run plus
+#     this module's MEASURED stats pass, read from tools/mutation-prework.json) must fit in what is
+#     left of the gate budget, or the module is refused BEFORE any mutant is generated, naming the
+#     module, its clean time, the recorded stats time and where that number was measured. A module
+#     with no recorded stats pass is not predicted at all: the bound reports the absence and the WALL
+#     bound below is what still holds (owner ruling, board #71 item 3, 2026-10-17).
 #   · WALL: every mutmut invocation gets the REMAINING budget as its cap; a cap that is hit returns
 #     partial counts behind `timed_out`, and the gate refuses on it naming the glob and how far it got.
 GATE_BUDGET_SEC = 7200  # 2 h of gate wall time. Pre-stated: no mutation job in the visible history
 # produced a verdict past 98 min; the workflow cap sits above this so the
 # tool refuses before the runner kills it.
-PREWORK_TRACE_FACTOR = 2.0  # ASSUMPTION, stated: mutmut's stats pass ≈ 2× one clean run of the
-# selection (a traced run). Replace with a measured factor when one exists;
-# the refusal prints the clean time it multiplied so the reader can check.
+# ── THE PRE-WORK BOUND READS A MEASUREMENT, NOT A FACTOR (owner ruling, board #71 item 3, 2026-10-17)
+# This was `PREWORK_TRACE_FACTOR = 2.0`, an assumption that said so of itself and asked to be replaced
+# by a measured figure. The measurement arrived as a failure: #3238 reached NO mutant on `capture.py`
+# with 1337 s of selection plus clean run, generation under 1 s, then a traced stats pass of at least
+# 7556 s — so the factor under-predicted by at least 5.6x, and it under-predicted on the one module the
+# bound exists for. 2.0 held for the cheap modules and failed on the expensive one, which is the shape
+# of an assumption that cannot be fixed by a better constant: the stats pass is a coverage pass over the
+# module's TEST SELECTION, and `--estimate` measured a 30x spread in selection cost across modules.
+# A per-module number is therefore the only honest one, and it has to come from a run.
+#
+# So the factor is gone and the prediction is `clean run + this module's recorded stats pass`, keyed to
+# the selection it was measured over, written by `tools/mutate.py --record-prework` from a run that
+# observed both phase boundaries. A module with NO record is not predicted: `prework_estimate` returns
+# `None` and the gate prints `prework_unmeasured_note`, because a bound that invents a number for the
+# module it has never measured is the defect this replaces (§∅ — absence is null, never a default).
+PREWORK_FILE = "mutation-prework.json"
+PREWORK_SCHEMA = "tepna.mutation-prework/1"
+
+# THE RECORDED CLEAN RUN IS A VALIDITY BOUND ON THE CACHED NUMBER, AND IT IS NOT A SUBSTITUTE FOR IT.
+# The two live in the same record and were measured in the same run, so a clean run that now reads far
+# from the recorded one says the selection or the machine changed — a hosted runner measured 1432 s
+# where the rig measured 937 s on the same module (#3202). Outside the factor the cached stats time is
+# treated as ABSENT, never rescaled: a ratio correction would be a new assumption wearing the old one's
+# clothes, and absence is a status the gate already reports honestly.
+PREWORK_CLEAN_DRIFT = 2.0
 
 
-def prework_estimate(clean_sec: float, trace_factor: float = PREWORK_TRACE_FACTOR) -> float:
+def selection_hash(tests: "list[str]") -> str:
+    """sha256[:12] over the test SELECTION — the key a cached stats time is filed under.
+
+    Keyed on the selection and not on the module's source, because the stats pass is a coverage pass
+    over the tests mutmut will run: the module's own bytes do not set its cost. A selection that gains
+    or loses a file therefore reads as ABSENT rather than inheriting the old module's number.
+    ⚠️ WHAT THIS KEY CANNOT SEE: a test's CONTENTS changing inside an unchanged file list. That is what
+    the recorded clean run is for (`prework_stale_reason`) — a slower selection shows up in the clean
+    run this gate times anyway, which is a measurement rather than a second hash."""
+    return hashlib.sha256("\n".join(sorted(tests)).encode("utf-8")).hexdigest()[:12]
+
+
+def prework_record(text):
+    """Parse the committed `tools/mutation-prework.json` into `{(module, selection_hash): entry}`.
+
+    WHY COMMITTED, on the same argument as `tools/mutation-sizes.json`: every CI run is a fresh scratch,
+    so a stats time remembered only beside the scratch is one CI never has. Tool-written by
+    `tools/mutate.py --record-prework`; a hand-typed number here would be indistinguishable from a
+    measured one, which is the whole value of the file. A key miss is ABSENT — never a factor, never
+    the nearest module, and a non-positive or non-numeric `statsSec` is absence too."""
+    try:
+        doc = json.loads(text or "{}")
+    except ValueError:
+        return {}
+    out = {}
+    for key, entry in (doc.get("prework") or {}).items():
+        module, _, sel = key.partition("@")
+        if not module or not sel or not isinstance(entry, dict):
+            continue
+        stats = entry.get("statsSec")
+        if isinstance(stats, bool) or not isinstance(stats, (int, float)) or stats <= 0:
+            continue
+        clean = entry.get("cleanSec")
+        ok_clean = not isinstance(clean, bool) and isinstance(clean, (int, float)) and clean > 0
+        out[(module, sel)] = {
+            "statsSec": float(stats),
+            "cleanSec": float(clean) if ok_clean else None,
+            "measuredAt": entry.get("measuredAt"),
+            "host": entry.get("host"),
+        }
+    return out
+
+
+def merge_prework(text, module, sel_hash, stats_sec, clean_sec, measured_at, host):
+    """The record with this measurement added, as JSON text. Idempotent on an unchanged measurement.
+
+    An existing entry is REPLACED rather than averaged, for the reason `merge_mutants_size` gives: the
+    same selection costing a different stats pass means the machine or the tests changed, and the newer
+    measurement is the one that describes this tree. The previous value stays in `supersedes` so the
+    change is visible to a reader who did not run either."""
+    try:
+        doc = json.loads(text or "{}")
+    except ValueError:
+        doc = {}
+    doc.setdefault("schema", PREWORK_SCHEMA)
+    doc.setdefault(
+        "note",
+        "Measured stats-pass seconds per (module, test-selection sha256[:12]), written by "
+        "tools/mutate.py --record-prework from a run that observed both phase boundaries: "
+        "generation's end and the first mutant verdict. It REPLACED a 2.0 trace factor that "
+        "under-predicted capture.py by at least 5.6x. NEVER hand-edited: a typed number here is "
+        "indistinguishable from a measured one. A key miss is absent, not a default, and the gate "
+        "reports the absence instead of predicting.",
+    )
+    prework = doc.setdefault("prework", {})
+    key = f"{module}@{sel_hash}"
+    prior = prework.get(key)
+    entry = {
+        "statsSec": round(float(stats_sec), 1),
+        "cleanSec": round(float(clean_sec), 1),
+        "measuredAt": measured_at,
+        "host": host,
+    }
+    if isinstance(prior, dict) and prior.get("statsSec") not in (None, entry["statsSec"]):
+        entry["supersedes"] = prior.get("statsSec")
+    prework[key] = entry
+    doc["prework"] = dict(sorted(prework.items()))
+    return json.dumps(doc, indent=2) + "\n"
+
+
+def prework_stale_reason(clean_now, clean_recorded, drift=PREWORK_CLEAN_DRIFT):
+    """Why a cached stats time does not describe THIS run, or None when it does."""
+    if not clean_recorded:
+        return "the record carries no clean run of its own, so nothing says it describes this machine"
+    if not (clean_recorded / drift) <= clean_now <= clean_recorded * drift:
+        return (
+            f"the clean run measured {clean_now:.1f}s here against {clean_recorded:.1f}s when the stats "
+            f"pass was recorded — over a factor of {drift:g}, so this is a different machine or a "
+            f"different selection and the recorded number does not describe it"
+        )
+    return None
+
+
+def cached_stats_sec(record, module, tests, clean_now, drift=PREWORK_CLEAN_DRIFT):
+    """`(stats_sec, basis)` for this module's selection — `(None, reason)` when nothing describes it.
+
+    The basis travels WITH the number because a measurement from another host is still a measurement
+    and the reader has to be able to see which one: the refusal prints it, exactly as the old one
+    printed the factor it multiplied."""
+    sel = selection_hash(tests)
+    entry = record.get((module, sel))
+    if entry is None:
+        return None, f"no recorded stats pass for {module}'s current selection ({sel})"
+    why = prework_stale_reason(clean_now, entry.get("cleanSec"), drift)
+    if why:
+        return None, why
+    return entry["statsSec"], (
+        f"measured {entry['statsSec']:.0f}s on {entry.get('host') or 'an unnamed host'} "
+        f"{entry.get('measuredAt') or 'on an unrecorded date'}, selection {sel}"
+    )
+
+
+def stats_pass_seconds(gen_done_sec, first_mutant_sec):
+    """The stats pass, measured: generation's end to the FIRST mutant verdict.
+
+    `None` when either boundary was never observed. A run killed in generation and a run that generated
+    and then tested nothing both measured no stats pass, and the elapsed time of either is a
+    well-formed float that would read as one — the #3238 shape, where 618 spinner lines carried zero
+    mutant ticks. Both boundaries come from the emitter: mutmut's own generation line, and a distinct
+    mutant id appearing."""
+    if gen_done_sec is None or first_mutant_sec is None:
+        return None
+    if first_mutant_sec < gen_done_sec:
+        return None  # observed out of order: not a measurement, and never a negative stats pass
+    return first_mutant_sec - gen_done_sec
+
+
+def prework_estimate(clean_sec: float, stats_sec: "float | None") -> "float | None":
     """Seconds a module costs BEFORE its first mutant is tested: one clean run (already spent when this
-    is called — it is what measured `clean_sec`) plus the traced stats pass."""
-    return clean_sec * (1.0 + trace_factor)
+    is called — it is what measured `clean_sec`) plus its MEASURED stats pass.
+
+    `None` when the stats pass is unmeasured, and that is the point of the change above: the caller
+    reports the absence (`prework_unmeasured_note`) instead of multiplying a constant nobody measured."""
+    if stats_sec is None:
+        return None
+    return clean_sec + stats_sec
+
+
+def prework_unmeasured_note(module: str, clean_sec: float, n_globs: int, why: str) -> str:
+    """The line a gate prints when the pre-work bound could not be EVALUATED.
+
+    NOT a pass and not a refusal: nothing here says the module fits, only that this bound examined
+    nothing (§🧾's `NOT_RUN`, one bound down). It names the measurement that is missing and the command
+    that produces it, so the absence is closable rather than permanent."""
+    return (
+        f"{module}: the pre-work bound was NOT evaluated — {why}. The clean run measured "
+        f"{clean_sec:.1f}s here and {n_globs} function(s) are selected; the wall bound on each mutmut "
+        f"invocation is what still holds. This is not a verdict that the module fits. Record the "
+        f"measurement with `tools/mutate.py {module[:-3]} --record-prework` and the bound binds on the "
+        f"next run."
+    )
 
 
 def budget_refusal(
-    module: str, clean_sec: float, n_globs: int, left_sec: float, trace_factor: float = PREWORK_TRACE_FACTOR
+    module: str,
+    clean_sec: float,
+    n_globs: int,
+    left_sec: float,
+    stats_sec: "float | None" = None,
+    basis: "str | None" = None,
 ) -> str | None:
     """A refusal reason when the module's predicted pre-work does not fit in what is left, else None.
-    Names every number it used, so the reader can re-derive the verdict — never just "too big"."""
-    est = prework_estimate(clean_sec, trace_factor)
-    if est <= left_sec:
+    Names every number it used, so the reader can re-derive the verdict — never just "too big".
+
+    ⚠️ `None` means THIS BOUND RAISED NO REFUSAL, which is not the same as "it fits": an unmeasured
+    stats pass yields no prediction, and the caller owes `prework_unmeasured_note` there. `tools/
+    mutate_diff.py` is the one caller and does both; `tools/find_unwired.py` is what keeps it so."""
+    est = prework_estimate(clean_sec, stats_sec)
+    if est is None or est <= left_sec:
         return None
     return (
-        f"{module}: predicted pre-work {est:.0f}s (clean run {clean_sec:.1f}s × (1 + {trace_factor:g}) "
-        f"stats pass) exceeds the {left_sec:.0f}s left of the {GATE_BUDGET_SEC}s gate budget — "
-        f"{n_globs} function(s) selected, none mutated. This is a REFUSAL with a reason, not a "
-        f"verdict on the diff: the module's test selection is too costly to mutate in one gate run. "
-        f"Scope the change, or run `tools/mutate.py --only` locally on the function(s)."
+        f"{module}: predicted pre-work {est:.0f}s (clean run {clean_sec:.1f}s + stats pass "
+        f"{stats_sec:.0f}s, {basis or 'provenance unrecorded'}) exceeds the {left_sec:.0f}s left of "
+        f"the {GATE_BUDGET_SEC}s gate budget — {n_globs} function(s) selected, none mutated. This is a "
+        f"REFUSAL with a reason, not a verdict on the diff: the module's test selection is too costly "
+        f"to mutate in one gate run. Scope the change, or run `tools/mutate.py --only` locally on the "
+        f"function(s)."
     )
 
 
@@ -1251,11 +1443,14 @@ def prune_scratches(tmp_root, stem, current, now=None, start_ticks_of=proc_start
 # spawns a worker per core. The harness watchdog reaps on BOX pressure rather than per-cgroup, so an
 # over-committed run does not just fail itself — it takes other sessions' gates with it.
 WORKER_RSS_PER_MUTANTS_BYTE = 15.0
-# ASSUMPTION, STATED, exactly as PREWORK_TRACE_FACTOR above: one worker's peak RSS ~= 15x the generated
-# mutants file. This is ONE measurement, not a fit — 2026-09-27, capture.py: a 536 MB mutants file
-# against 8.2 GB RSS = 15.3x. Replace it when a second module has been measured; until then the
-# refusal prints the file size and the factor it multiplied so a reader can redo the arithmetic and
-# see how much of the answer is this number.
+# ASSUMPTION, STATED: one worker's peak RSS ~= 15x the generated mutants file. This is ONE
+# measurement, not a fit — 2026-09-27, capture.py: a 536 MB mutants file against 8.2 GB RSS = 15.3x.
+# Replace it when a second module has been measured; until then the refusal prints the file size and
+# the factor it multiplied so a reader can redo the arithmetic and see how much of the answer is this
+# number. ⚠️ THE PRE-WORK FACTOR THAT USED TO SIT BESIDE THIS ONE IS GONE (see PREWORK_FILE above):
+# 2.0 under-predicted the module it existed for by at least 5.6x, and a per-module measurement
+# replaced it. That is the standing argument for retiring this one too — a factor measured on one
+# module is not a constant for the others.
 MEM_CAP_FRACTION = 0.5
 # Pre-stated, and deliberately not "whatever is free": never PLAN to hold more than half of what the
 # box reports available when the run starts. The other half is the rest of the fleet, and the reason
