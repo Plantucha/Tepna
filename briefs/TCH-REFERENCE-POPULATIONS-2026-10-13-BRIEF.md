@@ -120,6 +120,37 @@ effect. It is a paired comparison over the same nights, so it needs fewer nights
 - The card names both of its populations, and no number on it is hard-coded.
 - `npm run check` passes. The tool's selftest covers both axis modes.
 
+## 8 · First full-corpus result (2026-10-18, §6's paired drift item)
+
+One run per axis over the box captures, on `tools/tch-firmware-reference.mjs` as #3619 landed it.
+94 eligible nights, 54 scored, **2026-07-27 → 2026-10-16**. Pooled figures only, per the owner's
+2026-09-24 ruling. Each leg took 26 minutes at 2.3 GB peak.
+
+| corner | median paired \|Δσ\| | median Δσ (host − wall) | host larger than wall | §4's 0.05 bpm line |
+|---|---|---|---|---|
+| H10 | 0.540 bpm | +0.540 | 53 of 54 nights | material |
+| Verity | 0.506 bpm | −0.444 | 7 of 54 nights | material |
+| O2Ring | 0.278 bpm | −0.278 | 15 of 54 nights | material |
+
+**The drift matters on every corner, and the H10's direction is §2.3's defect rather than drift.**
+The optical corners read BETTER with the host discipline on, which is what a rate correction should do.
+The H10 reads worse on 53 of 54 nights, one-sided, and the source says why. The reference rides the raw
+device counter while the corner rides the corrected axis. A drift effect has no reason to run one-sided
+on the one corner that supplies the reference.
+
+**Night quality explains part of the misread.** The solid stratum PASSES on both axes, over 10 nights
+from 2026-09-28 to 2026-10-16. All 54 nights FAIL, at a classic pass fraction of 0.759 on host and
+0.769 on wall, against the 0.8 threshold. The stratum sits at exactly `MIN_NIGHTS`, so one night either
+way moves it. §4's CI comparison stays owed, and nobody may read this PASS as the headline.
+
+**The rolling-30 window disagrees across the axes** — FAIL on host, PASS on wall, over 23 nights from
+2026-09-18 to 2026-10-17. That is the same H10 inflation through a smaller window. §4 keeps the trend
+off the card, and this supports that.
+
+**The drawn-axis flag earned itself on the first run.** Across the corpus the recorder saw 11 O2Ring
+calls whose host axis was DRAWN, plus 3 O2Ring refusals and 1 Verity refusal. Reading `independent`
+alone would have counted those 11 as a second clock.
+
 ## 7 · Out of scope
 
 - A correlated hat that uses the measured ρ. That stays with the knife-edge brief.
