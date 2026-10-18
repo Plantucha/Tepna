@@ -20,6 +20,12 @@
       "measuredAt": "2026-10-17",
       "host": "rig-x870"
     },
+    "cpap_spool_decode.py@43e8149b1116": {
+      "statsSec": 8.3,
+      "cleanSec": 0.2,
+      "measuredAt": "2026-10-18",
+      "host": "rig-x870"
+    },
     "localstamp.py@18d83e5995de": {
       "statsSec": 1.1,
       "cleanSec": 0.5,

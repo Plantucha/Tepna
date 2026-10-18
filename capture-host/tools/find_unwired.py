@@ -325,9 +325,6 @@ ALLOW_FUNCS = {
     "hdev": "allan.py — overlapping HADAMARD deviation (Baugh 1971 / Riley SP 1065). Its sibling `adev` "
     "IS wired (nightqc); hdev is the drift-tolerant variant, available for an analysis that has "
     "not yet needed it. Retire this when a caller quotes H-sigma, or delete if none ever does",
-    "read_edf": "cpap_edf — the round-trip partner of `write_edf` (which IS wired, cpap_edf_writer). It "
-    "exists so `write_edf(read_edf(x)) == x` is provable byte-for-byte; the tests are its "
-    "legitimate consumer. Retire only if that property stops being asserted",
     "list_sessions": "oxy_transfer §2 — read-only 'what the ring says it has', committing to nothing. "
     "Fourth of the unit-2 family with pull_deadline/flush_gate/resume_target, all "
     "landed ahead of the async shell that drives them. Retires with that shell",

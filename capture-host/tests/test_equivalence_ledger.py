@@ -147,6 +147,7 @@ RATCHET = {
     "cpap_live.py": 1,
     "cpap_record.py": 2,
     "cpap_spool.py": 3,
+    "cpap_spool_decode.py": 1,
     "cpap_stream.py": 2,
     "cpapdex-dsp.js": 25,
     "diskguard.py": 2,

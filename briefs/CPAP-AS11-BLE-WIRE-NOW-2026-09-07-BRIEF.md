@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (**the AS11 TRANSPORT is BUILT; this brief wires DECODE and consumers on top of it — verified 2026-09-11 (Osprey) in the tree, not from the prose.** Present: `as11_pull.py`, `as11_link.py`, `as11_cipher.py`, `as11_pair.py`, `as11_clock.py`, `cpap_spool.py`, `cpap_edf_dict.py`. Absent and therefore genuinely WU1 work: `cpap_spool_decode.py`. So no unit here should be sized as "bring up AS11 over BLE" — pairing, cipher, link, clock and the spool round-transaction all already exist and ship green; what is owed is decoding the committed Summary rounds rig-side and the consumers above it (WU2 CPAPDex-loadable, WU10 the monitor stream-rate selector, WU7 the one bundle/provenance touch). Owner: Kestrel (coordination); units go to the rig coders.) · **Created:** 2026-09-07 · **Owner:** Kestrel (coordination) — units go to the rig coders · **Scope:** out-of-suite `capture-host/` + one CPAPDex vocabulary unit; no bundle/provenance impact except WU7 · **Residue:** 2026-09-17-cpap-spool-cursor-advanced-past-uncommitted · verified 2026-09-25 (cloud): 1 parked item unblocked, see §1
+**Status:** IN-PROGRESS (**WU1 DONE 2026-10-17 (Finch):** `capture-host/cpap_spool_decode.py` decodes every committed Summary round with no bytes left over, and every day shared with the SD `STR.edf` matches to the minute. The measured figures are in the WU1 result block. WU2 is next by §10.) · was PROPOSED (**the AS11 TRANSPORT is BUILT; this brief wires DECODE and consumers on top of it — verified 2026-09-11 (Osprey) in the tree, not from the prose.** Present: `as11_pull.py`, `as11_link.py`, `as11_cipher.py`, `as11_pair.py`, `as11_clock.py`, `cpap_spool.py`, `cpap_edf_dict.py`. Absent and therefore genuinely WU1 work: `cpap_spool_decode.py`. So no unit here should be sized as "bring up AS11 over BLE" — pairing, cipher, link, clock and the spool round-transaction all already exist and ship green; what is owed is decoding the committed Summary rounds rig-side and the consumers above it (WU2 CPAPDex-loadable, WU10 the monitor stream-rate selector, WU7 the one bundle/provenance touch). Owner: Kestrel (coordination); units go to the rig coders.) · **Created:** 2026-09-07 · **Owner:** Kestrel (coordination) — units go to the rig coders · **Scope:** out-of-suite `capture-host/` + one CPAPDex vocabulary unit; no bundle/provenance impact except WU7 · **Residue:** 2026-09-17-cpap-spool-cursor-advanced-past-uncommitted · verified 2026-09-25 (cloud): 1 parked item unblocked, see §1
 
 # CPAP AS11 over BLE — WIRE NOW (stock firmware · BLE only · read-only RPCs)
 
@@ -52,6 +52,35 @@ Every unit below is one PR, one changeset (`capture-host` behavioural), `./check
 pre-stated done-when. File anchors were verified 2026-09-07 against `origin/main` `9a362c63`.
 
 ### WU1 — decode the committed Summary rounds rig-side; explain the six-day silence
+
+> ✅ **WU1 RESULT (Finch, 2026-10-17): DONE against all three done-when clauses.**
+> `capture-host/cpap_spool_decode.py <store> --str <STR.edf>` reads the ledger and walks each round
+> strictly. It writes one JSON line per record and compares usage per day with the card.
+>
+> | measure | value |
+> |---|---|
+> | committed Summary rounds in the ledger (box store, copied read-only) | 24 (2026-09-01 → 2026-10-17) |
+> | unknown-field bytes left over, all rounds | **0** |
+> | truncated or missing rounds | 0 |
+> | distinct therapy days served | 78 (2026-07-31 → 2026-10-16) |
+> | days served by more than one round that decode differently | 0 |
+> | days shared with the SD `STR.edf` (77 records, 2026-07-29 →) | 75 |
+> | of those, days whose duration AND every session on/off differ by ≥ 1 min | **0** |
+>
+> Findings the sizing table did not have:
+>
+> 1. **Summary carries no Rice coding.** It is plain nested protobuf. The Rice / second-difference
+>    streams in the source document belong to RC03 records, so that component moves to WU8.
+> 2. **Field 4 `TimeZoneOffsetMin` is a zigzag `sint`.** EDT is served as `479`, which decodes to −240.
+> 3. **Field 43 `SmdSmtTimestamp` is ONE varint** on firmware 17.8.6.0, not a date/time pair. It reads
+>    UTC ms 1785354106968 in every record. That is 2026-07-29, the first day in `STR.edf`. The
+>    meaning is not established; the decoder keeps the integer as served.
+> 4. **The silence ended.** Rounds commit again from 2026-09-19. Each later round re-serves the whole
+>    range from its cursor, so the record count grows by one per day. Osprey's journal reading below
+>    stays the named cause for 09-01 → 09-17. The cursor behaviour is the open residue row
+>    `2026-09-17-cpap-spool-cursor-advanced-past-uncommitted`, which this unit does not close.
+>
+> No therapy data enters the tree: the tests build synthetic rounds by hand.
 
 > 🔴 **THE FIRST CHECK IS DONE (Osprey, 2026-09-17), AND IT REFUTES THIS SECTION'S OWN HYPOTHESIS.**
 > WU1 says *"wearables streaming through the 10:00–12:00 window is the obvious candidate; `_cpap_spool_loop`
