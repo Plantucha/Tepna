@@ -436,6 +436,7 @@ async function selftest() {
     process.exit(1);
   }
   console.log('selftest: per-night median/CI, gap exclusion — PASS');
+  console.log('all 2 selftests passed');
 }
 
 function gitSha() {
