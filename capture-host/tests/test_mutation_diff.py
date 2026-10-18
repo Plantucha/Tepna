@@ -820,6 +820,45 @@ def test_a_cached_stats_time_from_a_different_machine_is_absent_not_rescaled():
     assert "an unnamed host" in basis and "on an unrecorded date" in basis
 
 
+def test_the_prework_record_survives_every_shape_the_diff_gate_mutated():
+    """The 16 survivors #3622's diff-scoped gate named, each pinned by the input that separates it."""
+    import json
+
+    from mutation_diff import cached_stats_sec, merge_prework, prework_record, prework_unmeasured_note, selection_hash
+
+    # the drift argument reaches the staleness check: a tight factor refuses what the default accepts
+    tests = ["tests/test_alerts.py"]
+    rec = {("alerts.py", selection_hash(tests)): {"statsSec": 4.0, "cleanSec": 1.0}}
+    assert cached_stats_sec(rec, "alerts.py", tests, 1.5)[0] == 4.0
+    secs, why = cached_stats_sec(rec, "alerts.py", tests, 1.5, drift=1.1)
+    assert secs is None and "factor of 1.1" in why
+
+    # the note is written under its own key and says what the file is
+    doc = json.loads(merge_prework("", "alerts.py", "abc", 1.234, 0.567, "2026-10-17", "h"))
+    assert sorted(doc) == ["note", "prework", "schema"]
+    assert doc["note"].startswith("Measured stats-pass seconds") and "NEVER hand-edited" in doc["note"]
+    # one decimal, both numbers
+    assert doc["prework"]["alerts.py@abc"]["statsSec"] == 1.2
+    assert doc["prework"]["alerts.py@abc"]["cleanSec"] == 0.6
+    # the committed file is two-space indented, so a re-record diffs line by line
+    text = merge_prework("", "alerts.py", "abc", 1.0, 1.0, "2026-10-17", "h")
+    assert text == json.dumps(json.loads(text), indent=2) + "\n"
+
+    # the module name is everything before the FIRST @: a selection hash never carries one, a key may
+    assert set(prework_record('{"prework": {"m.py@a@b": {"statsSec": 2}}}')) == {("m.py", "a@b")}
+    # a bad row is skipped, never the end of the record
+    skip_key = '{"prework": {"bad": {"statsSec": 2}, "m.py@abc": {"statsSec": 2}}}'
+    assert set(prework_record(skip_key)) == {("m.py", "abc")}
+    skip_stats = '{"prework": {"a.py@abc": {"statsSec": 0}, "m.py@abc": {"statsSec": 2}}}'
+    assert set(prework_record(skip_stats)) == {("m.py", "abc")}
+    # a sub-second stats pass is a measurement: only a non-positive one is absence
+    assert prework_record('{"prework": {"m.py@abc": {"statsSec": 0.5}}}')[("m.py", "abc")]["statsSec"] == 0.5
+
+    # the command names the module without its .py
+    note = prework_unmeasured_note("capture.py", 1.0, 1, "why")
+    assert "`tools/mutate.py capture --record-prework`" in note
+
+
 def test_the_gate_both_reads_the_record_and_reports_the_absence():
     """The two halves are one contract: `tools/mutate_diff.py` must pass the cached number to the
     bound AND print the note when there is none. A caller that did only the first would turn an
