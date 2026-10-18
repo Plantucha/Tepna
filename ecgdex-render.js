@@ -102,7 +102,8 @@ window.evBadge = evBadge;
       this.times = rec.times || [];
       this.sqi = rec.sqi || [];
       this.types = rec.morph ? rec.morph.types : null; // N/V/S ectopy classes
-      // amplitude range (robust)
+      // whole-recording amplitude range — the MINI-MAP's scale only (the main view scales per
+      // window; see `_viewScale`)
       let lo = 32767,
         hi = -32768,
         step = Math.max(1, Math.floor(this.N / 40000));
@@ -141,6 +142,67 @@ window.evBadge = evBadge;
       return best;
     }
 
+    /* ── THE Y SCALE IS PER-WINDOW, NOT PER-RECORDING ──────────────────────────────────────────
+       `setData` measures the whole recording's min/max, and this used to be the scale for every
+       view. One end-of-recording artifact spike therefore set the scale for the entire session, so
+       a normal QRS drew as a small bump while the R-peak dots still sat in the right places —
+       detection was never wrong, only the drawing (owner report 2026-10-18).
+       The scale now comes from the window the view actually draws, read from the SAME source the
+       trace reads: raw int16 at factor 1, the envelope's `mins`/`maxs` above it. What the scale
+       covers is then what the path paints, at every zoom level.
+       Percentile-clipped at 0.5/99.5 so an artifact INSIDE the window cannot flatten the beats
+       beside it, and `draw` clips to the plot box so a clipped excursion stops at the axis. A
+       degenerate window (every sample equal) keeps the old ±100 pad rather than dividing by zero.
+       The MINI-MAP deliberately keeps the whole-recording scale: its job is the overview that shows
+       where the spike is.
+       Cached by `start|span|factor`, so re-drawing one view is identical every time and panning
+       cannot jitter the baseline. */
+    _viewScale(start, span, f) {
+      const key = start + '|' + span + '|' + f;
+      if (this._vsKey === key) return this._vs;
+      const CAP = 20000;
+      const lows = [],
+        highs = [];
+      if (f === 1) {
+        const i0 = Math.max(0, Math.floor(start)),
+          i1 = Math.min(this.N - 1, Math.ceil(start + span));
+        const step = Math.max(1, Math.floor((i1 - i0 + 1) / CAP));
+        for (let i = i0; i <= i1; i += step) {
+          const v = this.data.int16[i];
+          lows.push(v);
+          highs.push(v);
+        }
+      } else {
+        const env = this.pyr[f];
+        const b0 = Math.max(0, Math.floor(start / f)),
+          b1 = Math.min(env.mins.length - 1, Math.ceil((start + span) / f));
+        const step = Math.max(1, Math.floor((b1 - b0 + 1) / CAP));
+        for (let b = b0; b <= b1; b += step) {
+          lows.push(env.mins[b]);
+          highs.push(env.maxs[b]);
+        }
+      }
+      let out;
+      if (!lows.length) {
+        out = { lo: this.yLo, hi: this.yHi };
+      } else {
+        lows.sort((a, b) => a - b);
+        highs.sort((a, b) => a - b);
+        const q = (arr, pr) => arr[Math.min(arr.length - 1, Math.max(0, Math.round(pr * (arr.length - 1))))];
+        let lo = q(lows, 0.005),
+          hi = q(highs, 0.995);
+        if (!(hi > lo)) {
+          lo = lows[0];
+          hi = highs[highs.length - 1];
+        }
+        const pad = (hi - lo) * 0.08 || 100;
+        out = { lo: lo - pad, hi: hi + pad };
+      }
+      this._vsKey = key;
+      this._vs = out;
+      return out;
+    }
+
     draw() {
       if (!this.data) return;
       const ctx = this.ctx,
@@ -155,7 +217,10 @@ window.evBadge = evBadge;
       const plotW = W - padL - padR,
         plotH = H - padT - padB;
       const { start, span } = this.view;
-      const sy = (v) => padT + ((this.yHi - v) / (this.yHi - this.yLo)) * plotH;
+      const samplesPerPx = (span / plotW) * dpr;
+      const f = this._pickLevel(samplesPerPx);
+      const vs = this._viewScale(start, span, f);
+      const sy = (v) => padT + ((vs.hi - v) / (vs.hi - vs.lo)) * plotH;
 
       // baseline grid (major every 0.2 s on the time axis at this zoom)
       ctx.strokeStyle = C.grid;
@@ -194,8 +259,13 @@ window.evBadge = evBadge;
       }
 
       // ── waveform via envelope ──
-      const samplesPerPx = (span / plotW) * dpr;
-      const f = this._pickLevel(samplesPerPx);
+      /* CLIPPED to the plot box. The window scale can leave a sample outside it — a percentile-clipped
+         artifact, or an ectopy label at the top edge — and without the clip the path paints over the
+         time axis instead of stopping at it. */
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(padL, padT, plotW, plotH);
+      ctx.clip();
       ctx.strokeStyle = C.teal;
       ctx.lineWidth = 1 * dpr;
       ctx.beginPath();
@@ -251,6 +321,7 @@ window.evBadge = evBadge;
           }
         }
       }
+      ctx.restore();
     }
 
     drawMini() {
