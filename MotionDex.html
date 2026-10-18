@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="3fabcc0e8f1c" data-compute-hash="1aa6deaa643e">
+<html lang="en" data-manifest-hash="cbbf9d00cf79" data-compute-hash="1eb196d921e0">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.19.0</title>
@@ -5516,10 +5516,20 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
        fabricated one, so gating on it reds 11 assertions including ECGDex's planted-drift recovery —
        a real feature, not a fixture nit. The detector is right about real data (381 files, perfect
        separation) and wrong to be load-bearing here, because a test fixture is not a recording.
-       ⚠ CONSEQUENCE, stated because it is a live hole and not a resolved one: `independent` is STILL
-       true for a drawn O2Ring axis, and pat-gate.js / ecgdex-dsp.js / integrator-dsp.js still read it.
-       Consumers must move to `deviceDrawn` deliberately, node by node, with each node's fixtures
-       re-cut to a realistic device axis. Tracked in KNOWN-CLOCK-ADVERSARIAL-CAPTURE §Findings. */
+       ⚠ CONSEQUENCE, split because its two halves no longer agree: `independent` is STILL true
+       for a drawn O2Ring axis, and that half is the additive discipline above rather than a hole.
+       The CONSUMER half has MOVED, each node to the remedy its own §7 position allows — measured
+       2026-10-18 on 16a5a96f5: `ecgdex-dsp.js` RELABELS (`ecgAxisDrawn` → `timingSource:'host'`,
+       8 `deviceDrawn` sites), because §7 lets a drawn axis be PLACED on a host timeline and a
+       refusal would leave every sample on the assumed rate — strictly worse (residue
+       2026-09-05-drawn-remedy-is-relabel-not-refuse); `integrator-dsp.js` REFUSES on it
+       (`deviceDrawn !== true`, 3 sites); `pat-gate.js` carries no `deviceDrawn` site and refuses earlier, on
+       `timingSource === 'none'`. A node adopting `deviceDrawn` re-cuts its own fixtures to a
+       realistic device axis first. The migration table is KNOWN-CLOCK-ADVERSARIAL-CAPTURE
+       §Findings (corrected 2026-09-27, #3172); the suite's `clock · drawn-axis · source-scan`
+       group keeps the TOOL spenders honest, and residue
+       2026-10-12-clock-js-names-two-migrated-drawn-consumers-as-live records what this sentence
+       used to overstate. */
     var independent = spreadMs > CK_AXIS_INERT_MS;
     /* PLAUSIBILITY BOUND — refuse, never "correct", an implausible rate. Caught by the ECGDex §4.3
        fixture, whose synthetic ms column advances at 2× its host stamps: unbounded, that is a −500000
