@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (deferred 2026-10-13 — owner: "brief only, code after saturday") · **Created:** 2026-10-13 · **Follows:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-10-18 · **Created:** 2026-10-13 · **Follows:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`
 
 # The hat's reference check: which nights, which clock, and how the card stays current
 
@@ -43,6 +43,23 @@ device clocks cost.
    beats every 600 beats by coincidence lag. The join of the reference with the Verity and the O2Ring
    corners uses whole wall-clock seconds. `sensor-trio-worker.js` calls no `DexClock.hostAxis`. Nobody
    has measured what this costs.
+
+   **Correction, 2026-10-18 (Osprey), from the source rather than from this brief.** The second
+   sentence above is true and the inference drawn from it is not. `sensor-trio-worker.js` indeed calls
+   no `DexClock.hostAxis`, because the DSPs own that call: ECGDex's `tMsAt` adds `correctionAt` to the
+   device counter (`ecgdex-dsp.js:5610`) and PpgDex builds `relSec` the same way (`ppgdex-dsp.js:1268`).
+   The tool loads `clock.js` into its realm, so **every corner is already host-disciplined today** —
+   `--axis host` is the status quo, and `--axis wall` is §3's counterfactual leg, which suppresses
+   `hostAxis` so each parser takes its own documented refusal path and keeps the raw device counter
+   (Clock Contract §7: a node never hand-rolls a rate).
+
+   **And the join is not where the mismatch sits.** `analyze` builds its beat clock from
+   `rec.devMsAt` — the **raw** device counter, with no `correctionAt` (`ecgdex-dsp.js:2824-2831`) —
+   while the H10 corner's HR series rides `tMsAt`, which carries the correction. So under `--axis host`
+   the reference and the corner it comes from sit on two axes that diverge by the correction over a
+   night, and the H10's apparent error against its own reference carries that divergence. Putting the
+   reference on `tMsAt` is a change to the estimator's inputs and is **out of scope here** (§7); it is
+   logged as residue, and §6's paired drift result covers both axes until the owner settles that.
 4. **Night quality is not a variable.** The 37 nights include nights that the SOLID-NIGHT verdict
    later failed on continuity or timebase.
 
@@ -81,7 +98,13 @@ effect. It is a paired comparison over the same nights, so it needs fewer nights
 ## 5 · What changes in code (after 2026-10-17)
 
 1. `tools/tch-firmware-reference.mjs` gains a `--axis host|wall` option and a `--solid <list>` option.
-   It emits one `tepna.verdict/1` per population.
+   It emits one `tepna.verdict/1` per population. — **BUILT 2026-10-18.** `--axis host|wall`,
+   `--solid auto|<file>|<list>`, an axis-keyed night ledger (a legacy row with no axis reads as
+   `host`), and one verdict per population: the all-nights object stays at the top level of `--json`
+   under the gate name `tch-firmware-reference`, so `tepna-tchref-nightly.service` is unaffected, with
+   `tch-firmware-reference:rolling30` and `tch-firmware-reference:solid` beside it in `verdicts`. Each
+   night also reports, per corner, whether a second clock existed (`independent`) and whether the axis
+   refused — never a near-zero ppm read as agreement.
 2. A new published-number record replaces the 2026-09-26 one. It holds pooled figures only, with the
    night count and the date range. The owner ruled on 2026-09-24 that per-night rows stay off the public
    repo.
