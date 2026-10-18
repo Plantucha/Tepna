@@ -1,0 +1,175 @@
+{
+ "schema": "tepna.verdict/1",
+ "gate": "measurement-emitter-perf:OxyDex",
+ "status": "UNDERPOWERED",
+ "scope": "internal",
+ "population": {
+  "checked": 5,
+  "eligible": 5,
+  "excluded": 0
+ },
+ "criterion": {
+  "name": "runtime_overhead_pct",
+  "threshold": 5,
+  "unit": "%",
+  "direction": "lte",
+  "preStated": "bands copied verbatim from audits/MEASUREMENT-EMITTER-PERF-PPGDEX-2026-09-22.json (written 2026-09-22 before any run, identical to the ECGDex record): runtime ≤ +5 % AND ≤ +50 ms · peak RSS ≤ +50 MB · export ≤ +4096 bytes; adapter per-call delta ≤ +50 ms; headline = worst-night runtime %, the other bands are the tail"
+ },
+ "result": {
+  "bands": {
+   "runtimePct": 5,
+   "runtimeAbsMs": 50,
+   "peakRssMB": 50,
+   "exportBytes": 4096
+  },
+  "noiseRule": "a runtime delta over the band but not over its own night's within-arm spread is UNDERPOWERED, not FAIL — rule added after the tool's first run (see header); every other band as pre-stated",
+  "emitterDirectWorstPerCallMs": 0.002912,
+  "runsPerArm": 5,
+  "worstRuntimeDeltaPct": 2.34,
+  "baseline": "same tree, the one `measurement: oxyBuildMeasurementBlocks(…)` call in oxyBuildNightElement replaced by null",
+  "perNight": {
+   "O2Ring S 2100_20260511231000.csv": {
+    "noiseMs": 597.53,
+    "emitterDirect": {
+     "perCallMs": 0.002282,
+     "blocks": 4,
+     "calls": 2000
+    },
+    "wallMs": {
+     "baseline": 6491.95,
+     "shipped": 6628.73,
+     "delta": 136.78,
+     "deltaPct": 2.11
+    },
+    "peakMB": {
+     "baseline": 107.57,
+     "shipped": 107.36,
+     "delta": -0.21
+    },
+    "bytes": {
+     "baseline": 81624,
+     "shipped": 84684,
+     "delta": 3060
+    }
+   },
+   "O2Ring S 2100_20260512235500.csv": {
+    "noiseMs": 439.33,
+    "emitterDirect": {
+     "perCallMs": 0.00242,
+     "blocks": 4,
+     "calls": 2000
+    },
+    "wallMs": {
+     "baseline": 7586.38,
+     "shipped": 7498.61,
+     "delta": -87.77,
+     "deltaPct": -1.16
+    },
+    "peakMB": {
+     "baseline": 107.12,
+     "shipped": 107,
+     "delta": -0.12
+    },
+    "bytes": {
+     "baseline": 133878,
+     "shipped": 136942,
+     "delta": 3064
+    }
+   },
+   "O2Ring S 2100_20260513225000.csv": {
+    "noiseMs": 298.88,
+    "emitterDirect": {
+     "perCallMs": 0.002912,
+     "blocks": 4,
+     "calls": 2000
+    },
+    "wallMs": {
+     "baseline": 6481.49,
+     "shipped": 6632.86,
+     "delta": 151.38,
+     "deltaPct": 2.34
+    },
+    "peakMB": {
+     "baseline": 107.36,
+     "shipped": 108.05,
+     "delta": 0.68
+    },
+    "bytes": {
+     "baseline": 24321,
+     "shipped": 27381,
+     "delta": 3060
+    }
+   },
+   "O2Ring S 2100_20260514230500.csv": {
+    "noiseMs": 359.08,
+    "emitterDirect": {
+     "perCallMs": 0.002736,
+     "blocks": 4,
+     "calls": 2000
+    },
+    "wallMs": {
+     "baseline": 6341.16,
+     "shipped": 6363.41,
+     "delta": 22.25,
+     "deltaPct": 0.35
+    },
+    "peakMB": {
+     "baseline": 107.03,
+     "shipped": 107.53,
+     "delta": 0.5
+    },
+    "bytes": {
+     "baseline": 18442,
+     "shipped": 21500,
+     "delta": 3058
+    }
+   },
+   "O2Ring S 2100_20260515232000.csv": {
+    "noiseMs": 350.83,
+    "emitterDirect": {
+     "perCallMs": 0.002477,
+     "blocks": 4,
+     "calls": 2000
+    },
+    "wallMs": {
+     "baseline": 6061.59,
+     "shipped": 6118.4,
+     "delta": 56.8,
+     "deltaPct": 0.94
+    },
+    "peakMB": {
+     "baseline": 106.96,
+     "shipped": 107.71,
+     "delta": 0.75
+    },
+    "bytes": {
+     "baseline": 17861,
+     "shipped": 20919,
+     "delta": 3058
+    }
+   }
+  },
+  "adapter": {
+   "withBlockMs": 0.10918000000000001,
+   "withoutBlockMs": 0.09032,
+   "deltaMs": 0.01886,
+   "calls": 200,
+   "night": "O2Ring S 2100_20260511231000.csv"
+  }
+ },
+ "evidence": [
+  "oxydex-dsp.js oxyBuildMeasurementBlocks",
+  "integrator-dsp.js normalizeFile → adaptOxyDex → consumeMeasurements",
+  "uploads/O2Ring S 2100_20260511231000.csv",
+  "uploads/O2Ring S 2100_20260512235500.csv",
+  "uploads/O2Ring S 2100_20260513225000.csv",
+  "uploads/O2Ring S 2100_20260514230500.csv",
+  "uploads/O2Ring S 2100_20260515232000.csv"
+ ],
+ "reason": "3 night(s) show a runtime delta over the ≤ 50 ms band that is no larger than the same arm's own run-to-run spread (minimum resolvable ≈ the spread, count 3 of 5): O2Ring S 2100_20260511231000.csv: runtime +136.78 ms (+2.11 %) over ≤ +5 % and ≤ +50 ms, but the same arm's runs spread 597.53 ms | O2Ring S 2100_20260513225000.csv: runtime +151.38 ms (+2.34 %) over ≤ +5 % and ≤ +50 ms, but the same arm's runs spread 298.88 ms | O2Ring S 2100_20260515232000.csv: runtime +56.8 ms (+0.94 %) over ≤ +5 % and ≤ +50 ms, but the same arm's runs spread 350.83 ms",
+ "producedBy": {
+  "tool": "tools/measurement-emitter-perf-oxydex.mjs",
+  "commit": "ef34026ab3084aec723569b1b4ef68f1fa0f9d52"
+ },
+ "at": "2026-10-12T22:42:46Z"
+}
