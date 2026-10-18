@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-17 · **DRAIN 2026-09-02 (Osprey):** tracked by section rather than checkbox — **4 of 11 sections carry a DONE marker**. Not stampable as a unit. **Owner: Osprey. Next step:** convert the remaining sections to checkboxes or split them out; the section-level format is why this brief reads as stalled when parts of it have shipped. · **RE-TRIAGED 2026-09-13 (Osprey): the 09-02 verdict STILL HOLDS — 4 of 11 sections carry a DONE marker and nothing has landed against the other seven.** Checked against this week's mutation landings (#2323 equivalence excusing · #2358 scratch sibling refresh · #2361 refresh counter · #2403 timeout-as-undecided): none touches this brief's sections. The blocker named on 09-02 is unchanged and is a FORMAT problem, not a work problem — tracked by section rather than checkbox, so no reader can tell what is left without reading all eleven. Converting the sections to checkboxes is the cheapest thing anyone can do to this brief and is worth more than executing any single section. · **DRAIN 2026-09-20 (Osprey): header ACCURATE and the blocker is unchanged — **4 of 11 sections carry a completion marker** (§1 · §2 · §4 by `DONE`, §7 by a bare `✅/⚠️`). ⚠️ **My first count said 3 and was wrong**: I grepped the word `DONE` and §7 is marked complete without it — a narrower population than the header's, measured against a different definition. Nothing has landed against the other seven; the 8 mutation-specific landings since 09-13 touch none of them. The FORMAT blocker named on 09-02 stands, and converting the sections to checkboxes remains the cheapest useful act.** · **TRIAGED 2026-09-25 (Osprey): park stands, but its VERIFICATION is stale against a moved surface — re-read before sizing.** This brief is execution-bound, not decision-bound, so landings on its own surface are decision-relevant, and the surface HAS moved since the last drain (measured 2026-09-25 against `origin/main`: 3 commits on `capture-host/tools/mutate_diff.py` since 2026-09-19 alone). Verified this pass: step-1 stale query non-zero from a 925-commit aged base with the positive control firing (RESIDUE 390 / capture.py 105 / CLAUDE.md 12); **0 of 56 pending changesets name it** while 11 name 7 other briefs, so the zero is real; Rule 0 run 2026-09-24. ⚠️ What I did NOT do, stated so nobody reads more into this stamp than it carries: I did not re-verify each Done-when item against the moved surface — that is the next pass's work, and it is now owed rather than optional. Status unchanged.
+**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-17 · **DRAIN 2026-09-02 (Osprey):** tracked by section rather than checkbox — **4 of 11 sections carry a DONE marker**. Not stampable as a unit. **Owner: Osprey. Next step:** convert the remaining sections to checkboxes or split them out; the section-level format is why this brief reads as stalled when parts of it have shipped. · **RE-TRIAGED 2026-09-13 (Osprey): the 09-02 verdict STILL HOLDS — 4 of 11 sections carry a DONE marker and nothing has landed against the other seven.** Checked against this week's mutation landings (#2323 equivalence excusing · #2358 scratch sibling refresh · #2361 refresh counter · #2403 timeout-as-undecided): none touches this brief's sections. The blocker named on 09-02 is unchanged and is a FORMAT problem, not a work problem — tracked by section rather than checkbox, so no reader can tell what is left without reading all eleven. Converting the sections to checkboxes is the cheapest thing anyone can do to this brief and is worth more than executing any single section. · **DRAIN 2026-09-20 (Osprey): header ACCURATE and the blocker is unchanged — **4 of 11 sections carry a completion marker** (§1 · §2 · §4 by `DONE`, §7 by a bare `✅/⚠️`). ⚠️ **My first count said 3 and was wrong**: I grepped the word `DONE` and §7 is marked complete without it — a narrower population than the header's, measured against a different definition. Nothing has landed against the other seven; the 8 mutation-specific landings since 09-13 touch none of them. The FORMAT blocker named on 09-02 stands, and converting the sections to checkboxes remains the cheapest useful act.** · **TRIAGED 2026-09-25 (Osprey): park stands, but its VERIFICATION is stale against a moved surface — re-read before sizing.** This brief is execution-bound, not decision-bound, so landings on its own surface are decision-relevant, and the surface HAS moved since the last drain (measured 2026-09-25 against `origin/main`: 3 commits on `capture-host/tools/mutate_diff.py` since 2026-09-19 alone). Verified this pass: step-1 stale query non-zero from a 925-commit aged base with the positive control firing (RESIDUE 390 / capture.py 105 / CLAUDE.md 12); **0 of 56 pending changesets name it** while 11 name 7 other briefs, so the zero is real; Rule 0 run 2026-09-24. ⚠️ What I did NOT do, stated so nobody reads more into this stamp than it carries: I did not re-verify each Done-when item against the moved surface — that is the next pass's work, and it is now owed rather than optional. Status unchanged. · **DRAIN 2026-10-17 (Osprey): CONVERTED TO CHECKBOXES — §0a is now the count, and the FORMAT blocker named on 2026-09-02 is cleared.** Every item there carries its Done-when and the command that reads its state, re-verified against `origin/main` at `2c9644d04`. ⚠️ **The count above read a narrower population than the claim it carried**: it counted `##` HEADINGS, yet a finished item often sits at `###` and two `##` headings keep an original ask. The owed re-read of every Done-when is DONE, and §0a records it per item rather than here.
 
 # MUTATION SUITE — FOLLOW-UPS
 
@@ -23,7 +23,64 @@ share, and the reason they lasted.
 | the equivalence ledger has rotted | **379 of 383 keys match nothing** | a line-key miss reads as "unclassified" |
 | the driver dropped the canary | counts came from the journal, not the result | a void sweep looked like an ordinary one |
 
+
 ---
+
+## 0a · THE WORK AS CHECKBOXES — the count, so no reader has to read all eighteen blocks
+
+Every item below carries its own Done-when and the command that reads its state. Re-verified
+2026-10-17 (Osprey) against `origin/main` at `2c9644d04`.
+
+⚠️ **The header's "4 of 11 sections" counted `##` HEADINGS, and that is the wrong population.**
+A completed item often sits at `###` (§3c, §3d, §7.1, §7.2), and two `##` headings keep the
+original ask of items finished elsewhere (§1, §4). Counted as work items with a Done-when, this brief
+holds **thirteen**, of which **eight are met**. The miscount is this brief's own §0 shape one layer
+up: a number recalled from a narrower population than the claim it carries.
+
+**Executable items — eight met, five open:**
+
+- [x] **§1 · the nine tools read the shared state path.** Eight migrated; `mutation-reach.mjs` has no
+      implicit path and is recorded rather than forced. `per-group-coverage.mjs` reaches it through
+      `mapCandidates`, and its selftest pins the shared candidate at line 248.
+- [x] **§2 · the equivalence ledger keys on text, not line numbers.** `rawBefore` / `rawAfter` and
+      `staleClassifications` live in `tools/mutation-suite.mjs`.
+- [x] **§3 · an unreadable attribution fails closed as `unknown`.** `tools/per-group-coverage.mjs`
+      lines 101, 141 and 213: an unknown group selects every line, and the selftest pins it.
+- [ ] **§3 · the paired hrvdex run shows zero KILLED→SURVIVED flips.** No run since the quarantine.
+- [ ] **§3 · the speedup re-measured, quoted with its file and job count.** No run.
+- [ ] **§3 · restore the map, once the three items above pass.** Still quarantined, and now doubly:
+      `verifyFor` refuses all nine pinned files today, because `tests/dex-tests.js` has moved since
+      2026-08-19. A restored `per-group.json` sits beside the marker and cannot be selected.
+- [x] **§3e · an isolated re-run corroborates a stale scratch.** `capture-host/tools/mutate_diff.py`
+      lines 1120, 1135 and 1137 re-run a mutant alone before a recorded claim may be refuted. I did
+      not reproduce the original seven-survivor case, so this reads the remedy, not the symptom.
+- [x] **§3c · §3d · interval coverage built, and the quarantine re-confirmed on it.**
+- [x] **§4 · the inventory carries per-lane sections with the units kept apart.** `parseLaneLedger`
+      and `laneLedgerCandidates` in `tools/mutation-suite.mjs`.
+- [x] **§7.1 · two tests judge a pid record — a boot test, then a signal test.**
+      `suiteRecordLiveness` in `tools/mutation-suite.mjs`.
+- [x] **§7.2 · the stall was the whole pool, and the cost was never the mutants'.**
+- [ ] **§7.3 · the pid file unlinks on every exit path.** Still exactly one `unlinkSync(pidFile())`,
+      at `tools/mutation-suite.mjs:490`. A tidy-up only: §7.1's reader-side check already covers
+      every path, including `SIGKILL`.
+- [ ] **§7.5 · the journal persists a lap duration.** `tools/mutate.mjs` times a calibration lap
+      (`baseMs`) and persists no per-mutant duration, so §7.5's query stays unrunnable. This one
+      field is the whole precondition.
+
+**Blocks that carry no Done-when, and never did:**
+
+- §0 · the findings table. §6 · the pattern. §7.4 · a pending required context, recorded.
+- §5a · a ratchet rather than a gate. **The owner's call, not a tooling gap.**
+- §5b · model-drafted assertions as a non-goal, with its 2026-08-18 amendment. Recorded; `--draft`
+      shipped under it.
+
+**How to read this block's state without trusting it:**
+
+```sh
+grep -c '^- \[x\]' briefs/MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md   # met
+grep -c '^- \[ \]' briefs/MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md   # open
+```
+
 
 ## 1 · ✅ DONE 2026-08-19 — MIGRATED, and the queue reads from a worktree for the first time
 
