@@ -86,6 +86,7 @@ export const STEPS = [
   'test:fold-provenance',
   'test:seqnet-port',
   'test:stage-lab-core',
+  'test:oxydex-stager',
   'build:check',
   'verify:analysis',
   'verify:docs',

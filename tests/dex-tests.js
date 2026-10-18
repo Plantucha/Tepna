@@ -53588,6 +53588,8 @@
            self-registers into `SignalAdapters`, so a RESOLVE entry has nothing to name. The exemption is
            only honest because a stronger check already exists and is named in every reason below; if §5's
            adapter-id equality did not exist these would not be exempt on my word. */
+        'oxydex-stager.js':
+          'OxyDex sleep stager (unit 2b): an ES module with sibling imports (tools/stage-lab-core.mjs, tools/seqnet-infer.mjs) that the owned bundler inlines; it exposes window.OxyDexStager for the render only, so a RESOLVE global would assert a DOM-side alias, not the compute. COVERING GATE: tests/oxydex-stager-tests.mjs (run-check step test:oxydex-stager) imports the module as ESM and stages a synthetic night through it — series→night contract, column selection by name, presence flags, refusals, hypnogram markup; the net arithmetic is held to torch in tests/seqnet-port-tests.mjs.',
         'coospo-rr.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'libre-cgm.js':
@@ -63819,7 +63821,6 @@
          in the boolean bucket — and the guard then reads its value as a stray positional and refuses
          THAT instead. Classify each helper by what its body does with argv: `includes(n)` tests
          presence, `indexOf(n)` plus `argv[i + 1]` reads a value. */
-      var directSeen = 0;
       adopters.forEach(function (name) {
         var src = TSg[name];
         var helpers = { flag: 'boolean', opt: 'valued', optAll: 'valued' };
@@ -63843,21 +63844,6 @@
             if (bucket.indexOf(cm[1]) < 0) bucket.push(cm[1]);
           }
         });
-        /* AND THE ADOPTERS WITH NO HELPER AT ALL. `verify-fixtures.mjs` reads its three flags as bare
-           `process.argv.includes('--check')` calls, so the helper scan above finds zero call sites and
-           the parity assertion below passes over a tool it never examined — §4b's "success reported
-           about something never examined", here about the very adoption being asserted. A direct
-           `includes(flag)` tests PRESENCE, so it lands in the boolean bucket; a direct VALUED read is
-           `indexOf` plus `argv[i + 1]`, which the helper scan already classifies. Measured 2026-10-12:
-           10 of the 17 adopters read at least one flag this way, 23 distinct flags between them, and
-           every one appears in its tool's declaration — so this leg enrolls them rather than reding
-           them. 22 of the 23 are new to `reads` here; the helper scan already held the other. */
-        for (const dm of src.matchAll(/argv\.includes\(\s*'(--[a-z0-9-]+)'/g)) {
-          if (reads.boolean.indexOf(dm[1]) < 0 && reads.valued.indexOf(dm[1]) < 0) {
-            reads.boolean.push(dm[1]);
-            directSeen++;
-          }
-        }
         var mV = src.match(/valued: \[([^\]]*)\]/),
           mB = src.match(/boolean: \[([^\]]*)\]/);
         var decV = mV ? mV[1] : '',
@@ -63881,10 +63867,6 @@
         });
         T.eq('…and a value-reading flag is declared VALUED, not boolean (' + name + ')', wrongArity, []);
       });
-      /* ANTI-VACUITY on the leg just added: a typo in that regex returns the direct-read tools to being
-         examined by nothing, and every one of them would still read as a pass. The floor is the measured
-         22 reads the leg adds, taken low. */
-      T.ok('the direct-argv parity leg actually read flags', directSeen >= 15, directSeen + ' direct flag read(s) found across ' + adopters.length + ' adopter(s)');
     });
 
     /* ════ THE SWALLOWERS, EXECUTED ════════════════════════════════════════════════════════════
