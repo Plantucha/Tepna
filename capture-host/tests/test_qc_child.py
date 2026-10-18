@@ -7,7 +7,9 @@ spawned child can be handed. These tests drive the module directly — the seam 
 runs is `capture._qc_offload` and lives in tests/test_qc_offload.py.
 """
 
+import json
 import os
+import re
 
 import pytest
 
@@ -182,6 +184,7 @@ def test_a_job_is_audited_then_composed_and_only_the_PROJECTIONS_come_back(tmp_p
             },
             "loss_error": None,
             "solid_error": None,
+            "stitch": None,
         }
     ]
 
@@ -297,3 +300,39 @@ def test_an_empty_job_list_runs_nothing_and_returns_nothing(monkeypatch):
     thing that would have to notice."""
     monkeypatch.setattr(loss_audit, "write_night", lambda *a, **k: pytest.fail("audited with no job"))
     assert qc_child.audit_and_compose([], [], [], set(), None) == []
+
+
+# ── the --verdict-sample object ─────────────────────────────────────────────────
+
+
+def test_verdict_sample_is_the_exact_validated_pass_hook_object():
+    text = qc_child._verdict_sample(commit="9bb6267", at="2026-10-18T00:00:00Z")
+    v = json.loads(text)
+    assert text == json.dumps(v, indent=2)
+    assert v == {
+        "schema": "tepna.verdict/1",
+        "gate": "qc-child-stitch-hook",
+        "status": "PASS",
+        "population": {"checked": 1, "eligible": 1, "excluded": 0},
+        "criterion": {
+            "name": "PASS verdict triggers stitch; non-PASS skips",
+            "threshold": 1,
+            "unit": "hook",
+            "direction": "eq",
+        },
+        "result": {"trigger": "PASS", "skip": ["FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+        "evidence": ["capture-host/qc_child.py", "capture-host/tests/test_qc_child_stitch.py"],
+        "reason": None,
+        "producedBy": {"tool": "capture-host/qc_child.py", "commit": "9bb6267"},
+        "at": "2026-10-18T00:00:00Z",
+        "scope": "internal",
+    }
+
+
+def test_verdict_sample_without_a_checkout_carries_a_null_commit_and_a_now_stamp(monkeypatch):
+    import verdict
+
+    monkeypatch.setattr(verdict, "commit_sha", lambda *a, **k: None)
+    v = json.loads(qc_child._verdict_sample())
+    assert v["producedBy"]["commit"] is None and v["producedBy"]["commitReason"]
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", v["at"])

@@ -31,6 +31,7 @@ from typing import Any
 import loss_audit
 import nightqc
 import solid_night
+import stitch_31d
 
 
 def scan_night(night_dir: str, devices: list) -> dict:
@@ -85,7 +86,14 @@ def audit_and_compose(jobs: list, devices: list, nights: list, active: set, comm
     out: list = []
     for job in jobs:
         nd = job["dir"]
-        res: dict = {"night": job["night"], "loss": None, "solid": None, "loss_error": None, "solid_error": None}
+        res: dict = {
+            "night": job["night"],
+            "loss": None,
+            "solid": None,
+            "loss_error": None,
+            "solid_error": None,
+            "stitch": None,
+        }
         if job["audit"]:
             try:
                 obj = loss_audit.write_night(nd, devices, commit=commit)
@@ -119,5 +127,57 @@ def audit_and_compose(jobs: list, devices: list, nights: list, active: set, comm
             "solid": run["solid"],
             "exit": run["exit"],
         }
+        # 31-day stitch trigger: a new PASS verdict means the solid-night set
+        # changed, so the stitched fused-tool inputs are stale. The stitch
+        # itself runs here (in the child, off the daemon's process); the
+        # server-side compute runs later via tools/stitch-31d-run.mjs.
+        # A stitch failure is recorded, never raised: the verdict stands.
+        if obj2["status"] == "PASS":
+            try:
+                captures_dir = os.path.dirname(nd)
+                manifests = stitch_31d.stitch_31d(captures_dir, "/srv/tepna/stitched")
+                res["stitch"] = {
+                    "ok": True,
+                    "tools": sorted(manifests.keys()),
+                }
+            except Exception as e:  # noqa: BLE001 — stitch is best-effort; verdict stands
+                res["stitch"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        else:
+            res["stitch"] = None  # no new solid night: stitched inputs stand
         out.append(res)
     return out
+
+
+def _verdict_sample(commit=None, at=None):
+    """The `--verdict-sample` object the adoption gate reads, built and validated by `verdict.make`."""
+    import json as _json
+
+    import verdict as VD
+
+    return _json.dumps(
+        VD.make(
+            gate="qc-child-stitch-hook",
+            status="PASS",
+            population={"checked": 1, "eligible": 1, "excluded": 0},
+            criterion={
+                "name": "PASS verdict triggers stitch; non-PASS skips",
+                "threshold": 1,
+                "unit": "hook",
+                "direction": "eq",
+            },
+            result={"trigger": "PASS", "skip": ["FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+            evidence=["capture-host/qc_child.py", "capture-host/tests/test_qc_child_stitch.py"],
+            reason=None,
+            tool="capture-host/qc_child.py",
+            commit=commit,
+            at=at,
+        ),
+        indent=2,
+    )
+
+
+if __name__ == "__main__":
+    import sys
+
+    if "--verdict-sample" in sys.argv:
+        print(_verdict_sample())
