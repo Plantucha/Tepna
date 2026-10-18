@@ -4362,6 +4362,10 @@
   }
   // Feature 1 — RRacc per 30-s epoch: detrend (5-s moving avg) → Hann → FFT →
   // dominant bin in 0.15–0.45 Hz; SNR = peak / mean(out-of-band), gate at 3 dB.
+  // The rate is the peak bin refined by a parabola through the log power of the peak bin and its two
+  // neighbours (Gaussian interpolation; Hann-windowed bias under 0.05 bin). The bare bin quantised RRacc
+  // to 8 Hz ÷ 256 = 1.875 br/min steps, which drew diagonal lines on the RRacc − EDR Bland–Altman plot.
+  // The SNR and the confidence gate still read the unrefined bin powers.
   function _rraccEpochs(vm, fs, off) {
     const WR = 8,
       useRs = fs > WR + 0.5,
@@ -4419,7 +4423,15 @@
       }
       const obMean = obN ? obSum / obN : 1e-9,
         snrDb = 10 * Math.log10((peak || 1e-12) / (obMean || 1e-12));
-      out.push({ tStartMin: +((e * 30 - off) / 60).toFixed(2), rr: +(peakBin * df * 60).toFixed(1), snrDb: +snrDb.toFixed(1), conf: snrDb >= 3 ? 'high' : 'low' });
+      let frac = 0;
+      if (peakBin - 1 >= 1 && peakBin + 1 < half2 && pw[peakBin - 1] > 0 && pw[peakBin] > 0 && pw[peakBin + 1] > 0) {
+        const la = Math.log(pw[peakBin - 1]),
+          lb = Math.log(pw[peakBin]),
+          lc = Math.log(pw[peakBin + 1]),
+          den = la - 2 * lb + lc;
+        if (den < 0) frac = Math.max(-0.5, Math.min(0.5, (0.5 * (la - lc)) / den));
+      }
+      out.push({ tStartMin: +((e * 30 - off) / 60).toFixed(2), rr: +((peakBin + frac) * df * 60).toFixed(1), snrDb: +snrDb.toFixed(1), conf: snrDb >= 3 ? 'high' : 'low' });
     }
     return out;
   }
