@@ -1532,6 +1532,43 @@
         "INTEGRATOR-SURFACE-2026-10-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.20.0",
+      "date": "2026-10-18",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "cd7a62da1f7d",
+        "OxyDex": "49f53e37a37b",
+        "PulseDex": "cd8ca8565869",
+        "GlucoDex": "88bfa298a1ae",
+        "PpgDex": "f98ba9fe8953",
+        "HRVDex": "986e3ad5f302",
+        "CPAPDex": "64fbb961a76c",
+        "Integrator": "73c7f65a2f62",
+        "MotionDex": "cbbf9d00cf79"
+      },
+      "briefs": [
+        "VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md",
+        "XERJ-HYBRID-SEARCH-2026-10-10-BRIEF.md",
+        "AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+        "RESIDUE.md",
+        "TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF.md",
+        "DEFECT-BENCHMARK-2026-10-12-BRIEF.md",
+        "EXPORT-SCRUB-ALLOWLIST-2026-10-07-BRIEF.md",
+        "AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md",
+        "SOLID-NIGHT-COWEAR-AND-PROBE-2026-10-13-BRIEF.md",
+        "API-LANE-FINDINGS-2026-10-13-BRIEF.md",
+        "TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md",
+        "BRIEF-HEADER-CLAIM-RATCHET-2026-10-17-BRIEF.md",
+        "CPAP-AS11-BLE-WIRE-NOW-2026-09-07-BRIEF.md",
+        "MUTATION-AUDIT-RUNBOOK-2026-08-03-BRIEF.md",
+        "SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md",
+        "TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md",
+        "VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
