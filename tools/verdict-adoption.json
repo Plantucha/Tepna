@@ -1009,6 +1009,18 @@
    },
    "note": "DEFECT-BENCHMARK builder (briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md): --build proves each candidate task by running the fix commit's own tests against the parent checkout and the fix, and emits ONE tepna.verdict/1 over the included set. The criterion is pre-stated — every included task owns a proven fail-then-pass pair — so a task that cannot be proven is EXCLUDED by a named reason rather than counted. --verdict-sample prints the object alone for this check."
   },
+  "tools/defect-pin-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/defect-pin-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the enumeration gate for residue 2026-09-23-tests-that-assert-the-defect-they-were-written-for: every in-tree annotation of a re-aimed test carries an entry in tests/defect-pin-inventory.json with its mechanism and one line of why, and a stale entry reds in the other direction. It reads the ANNOTATIONS rather than the tests, so the criterion is enumeration (zero unenumerated annotations) and a PASS is never evidence that no test pins a defect. --verdict-sample prints the object alone for this check."
+  },
   "tools/device-stability.mjs": {
    "bin": "word-only",
    "status": "exempt",
