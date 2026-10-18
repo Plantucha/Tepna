@@ -446,6 +446,90 @@ if (flag('--verdict-sample')) {
   process.exit(0);
 }
 
+/* The probe, its measured constants and the cgroup fence sit ABOVE the known answers that pin them:
+   `--selftest` exits before anything below it initializes, so a constant declared later is dead to it
+   (a `const` in its temporal dead zone throws rather than reading as zero). */
+/* ── HARDWARE PROBE + CONCURRENCY PLAN ────────────────────────────────────────────────────────────
+ * A night is EXPENSIVE and the cost is dominated by memory, not CPU: a Verity `_PPG.txt` is ~330 MB of
+ * text which V8 holds as a string WHILE parsing it into Float32 channels, and the paired H10 `_ECG.txt`
+ * adds ~180 MB. Measured peak ≈ 0.9 GB RSS per night (0.7 GB steady + filter scratch).
+ *
+ * So concurrency is capped by whichever runs out first — cores or RAM — and on a small machine that is
+ * RAM. Getting this wrong is not a slowdown, it is an OOM kill mid-corpus (which is exactly how a
+ * previous run lost its last night). We therefore probe the host and take the MINIMUM of the two limits,
+ * never a fixed guess, and we PRINT what we chose and why (CLAUDE.md: no silent caps).
+ *
+ * Free memory — not total — is the honest budget: the box may already be hosting a browser, an IDE, and
+ * a concurrent agent. We leave a reserve so we degrade to slower-but-correct instead of being OOM-killed.
+ */
+const GB = 1024 ** 3;
+/* Peak RSS of ONE child, measured — not the heap cap, and not a guess. `--max-old-space-size` bounds
+   V8's old space; the PROCESS holds that plus the young generation, external buffers (a Verity
+   `_PPG.txt` is ~330 MB of them) and the binary, so RSS runs above the cap wherever the workload
+   saturates it. Measured 2026-09-22 at the shipped cap of 2048 MB: 2.27 GB on an ordinary night
+   (2026-07-17), 2.34 GB on the heaviest (2026-07-19, at the moment it aborted).
+
+   ⚠️ 1.2 was stale by ~1.9x and it is the constant that decides HOW MANY children start, so the
+   error compounded: at --jobs 3 the fold held ~6.9 GB while the planner believed 3.6. It did not
+   bite on a 59 GB dev rig, which is why it survived — the failure it is guarding against shows up
+   on a small box, and the comment above (`the box may already be hosting a browser, an IDE, and a
+   concurrent agent`) is describing THIS machine, rig-x870, not the capture box.
+
+   ⚠️ Do NOT re-derive this from the sweep figures in RETRY_HEAP_MB's comment. Those are peaks at
+   RAISED caps (3.7-4.8 GB) and are true about the sweep, not about the fold: a peak measured at a
+   cap production never uses says nothing about production. Re-measure at the cap actually shipped. */
+const PER_JOB_GB = 2.4;
+const RESERVE_GB = 2.0; // never consume the host's last 2 GB
+const HARD_CAP = 8; // beyond this the disk/parse becomes the bottleneck anyway
+/* THE FENCE THE PLANNER CANNOT SEE — the cgroup memory ceiling (VIGIL-SELF-SUSTAINED-FOLDING §2).
+   `os.freemem()` reports the HOST. Under a systemd unit carrying `MemoryMax=`, the fold runs inside a
+   cgroup whose ceiling sits far below that, so a planner reading only the host starts children the
+   fence then kills — and the fence reads as a broken fold rather than a bounded one. On the capture box
+   that inverts the point of the unit: capture is the protected tenant, and a fold that over-commits has
+   to be CONTAINED, not reaped half-way through.
+   ⚠️ Reading the ceiling is NOT forcing `--jobs`. The rule that forbids forcing it guards against
+   RAISING it past the probe (three OOMs, 2026-08-31); this corrects the probe's own input.
+   cgroup v2 only — v1 spreads the ceiling over several files and every box here runs v2. An absent,
+   unreadable or `max` ceiling yields NULL, never a number: an unmeasured fence must not become a
+   budget (CLAUDE.md §∅). */
+const CGROUP_RESERVE_GB = 0.5; // the coordinator's own residency inside the fence (loadDsps is a CHILD only)
+/* Both pure over their reader, so `--selftest` pins them with no /sys and no /proc. */
+function selfCgroupMemMaxPath(readText) {
+  const raw = readText('/proc/self/cgroup');
+  if (raw == null) return null;
+  // v2 writes exactly one line, `0::<path>`. A v1 tree has numbered controller lines and no `0::`.
+  const m = /^0::(\S*)$/m.exec(raw);
+  if (!m) return null;
+  return `/sys/fs/cgroup${m[1] === '/' ? '' : m[1]}/memory.max`;
+}
+function cgroupLimitGB(readText) {
+  const path = selfCgroupMemMaxPath(readText);
+  if (path == null) return null;
+  const raw = readText(path);
+  if (raw == null) return null;
+  const t = raw.trim();
+  // `max` is "no ceiling", which is the root cgroup's normal reading — not a budget of zero.
+  if (!/^[0-9]+$/.test(t)) return null;
+  const gb = Number(t) / GB;
+  return gb > 0 ? gb : null;
+}
+/* The two arithmetic steps, pure: a fence narrows the budget, and the budget decides how many
+   children start. Pure because this is the pair that decides whether `MemoryMax` bounds the fold or
+   kills it, and a decision that cannot be pinned by a known answer is the one that drifts. */
+function budgetFromFence(hostBudgetGB, cgGB) {
+  if (cgGB == null) return hostBudgetGB;
+  return Math.max(0, Math.min(hostBudgetGB, cgGB - CGROUP_RESERVE_GB));
+}
+function jobsFromBudget(budgetGB) {
+  return Math.max(1, Math.floor(budgetGB / PER_JOB_GB));
+}
+const readTextOrNull = (p) => {
+  try {
+    return readFileSync(p, 'utf8');
+  } catch (_e) {
+    return null;
+  }
+};
 if (flag('--selftest')) {
   const D = Date.UTC(2026, 6, 25); // floating wall-clock midnight, per the Clock Contract
   const at = (day, h, m = 0) => D + day * 86400e3 + h * 3600e3 + m * 60e3;
@@ -523,6 +607,30 @@ if (flag('--selftest')) {
     if (!good) fail++;
     console.log(`  ${good ? '✓' : '✗'} ${name}  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`);
   };
+  /* THE CGROUP FENCE. Every branch of the reader is here, and the NULL branches are the ones that
+     matter: each of them would otherwise hand the planner a budget it never measured. */
+  const reader = (map) => (path) => (path in map ? map[path] : null);
+  const V2 = { '/proc/self/cgroup': '0::/system.slice/tepna-fold.service\n' };
+  eq('v2 names the unit\u2019s own memory.max', selfCgroupMemMaxPath(reader(V2)), '/sys/fs/cgroup/system.slice/tepna-fold.service/memory.max');
+  eq('the root cgroup needs no path segment', selfCgroupMemMaxPath(reader({ '/proc/self/cgroup': '0::/\n' })), '/sys/fs/cgroup/memory.max');
+  eq('a cgroup v1 tree is not a shape this reads', selfCgroupMemMaxPath(reader({ '/proc/self/cgroup': '11:memory:/system.slice\n2:cpu:/\n' })), null);
+  eq('an unreadable /proc/self/cgroup is NULL, never a path', selfCgroupMemMaxPath(reader({})), null);
+  const fence = (bytes) => cgroupLimitGB(reader({ ...V2, '/sys/fs/cgroup/system.slice/tepna-fold.service/memory.max': bytes }));
+  ok('a 4 GiB ceiling reads as 4 GB', fence('4294967296\n'), 4);
+  eq('`max` is NO ceiling, not a zero budget', fence('max\n'), null);
+  eq('an unreadable ceiling is NULL', cgroupLimitGB(reader(V2)), null);
+  eq('a ceiling of 0 is not a budget', fence('0\n'), null);
+  eq('a ceiling that is not a number is NULL', fence('4 GB\n'), null);
+  /* The fence end to end: a 4 GB unit must start ONE child, because one child peaks ~2.3 GB at the
+     shipped 2048 MB heap cap. Two would breach the fence and the kernel would kill them both. */
+  ok('no fence leaves the host budget alone', budgetFromFence(11, null), 11);
+  ok('a 4 GB fence budgets 3.5 GB', budgetFromFence(11, 4), 3.5);
+  ok('the HOST still wins when it is the tighter of the two', budgetFromFence(1.5, 8), 1.5);
+  ok('a fence under the reserve budgets nothing, never a negative', budgetFromFence(11, 0.25), 0);
+  ok('a 4 GB fence starts ONE child', jobsFromBudget(budgetFromFence(11, 4)), 1);
+  ok('an 8 GB fence starts three', jobsFromBudget(budgetFromFence(13, 8)), 3);
+  ok('the floor is one child even with no budget left', jobsFromBudget(0), 1);
+  ok('the box unfenced would start five', jobsFromBudget(budgetFromFence(13, null)), 5);
   const S = { inputsDigest: 'IN', codeDigest: 'CODE' };
   eq('same inputs + same code + 3 exports ⇒ SKIP', redoReason(S, 3, 'IN', 'CODE'), null);
   eq('no stamp ⇒ redo', redoReason(null, 3, 'IN', 'CODE'), 'no stamp');
@@ -836,51 +944,22 @@ if (flag('--selftest')) {
 const DRY = flag('--dry-run');
 const CHILD = flag('--child'); // internal: this process computes ONE night and exits
 
-/* ── HARDWARE PROBE + CONCURRENCY PLAN ────────────────────────────────────────────────────────────
- * A night is EXPENSIVE and the cost is dominated by memory, not CPU: a Verity `_PPG.txt` is ~330 MB of
- * text which V8 holds as a string WHILE parsing it into Float32 channels, and the paired H10 `_ECG.txt`
- * adds ~180 MB. Measured peak ≈ 0.9 GB RSS per night (0.7 GB steady + filter scratch).
- *
- * So concurrency is capped by whichever runs out first — cores or RAM — and on a small machine that is
- * RAM. Getting this wrong is not a slowdown, it is an OOM kill mid-corpus (which is exactly how a
- * previous run lost its last night). We therefore probe the host and take the MINIMUM of the two limits,
- * never a fixed guess, and we PRINT what we chose and why (CLAUDE.md: no silent caps).
- *
- * Free memory — not total — is the honest budget: the box may already be hosting a browser, an IDE, and
- * a concurrent agent. We leave a reserve so we degrade to slower-but-correct instead of being OOM-killed.
- */
-const GB = 1024 ** 3;
-/* Peak RSS of ONE child, measured — not the heap cap, and not a guess. `--max-old-space-size` bounds
-   V8's old space; the PROCESS holds that plus the young generation, external buffers (a Verity
-   `_PPG.txt` is ~330 MB of them) and the binary, so RSS runs above the cap wherever the workload
-   saturates it. Measured 2026-09-22 at the shipped cap of 2048 MB: 2.27 GB on an ordinary night
-   (2026-07-17), 2.34 GB on the heaviest (2026-07-19, at the moment it aborted).
-
-   ⚠️ 1.2 was stale by ~1.9x and it is the constant that decides HOW MANY children start, so the
-   error compounded: at --jobs 3 the fold held ~6.9 GB while the planner believed 3.6. It did not
-   bite on a 59 GB dev rig, which is why it survived — the failure it is guarding against shows up
-   on a small box, and the comment above (`the box may already be hosting a browser, an IDE, and a
-   concurrent agent`) is describing THIS machine, rig-x870, not the capture box.
-
-   ⚠️ Do NOT re-derive this from the sweep figures in RETRY_HEAP_MB's comment. Those are peaks at
-   RAISED caps (3.7-4.8 GB) and are true about the sweep, not about the fold: a peak measured at a
-   cap production never uses says nothing about production. Re-measure at the cap actually shipped. */
-const PER_JOB_GB = 2.4;
-const RESERVE_GB = 2.0; // never consume the host's last 2 GB
-const HARD_CAP = 8; // beyond this the disk/parse becomes the bottleneck anyway
 function planConcurrency() {
   const cores = Math.max(1, os.cpus().length);
   const freeGB = os.freemem() / GB,
     totalGB = os.totalmem() / GB;
   // `os.freemem()` excludes reclaimable page cache on Linux, so it UNDER-reports what is really
   // available. Trust the smaller of (free) and (total − reserve) — pessimistic on purpose.
-  const budgetGB = Math.max(0, Math.min(freeGB, totalGB - RESERVE_GB));
+  const hostBudgetGB = Math.max(0, Math.min(freeGB, totalGB - RESERVE_GB));
+  // The fence wins when one exists, because the host figure is the one the kernel will not honour.
+  const cgGB = cgroupLimitGB(readTextOrNull);
+  const budgetGB = budgetFromFence(hostBudgetGB, cgGB);
   const byCpu = Math.max(1, cores - 1); // leave one core for the OS/coordinator
-  const byMem = Math.max(1, Math.floor(budgetGB / PER_JOB_GB));
+  const byMem = jobsFromBudget(budgetGB);
   const auto = Math.max(1, Math.min(byCpu, byMem, HARD_CAP));
   const asked = parseInt(opt('--jobs', '0'), 10) || 0;
   const jobs = asked > 0 ? asked : auto;
-  return { cores, totalGB, freeGB, budgetGB, byCpu, byMem, auto, jobs, forced: asked > 0 };
+  return { cores, totalGB, freeGB, hostBudgetGB, cgGB, budgetGB, byCpu, byMem, auto, jobs, forced: asked > 0 };
 }
 // Child heap: enough for one night with room for the filter scratch, but never more than the host has.
 // The child heap cap is a MEASURED constant, not a share of free RAM, because peak RSS tracks the
@@ -1963,6 +2042,8 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
       ` — cpu allows ${plan.byCpu}, memory allows ${plan.byMem} @ ~${PER_JOB_GB} GB/night` +
       ` ⇒ ${plan.forced ? 'override' : 'min'} = ${plan.jobs} · child heap ${heapMB} MB`
   );
+  if (plan.cgGB != null)
+    console.log(`  cgroup fence: ${plan.cgGB.toFixed(1)} GB ceiling (memory.max) — the budget is the fence minus ${CGROUP_RESERVE_GB} GB, not the host's ${plan.hostBudgetGB.toFixed(1)} GB.`);
   if (!plan.forced && plan.byMem < plan.byCpu) console.log(`  note: MEMORY-bound on this host (${plan.budgetGB.toFixed(1)} GB usable) — more cores would not help.`);
   // Below one night's footprint we cannot honestly promise the run will survive. Say so LOUDLY rather
   // than letting the OS OOM-kill it half-way through and leave a truncated corpus behind (which has
