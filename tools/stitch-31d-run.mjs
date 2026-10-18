@@ -360,6 +360,18 @@ function run3CornerPerNight(toolDir, manifest, sidecars, capturesDir) {
 // Selftest: per-night sigmas collected, median/CI correct, gaps excluded.
 // Run with --selftest.
 async function selftest() {
+  let pass = 0,
+    fail = 0;
+  const ok = (name, cond, detail) => {
+    if (cond) {
+      pass++;
+      console.log(`  ok   ${name}`);
+    } else {
+      fail++;
+      console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`);
+    }
+  };
+
   const { tmpdir } = await import('node:os');
   const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs');
   const { join } = await import('node:path');
@@ -371,54 +383,23 @@ async function selftest() {
   writeFileSync(join(toolDir, 'h.txt'), hr);
   writeFileSync(join(toolDir, 's.csv'), spo2);
   const r1 = parseStitched(join(toolDir, 'h.txt'), 'timestamp', 'HR [bpm]', ';');
-  if (r1.pairs.length !== 2) {
-    console.error('FAIL: expected 2 pairs, got ' + r1.pairs.length);
-    process.exit(1);
-  }
-  if (r1.gaps !== 1) {
-    console.error('FAIL: expected 1 gap, got ' + r1.gaps);
-    process.exit(1);
-  }
-  for (const [, v] of r1.pairs) {
-    if (v === 0) {
-      console.error('FAIL: zero value (gap leaked as data)');
-      process.exit(1);
-    }
-  }
+  ok('1 gap rows skipped: 2 pairs parsed', r1.pairs.length === 2, `got ${r1.pairs.length}`);
+  ok('2 one gap recorded', r1.gaps === 1, `got ${r1.gaps}`);
+  ok(
+    '3 no zero-fill: gap never leaks as data',
+    r1.pairs.every(([, v]) => v !== 0)
+  );
   const r2 = parseStitched(join(toolDir, 's.csv'), 'Time', 'Pulse Rate', ',');
-  if (r2.pairs.length !== 2 || r2.gaps !== 1) {
-    console.error('FAIL: CSV gap handling');
-    process.exit(1);
-  }
-  console.log('selftest: gap rows skipped, no zero-fill — PASS');
+  ok('4 CSV gap handling: 2 pairs, 1 gap', r2.pairs.length === 2 && r2.gaps === 1);
 
   // Per-night aggregation checks: median, bootstrap CI, gap exclusion.
-  const m1 = median([3, 1, 2]);
-  if (m1 !== 2) {
-    console.error('FAIL: median([3,1,2])=' + m1);
-    process.exit(1);
-  }
-  const m2 = median([4, 1, 3, 2]);
-  if (m2 !== 2.5) {
-    console.error('FAIL: median even=' + m2);
-    process.exit(1);
-  }
-  if (median([]) !== null) {
-    console.error('FAIL: median([]) not null');
-    process.exit(1);
-  }
+  ok('5 median([3,1,2])=2', median([3, 1, 2]) === 2, `got ${median([3, 1, 2])}`);
+  ok('6 median even count=2.5', median([4, 1, 3, 2]) === 2.5, `got ${median([4, 1, 3, 2])}`);
+  ok('7 median([]) is null, never zero', median([]) === null);
   const [lo0, hi0] = bootstrapCI([1, 2]);
-  if (lo0 !== null || hi0 !== null) {
-    console.error('FAIL: CI with N<3 must be null');
-    process.exit(1);
-  }
-  // Deterministic CI check: identical values give a degenerate interval.
+  ok('8 CI with N<3 is null', lo0 === null && hi0 === null);
   const [lo1, hi1] = bootstrapCI([5, 5, 5, 5, 5]);
-  if (lo1 !== 5 || hi1 !== 5) {
-    console.error(`FAIL: degenerate CI=[${lo1},${hi1}]`);
-    process.exit(1);
-  }
-  // Gap nights excluded: simulate perNight entries.
+  ok('9 degenerate CI collapses to the value', lo1 === 5 && hi1 === 5, `got [${lo1},${hi1}]`);
   const fake = [
     { night: '2026-10-14', status: 'ok', sigma: { h10: 2.0, verity: 3.0, o2: 4.0 } },
     { night: '2026-10-15', status: 'gap' },
@@ -426,17 +407,12 @@ async function selftest() {
     { night: '2026-10-17', status: 'ok', sigma: { h10: 6.0, verity: 7.0, o2: 8.0 } }
   ];
   const okF = fake.filter((e) => e.status === 'ok');
-  if (okF.length !== 3) {
-    console.error('FAIL: gap exclusion');
-    process.exit(1);
-  }
+  ok('10 gap nights excluded from aggregation', okF.length === 3, `got ${okF.length}`);
   const medH = median(okF.map((e) => e.sigma.h10));
-  if (medH !== 4.0) {
-    console.error('FAIL: per-night median h10=' + medH);
-    process.exit(1);
-  }
-  console.log('selftest: per-night median/CI, gap exclusion — PASS');
-  console.log('all 2 selftests passed');
+  ok('11 per-night median h10=4.0', medH === 4.0, `got ${medH}`);
+
+  console.log(fail === 0 ? `\n  all ${pass} selftests passed` : `\n  ${pass} passed, ${fail} failed`);
+  if (fail > 0) process.exit(1);
 }
 
 function gitSha() {
