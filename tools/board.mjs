@@ -395,6 +395,301 @@ export function parseOwnerDecisions(txt) {
   return { header: lines[start].trim(), items };
 }
 
+/* The fleet message board (agent-board) is live on this machine and needs no tokens:
+   its SQLite DB is readable any time. This section stays fresh even when Kestrel is
+   out of tokens — it reports the last post with its date/time, plus the entry count. */
+/* The solid-night streak is computed live from vigil's SOLID-VERDICT.json files.
+   No hand entry, no Kestrel needed — the rig SSHes to vigil and reads the verdicts.
+   Streak = consecutive PASS nights counting back from the most recent verdict. */
+function solidNights() {
+  try {
+    const out = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'python3',
+      '/tmp/vigil_verdicts.py'
+    ]);
+    const rows = out
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [date, status] = l.split(/\s+/);
+        return { date, status };
+      })
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+    if (!rows.length) return fail('no SOLID-VERDICT.json files found on vigil');
+    // Streak skips today if it's still in progress (UNKNOWN = night not finished yet).
+    // A completed UNKNOWN/FAIL/NOT_APPLICABLE breaks the streak.
+    const today = new Date().toISOString().slice(0, 10);
+    let streak = 0;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].date === today && rows[i].status === 'UNKNOWN') continue;
+      if (rows[i].status === 'PASS') streak++;
+      else break;
+    }
+    const recent = rows.slice(-15);
+    const lines = recent.map((r) => `  ${r.date.slice(5)} ${r.status}`);
+    const text =
+      `live from vigil (read ${new Date().toISOString().slice(0, 16)}Z) \u2014 last 15 of ${rows.length} nights\n` + lines.join('\n') + `\ncurrent streak: ${streak} consecutive PASS night(s)`;
+    return { ok: true, text, streak, nights: rows.length };
+  } catch (e) {
+    return fail('vigil solid-night read failed: ' + e.message);
+  }
+}
+
+/* Vigil capture daemon + disk, read live over SSH. No tokens needed. */
+function vigilHealth() {
+  try {
+    const active = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'systemctl',
+      'is-active',
+      'tepna-capture.service'
+    ]).trim();
+    const disk = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'df',
+      '-h',
+      '/srv/tepna'
+    ])
+      .trim()
+      .split('\n')
+      .pop();
+    const sinceTs = new Date(Date.now() - 3600e3).toISOString().slice(0, 19);
+    const journal = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'journalctl',
+      '-u',
+      'tepna-capture.service',
+      '--since=' + sinceTs,
+      '--no-pager',
+      '-n',
+      '3'
+    ]).trim();
+    // Vigil system health (via SSH)
+    const vigSys = sh('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=8',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-F',
+      process.env.HOME + '/.ssh/config',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      'vigil',
+      'df -h / --output=pcent,avail | tail -1; free -h | grep Mem | awk \'{print $3"/"$2}\'; uptime | grep -o "load average.*"; uptime -p 2>/dev/null || uptime'
+    ])
+      .trim()
+      .split('\n');
+    const vigHealth = { disk: (vigSys[0] || '').trim(), mem: (vigSys[1] || '').trim(), load: (vigSys[2] || '').trim(), up: (vigSys[3] || '').trim() };
+    // Rig health (local, no SSH needed)
+    const rigDisk = sh('df', ['-h', '/', '--output=pcent,avail']).trim().split('\n').pop().trim();
+    const rigMem = sh('sh', ['-c', 'free -h | grep Mem | awk \'{print $3"/"$2}\'']).trim();
+    const rigLoad = sh('sh', ['-c', 'uptime | grep -o "load average.*"']).trim();
+    const rigUp = sh('sh', ['-c', 'uptime -p 2>/dev/null || uptime']).trim();
+    return { ok: true, active, disk, journal: journal || '(no journal lines in the last hour)', vig: vigHealth, rig: { disk: rigDisk, mem: rigMem, load: rigLoad, up: rigUp } };
+  } catch (e) {
+    return fail('vigil health check failed: ' + e.message);
+  }
+}
+
+/* Quota lookup: only OpenRouter exposes usage via API. Others get a static note. */
+function quotaFor(provider) {
+  try {
+    if (provider === 'openrouter') {
+      const out = sh('python3', [
+        '-c',
+        'import urllib.request,json;' +
+          'kp="/home/michal/.config/tepna/openrouter.env";' +
+          'key=[l.split("=",1)[1].strip().strip(chr(34)+chr(39)) for l in open(kp) if "=" in l and not l.startswith("#")][0];' +
+          'r=urllib.request.Request("https://openrouter.ai/api/v1/auth/key",' +
+          'headers={"Authorization":"Bearer "+key,"User-Agent":"Tepna-fleet/1.0"});' +
+          'd=json.load(urllib.request.urlopen(r,timeout=10))["data"];' +
+          'print(f"{d[\"usage\"]:.4f} / {d[\"limit\"]}")'
+      ]).trim();
+      return '$' + out + ' spent';
+    }
+  } catch {
+    /* fall through to static */
+  }
+  const notes = {
+    groq: 'free tier (no usage API)',
+    mistral: 'free tier (no usage API)',
+    gemini: 'free tier (no quota API)',
+    'qwen-board': 'local, unlimited',
+    codex: 'OUT until 2026-11-03',
+    anthropic: 'zero credits'
+  };
+  return notes[provider] || 'unknown';
+}
+
+/* API-coder wrapper health: wrappers exist + executable, key files non-empty.
+   Never reads key values. Catches a dead wrapper or a revoked key file. */
+function wrapperHealth() {
+  try {
+    const wrappers = ['qwen-board', 'groq-board', 'mistral-board', 'openrouter-board', 'gemini-board'];
+    const keyFor = { 'qwen-board': null, 'groq-board': 'groq', 'mistral-board': 'mistral', 'openrouter-board': 'openrouter', 'gemini-board': 'gemini' };
+    const cliCoders = [
+      { name: 'codex', path: '/home/michal/.local/bin/codex', note: 'quota exhausted until 2026-11-03' },
+      { name: 'claude-code', path: '/home/michal/.nvm/versions/node/v22.23.1/bin/claude', note: 'npm global 2.1.300' }
+    ];
+    const rows = [];
+    for (const w of wrappers) {
+      const p = path.join(homedir(), '.local', 'bin', w);
+      // executable check via shell
+      let okExe = false;
+      try {
+        sh('sh', ['-c', `test -x "${p}"`]);
+        okExe = true;
+      } catch {
+        okExe = false;
+      }
+      const kf = keyFor[w];
+      let key = 'local (no key)';
+      if (kf) {
+        const kp = path.join(homedir(), '.config', 'tepna', kf + '.env');
+        try {
+          const st = sh('sh', ['-c', `test -s "${kp}" && echo yes || echo no`]).trim();
+          key = st === 'yes' ? 'key file present' : 'KEY FILE EMPTY/MISSING';
+        } catch {
+          key = 'key file unreadable';
+        }
+      }
+      rows.push({ wrapper: w, exe: okExe, key, quota: quotaFor(keyFor[w] || w) });
+    }
+    for (const c of cliCoders) {
+      let okExe = false;
+      try {
+        sh('sh', ['-c', `test -x "${c.path}"`]);
+        okExe = true;
+      } catch {
+        okExe = false;
+      }
+      rows.push({ wrapper: c.name + ' (cli)', exe: okExe, key: c.note, quota: quotaFor(c.name) });
+    }
+    return { ok: true, rows };
+  } catch (e) {
+    return fail('wrapper health check failed: ' + e.message);
+  }
+}
+
+/* Board activity: posts per day for the last 7 days, from the live DB. */
+function boardActivity() {
+  try {
+    const db = path.join(homedir(), '.agent-board', 'board.db');
+    if (!existsSync(db)) return fail('no agent-board DB at ~/.agent-board/board.db');
+    const q = (sql) => sh('python3', ['-c', 'import sqlite3,json;db=sqlite3.connect("' + db + '");' + 'print(json.dumps(db.execute("""' + sql + '""").fetchall()))']);
+    const days = JSON.parse(q('SELECT substr(created_at,1,10) AS d, COUNT(*) FROM entries ' + "WHERE created_at >= date('now','-7 days') GROUP BY d ORDER BY d"));
+    const byAuthor = JSON.parse(q('SELECT author, COUNT(*) FROM entries ' + "WHERE created_at >= date('now','-7 days') GROUP BY author ORDER BY 2 DESC"));
+    return { ok: true, days, byAuthor };
+  } catch (e) {
+    return fail('board activity unreadable: ' + e.message);
+  }
+}
+
+/* Residue backlog: open rows from the living ledger. No tokens needed. */
+function residueBacklog() {
+  try {
+    const p = path.join(REPO, 'briefs', 'RESIDUE.md');
+    if (!existsSync(p)) return fail('no briefs/RESIDUE.md');
+    const rows = sh('grep', ['^| 202', p]).split('\n').filter(Boolean);
+    const open = rows.filter((r) => /\| OPEN/.test(r));
+    const byMonth = {};
+    for (const r of open) {
+      const m = r.slice(2, 9);
+      byMonth[m] = (byMonth[m] || 0) + 1;
+    }
+    return { ok: true, open: open.length, total: rows.length, byMonth };
+  } catch (e) {
+    return fail('residue ledger unreadable: ' + e.message);
+  }
+}
+
+/* Release countdown: commits and days since the last tag. Due at 100 commits or 7 days. */
+function releaseCountdown() {
+  try {
+    const tag = sh('git', ['describe', '--tags', '--abbrev=0'], { cwd: REPO }).trim();
+    const commits = parseInt(sh('git', ['rev-list', '--count', tag + '..HEAD'], { cwd: REPO }).trim(), 10);
+    const tagDate = new Date(sh('git', ['log', '-1', '--format=%cI', tag], { cwd: REPO }).trim());
+    const days = (Date.now() - tagDate.getTime()) / 864e5;
+    return { ok: true, tag, commits, commitsLeft: 100 - commits, days: +days.toFixed(1), daysLeft: +(7 - days).toFixed(1) };
+  } catch (e) {
+    return fail('release countdown failed: ' + e.message);
+  }
+}
+
+/* Open briefs: brief files whose Status is not DONE. */
+function openBriefs() {
+  try {
+    const dir = path.join(REPO, 'briefs');
+    const files = sh('sh', ['-c', `ls "${dir}"/*.md 2>/dev/null | wc -l`]).trim();
+    const done = sh('sh', ['-c', `grep -l "Status.*DONE" "${dir}"/*.md 2>/dev/null | wc -l`]).trim();
+    const total = parseInt(files, 10),
+      doneN = parseInt(done, 10);
+    return { ok: true, total, done: doneN, open: total - doneN };
+  } catch (e) {
+    return fail('brief count failed: ' + e.message);
+  }
+}
+
+function agentBoard() {
+  try {
+    const db = path.join(homedir(), '.agent-board', 'board.db');
+    if (!existsSync(db)) return fail('no agent-board DB at ~/.agent-board/board.db');
+    const q = (sql) => sh('python3', ['-c', 'import sqlite3,json;db=sqlite3.connect("' + db + '");' + 'print(json.dumps(db.execute("""' + sql + '""").fetchall()))']);
+    const latest = JSON.parse(q('SELECT e.id, t.title, e.author, e.kind, e.created_at, substr(e.body,1,200) ' + 'FROM entries e JOIN threads t ON e.thread_id=t.id ORDER BY e.id DESC LIMIT 1'));
+    const total = JSON.parse(q('SELECT COUNT(*) FROM entries'))[0][0];
+    const threads = JSON.parse(q('SELECT COUNT(*) FROM threads'))[0][0];
+    if (!latest.length) return { ok: true, total: 0, threads, latest: null };
+    const [id, title, author, kind, at, body] = latest[0];
+    return { ok: true, total, threads, latest: { id, title, author, kind, at, body } };
+  } catch (e) {
+    return fail('agent-board DB unreadable: ' + e.message);
+  }
+}
+
 function ownerDecisions() {
   const evalFile = path.join(OUT_DIR, 'evaluation.md');
   if (existsSync(evalFile)) {
@@ -512,12 +807,25 @@ function planPct() {
 
 function rule0Stamp() {
   try {
-    const raw = sh('gh', ['pr', 'list', '--state', 'merged', '--limit', '10', '--json', 'number,body,mergedAt'], { cwd: REPO });
+    const raw = sh('gh', ['pr', 'list', '--state', 'merged', '--limit', '20', '--json', 'number,body,mergedAt'], { cwd: REPO });
     const list = JSON.parse(raw);
-    const withStamp = list.filter((p) => /^Rule 0:/m.test(p.body || ''));
-    if (!withStamp.length) return { ok: true, lastStampedPr: null, ageHours: null, note: 'no Rule 0 line in the last 10 merged PRs' };
-    const newest = withStamp[0];
-    return { ok: true, lastStampedPr: newest.number, mergedAt: newest.mergedAt, ageHours: +((Date.now() - Date.parse(newest.mergedAt)) / 3.6e6).toFixed(1), stampedOfLast10: withStamp.length };
+    const stamps = [];
+    for (const pr of list) {
+      const body = pr.body || '';
+      const r0 = body.match(/^Rule 0:(.*)$/m);
+      if (!r0) continue;
+      const fs = body.match(/^Fleet-Session:(.*)$/m);
+      stamps.push({
+        pr: pr.number,
+        lane: r0[1].trim().slice(0, 80),
+        coder: fs ? fs[1].trim().slice(0, 40) : 'unstamped',
+        mergedAt: pr.mergedAt,
+        ageHours: +((Date.now() - Date.parse(pr.mergedAt)) / 3.6e6).toFixed(1)
+      });
+      if (stamps.length >= 5) break;
+    }
+    if (!stamps.length) return { ok: true, stamps: [], note: 'no Rule 0 line in the last 20 merged PRs' };
+    return { ok: true, stamps };
   } catch (e) {
     return fail(`gh pr list --state merged failed: ${e.message}`);
   }
@@ -536,6 +844,7 @@ export function collect() {
     schema: 'tepna.board/1',
     generatedAt: new Date(now).toISOString(),
     host: process.env.HOSTNAME || 'rig',
+    url: 'http://100.80.204.55:8766/',
     usage24h: u24,
     usage7d: u7,
     budget: budgetBar({ spentPct: plan.spentPct, spentPctRange: plan.spentPctRange, reportedAt: plan.reportedAt, nowMs: now, resets: plan.resets ?? null }),
@@ -548,12 +857,19 @@ export function collect() {
     release: rel,
     herder: herder(),
     ownerDecisions: ownerDecisions(),
+    agentBoard: agentBoard(),
+    residue: residueBacklog(),
+    releaseCount: releaseCountdown(),
+    briefs: openBriefs(),
+    vigilHealth: vigilHealth(),
+    wrapperHealth: wrapperHealth(),
+    boardActivity: boardActivity(),
     rule0: rule0Stamp(),
     /* The streak is computed on the capture box and no rig-local source exists yet. Until the box
        publishes a summary the rig can read, the section renders a HAND-ENTERED file whose first line
        must say so with a date — a manual entry is a measurement of what a person copied, not of the
        night, and the board says which. Owner, 2026-10-11: "put placeholders in it". */
-    solidNights: fileSection('solid-night', 'solid-night.md', 'the streak is computed on the capture box; until it publishes a summary, Kestrel hand-enters it here with a date'),
+    solidNights: solidNights(),
     evaluation: todaySection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it'),
     /* The PR walker (tools/pr-walker.mjs, under tepna-pr-walker.timer) writes landing.md every pass:
        one line per open PR with its state, the actions it took, and an ALERT line for every PR it can
@@ -595,11 +911,40 @@ export function summarize(b) {
 }
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+/* Human-readable relative time: "2h ago", "3d ago". Falls back to the raw string. */
+const ago = (iso) => {
+  try {
+    const ms = Date.now() - Date.parse(iso);
+    if (!isFinite(ms) || ms < 0) return esc(iso);
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    const d = Math.floor(h / 24);
+    return d + 'd ago';
+  } catch {
+    return esc(iso);
+  }
+};
+/* "2026-10-17T08:50:31Z" -> "Oct 17, 04:50 EDT" */
+const fmtTime = (iso) => {
+  try {
+    const d = new Date(iso);
+    const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${mo} ${d.getDate()}, ${hh}:${mm}`;
+  } catch {
+    return esc(iso);
+  }
+};
 const num = (n) => (typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '—');
 const m = (n) => (typeof n === 'number' && isFinite(n) ? `${(n / 1e6).toFixed(2)}M` : '—');
 
 function sec(title, body, bad) {
-  return `<section class="${bad ? 'bad' : ''}"><h2>${esc(title)}</h2>${body}</section>`;
+  return `<section><h2>${title}${bad ? ' <span class="flag red">needs attention</span>' : ''}</h2>${body}</section>`;
 }
 function unread(s) {
   return `<p class="unread">not read — ${esc(s.reason)}</p>`;
@@ -641,12 +986,12 @@ function renderUsage(u, label) {
   const maNote = !maRows
     ? `<tr><td class="dim">API · managed agents</td><td colspan="6" class="dim">${maUnread.length ? `not read: ${esc(maUnread.map((r) => `${r.dir} ${r.reason}`).join('; '))}` : 'no run in the window'}</td></tr>`
     : '';
-  return `<table><thead><tr><th>${esc(label)}</th><th>fresh</th><th>cache←</th><th>out</th><th>msgs</th><th>last ctx</th><th>model</th></tr></thead><tbody>${rows}
+  return `<div class="table-wrap"><table><thead><tr><th>${esc(label)}</th><th>fresh</th><th>cache←</th><th>out</th><th>msgs</th><th>last ctx</th><th>model</th></tr></thead><tbody>${rows}
     ${unnamed.length ? `<tr><td class="dim">+${unnamed.length} unnamed</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.tokens || 0), 0))}</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.cacheRead || 0), 0))}</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.output || 0), 0))}</td><td class="n dim">${num(unnamed.reduce((a, s) => a + (s.messages || 0), 0))}</td><td colspan="2" class="dim">sessions with no bird name, summed</td></tr>` : ''}
     ${missing}
     <tr class="tot"><td>fleet</td><td class="n">${m(u.fleetTokens)}</td><td class="n dim">${m(u.fleetCacheRead)}</td><td colspan="4" class="dim">cache reads are shown beside, never summed into fresh</td></tr>
     ${maRows}${maNote}
-    <tr><td colspan="7" class="dim">API rows: the provider's usage per run, list cost in the last-ctx column; billed as API credits, not summed into the fleet line</td></tr></tbody></table>`;
+    <tr><td colspan="7" class="dim">API rows: the provider's usage per run, list cost in the last-ctx column; billed as API credits, not summed into the fleet line</td></tr></tbody></table></div>`;
 }
 
 export function renderHtml(b) {
@@ -662,7 +1007,7 @@ export function renderHtml(b) {
               })
               .join(' → ')
           : '(empty)'
-      } <span class="dim">(${esc(b.prs.walkerSource || '')}; ${b.prs.openNonDraft} undrafted)</span></p><table><thead><tr><th>PR</th><th>title</th><th>state</th><th>checks</th></tr></thead><tbody>${b.prs.list
+      } <span class="dim">(${esc(b.prs.walkerSource || '')}; ${b.prs.openNonDraft} undrafted)</span></p><div class="table-wrap"><table><thead><tr><th>PR</th><th>title</th><th>state</th><th>checks</th></tr></thead><tbody>${b.prs.list
         .map(
           (p) =>
             `<tr><td>#${p.number}${p.draft ? ' <span class="dim">draft</span>' : ''}</td><td>${esc(p.title)}</td><td>${esc(p.state)}</td><td class="dim">${esc(
@@ -671,7 +1016,7 @@ export function renderHtml(b) {
                 .join(' ')
             )}</td></tr>`
         )
-        .join('')}</tbody></table>`;
+        .join('')}</tbody></table></div>`;
   const r = b.release;
   const relBody = !r.ok
     ? unread(r)
@@ -683,7 +1028,7 @@ export function renderHtml(b) {
        <p>last release-due verdict: <b>${esc(r.lastVerdict || '—')}</b>${r.lastVerdictNote ? ` <span class="dim">${esc(r.lastVerdictNote)}</span>` : ''}</p>`;
   const ciBody = !b.mainCi.ok
     ? unread(b.mainCi)
-    : `<table><tbody>${b.mainCi.runs.map((x) => `<tr><td>${esc(x.name)}</td><td class="${x.conclusion === 'failure' ? 'red' : ''}">${esc(x.conclusion || x.status)}</td><td class="dim">${esc(String(x.at).slice(0, 16).replace('T', ' '))}</td></tr>`).join('')}</tbody></table>`;
+    : `<div class="table-wrap"><table><tbody>${b.mainCi.runs.map((x) => `<tr><td>${esc(x.name)}</td><td class="${x.conclusion === 'failure' ? 'red' : ''}">${esc(x.conclusion || x.status)}</td><td class="dim">${esc(String(x.at).slice(0, 16).replace('T', ' '))}</td></tr>`).join('')}</tbody></table></div>`;
   const bud = b.budget.ok
     ? `<div class="bar"><div style="margin-left:${Math.max(0, Math.min(100, b.budget.lo))}%;width:${Math.max(1, Math.min(100, b.budget.hi) - Math.max(0, b.budget.lo))}%"></div></div>
        <p><b>${esc(b.budget.label)}</b>${b.budget.range ? ' <span class="dim">(a band, as reported — not collapsed to a midpoint)</span>' : ''} of the weekly pool, as last reported by the owner${b.budget.ageHours != null ? ` <span class="${b.budget.stale ? 'red' : 'dim'}">(${b.budget.ageHours} h ago${b.budget.stale ? ' — STALE' : ''})</span>` : ''}</p>
@@ -693,50 +1038,125 @@ export function renderHtml(b) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tepna Fleet Board</title><style>
-:root{--bg:#10131a;--fg:#e7e9ee;--dim:#8b93a7;--line:#242a37;--card:#161a23;--red:#ff6b6b;--amber:#f0b429;--ok:#3ddc97}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
-header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
-h1{font-size:15px;margin:0;letter-spacing:.08em;text-transform:uppercase}
-main{padding:14px 18px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
-section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto}
-section.bad{border-color:var(--red)}h2{font-size:12px;margin:0 0 8px;color:var(--dim);letter-spacing:.09em;text-transform:uppercase}
-table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:3px 8px 3px 0;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--dim);font-weight:400;font-size:11px;text-transform:uppercase}
-.n{text-align:right;font-variant-numeric:tabular-nums}.dim{color:var(--dim)}.red{color:var(--red)}.mdl{font-size:11px;color:var(--dim)}
-tr.tot td{border-top:1px solid var(--line);font-weight:700}
-.banner{padding:9px 14px;margin:0;border-left:4px solid}.banner.red{background:#2a1416;border-color:var(--red);color:#ffd7d7}
-.banner.amber{background:#2a2310;border-color:var(--amber);color:#ffeec2}
-.bar{height:9px;background:#0b0e14;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin:2px 0 6px}
-.bar>div{height:100%;background:linear-gradient(90deg,var(--ok),var(--amber))}
-pre{white-space:pre-wrap;color:var(--dim);font-size:12px;margin:6px 0 0}
-.unread{color:var(--amber);margin:4px 0}footer{padding:10px 18px;color:var(--dim);border-top:1px solid var(--line);font-size:12px}
-@media(prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#f6f7f9;--fg:#1a1d24;--dim:#5c6478;--line:#dfe3ea;--card:#fff}}
+:root{--bg:#0d1117;--fg:#e6edf3;--dim:#8b949e;--faint:#6e7681;--line:#21262d;--red:#f85149;--amber:#d29922;--ok:#3fb950;--blue:#58a6ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+header{padding:22px 0 14px;border-bottom:2px solid var(--line)}
+header h1{font-size:19px;margin:0 0 4px;font-weight:700;letter-spacing:-.01em}
+header .meta{color:var(--dim);font-size:12px}
+/* status line: key numbers inline, no boxes */
+.statusline{display:flex;gap:28px;flex-wrap:wrap;padding:16px 0;border-bottom:1px solid var(--line);font-size:13px}
+.statusline .item{display:flex;gap:8px;align-items:baseline}
+.statusline .k{color:var(--dim);font-size:12px}
+.statusline .v{font-weight:700;font-size:16px}
+.ok{color:var(--ok)}.warn{color:var(--amber)}.bad{color:var(--red)}
+/* banners */
+.banner{padding:18px 20px;margin:16px 0;font-size:18px;font-weight:700;border-radius:10px;border:2px solid;text-align:center;letter-spacing:.01em}
+.banner.red{background:#3d0a0a;border-color:var(--red);color:#ffd7d7}
+.banner.amber{background:#3a2c00;border-color:var(--amber);color:#ffe9a8}
+.banner.good{background:#0a2e1a;border-color:var(--ok);color:#b8f5d4}
+/* sections: no cards, just headings and dividers */
+section{padding:20px 0;border-bottom:1px solid var(--line)}
+section:last-child{border-bottom:none}
+/* summary cards: backlog, release, briefs stay boxed */
+.cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:20px 0;border-bottom:1px solid var(--line)}
+.mini-card{background:#161b22;border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.mini-card h3{font-size:11px;margin:0 0 8px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+.mini-card .big{font-size:22px;font-weight:700;margin:0}
+.mini-card .sub{color:var(--dim);font-size:12px;margin-top:4px}
+/* status cards row */
+.status-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:16px 0;border-bottom:1px solid var(--line)}
+.status-cards .mini-card{padding:10px 14px}
+.status-cards .mini-card h3{margin-bottom:4px}
+.status-cards .mini-card .big{font-size:19px}
+@media(max-width:900px){.status-cards{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:640px){.status-cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.cards3{grid-template-columns:1fr}}
+h2{font-size:12px;margin:0 0 12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+h2 .flag{margin-left:8px;text-transform:none;letter-spacing:0}
+/* key-value rows */
+.kv{display:grid;grid-template-columns:180px 1fr;gap:4px 16px;font-size:13px;margin:6px 0}
+.kv dt{color:var(--dim);margin:0}
+.kv dd{margin:0}
+.kv dd b{font-weight:600}
+/* tables */
+.table-wrap{overflow-x:auto;margin:8px -4px;padding:0 4px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 12px 7px 0;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
+th{color:var(--dim);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line)}
+td.wrap, th.wrap{white-space:normal;min-width:200px}
+.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.tot td{border-top:2px solid var(--line);font-weight:700;border-bottom:none}
+.dim{color:var(--dim)}.red{color:var(--red)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+/* progress bar */
+.bar{height:8px;background:#161b22;border-radius:4px;overflow:hidden;margin:6px 0;max-width:400px}
+.bar>div{height:100%;background:linear-gradient(90deg,var(--ok),var(--amber));border-radius:4px}
+/* posts */
+.post{margin:12px 0;padding:12px 0;border-top:1px solid var(--line)}
+.post:first-of-type{border-top:none;padding-top:0}
+.post-meta{display:flex;gap:10px;align-items:baseline;margin-bottom:6px;font-size:12px}
+.post-meta .who{font-weight:700;font-size:13px}
+.post-meta .when{color:var(--dim)}
+.post-body{font-size:13px;white-space:pre-wrap;color:var(--fg);margin:0}
+pre{background:#161b22;border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--dim);overflow-x:auto;margin:8px 0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#161b22;padding:2px 6px;border-radius:4px}
+.unread{color:var(--amber);font-style:italic;font-size:13px}
+footer{padding:20px 0;color:var(--dim);font-size:12px;border-top:2px solid var(--line);margin-top:8px}
+p{margin:8px 0}
+@media(prefers-color-scheme:light){:root{--bg:#ffffff;--fg:#1f2328;--dim:#59636e;--faint:#8b949e;--line:#e5e8ec}}
+@media(max-width:640px){.wrap{padding:0 16px}.kv{grid-template-columns:1fr;gap:2px}.kv dt{margin-top:8px}.statusline{gap:16px}.table-wrap table{min-width:560px}}
 </style></head><body>
-<header><h1>Tepna fleet board</h1><span class="dim">${esc(b.generatedAt)}</span><span class="dim">${esc(b.host)}</span></header>
-${banners || '<div class="banner" style="border-color:var(--ok);background:#10231b;color:#cdf5e4">no red banner</div>'}
+<div class="wrap">
+<header><h1>Tepna fleet board</h1><div class="meta">${esc(b.generatedAt)} &middot; ${esc(b.host)} &middot; <code>http://100.80.204.55:8766/</code></div></header>
+${banners}
+<div class="status-cards">
+<div class="mini-card"><h3>daemon</h3><p class="big ${b.vigilHealth.ok && b.vigilHealth.active === 'active' ? 'ok' : 'bad'}">${b.vigilHealth.ok ? esc(b.vigilHealth.active) : 'unknown'}</p></div>
+<div class="mini-card"><h3>streak</h3><p class="big ${b.solidNights.ok && b.solidNights.streak > 0 ? 'ok' : 'warn'}">${b.solidNights.ok ? b.solidNights.streak : '?'}</p></div>
+<div class="mini-card"><h3>open PRs</h3><p class="big">${b.prs.ok ? b.prs.list.length : '?'}</p></div>
+<div class="mini-card"><h3>weekly</h3><p class="big ${b.budget.ok && !b.budget.stale ? '' : 'warn'}">${b.budget.ok ? esc(b.budget.label) : '?'}</p></div>
+<div class="mini-card"><h3>release</h3><p class="big">${b.releaseCount.ok ? b.releaseCount.commitsLeft + 'c/' + b.releaseCount.daysLeft + 'd' : '?'}</p></div>
+</div>
 <main>
-${sec('tokens · 24 h', renderUsage(b.usage24h, 'bird'), !b.usage24h.ok)}
-${sec('tokens · 7 d', renderUsage(b.usage7d, 'bird'), !b.usage7d.ok)}
-${sec('weekly pool', bud, b.budget.ok && b.budget.stale)}
+<div class="cards3">
+<div class="mini-card"><h3>Backlog</h3>${
+    b.residue.ok
+      ? `<p class="big">${b.residue.open}</p><div class="sub">open residue rows (${b.residue.total} total)</div><div class="sub">${Object.keys(b.residue.byMonth)
+          .sort()
+          .map((m) => `${m}: ${b.residue.byMonth[m]}`)
+          .join(' &middot; ')}</div>`
+      : `<p class="unread">not read</p>`
+  }</div>
+<div class="mini-card"><h3>Release</h3>${b.releaseCount.ok ? `<p class="big">${b.releaseCount.tag}</p><div class="sub">+${b.releaseCount.commits} commits (${b.releaseCount.commitsLeft} left)</div><div class="sub">${b.releaseCount.days}d ago <span class="${b.releaseCount.daysLeft < 0 ? 'red' : ''}">(${b.releaseCount.daysLeft}d left)</span></div>` : `<p class="unread">not read</p>`}</div>
+<div class="mini-card"><h3>Briefs</h3>${b.briefs.ok ? `<p class="big">${b.briefs.open}</p><div class="sub">open (${b.briefs.done} done, ${b.briefs.total} total)</div>` : `<p class="unread">not read</p>`}</div>
+</div>
+${sec('Token usage <span class="sub">last 24 hours</span>', renderUsage(b.usage24h, 'bird'), !b.usage24h.ok)}
+${sec('Token usage <span class="sub">last 7 days</span>', renderUsage(b.usage7d, 'bird'), !b.usage7d.ok)}
+${sec('Weekly allowance', bud, b.budget.ok && b.budget.stale)}
 ${sec(
-  'release watch',
+  'Release watch',
   relBody,
   b.banners.some((x) => x.level === 'red' && /release/i.test(x.why))
 )}
-${sec('open PRs · walker', prBody, !b.prs.ok)}
-${sec('landing · pr-walker', b.landing.ok ? `<pre>${esc(b.landing.text)}</pre>` : unread(b.landing), b.landing.ok && /^ALERT /m.test(b.landing.text))}
+${sec('Open pull requests', prBody, !b.prs.ok)}
+${sec('PR landing status', b.landing.ok ? `<pre>${esc(b.landing.text)}</pre>` : unread(b.landing), b.landing.ok && /^ALERT /m.test(b.landing.text))}
 ${sec(
   'main CI',
   ciBody,
   b.banners.some((x) => x.level === 'red' && /main CI/.test(x.why))
 )}
-${sec('bird herder', b.herder.ok ? `<pre>${esc(b.herder.agents)}</pre>` : unread(b.herder))}
-${sec('Rule 0 stamps', b.rule0.ok ? `<p>last stamped merge: ${b.rule0.lastStampedPr ? `#${b.rule0.lastStampedPr}, <b>${b.rule0.ageHours} h</b> ago` : '—'} <span class="dim">(${esc(String(b.rule0.stampedOfLast10 ?? 0))} of the last 10 merged PRs carry one)</span></p>${b.rule0.note ? `<p class="dim">${esc(b.rule0.note)}</p>` : ''}` : unread(b.rule0))}
+${sec('Agent sessions', b.herder.ok ? `<pre>${esc(b.herder.agents)}</pre>` : unread(b.herder))}
+${sec('Rule 0 compliance', b.rule0.ok ? (b.rule0.stamps && b.rule0.stamps.length ? `<div class="table-wrap"><table><thead><tr><th>PR</th><th>coder</th><th>lane</th><th>merged</th></tr></thead><tbody>${b.rule0.stamps.map((x) => `<tr><td class="n">#${x.pr}</td><td>${esc(x.coder)}</td><td class="dim">${esc(x.lane)}</td><td class="dim">${x.ageHours} h ago</td></tr>`).join('')}</tbody></table></div>` : `<p class="dim">${esc(b.rule0.note || 'no stamps')}</p>`) : unread(b.rule0), !b.rule0.ok)}
+${sec('Vigil health', b.vigilHealth.ok ? `<p>Capture daemon: <b class="${b.vigilHealth.active === 'active' ? '' : 'red'}">${esc(b.vigilHealth.active)}</b></p><p class="dim">Disk /srv/tepna: ${esc(b.vigilHealth.disk)}</p>${b.vigilHealth.vig ? `<p><b>Vigil</b> <span class="dim">disk ${esc(b.vigilHealth.vig.disk)} · mem ${esc(b.vigilHealth.vig.mem)} · ${esc(b.vigilHealth.vig.load)}</span><br><span class="dim">${esc(b.vigilHealth.vig.up)}</span></p>` : ''}<pre>${esc(b.vigilHealth.journal)}</pre>${b.vigilHealth.rig ? `<p style="margin-top:12px"><b>Rig</b> <span class="dim">disk ${esc(b.vigilHealth.rig.disk)} · mem ${esc(b.vigilHealth.rig.mem)} · ${esc(b.vigilHealth.rig.load)}</span><br><span class="dim">${esc(b.vigilHealth.rig.up)}</span></p>` : ''}` : unread(b.vigilHealth))}
+${sec('API wrappers', b.wrapperHealth.ok ? `<div class="table-wrap"><table><thead><tr><th>wrapper</th><th>executable</th><th>key</th><th>quota</th></tr></thead><tbody>${b.wrapperHealth.rows.map((r) => `<tr><td>${esc(r.wrapper)}</td><td class="${r.exe ? '' : 'red'}">${r.exe ? 'yes' : 'NO'}</td><td class="${/MISSING|unreadable/.test(r.key) ? 'red' : 'dim'}">${esc(r.key)}</td><td class="${/OUT|zero/.test(r.quota) ? 'red' : 'dim'}">${esc(r.quota)}</td></tr>`).join('')}</tbody></table></div>` : unread(b.wrapperHealth))}
+${sec('Board activity <span class="sub">last 7 days</span>', b.boardActivity.ok ? (b.boardActivity.days.length ? `<div class="table-wrap"><table><thead><tr><th>day</th><th class="n">posts</th></tr></thead><tbody>${b.boardActivity.days.map((d) => `<tr><td>${esc(d[0])}</td><td class="n">${d[1]}</td></tr>`).join('')}</tbody></table></div><p class="dim">by author: ${b.boardActivity.byAuthor.map((a) => `${esc(a[0])} (${a[1]})`).join(', ')}</p>` : '<p class="dim">no posts in the last 7 days</p>') : unread(b.boardActivity))}
+${sec('Message board <span class="sub">latest post</span>', b.agentBoard.ok ? (b.agentBoard.latest ? `<div class="post-meta"><b>#${b.agentBoard.latest.id}</b><span>${esc(b.agentBoard.latest.author)}</span><span class="post-time">${esc(b.agentBoard.latest.kind)} &middot; ${fmtTime(b.agentBoard.latest.at)} (${ago(b.agentBoard.latest.at)})</span></div><div class="dim">${esc(b.agentBoard.latest.title)}</div><div class="post-body">${esc(b.agentBoard.latest.body)}</div><p class="dim">${b.agentBoard.total} entries &middot; ${b.agentBoard.threads} threads</p><p class="dim">CLI: <code>/home/michal/.local/bin/agent-board</code> &middot; DB: <code>/home/michal/.agent-board/board.db</code> &middot; web: <code>http://100.80.204.55:8765</code></p>` : '<p class="dim">The board is empty &mdash; no posts yet.</p>') : unread(b.agentBoard), !b.agentBoard.ok)}
 ${sec('owner decisions', od.ok ? `<p><b>${od.count}</b> open <span class="dim">(${esc(od.source || '')})</span></p><pre>${esc(od.rows.join('\n'))}</pre>` : unread(od))}
-${sec('solid-night streak', b.solidNights.ok ? `<pre>${esc(b.solidNights.text)}</pre>` : unread(b.solidNights))}
-${sec('Kestrel daily evaluation', b.evaluation.ok ? `<pre>${esc(b.evaluation.text)}</pre>` : unread(b.evaluation))}
+${sec('Solid-night streak', b.solidNights.ok ? `<p>Current streak: <b>${b.solidNights.streak}</b> consecutive PASS night(s) <span class="dim">(${b.solidNights.nights} nights with verdicts)</span></p><pre>${esc(b.solidNights.text)}</pre>` : unread(b.solidNights))}
+${sec('Daily evaluation', b.evaluation.ok ? `<pre>${esc(b.evaluation.text)}</pre>` : unread(b.evaluation))}
 </main>
-<footer>Generated by <code>tools/board.mjs</code> into <code>${esc(OUT_DIR)}</code> — outside any checkout. Live data never enters the repo.
+</div>
+<footer><div class="wrap">Generated by <code>tools/board.mjs</code> into <code>${esc(OUT_DIR)}</code> — outside any checkout. Live data never enters the repo.
 Every section reports its own absence: "not read" is a measurement, 0 would be a fabrication.</footer>
 </body></html>`;
 }
@@ -810,7 +1230,14 @@ function runSelftest() {
     rule0: { ok: false, reason: 'x' },
     solidNights: { ok: false, reason: 's' },
     evaluation: { ok: false, reason: 'e' },
-    landing: { ok: false, reason: 'l' }
+    landing: { ok: false, reason: 'l' },
+    agentBoard: { ok: false, reason: 'a' },
+    residue: { ok: false, reason: 'rs' },
+    releaseCount: { ok: false, reason: 'rc' },
+    briefs: { ok: false, reason: 'br' },
+    vigilHealth: { ok: false, reason: 'v' },
+    wrapperHealth: { ok: false, reason: 'w' },
+    boardActivity: { ok: false, reason: 'ab' }
   });
   ok(/not read —/.test(html) && !/>0</.test(html.replace(/width:0%/g, '')), 'an all-unread board renders "not read", never a 0');
   /* A hand-entered solid-night file renders its text (its first line names itself MANUAL with a date),
@@ -828,12 +1255,22 @@ function runSelftest() {
     herder: { ok: false, reason: 'h' },
     ownerDecisions: { ok: false, reason: 'o' },
     rule0: { ok: false, reason: 'x' },
-    solidNights: { ok: true, text: 'MANUAL ENTRY (Kestrel, 2026-10-11) streak: 3', bytes: 40 },
+    solidNights: { ok: true, text: 'live streak: 3', streak: 3, nights: 10 },
     evaluation: { ok: false, reason: 'e' },
-    landing: { ok: false, reason: 'l' }
+    landing: { ok: false, reason: 'l' },
+    agentBoard: { ok: false, reason: 'a' },
+    residue: { ok: false, reason: 'rs' },
+    releaseCount: { ok: false, reason: 'rc' },
+    briefs: { ok: false, reason: 'br' },
+    vigilHealth: { ok: false, reason: 'v' },
+    wrapperHealth: { ok: false, reason: 'w' },
+    boardActivity: { ok: false, reason: 'ab' }
   });
-  const solidSec = htmlManual.split('solid-night streak')[1]?.split('</section>')[0] ?? '';
-  ok(/MANUAL ENTRY \(Kestrel, 2026-10-11\) streak: 3/.test(solidSec) && !/not read —/.test(solidSec), 'a hand-entered solid-night file renders its text, and that section no longer reads as absent');
+  const solidSec = htmlManual.split('Solid-night streak')[1]?.split('</section>')[0] ?? '';
+  ok(
+    solidSec.includes('Current streak:') && solidSec.includes('live streak: 3') && !solidSec.includes('not read'),
+    'a live solid-night read renders its streak, and that section no longer reads as absent'
+  );
   ok(
     /&lt;script&gt;/.test(
       renderHtml({
@@ -851,7 +1288,14 @@ function runSelftest() {
         rule0: { ok: false, reason: 'x' },
         solidNights: { ok: false, reason: 's' },
         evaluation: { ok: false, reason: 'e' },
-        landing: { ok: false, reason: 'l' }
+        landing: { ok: false, reason: 'l' },
+        agentBoard: { ok: false, reason: 'a' },
+        residue: { ok: false, reason: 'rs' },
+        releaseCount: { ok: false, reason: 'rc' },
+        briefs: { ok: false, reason: 'br' },
+        vigilHealth: { ok: false, reason: 'v' },
+        wrapperHealth: { ok: false, reason: 'w' },
+        boardActivity: { ok: false, reason: 'ab' }
       })
     ),
     'every interpolated value is escaped — the board reads PR titles and journal text'

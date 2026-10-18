@@ -1,0 +1,49 @@
+# tepna-avahi-name.service — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# ⚠️ AVAHI CAN RENAME THIS BOX AND KEEP THE NEW NAME. On 2026-09-23 a boot 26 min after the previous one
+# logged `Host name conflict, retrying with vigil-2` → `Host name is vigil-2.local`, with nothing else on
+# the LAN holding `vigil.local` — the conflict was an echo of the box's OWN record from the previous boot.
+# avahi kept `vigil-2.local` for four hours: `http://vigil.local/monitor` did not resolve while the
+# monitor served 200 on localhost, and no journal the fleet reads said so. `systemctl restart
+# avahi-daemon` reclaimed the name. RESIDUE `2026-09-23-avahi-renames-the-box-after-a-quick-reboot`;
+# Wren's 2026-10-12 box survey found 2 renames in 13 boot transitions, each held until a restart.
+#
+# WHY ITS OWN UNIT, AND NOT AN ExecStartPre OF THE CAPTURE UNIT (owner ruling, 2026-10-17). An
+# ExecStartPre runs INSIDE capture's start job, so a stuck avahi restart delays the one thing on this box
+# that must never wait. Here the capture unit only names this unit with `Wants=` and does not order
+# itself after it, so the two start in parallel and a wedged name check costs no capture.
+#
+# WHY THE COMMAND IS INLINE. This unit runs as root, because reclaiming the name restarts another unit.
+# Root installs this FILE into /etc from a GitHub clone of `main` (`tepna-sysfiles.sh`), while `vigil`
+# owns /opt/tepna — so an `ExecStart` naming a script in the checkout would let anything running as
+# `vigil` choose what root executes. `$$` and `%%` are systemd's escapes for `$` and `%`.
+#
+# ABSENCE IS NULL: no reply from avahi is UNKNOWN, logged at <5>, and restarts nothing. A rename is the
+# only thing that restarts avahi, and it logs <4> in this unit's own journal
+# (`journalctl -u tepna-avahi-name`).
+#
+# LIMIT: this is a START-TIME check. A conflict avahi detects later goes unseen until the next start of
+# this unit. A periodic form is a timer this unit does not yet have.
+[Unit]
+Description=Tepna — reclaim the mDNS name when avahi renamed the box
+After=avahi-daemon.service
+Wants=avahi-daemon.service
+
+[Service]
+Type=oneshot
+# No `User=`: the restart needs root. No `-` on ExecStart either — nothing waits on this unit now, so a
+# real failure belongs in `systemctl --failed` instead of being swallowed.
+ExecStart=/bin/sh -c 'h=$$(hostname); h=$${h%%%%.*}; \
+  set -- $$(busctl --timeout=5 call org.freedesktop.Avahi / org.freedesktop.Avahi.Server GetHostName 2>/dev/null); \
+  if [ "$$1" != s ] || [ -z "$$2" ]; then echo "<5>avahi host name unknown: no GetHostName reply, nothing restarted"; exit 0; fi; \
+  n=$${2#?}; n=$${n%%?}; [ "$$n" = "$$h" ] && exit 0; \
+  echo "<4>avahi advertises $$n.local, not $$h.local: restarting avahi-daemon to reclaim the name"; \
+  systemctl --no-block restart avahi-daemon.service'
+# A wedged D-Bus call must not hold a start job open: busctl already caps itself at 5 s.
+TimeoutStartSec=30
+RemainAfterExit=no
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
