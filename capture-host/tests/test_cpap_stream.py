@@ -1869,6 +1869,59 @@ def test_therapy_end_sink_resets_the_hold_on_any_real_breath():
     assert not ev.is_set(), "a breath between quiet runs must reset the hold, not accumulate"
 
 
+def test_therapy_end_sink_stops_on_flow_FROZEN_outside_eps():
+    # 2026-10-18: the blower stopped and flow froze at -0.11 L/s, 0.01 outside eps 0.10. The value check
+    # alone never fired and the stream ran on for hours. A frozen value is the idle machine, whatever
+    # offset the device picks.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([-0.11] * 60))
+    assert ev.is_set(), "flow frozen at one value for the hold must end the stream"
+
+
+def test_therapy_end_sink_frozen_run_SHORTER_than_the_hold_does_not_stop():
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=120.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([-0.11] * (30 * 25)))  # 30 s frozen: under the 120 s hold
+    assert not ev.is_set()
+
+
+def test_therapy_end_sink_carries_the_frozen_value_ACROSS_batches():
+    # The pump delivers small batches; the previous sample must survive the batch boundary, or a
+    # frozen run is cut into pieces that each restart at one quiet sample.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    for _ in range(60):
+        s.on_batch(_batch([0.52]))
+    assert ev.is_set(), "a frozen run delivered one sample per batch must still reach the hold"
+
+
+def test_therapy_end_sink_does_NOT_stop_on_breathing_that_repeats_values():
+    # Real flow repeats a value for a sample or two (measured: at most 3.3 s on 55 nights). Changing
+    # values outside eps must keep resetting the hold.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.30, 0.30, 0.50, 0.50, -0.40, -0.40] * 200))
+    assert not ev.is_set(), "breathing with repeated pairs is not a frozen machine"
+
+
+def test_therapy_end_sink_an_unreadable_sample_breaks_the_frozen_run():
+    # A None between two equal values is no evidence that the value held; the run restarts.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([-0.11] * 40 + [None] + [-0.11] * 40))
+    assert not ev.is_set(), "the run must restart after an unreadable sample"
+    s.on_batch(_batch([-0.11] * 10))  # 39 + 10 = 49 quiet: the run's first sample repeats nothing
+    assert not ev.is_set()
+    s.on_batch(_batch([-0.11]))  # the 50th
+    assert ev.is_set(), "the run after the gap still reaches the hold on its own"
+
+
 def test_therapy_end_sink_times_from_SAMPLES_not_wall_clock():
     # A stalled link delivers nothing; the timer must not age while no data arrives, or a dropout
     # reads as "therapy ended" and the stream stops itself off a dead link.
