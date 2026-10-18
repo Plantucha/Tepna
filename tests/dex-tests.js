@@ -31132,6 +31132,28 @@
       T.eq('…timingSource follows the verdict: two real clocks', indep.timingSource, 'device+host');
       T.eq('…and a derived host column contributes no second clock', inert.timingSource, 'device');
       T.approx('…and the sample spacing equals 1/fs', at10.ok && at10.r.relSec[1] - at10.r.relSec[0], at10.ok && 1 / at10.r.fs, 1e-9);
+      /* ── MUTATION KILL — parsePPG zero-delta fs boundary (mutation lane unit 2) ──
+         ppgdex-dsp.js:1537, `d > 0` mutated to `d >= 0`: a zero ns delta (two rows sharing
+         one device stamp) must be EXCLUDED from the fs median. 44 rows in 22 identical-ns
+         pairs give 22 zero-deltas and 21 eight-ms deltas; the mutant includes the zeros,
+         dragging the median to 0 and leaving fs at its 176 default instead of the measured
+         125. Mutant verified surviving on main 2026-11-09; killed by the test below.
+         The unit's second October target, the `deltas.length > 20` boundary at :1601, is
+         not pinned here: the lazy-lastTs span fallback superseded its fs-at-default
+         contract, and existing coverage already kills that mutant. */
+      var pairRows = function () {
+        var L = [HDR3],
+          start = Date.UTC(2026, 5, 21, 6, 5, 23);
+        for (var i = 0; i < 44; i++) {
+          var pairNs = Math.floor(i / 2) * 8000000;
+          var ms = start + Math.round((i * 1000) / 125);
+          L.push(iso(ms) + ';' + pairNs + ';' + (200000 + i));
+        }
+        return L.join('\n');
+      };
+      var paired = tryParse(pairRows());
+      T.ok('paired-ns file parses', paired.ok, paired.msg);
+      T.eq('zero ns deltas are EXCLUDED from the fs median (ppgdex-dsp.js:1537)', paired.ok && paired.r.fs, 125);
     });
 
     /* ABSENCE IS NOT A FORMAT ERROR — §∅ at PpgDex's parse floor (residue
