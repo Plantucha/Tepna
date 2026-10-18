@@ -48,6 +48,13 @@ WorkingDirectory=/opt/tepna/capture-host
 ExecStart=/opt/tepna/capture-host/.venv/bin/python capture.py --config /opt/tepna/capture-host/config.yaml
 Restart=always
 RestartSec=5
+# THE PROTECTED TENANT (VIGIL-SELF-SUSTAINED-FOLDING acceptance 2). Under host memory pressure the
+# kernel must reach for anything else first — the fold, a pull, a browser — and never for the
+# recording, because a killed fold costs a rerun while a killed capture costs the night itself. The
+# fold unit carries the matching +500 (systemd/tepna-fold.service); the two numbers are ONE decision.
+# ⚠️ Measured on the box 2026-10-17 20:08: MemoryMax=infinity, OOMScoreAdjust=0 — so until this unit is
+# installed, nothing on vigil ranks capture above a fold.
+OOMScoreAdjust=-500
 
 # ── Writable paths ────────────────────────────────────────────────────────────────────────────────
 # /srv/tepna              — the captures themselves.
