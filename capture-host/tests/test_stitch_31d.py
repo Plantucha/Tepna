@@ -8,6 +8,7 @@ timeline must make the discontinuity visible, not fabricate continuity.
 
 import json
 import os
+import re
 
 
 import stitch_31d
@@ -252,3 +253,181 @@ def test_collect_sidecars_handles_malformed(tmp_path):
     sc = stitch_31d.collect_sidecars(night_dir)
     assert sc["clock_offsets"] == {}
     assert sc["wear"] == {}
+
+
+# ── sidecar edge rows: malformed is absence, never zero ────────────────────────
+
+
+def test_collect_sidecars_ignores_malformed_clockskew_rows(tmp_path):
+    """§∅. CLOCKSYNC.csv edge rows — too few columns, empty device/skew, non-numeric
+    skew — contribute no offset. Absent data is absent, never a zero offset."""
+    night_dir = str(tmp_path / "night")
+    os.makedirs(night_dir)
+    with open(os.path.join(night_dir, "CLOCKSYNC.csv"), "w") as fh:
+        fh.write(
+            "device;skew_sec\n"
+            "H10;0.5\n"  # the one good row
+            "SHORT\n"  # too few columns: skipped
+            ";1.0\n"  # empty device: skipped
+            "H10b;\n"  # empty skew: skipped
+            "NOISY;abc\n"  # non-numeric skew: skipped, not zero
+        )
+    sc = stitch_31d.collect_sidecars(night_dir)
+    assert sc["clock_offsets"] == {"H10": 0.5}
+
+
+def test_collect_sidecars_treats_non_dict_loss_audit_shapes_as_absence(tmp_path):
+    """§∅. A LOSS-AUDIT.json whose `devices` is not a dict, or whose device entries are
+    not dicts, yields absent wear — never an exception, never fabricated intervals."""
+    night_dir = str(tmp_path / "night")
+    os.makedirs(night_dir)
+    with open(os.path.join(night_dir, "LOSS-AUDIT.json"), "w") as fh:
+        json.dump({"devices": ["not", "a", "dict"]}, fh)
+    assert stitch_31d.collect_sidecars(night_dir)["wear"] == {}
+
+    night2 = str(tmp_path / "night2")
+    os.makedirs(night2)
+    with open(os.path.join(night2, "LOSS-AUDIT.json"), "w") as fh:
+        json.dump(
+            {"devices": {"H10": "not-a-dict", "Ring": {"span_min": 400, "unlisted": 1}}},
+            fh,
+        )
+    wear = stitch_31d.collect_sidecars(night2)["wear"]
+    assert wear == {"Ring": {"span_min": 400}}, "non-dict entry skipped; unlisted keys not copied"
+
+
+# ── night discovery: stray names and unreadable roots are absence ─────────────
+
+
+def test_solid_nights_ignores_stray_names_and_non_dirs_and_an_unreadable_root(tmp_path):
+    """§∅. Stray files, night-shaped non-dirs, and an unreadable captures root invent
+    no nights and raise nothing."""
+    caps = tmp_path / "captures"
+    caps.mkdir()
+    (caps / "notes.txt").write_text("stray")  # not a night name
+    (caps / "2026-10-16").mkdir()  # no verdict: excluded, not solid
+    (caps / "2026-10-17").write_text("not a dir")  # night-shaped but not a dir
+    assert stitch_31d.solid_nights(str(caps)) == []
+
+    not_a_dir = tmp_path / "afile"
+    not_a_dir.write_text("x")
+    assert stitch_31d.solid_nights(str(not_a_dir)) == []
+
+
+def test_find_input_on_an_unreadable_night_dir_is_absence(tmp_path):
+    """§∅. An unreadable night dir is a gap, not a crash."""
+    not_a_dir = tmp_path / "afile"
+    not_a_dir.write_text("x")
+    assert stitch_31d._find_input(str(not_a_dir), "*.txt") is None
+
+
+# ── delimiter detection ───────────────────────────────────────────────────────
+
+
+def test_detect_delimiter_covers_comma_and_mixed_headers():
+    assert stitch_31d._detect_delimiter("a;b;c") == ";"
+    assert stitch_31d._detect_delimiter("a,b,c") == ","
+    assert stitch_31d._detect_delimiter("a;b,c;d") == ";", "majority wins"
+    assert stitch_31d._detect_delimiter("a,b;c,d") == ",", "majority wins"
+
+
+# ── stitch_tool gap branches: unreadable / empty / blank-line sources ─────────
+
+
+def test_stitch_tool_treats_an_unreadable_matching_source_as_a_gap(tmp_path):
+    """§∅. A directory matching the input pattern makes `open` raise: the night is a
+    null gap, not a crash and not fabricated data."""
+    night = _make_night(str(tmp_path), "2026-10-16", "PASS")
+    os.makedirs(os.path.join(night, "Polar_H10_X_HR.txt"))  # matches, but is a dir
+    tool_dir = str(tmp_path / "stitched")
+    manifest = stitch_31d.stitch_tool(str(tmp_path), tool_dir, ("Polar_H10_*_HR.txt",), ["2026-10-16"])
+    assert manifest["inputs"]["Polar_H10_*_HR.txt"]["gaps"] == ["2026-10-16"]
+    assert manifest["inputs"]["Polar_H10_*_HR.txt"]["contributing"] == []
+
+
+def test_stitch_tool_treats_an_empty_source_file_as_a_gap(tmp_path):
+    """§∅. A zero-line input file contributes nothing: null gap, not an empty stitch."""
+    _make_night(str(tmp_path), "2026-10-16", "PASS", {"Polar_H10_X_HR.txt": ""})
+    tool_dir = str(tmp_path / "stitched")
+    manifest = stitch_31d.stitch_tool(str(tmp_path), tool_dir, ("Polar_H10_*_HR.txt",), ["2026-10-16"])
+    assert manifest["inputs"]["Polar_H10_*_HR.txt"]["gaps"] == ["2026-10-16"]
+
+
+def test_stitch_tool_skips_blank_lines_in_source_files(tmp_path):
+    """Blank lines inside a source file are not data rows and not gaps."""
+    _make_night(
+        str(tmp_path),
+        "2026-10-16",
+        "PASS",
+        {
+            "Polar_H10_X_HR.txt": (
+                "Phone timestamp;HR [bpm];\n2026-10-16T23:10:08.702;90\n\n2026-10-16T23:10:09.752;91\n"
+            )
+        },
+    )
+    tool_dir = str(tmp_path / "stitched")
+    stitch_31d.stitch_tool(str(tmp_path), tool_dir, ("Polar_H10_*_HR.txt",), ["2026-10-16"])
+    with open(os.path.join(tool_dir, "Polar_H10_STITCHED_HR.txt")) as fh:
+        lines = fh.read().splitlines()
+    assert lines == [
+        "Phone timestamp;HR [bpm];",
+        "2026-10-16T23:10:08.702;90",
+        "2026-10-16T23:10:09.752;91",
+    ], "the blank line vanished without becoming a row or a gap"
+
+
+# ── provenance helpers: _git_sha / _utc_now / _verdict_sample ─────────────────
+
+
+def test_git_sha_reports_the_running_tree():
+    sha = stitch_31d._git_sha()
+    assert sha and re.fullmatch(r"[0-9a-f]{7,40}", sha), "short sha of the checkout"
+
+
+def test_git_sha_is_absence_when_git_fails(monkeypatch):
+    def boom(*a, **k):
+        raise OSError("no git here")
+
+    monkeypatch.setattr("subprocess.run", boom)
+    assert stitch_31d._git_sha() is None
+
+
+def test_utc_now_is_a_zulu_timestamp():
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", stitch_31d._utc_now())
+
+
+def test_verdict_sample_is_a_pass_object():
+    v = stitch_31d._verdict_sample()
+    assert v["schema"] == "tepna.verdict/1"
+    assert v["status"] == "PASS"
+    assert v["gate"] == "stitch-31d"
+    assert v["result"] == {"tools": list(stitch_31d.TOOLS.keys()), "gaps_are_null": True}
+
+
+def test_stitch_tool_writes_gap_rows_when_the_header_is_already_known(tmp_path):
+    """A night whose source is unreadable or empty AFTER a contributing night still
+    gets its null gap marker row — the header is known, so the gap stays visible
+    instead of vanishing."""
+    _make_night(
+        str(tmp_path),
+        "2026-10-16",
+        "PASS",
+        {"Polar_H10_X_HR.txt": "Phone timestamp;HR [bpm];\n2026-10-16T23:10:08.702;90\n"},
+    )
+    night2 = _make_night(str(tmp_path), "2026-10-17", "PASS")
+    os.makedirs(os.path.join(night2, "Polar_H10_X_HR.txt"))  # matches, but is a dir
+    _make_night(str(tmp_path), "2026-10-18", "PASS", {"Polar_H10_X_HR.txt": ""})
+    tool_dir = str(tmp_path / "stitched")
+    nights = ["2026-10-16", "2026-10-17", "2026-10-18"]
+    manifest = stitch_31d.stitch_tool(str(tmp_path), tool_dir, ("Polar_H10_*_HR.txt",), nights)
+    inp = manifest["inputs"]["Polar_H10_*_HR.txt"]
+    assert inp["contributing"] == ["2026-10-16"]
+    assert inp["gaps"] == ["2026-10-17", "2026-10-18"]
+    with open(os.path.join(tool_dir, "Polar_H10_STITCHED_HR.txt")) as fh:
+        rows = fh.read().splitlines()
+    assert rows == [
+        "Phone timestamp;HR [bpm];",
+        "2026-10-16T23:10:08.702;90",
+        "#GAP:2026-10-17;;",
+        "#GAP:2026-10-18;;",
+    ], "null markers, never zeros"

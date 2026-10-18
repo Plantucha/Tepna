@@ -7,7 +7,9 @@ spawned child can be handed. These tests drive the module directly — the seam 
 runs is `capture._qc_offload` and lives in tests/test_qc_offload.py.
 """
 
+import json
 import os
+import re
 
 import pytest
 
@@ -298,3 +300,31 @@ def test_an_empty_job_list_runs_nothing_and_returns_nothing(monkeypatch):
     thing that would have to notice."""
     monkeypatch.setattr(loss_audit, "write_night", lambda *a, **k: pytest.fail("audited with no job"))
     assert qc_child.audit_and_compose([], [], [], set(), None) == []
+
+
+# ── provenance helpers: _git_sha / _utc_now / _verdict_sample ─────────────────
+
+
+def test_git_sha_reports_the_running_tree():
+    sha = qc_child._git_sha()
+    assert sha and re.fullmatch(r"[0-9a-f]{7,40}", sha), "short sha of the checkout"
+
+
+def test_git_sha_is_absence_when_git_fails(monkeypatch):
+    def boom(*a, **k):
+        raise OSError("no git here")
+
+    monkeypatch.setattr("subprocess.run", boom)
+    assert qc_child._git_sha() is None
+
+
+def test_utc_now_is_a_zulu_timestamp():
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", qc_child._utc_now())
+
+
+def test_verdict_sample_is_a_pass_hook_object():
+    v = json.loads(qc_child._verdict_sample())
+    assert v["schema"] == "tepna.verdict/1"
+    assert v["status"] == "PASS"
+    assert v["gate"] == "qc-child-stitch-hook"
+    assert v["result"]["trigger"] == "PASS"

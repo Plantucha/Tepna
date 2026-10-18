@@ -10,6 +10,7 @@
 # test_adapter_pin.py. No pytest-asyncio / pytest-aiohttp needed, so CI installs nothing extra.
 
 import asyncio
+import json
 import os
 
 import pytest
@@ -987,3 +988,56 @@ def test_a_genuinely_new_device_is_still_appended(tmp_path):
 
     assert _serve(app, go)["ok"] is True
     assert len(cfg["devices"]) == before + 1
+
+
+# ── /api/stitched/* — the 31-day stitch surface ─────────────────────────────────
+
+
+def test_stitched_page_serves_the_results_page(tmp_path):
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.get("/stitched-31d.html")
+        assert r.status == 200
+        assert "<title>31-day stitched" in await r.text()
+
+    _serve(app, go)
+
+
+def test_stitched_result_rejects_an_unknown_tool(tmp_path):
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.get("/api/stitched/no-such-tool")
+        assert r.status == 404
+        assert await r.json() == {"ok": False, "error": "unknown tool"}
+
+    _serve(app, go)
+
+
+def test_stitched_result_is_absence_before_the_first_stitch(tmp_path):
+    """§∅. A known tool with no RESULT.json yet is 404 'not yet computed' — not an
+    empty object and not a fabricated result."""
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.get("/api/stitched/3corner")
+        assert r.status == 404
+        assert await r.json() == {"ok": False, "error": "not yet computed"}
+
+    _serve(app, go)
+
+
+def test_stitched_result_serves_the_computed_result(tmp_path):
+    app, cfg, *_ = _mk(tmp_path)
+    tool_dir = tmp_path / "stitched" / "3corner"
+    tool_dir.mkdir(parents=True)
+    payload = {"ok": True, "tool": "3corner", "nights": 31}
+    (tool_dir / "RESULT.json").write_text(json.dumps(payload))
+
+    async def go(c):
+        r = await c.get("/api/stitched/3corner")
+        assert r.status == 200
+        assert await r.json() == payload
+
+    _serve(app, go)
