@@ -941,7 +941,7 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
         <div class="section-title" id="nightsTitle">Every night</div>
         <p class="nwhy" id="nightsWhy"></p>
         <div class="nights-wrap"><table class="nights" id="nightsTable"></table></div>
-        <div class="hint" id="nightsHint">Each device cell is that device's main stream on disk for the night: the hours it spans, how many contiguous <b>fragments</b> it holds, and the share of the span lost to holes (a link that drops and reconnects keeps its span and loses coverage). The bar is the coverage. Click a cell to open its analyzer with every file that analyzer reads for the night, loaded and processed (PPGDex gets the Verity and the O2Ring PPG together); click the date for each device's solid-night result and every analyzer that reads it. "…" = still counting fragments for that stream (the page keeps asking). Integrator: folds run on rig, not in the browser, so it does not open here yet.</div>
+        <div class="hint" id="nightsHint">Each device cell is that device's main stream on disk for the night: the hours it spans, how many contiguous <b>fragments</b> it holds, and the share of the span lost to holes (a link that drops and reconnects keeps its span and loses coverage). The bar is the coverage. Click a cell to open its analyzer with every file that analyzer reads for the night, loaded and processed (PPGDex gets the Verity and the O2Ring PPG together); click the date for each device's solid-night result and every analyzer that reads it. "…" = still counting fragments for that stream (the page keeps asking). Integrator opens OverDex with the night's raw files: OverDex runs each analyzer and fuses the results with the Integrator's engine.</div>
       </div>
     </section>
 
@@ -1401,7 +1401,7 @@ const NIGHT_DERIVED = ["3 corner hat","PAT","PAT fused"];
 const NIGHT_DERIVED_LABEL = {"PAT fused": ["Classic vs fused", "PAT + 3-corner hat, classic beside fused"]};
 const NIGHT_CAPTURE_ORDER = ["ECGDex","HRVDex","PulseDex","PPGDex","MotionDex","OxyDex","CPAPDex","GlucoDex","EEGDex","Integrator"];
 const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.html", PulseDex:"PulseDex.html", CPAPDex:"CPAPDex.html",
-  MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"Integrator.html",
+  MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"OverDex.html",
   "3 corner hat":"sensor-trio-night.html", PAT:"PAT Feasibility.html", "PAT fused":"PAT Classic vs Fused.html"};
 // Which file input in each app takes which files. ECGDex splits its inputs by stream; every other app
 // takes everything through one `multiple` input.
@@ -1412,16 +1412,21 @@ const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.ht
 // against the app's own source, so an app renaming its input reds the gate instead of the click.
 const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],["_RR.txt","#rrInput"],["_HR.txt","#hrInput"]],
   OxyDex:"#fileInput", PPGDex:"#fileInput", PulseDex:"#rawInput", CPAPDex:"#fileInput", MotionDex:"#mxInput",
-  "3 corner hat":"#fileInput", PAT:"#fileInput", "PAT fused":"#fileInput"};
+  Integrator:"#files", "3 corner hat":"#fileInput", PAT:"#fileInput", "PAT fused":"#fileInput"};
 // The two batch tools index the files and then WAIT for their Process button — the six analyzers process
 // on load. The owner's ask is "load and process without other clicking", so openNight presses that button
 // once the tool enables it (both enable it synchronously inside their change handler when a night is
 // eligible; measured 2026-09-21 on the box: "1 nights indexed from 10 files", button enabled, idle). If it
 // never enables, the tool found no eligible night and the toast says so instead of claiming processing.
-const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run", "PAT fused":"#run"};
+// The Integrator column opens OVERDEX, not Integrator.html: the Integrator reads node EXPORTS and the box
+// holds raw captures only. OverDex routes the raw files, runs each analyzer and fuses the exports with the
+// Integrator's engine (IntegratorDSP). Its Run & fuse stays disabled until it has read the files, and a
+// night's raw ECG and PPG take longer to read than a batch tool takes to index, so its wait is longer.
+const NIGHT_RUN = {Integrator:"#runBtn", "3 corner hat":"#procBtn", PAT:"#run", "PAT fused":"#run"};
+const NIGHT_RUN_WAIT = {Integrator: 1800};   // ticks of 100 ms; every other tool keeps 100
+const NIGHT_RUN_LATE = {Integrator: 'OverDex did not finish reading them in 3 min'};
 // Figure-only columns: the raw input on disk that reaches the app through another node, never a click.
-const NIGHT_WHY_NOT = {Integrator:"raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser",
-  HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
+const NIGHT_WHY_NOT = {HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
 const NIGHT_GROUP = {ECGDex:"polar",HRVDex:"polar",PulseDex:"polar",PPGDex:"polar",MotionDex:"polar",OxyDex:"wellue",CPAPDex:"resmed",GlucoDex:"fused",EEGDex:"fused",Integrator:"fused"};
 let NIGHTS = null, NIGHTS_PENDING = 0;
 const nMB = b => b>=1e9 ? (b/1e9).toFixed(2)+' GB' : b>=1e6 ? Math.round(b/1e6)+' MB' : (b/1e3).toFixed(0)+' kB';
@@ -1446,7 +1451,7 @@ const NIGHT_DEVICES = [
 ];
 // The fused tab. `node` is the openNight key; 3-hat fused and PAT fused open the same page today.
 const NIGHT_FUSED = [
-  {name:'Integrator',   sub:'every stream, one timeline', node:'Integrator', off:'folds run on rig — opens here once the box makes the fold'},
+  {name:'Integrator',   sub:'every stream, one timeline', node:'Integrator', rec:true},
   {name:'3-corner hat', sub:'H10 · Verity · O2Ring',      node:'3 corner hat', needs:['h10','verity','ring'], stitch:'3corner'},
   {name:'3-hat fused',  sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg'], stitch:'3corner_fused'},
   {name:'PAT',          sub:'ECG → pulse arrival',        node:'PAT', needs:['h10','verity'], stitch:'pat_h10_verity'},
@@ -1506,9 +1511,13 @@ function nDevCell(n, d){
 }
 function nFusCell(n, f){
   const v = n[f.node];
-  if(f.off){
+  /* A node RECORD (the Integrator): its cell is the raw input the fold takes, and a click opens OverDex
+     with those files and presses Run & fuse. */
+  if(f.rec && v && v.loadable && Array.isArray(v.files) && v.files.length)
+    return `<td><button type="button" class="ncell" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}" title="open OverDex with this night's raw files, run each analyzer and fuse"><span class="top"><i class="ng rec">●</i>open</span><span class="sub">${esc(`${v.files.length} files · ${nMB(v.bytes||0)}`)}</span><span class="nbar"><i class="rec" style="width:100%"></i></span></button></td>`;
+  if(f.rec || f.off){
     const sub = v && v.bytes ? `${(v.files||[]).length} files · ${nMB(v.bytes)}` : 'no inputs this night';
-    return `<td><div class="ncell off" title="${esc(f.off)}"><span class="top"><i class="ng ${v?'rec':'none'}">${v?'●':'–'}</i>${v?'inputs on disk':'—'}</span><span class="sub">${esc(sub)}</span><span class="nbar"><i class="rec" style="width:${v?100:0}%"></i></span></div></td>`;
+    return `<td><div class="ncell off" title="${esc(f.off || 'no inputs this night')}"><span class="top"><i class="ng ${v?'rec':'none'}">${v?'●':'–'}</i>${v?'inputs on disk':'—'}</span><span class="sub">${esc(sub)}</span><span class="nbar"><i class="rec" style="width:${v?100:0}%"></i></span></div></td>`;
   }
   if(v===true) return `<td><button type="button" class="ncell" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}" title="open ${esc(f.name)} with this night's inputs loaded and run"><span class="top"><i class="ng ok">✓</i>open</span><span class="sub">inputs on disk</span><span class="nbar"><i class="ok" style="width:100%"></i></span></button></td>`;
   const miss = (f.needs||[]).filter(k=>!nHas(n,k)).map(k=>k==='ringppg'?'O2Ring PPG':NIGHT_DEVICES.find(d=>d.k===k).name);
@@ -1577,7 +1586,9 @@ function nSolidBlock(n){
 function nDrawer(n){
   if(NIGHTS_TAB==='fus') return nSolidBlock(n) + NIGHT_FUSED.map(f=>{
     const v = n[f.node];
-    if(f.off) return `<div><b>${esc(f.name)}</b><br>${esc(f.off)}${v&&v.files?'<br>'+v.files.length+' input files on disk':''}</div>`;
+    if(f.rec) return v && v.loadable && Array.isArray(v.files) && v.files.length
+      ? `<div><b>${esc(f.name)}</b><br>${v.files.length} input files on disk<div class="nchips"><button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}">Open ${esc(f.name)} (OverDex)</button></div></div>`
+      : `<div><b>${esc(f.name)}</b><br>no inputs this night</div>`;
     if(v!==true) return `<div><b>${esc(f.name)}</b><br>an input is missing this night</div>`;
     return `<div><b>${esc(f.name)}</b><div class="nchips"><button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}">Open ${esc(f.name)}</button></div></div>`;
   }).join('');
@@ -1601,7 +1612,7 @@ function renderNights(){
   $('#navNightsN').style.display=''; $('#navNightsN').textContent=rows.length;
   document.querySelectorAll('[data-ntab]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.ntab===NIGHTS_TAB)));
   const dev = NIGHTS_TAB==='dev', cols = dev ? NIGHT_DEVICES : NIGHT_FUSED;
-  const sqCls = (n, c) => dev ? nCls(n, c) : (c.off ? (n[c.node] ? 'rec' : 'none') : (n[c.node]===true ? 'ok' : 'none'));
+  const sqCls = (n, c) => dev ? nCls(n, c) : (c.off || c.rec ? (n[c.node] ? 'rec' : 'none') : (n[c.node]===true ? 'ok' : 'none'));
   // overview strip: oldest → newest, left to right; the solid-night row first
   const strip = [...recent].reverse();
   let o = `<div class="lab"><b>Solid night</b></div>` + strip.map(n=>`<button type="button" class="nsq ${n.daytime?'none':nSolidCls(n.night)}" data-go="${esc(nRowKey(n))}" aria-label="${esc(n.night)} solid night: ${esc(nSolidTxt(n.night)[0])}" title="${esc(n.night)} · solid night: ${esc(nSolidTxt(n.night)[0])}"></button>`).join('') + '<div class="sep"></div>';
@@ -1802,9 +1813,10 @@ async function openNight(key, node){
   const runSel = NIGHT_RUN[node];
   if(!runSel){ nToast(loaded+' — processing in the new tab'); return; }
   // a batch tool: press Process for the user once the tool has indexed the night and enabled it
+  const maxTries = NIGHT_RUN_WAIT[node] || 100;
   const btn = await new Promise(res=>{ let tries=0; const t=setInterval(()=>{ let b=null; try{ b=doc.querySelector(runSel); }catch(_){}
-    if((b && !b.disabled) || ++tries>100){ clearInterval(t); res(b && !b.disabled ? b : null); } }, 100); });
-  if(!btn){ nToast(loaded+', but the tool found no eligible night in them — it is open, check its night table', true); return; }
+    if((b && !b.disabled) || ++tries>maxTries){ clearInterval(t); res(b && !b.disabled ? b : null); } }, 100); });
+  if(!btn){ nToast(loaded+', but '+(NIGHT_RUN_LATE[node] || 'the tool found no eligible night in them')+' — it is open, check its night table', true); return; }
   btn.click();
   nToast(loaded+' — Process pressed, running in the new tab');
 }

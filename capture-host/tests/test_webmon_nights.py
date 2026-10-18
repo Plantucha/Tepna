@@ -128,8 +128,8 @@ def test_the_monitor_carries_ONE_nights_page_and_the_load_hook():
     assert "NIGHTS_PENDING>0 && VIEW==='nights'" in html
     # the load hands files to the app's OWN input and fires its change event — no bundle is changed
     assert "el.files = dt.files; el.dispatchEvent(new w.Event('change', {bubbles:true}))" in html
-    # ECGDex routes by stream suffix; the Integrator is shown but never offered as a click
-    assert '["_ECG.txt","#ecgInput"]' in html and "folds run on rig" in html
+    # ECGDex routes by stream suffix; the Integrator opens OverDex, which reads node exports AND raw files
+    assert '["_ECG.txt","#ecgInput"]' in html and 'Integrator:"OverDex.html"' in html and 'Integrator:"#files"' in html
     # every analyzer column the index publishes has an app to open
     import nights_index as ni
 
@@ -378,7 +378,8 @@ def test_the_batch_tools_get_their_process_button_pressed_and_the_selector_is_re
     m = re.search(r"const NIGHT_DERIVED = \[(.*?)\];", html)
     assert m
     derived_keys = [k.strip().strip('"') for k in m.group(1).split(",")]
-    assert set(run) == set(derived_keys), (sorted(run), derived_keys)
+    # the Integrator column opens OverDex, whose Run & fuse waits for the files to be read
+    assert set(run) == set(derived_keys) | {"Integrator"}, (sorted(run), derived_keys)
     assert "btn.click();" in html and "Process pressed" in html and "found no eligible night" in html
     root = os.path.dirname(here)
     _skip_without_root_pages(root, apps, run)
