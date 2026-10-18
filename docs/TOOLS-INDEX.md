@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**264 tools** · 263 with a purpose line · **1 without**
+**266 tools** · 265 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -109,6 +109,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`land-pr.mjs`](../tools/land-pr.mjs) | LAND A PR WITHOUT HAND-POLLING — and without any of the four traps that make hand-polling lie. |
 | [`make-synthetic-edf.mjs`](../tools/make-synthetic-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC ResMed EDF file set. WHY THIS EXISTS. |
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
+| [`measurement-emitter-perf-oxydex.mjs`](../tools/measurement-emitter-perf-oxydex.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §10 for the OXYDEX emitter and the Integrator adapter — runtime, peak memory, export size, against bands written BEFORE the run. |
 | [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | WALK A MEASUREMENT BACK TO ITS RAW INPUT — the roadmap §3 backward walk-through, as a check. |
 | [`motion-rho-vs-minrho.mjs`](../tools/motion-rho-vs-minrho.mjs) | is the shipped correlation proxy in the right range, on the right nights? |
 | [`mutate-ledger-merge.mjs`](../tools/mutate-ledger-merge.mjs) | mutate-ledger-merge — a git merge driver for the mutation ledgers. |
@@ -124,6 +125,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-summary.mjs`](../tools/mutation-summary.mjs) | RENDER THE DIFF GATE'S VERDICT OBJECT FOR THE CI JOB SUMMARY — the first CI CONSUMER of `tepna.verdict/1` (VERDICT-CONTRACT §1: the object is the API; the exit code is for the shell). |
 | [`mutation-survivors.mjs`](../tools/mutation-survivors.mjs) | THE SURVIVOR LEDGER — brief: briefs/MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md Residue: 2026-09-24-mutation-survivors-outlive-the-pr-that-reported-them |
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | THE RANKED REMAINING WORK — regenerated, never transcribed. The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
+| [`name-lease.mjs`](../tools/name-lease.mjs) | WHO ALREADY HOLDS THIS FILENAME — run it BEFORE naming a new file. |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
 | [`no-third-party-names.mjs`](../tools/no-third-party-names.mjs) | the name gate node tools/no-third-party-names.mjs # gate (exit 1 on a hit) node tools/no-third-party-names.mjs --json # the verdict alone |
