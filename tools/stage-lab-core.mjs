@@ -97,11 +97,11 @@ function windowAt(s, c, h) {
 }
 
 /* ── beat-series helpers for the ecg-hrv block (v28e) ──────────────────────────────────────────── */
-export const ECG_SCALES = [30, 75, 150]; // half-windows (s): 1, 2.5, 5 min — 2.5 min is the shortest LF window (Task Force 1996)
+const ECG_SCALES = [30, 75, 150]; // half-windows (s): 1, 2.5, 5 min — 2.5 min is the shortest LF window (Task Force 1996)
 
 /* A beat-timed value series (`bt` s, `bv`) linearly interpolated onto a 2 Hz grid over [a, b). Null when under 64
    samples would carry a value. Gaps between usable beats are bridged: coverage already gates the window. */
-export function resample2Hz(bt, bv, a, b) {
+function resample2Hz(bt, bv, a, b) {
   if (bt.length < 2) return null;
   const m = Math.floor((b - a) * 2),
     out = [];
@@ -171,7 +171,7 @@ function bandPowerT(a, lo, hi) {
 }
 
 /* The frequency (Hz) of the largest spectral bin of a 2 Hz series inside [lo, hi] Hz: respiratory rate from HRV or EDR. */
-export function peakHz(a, lo, hi) {
+function peakHz(a, lo, hi) {
   const n = a.length,
     x = hannDetrended(a);
   let best = -1,
@@ -189,7 +189,7 @@ export function peakHz(a, lo, hi) {
 
 /* Magnitude-squared coherence of two 2 Hz series, Welch 64 s segments at 50 % overlap, averaged over [lo, hi] Hz.
    The high-frequency cardiopulmonary coupling of Thomas et al. 2005 (Sleep 28:1151): NN against ECG-derived respiration. */
-export function coherence(x, y, lo, hi) {
+function coherence(x, y, lo, hi) {
   const L = 128,
     n = Math.min(x.length, y.length);
   if (n < 2 * L) return NaN; // under 3 segments, coherence is 1 by construction
@@ -224,7 +224,7 @@ export function coherence(x, y, lo, hi) {
 }
 
 /* Short-term detrended fluctuation exponent α1 over box sizes 4–16 beats (Peng 1995). Under 50 beats: NaN. */
-export function dfaAlpha1(nn) {
+function dfaAlpha1(nn) {
   const N = nn.length;
   if (N < 50) return NaN;
   const mu = mean(nn),
@@ -1214,5 +1214,10 @@ export {
   MOTION_BIT_G,
   BLOCKS,
   CONTEXT_EPOCHS,
-  FORMULA_TERMS
+  FORMULA_TERMS,
+  ECG_SCALES,
+  resample2Hz,
+  peakHz,
+  coherence,
+  dfaAlpha1
 };

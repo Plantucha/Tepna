@@ -4,7 +4,7 @@
 # STAGE-LAB — trained sleep staging, SpO₂ first, built to take more signals
 
 🔴 **Owner rulings (2026-09-26/27), binding on this whole unit:**
-- §2c is ruled: *"propose a detector change"*.
+- §2c carries the ruling *"propose a detector change"*.
 - *"dont publish it on github yet … just test drive first"*. Then: *"results must be better than [the comparator] first"*.
 - *"Spo2 only"* is the first target.
 - *"any tool built and used follow tepna rules"*.
@@ -13,22 +13,29 @@
   beats the comparator AND a model trained on open data only (Challenge 2018 ODC-By + other open sets). SHHS1 (NSRR DUA)
   may inform research and validation, but SHHS1-trained weights are never the published model.
 - The published version goes to the external blind-test partner for the maintainer to **blind-test on his own corpus**. So its model
-  must **not be trained on the public cohort the comparator's holdout came from**; that cohort is used here only
+  must **never train on the public cohort the comparator's holdout came from**; this unit reads that cohort only
   to VERIFY (pre-stated bands, nothing tuned against it). The published model trains on other open sets
   (UCDDB, CAP Sleep DB — attribution in a NOTICE line, as their licences require).
-- **This branch was LOCAL. Nothing was pushed** until the owner said so.
-- 🔴 **Owner ruling 2026-10-18, clearing the landing:** *"Land all 8 commits, but make sure its license clean,
-  not mentioning ant other projects, if corpus needs to be posted it must by anonymized"*. The branch landed
-  under those three conditions: no third-party product, partner or person is named anywhere in this brief, the
-  paper draft or the lab tools (a third-party stager is "the comparator", cited by its published figures only);
-  every authored file carries its SPDX header; and only pooled aggregates appear — no record identifier and no
-  per-record value. The two publication conditions above still bind the MODEL: the shipped weights come from
-  open data, and no NSRR-trained weight file is in this repo.
+- **This branch stayed LOCAL. Nothing left it** until the owner said so.
+- 🔴 **Owner ruling 2026-10-18, which clears this unit to land:**
+
+  ```
+  Land all 8 commits, but make sure its license clean, not mentioning ant other projects,
+  if corpus needs to be posted it must by anonymized
+  ```
+
+  The branch landed under those three conditions. No third-party product, partner or person appears
+  anywhere in this brief, the paper draft or the lab tools — a third-party stager reads as "the
+  comparator", cited by its published figures alone. Every authored file carries its SPDX header. Only
+  pooled aggregates appear, with no record identifier and no per-record value. The two publication
+  conditions above still bind the MODEL: the shipped weights come from open data, and this repo holds
+  no NSRR-trained weight file.
 
 ## 1 · Where it stands (aggregates only — SHHS1 per-record data never enters this repo)
 
 The shipped `stageSleep()` scores κ **0.0967** on SHHS1 (E1, `SHHS-EXTERNAL-VALIDATION`). A Python test drive
-outside the repo (rig `~/stagetest/`, scikit-learn) established the following. Every band was pre-stated before its run, and run 1 was voided because its plants did not fire.
+outside the repo (rig `~/stagetest/`, scikit-learn) established the numbers below. Every band stood
+pre-stated before its run, and run 1 is void because its plants did not fire.
 
 | Arm (trees + HMM, 30 s epochs) | κ | Where |
 |---|---|---|
@@ -39,32 +46,42 @@ outside the repo (rig `~/stagetest/`, scikit-learn) established the following. E
 | oximeter, trained on Challenge | 0.442 | external: SHHS1 |
 | **SpO₂ only** | **0.347** | Challenge CV — **below the target** |
 
-Target: the proprietary oximeter-only comparator, **published** offline κ 0.390 / live 0.367 on a sealed Challenge-2018 holdout. It is credited and compared as a cross-study figure only. **Its model and its outputs are never used** (LICENSE-MODEL §3g).
+Target: the proprietary oximeter-only comparator, **published** offline κ 0.390 / live 0.367 on a sealed Challenge-2018 holdout. This brief credits it and compares it as a cross-study figure only. **Its model and its outputs are never used** (LICENSE-MODEL §3g).
 
-**A detector finding on the way:** Tepna's Pan-Tompkins beat count disagrees with PhysioNet XQRS by more than 10 % in at least one 10-minute window on **29 % of SHHS1** and **12 % of Challenge** nights. Gross double counting (more than 1.5×) is rare, about 0.5 % of windows. Every ECG number above uses nights that passed that check. It is not yet logged in `RESIDUE.md`, because this unit is private.
+**A detector finding on the way:** Tepna's Pan-Tompkins beat count disagrees with PhysioNet XQRS by
+more than 10 % in at least one 10-minute window. That holds on **29 % of SHHS1** and **12 % of
+Challenge** nights. Gross double counting (more than 1.5×) stays rare, about 0.5 % of windows. Every
+ECG number above uses nights that passed that check. `RESIDUE.md` carries no row yet, because this
+unit was private.
 
 ## 2 · The tool (this unit): `tools/stage-lab-core.mjs` + `tools/stage-lab.mjs`
 
-Plain Node, no dependencies. `stage-lab-core.mjs` is pure ESM with no `node:` imports, so a browser app can run the exact model it was trained with.
-- **Night adapters** (`challenge` WFDB + `.arousal` annotations; `shhs` EDF + NSRR XML via `makeRealm`) produce a 30 s grid, labels (−1 = unscored), and named signals.
-- **Feature blocks** (`BLOCKS`) work as a registry. `spo2` and `pulse` are implemented. `ecg-hrv`, `motion` and `eeg` are declared **not implemented** and are refused by name.
-- An absent signal gives the identical column layout filled with NaN (§∅). The GBDT learns where missing values go, so a model trained with EEG still runs on a night without it.
+Plain Node, no dependencies. `stage-lab-core.mjs` is pure ESM with no `node:` imports, so a browser app runs the exact model that training produced.
+- **Night adapters** (`challenge` WFDB + `.arousal` annotations; `shhs` EDF + NSRR XML via
+  `makeRealm`). Each produces a 30 s grid, labels (−1 = unscored) and named signals.
+- **Feature blocks** (`BLOCKS`) work as a registry. `spo2`, `pulse`, `motion` and `ecg-hrv` ship.
+  `eeg` stays declared **not implemented**, and asking for it by name draws a refusal.
+- An absent signal gives the identical column layout filled with NaN (§∅). The GBDT learns where
+  absent values go. A model that trained with EEG still runs on a night without it.
 - **Model:** a histogram GBDT (softmax, NaN-aware splits, a JSON model), plus HMM Viterbi smoothing.
 - **Evaluation:** CV grouped by night, an optional extra training cohort (learning curve), a night-level bootstrap CI, and the half-night-shift plant. It emits a `tepna.verdict/1` object.
 
 ## 3 · Pre-stated for the SpO₂-only run (v7, written 2026-09-27 before the run)
 
 - **Pass:** κ ≥ **0.390** in grouped 5-fold CV over all Challenge-2018 nights, with the CI lower bound reported. The half-night-shift plant must fire (κ < 0.5 × the unshifted value), or the verdict is UNKNOWN.
-- **Learning curve** (extra SHHS1 training nights 0 / 500 / 1000 / 2500 / all): if κ(all) − κ(2500) ≥ 0.010, more data should help, so ask NSRR. If it is < 0.005, it plateaus and a request would not pay off. Anything in between is inconclusive.
-- **Port check:** the JS stack must reproduce the Python SpO₂-only figure on the same nights (±0.02) before its own numbers count.
+- **Learning curve** (extra SHHS1 training nights 0 / 500 / 1000 / 2500 / all). If
+  κ(all) − κ(2500) ≥ 0.010, more data should help, so ask NSRR. Under 0.005 it plateaus and a request
+  would not pay off. Anything between the two stays inconclusive.
+- **Port check:** the JS stack must reproduce the Python SpO₂-only figure on the same nights
+  (±0.02). Only then do its own numbers count.
 
 ## 5 · Pre-stated for the FORMULA (v8, 2026-09-27, before any fit)
 
 Owner's route: train on everything as a teacher, but the artifact is an explicit formula grounded in the
 literature with minor curve additions. `FORMULA_TERMS` holds the terms; each enters as a line plus one
 bend at the night's median. The time terms are Process-S decay exp(−t/0.25), REM rising with t, and wake at the edges.
-- **F-clean** is trained on UCDDB + CAP + BOAS (open) and tested on the held-out public cohort and on SHHS1. It is the publishable candidate.
-- **F-internal** is trained on UCDDB + CAP + BOAS + SHHS1 and tested on the held-out public cohort. It is internal only.
+- **F-clean** trains on UCDDB + CAP + BOAS (open) and tests against the held-out public cohort and SHHS1. It is the publishable candidate.
+- **F-internal** trains on UCDDB + CAP + BOAS + SHHS1 and tests against the held-out public cohort. It stays internal only.
 - **Teacher trees** on the same training sets give the ceiling.
 - **Pass:** κ ≥ 0.390 on the held-out public cohort (the comparator's published offline figure; a cross-study comparison), with the CI
   reported. P1 (half-night shift) must fire. The held-out cohort is NEVER used to choose terms or tune anything.
@@ -85,14 +102,14 @@ per-second SpO2, a centred 8 s mean, whole percent.
 ## 7 · Pre-stated for megalab + ISRUC (v10, 2026-09-28, before ISRUC features existed)
 
 v9 results (harmonised, 5 cohorts): cross-lab to the held-out public cohort 0.278; pooled CV on its nights 0.322; SHHS1 0.416.
-ISRUC (126 nights, two scorers; human scorer-1 vs scorer-2 κ = 0.829 measured, the practical ceiling) is added,
-internal only (the site asks for citation).
-- **(a)** Cross-lab to the held-out public cohort with ISRUC in training: reported against v9's 0.278 (no pass line; it is a
-  measurement of whether a 6th lab helps).
+ISRUC joins the pool, internal only (the site asks for citation): 126 nights, two scorers, human
+scorer-1 vs scorer-2 κ = 0.829 measured, which is the practical ceiling.
+- **(a)** Cross-lab to the held-out public cohort with ISRUC in training, read against v9's 0.278.
+  No pass line: it measures whether a 6th lab helps.
 - **(b)** Pooled 5-fold CV over all six cohorts, κ per cohort. The held-out public cohort's nights ≥ 0.390 remains the
   comparator line (cross-study).
 - **(c)** Cross-lab to ISRUC (all others train), read against its human ceiling 0.829.
-- P1 (half-night shift) must fire in every row. v9's per-job results are archived as `megalab-v9/`.
+- P1 (half-night shift) must fire in every row. v9's per-job results live in `megalab-v9/`.
 
 ## 8 · Pre-stated for the model BENCH (v11, 2026-09-28, before any bench job ran)
 
@@ -101,13 +118,13 @@ Owner: "Try different training models. Build tool to run it" · "Goal is be at l
 harmonised SpO₂ features and the SAME five folds as megalab v10 (six cohorts), each with the same HMM smoothing.
 
 - **Pass line:** pooled κ over all nights ≥ **0.415** = ½ × the human scorer-vs-scorer κ measured on ISRUC (0.829),
-  for the best model with all 5 folds done AND a firing P1 (half-night shift κ < ½ the real κ). Per-cohort κ is reported
-  against the same 0.415 but judged only pooled.
+  for the best model with all 5 folds done AND a firing P1 (half-night shift κ < ½ the real κ). The
+  bench prints per-cohort κ against the same 0.415 but judges the pooled figure alone.
 - **Sanity:** `gbdt` must reproduce megalab v10 (all 0.398) within ±0.01, or the bench is VOID.
 - **Expectations (stated before seeing them):** autocontext +0.01–0.03 over gbdt; gbdt-big ±0.01; logistic 0.30–0.36;
   formula 0.15–0.30. Needing +0.017 over the plateau, a PASS is uncertain, not expected.
 - Picking the best of five on the same folds is a mild multiple comparison: the verdict carries the night-bootstrap
-  CI, and a best model whose CI lower bound is under 0.398 is reported as "not distinguishable from gbdt".
+  CI, and a best model whose CI lower bound is under 0.398 reads as "not distinguishable from gbdt".
 - Challenge 2018 is in the pool (private research, as in v9/v10); none of this is the licence-clean model.
 
 **Measured (v11, 2026-09-28 22:40, all 25 jobs, P1 fires for every model):**
@@ -154,8 +171,10 @@ CONSISTENT; so the clean-ECG envelope is met and the sleep cohorts are the quest
 
 ## 10 · Pre-stated for structure decoding (v13, 2026-09-28, before any v13 job ran)
 
-Owner: "calculate it backwards … why are humans better, what pattern are you missing … math theory, physics or pulsar
-data recovery". Humans score the brain (EEG/EOG/EMG); SpO₂ is a delayed, averaged proxy. The published route to
+> Owner: "calculate it backwards … why are humans better, what pattern are you missing … math theory,
+> physics or pulsar data recovery".
+
+Humans score the brain (EEG/EOG/EMG); SpO₂ follows it late and averaged. The published route to
 0.6+ from cardiac signals is a whole-night sequence model (Sridhar et al., npj Digit Med 2020;3:106 — κ 0.66 four-class
 from instantaneous heart rate alone on SHHS/MESA). Before that, the cheap physics: bouts have durations and the night
 has a shape (Borbély 1982 two-process; McCarley & Hobson 1975 NREM–REM oscillator).
@@ -177,8 +196,9 @@ and SpO₂→ventilation deconvolution are v14, not in this run.
 **Measured so far (v13, 2026-09-28 23:55, oracle 5/5 folds, hsmm 3/5):** `oracle-ctx` **0.877** (every cohort 0.86–0.93);
 `hsmm` 0.365 on 3 folds, i.e. −0.033 against gbdt — the +0.01–0.03 expectation FAILED. Two honest readings, stated before
 any follow-up ran:
-- The oracle as designed is too easy: it sees the TRUE stage at ±1 epoch, and stages persist, so 0.877 mostly measures
-  persistence, not recoverable structure. It answers the pre-stated rule (≥ 0.70) but the rule was set on a weak design.
+- The oracle as designed is too easy. It sees the TRUE stage at ±1 epoch, and stages persist, so
+  0.877 mostly measures persistence, not recoverable structure. It answers the pre-stated rule
+  (≥ 0.70), but that rule sat on a weak design.
 - hsmm below gbdt means the decoder's priors are over-weighted against posteriors that already carry time-of-night.
 
 **Measured (v13 complete, 2026-09-29 00:10):** hsmm 0.365, autocontext-hsmm 0.403 — the HSMM decoder HURTS by ~0.03 on both
@@ -244,15 +264,15 @@ route therefore needs either more open data with SpO₂ or the distilled formula
   +0.005–0.01 over autocontext (Tu & Bai 2010: diminishing returns after round 2).
 - `waveformula-p3`: the wave re-fitted on pass-2 posteriors and the coefficients refitted once more (one EM step on
   the latent phase). Expectation +0.00–0.02 over the 2-pass wave.
-Reading rule: if neither moves its parent by ≥ 0.01, iteration depth is exhausted for these features → pulse rate (v16).
+Reading rule: if neither moves its parent by ≥ 0.01, iteration depth runs out for these features → pulse rate (v16).
 
 **Measured (v15a-2 + v15c partial, 2026-09-29 10:15):** waveformula-distill **0.227** — fitting the formula to seqnet's
 posteriors is WORSE than fitting it to labels (0.280): the basis cannot express what the network knows, and soft targets
 from a 0.47 model only blur a low-capacity fit. waveformula-p3 **0.280** = the 2-pass wave: a third pass adds nothing;
-by the §14 rule, iteration depth is exhausted for the formula. autocontext3 still running.
+by the §14 rule, iteration depth runs out for the formula. autocontext3 still running.
 
 **Measured (v15c complete, 2026-09-29 12:46):** autocontext3 **0.438** vs autocontext 0.434 (+0.004, under the ≥ 0.01
-rule). Iteration depth is exhausted for trees and for the formula alike. Standing result: seqnet 0.472. Next lever: v16,
+rule). Iteration depth runs out for trees and for the formula alike. Standing result: seqnet 0.472. Next lever: v16,
 pulse rate into seqnet (the O2Ring's 1 Hz PR; literature 0.66 from heart rate alone).
 
 ## 15 · Pre-stated for pulse rate (v16, 2026-09-29, before any pulse feature was computed)
@@ -266,10 +286,10 @@ stated here, shown per cohort, and the O2Ring's own PR will be the deployment in
 
 Models on the same folds: `gbdt` and `seqnet` on `spo2h+pulse`, bench dir `bench-spo2h+pulse`, gate unchanged (0.415).
 - Expectations: gbdt 0.44–0.48 pooled (Challenge trees went 0.347 → 0.445 with an ECG-derived PR in v6);
-  **seqnet 0.52–0.60** (Sridhar 2020: 0.66 from IHR alone with a whole-night CNN; ours is smoothed PR + SpO₂).
+  **seqnet 0.52–0.60** (Sridhar 2020: 0.66 from IHR alone with a whole-night CNN; ours smooths PR + SpO₂).
 - Reading rule: seqnet-pr ≥ 0.55 → the wearable target is in reach with the O2Ring's two signals; 0.48–0.55 → real
   but the smoothed PR costs; < 0.48 → the derivation or the harmonisation is wrong, inspect before believing.
-- Per-cohort: the ECG-derived cohorts vs the device-PR cohorts are reported separately (the confound is measurable).
+- Per-cohort: the bench prints the ECG-derived cohorts apart from the device-PR cohorts, so the confound stays measurable.
 
 **Pulse-path checks (v16, before any model ran):** UCDDB device pulse → 110 pulse columns, 0 % NaN. ISRUC ECG-derived
 pulse (X2 via ECGDSP Pan–Tompkins) on subgroupI/3: per-epoch `pulse.mean@60s` correlates **0.906** with an independent
@@ -277,11 +297,11 @@ XQRS-derived heart rate (median 56.6 bpm); the remainder is the 4 s smoothing an
 sound enough to proceed; the device-vs-derived confound stays in the per-cohort table.
 
 **v16 first pass VOID for the pooled number (2026-09-30):** the SHHS feature step pointed at the wrong directory
-(`/mnt/synology/nsrr-shhs1` instead of `…/shhs/polysomnography`), so 0 SHHS nights were cached; the gbdt jobs refused
+(`/mnt/synology/nsrr-shhs1` instead of `…/shhs/polysomnography`), so no SHHS night reached the cache; the gbdt jobs refused
 (bench's empty-cohort guard) but seqnet.py has no such guard and ran on five cohorts. Its numbers are set aside in
 `bench-spo2h+pulse/partial-noshhs/` and reported here as a PARTIAL observation only: Challenge **0.483** (SpO₂-only
 0.407), UCDDB 0.514, CAP 0.506, ISRUC 0.382, BOAS 0.204 (NaN pulse), five-cohort pool 0.464. seqnet.py now needs the
-same empty-cohort guard (added). The full six-cohort run is relaunched; the §15 bands apply to that run only.
+same empty-cohort guard (added). The full six-cohort run relaunches; the §15 bands apply to that run only.
 
 **Measured (v16 full six-cohort run, 2026-09-30):** on `spo2h+pulse`, gbdt **0.501** (Challenge 0.429 · SHHS1 0.517 ·
 UCDDB 0.507 · CAP 0.469 · BOAS 0.284 · ISRUC 0.332), above the 0.44–0.48 expectation; **seqnet 0.580 [0.576, 0.583]**
@@ -312,13 +332,13 @@ a bit; the bit is the floor case.
 **v17 smoke (1 night per study, 2026-09-30):** conversion and features ran clean on all three; 456 columns
 (136 SpO₂ + 110 pulse + 105 motion + 105 mbit); NaN exactly where the signal is absent (SpO₂ in all three, pulse in
 Newcastle); Newcastle motion valid 84–85 % of the night (GENEActiv page gaps), sleep-accel 88 %. Two fixes it exposed:
-a night with NO SpO₂ channel was being skipped by the "< 50 % valid" rule (now: only a present-but-empty channel skips),
+the "< 50 % valid" rule skipped a night with NO SpO₂ channel (now: only a present-but-empty channel skips),
 and the bench ablation switch (`--drop`) had not applied. Full run queued behind v16b.
 
 **Memory discipline (owner 2026-09-30, after the OOM that took the bird fleet down): "lazy loading, max 8 GB at a time".**
 Both trainers now hold only paths and labels and read each night's matrix when a batch or a stack needs it (`xOf` in
 stage-lab.mjs; per-batch `tensorise` in seqnet.py). Every job runs through `~/stagetest/run8.sh` = a user cgroup scope
-with `MemoryMax=8G`, `MemorySwapMax=0`, and `choom -n 800`, so a runaway is killed by its own cap and is the kernel's
+with `MemoryMax=8G`, `MemorySwapMax=0`, and `choom -n 800`, so its own cap kills a runaway, which then stands as the kernel's
 first victim, never a bird. Measured under the cap: gbdt on 133 nights peak RSS 0.21 GB; seqnet 1 epoch 0.85 GB; the
 gbdt stacked matrix at 456 columns on ~6 700 nights is ~3–4 GB. Stacking diagnostics (autocontext*, oracle*) hold every
 night with context and will NOT fit under 8 GB — declared, not a deliverable.
@@ -336,7 +356,7 @@ night with context and will NOT fit under 8 GB — declared, not a deliverable.
 Trees: motion adds **+0.025** on both wrist cohorts (inside the +0.01–0.03 expectation) and **the 1-bit flag equals the
 full activity** (gap ≤ 0.001) → by the §16 rule the ring's motion byte IS worth wiring. Pooled numbers are flat because
 PSG cohorts carry NaN motion. Sequence net: motion HURT (−0.016 / −0.050) — diagnosis: seqnet.tensorise maps NaN → 0
-with ONE global missing-fraction channel, so for 95 % of training nights "0 activity" and "no sensor" are the same
+with ONE global `missing-fraction` channel, so for 95 % of training nights "0 activity" and "no sensor" are the same
 input; the trees split on NaN natively. Fix pre-stated for v20: one presence indicator per block (spo2 / pulse / motion)
 in the net's input, re-run the motion ablation. Not changed mid-chain (v18/v19 run on the stated control).
 Also measured: on `oxy1` (two new bands) gbdt no-motion pooled 0.507 vs 0.501 on the old pulse set; seqnet 0.581 vs 0.580 —
@@ -373,9 +393,9 @@ the gap to the control is 0.113. The distilled variants decide the band.
 ## 18 · Pre-stated for the literature stack (v19, 2026-10-03, owner rulings; runs after v17/v18)
 
 Owner (2026-10-03): the trained model is the CONTROL, never published; the shipped OxyDex model is a stack of published
-formulas whose coefficients are fitted until they match the control as closely as they can; "creatively stack literature
+formulas whose coefficients move until they match the control as closely as they can; "creatively stack literature
 formulas to achieve actual results". Rulings the same day: ISRUC is EXCLUDED from any clean fit (test cohort only);
-Challenge 2018 stays test-only; an email to NSRR asks whether weights trained on SHHS/MESA may be released (precedent:
+Challenge 2018 stays test-only; an email to NSRR asks whether a release may carry weights trained on SHHS/MESA (precedent:
 Sridhar 2020) — decides the fallback, not this unit; publication plan = preprint after the partner's blind test, then
 Computing in Cardiology or Physiological Measurement, negative results in the supplement; one Zenodo model record per
 shipped model beside the Tepna release DOI.
@@ -401,7 +421,7 @@ answer was no; now done):**
   This is THE benchmark for OxyDex's two signals and says the owner's 0.7–0.8 is reachable with ~3× our nights and a
   12-h U-Net-style model. Explainability gives the formula matrix: band 0.004–0.020 Hz (wake high; REM 0.010–0.020
   high), band 0.020–0.100 Hz PR / 0.020–0.050 Hz SpO₂ (NREM elevated: sympathetic depression), band 0.18–0.40 Hz PR
-  (NREM, respiratory modulation — an oximeter PR DOES resolve it; our pulse block omits it, to be added), mean PR
+  (NREM, respiratory modulation — an oximeter PR DOES resolve it; our pulse block omits it and owes it), mean PR
   (light < deep, REM), mean SpO₂ (deep lowest), PR SD/RMSSD (wake > REM > NREM), desaturation depth when ambiguous,
   subject-specific standardisation (we do it per night).
 - **Krauss et al., Sleep 2025;48(9):zsaf091:** MESA, ACT + HRV + respiration-rate variability; respiration variability
@@ -412,7 +432,7 @@ the NSRR request (already ticked) — data volume is the lever the literature sh
 
 **v19 wired (2026-10-03, `~/stagetest/litstack.py`; queued behind v18 as `v19.sh`, 4 variants × 5 folds under the
 8 GB cap):** terms by cached column name (9 SpO₂ · 10 pulse · 5 motion + Cole–Kripke window + Borbély time terms; a
-term absent from a cache is skipped and logged), line + hinge, L-BFGS; auto-context on OUT-OF-FOLD posteriors (3 inner
+term absent from a cache drops out with a log line), line + hinge, L-BFGS; auto-context on OUT-OF-FOLD posteriors (3 inner
 folds); linear-chain CRF on out-of-fold unaries with the unary scale FIXED at 1 (a free scale collapsed to 0.1: a few
 confidently-wrong unaries dominate the likelihood) and T initialised at the counted transitions; `--signed` =
 physiology-fixed signs via w = sign·softplus(u); `--distill` = λ·CE + (1−λ)·T²·KL to the v18 control posteriors.
@@ -424,7 +444,7 @@ pulse block, and every cohort is rebuilt under a NEW feature-set name `oxy1` (46
 a changed layout never mixes with an older cache). v17, v18 and v19 all run on `oxy1` as one chain (`v17-19.sh`).
 Why the chain: the first v17/v18/v19 attempts all "completed" within minutes — rig's root disk had filled (ENOSPC) during
 the SHHS feature build, Challenge had 0 cached nights, and each bench REFUSED (the empty-cohort guards did their job);
-the done flags were refusals, not results, and were removed. Feature builds now run 4 workers under the 8 GB cap.
+the done flags marked refusals, not results, so they went. Feature builds now run 4 workers under the 8 GB cap.
 
 **Pre-stated diagnostic v19d (owner 2026-10-04: "shouldn't we add Challenge and ISRUC just for training?" → "queue it"):**
 the stack fitted on ALL ten cohorts (Challenge + ISRUC included), label-only and distilled, scored on held-out folds.
@@ -446,7 +466,9 @@ UCDDB 0.448, CAP 0.346, sleep-accel 0.391, BIDSleep 0.371. Control (v18 net, sam
 "ships as the clean OxyDex model" line.** Distillation HURT again (−0.022), as in v15: a capacity-limited student fitted
 to a far stronger teacher's soft targets loses the sharpness labels give it — the formula route distils badly, twice
 measured. Sign constraints cost 0.008 and keep every coefficient physiologically readable; the signed label-fitted
-stack (0.487) is the one I would ship if the formula route ships at all. Full-size memory, measured by the wrapper:
+stack (0.487) is the one I would ship if the formula route ships at all.
+
+Full-size memory, measured by the wrapper:
 distilled stack jobs peak 4.6–5.5 GB under the 8 GB cap (after the stride fix; before it they exceeded 8.4 GB and died).
 Remaining stack levers, in order: longer auto-context windows (±1–2 h, still Tu & Bai), a second context round,
 respiration proxies once the ring's PR carries them (the 0.18–0.40 band is in; a dedicated breathing-rate term is not).
@@ -459,7 +481,7 @@ blind test, ISRUC stays out, nothing lost.
 ## 19 · Pre-stated for the bridge (v21, 2026-10-04, owner: "find a bridge function to cover the gap")
 
 Where the gap is (measured, pooled ten cohorts): control recall W/L/D/R 0.84/0.54/0.82/0.91 vs stack 0.72/0.71/0.46/0.55;
-the stack is calibrated in stage shares but misses half of deep and REM. Three published mechanisms the stack lacks:
+the stack calibrates in stage shares but misses half of deep and REM. Three published mechanisms the stack lacks:
 1. Long-range context: the stack's own posteriors averaged over ±60/±120/±240 epochs; cumulative deep-so-far and
    REM-so-far (Process S on the model's output); ultradian phase by matched filter on the stack's REM posterior.
 2. Class-balanced fitting (1/√frequency weights, as the control).
@@ -470,12 +492,12 @@ before. Runs after v19d.
 
 **Measured (v21 bridge, 2026-10-04 15:47):** lit-bridge epoch 0.304 → ctx 0.379 → **crf 0.487** (signed 0.483) — BELOW the
 plain stack (0.432 → 0.466 → 0.495). The expectation (+0.02–0.04) FAILED; the bridge as a whole costs 0.008 at the CRF and
-wrecks the epoch layer (−0.128). The three mechanisms were switched on together, so this run cannot say which one hurt;
+wrecks the epoch layer (−0.128). The run turned the three mechanisms on together, so it cannot say which one hurt;
 the per-epoch collapse points at the class-balanced loss (it trades light-sleep accuracy, 44 % of epochs, for rare-stage
 recall — the control can afford that, a 60-term softmax cannot) and/or the 10 interaction terms. Pre-stated v21b: the
 bridge with class weights OFF, and with interactions OFF, same folds; reading rule: whichever variant returns ≥ 0.495
 identifies the damaging mechanism; if neither does, the long-context terms themselves do not help a formula student and
-the bridge is closed.
+the bridge closes.
 
 ## 20 · Pre-stated for symbolic regression on the residual (v22, 2026-10-04, owner: "Stage it")
 
@@ -487,7 +509,7 @@ expression with R² ≥ 0.3 on the residual and size ≤ 12 is a candidate term 
 on held-out folds, which is the only number that counts; R² < 0.1 means the residual is not closed-form at this basis.
 Tool `~/stagetest/symreg.py`; chain `v22.sh` behind v21. Nothing ships from this unit by itself.
 
-Every formula in use, with citation, where it enters and how its constants are obtained, is now documented in
+`docs/STAGE-LAB-FORMULAS.md` now documents every formula in use, with its citation, where it enters and where its constants come from, in
 `docs/STAGE-LAB-FORMULAS.md` (owner 2026-10-04: "document all used formulas and citations").
 
 **Paper skeleton (owner 2026-10-04: "Do it, keep it in worktree"):** `papers/oximeter-sleep-staging.html`, Draft v0 — methods,
@@ -497,8 +519,9 @@ the citation ledger (now 130). Nothing pushed; numbers stay private until the ex
 
 **Measured (v21b + v22, 2026-10-04 19:30):** bridge ablations at the CRF: class weights off 0.485 · interactions off 0.485 ·
 both off 0.483 · all on 0.487 — none returns to the plain stack's 0.495. By the §19 rule the long-context terms themselves
-do not help a formula student; **the bridge is closed.** Symbolic regression on the control−stack residual (PySR, 1 500
+do not help a formula student; **the bridge closes.** Symbolic regression on the control−stack residual (PySR, 1 500
 nights, 90 000 rows): best R² **0.164 (deep)** and **0.141 (REM)** at size 20; nothing of size ≤ 12 reaches R² 0.15.
+
 Both under the §20 reading line (R² ≥ 0.3 → candidate term); above the "no closed form" floor (0.1), so the residual has
 a faint shape but not one worth a term. The best expressions mix long-window posterior means with short-window pulse and
 SpO₂ variability — the same quantities the bridge tried — which agrees with v21b: the information is in HOW the night is
@@ -559,7 +582,7 @@ presence flags) is the only route to the literature's 0.73–0.78.
 (no motion / activity / 1-bit) — the flags cost nothing and motion no longer moves the pool. Wrist cohorts, no motion →
 activity → 1-bit: sleep-accel 0.407 → 0.409 → **0.434**; BIDSleep 0.489 → 0.471 → 0.480; Newcastle (motion only)
 0.097 → 0.189 → 0.205. Reading against §22: motion now adds on sleep-accel (+0.027, inside +0.01–0.03) and on the
-motion-only cohort, still costs 0.009 on BIDSleep — the v17 harm (−0.05) is mostly removed, so the net's missing-block
+motion-only cohort, still costs 0.009 on BIDSleep — most of the v17 harm (−0.05) goes, so the net's absent-block
 handling WAS the cause; what remains is cohort-specific. For the ring: **the 1-bit arm ≥ the full-activity arm in the
 net as well as in the trees**, so the motion byte is worth wiring and one bit of it carries the value. v20 closed.
 
@@ -570,26 +593,31 @@ net as well as in the trees**, so the motion byte is worth wiring and one bit of
 unnormalised. The control net has used `(N / n_c)^0.5` normalised to mean 1 since v1. For the pooled share of this corpus
 (W ≈ 0.30, N1 ≈ 0.05, N2 ≈ 0.40, N3 ≈ 0.12, REM ≈ 0.13) the N1:N2 weight ratio is 2.8 under sqrt and 3.3 under log, and
 REM:N2 is 1.75 vs 2.1 — log is a mildly more aggressive push on the rare stages, well short of inverse frequency (8.0).
-Every arm is normalised to mean 1 so the loss scale and the OneCycle regime are unchanged; only the per-class gradient
+Every arm normalises to mean 1, which holds the loss scale and the OneCycle regime fixed; only the per-class gradient
 balance moves.
 
 **Correction before the run (10:14 EDT, from the cache itself).** The lab stages are **four classes** (W · light = N1+N2 ·
 deep · REM; `K = 4` in seqnet.py), so there is no separate N1 here — the paper's N1 argument lands on *light*, and the
 rare stages that the weighting actually pushes are **deep and REM**. Pooled shares over v20's test nights: W 0.302, light
 0.443, deep 0.118, REM 0.137. Weights as the net prints them (normalised to mean 1): sqrt 0.82 / 0.67 / 1.30 / 1.21 → log
-**0.78 / 0.53 / 1.40 / 1.29**. v20 baseline per class (pooled confusion over the five 1-bit-arm folds, κ 0.6083 — the
-same number litstack reports, so the pooling is the lab's): W P 0.851 R 0.835 F1 0.843 · light P 0.833 **R 0.536** F1 0.653 ·
-deep **P 0.454** R 0.833 F1 0.588 · REM **P 0.622** R 0.918 F1 0.741. Read plainly: the sqrt weights *already* over-push the
-rare stages — deep and REM are recalled at 0.83–0.92 with precision 0.45–0.62 while light is under-recalled at 0.54. Log
+**0.78 / 0.53 / 1.40 / 1.29**. v20 baseline per class pools the confusion over the five 1-bit-arm folds, at κ 0.6083 —
+the same number litstack reports. W P 0.851 R 0.835 F1 0.843 · light P 0.833 **R 0.536** F1 0.653 ·
+deep **P 0.454** R 0.833 F1 0.588 · REM **P 0.622** R 0.918 F1 0.741.
+
+Read plainly: the sqrt weights *already* over-push the
+rare stages — recall on deep and REM runs 0.83–0.92 with precision 0.45–0.62, while light recalls only 0.54. Log
 pushes the same direction harder, so the honest expectation is **light recall down, deep/REM precision down, pooled κ
 0.005–0.015 below 0.608**; the arm that the baseline table actually argues for is a *weaker* weighting (`none`, or
-sqrt^½), which is queued only if the owner wants it after v26.
+sqrt^½), which waits in the queue only if the owner wants it after v26.
 
 **Pre-stated (before the run, 2026-10-11 16:10 EDT).** Same ten cohorts, grouped folds, seed and features as v18
 (`spo2h+pulse+motion`), one arm: `--class-weight log`. Expectation as corrected above. Reading rule: **adopt log as the default
-if pooled κ ≥ 0.605 AND deep or REM F1 improves by ≥ 0.02 without light F1 dropping by more than 0.02**; if pooled κ drops by more than 0.01 the arm is recorded and sqrt
-stays; anything in between is a wash and sqrt stays by default (the simpler prior). A pooled gain above +0.02 would be
-suspicious at this corpus size and is re-run with a second seed before it is believed.
+if pooled κ ≥ 0.605**. The rest of that rule: deep or REM F1 gains ≥ 0.02, and light F1 drops by no more than
+0.02.
+
+If pooled κ drops by more than 0.01, the brief records the arm and sqrt stays. Anything in between is a wash and
+sqrt stays by default (the simpler prior). A pooled gain above +0.02 would be
+suspicious at this corpus size, so a second seed re-runs it before anyone believes it.
 
 **Measured (v26, 2026-10-11 13:29 EDT, five folds, pooled confusion).** Pooled κ **0.584** (v20 sqrt 0.608, **−0.024**),
 accuracy 0.691 (0.714). Per class, v20 → v26: W F1 0.843 → 0.841 · light P 0.833 → 0.848, **R 0.536 → 0.470**, F1 0.653 → 0.605 ·
@@ -607,19 +635,19 @@ light recall up (toward 0.60+), deep/REM precision up and recall down, pooled κ
 beats 0.608 by ≥ 0.005 and no class F1 falls by more than 0.02; a tie within 0.005 keeps sqrt.
 
 **Measured (v27, 2026-10-12 10:46 EDT, five folds, pooled confusion).** `none` (uniform) pooled κ **0.649** (+0.041 over
-sqrt's 0.608), `quarter` 0.631 (+0.023) — monotone: the less the rare stages are pushed, the better the net. Per class,
+sqrt's 0.608), `quarter` 0.631 (+0.023) — monotone: the less the loss pushes the rare stages, the better the net. Per class,
 sqrt → none: W F1 0.843 → 0.846 · light P 0.833 → 0.806, **R 0.536 → 0.657**, F1 0.653 → **0.724** · deep **P 0.454 → 0.534**,
 R 0.833 → 0.735, F1 0.588 → **0.619** · REM **P 0.622 → 0.668**, R 0.918 → 0.893, F1 0.741 → **0.764**. Every cohort rises
 (SHHS 0.605 → 0.646, SHHS2 0.649 → 0.690, Challenge 0.537 → 0.573, sleep-accel 0.407 → 0.513, Newcastle 0.205 → 0.242).
 By the §23 rule `none` wins outright (≥ +0.005, no class F1 down) — **but the gain is above the +0.02 "suspicious at this
 corpus size" line, so it is not believed until a second seed reproduces it.** The sqrt prior had been in place since v1
-without ever being measured against uniform: the class weighting was a hand-pinned constant defending a bug (the oracle
+without ever facing a uniform control: the class weighting stood as a hand-pinned constant defending a bug (the oracle
 failure class), and the paper's loss, run as an arm, is what exposed it by pointing the wrong way.
 
 **Pre-stated (v27b, 2026-10-12 11:45 EDT).** `none`, seed 2, same folds and configuration. Expectation: pooled κ within
 ±0.008 of 0.649; reading rule: if the seed-2 pool is ≥ 0.635 the default becomes `none` for every later run (v28 onward)
 and 0.649 ± the two-seed spread is the new control figure; if it falls below 0.635 the seed-1 result was a lucky draw and
-both seeds are reported with sqrt kept until a third seed decides.
+the brief carries both seeds and keeps sqrt until a third seed decides.
 
 **Measured (v27b, 2026-10-12 14:02 EDT, seed 2, five folds).** Pooled κ **0.6489** (seed 1: 0.6493; spread 0.0004); per class
 W F1 0.844 · light 0.724 · deep 0.619 · REM 0.765 — identical to seed 1 to three decimals; per cohort SHHS 0.644 · SHHS2 0.691 ·
@@ -641,17 +669,22 @@ bidirectional GRU, PyTorch gate order → linear → softmax → the same Viterb
 `tools/seqnet-eval.mjs` (real cached nights through the identical fold hash, column drop, presence flags, tensorise and
 Viterbi, scored with pooled/per-cohort κ and compared per night with the Python run's saved probabilities).
 
-**Measured, golden vectors (2026-10-12).** Seeded random SeqNet, kin 20, T 300: max |Δ| vs PyTorch at every tap — stem
+**Measured, fixture vectors (2026-10-12).** Seeded random SeqNet, kin 20, T 300: max |Δ| vs PyTorch at every tap — stem
 7.2e-7, block 0 8.3e-7, all blocks 1.7e-6, GRU 6.9e-7, logits 2.4e-7, softmax 1.2e-7; 82 ms per 300-epoch night in node.
 Committed fixture: ch 16 / kin 6 / T 40 (150 KB + 78 KB), worst 2.5e-6. Pipeline dry run with random weights on 18 real
-fold-0 nights (ucddb + boas): kin 365 (361 kept columns + missing fraction + 3 presence flags), 173 ms/night, κ ≈ 0 as it
+fold-0 nights (ucddb + boas): kin 365 (361 kept columns + `missing` fraction + 3 presence flags), 173 ms/night, κ ≈ 0 as it
 must be.
 
 **Pre-stated for the real-night parity (fold 0, v20 configuration, sqrt weights, 1-bit motion arm; the Python run is
-queued behind v27 with `--save-model --save-proba`).** Python saves probabilities as float16, whose resolution near 1.0 is
-~5e-4, so the band is **per-night max |Δ proba| ≤ 2e-3**; **κ_JS − κ_Python within ±0.002** on the same test nights
-(Viterbi ties can flip single epochs); the share that must meet the band is **100 % of compared nights** — one night outside it is a FAIL, and a run with no Python probabilities to compare against is NOT_RUN, never a pass by absence; any night whose feature names differ from the model's is a refusal, not a skip. `tools/seqnet-eval.mjs --verdict <file>` emits the result as one `tepna.verdict/1` object (gate `seqnet-port-parity`, criterion `nights outside the band = 0`) beside the prose.
-Outside those bands the port is wrong, however green the golden test is — that is why both exist.
+queued behind v27 with `--save-model --save-proba`).** Python saves probabilities as float16, whose resolution near 1.0
+is ~5e-4. So the band is **per-night max |Δ proba| ≤ 2e-3**, with **κ_JS − κ_Python within ±0.002** on the same test
+nights (Viterbi ties can flip single epochs). The share that must meet the band is **100 % of compared nights**.
+
+One night outside it is a FAIL. A run with no Python probabilities to compare against is NOT_RUN, never a pass by
+absence. Any night whose feature names differ from the model's is a refusal, not a skip. `tools/seqnet-eval.mjs
+--verdict <file>` emits the result as one `tepna.verdict/1` object (gate `seqnet-port-parity`, criterion `nights
+outside the band = 0`) beside the prose. Outside those bands the port is wrong, however green the fixture test reads —
+that is why both exist.
 
 **Measured, real nights (fold 0, 1 871 test nights, 1 970 589 epochs, 2026-10-12 11:40–12:05 EDT).** The JS port on the
 trained fold-0 model: pooled κ **0.6047**, 207 ms/night, per-cohort SHHS 0.602 · SHHS2 0.648 · Challenge 0.524 · ISRUC 0.429 ·
@@ -701,7 +734,7 @@ fit), and Challenge 2018 (test only, blind). HMC (151 PSG nights, ECG) is not wi
 
 - **E1 · ECG only:** `--features ecg1 --blocks ecg.` on the ECG cohorts.
 - **O1 · oximetry on the SAME cohorts:** `--features oxy1`, the v27b recipe, restricted to the E1 cohorts.
-- Both save per-night probabilities, so the comparison is paired on the nights both arms hold.
+- Both save per-night probabilities, so the comparison pairs the nights both arms hold.
 
 **Bands (pooled κ, E1 against O1 on the paired nights):**
 
@@ -727,6 +760,6 @@ channel. PPGDex therefore waits for MESA.
 
 - [ ] the JS port reproduces the Python SpO₂-only κ (±0.02) on Challenge CV
 - [ ] the SpO₂-only κ ≥ 0.390 under §3, or a measured statement of why not
-- [ ] the learning-curve answer to "ask NSRR for more?" is recorded
+- [ ] this brief records the learning-curve answer to "ask NSRR for more?"
 - [ ] the full `npm run check` is green (including `verify:tools-index`); a changeset exists
 - [ ] the owner decides on publication; until then this box stays unticked and the branch stays local
