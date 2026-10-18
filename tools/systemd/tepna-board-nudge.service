@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — the 3-hourly board nudge: prompts each IDLE fleet session that has unread board entries
+# to read its inbox. A busy session hears the board through .claude/hooks/board-hook.sh instead.
+#
+# INSTALL (the primary development machine, after this file is on main):
+#   cp ~/Tepna/tools/systemd/tepna-board-nudge.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tepna-board-nudge.timer
+#
+# It needs the herdr socket, so it runs as the same user as the herdr server.
+[Unit]
+Description=Tepna — nudge idle fleet sessions that have unread board entries
+Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/board-nudge.sh
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'N=%h/Tepna/tools/board-nudge.sh; [ -x "$N" ] || { echo "board-nudge.sh not on main yet"; exit 0; }; exec "$N"'
+TimeoutStartSec=5min
