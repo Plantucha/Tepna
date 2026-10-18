@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-08-11 · **Created:** 2026-08-11 · **DRAIN 2026-09-02 (Osprey):** ~~verified 3 ticked / **11 open** Done-when boxes~~ (superseded 2026-09-20 — see the later clause) — the largest open surface in the family and correctly still PROPOSED. **Owner: Osprey. Next step:** triage the 11 into keep/drop before any execution; a follow-ups brief this wide is a backlog, not a work-unit. · **RE-TRIAGED 2026-09-13 (Osprey): ~~the 09-02 verdict STILL HOLDS — 3 ticked / 11 open, and no landing has touched any of the eleven.~~ (superseded 2026-09-20 — see the later clause)** Checked item-by-item against this week's mutation landings: the open items are the 90 % target ratification, coverage-guided selection, the top-30 and the 24 pseudo-tested functions, `functionRange` on arrow consts, the export `date` field, `setHooks` restoration, contract-named survivor re-checks, tool scoping, the production/apparatus kill-rate split and a `_consensusTrust` caveat — none is equivalence-ledger, scratch-reuse or timeout classification, which is all that moved. ⚠️ Two of the eleven are OWNER decisions (the 90 % target; the §6 decline-with-reason), so this brief cannot reach DONE by fleet work alone however many of the other nine land. · 🔴 **RE-VERIFIED 2026-09-15 (Osprey) — the 11 is WRONG and has been since before it was first written. It is 9.** Two boxes were already answered, neither by a landing, which is why two successive triages that asked *"has a landing touched these?"* both returned "no" and both were right about the wrong question. **§2's target ratification** was recorded by the owner on **2026-08-11** — the same day this brief was created, three weeks before the 09-02 drain counted it open — and it RAISED the bar (90 % → 99 % of distinguishable) rather than lowering it. **§6's coverage-guided selection** was built on 2026-08-14: verified in the tree, not from §6-bis's prose, as `tools/per-group-coverage.mjs` plus 7 `--use-coverage-map`/`pgmapFor` references in `tools/mutate.mjs`. ⚠️ That second one is ticked on its `exists` limb ONLY — it exists and is QUARANTINED for fabricating SURVIVED findings, so a reader must not read the tick as permission to enable the flag. ⚠️ And §9.2's own progress counter now LIES: `grep -c '_date:' tests/dex-tests.js` has gone 0 → 1, but the single hit is a COMMENT at `tests/dex-tests.js:44263`, not a test — the box stays open and must not be ticked on that grep. **The lesson for the next triage of this file: ask whether the answer is already in the brief or the tree BEFORE asking whether a PR closed it.** Remaining: 9 open, listed above. · 🔴 **DRAIN 2026-09-20 (Osprey): THE HEADER ABOVE IS STALE AND IT IS MY OWN DOING.** It says *"3 ticked / 11 open, and no landing has touched any of the eleven"*. **Measured in the tree today: 5 ticked / 9 open.** Two boxes were closed **2026-09-15 by me** — both stamped `CLOSED — verified 2026-09-15 (Osprey)`, one finding the item already recorded in this brief's own §2, the other verified IN THE TREE rather than from §6-bis's prose — **and I never updated the count at the top.** So a reader costing this brief from its header would size two items that are already shut. ⚠️ The remaining **9** are unchanged by this week's landings. **The lesson is the one this brief's family keeps producing: a count in a header is a cache, and the session that invalidates it is usually the one that wrote it.** · **TRIAGED 2026-09-25 (Osprey): park stands, but its VERIFICATION is stale against a moved surface — re-read before sizing.** This brief is execution-bound, not decision-bound, so landings on its own surface are decision-relevant, and the surface HAS moved since the last drain (measured 2026-09-25 against `origin/main`: 1 commits on `tools/mutate.mjs` since 2026-09-19 alone). Verified this pass: step-1 stale query non-zero from a 925-commit aged base with the positive control firing (RESIDUE 390 / capture.py 105 / CLAUDE.md 12); **0 of 56 pending changesets name it** while 11 name 7 other briefs, so the zero is real; Rule 0 run 2026-09-24. ⚠️ What I did NOT do, stated so nobody reads more into this stamp than it carries: I did not re-verify each Done-when item against the moved surface — that is the next pass's work, and it is now owed rather than optional. Status unchanged.
+**Status:** IN-PROGRESS — 2026-10-18 · **Created:** 2026-08-11 · 🔴 **DRAIN 2026-10-18 (Osprey): EVERY DONE-WHEN RE-VERIFIED IN THE TREE — the work the triage dated 2026-09-25 left owed — and the checklist now states what each box measured, with the greps that count it beside it.** The status moves off PROPOSED because landed code answers most of the checklist. Read the count from the greps under the checklist, never from this header: the header has gone stale on this brief after every drain, including the ones I wrote. ⚠️ **§1's fleet percentage is a cache too** — `node tools/mutation-worklist.mjs` prints today's, and it has risen. ⚠️ **The claim that this brief cannot reach DONE by fleet work alone, written on 2026-09-13, no longer holds**: both owner-decision boxes are now the ticked ones. · **DRAIN 2026-09-02 (Osprey):** ~~verified 3 ticked / **11 open** Done-when boxes~~ (superseded 2026-09-20 — see the later clause) — the largest open surface in the family and correctly still PROPOSED. **Owner: Osprey. Next step:** triage the 11 into keep/drop before any execution; a follow-ups brief this wide is a backlog, not a work-unit. · **RE-TRIAGED 2026-09-13 (Osprey): ~~the 09-02 verdict STILL HOLDS — 3 ticked / 11 open, and no landing has touched any of the eleven.~~ (superseded 2026-09-20 — see the later clause)** Checked item-by-item against this week's mutation landings: the open items are the 90 % target ratification, coverage-guided selection, the top-30 and the 24 pseudo-tested functions, `functionRange` on arrow consts, the export `date` field, `setHooks` restoration, contract-named survivor re-checks, tool scoping, the production/apparatus kill-rate split and a `_consensusTrust` caveat — none is equivalence-ledger, scratch-reuse or timeout classification, which is all that moved. ⚠️ Two of the eleven are OWNER decisions (the 90 % target; the §6 decline-with-reason), so this brief cannot reach DONE by fleet work alone however many of the other nine land. · 🔴 **RE-VERIFIED 2026-09-15 (Osprey) — the 11 is WRONG and has been since before it was first written. It is 9.** Two boxes were already answered, neither by a landing, which is why two successive triages that asked *"has a landing touched these?"* both returned "no" and both were right about the wrong question. **§2's target ratification** was recorded by the owner on **2026-08-11** — the same day this brief was created, three weeks before the 09-02 drain counted it open — and it RAISED the bar (90 % → 99 % of distinguishable) rather than lowering it. **§6's coverage-guided selection** was built on 2026-08-14: verified in the tree, not from §6-bis's prose, as `tools/per-group-coverage.mjs` plus 7 `--use-coverage-map`/`pgmapFor` references in `tools/mutate.mjs`. ⚠️ That second one is ticked on its `exists` limb ONLY — it exists and is QUARANTINED for fabricating SURVIVED findings, so a reader must not read the tick as permission to enable the flag. ⚠️ And §9.2's own progress counter now LIES: `grep -c '_date:' tests/dex-tests.js` has gone 0 → 1, but the single hit is a COMMENT at `tests/dex-tests.js:44263`, not a test — the box stays open and must not be ticked on that grep. **The lesson for the next triage of this file: ask whether the answer is already in the brief or the tree BEFORE asking whether a PR closed it.** Remaining: 9 open, listed above. · 🔴 **DRAIN 2026-09-20 (Osprey): THE HEADER ABOVE IS STALE AND IT IS MY OWN DOING.** It says *"3 ticked / 11 open, and no landing has touched any of the eleven"*. **Measured in the tree today: 5 ticked / 9 open.** Two boxes were closed **2026-09-15 by me** — both stamped `CLOSED — verified 2026-09-15 (Osprey)`, one finding the item already recorded in this brief's own §2, the other verified IN THE TREE rather than from §6-bis's prose — **and I never updated the count at the top.** So a reader costing this brief from its header would size two items that are already shut. ⚠️ The remaining **9** are unchanged by this week's landings. **The lesson is the one this brief's family keeps producing: a count in a header is a cache, and the session that invalidates it is usually the one that wrote it.** · **TRIAGED 2026-09-25 (Osprey): park stands, but its VERIFICATION is stale against a moved surface — re-read before sizing.** This brief is execution-bound, not decision-bound, so landings on its own surface are decision-relevant, and the surface HAS moved since the last drain (measured 2026-09-25 against `origin/main`: 1 commits on `tools/mutate.mjs` since 2026-09-19 alone). Verified this pass: step-1 stale query non-zero from a 925-commit aged base with the positive control firing (RESIDUE 390 / capture.py 105 / CLAUDE.md 12); **0 of 56 pending changesets name it** while 11 name 7 other briefs, so the zero is real; Rule 0 run 2026-09-24. ⚠️ What I did NOT do, stated so nobody reads more into this stamp than it carries: I did not re-verify each Done-when item against the moved surface — that is the next pass's work, and it is now owed rather than optional. Status unchanged.
 
 # MUTATION PROGRAM — FOLLOW-UPS
 
@@ -695,6 +695,18 @@ lane is not this brief's subject and the statistic itself is not wrong, only nar
 
 ## Done when
 
+🔴 **RE-VERIFIED 2026-10-18 (Osprey) — every box measured in the tree, which the 2026-09-25 triage
+left owed.** Three boxes were already answered and I ticked them below, each with the lines that
+answer it. Six stay open, and each now carries what I measured today rather than what a past triage
+assumed. Two things a reader must carry away before costing this brief:
+
+- **The fleet number in §1 is a cache, like every count this brief's family has written.**
+  `node tools/mutation-worklist.mjs` prints **5014/10485 distinguishable = 47.8 %** today against
+  §1's 38.5 %, with 5471 survivors unresolved. The tool regenerates it, so read it there, never here.
+- **No open box waits on the owner.** The 09-13 header said two of the boxes are owner decisions.
+  Both of those are the ticked ones — the ratified target and the §6 selection call — so fleet work
+  can now carry this brief to DONE.
+
 - [x] **CLOSED — verified 2026-09-15 (Osprey): §2 of THIS BRIEF already records it.** The owner
       ratified on 2026-08-11 and RAISED the bar rather than lowering it — 90 % → **99 % of
       distinguishable**. The box outlived its own answer by five weeks because §2 was written and
@@ -707,22 +719,71 @@ lane is not this brief's subject and the statistic itself is not wrong, only nar
       flag re-introduces the worst failure this programme has, wearing the shape of a 78×
       speedup.
 - [ ] The top 30 functions from §5 have tests, each with a measured before → after kill count.
-- [ ] `functionRange` resolves arrow consts, or the limitation is recorded in the tool's header.
+      ⚠️ **OPEN, and the box names a set that MOVES — measured 2026-10-18.** `mutation-worklist.mjs`
+      computes the rank order from the sweeps every time, and its own header says the list is
+      "regenerated, never transcribed". Today 584 functions hold 5665 survivors, today's top 30 hold
+      2004 of them (35.4 % of the work), and `hrvdex computeDerived` has fallen from §9.4's 95
+      survivors to 39 at rank 20. So no tick can ever describe "the top 30": a test that lands
+      re-ranks the set the box points at. What a reader should track instead is the fleet
+      percentage against the 99 % target, which the tool prints on its first line.
+- [x] **CLOSED — verified 2026-10-18 (Osprey) IN THE TREE:** `functionRange` resolves arrow consts.
+      `tools/probe-equivalence.mjs:198` records the widened declaration shape and credits this
+      brief's §8; its selftest at :620 resolves `const rmssd = (a) => {…}`, `tools/killcheck.mjs:97`
+      mirrors it with selftests at :217 and :221, and `probe-coverage.mjs:41` and `probe-reach.mjs:51`
+      import the one copy. ⚠️ **A second tool keeps the blindness and its comment now MISLEADS.**
+      `tools/extreme-mutate.mjs` locates bodies with its own `functionBodies`, which cannot see an
+      arrow const, and its selftest calls that "a known, shared limitation ... exactly as it is to
+      probe-coverage's functionRange". The sharing ended when §8 landed. Two consequences, both
+      recorded rather than fixed here: the comment claims a peer limitation that no longer exists,
+      and §11's 543-function population excluded every arrow const in the fleet.
 - [ ] §9.2 — the export `date` field has a test, or the reason it cannot is recorded.
       ⚠️ **STILL OPEN, and the obvious check now LIES.** §9.2's own tell was
       `grep -c '_date:' tests/dex-tests.js` = 0. It returns **1** as of 2026-09-15 — and that one
-      hit is a COMMENT inside an unrelated test (`tests/dex-tests.js:44263`, prose about a
-      `_tMs: 0` → `_date: 1970-01-01` readback), not a test of the field. Anyone re-running the
-      brief's own counter reads 0 → 1 as progress. Do not tick this on the grep.
-- [ ] §9.4 — `setHooks` restoration is resolved before profile-gated branches are attempted.
+      hit is a COMMENT inside an unrelated test (prose about a `_tMs: 0` → `_date: 1970-01-01`
+      readback), not a test of the field. Anyone re-running the brief's own counter reads 0 → 1 as
+      progress. Do not tick this on the grep.
+      ⚠️ **Measured 2026-10-18: the second limb cannot falsify this box, so I left it open.** §9.2
+      recorded the reason the day it was written, and the suite now mirrors it — `tests/dex-tests.js`
+      states that `exportCSV()` reads module-level `allNights` instead of taking an argument, so the
+      Node lane cannot reach it. A box that its own text satisfies is not a Done-when. The honest
+      closer is limb one: a DOM harness or state injection that produces the field. Nothing asserts
+      on the produced `Date` column or the JSONL `date` today.
+- [x] **CLOSED — verified 2026-10-18 (Osprey): this box DUPLICATES the ticked §9.4 box below.**
+      `getHooks()` landed on HRVDex and OxyDex in #1206, both DSPs carry it today, and the suite
+      references it 22 times. One item sat open while its own answer sat ticked four lines down,
+      which is the §2 failure repeating inside one checklist.
 - [ ] §10.3 — the fleet's survivor lists are re-checked against contract-named groups, so the
       scope-artifact fraction is known rather than assumed.
-- [ ] §10.5 — every string/regex-locating tool in `tools/` scopes to the named function and fails
-      loudly on an absent or ambiguous pattern.
+      ⚠️ **OPEN, and measured 2026-10-18: the MECHANISM now exists and nobody has run it.**
+      `tools/killcheck.mjs` takes `--file`, `--fn` and `--group`, so it re-checks one survivor under
+      a contract-named group. The fleet-wide re-check has never run, and `scope-artifact` appears
+      nowhere outside this brief, so the fraction stays unknown. The precondition is a sweep budget,
+      not a tool.
+- [x] **CLOSED — verified 2026-10-18 (Osprey) IN THE TREE:** every tool that locates a function by a
+      caller-supplied NAME scopes to it and refuses loudly. `probe-equivalence.mjs:205` throws on an
+      AMBIGUOUS name and prints the declaration count, `killcheck.mjs:145` mirrors that throw, and
+      `probe-coverage.mjs:134` refuses to claim a range it could not resolve. An absent name returns
+      null, which §10.5 asks for. Two tools in the family locate nothing by name: `mutation-worklist`
+      enumerates every declaration and maps lines to the innermost one, and `extreme-mutate`
+      enumerates bodies — see the arrow-const box above for what the second one still cannot see.
 - [ ] §11 — the 24 pseudo-tested functions have tests, each with a measured before → after
       (the method is proven: oxydex went 7 → 5 and the diff named exactly the two that were fixed).
-- [ ] §11.1 — the fleet kill rate is reported with its production / checking-apparatus split, or
+      ⚠️ **OPEN, and measured 2026-10-18: 23 of the 24 are now NAMED in the suite, which is not the
+      same claim.** Only `pad2` appears nowhere. Pseudo-tested means the suite RUNS the function and
+      reads nothing it returns, so a name count cannot tell an assertion from a mention — it measures
+      the wrong thing by construction, exactly as §4 says of coverage. The closer is a per-function
+      extreme-mutation re-run giving each a before → after. ⚠️ And the population itself is narrow:
+      `extreme-mutate` cannot see an arrow const, so the 543 never included one.
+- [x] §11.1 — the fleet kill rate is reported with its production / checking-apparatus split, or
       the decision to keep one blended number is recorded with a reason.
+      **CLOSED — verified 2026-10-18 (Osprey) IN THE TREE:** `mutation-worklist.mjs` prints the
+      blended FLEET rate and the split beside it. A `SET ASIDE` block names 147 survivors in 4
+      non-production functions, cites `tools/mutation-nonproduction.json` for the reason each one is
+      there, states that they STAY in the denominator, and excludes them from the ranked list. The
+      partition is keyed `file::fn` and fails closed: an unreadable or empty set treats everything as
+      production, and a selftest pins that `motiondex sampleHz` is production because a name pattern
+      is not evidence. §11.1 asked for separate rates or the split beside the total, and the tool
+      gives the second.
 - [x] §9.4 — RESOLVED 2026-08-13: `getHooks()` on HRVDex and OxyDex (#1206), which unblocked the
       profile-gated `computeDerived` branches (#1208, #1209).
 - [x] §12.2 — DONE 2026-08-13: every `*-dsp.js` / `*-cross.js` / `*-edf.js` scanned for the shape
@@ -734,3 +795,18 @@ lane is not this brief's subject and the statistic itself is not wrong, only nar
       sign-flipped case and is written up in §12.6.
 - [ ] §12.6 follow-up — `analysis-stats.js` `_consensusTrust` gains a header caveat in the shape
       `integrator-tch.js` already uses, or the decision not to is recorded with a reason.
+      ⚠️ **OPEN, and measured 2026-10-18: the site carries no caveat.** `_consensusTrust` sits at
+      `analysis-stats.js:880` under a weighted-variance helper, with no comment above it and no
+      mention of its common-mode blindness. One caller reads it, at `:1031`. The shape to copy is
+      `integrator-tch.js:22` through `:31`, which states the caveat and tells the consumer to surface
+      it. This is a one-site edit in the analysis lane, not this brief's lane.
+
+### How to count this checklist
+
+```sh
+grep -c '^- \[x\]' briefs/MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md   # answered
+grep -c '^- \[ \]' briefs/MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md   # open
+```
+
+Read the greps, never a number in the header. Every count this brief's family has typed into a
+header went stale, usually on the day the session that typed it did the work that invalidated it.
