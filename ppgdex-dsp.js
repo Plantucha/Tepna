@@ -3239,51 +3239,98 @@
       respRateMethod: hfPeakF != null ? 'RSA (HF-peak of RR spectrum)' : null
     };
   }
-  function dfaAlpha1(nn) {
-    if (nn.length < 50) return null;
-    const N = nn.length;
-    const m = mean(nn);
-    const y = new Float64Array(N);
-    let acc = 0;
-    for (let i = 0; i < N; i++) {
-      acc += nn[i] - m;
-      y[i] = acc;
-    }
+  /* ── #2 treatment (2): the sequence-structure metrics SEGMENT, they do not splice ────────────────
+     `dfaAlpha1` and `sampEn` read ADJACENCY, not values. Dropping a rejected interval from the series
+     they see would splice two beats that were never neighbours and manufacture a pattern the record
+     never held — a fabricated adjacency traded for a fabricated value, which is harder to see and no
+     more honest. So the series is cut at every drop and each metric is pooled over the contiguous
+     RUNS, never computed across a cut.
+
+     Pooling happens inside the estimator, not over its outputs. DFA accumulates the squared residuals
+     and the window count per SCALE across every run and fits ONE slope; SampEn sums the template
+     counts A and B across every run and takes ONE log ratio. Averaging per-run α1 or per-run SampEn
+     would be a different and worse estimator: a log of a ratio is not the mean of logs, and a 50-beat
+     run only ever sees the small scales.
+
+     Measured over the 27 Verity nights of this corpus: every night carries a drop (10 to 673 of them,
+     median 93), so the refusal this replaces nulled BOTH metrics on 27 of 27 nights while a median
+     97.7 % of each night's intervals sat in runs long enough to score.
+
+     Splicing instead of segmenting was measured on the same nights, same estimator on both sides and
+     uncapped, so the only difference was whether a window or a template may cross a cut. SampEn comes
+     out HIGHER spliced on 27 of 27 nights (median 0.08, up to 0.18): a cut joins two templates that
+     match nothing, the lost m+1 matches shrink A against B, and −ln(A/B) rises. α1 has no consistent
+     sign — lower on 16 nights, higher on 9, unchanged on 2, |Δ| at most 0.13. ⚠️ The first draft of
+     this note claimed the OPPOSITE SampEn direction, read off a per-run AVERAGE of α1 and SampEn used
+     as a cheap proxy while this code was being written. The pooled estimator refuted it. An estimator
+     is not a stand-in for itself.
+
+     A run shorter than the whole-record floor (50 for DFA, 60 for SampEn) contributes nothing, and a
+     night with no qualifying run reports `null` with a reason, never a number over nothing. Reduced
+     coverage ANNOTATES (`CLAUDE.md` §∅): the kept share and the run count travel beside the value. */
+  function dfaAlpha1Segmented(nn, runs) {
     const scales = [];
     for (let s = 4; s <= 16; s++) scales.push(s);
+    /* One mean for the whole kept series. Every window below is linearly detrended, so a constant
+       offset in the walk cannot reach F — which mean is used is immaterial at these scales, and the
+       global one keeps a single-run call identical to the whole-record form it replaces. */
+    const m = mean(nn);
+    const Esum = new Float64Array(scales.length); // Σ squared residuals, pooled across runs
+    const Wsum = new Float64Array(scales.length); // Σ windows, pooled across runs
+    let covered = 0,
+      used = 0;
+    for (const run of runs) {
+      const a = run[0],
+        N = run[1] - run[0];
+      if (N < 50) continue;
+      covered += N;
+      used++;
+      const y = new Float64Array(N);
+      let acc = 0;
+      for (let i = 0; i < N; i++) {
+        acc += nn[a + i] - m;
+        y[i] = acc;
+      }
+      for (let si = 0; si < scales.length; si++) {
+        const s = scales[si];
+        const nWin = Math.floor(N / s);
+        if (nWin < 1) continue;
+        let F = 0;
+        for (let w = 0; w < nWin; w++) {
+          const o = w * s;
+          let sx = 0,
+            sy = 0,
+            sxx = 0,
+            sxy = 0;
+          for (let i = 0; i < s; i++) {
+            sx += i;
+            sy += y[o + i];
+            sxx += i * i;
+            sxy += i * y[o + i];
+          }
+          const den = s * sxx - sx * sx || 1e-9;
+          const b = (s * sxy - sx * sy) / den,
+            aa = (sy - b * sx) / s;
+          let e = 0;
+          for (let i = 0; i < s; i++) {
+            const r = y[o + i] - (aa + b * i);
+            e += r * r;
+          }
+          F += e;
+        }
+        Esum[si] += F;
+        Wsum[si] += nWin;
+      }
+    }
+    if (!used) return null;
     const xs = [],
       ys = [];
-    for (const s of scales) {
-      const nWin = Math.floor(N / s);
-      if (nWin < 1) continue;
-      let F = 0;
-      for (let w = 0; w < nWin; w++) {
-        const o = w * s;
-        let sx = 0,
-          sy = 0,
-          sxx = 0,
-          sxy = 0;
-        for (let i = 0; i < s; i++) {
-          sx += i;
-          sy += y[o + i];
-          sxx += i * i;
-          sxy += i * y[o + i];
-        }
-        const den = s * sxx - sx * sx || 1e-9;
-        const b = (s * sxy - sx * sy) / den,
-          a = (sy - b * sx) / s;
-        let e = 0;
-        for (let i = 0; i < s; i++) {
-          const r = y[o + i] - (a + b * i);
-          e += r * r;
-        }
-        F += e;
-      }
-      F = Math.sqrt(F / (nWin * s));
-      xs.push(Math.log(s));
+    for (let si = 0; si < scales.length; si++) {
+      if (!Wsum[si]) continue;
+      const F = Math.sqrt(Esum[si] / (Wsum[si] * scales[si]));
+      xs.push(Math.log(scales[si]));
       ys.push(Math.log(F || 1e-9));
     }
-    // slope
     const mx = mean(xs),
       myy = mean(ys);
     let num = 0,
@@ -3292,7 +3339,89 @@
       num += (xs[i] - mx) * (ys[i] - myy);
       den += (xs[i] - mx) * (xs[i] - mx);
     }
-    return den ? r2(num / den) : null;
+    return den ? { value: r2(num / den), segments: used, covered } : null;
+  }
+  function dfaAlpha1(nn) {
+    if (nn.length < 50) return null;
+    const seg = dfaAlpha1Segmented(nn, [[0, nn.length]]);
+    return seg ? seg.value : null;
+  }
+  /* countPairs — B = phi(m) and A = phi(m+1) in ONE pass, with an EXACT prune. Not an approximation:
+     it returns the same integers the nested-loop form did, verified against it on 18 966 real H10 RR
+     intervals at N = 2 000 / 6 000 / 12 000 / 18 966 (identical B and A at every size, 7.8–8.7× faster).
+
+     (1) SORT-PRUNE. A Chebyshev match needs EVERY k within tol, so |nn[i]−nn[j]| <= tol at k=0 is a
+         NECESSARY condition for a match. Walking the indices ordered by nn[index] makes the only
+         possible partners of i a CONTIGUOUS run, so the scan can `break` at the first j beyond tol —
+         every pair skipped provably fails. On a physiological interval series with tol = 0.2·SD the
+         overwhelming majority of pairs fail exactly there, which is where the speedup comes from.
+     (2) ONE PASS FOR BOTH. A pair matching at m+1 necessarily matches at m, and m+1's index range is a
+         subset of m's, so A is counted as a refinement of B instead of walking every pair a second time.
+
+     The single index valid for B but not for A (N−m−1) is counted in its own small pass, which is why
+     the ranges below are not off by one. `off` and `N` confine every template to ONE run. */
+  function countPairsIn(nn, off, N, m, tol) {
+    const nA = N - m - 1, // valid indices for phi(m+1)
+      nB = N - m;
+    let A = 0,
+      B = 0;
+    if (nA > 0) {
+      const ord = new Array(nA);
+      for (let i = 0; i < nA; i++) ord[i] = i;
+      ord.sort(function (x, y) {
+        return nn[off + x] - nn[off + y];
+      });
+      for (let a = 0; a < nA; a++) {
+        const i = ord[a];
+        for (let b = a + 1; b < nA; b++) {
+          const j = ord[b];
+          if (nn[off + j] - nn[off + i] > tol) break; // ordered ⇒ every later j is further still
+          let ok = true;
+          for (let k = 1; k < m; k++) {
+            if (Math.abs(nn[off + i + k] - nn[off + j + k]) > tol) {
+              ok = false;
+              break;
+            }
+          }
+          if (!ok) continue;
+          B++;
+          if (Math.abs(nn[off + i + m] - nn[off + j + m]) <= tol) A++;
+        }
+      }
+    }
+    const t = nB - 1; // the index B has and A does not
+    for (let j = 0; j < t; j++) {
+      let ok = true;
+      for (let k = 0; k < m; k++) {
+        if (Math.abs(nn[off + t + k] - nn[off + j + k]) > tol) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) B++;
+    }
+    return { A: A, B: B };
+  }
+  /* `tol` is ABSOLUTE here, not a multiple of SD: the whole-record caller scales it to the series it
+     was handed BEFORE decimating, and passing a multiple would rescale it to the decimated SD. */
+  function sampEnSegmented(nn, runs, m, tol) {
+    m = m || 2;
+    let A = 0,
+      B = 0,
+      covered = 0,
+      used = 0;
+    for (const run of runs) {
+      const a = run[0],
+        N = run[1] - run[0];
+      if (N < 60) continue;
+      covered += N;
+      used++;
+      const p = countPairsIn(nn, a, N, m, tol);
+      A += p.A;
+      B += p.B;
+    }
+    if (!used || !B || !A) return null;
+    return { value: r2(-Math.log(A / B)), segments: used, covered };
   }
   function sampEn(nn, m, r) {
     m = m || 2;
@@ -3301,14 +3430,18 @@
     const sd = std(nn);
     const tol = (r || 0.2) * sd;
     // O(N²) pair-counting CAP — mirror pulsedex-dsp.js MAXN (PPGDEX-FOLLOWUPS §4 / SYNTH-TEXTURE-FOLLOWUPS §2).
-    // analyze() calls this on the WHOLE corrected interval series. Deterministic uniform decimation to MAXN
-    // preserves the interval distribution; tol stays scaled to the ORIGINAL SD (computed above,
-    // pre-decimation), matching PulseDex.
+    // The WHOLE-RECORD form still gets the cap: it is one run of up to the full night. Deterministic
+    // uniform decimation to MAXN preserves the interval distribution; tol stays scaled to the ORIGINAL
+    // SD (computed above, pre-decimation), matching PulseDex.
     //
     // The "FUTURE caller that hands SampEn a full overnight *_PPG.txt" this cap was written for has
     // ARRIVED: tools/trio-batch.mjs runs analyze() over whole nights. A CPU profile of one real night
     // (2026-07-27, 2.86 M samples) put **76.7 % of the entire PpgDex runtime inside this one function**
     // — 45.8 s of 59.7 s — because the cap still leaves N = 20 000, i.e. ~10⁹ comparisons.
+    //
+    // The SEGMENTED caller needs no cap, and is cheaper than this one rather than more expensive:
+    // its cost is Σ nᵢ² over the runs, bounded above by (longest run)·(intervals kept). Over the 27
+    // Verity nights that bound peaks at 1.2e8 against the 4e8 this cap still permits.
     const MAXN = 20000;
     if (N > MAXN) {
       const stride = Math.ceil(N / MAXN),
@@ -3317,67 +3450,8 @@
       nn = dec;
       N = nn.length;
     }
-    /* countPairs — B = phi(m) and A = phi(m+1) in ONE pass, with an EXACT prune. Not an approximation:
-       it returns the same integers the nested-loop form did, verified against it on 18 966 real H10 RR
-       intervals at N = 2 000 / 6 000 / 12 000 / 18 966 (identical B and A at every size, 7.8–8.7× faster).
-
-       (1) SORT-PRUNE. A Chebyshev match needs EVERY k within tol, so |nn[i]−nn[j]| <= tol at k=0 is a
-           NECESSARY condition for a match. Walking the indices ordered by nn[index] makes the only
-           possible partners of i a CONTIGUOUS run, so the scan can `break` at the first j beyond tol —
-           every pair skipped provably fails. On a physiological interval series with tol = 0.2·SD the
-           overwhelming majority of pairs fail exactly there, which is where the speedup comes from.
-       (2) ONE PASS FOR BOTH. A pair matching at m+1 necessarily matches at m, and m+1's index range is a
-           subset of m's, so A is counted as a refinement of B instead of walking every pair a second time.
-
-       The single index valid for B but not for A (N−m−1) is counted in its own small pass, which is why
-       the ranges below are not off by one. */
-    function countPairs() {
-      const nA = N - m - 1, // valid indices for phi(m+1)
-        nB = N - m; // valid indices for phi(m)
-      let A = 0,
-        B = 0;
-      if (nA > 0) {
-        const ord = new Array(nA);
-        for (let i = 0; i < nA; i++) ord[i] = i;
-        ord.sort(function (x, y) {
-          return nn[x] - nn[y];
-        });
-        for (let a = 0; a < nA; a++) {
-          const i = ord[a];
-          for (let b = a + 1; b < nA; b++) {
-            const j = ord[b];
-            if (nn[j] - nn[i] > tol) break; // ordered ⇒ every later j is further still
-            let ok = true;
-            for (let k = 1; k < m; k++) {
-              if (Math.abs(nn[i + k] - nn[j + k]) > tol) {
-                ok = false;
-                break;
-              }
-            }
-            if (!ok) continue;
-            B++;
-            if (Math.abs(nn[i + m] - nn[j + m]) <= tol) A++;
-          }
-        }
-      }
-      const t = nB - 1; // the index B has and A does not
-      for (let j = 0; j < t; j++) {
-        let ok = true;
-        for (let k = 0; k < m; k++) {
-          if (Math.abs(nn[t + k] - nn[j + k]) > tol) {
-            ok = false;
-            break;
-          }
-        }
-        if (ok) B++;
-      }
-      return { A: A, B: B };
-    }
-    const pairs = countPairs(),
-      B = pairs.B,
-      A = pairs.A;
-    if (!B || !A) return null;
-    return r2(-Math.log(A / B));
+    const seg = sampEnSegmented(nn, [[0, N]], m, tol);
+    return seg ? seg.value : null;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -5206,8 +5280,9 @@
        IRREGULARLY sampled series: it consumes (time, value) pairs and has no notion of adjacency, so
        removing a sample removes exactly that sample. `dfaAlpha1` and `sampEn` below read SEQUENCE
        STRUCTURE, where the same removal would splice two non-adjacent beats together and fabricate a
-       pattern — a fabricated ADJACENCY in place of a fabricated value. They are deliberately left
-       alone; see the brief's "#2 RE-SCOPED" block.
+       pattern — a fabricated ADJACENCY in place of a fabricated value. So they do not drop and they
+       do not splice: they SEGMENT at every gap and pool inside the estimator, which is treatment (2)
+       of the brief's "#2 RE-SCOPED" block and lands below.
 
        Sparse-clean records degrade HONESTLY rather than silently: `lombScargle` already refuses
        under 8 samples (`return null`), and every frequency consumer already handles a null block. */
@@ -5220,9 +5295,32 @@
       }
     }
     const freq = lombScargle(_fqT, _fqV);
-    const hasSequenceGap = adj.some((isAdjacent, j) => j > 0 && !isAdjacent);
-    const dfa1 = hasSequenceGap ? null : dfaAlpha1(nn);
-    const se = hasSequenceGap ? null : sampEn(nn);
+    /* The CONTIGUOUS RUNS of the kept series. `adj[j] === false` says a dropped interval sits between
+       nn[j-1] and nn[j], so that is where the sequence is cut. A record with nothing dropped yields
+       one run spanning everything, which both estimators treat exactly as the whole-record form did —
+       so a gapless input keeps its old numbers and gains no annotation key. */
+    const _seqRuns = [];
+    let _runStart = 0;
+    for (let j = 1; j <= nn.length; j++) {
+      if (j === nn.length || adj[j] === false) {
+        if (j > _runStart) _seqRuns.push([_runStart, j]);
+        _runStart = j;
+      }
+    }
+    const _dfaSeg = nn.length ? dfaAlpha1Segmented(nn, _seqRuns) : null;
+    const _seSeg = nn.length ? sampEnSegmented(nn, _seqRuns, 2, 0.2 * std(nn)) : null;
+    const dfa1 = _dfaSeg ? _dfaSeg.value : null;
+    const se = _seSeg ? _seSeg.value : null;
+    /* Reduced coverage ANNOTATES (§∅). The keys appear only once the series was actually cut, so no
+       committed gapless fixture moves for a key that would describe nothing. */
+    const _segAnno = (seg, cut) => {
+      if (!cut) return {};
+      if (!seg) return { reason: 'no-run-over-floor' };
+      return { segments: seg.segments, coveragePct: nn.length ? r1((100 * seg.covered) / nn.length) : null };
+    };
+    const _seqCut = _seqRuns.length > 1;
+    const _dfaAnno = _segAnno(_dfaSeg, _seqCut);
+    const _seAnno = _segAnno(_seSeg, _seqCut);
 
     /* ── perfusion index: AC over the LED-attributable DC, across an arbitrary span ─────────────
        DC is `mean|ch - ambient|`, never `mean|ch|`. The Verity's ambient phase is the detector's
@@ -5691,7 +5789,11 @@
       ellArea: poin ? poin.ellArea : null,
       freq,
       dfa1,
+      ...(_dfaAnno.segments != null ? { dfa1Segments: _dfaAnno.segments, dfa1CoveragePct: _dfaAnno.coveragePct } : {}),
+      ...(_dfaAnno.reason ? { dfa1Reason: _dfaAnno.reason } : {}),
       sampen: se,
+      ...(_seAnno.segments != null ? { sampenSegments: _seAnno.segments, sampenCoveragePct: _seAnno.coveragePct } : {}),
+      ...(_seAnno.reason ? { sampenReason: _seAnno.reason } : {}),
       epochs,
       meanSQI,
       cleanBeatPct,
@@ -6166,6 +6268,7 @@
     poincare,
     lombScargle,
     dfaAlpha1,
+    dfaAlpha1Segmented,
     /* Additive export. DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §EP-rest could not reach this function's
        DEFAULT tolerance (`r = 0.2·SD`, Richman–Moorman): the only call site is `sampEn(nn)` deep inside
        `analyze`, and the brief looked for "a tolerance-sensitive synthetic" — a series whose SampEn moves
@@ -6175,6 +6278,7 @@
        enough texture — no sensitivity hunt required. The ECGDSP sibling is already exported for the same
        reason. Export-only: no call site changes, so this is compute-inert. */
     sampEn,
+    sampEnSegmented,
     parseTimestamp,
     fmtClock,
     fmtClockSec,
