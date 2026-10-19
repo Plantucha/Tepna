@@ -281,8 +281,38 @@ def boot_state(end_ms, ended, fired_for, now_ms, max_age_s: float = CATCH_UP_MAX
         age = (float(now_ms) - float(end_ms)) / 1000.0
     except (TypeError, ValueError):
         return fresh, "unusable timestamps"
-    if fired_for == end_ms:
-        return fresh, "the last therapy end was already harvested"
+    marker_note = ""
+    try:
+        marker = None if fired_for is None else float(fired_for)
+    except (TypeError, ValueError):
+        # ∅ AN UNREADABLE MARKER IS NOT A HARVESTED ONE. Only `float(fired_for)` can raise here,
+        # because `float(end_ms)` already succeeded for `age`. `_cpap_boot_watch` reads
+        # `therapy_end_ms` out of the JSON job store, so the value can be anything, and nothing can
+        # order a value that is not a number. So the catch-up RUNS and the line says why it could not
+        # consult the marker. That direction is the lesson `cpap_job.py` records from 2026-08: the boot
+        # path declined behind "already harvested", the card went unread for 5.5 h, and one more
+        # failure would have lost the night behind a log line claiming success. A needless catch-up
+        # costs one card walk; a declined one can cost a night.
+        marker = None
+        marker_note = f" (the harvested-end marker {fired_for!r} is not a number, so nothing could order it)"
+    # AT OR BEFORE, never EQUAL. The journal's observed end and the live detector's can disagree, and
+    # the live one runs ahead: a harvest driven by the live edge stamps `fired_for` from the LIVE end,
+    # while the next boot reads `last_therapy_end` out of `SESSIONDETECT.csv` and can get an EARLIER
+    # one. Under equality that earlier end read as unharvested and the catch-up re-ran — a full Wi-Fi
+    # association and card walk for data the completed harvest had already pulled. Measured on vigil
+    # 2026-10-19 over the whole journal retention: 3 days of 43 did exactly this, each with one restart
+    # between the two harvests, and each second harvest returned `files=0 bytes=0`. The card holds its
+    # whole history, so a harvest that covered `fired_for` covered every end before it too. The
+    # docstring above has always promised this; equality delivered only the one case where the two
+    # sources agree — and compared RAW, so a marker of `"1787000000000"` missed its own end as well.
+    if marker is not None and float(end_ms) <= marker:
+        return fresh, (
+            "the last therapy end was already harvested"
+            if float(end_ms) == marker
+            # A NAMED reason, not the one above: these are different facts, and this journal line is the
+            # only evidence a later session has about which guard stopped the catch-up.
+            else f"the last therapy end precedes the one already harvested ({fired_for}) — covered by it"
+        )
     if age < 0:
         return fresh, "the last therapy end is in the future — clock disagreement, not a missed edge"
     if age > float(max_age_s):
@@ -290,7 +320,7 @@ def boot_state(end_ms, ended, fired_for, now_ms, max_age_s: float = CATCH_UP_MAX
             f"the last therapy end is {age / 3600.0:.1f}h old, older than the "
             f"{float(max_age_s) / 3600.0:.0f}h catch-up bound; the daily window owns it"
         )
-    return EndWatch(True, end_ms, fired_for), f"catching up a therapy end from {age / 60.0:.0f} min ago"
+    return EndWatch(True, end_ms, fired_for), f"catching up a therapy end from {age / 60.0:.0f} min ago{marker_note}"
 
 
 # ── AUTO-START: the live stream starts itself when therapy starts ──────────────────────────────

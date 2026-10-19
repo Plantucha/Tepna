@@ -7,8 +7,11 @@
 
 import asyncio
 import datetime as _dt
+import os
+import tempfile
 
 import capture
+import spool_marker
 
 ARMED = {"cpap": {"spool_pull": {"enabled": True}}}
 CREDS = {"masterPairKey": "aa" * 32, "clientId": "tepna", "ble_addr": "AA:BB:CC:DD:EE:FF"}
@@ -141,10 +144,16 @@ def _drive(
     after_therapy_s=None,
     therapy=None,
     harvest_hours=frozenset(),
+    marker_path=None,
 ):
     """Run the loop for `ticks` minutes of injected time, then stop it. Returns (calls, states).
 
-    The injected monotonic clock reads 1000 s; `end_mono` is when the last retained session ended."""
+    The injected monotonic clock reads 1000 s; `end_mono` is when the last retained session ended.
+
+    The run marker gets a FRESH directory per call unless the caller names one. Left to default from
+    `root`, every test here would write one shared file under `/tmp/r`, and the first saved day would
+    then suppress the window pull in every later test — an order-dependent suite that passes alone."""
+    marker_path = marker_path or os.path.join(tempfile.mkdtemp(prefix="tepna-spool-marker-"), "M.txt")
     calls, states = [], []
     n = {"i": 0}
     capture._CPAP_THERAPY_END["mono"] = end_mono
@@ -179,6 +188,7 @@ def _drive(
                 harvest_hours=harvest_hours,
                 mono=lambda: 1000.0,
                 get_therapy=lambda: therapy,
+                marker_path=marker_path,
             )
         )
     finally:
@@ -546,3 +556,79 @@ def test_the_production_wiring_hands_the_loop_a_working_STATUS_writer(tmp_path, 
         capture.STATUS.pop("cpap_spool", None)
         if before_cpap is not None:
             capture.STATUS["cpap"] = before_cpap
+
+
+# ── the one-day run marker ───────────────────────────────────────────────────
+# Residue 2026-10-18-daemon-restart-in-the-window-repeats-the-spool-pull: `last_run_date` lived in a
+# local that started at None, so a restart inside the window repeated a pull that had already
+# succeeded. Measured on vigil over the whole retention: 27 repeats on 17 days, every one in a new
+# PID, 0 inside one PID. These tests pin the restart, which is the half no in-process test could see.
+def test_a_successful_window_pull_records_the_day(tmp_path):
+    marker = str(tmp_path / "M.txt")
+    calls, _ = _drive(marker_path=marker, ticks=1)
+    assert len(calls) == 1
+    assert spool_marker.load_day(marker) == (_dt.date(2026, 8, 26), None)
+
+
+def test_a_RESTART_in_the_same_window_does_not_repeat_a_recorded_pull(caplog, tmp_path):
+    """The whole row, reproduced: two loop entries with one window between them. Before the marker
+    the second entry pulled again, because a fresh local said no pull had happened."""
+    marker = str(tmp_path / "M.txt")
+    first, _ = _drive(marker_path=marker, ticks=1)
+    with caplog.at_level("INFO"):
+        second, _ = _drive(marker_path=marker, ticks=2)
+    assert len(first) == 1
+    assert second == [], "a second daemon entry re-read the spool on a day that already pulled"
+    assert "2026-08-26 already ran on record" in caplog.text
+
+
+def test_a_marker_from_another_day_does_not_hold_today_s_pull(tmp_path):
+    marker = str(tmp_path / "M.txt")
+    assert spool_marker.save_day(marker, _dt.date(2026, 8, 25)) is None
+    calls, _ = _drive(marker_path=marker, ticks=1)
+    assert len(calls) == 1
+    assert spool_marker.load_day(marker)[0] == _dt.date(2026, 8, 26)
+
+
+def test_an_absent_marker_is_NAMED_at_entry_not_silently_assumed(caplog, tmp_path):
+    """§∅: absence reads as None, and the journal says which absence. A restart that read no marker
+    and a restart that read one look identical in the log otherwise — the shape of this whole row."""
+    with caplog.at_level("INFO"):
+        _drive(marker_path=str(tmp_path / "nothing.txt"), ticks=1)
+    assert "no run on record" in caplog.text and spool_marker.ABSENT in caplog.text
+
+
+def test_a_FAILED_pull_records_nothing_so_a_restart_retries_the_day(tmp_path):
+    """The deliberate asymmetry. The in-memory day is consumed at the ATTEMPT so a deferral retries
+    next minute, and the marker records only a pull that RETURNED — so a restart after a failure
+    tries again today rather than skipping the day."""
+    marker = str(tmp_path / "M.txt")
+    _drive(marker_path=marker, cycle=_cycles(RuntimeError("boom")), ticks=1)
+    assert spool_marker.load_day(marker) == (None, spool_marker.ABSENT)
+    calls, _ = _drive(marker_path=marker, ticks=1)
+    assert len(calls) == 1
+
+
+def test_a_POST_THERAPY_pull_records_no_day_because_it_consumes_none(tmp_path):
+    """The post-therapy pull consumes the TRIGGER, not the day — the window pull stays the backstop,
+    so writing a day here would silently retire that backstop."""
+    marker = str(tmp_path / "M.txt")
+    calls, _ = _drive(marker_path=marker, hour=6, end_mono=600.0, after_therapy_s=300.0, ticks=3)
+    assert len(calls) == 1
+    assert spool_marker.load_day(marker) == (None, spool_marker.ABSENT)
+
+
+def test_a_marker_that_cannot_be_SAVED_is_journalled_as_a_coming_repeat(caplog, tmp_path):
+    """A save that fails quietly brings back the exact repeat the marker exists to stop, so the
+    warning names the day, the path and the reason."""
+    marker = str(tmp_path / "ro" / "M.txt")
+    (tmp_path / "ro").mkdir()
+    (tmp_path / "ro").chmod(0o500)
+    try:
+        with caplog.at_level("INFO"):
+            calls, _ = _drive(marker_path=marker, ticks=1)
+    finally:
+        (tmp_path / "ro").chmod(0o700)
+    assert len(calls) == 1, "a marker that will not save must not stop the pull"
+    assert "did not reach the marker" in caplog.text
+    assert "2026-08-26" in caplog.text and "will repeat the pull" in caplog.text
