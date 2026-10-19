@@ -15063,6 +15063,80 @@
       );
     });
 
+    /* ════ OxyDex CT — the seconds come from the stamps, not from the row count ════
+       Residue 2026-09-29-oxydex-counts-rows-as-seconds. `computeCTprecise` counted ROWS below each
+       threshold and published them as `ct90s` … `ct80s`. That is seconds only at exactly 1 Hz, and the
+       box's ring runs 0.9854 rows/s (23 826 rows over 24 179 s on vigil's 2026-09-28 night, with 538
+       two-second steps and 189 doubled stamps), so CT read ~1.5 % LOW on every box night.
+       ⚠️ THE SHAPES ARE THE INSTRUMENT, and a single night would have proved nothing: a 1 Hz series
+       reads the same under both derivations, which is exactly why the defect survived every committed
+       golden. Five series differing ONLY in their stamps separate the readings — the 1 Hz control
+       (unchanged), the ring's real cadence (recovered), doubled stamps (a repeated second counted
+       once), a dropout (excluded, not attributed to the sample before it) and no stamps at all
+       (annotated, never refused). */
+    group('OxyDex CT — seconds derive from the stamps, and the 1 Hz case is unchanged', 'oxydex-dsp · math-correctness · clock · absence', function (T) {
+      var B = (env.OxyDex && env.OxyDex._bare) || null;
+      if (!B || typeof B.computeCTprecise !== 'function') {
+        T.skip('OxyDex._bare computeCTprecise available', 'wire env.OxyDex into this lane');
+        return;
+      }
+      /* 600 samples at a measured 85 % (below 90, 89 and 88) then 3000 healthy ones. `doubled` repeats
+         a stamp every 50th sample, `gapAt`/`gapMs` opens one real dropout. */
+      var mk = function (cadenceMs, n, doubled, gapAt, gapMs) {
+        var t0 = Date.UTC(2026, 8, 28, 21, 37, 0),
+          rows = [],
+          t = t0;
+        for (var i = 0; i < n; i++) {
+          rows.push({ tMs: t, t: new Date(t), spo2: i < 600 ? 85 : 97, hr: 60, motion: 0, pi: null });
+          var step = cadenceMs;
+          if (doubled && i % 50 === 0) step = 0;
+          if (gapAt != null && i === gapAt) step = gapMs;
+          t += step;
+        }
+        return rows;
+      };
+      /* CONTROL · at exactly 1 Hz a row IS a second, so the fix must leave the number alone — this is
+         the case every committed golden carries, and a change here would be a regression, not a fix. */
+      var ct1 = B.computeCTprecise(mk(1000, 3600));
+      T.eq('1 Hz · ct88s is unchanged at 600 s', ct1.ct88s, 600);
+      T.eq('1 Hz · the row count agrees with it', ct1.ct88n, 600);
+      T.eq('1 Hz · ct88m is the same 10.0 min', ct1.ct88m, 10);
+      /* THE DEFECT · the ring's own cadence. 600 samples 1015 ms apart cover 609 s, and the old row
+         count read 600 — the ~1.5 % the row measured on a real night. */
+      var ctRing = B.computeCTprecise(mk(1015, 3600));
+      T.eq('0.9854 Hz · ct88s reads the 609 s the stamps cover, not the 600 rows', ctRing.ct88s, 609);
+      T.eq('0.9854 Hz · the row count is still published beside it', ctRing.ct88n, 600);
+      T.eq('0.9854 Hz · the basis reports the measured cadence', ctRing.ctCadenceMs, 1015);
+      /* A DOUBLED STAMP holds its value for 0 s, so a second the device reported twice is counted
+         once. Twelve of the 600 low samples are doubled here. */
+      var ctDbl = B.computeCTprecise(mk(1000, 3600, true));
+      T.eq('doubled stamps · ct88s is 588 s, below the 600 rows', ctDbl.ct88s, 588);
+      T.eq('doubled stamps · the row count still reads 600', ctDbl.ct88n, 600);
+      /* A DROPOUT is a discontinuity, not dwell: the cap keeps 2 s and the other 118 s become
+         uncovered time, so a 2-minute hole cannot read as 2 minutes below 88 %. */
+      var ctGap = B.computeCTprecise(mk(1000, 3600, false, 300, 120000));
+      T.eq('a 120 s dropout · ct88s is 601 s, not 720', ctGap.ct88s, 601);
+      T.eq('a 120 s dropout · the excluded time is reported, not folded in', ctGap.ctUncoveredSec, 118);
+      /* NO STAMPS · reduced coverage is ANNOTATED, never refused (§∅, owner 2026-09-17), and the
+         source names the assumption the way `gapSpanSource: 'assumed-1Hz'` already does. */
+      var noStamp = mk(1000, 10).map(function (r) {
+        return { tMs: null, t: null, spo2: r.spo2, hr: r.hr, motion: 0, pi: null };
+      });
+      var ctNo = B.computeCTprecise(noStamp);
+      T.eq('no stamps · the source names the assumption', ctNo.ctSource, 'assumed-1Hz');
+      T.eq('no stamps · the value survives as the row count under that assumption', ctNo.ct88s, 10);
+      T.eq('stamped series name the stamps instead', ct1.ctSource, 'stamps');
+      /* CONTROL · a healthy series must read zero. A fix that turned rows into seconds everywhere
+         would be just as wrong if it invented time below a threshold that was never crossed. */
+      var ctHealthy = B.computeCTprecise(
+        mk(1015, 600).map(function (r) {
+          return { tMs: r.tMs, t: r.t, spo2: 97, hr: 60, motion: 0, pi: null };
+        })
+      );
+      T.eq('CONTROL · a healthy series reads 0 s below 88', ctHealthy.ct88s, 0);
+      T.eq('CONTROL · and 0 rows below 88', ctHealthy.ct88n, 0);
+    });
+
     group('§∅ · OxyDex parse — an absent SpO₂ row is kept as null, never deleted', 'oxydex-dsp · absence', function (T) {
       var raw = env.equiv && env.equiv.oxydex_odibasis && env.equiv.oxydex_odibasis.input;
       var parse = env.OxyDex && env.OxyDex.parseCSV;
@@ -74632,9 +74706,19 @@
        the only consumer was the shape check in validateExport: no DSP function ever read it. This
        group builds the parsed-row shape (`tMs` + compat `t`, cadence from `sampleSec`) and asserts the
        fixture's numbers against `computeStats` and `computeCTprecise` through `OxyDex._bare`.
-       Semantics it pins: `computeCTprecise` counts ROWS at the O2Ring's 1 Hz cadence (`ct90s` is a row
-       count), so a sparse series reads seconds as `count × sampleSec`; `computeStats` reads MEASURED
-       values only (`nadir_gappy`'s nulls are absence, never 0 — §∅). */
+       Semantics it pins: `ct90s` … `ct80s` are SECONDS derived from the rows' own stamps, so the
+       fixture's hand-computed `below90Sec` is the direct oracle and the row counts it hit are published
+       beside them as `ct90n` … `ct80n`; `computeStats` reads MEASURED values only (nulls are absence,
+       never 0 — §∅).
+       🔴 THIS GROUP USED TO ASSERT THE DEFECT it was written against, and it pinned the defect for a
+       day. Until 2026-10-18 it read `ct90s × sampleSec = below90Sec`, which is the identity that holds
+       only when a row IS a second — the very 1 Hz assumption residue
+       2026-09-29-oxydex-counts-rows-as-seconds measured false (the box's ring runs 0.9854 rows/s, so
+       CT read ~1.5 % low on every box night). The fixture's own seconds were right all along; the
+       multiplication was the shim that made a row count agree with them. Re-aimed with the fix:
+       `ct90s` now equals `below90Sec` with nothing multiplied, and `ct90n` carries the count that
+       `below90Count` pins. Mechanism: predicate-strength — the assertion was true of both
+       the defect and the contract, so it could not separate them. */
     group('OxyDex known-answer fixture — the real helpers reproduce the hand-computed values', 'oxydex-dsp · math-correctness · known-answer · fixtures · absence', function (T) {
       var fx = (env.fixtures || {})['oxydex-math-known-answer'];
       var B = (env.OxyDex && env.OxyDex._bare) || null;
@@ -74693,10 +74777,15 @@
           T.ok(name + ': an absent sample is not read as 0 (minSpo2 stays measured)', st.minSpo2 != null && st.minSpo2 > 0, String(st.minSpo2));
         }
         if ('nadirMeasured' in E) T.eq(name + ': minSpo2 ignores absent samples', st.minSpo2, E.nadirMeasured);
-        if ('below90Count' in E) T.eq(name + ': ct90s counts rows below 90', ct.ct90s, E.below90Count);
-        if ('below88Count' in E) T.eq(name + ': ct88s counts rows below 88', ct.ct88s, E.below88Count);
-        if ('below90Sec' in E) T.eq(name + ': ct90s × sampleSec = seconds below 90', ct.ct90s * c.sampleSec, E.below90Sec);
-        if ('below88Sec' in E) T.eq(name + ': ct88s × sampleSec = seconds below 88', ct.ct88s * c.sampleSec, E.below88Sec);
+        if ('below90Count' in E) T.eq(name + ': ct90n counts the rows below 90', ct.ct90n, E.below90Count);
+        if ('below88Count' in E) T.eq(name + ': ct88n counts the rows below 88', ct.ct88n, E.below88Count);
+        /* The seconds are asserted against the fixture's own hand-computed seconds, with nothing
+           multiplied. At `sampleSec` 10 the old form read `3 × 10` and the new one reads the 30 the
+           fixture states, so a cadence other than 1 Hz can no longer agree with a row count. */
+        if ('below90Sec' in E) T.eq(name + ': ct90s is seconds below 90, from the stamps', ct.ct90s, E.below90Sec);
+        if ('below88Sec' in E) T.eq(name + ': ct88s is seconds below 88, from the stamps', ct.ct88s, E.below88Sec);
+        T.eq(name + ': the basis names the stamps as its source', ct.ctSource, 'stamps');
+        T.eq(name + ": the basis reports the fixture's own cadence", ct.ctCadenceMs, c.sampleSec * 1000);
       });
     });
 

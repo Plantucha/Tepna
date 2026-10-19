@@ -855,7 +855,20 @@ function buildFullMetricsTable(n) {
   r('Duration', _oxyFmt(s.durationMin, 1), 'min', '≥360', _oxySev(360, 300, s.durationMin), 'Recording span');
   r('Start', s.start || '—');
   r('End', s.end || '—');
-  r('Sample rate', 1, 'Hz', '1', '', 'O2Ring / Wellue native');
+  /* Residue 2026-09-29-oxydex-counts-rows-as-seconds, the surfaced half: this row published a
+     CONSTANT 1 Hz beside the night's own numbers, and the ring does not run at 1 Hz — vigil's
+     2026-09-28 night measures 0.9854 rows/s. The DSP now measures the cadence from the stamps and
+     publishes it on the CT block, so the table reports what the stamps say. With no cadence it reads
+     an em dash: a sample rate nobody measured is absent, not 1 (§∅). */
+  var _oxyCadMs = n.ctPrec && n.ctPrec.ctCadenceMs != null ? n.ctPrec.ctCadenceMs : null;
+  r(
+    'Sample rate',
+    _oxyCadMs ? _oxyFmt(1000 / _oxyCadMs, 3) : '—',
+    'Hz',
+    '≈1',
+    '',
+    n.ctPrec && n.ctPrec.ctSource === 'assumed-1Hz' ? 'no usable stamps — assumed 1 Hz' : 'median step between sample stamps'
+  );
 
   // ── SpO₂ ──
   sec('Oxygen Saturation (SpO₂)');

@@ -23,7 +23,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "4f6d78abcaab",
       "oxydex-profile.js": "541a3ca4d4c1",
-      "oxydex-dsp.js": "cffb6d120b0f"
+      "oxydex-dsp.js": "c7db8721e42f"
     },
     "pulse": {
       "synth-gen.js": "5da30a5e5fcd",
@@ -65,11 +65,18 @@
       "old": "67823e8864cb",
       "new": "cffb6d120b0f",
       "reason": "OxyDex night traces: additive computeSleepWake. Re-measured at paper scale on main 599fd7baa: 233 tx / 239 flat, unchanged"
+    },
+    {
+      "date": "2026-10-18",
+      "file": "oxydex-dsp.js",
+      "old": "cffb6d120b0f",
+      "new": "c7db8721e42f",
+      "reason": "CT seconds from the stamps (residue 2026-09-29-oxydex-counts-rows-as-seconds). Re-cut at paper scale on 156109567: 233 tx / 239 flat, unchanged"
     }
   ],
-  "measuredAt": "2026-10-18T19:04:39.150Z",
+  "measuredAt": "2026-10-18T23:56:02.956Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "599fd7baa"
+    "commit": "156109567"
   }
 }
