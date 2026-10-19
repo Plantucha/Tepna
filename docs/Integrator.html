@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5dc056a6b57e" data-compute-hash="611909e010b0"><head>
+<html lang="en" data-manifest-hash="c7b952bff004" data-compute-hash="611909e010b0"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-nXVzW12i6pnqnnYehiY1j2aZWRgXId9paIIz36LUUM0=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg=' 'sha256-yreQr4anSIqvlwIe64Hk9l1nYCW361X993x+iD7+Yi4='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg=' 'sha256-yreQr4anSIqvlwIe64Hk9l1nYCW361X993x+iD7+Yi4='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.20.0</title>
@@ -18121,6 +18121,26 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
   }
 
   function ingestJSON(json, filename) {
+    // A FUSION export (this page's own Export, or OverDex's "download fused" button) holds findings
+    // already fused from node exports; it carries no ganglior_events of its own. normalizeFile reads
+    // it as an Unknown node and says "unrecognized format", which tells the user nothing about what
+    // to drop instead. Name the file kind and the node exports it was built from, then skip it.
+    if (json && !Array.isArray(json) && (json.kind === 'fusion' || (json.schema && /\.fusion-export$/.test(json.schema.name || '')))) {
+      var _built = Array.isArray(json.nodes)
+        ? json.nodes
+            .map(function (n) {
+              return n && n.label;
+            })
+            .filter(Boolean)
+        : [];
+      WARN.push(
+        '"' +
+          (filename || 'file') +
+          '" is a fusion export (output of the Integrator or OverDex), not a node export, so it has no events to fuse; skipped. ' +
+          (_built.length ? 'Load the node exports it was built from: ' + _built.join(', ') + '.' : 'Load the node exports it was built from.')
+      );
+      return;
+    }
     // Structural conformance (precise diagnostics; ADVISORY — never blocks ingest,
     // the adapters still read by structure). Surfaces exact reasons a node export is
     // malformed instead of the generic "no events found".
@@ -18420,7 +18440,14 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         fetch(path)
           .then(function (r) {
             if (!r.ok) throw new Error(r.status);
-            return r.json();
+            return r.text();
+          })
+          .then(function (text) {
+            // A host that answers a missing path with a web page (status 200) would surface as
+            // "Unexpected token '<'". The samples are git-tracked beside the source page only; a
+            // served copy (docs/) has no uploads/ folder next to it.
+            if (/^\s*</.test(text)) throw new Error('the host returned a web page, not the sample; this copy of the page has no uploads/ folder beside it');
+            return JSON.parse(text);
           })
           .then(function (json) {
             ingestJSON(json, path.split('/').pop());
