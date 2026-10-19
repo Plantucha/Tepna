@@ -50,3 +50,41 @@ the pair is a small committed JSON and not a raw recording. `oxyComputeFusion` r
 
 The corpus line forbids committing anything captured, so both sides of this pair are synthetic. A real tri-device night
 would be the stronger fixture and that is the owner's call, not mine.
+
+---
+
+## DONE — 2026-10-18, DRAFT #3655 (`claude/ecgpair-mg` @ `216be1e92`, `/home/michal/wt-ecgpair-mg`)
+
+All four steps shipped, plus one the plan did not foresee. Two `.gitignore` allow-list lines let the repo
+carry `uploads/synthetic_ecg_night.node-export.json` and
+`uploads/OxyDex_synthetic_ecg_paired_summary.json`, `tools/gen-ecg-night-pair.mjs` builds the ECG half,
+and `tools/regen-oxydex-goldens.mjs` gained a `fromCSVWithEcg` builder and a fifth fixture. `npm run check` ran green over all 38 steps on that commit,
+and `tools/verify-fixtures.mjs` re-stamped three corpus-backed fixtures under `computeHash a4471a916bc5`.
+
+The step the plan missed: `oxydex-app.js` assembled the export's block inline, and an
+app-level assembly sits outside a headless regen's reach. It moved to `oxydex-fusion.js` as
+`oxyEcgFusionBlock`, `tools/realm-manifest.js` gained `OXY_FUSION_REALM`, and `oxydex-app.js` now calls
+it. That edit does move `computeHash` (`d64f76e7a3f7` → `a4471a916bc5`), because the denylist in
+`manifest-gate.js` fails closed INTO the compute closure for an asset it does not know. The yield pin
+reads `cohort-worker.js`'s `SCRIPTS` table, which lists neither file, so the 19-minute re-cut stayed unowed.
+
+### Two lessons
+
+The fixture-reproducibility gate builds its "something re-runs this" registry out of
+`Object.keys(env.equiv)` mapped through `EQ[k].fixtureFile`, and out of nothing else. My first wiring hung
+the record on its own `env.oxyEcgPair` key and the gate called the new fixture an orphaned code claim on
+the first run. The record now lives in `readEquiv()`'s `out` as `oxydex_ecg_pair`, and it carries no
+`input` field, because its fixture needs two and the `CASES` table keys by node.
+
+A fixture conflict makes `tools/rebase-safe.mjs` fail closed: it classifies `uploads/*.json` as `source`,
+and `guard-shared-tree.sh` then denies `git checkout --ours` over the same paths. The hook declines to
+exempt `provenance`, since a wholesale restore discards `verifiedUnder` stamps only a corpus run re-earns.
+This branch therefore stays four commits BEHIND on purpose. Kodiak updates the front PR when it is BEHIND,
+CI runs on the merge commit, and I read the diff to confirm it adds no defect-pin annotation phrase, so
+main's census gate needs nothing from this branch.
+
+### Owed next
+
+A residue row, once the RESIDUE slot frees: the fusion block drops `undefined` keys on the way into the
+export, so `estimatedAHI` and `riskCategory` vanish instead of reading `null`. A consumer cannot tell an
+absent AHI from one nobody wrote.
