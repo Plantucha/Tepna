@@ -217,6 +217,59 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════════════════════
+  //  FILENAME STAMP — fileStamp()            (Clock Contract §4, anchor source (2))
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  `YYYYMMDDHHMMSS` — or the Polar-Sensor-Logger split `YYYYMMDD_HHMMSS` — lifted out of a capture
+  //  filename as floating wall-clock ms. §4 names the filename as anchor source (2), and until now no
+  //  one owned it: six call sites had each grown a regex, and four of the six built the instant with a
+  //  bare `Date.UTC` over digit slices. §2.7 forbids that, for the reason `oxydex-dsp.js` measured
+  //  before it fixed its own two: `20261332999999` (month 13, day 32) rolls to a night dated
+  //  2027-02-01, and `99999999999999` to 10007-06-07 — a fabricated date, read off a filename, with
+  //  nothing flagged.
+  //
+  //  THREE rules, each one a defect the fleet already paid for:
+  //   · SCAN FROM THE RIGHT. The stamp is the token before the stream tag. A device id can itself be
+  //     14 digits (`Polar_H10_20250101000000_20260725225058_ECG.txt`), and a left-to-right search
+  //     keys that file to a session eighteen months away instead of falling back to mtime
+  //     (`capture-host/writers.py file_stamp`, audit F5). The JS twin of that bug ate an 8-digit
+  //     serial as year 0292 (DEEP-AUDIT-II §10.5).
+  //   · BOUND THE DIGIT RUN. A bare `/(\d{14})/` takes the first fourteen digits of a LONGER run, so
+  //     a 15-digit id yields a stamp that is wrong by a decade and parses cleanly. Splitting the name
+  //     on non-digits makes every candidate a MAXIMAL run, which is the rule stated directly: a stamp
+  //     is fourteen digits with a non-digit on each side, never a window inside a longer number.
+  //   · VALIDATE, then require a plausible year. The candidate goes through `parseTimestamp`'s 14-digit
+  //     branch, so `_ckMk` refuses a date that does not round-trip; the year window then refuses the
+  //     in-range-but-absurd ones, because `_ckMk` is perfectly happy with year 0292.
+  //
+  //  TWO LAYOUTS, one device, and the split one is load-bearing: the capture host writes the 14 digits
+  //  contiguously (`..._20260610211539_PPG.txt`) and Polar Sensor Logger separates them
+  //  (`..._20260610_211539_PPG.txt`). Reading only the contiguous form made every PSL file parse to
+  //  `null` while its name still matched the device pattern, so the file was found and then dropped one
+  //  line later — quieter than not matching at all, and worth 0 usable PSL nights (found 2026-08-18).
+  //
+  //  Returns `{ tMs, stamp }`, or `null` when the name carries no readable stamp. `null` means the
+  //  filename cannot supply the anchor; the caller falls through to its own next source (§4) and never
+  //  fabricates one.
+  var CK_FSTAMP_MIN_YEAR = 1990, // below this a "stamp" is a serial or an id, not a capture date
+    CK_FSTAMP_MAX_YEAR = 2099;
+  function fileStamp(name) {
+    var s = String(name == null ? '' : name);
+    s = s.slice(s.lastIndexOf('/') + 1); // basename — a directory in the path may carry its own digits
+    var parts = s.split(/\D+/); // maximal digit runs; the extension and every separator fall out with it
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var cand = null;
+      if (/^\d{14}$/.test(parts[i])) cand = parts[i];
+      else if (/^\d{6}$/.test(parts[i]) && i > 0 && /^\d{8}$/.test(parts[i - 1])) cand = parts[i - 1] + parts[i];
+      if (cand === null) continue;
+      var y = +cand.slice(0, 4);
+      if (y < CK_FSTAMP_MIN_YEAR || y > CK_FSTAMP_MAX_YEAR) continue; // keep scanning left, do not abort
+      var p = parseTimestamp(cand);
+      if (p) return { tMs: p.tMs, stamp: cand };
+    }
+    return null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════════════
   //  HOST-DISCIPLINED TIME AXIS — hostAxis()      (WEARABLE-HOST-AXIS-2026-08-02-BRIEF)
   // ══════════════════════════════════════════════════════════════════════════════════════
   //  Every Polar-Sensor-Logger / capture-host stream carries TWO clocks on EVERY row:
@@ -764,6 +817,7 @@
     _ckDMY: _ckDMY,
     resolveDMY: resolveDMY,
     parseTimestamp: parseTimestamp,
+    fileStamp: fileStamp,
     hostAxis: hostAxis,
     // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
     // delegate by name, the way they already do for parseTimestamp.

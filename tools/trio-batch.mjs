@@ -2518,11 +2518,20 @@ function readDatTimefit(dirs, winLo, winHi, ringClock) {
   const DAT_MAX_LAG_S = 14400;
   const DAT_STAMP_SLOP_MS = 12 * 3600 * 1000;
   if (!isFinite(winLo) || !isFinite(winHi)) return null; // no host window ⇒ nothing to fit against
+  loadDsps();
+  const _dc = ctx.DexClock;
+  // Fail LOUD, the way the shared-registry lookup in signal-orchestrate.js does. A missing spine
+  // module must not degrade into "no file carries a stamp", which reads as a clean empty result.
+  if (!_dc || typeof _dc.fileStamp !== 'function') throw new Error('trio-batch: DexClock.fileStamp not found in the headless realm — clock.js must load before this runs');
+  // §4 anchor source (2) through its one owner. What stood here built the instant with a bare
+  // `Date.UTC` over digit slices, so a filename whose month reads 13 produced a date instead of a
+  // refusal (§2.7); and it read the FIRST underscore-delimited run, so a 14-digit device id beat the
+  // session stamp beside it. `fileStamp` scans from the right and validates. It also accepts the
+  // Polar-Sensor-Logger split form, which this call site never read — a widening in the same
+  // direction as the 2026-08-18 fix, never a narrowing.
   const stampOf = (f) => {
-    const m = /_(\d{14})_/.exec(f);
-    if (!m) return null;
-    const v = m[1];
-    return Date.UTC(+v.slice(0, 4), +v.slice(4, 6) - 1, +v.slice(6, 8), +v.slice(8, 10), +v.slice(10, 12), +v.slice(12, 14));
+    const r = _dc.fileStamp(f);
+    return r ? r.tMs : null;
   };
   /* The stored sessions sit in a `stored/` SIBLING of the night dirs, not inside them. */
   const datFiles = [];
