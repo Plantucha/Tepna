@@ -567,3 +567,49 @@ def test_the_window_opens_on_the_minute_regardless_of_the_current_second():
     assert st.due(sched, now, dt.datetime(2026, 7, 25, 9, 0, 0, 250_000)) is False, (
         "a run 250 ms after the opening is this window's run — the anchor must not carry now's microseconds"
     )
+
+
+# ── due(): the window that crosses midnight ─────────────────────────────────────────────────────────
+# Every test above picks 09:00 or 03:30, so `[at, at+window_min)` never crosses 00:00 and the clip that
+# `due` carried was invisible to all of them. `validate_schedule` accepts any `at` and a `window_min` up
+# to 1440, and an evening offload window is the whole point of the `daily` mode — the LAN push is meant
+# to happen while nobody is asleep beside the box.
+def test_a_daily_window_that_crosses_midnight_stays_open_past_midnight():
+    """`opened` was built on NOW's date, so for every minute before `at` the anchor sat in the future and
+    the function answered "not yet". A 23:00 window therefore ran for one hour, not the two it declares,
+    and its second hour was dropped in silence every single day."""
+    sched = {"mode": "daily", "at": "23:00", "window_min": 120}
+    assert st.due(sched, dt.datetime(2026, 7, 25, 22, 59), None) is False, "still before the opening"
+    assert st.due(sched, dt.datetime(2026, 7, 25, 23, 30), None) is True, "the first hour, which always worked"
+    assert st.due(sched, dt.datetime(2026, 7, 26, 0, 30), None) is True, (
+        "the SECOND hour, on the far side of midnight — the half this function used to drop"
+    )
+    assert st.due(sched, dt.datetime(2026, 7, 26, 1, 0), None) is False, (
+        "exactly window_min after the opening is outside, the same half-open rule as a flat window"
+    )
+
+
+def test_a_wrapped_window_that_already_ran_does_not_run_again_after_midnight():
+    """The anchor must move BACKWARD to yesterday's opening, never forward to tomorrow's. Forward also
+    puts `now` inside a window, and `last_run` then reads as older than an opening that has not happened
+    — so the offload fires again at 00:30 on a night it already pushed."""
+    sched = {"mode": "daily", "at": "23:00", "window_min": 120}
+    ran = dt.datetime(2026, 7, 25, 23, 5)
+    assert st.due(sched, dt.datetime(2026, 7, 26, 0, 30), ran) is False, "this window's run is on record"
+    assert st.due(sched, dt.datetime(2026, 7, 26, 0, 30), dt.datetime(2026, 7, 24, 23, 5)) is True, (
+        "the run on record answers the PREVIOUS night's window, so tonight's is still owed"
+    )
+
+
+def test_a_full_day_window_is_open_at_every_hour_and_still_runs_once():
+    """`window_min` up to 1440 is legal, and 1440 means "any time of day". Under the clipped anchor it
+    meant `[at, 24:00)` instead, so a box whose poller ticked after midnight never offloaded at all. The
+    once-per-opening rule is what keeps the open window from re-firing every tick."""
+    sched = {"mode": "daily", "at": "09:00", "window_min": 1440}
+    assert st.due(sched, dt.datetime(2026, 7, 25, 8, 59), None) is True, "08:59 belongs to yesterday's opening"
+    assert st.due(sched, dt.datetime(2026, 7, 25, 8, 59), dt.datetime(2026, 7, 24, 9, 30)) is False, (
+        "and that opening's run is already on record"
+    )
+    assert st.due(sched, dt.datetime(2026, 7, 25, 8, 59), dt.datetime(2026, 7, 23, 9, 30)) is True, (
+        "a run two days old is stale against yesterday's opening"
+    )
