@@ -1589,6 +1589,18 @@
    },
    "note": "wave-2 adopter (Magpie): the #2758 heuristic (a lone 156 is a beat marker, a run of 156s is signal) — PASS holds with >= 1 discriminating run row · UNDERPOWERED holds but VACUOUS (no run of 156s seen; minimum 1) · FAIL names which of the three counts is non-zero · NOT_RUN nothing scored. Population = rows scored. --json prints the object after the report; the sample is the #2758 corpus counts."
   },
+  "tools/ppg-autogain-e2.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ppg-autogain-e2.mjs",
+     "--json"
+    ]
+   },
+   "note": "experiment E-2 of briefs/PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md (item 9, autogain step detect + repair before filtering): does the zero-phase settling ringing around an autogain level step cost the shipped rMSSD more than a tenth of the brief's own 1 % bias figure? Pre-stated criterion ac_quiet_rmssd_delta_median <= 0.35 ms over the AC-quiet steps; population = the recordings the stated size rule finds under --dir, nights whose per-night positive control fails are excluded and nights whose real delta does not clear a matched random null are not counted toward the median. Without --dir it emits NOT_RUN, so the gate can run it with no corpus; the unfiltered pass is NOT_APPLICABLE because the criterion is stated over AC-quiet steps only."
+  },
   "tools/ppg-bridge-hrv-validate.mjs": {
    "bin": "word-only",
    "status": "exempt",
