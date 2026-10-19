@@ -534,7 +534,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
     # 314 → 315 on 2026-10-18 (spool pull after therapy): the PURE `_post_therapy_pull_due`, tested
     # directly. +1, the whole delta. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 315, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 315 → 318 on 2026-10-18 (the stall sampler, O2RING-FREEZE-SURVIVAL §4 step 1): `_stall_sink` with
+    # its nested `_sink` — the sink is a closure so the night resolves PER ROW, which a path captured at
+    # arm time cannot do — and the `stall_sampler_watch` task itself. +3, the whole delta. The episode
+    # machine and the frame rendering live in `stallsampler.py` rather than here, so they add nothing to
+    # this count and are mutated under their own module. `moduleFunctionsAtDeclaration` stays where it
+    # is, per the note above.
+    assert n == 318, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
