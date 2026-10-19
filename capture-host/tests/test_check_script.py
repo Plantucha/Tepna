@@ -55,6 +55,8 @@ def _sandbox(
     mypy_line=None,
     timeout_plugin=True,
     runtime_deps=True,
+    ruff_mod=True,
+    cov_plugin=True,
     unwired_rc=0,
     unwired_object="PASS",
 ):
@@ -118,6 +120,10 @@ for a in "$@"; do
     "import pytest_timeout") exit {0 if timeout_plugin else 1} ;;
     # The RUNTIME-requirements probe (bleak): absent, the mypy count is not the baseline's quantity.
     "import bleak") exit {0 if runtime_deps else 1} ;;
+    # The PREFLIGHT probes. These two absences are the ones no exit code can report honestly — ruff's
+    # absent-module exit 1 is also its "violations found" code — so the script refuses before any gate.
+    "import ruff") exit {0 if ruff_mod else 1} ;;
+    "import pytest_cov") exit {0 if cov_plugin else 1} ;;
     # ⚠️ `ruff` SERVES TWO GATES since 2026-10-05 — `ruff check .` and `ruff format --check .` — and a
     # single stub for both is a harness that cannot tell them apart. It showed up as arithmetic: the
     # "every failing gate is named" test planted TWO failures and the summary reported THREE, because
@@ -710,3 +716,61 @@ def test_every_path_check_sh_writes_is_redirectable():
     code = open(CHECK, encoding="utf-8").read()
     for var in ("MYPY_OUT", "CHECK_VERDICT_OUT", "UNWIRED_VERDICT_OUT"):
         assert f"${{{var}:-" in code, f"{var} is no longer an override — sandboxes would share the checkout's file"
+
+
+# ── THE PREFLIGHT ────────────────────────────────────────────────────────────────────────────────────
+# Measured twice in one day, from two different worktrees (2026-10-18 `wt-mut63-osp`, 2026-10-19
+# `wt-nqcframe-hrn`): a `git worktree` has no `.venv`, `PY` falls back to a bare `python3`, and the run
+# reports `3 gate(s) failed` with a FAIL verdict naming ruff — about a diff nothing examined. The remedy
+# was in the script's header both times, so these pin it in the SCRIPT.
+
+
+def test_an_interpreter_without_ruff_is_REFUSED_before_any_gate_runs(tmp_path):
+    """The defect, in the direction that misreports worst: `$PY -m ruff` with no ruff exits 1, and that
+    is also ruff's "violations found" code, so the verdict blames the diff. Nothing may run."""
+    p, ran = _run(tmp_path, ruff_mod=False)
+    assert p.returncode == 2, p.stdout + p.stderr
+    assert ran == [], f"a refusal that still ran gates is not a refusal: {ran}"
+    out = p.stdout + p.stderr
+    assert "REFUSED" in out and "ruff" in out, out[-2000:]
+    assert "PYTHON=" in out, "it must name the remedy, not merely the fault"
+
+
+def test_an_interpreter_without_pytest_cov_is_REFUSED_so_the_floor_is_never_silently_skipped(tmp_path):
+    """The other half: `--cov` with no pytest-cov is exit 4, and the 100 % floor goes unevaluated —
+    CLAUDE.md §🐍's "a pytest line without --cov does not evaluate the floor at all"."""
+    p, ran = _run(tmp_path, cov_plugin=False)
+    assert p.returncode == 2, p.stdout + p.stderr
+    assert ran == [], ran
+    assert "pytest-cov" in p.stdout + p.stderr
+
+
+def test_the_refusal_names_EVERY_missing_tool_not_just_the_first(tmp_path):
+    """Same reason the gate runs all five children: fix one, re-run, discover the second."""
+    p, _ = _run(tmp_path, ruff_mod=False, cov_plugin=False)
+    out = p.stdout + p.stderr
+    assert "ruff pytest-cov" in out, out[-2000:]
+
+
+def test_the_refusal_writes_a_NOT_RUN_object_so_no_reader_sees_a_STALE_pass(tmp_path):
+    """The object is the API (§🧾). A refusal that writes nothing leaves the PREVIOUS run's object on
+    disk, and a reader keying on it reads a PASS over a tree nobody examined."""
+    env, _ = _sandbox(tmp_path, ruff_mod=False)
+    out_path = pathlib.Path(env["CHECK_VERDICT_OUT"])
+    out_path.write_text(json.dumps({"schema": "tepna.verdict/1", "gate": "capture-host-check", "status": "PASS"}))
+    p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    assert p.returncode == 2, p.stdout + p.stderr
+    obj = json.loads(out_path.read_text())
+    assert obj["status"] == "NOT_RUN", f"a refusal must overwrite the stale PASS: {obj['status']}"
+    assert obj["population"] == {"checked": 0, "eligible": 5, "excluded": 5}
+    assert obj["result"] is None
+    assert "ruff" in obj["reason"] and "nothing was examined" in obj["reason"]
+
+
+def test_a_COMPLETE_interpreter_is_not_refused(tmp_path):
+    """The control. The probes are the only thing standing between a working box and a refusal, so a
+    green sandbox must still run all four blocking gates."""
+    p, ran = _run(tmp_path)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert set(ran) == {"ruff", "format", "shellcheck", "pytest"}, ran
+    assert "REFUSED" not in p.stdout + p.stderr
