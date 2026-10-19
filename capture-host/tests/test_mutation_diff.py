@@ -108,6 +108,50 @@ def test_diff_key_is_whitespace_normalised_and_index_independent():
     assert M.diff_key("--- a\n+++ b\n context only\n") == ""
 
 
+def test_an_entry_whose_LINE_NEVER_MOVED_is_found_even_when_the_source_spaces_it_differently():
+    """The key is whitespace-normalised, so the search over the source must be too.
+
+    `tools/mutate_diff.py` calls an entry ORPHANED when its before text is not in the module, which
+    means "the line moved, so this entry excuses nothing". Ruff puts TWO spaces before an inline
+    comment and `diff_key` collapses them to one, so the raw substring test never matched a key
+    carrying a comment — eight ledger entries read as orphaned on 2026-10-19 with every one of their
+    lines still in place."""
+    src = "def f():\n    read_one = False  # did ANY file get read?\n    return read_one\n"
+    key = "- read_one = False # did ANY file get read? | + read_one = None # did ANY file get read?"
+    assert key.split(" | + ")[0][2:] not in src, "the raw form is the bug this test pins"
+    assert M.entry_before_in_source(key, src) is True
+
+
+def test_a_MULTI_LINE_before_holds_only_while_EVERY_removed_line_is_still_there():
+    """A mutant of a wrapped call carries one key per removed line, joined as `- a | - b | + c`."""
+    src = "x = Found(\n    address=addr,\n    rssi=cur.rssi if cur else None,\n)\n"
+    both = "- address=addr, | - rssi=cur.rssi if cur else None, | + address=addr, | + rssi=None,"
+    assert M.entry_before_in_source(both, src) is True
+    gone = "- address=addr, | - rssi=cur.rssi if cur else 0, | + address=addr,"
+    assert M.entry_before_in_source(gone, src) is False
+
+
+def test_a_before_LINE_OF_ONE_CHARACTER_is_read_from_the_right_offset():
+    """A key's head is `"- "` plus the line, so the line starts at offset 2 and not at 3.
+
+    One character further in reads an EMPTY line for a one-character one, and an entry with nothing
+    to look for reports as orphaned. The ledger holds such a key today: mutmut's diff for a wrapped
+    call carries the lone `)` line, as `- address=addr, | - ) | + address=addr,` in `bonding.py`.
+    Every longer line hides the offset, because a substring test still matches text whose first
+    character is gone."""
+    src = "x = Found(\n    addr,\n)\n"
+    assert M.entry_before_in_source("- ) | + ),", src) is True
+
+
+def test_a_key_that_states_no_REMOVED_line_can_never_claim_its_line_is_present():
+    """Absence of evidence is reported as orphaned, never as present (§∅): the entry is then the
+    thing to re-verify. A key with no `- ` head, or none at all, states nothing to look for."""
+    assert M.entry_before_in_source(None, "x = 1\n") is False
+    assert M.entry_before_in_source("+ x = 2", "x = 1\n") is False
+    assert M.entry_before_in_source("- ", "x = 1\n") is False
+    assert M.entry_before_in_source("- x = 1 | + x = 2", "") is False
+
+
 # ── refusal_reason — the guard against failing OPEN ─────────────────────────────────────────────
 
 

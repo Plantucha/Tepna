@@ -468,6 +468,29 @@ def diff_key(diff_text: str) -> str:
     return " | ".join(" ".join(ln.split()) for ln in keep)
 
 
+def entry_before_in_source(key: "str | None", source: str) -> bool:
+    """Is an equivalence entry's BEFORE text still in `source`, read the way `diff_key` wrote it?
+
+    `tools/mutate_diff.py` tells an ORPHANED entry (its line moved, so it excuses nothing) from an
+    out-of-scope one (its line is unchanged and its function is simply not in this diff) by looking
+    for the entry's before text in the module. The key is WHITESPACE-NORMALISED above, so a raw
+    substring test against the source finds nothing whenever the source spaces that line differently
+    — and ruff requires TWO spaces before an inline comment, which the key collapses to one. So every
+    entry whose key carries an inline comment read as orphaned, forever, through no fault of its own.
+
+    Measured 2026-10-19 over the ledger's 299 keyed entries: 8 were misreported that way, 7 for an
+    inline comment and the eighth for a before spanning two lines of a wrapped call, whose key reads
+    `- a | - b | + c`. Comparing normalised to normalised corrects all 8 and moves nothing the other
+    way. The test stays a SUBSTRING, because a mutant of a wrapped expression carries a fragment of
+    its source line, and a multi-line before holds only when EVERY removed line is still there."""
+    if not key or not key.startswith("- "):
+        return False
+    normalised = "\n".join(" ".join(ln.split()) for ln in source.splitlines())
+    removed = [" ".join(seg.split()) for seg in key.split(" | + ")[0][2:].split(" | - ")]
+    removed = [seg for seg in removed if seg]
+    return bool(removed) and all(seg in normalised for seg in removed)
+
+
 def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], str | None]:
     """The functions whose AST DIFFERS between two revisions of one module, named the way
     `functions_covering` names them, and a reason when the question cannot be answered.
