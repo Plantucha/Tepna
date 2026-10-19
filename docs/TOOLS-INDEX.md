@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**267 tools** · 266 with a purpose line · **1 without**
+**268 tools** · 267 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -253,6 +253,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`tch-multinight.mjs`](../tools/tch-multinight.mjs) | multi-night three-cornered-hat A/B harness (classic reference-free σ vs per-night motion-derived ρ) |
 | [`tch-per-epoch-rho.mjs`](../tools/tch-per-epoch-rho.mjs) | See briefs/TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md §3 |
 | [`tch-pooled-hat.mjs`](../tools/tch-pooled-hat.mjs) | THE POOLED-SECONDS HAT, and why it differs from a median over nights. |
+| [`tch-reference-record.mjs`](../tools/tch-reference-record.mjs) | THE PUBLIC RECORD OF THE HAT'S REFERENCE CHECK — pooled figures only, and the card reads it. |
 | [`tch-reference-validation.mjs`](../tools/tch-reference-validation.mjs) | See briefs/TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md |
 | [`tch-third-corner.mjs`](../tools/tch-third-corner.mjs) | THE O2RING AS A REAL THIRD CORNER — its own clock, not the host's. |
 | [`tch-window-sensitivity.mjs`](../tools/tch-window-sensitivity.mjs) | how much of the night did you keep, and what did that do to σ? |

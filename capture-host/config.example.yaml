@@ -436,6 +436,10 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
   #   enabled: false
   #   at_hour: 10                  # local hour; window is [at_hour, at_hour+window_h), wraps midnight
   #   window_h: 2
+  #   after_therapy_s: 300         # ALSO pull this long after each retained auto-start session ends,
+  #                                # at any hour; the window above stays as the backstop. Waits while
+  #                                # the detector still reads Therapy, and never starts inside the
+  #                                # harvest hours. null turns it off.
   #   spool_type: Summary          # the ONLY type the device is known to serve. A guessed detail-type
   #                                # name returns -32602, which refutes THAT STRING and nothing more —
   #                                # it is not evidence that no waveform spool exists (brief Do-4).

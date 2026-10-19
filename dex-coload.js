@@ -50,7 +50,8 @@
       'adapters/o2ring-ppg.js',
       'adapters/o2ring-ppg2w.js',
       'adapters/polar-h10-ecg.js',
-      'adapters/resmed-edf.js'
+      'adapters/resmed-edf.js',
+      'adapters/polar-acc.js'
     ],
     // namespaced node DSPs (each hangs its public surface off ONE global —
     // PulseDex/OxyDex/HRVDex/GlucoDex/PpgDex/ECGDex — and leaks nothing bare under

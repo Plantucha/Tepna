@@ -38,6 +38,9 @@ from __future__ import annotations
 # configurable, and `harvest_conflict` is what actually holds the separation.
 SPOOL_AT_HOUR_DEFAULT = 10
 SPOOL_WINDOW_H_DEFAULT = 2
+# Seconds after a retained therapy session ends before the post-therapy pull. The device writes the
+# night's Summary record after the mask comes off; 300 s leaves it room. `null` turns the pull off.
+SPOOL_AFTER_THERAPY_S_DEFAULT = 300.0
 
 
 def window_hours(at_hour: int, window_h: int) -> set[int]:
@@ -57,6 +60,17 @@ def harvest_conflict(spool_at: int, spool_window_h: int, harvest_at: int, harves
     Returns the offending HOURS, not a bool, so a refusal can name them — a refusal that cannot say
     which hour collided is a refusal the operator has to re-derive by hand."""
     return sorted(window_hours(spool_at, spool_window_h) & window_hours(harvest_at, harvest_window_h))
+
+
+def after_therapy_seconds(scfg: dict) -> float | None:
+    """`cpap.spool_pull.after_therapy_s` as seconds, or None for OFF. PURE.
+
+    Absent takes the default. `null`, `false`, a negative number or a non-number is OFF. A typo must
+    not arm a pull at a delay nobody chose."""
+    raw = scfg.get("after_therapy_s", SPOOL_AFTER_THERAPY_S_DEFAULT)
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw < 0:
+        return None
+    return float(raw)
 
 
 def spool_arming(cfg: dict) -> dict:
