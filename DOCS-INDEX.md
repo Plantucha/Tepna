@@ -544,7 +544,7 @@ first — this index maps the ~60 *markdown* docs; the block below surfaces the 
 | [`SOFTWARE-LIFECYCLE-PLAN.md`](docs/COMPLIANCE/SOFTWARE-LIFECYCLE-PLAN.md) | Umbrella — SemVer bump semantics + the IEC 62304 / ISO 13485 clause crosswalk (with an honest gap column) | Reference *(living)* |
 | [`SAFETY-CLASSIFICATION.md`](docs/COMPLIANCE/SAFETY-CLASSIFICATION.md) | IEC 62304 §4.3 software safety class — Class A rationale (non-device; retrospective descriptive summaries only) | Reference *(living)* |
 | [`CONFIGURATION-MANAGEMENT-PLAN.md`](docs/COMPLIANCE/CONFIGURATION-MANAGEMENT-PLAN.md) | IEC 62304 §8 — configuration items, change control, status accounting (= CHANGELOG + RELEASE-MANIFEST), reproducibility | Reference *(living)* |
-| [`SOUP-LIST.md`](docs/COMPLIANCE/SOUP-LIST.md) | IEC 62304 §5.3.3/§8.1.2 — runtime SOUP **empty by design**; build-time tooling only | Reference *(living)* |
+| [`SOUP-LIST.md`](docs/COMPLIANCE/SOUP-LIST.md) | IEC 62304 §5.3.3/§8.1.2 — bundled runtime SOUP **empty by design**; the capture-host's 15-distribution runtime closure (§3) and the build-time tooling (§4) | Reference *(living)* |
 | [`SOFTWARE-RELEASE-PROCEDURE.md`](docs/COMPLIANCE/SOFTWARE-RELEASE-PROCEDURE.md) | IEC 62304 §5.8 release SOP — the `tools/release.mjs` runbook, sign-off, reproducibility evidence | Reference *(living)* |
 | [`DOCUMENT-CONTROL.md`](docs/COMPLIANCE/DOCUMENT-CONTROL.md) | ISO 13485 §4.2.4/§4.2.5 crosswalk — the brief lifecycle + gates **as** document/record control | Reference *(living)* |
 
