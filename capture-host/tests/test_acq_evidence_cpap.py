@@ -1237,3 +1237,33 @@ def test_the_round_record_ALWAYS_CARRIES_bytes_which_is_why_or_0_is_safe_here():
         )["round"]["bytes"]
         == 0
     )
+
+
+# ── `stalls` gained a writer (cpap_continuity → cpap_stream), so the completeness axis must read it ──
+
+
+def test_a_MEASURED_stall_is_known_loss_and_makes_the_acquisition_PARTIAL():
+    """🔴 The trap this closes. GapCounters keeps `stalls` out of `total_lost` on purpose — it counts
+    stall events on the device clock, not frames — so the completeness axis has to sum it here. Without
+    that, the field that just gained a detector would stamp COMPLETE over a detected loss, which is the
+    `sink_errors` defect recorded in this module, reappearing one field over."""
+    c = _counters(stalls=3, lost_coverage_missing=[])
+    ev = cpap.assemble_live(_facts(), counters=c, stopped_cleanly=True)
+    assert ev.completeness == ae.PARTIAL, "a detected stall is loss, however clean the stop"
+    assert ev.provenance["unmeasured_loss"] == [], "it was measured — the complaint is the value, not the absence"
+
+
+def test_an_UNMEASURED_stall_contributes_no_loss_and_is_NAMED_instead():
+    """The asymmetry this module states: an absent category adds nothing to the sum (§∅ — never a
+    fabricated zero) and goes into `unmeasured_loss`, which is what keeps it out of COMPLETE."""
+    c = _counters(stalls=None, lost_coverage_missing=["stalls"])
+    ev = cpap.assemble_live(_facts(), counters=c, stopped_cleanly=True)
+    assert ev.completeness == ae.UNKNOWN, "not PARTIAL: nothing was found, only unlooked-for"
+    assert ev.provenance["unmeasured_loss"] == ["stalls"]
+
+
+def test_a_measured_ZERO_stall_does_not_block_COMPLETE():
+    """The bound. 0 means "compared, and the device clock was contiguous" — the state COMPLETE exists
+    to be reachable from."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(stalls=0), stopped_cleanly=True)
+    assert ev.completeness == ae.COMPLETE

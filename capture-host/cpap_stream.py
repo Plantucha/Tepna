@@ -299,6 +299,13 @@ async def stream_to_bus(
     finally:
         for s in sinks:
             s.close()
+        if continuity is not None:
+            # THE STALL WRITER. `stalls` was declared with a spec citation and no detector behind it,
+            # so `lost_coverage_missing` named it on every session and completeness could never read
+            # COMPLETE. The detector is the continuity tracker's own owed-sample comparison; this line
+            # is what carries it onto the gap-accounting record. BEFORE `summary()`, because
+            # `lost_coverage` reads the field.
+            counters.stalls = continuity.stalls
         _summary = counters.summary()
         if events is not None:
             # The trigger's stop is the pump ending — however it ended. Recorded before the snapshot so
@@ -313,7 +320,8 @@ async def stream_to_bus(
             # (measured 2026-09-18: raw_record_factory None ⇒ acq_evidence_out None ⇒ no envelope).
             _summary = {**_summary, **continuity.snapshot()}
             continuity.note_end(clean=clean)
-        if counters.total_lost or counters.sink_errors or counters.foreign_stream:
+        # A measured stall is known loss, so it raises the line to WARNING like the other categories.
+        if counters.total_lost or counters.sink_errors or counters.foreign_stream or counters.stalls:
             _log.warning("CPAP stream gap accounting: %s", _summary)
         else:
             _log.info("CPAP stream gap accounting: %s", _summary)
