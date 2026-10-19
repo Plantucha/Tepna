@@ -4769,7 +4769,8 @@
         const covT = motion.motionCoveredAtSec ? idx.filter((i) => motion.motionCoveredAtSec(tt[i])) : idx;
         if (covT.length) mi = r2(mean(covT.map((i) => motion.motionAtSec(tt[i]))));
       }
-      const pi = perfWindow ? perfWindow(e0 + epLen / 2) : null;
+      // the epoch's own span, not its midpoint — the midpoint was passed and discarded
+      const pi = perfWindow ? perfWindow(e0, e0 + epLen) : null;
       const post = motion && motion.postureDetailAtSec ? motion.postureDetailAtSec(e0, e0 + epLen) : null;
       const position = post ? post.position : 'unknown';
       // §5: mean 3-LED agreement across this epoch's beats (null when single-channel session)
@@ -5223,10 +5224,71 @@
     const dfa1 = hasSequenceGap ? null : dfaAlpha1(nn);
     const se = hasSequenceGap ? null : sampEn(nn);
 
-    // perfusion index over windows (AC/DC) for epochs/morph hand-off
-    const dc = mean(Array.from(raw).map(Math.abs));
-    const acAmp = std(bp);
-    const perfWindow = () => (dc > 0 ? r2((100 * acAmp) / dc) : null);
+    /* ── perfusion index: AC over the LED-attributable DC, across an arbitrary span ─────────────
+       DC is `mean|ch - ambient|`, never `mean|ch|`. The Verity's ambient phase is the detector's
+       zero-light reading, and it sits ~650,000 counts away from zero on every file: measured over 27
+       real nights (103.2 M rows, 162.7 h) its mean runs 650,473-650,720 counts, a 0.038 % spread. So
+       `|ch|` is a pedestal plus the light, and dividing by it under-reports the perfusion index by the
+       whole pedestal. Measured on those nights, the correction is 0.78x-3.90x (median 2.02x) between
+       nights, and 1.14x-177x WITHIN one night, so the trend's SHAPE was wrong and not only its scale.
+       Ambient has no overnight dynamic range of its own (DEEP-DIVE 3.2 refuted it as an SQI on this
+       same corpus), so this REFERENCES the denominator to zero light; it does not subtract ambient
+       from the signal.
+       A layout with no ambient column keeps `mean|ch|`. That is the O2Ring finger site, whose ring
+       AC-couples and gain-normalises on-device, so the subtraction already sits in the bytes;
+       `parsePPG` writes NaN there deliberately. Reading the fallback is the measurement here, and it
+       is not an absence standing in as a value.
+       GENUINELY PER-SPAN. This read `() => ...` over two whole-record constants, so every epoch's
+       `pi` carried the same number and the per-epoch series drew a flat line that `buildEpochs`
+       believed it had measured: it passed the epoch midpoint and the closure discarded the argument. */
+    /* An ambient array with NO finite sample in it is an ABSENT COLUMN, not a dropout: `parsePPG`
+       drops any row whose ambient fails `isFinite` while the column exists, so every retained row of
+       a Verity file carries a finite ambient, and an all-NaN array can only be the layout that writes
+       NaN deliberately. That is what makes the pedestal fallback safe rather than an absence read as a
+       value — and it is why this reads finiteness instead of trusting the array's presence. */
+    let _ambRef = null;
+    if (rec.amb && rec.amb.length === raw.length) {
+      for (let i = 0; i < rec.amb.length; i++) {
+        if (Number.isFinite(rec.amb[i])) {
+          _ambRef = rec.amb;
+          break;
+        }
+      }
+    }
+    const perfWindow = (t0Sec, t1Sec) => {
+      const nSpan = Math.min(raw.length, bp.length);
+      const s0 = t0Sec == null ? 0 : Math.max(0, Math.round(t0Sec * rec.fs));
+      const s1 = t1Sec == null ? nSpan : Math.min(nSpan, Math.round(t1Sec * rec.fs));
+      if (s1 - s0 < 2) return null;
+      let dcSum = 0,
+        dcN = 0;
+      for (let i = s0; i < s1; i++) {
+        const d = _ambRef ? raw[i] - _ambRef[i] : raw[i];
+        if (!Number.isFinite(d)) continue;
+        dcSum += d < 0 ? -d : d;
+        dcN++;
+      }
+      let acSum = 0,
+        acN = 0;
+      for (let i = s0; i < s1; i++) {
+        if (Number.isFinite(bp[i])) {
+          acSum += bp[i];
+          acN++;
+        }
+      }
+      // §∅ — a span with nothing finite in it reports nothing, never a 0 perfusion index
+      if (!dcN || acN < 2) return null;
+      const m = acSum / acN;
+      let v = 0;
+      for (let i = s0; i < s1; i++) {
+        if (Number.isFinite(bp[i])) {
+          const dd = bp[i] - m;
+          v += dd * dd;
+        }
+      }
+      const dc = dcSum / dcN;
+      return dc > 0 ? r2((100 * Math.sqrt(v / acN)) / dc) : null;
+    };
 
     P(80, 'Epochs…');
     const epochs = buildEpochs(nn, corr.tt, motion, perfWindow, cleanMask, agreeI, adj);
@@ -5483,7 +5545,7 @@
     let morph = null;
     if (global.PPGMorph) {
       try {
-        morph = global.PPGMorph.analyze(bp, raw, det, rec.fs, sqi);
+        morph = global.PPGMorph.analyze(bp, raw, det, rec.fs, sqi, _ambRef);
       } catch (_e) {
         morph = null;
       }

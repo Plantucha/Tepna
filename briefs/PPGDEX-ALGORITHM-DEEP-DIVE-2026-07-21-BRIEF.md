@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.**
+**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS.
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -294,7 +294,7 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | 4 | **`isFinite` on ch1/ch2/amb, row-atomic drop** | `:269-278` | Closes a silent 3-LED→2-LED degradation that reports `ledAgreementPct: 67`, zero peaks, and no error | None; byte-inert on clean captures | Very high |
 | 5 | **ACC: per-file fs, sensor-ns join, overlap assert** | `:1811` | Removes a 2× rate error (25.84 vs assumed 52 Hz) and a 3.5–4.2 s (~600-sample) motion-gate misregistration | Low; motion gates shift where they were wrong | Very high |
 | 6 | **Whole-night channel scoring (p25 aggregate), still one fixed reference** — replaces the single ~90 s mid-record window that currently decides for the whole night | `:1706-1755` (the brief said `:380-435`, which is 1,300 lines off) | Removes a 1-in-85 single-point-of-failure; changes the pick on 2 of 8 nights | ✅ **shipped** 2026-10-19 (#3678) — measured 8 of 27 nights, and the real-night fixture did NOT move a measured value — the one committed metric that moved is the seeded `qrs-equiv` witness, rMSSD 41.4 → 41.2. See §4 #6 EXECUTED | High |
-| 7 | **Ambient-referenced perfusion index**, genuinely per-epoch | `:2121-2123`, `morph:263,289-303` | 2.0–3.4× correction to an exported number; PI becomes able to show posture/occlusion | Surfaced number changes 2–3.4×; docs must move with it | High on direction, medium on absolute calibration (§1.6) |
+| 7 ✅ | **Ambient-referenced perfusion index**, genuinely per-epoch — **EXECUTED 2026-10-19, see below** | `ppgdex-dsp.js perfWindow`, `ppgdex-morph.js perfusionIndex` + `perWindowMorph` (the `:2121-2123` anchor was stale) | PI stops dividing by the detector's ~650,000-count zero-light pedestal, and its per-epoch series stops being one repeated number | **Measured, not 2.0–3.4×: 0.78–3.90× over 27 nights, median 2.02×, and 1.14–177× WITHIN one night** — so the trend's shape moved too; docs moved with it | High on direction, medium on absolute calibration (§1.6) |
 | 8 | **`morph.pre` 0.15 → 0.50 s** (or feed it `det.feet`) | `ppgdex-morph.js:39` | `riseTimeMs`/`crestTimeMs` stop being pinned to the window (147.4 ms ceiling vs 296 ms true); fixes `augmentationIndexPct`, `reflectionIndex`, SDPPG a-wave | Isolated to one node — cheapest gate in the list | Very high |
 | 9 | **Autogain step detect + repair before filtering** — 39 steps/night at 5–25× pulse AC, and `filtfilt` is zero-phase so ringing propagates **both** directions in time | `:730` pre-filter | Removes bidirectional ringing artefacts around each step | One verifier measured net benefit ≈ 0; **measure before merging** | Medium — gated on E-3 |
 | 10 | **Centred TERMA moving averages** + symmetric search window | `:827-836`, `:656` | `movavg` is trailing, so W1/W2 impose 57 ms / 335 ms group delay; Elgendi specifies centred | Peak times shift by a near-constant; foot spine largely insulated | High |
@@ -411,7 +411,7 @@ pattern:
 | **#2 ★** | ~29 % of the exported series stops being a fabricated constant | open |
 | #5 | motion gates shift where they were wrong | open |
 | #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | ✅ **shipped** 2026-10-19 (#3678) |
-| #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | open |
+| #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | ✅ **shipped** 2026-10-19 — measured 0.78–3.90×, median 2.02×, and hash-only on every fixture |
 | #8 | every morphology value (measured above) | ✅ **shipped** 2026-10-19 (#3673) — hash-only, see §4 #8 EXECUTED |
 | #10 | peak times shift by a near-constant | open |
 | #11 | *"Some nights emit `null` where they emitted a number — consumer-visible"* | open |
@@ -501,6 +501,62 @@ the committed assertion is the deliverable, not the fixture move.
 
 ---
 
+### ✅ #7 EXECUTED 2026-10-19 — the correction is not 2.0–3.4×, and the per-epoch half was a second defect
+
+⚠️ **The Site column above was wrong.** `:2121-2123` holds no perfusion code in this tree. The number
+is built in `ppgdex-dsp.js`'s `perfWindow` closure, and in `ppgdex-morph.js`'s `perfusionIndex` and
+`perWindowMorph`. Re-read against the tree, exactly as the status line asks.
+
+**The denominator divided by a pedestal, not by the light.** The Verity's ambient phase is the
+detector's zero-light reading, and it sits about 650,000 counts from zero. Measured over 27 nights
+(103.2 M rows, 162.7 h, no bad rows) it spans 650,473 to 650,720 counts, a spread of 0.038 %. So
+`mean|ch|` was a hardware pedestal plus the pulsatile light, and the index read far too low. This is
+not §3.2's refuted ambient subtraction.
+
+**That refutation does not cover this one.** §3.2 subtracted ambient from the SIGNAL, and it failed
+because ambient carries no overnight dynamic range. Referencing the DENOMINATOR to it is a different
+claim, and this is the one measured here.
+
+🔴 **The row's "2.0–3.4×" is wrong as written.** Over those 27 nights the correction runs 0.78× to
+3.90×, median 2.02×. Only 13 of the 27 sit inside the stated band, and one night reads below 1.0.
+
+🔴 **And it is not a scalar.** Within a single night the factor runs 1.14× to 177×, median 1.69×. So
+the shipped PI trend had the wrong SHAPE, not only the wrong scale.
+
+🔴 **A second, independent defect sat in the same number.** `perfWindow` closed over two whole-record
+constants and discarded the epoch midpoint `buildEpochs` handed it. Every epoch therefore published
+one repeated number as a per-epoch measurement. It now integrates over the epoch's own span.
+
+**Measured old → new.** The `env.equiv` input moves 0.16 → 0.56, and its distinct epoch count moves
+1 → 2. `synthetic_ppgdex_verity.txt` moves 0.33 → 1.09. `synthetic_ppgdex_o2ring_finger.txt` reads
+19.77 both ways. That site has no ambient column, so the fallback stays inert on a finger ring.
+
+**The bands moved onto the published table, not the other way round.** `PpgDex Reference.html`
+publishes >2 strong, 0.5–2 weak, <0.5 very weak. `ppgdex-app.js` graded on 1 and 0.4 in two places,
+which is neither that table nor any cited source. Those were cut points tuned down to fit the
+pedestal, so a healthy night graded badly. The app now reads the guide's numbers, and this change
+invents no new cut point.
+
+⚠️ **No gate could see any of this, for the reason #8 carried forward.** `perfusionIndexPct` is
+assembled in `ppgdex-app.js`, which no fixture-regen realm loads. The rich export's epoch projection is
+a whitelist that does not name `pi`. All six fixtures therefore move their two hash fields only, and
+the four committed assertions are the deliverable.
+
+⚠️ **So #1's carried-forward warning does not hold for #7.** #1 records that *"#6, #7 and #10 sit
+upstream like #1"*, and predicts the export carries the change. For #7 it does not: the index never
+leaves the node, so the fixtures move on hashes alone, exactly as #8 did. #6 and #10 still need
+sizing against the export in their own right.
+
+⚠️ **Left undone, deliberately.** `raw` comes from `rec.ch[sel.idx]` while `bp` comes from
+`perChannel[refIdxUsed].bp`, so the AC and DC terms can read different channels. The two indices agree
+on every committed input, and only the harmonic-remap path can part them. Nothing exercises that path
+today, so it rides a residue row rather than this PR.
+
+**Landed out of the written order.** #6 is in flight and #1 is unsized, so #7 took the open slot.
+Neither item touches `perfWindow`.
+
+---
+
 **Still NOT implemented here, deliberately.** This resolves the design question the precondition
 posed, but #8 moves every exported morphology value on a shipped node — that is an owner-visible
 change to published health numbers, and the two prior passes both stopped at the same line. The
@@ -540,7 +596,7 @@ which named #1614 in one command — cheap only because the source comment cites
 ---
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
 

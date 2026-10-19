@@ -240,7 +240,7 @@
   }
 
   // ── per-window AI/PI trend (stiffness/tone drift) ──────────────────────────
-  function perWindowMorph(bp, raw, det, fs, sqi, winSec) {
+  function perWindowMorph(bp, raw, det, fs, sqi, winSec, amb) {
     winSec = winSec || 60;
     const { peaks } = det;
     if (peaks.length < 8) return [];
@@ -272,10 +272,13 @@
         let acc = 0,
           c = 0;
         for (let i = s0; i < s1; i++) {
-          acc += Math.abs(raw[i]);
+          // DC is referenced to the detector's zero-light (ambient) phase — see `perfusionIndex`
+          const d = amb ? raw[i] - amb[i] : raw[i];
+          if (!Number.isFinite(d)) continue;
+          acc += d < 0 ? -d : d;
           c++;
         }
-        const dc = acc / c;
+        const dc = c ? acc / c : 0;
         let m = 0;
         for (let i = s0; i < s1; i++) m += bp[i];
         m /= s1 - s0;
@@ -300,11 +303,25 @@
     return out;
   }
 
-  // ── perfusion index over the whole record ──────────────────────────────────
-  function perfusionIndex(bp, raw) {
-    let acc = 0;
-    for (let i = 0; i < raw.length; i++) acc += Math.abs(raw[i]);
-    const dc = acc / raw.length;
+  /* ── perfusion index over the whole record ─────────────────────────────────
+     `amb` is the detector's zero-light (ambient) phase, aligned sample-for-sample with `raw`, and the
+     DC term is `mean|raw - amb|`. The ambient phase sits ~650,000 counts from zero on every Verity
+     file (0.038 % spread over 27 real nights), so `mean|raw|` is a pedestal plus the light and divides
+     the perfusion index down by the whole pedestal — 0.78x-3.90x on those nights, median 2.02x.
+     `amb` is a NEW TRAILING OPTIONAL param: without it this keeps the pedestal denominator, which is
+     the right answer for the one layout that carries no ambient column (the O2Ring finger site, whose
+     ring already applies the subtraction on-device). */
+  function perfusionIndex(bp, raw, amb) {
+    let acc = 0,
+      c = 0;
+    for (let i = 0; i < raw.length; i++) {
+      const d = amb ? raw[i] - amb[i] : raw[i];
+      if (!Number.isFinite(d)) continue;
+      acc += d < 0 ? -d : d;
+      c++;
+    }
+    if (!c) return null; // §∅ — nothing finite to divide by reports nothing, not a 0
+    const dc = acc / c;
     let m = 0;
     for (let i = 0; i < bp.length; i++) m += bp[i];
     m /= bp.length;
@@ -320,11 +337,11 @@
   // ════════════════════════════════════════════════════════════════════════
   //  ORCHESTRATOR
   // ════════════════════════════════════════════════════════════════════════
-  function analyze(bp, raw, det, fs, sqi) {
+  function analyze(bp, raw, det, fs, sqi, amb) {
     const mp = medianPulse(bp, det, fs, sqi);
     const del = mp ? delineate(mp) : { valid: false };
-    const perWindow = perWindowMorph(bp, raw, det, fs, sqi, 60);
-    const pi = perfusionIndex(bp, raw);
+    const perWindow = perWindowMorph(bp, raw, det, fs, sqi, 60, amb);
+    const pi = perfusionIndex(bp, raw, amb);
     return {
       medianBeat: mp ? { beat: Array.from(mp.beat), pre: mp.pre, fs: mp.fs, L: mp.L, nUsed: mp.nUsed, footOff: mp.footOff } : null,
       delin: del,

@@ -391,7 +391,13 @@ import { PPGUI } from './ppgdex-render.js';
   }
 
   function renderKPI(r) {
-    const pb = r.perfusionIndex == null ? 'neutral' : r.perfusionIndex >= 1 ? 'ok' : r.perfusionIndex >= 0.4 ? 'warn' : 'bad';
+    /* The bands are the ones `PpgDex Reference.html` publishes for this metric: >2 strong,
+       0.5-2 weak, <0.5 very weak. They read 1 and 0.4 here, which is neither the guide's table nor
+       any cited source — a cut point tuned down to fit a denominator that carried the detector's
+       ~650,000-count zero-light pedestal, so a healthy Verity night graded "bad". The denominator is
+       now referenced to that pedestal, so the number moves onto the published bands instead of the
+       bands moving onto the number, and no new cut point is invented here. */
+    const pb = r.perfusionIndex == null ? 'neutral' : r.perfusionIndex >= 2 ? 'ok' : r.perfusionIndex >= 0.5 ? 'warn' : 'bad';
     // ANS Age REMOVED 2026-06-21 (external-review WP-A)
     const items = [
       { l: 'HRV Score', v: r.hrvScore != null ? r.hrvScore : '—', sub: 'autonomic readiness', s: r.hrvScore == null ? 'neutral' : r.hrvScore >= 45 ? 'ok' : r.hrvScore >= 33 ? 'warn' : 'bad' },
@@ -853,7 +859,7 @@ import { PPGUI } from './ppgdex-render.js';
         ['Reflection index', r.morph.reflectionIndex, '', 'wave reflection'],
         ['SDPPG b/a', r.morph.sdppgBA, '', 'stiffness/aging (Takazawa)'],
         ['Aging index', r.morph.sdppgAGI, '', '(b−c−d−e)/a'],
-        ['Perfusion index', r.morph.perfusionIndexPct, '%', 'AC/DC', r.morph.perfusionIndexPct == null ? '' : r.morph.perfusionIndexPct >= 1 ? 'ok' : r.morph.perfusionIndexPct >= 0.4 ? 'warn' : 'bad']
+        ['Perfusion index', r.morph.perfusionIndexPct, '%', 'AC/DC', r.morph.perfusionIndexPct == null ? '' : r.morph.perfusionIndexPct >= 2 ? 'ok' : r.morph.perfusionIndexPct >= 0.5 ? 'warn' : 'bad']
       ]);
     html += sec('Quality', [
       ['Analyzable', r.analyzablePct, '%', '', r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'],
