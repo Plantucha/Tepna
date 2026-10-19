@@ -979,6 +979,41 @@ def test_an_unstamped_file_does_not_STOP_the_grouping_and_first_is_the_EARLIEST_
     assert recs[0]["begin"] <= recs[0]["first"] < recs[0]["end"]
 
 
+def test_ARRIVAL_FILES_BAND_AND_SORT_and_TWO_KEY_BANDS_STAY_TWO_RECORDINGS(tmp_path):
+    """Four more mutants of `recordings_of` that the tests above could not see (#3650's diff-scoped
+    gate). All four need one shape: an `arrival` list that is NON-EMPTY and spans two key bands.
+
+    `entry.get("arrival") or []` -> `and []`, and `entry.get("arrival")` -> `entry.get(None)`: both hand
+    back an EMPTY arrival list. Every test above passes `arrival: []` already, and an empty list cannot
+    tell an emptied one from itself.
+
+    `r["arrival"] = sorted(r["arrival"])` -> `None`: a recording's arrival files are SORTED, so this
+    fixture lists them out of walk order and the assertion names the order rather than the membership.
+
+    `by_band.setdefault(name, ...)` -> `setdefault(None, ...)`: one key for every band merges two nights
+    into ONE recording carrying the first name. A single-band fixture cannot see it, so this one spans
+    two — which is also the §(6) property stated through `recordings_of` directly rather than through
+    `index_nights`."""
+    entry = {
+        "arrival": [
+            # OUT OF ORDER on purpose: the later session is listed first
+            "2026-10-04/Polar_H10_02849638_20261004233000_PMDARRIVAL.csv",
+            "2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv",
+            # and this one sits in the NEXT key band, 15:00 the following afternoon
+            "2026-10-05/Polar_H10_02849638_20261005150000_PMDARRIVAL.csv",
+        ],
+    }
+    recs, unassigned = ni.recordings_of(entry)
+    assert [r["recording"] for r in recs] == ["2026-10-04", "2026-10-05"], recs
+    assert recs[0]["arrival"] == [
+        "2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv",
+        "2026-10-04/Polar_H10_02849638_20261004233000_PMDARRIVAL.csv",
+    ], f"the arrival files band, and they are sorted rather than kept in walk order: {recs[0]['arrival']}"
+    assert recs[1]["arrival"] == ["2026-10-05/Polar_H10_02849638_20261005150000_PMDARRIVAL.csv"]
+    assert unassigned == []
+    assert recs[1]["begin"] == recs[0]["end"], "the key bands abut, so the two recordings are adjacent"
+
+
 # ══ ONE NIGHT IS ONE ROW, EVEN WHEN THE POLAR STREAMS START AFTER MIDNIGHT (owner report 2026-10-09→10) ══
 # The night of 10-09→10-10 is ONE recording: ring at 21:25 in folder 2026-10-09, Verity at 01:47 and H10
 # at 01:50 in folder 2026-10-10. The page showed it as TWO nights — 10-09 (OxyDex) and 10-10 (the Polar
