@@ -9189,7 +9189,11 @@ async def _qc_offload(fn: Any, *args: Any, deps: tuple = (), record: str = "qc")
         _LOSS_ISOLATION = path
     if path == "thread":
         return await asyncio.to_thread(fn, *args)
-    pool = concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"))
+    # The child lowers its own CPU and disk priority before it runs anything (`qc_child.lower_priority`):
+    # its peak memory leaves with it, but its disk load lands on the box the recording lives on.
+    pool = concurrent.futures.ProcessPoolExecutor(
+        max_workers=1, mp_context=multiprocessing.get_context("spawn"), initializer=qc_child.lower_priority
+    )
     try:
         return await asyncio.get_running_loop().run_in_executor(pool, fn, *args)
     finally:
@@ -11704,8 +11708,10 @@ HEAP_PROBE_NAME = "heap-probe.json"
 
 #: The RSS keys worth having beside the traced bytes, in the order a reader wants them. `RssAnon` is the
 #: one the stall was blamed on (128 → 245 MB, ~21 MB/h, in this probe's own docstring); `RssFile` and
-#: `VmRSS` are there so a rise in anon can be told from a mapping change rather than assumed.
-_RSS_KEYS = ("VmRSS", "RssAnon", "RssFile")
+#: `VmRSS` are there so a rise in anon can be told from a mapping change rather than assumed. `VmSwap`
+#: is what told a FALL in anon apart from a release: on vigil 2026-10-19 `RssAnon` dropped 104 → 10 MB
+#: across a 25 s stall because the kernel had swapped the daemon out, and nothing on the line said so.
+_RSS_KEYS = ("VmRSS", "RssAnon", "RssFile", "VmSwap")
 
 
 def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
@@ -11985,11 +11991,12 @@ def mem_log_line(snap: dict) -> str:
         return "null" if v is None else str(v // scale)
 
     line = (
-        "mem: VmRSS %s kB RssAnon %s kB · main arena %s kB hblkhd %s kB uordblks %s kB fordblks %s kB "
+        "mem: VmRSS %s kB RssAnon %s kB VmSwap %s kB · main arena %s kB hblkhd %s kB uordblks %s kB fordblks %s kB "
         "keepcost %s kB · all arenas heaps %s system %s kB rest %s kB mmap %s kB · gc counts %s collections %s"
     ) % (
         _kb(rss.get("VmRSS")),
         _kb(rss.get("RssAnon")),
+        _kb(rss.get("VmSwap")),
         _kb(mi.get("arena"), 1024),
         _kb(mi.get("hblkhd"), 1024),
         _kb(mi.get("uordblks"), 1024),

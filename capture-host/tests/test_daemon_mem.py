@@ -411,7 +411,7 @@ def test_the_real_libc_reports_more_than_the_main_arena_or_names_its_absence():
 
 def _snap(**kw):
     base = {
-        "rss_kb": {"VmRSS": 262144, "RssAnon": 245760, "RssFile": 16384},
+        "rss_kb": {"VmRSS": 262144, "RssAnon": 245760, "RssFile": 16384, "VmSwap": 94208},
         "mallinfo2": dict.fromkeys(capture._MALLINFO2_FIELDS, 0)
         | {
             "arena": 300 * 1024,
@@ -442,7 +442,7 @@ def test_the_line_is_one_unit_throughout():
     is a 1024x reading error waiting to be made."""
     line = capture.mem_log_line(_snap())
     assert line == (
-        "mem: VmRSS 262144 kB RssAnon 245760 kB · main arena 300 kB hblkhd 65536 kB uordblks 200 kB "
+        "mem: VmRSS 262144 kB RssAnon 245760 kB VmSwap 94208 kB · main arena 300 kB hblkhd 65536 kB uordblks 200 kB "
         "fordblks 100 kB keepcost 95 kB · all arenas heaps 9 system 6500 kB rest 3026 kB mmap 392 kB "
         "· gc counts 700,3,1 collections 12345,1100,9"
     )
@@ -451,13 +451,13 @@ def test_the_line_is_one_unit_throughout():
 def test_an_unmeasured_figure_prints_null_and_the_reason_rides_the_line():
     """§∅ on the journal surface too: a 0 here would read as "the allocator holds nothing"."""
     snap = _snap(
-        rss_kb={"VmRSS": None, "RssAnon": None, "RssFile": None},
+        rss_kb={"VmRSS": None, "RssAnon": None, "RssFile": None, "VmSwap": None},
         mallinfo2=dict.fromkeys(capture._MALLINFO2_FIELDS) | {"reason": "mallinfo2 unavailable: AttributeError"},
         arenas=dict.fromkeys(capture._ARENA_KEYS) | {"reason": "malloc_info unavailable: AttributeError"},
         gc={"counts": [1, 2, 3], "collections": [5, None, None], "enabled": True},
     )
     line = capture.mem_log_line(snap)
-    assert "VmRSS null kB" in line and "main arena null kB" in line
+    assert "VmRSS null kB" in line and "VmSwap null kB" in line and "main arena null kB" in line
     assert "all arenas heaps null system null kB" in line
     assert "collections 5,null,null" in line
     # each instrument names its own absence, and one absent instrument never speaks for the other
@@ -483,7 +483,7 @@ def test_the_status_tick_publishes_the_four_populations(tmp_path, monkeypatch, c
         _loop(monkeypatch, tmp_path)
     mem = capture.STATUS["mem"]
     assert set(mem) == {"rss_kb", "mallinfo2", "arenas", "gc"}
-    assert set(mem["rss_kb"]) == {"VmRSS", "RssAnon", "RssFile"}
+    assert set(mem["rss_kb"]) == {"VmRSS", "RssAnon", "RssFile", "VmSwap"}
     assert set(mem["mallinfo2"]) == {*capture._MALLINFO2_FIELDS, "reason"}
     assert set(mem["arenas"]) == {*capture._ARENA_KEYS, "reason"}
     assert mem["gc"]["counts"] and len(mem["gc"]["collections"]) == 3
