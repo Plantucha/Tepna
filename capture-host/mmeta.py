@@ -32,8 +32,37 @@ import re
 from pathlib import Path
 
 
+# mutmut's own exit-code table (`mutmut/stats.py status_by_exit_code`) calls exactly three codes a
+# DECISION: 1 and 3 are "killed", 0 is "survived". Every other non-null code is an outcome that decided
+# nothing about the mutant — 5/33 "no tests", 34 "skipped", 35 "suspicious", 24/-24/36/152/255
+# "timeout", 37 "caught by type check", -9/-11 "segfault", 2 "interrupted". The gate's own
+# `split_results` puts every one of those in UNDECIDED, so counting them as decided accounts for one
+# mutant twice. Measured on #3654 (CI run 39184063166): one timed-out mutant, `decided` 190 and
+# `undecided` 1 over `generated` 190, and the verdict refused as self-inconsistent instead of naming
+# the timeout. Frozen because it is mutmut's table, not a policy of ours.
+DECISION_EXIT_CODES = frozenset({0, 1, 3})
+
+
+def decisions_under_glob(exit_codes: dict, glob: str) -> int:
+    """How many mutants under `glob` mutmut DECIDED — killed or survived, and nothing else.
+
+    The sibling of `decided_under_glob`, and the two are not the same question. That one answers "did
+    mutmut run this mutant at all", which is the §3 crash signal and must keep counting a timeout as a
+    run. This one answers "did the run settle what the mutant does", which is what a verdict's
+    `result.decided` claims, and a timeout settles nothing.
+
+    An empty / missing map counts zero.
+    """
+    prefix = glob.rstrip("*")
+    return sum(1 for key, code in (exit_codes or {}).items() if code in DECISION_EXIT_CODES and key.startswith(prefix))
+
+
 def decided_under_glob(exit_codes: dict, glob: str) -> int:
-    """How many mutants under `glob` were actually DECIDED (killed or survived) — a non-null exit code.
+    """How many mutants under `glob` mutmut TESTED — a non-null exit code.
+
+    ⚠️ "Tested" is not "decided about": a timeout, a skip or a "no tests" carries a non-null code and
+    settles nothing. A caller stating how many mutants a run DECIDED wants `decisions_under_glob`;
+    `tested_count` keeps this count because the §3 crash signal is exactly "mutmut never ran it".
 
     `glob` is a mutmut name pattern like `oxy_transfer.x_select__mutmut_*`; its keys share the prefix
     before the `*`. A null value (generated-not-tested) does not count: that is precisely the state a
@@ -81,6 +110,11 @@ def tested_count(work: Path, module: str, glob: str) -> int:
     Zero on a glob the driver believes ran cleanly means the invocation dropped out — refuse, don't green.
     """
     return decided_under_glob(read_exit_codes(Path(work) / "mutants" / f"{module}.meta"), glob)
+
+
+def decision_count(work: Path, module: str, glob: str) -> int:
+    """`decisions_under_glob` against the scratch's meta — what a verdict's `result.decided` may claim."""
+    return decisions_under_glob(read_exit_codes(Path(work) / "mutants" / f"{module}.meta"), glob)
 
 
 def killed_count(work: Path, module: str, glob: str) -> int:

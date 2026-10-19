@@ -2584,9 +2584,16 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
       · `killed + survived <= decided <= generated`. Not equality: `excused` and `empty_diff`
         mutants are decided and counted separately.
       · `decided + undecided <= generated`. `undecided` is the OTHER side of `decided`, not a part
-        of it — `mmeta.decided_under_glob` counts a mutant only when its exit code is non-null, and an
-        undecided mutant is exactly one whose code is null. So an undecided mutant is bounded by
-        `generated` and never by `decided`.
+        of it — `mmeta.decisions_under_glob` counts a mutant only when mutmut's own table calls its
+        exit code a kill or a survival, and every other outcome lands in `undecided`. So an undecided
+        mutant is bounded by `generated` and never by `decided`.
+      · `killed + survived + notRequired + emptyDiff >= decided`. EVERY DECIDED MUTANT IS IN A BUCKET.
+        This is the one that was missing, and the hole it left is measured: on #3654 the gate printed
+        `every mutant on the changed functions was killed` with `generated 190, decided 190, killed
+        182, survived 2` — six decided mutants in no bucket at all, dropped by the string-literal
+        exclusion, which had no counter. Every inequality above was satisfied, because a silently
+        dropped mutant makes the arithmetic look smaller rather than wrong. The excluded sets are
+        counted now, so the residual has to be named.
 
     🔴 THE SECOND BULLET WAS ONCE INSIDE THE FIRST, and that made this function red every run that
     had an undecided mutant. Measured on #3237's first CI run (36613550322): 109 decided, 23 undecided,
@@ -2605,7 +2612,11 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
     # numbers (§∅). A block with no `killed` would then satisfy every inequality below by arithmetic.
     # The mutation gate found this the honest way: every `.get` default was a SURVIVING mutant, because
     # no input could reach it. Requiring the keys removes the defaults and the hole together.
-    missing = [k for k in ("generated", "decided", "killed", "survived", "undecided") if k not in result]
+    missing = [
+        k
+        for k in ("generated", "decided", "killed", "survived", "undecided", "notRequired", "emptyDiff")
+        if k not in result
+    ]
     if missing:
         return (
             f"result is missing {', '.join(missing)} — a counter that is absent is not a counter "
@@ -2633,6 +2644,16 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
         return (
             f"result.decided + undecided ({dec + und}) exceeds result.generated ({gen}) — "
             "more mutants accounted for than the run generated"
+        )
+    # EVERY DECIDED MUTANT IS IN A BUCKET, or this verdict is about a population it quietly shrank.
+    # One-directional on purpose: a bucket total ABOVE `decided` is a different defect and the
+    # `settled > dec` bound above already carries it, while a total BELOW it is the silent exclusion
+    # that made a PASS over six live mutants arithmetically consistent.
+    bucketed = int(result["killed"]) + int(result["survived"]) + int(result["notRequired"]) + int(result["emptyDiff"])
+    if bucketed < dec:
+        return (
+            f"result.decided ({dec}) exceeds killed + survived + notRequired + emptyDiff ({bucketed}) — "
+            f"{dec - bucketed} decided mutant(s) are in no bucket: not killed, not surviving, not excluded"
         )
     return None
 

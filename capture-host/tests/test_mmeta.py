@@ -25,9 +25,13 @@ def _meta(tmp_path, module, codes):
 
 
 # ── §3: decided_under_glob — the tested-vs-generated signal ───────────────────────────────────────────
-def test_a_decided_mutant_under_the_glob_counts():
+def test_a_TESTED_mutant_under_the_glob_counts():
+    """And TESTED is all this counts. 33 is "no tests" and 37 is "caught by the type check" — mutmut ran
+    both and neither settles what the mutant does, which is why the count below is 2 and the count in
+    `decisions_under_glob` over the same map is 0. The §3 signal is "mutmut never ran it"."""
     codes = {"oxy_transfer.x_select__mutmut_1": 33, "oxy_transfer.x_select__mutmut_2": 37}
     assert mmeta.decided_under_glob(codes, "oxy_transfer.x_select__mutmut_*") == 2
+    assert mmeta.decisions_under_glob(codes, "oxy_transfer.x_select__mutmut_*") == 0
 
 
 def test_a_NULL_mutant_does_not_count_this_is_the_crash_signal():
@@ -45,6 +49,75 @@ def test_a_decided_mutant_outside_the_glob_does_not_count():
 def test_an_empty_or_missing_map_counts_zero():
     assert mmeta.decided_under_glob({}, "m.x_f__mutmut_*") == 0
     assert mmeta.decided_under_glob(None, "m.x_f__mutmut_*") == 0
+
+
+# ── decisions_under_glob — "settled what the mutant does", never "ran it" ─────────────────────────
+#
+# 🔴 #3654 ran one mutant into a timeout (the first mutant of `StallSampler.run`). mutmut's table
+# makes a timeout exit 24, which is non-null, so `decided_under_glob` credited it as DECIDED while the
+# undecided scan credited the same mutant as UNDECIDED. The verdict then read `decided + undecided
+# (191) exceeds result.generated (190)` and that derived complaint REPLACED the timeout refusal in
+# `reason` — the one sentence that would have told a reader what to do.
+def test_decisions_count_ONLY_killed_and_survived():
+    codes = {f"m.x_f__mutmut_{i}": c for i, c in enumerate([1, 3, 0, 24, 33, 37, 5, None])}
+    g = "m.x_f__mutmut_*"
+    assert mmeta.decisions_under_glob(codes, g) == 3  # 1 and 3 killed, 0 survived
+    assert mmeta.decided_under_glob(codes, g) == 7  # every non-null code — "mutmut ran it"
+
+
+def test_a_TIMEOUT_is_TESTED_but_NOT_decided_this_is_the_191_of_190():
+    """⚠️ THE CONTROL for the shipped double count. The two counts must disagree on exactly this map:
+    the §3 crash signal has to keep seeing the timeout as a run, and the verdict's `result.decided` must
+    not claim it settled anything."""
+    codes = {"m.x_f__mutmut_1": 24, "m.x_f__mutmut_2": None}
+    g = "m.x_f__mutmut_*"
+    assert mmeta.decided_under_glob(codes, g) == 1
+    assert mmeta.decisions_under_glob(codes, g) == 0
+
+
+def test_every_NON_decision_code_mutmut_can_emit_is_excluded():
+    """mutmut 3.8.0 `status_by_exit_code`: 5/33 no tests · 34 skipped · 35 suspicious ·
+    24/-24/36/152/255 timeout · 37 caught by type check · -9/-11 segfault · 2 interrupted. A membership
+    test against the three decision codes is the only form that stays right as that table grows — the
+    complement, written out, is what shipped the double count."""
+    codes = {f"m.x_f__mutmut_{i}": c for i, c in enumerate([5, 33, 34, 35, 24, -24, 36, 152, 255, 37, -9, -11, 2])}
+    assert mmeta.decisions_under_glob(codes, "m.x_f__mutmut_*") == 0
+    assert mmeta.decided_under_glob(codes, "m.x_f__mutmut_*") == 13
+
+
+def test_decisions_are_scoped_to_the_glob_and_an_absent_map_credits_nothing():
+    assert mmeta.decisions_under_glob({"m.x_other__mutmut_1": 1}, "m.x_f__mutmut_*") == 0
+    assert mmeta.decisions_under_glob({}, "m.x_f__mutmut_*") == 0
+    assert mmeta.decisions_under_glob(None, "m.x_f__mutmut_*") == 0
+
+
+def test_the_three_counts_NEST_over_one_map():
+    """killed <= decided-about <= tested. The downstream invariant in `mutation_diff` is written against
+    the middle term, so a reordering of these three is what would red healthy runs."""
+    codes = {f"m.x_f__mutmut_{i}": c for i, c in enumerate([1, 3, 0, 24, None, 1, 5, 33])}
+    g = "m.x_f__mutmut_*"
+    assert mmeta.killed_under_glob(codes, g) == 3
+    assert mmeta.decisions_under_glob(codes, g) == 4
+    assert mmeta.decided_under_glob(codes, g) == 7
+    assert (
+        mmeta.killed_under_glob(codes, g) <= mmeta.decisions_under_glob(codes, g) <= mmeta.decided_under_glob(codes, g)
+    )
+
+
+def test_decision_count_reads_the_scratchs_meta(tmp_path):
+    """The meta-reading sibling, and the discrimination survives the file read: three mutants in the
+    meta, one of them a timeout."""
+    (tmp_path / "mutants").mkdir()
+    (tmp_path / "mutants" / "m.py.meta").write_text(
+        '{"exit_code_by_key": {"m.x_f__mutmut_1": 1, "m.x_f__mutmut_2": 0, "m.x_f__mutmut_3": 24}}',
+        encoding="utf-8",
+    )
+    assert mmeta.decision_count(tmp_path, "m.py", "m.x_f__mutmut_*") == 2
+    assert mmeta.tested_count(tmp_path, "m.py", "m.x_f__mutmut_*") == 3
+
+
+def test_decision_count_over_an_ABSENT_meta_is_zero(tmp_path):
+    assert mmeta.decision_count(tmp_path, "m.py", "m.x_f__mutmut_*") == 0
 
 
 # ── read_exit_codes — absence and malformation are both "measured nothing" ────────────────────────────
