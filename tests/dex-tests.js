@@ -3351,6 +3351,100 @@
       T.eq('…and that measured zero is reported as a number', JSON.stringify(nullSel.scores[1].snr), '0');
     });
 
+    /* ════ §4 #7 — WHAT THE PERFUSION INDEX DIVIDES BY, AND WHETHER ITS SERIES MOVES ═══════════════
+       Two defects in one number. The denominator was `mean|channel|`, and the Verity's channel counts
+       carry the detector's zero-light pedestal: its ambient phase reads ~650,000 counts from zero on
+       every file, measured at 650,473-650,720 over 27 real nights (103.2 M rows, 162.7 h, a 0.038 %
+       spread). So the index was AC over a pedestal plus the light instead of AC over the light, which
+       divided it down by 0.78x-3.90x between nights (median 2.02x) and by 1.14x-177x inside one night.
+       And `perfWindow` was a closure over two whole-record constants that discarded the epoch midpoint
+       `buildEpochs` handed it, so every epoch's `pi` carried the same number: a flat line the node
+       published as a per-epoch perfusion series.
+       These assertions are the only thing that can see either one. `pi` appears in no fixture: the
+       morphology block is assembled in `ppgdex-app.js`, which no golden-regen realm loads, and the
+       rich export's epoch projection is a whitelist that does not name `pi` — so every PpgDex fixture
+       moved its two hash fields and nothing else when this landed, exactly as item #8's did. */
+    group(
+      'the perfusion index divides by the light and not by the detector pedestal, and its epochs move',
+      'ppgdex-dsp · ppgdex-morph · PPGDEX-ALGORITHM-DEEP-DIVE-item-7 · known-answer',
+      function (T) {
+        var PM = env.PPGMorph,
+          P = env.PPGDSP;
+        if (!PM || typeof PM.perfusionIndex !== 'function' || !P || typeof P.parsePPG !== 'function') {
+          T.skip('PPGMorph.perfusionIndex + PPGDSP.parsePPG reachable', 'not loaded');
+          return;
+        }
+        /* KNOWN ANSWER by construction, with no filter in the path: the band-passed trace alternates
+         +/-1500 so its std is exactly 1500, the channel sits at exactly -500000 and ambient at exactly
+         -650000, so the light-attributable DC is exactly 150000 and the index is 100 x 1500 / 150000. */
+        var N = 2000,
+          bp = new Float32Array(N),
+          raw = new Float32Array(N),
+          amb = new Float32Array(N);
+        for (var i = 0; i < N; i++) {
+          bp[i] = i % 2 ? 1500 : -1500;
+          raw[i] = -500000;
+          amb[i] = -650000;
+        }
+        T.eq('the index is AC over the LIGHT — 100 × 1500 ÷ 150000', PM.perfusionIndex(bp, raw, amb), 1);
+        /* The same trace over the pedestal reads 0.30, and that is the number this node shipped. It is
+         also the RIGHT answer for the one layout that carries no ambient column: the O2Ring finger
+         ring AC-couples and gain-normalises on-device, so the subtraction already sits in its bytes.
+         No ambient reference therefore keeps the pedestal denominator rather than refusing. */
+        T.eq('…and over the pedestal it reads 0.30, which is what shipped and what a ring still reads', PM.perfusionIndex(bp, raw), 0.3);
+        T.eq('§∅ · an ambient reference with nothing finite in it reports null, never a 0 perfusion', PM.perfusionIndex(bp, raw, new Float32Array(N).fill(NaN)), null);
+
+        /* THE PER-EPOCH LEG, through the real parse and the real pipeline. 600 s at 100 Hz with a 1 Hz
+         pulse of fixed amplitude and a contact step on the 300 s epoch boundary: the light-attributable
+         DC is 150000 before it and 250000 after, with the AC untouched. So the second epoch's index
+         must be the first's x 150/250, and the shipped closure gave both epochs one identical number. */
+        var FS = 100,
+          DUR = 600,
+          STEP = 300,
+          rows = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n';
+        for (var k = 0; k < DUR * FS; k++) {
+          var t = k / FS,
+            v = (t < STEP ? -500000 : -400000) + Math.exp(-Math.pow(((t % 1) - 0.15) / 0.07, 2)) * 1500 - 300;
+          rows += '2026-06-27T23:00:00.000;' + Math.round((k * 1e9) / FS) + ';' + Math.round(v) + ';' + Math.round(v * 0.98) + ';' + Math.round(v * 1.02) + ';-650000\n';
+        }
+        var r = P.analyze(P.parsePPG(rows)),
+          ep = r.epochs || [];
+        T.eq('the record yields the two epochs the step was built to straddle', ep.length, 2);
+        T.ok(
+          'the per-epoch series is no longer one number repeated — it read 0.27 and 0.27',
+          ep.length === 2 && ep[0].pi !== ep[1].pi,
+          JSON.stringify(
+            ep.map(function (e) {
+              return e.pi;
+            })
+          )
+        );
+        T.approx('…and the second epoch is the first scaled by the light it had (150 ÷ 250)', ep.length === 2 ? ep[1].pi / ep[0].pi : null, 0.6, 0.05);
+        T.ok(
+          'every epoch reports a number, so the step did not null the series',
+          ep.every(function (e) {
+            return typeof e.pi === 'number' && isFinite(e.pi);
+          }),
+          JSON.stringify(
+            ep.map(function (e) {
+              return e.pi;
+            })
+          )
+        );
+        T.ok(
+          'the whole-record index is a number and is NOT either epoch — it aggregates them',
+          r.perfusionIndex != null && r.perfusionIndex !== ep[0].pi && r.perfusionIndex !== ep[1].pi,
+          r.perfusionIndex +
+            ' vs ' +
+            JSON.stringify(
+              ep.map(function (e) {
+                return e.pi;
+              })
+            )
+        );
+      }
+    );
+
     group('hostAxis declares an INERT axis — host ≡ device is not "two clocks that agree"', 'clock · known-answer', function (T) {
       var C = env.DexClock;
       T.ok('DexClock.hostAxis present', !!(C && typeof C.hostAxis === 'function'));
