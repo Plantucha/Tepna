@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS.
+**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff.
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -398,17 +398,21 @@ This brief has sat `IN-PROGRESS` since 2026-07-21 with exactly two items shipped
 exactly the two whose Risk column reads "None"** — and that is not a coincidence, it is the whole
 pattern:
 
+> **The pattern BROKE, twice, and the table below records when.** #1 shipped 2026-08-21 and #8 on
+> 2026-10-19, and neither Risk column reads "None". What unstuck them was the owner decision of
+> 2026-09-06, not a cheaper diagnosis. The paragraph stands as written on 2026-08-20.
+
 | item | Risk column | status |
 |---|---|---|
 | #4 | *"None; byte-inert on clean captures"* | ✅ **shipped** 2026-07-21 |
 | #12 | *"None"* (a comment correction) | ✅ **shipped** 2026-07-21 |
 | #3 | — | withdrawn, claim was stale |
-| **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | open |
+| **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | ✅ **shipped** 2026-08-21 (#1614) — the prediction held, all six fixtures moved on OUTPUT |
 | **#2 ★** | ~29 % of the exported series stops being a fabricated constant | open |
 | #5 | motion gates shift where they were wrong | open |
 | #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | open |
 | #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | open |
-| #8 | every morphology value (measured above) | open |
+| #8 | every morphology value (measured above) | ✅ **shipped** 2026-10-19 (#3673) — hash-only, see §4 #8 EXECUTED |
 | #10 | peak times shift by a near-constant | open |
 | #11 | *"Some nights emit `null` where they emitted a number — consumer-visible"* | open |
 | #9 | experiment; *"measure before merging"* | open |
@@ -469,7 +473,7 @@ regeneration is routine rather than a prerequisite project.
 ### ✅ #8 EXECUTED 2026-10-19 — both halves, and the row's blast radius was wrong in the cheap direction
 
 `ppgdex-morph.js` now spans `pre = 0.50 s` AND takes the template foot from `det.feet` — the median
-offset over the same beats the template is built from. The minimum search is deleted, so the previous
+offset over the same beats the template is built from. The change deletes the minimum search, so the previous
 beat's foot cannot win it at any heart rate and the precondition's HR > 80 bpm relocation cannot occur.
 A foot that is non-finite, at or after the peak, or outside the window contributes nothing; under four
 surviving offsets the foot travels as `null` and `delineate` refuses with `reason:
@@ -483,7 +487,7 @@ terminal consumer at `ppgdex-dsp.js:5432` and nothing in the detection or PPI pa
 time, interval or jitter figure depends on this change.
 
 ⚠️ **The blast-radius paragraph above says "every morphology number moves, not four of them". That is
-true of the UI and false of the export.** No morphology value is carried in `ganglior.node-export` —
+true of the UI and false of the export.** `ganglior.node-export` carries no morphology value —
 `riseTimeMs` and its siblings reach `ppgdex-app.js`'s cards and the median-pulse figure and stop there —
 so no fixture ever held one, and no gate could see either the defect or its repair. The three committed
 assertions added with this change are the only artifact that can: the planted 251.9 ms rise the retired
@@ -503,8 +507,40 @@ change to published health numbers, and the two prior passes both stopped at the
 implementation is now unblocked and specified; the decision to move those numbers is not this brief's
 to take unilaterally.
 
+> **Historical as of 2026-10-19.** The owner answered on 2026-09-06 — exported values MAY move — and
+> #8 landed in #3673. Read the paragraph above as the 2026-08-20 state, not as an open hold.
+
+### ✅ #1 EXECUTED 2026-08-21 (#1614) — and the brief never recorded it until 2026-10-19
+
+`filtfilt` now pads with an odd reflection, `pad = 3·fs/lo`, supplied by `bandpass` because the settling
+length is set by the high-pass corner and `filtfilt` cannot read it from the coefficients. Half of the
+item was DROPPED on measurement: the prescribed record-median subtraction adds nothing on top of the
+padding and flipped `cadenceSamples`'s 120 bpm + notch-1.2 case from ratio 1.040 to 2.000, reading the
+HR half. That measurement lives in the source comment at `ppgdex-dsp.js` `bandpass`, so nobody re-adds
+it blind.
+
+**What moved, as the commit measured it.** On a synthetic raw channel (DC 120000, 1.1 Hz pulse, 0.02 Hz
+wander): edge/mid SD 12.07× → 1.00×, interior difference 7.8e-5 at the pad boundary, 7.1e-8 at 1.5× pad,
+exactly 0 beyond 2× pad. The brief had predicted "< 1e-6", which was optimistic at the boundary and
+pessimistic beyond it. On the real equiv night the edge artefact was costing real beats: `cleanBeatPct`
+98 → 100, `analyzablePct` 98 → 100, `correctionRatePct` 4.8 → 0, `ppiCorrFootPct` 4.8 → 0,
+`ppiCorrPeakPct` 2.4 → 0.
+
+⚠️ **The row's blast radius held here, which is the other half of #8's warning.** All six fixtures moved
+on OUTPUT, not on hashes alone — the filter sits upstream of the exported RR spine, so the export
+carries the change. Size each remaining item against what leaves the node: #6, #7 and #10 sit upstream
+like #1, #8 sat downstream of the export boundary.
+
+🔴 **The process defect this section repairs.** The code landed 2026-08-21 and the punch list still read
+`1 → ` on 2026-10-19, so the next session re-opened a worktree for an item already on `main` and found
+the padding in place. `CLAUDE.md` §👥.0 names the cost: a finished item that still reads open costs the
+next session a full trace to prove it done. Here that trace is `git log -S 'ODD-REFLECTED PADDING'`,
+which named #1614 in one command — cheap only because the source comment cites the brief section.
+
+---
+
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 ✅ → 1 → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
 
