@@ -185,6 +185,22 @@
       "key": "- _log.exception(\"CPAP acquisition-evidence emit failed — the capture itself is unaffected\") | + _log.exception(None)",
       "probe": "n/a — the argument is about the CODE, not a battery of inputs.",
       "why": "A LOG STRING on the failure path. The message text reaches no return value, no envelope field and no caller — the function's contract on this path is precisely that it swallows the failure and returns, which the existing `test_a_failing_evidence_writer_never_sinks_the_acquisition` already pins. Asserting the wording would pin prose, not behaviour."
+    },
+    {
+      "brief": "#3659 frozen-flow auto-stop",
+      "class": "no-distinguishing-input",
+      "function": "TherapyEndSink.__init__",
+      "key": "- self._prev = None # the last numeric flow sample, carried across batches | + self._prev = \"\" # the last numeric flow sample, carried across batches",
+      "probe": "Loaded the real cpap_stream.py source three times: unchanged, with the __init__ reset as \"\", and with the on_batch reset as \"\". Drove each TherapyEndSink with 20000 random batch sequences (seed 3659; flow values 0.0, 0.1, -0.11, +/-0.5, 0.52, 1.0, 18.0, None, \"x\", \"\", nan, True, False, 0, 1; eps 0.0/0.1/0.5; hold 0.2/1/2 s) and compared (fired, should_stop, quiet count) after every batch: identical. A planted 18.0 sentinel failed the same probe on its first case. Run 2026-10-19.",
+      "why": "`_prev` is read in one place only: `v == self._prev`, and only after `isinstance(v, (int, float))` has passed. No int, float or bool compares equal to None or to \"\", so both sentinels make the frozen arm false for the run's first sample. The sentinel means \"no previous numeric sample\"; any non-numeric value carries that meaning. Surfaced by #3659 (frozen-flow auto-stop)."
+    },
+    {
+      "brief": "#3659 frozen-flow auto-stop",
+      "class": "no-distinguishing-input",
+      "function": "TherapyEndSink.on_batch",
+      "key": "- self._prev = None | + self._prev = \"\"",
+      "probe": "Loaded the real cpap_stream.py source three times: unchanged, with the __init__ reset as \"\", and with the on_batch reset as \"\". Drove each TherapyEndSink with 20000 random batch sequences (seed 3659; flow values 0.0, 0.1, -0.11, +/-0.5, 0.52, 1.0, 18.0, None, \"x\", \"\", nan, True, False, 0, 1; eps 0.0/0.1/0.5; hold 0.2/1/2 s) and compared (fired, should_stop, quiet count) after every batch: identical. A planted 18.0 sentinel failed the same probe on its first case. Run 2026-10-19.",
+      "why": "`_prev` is read in one place only: `v == self._prev`, and only after `isinstance(v, (int, float))` has passed. No int, float or bool compares equal to None or to \"\", so both sentinels make the frozen arm false for the run's first sample. The sentinel means \"no previous numeric sample\"; any non-numeric value carries that meaning. Surfaced by #3659 (frozen-flow auto-stop)."
     }
   ],
   "cpapdex-dsp.js": [

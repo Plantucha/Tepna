@@ -32,7 +32,7 @@ is UNKNOWN. A green run therefore reads PASS, and PASS can no longer mean "unwir
 `UNADOPTED_OURS` stays as the floor for the NEXT tool of ours that joins this gate before it adopts.
 
 Aggregation is §3d's precedence, not a vote: FAIL > UNKNOWN > PASS, and `checked = 0` is NOT_RUN. The
-advisory legs (mypy · format) are NOT in the population — they cannot fail the run — and ride along in
+advisory legs (mypy · devfloors; `format` left the set on 2026-10-05 and blocks now) are NOT in the population — they cannot fail the run — and ride along in
 `result.advisory` as the `advisory-state` tokens `check.sh` already prints.
 """
 

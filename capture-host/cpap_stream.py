@@ -82,9 +82,18 @@ class TherapyEndSink:
     is the only observer present during therapy. (Measured 2026-08-25: with the machine stopped, flow
     sat flat at -0.01 L/s and pressure at 0.4 cmH₂O, while real breathing swings tens of L/min.)
 
-    A stop is |flow| <= `flow_eps` for `hold_s` CONTINUOUS seconds, timed from SAMPLE COUNT at the
-    stream's own rate rather than wall clock, so a stalled link cannot age the timer while no data
-    arrives — a dropped link must not read as "therapy ended".
+    A sample is QUIET when |flow| <= `flow_eps`, OR when it repeats the previous sample exactly. A stop
+    is `hold_s` CONTINUOUS seconds of quiet samples, timed from SAMPLE COUNT at the stream's own rate
+    rather than wall clock, so a stalled link cannot age the timer while no data arrives — a dropped
+    link must not read as "therapy ended".
+
+    🔴 WHY "REPEATS EXACTLY" COUNTS AS QUIET. With the blower stopped the AS11 FREEZES flow at one value,
+    and that value is an offset that differs per night, not zero. Measured 2026-10-18 over the 55 live
+    EDFs on vigil: the frozen idle value ranged -0.35 to +0.52 L/s, and on the nights it fell outside
+    `flow_eps` the stream ran on after therapy (10-18: 3 h 9 min and counting at -0.11 L/s; 10-01:
+    9.8 h at -0.12). During therapy (pressure >= 2 cmH₂O) the longest run of one exact flow value was
+    3.3 s on any night, so a frozen run of `hold_s` cannot be breathing or an apnea. No threshold on the
+    VALUE can catch an offset whose size the device picks; a threshold on CHANGE catches every one.
     ⚠️ `hold_s` is deliberately LONG (default 120 s). A genuine apnea is also silent, and a breath
     hold or a mask-off pause is silent; ending a night's recording on a 10-second quiet spell is a
     far worse failure than stopping late. Never tune this below the longest apnea worth recording.
@@ -96,7 +105,8 @@ class TherapyEndSink:
         self._hold_s = float(hold_s)
         self._on_end = on_end
         self._fs = 25.0
-        self._quiet = 0  # consecutive near-zero flow SAMPLES
+        self._quiet = 0  # consecutive QUIET samples (near zero, or frozen at one value)
+        self._prev = None  # the last numeric flow sample, carried across batches
         self.fired = False
 
     def open(self, _channels, fs):
@@ -108,14 +118,19 @@ class TherapyEndSink:
             return
         flow = (batch.get("channels") or {}).get("PatientFlow") or []
         for v in flow:
-            if isinstance(v, (int, float)) and abs(v) <= self._flow_eps:
+            if not isinstance(v, (int, float)):
+                self._quiet = 0  # an unreadable sample is no evidence of quiet
+                self._prev = None
+                continue
+            if abs(v) <= self._flow_eps or v == self._prev:
                 self._quiet += 1
             else:
                 self._quiet = 0  # ANY real breath resets the hold
+            self._prev = v
         if self._quiet >= self._hold_s * self._fs:
             self.fired = True
             _log.info(
-                "CPAP therapy end detected — flow |x| <= %.2f for %.0f s; stopping the stream",
+                "CPAP therapy end detected — flow |x| <= %.2f or frozen for %.0f s; stopping the stream",
                 self._flow_eps,
                 self._hold_s,
             )
