@@ -193,8 +193,57 @@ _PREV_PROBE_SEC = 12 * 3600.0
 # band that does not even contain it (the [10:00, begin) hours fall in no band that contains them);
 # under 18 it anchors to the evening it started in, which is what the ruling asks for. The 23 nights
 # with no 18:00-19:59 session are unchanged by construction.
+#
+# ── TWO BANDS, BECAUSE THIS ONE WAS DOING TWO JOBS ──────────────────────────────────────────────────
+#
+# 🔴 MEASURED 2026-10-18, implementing the owner's noon-to-noon ruling: making THIS band tile the clock
+# reds 24 tests across six files, and reading them is what separated the two jobs it holds.
+#
+#   1 · ATTRIBUTION — WHICH night a session belongs to. `nights_index` calls `night_band` and keeps only
+#       `strftime("%Y-%m-%d")` of the begin edge, so for those two sites the band is a KEY and its edges
+#       never touch a number. The owner's 2026-10-13 ruling governs this job, and `night_key_band` below
+#       now serves it.
+#   2 · ADMISSION — WHAT counts as this night's signal. `night_view` CLIPS rows to this band, so a
+#       session entirely in daylight yields no night rows; `solid_night_inputs.band_of` feeds `in_band`,
+#       which keeps an afternoon file out of a night's evidence and refuses a noon clock sidecar as a
+#       night's comparison. These edges ARE numbers, and a 24 h band would make every one of them
+#       vacuous — a daylight sitting would contribute its rows to the night, and a noon sidecar would
+#       vouch for a night that never had a comparison. That is §∅ inverted: night signal manufactured
+#       out of daytime wear. The ruling does not ask for it, and its own words ("a flagged session is
+#       never judged as a night") ask for the opposite.
+#
+# So THIS band keeps job 2 at 18/10 and the measurements below stand. The key is a separate function.
 _NIGHT_BEGIN_H = 18
 _NIGHT_END_H = 10
+
+# ── THE NIGHT KEY — OWNER RULING, 2026-10-13 ────────────────────────────────────────────────────────
+# 🔴 Noon-to-noon, labelled by the EVENING date (AskUserQuestion, relayed by Kestrel). It replaces an
+# earlier "start − 6 h" reading and answers `NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF` §⑤'s first bullet.
+# A session starting from 12:00 on D through 11:59 on D+1 belongs to night D. The owner's reason:
+# research actigraphy tools use this window, and a 06:00 cut splits a 06:30 re-pair off its night.
+#
+# ⚠️ THIS BAND TILES THE CLOCK, which is the ruling's "no session falls between two nights", and that is
+# the whole difference from the band above. Under 18/10 the eight hours [10:00, 18:00) fell in no band
+# containing them, so a 13:00 session was keyed to the previous evening — a band that ended at 10:00 and
+# did not contain it. `nights_index`' own comment recorded that mismatch as "`nightqc`'s to fix"; this
+# fixes it.
+#
+# ⚠️ AND A TILING BAND MAKES THE DST HOUR VISIBLE, where a 16 h band hid it. The arithmetic is naive
+# local, so consecutive anchors sit 23 or 25 real hours apart on the two changeover days while the width
+# is a computed 24 h. On those two days the keys leave a 1 h gap or share a 1 h overlap at the seam.
+# Bounded, dated, and smaller than the rule it serves; a zone-aware band is its own unit.
+_KEY_BEGIN_H = 12
+
+# ── THE DAYTIME FLAG'S OWN EDGES ────────────────────────────────────────────────────────────────────
+# Ruled separately in the same 2026-10-13 answer: a session starting from 10:00 through 18:00 carries a
+# `daytime` flag, and a flagged session is never judged as a night.
+#
+# ⚠️ THESE TWO NUMBERS EQUAL `_NIGHT_END_H` AND `_NIGHT_BEGIN_H` TODAY, and they are still their own
+# constants. The flag used to be computed from the sleep band's uncovered gap, which made it an artefact
+# of that band: the next ruling that moves a sleep edge would move the published flag with it, silently
+# and in a surface the owner ruled separately. Coincident is not derived.
+_DAYTIME_BEGIN_H = 10
+_DAYTIME_END_H = 18
 
 
 def night_band(ts: float) -> tuple:
@@ -206,11 +255,36 @@ def night_band(ts: float) -> tuple:
 
     ⚠️ Naive local arithmetic, matching `_midnight_of` — an hour off on the two DST changeover days a
     year. Bounded and benign for a band this wide; a 16 h window does not care about one hour.
+
+    ⚠️ THIS IS THE SLEEP WINDOW, NOT THE NIGHT KEY. It decides what counts as a night's signal, and
+    `night_key_band` decides which night a session belongs to. `_NIGHT_BEGIN_H`'s comment carries the
+    measurement that separated them.
     """
     d = datetime.fromtimestamp(ts)
     anchor = d.date() if d.hour >= _NIGHT_BEGIN_H else (d - timedelta(days=1)).date()
     begin = datetime.combine(anchor, datetime.min.time()).timestamp() + _NIGHT_BEGIN_H * 3600.0
     return begin, begin + (24 - _NIGHT_BEGIN_H + _NIGHT_END_H) * 3600.0
+
+
+def night_key_band(ts: float) -> tuple:
+    """The [begin, end) NOON-TO-NOON band containing `ts`, as epochs — the band a night is KEYED by.
+
+    Owner ruling 2026-10-13: a session starting from 12:00 on D through 11:59 on D+1 belongs to night D,
+    and the key is the EVENING date. `_KEY_BEGIN_H`'s comment carries the ruling and its consequences.
+
+    ⚠️ IT TILES THE CLOCK, AND THAT IS THE POINT. Every stamp lands in exactly one band, so no session
+    falls between two nights — the one thing the 16 h sleep band cannot give, because the eight hours it
+    does not cover have to be charged somewhere. Width is a fixed 24 h.
+
+    ⚠️ NEVER PASS THIS TO `in_band` OR `night_view`. It admits everything, so it would clip nothing and
+    exclude nothing: a daylight sitting's rows would land in the night and an afternoon sidecar would
+    stand as the night's clock evidence. Admission is `night_band`'s job, and `_NIGHT_BEGIN_H`'s comment
+    carries the 24-test measurement that separated the two.
+    """
+    d = datetime.fromtimestamp(ts)
+    anchor = d.date() if d.hour >= _KEY_BEGIN_H else (d - timedelta(days=1)).date()
+    begin = datetime.combine(anchor, datetime.min.time()).timestamp() + _KEY_BEGIN_H * 3600.0
+    return begin, begin + 24 * 3600.0
 
 
 def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:

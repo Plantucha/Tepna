@@ -1,0 +1,993 @@
+{
+ "schema": "tepna.published-number-record/1",
+ "producer": "tools/tch-reference-record.mjs",
+ "producerCommit": "6b60044e8",
+ "invocation": "node tools/tch-reference-record.mjs --host <host run of tools/tch-firmware-reference.mjs --axis host --solid auto --json> --wall <the same with --axis wall> --out <this file> --js codegen/generated/tch-reference-record.js",
+ "generated": "2026-10-18",
+ "supersedes": "analysis/published-numbers/tch-firmware-reference-2026-09-26.json",
+ "brief": "briefs/TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md",
+ "inputs": {
+  "path": "<box captures root>/<night>/",
+  "committed": false,
+  "note": "raw H10 ECG + firmware RR, Verity PPG, O2Ring PPG; gitignored and owner-ruled (2026-09-24) to stay off the public repo, so only POOLED figures are recorded here — no per-night row, no night list"
+ },
+ "deterministic": "the reference and every corner are deterministic functions of the files; no sampling. The stratum CI is a 20000-draw bootstrap of the mean on the fixed seed 20260926, so it reproduces byte-for-byte",
+ "publishedIn": "sensor-trio-night.html (the validation note under the per-device heroes), which inlines codegen/generated/tch-reference-record.js — the card composes every figure from this record",
+ "axisCanonical": "host",
+ "axisNote": "host is the status quo: ECGDex and PpgDex already add DexClock.hostAxis correctionAt to the device counter, so the card runs on the host-disciplined axis. wall is the counterfactual leg — hostAxis suppressed, each parser on its raw device counter",
+ "band": {
+  "abs": 0.3,
+  "rel": 0.3,
+  "passFraction": 0.8,
+  "minNights": 10
+ },
+ "axes": {
+  "host": {
+   "populations": {
+    "all": {
+     "schema": "tepna.verdict/1",
+     "gate": "tch-firmware-reference",
+     "axis": "host",
+     "scope": "internal",
+     "status": "FAIL",
+     "population": {
+      "name": "all",
+      "checked": 54,
+      "eligible": 94,
+      "excluded": 40,
+      "first": "2026-07-16",
+      "last": "2026-10-17"
+     },
+     "criterion": {
+      "name": "classic_hat_optical_corners_within_band_fraction",
+      "threshold": 0.8,
+      "unit": "fraction",
+      "direction": "gte"
+     },
+     "result": {
+      "classicPassFraction": 0.759,
+      "correlated": {
+       "passFraction": 0.528,
+       "refused": 17,
+       "status": "FAIL"
+      },
+      "medians": {
+       "h10": {
+        "trueSd": 0.841,
+        "bias": 0.03,
+        "classic": 0.957,
+        "correlated": 0.943
+       },
+       "verity": {
+        "trueSd": 0.797,
+        "bias": -0.005,
+        "classic": 0.618,
+        "correlated": 0.663
+       },
+       "o2": {
+        "trueSd": 2.972,
+        "bias": -0.071,
+        "classic": 2.894,
+        "correlated": 2.091
+       }
+      },
+      "rho": {
+       "hv": -0.013,
+       "ho": 0.026,
+       "vo": 0.196
+      }
+     },
+     "evidence": [
+      "tools/tch-firmware-reference.mjs",
+      "<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}"
+     ],
+     "reason": "classic hat: 82/108 optical night-corners within ±0.3 bpm or ±30 % of the reference-measured σ (< 80 %); Verity σ̂ 0.618 vs true 0.797 bpm, ρ(V,O) 0.196 · axis host",
+     "producedBy": {
+      "tool": "tools/tch-firmware-reference.mjs",
+      "commit": "fa0f01fde"
+     },
+     "at": "2026-10-18T03:04:05Z"
+    },
+    "rolling30": {
+     "schema": "tepna.verdict/1",
+     "gate": "tch-firmware-reference:rolling30",
+     "axis": "host",
+     "scope": "internal",
+     "status": "FAIL",
+     "population": {
+      "name": "rolling30",
+      "checked": 23,
+      "eligible": 30,
+      "excluded": 7,
+      "first": "2026-09-18",
+      "last": "2026-10-17"
+     },
+     "criterion": {
+      "name": "classic_hat_optical_corners_within_band_fraction",
+      "threshold": 0.8,
+      "unit": "fraction",
+      "direction": "gte"
+     },
+     "result": {
+      "classicPassFraction": 0.739,
+      "correlated": {
+       "passFraction": 0.5,
+       "refused": 7,
+       "status": "FAIL"
+      },
+      "medians": {
+       "h10": {
+        "trueSd": 0.875,
+        "bias": 0.03,
+        "classic": 0.994,
+        "correlated": 1.065
+       },
+       "verity": {
+        "trueSd": 0.791,
+        "bias": 0.002,
+        "classic": 0.447,
+        "correlated": 0.492
+       },
+       "o2": {
+        "trueSd": 2.941,
+        "bias": -0.024,
+        "classic": 2.744,
+        "correlated": 1.504
+       }
+      },
+      "rho": {
+       "hv": -0.029,
+       "ho": 0.028,
+       "vo": 0.198
+      }
+     },
+     "evidence": [
+      "tools/tch-firmware-reference.mjs",
+      "<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}"
+     ],
+     "reason": "classic hat: 34/46 optical night-corners within ±0.3 bpm or ±30 % of the reference-measured σ (< 80 %); Verity σ̂ 0.447 vs true 0.791 bpm, ρ(V,O) 0.198 · axis host",
+     "producedBy": {
+      "tool": "tools/tch-firmware-reference.mjs",
+      "commit": "fa0f01fde"
+     },
+     "at": "2026-10-18T03:04:05Z"
+    },
+    "solid": {
+     "schema": "tepna.verdict/1",
+     "gate": "tch-firmware-reference:solid",
+     "axis": "host",
+     "scope": "internal",
+     "status": "PASS",
+     "population": {
+      "name": "solid",
+      "checked": 10,
+      "eligible": 12,
+      "excluded": 2,
+      "first": "2026-09-28",
+      "last": "2026-10-16",
+      "listed": 12
+     },
+     "criterion": {
+      "name": "classic_hat_optical_corners_within_band_fraction",
+      "threshold": 0.8,
+      "unit": "fraction",
+      "direction": "gte"
+     },
+     "result": {
+      "classicPassFraction": 0.8,
+      "correlated": {
+       "passFraction": 0.65,
+       "refused": 1,
+       "status": "FAIL"
+      },
+      "medians": {
+       "h10": {
+        "trueSd": 0.899,
+        "bias": 0.042,
+        "classic": 0.937,
+        "correlated": 0.955
+       },
+       "verity": {
+        "trueSd": 0.769,
+        "bias": 0.006,
+        "classic": 0.598,
+        "correlated": 0.583
+       },
+       "o2": {
+        "trueSd": 3.146,
+        "bias": -0.037,
+        "classic": 3.117,
+        "correlated": 2.981
+       }
+      },
+      "rho": {
+       "hv": -0.025,
+       "ho": 0.056,
+       "vo": 0.09
+      }
+     },
+     "evidence": [
+      "tools/tch-firmware-reference.mjs",
+      "<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}"
+     ],
+     "reason": null,
+     "producedBy": {
+      "tool": "tools/tch-firmware-reference.mjs",
+      "commit": "fa0f01fde"
+     },
+     "at": "2026-10-18T03:04:05Z"
+    }
+   },
+   "classic": {
+    "pass": 82,
+    "total": 108,
+    "frac": 0.7592592592592593
+   },
+   "correlated": {
+    "pass": 57,
+    "total": 108,
+    "frac": 0.5277777777777778,
+    "refused": 17
+   },
+   "inBand": {
+    "h10": {
+     "pass": 32,
+     "of": 54,
+     "fraction": 0.593,
+     "status": "unvalidated",
+     "reads": "over-reads"
+    },
+    "verity": {
+     "pass": 29,
+     "of": 54,
+     "fraction": 0.537,
+     "status": "unvalidated",
+     "reads": "under-reads"
+    },
+    "o2": {
+     "pass": 53,
+     "of": 54,
+     "fraction": 0.981,
+     "status": "reference-checked",
+     "reads": "under-reads"
+    }
+   },
+   "biasStratum": {
+    "status": "UNDERPOWERED",
+    "reason": "10 solid night(s) against the pre-stated minimum of 20 (twice the sibling tool's MIN_NIGHTS of 10) — the per-corner comparison is reported, not decided",
+    "stratumNights": 10,
+    "stratumListed": 12,
+    "allNights": 54,
+    "judged": [
+     "verity",
+     "o2"
+    ],
+    "met": 1,
+    "corners": {
+     "h10": {
+      "judged": false,
+      "allNights": {
+       "n": 54,
+       "mean": 0.043,
+       "median": 0.03,
+       "ci": [
+        0.034,
+        0.054
+       ]
+      },
+      "stratum": {
+       "n": 10,
+       "mean": 0.051,
+       "median": 0.042,
+       "ci": [
+        0.034,
+        0.076
+       ]
+      },
+      "sameSign": true,
+      "insideCi": true,
+      "zeroCrossing": false,
+      "meets": true
+     },
+     "verity": {
+      "judged": true,
+      "allNights": {
+       "n": 54,
+       "mean": 0,
+       "median": -0.005,
+       "ci": [
+        -0.01,
+        0.011
+       ]
+      },
+      "stratum": {
+       "n": 10,
+       "mean": 0.02,
+       "median": 0.006,
+       "ci": [
+        -0.004,
+        0.053
+       ]
+      },
+      "sameSign": false,
+      "insideCi": false,
+      "zeroCrossing": true,
+      "meets": false
+     },
+     "o2": {
+      "judged": true,
+      "allNights": {
+       "n": 54,
+       "mean": -0.116,
+       "median": -0.071,
+       "ci": [
+        -0.192,
+        -0.048
+       ]
+      },
+      "stratum": {
+       "n": 10,
+       "mean": -0.104,
+       "median": -0.037,
+       "ci": [
+        -0.338,
+        0.064
+       ]
+      },
+      "sameSign": true,
+      "insideCi": true,
+      "zeroCrossing": false,
+      "meets": true
+     }
+    }
+   }
+  },
+  "wall": {
+   "populations": {
+    "all": {
+     "schema": "tepna.verdict/1",
+     "gate": "tch-firmware-reference",
+     "axis": "wall",
+     "scope": "internal",
+     "status": "FAIL",
+     "population": {
+      "name": "all",
+      "checked": 54,
+      "eligible": 94,
+      "excluded": 40,
+      "first": "2026-07-16",
+      "last": "2026-10-17"
+     },
+     "criterion": {
+      "name": "classic_hat_optical_corners_within_band_fraction",
+      "threshold": 0.8,
+      "unit": "fraction",
+      "direction": "gte"
+     },
+     "result": {
+      "classicPassFraction": 0.769,
+      "correlated": {
+       "passFraction": 0.63,
+       "refused": 17,
+       "status": "FAIL"
+      },
+      "medians": {
+       "h10": {
+        "trueSd": 0.224,
+        "bias": 0.006,
+        "classic": 0.98,
+        "correlated": 0.685
+       },
+       "verity": {
+        "trueSd": 1.302,
+        "bias": -0.013,
+        "classic": 0.872,
+        "correlated": 1.187
+       },
+       "o2": {
+        "trueSd": 3.247,
+        "bias": -0.106,
+        "classic": 3.084,
+        "correlated": 3.162
+       }
+      },
+      "rho": {
+       "hv": -0.012,
+       "ho": -0.039,
+       "vo": 0.163
+      }
+     },
+     "evidence": [
+      "tools/tch-firmware-reference.mjs",
+      "<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}"
+     ],
+     "reason": "classic hat: 83/108 optical night-corners within ±0.3 bpm or ±30 % of the reference-measured σ (< 80 %); Verity σ̂ 0.872 vs true 1.302 bpm, ρ(V,O) 0.163 · axis wall",
+     "producedBy": {
+      "tool": "tools/tch-firmware-reference.mjs",
+      "commit": "fa0f01fde"
+     },
+     "at": "2026-10-18T03:29:00Z"
+    },
+    "rolling30": {
+     "schema": "tepna.verdict/1",
+     "gate": "tch-firmware-reference:rolling30",
+     "axis": "wall",
+     "scope": "internal",
+     "status": "PASS",
+     "population": {
+      "name": "rolling30",
+      "checked": 23,
+      "eligible": 30,
+      "excluded": 7,
+      "first": "2026-09-18",
+      "last": "2026-10-17"
+     },
+     "criterion": {
+      "name": "classic_hat_optical_corners_within_band_fraction",
+      "threshold": 0.8,
+      "unit": "fraction",
+      "direction": "gte"
+     },
+     "result": {
+      "classicPassFraction": 0.848,
+      "correlated": {
+       "passFraction": 0.696,
+       "refused": 6,
+       "status": "FAIL"
+      },
+      "medians": {
+       "h10": {
+        "trueSd": 0.278,
+        "bias": 0.011,
+        "classic": 0.915,
+        "correlated": 0.716
+       },
+       "verity": {
+        "trueSd": 1.275,
+        "bias": -0.008,
+        "classic": 0.875,
+        "correlated": 1.156
+       },
+       "o2": {
+        "trueSd": 3.158,
+        "bias": -0.056,
+        "classic": 3.055,
+        "correlated": 3.066
+       }
+      },
+      "rho": {
+       "hv": -0.012,
+       "ho": -0.037,
+       "vo": 0.147
+      }
+     },
+     "evidence": [
+      "tools/tch-firmware-reference.mjs",
+      "<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}"
+     ],
+     "reason": null,
+     "producedBy": {
+      "tool": "tools/tch-firmware-reference.mjs",
+      "commit": "fa0f01fde"
+     },
+     "at": "2026-10-18T03:29:00Z"
+    },
+    "solid": {
+     "schema": "tepna.verdict/1",
+     "gate": "tch-firmware-reference:solid",
+     "axis": "wall",
+     "scope": "internal",
+     "status": "PASS",
+     "population": {
+      "name": "solid",
+      "checked": 10,
+      "eligible": 12,
+      "excluded": 2,
+      "first": "2026-09-28",
+      "last": "2026-10-16",
+      "listed": 12
+     },
+     "criterion": {
+      "name": "classic_hat_optical_corners_within_band_fraction",
+      "threshold": 0.8,
+      "unit": "fraction",
+      "direction": "gte"
+     },
+     "result": {
+      "classicPassFraction": 0.85,
+      "correlated": {
+       "passFraction": 0.85,
+       "refused": 1,
+       "status": "PASS"
+      },
+      "medians": {
+       "h10": {
+        "trueSd": 0.47,
+        "bias": 0.017,
+        "classic": 1.027,
+        "correlated": 0.62
+       },
+       "verity": {
+        "trueSd": 1.227,
+        "bias": -0.004,
+        "classic": 0.888,
+        "correlated": 1.204
+       },
+       "o2": {
+        "trueSd": 3.425,
+        "bias": -0.06,
+        "classic": 3.344,
+        "correlated": 3.371
+       }
+      },
+      "rho": {
+       "hv": -0.016,
+       "ho": -0.025,
+       "vo": 0.145
+      }
+     },
+     "evidence": [
+      "tools/tch-firmware-reference.mjs",
+      "<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}"
+     ],
+     "reason": null,
+     "producedBy": {
+      "tool": "tools/tch-firmware-reference.mjs",
+      "commit": "fa0f01fde"
+     },
+     "at": "2026-10-18T03:29:00Z"
+    }
+   },
+   "classic": {
+    "pass": 83,
+    "total": 108,
+    "frac": 0.7685185185185185
+   },
+   "correlated": {
+    "pass": 68,
+    "total": 108,
+    "frac": 0.6296296296296297,
+    "refused": 17
+   },
+   "inBand": {
+    "h10": {
+     "pass": 4,
+     "of": 54,
+     "fraction": 0.074,
+     "status": "unvalidated",
+     "reads": "over-reads"
+    },
+    "verity": {
+     "pass": 29,
+     "of": 54,
+     "fraction": 0.537,
+     "status": "unvalidated",
+     "reads": "under-reads"
+    },
+    "o2": {
+     "pass": 54,
+     "of": 54,
+     "fraction": 1,
+     "status": "reference-checked",
+     "reads": "under-reads"
+    }
+   },
+   "biasStratum": {
+    "status": "UNDERPOWERED",
+    "reason": "10 solid night(s) against the pre-stated minimum of 20 (twice the sibling tool's MIN_NIGHTS of 10) — the per-corner comparison is reported, not decided",
+    "stratumNights": 10,
+    "stratumListed": 12,
+    "allNights": 54,
+    "judged": [
+     "verity",
+     "o2"
+    ],
+    "met": 1,
+    "corners": {
+     "h10": {
+      "judged": false,
+      "allNights": {
+       "n": 54,
+       "mean": 0.019,
+       "median": 0.006,
+       "ci": [
+        0.01,
+        0.028
+       ]
+      },
+      "stratum": {
+       "n": 10,
+       "mean": 0.034,
+       "median": 0.017,
+       "ci": [
+        0.013,
+        0.062
+       ]
+      },
+      "sameSign": true,
+      "insideCi": false,
+      "zeroCrossing": false,
+      "meets": false
+     },
+     "verity": {
+      "judged": true,
+      "allNights": {
+       "n": 54,
+       "mean": -0.006,
+       "median": -0.013,
+       "ci": [
+        -0.015,
+        0.005
+       ]
+      },
+      "stratum": {
+       "n": 10,
+       "mean": 0.015,
+       "median": -0.004,
+       "ci": [
+        -0.011,
+        0.051
+       ]
+      },
+      "sameSign": false,
+      "insideCi": false,
+      "zeroCrossing": true,
+      "meets": false
+     },
+     "o2": {
+      "judged": true,
+      "allNights": {
+       "n": 54,
+       "mean": -0.16,
+       "median": -0.106,
+       "ci": [
+        -0.242,
+        -0.085
+       ]
+      },
+      "stratum": {
+       "n": 10,
+       "mean": -0.102,
+       "median": -0.06,
+       "ci": [
+        -0.325,
+        0.062
+       ]
+      },
+      "sameSign": true,
+      "insideCi": true,
+      "zeroCrossing": false,
+      "meets": true
+     }
+    }
+   }
+  }
+ },
+ "pairedDrift": {
+  "quantity": "reference-measured σ, host axis − wall axis, per night",
+  "nights": 54,
+  "first": "2026-07-27",
+  "last": "2026-10-16",
+  "line": 0.05,
+  "corners": {
+   "h10": {
+    "n": 54,
+    "medianAbs": 0.54,
+    "median": 0.54,
+    "hostLarger": 53,
+    "material": true
+   },
+   "verity": {
+    "n": 54,
+    "medianAbs": 0.506,
+    "median": -0.444,
+    "hostLarger": 7,
+    "material": true
+   },
+   "o2": {
+    "n": 54,
+    "medianAbs": 0.278,
+    "median": -0.278,
+    "hostLarger": 15,
+    "material": true
+   }
+  }
+ },
+ "claimsNote": "dateFirst/dateLast is the span of the SCORED nights (nightsScored). eligibleFirst/eligibleLast, and each verdict population.first/last, is the wider ELIGIBLE span: a night can be eligible and refused. Never quote a count from one set with a range from the other",
+ "claims": {
+  "nightsScored": 54,
+  "nightsEligible": 94,
+  "dateFirst": "2026-07-27",
+  "dateLast": "2026-10-16",
+  "eligibleFirst": "2026-07-16",
+  "eligibleLast": "2026-10-17",
+  "classicPassFraction": 0.759,
+  "h10Measured": 0.841,
+  "h10Hat": 0.957,
+  "verityTrue": 0.797,
+  "verityHat": 0.618,
+  "o2True": 2.972,
+  "o2Hat": 2.894,
+  "rhoVO": 0.196,
+  "maxAbsBias": 0.071,
+  "solidNightsScored": 10,
+  "solidClassicPassFraction": 0.8,
+  "driftMedianAbs": {
+   "h10": 0.54,
+   "verity": 0.506,
+   "o2": 0.278
+  }
+ },
+ "result": {
+  "verdicts": [
+   {
+    "schema": "tepna.verdict/1",
+    "gate": "tch-reference-record:no-private-data",
+    "status": "PASS",
+    "scope": "publishable",
+    "population": {
+     "name": "record leaves",
+     "checked": 451,
+     "eligible": 451,
+     "excluded": 0
+    },
+    "criterion": {
+     "name": "record_leaves_free_of_corpus_paths_night_lists_and_per_night_rows",
+     "threshold": 0,
+     "unit": "findings",
+     "direction": "lte"
+    },
+    "result": {
+     "findings": 0,
+     "rules": 3
+    },
+    "evidence": [
+     "tools/tch-reference-record.mjs",
+     "analysis/published-numbers/tch-firmware-reference-2026-10-18.json"
+    ],
+    "reason": null,
+    "producedBy": {
+     "tool": "tools/tch-reference-record.mjs",
+     "commit": "6b60044e8"
+    },
+    "at": "2026-10-18T22:37:13Z"
+   },
+   {
+    "schema": "tepna.verdict/1",
+    "gate": "tch-reference-record:bias-stratum",
+    "status": "UNDERPOWERED",
+    "scope": "internal",
+    "population": {
+     "name": "solid vs all",
+     "checked": 10,
+     "eligible": 54,
+     "excluded": 44,
+     "first": "2026-09-28",
+     "last": "2026-10-16"
+    },
+    "criterion": {
+     "name": "solid_stratum_mean_bias_same_sign_and_inside_all_nights_95ci",
+     "threshold": 2,
+     "unit": "judged corners",
+     "direction": "gte"
+    },
+    "result": {
+     "axis": "host",
+     "met": 1,
+     "judged": [
+      "verity",
+      "o2"
+     ],
+     "draws": 20000,
+     "seed": 20260926,
+     "corners": {
+      "h10": {
+       "judged": false,
+       "allNights": {
+        "n": 54,
+        "mean": 0.043,
+        "median": 0.03,
+        "ci": [
+         0.034,
+         0.054
+        ]
+       },
+       "stratum": {
+        "n": 10,
+        "mean": 0.051,
+        "median": 0.042,
+        "ci": [
+         0.034,
+         0.076
+        ]
+       },
+       "sameSign": true,
+       "insideCi": true,
+       "zeroCrossing": false,
+       "meets": true
+      },
+      "verity": {
+       "judged": true,
+       "allNights": {
+        "n": 54,
+        "mean": 0,
+        "median": -0.005,
+        "ci": [
+         -0.01,
+         0.011
+        ]
+       },
+       "stratum": {
+        "n": 10,
+        "mean": 0.02,
+        "median": 0.006,
+        "ci": [
+         -0.004,
+         0.053
+        ]
+       },
+       "sameSign": false,
+       "insideCi": false,
+       "zeroCrossing": true,
+       "meets": false
+      },
+      "o2": {
+       "judged": true,
+       "allNights": {
+        "n": 54,
+        "mean": -0.116,
+        "median": -0.071,
+        "ci": [
+         -0.192,
+         -0.048
+        ]
+       },
+       "stratum": {
+        "n": 10,
+        "mean": -0.104,
+        "median": -0.037,
+        "ci": [
+         -0.338,
+         0.064
+        ]
+       },
+       "sameSign": true,
+       "insideCi": true,
+       "zeroCrossing": false,
+       "meets": true
+      }
+     }
+    },
+    "evidence": [
+     "tools/tch-reference-record.mjs",
+     "tools/tch-firmware-reference.mjs",
+     "<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}"
+    ],
+    "reason": "10 solid night(s) against the pre-stated minimum of 20 (twice the sibling tool's MIN_NIGHTS of 10) — the per-corner comparison is reported, not decided",
+    "producedBy": {
+     "tool": "tools/tch-reference-record.mjs",
+     "commit": "6b60044e8"
+    },
+    "at": "2026-10-18T22:37:13Z"
+   },
+   {
+    "schema": "tepna.verdict/1",
+    "gate": "tch-reference-record:bias-stratum",
+    "status": "UNDERPOWERED",
+    "scope": "internal",
+    "population": {
+     "name": "solid vs all",
+     "checked": 10,
+     "eligible": 54,
+     "excluded": 44,
+     "first": "2026-09-28",
+     "last": "2026-10-16"
+    },
+    "criterion": {
+     "name": "solid_stratum_mean_bias_same_sign_and_inside_all_nights_95ci",
+     "threshold": 2,
+     "unit": "judged corners",
+     "direction": "gte"
+    },
+    "result": {
+     "axis": "wall",
+     "met": 1,
+     "judged": [
+      "verity",
+      "o2"
+     ],
+     "draws": 20000,
+     "seed": 20260926,
+     "corners": {
+      "h10": {
+       "judged": false,
+       "allNights": {
+        "n": 54,
+        "mean": 0.019,
+        "median": 0.006,
+        "ci": [
+         0.01,
+         0.028
+        ]
+       },
+       "stratum": {
+        "n": 10,
+        "mean": 0.034,
+        "median": 0.017,
+        "ci": [
+         0.013,
+         0.062
+        ]
+       },
+       "sameSign": true,
+       "insideCi": false,
+       "zeroCrossing": false,
+       "meets": false
+      },
+      "verity": {
+       "judged": true,
+       "allNights": {
+        "n": 54,
+        "mean": -0.006,
+        "median": -0.013,
+        "ci": [
+         -0.015,
+         0.005
+        ]
+       },
+       "stratum": {
+        "n": 10,
+        "mean": 0.015,
+        "median": -0.004,
+        "ci": [
+         -0.011,
+         0.051
+        ]
+       },
+       "sameSign": false,
+       "insideCi": false,
+       "zeroCrossing": true,
+       "meets": false
+      },
+      "o2": {
+       "judged": true,
+       "allNights": {
+        "n": 54,
+        "mean": -0.16,
+        "median": -0.106,
+        "ci": [
+         -0.242,
+         -0.085
+        ]
+       },
+       "stratum": {
+        "n": 10,
+        "mean": -0.102,
+        "median": -0.06,
+        "ci": [
+         -0.325,
+         0.062
+        ]
+       },
+       "sameSign": true,
+       "insideCi": true,
+       "zeroCrossing": false,
+       "meets": true
+      }
+     }
+    },
+    "evidence": [
+     "tools/tch-reference-record.mjs",
+     "tools/tch-firmware-reference.mjs",
+     "<box captures root>/**/{*_ECG.txt,*_RR.txt,*_PPG.txt,*_SPO2.csv}"
+    ],
+    "reason": "10 solid night(s) against the pre-stated minimum of 20 (twice the sibling tool's MIN_NIGHTS of 10) — the per-corner comparison is reported, not decided",
+    "producedBy": {
+     "tool": "tools/tch-reference-record.mjs",
+     "commit": "6b60044e8"
+    },
+    "at": "2026-10-18T22:37:13Z"
+   }
+  ]
+ }
+}

@@ -1,0 +1,180 @@
+{
+  "schema": "tepna.defect-pin-inventory/1",
+  "enumeratedWith": "grep -rniE \"used to assert|pinned the defect|encoded the defect\" capture-host/tests tests",
+  "bounds": "The phrase set finds a test a session ANNOTATED after re-aiming it. An instance nobody annotated is invisible here, so these counts BOUND the class rather than counting it (residue 2026-09-23-tests-that-assert-the-defect-they-were-written-for).",
+  "mechanisms": {
+    "expected-value": "The assertion's expected value was the defect's own output, so the fix had to change the expectation.",
+    "fixture-shape": "The fixture's input or environment differed from production's, so the assertion never met the contract it names.",
+    "predicate-strength": "The predicate was strictly weaker than the contract, or incidental to it, so the defect satisfied it."
+  },
+  "pins": [
+    {
+      "file": "capture-host/tests/test_capture_coverage_100.py",
+      "quote": "⚠️ THIS TEST USED TO ASSERT THE CONFIGURED BUS-PORT, AND THAT WAS THE D",
+      "mechanism": "fixture-shape",
+      "reaimed": null,
+      "why": "The fixture's configured port equalled the derived one, so the assertion could not tell which the rung used."
+    },
+    {
+      "file": "capture-host/tests/test_capture_runners.py",
+      "quote": "the AES warning, which encoded the defect: DIS 0x2A26 carries a",
+      "mechanism": "fixture-shape",
+      "reaimed": null,
+      "why": "The fixture published a DIS characteristic and required the warning, while the ring under test implements no DIS at all."
+    },
+    {
+      "file": "capture-host/tests/test_capture_runners.py",
+      "quote": "⚠️ THIS TEST USED TO ASSERT THE OVERRUN (fixed 2026-09-23). It expected",
+      "mechanism": "expected-value",
+      "reaimed": "2026-09-23",
+      "why": "It asserted three attempts against a 120 s budget, pinning a 25 percent overspend as the specification."
+    },
+    {
+      "file": "capture-host/tests/test_capture_status.py",
+      "quote": "\"\"\"Used to assert `connected (idle)` and an `active=None` lin",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted the rendering a residue row calls out, where an unmatched name is indistinguishable from a genuinely idle stream."
+    },
+    {
+      "file": "capture-host/tests/test_cpap_edf_writer.py",
+      "quote": "47172a6147cd. This test used to assert that a flow-only batch at 22:15:03 and a pr",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted that two one-channel batches a second apart pad to one record, so the expectation held a record whose channels came from different seconds."
+    },
+    {
+      "file": "capture-host/tests/test_cpap_shadow_runner.py",
+      "quote": "failed connect\"), which pinned the defect rather than a contract. A",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted that a failed connect writes nothing, which is the journal shape that made eleven hours unknowable on 2026-08-29."
+    },
+    {
+      "file": "capture-host/tests/test_night_report.py",
+      "quote": "\"\"\"⚠️ THIS TEST PINNED THE DEFECT AS THE SPEC UNTIL 2026-09-23. It asserted",
+      "mechanism": "expected-value",
+      "reaimed": "2026-09-23",
+      "why": "It asserted ok for `class_b=[]`, reading an empty list as looked-and-found-nothing, while the producer skips a file it cannot judge."
+    },
+    {
+      "file": "capture-host/tests/test_pmd_arrival_writer.py",
+      "quote": "; keeping it would have pinned the defect rather than the contract.",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted that the two shared values must differ, which was an artifact of the old asymmetric statistic."
+    },
+    {
+      "file": "capture-host/tests/test_pull_session.py",
+      "quote": "\"\"\"This test used to assert that `--ftype 7` reached the wire, on the r",
+      "mechanism": "expected-value",
+      "reaimed": "#2313",
+      "why": "It asserted that `--ftype 7` selects a file type, on help-text evidence its own docstring called weak; the u32 is an offset."
+    },
+    {
+      "file": "capture-host/tests/test_run_sidecar.py",
+      "quote": "bytes; the comment that used to assert the distinction was not one.\"\"\"",
+      "mechanism": "predicate-strength",
+      "reaimed": null,
+      "why": "The distinction lived in a comment rather than an assertion, so nothing checked it."
+    },
+    {
+      "file": "capture-host/tests/test_run_sidecar.py",
+      "quote": "⚠️ THIS USED TO ASSERT `set(RUN_MIN_BY_STREAM.values()) == {T_STUC",
+      "mechanism": "predicate-strength",
+      "reaimed": null,
+      "why": "It asserted one shared threshold across streams, true only incidentally, so the first stream to need its own read as a violation."
+    },
+    {
+      "file": "capture-host/tests/test_storage_targets.py",
+      "quote": "This used to assert only that the unit name reached the root sh",
+      "mechanism": "predicate-strength",
+      "reaimed": null,
+      "why": "It asserted only that the unit name reached the root shell quoted, while the same value also lands in `Where=` where quoting means nothing."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "/* §∅ — THIS PAIR USED TO ASSERT THE DEFECT, one line under the assertion th",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted a synthesised `{rate:0,count:0}` block, which is the absent path wearing the present path's shape."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "/* ⚠️ THIS LINE USED TO ASSERT `autoArousalIdx === 0` — the ONE exception",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted an arousal index of zero for a zero-duration recording, the one fabricated number in a block of refusals."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "/* ⚠️ THIS USED TO ASSERT `_crSeen.length === 2` (DEEP-AUDIT-VI-FOLLO",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted two implementations of one function, so single-sourcing them would have reddened the gate."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "// FIXTURE-PROVENANCE used to assert CPAPDex \"can't join the equivalence gate (i",
+      "mechanism": "fixture-shape",
+      "reaimed": null,
+      "why": "The ledger asserted that the real binary input could not drive the equivalence gate, so the full chain stayed untested."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "LOWUPS §C2 — THIS GROUP USED TO ASSERT THE DEFECT.",
+      "mechanism": "predicate-strength",
+      "reaimed": null,
+      "why": "It paired two fractions on different clocks and asserted their difference, so the gap it measured was arithmetic."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "MODEL-WRITTEN PROPERTY PINNED THE DEFECT AS THE SPEC. The",
+      "mechanism": "expected-value",
+      "reaimed": "2026-09-23",
+      "why": "A model-written property asserted zero for an empty input, calling 0/0 a night that spent none of its time below the threshold."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "T-THE-EDGE). This group used to assert the EXPOSURE — that",
+      "mechanism": "expected-value",
+      "reaimed": "2026-09-17",
+      "why": "It asserted the exposure itself, that the refusal bounds the rate and not the axis."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "e null form. This block used to assert the opposite",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted that an absent mean SpO2 defaults to zero, as a deliberate contrast that documented the fabrication."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "eresting part. This leg used to assert that",
+      "mechanism": "expected-value",
+      "reaimed": null,
+      "why": "It asserted that the axis refuses a stepped counter, and that refusal was the only thing keeping a 484.7 ppm rate out of `fs`."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "gs a day). The gate had encoded the defect. Now the regex is",
+      "mechanism": "fixture-shape",
+      "reaimed": "#2219",
+      "why": "The regex was read out of the reader's source instead of run against the writer's real filename."
+    },
+    {
+      "file": "tests/dex-tests.js",
+      "quote": "🔴 THIS GROUP USED TO ASSERT THE DEFECT it was written against, and it p",
+      "mechanism": "predicate-strength",
+      "reaimed": "2026-10-18",
+      "why": "It asserted `ct90s * sampleSec == below90Sec`, an identity that holds only when a row is a second, so the row-count shim satisfied it."
+    },
+    {
+      "file": "tests/run-tests.mjs",
+      "quote": "owercase literal, so it encoded the defect. The group derives the EMITTED set",
+      "mechanism": "predicate-strength",
+      "reaimed": null,
+      "why": "Writer and reader were both asserted against the same lowercase literal, so the group could not see that nobody compared the two."
+    }
+  ]
+}

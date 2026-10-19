@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**266 tools** · 265 with a purpose line · **1 without**
+**269 tools** · 268 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -66,6 +66,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`deep-vlf-probe.mjs`](../tools/deep-vlf-probe.mjs) | THE STANDING VLF-vs-CONTAMINATED-DEEP PROBE (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §9/§11/§12). |
 | [`defect-bench-solve.mjs`](../tools/defect-bench-solve.mjs) | // // Solver runner for audits/DEFECT-BENCHMARK.json. Measures the BENCHMARK // METHOD with a local model, never the fleet. |
 | [`defect-bench.mjs`](../tools/defect-bench.mjs) | the frozen benchmark of past defects, built node tools/defect-bench.mjs --build # enumerate, classify, write the set node tools/defect-bench.mjs --build --prove 8 # …and prove up to 8 more… |
+| [`defect-pin-census.mjs`](../tools/defect-pin-census.mjs) | the enumeration gate for tests that once asserted the defect they were written for |
 | [`derive-sigma-window.mjs`](../tools/derive-sigma-window.mjs) | Headless derivation of the two raw-signal 1-Hz HR series a three-device σ window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md): • Verity HR ← raw PPG via the suite's… |
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | WHO IS USING THE SEMANTIC SEARCH — the per-session query stamps, counted (rule 0's audit). |
@@ -234,6 +235,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
 | [`stage-lab-core.mjs`](../tools/stage-lab-core.mjs) | PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with. |
+| [`stage-lab.mjs`](../tools/stage-lab.mjs) | Brief: briefs/STAGE-LAB-2026-09-27-BRIEF.md (bands and plants are PRE-STATED there, before any run). |
 | [`ste-lint.mjs`](../tools/ste-lint.mjs) | the writing rules, checked node tools/ste-lint.mjs <file.md> # exit 1 on any finding node tools/ste-lint.mjs - < body.md # a PR body on stdin node tools/ste-lint.mjs <file> --json # the… |
 | [`stitch-31d-run.mjs`](../tools/stitch-31d-run.mjs) | // stitch-31d-run.mjs — server-side 31-day fused-tool compute. |
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | LEVEL B — PSEUDO-TESTED STATEMENTS. Delete ONE statement and see whether anything notices. |
@@ -252,6 +254,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`tch-multinight.mjs`](../tools/tch-multinight.mjs) | multi-night three-cornered-hat A/B harness (classic reference-free σ vs per-night motion-derived ρ) |
 | [`tch-per-epoch-rho.mjs`](../tools/tch-per-epoch-rho.mjs) | See briefs/TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md §3 |
 | [`tch-pooled-hat.mjs`](../tools/tch-pooled-hat.mjs) | THE POOLED-SECONDS HAT, and why it differs from a median over nights. |
+| [`tch-reference-record.mjs`](../tools/tch-reference-record.mjs) | THE PUBLIC RECORD OF THE HAT'S REFERENCE CHECK — pooled figures only, and the card reads it. |
 | [`tch-reference-validation.mjs`](../tools/tch-reference-validation.mjs) | See briefs/TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md |
 | [`tch-third-corner.mjs`](../tools/tch-third-corner.mjs) | THE O2RING AS A REAL THIRD CORNER — its own clock, not the host's. |
 | [`tch-window-sensitivity.mjs`](../tools/tch-window-sensitivity.mjs) | how much of the night did you keep, and what did that do to σ? |

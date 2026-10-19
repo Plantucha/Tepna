@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="49f53e37a37b" data-compute-hash="227fb17acf34">
+<html lang="en" data-manifest-hash="1b2a72116a61" data-compute-hash="168a98b86852">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-k8fu83nAacZrNcYx/MA4TCalr+wx9BAx7R/iLo0gBWc=' 'sha256-m00R3jtNtLVD6NnR/TeCVDJ6j2P1VpjwzKxQpHJqBU4=' 'sha256-mLZfCITgcjZtNh01pmNgE3ul+98wFvTf5jQmsfIm+pI=' 'sha256-z2LO7DKiKLxhTtTu9yC7cEHNFi29kOzz+lNPjcodgv0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-G2wTUZRUKYwC63Cm6idt9r1etTPUJ1okcmMdzfj96XU=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-gk413vB4A0mqJpWYofu7FsRBTUlQ7ncO6A4L0zZXLQU=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-k8fu83nAacZrNcYx/MA4TCalr+wx9BAx7R/iLo0gBWc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.20.0</title>
@@ -16674,6 +16674,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        runs fine and produces plausible numbers from the same exports.
        Same 1 Hz uniform grid + explicit holes as spo2Series, from the same rows. */
     night_obj.hrSeries = oxyBuildSpo2Series(rows, t0Ms, 'hr');
+    // Asleep/Awake per 30-s epoch — see computeSleepWake. Additive; null under 1 h or without stamps.
+    night_obj.sleepWake = computeSleepWake(rows, t0Ms);
     /* MEASUREMENT-PROVENANCE-ROADMAP §3 — the END of the measured window, from the last stamped row
        (`stats.durationMin` is rounded to 0.1 min and would put the window edge up to 6 s off the
        signal). Internal to the night object; the export reaches it only through the measurement block. */
@@ -20118,6 +20120,123 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   // ── 18. REM-Proxy & NREM-Deep Proxy Windows ──────────────────────
+  /* ASLEEP / AWAKE PER 30-s EPOCH — the night's hypnogram from what an oximeter records (owner 2026-10-18).
+     An O2Ring carries a 1 Hz pulse RATE and a motion column, not beat-to-beat intervals, so ECGDex's
+     RMSSD + LF/HF staging cannot port. A 4-stage heuristic from rate + motion was built and judged
+     first, against a criterion written before the run, over the 42 real nights >= 4 h:
+       stage shares plausible   0 / 42  (Light ~85 %, REM ~5 %)       need >= 80 %
+       Deep in first half       35 / 40 = 88 %                         need >= 70 %
+       REM in second half       22 / 39 = 56 %  (a looser variant 48 %)  need >= 70 %
+     REM placement was no better than chance, so the owner's fallback ships: two states only.
+     Wake = SUSTAINED movement (moved in >= 3 of the 5 epochs centred here) or a pulse-rate surge
+     > night median + 12 bpm with movement within one epoch. Before the first 10-min run of sleep and
+     after the last, the epoch is Wake. Over the same 42 nights the median asleep share is 95.5 %
+     (min 80.9 %): like any motion-led detector it reads quiet, still wake as asleep, so it over-counts
+     sleep. Epochs are binned on tMs; an epoch with no pulse AND no motion reading is null (a gap),
+     and an unread motion value is unknown, never still (§∅). */
+  function computeSleepWake(rows, t0Ms) {
+    if (!rows || !rows.length || t0Ms == null) return null;
+    var EP = 30000,
+      last = null;
+    for (var q = rows.length - 1; q >= 0; q--)
+      if (rows[q] && rows[q].tMs != null) {
+        last = rows[q].tMs;
+        break;
+      }
+    if (last == null || last < t0Ms) return null;
+    var nE = Math.floor((last - t0Ms) / EP) + 1;
+    if (nE < 120 || nE > 48 * 120) return null; // < 1 h, or a broken stamp
+    var hS = new Array(nE),
+      hC = new Array(nE),
+      mSeen = new Array(nE),
+      mAny = new Array(nE),
+      e,
+      k;
+    for (e = 0; e < nE; e++) hS[e] = hC[e] = mSeen[e] = 0;
+    for (e = 0; e < nE; e++) mAny[e] = false;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || r.tMs == null) continue;
+      e = Math.floor((r.tMs - t0Ms) / EP);
+      if (e < 0 || e >= nE) continue;
+      if (typeof r.hr === 'number' && r.hr >= 30 && r.hr <= 220) {
+        hS[e] += r.hr;
+        hC[e]++;
+      }
+      if (typeof r.motion === 'number' && isFinite(r.motion)) {
+        mSeen[e]++;
+        if (r.motion > 0) mAny[e] = true;
+      }
+    }
+    /** @type {(number|null)[]} */
+    var hr = [];
+    /** @type {(boolean|null)[]} */
+    var mv = [];
+    /** @type {number[]} */
+    var hs = [];
+    for (e = 0; e < nE; e++) {
+      var hv = hC[e] >= 15 ? hS[e] / hC[e] : null;
+      hr.push(hv);
+      mv.push(mSeen[e] >= 15 ? mAny[e] : null);
+      if (hv != null) hs.push(hv);
+    }
+    if (!hs.length) return null;
+    hs.sort(function (a, b) {
+      return a - b;
+    });
+    var hrMed = hs[hs.length >> 1],
+      st = new Array(nE);
+    for (e = 0; e < nE; e++) {
+      if (hr[e] == null && mv[e] == null) {
+        st[e] = null;
+        continue;
+      }
+      var k5 = 0,
+        near = false;
+      for (k = -2; k <= 2; k++) {
+        if (mv[e + k] === true) {
+          k5++;
+          if (k >= -1 && k <= 1) near = true;
+        }
+      }
+      var he = hr[e];
+      st[e] = k5 >= 3 || (he != null && he > hrMed + 12 && near) ? 'Wake' : 'Asleep';
+    }
+    // first and last 10-min (20-epoch) run of sleep: outside them the epoch is Wake
+    var on = -1,
+      off = -1,
+      c = 0;
+    for (e = 0; e < nE && on < 0; e++) {
+      c = st[e] === 'Asleep' ? c + 1 : 0;
+      if (c >= 20) on = e - 19;
+    }
+    c = 0;
+    for (e = nE - 1; e >= 0 && off < 0; e--) {
+      c = st[e] === 'Asleep' ? c + 1 : 0;
+      if (c >= 20) off = e + 19;
+    }
+    for (e = 0; e < nE; e++) if (st[e] != null && (on < 0 || e < on || e > off)) st[e] = 'Wake';
+    // compact: one segment per run of one state; a null run is a gap
+    var segs = [],
+      asleep = 0,
+      wake = 0;
+    for (e = 0; e < nE; e++) {
+      if (st[e] === 'Asleep') asleep++;
+      else if (st[e] === 'Wake') wake++;
+      if (!segs.length || segs[segs.length - 1].stage !== st[e]) segs.push({ tMin: e / 2, stage: st[e] });
+    }
+    return {
+      method: 'motion+pulse-rate heuristic, 2 states',
+      epochSec: 30,
+      nEpochs: nE,
+      segments: segs,
+      asleepMin: asleep / 2,
+      wakeMin: wake / 2,
+      onsetMin: on < 0 ? null : on / 2,
+      finalWakeMin: on < 0 ? null : (off + 1) / 2
+    };
+  }
+
   function computeSleepStageProxy(rows) {
     var n = rows.length;
     if (n < 1800) return null;
@@ -20470,7 +20589,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        ABSENCE-SURVEY f0210dc347e1: with no stage estimate a "neutral" +5 was added — a value inside the range a
        measured stage produces, so the score could not be read as "stage absent". The component's weight is
        the halves actually present (`scores.sleepMax`), so readiness renormalises over what was measured. */
-    var durationMin = n > 0 ? n / 60 : durationMinHint > 0 ? durationMinHint : null;
+    /* Residue 2026-09-29-oxydex-counts-rows-as-seconds, the duration half: `n / 60` is minutes only
+       at exactly 1 Hz, and the box's ring runs 0.9854 rows/s, so the DURATION half of this component
+       read ~1.5 % low on every box night — enough to drop a 7.05 h night under the 420-minute step.
+       `_sampleDwell` reads the stamps and names its fallback. */
+    var _kdw = n > 0 ? _sampleDwell(rows) : null;
+    var durationMin = _kdw ? _kdw.coveredMs / 60000 : durationMinHint > 0 ? durationMinHint : null;
     var sleepScore = null,
       sleepMax = 0;
     if (durationMin != null) {
@@ -20783,18 +20907,82 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   // CT90 / CT89 / CT88 per-second (precise, already in tIdx but now surfaced as distinct fields)
-  function computeCTprecise(rows) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
+  /* ── dwell, not row counts ──────────────────────────────────────────────────────────────────
+     Residue 2026-09-29-oxydex-counts-rows-as-seconds: `computeCTprecise` counted ROWS below each
+     threshold and published them as `ct90s` … `ct80s`, and the sleep-duration component counted rows
+     as minutes. Both are true only if the device samples at exactly 1 Hz. The box's ring does not:
+     measured on vigil's 2026-09-28 night (`Wellue_O2Ring-S_S8AW2100_20260928213651_SPO2.csv`) 23 826
+     rows span 24 179 s, which is 0.9854 rows/s, with 538 two-second steps, one 3 s, one 4 s and 189
+     doubled (zero-second) stamps. So CT read ~1.5 % LOW on every box night and anything per hour of a
+     row-derived duration read ~1.5 % HIGH. A fixed cadence would fix new nights only; captured nights
+     stay as recorded, so the time has to come from the stamps the rows already carry.
+     This is the accident DEEP-AUDIT-II §2.3 fixed for `gapPct` — seconds divided by a sample count —
+     and it takes the same remedy: derive the time from the stamps and NAME the fallback when there
+     are none (`source`, the sibling of `gapSpanSource: 'assumed-1Hz'`).
+     Each row holds its value until the next stamp, so a doubled stamp holds it for 0 s. A step longer
+     than `_DWELL_CAP_MULT` cadences is a DISCONTINUITY and not dwell: the excess becomes
+     `uncoveredMs` rather than attributing a gap's whole length to the one sample before it, which is
+     §∅'s reduced-coverage half — the covered time is annotated, the metric is not refused. The last
+     row has no next stamp and holds its value for one cadence. */
+  var _DWELL_CAP_MULT = 2;
+  function _rowTMs(r) {
+    if (!r) return NaN;
+    if (r.tMs != null && isFinite(r.tMs)) return r.tMs;
+    return r.t != null ? +r.t : NaN;
+  }
+  function _sampleDwell(rows) {
+    var n = rows ? rows.length : 0,
+      dwell = new Array(n),
+      i,
+      dt;
+    if (!n) return { dwellMs: dwell, cadenceMs: null, coveredMs: 0, uncoveredMs: 0, source: 'empty' };
+    var steps = [];
+    for (i = 1; i < n; i++) {
+      dt = _rowTMs(rows[i]) - _rowTMs(rows[i - 1]);
+      if (isFinite(dt) && dt > 0) steps.push(dt);
+    }
+    if (!steps.length) {
+      /* ∅ — no usable stamps, so the seconds are SYNTHESISED under the ring's documented 1 Hz and the
+         caller publishes `source` so a reader can tell that from a stamped night. */
+      for (i = 0; i < n; i++) dwell[i] = 1000;
+      return { dwellMs: dwell, cadenceMs: 1000, coveredMs: n * 1000, uncoveredMs: 0, source: 'assumed-1Hz' };
+    }
+    steps.sort(function (a, b) {
+      return a - b;
     });
-    var n = rows.length;
-    var ct90 = 0,
-      ct89 = 0,
-      ct88 = 0,
-      ct85 = 0,
-      ct80 = 0;
+    var cad = steps[steps.length >> 1],
+      cap = _DWELL_CAP_MULT * cad,
+      covered = 0,
+      uncovered = 0,
+      d;
+    for (i = 0; i < n; i++) {
+      dt = i + 1 < n ? _rowTMs(rows[i + 1]) - _rowTMs(rows[i]) : cad;
+      // A backward or absent stamp holds nothing: it is a clock failure, not a dwell of its own.
+      if (!isFinite(dt) || dt < 0) dt = 0;
+      d = dt < cap ? dt : cap;
+      dwell[i] = d;
+      covered += d;
+      uncovered += dt - d;
+    }
+    return { dwellMs: dwell, cadenceMs: cad, coveredMs: covered, uncoveredMs: uncovered, source: 'stamps' };
+  }
+
+  function computeCTprecise(rows) {
+    var n = rows ? rows.length : 0;
+    // The seconds come from the stamps (see `_sampleDwell` above), never from the row count.
+    var dw = _sampleDwell(rows);
+    var ms90 = 0,
+      ms89 = 0,
+      ms88 = 0,
+      ms85 = 0,
+      ms80 = 0;
+    var c90 = 0,
+      c89 = 0,
+      c88 = 0,
+      c85 = 0,
+      c80 = 0;
     for (var i = 0; i < n; i++) {
-      var v = spo2[i];
+      var v = rows[i].spo2;
       /* 🔴 §∅ — `null < 90` IS TRUE IN JS, so an absent second counted as time below EVERY threshold.
          Latent until 2026-10-11: `parseCSV` deleted the device's `'- -'` rows, so no null ever reached
          this loop. #3408 carries them, which made the defect live — measured on the extracted function,
@@ -20807,22 +20995,56 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
          null guard a dropout reads as time in severe hypoxemia". This loop and `computeCT94` were the
          two the file had missed. */
       if (v == null || !isFinite(v)) continue;
-      if (v < 90) ct90++;
-      if (v < 89) ct89++;
-      if (v < 88) ct88++;
-      if (v < 85) ct85++;
-      if (v < 80) ct80++;
+      var d = dw.dwellMs[i];
+      if (v < 90) {
+        ms90 += d;
+        c90++;
+      }
+      if (v < 89) {
+        ms89 += d;
+        c89++;
+      }
+      if (v < 88) {
+        ms88 += d;
+        c88++;
+      }
+      if (v < 85) {
+        ms85 += d;
+        c85++;
+      }
+      if (v < 80) {
+        ms80 += d;
+        c80++;
+      }
     }
+    var _sec = function (ms) {
+      return +(ms / 1000).toFixed(0);
+    };
     return {
-      ct90s: ct90,
-      ct89s: ct89,
-      ct88s: ct88,
-      ct85s: ct85,
-      ct80s: ct80,
-      ct90m: +(ct90 / 60).toFixed(1),
-      ct89m: +(ct89 / 60).toFixed(1),
-      ct88m: +(ct88 / 60).toFixed(1),
-      ct85m: +(ct85 / 60).toFixed(1)
+      ct90s: _sec(ms90),
+      ct89s: _sec(ms89),
+      ct88s: _sec(ms88),
+      ct85s: _sec(ms85),
+      ct80s: _sec(ms80),
+      ct90m: +(ms90 / 60000).toFixed(1),
+      ct89m: +(ms89 / 60000).toFixed(1),
+      ct88m: +(ms88 / 60000).toFixed(1),
+      ct85m: +(ms85 / 60000).toFixed(1),
+      /* The basis travels with the numbers, flat and scalar like every other key in this file — the
+         full-metrics table walks these blocks leaf by leaf, and a nested object would reach the reader
+         as a JSON blob. `ctSource` is the sibling of `dataGaps.gapSpanSource`: it names a synthesised
+         cadence so a reader can tell that from a stamped night. The `…n` keys are the ROW counts the
+         thresholds hit, which is what makes the cadence visible (609 s over 600 samples), and
+         `ctUncoveredSec` is the time the cap excluded — gaps, which belong to no sample. */
+      ct90n: c90,
+      ct89n: c89,
+      ct88n: c88,
+      ct85n: c85,
+      ct80n: c80,
+      ctSource: dw.source,
+      ctCadenceMs: dw.cadenceMs,
+      ctCoveredSec: _sec(dw.coveredMs),
+      ctUncoveredSec: _sec(dw.uncoveredMs)
     };
   }
 
@@ -22667,6 +22889,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     computeRMSSDarc,
     computeSpike50PctRecovery,
     computeSleepStageProxy,
+    computeSleepWake,
     computeVO2maxEstimate,
     computeKarvonenZones,
     computeSBII,
@@ -25364,6 +25587,371 @@ function _o2AcqPanel(ev) {
   return h;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  NIGHT TRACES — the night's own signals across the recording (render-only).
+//  Reads n.spo2Series / n.hrSeries (1 Hz grid, null = no sample), n.tchEpochs (5-min motion) and
+//  n.desat.events. One plot column holds the min–max of its seconds, so a nadir stays visible at
+//  any zoom. A column with no sample is a GAP in the trace, never a zero (CLAUDE.md §∅).
+// ═══════════════════════════════════════════════════════════════════════════
+function _ntBuckets(arr, W) {
+  var n = arr.length,
+    out = [];
+  for (var px = 0; px < W; px++) {
+    var a = Math.floor((px * n) / W),
+      b = Math.max(a + 1, Math.floor(((px + 1) * n) / W)),
+      lo = null,
+      hi = null;
+    for (var i = a; i < b && i < n; i++) {
+      var v = arr[i];
+      if (v == null) continue;
+      if (lo == null || v < lo) lo = v;
+      if (hi == null || v > hi) hi = v;
+    }
+    out.push(lo == null ? null : [lo, hi]);
+  }
+  return out;
+}
+function _ntPct(arr, p) {
+  var v = [];
+  for (var i = 0; i < arr.length; i++) if (arr[i] != null) v.push(arr[i]);
+  if (!v.length) return null;
+  v.sort(function (x, y) {
+    return x - y;
+  });
+  return v[Math.min(v.length - 1, Math.max(0, Math.round(p * (v.length - 1))))];
+}
+function _ntClock(t0Ms, sec) {
+  var d = new Date(t0Ms + sec * 1000),
+    h = d.getUTCHours(),
+    m = d.getUTCMinutes();
+  return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+}
+/** opts: { nSec, yMin, yMax, color, refs:[{y,label,color}], spans:[{a,b}], spanColor, bars:[{a,b,v}], intY, unit, H } */
+function nightTraceSvg(arr, t0Ms, opts) {
+  var W = 680,
+    H = opts.H || 130,
+    P = { l: 40, r: 10, t: 8, b: 20 },
+    pw = W - P.l - P.r,
+    ph = H - P.t - P.b,
+    nSec = opts.nSec,
+    lo = opts.yMin,
+    hi = opts.yMax;
+  var sx = function (sec) {
+    return P.l + (sec / nSec) * pw;
+  };
+  var sy = function (v) {
+    var c = Math.max(lo, Math.min(hi, v));
+    return P.t + ph - ((c - lo) / (hi - lo)) * ph;
+  };
+  var g = '';
+  for (var t = 0; t <= 2; t++) {
+    var yv = lo + ((hi - lo) * t) / 2;
+    g += '<line x1="' + P.l + '" y1="' + sy(yv).toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + sy(yv).toFixed(1) + '" stroke="' + C.grid + '"/>';
+    g +=
+      '<text x="' +
+      (P.l - 5) +
+      '" y="' +
+      (sy(yv) + 3).toFixed(1) +
+      '" fill="' +
+      C.text +
+      '" font-size="9" text-anchor="end">' +
+      (opts.intY || hi - lo >= 4 ? Math.round(yv) : yv.toFixed(2)) +
+      '</text>';
+  }
+  for (var k = 0; k <= 4; k++) {
+    var xs = (nSec * k) / 4;
+    g +=
+      '<text x="' +
+      sx(xs).toFixed(1) +
+      '" y="' +
+      (H - 6) +
+      '" fill="' +
+      C.text +
+      '" font-size="9" text-anchor="' +
+      (k === 0 ? 'start' : k === 4 ? 'end' : 'middle') +
+      '">' +
+      _ntClock(t0Ms, xs) +
+      '</text>';
+  }
+  (opts.spans || []).forEach(function (s) {
+    g += '<rect x="' + sx(s.a).toFixed(1) + '" y="' + P.t + '" width="' + Math.max(1, sx(s.b) - sx(s.a)).toFixed(1) + '" height="' + ph + '" fill="' + (opts.spanColor || C.red) + '" opacity=".22"/>';
+  });
+  (opts.refs || []).forEach(function (r) {
+    g += '<line x1="' + P.l + '" y1="' + sy(r.y).toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + sy(r.y).toFixed(1) + '" stroke="' + r.color + '" stroke-dasharray="4 3" opacity=".8"/>';
+    g += '<text x="' + (W - P.r - 2) + '" y="' + (sy(r.y) - 3).toFixed(1) + '" fill="' + r.color + '" font-size="9" text-anchor="end">' + r.label + '</text>';
+  });
+  if (opts.bars) {
+    opts.bars.forEach(function (b) {
+      if (b.v == null) return;
+      g +=
+        '<rect x="' +
+        sx(b.a).toFixed(1) +
+        '" y="' +
+        sy(b.v).toFixed(1) +
+        '" width="' +
+        Math.max(1, sx(b.b) - sx(b.a) - 1).toFixed(1) +
+        '" height="' +
+        (P.t + ph - sy(b.v)).toFixed(1) +
+        '" fill="' +
+        opts.color +
+        '" opacity=".75"/>';
+    });
+  } else {
+    // One closed band per run of columns that hold a sample: the top edge left→right, the bottom right→left.
+    var bk = _ntBuckets(arr, pw),
+      run = [];
+    var flush = function () {
+      if (!run.length) return;
+      var d = '';
+      for (var i = 0; i < run.length; i++) d += (i ? 'L' : 'M') + run[i].x.toFixed(1) + ' ' + sy(run[i].hi).toFixed(1);
+      for (var j = run.length - 1; j >= 0; j--) d += 'L' + (run[j].x + 1).toFixed(1) + ' ' + sy(run[j].lo).toFixed(1);
+      g += '<path d="' + d + 'Z" fill="' + opts.color + '" stroke="' + opts.color + '" stroke-width="0.8" stroke-linejoin="round"/>';
+      run = [];
+    };
+    for (var px = 0; px < bk.length; px++) {
+      if (bk[px] == null) flush();
+      else run.push({ x: P.l + px, lo: bk[px][0], hi: bk[px][1] });
+    }
+    flush();
+  }
+  return makeSVG(W, H, g);
+}
+/** Asleep/Awake strip on the traces' time axis: two lanes, one bar per run, a null run left blank. */
+function sleepWakeSvg(sw, t0Ms, nSec) {
+  var W = 680,
+    H = 70,
+    P = { l: 40, r: 10, t: 6, b: 20 },
+    pw = W - P.l - P.r,
+    lane = (H - P.t - P.b) / 2,
+    g = '';
+  var sx = function (sec) {
+    return P.l + (Math.min(sec, nSec) / nSec) * pw;
+  };
+  var endSec = sw.nEpochs * sw.epochSec;
+  [
+    ['Awake', 0],
+    ['Asleep', 1]
+  ].forEach(function (L) {
+    var y = P.t + L[1] * lane;
+    g += '<line x1="' + P.l + '" y1="' + (y + lane / 2).toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + (y + lane / 2).toFixed(1) + '" stroke="' + C.grid + '"/>';
+    g += '<text x="' + (P.l - 5) + '" y="' + (y + lane / 2 + 3).toFixed(1) + '" fill="' + C.text + '" font-size="9" text-anchor="end">' + L[0] + '</text>';
+  });
+  sw.segments.forEach(function (s, i) {
+    if (s.stage == null) return;
+    var a = s.tMin * 60,
+      b = i + 1 < sw.segments.length ? sw.segments[i + 1].tMin * 60 : endSec,
+      wake = s.stage === 'Wake';
+    g +=
+      '<rect x="' +
+      sx(a).toFixed(1) +
+      '" y="' +
+      (P.t + (wake ? 0 : lane) + 2).toFixed(1) +
+      '" width="' +
+      Math.max(0.6, sx(b) - sx(a)).toFixed(1) +
+      '" height="' +
+      (lane - 4).toFixed(1) +
+      '" fill="' +
+      (wake ? C.amber : C.purple) +
+      '" opacity=".85"/>';
+  });
+  for (var k = 0; k <= 4; k++) {
+    var xs = (nSec * k) / 4;
+    g +=
+      '<text x="' +
+      sx(xs).toFixed(1) +
+      '" y="' +
+      (H - 6) +
+      '" fill="' +
+      C.text +
+      '" font-size="9" text-anchor="' +
+      (k === 0 ? 'start' : k === 4 ? 'end' : 'middle') +
+      '">' +
+      _ntClock(t0Ms, xs) +
+      '</text>';
+  }
+  return makeSVG(W, H, g);
+}
+/** Minutes at each whole SpO₂ percent, lo..100. An absent second counts in no bin. */
+function spo2HistSvg(sp, lo) {
+  var W = 680,
+    H = 120,
+    P = { l: 40, r: 10, t: 8, b: 20 },
+    pw = W - P.l - P.r,
+    ph = H - P.t - P.b,
+    nb = 101 - lo,
+    cnt = [],
+    i,
+    mx = 0,
+    g = '';
+  for (i = 0; i < nb; i++) cnt.push(0);
+  for (i = 0; i < sp.length; i++) {
+    var v = sp[i];
+    if (v == null) continue;
+    var b = Math.round(v) - lo;
+    if (b < 0) b = 0;
+    if (b >= nb) b = nb - 1;
+    cnt[b]++;
+  }
+  for (i = 0; i < nb; i++) if (cnt[i] > mx) mx = cnt[i];
+  if (!mx) return '';
+  var bw = pw / nb,
+    yTop = mx / 60;
+  for (var t = 0; t <= 2; t++) {
+    var yv = (yTop * t) / 2,
+      y = P.t + ph - (ph * t) / 2;
+    g += '<line x1="' + P.l + '" y1="' + y.toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + y.toFixed(1) + '" stroke="' + C.grid + '"/>';
+    g += '<text x="' + (P.l - 5) + '" y="' + (y + 3).toFixed(1) + '" fill="' + C.text + '" font-size="9" text-anchor="end">' + (yTop < 4 ? yv.toFixed(1) : Math.round(yv)) + '</text>';
+  }
+  for (i = 0; i < nb; i++) {
+    var pct = lo + i,
+      h = (cnt[i] / mx) * ph,
+      x = P.l + i * bw,
+      col = pct < 88 ? C.red : pct < 90 ? C.amber : C.blue;
+    if (cnt[i]) {
+      g +=
+        '<rect x="' +
+        (x + 0.5).toFixed(1) +
+        '" y="' +
+        (P.t + ph - h).toFixed(1) +
+        '" width="' +
+        Math.max(1, bw - 1).toFixed(1) +
+        '" height="' +
+        h.toFixed(1) +
+        '" fill="' +
+        col +
+        '" opacity=".8"><title>' +
+        (i === 0 && lo > 0 ? '≤' : '') +
+        pct +
+        ' % · ' +
+        (cnt[i] / 60).toFixed(1) +
+        ' min</title></rect>';
+    }
+    if (pct % 5 === 0 || i === nb - 1) g += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 6) + '" fill="' + C.text + '" font-size="9" text-anchor="middle">' + pct + '</text>';
+  }
+  return makeSVG(W, H, g);
+}
+function _ntBadge(ev, cite) {
+  return typeof window !== 'undefined' && window.MetricRegistry ? window.MetricRegistry.badge(ev, cite) : '';
+}
+function nightTraces(n) {
+  var sp = n.spo2Series,
+    hr = n.hrSeries,
+    t0 = n.t0Ms;
+  if (t0 == null || !Array.isArray(sp) || sp.length < 60) return '';
+  var nSec = sp.length,
+    html = '<div class="sec-section" data-tier="primary"><div class="sec-label">Night traces</div>';
+  var sw = n.sleepWake;
+  if (sw && Array.isArray(sw.segments) && sw.segments.length) {
+    var swCite = 'Motion + pulse-rate heuristic, 2 states. Like any motion-led detector it reads still, quiet wake as asleep, so it over-counts sleep. Not sleep staging.';
+    html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('heuristic', swCite) + 'Asleep / Awake · 30-s epochs';
+    html += ' <span class="cite-note">' + Math.round(sw.asleepMin) + ' min asleep · ' + Math.round(sw.wakeMin) + ' min awake · over-counts sleep</span></div>';
+    html += sleepWakeSvg(sw, t0, nSec);
+    html += '</div>';
+  }
+  // SpO₂ — fixed top at 100 %, the floor follows the night's own low end so a deep nadir stays on the plot.
+  var spLo = _ntPct(sp, 0.002);
+  if (spLo != null) {
+    var yMin = Math.min(85, Math.floor((spLo - 2) / 5) * 5);
+    var evs = (n.desat && n.desat.events) || [],
+      spans = [];
+    evs.forEach(function (e) {
+      if (e.startTMs == null || e.endTMs == null) return;
+      spans.push({ a: (e.startTMs - t0) / 1000, b: (e.endTMs - t0) / 1000 });
+    });
+    html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('measured', 'SpO₂ per second, as the oximeter recorded it') + 'SpO₂ %';
+    if (spans.length) html += ' · ' + _ntBadge('validated', 'AASM 4 % desaturation events — the ODI-4 count') + spans.length + ' desaturations shaded';
+    html += '</div>';
+    html += nightTraceSvg(sp, t0, {
+      nSec: nSec,
+      yMin: yMin,
+      yMax: 100,
+      color: C.blue,
+      spans: spans,
+      refs: [
+        { y: 90, label: '90 %', color: C.amber },
+        { y: 88, label: '88 %', color: C.red }
+      ]
+    });
+    html += '</div>';
+  }
+  // Desaturations per clock hour, on the traces' time axis. The first and last hours are partial; the bar title gives the covered minutes.
+  if (evs.length) {
+    var hr0 = Math.floor(t0 / 3600000) * 3600000,
+      hb = [],
+      hMax = 0;
+    for (var hs = hr0; hs < t0 + nSec * 1000; hs += 3600000) hb.push({ a: Math.max(0, (hs - t0) / 1000), b: Math.min(nSec, (hs + 3600000 - t0) / 1000), v: 0 });
+    evs.forEach(function (e) {
+      var et = e.tMs != null ? e.tMs : e.startTMs;
+      if (et == null) return;
+      var k = Math.floor((et - hr0) / 3600000);
+      if (k >= 0 && k < hb.length) hb[k].v++;
+    });
+    hb.forEach(function (b) {
+      if (b.v > hMax) hMax = b.v;
+    });
+    html +=
+      '<div class="chart-wrap"><div class="chart-title">' +
+      _ntBadge('validated', 'AASM 4 % desaturation events, counted per clock hour. The first and last hours are partial.') +
+      'Desaturations per hour';
+    html += ' <span class="cite-note">first and last hours partial</span></div>';
+    html += nightTraceSvg(null, t0, { nSec: nSec, yMin: 0, yMax: Math.max(2, hMax + (hMax % 2)), intY: true, color: C.red, bars: hb, H: 90 });
+    html += '</div>';
+  }
+  // Time at each SpO₂ level — minutes per whole percent, the floor of the trace above as the lowest bin.
+  if (spLo != null) {
+    var hist = spo2HistSvg(sp, yMin);
+    if (hist) {
+      html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('measured', 'Minutes the oximeter read each whole SpO₂ percent') + 'Time at each SpO₂ level · minutes';
+      html += ' <span class="cite-note">amber below 90 %, red below 88 %</span></div>';
+      html += hist + '</div>';
+    }
+  }
+  // Pulse rate — the axis comes from the 0.5–99.5 percentile, so one artifact second cannot flatten the night.
+  if (Array.isArray(hr) && hr.length === nSec) {
+    var hLo = _ntPct(hr, 0.005),
+      hHi = _ntPct(hr, 0.995);
+    if (hLo != null && hHi != null) {
+      // Periodic-breathing episodes from the SpO₂ oscillation detector, shaded on the pulse trace — the oximetry analogue of ECGDex's cyclic-HR chart.
+      // windowSec counts rows; the detector itself reads a row as one second.
+      var osc = Array.isArray(n.oscEpisodes) ? n.oscEpisodes : [],
+        oSpans = [];
+      osc.forEach(function (e) {
+        if (e.tMs == null || e.windowSec == null) return;
+        var a = (e.tMs - t0) / 1000;
+        oSpans.push({ a: a, b: Math.min(nSec, a + e.windowSec) });
+      });
+      html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('measured', 'Pulse rate per second, as the oximeter recorded it') + 'Pulse rate · bpm';
+      if (oSpans.length)
+        html +=
+          ' · ' +
+          _ntBadge('emerging', 'Periodic-breathing episodes — OxyDex detector on oximetry alone (no airflow/effort channel)') +
+          oSpans.length +
+          ' periodic-breathing episode' +
+          (oSpans.length === 1 ? '' : 's') +
+          ' shaded';
+      html += '</div>';
+      html += nightTraceSvg(hr, t0, { nSec: nSec, yMin: Math.floor(hLo / 5) * 5 - 5, yMax: Math.ceil(hHi / 5) * 5 + 5, color: C.green, spans: oSpans, spanColor: C.purple });
+      html += '</div>';
+    }
+  }
+  // Motion — the 5-min motion index the node exports (tchEpochs). An epoch with no motion reading draws no bar.
+  var ep = Array.isArray(n.tchEpochs) ? n.tchEpochs : [];
+  var bars = [],
+    mHi = 0;
+  ep.forEach(function (e) {
+    if (e.motionIndex == null) return;
+    bars.push({ a: e.tMin * 60, b: Math.min(nSec, e.tMin * 60 + 300), v: e.motionIndex });
+    if (e.motionIndex > mHi) mHi = e.motionIndex;
+  });
+  if (bars.length) {
+    html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('measured', 'Mean motion reading per 5-min epoch') + 'Motion · 5-min mean</div>';
+    html += nightTraceSvg(null, t0, { nSec: nSec, yMin: 0, yMax: mHi > 0 ? mHi : 1, color: C.purple, bars: bars, H: 90 });
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 function nightDetail(n, idx) {
   var s = n.stats || {},
     html = '';
@@ -25592,6 +26180,11 @@ function nightDetail(n, idx) {
     html += '</div>'; // /.proj-grid
   }
 
+  try {
+    html += nightTraces(n);
+  } catch (e) {
+    html += '<div class="render-error-inline">⚠️ Traces error: ' + escHTML(e.message) + '</div>';
+  }
   html += '<div class="sec-section" data-tier="primary">';
   html += '<div class="sec-label">Recording</div>';
   html +=
@@ -27271,7 +27864,20 @@ function buildFullMetricsTable(n) {
   r('Duration', _oxyFmt(s.durationMin, 1), 'min', '≥360', _oxySev(360, 300, s.durationMin), 'Recording span');
   r('Start', s.start || '—');
   r('End', s.end || '—');
-  r('Sample rate', 1, 'Hz', '1', '', 'O2Ring / Wellue native');
+  /* Residue 2026-09-29-oxydex-counts-rows-as-seconds, the surfaced half: this row published a
+     CONSTANT 1 Hz beside the night's own numbers, and the ring does not run at 1 Hz — vigil's
+     2026-09-28 night measures 0.9854 rows/s. The DSP now measures the cadence from the stamps and
+     publishes it on the CT block, so the table reports what the stamps say. With no cadence it reads
+     an em dash: a sample rate nobody measured is absent, not 1 (§∅). */
+  var _oxyCadMs = n.ctPrec && n.ctPrec.ctCadenceMs != null ? n.ctPrec.ctCadenceMs : null;
+  r(
+    'Sample rate',
+    _oxyCadMs ? _oxyFmt(1000 / _oxyCadMs, 3) : '—',
+    'Hz',
+    '≈1',
+    '',
+    n.ctPrec && n.ctPrec.ctSource === 'assumed-1Hz' ? 'no usable stamps — assumed 1 Hz' : 'median step between sample stamps'
+  );
 
   // ── SpO₂ ──
   sec('Oxygen Saturation (SpO₂)');
@@ -28857,8 +29463,8 @@ Object.assign(window, {
  * night lacks returns NaN columns — ABSENCE IS NULL (CLAUDE.md §∅) — and the GBDT routes NaN down its
  * own learned branch, so a model trained with a signal still runs on a night without it.
  *
- * NOT IMPLEMENTED (declared, Tool Build Standard §2.11): the ecg-hrv, motion and eeg blocks. They are
- * registered with `implemented: false` so a caller asking for them gets a refusal, never zeros.
+ * NOT IMPLEMENTED (declared, Tool Build Standard §2.11): the eeg block. It is registered with
+ * `implemented: false` so a caller asking for it gets a refusal, never zeros.
  */
 
 const EPOCH_S = 30;
@@ -28935,6 +29541,166 @@ const MOTION_BIT_G = 0.02; // 1-bit motion threshold on the per-second |a| std (
 
 function windowAt(s, c, h) {
   return finite(Array.from(s.subarray(Math.max(0, c - h), Math.min(s.length, c + h))));
+}
+
+/* ── beat-series helpers for the ecg-hrv block (v28e) ──────────────────────────────────────────── */
+const ECG_SCALES = [30, 75, 150]; // half-windows (s): 1, 2.5, 5 min — 2.5 min is the shortest LF window (Task Force 1996)
+
+/* A beat-timed value series (`bt` s, `bv`) linearly interpolated onto a 2 Hz grid over [a, b). Null when under 64
+   samples would carry a value. Gaps between usable beats are bridged: coverage already gates the window. */
+function resample2Hz(bt, bv, a, b) {
+  if (bt.length < 2) return null;
+  const m = Math.floor((b - a) * 2),
+    out = [];
+  let j = 0;
+  for (let k = 0; k < m; k++) {
+    const x = a + k / 2;
+    if (x < bt[0] || x > bt[bt.length - 1]) continue;
+    while (j < bt.length - 2 && bt[j + 1] < x) j++;
+    const f = (x - bt[j]) / (bt[j + 1] - bt[j] || 1),
+      v = bv[j] + f * (bv[j + 1] - bv[j]);
+    if (Number.isFinite(v)) out.push(v);
+  }
+  return out.length >= 64 ? Float64Array.from(out) : null;
+}
+
+function hannDetrended(a) {
+  const n = a.length,
+    b = slope(a),
+    m0 = mean(a) - (b * (n - 1)) / 2,
+    x = new Float64Array(n);
+  for (let i = 0; i < n; i++) x[i] = (a[i] - (m0 + b * i)) * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
+  return x;
+}
+
+// one cos/sin table per length: cos(2πki/n) = C[(k·i) mod n], exact, and ~40× cheaper than a trig call per term
+const _trig = new Map();
+function trig(n) {
+  let T = _trig.get(n);
+  if (!T) {
+    T = { c: new Float64Array(n), s: new Float64Array(n) };
+    for (let j = 0; j < n; j++) {
+      T.c[j] = Math.cos((2 * Math.PI * j) / n);
+      T.s[j] = Math.sin((2 * Math.PI * j) / n);
+    }
+    _trig.set(n, T);
+  }
+  return T;
+}
+
+function dftBin(x, k) {
+  const n = x.length,
+    T = trig(n);
+  let re = 0,
+    im = 0,
+    j = 0;
+  for (let i = 0; i < n; i++) {
+    re += x[i] * T.c[j];
+    im -= x[i] * T.s[j];
+    j += k;
+    if (j >= n) j -= n;
+  }
+  return [re, im];
+}
+
+/* bandPower's estimate (detrend + Hann, log power over the band's bins) on the table DFT. Band edges in cycles per
+   sample, as bandPower takes them. */
+function bandPowerT(a, lo, hi) {
+  const n = a.length;
+  if (n < 64) return NaN;
+  const x = hannDetrended(a);
+  let p = 0;
+  for (let k = Math.ceil(lo * n); k < hi * n && k <= n / 2; k++) {
+    const [re, im] = dftBin(x, k);
+    p += re * re + im * im;
+  }
+  return Math.log(p + 1e-6);
+}
+
+/* The frequency (Hz) of the largest spectral bin of a 2 Hz series inside [lo, hi] Hz: respiratory rate from HRV or EDR. */
+function peakHz(a, lo, hi) {
+  const n = a.length,
+    x = hannDetrended(a);
+  let best = -1,
+    bk = -1;
+  for (let k = Math.ceil((lo / 2) * n); k <= Math.floor((hi / 2) * n) && k <= n / 2; k++) {
+    const [re, im] = dftBin(x, k),
+      p = re * re + im * im;
+    if (p > best) {
+      best = p;
+      bk = k;
+    }
+  }
+  return bk < 0 ? NaN : (bk / n) * 2;
+}
+
+/* Magnitude-squared coherence of two 2 Hz series, Welch 64 s segments at 50 % overlap, averaged over [lo, hi] Hz.
+   The high-frequency cardiopulmonary coupling of Thomas et al. 2005 (Sleep 28:1151): NN against ECG-derived respiration. */
+function coherence(x, y, lo, hi) {
+  const L = 128,
+    n = Math.min(x.length, y.length);
+  if (n < 2 * L) return NaN; // under 3 segments, coherence is 1 by construction
+  const k0 = Math.ceil((lo / 2) * L),
+    k1 = Math.floor((hi / 2) * L),
+    sxx = new Float64Array(k1 + 1),
+    syy = new Float64Array(k1 + 1),
+    sre = new Float64Array(k1 + 1),
+    sim = new Float64Array(k1 + 1);
+  for (let s0 = 0; s0 + L <= n; s0 += L / 2) {
+    const xs = hannDetrended(x.subarray(s0, s0 + L)),
+      ys = hannDetrended(y.subarray(s0, s0 + L));
+    for (let k = k0; k <= k1; k++) {
+      const [a, b] = dftBin(xs, k),
+        [c, d] = dftBin(ys, k);
+      sxx[k] += a * a + b * b;
+      syy[k] += c * c + d * d;
+      sre[k] += a * c + b * d;
+      sim[k] += b * c - a * d;
+    }
+  }
+  let acc = 0,
+    m = 0;
+  for (let k = k0; k <= k1; k++) {
+    const den = sxx[k] * syy[k];
+    if (den > 0) {
+      acc += (sre[k] * sre[k] + sim[k] * sim[k]) / den;
+      m++;
+    }
+  }
+  return m ? acc / m : NaN;
+}
+
+/* Short-term detrended fluctuation exponent α1 over box sizes 4–16 beats (Peng 1995). Under 50 beats: NaN. */
+function dfaAlpha1(nn) {
+  const N = nn.length;
+  if (N < 50) return NaN;
+  const mu = mean(nn),
+    y = new Float64Array(N);
+  let acc = 0;
+  for (let i = 0; i < N; i++) y[i] = acc += nn[i] - mu;
+  const lx = [],
+    ly = [];
+  for (let s = 4; s <= 16; s++) {
+    const boxes = Math.floor(N / s);
+    let f = 0;
+    for (let bx = 0; bx < boxes; bx++) {
+      const seg = y.subarray(bx * s, bx * s + s),
+        b = slope(seg),
+        m0 = mean(seg) - (b * (s - 1)) / 2;
+      for (let i = 0; i < s; i++) f += (seg[i] - (m0 + b * i)) ** 2;
+    }
+    lx.push(Math.log(s));
+    ly.push(Math.log(Math.sqrt(f / (boxes * s)) + 1e-9));
+  }
+  const mx = mean(lx),
+    my = mean(ly);
+  let num = 0,
+    den = 0;
+  for (let i = 0; i < lx.length; i++) {
+    num += (lx[i] - mx) * (ly[i] - my);
+    den += (lx[i] - mx) ** 2;
+  }
+  return num / den;
 }
 
 function multiScale(s, n, prefix, extra) {
@@ -29047,7 +29813,109 @@ const BLOCKS = {
       });
     }
   },
-  'ecg-hrv': { implemented: false, input: 'ecg' },
+  'ecg-hrv': {
+    /* v28e (brief §25): the BEAT series an ECG node already produces — ECGDSP.analyze's corrected NN, per-beat SQI and
+       R amplitude — so ECGDex's runtime feeds this block the same input the lab trains on. Input:
+       `night.signals.ecg = { t, nn, ok, amp }` (beat time s · NN ms · 1 = usable beat · R amplitude, any unit).
+       A window under half covered by usable NN is NaN, never a number (§∅). */
+    implemented: true,
+    input: 'ecg',
+    extract(night) {
+      const s = night.signals.ecg;
+      if (!s) return null;
+      const n = night.nEpochs,
+        names = [],
+        cols = [];
+      const add = (nm) => {
+        names.push('ecg.' + nm);
+        const c = new Float64Array(n).fill(NaN);
+        cols.push(c);
+        return c;
+      };
+      const t = s.t || new Float64Array(0),
+        nn = s.nn || new Float64Array(0),
+        ok = s.ok || new Uint8Array(0),
+        amp = s.amp || new Float64Array(0);
+      for (const h of ECG_SCALES) {
+        const w = 2 * h,
+          spec = h >= 75;
+        const c = {
+          cov: add(`coverage@${w}s`),
+          mnn: add(`meanNN@${w}s`),
+          sdnn: add(`sdnn@${w}s`),
+          rmssd: add(`lnrmssd@${w}s`),
+          pnn: add(`pnn50@${w}s`),
+          ...(spec
+            ? {
+                lf: add(`lnLF@${w}s`),
+                hf: add(`lnHF@${w}s`),
+                lfhf: add(`lnLF-HF@${w}s`),
+                hfpk: add(`hfPeakHz@${w}s`),
+                edr: add(`edr.lnpow.1-.5Hz@${w}s`),
+                edrpk: add(`edr.peakHz@${w}s`),
+                coh: add(`cpc.hfCoh@${w}s`)
+              }
+            : {}),
+          ...(h === 150 ? { vlf: add(`lnVLF@${w}s`), dfa: add(`dfa.a1@${w}s`) } : {})
+        };
+        let lo = 0;
+        for (let i = 0; i < n; i++) {
+          const ctr = i * EPOCH_S + EPOCH_S / 2,
+            a = ctr - h,
+            b = ctr + h;
+          while (lo < t.length && t[lo] < a) lo++;
+          const bt = [],
+            bn = [],
+            ba = [];
+          let covered = 0;
+          for (let j = lo; j < t.length && t[j] < b; j++) {
+            if (!ok[j] || !(nn[j] >= 300 && nn[j] <= 2000)) continue;
+            bt.push(t[j]);
+            bn.push(nn[j]);
+            ba.push(amp[j]);
+            covered += nn[j] / 1000;
+          }
+          c.cov[i] = Math.min(1, covered / w);
+          if (covered < h || bn.length < 8) continue; // under half the window measured: not a value
+          c.mnn[i] = mean(bn);
+          c.sdnn[i] = std(bn);
+          let ss = 0,
+            m = 0,
+            p50 = 0;
+          for (let j = 1; j < bn.length; j++) {
+            if (bt[j] - bt[j - 1] > 2.5) continue; // successive only across a real neighbour, not a dropped stretch
+            const d = bn[j] - bn[j - 1];
+            ss += d * d;
+            m++;
+            if (Math.abs(d) > 50) p50++;
+          }
+          if (m) {
+            c.rmssd[i] = Math.log(Math.sqrt(ss / m) + 1e-3);
+            c.pnn[i] = p50 / m;
+          }
+          if (!spec) continue;
+          const tach = resample2Hz(bt, bn, a, b),
+            ra = resample2Hz(bt, ba, a, b);
+          if (!tach) continue;
+          // bandPower works in cycles per SAMPLE: a 2 Hz series halves every band edge
+          c.lf[i] = bandPowerT(tach, 0.04 / 2, 0.15 / 2);
+          c.hf[i] = bandPowerT(tach, 0.15 / 2, 0.4 / 2);
+          c.lfhf[i] = c.lf[i] - c.hf[i];
+          c.hfpk[i] = peakHz(tach, 0.1, 0.5);
+          if (ra) {
+            c.edr[i] = bandPowerT(ra, 0.1 / 2, 0.5 / 2);
+            c.edrpk[i] = peakHz(ra, 0.1, 0.5);
+            c.coh[i] = coherence(tach, ra, 0.1, 0.4);
+          }
+          if (h === 150) {
+            c.vlf[i] = bandPowerT(tach, 0.0033 / 2, 0.04 / 2);
+            c.dfa[i] = dfaAlpha1(bn);
+          }
+        }
+      }
+      return { names, cols };
+    }
+  },
   motion: {
     /* 1 Hz wrist/finger ACTIVITY (std of |a| within the second, g). Two column families from ONE input so a bench run
        can drop either by name (brief §16, v17): `motion.*` = the activity itself; `mbit.*` = the same statistics over a
@@ -29766,7 +30634,7 @@ function harmonizeSpo2(d, avgS = 8) {
    phase 1) leaves `export function` in place (a syntax error inside the module wrapper) and rewrites
    `export const X =` into `__exports.X =`, which removes the local binding every later reference needs. Plain declarations + this list keep node, tests and the
    bundle on one file. */
-__exports.bandPower = bandPower; __exports.withContext = withContext; __exports.blockLayout = blockLayout; __exports.nightFeatures = nightFeatures; __exports.makeBins = makeBins; __exports.binMatrix = binMatrix; __exports.fitGBDT = fitGBDT; __exports.predictProba = predictProba; __exports.transitions = transitions; __exports.viterbi = viterbi; __exports.hsmmFit = hsmmFit; __exports.hsmmViterbi = hsmmViterbi; __exports.confusion = confusion; __exports.kappa = kappa; __exports.sumMatrices = sumMatrices; __exports.bootstrapKappa = bootstrapKappa; __exports.formulaBasis = formulaBasis; __exports.fitSoftmax = fitSoftmax; __exports.softmaxProba = softmaxProba; __exports.harmonizeSpo2 = harmonizeSpo2; __exports.EPOCH_S = EPOCH_S; __exports.STAGES = STAGES; __exports.STAGE_INDEX = STAGE_INDEX; __exports.MOTION_BIT_G = MOTION_BIT_G; __exports.BLOCKS = BLOCKS; __exports.CONTEXT_EPOCHS = CONTEXT_EPOCHS; __exports.FORMULA_TERMS = FORMULA_TERMS;
+__exports.bandPower = bandPower; __exports.withContext = withContext; __exports.blockLayout = blockLayout; __exports.nightFeatures = nightFeatures; __exports.makeBins = makeBins; __exports.binMatrix = binMatrix; __exports.fitGBDT = fitGBDT; __exports.predictProba = predictProba; __exports.transitions = transitions; __exports.viterbi = viterbi; __exports.hsmmFit = hsmmFit; __exports.hsmmViterbi = hsmmViterbi; __exports.confusion = confusion; __exports.kappa = kappa; __exports.sumMatrices = sumMatrices; __exports.bootstrapKappa = bootstrapKappa; __exports.formulaBasis = formulaBasis; __exports.fitSoftmax = fitSoftmax; __exports.softmaxProba = softmaxProba; __exports.harmonizeSpo2 = harmonizeSpo2; __exports.EPOCH_S = EPOCH_S; __exports.STAGES = STAGES; __exports.STAGE_INDEX = STAGE_INDEX; __exports.MOTION_BIT_G = MOTION_BIT_G; __exports.BLOCKS = BLOCKS; __exports.CONTEXT_EPOCHS = CONTEXT_EPOCHS; __exports.FORMULA_TERMS = FORMULA_TERMS; __exports.ECG_SCALES = ECG_SCALES; __exports.resample2Hz = resample2Hz; __exports.peakHz = peakHz; __exports.coherence = coherence; __exports.dfaAlpha1 = dfaAlpha1;
 
 });})();</script>
 <script data-inline-src="tools/seqnet-infer.mjs">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("tools/seqnet-infer.mjs",function(__require,__exports){

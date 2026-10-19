@@ -532,7 +532,9 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # `_publish_solid` arrive in its place — the composition itself moved to `qc_child.py`, which this
     # module-level exclusion does not cover, so those three functions ARE mutated. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 314, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 314 → 315 on 2026-10-18 (spool pull after therapy): the PURE `_post_therapy_pull_due`, tested
+    # directly. +1, the whole delta. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 315, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

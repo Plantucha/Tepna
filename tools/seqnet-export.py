@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # seqnet_export.py — export a SeqNet (seqnet.py's architecture) to a dependency-free JSON weights file, and
 # write golden vectors for the JS port's parity test. With --random it builds a seeded random model so the
 # PORT's arithmetic can be proven before any trained weights exist; with --state <pt> it exports a trained one.

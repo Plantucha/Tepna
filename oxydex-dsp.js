@@ -3367,6 +3367,8 @@
        runs fine and produces plausible numbers from the same exports.
        Same 1 Hz uniform grid + explicit holes as spo2Series, from the same rows. */
     night_obj.hrSeries = oxyBuildSpo2Series(rows, t0Ms, 'hr');
+    // Asleep/Awake per 30-s epoch — see computeSleepWake. Additive; null under 1 h or without stamps.
+    night_obj.sleepWake = computeSleepWake(rows, t0Ms);
     /* MEASUREMENT-PROVENANCE-ROADMAP §3 — the END of the measured window, from the last stamped row
        (`stats.durationMin` is rounded to 0.1 min and would put the window edge up to 6 s off the
        signal). Internal to the night object; the export reaches it only through the measurement block. */
@@ -6811,6 +6813,123 @@
   }
 
   // ── 18. REM-Proxy & NREM-Deep Proxy Windows ──────────────────────
+  /* ASLEEP / AWAKE PER 30-s EPOCH — the night's hypnogram from what an oximeter records (owner 2026-10-18).
+     An O2Ring carries a 1 Hz pulse RATE and a motion column, not beat-to-beat intervals, so ECGDex's
+     RMSSD + LF/HF staging cannot port. A 4-stage heuristic from rate + motion was built and judged
+     first, against a criterion written before the run, over the 42 real nights >= 4 h:
+       stage shares plausible   0 / 42  (Light ~85 %, REM ~5 %)       need >= 80 %
+       Deep in first half       35 / 40 = 88 %                         need >= 70 %
+       REM in second half       22 / 39 = 56 %  (a looser variant 48 %)  need >= 70 %
+     REM placement was no better than chance, so the owner's fallback ships: two states only.
+     Wake = SUSTAINED movement (moved in >= 3 of the 5 epochs centred here) or a pulse-rate surge
+     > night median + 12 bpm with movement within one epoch. Before the first 10-min run of sleep and
+     after the last, the epoch is Wake. Over the same 42 nights the median asleep share is 95.5 %
+     (min 80.9 %): like any motion-led detector it reads quiet, still wake as asleep, so it over-counts
+     sleep. Epochs are binned on tMs; an epoch with no pulse AND no motion reading is null (a gap),
+     and an unread motion value is unknown, never still (§∅). */
+  function computeSleepWake(rows, t0Ms) {
+    if (!rows || !rows.length || t0Ms == null) return null;
+    var EP = 30000,
+      last = null;
+    for (var q = rows.length - 1; q >= 0; q--)
+      if (rows[q] && rows[q].tMs != null) {
+        last = rows[q].tMs;
+        break;
+      }
+    if (last == null || last < t0Ms) return null;
+    var nE = Math.floor((last - t0Ms) / EP) + 1;
+    if (nE < 120 || nE > 48 * 120) return null; // < 1 h, or a broken stamp
+    var hS = new Array(nE),
+      hC = new Array(nE),
+      mSeen = new Array(nE),
+      mAny = new Array(nE),
+      e,
+      k;
+    for (e = 0; e < nE; e++) hS[e] = hC[e] = mSeen[e] = 0;
+    for (e = 0; e < nE; e++) mAny[e] = false;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || r.tMs == null) continue;
+      e = Math.floor((r.tMs - t0Ms) / EP);
+      if (e < 0 || e >= nE) continue;
+      if (typeof r.hr === 'number' && r.hr >= 30 && r.hr <= 220) {
+        hS[e] += r.hr;
+        hC[e]++;
+      }
+      if (typeof r.motion === 'number' && isFinite(r.motion)) {
+        mSeen[e]++;
+        if (r.motion > 0) mAny[e] = true;
+      }
+    }
+    /** @type {(number|null)[]} */
+    var hr = [];
+    /** @type {(boolean|null)[]} */
+    var mv = [];
+    /** @type {number[]} */
+    var hs = [];
+    for (e = 0; e < nE; e++) {
+      var hv = hC[e] >= 15 ? hS[e] / hC[e] : null;
+      hr.push(hv);
+      mv.push(mSeen[e] >= 15 ? mAny[e] : null);
+      if (hv != null) hs.push(hv);
+    }
+    if (!hs.length) return null;
+    hs.sort(function (a, b) {
+      return a - b;
+    });
+    var hrMed = hs[hs.length >> 1],
+      st = new Array(nE);
+    for (e = 0; e < nE; e++) {
+      if (hr[e] == null && mv[e] == null) {
+        st[e] = null;
+        continue;
+      }
+      var k5 = 0,
+        near = false;
+      for (k = -2; k <= 2; k++) {
+        if (mv[e + k] === true) {
+          k5++;
+          if (k >= -1 && k <= 1) near = true;
+        }
+      }
+      var he = hr[e];
+      st[e] = k5 >= 3 || (he != null && he > hrMed + 12 && near) ? 'Wake' : 'Asleep';
+    }
+    // first and last 10-min (20-epoch) run of sleep: outside them the epoch is Wake
+    var on = -1,
+      off = -1,
+      c = 0;
+    for (e = 0; e < nE && on < 0; e++) {
+      c = st[e] === 'Asleep' ? c + 1 : 0;
+      if (c >= 20) on = e - 19;
+    }
+    c = 0;
+    for (e = nE - 1; e >= 0 && off < 0; e--) {
+      c = st[e] === 'Asleep' ? c + 1 : 0;
+      if (c >= 20) off = e + 19;
+    }
+    for (e = 0; e < nE; e++) if (st[e] != null && (on < 0 || e < on || e > off)) st[e] = 'Wake';
+    // compact: one segment per run of one state; a null run is a gap
+    var segs = [],
+      asleep = 0,
+      wake = 0;
+    for (e = 0; e < nE; e++) {
+      if (st[e] === 'Asleep') asleep++;
+      else if (st[e] === 'Wake') wake++;
+      if (!segs.length || segs[segs.length - 1].stage !== st[e]) segs.push({ tMin: e / 2, stage: st[e] });
+    }
+    return {
+      method: 'motion+pulse-rate heuristic, 2 states',
+      epochSec: 30,
+      nEpochs: nE,
+      segments: segs,
+      asleepMin: asleep / 2,
+      wakeMin: wake / 2,
+      onsetMin: on < 0 ? null : on / 2,
+      finalWakeMin: on < 0 ? null : (off + 1) / 2
+    };
+  }
+
   function computeSleepStageProxy(rows) {
     var n = rows.length;
     if (n < 1800) return null;
@@ -7163,7 +7282,12 @@
        ABSENCE-SURVEY f0210dc347e1: with no stage estimate a "neutral" +5 was added — a value inside the range a
        measured stage produces, so the score could not be read as "stage absent". The component's weight is
        the halves actually present (`scores.sleepMax`), so readiness renormalises over what was measured. */
-    var durationMin = n > 0 ? n / 60 : durationMinHint > 0 ? durationMinHint : null;
+    /* Residue 2026-09-29-oxydex-counts-rows-as-seconds, the duration half: `n / 60` is minutes only
+       at exactly 1 Hz, and the box's ring runs 0.9854 rows/s, so the DURATION half of this component
+       read ~1.5 % low on every box night — enough to drop a 7.05 h night under the 420-minute step.
+       `_sampleDwell` reads the stamps and names its fallback. */
+    var _kdw = n > 0 ? _sampleDwell(rows) : null;
+    var durationMin = _kdw ? _kdw.coveredMs / 60000 : durationMinHint > 0 ? durationMinHint : null;
     var sleepScore = null,
       sleepMax = 0;
     if (durationMin != null) {
@@ -7476,18 +7600,82 @@
   }
 
   // CT90 / CT89 / CT88 per-second (precise, already in tIdx but now surfaced as distinct fields)
-  function computeCTprecise(rows) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
+  /* ── dwell, not row counts ──────────────────────────────────────────────────────────────────
+     Residue 2026-09-29-oxydex-counts-rows-as-seconds: `computeCTprecise` counted ROWS below each
+     threshold and published them as `ct90s` … `ct80s`, and the sleep-duration component counted rows
+     as minutes. Both are true only if the device samples at exactly 1 Hz. The box's ring does not:
+     measured on vigil's 2026-09-28 night (`Wellue_O2Ring-S_S8AW2100_20260928213651_SPO2.csv`) 23 826
+     rows span 24 179 s, which is 0.9854 rows/s, with 538 two-second steps, one 3 s, one 4 s and 189
+     doubled (zero-second) stamps. So CT read ~1.5 % LOW on every box night and anything per hour of a
+     row-derived duration read ~1.5 % HIGH. A fixed cadence would fix new nights only; captured nights
+     stay as recorded, so the time has to come from the stamps the rows already carry.
+     This is the accident DEEP-AUDIT-II §2.3 fixed for `gapPct` — seconds divided by a sample count —
+     and it takes the same remedy: derive the time from the stamps and NAME the fallback when there
+     are none (`source`, the sibling of `gapSpanSource: 'assumed-1Hz'`).
+     Each row holds its value until the next stamp, so a doubled stamp holds it for 0 s. A step longer
+     than `_DWELL_CAP_MULT` cadences is a DISCONTINUITY and not dwell: the excess becomes
+     `uncoveredMs` rather than attributing a gap's whole length to the one sample before it, which is
+     §∅'s reduced-coverage half — the covered time is annotated, the metric is not refused. The last
+     row has no next stamp and holds its value for one cadence. */
+  var _DWELL_CAP_MULT = 2;
+  function _rowTMs(r) {
+    if (!r) return NaN;
+    if (r.tMs != null && isFinite(r.tMs)) return r.tMs;
+    return r.t != null ? +r.t : NaN;
+  }
+  function _sampleDwell(rows) {
+    var n = rows ? rows.length : 0,
+      dwell = new Array(n),
+      i,
+      dt;
+    if (!n) return { dwellMs: dwell, cadenceMs: null, coveredMs: 0, uncoveredMs: 0, source: 'empty' };
+    var steps = [];
+    for (i = 1; i < n; i++) {
+      dt = _rowTMs(rows[i]) - _rowTMs(rows[i - 1]);
+      if (isFinite(dt) && dt > 0) steps.push(dt);
+    }
+    if (!steps.length) {
+      /* ∅ — no usable stamps, so the seconds are SYNTHESISED under the ring's documented 1 Hz and the
+         caller publishes `source` so a reader can tell that from a stamped night. */
+      for (i = 0; i < n; i++) dwell[i] = 1000;
+      return { dwellMs: dwell, cadenceMs: 1000, coveredMs: n * 1000, uncoveredMs: 0, source: 'assumed-1Hz' };
+    }
+    steps.sort(function (a, b) {
+      return a - b;
     });
-    var n = rows.length;
-    var ct90 = 0,
-      ct89 = 0,
-      ct88 = 0,
-      ct85 = 0,
-      ct80 = 0;
+    var cad = steps[steps.length >> 1],
+      cap = _DWELL_CAP_MULT * cad,
+      covered = 0,
+      uncovered = 0,
+      d;
+    for (i = 0; i < n; i++) {
+      dt = i + 1 < n ? _rowTMs(rows[i + 1]) - _rowTMs(rows[i]) : cad;
+      // A backward or absent stamp holds nothing: it is a clock failure, not a dwell of its own.
+      if (!isFinite(dt) || dt < 0) dt = 0;
+      d = dt < cap ? dt : cap;
+      dwell[i] = d;
+      covered += d;
+      uncovered += dt - d;
+    }
+    return { dwellMs: dwell, cadenceMs: cad, coveredMs: covered, uncoveredMs: uncovered, source: 'stamps' };
+  }
+
+  function computeCTprecise(rows) {
+    var n = rows ? rows.length : 0;
+    // The seconds come from the stamps (see `_sampleDwell` above), never from the row count.
+    var dw = _sampleDwell(rows);
+    var ms90 = 0,
+      ms89 = 0,
+      ms88 = 0,
+      ms85 = 0,
+      ms80 = 0;
+    var c90 = 0,
+      c89 = 0,
+      c88 = 0,
+      c85 = 0,
+      c80 = 0;
     for (var i = 0; i < n; i++) {
-      var v = spo2[i];
+      var v = rows[i].spo2;
       /* 🔴 §∅ — `null < 90` IS TRUE IN JS, so an absent second counted as time below EVERY threshold.
          Latent until 2026-10-11: `parseCSV` deleted the device's `'- -'` rows, so no null ever reached
          this loop. #3408 carries them, which made the defect live — measured on the extracted function,
@@ -7500,22 +7688,56 @@
          null guard a dropout reads as time in severe hypoxemia". This loop and `computeCT94` were the
          two the file had missed. */
       if (v == null || !isFinite(v)) continue;
-      if (v < 90) ct90++;
-      if (v < 89) ct89++;
-      if (v < 88) ct88++;
-      if (v < 85) ct85++;
-      if (v < 80) ct80++;
+      var d = dw.dwellMs[i];
+      if (v < 90) {
+        ms90 += d;
+        c90++;
+      }
+      if (v < 89) {
+        ms89 += d;
+        c89++;
+      }
+      if (v < 88) {
+        ms88 += d;
+        c88++;
+      }
+      if (v < 85) {
+        ms85 += d;
+        c85++;
+      }
+      if (v < 80) {
+        ms80 += d;
+        c80++;
+      }
     }
+    var _sec = function (ms) {
+      return +(ms / 1000).toFixed(0);
+    };
     return {
-      ct90s: ct90,
-      ct89s: ct89,
-      ct88s: ct88,
-      ct85s: ct85,
-      ct80s: ct80,
-      ct90m: +(ct90 / 60).toFixed(1),
-      ct89m: +(ct89 / 60).toFixed(1),
-      ct88m: +(ct88 / 60).toFixed(1),
-      ct85m: +(ct85 / 60).toFixed(1)
+      ct90s: _sec(ms90),
+      ct89s: _sec(ms89),
+      ct88s: _sec(ms88),
+      ct85s: _sec(ms85),
+      ct80s: _sec(ms80),
+      ct90m: +(ms90 / 60000).toFixed(1),
+      ct89m: +(ms89 / 60000).toFixed(1),
+      ct88m: +(ms88 / 60000).toFixed(1),
+      ct85m: +(ms85 / 60000).toFixed(1),
+      /* The basis travels with the numbers, flat and scalar like every other key in this file — the
+         full-metrics table walks these blocks leaf by leaf, and a nested object would reach the reader
+         as a JSON blob. `ctSource` is the sibling of `dataGaps.gapSpanSource`: it names a synthesised
+         cadence so a reader can tell that from a stamped night. The `…n` keys are the ROW counts the
+         thresholds hit, which is what makes the cadence visible (609 s over 600 samples), and
+         `ctUncoveredSec` is the time the cap excluded — gaps, which belong to no sample. */
+      ct90n: c90,
+      ct89n: c89,
+      ct88n: c88,
+      ct85n: c85,
+      ct80n: c80,
+      ctSource: dw.source,
+      ctCadenceMs: dw.cadenceMs,
+      ctCoveredSec: _sec(dw.coveredMs),
+      ctUncoveredSec: _sec(dw.uncoveredMs)
     };
   }
 
@@ -9360,6 +9582,7 @@
     computeRMSSDarc,
     computeSpike50PctRecovery,
     computeSleepStageProxy,
+    computeSleepWake,
     computeVO2maxEstimate,
     computeKarvonenZones,
     computeSBII,

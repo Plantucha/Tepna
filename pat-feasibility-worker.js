@@ -988,6 +988,61 @@ function floorTimes(devCol, positions, fmap) {
   });
   return { hostMs: Float64Array.from(out), unmapped: unmapped };
 }
+/* THE PER-BEAT FLOOR SHIFT, for the "all sidecars" chart (owner 2026-10-18). `floorTimes` sorts and drops,
+   so its output no longer lines up beat for beat with `times`. This keeps the alignment: `d[i]` is beat i's
+   floor-axis time minus its raw time, or NaN where the floor map has no anchor (§∅ — never 0). */
+function floorShift(devCol, positions, fmap, times) {
+  var d = new Float64Array(positions.length).fill(NaN);
+  for (var i = 0; i < positions.length; i++) {
+    var p = positions[i],
+      i0 = Math.floor(p),
+      i1 = Math.min(devCol.length - 1, i0 + 1),
+      fr = p - i0;
+    var dev = i0 >= 0 && i0 < devCol.length ? devCol[i0] * (1 - fr) + devCol[i1] * fr : NaN,
+      off = isFinite(dev) ? fmap.map(dev) : null;
+    if (off != null && isFinite(dev)) d[i] = dev + off - times[i];
+  }
+  return d;
+}
+// the index of `x` in the sorted `times`, or −1 — a coupled pair's end IS one of the raw times, to rounding
+function timeIndex(times, x) {
+  var lo = 0,
+    hi = times.length;
+  while (lo < hi) {
+    var mid = (lo + hi) >> 1;
+    if (times[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo < times.length && Math.abs(times[lo] - x) <= 0.5) return lo;
+  if (lo > 0 && Math.abs(times[lo - 1] - x) <= 0.5) return lo - 1;
+  return -1;
+}
+/* A raw-paired leg moved onto the floor axis at each end that has a floor. The pairing stays on the raw
+   times, so a shift cannot push a pair out of its band and change which beats count. An end passed as
+   `null` keeps its raw time; the caller labels that end. A beat with no floor anchor at a shifted end
+   drops out and is counted, never kept at a raw value. */
+function shiftLeg(c, sT, sD, eT, eD) {
+  if (!c || !c.ok) return { ok: false, reason: (c && c.reason) || 'not coupled' };
+  var out = [],
+    dropped = 0;
+  for (var i = 0; i < c.patAtR.length; i++) {
+    var q = c.patAtR[i],
+      si = sT ? timeIndex(sT, q.t) : -1,
+      ei = eT ? timeIndex(eT, q.t + q.lag) : -1,
+      s = sT ? (si < 0 ? NaN : sD[si]) : 0,
+      e = eT ? (ei < 0 ? NaN : eD[ei]) : 0;
+    if (!isFinite(s) || !isFinite(e)) {
+      dropped++;
+      continue;
+    }
+    out.push({ t: q.t, lag: q.lag + e - s });
+  }
+  if (!out.length) return { ok: false, reason: 'no coupled beat had a floor anchor at its shifted end', dropped: dropped };
+  var pat = out.map(function (x) {
+    return x.lag;
+  });
+  return { ok: true, patAtR: out, pat: pat, med: median(pat), dropped: dropped };
+}
 /* The motion check: both accelerometers on their arrival floors, the motion envelopes aligned by the
    shared movement anchors. On a correct floor axis the offset measures only the two links' minimum-latency
    difference and should read ≈ 0; a large value means a floor is wrong, never a correction to apply. NOT fully
@@ -1250,6 +1305,9 @@ self.onmessage = function (e) {
             out.cpCorr = packCp(cpCorr, ov);
             // the same gate, on the corrected coupling; the primary `vd` stays on the raw legs (an owner call)
             out.vdCorr = PATGate.verdict(ov, cpCorr, sc, ax);
+            // each beat's floor shift, aligned to its raw time — the "all sidecars" legs below read these
+            var dE = floorShift(devE, ecg.pos, fE, ecg.times),
+              dP = floorShift(devP, ppg.feetIdx, fP, ppg.times);
             var leg = function (f, tm) {
               return { stream: f.meas, windows: f.windows, refused: f.refused, segments: f.segments, spreadMedianMs: f.spreadMedianMs, unmapped: tm.unmapped };
             };
@@ -1321,6 +1379,29 @@ self.onmessage = function (e) {
               bufferingDiffMs: cp.ok && cpCorr.ok ? cp.med - cpCorr.med : null,
               accCheck: chk || { ok: false, reason: 'no ACC files' }
             };
+            /* ── EVERY LEG ON EVERY SIDECAR THE NIGHT HAS (owner 2026-10-18: "a. not side cars, b. all side
+               cars, c. 3x derivatives") ──────────────────────────────────────────────────────────────────
+               Each leg is COMPUTED from its own beat pairs, never derived from the other two. Chest → ankle is
+               `cpCorr`, both ends on their floors. When the ring has a floor, the two finger legs are
+               `cpFCorr` / `cpFACorr`. When it has none (this firmware: the frame offset never advances), each
+               finger leg keeps its raw pairs and moves its Polar end onto that device's floor, and the ring
+               end stays raw — `ringEnd` says so. `check` re-derives chest → ankle the same way, so the page
+               can show that the shift method reproduces `cpCorr`. */
+            if (hasFinger && cpF && cpFA) {
+              var ringFloored = !!(cpFCorr && cpFCorr.ok && cpFACorr && cpFACorr.ok),
+                sAC = shiftLeg(cp, ecg.times, dE, ppg.times, dP),
+                sAB = ringFloored ? cpFCorr : shiftLeg(cpF, ecg.times, dE, null, null),
+                sBC = ringFloored ? cpFACorr : shiftLeg(cpFA, null, null, ppg.times, dP),
+                hs = threeHat(sAB, cpCorr, sBC);
+              out.threeSide = {
+                ok: !!hs.ok,
+                reason: hs.ok ? null : hs.reason,
+                windows: hs.windows || [],
+                ringEnd: ringFloored ? 'floor' : 'raw',
+                ringReason: ringFloored ? null : (ringLeg && ringLeg.reason) || 'the ring floor did not solve',
+                check: { shiftedMedMs: sAC.ok ? sAC.med : null, corrMedMs: cpCorr.ok ? cpCorr.med : null, droppedBeats: (sAC.dropped || 0) + (sAB.dropped || 0) + (sBC.dropped || 0) }
+              };
+            }
           }
         }
         if (m.detail) {

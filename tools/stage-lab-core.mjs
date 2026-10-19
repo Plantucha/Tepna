@@ -16,8 +16,8 @@
  * night lacks returns NaN columns — ABSENCE IS NULL (CLAUDE.md §∅) — and the GBDT routes NaN down its
  * own learned branch, so a model trained with a signal still runs on a night without it.
  *
- * NOT IMPLEMENTED (declared, Tool Build Standard §2.11): the ecg-hrv, motion and eeg blocks. They are
- * registered with `implemented: false` so a caller asking for them gets a refusal, never zeros.
+ * NOT IMPLEMENTED (declared, Tool Build Standard §2.11): the eeg block. It is registered with
+ * `implemented: false` so a caller asking for it gets a refusal, never zeros.
  */
 
 const EPOCH_S = 30;
@@ -94,6 +94,166 @@ const MOTION_BIT_G = 0.02; // 1-bit motion threshold on the per-second |a| std (
 
 function windowAt(s, c, h) {
   return finite(Array.from(s.subarray(Math.max(0, c - h), Math.min(s.length, c + h))));
+}
+
+/* ── beat-series helpers for the ecg-hrv block (v28e) ──────────────────────────────────────────── */
+const ECG_SCALES = [30, 75, 150]; // half-windows (s): 1, 2.5, 5 min — 2.5 min is the shortest LF window (Task Force 1996)
+
+/* A beat-timed value series (`bt` s, `bv`) linearly interpolated onto a 2 Hz grid over [a, b). Null when under 64
+   samples would carry a value. Gaps between usable beats are bridged: coverage already gates the window. */
+function resample2Hz(bt, bv, a, b) {
+  if (bt.length < 2) return null;
+  const m = Math.floor((b - a) * 2),
+    out = [];
+  let j = 0;
+  for (let k = 0; k < m; k++) {
+    const x = a + k / 2;
+    if (x < bt[0] || x > bt[bt.length - 1]) continue;
+    while (j < bt.length - 2 && bt[j + 1] < x) j++;
+    const f = (x - bt[j]) / (bt[j + 1] - bt[j] || 1),
+      v = bv[j] + f * (bv[j + 1] - bv[j]);
+    if (Number.isFinite(v)) out.push(v);
+  }
+  return out.length >= 64 ? Float64Array.from(out) : null;
+}
+
+function hannDetrended(a) {
+  const n = a.length,
+    b = slope(a),
+    m0 = mean(a) - (b * (n - 1)) / 2,
+    x = new Float64Array(n);
+  for (let i = 0; i < n; i++) x[i] = (a[i] - (m0 + b * i)) * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
+  return x;
+}
+
+// one cos/sin table per length: cos(2πki/n) = C[(k·i) mod n], exact, and ~40× cheaper than a trig call per term
+const _trig = new Map();
+function trig(n) {
+  let T = _trig.get(n);
+  if (!T) {
+    T = { c: new Float64Array(n), s: new Float64Array(n) };
+    for (let j = 0; j < n; j++) {
+      T.c[j] = Math.cos((2 * Math.PI * j) / n);
+      T.s[j] = Math.sin((2 * Math.PI * j) / n);
+    }
+    _trig.set(n, T);
+  }
+  return T;
+}
+
+function dftBin(x, k) {
+  const n = x.length,
+    T = trig(n);
+  let re = 0,
+    im = 0,
+    j = 0;
+  for (let i = 0; i < n; i++) {
+    re += x[i] * T.c[j];
+    im -= x[i] * T.s[j];
+    j += k;
+    if (j >= n) j -= n;
+  }
+  return [re, im];
+}
+
+/* bandPower's estimate (detrend + Hann, log power over the band's bins) on the table DFT. Band edges in cycles per
+   sample, as bandPower takes them. */
+function bandPowerT(a, lo, hi) {
+  const n = a.length;
+  if (n < 64) return NaN;
+  const x = hannDetrended(a);
+  let p = 0;
+  for (let k = Math.ceil(lo * n); k < hi * n && k <= n / 2; k++) {
+    const [re, im] = dftBin(x, k);
+    p += re * re + im * im;
+  }
+  return Math.log(p + 1e-6);
+}
+
+/* The frequency (Hz) of the largest spectral bin of a 2 Hz series inside [lo, hi] Hz: respiratory rate from HRV or EDR. */
+function peakHz(a, lo, hi) {
+  const n = a.length,
+    x = hannDetrended(a);
+  let best = -1,
+    bk = -1;
+  for (let k = Math.ceil((lo / 2) * n); k <= Math.floor((hi / 2) * n) && k <= n / 2; k++) {
+    const [re, im] = dftBin(x, k),
+      p = re * re + im * im;
+    if (p > best) {
+      best = p;
+      bk = k;
+    }
+  }
+  return bk < 0 ? NaN : (bk / n) * 2;
+}
+
+/* Magnitude-squared coherence of two 2 Hz series, Welch 64 s segments at 50 % overlap, averaged over [lo, hi] Hz.
+   The high-frequency cardiopulmonary coupling of Thomas et al. 2005 (Sleep 28:1151): NN against ECG-derived respiration. */
+function coherence(x, y, lo, hi) {
+  const L = 128,
+    n = Math.min(x.length, y.length);
+  if (n < 2 * L) return NaN; // under 3 segments, coherence is 1 by construction
+  const k0 = Math.ceil((lo / 2) * L),
+    k1 = Math.floor((hi / 2) * L),
+    sxx = new Float64Array(k1 + 1),
+    syy = new Float64Array(k1 + 1),
+    sre = new Float64Array(k1 + 1),
+    sim = new Float64Array(k1 + 1);
+  for (let s0 = 0; s0 + L <= n; s0 += L / 2) {
+    const xs = hannDetrended(x.subarray(s0, s0 + L)),
+      ys = hannDetrended(y.subarray(s0, s0 + L));
+    for (let k = k0; k <= k1; k++) {
+      const [a, b] = dftBin(xs, k),
+        [c, d] = dftBin(ys, k);
+      sxx[k] += a * a + b * b;
+      syy[k] += c * c + d * d;
+      sre[k] += a * c + b * d;
+      sim[k] += b * c - a * d;
+    }
+  }
+  let acc = 0,
+    m = 0;
+  for (let k = k0; k <= k1; k++) {
+    const den = sxx[k] * syy[k];
+    if (den > 0) {
+      acc += (sre[k] * sre[k] + sim[k] * sim[k]) / den;
+      m++;
+    }
+  }
+  return m ? acc / m : NaN;
+}
+
+/* Short-term detrended fluctuation exponent α1 over box sizes 4–16 beats (Peng 1995). Under 50 beats: NaN. */
+function dfaAlpha1(nn) {
+  const N = nn.length;
+  if (N < 50) return NaN;
+  const mu = mean(nn),
+    y = new Float64Array(N);
+  let acc = 0;
+  for (let i = 0; i < N; i++) y[i] = acc += nn[i] - mu;
+  const lx = [],
+    ly = [];
+  for (let s = 4; s <= 16; s++) {
+    const boxes = Math.floor(N / s);
+    let f = 0;
+    for (let bx = 0; bx < boxes; bx++) {
+      const seg = y.subarray(bx * s, bx * s + s),
+        b = slope(seg),
+        m0 = mean(seg) - (b * (s - 1)) / 2;
+      for (let i = 0; i < s; i++) f += (seg[i] - (m0 + b * i)) ** 2;
+    }
+    lx.push(Math.log(s));
+    ly.push(Math.log(Math.sqrt(f / (boxes * s)) + 1e-9));
+  }
+  const mx = mean(lx),
+    my = mean(ly);
+  let num = 0,
+    den = 0;
+  for (let i = 0; i < lx.length; i++) {
+    num += (lx[i] - mx) * (ly[i] - my);
+    den += (lx[i] - mx) ** 2;
+  }
+  return num / den;
 }
 
 function multiScale(s, n, prefix, extra) {
@@ -206,7 +366,109 @@ const BLOCKS = {
       });
     }
   },
-  'ecg-hrv': { implemented: false, input: 'ecg' },
+  'ecg-hrv': {
+    /* v28e (brief §25): the BEAT series an ECG node already produces — ECGDSP.analyze's corrected NN, per-beat SQI and
+       R amplitude — so ECGDex's runtime feeds this block the same input the lab trains on. Input:
+       `night.signals.ecg = { t, nn, ok, amp }` (beat time s · NN ms · 1 = usable beat · R amplitude, any unit).
+       A window under half covered by usable NN is NaN, never a number (§∅). */
+    implemented: true,
+    input: 'ecg',
+    extract(night) {
+      const s = night.signals.ecg;
+      if (!s) return null;
+      const n = night.nEpochs,
+        names = [],
+        cols = [];
+      const add = (nm) => {
+        names.push('ecg.' + nm);
+        const c = new Float64Array(n).fill(NaN);
+        cols.push(c);
+        return c;
+      };
+      const t = s.t || new Float64Array(0),
+        nn = s.nn || new Float64Array(0),
+        ok = s.ok || new Uint8Array(0),
+        amp = s.amp || new Float64Array(0);
+      for (const h of ECG_SCALES) {
+        const w = 2 * h,
+          spec = h >= 75;
+        const c = {
+          cov: add(`coverage@${w}s`),
+          mnn: add(`meanNN@${w}s`),
+          sdnn: add(`sdnn@${w}s`),
+          rmssd: add(`lnrmssd@${w}s`),
+          pnn: add(`pnn50@${w}s`),
+          ...(spec
+            ? {
+                lf: add(`lnLF@${w}s`),
+                hf: add(`lnHF@${w}s`),
+                lfhf: add(`lnLF-HF@${w}s`),
+                hfpk: add(`hfPeakHz@${w}s`),
+                edr: add(`edr.lnpow.1-.5Hz@${w}s`),
+                edrpk: add(`edr.peakHz@${w}s`),
+                coh: add(`cpc.hfCoh@${w}s`)
+              }
+            : {}),
+          ...(h === 150 ? { vlf: add(`lnVLF@${w}s`), dfa: add(`dfa.a1@${w}s`) } : {})
+        };
+        let lo = 0;
+        for (let i = 0; i < n; i++) {
+          const ctr = i * EPOCH_S + EPOCH_S / 2,
+            a = ctr - h,
+            b = ctr + h;
+          while (lo < t.length && t[lo] < a) lo++;
+          const bt = [],
+            bn = [],
+            ba = [];
+          let covered = 0;
+          for (let j = lo; j < t.length && t[j] < b; j++) {
+            if (!ok[j] || !(nn[j] >= 300 && nn[j] <= 2000)) continue;
+            bt.push(t[j]);
+            bn.push(nn[j]);
+            ba.push(amp[j]);
+            covered += nn[j] / 1000;
+          }
+          c.cov[i] = Math.min(1, covered / w);
+          if (covered < h || bn.length < 8) continue; // under half the window measured: not a value
+          c.mnn[i] = mean(bn);
+          c.sdnn[i] = std(bn);
+          let ss = 0,
+            m = 0,
+            p50 = 0;
+          for (let j = 1; j < bn.length; j++) {
+            if (bt[j] - bt[j - 1] > 2.5) continue; // successive only across a real neighbour, not a dropped stretch
+            const d = bn[j] - bn[j - 1];
+            ss += d * d;
+            m++;
+            if (Math.abs(d) > 50) p50++;
+          }
+          if (m) {
+            c.rmssd[i] = Math.log(Math.sqrt(ss / m) + 1e-3);
+            c.pnn[i] = p50 / m;
+          }
+          if (!spec) continue;
+          const tach = resample2Hz(bt, bn, a, b),
+            ra = resample2Hz(bt, ba, a, b);
+          if (!tach) continue;
+          // bandPower works in cycles per SAMPLE: a 2 Hz series halves every band edge
+          c.lf[i] = bandPowerT(tach, 0.04 / 2, 0.15 / 2);
+          c.hf[i] = bandPowerT(tach, 0.15 / 2, 0.4 / 2);
+          c.lfhf[i] = c.lf[i] - c.hf[i];
+          c.hfpk[i] = peakHz(tach, 0.1, 0.5);
+          if (ra) {
+            c.edr[i] = bandPowerT(ra, 0.1 / 2, 0.5 / 2);
+            c.edrpk[i] = peakHz(ra, 0.1, 0.5);
+            c.coh[i] = coherence(tach, ra, 0.1, 0.4);
+          }
+          if (h === 150) {
+            c.vlf[i] = bandPowerT(tach, 0.0033 / 2, 0.04 / 2);
+            c.dfa[i] = dfaAlpha1(bn);
+          }
+        }
+      }
+      return { names, cols };
+    }
+  },
   motion: {
     /* 1 Hz wrist/finger ACTIVITY (std of |a| within the second, g). Two column families from ONE input so a bench run
        can drop either by name (brief §16, v17): `motion.*` = the activity itself; `mbit.*` = the same statistics over a
@@ -952,5 +1214,10 @@ export {
   MOTION_BIT_G,
   BLOCKS,
   CONTEXT_EPOCHS,
-  FORMULA_TERMS
+  FORMULA_TERMS,
+  ECG_SCALES,
+  resample2Hz,
+  peakHz,
+  coherence,
+  dfaAlpha1
 };

@@ -362,8 +362,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "49f53e37a37b",
-          "computeHash": "227fb17acf34"
+          "manifestHash": "1b2a72116a61",
+          "computeHash": "168a98b86852"
         },
         "evidence": {
           "envelopeRef": null,
@@ -391,8 +391,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "49f53e37a37b",
-          "computeHash": "227fb17acf34"
+          "manifestHash": "1b2a72116a61",
+          "computeHash": "168a98b86852"
         },
         "evidence": {
           "envelopeRef": null,
@@ -420,8 +420,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "49f53e37a37b",
-          "computeHash": "227fb17acf34"
+          "manifestHash": "1b2a72116a61",
+          "computeHash": "168a98b86852"
         },
         "evidence": {
           "envelopeRef": null,
@@ -449,8 +449,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "49f53e37a37b",
-          "computeHash": "227fb17acf34"
+          "manifestHash": "1b2a72116a61",
+          "computeHash": "168a98b86852"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1112,7 +1112,16 @@
       "ct90m": 0.9,
       "ct89m": 0.7,
       "ct88m": 0.2,
-      "ct85m": 0
+      "ct85m": 0,
+      "ct90n": 54,
+      "ct89n": 39,
+      "ct88n": 10,
+      "ct85n": 0,
+      "ct80n": 0,
+      "ctSource": "stamps",
+      "ctCadenceMs": 1000,
+      "ctCoveredSec": 26155,
+      "ctUncoveredSec": 0
     },
     "sleepStability": {
       "score": 69,

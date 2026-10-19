@@ -184,7 +184,11 @@ EOF1
 # ⚠ The `cd "$root"` is load-bearing — see "THE BINARY IS RELOCATABLE" in the header.
 # Biome reads biome.json by walking up from the CWD, so a borrowed binary run from
 # anywhere else silently applies DEFAULT rules and reports violations that are not real.
-out="$(cd "$root" && printf '%s\n' "$staged" | xargs -r "$biome" ci --no-errors-on-unmatched 2>&1)" && exit 0
+# `--colors=off` is load-bearing, not cosmetic: with markup on, Biome prefixes each
+# diagnostic path with an ANSI reset, the `bad` extraction below keeps it inside the
+# filename, and the remedy lines then carry an escape sequence into whatever shell
+# they are pasted into. Measured 2026-10-18 on a staged unformatted plant.
+out="$(cd "$root" && printf '%s\n' "$staged" | xargs -r "$biome" ci --no-errors-on-unmatched --colors=off 2>&1)" && exit 0
 
 # Non-zero ⇒ something is wrong with what is being committed. Name the files and the
 # fix; a refusal that makes you go and find the command is a wall, not a signal.
@@ -195,10 +199,15 @@ would red CI on formatting.
 
   ${bad:-$(printf '%s' "$staged" | tr '\n' ' ')}
 
-Fix (fast — it is a formatter, not a review):
+Fix (fast — it is a formatter, not a review). The commands below name the SAME Biome this
+guard just ran, resolved from this tree. Do not substitute \`npx --no-install biome\` — that
+resolves npx's cache, where a package squatting the name has been measured (residue
+2026-10-18-format-guards-remedy-line-prescribes-the-squatting-biome). The \`cd\` is
+load-bearing: Biome walks up from the CWD for biome.json.
 
-    npx --no-install biome format --write ${bad:-<the files above>}
-    npx --no-install biome ci --no-errors-on-unmatched ${bad:-<the files above>}
+    cd $root
+    $biome format --write ${bad:-<the files above>}
+    $biome ci --no-errors-on-unmatched ${bad:-<the files above>}
 
 Then re-stage and commit. If the failure is a LINT error rather than formatting, the output
 below says which rule.

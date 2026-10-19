@@ -678,6 +678,11 @@ function readSources() {
        was: the `no NEW unscannable source layer` ratchet reds a runtime source no lane can read, and it
        caught this one on its first build too. */
     'sensor-trio-night.js',
+    /* The GENERATED published-number record the card composes its pooled note from
+       (TCH-REFERENCE-POPULATIONS §5.3). Listed in BOTH lanes with the file itself: until it is here the
+       `published-record` group reads nothing, and the whole point of the record is that the card's
+       figures are checkable against it rather than typed. */
+    'codegen/generated/tch-reference-record.js',
     'sensor-trio-gpu.js',
     'hrvdex-render.js',
     'pat-gate.js',
@@ -2491,6 +2496,7 @@ async function main() {
       'adapters/o2ring-ppg2w.js',
       'adapters/polar-h10-ecg.js',
       'adapters/resmed-edf.js',
+      'adapters/polar-acc.js',
       'quantity.js',
       'dex-ingest.js',
       'provenance-banner.js',
@@ -2730,6 +2736,16 @@ async function main() {
     console.error(paint('  ! cohort-worker realm failed to build: ' + e.message, C.yellow));
   }
 
+  let StageLab = null;
+  try {
+    StageLab = {
+      core: await import(new URL('../tools/stage-lab-core.mjs', import.meta.url).href),
+      cli: await import(new URL('../tools/stage-lab.mjs', import.meta.url).href)
+    };
+  } catch (e) {
+    console.error(paint('  ! stage-lab failed to load: ' + e.message, C.yellow));
+  }
+
   let PatFiducial = null;
   try {
     PatFiducial = await import(new URL('../tools/pat-fiducial.mjs', import.meta.url).href);
@@ -2785,6 +2801,7 @@ async function main() {
     nightqcSource: _readOpt('capture-host/nightqc.py'),
     PatStrict: PatStrict,
     PatFiducial: PatFiducial,
+    StageLab: StageLab,
     CohortWorker: CohortWorker,
     NsrrStage: NsrrStage,
     MutTriage: MutTriage,

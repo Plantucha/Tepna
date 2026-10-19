@@ -37,6 +37,7 @@
     "adapters/polar-sense-ppg.js",
     "adapters/polar-h10-ecg.js",
     "adapters/resmed-edf.js",
+    "adapters/polar-acc.js",
     "kernel-constants.js",
     "event-coupling.js",
     "dex-coload.js",

@@ -107,7 +107,7 @@
      "→ PulseDex" in the routing manifest. Display-only — runAndFuse() dispatches on signalType, so
      the 208 MB H10 ECG did run through ECGDex and emit 62 correct events while the manifest said
      PulseDex — but a manifest whose whole job is "tell the user what will run" must not lie. */
-  var NODE_FOR_SIGNAL = { spo2: 'OxyDex', hrv: 'HRVDex', rr: 'PulseDex', ecg: 'ECGDex', ppg: 'PpgDex', cgm: 'GlucoDex', cpap: 'CPAPDex' };
+  var NODE_FOR_SIGNAL = { spo2: 'OxyDex', hrv: 'HRVDex', rr: 'PulseDex', ecg: 'ECGDex', ppg: 'PpgDex', cgm: 'GlucoDex', cpap: 'CPAPDex', acc: 'MotionDex' };
 
   function classify(file, text) {
     var relPath = WALK.relOf(file);
@@ -309,19 +309,36 @@
     });
   }
 
+  /* Run & fuse stays DISABLED until the files are read and classified. Pressed earlier, runAndFuse
+     sees an empty ITEMS and returns without a word. The box's Nights page hands a night's files to
+     #files and then presses this button once it is enabled, the same contract the batch tools keep. */
+  function setRunReady(ok) {
+    var b = document.getElementById('runBtn');
+    if (b) b.disabled = !ok;
+  }
   function ingest(files) {
     if (!files || !files.length) return;
     setStatus('reading ' + files.length + ' file' + (files.length === 1 ? '' : 's') + '…', 'run');
+    setRunReady(false);
     FUSION = null;
     FUSED_EXPORT = null;
     SEALS = [];
-    expandSeals(files).then(function (ex) {
-      return ingestFiles(ex.files, ex.refused);
-    });
+    expandSeals(files).then(
+      function (ex) {
+        return ingestFiles(ex.files, ex.refused);
+      },
+      function (e) {
+        setRunReady(ITEMS.length > 0);
+        setStatus('could not read the files: ' + ((e && e.message) || e), 'err');
+      }
+    );
   }
   function ingestFiles(files, refused) {
     refused = refused || [];
-    if (!files.length && !refused.length) return;
+    if (!files.length && !refused.length) {
+      setRunReady(ITEMS.length > 0);
+      return;
+    }
     Promise.all(
       files.map(function (f) {
         return readText(f).then(
@@ -352,6 +369,7 @@
       });
       ITEMS = items;
       renderManifest();
+      setRunReady(ITEMS.length > 0);
       var counts = tally();
       setStatus(counts.raw + ' raw · ' + counts.export + ' node-export · ' + counts.ambiguous + ' ambiguous · ' + counts.unknown + ' set aside', 'idle');
     });
@@ -409,6 +427,7 @@
 
     var exports = []; // { json, label, from }
     var _cpapRan = false; // one night = one EDF set, run once (see the cpap branch below)
+    var _accRan = false; // every ACC of the drop is routed in ONE pass (see the acc branch below)
     for (var i = 0; i < ITEMS.length; i++) {
       var it = ITEMS[i];
       try {
@@ -447,6 +466,54 @@
               return b.name;
             });
             _cpapRan = true;
+          }
+          /* ACC → MotionDex (2026-10-18). MotionDex reads a chest ACC and an arm ACC as ONE recording, so
+             every ACC item is parsed in one pass and ORCH.pairMotionFrames joins each chest frame to the
+             nearest arm frame of the same night. The arm item a chest run consumed is marked as folded,
+             never left blank. Each ACC also stays an ECG/PPG companion: pairCompanions reads the whole drop. */
+          if (sigType === 'acc') {
+            if (_accRan) continue; // already parsed in the pass below; its runNote/computed are set there
+            _accRan = true;
+            var _aEnts = [],
+              _aItems = [];
+            for (var ai = 0; ai < ITEMS.length; ai++) {
+              var ait = ITEMS[ai];
+              if (ait && ait.file) _aEnts.push({ name: ait.file.name, text: ait.file.__text });
+              var asig = ait && (ait.klass === 'raw' ? ait.signalType : ait.resolvedTo && ait.resolvedTo.signalType);
+              if (asig === 'acc') _aItems.push(ait);
+            }
+            if (!wins.acc) {
+              _aItems.forEach(function (x) {
+                x.runNote = 'acc compute host unavailable: ' + (hostFail.acc || 'MotionDex not loaded');
+              });
+              continue;
+            }
+            var _aFrames = [];
+            _aItems.forEach(function (x) {
+              var actx = { files: [x.relPath], parseSensorXYZ: wins.acc.MotionDex.parseSensorXYZ };
+              var ac = ORCH.pairCompanions('acc', x.file.name, _aEnts);
+              if (ac) actx.companions = ac;
+              var afr = REG.runAdapter(x.klass === 'raw' ? x.adapter : x.resolvedTo.adapter, x.file.__text, actx);
+              var av = SF.validateFrame(afr);
+              x.frame = afr;
+              x.valid = av;
+              if (afr && afr.usable && av.ok) {
+                afr.__item = x;
+                _aFrames.push(afr);
+              } else x.runNote = afr && !afr.usable ? 'unusable frame: ' + (afr.reason || '?') : av.errors.join('; ');
+            });
+            ORCH.pairMotionFrames(_aFrames).forEach(function (afr) {
+              try {
+                var aexp = ORCH.emitNodeExport(afr);
+                if (aexp && aexp.schema && aexp.schema.ingest) aexp.schema.ingest.via = 'OverDex';
+                afr.__item.computed = aexp;
+                exports.push({ json: aexp, label: afr.__item.relPath, from: 'computed ' + afr.provenance.adapter });
+                if (afr.partner) afr.partner.__item.runNote = 'folded into the MotionDex run of ' + afr.__item.relPath + ' (chest + arm ACC are one recording)';
+              } catch (ae) {
+                afr.__item.runNote = 'run error: ' + ae.message;
+              }
+            });
+            continue;
           }
           // companion-bundle ingest (ECG/PPG multi-file): pair matched device sidecars by filename
           // stamp across the walked drop so the adapter attaches them to the frame (HANDOFF §2(b)).

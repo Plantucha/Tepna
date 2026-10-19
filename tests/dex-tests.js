@@ -9448,7 +9448,14 @@
           'tools/pat-axis-leg-audit.mjs':
             'REPORTS — the output IS the provenance line, printing `drawn=` beside `ppm=`, `independent=` and `spreadMs=`. Its predicted-drift figure is a diagnostic shown next to the flag, never applied as a correction.',
           'tools/tch-firmware-reference.mjs':
-            'REPORTS — its `--axis host|wall` switch decides whether the DSPs may run the one correction they already own, and the tool itself applies no rate. `axisSummary` tallies `deviceDrawn` FIRST, so a drawn host column never counts as independence, and its `ppmMedian` rides beside the call count as a diagnostic.'
+            'REPORTS — its `--axis host|wall` switch decides whether the DSPs may run the one correction they already own, and the tool itself applies no rate. `axisSummary` tallies `deviceDrawn` FIRST, so a drawn host column never counts as independence, and its `ppmMedian` rides beside the call count as a diagnostic.',
+          /* Joined the population 2026-10-18 on a PROSE field, not on code: the only axis token it
+             carries is the `axisNote` STRING it publishes, which tells a reader of the record which leg
+             the sibling tool ran. The scan strips comments and not string literals, so a published
+             sentence still over-flags — which is this population's stated design (a new tool lands here
+             rather than staying invisible), and the honest classification is a reason, not a guard. */
+          'tools/tch-reference-record.mjs':
+            "REPORTS — it republishes the sibling reference run's pooled figures and applies no rate at all: it never calls `hostAxis`, never reads a `.ppm`, and its axis mention is the `axisNote` sentence inside the record it writes."
         };
         var POP = [],
           AXIS = [],
@@ -9504,7 +9511,10 @@
           OWNFIT.join(', '),
           'tools/beat-comb-analysis.mjs, tools/beat-leg-closure.mjs, tools/dual-clock-rate.mjs, tools/integrator-block-precision.mjs'
         );
-        T.eq('POPULATION is 12 — the published denominator', POP.length, 12, 'POPULATION=' + POP.join(', '));
+        /* 12 measured 2026-09-27; 13 from 2026-10-18, when `tch-reference-record.mjs` joined on its
+           published `axisNote` sentence (see its EXCLUDED row). The number is a ratchet on a derived
+           set, so it moves only beside a classification. */
+        T.eq('POPULATION is 13 — the published denominator', POP.length, 13, 'POPULATION=' + POP.join(', '));
       }
 
       /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing
@@ -11340,6 +11350,195 @@
         checkedPairs === 3,
         'only ' + checkedPairs + ' of 3 pairs collapsed upward — the loop passed by skipping the rest'
       );
+    });
+    /* ════ THE CARD'S POOLED NOTE IS COMPOSED FROM THE PUBLISHED RECORD ══════════════════════════════
+       TCH-REFERENCE-POPULATIONS §2 defect 1: `sensor-trio-night.js` hard-coded "37 nights" and three
+       pooled σ, and kept printing them for three weeks after the reference population had grown to 54 —
+       with every gate green, because nothing tied the sentence to the run. §5.3 moved the figures into
+       `analysis/published-numbers/tch-firmware-reference-<date>.json`, whose generated twin
+       `codegen/generated/tch-reference-record.js` is inlined into the page by `tools/build-analysis.mjs`.
+
+       WHAT THIS GROUP PINS, and why each leg is here rather than in the tool's own selftest:
+       · the twin is DATA, not code — it is inlined verbatim into a 1.3 MB page, so a function body
+         arriving there would execute unreviewed;
+       · the record's two populations stay separable (a count from one set with a range from the other is
+         the §2 defect in a different place), and every verdict obeys `checked + excluded = eligible`;
+       · PRIVACY, re-implemented here rather than borrowed: the tool scrubs absolute paths, date lists
+         and per-night rows and emits a PASS about its own work. A check that calls the scrubber it is
+         checking passes with it, so this walks the leaves itself (owner ruling 2026-09-24: per-night
+         values stay off the public repo);
+       · the card reads the record and composes BOTH populations, and the composed slice carries NO
+         pooled figure as a literal — which is the only leg that would have caught the original defect.
+       The two HTML invariants (the note host is empty in the built page; the twin is inlined AHEAD of
+       the card) live in `tools/tch-reference-record.mjs --selftest`, because the built page is in
+       neither lane's `env.sources` — it is the inlined bundle itself. ═══════════════════════════════ */
+    group('the card composes its pooled note from the published record, with nothing typed', 'sensor-trio · published-record · §∅', function (T) {
+      var twin = env.sources && env.sources['codegen/generated/tch-reference-record.js'];
+      var card = env.sources && env.sources['sensor-trio-night.js'];
+      T.ok('the generated twin is readable in this lane', !!twin, twin ? twin.length + ' bytes' : 'codegen/generated/tch-reference-record.js not in env.sources — list it in BOTH lanes');
+      T.ok('the card source is readable in this lane', !!card, card ? card.length + ' bytes' : 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
+      if (!twin || !card) return;
+
+      /* ── the twin is a generated DATA file ───────────────────────────────────────────────────────── */
+      T.ok(
+        'the twin says what generated it and that it must not be edited',
+        /@generated by tools\/tch-reference-record\.mjs/.test(twin) && /DO NOT EDIT/.test(twin),
+        'a generated file that does not say so gets hand-edited'
+      );
+      T.ok('the twin assigns exactly one global', (twin.match(/window\.TCH_REFERENCE_RECORD\s*=/g) || []).length === 1, 'the page reads window.TCH_REFERENCE_RECORD at module evaluation');
+      var body = twin.slice(twin.indexOf('window.TCH_REFERENCE_RECORD'));
+      T.ok(
+        'the twin carries DATA only — no function, arrow, call or template in the payload',
+        !/\bfunction\b|=>|\brequire\(|\beval\(|`/.test(body),
+        'this file is inlined verbatim into sensor-trio-night.html; anything executable there runs unreviewed'
+      );
+
+      var rec = null,
+        parseErr = null;
+      try {
+        rec = JSON.parse(body.slice(body.indexOf('{'), body.lastIndexOf('}') + 1));
+      } catch (e) {
+        parseErr = String(e && e.message);
+      }
+      T.ok(
+        'the twin payload is plain JSON — the twin and the record are the same bytes',
+        !!rec,
+        rec ? Object.keys(rec).length + ' top-level field(s) parsed' : 'JSON.parse failed: ' + String(parseErr)
+      );
+      if (!rec) return;
+      T.ok('the record declares its schema', rec.schema === 'tepna.published-number-record/1', String(rec.schema));
+      T.ok(
+        'the record names the brief it discharges and the record it supersedes',
+        /BRIEF\.md$/.test(String(rec.brief)) && /^analysis\/published-numbers\/.*\.json$/.test(String(rec.supersedes)),
+        String(rec.brief) + ' / ' + String(rec.supersedes)
+      );
+      T.ok(
+        'the record is dated and names the dated file it supersedes by pattern, so no test pins one run',
+        /^\d{4}-\d{2}-\d{2}$/.test(String(rec.generated)) && /^analysis\/published-numbers\/tch-firmware-reference-\d{4}-\d{2}-\d{2}\.json$/.test(String(rec.supersedes)),
+        'generated ' + String(rec.generated) + ', supersedes ' + String(rec.supersedes)
+      );
+
+      /* ── TWO POPULATIONS, NEVER MIXED ────────────────────────────────────────────────────────────── */
+      var cl = rec.claims || {};
+      T.ok('the scored count never exceeds the eligible count', cl.nightsScored > 0 && cl.nightsEligible >= cl.nightsScored, cl.nightsScored + ' scored of ' + cl.nightsEligible + ' eligible');
+      T.ok(
+        'the claims date range is the SCORED span, inside the eligible span',
+        cl.dateFirst >= cl.eligibleFirst && cl.dateLast <= cl.eligibleLast && cl.dateFirst <= cl.dateLast,
+        'scored ' + cl.dateFirst + '→' + cl.dateLast + ' vs eligible ' + cl.eligibleFirst + '→' + cl.eligibleLast
+      );
+      T.ok(
+        'the record says in its own text which span is which',
+        /SCORED/.test(String(rec.claimsNote)) && /ELIGIBLE/.test(String(rec.claimsNote)),
+        'claimsNote must name both spans — a reader of the JSON has only this'
+      );
+      var pops = [],
+        axKeys = Object.keys(rec.axes || {});
+      for (var ai = 0; ai < axKeys.length; ai++) {
+        var P = rec.axes[axKeys[ai]].populations || {};
+        for (var pk in P) if (P[pk]) pops.push({ ax: axKeys[ai], k: pk, v: P[pk] });
+      }
+      T.ok('ANTI-VACUITY · the record carries populations to check', pops.length >= 4, pops.length + ' population verdict(s) across ' + axKeys.length + ' axis/axes');
+      var badPop = pops.filter(function (p) {
+        var q = p.v.population || {};
+        return !(q.checked + q.excluded === q.eligible);
+      });
+      T.ok(
+        'every population verdict satisfies checked + excluded = eligible',
+        badPop.length === 0,
+        badPop
+          .map(function (p) {
+            return p.ax + ':' + p.k;
+          })
+          .join(', ')
+      );
+      var badStatus = pops.filter(function (p) {
+        return ['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'NOT_RUN', 'NOT_APPLICABLE', 'UNKNOWN'].indexOf(p.v.status) < 0 || (p.v.status !== 'PASS' && !p.v.reason);
+      });
+      T.ok(
+        'every population verdict carries one of the seven statuses, and a reason when it is not PASS',
+        badStatus.length === 0,
+        badStatus
+          .map(function (p) {
+            return p.ax + ':' + p.k + '=' + p.v.status;
+          })
+          .join(', ')
+      );
+
+      /* ── PRIVACY, walked here rather than taken from the tool's own PASS ─────────────────────────── */
+      var leaks = [],
+        seen = 0;
+      (function walk(node, at) {
+        if (node === null || node === undefined) return;
+        if (typeof node === 'string') {
+          seen++;
+          if (/(^|[\s"'(])\/(home|srv|mnt|media|Users|var)\//.test(node)) leaks.push(at + ': absolute path');
+          return;
+        }
+        if (typeof node !== 'object') {
+          seen++;
+          return;
+        }
+        if (Array.isArray(node)) {
+          var dates = node.filter(function (x) {
+            return typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
+          }).length;
+          if (dates > 2) leaks.push(at + ': ' + dates + ' ISO dates in one array — a date RANGE is two');
+          var rows = node.filter(function (x) {
+            return x && typeof x === 'object' && ('trueSd' in x || 'bias' in x || 'hat' in x || 'night' in x);
+          }).length;
+          if (rows > 0) leaks.push(at + ': ' + rows + ' per-night row(s)');
+          for (var i = 0; i < node.length; i++) walk(node[i], at + '[' + i + ']');
+          return;
+        }
+        for (var k in node) walk(node[k], at + '.' + k);
+      })(rec, '$');
+      T.ok('ANTI-VACUITY · the privacy walk reached the leaves', seen > 100, seen + ' leaf value(s) examined');
+      T.ok(
+        'the published record carries no absolute path, no night list and no per-night row',
+        leaks.length === 0,
+        leaks.slice(0, 6).join(' · ') + (leaks.length > 6 ? ' · +' + (leaks.length - 6) + ' more' : '')
+      );
+
+      /* ── the card reads it, and types nothing ────────────────────────────────────────────────────── */
+      T.ok('the card reads the record global', /window\.TCH_REFERENCE_RECORD/.test(card), 'the note must come from the record, not from this file');
+      T.ok(
+        'the card names its pooled population as a count AND a span',
+        /nightsScored\s*\+\s*' nights, '\s*\+\s*TCHCLAIMS\.dateFirst/.test(card),
+        '§5.3 — the note names its population ("N nights, first → last")'
+      );
+      T.ok(
+        'the card names the night its heroes describe',
+        /heroNight'\)\.textContent = nt\.key/.test(card) && /renderReferenceNote\(nt\.key\)/.test(card),
+        '§6 — the card must name BOTH of its populations'
+      );
+      T.ok(
+        'an absent record REFUSES the note instead of falling back to a stale sentence',
+        /REFUSED/.test(card) && /did not load/.test(card),
+        '§∅ — a stale pooled sentence that reads as current is worse than a visible absence'
+      );
+      T.ok('the superseded record is named nowhere in the card', !/tch-firmware-reference-2026-09-26/.test(card), 'the retired run must not survive as a constant or a citation');
+
+      /* THE LEG THAT WOULD HAVE CAUGHT THE ORIGINAL DEFECT: the composed slice — from the reference
+         comment to the end of the composition — may hold no pooled figure as a literal. Decimals are
+         banned outright; the only multi-digit integer allowed is the 100 of a percentage. */
+      var i0 = card.indexOf('WHAT THE REFERENCE SAYS ABOUT EACH HERO'),
+        i1 = card.indexOf('const tchChecked');
+      T.ok('ANTI-VACUITY · the composed slice was located and is substantial', i0 > 0 && i1 > i0 && i1 - i0 > 1500, 'slice ' + i0 + '→' + i1);
+      if (i0 > 0 && i1 > i0) {
+        var slice = card.slice(i0, i1);
+        var dec = slice.match(/\d+\.\d+/g) || [];
+        var ints = (slice.match(/(?:^|[^\w.])(\d{2,})(?![\w.])/g) || []).map(function (s) {
+          return s.replace(/[^\d]/g, '');
+        });
+        T.ok('no pooled figure is typed into the composition — no decimal literal at all', dec.length === 0, dec.join(', '));
+        T.ok(
+          'the only multi-digit integer in the composition is the 100 of a percentage',
+          ints.filter(function (n) {
+            return n !== '100';
+          }).length === 0,
+          ints.join(', ') + ' — a night count or a σ belongs in the record'
+        );
+      }
     });
     group("the paper's power tool and the gated TCH kernel compute the same hat", 'sensor-trio · tch-parity', function (T) {
       var K = env.IntegratorTCH;
@@ -14864,6 +15063,80 @@
       );
     });
 
+    /* ════ OxyDex CT — the seconds come from the stamps, not from the row count ════
+       Residue 2026-09-29-oxydex-counts-rows-as-seconds. `computeCTprecise` counted ROWS below each
+       threshold and published them as `ct90s` … `ct80s`. That is seconds only at exactly 1 Hz, and the
+       box's ring runs 0.9854 rows/s (23 826 rows over 24 179 s on vigil's 2026-09-28 night, with 538
+       two-second steps and 189 doubled stamps), so CT read ~1.5 % LOW on every box night.
+       ⚠️ THE SHAPES ARE THE INSTRUMENT, and a single night would have proved nothing: a 1 Hz series
+       reads the same under both derivations, which is exactly why the defect survived every committed
+       golden. Five series differing ONLY in their stamps separate the readings — the 1 Hz control
+       (unchanged), the ring's real cadence (recovered), doubled stamps (a repeated second counted
+       once), a dropout (excluded, not attributed to the sample before it) and no stamps at all
+       (annotated, never refused). */
+    group('OxyDex CT — seconds derive from the stamps, and the 1 Hz case is unchanged', 'oxydex-dsp · math-correctness · clock · absence', function (T) {
+      var B = (env.OxyDex && env.OxyDex._bare) || null;
+      if (!B || typeof B.computeCTprecise !== 'function') {
+        T.skip('OxyDex._bare computeCTprecise available', 'wire env.OxyDex into this lane');
+        return;
+      }
+      /* 600 samples at a measured 85 % (below 90, 89 and 88) then 3000 healthy ones. `doubled` repeats
+         a stamp every 50th sample, `gapAt`/`gapMs` opens one real dropout. */
+      var mk = function (cadenceMs, n, doubled, gapAt, gapMs) {
+        var t0 = Date.UTC(2026, 8, 28, 21, 37, 0),
+          rows = [],
+          t = t0;
+        for (var i = 0; i < n; i++) {
+          rows.push({ tMs: t, t: new Date(t), spo2: i < 600 ? 85 : 97, hr: 60, motion: 0, pi: null });
+          var step = cadenceMs;
+          if (doubled && i % 50 === 0) step = 0;
+          if (gapAt != null && i === gapAt) step = gapMs;
+          t += step;
+        }
+        return rows;
+      };
+      /* CONTROL · at exactly 1 Hz a row IS a second, so the fix must leave the number alone — this is
+         the case every committed golden carries, and a change here would be a regression, not a fix. */
+      var ct1 = B.computeCTprecise(mk(1000, 3600));
+      T.eq('1 Hz · ct88s is unchanged at 600 s', ct1.ct88s, 600);
+      T.eq('1 Hz · the row count agrees with it', ct1.ct88n, 600);
+      T.eq('1 Hz · ct88m is the same 10.0 min', ct1.ct88m, 10);
+      /* THE DEFECT · the ring's own cadence. 600 samples 1015 ms apart cover 609 s, and the old row
+         count read 600 — the ~1.5 % the row measured on a real night. */
+      var ctRing = B.computeCTprecise(mk(1015, 3600));
+      T.eq('0.9854 Hz · ct88s reads the 609 s the stamps cover, not the 600 rows', ctRing.ct88s, 609);
+      T.eq('0.9854 Hz · the row count is still published beside it', ctRing.ct88n, 600);
+      T.eq('0.9854 Hz · the basis reports the measured cadence', ctRing.ctCadenceMs, 1015);
+      /* A DOUBLED STAMP holds its value for 0 s, so a second the device reported twice is counted
+         once. Twelve of the 600 low samples are doubled here. */
+      var ctDbl = B.computeCTprecise(mk(1000, 3600, true));
+      T.eq('doubled stamps · ct88s is 588 s, below the 600 rows', ctDbl.ct88s, 588);
+      T.eq('doubled stamps · the row count still reads 600', ctDbl.ct88n, 600);
+      /* A DROPOUT is a discontinuity, not dwell: the cap keeps 2 s and the other 118 s become
+         uncovered time, so a 2-minute hole cannot read as 2 minutes below 88 %. */
+      var ctGap = B.computeCTprecise(mk(1000, 3600, false, 300, 120000));
+      T.eq('a 120 s dropout · ct88s is 601 s, not 720', ctGap.ct88s, 601);
+      T.eq('a 120 s dropout · the excluded time is reported, not folded in', ctGap.ctUncoveredSec, 118);
+      /* NO STAMPS · reduced coverage is ANNOTATED, never refused (§∅, owner 2026-09-17), and the
+         source names the assumption the way `gapSpanSource: 'assumed-1Hz'` already does. */
+      var noStamp = mk(1000, 10).map(function (r) {
+        return { tMs: null, t: null, spo2: r.spo2, hr: r.hr, motion: 0, pi: null };
+      });
+      var ctNo = B.computeCTprecise(noStamp);
+      T.eq('no stamps · the source names the assumption', ctNo.ctSource, 'assumed-1Hz');
+      T.eq('no stamps · the value survives as the row count under that assumption', ctNo.ct88s, 10);
+      T.eq('stamped series name the stamps instead', ct1.ctSource, 'stamps');
+      /* CONTROL · a healthy series must read zero. A fix that turned rows into seconds everywhere
+         would be just as wrong if it invented time below a threshold that was never crossed. */
+      var ctHealthy = B.computeCTprecise(
+        mk(1015, 600).map(function (r) {
+          return { tMs: r.tMs, t: r.t, spo2: 97, hr: 60, motion: 0, pi: null };
+        })
+      );
+      T.eq('CONTROL · a healthy series reads 0 s below 88', ctHealthy.ct88s, 0);
+      T.eq('CONTROL · and 0 rows below 88', ctHealthy.ct88n, 0);
+    });
+
     group('§∅ · OxyDex parse — an absent SpO₂ row is kept as null, never deleted', 'oxydex-dsp · absence', function (T) {
       var raw = env.equiv && env.equiv.oxydex_odibasis && env.equiv.oxydex_odibasis.input;
       var parse = env.OxyDex && env.OxyDex.parseCSV;
@@ -17252,7 +17525,10 @@
          the night page's `kMethod` KPI builder and `fusedDiag` in the power tool's `fillRealTbl` row
          tooltip — which is where those pages read every other aggregate key too. They are surfaced on
          purpose: a worker key with no consumer is what the dead-key leg above would have called dead. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 36, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* pat-feasibility-worker.js 26 -> 27 on 2026-10-18 (the owner's three charts: a raw, b all sidecars,
+         c derived): the payload gains `threeSide`, the three legs' window medians on every arrival-floor
+         sidecar the night has. The page reads it in the `drawThree` helper, beside the raw hat it draws. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 36, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
@@ -35083,6 +35359,56 @@
      rec.deviceACC → analyze() stamps epochs[].position (posture). Lock: (1) nearest-by-stamp pairing,
      (2) the adapter attaches the sidecars (and a no-companion call leaves the single-text frame
      unchanged), (3) compute() turns deviceACC into REAL postures (vs all-'unknown' without). ════ */
+    /* ════ ACC → MotionDex (2026-10-18). Before this, no adapter routed a Polar `_ACC.txt`: OverDex set
+       it aside and MotionDex reached the Integrator only from a hand-exported JSON. The ACC routes to
+       `polar-acc` (signalType 'acc'), a chest frame and an arm frame of one night become ONE MotionDex
+       run, and the sidecar/IMU files stay companions, never primaries. ════ */
+    group('ACC routes to MotionDex — polar-acc adapter, chest + arm pairing, one MotionDex export', 'polar-acc · signal-orchestrate · motiondex-dsp', function (T) {
+      var SA = env.SignalAdapters,
+        SF = env.SignalFrame,
+        ORCH = env.SignalOrchestrate,
+        MD = env.MotionDex;
+      if (!(SA && SF && ORCH && MD && typeof ORCH.emitAccNodeExport === 'function')) {
+        T.ok('SignalAdapters + SignalOrchestrate.emitAccNodeExport + MotionDex co-loaded', false, 'load adapters/polar-acc.js and motiondex-dsp.js into both runners');
+        return;
+      }
+      var chestN = 'Polar_H10_AAAA_20260617_010000_ACC.txt',
+        armN = 'Polar_VeritySense_BBBB_20260617_010100_ACC.txt';
+      var chestT = MD.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 21 }),
+        armT = MD.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 7 });
+      var rc = SA.route({ name: chestN }, chestT.slice(0, 4096));
+      T.eq('a Polar _ACC.txt routes to polar-acc', rc && rc.best && rc.best.adapter && rc.best.adapter.id, 'polar-acc');
+      T.eq('  as signalType acc', rc && rc.best && rc.best.signalType, 'acc');
+      var rr = SA.route({ name: 'Polar_H10_AAAA_20260617_010000_ACCRUNS.txt' }, 'start;end\n');
+      T.ok('  the ACCRUNS validity sidecar is never a polar-acc primary', !(rr && rr.best && rr.best.adapter && rr.best.adapter.id === 'polar-acc'));
+      T.ok('  companionKinds(acc) = accruns/gyro/magn', JSON.stringify(ORCH.companionKinds('acc')) === JSON.stringify(['accruns', 'gyro', 'magn']));
+      T.ok('  canEmit(acc) — MotionDex is a compute host', ORCH.canEmit('acc') === true);
+      var ad = rc.best.adapter;
+      var fc = SA.runAdapter(ad, chestT, { files: [chestN], parseSensorXYZ: MD.parseSensorXYZ }),
+        fa = SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ });
+      T.ok('chest frame is a valid usable acc frame', fc && fc.usable && SF.validateFrame(fc).ok, fc && fc.reason);
+      T.eq('  H10 → site chest', fc && fc.site, 'chest');
+      T.eq('  Verity Sense → site arm', fa && fa.site, 'arm');
+      T.ok('  fs is MEASURED from the span (~26 Hz synthetic), never nominal', fc && fc.fs > 24 && fc.fs < 28, fc && fc.fs);
+      var emit = ORCH.pairMotionFrames([fc, fa]);
+      T.eq('chest + arm of one night pair into ONE run', emit.length, 1);
+      T.ok('  the chest frame carries the arm frame as partner', emit[0] === fc && fc.partner === fa);
+      var far = SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ });
+      far.t0Ms = fc.t0Ms + 25 * 3600000;
+      var fc2 = SA.runAdapter(ad, chestT, { files: [chestN], parseSensorXYZ: MD.parseSensorXYZ });
+      T.eq('  an arm ACC more than a day away is a different recording (two runs)', ORCH.pairMotionFrames([fc2, far]).length, 2);
+      var exp = ORCH.emitAccNodeExport(emit[0], { MotionDex: MD, DexKernel: env.DexKernel || null });
+      T.eq('the export is a MotionDex node-export', exp && exp.schema && exp.schema.node, 'MotionDex');
+      T.ok(
+        '  both sites reached compute (chestAcc + acc streams counted)',
+        exp && exp.motion && exp.motion.streams && exp.motion.streams.chestAcc > 0 && exp.motion.streams.acc > 0,
+        exp && exp.motion && JSON.stringify(exp.motion.streams)
+      );
+      T.eq('  ingest names the adapter', exp && exp.schema && exp.schema.ingest && exp.schema.ingest.adapter, 'polar-acc');
+      var lone = ORCH.emitAccNodeExport(SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ }), { MotionDex: MD, DexKernel: null });
+      T.ok('  an arm frame alone still runs (no chest stream)', lone && lone.motion && lone.motion.streams && lone.motion.streams.acc > 0 && !lone.motion.streams.chestAcc);
+    });
+
     group(
       'Companion-bundle ingest — ECG/PPG sidecars reach compute() via ctx.companions (HANDOFF §2(b))',
       'polar-h10-ecg · polar-sense-ppg · signal-orchestrate · pat-gate · signal-adapters',
@@ -42442,10 +42768,11 @@
         T.ok('SignalOrchestrate.canEmit present', false, 'load signal-orchestrate.js into both runners');
         return;
       }
-      ['rr', 'spo2', 'hrv', 'cgm', 'ppg', 'ecg', 'cpap'].forEach(function (t) {
+      // 'acc' joined 2026-10-18: the ACC routes to MotionDex (adapters/polar-acc.js). Deliberate contract change.
+      ['rr', 'spo2', 'hrv', 'cgm', 'ppg', 'ecg', 'cpap', 'acc'].forEach(function (t) {
         T.ok('canEmit(' + t + ') = true (has an emit path)', ORCH.canEmit(t) === true);
       });
-      ['acc', 'hr', 'eeg', 'flow', 'unknown', ''].forEach(function (t) {
+      ['hr', 'eeg', 'flow', 'unknown', ''].forEach(function (t) {
         T.ok('canEmit(' + t + ') = false (aux / unmigrated)', ORCH.canEmit(t) === false);
       });
       T.ok('canEmit(null/undefined) = false (no fabrication)', ORCH.canEmit(null) === false && ORCH.canEmit(undefined) === false);
@@ -42603,7 +42930,8 @@
         ecg: { object: env.ECGDex },
         ppg: { object: env.PpgDex },
         cgm: { object: env.GLUDSP },
-        cpap: { object: env.CPAPDex }
+        cpap: { object: env.CPAPDex },
+        acc: { object: env.MotionDex } // 2026-10-18: the ACC routes to MotionDex (adapters/polar-acc.js)
       };
       var types = ORCH.emittableTypes();
       T.ok('emittableTypes() is non-empty (the per-type assertions would examine nothing otherwise)', types.length > 0, types.join(','));
@@ -42648,11 +42976,12 @@
         });
       });
       /* The aux + un-migrated types resolve to `undefined` because no node owns them yet, and that
-         is a measured fact rather than a convention: `hr` and `acc` are auxiliary channels with no
-         DSP of their own, and `eeg`/`flow` name DSPs that do not exist in the repo. A resolver here
-         that starts answering means a node landed, and the type then owes an emit path and a row in
-         the table above — so this is a tripwire on growth, not a prohibition. */
-      ['hr', 'acc', 'eeg', 'flow'].forEach(function (t) {
+         is a measured fact rather than a convention: `hr` is an auxiliary channel with no DSP of its
+         own, and `eeg`/`flow` name DSPs that do not exist in the repo. A resolver here that starts
+         answering means a node landed, and the type then owes an emit path and a row in the table
+         above — so this is a tripwire on growth, not a prohibition. It fired for `acc` on 2026-10-18,
+         when adapters/polar-acc.js routed the ACC to MotionDex; `acc` moved to the table above. */
+      ['hr', 'eeg', 'flow'].forEach(function (t) {
         T.ok('SignalSpec.' + t + '.dsp() is undefined — no node owns it yet (tripwire: wire it above when one does)', SS[t] && SS[t].dsp() === undefined);
       });
     });
@@ -52831,8 +53160,8 @@
       };
       // node-name per signalType (the host shim emitNodeExport reads) + a synthetic canonical-frame
       // provider that builds EXACTLY the shape signal-orchestrate hands compute().
-      var NODE_OF = { rr: 'PulseDex', spo2: 'OxyDex', hrv: 'HRVDex', cgm: 'GlucoDex', ppg: 'PpgDex', ecg: 'ECGDex', cpap: 'CPAPDex' };
-      var AUX = { acc: 1, hr: 1 }; // companion channels — no node/emit path by design
+      var NODE_OF = { rr: 'PulseDex', spo2: 'OxyDex', hrv: 'HRVDex', cgm: 'GlucoDex', ppg: 'PpgDex', ecg: 'ECGDex', cpap: 'CPAPDex', acc: 'MotionDex' };
+      var AUX = { hr: 1 }; // companion channels — no node/emit path by design ('acc' left 2026-10-18: it routes to MotionDex)
       var providers = {
         rr: function () {
           var nn = [],
@@ -52898,6 +53227,15 @@
           var fr = SF.toSignalFrame('cpap', { samples: (fl && fl.data) || null, fs: (fl && fl.fs) || 25, t0Ms: t0, usable: !!(fl && fl.data && fl.data.length) }, { adapter: 'synthetic' });
           fr.edfSets = [set];
           return fr;
+        },
+        // acc (2026-10-18): MotionDex's own synthetic PSL ACC text through the REAL polar-acc adapter.
+        acc: function () {
+          var MDX = env.MotionDex,
+            SAD = env.SignalAdapters;
+          if (!(MDX && typeof MDX.genSynthetic === 'function' && SAD && typeof SAD.byId === 'function')) return null;
+          var ad = SAD.byId('polar-acc');
+          if (!ad) return null;
+          return SAD.runAdapter(ad, MDX.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 21 }), { files: ['Polar_H10_AAAA_20260617_010000_ACC.txt'], parseSensorXYZ: MDX.parseSensorXYZ });
         }
       };
       // ── exercise(st): build the canonical frame signal-orchestrate hands compute() for signalType
@@ -53622,6 +53960,8 @@
         'o2ring-ppg2w.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'oxydex-spo2.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-acc.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'polar-h10-ecg.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
@@ -58480,6 +58820,113 @@
        count would have wrongly cleared — the single hit in tests/ is prose in a comment calling it a
        documented gap. `git grep -c` proves a string occurs; it never proves a symbol runs.
        NODE-ONLY: the realm is built with `node:vm` in run-tests.mjs, so the browser lane skips. */
+    /* ── STAGE-LAB (briefs/STAGE-LAB-2026-09-27-BRIEF.md) ─────────────────────────────────────────
+       Arithmetic and contracts only. Never evidence about staging accuracy: that needs expert PSG labels,
+       and REM-STAGING-FOLLOWUPS §1 bans validating staging on synthetic nights.
+       NODE-ONLY: .mjs modules imported by run-tests.mjs, so the browser lane skips. */
+    group('Stage-lab — GBDT, HMM, kappa, absence and the WFDB adapter (STAGE-LAB)', 'staging · gbdt · hmm · absence', function (T) {
+      var SL = env.StageLab;
+      if (!SL) {
+        T.skip('StageLab not in env (browser lane — .mjs)');
+        return;
+      }
+      var C = SL.core,
+        L = SL.cli;
+      // a learnable toy: class 3 is identifiable ONLY by its missing third feature, so NaN routing must work
+      var seed = 7,
+        rnd = function () {
+          seed = (seed * 1664525 + 1013904223) >>> 0;
+          return seed / 4294967296;
+        };
+      var n = 2000,
+        k = 3,
+        X = new Float32Array(n * k),
+        y = new Int8Array(n);
+      for (var i = 0; i < n; i++) {
+        var c = i % 4;
+        y[i] = c;
+        X[i * k] = c < 3 ? c + rnd() * 0.8 : rnd() * 3;
+        X[i * k + 1] = rnd();
+        X[i * k + 2] = c === 3 ? NaN : rnd();
+      }
+      var acc = function (m, labels) {
+        var P = C.predictProba(m, X, n, k),
+          ok = 0;
+        for (var r = 0; r < n; r++) {
+          var b = 0;
+          for (var q = 1; q < 4; q++) if (P[r * 4 + q] > P[r * 4 + b]) b = q;
+          if (b === labels[r]) ok++;
+        }
+        return ok / n;
+      };
+      var m = C.fitGBDT(X, y, n, k, { iters: 25, minLeaf: 20 });
+      T.ok('the GBDT learns the toy, including the class known only by a MISSING value', acc(m, y) > 0.97, 'acc=' + acc(m, y).toFixed(3));
+      var m2 = JSON.parse(JSON.stringify(m));
+      T.ok('the model survives a JSON round trip unchanged in output', acc(m2, y) === acc(m, y));
+      // NON-VACUITY: the same learner on shuffled labels must NOT look good
+      var ys = Int8Array.from(y);
+      for (var j = n - 1; j > 0; j--) {
+        var t = Math.floor(rnd() * (j + 1)),
+          tmp = ys[j];
+        ys[j] = ys[t];
+        ys[t] = tmp;
+      }
+      T.ok('…and on shuffled labels it scores near chance, so the first check can fail', acc(C.fitGBDT(X, ys, n, k, { iters: 25, minLeaf: 20 }), y) < 0.45);
+      var M = [Float64Array.from([20, 5]), Float64Array.from([10, 15])];
+      T.ok('kappa known answer: [[20,5],[10,15]] = 0.4', Math.abs(C.kappa(M) - 0.4) < 1e-12, C.kappa(M));
+      var lp = [Math.log(0.5), Math.log(0.5)],
+        Tm = [
+          [Math.log(0.99), Math.log(0.01)],
+          [Math.log(0.01), Math.log(0.99)]
+        ];
+      var path = Array.from(C.viterbi(Float64Array.from([0.9, 0.1, 0.9, 0.1, 0.4, 0.6, 0.9, 0.1, 0.9, 0.1]), 5, 2, Tm, lp)).join('');
+      T.ok('Viterbi smooths a one-epoch blip under a sticky transition prior', path === '00000', path);
+      var night = {
+        nEpochs: 60,
+        signals: {
+          spo2: {
+            fs: 1,
+            data: Float64Array.from({ length: 1800 }, function (_, i) {
+              return 95 + Math.sin(i / 40);
+            })
+          }
+        }
+      };
+      var F = C.nightFeatures(night, ['spo2']),
+        F0 = C.nightFeatures({ nEpochs: 60, signals: {} }, ['spo2']);
+      T.ok('an absent signal yields the IDENTICAL column layout (§∅)', F.k === F0.k && F.names.join() === F0.names.join(), F.k + ' vs ' + F0.k);
+      var allNaN = true;
+      for (var e = 0; e < 60; e++) for (var q2 = 0; q2 < F0.k - 1; q2++) if (!Number.isNaN(F0.X[e * F0.k + q2])) allNaN = false;
+      T.ok('…filled with NaN, never zero (time of night excepted)', allNaN);
+      var refused = false;
+      try {
+        C.nightFeatures(night, ['eeg']);
+      } catch (err) {
+        refused = /NOT IMPLEMENTED/.test(err.message);
+      }
+      T.ok('a declared-but-unimplemented block (eeg) is refused by name', refused);
+      var word = function (A, I) {
+        return [I & 0xff, ((A << 2) | (I >> 8)) & 0xff];
+      };
+      var aux = function (s) {
+        var b = word(63, s.length).concat(Array.from(Buffer.from(s, 'latin1')));
+        if (s.length & 1) b.push(0);
+        return b;
+      };
+      var ann = L.parseWfdbAnnotations(Buffer.from([].concat(word(22, 0), aux('W'), word(22, 1000), aux('N1'), [0, 0])));
+      T.ok('WFDB annotations: stage notes, aux text and sample times', ann.length === 2 && ann[1].aux === 'N1' && ann[1].sample === 1000, JSON.stringify(ann));
+      var yl = L.stagesFromAnnotations(
+        [
+          { sample: 0, aux: 'W' },
+          { sample: 6000, aux: 'N2' },
+          { sample: 12000, aux: 'R' }
+        ],
+        200,
+        18000
+      );
+      T.ok('stages forward-fill onto the 30 s grid (W · N2→Light · R→REM)', Array.from(yl).join(',') === '0,1,3', Array.from(yl).join(','));
+      T.ok('the pre-stated criterion is the published comparator offline 0.390', L.CRITERION.threshold === 0.39);
+    });
     group('Cohort worker — a KIND boots and returns a real envelope (DEEP-AUDIT-V-FOLLOWUPS Tier-4)', 'cohort · worker · realm', function (T) {
       var CW = env.CohortWorker;
       if (!CW) {
@@ -62578,7 +63025,13 @@
                adapter must be SET ASIDE, never guessed. */
             var accHead = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n2026-06-17T01:06:19.794;599630060275983872;211;23;975';
             var rAcc = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010616_ACC.txt' }, accHead);
-            T.ok('*_ACC.txt is SET ASIDE, not analyzed as RR (gravity is not a heartbeat)', rAcc.unknown === true, rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown');
+            /* 2026-10-18: the ACC now HAS an adapter (polar-acc → MotionDex), so it is analyzed as motion.
+               The invariant this line guards is unchanged: gravity never reaches an RR parser. */
+            T.ok(
+              '*_ACC.txt routes to polar-acc / acc — never analyzed as RR (gravity is not a heartbeat)',
+              !!(rAcc.best && rAcc.best.id === 'polar-acc' && rAcc.best.signalType === 'acc'),
+              rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown'
+            );
             var rMag = SA.route(
               { name: 'Polar_Sense_BBBBBBBB_20260609_194340_MAGN.txt' },
               'Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]\n2026-06-09T19:43:40.000;834363822717523328;0.12;-0.44;0.31'
@@ -69131,6 +69584,41 @@
       T.eq('B2 · nothing scoreable ⇒ overallScore null, not 0', sm && sm.overallScore, null);
     });
 
+    group('OxyDex · Asleep/Awake strip per 30-s epoch', 'oxydex-dsp · sleepWake', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.computeSleepWake !== 'function') {
+        T.skip('OxyDex._bare.computeSleepWake exposed', 'not on the bare surface');
+        return;
+      }
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      // 2 h at 1 Hz: still, then 5 min of sustained movement at 60 min, then still
+      var rows = [];
+      for (var i = 0; i < 7200; i++) rows.push({ tMs: t0 + i * 1000, hr: 58, spo2: 96, motion: i >= 3600 && i < 3900 && i % 4 === 0 ? 3 : 0 });
+      var sw = B.computeSleepWake(rows, t0);
+      T.ok('a 2-h night yields a strip', !!sw && sw.nEpochs === 240);
+      T.eq('a still night opens with sleep (no 10-min run of wake before it)', sw && sw.onsetMin, 0);
+      var at = function (s, min) {
+        var cur = null;
+        for (var k = 0; k < s.segments.length && s.segments[k].tMin <= min; k++) cur = s.segments[k].stage;
+        return cur;
+      };
+      T.eq('sustained movement reads Awake', at(sw, 62), 'Wake');
+      T.eq('stillness reads Asleep', at(sw, 30), 'Asleep');
+      // ONE moved second is a twitch, not wake
+      var tw = rows.map(function (r, j) {
+        return { tMs: r.tMs, hr: 58, spo2: 96, motion: j === 1800 ? 5 : 0 };
+      });
+      T.eq('a single twitch stays Asleep', at(B.computeSleepWake(tw, t0), 15), 'Asleep');
+      // §∅ — a 20-min hole in the stamps is a null segment, never Asleep
+      var gap = rows.filter(function (r) {
+        return r.tMs < t0 + 1800000 || r.tMs >= t0 + 3000000;
+      });
+      T.eq('a span with no samples is a gap (null), not a state', at(B.computeSleepWake(gap, t0), 40), null);
+      // §∅ — unread motion is unknown, never still: with no motion and no pulse there is nothing to stage
+      T.eq('no stamps ⇒ no strip', B.computeSleepWake(rows, null), null);
+      T.eq('under 1 h ⇒ no strip', B.computeSleepWake(rows.slice(0, 3000), t0), null);
+    });
+
     group('OxyDex B3 · a derived metric over an unmeasured input is no metric', 'oxydex-dsp · derived · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B || typeof B.computeVagalIndex !== 'function') {
@@ -74218,9 +74706,19 @@
        the only consumer was the shape check in validateExport: no DSP function ever read it. This
        group builds the parsed-row shape (`tMs` + compat `t`, cadence from `sampleSec`) and asserts the
        fixture's numbers against `computeStats` and `computeCTprecise` through `OxyDex._bare`.
-       Semantics it pins: `computeCTprecise` counts ROWS at the O2Ring's 1 Hz cadence (`ct90s` is a row
-       count), so a sparse series reads seconds as `count × sampleSec`; `computeStats` reads MEASURED
-       values only (`nadir_gappy`'s nulls are absence, never 0 — §∅). */
+       Semantics it pins: `ct90s` … `ct80s` are SECONDS derived from the rows' own stamps, so the
+       fixture's hand-computed `below90Sec` is the direct oracle and the row counts it hit are published
+       beside them as `ct90n` … `ct80n`; `computeStats` reads MEASURED values only (nulls are absence,
+       never 0 — §∅).
+       🔴 THIS GROUP USED TO ASSERT THE DEFECT it was written against, and it pinned the defect for a
+       day. Until 2026-10-18 it read `ct90s × sampleSec = below90Sec`, which is the identity that holds
+       only when a row IS a second — the very 1 Hz assumption residue
+       2026-09-29-oxydex-counts-rows-as-seconds measured false (the box's ring runs 0.9854 rows/s, so
+       CT read ~1.5 % low on every box night). The fixture's own seconds were right all along; the
+       multiplication was the shim that made a row count agree with them. Re-aimed with the fix:
+       `ct90s` now equals `below90Sec` with nothing multiplied, and `ct90n` carries the count that
+       `below90Count` pins. Mechanism: predicate-strength — the assertion was true of both
+       the defect and the contract, so it could not separate them. */
     group('OxyDex known-answer fixture — the real helpers reproduce the hand-computed values', 'oxydex-dsp · math-correctness · known-answer · fixtures · absence', function (T) {
       var fx = (env.fixtures || {})['oxydex-math-known-answer'];
       var B = (env.OxyDex && env.OxyDex._bare) || null;
@@ -74279,10 +74777,15 @@
           T.ok(name + ': an absent sample is not read as 0 (minSpo2 stays measured)', st.minSpo2 != null && st.minSpo2 > 0, String(st.minSpo2));
         }
         if ('nadirMeasured' in E) T.eq(name + ': minSpo2 ignores absent samples', st.minSpo2, E.nadirMeasured);
-        if ('below90Count' in E) T.eq(name + ': ct90s counts rows below 90', ct.ct90s, E.below90Count);
-        if ('below88Count' in E) T.eq(name + ': ct88s counts rows below 88', ct.ct88s, E.below88Count);
-        if ('below90Sec' in E) T.eq(name + ': ct90s × sampleSec = seconds below 90', ct.ct90s * c.sampleSec, E.below90Sec);
-        if ('below88Sec' in E) T.eq(name + ': ct88s × sampleSec = seconds below 88', ct.ct88s * c.sampleSec, E.below88Sec);
+        if ('below90Count' in E) T.eq(name + ': ct90n counts the rows below 90', ct.ct90n, E.below90Count);
+        if ('below88Count' in E) T.eq(name + ': ct88n counts the rows below 88', ct.ct88n, E.below88Count);
+        /* The seconds are asserted against the fixture's own hand-computed seconds, with nothing
+           multiplied. At `sampleSec` 10 the old form read `3 × 10` and the new one reads the 30 the
+           fixture states, so a cadence other than 1 Hz can no longer agree with a row count. */
+        if ('below90Sec' in E) T.eq(name + ': ct90s is seconds below 90, from the stamps', ct.ct90s, E.below90Sec);
+        if ('below88Sec' in E) T.eq(name + ': ct88s is seconds below 88, from the stamps', ct.ct88s, E.below88Sec);
+        T.eq(name + ': the basis names the stamps as its source', ct.ctSource, 'stamps');
+        T.eq(name + ": the basis reports the fixture's own cadence", ct.ctCadenceMs, c.sampleSec * 1000);
       });
     });
 

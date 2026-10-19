@@ -1009,6 +1009,18 @@
    },
    "note": "DEFECT-BENCHMARK builder (briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md): --build proves each candidate task by running the fix commit's own tests against the parent checkout and the fix, and emits ONE tepna.verdict/1 over the included set. The criterion is pre-stated — every included task owns a proven fail-then-pass pair — so a task that cannot be proven is EXCLUDED by a named reason rather than counted. --verdict-sample prints the object alone for this check."
   },
+  "tools/defect-pin-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/defect-pin-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the enumeration gate for residue 2026-09-23-tests-that-assert-the-defect-they-were-written-for: every in-tree annotation of a re-aimed test carries an entry in tests/defect-pin-inventory.json with its mechanism and one line of why, and a stale entry reds in the other direction. It reads the ANNOTATIONS rather than the tests, so the criterion is enumeration (zero unenumerated annotations) and a PASS is never evidence that no test pins a defect. --verdict-sample prints the object alone for this check."
+  },
   "tools/device-stability.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -1749,6 +1761,18 @@
    },
    "note": "the JS port of the stage-lab control net against the Python net on real nights (STAGE-LAB brief §24). Criterion pre-stated before the run: every compared night's max |Δ proba| ≤ 2e-3 (Python saves float16) and |κ_JS − κ_Python| ≤ 0.002; one night outside the band is FAIL; no Python probabilities to compare = NOT_RUN, never a pass by absence."
   },
+  "tools/stage-lab.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/stage-lab.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the sleep-stage lab's benchmark verdict (STAGE-LAB brief): grouped-CV Cohen kappa against the pre-stated offline comparator 0.390 — PASS at or above it, FAIL below, UNKNOWN while the half-night-shift plant does not fire, because a model that cannot be broken by a planted shift has not been tested; population = folds; the sample is a synthetic result and claims no code identity."
+  },
   "tools/ste-lint.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1825,6 +1849,18 @@
     ]
    },
    "note": "classic hat vs the two-detector (ECGDex + H10 firmware) reference; PASS/FAIL on the fraction of optical night-corners within band, UNDERPOWERED below 10 nights → verdictObject(); --json emits the ALL-population object at the top level (unchanged shape for tepna-tchref-nightly.service) with the rolling-30 and solid-stratum objects beside it in `verdicts`, --verdict-sample the synthetic-shape object the gate reads; --axis host|wall selects whether DexClock.hostAxis disciplines the corners, and a non-PASS reason names the axis because a σ is not comparable across axes"
+  },
+  "tools/tch-reference-record.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-reference-record.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the PUBLIC record of the sibling tool's reference check \u2014 pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS \u00a74's owed comparison \u2014 is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI \u2014 and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
   },
   "tools/tch-multinight.mjs": {
    "bin": "decides",
