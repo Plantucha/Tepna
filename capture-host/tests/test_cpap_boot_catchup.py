@@ -72,6 +72,65 @@ def test_an_end_ALREADY_HARVESTED_is_not_re_harvested_across_a_restart():
     assert L.harvest_due(w, T0 + 700_000)[0] is False
 
 
+def test_an_end_BEFORE_the_one_already_harvested_is_covered_by_it():
+    """THE MEASURED CASE. The live detector's end and the journal's observed end disagree, and the live
+    one runs ahead, so a boot that reads `SESSIONDETECT.csv` can get an end EARLIER than the one the
+    completed harvest stamped. Equality read that as unharvested and the catch-up re-ran.
+
+    vigil, 2026-10-19, whole journal retention: 3 days of 43, one restart between the two harvests
+    each time, every second harvest `files=0 bytes=0`. The card keeps its whole history, so a harvest
+    covering `fired_for` covered every earlier end too."""
+    earlier = float(T0 - 5_992_080)  # the 2026-09-15 pair, to the millisecond
+    w, why = L.boot_state(earlier, True, float(T0), T0 + 700_000)
+    assert w.seen_therapy is False and w.ended_at_ms is None
+    assert w.fired_for == float(T0), "the marker still travels, on this path as on every other"
+    assert L.harvest_due(w, T0 + 700_000)[0] is False
+    # A NAMED reason: the equality case and this one are different facts, and the journal line is the
+    # only evidence a later session has about which guard stopped the catch-up.
+    assert "precedes the one already harvested" in why
+    assert "covered by it" in why
+
+
+def test_an_end_ONE_MS_AFTER_the_harvested_one_is_still_caught_up():
+    """The guard is `<=`, and the bound is where it has to be exact. An end after the harvest is new
+    data the harvest could not have pulled, so it must still seed. One millisecond is the whole
+    difference between a duplicate card read and a lost session."""
+    w, why = L.boot_state(float(T0 + 1), True, float(T0), T0 + 700_000)
+    assert w.seen_therapy is True and w.ended_at_ms == float(T0 + 1)
+    assert "catching up" in why
+
+
+def test_a_marker_that_is_not_a_NUMBER_cannot_be_ordered_so_the_catch_up_RUNS_and_says_so():
+    """`_cpap_read_fired` returns None or a float, but `_cpap_boot_watch` reads `therapy_end_ms` out of
+    the job store, which is JSON and can hold anything. An unorderable marker must not raise, and it
+    must fail towards a needless catch-up rather than a declined one: `cpap_job.py` records the 2026-08
+    night that the boot path declined behind "already harvested", leaving the card unread for 5.5 h.
+    The reason names the marker, because a catch-up nobody can explain is the state that costs the
+    next session the whole trace."""
+    for junk in (object(), [1], {"ms": 1}, (2,)):
+        w, why = L.boot_state(float(T0), True, junk, T0 + 700_000)
+        assert w.seen_therapy is True, junk
+        assert "catching up" in why, junk
+        assert "is not a number, so nothing could order it" in why, junk
+        assert repr(junk) in why, "the reason names the marker it could not read"
+        assert w.fired_for is junk, "even an unusable marker is carried, never silently dropped"
+    # And an orderable marker leaves no such note on the ordinary catch-up.
+    assert "not a number" not in L.boot_state(float(T0), True, None, T0 + 700_000)[1]
+
+
+def test_a_marker_held_as_a_NUMERIC_STRING_still_matches_its_own_end():
+    """The job store is JSON, so `therapy_end_ms` can arrive as `"1787000000000"`. A raw `==` compares
+    a string against a float and reports the two UNEQUAL, so the end that was already harvested read
+    as merely earlier — the right refusal with the wrong reason, and a reason is all a later session
+    gets. Both sides convert before they are compared."""
+    w, why = L.boot_state(float(T0), True, str(T0), T0 + 700_000)
+    assert w.seen_therapy is False
+    assert why == "the last therapy end was already harvested"
+    # The same marker against an EARLIER end still reports the ordering, not identity.
+    w, why = L.boot_state(float(T0 - 1_000), True, str(T0), T0 + 700_000)
+    assert w.seen_therapy is False and "precedes the one already harvested" in why
+
+
 def test_a_WEEK_OLD_end_belongs_to_the_daily_window_not_to_boot():
     """A box off for a week must not harvest at boot — that is the wrong radio behaviour for a box
     that has just come back, and the 13:00 window is the unchanged backstop for it."""
@@ -94,6 +153,60 @@ def test_a_journal_ending_in_therapy_seeds_NOTHING():
     w, why = L.boot_state(None, False, None, T0)
     assert w.seen_therapy is False and w.ended_at_ms is None
     assert "no observed therapy end" in why
+
+
+def test_EITHER_arm_alone_means_no_observed_end():
+    """The guard is `not ended or end_ms is None`, and each arm stands alone. `last_therapy_end`
+    returns `(None, False)` for an empty journal and `(stamp, False)` for one ending IN therapy, so a
+    stamp WITH `ended=False` is a real pair this function receives — it names the end of the previous
+    session, which an earlier run already handled."""
+    for end_ms, ended in ((float(T0), False), (None, True), (None, False)):
+        w, why = L.boot_state(end_ms, ended, None, T0 + 700_000)
+        assert w.seen_therapy is False, (end_ms, ended)
+        assert w.ended_at_ms is None, (end_ms, ended)
+        assert why == "no observed therapy end in the journal", (end_ms, ended)
+
+
+def test_THE_REASON_IS_THE_VERDICT_so_every_boundary_pins_its_exact_text():
+    """🔴 The journal line is the whole of what a later session learns about a boot decision, so
+    an `in why` assertion over an arithmetic reason is a weak criterion: `age / 3600` and `age * 3600`
+    both land inside "older than the 24h catch-up bound". Each figure is pinned exactly, at the
+    boundary where it has to be right.
+
+    The two comparisons are pinned at their exact edges too. `age < 0` must admit an end at exactly
+    `now` — a boot one millisecond after the journal line is the ordinary case, not a clock
+    disagreement — and `age > max_age_s` must admit an end at exactly the bound, since the bound is
+    the oldest end catch-up owns rather than the youngest it refuses."""
+    # age exactly 0: the end is NOT in the future, and the figure is 0, not 60 × 0 or 0 / 61.
+    w, why = L.boot_state(float(T0), True, None, float(T0))
+    assert w.seen_therapy is True and w.ended_at_ms == float(T0)
+    assert why == "catching up a therapy end from 0 min ago"
+    # A 10-minute-old end: `age / 60.0`, so 10 — `age * 60.0` reads 36000 and `age / 61.0` reads 10
+    # as well, which is why the SECOND figure below carries the division.
+    assert L.boot_state(float(T0), True, None, T0 + 600_000)[1] == "catching up a therapy end from 10 min ago"
+    # 61 minutes: 61 / 60 → "61", while 61 min / 61.0 → "60". One minute separates the two divisors.
+    assert L.boot_state(float(T0), True, None, T0 + 3_660_000)[1] == "catching up a therapy end from 61 min ago"
+    # age exactly the bound: the oldest end boot still owns.
+    at_bound = L.boot_state(float(T0), True, None, T0 + 86_400_000)
+    assert at_bound[0].ended_at_ms == float(T0), "the bound is inclusive"
+    assert at_bound[1] == "catching up a therapy end from 1440 min ago"
+    # Over the bound, both figures exact: 25 h against a 24 h bound.
+    w, why = L.boot_state(float(T0), True, None, T0 + 90_000_000)
+    assert w.ended_at_ms is None
+    assert why == ("the last therapy end is 25.0h old, older than the 24h catch-up bound; the daily window owns it")
+    # And the bound in the text is the bound that was applied, not the default.
+    w, why = L.boot_state(float(T0), True, None, T0 + 90_000_000, max_age_s=36_000.0)
+    assert w.ended_at_ms is None
+    assert why == ("the last therapy end is 25.0h old, older than the 10h catch-up bound; the daily window owns it")
+    # 🔴 THE DIVISOR ITSELF, and it needs its own figures. 3600 and 3601 seconds-per-hour agree at
+    # this precision across every ordinary age, so both numbers here are chosen as the ones where the
+    # two part: 1_296_360 s is 360.1 h under 3600 and exactly 360.0 h under 3601, and a bound of
+    # 361_836 s is 101 h under 3600 and 100 h under 3601. An operator reads these figures to decide
+    # whether a night was lost, so a seconds-per-hour off by one is a wrong number, not a rounding
+    # taste — and the previous assertions could not see it, because 25.0h survives either divisor.
+    w, why = L.boot_state(float(T0), True, None, T0 + 1_296_360_000, max_age_s=361_836.0)
+    assert w.ended_at_ms is None
+    assert why == ("the last therapy end is 360.1h old, older than the 101h catch-up bound; the daily window owns it")
 
 
 def test_an_end_in_the_FUTURE_is_a_clock_disagreement_not_a_missed_edge():
