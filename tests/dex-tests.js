@@ -31855,6 +31855,54 @@
             'integrator-app.js must forward validateNodeExport warnings into WARN'
           );
 
+          /* ── A dropped FUSION export is named, not called "unrecognized" (owner screenshot 2026-10-19) ──
+             The owner dropped OverDex_<night>_summary.json, a ganglior.fusion-export, into the Integrator
+             and read "unrecognized format, no events found; skipped" three times. The file kind is known
+             and its nodes[] names the exports it was built from. Behavioural on the shipped source:
+             ingestJSON is lifted out by brace matching and run against stubs. */
+          var _ijAt = iaSrc.indexOf('function ingestJSON(');
+          var _ijSrc = null;
+          if (_ijAt >= 0) {
+            var _depth = 0;
+            for (var _k = iaSrc.indexOf('{', _ijAt); _k < iaSrc.length; _k++) {
+              if (iaSrc[_k] === '{') _depth++;
+              else if (iaSrc[_k] === '}' && --_depth === 0) {
+                _ijSrc = iaSrc.slice(_ijAt, _k + 1);
+                break;
+              }
+            }
+          }
+          T.ok('fusion-drop · ingestJSON is present in integrator-app.js', !!_ijSrc, _ijSrc ? 'lifted' : 'not found');
+          if (_ijSrc) {
+            var _runIngest = function (json) {
+              var calls = [];
+              var w = [];
+              var D = {
+                normalizeFile: function () {
+                  calls.push(1);
+                  return { recs: [], warnings: [] };
+                }
+              };
+              var fn = new Function('WARN', 'D', 'L', 'RECS', 'window', 'CrossNightEnvelope', _ijSrc + '\nreturn ingestJSON;')(w, D, null, [], {}, undefined);
+              fn(json, 'OverDex_x_summary.json');
+              return { warns: w, normalized: calls.length };
+            };
+            var _fus = _runIngest({
+              schema: { name: 'ganglior.fusion-export' },
+              kind: 'fusion',
+              nodes: [{ label: 'ECGDex · Oct 18' }, { label: 'CPAPDex · Oct 18' }],
+              findings: []
+            });
+            T.ok(
+              'fusion-drop · a fusion export is named as one, with the node exports it was built from',
+              _fus.warns.length === 1 && /is a fusion export/.test(_fus.warns[0]) && /ECGDex · Oct 18, CPAPDex · Oct 18/.test(_fus.warns[0]),
+              JSON.stringify(_fus.warns)
+            );
+            T.ok('fusion-drop · a fusion export never reaches normalizeFile', _fus.normalized === 0, _fus.normalized + ' call(s)');
+            var _nodeEx = _runIngest({ schema: { name: 'ganglior.node-export', node: 'ECGDex' }, ganglior_events: [] });
+            T.ok('fusion-drop · a node export still reaches normalizeFile (control)', _nodeEx.normalized === 1 && _nodeEx.warns.length === 0, JSON.stringify(_nodeEx));
+          }
+
           /* ── CROSS-DEVICE-CLOCK-SKEW §3.1 · a fitted time correction MUST be visible ───────────────
              Mutation-checked 2026-07-29: short-circuiting the banner's guard reds NOTHING, so the
              reference deployment's permanent −39 min correction could go silent and every fused night
