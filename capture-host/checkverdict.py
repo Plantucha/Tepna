@@ -237,6 +237,12 @@ def load_object(path: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
+# `--refused` with no reason following it: the object is still owed (a refusal that writes nothing
+# leaves the previous run's PASS on disk), and §🧾 requires every non-PASS to carry a reason — so the
+# absence is NAMED rather than written as an empty string, which reads as "refused, cause unstated".
+REFUSAL_REASON_ABSENT = "--refused was given no reason, so this run states none"
+
+
 def refusal(children: list[str], reason: str) -> dict:
     """`--refused`: check.sh's preflight stopped before any child ran, so no child HAS an exit code —
     the only honest object is NOT_RUN over the children that were eligible (`checked 0`, all excluded,
@@ -285,7 +291,7 @@ def main(argv: list[str]) -> int:
             k, _, v = next(it, "=").partition("=")
             objects[k] = load_object(v)
         elif a == "--refused":
-            refused = next(it, "")
+            refused = next(it, REFUSAL_REASON_ABSENT)
         else:
             pairs.append(a)
     # `--refused` takes the children as BARE NAMES, because a preflight that stopped before the first

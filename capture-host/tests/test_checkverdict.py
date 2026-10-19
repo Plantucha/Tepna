@@ -314,3 +314,19 @@ def test_refused_takes_BARE_names_because_no_child_has_an_exit_code(tmp_path):
     v = json.loads(out.read_text())
     assert v["status"] == "NOT_RUN" and v["population"]["eligible"] == 2
     assert v["reason"] == "the interpreter carries none of: ruff"
+
+
+def test_refused_as_the_LAST_argument_still_writes_a_refusal_with_a_NAMED_reason(tmp_path):
+    """The default behind `next(it, …)`, which the mutation gate found unobserved. Two wrong defaults are
+    reachable from here and both are worse than a named one: `None` falls through to `aggregate`, which
+    reports "no child ran to a verdict" — a refusal described as an empty run — and a bare `next(it)`
+    raises `StopIteration` through the writer, so the stale object the preflight is guarding against
+    survives on disk. An empty string is the third: a non-PASS with no reason (§🧾)."""
+    out = tmp_path / "v.json"
+    rc = C.main(["--write", str(out), "--refused"])
+    assert rc == 0, "a malformed refusal still owes an object — writing nothing leaves the stale one"
+    v = json.loads(out.read_text())
+    assert v["status"] == "NOT_RUN"
+    assert v["reason"] == C.REFUSAL_REASON_ABSENT
+    assert v["reason"], "§🧾: every non-PASS carries a reason, so the absence is named, not empty"
+    assert v["reason"] != "no child ran to a verdict", "a refusal is not an empty run"
