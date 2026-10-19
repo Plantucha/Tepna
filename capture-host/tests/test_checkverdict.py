@@ -287,3 +287,46 @@ def test_the_sample_hands_aggregate_a_green_unwired_object_and_the_two_advisory_
     assert v["result"]["advisory"] == advisory
     u = objects["unwired"]
     assert u["criterion"]["threshold"] == 0 and u["result"] == {"unexplained": 0} and u["status"] == "PASS"
+
+
+# ── `--refused`: the preflight stopped before any child ran ──────────────────────────────────────────
+
+
+def test_a_refusal_is_NOT_RUN_over_the_eligible_children_with_the_reason_kept():
+    """`checked + excluded == eligible` and `checked == 0` (§🧾): five children were eligible, none was
+    examined. The reason is the refusal's own, because a generic "no child ran" cannot be acted on."""
+    v = C.refusal(["ruff", "shellcheck", "pytest", "unwired", "format"], "no ruff — nothing was examined")
+    assert v["schema"] == "tepna.verdict/1" and v["gate"] == C.GATE
+    assert v["status"] == "NOT_RUN"
+    assert v["population"] == {"checked": 0, "eligible": 5, "excluded": 5}
+    assert v["population"]["checked"] + v["population"]["excluded"] == v["population"]["eligible"]
+    assert v["result"] is None, "nothing ran, so there is no result to report"
+    assert v["reason"] == "no ruff — nothing was examined"
+    assert v["evidence"][0] == C.TOOL and "ruff not invoked" in v["evidence"]
+
+
+def test_refused_takes_BARE_names_because_no_child_has_an_exit_code(tmp_path):
+    """Through the CLI, which is how check.sh calls it. `parse_pairs` rightly refuses a name without a
+    code, and fabricating one here would be the same lie in the other direction."""
+    out = tmp_path / "v.json"
+    rc = C.main(["--write", str(out), "--refused", "the interpreter carries none of: ruff", "ruff", "pytest"])
+    assert rc == 0
+    v = json.loads(out.read_text())
+    assert v["status"] == "NOT_RUN" and v["population"]["eligible"] == 2
+    assert v["reason"] == "the interpreter carries none of: ruff"
+
+
+def test_refused_as_the_LAST_argument_still_writes_a_refusal_with_a_NAMED_reason(tmp_path):
+    """The default behind `next(it, …)`, which the mutation gate found unobserved. Two wrong defaults are
+    reachable from here and both are worse than a named one: `None` falls through to `aggregate`, which
+    reports "no child ran to a verdict" — a refusal described as an empty run — and a bare `next(it)`
+    raises `StopIteration` through the writer, so the stale object the preflight is guarding against
+    survives on disk. An empty string is the third: a non-PASS with no reason (§🧾)."""
+    out = tmp_path / "v.json"
+    rc = C.main(["--write", str(out), "--refused"])
+    assert rc == 0, "a malformed refusal still owes an object — writing nothing leaves the stale one"
+    v = json.loads(out.read_text())
+    assert v["status"] == "NOT_RUN"
+    assert v["reason"] == C.REFUSAL_REASON_ABSENT
+    assert v["reason"], "§🧾: every non-PASS carries a reason, so the absence is named, not empty"
+    assert v["reason"] != "no child ran to a verdict", "a refusal is not an empty run"
