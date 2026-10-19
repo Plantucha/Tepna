@@ -383,6 +383,19 @@ def run_one(
     else:
         clean_sec, clean_ok = clean
     cap: int
+    # 🔴 THE BASELINE IS CHECKED WHATEVER THE CAP CAME FROM. `clean_ok` had exactly one consumer —
+    # `budget_verdict` in the `else` below — so a caller that supplied its own `timeout` switched the
+    # check off. `tools/mutate_diff.py` always supplies one (`timeout=max(1, _left)`), which means the
+    # gate ran on the one path where the flag was never read. Measured 2026-10-19 on #3704: three
+    # modules printed `clean run FAILED (exit 1)` and the gate still answered PASS, exit 0, "every
+    # mutant on the changed functions was killed", over 14 survivors nobody saw. A red baseline fails
+    # WITH every mutant applied too, and mutmut reads that as a kill — so the coverage is arithmetic.
+    #
+    # A guard behind a parameter the caller always sets is not a guard. This one is ahead of the
+    # branch, so no caller can opt out of it, and ahead of `estimate_only` as well: an estimate
+    # derived from a crashed run's elapsed time is the same unmeasured number by another name.
+    if not clean_ok:
+        return {"module": module, "error": f"no budget: {budget_verdict(clean_sec, clean_ok)[2]}"}
     if timeout is not None:
         cap = timeout
     else:
