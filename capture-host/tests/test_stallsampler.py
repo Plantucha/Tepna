@@ -2,6 +2,7 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 """The stall sampler, driven by an injected clock so no test waits on a real stall."""
 
+import re
 import threading
 
 import pytest
@@ -478,3 +479,39 @@ def test_run_hands_the_SINK_the_row_itself_and_SLEEPS_the_interval_it_was_given(
     assert rows[0] is not None and rows[0]["schema"] == "tepna.stall/1", rows
     assert naps, "the watch never slept, so it never yielded the box"
     assert set(naps) == {0.25}, f"the interval it was given, every time: {naps}"
+
+
+# ── Three values the suite READ AROUND rather than read ─────────────────────────────────────────
+#
+# The gate's second pass kept six survivors that have nothing to do with threads. A `count(":") == 2`
+# stamp check, an `in line` substring check and an assertion on the sampler's own attribute each leave
+# the value they are about free. The three below read the value itself.
+
+
+def test_the_SELF_TAKEN_stamp_has_the_SAME_SHAPE_as_a_SUPPLIED_one():
+    """`count(":") == 2` holds for `XX2026-10-18T21:30:00XX`, for `18-10-18t21:30:00` and for
+    `2026-30-10/18/26T21:30:00` alike. The shape is the contract — Clock Contract §2 form 3, a
+    four-digit year and no zone — so the test reads the shape."""
+    s = _s()
+    s.tick(100.6, 100.0)
+    row = s.tick(100.7, 100.65)
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", row["at"]), row["at"]
+
+
+def test_the_JOURNAL_LINE_separates_its_threads_with_a_COMMA_AND_A_SPACE():
+    """It is one line in a journal, so the separator carries the whole readability claim. A substring
+    check passes while the names run together or carry marker text between them."""
+    row = {"stacks": {"7": {"thread": "b", "frames": ["f2"]}, "9": {"thread": "a", "frames": ["f1"]}}}
+    assert ss.thread_names(row) == "a:f1, b:f2"
+
+
+def test_the_DROPPED_COUNT_rides_the_ROW_under_the_name_a_READER_looks_up():
+    """`rows_dropped` is the sampler's own attribute, and the row is what reaches the journal. A row
+    that spells the key `DROPPED_BEFORE` carries the number nowhere a reader will find it."""
+    s = _s(max_rows=1)
+    s.tick(100.6, 100.0)
+    row = s.tick(100.7, 100.65)
+    assert row["dropped_before"] == 0
+    s.tick(110.6, 110.0)
+    assert s.tick(110.7, 110.65) is None, "past the cap, so no row"
+    assert s.rows_dropped == 1
