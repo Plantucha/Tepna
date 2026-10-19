@@ -81,6 +81,12 @@ of the record**. On a 10 h night that is **~0.25 % of the data choosing the refe
 The comment justifies it as *"SNR is scale- & length-invariant"* — scale-invariant yes, **time**-invariant
 no. An armband shift at 02:00 leaves the pick stale for the rest of the night and nothing notices.
 
+> **This half is answered, 2026-10-19 (#3678).** The selector now scores EVERY 20 s window across the
+> record and ranks the channels on the 25th percentile — see `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`
+> §4 #6 EXECUTED. Measured over 27 real nights, the mid-window pick differed on 8 of them, by a median
+> 1.0 %. The whole-night lap costs 0.60 s per night. Fusion stays REFUTED; selection is what this
+> brief's §§2–4 leave standing, and it is now done over the whole record.
+
 **Cost, benchmarked** (real file, 121 min, 24 × 5-min windows):
 
 | Approach | Total | Per window |

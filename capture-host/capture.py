@@ -13167,6 +13167,7 @@ async def _cpap_spool_loop(
     harvest_hours=frozenset(),
     mono=None,
     get_therapy=None,
+    marker_path=None,
 ):
     """The scheduled stored-spool pull: once per day, inside its window, only when nothing contends.
 
@@ -13190,6 +13191,7 @@ async def _cpap_spool_loop(
     import as11_link_guard
     import cpap_harvest
     import cpap_spool_caller
+    import spool_marker
 
     sleep = sleep or asyncio.sleep
     now = now or (lambda: _dt.datetime.now())
@@ -13197,7 +13199,16 @@ async def _cpap_spool_loop(
     st = st or (lambda **kw: None)
     mono = mono or _time.monotonic
     get_therapy = get_therapy or (lambda: (STATUS.get("cpap") or {}).get("therapy"))
-    last_run_date = None
+    # LOAD AT ENTRY. A local starting at `None` is what made every daemon restart inside the window
+    # repeat a pull that had already succeeded — 27 times on 17 days, each in a new PID (residue
+    # 2026-10-18-daemon-restart-in-the-window-repeats-the-spool-pull). The marker is read here and
+    # written after a pull returns; `spool_marker` carries the reasoning for that asymmetry.
+    marker_path = marker_path or os.path.join(root, f"SPOOL-LAST-RUN-{spool_type}.txt")
+    last_run_date, why_absent = spool_marker.load_day(marker_path)
+    if last_run_date is None:
+        log.info("CPAP spool pull: no run on record (%s) — %s", marker_path, why_absent)
+    else:
+        log.info("CPAP spool pull: %s already ran on record (%s)", last_run_date, marker_path)
     while not _STOP.is_set():
         await sleep(60)
         if _STOP.is_set():
@@ -13257,6 +13268,18 @@ async def _cpap_spool_loop(
             summary.get("cursor"),
             f", stopped={summary['stopped']}" if summary.get("stopped") else "",
         )
+        if window_due:
+            # Only the window path consumes a DAY; the post-therapy path consumes its trigger and
+            # leaves `last_run_date` alone, so there is nothing to record for it.
+            why_unsaved = spool_marker.save_day(marker_path, last_run_date)
+            if why_unsaved is not None:
+                log.warning(
+                    "CPAP spool pull: %s ran but did not reach the marker at %s (%s) — a restart in this "
+                    "window will repeat the pull",
+                    last_run_date,
+                    marker_path,
+                    why_unsaved,
+                )
         st(state="idle", detail=None, last_run=t.isoformat(timespec="seconds"))
 
 

@@ -3265,6 +3265,92 @@
       );
     });
 
+    /* PPGDEX-ALGORITHM-DEEP-DIVE §4 item 6 — the reference channel is chosen for the WHOLE night, so
+       it has to be scored over the whole night. The retired scorer read ONE ~90 s window from the
+       middle of the record, which is 1 part in 300 of a 7.7 h night, and whatever won there became
+       the reference waveform for the scope trace, every morphology value and the SQI. The premise
+       was written down in PPGDEX-BEAT-DETECTION-PERF §2 — "a representative 60–120 s window ranks
+       the 3 LEDs identically to the whole night" — and its Done-when verified it on ONE night.
+       These assertions plant the counter-example that premise forbids: a channel that is the best in
+       the middle and among the worst everywhere else. Known-answer, since the test chooses the
+       noise it plants. */
+    group('the reference channel is scored over the whole night, so a clean midpoint cannot win it', 'ppgdex-dsp · PPGDEX-ALGORITHM-DEEP-DIVE-item-6 · known-answer', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.pickChannel !== 'function' || typeof P.bandpass !== 'function' || typeof P.std !== 'function') {
+        T.skip('PPGDSP.pickChannel + bandpass + std reachable', 'not loaded');
+        return;
+      }
+      var FS = 100,
+        DUR = 600, // 10 min — 30 scoring windows of 20 s
+        N = FS * DUR,
+        MID_WIN = FS * 90, // what the retired scorer read
+        MID0 = Math.floor((N - MID_WIN) / 2);
+      // Deterministic by construction: a 1 Hz pulse in the 0.7–3 Hz band, and two incommensurate
+      // tones inside the 4–8 Hz noise band. No PRNG, so the planted SNR is the same on every run.
+      function chan(noiseAt) {
+        var a = new Float64Array(N);
+        for (var i = 0; i < N; i++) {
+          var t = i / FS;
+          a[i] = Math.sin(2 * Math.PI * 1.0 * t) + noiseAt(i) * (Math.sin(2 * Math.PI * 5.3 * t) + 0.7 * Math.sin(2 * Math.PI * 6.7 * t));
+        }
+        return a;
+      }
+      var cleanMidOnly = chan(function (i) {
+        return i >= MID0 && i < MID0 + MID_WIN ? 0.004 : 0.5;
+      });
+      var cleanThroughout = chan(function () {
+        return 0.05;
+      });
+      var noisyThroughout = chan(function () {
+        return 0.6;
+      });
+      var rec = { ch: [cleanMidOnly, cleanThroughout, noisyThroughout], fs: FS };
+
+      // ── 1 · the retired scorer's own window, computed here so the counter-example is asserted
+      //      and not merely described: on THAT window the mid-clean channel really does win.
+      function midSnr(sig) {
+        var slice = sig.subarray(MID0, MID0 + MID_WIN);
+        var ps = P.std(P.bandpass(slice, FS, 0.7, 3.0)),
+          ns = P.std(P.bandpass(slice, FS, 4.0, 8.0)) || 1e-6;
+        return ps / ns;
+      }
+      var midA = midSnr(cleanMidOnly),
+        midB = midSnr(cleanThroughout);
+      T.ok(
+        'over the retired ~90 s mid-record window the mid-clean channel scores HIGHEST — so that scorer picked it',
+        midA > midB,
+        'mid-window SNR ch0 ' + midA.toFixed(1) + ' vs ch1 ' + midB.toFixed(1)
+      );
+
+      // ── 2 · scored over the whole night, the channel that holds up wins instead
+      var sel = P.pickChannel(rec);
+      T.eq('pickChannel takes the channel that holds up all night, not the one with the clean midpoint', sel.idx, 1);
+      var p25a = sel.scores[0].snr,
+        p25b = sel.scores[1].snr;
+      T.ok('…because the mid-clean channel carries a LOWER p25, which is the aggregate that changed', p25a < p25b, 'p25 ch0 ' + p25a.toFixed(2) + ' vs ch1 ' + p25b.toFixed(2));
+      T.eq('the window count travels with the score, so a reader can see what was aggregated', sel.scores[1].nWindows, 30);
+      T.eq('…and the window length too', sel.scores[1].winSec, 20);
+      T.ok('the uniformly noisy decoy loses to both', sel.scores[2].snr < p25b && sel.scores[2].snr < p25a, 'p25 ch2 ' + sel.scores[2].snr.toFixed(2));
+
+      // ── 3 · shorter than two windows: ONE window, declared as one, never a percentile over a sample of one
+      var shortRec = { ch: [cleanThroughout.subarray(0, FS * 25)], fs: FS };
+      var shortSel = P.pickChannel(shortRec);
+      T.eq('a 25 s record is scored as a single window', shortSel.scores[0].nWindows, 1);
+      T.eq('…and winSec reports the record, so the single window is visible as one', shortSel.scores[0].winSec, 25);
+
+      // ── 4 · §∅ — a channel with no scorable window carries NO score, and never wins the pick.
+      //      The ordering test alone cannot do this: `null > -Infinity` reads TRUE in JS. With the
+      //      unscorable channel FIRST and a flat channel second, an ordering test picks the absence.
+      var absent = new Float64Array(FS * 200);
+      absent.fill(NaN);
+      var flat = new Float64Array(FS * 200); // a real measurement of no pulsatility: SNR 0
+      var nullSel = P.pickChannel({ ch: [absent, flat], fs: FS });
+      T.eq('a channel whose every window is absent scores null, not 0', JSON.stringify(nullSel.scores[0].snr), 'null');
+      T.eq('…and nWindows says nothing was aggregated', nullSel.scores[0].nWindows, 0);
+      T.eq('a measured SNR of 0 beats an unscored channel — the pick reads finiteness, not order', nullSel.idx, 1);
+      T.eq('…and that measured zero is reported as a number', JSON.stringify(nullSel.scores[1].snr), '0');
+    });
+
     group('hostAxis declares an INERT axis — host ≡ device is not "two clocks that agree"', 'clock · known-answer', function (T) {
       var C = env.DexClock;
       T.ok('DexClock.hostAxis present', !!(C && typeof C.hostAxis === 'function'));
@@ -15358,6 +15444,29 @@
          an odd way to adopt it. */
       T.ok('CONTROL · Motion (%) still guards its absence', /'Motion \(%\),' \+ \(s\.motionPct != null \? s\.motionPct : ''\)/.test(app), 'the original instance of the convention');
       T.ok('CONTROL · Post-Dip HR Response still guards its absence', /ro\.postDipHrResponse !== null \? ro\.postDipHrResponse : ''/.test(app), "the rolling block's original instance");
+      /* ── 4 · THE SCRUB IS THE WHOLE INVARIANT (residue 2026-10-12-the-csv-null-scrub-is-the-unpinned-invariant).
+         75 numeric fields reach the CSV raw; what keeps the text `null` out of them is one `.replace` on
+         the joined text just before `download`, and deleting it redded no gate. These legs lift that regex
+         out of the source and RUN it, so a deleted, narrowed or misplaced scrub reds here.
+         The sample opens every line with a label, as every `lines.push` in `exportCSV` does: the regex
+         has no `m` flag, so its `^` is the start of the FILE, and an absent value as the first cell of a
+         later line would survive. No line has that shape today; a new one would need the flag. */
+      var _scrubM = app.match(/var _csv = \('\\uFEFF' \+ lines\.join\('\\r\\n'\)\)\.replace\(\/(.+?)\/g, '\$1'\);/);
+      T.ok('the CSV scrub exists on the joined text', !!_scrubM, 'no `.replace` on the joined CSV — every raw field can print the text null');
+      T.ok('…and the scrubbed text is what reaches download', /download\(_csv, exportName\(\{ node: 'OxyDex'/.test(app), 'the scrub must feed the one CSV download call');
+      var _scrub = null;
+      try {
+        _scrub = _scrubM ? new RegExp(_scrubM[1], 'g') : null;
+      } catch (_e) {
+        _scrub = null;
+      }
+      var _raw = 'Night,a,null,1\r\nT95,undefined,NaN,0\r\nb,"note null",nullable,null';
+      /* CONTROL · the sample carries every absent spelling, or a scrub that did nothing would pass. */
+      T.ok('CONTROL · the raw sample holds null, undefined and NaN cells', /,null,/.test(_raw) && /,undefined,/.test(_raw) && /,NaN,/.test(_raw), _raw);
+      var _out = _scrub ? _raw.replace(_scrub, '$1') : _raw;
+      T.eq('an absent cell (null · undefined · NaN, mid-line or at the end) reaches the file EMPTY', _out, 'Night,a,,1\r\nT95,,,0\r\nb,"note null",nullable,', JSON.stringify(_out));
+      T.ok('…a measured 0 survives as 0', /,,,0\r\n/.test(_out), JSON.stringify(_out));
+      T.ok('…and text that only CONTAINS null is left alone', _out.indexOf('"note null"') >= 0 && _out.indexOf('nullable') >= 0, JSON.stringify(_out));
     });
 
     group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
@@ -60986,7 +61095,28 @@
          on a real 7 h Verity night (2026-08-17, 22706 NN): rMSSD 36.6 → 34.8, SD1 25.9 → 24.6, SDNN
          unchanged (whole-record, not pair-based) and `nn` byte-identical — the fix changes which pairs
          COUNT, never which intervals are kept. */
-      T.eq('PpgDex rMSSD known-answer (seed 12345) — fill removed, see #2; mask now kept-frame', res.ppgRmssd, 41.4);
+      /* ↻ 41.4 → 41.2, whole-night channel scoring (PPGDEX-ALGORITHM-DEEP-DIVE §4 #6, 2026-10-19).
+         Same standard as the blocks above: a mechanism with a predicted DIRECTION, measured on the
+         seed before the number was touched. `channelSNR` scored ONE 90 s window at the midpoint and
+         `pickChannel` ranked the three LEDs on it; it now scores every 20 s window and ranks on the
+         p25. On this seed that moves the reference from ch2 to ch0, and the margins are a near-tie
+         both ways: ch2 led the mid window 4.0227 to 4.0170, ch0 leads the p25 3.8587 to 3.8489.
+         `synth-gen.js renderPPG` builds ch2 at 1.05x pulse with 1.1x motion and 1.1x baseline
+         wander, so ch2 buys 5 % more pulse and pays 10 % more noise. The per-window scores say
+         where that bill lands: in the two WORST windows (t=400 s, t=480 s) ch0 leads by 0.069 and
+         0.072 — its largest margins anywhere — while ch2's 12 wins all sit in clean windows and
+         never exceed 0.017. The mid-point sample fell in ch2's favourable region; the p25 reads the
+         bad quartile, which is the whole point of the percentile.
+         DIRECTION, predicted before it was read: a noisier reference jitters systolic-foot placement,
+         and rMSSD is a successive-difference statistic, so coming off the noisiest channel must
+         LOWER it. Each channel's own spine ranks that way on this input — ch0 39.7, ch1 39.1,
+         ch2 41.4, and ch2 alone reads cleanBeatPct 97 against 98 (single-channel runs take the
+         honest nCh<2 consensus path, so the ORDERING is the evidence, not those values). It fell.
+         The beat population did not change: nn 551 and cleanBeatPct 99 are identical either side,
+         so this is interval TIMING on a cleaner channel and not detection. ⚠️ Still the only
+         committed witness: on the real-night equiv fixture the whole-night p25 picks the same
+         channel the mid window did, so every PpgDex fixture moved hash-only. */
+      T.eq('PpgDex rMSSD known-answer (seed 12345) — fill removed, see #2; mask kept-frame; reference now whole-night p25', res.ppgRmssd, 41.2);
       T.ok('the worker reported no per-detector errors', res.errors && Object.keys(res.errors).length === 0, JSON.stringify(res.errors));
 
       // a worker changes WHEN the work runs, never WHAT — a second reconstruction is byte-identical
