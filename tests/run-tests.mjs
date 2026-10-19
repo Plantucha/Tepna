@@ -1078,6 +1078,38 @@ function readOdiPilot() {
   }
   return out;
 }
+/* residue 2026-10-06-no-committed-fixture-pairs-an-ecg — a PAIR OF INPUTS plus the fixture derived from
+   both. NOT routed through readEquiv/pairCommitted: those carry ONE input, and this fixture is computed
+   from the committed O2Ring CSV *and* a committed ECG node-export (tools/gen-ecg-night-pair.mjs built the
+   ECG side to overlap that night). All three are committed, so this leg runs on a fresh clone. Each half
+   loads independently — a reader that cannot read one says so by name instead of skipping vacuously. */
+function readOxyEcgPair() {
+  const rec = { fixtureFile: 'OxyDex_synthetic_ecg_paired_summary.json' };
+  const txt = (f) => {
+    const q = join(ROOT, 'uploads', f);
+    if (!existsSync(q)) return undefined;
+    try {
+      return readFileSync(q, 'utf8');
+    } catch {
+      return undefined; /* unreadable → absent, never a default */
+    }
+  };
+  const csv = txt('synthetic_oxydex_o2ring.csv');
+  if (csv !== undefined) rec.csv = csv;
+  for (const [k, f] of [
+    ['ecg', 'synthetic_ecg_night.node-export.json'],
+    ['fixture', 'OxyDex_synthetic_ecg_paired_summary.json']
+  ]) {
+    const raw = txt(f);
+    if (raw === undefined) continue;
+    try {
+      rec[k] = JSON.parse(raw);
+    } catch {
+      /* malformed → absent */
+    }
+  }
+  return rec.csv !== undefined || rec.ecg !== undefined || rec.fixture !== undefined ? rec : null;
+}
 function readEquiv() {
   const out = {};
   // uploads/ raw INPUTS are gitignored (personal medical data — absent on a fresh CI clone); the
@@ -1482,6 +1514,15 @@ function readEquiv() {
         /* gate self-skips */
       }
     }
+  }
+  /* The SpO2-plus-ECG pair belongs in equiv for ONE reason: the fixture-reproducibility gate builds
+     its "something re-runs this" registry out of `equiv[*].fixtureFile`, so a leg that lives anywhere
+     else reads as an orphaned code claim. It carries no `input`, because its fixture needs TWO, and the
+     CASES table keys by node — so the one-input diff never picks it up. The two-input leg is the
+     dex-tests.js group that recomputes the fusion block. */
+  {
+    const pairRec = readOxyEcgPair();
+    if (pairRec) out.oxydex_ecg_pair = pairRec;
   }
   return out;
 }
@@ -2945,6 +2986,7 @@ async function main() {
        oxyEcgForNight reads (`window` IS the sandbox here). A setter, not the realm: a test cannot reach past it. */
     oxyEcgFusionSection: ctx.oxyEcgFusionSection,
     oxyEcgForNight: ctx.oxyEcgForNight,
+    oxyEcgFusionBlock: ctx.oxyEcgFusionBlock, // the export-block mapping, extracted out of oxydex-app.js so a headless regen can build it
     setEcgByDate: function (m) {
       ctx._ecgByDate = m;
     },

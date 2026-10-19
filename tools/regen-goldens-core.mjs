@@ -145,7 +145,14 @@ export function makeRerecord({ repo, node, bundle, fixturesDir, corpusDir, Manif
   const fragPath = path.join(repo, 'provenance', node + '.json');
   // The OUTPUT is a tracked artifact of this checkout; the INPUTS may live in a redirected corpus.
   const sha16Out = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(fixturesDir, file))));
-  const sha16In = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(corpusDir, file))));
+  /* An input may be a COMMITTED artifact of this checkout rather than a redirected recording — a
+     synthetic ECG node-export paired with a synthetic night, for one. The corpus is still asked
+     first, so no existing input hash moves; only a file the corpus does not hold falls back here. */
+  const inPath = (file) => {
+    const c = path.join(corpusDir, file);
+    return fs.existsSync(c) ? c : path.join(fixturesDir, file);
+  };
+  const sha16In = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(inPath(file))));
   return async function rerecord(fixtureName, fixture) {
     const frag = JSON.parse(fs.readFileSync(fragPath, 'utf8'));
     frag.fixtures = frag.fixtures || {};
