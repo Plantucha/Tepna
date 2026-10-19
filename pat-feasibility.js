@@ -856,10 +856,11 @@
               ? s.reason || 'fewer than 2 windows'
               : null;
     if (note)
-      note.innerHTML = !s
-        ? escHtml(why || '')
+      // plain text, no markup: textContent needs no escaping (xss-sink-gate)
+      note.textContent = !s
+        ? why || ''
         : (s.ringEnd === 'raw'
-            ? 'The finger end stays on its raw receive stamp: ' + escHtml(s.ringReason || 'the ring floor did not solve') + '. Each finger leg moves only its Polar end onto that device’s floor.'
+            ? 'The finger end stays on its raw receive stamp: ' + (s.ringReason || 'the ring floor did not solve') + '. Each finger leg moves only its Polar end onto that device’s floor.'
             : 'All three ends are on their own arrival floors.') +
           (s.check && s.check.shiftedMedMs != null && s.check.corrMedMs != null
             ? ' Check: chest → ankle shifted per beat ' +
@@ -870,7 +871,7 @@
               s.check.droppedBeats +
               ' beats without an anchor dropped).'
             : '') +
-          (s.ok ? '' : ' ' + escHtml(s.reason || ''));
+          (s.ok ? '' : ' ' + (s.reason || ''));
     var W = why ? null : s.windows;
     drawLegs('threeChartSide', W, ['ab', 'ac', 'bc'], null, '5-min median lag (ms) — every leg on its sidecars', why);
     var D = W
