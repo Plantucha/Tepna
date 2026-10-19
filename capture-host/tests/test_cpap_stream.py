@@ -2576,3 +2576,307 @@ def test_the_missing_char_retry_keeps_the_pairing_options(monkeypatch):
     _run(go())
     assert len(_FakeBleak.instances) == 2
     assert _ReadingBleak.events.count("read:00002a00") == 2  # both connects did the reads
+
+
+def test_a_MID_SESSION_STALL_reaches_the_gap_accounting_line_and_the_envelope(caplog):
+    """🔴 THE DEFECT THIS CLOSES. `stalls` was declared with a spec citation (§30 STREAM_STALL) and no
+    detector, so `lost_coverage_missing` named it on every live session and completeness could never
+    read COMPLETE. The detector is the continuity tracker's own owed-sample comparison, and this is the
+    wire from it to the record: three frames, the middle one 3 s past the sample its predecessor owed.
+
+    The line must be a WARNING too — a measured stall is known loss, like `malformed` and
+    `sink_errors` beside it."""
+    import logging
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    envelopes = []
+    T0 = "2026-08-23T01:30:28.730Z"
+    frames = [
+        _data_at(T0),  # owes T0+400
+        _data_at("2026-08-23T01:30:32.130Z"),  # T0+3400: 3 s past it
+        _data_at("2026-08-23T01:30:32.530Z"),  # contiguous with the frame before
+    ]
+    dev = FakeDev(_handshake() + [_ack()] + frames)
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=3,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                continuity=tracker,
+            )
+        )
+    gc = envelopes[-1].provenance["gap_counters"]
+    assert gc["stalls"] == 1, "the tracker's count reached the gap-accounting record"
+    assert gc["lost_coverage_missing"] == ["post_drop_tail"], (
+        "stalls leaves the unmeasured list once it has a writer; post_drop_tail stays, and this layer "
+        "cannot measure it (audit §7.3 — the drop boundary is ~230 ms wide and lives in the transport)"
+    )
+    lines = [r for r in caplog.records if "gap accounting" in r.getMessage()]
+    assert len(lines) == 1 and "'stalls': 1" in lines[0].getMessage()
+    assert lines[0].levelno == logging.WARNING, "a measured stall is known loss, so the line is loud"
+
+
+def test_a_clean_contiguous_session_reports_a_measured_ZERO_stall_not_a_null(caplog):
+    """The bound on the test above, and §∅ from the other side. Two contiguous frames afford one
+    comparison, so `stalls` is 0 — counted, and none happened — and the line stays at INFO."""
+    import logging
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z"), _data_at("2026-08-23T01:30:29.130Z")])
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                continuity=tracker,
+            )
+        )
+    assert envelopes[-1].provenance["gap_counters"]["stalls"] == 0
+    lines = [r for r in caplog.records if "gap accounting" in r.getMessage()]
+    assert len(lines) == 1 and lines[0].levelno == logging.INFO
+
+
+def test_a_pump_with_NO_tracker_leaves_stalls_UNMEASURED_rather_than_zero():
+    """The writer is the tracker, so a pump without one compared nothing and must say so. A 0 here
+    would be the `int(summary.get(k) or 0)` defect this family already carries a fix for (§∅)."""
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+        )
+    )
+    gc = envelopes[-1].provenance["gap_counters"]
+    assert gc["stalls"] is None
+    assert gc["lost_coverage_missing"] == ["stalls", "post_drop_tail"]
+
+
+# ── `stream_to_bus` lines the stall work put back in mutation scope (the unit is the FUNCTION) ──────
+
+
+def test_a_CLEAN_stop_does_not_arm_the_next_session():
+    """`clean` is the pump's own verdict on how it ended, and it reaches two consumers: the tracker,
+    which arms a resume only on a drop, and the envelope's `stopped_cleanly`. A falsy `clean` after a
+    deliberate stop would arm a resume that never happened and report the session as interrupted."""
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+            continuity=tracker,
+        )
+    )
+    tracker.note_start()
+    assert tracker.status is cpap_continuity.Continuity.CONTINUOUS, "a deliberate stop is not a resume"
+    assert envelopes[-1].provenance["stopped_cleanly"] is True, "and the envelope says so too"
+
+
+def test_the_sink_write_duration_is_recorded_in_MILLISECONDS(monkeypatch):
+    """`sink_max_ms` is read against `SINK_SLOW_MS = 1000.0`, so the unit conversion is load-bearing:
+    seconds here would read every write as fast, and an unsubtracted clock would read every write as
+    slow. Two fixed readings one second apart must land on exactly 1000.0 ms."""
+
+    class _Clock:
+        def __init__(self):
+            # NEITHER reading may be zero. A `_t0` of 0.0 makes `now - _t0` and `now + _t0` the same
+            # number, so a stopwatch that ADDS its start instant passes a 0-to-1 probe unseen.
+            self.t = [2.0, 3.0]
+
+        def monotonic(self):
+            return self.t.pop(0) if self.t else 3.0
+
+    monkeypatch.setattr(CS, "_time", _Clock())
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+        )
+    )
+    gc = envelopes[-1].provenance["gap_counters"]
+    assert gc["sink_max_ms"] == 1000.0, "one second of held loop, in milliseconds, DIFFERENCED"
+    assert gc["sink_slow"] == 1, "and at SINK_SLOW_MS it counts as slow"
+
+
+def test_a_channel_that_is_not_a_LIST_still_advances_the_owed_sample_clock(caplog):
+    """The sample count handed to the tracker is a `max(...)` over the LIST-valued channels, and its
+    `default` covers a frame that has none. That default must be 0: the frame carried no samples, so
+    the next sample owed is this frame's own start. A default that cannot be an int kills the owed
+    clock entirely, and a default of 1 moves it one interval past where the device left it."""
+    import logging
+
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    T0 = "2026-08-23T01:30:28.730Z"
+    odd = _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {"data": [{"PatientFlow": "not-a-list"}], "intervalMs": 40, "startTime": T0, "streamId": 1},
+        }
+    )
+    # +41 ms is chosen against the tolerance: one interval is 40 ms, so a frame owed at T0 is 1 ms
+    # late and a frame owed at T0+40 is 1 ms early. Any later start, T0 included, reads the same under
+    # both defaults, which is how a default of 1 survived the first version of this test.
+    late = _data_at("2026-08-23T01:30:28.771Z", n=1)  # T0 + 41 ms
+    dev = FakeDev(_handshake() + [_ack(), odd, late])
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes_sink(),
+                continuity=tracker,
+            )
+        )
+    # frame 1 carried 0 samples, so it owed its OWN start; frame 2 is 41 ms past it.
+    assert tracker.stalls == 1, "the owed clock advanced by zero samples, not by one and not at all"
+
+
+def envelopes_sink():
+    """A throwaway `acq_evidence_out` for tests that assert on the tracker rather than the envelope."""
+    return lambda _ev: None
+
+
+def test_the_observed_interval_WARNING_names_BOTH_intervals(caplog):
+    """The pump trusts the device's interval over the requested one and WARNS on a mismatch. The two
+    numbers are the whole content of that warning: a reader needs to know what was asked and what
+    arrived, so neither may go out as None."""
+    import logging
+
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])  # _data_at sends intervalMs 40
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                sample_interval_ms=25,
+                extra_sinks=[_RawStub()],
+            )
+        )
+    lines = [r.getMessage() for r in caplog.records if "observed interval" in r.getMessage()]
+    assert len(lines) == 1, lines
+    assert "40 ms" in lines[0] and "25 ms" in lines[0], lines[0]
+
+
+def test_a_MID_STREAM_interval_change_names_the_OLD_and_the_NEW(caplog):
+    """A device that changes its sample interval mid-stream is a finding, and the log line is the only
+    place it is recorded. Both numbers must survive: `None -> 40` or `40 -> None` names no change."""
+    import logging
+
+    T0 = "2026-08-23T01:30:28.730Z"
+    second = _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {
+                "data": [{"PatientFlow": [0.1] * 10}],
+                "intervalMs": 80,
+                "startTime": "2026-08-23T01:30:29.130Z",
+                "streamId": 1,
+            },
+        }
+    )
+    dev = FakeDev(_handshake() + [_ack(), _data_at(T0), second])
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[_RawStub()],
+            )
+        )
+    lines = [r.getMessage() for r in caplog.records if "interval changed mid-stream" in r.getMessage()]
+    assert len(lines) == 1, lines
+    assert "40 -> 80" in lines[0], lines[0]
+
+
+def test_the_MEASURED_clock_offset_reaches_the_envelope():
+    """`clock_offset_provider` is read at emit time and carried on the envelope so a reconciliation
+    does not read the device's fast minutes as a real gap. Dropping the provider leaves
+    `ClockOffset.unknown()`, which claims the offset was never measured when it was."""
+    import acq_evidence as ae
+
+    offset = ae.ClockOffset(offset_sec=-1261.0, measured_at_ms=1.0, reference="host-stratum1", method="GetDateTime")
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+            clock_offset_provider=lambda: offset,
+        )
+    )
+    assert envelopes[-1].clock_offset == offset, "the measurement, not ClockOffset.unknown()"
