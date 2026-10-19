@@ -336,6 +336,68 @@ def test_a_status_row_with_no_event_NAME_is_not_a_witness_and_an_unrelated_id_is
     assert len(r.rows) == 2, "both rows are still recorded verbatim; only the witness declines them"
 
 
+def test_a_fresh_recorder_reports_ABSENCE_as_null_and_never_as_an_empty_string():
+    """§∅ on the recorder's own initial state: an unmeasured device stamp is None. An empty string is
+    a value a consumer cannot tell from a stamp the device sent, which is the defect, not the default."""
+    r = E.EventRecorder()
+    s = r.snapshot()
+    assert s["zle_rising_report"] is None and s["zle_falling_report"] is None
+    assert r.zle_value is None, "no `_ZLE` report has arrived, so there is no level either"
+
+
+def test_a_ZLE_row_with_NO_numeric_value_is_recorded_VERBATIM_and_moves_no_edge():
+    """The value slot holds a number or nothing (`parse_event_notification` refuses a bool or a string),
+    so the recorder must read the SLOT and not the data id alone. The row is still written: the sidecar
+    is verbatim, and only the witness declines it."""
+    r = E.EventRecorder()
+    r.note({"dataId": "_ZLE", "events": [{"value": "nope", "reportTime": "x"}]}, host_epoch=3.0)
+    assert len(r.rows) == 1 and r.rows[0]["value"] is None
+    assert r.rows[0]["host_epoch"] == 3.0, "the host stamp the caller gave, not the one `note` invented"
+    assert r.zle_value is None and r.zle_edges == 0
+
+
+def test_the_sidecar_LINE_IS_COMPACT_and_holds_ONE_notification(tmp_path):
+    """The separators are the published format, not an accident. A night is one line per notification
+    and the file is read back by `tail`, so a re-spaced dump rewrites every line of every sidecar."""
+    path = tmp_path / "cpap-events-compact.jsonl"
+    r = E.EventRecorder(str(path))
+    r.note({"dataId": "_ZLE", "events": [_zle(1, "x")]}, host_epoch=9.0)
+    r.close()
+    assert path.read_text(encoding="utf-8") == (
+        '{"host_epoch":9.0,"params":{"dataId":"_ZLE","events":[{"value":1,"reportTime":"x"}]}}\n'
+    )
+
+
+def test_the_SIDECAR_DECLARES_ITS_ENCODING(tmp_path):
+    """The sidecar `open()` asserted on the CALL. `-X warn_default_encoding` with
+    `-W error::EncodingWarning` makes an unset — or explicitly None — `encoding` raise, so a night
+    recorded on the box reads the same here whatever the machine's locale.
+
+    The in-process recorder first is NOT redundant: mutmut picks a mutant's tests from COVERAGE and a
+    subprocess is invisible to the tracer, so without it this mutant reads unkillable."""
+    import subprocess
+    import sys
+
+    path = tmp_path / "cpap-events-enc.jsonl"
+    r = E.EventRecorder(str(path))
+    r.note({"dataId": "_ZLE", "events": [_zle(1, "x")]}, host_epoch=1.0)
+    r.close()
+    src = (
+        "import cpap_events as E\n"
+        f"r = E.EventRecorder({str(path)!r})\n"
+        "r.note({'dataId': '_ZLE', 'events': [{'value': 1, 'reportTime': 'x'}]}, host_epoch=1.0)\n"
+        "r.close()\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.abspath(E.__file__)),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "EncodingWarning" not in out.stderr, out.stderr
+
+
 def test_mark_trigger_rejects_an_unknown_mark_and_stamps_the_host_clock_when_none_given():
     r = E.EventRecorder()
     with pytest.raises(ValueError):
