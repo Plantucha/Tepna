@@ -333,3 +333,148 @@ def test_a_row_with_NO_stacks_puts_its_REASON_in_the_journal_line_not_an_empty_s
         "only-the-sampler-thread-was-running"
     )
     assert ss.thread_names({}) == "stacks absent, no reason recorded"
+
+
+# ── What a single-threaded test process cannot see ──────────────────────────────────────────────
+#
+# The mutation gate reported 23 survivors over this module on #3654, and most of them share one
+# cause: **pytest runs single-threaded, so the sampler is the only live thread.** `thread_stacks`
+# then excludes the only ident it finds, the loop body never runs, and neither `limit` nor
+# `exclude_ident` is observable. Every argument at the `thread_stacks` call site was therefore free
+# to change. The tests below park a real second thread, which is the production shape anyway: the
+# sampler reads the WORKERS.
+#
+# The rest of the survivors sat on `round(lag_ms, 1)`. Every assertion in the file used a lag whose
+# three roundings agree (16000.0 rounds to itself at 0, 1 and 2 places), so the precision was free
+# too. 612.34 ms and 756.78 ms disagree at all three.
+
+
+def test_an_EXCLUDED_ident_is_SKIPPED_and_the_threads_after_it_still_report(monkeypatch):
+    """`continue`, not `break`. The sampler's own ident can arrive anywhere in the frame dict, and a
+    `break` there drops every thread enumerated after it — which, on the box, is most of the capture."""
+    frame = ss._sys._getframe()
+    mine = threading.get_ident()
+    monkeypatch.setattr(ss._sys, "_current_frames", lambda: {mine: frame, 424242: frame})
+    out = ss.thread_stacks(exclude_ident=mine)
+    assert str(mine) not in out
+    assert "424242" in out, "the exclusion skips one thread; it does not end the enumeration"
+
+
+def test_a_FRAME_NAMES_ITS_FILE_BY_BASENAME_so_the_line_stays_readable(monkeypatch):
+    """The frame string is `name (file:line)`, and `file` is the basename. The full path makes the
+    journal line unreadable at the width a stall report is read in, and the directory alone names no
+    file at all."""
+    frame = ss._sys._getframe()
+    monkeypatch.setattr(ss._sys, "_current_frames", lambda: {424242: frame})
+    frames = ss.thread_stacks()["424242"]["frames"]
+    assert frames, "the fixture frame must report"
+    for f in frames:
+        assert "/" not in f, f"a path, not a basename: {f}"
+        assert ".py:" in f, f"neither a file nor a line: {f}"
+
+
+def test_a_SYNTHETIC_filename_with_NO_directory_still_renders(monkeypatch):
+    """A frame compiled from a string carries a filename like `<probe>`, with no separator in it at
+    all. Splitting such a name and then indexing FORWARD raises `IndexError`, which would take the
+    sample down over a frame the sampler merely passed through."""
+    code = compile("import sys as _s; CAUGHT['f'] = _s._getframe()", "<probe>", "exec")
+    caught: dict = {}
+    exec(code, {"CAUGHT": caught})  # noqa: S102 — a frame with a known synthetic filename, by construction
+    monkeypatch.setattr(ss._sys, "_current_frames", lambda: {424242: caught["f"]})
+    frames = ss.thread_stacks()["424242"]["frames"]
+    assert any("<probe>:" in f for f in frames), frames
+
+
+def _parked_thread():
+    """A live second thread, parked, so `thread_stacks` has something to return. Returns
+    `(thread, release)`; the caller sets `release` and joins."""
+    parked = threading.Event()
+    release = threading.Event()
+
+    def the_worker_the_sampler_reads():
+        parked.set()
+        release.wait(5)
+
+    t = threading.Thread(target=the_worker_the_sampler_reads, name="parked_worker")
+    t.start()
+    assert parked.wait(5), "the worker never parked, so there is nothing to sample"
+    return t, release
+
+
+def test_the_EPISODES_stacks_EXCLUDE_the_samplers_own_thread_and_HONOUR_the_limit():
+    """The call site, measured with a second thread alive. With only one thread in the process the
+    exclusion and the limit are both unobservable, so both arguments were free to change: dropping
+    the exclusion puts the sampler at the top of its own report, and dropping the limit returns every
+    frame of every worker."""
+    t, release = _parked_thread()
+    try:
+        s = _s(limit=2)
+        assert s.tick(100.6, 100.0) is None
+        row = s.tick(100.7, 100.65)
+        assert row is not None
+        stacks = row["stacks"]
+        assert stacks, "a parked worker was alive, so the sample is not empty"
+        assert row["stacks_reason"] is None
+        assert str(threading.get_ident()) not in stacks, "the sampler named itself as the holder"
+        worker = [v for v in stacks.values() if v["thread"] == "parked_worker"]
+        assert len(worker) == 1, stacks
+        assert len(worker[0]["frames"]) == 2, f"limit=2 was not applied: {worker[0]['frames']}"
+    finally:
+        release.set()
+        t.join(5)
+
+
+def test_the_LAG_KEEPS_ONE_DECIMAL_at_the_moment_the_episode_OPENS():
+    """0.1 ms, because the threshold is 500 ms and the figure is read beside it. A whole millisecond
+    is coarse enough to hide the difference between two samples of one freeze, and two decimals
+    reports the float's own noise as a measurement."""
+    s = _s()
+    assert s.tick(100.61234, 100.0) is None
+    row = s.tick(100.7, 100.65)
+    assert row is not None
+    assert row["sampled_at_lag_ms"] == 612.3, row["sampled_at_lag_ms"]
+    assert row["lag_ms"] == 612.3, row["lag_ms"]
+
+
+def test_the_RUNNING_MAX_keeps_the_same_ONE_DECIMAL_as_the_opening_sample():
+    """The second sample of an episode goes through `max`, on its own line, with its own rounding.
+    The two have to agree, or one episode reports its duration to a different precision depending on
+    which of its samples happened to be the worst."""
+    s = _s()
+    assert s.tick(100.61234, 100.0) is None
+    assert s.tick(100.75678, 100.0) is None
+    row = s.tick(100.8, 100.75)
+    assert row is not None
+    assert row["samples"] == 2
+    assert row["sampled_at_lag_ms"] == 612.3, "the opening sample is reported apart, and unchanged"
+    assert row["lag_ms"] == 756.8, row["lag_ms"]
+
+
+def test_a_lag_EXACTLY_AT_the_threshold_IS_a_stall():
+    """`>=`. The threshold is the documented figure, so the sample that reads exactly 500 ms is the
+    first stall rather than the last healthy tick — and at a 50 ms beat the equal case is reachable."""
+    s = _s()
+    assert s.tick(100.5, 100.0) is None, "detection opens the episode and writes nothing yet"
+    row = s.tick(100.6, 100.55)
+    assert row is not None, "a lag equal to the threshold must open an episode"
+    assert row["lag_ms"] == 500.0
+
+
+def test_run_hands_the_SINK_the_row_itself_and_SLEEPS_the_interval_it_was_given():
+    """Both arguments `run` passes on. A sink called with `None` still appends, so counting the
+    appends says nothing about what arrived; a sleep called with `None` blocks forever on the box and
+    returns instantly against a stub."""
+    now, hb, sleep, stop = _driver([(100.6, 100.0), (100.7, 100.65)])
+    naps = []
+
+    def _sleep(seconds):
+        naps.append(seconds)
+        sleep(seconds)
+
+    s = _s()
+    rows = []
+    s.run(hb, rows.append, stop, interval_s=0.25, now=now, sleep=_sleep)
+    assert len(rows) == 1
+    assert rows[0] is not None and rows[0]["schema"] == "tepna.stall/1", rows
+    assert naps, "the watch never slept, so it never yielded the box"
+    assert set(naps) == {0.25}, f"the interval it was given, every time: {naps}"
