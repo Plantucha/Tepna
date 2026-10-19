@@ -42,10 +42,14 @@ def new_york(monkeypatch):
 
 @pytest.fixture
 def utc(monkeypatch):
+    before = os.environ.get("TZ")
     monkeypatch.setenv("TZ", "UTC")
     time.tzset()
     yield
-    monkeypatch.delenv("TZ", raising=False)
+    if before is None:
+        monkeypatch.delenv("TZ", raising=False)
+    else:
+        monkeypatch.setenv("TZ", before)
     time.tzset()
 
 
