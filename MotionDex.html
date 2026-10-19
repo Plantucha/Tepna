@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cbbf9d00cf79" data-compute-hash="1eb196d921e0">
+<html lang="en" data-manifest-hash="628c53a97933" data-compute-hash="a21292c9aed1">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.20.0</title>
@@ -5159,6 +5159,59 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   }
 
   // ══════════════════════════════════════════════════════════════════════════════════════
+  //  FILENAME STAMP — fileStamp()            (Clock Contract §4, anchor source (2))
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  `YYYYMMDDHHMMSS` — or the Polar-Sensor-Logger split `YYYYMMDD_HHMMSS` — lifted out of a capture
+  //  filename as floating wall-clock ms. §4 names the filename as anchor source (2), and until now no
+  //  one owned it: six call sites had each grown a regex, and four of the six built the instant with a
+  //  bare `Date.UTC` over digit slices. §2.7 forbids that, for the reason `oxydex-dsp.js` measured
+  //  before it fixed its own two: `20261332999999` (month 13, day 32) rolls to a night dated
+  //  2027-02-01, and `99999999999999` to 10007-06-07 — a fabricated date, read off a filename, with
+  //  nothing flagged.
+  //
+  //  THREE rules, each one a defect the fleet already paid for:
+  //   · SCAN FROM THE RIGHT. The stamp is the token before the stream tag. A device id can itself be
+  //     14 digits (`Polar_H10_20250101000000_20260725225058_ECG.txt`), and a left-to-right search
+  //     keys that file to a session eighteen months away instead of falling back to mtime
+  //     (`capture-host/writers.py file_stamp`, audit F5). The JS twin of that bug ate an 8-digit
+  //     serial as year 0292 (DEEP-AUDIT-II §10.5).
+  //   · BOUND THE DIGIT RUN. A bare `/(\d{14})/` takes the first fourteen digits of a LONGER run, so
+  //     a 15-digit id yields a stamp that is wrong by a decade and parses cleanly. Splitting the name
+  //     on non-digits makes every candidate a MAXIMAL run, which is the rule stated directly: a stamp
+  //     is fourteen digits with a non-digit on each side, never a window inside a longer number.
+  //   · VALIDATE, then require a plausible year. The candidate goes through `parseTimestamp`'s 14-digit
+  //     branch, so `_ckMk` refuses a date that does not round-trip; the year window then refuses the
+  //     in-range-but-absurd ones, because `_ckMk` is perfectly happy with year 0292.
+  //
+  //  TWO LAYOUTS, one device, and the split one is load-bearing: the capture host writes the 14 digits
+  //  contiguously (`..._20260610211539_PPG.txt`) and Polar Sensor Logger separates them
+  //  (`..._20260610_211539_PPG.txt`). Reading only the contiguous form made every PSL file parse to
+  //  `null` while its name still matched the device pattern, so the file was found and then dropped one
+  //  line later — quieter than not matching at all, and worth 0 usable PSL nights (found 2026-08-18).
+  //
+  //  Returns `{ tMs, stamp }`, or `null` when the name carries no readable stamp. `null` means the
+  //  filename cannot supply the anchor; the caller falls through to its own next source (§4) and never
+  //  fabricates one.
+  var CK_FSTAMP_MIN_YEAR = 1990, // below this a "stamp" is a serial or an id, not a capture date
+    CK_FSTAMP_MAX_YEAR = 2099;
+  function fileStamp(name) {
+    var s = String(name == null ? '' : name);
+    s = s.slice(s.lastIndexOf('/') + 1); // basename — a directory in the path may carry its own digits
+    var parts = s.split(/\D+/); // maximal digit runs; the extension and every separator fall out with it
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var cand = null;
+      if (/^\d{14}$/.test(parts[i])) cand = parts[i];
+      else if (/^\d{6}$/.test(parts[i]) && i > 0 && /^\d{8}$/.test(parts[i - 1])) cand = parts[i - 1] + parts[i];
+      if (cand === null) continue;
+      var y = +cand.slice(0, 4);
+      if (y < CK_FSTAMP_MIN_YEAR || y > CK_FSTAMP_MAX_YEAR) continue; // keep scanning left, do not abort
+      var p = parseTimestamp(cand);
+      if (p) return { tMs: p.tMs, stamp: cand };
+    }
+    return null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════════════
   //  HOST-DISCIPLINED TIME AXIS — hostAxis()      (WEARABLE-HOST-AXIS-2026-08-02-BRIEF)
   // ══════════════════════════════════════════════════════════════════════════════════════
   //  Every Polar-Sensor-Logger / capture-host stream carries TWO clocks on EVERY row:
@@ -5706,6 +5759,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     _ckDMY: _ckDMY,
     resolveDMY: resolveDMY,
     parseTimestamp: parseTimestamp,
+    fileStamp: fileStamp,
     hostAxis: hostAxis,
     // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
     // delegate by name, the way they already do for parseTimestamp.

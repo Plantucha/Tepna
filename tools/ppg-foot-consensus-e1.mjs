@@ -318,7 +318,11 @@ function realm(files) {
   for (const f of files) vm.runInContext(classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
   return sb;
 }
-const P = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-registry.js', 'ppgdex-morph.js', 'ppgdex-dsp.js']).PPGDSP;
+const _ppgRealm = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-registry.js', 'ppgdex-morph.js', 'ppgdex-dsp.js']);
+const P = _ppgRealm.PPGDSP;
+// The Clock Contract's filename parser, out of the same realm — so this tool never hand-rolls
+// a stamp regex (it did, and the one it rolled skipped the range check §2.7 requires).
+const DexClock = _ppgRealm.DexClock;
 const E = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-morph.js', 'ecgdex-dsp.js']).ECGDSP;
 
 const walk = (d, o = []) => {
@@ -370,16 +374,12 @@ function score(beatMs, eBeats, lo, hi) {
    it. Files without a parseable stamp are NOT rejected — they fall through to the full parse, so the
    optimisation can only save work, never silently drop a pairing. */
 const stampOf = (p) => {
-  /* TWO STAMP LAYOUTS, one device. The capture host writes 14 contiguous digits
-     (`..._20260610211539_PPG.txt`); Polar Sensor Logger splits them
-     (`..._20260610_211539_PPG.txt`). Matching only the first made every PSL file parse to `null` —
-     and because the FILENAME still matched the device pattern, the file was found and then silently
-     dropped one line later, which is quieter than not matching at all. Found 2026-08-18 after the
-     device-name fix alone still yielded 0 usable PSL nights. */
-  const m = /_(\d{14})_/.exec(p) || /_(\d{8})_(\d{6})_/.exec(p) || /(\d{14})/.exec(p.split('/').pop() || '');
-  if (!m) return null;
-  const s = m.length > 2 && m[2] ? m[1] + m[2] : m[1];
-  return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
+  /* Both stamp layouts, and the validation this used to skip, come from `DexClock.fileStamp` — §4's
+     anchor source (2), with one owner. The `Date.UTC` over digit slices that stood here built an
+     instant out of components nothing had range-checked, which §2.7 forbids: a filename run of
+     `20261332999999` rolls to 2027-02-01 rather than refusing. */
+  const r = DexClock.fileStamp(p);
+  return r ? r.tMs : null;
 };
 const plausiblyOverlaps = (p, t0) => {
   const t = stampOf(p);
