@@ -229,10 +229,21 @@ def test_run_appends_one_row_per_episode_and_keeps_watching_after_it():
 
 def test_run_with_stop_ALREADY_SET_samples_nothing():
     """The shutdown race: the watchdog starts as the daemon is stopping. Branch coverage of the loop's
-    own condition, and a sampler that writes a row during teardown writes it to a closed night."""
+    own condition, and a sampler that writes a row during teardown writes it to a closed night.
+
+    🔴 THE SLEEP RAISES, AND THAT IS THE ASSERTION. `rows == []` alone is also true of a body that ran
+    and produced no row, so this test could not tell "never sampled" from "sampled nothing" — and under
+    the mutation gate an inverted loop condition HUNG here instead of dying, because `stop()` answers
+    True forever and a no-op sleep advances nothing. The gate reported it UNDECIDED twice on #3654
+    (runs 39182747495 and 39184063166, `stallsampler.xǁStallSamplerǁrun__mutmut_1`), which is unmeasured
+    rather than killed. `sleep` is the one call outside the loop's `except`, so raising there turns an
+    unbounded loop into an immediate failure and states what the test name claims."""
     s = _s()
     rows = []
-    s.run(lambda: 100.0, rows.append, lambda: True, interval_s=0, now=lambda: 101.0, sleep=lambda _s: None)
+    def _sleep(_s):
+        raise AssertionError("the loop body ran: a watchdog starting into a stopped daemon samples nothing")
+
+    s.run(lambda: 100.0, rows.append, lambda: True, interval_s=0, now=lambda: 101.0, sleep=_sleep)
     assert rows == []
 
 
