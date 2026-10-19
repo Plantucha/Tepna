@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, calendar, collections, contextlib, ctypes, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
-import concurrent.futures, multiprocessing, sys as _sys
+import concurrent.futures, multiprocessing, sys as _sys, threading
 import xml.etree.ElementTree as _ET  # glibc's malloc_info writes XML; see malloc_arenas()
 import build_id
 from writers import (
@@ -60,6 +60,7 @@ import alerts
 import clock_offset
 import nightqc
 import nightarchive
+import stallsampler
 import qc_child  # the night-QC work that runs in the spawned child, never in this process
 import loss_audit
 import solid_night
@@ -11483,6 +11484,104 @@ async def loop_monitor(period_s: float = 1.0):
             )
 
 
+def _stall_sink(captures: str, settle_s: float):
+    """The file half of the stall sampler: one JSON line into `<night>/STALLS.jsonl`.
+
+    It resolves the night PER ROW rather than once at arm time, because the sampler outlives the night
+    boundary — a watch armed at 21:00 is still running when the next night's directory appears, and a
+    path captured at arm time would file every later stall into the wrong night.
+
+    ⚠️ A STALL WITH NOWHERE TO FILE IT STILL REACHES THE JOURNAL. Before the first night directory
+    exists there is no file to append to, and a sampler that returned quietly there would lose exactly
+    the stalls that happen during start-up — the ones with the most threads doing first-time work."""
+
+    def _sink(row: dict) -> None:
+        names = stallsampler.thread_names(row)
+        night = _current_night(captures, settle_s)
+        if night is None:
+            log.warning(
+                "stall sampler: %.0f ms stall and NO night dir to file it in — threads: %s",
+                row["lag_ms"],
+                names,
+            )
+            return
+        with open(os.path.join(captures, night, "STALLS.jsonl"), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, separators=(",", ":")) + "\n")
+        log.warning(
+            "stall sampler: %.0f ms stall over %d sample(s) filed in %s/STALLS.jsonl — threads: %s",
+            row["lag_ms"],
+            row["samples"],
+            night,
+            names,
+        )
+
+    return _sink
+
+
+async def stall_sampler_watch(cfg: dict, root: str):
+    """The third member of the pair above: `loop_monitor` says the loop was held, `SlowCallbackWatch`
+    names the CALLBACK, and this names the WORK.
+
+    ⚠️ IT IS A THREAD, AND THE ORDERING IS THE WHOLE MECHANISM. Both instruments above run ON the loop,
+    so they learn of a stall only once the loop runs again — by which time the stack that held it has
+    returned and there is nothing left to sample. The §4 table in
+    `briefs/O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF.md` lists eleven jobs that reach the disk through
+    `asyncio.to_thread`, so the holder is a frame in an executor thread rather than a handle on the
+    loop, and only a thread that keeps running during the stall can see it.
+
+    The loop's side of it is one float per beat (`LoopBeat.touch`), so the watchdog takes no lock and
+    can never itself be the reason the loop waits.
+
+    Registered unconditionally and OFF by default, for the reason `heap_probe`'s registration states: an
+    instrument wired only when enabled has its wiring exercised for the first time on the night someone
+    needs it. Arming it is the owner's call, and §6 of the brief wants three nights of rows."""
+    scfg = cfg.get("stall_sampler") or {}
+    if not scfg.get("enabled", False):
+        log.info("stall sampler: OFF — stall_sampler.enabled is false")
+        return
+    sampler = stallsampler.StallSampler(
+        float(scfg.get("threshold_ms", stallsampler.THRESHOLD_MS)),
+        int(scfg.get("max_rows", stallsampler.MAX_ROWS)),
+    )
+    beat = stallsampler.LoopBeat()
+    stop = threading.Event()
+    th = threading.Thread(
+        target=sampler.run,
+        args=(
+            lambda: beat.mono,
+            _stall_sink(
+                os.path.join(root, "captures"),
+                float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S)),
+            ),
+            stop.is_set,
+        ),
+        name="stall_sampler",
+        daemon=True,
+    )
+    th.start()
+    log.info(
+        "stall sampler: ON — a stall >= %.0f ms writes ONE row naming every thread to "
+        "<night>/STALLS.jsonl (cap %d rows)",
+        sampler.threshold_ms,
+        sampler.max_rows,
+    )
+    try:
+        while not _STOP.is_set():
+            beat.touch(_time.monotonic())
+            await asyncio.sleep(stallsampler.BEAT_INTERVAL_S)
+    finally:
+        # Symmetric with `SlowCallbackWatch.restore`, for the same reason: a thread left sampling after
+        # the daemon is meant to be down writes rows into a night nobody is recording.
+        stop.set()
+        th.join(2.0)
+        log.info(
+            "stall sampler: stopped after %d row(s), %d past the cap, %d write failure(s)",
+            sampler.rows_written,
+            sampler.rows_dropped,
+            sampler.errors,
+        )
+
+
 # ── WHAT HELD THE LOOP: the garbage collector, timed ────────────────────────────────────────────
 #
 # `loop_monitor` above measures the ONE shared resource and says so in its own docstring — "that
@@ -14693,6 +14792,9 @@ async def main():
         # probe whose wiring is never exercised, so the night it is armed is the night its
         # registration is tested for the first time. It returns immediately when disabled.
         ("heap_probe", lambda: heap_probe(cfg, root)),
+        # The third member of the loop_monitor pair: it names the WORK rather than the callback, which
+        # needs a thread that keeps running while the loop is held. Same OFF-by-default registration.
+        ("stall_sampler_watch", lambda: stall_sampler_watch(cfg, root)),
     ]
     tasks = []
     for label, mk in _BACKGROUND:

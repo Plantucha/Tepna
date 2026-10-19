@@ -614,6 +614,18 @@
       "source": "real device address(es) 24:AC:AC:02:84:96; was: stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
+    "test_stall_sampler_watch.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "config dicts, night directories under tmp_path and one synthetic stall row built in the test; no provenance claim in the file",
+      "sha256": null
+    },
+    "test_stallsampler.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "monotonic clock values and thread stacks built in the test (an injected clock walks the episodes, a parked worker thread supplies real frames); no provenance claim in the file",
+      "sha256": null
+    },
     "test_storage_targets.py": {
       "class": "authored",
       "kind": "constructed-stamps",
