@@ -240,6 +240,7 @@ def test_run_with_stop_ALREADY_SET_samples_nothing():
     unbounded loop into an immediate failure and states what the test name claims."""
     s = _s()
     rows = []
+
     def _sleep(_s):
         raise AssertionError("the loop body ran: a watchdog starting into a stopped daemon samples nothing")
 
