@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="61bbd3045f35" data-compute-hash="4a32e461e383"><head>
+<html lang="en" data-manifest-hash="a84d0b466fab" data-compute-hash="6e63d9a8b71e"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dOJCQs60dAm5qOBE+3EnKdPWLYhPtThItycDVLJ4tNE=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-gk413vB4A0mqJpWYofu7FsRBTUlQ7ncO6A4L0zZXLQU=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jPmO7lAwGPLkhRdFiKGmCOWTvq2ZFvhgA9HQnhu7cLU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dOJCQs60dAm5qOBE+3EnKdPWLYhPtThItycDVLJ4tNE=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jPmO7lAwGPLkhRdFiKGmCOWTvq2ZFvhgA9HQnhu7cLU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -1561,6 +1561,59 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════════════════════
+  //  FILENAME STAMP — fileStamp()            (Clock Contract §4, anchor source (2))
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  `YYYYMMDDHHMMSS` — or the Polar-Sensor-Logger split `YYYYMMDD_HHMMSS` — lifted out of a capture
+  //  filename as floating wall-clock ms. §4 names the filename as anchor source (2), and until now no
+  //  one owned it: six call sites had each grown a regex, and four of the six built the instant with a
+  //  bare `Date.UTC` over digit slices. §2.7 forbids that, for the reason `oxydex-dsp.js` measured
+  //  before it fixed its own two: `20261332999999` (month 13, day 32) rolls to a night dated
+  //  2027-02-01, and `99999999999999` to 10007-06-07 — a fabricated date, read off a filename, with
+  //  nothing flagged.
+  //
+  //  THREE rules, each one a defect the fleet already paid for:
+  //   · SCAN FROM THE RIGHT. The stamp is the token before the stream tag. A device id can itself be
+  //     14 digits (`Polar_H10_20250101000000_20260725225058_ECG.txt`), and a left-to-right search
+  //     keys that file to a session eighteen months away instead of falling back to mtime
+  //     (`capture-host/writers.py file_stamp`, audit F5). The JS twin of that bug ate an 8-digit
+  //     serial as year 0292 (DEEP-AUDIT-II §10.5).
+  //   · BOUND THE DIGIT RUN. A bare `/(\d{14})/` takes the first fourteen digits of a LONGER run, so
+  //     a 15-digit id yields a stamp that is wrong by a decade and parses cleanly. Splitting the name
+  //     on non-digits makes every candidate a MAXIMAL run, which is the rule stated directly: a stamp
+  //     is fourteen digits with a non-digit on each side, never a window inside a longer number.
+  //   · VALIDATE, then require a plausible year. The candidate goes through `parseTimestamp`'s 14-digit
+  //     branch, so `_ckMk` refuses a date that does not round-trip; the year window then refuses the
+  //     in-range-but-absurd ones, because `_ckMk` is perfectly happy with year 0292.
+  //
+  //  TWO LAYOUTS, one device, and the split one is load-bearing: the capture host writes the 14 digits
+  //  contiguously (`..._20260610211539_PPG.txt`) and Polar Sensor Logger separates them
+  //  (`..._20260610_211539_PPG.txt`). Reading only the contiguous form made every PSL file parse to
+  //  `null` while its name still matched the device pattern, so the file was found and then dropped one
+  //  line later — quieter than not matching at all, and worth 0 usable PSL nights (found 2026-08-18).
+  //
+  //  Returns `{ tMs, stamp }`, or `null` when the name carries no readable stamp. `null` means the
+  //  filename cannot supply the anchor; the caller falls through to its own next source (§4) and never
+  //  fabricates one.
+  var CK_FSTAMP_MIN_YEAR = 1990, // below this a "stamp" is a serial or an id, not a capture date
+    CK_FSTAMP_MAX_YEAR = 2099;
+  function fileStamp(name) {
+    var s = String(name == null ? '' : name);
+    s = s.slice(s.lastIndexOf('/') + 1); // basename — a directory in the path may carry its own digits
+    var parts = s.split(/\D+/); // maximal digit runs; the extension and every separator fall out with it
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var cand = null;
+      if (/^\d{14}$/.test(parts[i])) cand = parts[i];
+      else if (/^\d{6}$/.test(parts[i]) && i > 0 && /^\d{8}$/.test(parts[i - 1])) cand = parts[i - 1] + parts[i];
+      if (cand === null) continue;
+      var y = +cand.slice(0, 4);
+      if (y < CK_FSTAMP_MIN_YEAR || y > CK_FSTAMP_MAX_YEAR) continue; // keep scanning left, do not abort
+      var p = parseTimestamp(cand);
+      if (p) return { tMs: p.tMs, stamp: cand };
+    }
+    return null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════════════
   //  HOST-DISCIPLINED TIME AXIS — hostAxis()      (WEARABLE-HOST-AXIS-2026-08-02-BRIEF)
   // ══════════════════════════════════════════════════════════════════════════════════════
   //  Every Polar-Sensor-Logger / capture-host stream carries TWO clocks on EVERY row:
@@ -2108,6 +2161,7 @@
     _ckDMY: _ckDMY,
     resolveDMY: resolveDMY,
     parseTimestamp: parseTimestamp,
+    fileStamp: fileStamp,
     hostAxis: hostAxis,
     // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
     // delegate by name, the way they already do for parseTimestamp.
@@ -13525,32 +13579,31 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     _ckNumEpoch = DexClock._ckNumEpoch,
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
-    parseTimestamp = DexClock.parseTimestamp;
+    parseTimestamp = DexClock.parseTimestamp,
+    fileStamp = DexClock.fileStamp;
   // Floating-ms date anchor (00:00) for a recording: filename 14-digit date, else
   // file.lastModified (as floating wall-clock), else null. Used for time-only rows.
-  /* §F2 (DEEP-AUDIT-III-FOLLOWUPS) — VALIDATE THE COMPONENTS, and ANCHOR the regex.
-     This surfaced as the ADJACENT finding when the audit refuted a different claim, so it never reached
-     the punch-list — two audit classes, zero tickets. Both defects are real and measured:
+  /* §F2 (DEEP-AUDIT-III-FOLLOWUPS) — VALIDATE THE COMPONENTS, and ANCHOR the regex. This surfaced as
+     the ADJACENT finding when the audit refuted a different claim, so it never reached the punch-list —
+     two audit classes, zero tickets. Both defects are real and measured:
        · `Date.UTC` SILENTLY ROLLS out-of-range components (Clock Contract §2.7), so a filename run of
          `20261332999999` (month 13, day 32) produced a night dated 2027-02-01, and `99999999999999`
          produced 10007-06-07. A fabricated instant, from a filename, with no flag.
        · the capture is UNANCHORED (class 12), so on a name carrying an 8-digit device serial the first
          14 consecutive digits found need not be the stamp at all.
-     `clock.js` already solved exactly this in `_ckMk` — a date that does not round-trip is refused —
-     so this validates the same way rather than inventing a second rule. Refusing returns null, which
-     `_o2DateAnchorMs` already treats as "date unknown"; that path is honest and already exercised. */
+     The fix used to live HERE, as a local round-trip check this node wrote for itself, and the comment
+     it wrote said where it belonged: `clock.js` already solved this in `_ckMk`. It now lives there, as
+     `DexClock.fileStamp` — §4's anchor source (2) with ONE owner, scanning from the right so a 14-digit
+     device id loses to the session stamp. This node delegates and keeps its own semantics: midnight of
+     the stamp's day, and null when the name carries no readable stamp, which `_o2DateAnchorMs` already
+     treats as "date unknown" over an honest, exercised path. The delegation also TIGHTENS the time
+     half — a stamp whose clock components are out of range (`20260610999999`) no longer yields its
+     date, because a filename that cannot state a time is not evidence of a day either. */
   function _o2DateAnchorMs(fname, file) {
-    var m = String(fname || '').match(/(?:^|[^0-9])(\d{14})(?:[^0-9]|$)/);
-    if (m) {
-      var s = m[1];
-      var _y = +s.slice(0, 4),
-        _mo = +s.slice(4, 6),
-        _d = +s.slice(6, 8);
-      var _t = Date.UTC(_y, _mo - 1, _d);
-      var _rt = new Date(_t);
-      // round-trip: a rolled component (month 13, Feb 30, day 32) cannot survive this
-      if (_rt.getUTCFullYear() === _y && _rt.getUTCMonth() === _mo - 1 && _rt.getUTCDate() === _d) return _t;
-      return null; // out-of-range stamp ⇒ date unknown, never a fabricated night
+    var fst = fileStamp(fname);
+    if (fst) {
+      var _sd = new Date(fst.tMs);
+      return Date.UTC(_sd.getUTCFullYear(), _sd.getUTCMonth(), _sd.getUTCDate());
     }
     if (file && file.lastModified) {
       var fl = _ckNumEpoch(file.lastModified);
@@ -13568,11 +13621,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // mis-placing an undated recording in crossnight/fusion at a real, wrong date. (Sibling
   // _o2DateAnchorMs already returns null here — this makes the two symmetric.)
   function _o2BinStartMs(fname, file) {
-    var m = String(fname || '').match(/(\d{14})/);
-    if (m) {
-      var p = parseTimestamp(m[1]);
-      if (p) return p.tMs;
-    }
+    // Via DexClock.fileStamp, so the stamp this reads is the one the sibling above reads: bounded at a
+    // whole token (a bare /(\d{14})/ took the first fourteen digits of a LONGER run) and scanned from
+    // the right (a 14-digit device id used to win over the session stamp beside it).
+    var fst = fileStamp(fname);
+    if (fst) return fst.tMs;
     if (file && file.lastModified) {
       var fl = _ckNumEpoch(file.lastModified);
       if (fl) return fl.tMs;

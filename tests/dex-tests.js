@@ -3821,6 +3821,52 @@
          as a date is precisely the defect ENGINE-VERIFICATION §1.1 found in `fnameStampMs`. */
     });
 
+    /* §4 anchor source (2) — the filename stamp, which until now had no owner and six readers. Four of
+       the six built the instant with a bare `Date.UTC` over digit slices, which §2.7 forbids, and all
+       six searched left to right. The corpus cannot witness this: 0 of 23843 capture filenames carry
+       two 14-digit runs or a run longer than 14, so every assertion below is a known answer over a
+       constructed name. The hazard the fix closes is latent, and the two names that carry it are
+       written down — one by `capture-host/writers.py file_stamp` (audit F5), one by DEEP-AUDIT-II §10.5. */
+    group('Clock Contract §4 · fileStamp reads the SESSION stamp, not the device id beside it', 'clock · known-answer', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.fileStamp !== 'function') {
+        T.skip('DexClock.fileStamp available', 'clock.js not loaded');
+        return;
+      }
+      var ms = function (n) {
+        var r = C.fileStamp(n);
+        return r ? r.tMs : null;
+      };
+      var iso = function (n) {
+        var r = C.fileStamp(n);
+        return r ? new Date(r.tMs).toISOString().slice(0, 19) : null;
+      };
+      // SCAN FROM THE RIGHT. A left-to-right reader keys this file to a session eighteen months away.
+      T.eq('a 14-digit device id loses to the session stamp beside it', iso('Polar_H10_20250101000000_20260725225058_ECG.txt'), '2026-07-25T22:50:58');
+      T.eq('the stamp it returns is the token it chose, not a slice', C.fileStamp('Polar_H10_20250101000000_20260725225058_ECG.txt').stamp, '20260725225058');
+      // BOTH LAYOUTS. The split one is Polar Sensor Logger's and reading only the contiguous form was
+      // worth 0 usable PSL nights (2026-08-18), so a narrowing here is a regression, not a tidy-up.
+      T.eq('the capture host writes the 14 digits contiguously', iso('Polar_Verity_Sense_AB12_20260610211539_PPG.txt'), '2026-06-10T21:15:39');
+      T.eq('Polar Sensor Logger separates them', iso('Polar_H10_02849638_20260617_010616_ACC.txt'), '2026-06-17T01:06:16');
+      T.eq('an O2Ring name whose serial is space-separated still reads', iso('O2Ring S 2100_20260511231000.csv'), '2026-05-11T23:10:00');
+      // VALIDATE. These three are the measured fabrications: `Date.UTC` rolls them onto real instants.
+      T.eq('month 13 day 32 refuses rather than becoming 2027-02-01', ms('x_20261332999999_PPG.txt'), null);
+      T.eq('fourteen nines refuse rather than becoming 10007-06-07', ms('x_99999999999999_PPG.txt'), null);
+      T.eq('an out-of-range TIME refuses too, not just an out-of-range date', ms('x_20260610996199_PPG.txt'), null);
+      // BOUND THE RUN. A bare /(\d{14})/ takes the first fourteen digits of a longer one.
+      T.eq('a 15-digit run is not a 14-digit stamp with a spare digit', ms('x_202606102115390_PPG.txt'), null);
+      // PLAUSIBLE YEAR — `_ckMk` is perfectly happy with year 0292, which is how the JS twin of the
+      // audit-F5 bug reported an 8-digit serial as a date.
+      T.eq('a year below 1990 refuses (the 0292 shape)', ms('Polar_H10_029201011999_11_ACC.txt'), null);
+      T.eq('1990 itself is INSIDE the window', iso('x_19900101000000_PPG.txt'), '1990-01-01T00:00:00');
+      T.eq('2099 is INSIDE the window', iso('x_20991231235959_PPG.txt'), '2099-12-31T23:59:59');
+      // A directory may carry digits of its own, and they are not this file's stamp.
+      T.eq('only the basename is read', ms('/caps/20260101000000/dir_x_PPG.txt'), null);
+      // §2.6 / §4 — an absent stamp stays visible. The caller falls through to its own next anchor.
+      T.eq('a name with no stamp is null, never now()', ms('waveform.txt'), null);
+      T.eq('a null name is null', ms(null), null);
+    });
+
     group('Clock Contract §3 · a locked DMY order refuses the row it cannot explain (mutate.mjs survivors)', 'clock · known-answer', function (T) {
       var C = env.DexClock;
       if (!C || typeof C._ckDMY !== 'function') {
@@ -70553,9 +70599,19 @@
       var srcs = env.sources || {};
       var src = srcs['oxydex-dsp.js'];
       if (src) {
-        // the anchor validates its components and no longer trusts a bare 14-digit run anywhere in the name
-        T.ok('§F2 · the date anchor round-trips its components before trusting them', /getUTCFullYear\(\) === _y && [\s\S]{0,120}getUTCDate\(\) === _d/.test(src), 'no round-trip validation found');
-        T.ok('§F2 · …and the 14-digit capture is ANCHORED (class 12)', /\(\?:\^\|\[\^0-9\]\)\(\\d\{14\}\)/.test(src), 'the capture is still unanchored');
+        /* §F2's two halves USED to be pinned here as source text — the local round-trip check and the
+           local digit-bounded capture, both written inside this node. The node's own comment said where
+           they belonged, and they have gone there: `DexClock.fileStamp` is §4's anchor source (2) with
+           one owner, and it adds what neither local copy had (a right-to-left scan, so a 14-digit device
+           id loses to the session stamp). So these two assertions pin the DELEGATION, and the
+           behavioural legs below pin the guarantee. Pinning the old shapes would now assert that a fix
+           was never finished. */
+        T.ok(
+          '§F2 · the date anchor reads the stamp through the shared parser',
+          /fileStamp = DexClock\.fileStamp/.test(src) && /fileStamp\(fname\)/.test(src),
+          'the node is not delegating to DexClock.fileStamp'
+        );
+        T.ok('§F2 · …and carries no second copy of the rule it used to own', src.indexOf('getUTCDate() === _d') === -1 && src.indexOf('(?:^|[^0-9])(\\d{14})') === -1, 'a local stamp parser is back');
         T.ok(
           '§F1.4 · the duration guard is two-sided (inflated as well as negative)',
           /_durInflated/.test(src) && /_durBad = !\(rawDurMs >= 0\) \|\| _durInflated/.test(src),
@@ -70563,9 +70619,21 @@
         );
         T.ok('§F1.4 · …and an inflated span is distinguishable from a non-monotonic one', /durationInflated/.test(src), 'no durationInflated field');
       }
-      // behavioural: the exact filenames the refutation measured
-      if (O && typeof O.parseCSV === 'function') {
-        T.ok('OxyDSP reachable for a behavioural check', true);
+      /* Behavioural, over the exact filenames the refutation measured plus the one the delegation adds.
+         What stood here was `T.ok('… reachable', true)` — an assertion that examined nothing, which is
+         how two source regexes came to be the whole of this group's §F2 leg. */
+      var B = ((env.OxyDex || O) && ((env.OxyDex || O)._bare || env.OxyDex || O)) || {};
+      T.ok('OxyDex._bare._o2DateAnchorMs / _o2BinStartMs reachable', typeof B._o2DateAnchorMs === 'function' && typeof B._o2BinStartMs === 'function', 'export them from oxydex-dsp.js');
+      if (typeof B._o2DateAnchorMs === 'function' && typeof B._o2BinStartMs === 'function') {
+        T.eq('a real O2Ring stamp still anchors the night', B._o2DateAnchorMs('O2Ring_20260610220000.csv', null), Date.UTC(2026, 5, 10));
+        T.eq('month 13 day 45 is DATE UNKNOWN, never a rolled instant', B._o2DateAnchorMs('O2Ring_20261345120000.csv', null), null);
+        T.eq('fourteen nines are DATE UNKNOWN, never 10007-06-07', B._o2DateAnchorMs('O2Ring_99999999999999.csv', null), null);
+        // class 12, now actually closed: a 14-digit device id must lose to the session stamp beside it.
+        T.eq('a 14-digit device id does not become the night date', B._o2DateAnchorMs('Polar_H10_20250101000000_20260725225058_ECG.txt', null), Date.UTC(2026, 6, 25));
+        T.eq('…and the .bin sibling reads the same stamp, to the second', B._o2BinStartMs('Polar_H10_20250101000000_20260725225058_ECG.txt', null), Date.UTC(2026, 6, 25, 22, 50, 58));
+        // The bare-run defect the sibling carried: fourteen digits taken out of a longer number.
+        T.eq('a 15-digit run is not a stamp with a spare digit', B._o2BinStartMs('O2Ring_202606102115390.bin', null), null);
+        T.eq('no stamp and no lastModified ⇒ null, never now()', B._o2BinStartMs('waveform.bin', null), null);
       }
     });
 

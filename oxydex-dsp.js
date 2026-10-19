@@ -241,32 +241,31 @@
     _ckNumEpoch = DexClock._ckNumEpoch,
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
-    parseTimestamp = DexClock.parseTimestamp;
+    parseTimestamp = DexClock.parseTimestamp,
+    fileStamp = DexClock.fileStamp;
   // Floating-ms date anchor (00:00) for a recording: filename 14-digit date, else
   // file.lastModified (as floating wall-clock), else null. Used for time-only rows.
-  /* §F2 (DEEP-AUDIT-III-FOLLOWUPS) — VALIDATE THE COMPONENTS, and ANCHOR the regex.
-     This surfaced as the ADJACENT finding when the audit refuted a different claim, so it never reached
-     the punch-list — two audit classes, zero tickets. Both defects are real and measured:
+  /* §F2 (DEEP-AUDIT-III-FOLLOWUPS) — VALIDATE THE COMPONENTS, and ANCHOR the regex. This surfaced as
+     the ADJACENT finding when the audit refuted a different claim, so it never reached the punch-list —
+     two audit classes, zero tickets. Both defects are real and measured:
        · `Date.UTC` SILENTLY ROLLS out-of-range components (Clock Contract §2.7), so a filename run of
          `20261332999999` (month 13, day 32) produced a night dated 2027-02-01, and `99999999999999`
          produced 10007-06-07. A fabricated instant, from a filename, with no flag.
        · the capture is UNANCHORED (class 12), so on a name carrying an 8-digit device serial the first
          14 consecutive digits found need not be the stamp at all.
-     `clock.js` already solved exactly this in `_ckMk` — a date that does not round-trip is refused —
-     so this validates the same way rather than inventing a second rule. Refusing returns null, which
-     `_o2DateAnchorMs` already treats as "date unknown"; that path is honest and already exercised. */
+     The fix used to live HERE, as a local round-trip check this node wrote for itself, and the comment
+     it wrote said where it belonged: `clock.js` already solved this in `_ckMk`. It now lives there, as
+     `DexClock.fileStamp` — §4's anchor source (2) with ONE owner, scanning from the right so a 14-digit
+     device id loses to the session stamp. This node delegates and keeps its own semantics: midnight of
+     the stamp's day, and null when the name carries no readable stamp, which `_o2DateAnchorMs` already
+     treats as "date unknown" over an honest, exercised path. The delegation also TIGHTENS the time
+     half — a stamp whose clock components are out of range (`20260610999999`) no longer yields its
+     date, because a filename that cannot state a time is not evidence of a day either. */
   function _o2DateAnchorMs(fname, file) {
-    var m = String(fname || '').match(/(?:^|[^0-9])(\d{14})(?:[^0-9]|$)/);
-    if (m) {
-      var s = m[1];
-      var _y = +s.slice(0, 4),
-        _mo = +s.slice(4, 6),
-        _d = +s.slice(6, 8);
-      var _t = Date.UTC(_y, _mo - 1, _d);
-      var _rt = new Date(_t);
-      // round-trip: a rolled component (month 13, Feb 30, day 32) cannot survive this
-      if (_rt.getUTCFullYear() === _y && _rt.getUTCMonth() === _mo - 1 && _rt.getUTCDate() === _d) return _t;
-      return null; // out-of-range stamp ⇒ date unknown, never a fabricated night
+    var fst = fileStamp(fname);
+    if (fst) {
+      var _sd = new Date(fst.tMs);
+      return Date.UTC(_sd.getUTCFullYear(), _sd.getUTCMonth(), _sd.getUTCDate());
     }
     if (file && file.lastModified) {
       var fl = _ckNumEpoch(file.lastModified);
@@ -284,11 +283,11 @@
   // mis-placing an undated recording in crossnight/fusion at a real, wrong date. (Sibling
   // _o2DateAnchorMs already returns null here — this makes the two symmetric.)
   function _o2BinStartMs(fname, file) {
-    var m = String(fname || '').match(/(\d{14})/);
-    if (m) {
-      var p = parseTimestamp(m[1]);
-      if (p) return p.tMs;
-    }
+    // Via DexClock.fileStamp, so the stamp this reads is the one the sibling above reads: bounded at a
+    // whole token (a bare /(\d{14})/ took the first fourteen digits of a LONGER run) and scanned from
+    // the right (a 14-digit device id used to win over the session stamp beside it).
+    var fst = fileStamp(fname);
+    if (fst) return fst.tMs;
     if (file && file.lastModified) {
       var fl = _ckNumEpoch(file.lastModified);
       if (fl) return fl.tMs;

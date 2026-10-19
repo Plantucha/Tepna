@@ -756,6 +756,95 @@ fold, asserted by `--group-subjects`.
 follows E1 and gets its own pre-statement. PPGDex uses the same route, but only one cohort on disk has a pleth
 channel. PPGDex therefore waits for MESA.
 
+## 26 · Pre-stated for the ECG change features (v28d, 2026-10-18, before any full ecg-delta run)
+
+**Question (owner, 2026-10-18): "Are you also using rr or delta hrv? That can have significant signal."** The `ecg-hrv`
+block summarises the RR series in windows. Its context layer gives change over time only as one centred ±30-epoch
+difference. The new `ecg-delta` block (`ecgd.*`, same beat input) adds two things:
+
+1. Differences of five `ecg-hrv` series: mean NN and ln RMSSD at 60 s, ln HF and ln LF/HF at 150 s, and DFA α1 at
+   300 s. Each series gets three differences: backward, forward, and against the mean of the previous 10 epochs.
+2. Beat-level values within the epoch: minimum NN, maximum NN, ln range, the HR surge and drop against the median of
+   the previous 60 s, and the fraction of beats ≥ 10 bpm above that median.
+
+Asking for both blocks computes `ecg-hrv` once, through a per-night memo. Smoke test on 3 SHHS nights: the `ecg.*`
+columns are bit-identical to the `ecg1` cache.
+
+**Arm D1.** Tag `ecg2` (`ecg-hrv,ecg-delta`), `--blocks ecg.,ecgd.`. Seqnet uses the same cohorts, folds, seed and
+class weights as E1 (§25). The paired comparison is D1 − E1 on the same nights (`paired.py`, bootstrap over nights).
+D1x is the blind Challenge test, paired with E1x.
+
+**Bands on Δκ (D1 − E1), with a 95 % CI that must exclude 0:**
+
+| Δκ | Reading |
+|---|---|
+| ≥ +0.02 | The change features carry signal the net did not learn |
+| +0.005 to +0.02 | Small gain |
+| within ±0.005 | No gain for the net |
+| < −0.005 | Harmful: noise columns |
+
+**Expectation: +0.000 to +0.015.** The seqnet sees the whole night in both directions, so it can learn most change on
+its own. The case for `ecg-delta` is the formula fit, which is the shipped model and cannot learn differences. A "no
+gain" here therefore does not drop the block from the formula fit. That fit gets its own pre-statement.
+
+## 27 · Owner amendment to §25/§26: no blind Challenge arm for ECG (2026-10-18, before any D1 result)
+
+**Ruling (owner, 2026-10-18):** there will be no blind Challenge test for ECG, because the external benchmark has no
+ECG line measured, so Challenge can be fully included in training. Challenge 2018 is blind because it is where the
+published external benchmark lives. That benchmark has no ECG line, so for the ECG arms Challenge 2018 is an ordinary cohort: it joins
+cross-validation, train and test folds, like every other cohort. **The oximetry ruling is unchanged.** O1 and O1x keep
+Challenge 2018 test-only and blind.
+
+**What changes (v28s):**
+
+- **E1 and D1** are cross-validated on `shhs,shhs2,ucddb,capslpdb,isruc,challenge` with the same folds, seed and
+  class weights. The E1x and D1x arms are dropped.
+- **E1 is rerun** on that cohort set, so D1 − E1 compares arms trained on identical data. The fold-0 E1 already
+  measured without Challenge stays on record: κ 0.625 against O1 0.693, Δ −0.068, CI [−0.074, −0.061].
+- **O1** is unchanged: same cohorts, fold 0 reused, folds 1–4 and the blind O1x still to run.
+- **E1 − O1** is still read on the paired nights (`paired.py`, intersection only). Challenge nights never pair,
+  because O1 never tests them in CV. The two arms now differ in training data as well as input, and the verdict
+  states that.
+
+**Bands unchanged.** §25 applies to E1 − O1 and §26 to D1 − E1. D1 − E1 is now additionally reported per cohort,
+including Challenge.
+
+**§25–§27 measured (v28s, 2026-10-19, five folds, argmax per epoch, paired bootstrap B = 1000):**
+D1c − E1c = **+0.019 [+0.017, +0.020]** on 8977 nights (Challenge in CV): §26 "Small gain", at the edge of ≥ +0.02 and
+above the stated +0.000–0.015. On oximetry's CV set (7981 nights, no Challenge): E1c 0.625, D1c 0.643, O1 0.690;
+E1c − O1 = −0.065 [−0.068, −0.062], D1c − O1 = −0.047 [−0.050, −0.044]. Oximetry is the stronger single signal.
+
+## 28 · Combined arm C1: oximetry + ECG (pre-stated 2026-10-19, before any C1 number)
+
+The Integrator question: does ECG add to oximetry, or only duplicate it?
+
+- **C1** = SeqNet on `oxy1` (minus `motion.*`, as O1) joined night by night with `ecg2r` (`ecg.*` + `ecgd.*`), presence
+  blocks `spo2, pulse, ecg, ecgd`. The join is lazy (both matrices read per batch, nothing new on disk), keeps only
+  nights cached under both tags, and refuses any night whose epoch count or labels differ.
+- Cohorts and folds as O1: `shhs, shhs2, ucddb, capslpdb, isruc`, five folds; Challenge stays blind (C1x = train on
+  the five, test on Challenge, scored against O1x).
+- Same seed, threads, class weight `none`, epochs, `--group-subjects` as every v28 arm.
+- **Caveat:** C1 trains only on nights with both signals, so it trains on fewer nights than O1. Every comparison is on
+  paired nights only.
+
+**Primary measure:** C1 − O1, paired, on the common nights. Secondary: C1 − D1c (what oximetry adds to ECG).
+
+| C1 − O1 | Reading |
+|---|---|
+| ≥ +0.02 | ECG carries signal oximetry lacks: build the Integrator on both |
+| +0.005 to +0.02 | Small gain: the Integrator is worth it only if ECG costs the user nothing extra |
+| within ±0.005 | ECG duplicates oximetry for staging |
+| < −0.005 | The extra columns hurt (width or fewer training nights) |
+
+**Expectation: +0.010 to +0.030.** HRV moves differently from SpO₂ around REM and wake, and D1c reaches 0.643 alone,
+so some of its signal should be independent of oximetry. A result below +0.005 would say most of D1c's signal is
+already in pulse rate from the oximeter.
+
+**§28 measured (v28c, 2026-10-19, all six jobs rc 0):** on 7981 paired CV nights C1 0.6995, O1 0.6899:
+**C1 − O1 = +0.0096 [+0.0083, +0.0109]** → "Small gain", just under the stated +0.010–0.030. C1 − D1c = +0.056
+[+0.054, +0.059]. Blind Challenge (994 nights): C1x 0.583 vs O1x 0.568, **+0.014 [+0.009, +0.019]**, same band.
+ECG adds a little to oximetry; most of the staging signal is already in the oximeter.
+
 ## 4 · Done when
 
 - [ ] the JS port reproduces the Python SpO₂-only κ (±0.02) on Challenge CV
