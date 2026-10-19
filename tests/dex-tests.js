@@ -21888,7 +21888,10 @@
           pHfAt >= 0 && pPeakAt > pHfAt && !(pVlfAt >= 0 && pPeakAt < pVlfAt),
           'hf@' + pHfAt + ' peak@' + pPeakAt
         );
-        T.ok('…and surfaces it as respRate, so the field is expressible at all (§1.6)', /respRate:\s*hfPeakF/.test(pLsBody));
+        // The regex admits a GUARD ahead of `hfPeakF` (PUNCH LIST #11 put one there: the HF band can
+        // now refuse, and respRate dies with its own input). What it pins is the SOURCE — respRate
+        // reads the HF argmax and nothing else — so a guard is allowed and a different peak is not.
+        T.ok('…and surfaces it as respRate, so the field is expressible at all (§1.6)', /respRate:[^\n]*\bhfPeakF\b/.test(pLsBody));
         // THE DECLINED PORT IS STILL DECLINED — no whole-spectrum peak, no peakBelowHF. This is the
         // assertion SYNTH-TEXTURE-FOLLOWUPS-II §2 actually bought, and it survives the amendment.
         T.ok('ppgdex still has NO global-peak / peakBelowHF path (the sub-HF-blind shape §2 declined)', !/peakBelowHF/.test(pLsBody) && !/globalPeak/.test(pLsBody));
