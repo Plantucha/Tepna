@@ -478,3 +478,49 @@ def _capture_status_is_not_leaked():
     yield
     capture.STATUS.clear()
     capture.STATUS.update(keep)
+
+
+# ── the process timezone ─────────────────────────────────────────────────────────────────────────
+import time as _time
+
+
+def _restore_process_timezone(before, names):
+    """Put `TZ` back to `before` and make the C library agree with it.
+
+    `TZ` in the environment and the zone the C library is USING are two different things, and only
+    `tzset()` moves the second. So `monkeypatch` cannot restore a zone: it puts the variable back and
+    leaves the library where the test left it.
+
+    `names` is `time.tzname` as it was before the test. It is the C library's own answer, and it is why
+    the environment alone cannot decide whether anything drifted: a test that sets `TZ`, calls `tzset()`
+    and lets `monkeypatch` undo the variable leaves the environment EQUAL to the snapshot and the
+    library four hours away from it. The teardown order makes that the ordinary case rather than the
+    exotic one — an autouse fixture is set up before the `monkeypatch` the test asked for, so it is
+    torn down after it."""
+    if os.environ.get("TZ") == before and _time.tzname == names:
+        return
+    if before is None:
+        os.environ.pop("TZ", None)
+    else:
+        os.environ["TZ"] = before
+    _time.tzset()
+
+
+@_pytest.fixture(autouse=True)
+def _process_timezone_is_not_leaked():
+    """Restore the process zone after every test, by the helper above.
+
+    A teardown that ends `monkeypatch.delenv("TZ", raising=False)` + `time.tzset()` does not put the
+    zone back. With `TZ` absent the C library falls back to `/etc/localtime`, so a suite launched
+    `TZ=UTC` runs every later file in the box's own zone while `os.environ["TZ"]` still reads `UTC`.
+    Measured on main at `85355bd91`: `TZ=UTC pytest tests/test_nightqc.py
+    tests/test_solid_night_inputs.py` → `1 failed, 719 passed`, and the failing test passes alone.
+    `test_the_CLOCKSYNC_READER_DECLARES_ITS_ENCODING` compares a parent-process `datetime.timestamp()`
+    against a subprocess that reads `TZ` from the environment, so the two disagree by the leaked offset.
+    Under xdist the two files usually sit on different workers, which is why it moved from run to run.
+
+    The zone is process state, so this belongs beside the other leak guards above rather than in each
+    file that touches `TZ`."""
+    before, names = os.environ.get("TZ"), _time.tzname
+    yield
+    _restore_process_timezone(before, names)
