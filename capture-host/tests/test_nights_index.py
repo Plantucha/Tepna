@@ -1833,6 +1833,24 @@ def test_BOTH_DAYTIME_EDGES_ARE_INCLUSIVE_ONE_SIDE_ONLY(tmp_path):
         assert got is want, f"a start at {hhmmss[:2]}:00 read daytime={got}: {why}"
 
 
+def test_A_CHAIN_THAT_REACHES_THE_NIGHT_IS_NOT_DAYTIME(tmp_path):
+    """The flag reads EVERY start in the chain, not the first. Measured on vigil 2026-10-19: the daemon
+    writes a session file every hour, so each recording chained from an afternoon start into the night,
+    and a flag on the first start hid four PASS verdicts behind "daytime, not judged"."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    # 13:00 → last write 22:30, then 22:30 → 06:00: one chain, gap 0.
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010130000_ECG.txt", "t\n1\n", "20261010223000")
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010223000_ECG.txt", "t\n1\n", "20261011060000")
+    d = os.path.join(c, "2026-10-10")
+
+    recs = ni._recordings(root)
+    assert len(recs) == 1 and len(recs[0][1]) == 2, recs
+    row = ni.night_entry(root, d, None, recs[0][1])
+    assert row["recording_start"].endswith("13:00"), row["recording_start"]
+    assert row["daytime"] is False, "a chain with a 22:30 start reaches the night"
+
+
 # ── a UTC-frame read is only visible from a zone that is not UTC ─────────────────────────────────
 #
 # 🔴 THE RUNNER'S OWN ZONE DECIDES WHETHER THESE MUTANTS CAN BE SEEN. `fromtimestamp(edge, utc)`

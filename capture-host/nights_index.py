@@ -632,7 +632,15 @@ def night_entry(
         # flag, and its files are rightly admitted; it is a second RECORDING in that band
         # and `recording_start` is what distinguishes it. Flagging it would need a wear rule nobody has
         # given — `_recordings`' docstring and §⑤ both record that it is open.
-        out["daytime"] = nightqc._DAYTIME_BEGIN_H <= began.hour < nightqc._DAYTIME_END_H
+        #
+        # 🔴 EVERY START, NOT THE FIRST. A recording is a CHAIN, and on vigil the daemon writes a session
+        # file every hour of the day, so from 2026-10-18 each chain began in the afternoon and ran into
+        # the night: every row read daytime, and the page hid PASS verdicts for 10-14 to 10-17 behind
+        # "not judged". A chain is daytime only when no session in it starts outside the window.
+        out["daytime"] = all(
+            nightqc._DAYTIME_BEGIN_H <= _dt.datetime.fromtimestamp(t, _dt.timezone.utc).hour < nightqc._DAYTIME_END_H
+            for t in stamps
+        )
     # THE RECORDING'S FOLDER SET, ASKED OF THE JUDGE ONCE PER NIGHT. Once, because `recording_scope`
     # counts files per folder and `_expand` is called per node per pattern — asking it there would pay
     # that walk dozens of times against a deadline this function is explicitly budgeted by.
