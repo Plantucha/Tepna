@@ -51,8 +51,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "de78c455b7bf",
-        "computeHash": "4abb403048cb"
+        "manifestHash": "3aa6c0724a1a",
+        "computeHash": "780042f7c44b"
       },
       "evidence": {
         "envelopeRef": null,
@@ -81,8 +81,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "de78c455b7bf",
-        "computeHash": "4abb403048cb"
+        "manifestHash": "3aa6c0724a1a",
+        "computeHash": "780042f7c44b"
       },
       "evidence": {
         "envelopeRef": null,
@@ -215,6 +215,7 @@
         "rmssd": 3.8,
         "sdnn": 21.7,
         "lfhf": 3.69,
+        "spanSec": 37.35,
         "motionIndex": null,
         "ledAgreementPct": 100,
         "position": "unknown",

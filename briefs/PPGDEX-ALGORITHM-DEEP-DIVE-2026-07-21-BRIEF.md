@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #2 treatment (2) LANDED (#3687).** DFA-α1 and sample entropy now segment at a dropped interval and pool inside the estimator. Both had read `null` on every Verity night of this corpus, so neither had ever shipped a value. Treatment (3) stays open, because `cvhrFromNN` reaches ECGDex. Status stays IN-PROGRESS. · **MEASURED 2026-10-19 (Magpie): #10 is NOT SHIPPED — see §✗ #10.** The group delay the row names is real and measured. Centring the ONE-BEAT average reads a planted 48 bpm waveform as 106.57 bpm, the 2× harmonic. Centring the short average alone is safe and changes nothing the acceptance endpoint can see: the jitter median reads 4.93 ms over nine nights for all three variants. The symmetric window the row pairs with the change has nothing to find. The code is unchanged and the item reads ✗ in the landing order. Status stays IN-PROGRESS. **Residue:** 2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic
+**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #2 treatment (2) LANDED (#3687).** DFA-α1 and sample entropy now segment at a dropped interval and pool inside the estimator. Both had read `null` on every Verity night of this corpus, so neither had ever shipped a value. Treatment (3) stays open, because `cvhrFromNN` reaches ECGDex. Status stays IN-PROGRESS. · **MEASURED 2026-10-19 (Magpie): #10 is NOT SHIPPED — see §✗ #10.** The group delay the row names is real and measured. Centring the ONE-BEAT average reads a planted 48 bpm waveform as 106.57 bpm, the 2× harmonic. Centring the short average alone is safe and changes nothing the acceptance endpoint can see: the jitter median reads 4.93 ms over nine nights for all three variants. The symmetric window the row pairs with the change has nothing to find. The code is unchanged and the item reads ✗ in the landing order. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #11 LANDED.** A band whose upper edge sits at or below the covered span’s resolution floor now reads `null` with a named reason, and a band that loses only its lower edge keeps its value and carries `spanSec`. Measured over the Verity nights of this corpus, no epoch refuses — the shortest covered span sits well above every band’s threshold — while every band-reporting epoch carries a truncated VLF that now reports its support. §#11 holds the counts and the spans. #11 landed ahead of #5, which is the ACC item and sits in another lane. Status stays IN-PROGRESS. **Residue:** 2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -298,7 +298,7 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | 8 | **`morph.pre` 0.15 → 0.50 s** (or feed it `det.feet`) | `ppgdex-morph.js:39` | `riseTimeMs`/`crestTimeMs` stop being pinned to the window (147.4 ms ceiling vs 296 ms true); fixes `augmentationIndexPct`, `reflectionIndex`, SDPPG a-wave | Isolated to one node — cheapest gate in the list | Very high |
 | 9 | **Autogain step detect + repair before filtering** — 39 steps/night at 5–25× pulse AC, and `filtfilt` is zero-phase so ringing propagates **both** directions in time | `:730` pre-filter | Removes bidirectional ringing artefacts around each step | One verifier measured net benefit ≈ 0; **measure before merging** | Medium — gated on E-3 |
 | 10 | **Centred TERMA moving averages** + symmetric search window — **MEASURED 2026-10-19, NOT SHIPPED** (§#10 below) | `:2178-2179`, `:2379` (the row's `:827-836`, `:656` are pre-#2333 anchors) | `movavg` is trailing, so W1/W2 impose 57 ms / 335 ms group delay; Elgendi specifies centred | Centring the ONE-BEAT average reads a planted 48 bpm as 106.57 bpm; centring the short one alone changes nothing the endpoint can see | High |
-| 11 | **Epoch validity by time + per-band minimum durations** | new | Converts "we computed rMSSD" into a bounded claim; stops silently reporting boundary-limited HF | Some nights emit `null` where they emitted a number — correct, but consumer-visible | Very high |
+| 11 ✅ | **Epoch validity by time + per-band minimum durations** — **EXECUTED 2026-10-19, see below** | new | Converts "we computed rMSSD" into a bounded claim; stops silently reporting boundary-limited HF | Some nights emit `null` where they emitted a number — correct, but consumer-visible | Very high |
 | 12 | **Fix the `:161` comment** — it says *"three co-located photodiodes"*; it is **one** photodiode and three LED pairs, and the site is the upper arm, not the wrist | `:161` | Documentation correctness (§1.1) | None | Very high |
 
 ### ⚠️ #8 has a PRECONDITION — measured 2026-08-19, before implementing it
@@ -639,7 +639,7 @@ which named #1614 in one command — cheap only because the source comment cites
 ---
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ◐ → 10 ✗ → 5 → 11 → [9 experiment]` *(#10 reads ✗: measured 2026-10-19 and not shipped. One half breaks beat detection at 48 bpm. The other half changes nothing the acceptance endpoint can see. #2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ◐ → 10 ✗ → 11 ✅ → 5 → [9 experiment]` *(#10 reads ✗: measured 2026-10-19 and not shipped. One half breaks beat detection at 48 bpm. The other half changes nothing the acceptance endpoint can see. #2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #11 landed ahead of #5, which is the ACC item and sits in another lane. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
 
@@ -763,6 +763,62 @@ defect that holds for less than half the night, and the mean lets one clean hour
 with no scorable window carries `snr: null` and `nWindows: 0`, never `0`. `pickChannel` reads finiteness
 rather than ordering, because `null > -Infinity` is TRUE in JavaScript — so the retired comparison would
 have handed the reference slot to an unscorable channel ahead of a measured zero.
+
+### ✅ #11 EXECUTED 2026-10-19 — the gate was a beat COUNT, and the bands now answer to the span
+
+`buildEpochs` cuts 300 s windows by the clock (`for (let e0 = 0; e0 < tEnd; e0 += epLen)`) and drops an
+epoch only at `idx.length < 5`. `lombScargle` refuses only at `nn.length < 8`. Neither gate reads a
+DURATION, so an epoch holding 8 beats across 20 s reported `vlf`, `lf` and `hf` as if 300 s of signal
+stood behind them.
+
+**The criterion, pre-stated.** A covered span of `S` seconds resolves nothing below `1/S`. A band whose
+UPPER edge sits at or below that floor holds no resolvable bin at all, so it reads `null` with
+`bandReason: 'span-below-band-resolution'` — never `0` (§∅). A band that loses only its LOWER edge counts
+as truncation, not absence: reduced coverage annotates (owner 2026-09-17), so it keeps its value and
+carries `spanSec` beside it. The band edges alone fix the refusal thresholds: VLF refuses at or below
+25 s, LF at or below 6.67 s, HF at or below 2.5 s.
+
+**What dies with a refused band.** `totalPower` means the sum of the reported bands — the Task-Force
+identity the suite asserts — so a total over the surviving subset would under-report by exactly the
+refused band, and it refuses alongside any of them. `lfhf`, `lfnu` and `hfnu` need lf AND hf. `respRate`
+is the HF argmax. Each reads `null` when its own inputs do. The epoch projection in the export carries
+`spanSec` and, when it fires, `bandReason`; a key absent from a full-support path keeps the shape
+byte-stable, exactly as `cvhrReason` and `ppiConfReason` already do in this file.
+
+**Measured over 1099 epochs from 32 sessions of the box corpus**, counted at the shipped gate's own
+output: 1098 report at least one band. The shortest covered span runs 35 s, so **this corpus refuses
+nothing** — the change buys a bound, not a repair of a value anyone has seen. What it changes on every
+night is the annotation: 1098 of 1098 band-reporting epochs carry a VLF whose LOWER edge needs 333 s
+against a median covered span of 299 s, so every reported VLF sits truncated, and now says so by carrying
+its span. Ten epochs cover under 120 s and two cover under 60 s. HF is never span-limited anywhere in the
+corpus.
+
+**VLF annotates rather than refuses, and that is deliberate.** The tempting remedy — fall back to the
+whole-record spectrum for the low band — reaches for a number this programme already rejected.
+`ppgdex-dsp.js` records that split as a grid lottery, with `df` pinned at 0.002 Hz against a night's
+intrinsic ~3.8e-5 Hz, which is why the deep audit moved the primary band set ONTO the 5-minute epoch
+median. Nothing honest stands ready to swap in, so the epoch VLF keeps its truncated value and reports
+the support it rests on.
+
+**No committed fixture moved a band value.** `tools/regen-ppgdex-goldens.mjs` moved 6 fixtures and the
+census names only `manifestHash`, `computeHash` and the new `spanSec`
+(`timeseries.epochs.0.spanSec: undefined → 37.35`). So the gates cannot witness this change on their own,
+and two seeded tests carry it instead.
+
+**The witness is a PAIR, because a refusal and a measured zero look alike.** `JSON.stringify(NaN)` reads
+`null`, so an assertion comparing a band set through it can never fail. A flat 8-beat series spaces its
+beats 1 s apart, spans 7 s and floors at 0.1429 Hz: VLF refuses, LF survives by 0.007 Hz and HF survives
+wide, so the set reads `[null, 0, 0]` — one band absent, two measuring a real zero. A new flat 400-beat
+series spans 399 s, floors at 0.0025 Hz under VLF's own lower edge, and reports every band as `0` while
+attaching no reason. The first proves that a band with no resolvable bin refuses; the second proves that a
+resolvable band does NOT refuse merely because its answer is zero.
+
+**What this item does NOT ship.** The row pairs the duration gate with per-band minimum durations well
+above the resolution floor — three cycles of a band's lowest frequency, for instance. That threshold nulls
+the VLF of every epoch in this corpus, and the paragraph above says why nothing honest replaces it. The
+inner-gap threshold also stays open: 5 of the 1098 epochs report across a gap over 60 s, and picking the
+number from those 5 would read a threshold off the data it judges (§🧾). Both wait for a measured gap
+distribution, and the gap one wants a residue row once somebody measures it.
 
 ## 5 · Acceptance / Done-when
 

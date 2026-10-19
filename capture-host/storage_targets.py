@@ -305,13 +305,24 @@ def due(schedule: dict, now: _dt.datetime, last_run: _dt.datetime | None) -> boo
     `after_settle` — always eligible; the archive poller's own settle check is the real gate.
     `daily` — inside [at, at+window_min) and not already run since that window opened. Anchoring on the
     WINDOW OPENING (rather than "≥24 h since last run") means a box that was asleep or restarted at the
-    wrong moment still offloads today instead of drifting a little later every day."""
+    wrong moment still offloads today instead of drifting a little later every day.
+
+    THE WINDOW WRAPS MIDNIGHT, and it did not. `validate_schedule` accepts any `at` and a `window_min`
+    up to 1440, so `[at, at+window_min)` crosses 00:00 for every evening schedule — and an `opened`
+    built on TODAY's date put `now` BEFORE the opening for the whole post-midnight half, which this
+    function read as "not yet due" and dropped. A 23:00 window ran for one hour instead of two; a
+    1440-minute window ran as `[at, 24:00)`. `cpap_harvest.due_now` carries the fix for this exact
+    shape with its own audit citation (CAPTURE-HOST-DEEP-AUDIT §E4) and this one never got it. Every
+    test here picked 09:00 or 03:30, which cannot wrap, so nothing observed the clip."""
     if schedule.get("mode") != "daily":
         return True
     hh, mm = (int(x) for x in schedule["at"].split(":"))
     opened = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
     if now < opened:
-        return False
+        # Before `at` on the clock face, so the most recent opening was YESTERDAY's. The far-edge test
+        # below still closes the window, which is what keeps a non-wrapping schedule unchanged: at
+        # 08:59 under a 09:00 window the previous opening is 23 h 59 min old and fails it.
+        opened -= _dt.timedelta(days=1)
     if (now - opened).total_seconds() >= schedule.get("window_min", 120) * 60:
         return False
     return last_run is None or last_run < opened
