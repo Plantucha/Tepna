@@ -381,9 +381,11 @@ def test_a_list_grown_INSIDE_the_window_is_named_by_file_and_line(tmp_path, monk
 def test_the_row_carries_RSS_beside_the_traced_bytes(tmp_path):
     """The point of the sampler: one row, both quantities, so a reader can compare them at all."""
     st = tmp_path / "status"
-    st.write_text("Name:\tpython3\nVmRSS:\t 262144 kB\nRssAnon:\t 245760 kB\nRssFile:\t  16384 kB\n")
+    st.write_text(
+        "Name:\tpython3\nVmRSS:\t 262144 kB\nRssAnon:\t 245760 kB\nRssFile:\t  16384 kB\nVmSwap:\t  94208 kB\n"
+    )
     rss = capture.proc_rss_kb(str(st))
-    assert rss == {"VmRSS": 262144, "RssAnon": 245760, "RssFile": 16384}
+    assert rss == {"VmRSS": 262144, "RssAnon": 245760, "RssFile": 16384, "VmSwap": 94208}
     row = capture.heap_report_row("2026-09-25T00:21:01", 28751120, 137480083, 1076838, {}, [], rss=rss)
     assert row["rss_kb"]["RssAnon"] == 245760
     assert row["traced_bytes"] == 28751120, "both live on the row — comparing them is the whole point"
@@ -393,9 +395,9 @@ def test_an_UNREADABLE_status_file_is_None_per_key_and_never_zero(tmp_path):
     """§∅. A kernel without `RssAnon` and a process using no anonymous memory must not produce the same
     row — and 0 would read as the second while meaning the first."""
     rss = capture.proc_rss_kb(str(tmp_path / "does-not-exist"))
-    assert rss == {"VmRSS": None, "RssAnon": None, "RssFile": None}
+    assert rss == {"VmRSS": None, "RssAnon": None, "RssFile": None, "VmSwap": None}
     row = capture.heap_report_row("t", 1, 2, 3, {}, [], rss=rss)
-    assert row["rss_kb"] == {"VmRSS": None, "RssAnon": None, "RssFile": None}
+    assert row["rss_kb"] == {"VmRSS": None, "RssAnon": None, "RssFile": None, "VmSwap": None}
     assert 0 not in row["rss_kb"].values(), "unreadable is not zero"
 
 
@@ -404,7 +406,7 @@ def test_an_ABSENT_key_is_None_while_its_siblings_are_read(tmp_path):
     other two. The row must carry what was read and null what was not."""
     st = tmp_path / "status"
     st.write_text("VmRSS:\t 100 kB\nRssFile:\t 40 kB\n")
-    assert capture.proc_rss_kb(str(st)) == {"VmRSS": 100, "RssAnon": None, "RssFile": 40}
+    assert capture.proc_rss_kb(str(st)) == {"VmRSS": 100, "RssAnon": None, "RssFile": 40, "VmSwap": None}
 
 
 def test_a_line_whose_UNIT_is_not_kB_is_refused_rather_than_read_as_kB(tmp_path):
@@ -423,7 +425,7 @@ def test_the_row_defaults_to_NULL_RSS_when_the_caller_passes_none(tmp_path):
     builds a valid row — and that row says the RSS is unknown rather than omitting the field, which
     would leave a reader unable to tell an old row from a failed read."""
     row = capture.heap_report_row("t", 1, 2, 3, {}, [])
-    assert row["rss_kb"] == {"VmRSS": None, "RssAnon": None, "RssFile": None}
+    assert row["rss_kb"] == {"VmRSS": None, "RssAnon": None, "RssFile": None, "VmSwap": None}
 
 
 # ── PER-SUBSYSTEM ATTRIBUTION: who decodes, how often, and who holds the big containers ──────────

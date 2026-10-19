@@ -24,7 +24,9 @@ What that work costs in the PARENT, measured, is why it moves:
 A child's peak returns to the kernel when the child exits. That is the whole claim of this module.
 """
 
+import ctypes
 import os
+import platform
 import traceback
 from typing import Any
 
@@ -32,6 +34,42 @@ import loss_audit
 import nightqc
 import solid_night
 import stitch_31d
+
+
+#: `ioprio_set(2)` by architecture. Python has no wrapper, and the number differs per architecture, so an
+#: unlisted one is not guessed: the child keeps the default disk class and says so in the return value.
+_IOPRIO_SET_NR = {"x86_64": 251, "aarch64": 30}
+#: IOPRIO_CLASS_IDLE (3) in the class bits (13 and up): disk time only when no other process asks.
+#: mq-deadline, the scheduler on vigil's disk, honours the class.
+_IOPRIO_IDLE = 3 << 13
+_IOPRIO_WHO_PROCESS = 1
+
+
+def lower_priority(machine: "str | None" = None, libc: Any = None) -> dict:
+    """The child's initializer: lowest CPU priority and the IDLE disk class, before any work runs.
+
+    🔴 WHY. A child's memory leaves with the child, but its disk and CPU load land on the box while it
+    runs, and the box is the capture host. On vigil 2026-10-19 three PASS verdicts each stitched 19 GB
+    in this child while devices recorded, the disk queue held the capture files' fsyncs for up to
+    1.9 s, and the daemon's event loop stalled 15.7, 25.1 and 25.4 s. The recording is the tenant this
+    box exists for; a verdict that lands a minute later costs nothing.
+
+    Returns `{"nice": <new niceness> | None, "ioprio": "idle" | None}`. `None` is "not applied", never a
+    default: a refused call and an unknown architecture both leave the child at the inherited priority."""
+    out: dict = {"nice": None, "ioprio": None}
+    try:
+        out["nice"] = os.nice(19)
+    except OSError:
+        pass  # refused: the child runs at the inherited niceness
+    nr = _IOPRIO_SET_NR.get(machine if machine is not None else platform.machine())
+    if nr is not None:
+        try:
+            lib = libc if libc is not None else ctypes.CDLL(None, use_errno=True)
+            if lib.syscall(nr, _IOPRIO_WHO_PROCESS, 0, _IOPRIO_IDLE) == 0:
+                out["ioprio"] = "idle"
+        except (OSError, AttributeError):
+            pass  # no libc syscall entry here: the inherited disk class stands
+    return out
 
 
 def scan_night(night_dir: str, devices: list) -> dict:

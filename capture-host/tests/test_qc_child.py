@@ -336,3 +336,67 @@ def test_verdict_sample_without_a_checkout_carries_a_null_commit_and_a_now_stamp
     v = json.loads(qc_child._verdict_sample())
     assert v["producedBy"]["commit"] is None and v["producedBy"]["commitReason"]
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", v["at"])
+
+
+# ── lower_priority: the child yields the box to the recording (vigil 2026-10-19) ──
+
+
+class _Libc:
+    def __init__(self, rc=0):
+        self.rc, self.calls = rc, []
+
+    def syscall(self, *a):
+        self.calls.append(a)
+        return self.rc
+
+
+def test_lower_priority_sets_nice_19_and_the_idle_disk_class(monkeypatch):
+    asked = []
+    monkeypatch.setattr(qc_child.os, "nice", lambda n: asked.append(n) or 19)
+    libc = _Libc()
+    assert qc_child.lower_priority("x86_64", libc) == {"nice": 19, "ioprio": "idle"}
+    assert asked == [19]
+    # ioprio_set(IOPRIO_WHO_PROCESS, self, IOPRIO_CLASS_IDLE << 13)
+    assert libc.calls == [(251, 1, 0, 3 << 13)]
+    libc = _Libc()
+    qc_child.lower_priority("aarch64", libc)
+    assert libc.calls == [(30, 1, 0, 24576)]
+
+
+def test_lower_priority_reads_the_running_machine_when_none_is_named(monkeypatch):
+    monkeypatch.setattr(qc_child.os, "nice", lambda n: 19)
+    monkeypatch.setattr(qc_child.platform, "machine", lambda: "x86_64")
+    libc = _Libc()
+    qc_child.lower_priority(None, libc)
+    assert libc.calls[0][0] == 251
+
+
+def test_lower_priority_says_not_applied_rather_than_guessing(monkeypatch):
+    def refused(n):
+        raise PermissionError("no")
+
+    monkeypatch.setattr(qc_child.os, "nice", refused)
+    libc = _Libc()
+    assert qc_child.lower_priority("riscv64", libc) == {"nice": None, "ioprio": None}
+    assert libc.calls == [], "an unlisted architecture's syscall number is never guessed"
+    assert qc_child.lower_priority("x86_64", _Libc(rc=-1))["ioprio"] is None
+
+    class NoSyscall:
+        pass
+
+    assert qc_child.lower_priority("x86_64", NoSyscall())["ioprio"] is None
+
+
+def test_lower_priority_loads_libc_itself_when_none_is_given(monkeypatch):
+    monkeypatch.setattr(qc_child.os, "nice", lambda n: 19)
+    libc = _Libc()
+    seen = []
+    monkeypatch.setattr(qc_child.ctypes, "CDLL", lambda name, use_errno: seen.append((name, use_errno)) or libc)
+    assert qc_child.lower_priority("x86_64")["ioprio"] == "idle"
+    assert seen == [(None, True)]
+
+    def gone(name, use_errno):
+        raise OSError("no libc")
+
+    monkeypatch.setattr(qc_child.ctypes, "CDLL", gone)
+    assert qc_child.lower_priority("x86_64")["ioprio"] is None

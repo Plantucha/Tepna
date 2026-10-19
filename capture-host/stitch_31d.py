@@ -190,6 +190,49 @@ def _gap_row(ncols: int, delimiter: str, night: str) -> str:
     return delimiter.join(cells) + "\n"
 
 
+#: Beside each tool's outputs: what the last stitch read, and the manifest it wrote. A stitch whose
+#: inputs have not moved since is skipped. Measured on vigil 2026-10-19: every PASS verdict rewrote
+#: all six tools, 19 GB, even when the re-judged night was already solid and the set had not changed.
+KEY_NAME = "STITCH-KEY.json"
+
+
+def _sources(captures_dir: str, patterns: tuple[str, ...], nights: list[str]) -> dict[str, list]:
+    """`{pattern: [[night, name, size, mtime_ns] | [night, None, None, None], ...]}` — what a stitch would read.
+
+    Stats only, never the data, so a skipped stitch costs a directory listing per night."""
+    out: dict[str, list] = {}
+    for pattern in patterns:
+        rows: list = []
+        for night in nights:
+            src = _find_input(os.path.join(captures_dir, night), pattern)
+            try:
+                st = os.stat(src) if src is not None else None
+            except OSError:
+                st = None
+            if st is None or src is None:
+                rows.append([night, None, None, None])
+            else:
+                rows.append([night, os.path.basename(src), st.st_size, st.st_mtime_ns])
+        out[pattern] = rows
+    return out
+
+
+def _stored(tool_dir: str, sources: dict[str, list], patterns: tuple[str, ...]) -> dict[str, Any] | None:
+    """The manifest the last stitch wrote, when it read exactly `sources` and every output is still there."""
+    try:
+        with open(os.path.join(tool_dir, KEY_NAME), encoding="utf-8") as fh:
+            key = json.load(fh)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(key, dict) or key.get("sources") != sources:
+        return None
+    for pattern in patterns:
+        if not os.path.exists(os.path.join(tool_dir, pattern.replace("*", "STITCHED"))):
+            return None
+    manifest = key.get("manifest")
+    return manifest if isinstance(manifest, dict) else None
+
+
 def stitch_tool(
     captures_dir: str,
     tool_dir: str,
@@ -202,8 +245,21 @@ def stitch_tool(
     file: header from the first contributing night's file, data rows appended
     in chronological night order. Nights with no matching file get a null gap
     marker row instead of data.
+
+    🔴 STREAMED, ONE LINE AT A TIME. This read every row of 31 nights into one list before writing:
+    the H10 ECG output alone is 2.8 GB of text, so the child's peak was several times that. On vigil
+    2026-10-19 that peak swapped the capture daemon out, and its event loop stalled 15.7, 25.1 and
+    25.4 s. Each output is written to a temporary name and renamed when complete, so a reader never
+    sees half a file. A night that fails mid-read is cut back to where it started and becomes a gap.
     """
     os.makedirs(tool_dir, exist_ok=True)
+    sources = _sources(captures_dir, patterns, nights)
+    stored = _stored(tool_dir, sources, patterns)
+    if stored is not None:
+        return stored
+    key_path = os.path.join(tool_dir, KEY_NAME)
+    if os.path.exists(key_path):
+        os.remove(key_path)  # a key must never outlive the outputs it describes
     manifest: dict[str, Any] = {
         "tool": TOOL,
         "nights": nights,
@@ -214,52 +270,44 @@ def stitch_tool(
         # Derive a stable output filename from the pattern (strip the *).
         out_name = pattern.replace("*", "STITCHED")
         out_path = os.path.join(tool_dir, out_name)
+        tmp_path = out_path + ".tmp"
         contributing: list[str] = []
         gaps: list[str] = []
-        header: str | None = None
         # (delimiter, column count), set with the first header; a gap row needs both.
         fmt: tuple[str, int] | None = None
-        rows: list[str] = []
 
-        for night in nights:
-            night_dir = os.path.join(captures_dir, night)
-            src = _find_input(night_dir, pattern)
-            if src is None:
-                gaps.append(night)
-                # Gap row needs column count; use the header's if known.
-                if fmt is not None:
-                    rows.append(_gap_row(fmt[1], fmt[0], night))
-                continue
-            try:
-                with open(src, encoding="utf-8", errors="replace") as fh:
-                    lines = fh.readlines()
-            except OSError:
-                gaps.append(night)
-                if fmt is not None:
-                    rows.append(_gap_row(fmt[1], fmt[0], night))
-                continue
-            if not lines:
-                gaps.append(night)
-                if fmt is not None:
-                    rows.append(_gap_row(fmt[1], fmt[0], night))
-                continue
-            file_header = lines[0].rstrip("\n")
-            if header is None:
-                header = file_header
-                delimiter = _detect_delimiter(header)
-                fmt = (delimiter, len(header.split(delimiter)))
-            contributing.append(night)
-            # Append data rows only (skip this file's header).
-            for line in lines[1:]:
-                stripped = line.rstrip("\n")
-                if stripped:
-                    rows.append(stripped + "\n")
-
-        # Write the concatenated file.
-        with open(out_path, "w", encoding="utf-8") as out:
-            if header is not None:
-                out.write(header + "\n")
-            out.writelines(rows)
+        with open(tmp_path, "w", encoding="utf-8") as out:
+            for night in nights:
+                night_dir = os.path.join(captures_dir, night)
+                src = _find_input(night_dir, pattern)
+                mark, held = out.tell(), fmt
+                try:
+                    if src is None:
+                        raise FileNotFoundError(night_dir)
+                    with open(src, encoding="utf-8", errors="replace") as fh:
+                        first = fh.readline()
+                        if not first:
+                            raise EOFError(src)
+                        if fmt is None:
+                            header = first.rstrip("\n")
+                            delimiter = _detect_delimiter(header)
+                            fmt = (delimiter, len(header.split(delimiter)))
+                            out.write(header + "\n")
+                        for line in fh:
+                            stripped = line.rstrip("\n")
+                            if stripped:
+                                out.write(stripped + "\n")
+                except (OSError, EOFError):
+                    out.seek(mark)
+                    out.truncate()
+                    fmt = held  # a header this night wrote went with it
+                    gaps.append(night)
+                    # Gap row needs column count; use the header's if known.
+                    if fmt is not None:
+                        out.write(_gap_row(fmt[1], fmt[0], night))
+                    continue
+                contributing.append(night)
+        os.replace(tmp_path, out_path)
 
         manifest["inputs"][pattern] = {
             "output": out_name,
@@ -267,6 +315,9 @@ def stitch_tool(
             "gaps": gaps,
         }
 
+    with open(key_path, "w", encoding="utf-8") as fh:
+        json.dump({"sources": sources, "manifest": manifest}, fh)
+        fh.write("\n")
     return manifest
 
 
