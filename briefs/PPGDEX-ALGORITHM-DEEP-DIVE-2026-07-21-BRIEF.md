@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #2 treatment (2) LANDED (#3687).** DFA-α1 and sample entropy now segment at a dropped interval and pool inside the estimator. Both had read `null` on every Verity night of this corpus, so neither had ever shipped a value. Treatment (3) stays open, because `cvhrFromNN` reaches ECGDex. Status stays IN-PROGRESS.
+**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #2 treatment (2) LANDED (#3687).** DFA-α1 and sample entropy now segment at a dropped interval and pool inside the estimator. Both had read `null` on every Verity night of this corpus, so neither had ever shipped a value. Treatment (3) stays open, because `cvhrFromNN` reaches ECGDex. Status stays IN-PROGRESS. · **MEASURED 2026-10-19 (Magpie): #10 is NOT SHIPPED — see §✗ #10.** The group delay the row names is real and measured. Centring the ONE-BEAT average reads a planted 48 bpm waveform as 106.57 bpm, the 2× harmonic. Centring the short average alone is safe and changes nothing the acceptance endpoint can see: the jitter median reads 4.93 ms over nine nights for all three variants. The symmetric window the row pairs with the change has nothing to find. The code is unchanged and the item reads ✗ in the landing order. Status stays IN-PROGRESS. **Residue:** 2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -297,7 +297,7 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | 7 ✅ | **Ambient-referenced perfusion index**, genuinely per-epoch — **EXECUTED 2026-10-19, see below** | `ppgdex-dsp.js perfWindow`, `ppgdex-morph.js perfusionIndex` + `perWindowMorph` (the `:2121-2123` anchor was stale) | PI stops dividing by the detector's ~650,000-count zero-light pedestal, and its per-epoch series stops being one repeated number | **Measured, not 2.0–3.4×: 0.78–3.90× over 27 nights, median 2.02×, and 1.14–177× WITHIN one night** — so the trend's shape moved too; docs moved with it | High on direction, medium on absolute calibration (§1.6) |
 | 8 | **`morph.pre` 0.15 → 0.50 s** (or feed it `det.feet`) | `ppgdex-morph.js:39` | `riseTimeMs`/`crestTimeMs` stop being pinned to the window (147.4 ms ceiling vs 296 ms true); fixes `augmentationIndexPct`, `reflectionIndex`, SDPPG a-wave | Isolated to one node — cheapest gate in the list | Very high |
 | 9 | **Autogain step detect + repair before filtering** — 39 steps/night at 5–25× pulse AC, and `filtfilt` is zero-phase so ringing propagates **both** directions in time | `:730` pre-filter | Removes bidirectional ringing artefacts around each step | One verifier measured net benefit ≈ 0; **measure before merging** | Medium — gated on E-3 |
-| 10 | **Centred TERMA moving averages** + symmetric search window | `:827-836`, `:656` | `movavg` is trailing, so W1/W2 impose 57 ms / 335 ms group delay; Elgendi specifies centred | Peak times shift by a near-constant; foot spine largely insulated | High |
+| 10 | **Centred TERMA moving averages** + symmetric search window — **MEASURED 2026-10-19, NOT SHIPPED** (§#10 below) | `:2178-2179`, `:2379` (the row's `:827-836`, `:656` are pre-#2333 anchors) | `movavg` is trailing, so W1/W2 impose 57 ms / 335 ms group delay; Elgendi specifies centred | Centring the ONE-BEAT average reads a planted 48 bpm as 106.57 bpm; centring the short one alone changes nothing the endpoint can see | High |
 | 11 | **Epoch validity by time + per-band minimum durations** | new | Converts "we computed rMSSD" into a bounded claim; stops silently reporting boundary-limited HF | Some nights emit `null` where they emitted a number — correct, but consumer-visible | Very high |
 | 12 | **Fix the `:161` comment** — it says *"three co-located photodiodes"*; it is **one** photodiode and three LED pairs, and the site is the upper arm, not the wrist | `:161` | Documentation correctness (§1.1) | None | Very high |
 
@@ -639,9 +639,71 @@ which named #1614 in one command — cheap only because the source comment cites
 ---
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ◐ → 10 → 5 → 11 → [9 experiment]` *(#2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ◐ → 10 ✗ → 5 → 11 → [9 experiment]` *(#10 reads ✗: measured 2026-10-19 and not shipped. One half breaks beat detection at 48 bpm. The other half changes nothing the acceptance endpoint can see. #2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
+
+### ✗ #10 MEASURED 2026-10-19 (Magpie) — the delay is real, half the remedy breaks detection, and the endpoint sees neither
+
+The row asked for two changes: centred TERMA moving averages, and a symmetric search window. Both were
+measured on this corpus before either shipped. Neither ships. The code is unchanged.
+
+**The group delay is real.** `movavg` (`ppgdex-dsp.js:2379`) is causal. The TERMA block calls it twice,
+at 111 ms and 667 ms (`:2178-2179`), so the two averages lag by different amounts. The block of interest
+straddles the systolic peak instead of ending on it. Centring the SHORT window corrects that: over three
+corpus nights the peak's median offset from the block end moves from −62 ms to −11 ms at 176 Hz, and the
+count of blocks whose chosen peak pins to the block START falls from 94 and 161 to 16 and 0.
+
+**Centring the one-beat average breaks beat detection.** A planted 48 bpm waveform then reads
+106.57 bpm. That is the 2× harmonic, and the suite names it `NOT the 2x harmonic` — its own label calls
+that rate the one this failure mode exposes. The spine falls back from feet to peaks in the same run.
+
+The mechanism is the lag itself. A trailing 667 ms mean stays elevated across the dicrotic notch. A
+centred one dips under the short average there and opens a second block per beat. Centring the short
+window alone keeps all 101 assertions of that group green, so the row's plural — "averages" — names two
+changes and not one.
+
+**The symmetric window has nothing to find.** The peak search runs forward from the block start. Across
+three nights, each with over 7000 blocks, the chosen peak sits AT the block start 94, 161 and 4 times
+under trailing averages, and 16, 0 and 2 times under centred ones. No peak sits before the block, so
+widening the window backwards would find nothing. Widening it forward is worse. A tail sweep from
+120 ms to 500 ms leaves the edge-pinned fraction nearly flat and drives the in-band RR share from 96 %
+to 66 %, because the window reaches into the next upstroke.
+
+**The brief's own endpoint adjudicates none of it.** All three variants read the same primary figure:
+
+| variant | planted 48 bpm | PPI-jitter sd (IQR) | beat match | RMSSD bias | CVHR in band |
+|---|---|---|---|---|---|
+| shipped — both averages trailing | 48 bpm | **4.93 ms** (4.68–5.03) | 100.00 % | 3.79 % | 8/9 |
+| short average centred | 48 bpm | **4.93 ms** (4.68–5.03) | 100.00 % | 4.07 % | 7/9 |
+| both averages centred | **106.57 bpm** | **4.93 ms** (4.66–5.03) | 100.00 % | 4.07 % | 7/9 |
+
+Nine nights of the Verity corpus, `tools/ppi-jitter-vs-ecg.mjs --dir <captures> --device verity
+--sleep-only`, one run per variant. The acceptance bar in §4 is met by every row, including the row that
+doubles the rate on a slow waveform: the jitter median does not rise and the match rate does not fall.
+The corpus carries no low-rate night, and the jitter figure describes only beats that PAIR with ECG, so
+a harmonic that fires at 48 bpm is invisible to both. The 48 bpm witness in `tests/dex-tests.js` is the
+only surface that saw it. Logged as residue `2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic`.
+
+**What the safe half costs.** Centring the short average moves three fixture-equivalence legs. The detector recovers
+one beat at the record start, where the trailing mean needed history before the first block could form
+(`ppi.n` 43 → 44). The node then marks that beat as not analyzable (`analyzablePct` 100 → 98), and the
+RMSSD bias median moves 3.79 % → 4.07 % with one night leaving the Integrator CVHR band. Mechanism and
+predicted direction hold; the second surface does not confirm them. Six fixtures and three equivalence legs would
+move for a change with no measured benefit, so it stays unshipped.
+
+**For whoever picks #10 up.** The row argues from the published method, and that argument is weaker than
+it reads. `PPGDEX-BEAT-DETECTION-PERF-AND-HRV-FIDELITY-FOLLOWUPS-2026-07-02-BRIEF.md` §3 records that
+this block already departs from Elgendi on the FEATURE, and for a measured reason: the clipped-amplitude
+square recovered 10 beats in 6.5 min on a real channel against 338 for positive-slope energy, because a
+supra-physiologic baseline transient dominates the amplitude energy. A window placement specified for
+one feature does not carry to another by citation.
+
+So the remaining case for centring the short average rests on the group delay alone, and that delay
+costs nothing the endpoint can see. It needs a low-rate
+surface in the endpoint first — a seeded slow night, or a corpus night under 50 bpm. Centring the
+one-beat average needs no further work — this measurement refutes it, and the 48 bpm assertion will
+catch it again.
 
 ### ✅ #6 EXECUTED 2026-10-19 (#3678) — the premise it rested on is measured, and it is false
 
