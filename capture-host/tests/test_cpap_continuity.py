@@ -223,3 +223,109 @@ def test_resume_hint_reads_only_a_numeric_open_session_from_the_autostart_record
     assert cc.resume_hint_from_autostart({"session_ms": 1789719792589}) is True
     for rec in ({"session_ms": None}, {}, {"session_ms": "x"}, {"session_ms": True}, None, [], "str"):
         assert cc.resume_hint_from_autostart(rec) is False, rec
+
+
+# ── mid-session stalls (spec §30 STREAM_STALL) ──────────────────────────────────────────────────
+# The owed sample was already computed per frame; only the comparison was missing. These pin the
+# comparison, its §∅ null, and the line between it and the resume verdict.
+
+
+def test_a_MID_SESSION_break_on_the_device_clock_is_counted_as_a_stall():
+    """The link stayed up and no drop armed anything: the device's own clock says the samples between
+    these two frames never arrived. That is the §30 condition, and nothing counted it."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)  # owes T0+400
+    t.note_frame(_stamp(_ms(T0), 400 + 2000), 10, 40.0)  # 2 s late
+    assert t.stalls == 1
+    t.note_frame(_stamp(_ms(T0), 400 + 2000 + 400), 10, 40.0)  # contiguous again
+    assert t.stalls == 1, "a contiguous frame does not add one"
+    t.note_frame(_stamp(_ms(T0), 400 + 2000 + 400 + 400 + 5000), 10, 40.0)
+    assert t.stalls == 2, "a second break counts again"
+
+
+def test_a_contiguous_session_reports_ZERO_and_a_session_that_compared_NOTHING_reports_NULL():
+    """§∅ at the counter: 0 means "compared, and the clock was contiguous"; None means no comparison
+    was possible. One frame affords no comparison, so the honest value is None."""
+    one = cc.ContinuityTracker()
+    one.note_start()
+    one.note_frame(T0, 10, 40.0)
+    assert one.stalls is None, "a single frame compares nothing — not a measured zero"
+    two = cc.ContinuityTracker()
+    two.note_start()
+    two.note_frame(T0, 10, 40.0)
+    two.note_frame(_stamp(_ms(T0), 400), 10, 40.0)
+    assert two.stalls == 0, "compared, and nothing was lost"
+
+
+def test_the_stall_tolerance_is_the_SAME_one_the_resume_verification_uses():
+    """Exactly one interval late is device batching, not a stall — the boundary `TOLERANCE_INTERVALS`
+    exists to draw. A frame past it counts. `>=` here would call ordinary batching a loss."""
+    at = cc.ContinuityTracker()
+    at.note_start()
+    at.note_frame(T0, 10, 40.0)
+    at.note_frame(_stamp(_ms(T0), 400 + 40), 10, 40.0)  # exactly one interval
+    assert at.stalls == 0, "one interval of batching is still continuous"
+    over = cc.ContinuityTracker()
+    over.note_start()
+    over.note_frame(T0, 10, 40.0)
+    over.note_frame(_stamp(_ms(T0), 400 + 41), 10, 40.0)  # one millisecond past it
+    assert over.stalls == 1
+
+
+def test_a_stall_NEVER_moves_the_resume_verdict():
+    """`status`/`gap_ms` are the cross-session verdict and a consumer reads `verified-gap` as "this
+    session follows a drop". A mid-session stall is a different finding and keeps its own field."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_frame(_stamp(_ms(T0), 400 + 9000), 10, 40.0)
+    assert t.stalls == 1
+    assert t.status is C.CONTINUOUS and t.gap_ms is None
+    assert t.snapshot() == {"continuity_status": "continuous", "continuity_gap_ms": None}
+
+
+def test_the_post_drop_verification_is_not_ALSO_counted_as_a_stall():
+    """One tracker, two categories. The first frame after a drop is verified and reported as
+    `verified-gap`; counting it as a mid-session stall too would double-count one loss."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)
+    t.note_start()
+    t.note_frame(_stamp(_ms(T0), 400 + 5400), 10, 40.0)
+    assert t.status is C.VERIFIED_GAP and t.gap_ms == 5400
+    assert t.stalls is None, "the drop is the gap verdict's to report, and it compared nothing since"
+
+
+def test_the_stall_count_is_per_SESSION_and_note_start_clears_it():
+    """One tracker lives across every session on the controller; `GapCounters` is built per pump. A
+    count carried over would attribute one session's stalls to the next."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_frame(_stamp(_ms(T0), 400 + 3000), 10, 40.0)
+    assert t.stalls == 1
+    t.note_end(clean=True)
+    t.note_start()
+    assert t.stalls is None, "back to None, not 0 — the new session has compared nothing"
+
+
+def test_a_frame_with_no_usable_clock_compares_nothing_and_counts_nothing():
+    """Every guard on the comparison. An unparseable stamp, a predecessor that left no owed sample,
+    and a frame whose interval never arrived each leave the count untouched (§∅)."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_frame("not-a-stamp", 10, 40.0)
+    assert t.stalls is None, "no device clock on this frame — nothing to compare"
+    fresh = cc.ContinuityTracker()
+    fresh.note_start()
+    fresh.note_frame("not-a-stamp", 10, 40.0)  # leaves no owed sample
+    fresh.note_frame(_stamp(_ms(T0), 99999), 10, 40.0)
+    assert fresh.stalls is None, "no predecessor clock — nothing to compare against"
+    noiv = cc.ContinuityTracker()
+    noiv.note_start()
+    noiv.note_frame(T0, 10, "x")  # unusable interval: the owed clock never moves
+    noiv.note_frame(_stamp(_ms(T0), 99999), 10, 40.0)
+    assert noiv.stalls is None, "no interval — no tolerance to measure the lateness in"

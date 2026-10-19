@@ -2576,3 +2576,103 @@ def test_the_missing_char_retry_keeps_the_pairing_options(monkeypatch):
     _run(go())
     assert len(_FakeBleak.instances) == 2
     assert _ReadingBleak.events.count("read:00002a00") == 2  # both connects did the reads
+
+
+def test_a_MID_SESSION_STALL_reaches_the_gap_accounting_line_and_the_envelope(caplog):
+    """🔴 THE DEFECT THIS CLOSES. `stalls` was declared with a spec citation (§30 STREAM_STALL) and no
+    detector, so `lost_coverage_missing` named it on every live session and completeness could never
+    read COMPLETE. The detector is the continuity tracker's own owed-sample comparison, and this is the
+    wire from it to the record: three frames, the middle one 3 s past the sample its predecessor owed.
+
+    The line must be a WARNING too — a measured stall is known loss, like `malformed` and
+    `sink_errors` beside it."""
+    import logging
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    envelopes = []
+    T0 = "2026-08-23T01:30:28.730Z"
+    frames = [
+        _data_at(T0),  # owes T0+400
+        _data_at("2026-08-23T01:30:32.130Z"),  # T0+3400: 3 s past it
+        _data_at("2026-08-23T01:30:32.530Z"),  # contiguous with the frame before
+    ]
+    dev = FakeDev(_handshake() + [_ack()] + frames)
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=3,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                continuity=tracker,
+            )
+        )
+    gc = envelopes[-1].provenance["gap_counters"]
+    assert gc["stalls"] == 1, "the tracker's count reached the gap-accounting record"
+    assert gc["lost_coverage_missing"] == ["post_drop_tail"], (
+        "stalls leaves the unmeasured list once it has a writer; post_drop_tail stays, and this layer "
+        "cannot measure it (audit §7.3 — the drop boundary is ~230 ms wide and lives in the transport)"
+    )
+    lines = [r for r in caplog.records if "gap accounting" in r.getMessage()]
+    assert len(lines) == 1 and "'stalls': 1" in lines[0].getMessage()
+    assert lines[0].levelno == logging.WARNING, "a measured stall is known loss, so the line is loud"
+
+
+def test_a_clean_contiguous_session_reports_a_measured_ZERO_stall_not_a_null(caplog):
+    """The bound on the test above, and §∅ from the other side. Two contiguous frames afford one
+    comparison, so `stalls` is 0 — counted, and none happened — and the line stays at INFO."""
+    import logging
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z"), _data_at("2026-08-23T01:30:29.130Z")])
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                continuity=tracker,
+            )
+        )
+    assert envelopes[-1].provenance["gap_counters"]["stalls"] == 0
+    lines = [r for r in caplog.records if "gap accounting" in r.getMessage()]
+    assert len(lines) == 1 and lines[0].levelno == logging.INFO
+
+
+def test_a_pump_with_NO_tracker_leaves_stalls_UNMEASURED_rather_than_zero():
+    """The writer is the tracker, so a pump without one compared nothing and must say so. A 0 here
+    would be the `int(summary.get(k) or 0)` defect this family already carries a fix for (§∅)."""
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+        )
+    )
+    gc = envelopes[-1].provenance["gap_counters"]
+    assert gc["stalls"] is None
+    assert gc["lost_coverage_missing"] == ["stalls", "post_drop_tail"]
