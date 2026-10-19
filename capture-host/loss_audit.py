@@ -1753,31 +1753,61 @@ def write_night(
     return obj
 
 
+SAMPLE_NIGHT = "2026-01-01"  # the folder name IS the night, and the night reaches the audit record
+SAMPLE_BASE = "Polar_H10_SAMPLE_20260101220000"  # the 14-digit stamp is the declared start (§🔒.4)
+SAMPLE_DEVICE = {"name": "Polar H10 SAMPLE", "model": "H10"}
+SAMPLE_ROWS = 600  # 1 Hz, so the worn span is exactly 10 minutes and its denominator is not a rounding
+SAMPLE_HOLE = (200, 320)  # half-open, strictly inside the span: exactly the 2.0 min the verdict names
+SAMPLE_PLANTED_S = 199  # the drop line lands on the last RECORDED second before the hole opens
+SAMPLE_PLANTED_CAUSE = "daemon:not-worn drop"
+SAMPLE_HR_BPM = 62  # one HR row is what makes the span WORN; the value itself decides nothing
+
+
+def sample_night(night: str) -> tuple[list[dict], dict]:
+    """Lay out a synthetic TORN H10 night in `night`; return its device list and its READERS.
+
+    SPLIT OUT OF `sample_object` SO A TEST CAN MEASURE THE FIXTURE — the same move `solid_night.sample_night`
+    made, and for the same reason: twenty-seven mutations of this layout survived the mutation gate while
+    `sample_object` was the only way in. The verdict publishes the hole's LENGTH (2.0 min of a 10.0 min
+    worn span, in two fragments) and nothing else about the layout, so these are the properties it cannot
+    hold, and `test_the_SAMPLE_FIXTURE_carries_the_properties_the_verdict_cannot_hold` holds them:
+      · the start comes from the 14-digit stamp in `SAMPLE_BASE`, never from a second literal here, so
+        the fixture cannot disagree with itself (Clock Contract §4, anchor rule 2);
+      · `SAMPLE_ROWS` rows at exactly 1 Hz, both ends ON the nominal, so the span is a length;
+      · ONE hole, `SAMPLE_HOLE`, half-open and strictly inside the span — so the night has exactly two
+        recorded fragments and the tear is a tear, not an end-of-file;
+      · the drop line at `SAMPLE_PLANTED_S`, the last recorded second BEFORE the hole opens, so the cause
+        is attributed to the gap it precedes rather than read from inside one;
+      · and the two READERS travel with the night rather than being wired at the call site, because the
+        shape reader returning `None` is a claim about the sample — a synthetic night HAS no journal, so
+        `None` is the honest value and the deterministic one. Wired at the call site, `lambda: 0` and a
+        dropped keyword both survived: this box answers `journalctl -u tepna-capture` with nothing, so
+        falling through to the real reader read the same as refusing to look (§∅)."""
+    t0 = _dt.datetime.strptime(SAMPLE_BASE.rsplit("_", 1)[1], "%Y%m%d%H%M%S")
+    with open(os.path.join(night, f"{SAMPLE_BASE}_ECG.txt"), "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;x\n")
+        for i in range(SAMPLE_ROWS):
+            if SAMPLE_HOLE[0] <= i < SAMPLE_HOLE[1]:
+                continue  # a 2-minute hole
+            fh.write((t0 + _dt.timedelta(seconds=i)).isoformat(timespec="milliseconds") + ";1\n")
+    with open(os.path.join(night, f"{SAMPLE_BASE}_HR.txt"), "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;HR [bpm]\n" + (t0.isoformat(timespec="milliseconds") + f";{SAMPLE_HR_BPM}\n"))
+    planted = [(t0 + _dt.timedelta(seconds=SAMPLE_PLANTED_S), SAMPLE_PLANTED_CAUSE)]
+    return [dict(SAMPLE_DEVICE)], {
+        "journal": lambda name, since, until: planted,
+        # Reading this box's journald for a corpus-free sample would make the adoption gate's object
+        # depend on the machine that emitted it.
+        "journal_shape_of": lambda since, until: None,
+    }
+
+
 def sample_object() -> dict:
     """Corpus-free emission for the adoption gate: a synthetic night with one torn stream and a planted
-    journal — UNKNOWN with the number, because no bar exists."""
+    journal, scored by the real `night_verdict`."""
     import tempfile
 
     with tempfile.TemporaryDirectory() as d:
-        night = os.path.join(d, "2026-01-01")
+        night = os.path.join(d, SAMPLE_NIGHT)
         os.makedirs(night)
-        t0 = _dt.datetime(2026, 1, 1, 22, 0, 0)
-        with open(os.path.join(night, "Polar_H10_SAMPLE_20260101220000_ECG.txt"), "w", encoding="utf-8") as fh:
-            fh.write("Phone timestamp;x\n")
-            for i in range(0, 600):
-                if 200 <= i < 320:
-                    continue  # a 2-minute hole
-                fh.write((t0 + _dt.timedelta(seconds=i)).isoformat(timespec="milliseconds") + ";1\n")
-        with open(os.path.join(night, "Polar_H10_SAMPLE_20260101220000_HR.txt"), "w", encoding="utf-8") as fh:
-            fh.write("Phone timestamp;HR [bpm]\n" + (t0.isoformat(timespec="milliseconds") + ";62\n"))
-        planted = [(t0 + _dt.timedelta(seconds=199), "daemon:not-worn drop")]
-        return write_night(
-            night,
-            [{"name": "Polar H10 SAMPLE", "model": "H10"}],
-            commit=None,
-            journal=lambda name, since, until: planted,
-            # A synthetic night has no journal, so the shape is `None` — the honest value, and a
-            # deterministic one. Reading this box's journald for a corpus-free sample would make the
-            # adoption gate's object depend on the machine that emitted it.
-            journal_shape_of=lambda since, until: None,
-        )
+        devices, readers = sample_night(night)
+        return write_night(night, devices, commit=None, **readers)

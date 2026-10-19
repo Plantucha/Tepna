@@ -327,6 +327,70 @@ def test_the_sample_object_is_corpus_free_and_valid_under_both_validators():
     # reason string, which is more use to a reader than UNKNOWN was.
     assert js_validate(o)["ok"] and o["gate"] == "night-loss" and o["status"] == "FAIL"
     assert o["result"]["daemon_caused_min"] == 2.0 and o["result"]["by_device"]["Polar H10 SAMPLE"]["fragments"] == 2
+    assert o["result"]["journal_shape"] is None, "a synthetic night HAS no journal — never a zeroed shape (§∅)"
+
+
+def test_the_SAMPLE_FIXTURE_carries_the_properties_the_verdict_cannot_hold(tmp_path):
+    """Measured on the BYTES, because the verdict publishes the hole's LENGTH and nothing else about the
+    layout: 2.0 min lost of a 10.0 min worn span, in two fragments. Move the hole, shift the start, drop
+    the first row or step the planted line and every one of those numbers still reads the same — which is
+    why twenty-seven mutations of this layout survived the mutation gate while `sample_object` was the
+    only way in (residue 2026-10-13-sixty-three-mutants-survive-the-sidecar-note-and-the-journal-shape).
+
+    The same split `solid_night.sample_night` made, held the same way."""
+    night = tmp_path / loss_audit.SAMPLE_NIGHT
+    night.mkdir()
+    devices, readers = loss_audit.sample_night(str(night))
+    assert devices == [loss_audit.SAMPLE_DEVICE] and devices[0] is not loss_audit.SAMPLE_DEVICE, (
+        "one device, and a COPY of it — the caller passes this list into an audit that may annotate it"
+    )
+
+    lines = (night / f"{loss_audit.SAMPLE_BASE}_ECG.txt").read_text(encoding="utf-8").splitlines()
+    assert lines[0] == "Phone timestamp;x"
+    rows = lines[1:]
+
+    # 1 · THE START COMES FROM THE FILENAME, NEVER FROM A SECOND LITERAL. The 14-digit stamp in the base
+    # name is the declared start (Clock Contract §4, anchor rule 2); taking it from row 0 instead would
+    # make row 0 correct by construction and let the fixture disagree with its own name.
+    t0 = dt.datetime.strptime(loss_audit.SAMPLE_BASE.rsplit("_", 1)[1], "%Y%m%d%H%M%S")
+    stamps = [dt.datetime.fromisoformat(r.split(";")[0]) for r in rows]
+    assert stamps[0] == t0, f"row 0 is the declared start: {stamps[0]} vs {t0}"
+    assert all(r.split(";")[1] == "1" for r in rows), "one constant sample value — this fixture is a CLOCK"
+
+    # 2 · `SAMPLE_ROWS` SECONDS AT 1 Hz, both ends on the nominal, so the worn span is a length and not a
+    # rounding: the last recorded second is `SAMPLE_ROWS - 1`, and 600 s is the 10.0 min the verdict names.
+    recorded = {int((s - t0).total_seconds()) for s in stamps}
+    assert len(recorded) == len(stamps), "no second is recorded twice"
+    assert min(recorded) == 0 and max(recorded) == loss_audit.SAMPLE_ROWS - 1, (min(recorded), max(recorded))
+    assert all((s - t0).total_seconds() == float(int((s - t0).total_seconds())) for s in stamps), stamps[:3]
+
+    # 3 · ONE HOLE, HALF-OPEN, STRICTLY INSIDE THE SPAN. Strictly inside is what makes it a TEAR: a hole
+    # touching either end is a short recording, which is a different finding and two fragments fewer.
+    lo, hi = loss_audit.SAMPLE_HOLE
+    assert 0 < lo < hi < loss_audit.SAMPLE_ROWS, loss_audit.SAMPLE_HOLE
+    assert recorded == set(range(0, lo)) | set(range(hi, loss_audit.SAMPLE_ROWS)), sorted(recorded)[:5]
+    assert (hi - lo) / 60.0 == 2.0, "the hole IS the 2.0 min the verdict publishes"
+
+    # 4 · THE DROP LINE SITS ON THE LAST RECORDED SECOND BEFORE THE HOLE — one second earlier and it is a
+    # line about nothing; one second later and it falls INSIDE the gap it is meant to explain. Either way
+    # the cause the verdict names stops being attributable to the tear.
+    assert loss_audit.SAMPLE_PLANTED_S == lo - 1 and loss_audit.SAMPLE_PLANTED_S in recorded, lo
+    assert readers["journal"]("Polar H10 SAMPLE", t0, t0) == [
+        (t0 + dt.timedelta(seconds=lo - 1), loss_audit.SAMPLE_PLANTED_CAUSE)
+    ], readers["journal"]("Polar H10 SAMPLE", t0, t0)
+
+    # 5 · THE SHAPE READER RETURNS `None`, AND IT TRAVELS WITH THE NIGHT. A synthetic night has no
+    # journal, so `None` is the honest value (§∅) and the only deterministic one. `0` here, or falling
+    # through to the real reader, both survived while this was wired at the call site: rig-x870 answers
+    # `journalctl -u tepna-capture` with nothing, so "nobody looked" and "looked, found nothing" read
+    # alike — and on the capture box itself they would not.
+    assert readers["journal_shape_of"](t0, t0) is None, readers["journal_shape_of"](t0, t0)
+    assert set(readers) == {"journal", "journal_shape_of"}, readers
+
+    # 6 · THE HR FILE IS WHAT MAKES THE SPAN WORN — one row, at the start, so the wear window covers the
+    # tear. Without it there is nothing "worn but not recorded" and the whole sample reads as no finding.
+    hr = (night / f"{loss_audit.SAMPLE_BASE}_HR.txt").read_text(encoding="utf-8").splitlines()
+    assert hr == ["Phone timestamp;HR [bpm]", f"{t0.isoformat(timespec='milliseconds')};{loss_audit.SAMPLE_HR_BPM}"], hr
 
 
 def test_stream_gaps_reads_the_ring_s_own_csv_layout(tmp_path):
@@ -2728,12 +2792,168 @@ def test_an_unread_journal_is_None_and_a_read_empty_one_is_not_the_same_fact():
     sh = loss_audit.journal_shape(["", "   ", "\t"], 30600.0)
     assert sh is not None and sh["lines"] == 0 and sh["findings"] == ["empty"], sh
     assert sh["dominant_share"] is None and sh["top"] == [] and sh["top_share"] is None, sh
+    # 🔴 THE WHOLE RECORD, BY EQUALITY. Ten mutations lived in the fields this assertion did not name —
+    # `error_lines` seeded at 1, `templates` at 1, and every key renamed — and the empty record is the
+    # one a consumer reads to tell "read, and silent" from "nobody looked". A field-by-field check can
+    # only pin the fields someone thought to list; the record IS the contract, so it is compared whole.
+    assert sh == {
+        "lines": 0,
+        "templates": 0,
+        "span_s": 30600.0,
+        "top": [],
+        "dominant_share": None,
+        "top_share": None,
+        "lines_per_s": None,
+        "error_lines": 0,
+        "error_per_s": None,
+        "findings": ["empty"],
+    }, sh
     # a share needs no clock, so a missing span nulls the two RATES and leaves the share standing
     noclock = loss_audit.journal_shape([f"a vigil x[1]: ERROR boom {i}" for i in range(12_000)], None)
     assert noclock["lines_per_s"] is None and noclock["error_per_s"] is None, noclock
     assert noclock["findings"] == ["uniform"], noclock
     # ERROR is counted at the head of a line as well as inside one
     assert loss_audit.journal_shape(["ERROR at the head", "x y ERROR inside"], 10.0)["error_lines"] == 2
+
+
+# ───────── THE BARS ARE INCLUSIVE, AND THE DIGITS ARE PUBLISHED
+# (residue 2026-10-13-sixty-three-mutants-survive-the-sidecar-note-and-the-journal-shape)
+
+
+def _letters(i: int) -> str:
+    """A distinct template per index, in LETTERS. `_JOURNAL_NUM` blanks every digit before templating, so
+    a counter in the message body makes ONE template rather than `i` of them — which is the property the
+    flood test leans on, and the one that makes a one-off line hard to write by accident."""
+    s = ""
+    while True:
+        s = chr(ord("a") + i % 26) + s
+        i //= 26
+        if not i:
+            return s
+
+
+def _night_exactly_on_every_bar():
+    """10,000 lines over 10,000 s: three templates of 3,000 INFO lines (top share exactly 0.9000) plus
+    1,000 one-off ERROR lines (exactly 0.1 ERROR/s). All four bars are met EXACTLY and none is exceeded."""
+    for t in ("alpha", "beta", "gamma"):
+        for _ in range(3_000):
+            yield f"2026-09-20T02:00:00 vigil tepna-capture[1]: INFO window flushed {t}"
+    for i in range(1_000):
+        yield f"2026-09-20T03:00:00 vigil tepna-capture[1]: ERROR {_letters(i)} fell over"
+
+
+def test_every_journal_BAR_is_inclusive_so_a_night_exactly_on_one_still_fires():
+    """`>=` relaxed to `>` survived on all four bars — `JOURNAL_MIN_LINES`, `JOURNAL_TOP_SHARE`,
+    `JOURNAL_LINES_PER_S` and `JOURNAL_ERROR_PER_S`. Every fixture above sits orders of magnitude clear
+    of them, so nothing observed the boundary itself, and each bar is a threshold a night verdict reads.
+
+    The fixture lands on all four at once, which is the only reason this is one test and not four."""
+    sh = loss_audit.journal_shape(_night_exactly_on_every_bar(), 10_000.0)
+    assert sh["lines"] == loss_audit.JOURNAL_MIN_LINES, sh["lines"]
+    assert sh["top_share"] == loss_audit.JOURNAL_TOP_SHARE, sh["top_share"]
+    assert sh["lines_per_s"] == loss_audit.JOURNAL_LINES_PER_S, sh["lines_per_s"]
+    assert sh["error_per_s"] == loss_audit.JOURNAL_ERROR_PER_S, sh["error_per_s"]
+    assert sh["findings"] == ["uniform", "flooded", "error-rate"], (
+        f"a bar met exactly is a bar met, and all four are: {sh['findings']}"
+    )
+    # ...and the control that keeps that from being vacuous. ONE line fewer and all three findings drop,
+    # because every bar was met exactly rather than cleared: 9,999 lines is under the floor, 0.9999
+    # lines/s is under the rate and 999 errors is 0.0999/s. The share alone RISES, to 0.9001.
+    sh2 = loss_audit.journal_shape(list(_night_exactly_on_every_bar())[:-1], 10_000.0)
+    assert sh2["lines"] == loss_audit.JOURNAL_MIN_LINES - 1, sh2["lines"]
+    assert sh2["top_share"] > loss_audit.JOURNAL_TOP_SHARE, sh2["top_share"]
+    assert sh2["findings"] == [], f"one line short of every bar is a night with no finding: {sh2}"
+
+
+def test_the_shape_is_rounded_at_the_digit_it_PUBLISHES_and_an_exact_tie_ranks_by_template():
+    """A changed rounding digit survived in all five rounded fields, because every fixture above had a
+    value whose 4th and 5th decimals agree (1.0, 0.4981, 13.5674 at a 30,600.0 span). Seven one-off
+    lines over 2.37 s give each field a digit to lose.
+
+    Seven EQUAL counts also make the tie-break visible: `sorted(key=(-count, template))` ranks a tie
+    alphabetically, so `top` is stable across runs instead of following dict insertion order. Dropping
+    the `kv[0]` half leaves the four INFO lines first, which is what this pins."""
+    lines = [f"2026-09-20T04:00:00 vigil tepna-capture[1]: INFO {_letters(i)} happened" for i in range(4)]
+    lines += [f"2026-09-20T04:00:00 vigil tepna-capture[1]: ERROR {_letters(i)} fell over" for i in range(3)]
+    sh = loss_audit.journal_shape(lines, 2.37)
+    assert sh["lines"] == 7 and sh["templates"] == 7 and sh["error_lines"] == 3, sh
+    assert sh["span_s"] == 2.4, sh["span_s"]
+    assert sh["dominant_share"] == 0.1429, sh["dominant_share"]
+    assert sh["top_share"] == 0.4286, sh["top_share"]
+    assert sh["lines_per_s"] == 2.9536, sh["lines_per_s"]
+    assert sh["error_per_s"] == 1.2658, sh["error_per_s"]
+    assert [t["share"] for t in sh["top"]] == [0.1429, 0.1429, 0.1429], sh["top"]
+    # the template is compared WHOLE, not by substring: `_JOURNAL_STAMP.sub("XXXX", ...)` survived every
+    # `in`-style check above, because a prefix on a template is invisible to one. Stamp and host out,
+    # digits blanked, nothing else touched — and `count` is a published field, so it is read too.
+    first = sh["top"][0]
+    assert first == {"template": "tepna-capture[#]: ERROR a fell over", "count": 1, "share": 0.1429}, first
+    # the tie-break: "ERROR a/b/c" sort before every "INFO", and they are the three published
+    assert [t["template"].split("ERROR ")[-1].split(" ")[0] for t in sh["top"]] == ["a", "b", "c"], sh["top"]
+    assert all("ERROR" in t["template"] for t in sh["top"]), (
+        f"an exact tie ranks by TEMPLATE, not by the order the lines arrived: {sh['top']}"
+    )
+    assert sh["findings"] == ["flooded", "error-rate"], sh["findings"]
+
+
+def test_a_blank_line_is_SKIPPED_and_does_not_END_the_journal():
+    """`continue` → `break` survived: the only fixture with blank lines was blank THROUGHOUT, where
+    stopping early and skipping along both read `lines: 0`. journald emits an empty line between boot
+    sections, so a `break` would silently truncate the denominator every share is taken over — the night
+    would read as a handful of lines, uniform, with the flood behind the blank never counted."""
+    sh = loss_audit.journal_shape(
+        [
+            "2026-09-20T05:00:00 vigil tepna-capture[1]: INFO before the blank",
+            "",
+            "   ",
+            "2026-09-20T05:00:01 vigil tepna-capture[1]: ERROR after the blank",
+        ],
+        10.0,
+    )
+    assert sh["lines"] == 2, f"both real lines counted, neither blank: {sh}"
+    assert sh["templates"] == 2, sh
+    assert sh["error_lines"] == 1, "the line AFTER the blank is the ERROR, so this is what a break loses"
+
+
+def test_read_journal_shape_asks_for_the_WHOLE_window_and_hands_on_its_span():
+    """The argv, the `timeout` and the span all survived, because every existing test here drives `run`
+    to a failure and so observes nothing about what was asked for. A share's denominator is every line
+    the unit wrote, so this read must stay UNFILTERED over the night's own span — the filtered reader is
+    a second, deliberate call."""
+    seen: dict = {}
+
+    class R:
+        returncode = 0
+        stdout = (
+            "2026-09-20T22:00:00 vigil tepna-capture[1]: INFO one\n"
+            "\n"
+            "2026-09-20T22:00:01 vigil tepna-capture[1]: ERROR two"
+        )
+
+    def spy(argv, **kw):
+        seen["argv"] = argv
+        seen["kw"] = kw
+        return R()
+
+    since = dt.datetime(2026, 9, 20, 22, 0, 0)
+    sh = loss_audit.read_journal_shape(since, since + dt.timedelta(hours=8, seconds=30), run=spy)
+    assert seen["argv"] == [
+        "journalctl",
+        "-u",
+        "tepna-capture",
+        "--no-pager",
+        "-o",
+        "short-iso",
+        "--since",
+        "2026-09-20 22:00:00",
+        "--until",
+        "2026-09-21 06:00:30",
+    ], seen["argv"]
+    assert seen["kw"]["timeout"] == 120, seen["kw"]
+    assert seen["kw"]["capture_output"] is True and seen["kw"]["text"] is True, seen["kw"]
+    # the SPAN is the window that was asked for, and it is what both rate findings divide by
+    assert sh["span_s"] == 28830.0, sh["span_s"]
+    assert sh["lines"] == 2 and sh["error_lines"] == 1, "journald's blank line between them is not a line"
 
 
 def test_read_journal_shape_returns_None_when_journalctl_cannot_answer():
