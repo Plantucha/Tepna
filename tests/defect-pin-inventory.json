@@ -163,6 +163,13 @@
       "why": "The regex was read out of the reader's source instead of run against the writer's real filename."
     },
     {
+      "file": "tests/dex-tests.js",
+      "quote": "🔴 THIS GROUP USED TO ASSERT THE DEFECT it was written against, and it p",
+      "mechanism": "predicate-strength",
+      "reaimed": "2026-10-18",
+      "why": "It asserted `ct90s * sampleSec == below90Sec`, an identity that holds only when a row is a second, so the row-count shim satisfied it."
+    },
+    {
       "file": "tests/run-tests.mjs",
       "quote": "owercase literal, so it encoded the defect. The group derives the EMITTED set",
       "mechanism": "predicate-strength",
