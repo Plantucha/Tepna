@@ -5785,5 +5785,15 @@
       "probe": "applied each mutant to stallsampler.py by hand and ran the module's own suite (`pytest tests/test_stallsampler.py`, 33 tests) against each: both stayed green. The same pass killed all 17 other survivors #3654 reported, including `[-1]` -> `[+1]` and `[-1]` -> `[-2]` on this very expression, so the suite does observe the segment this line selects. The frames it saw were real `traceback.extract_stack` frames from three shapes of filename: an absolute test path with many separators, the module path of a parked worker thread, and a synthetic `<probe>` name with no separator at all (`test_a_SYNTHETIC_filename_with_NO_directory_still_renders`).",
       "why": "`maxsplit` cannot reach the value. `s.rsplit('/', n)[-1]` is the text after the last separator for every n >= 1 and for the unbounded default, because the index counts from the end and each larger maxsplit only adds elements to the FRONT of the list. A name with no separator returns a one-element list under all three, and the basename is that element. So no filename distinguishes them. The literal 1 stays because one split is the only split this line needs, which is a cost argument and not a behavioural one. The contrast is the index itself: `[+1]` raises on a separator-less name and `[-2]` returns the directory, and the suite kills both."
     }
+  ],
+  "cpap_continuity.py": [
+    {
+      "brief": "CPAP mid-session stall counter (residue 2026-10-05-cpap-stall-and-post-drop-counters-have-no-writer)",
+      "class": "untestable-by-design",
+      "function": "ContinuityTracker.note_frame",
+      "key": "- n, iv = 0, 0.0 | + n, iv = 1, 0.0",
+      "probe": "Loaded the original module and the mutant side by side and ran 2310 call scripts against each: 7 start stamps x 10 sample counts x 11 intervals, each driven through three call sequences (a fresh start then a following frame; a drop then a resume hint; a full session then a clean end). After every call the probe compared `snapshot()`, `status`, `gap_ms`, `stalls`, `_expected_next_ms`, `_interval_ms` and any exception raised. 0 of 2310 differed. Run empirically 2026-10-19.",
+      "why": "The line is the `except (TypeError, ValueError)` fallback, so it runs only when `int()` or `float()` raised, and it sets `iv` to 0.0 unconditionally. Four lines later `if start is None or iv <= 0: return` fires on that 0.0. `n` has exactly one reader, `self._expected_next_ms = start + n * iv`, which sits after that return. The mutated value is unreachable by construction rather than merely untested. Surfaced because the stall counter put `note_frame` in diff-scope."
+    }
   ]
 }

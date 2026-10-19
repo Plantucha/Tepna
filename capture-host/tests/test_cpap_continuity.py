@@ -329,3 +329,50 @@ def test_a_frame_with_no_usable_clock_compares_nothing_and_counts_nothing():
     noiv.note_frame(T0, 10, "x")  # unusable interval: the owed clock never moves
     noiv.note_frame(_stamp(_ms(T0), 99999), 10, 40.0)
     assert noiv.stalls is None, "no interval — no tolerance to measure the lateness in"
+
+
+def test_a_positive_FRACTIONAL_interval_still_advances_the_owed_clock():
+    """The guard is `iv <= 0`, and the bound matters: an interval of 0.5 ms is positive, so it is
+    usable. `iv <= 1` would discard it and leave the owed sample where the previous frame put it,
+    which turns a usable frame into an absent one."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 0.5)  # owes T0+5
+    t.note_frame(_stamp(_ms(T0), 5), 10, 0.5)
+    assert t.stalls == 0, "the owed sample advanced by 10 x 0.5 ms, and the next frame landed on it"
+    assert t._interval_ms == 0.5
+
+
+def test_a_resume_hint_over_a_LIVE_predecessor_clock_clears_it_and_does_not_raise():
+    """The crash path the module docstring names: the daemon went down with a therapy in progress and
+    left no `note_end`, so the tracker still holds a predecessor clock while nothing armed it. The hint
+    arms it and must CLEAR that clock — `_verify` subtracts from it, so any non-None leftover either
+    verifies against a stale predecessor or raises into the pump."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)  # a live owed sample and a live interval, then no note_end at all
+    assert t._expected_next_ms is not None and t._interval_ms == 40.0
+    t.note_start(resume_hint=True)
+    assert t._expected_next_ms is None, "a hinted resume has no predecessor to compare against"
+    t.note_frame(_stamp(_ms(T0), 400), 10, 40.0)
+    assert t.status is C.RESUMED_UNVERIFIED and t.gap_ms is None
+
+
+def test_the_armed_flag_is_CLEARED_TO_A_BOOL_once_a_resume_has_been_verified():
+    """`_armed` is declared `bool`, and the frame that performs the verification clears it. A falsy
+    stand-in such as `None` reads identically through every truth test, so no consumer-visible value
+    moves — measured over 2310 call scripts. The declared type is therefore the contract worth
+    pinning. The flag also routes frames: the armed branch and the mid-session stall branch are the
+    two arms of one `if`, so a frame after the verification must reach the second."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)
+    t.note_start()
+    assert t._armed is True, "the drop armed it"
+    t.note_frame(_stamp(_ms(T0), 400), 10, 40.0)
+    assert t._armed is False, "the verifying frame cleared it, to the bool the field declares"
+    assert t.status is C.VERIFIED_CONTINUOUS and t.stalls is None, "and it counted no stall"
+    t.note_frame(_stamp(_ms(T0), 1000), 10, 40.0)  # owed T0+800, arrived 200 ms late
+    assert t.stalls == 1, "the cleared flag routed this frame to the stall comparison"
+    assert t.status is C.VERIFIED_CONTINUOUS, "which never touches the resume verdict"
