@@ -608,6 +608,13 @@ def test_the_link_header_records_which_radio_captured_the_night(tmp_path):
     assert _lines(str(q))[0] == "# adapter=hci1 hci=unknown", (
         "'unknown' is a deliberate honest value, not a placeholder to restyle"
     )
+    # the OTHER half-known case, and the one nothing reached: resolved to an hci index with no BD_ADDR
+    # pinned. `adapter or 'default'` survived because every test above passed an adapter — so 'default'
+    # was never printed, and it says something different from 'unknown': nobody pinned a radio, as
+    # against a pinned radio that did not resolve.
+    h = tmp_path / "o.csv"
+    LinkLogWriter(str(h), fsync=False, adapter=None, hci="hci0").close()
+    assert _lines(str(h))[0] == "# adapter=default hci=hci0", _lines(str(h))[0]
     # and no pin at all writes no comment, rather than a comment full of defaults
     r = tmp_path / "n.csv"
     LinkLogWriter(str(r), fsync=False).close()
@@ -1100,6 +1107,64 @@ def test_the_note_is_not_a_capture_file_and_cannot_be_read_as_device_data(tmp_pa
     assert nightqc.newest_data_mtime(str(night)) == before, "the box talking about itself is not data"
 
 
+def test_the_note_lands_beside_a_sidecar_opened_by_a_BARE_filename(tmp_path, monkeypatch):
+    """`os.path.dirname(path) or "."` survived: every test here opens the writer on an absolute path, so
+    the `or` branch was never taken. `dirname("Tepna_..._LINK.csv")` is the empty string, and
+    `os.path.join("", NOTE)` is a RELATIVE name — the note would be written to whatever directory the
+    daemon happened to be started in, which is the one place a reader of the night will never look."""
+    import writers
+
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    monkeypatch.chdir(night)
+    LinkLogWriter("Tepna_20260920223636_LINK.csv", fsync=False).close()
+    assert (night / writers.SIDECAR_NOTE_NAME).exists(), (
+        f"the note belongs beside the sidecar, and found {sorted(q.name for q in night.iterdir())}"
+    )
+
+
+def test_the_note_declares_its_line_ending_rather_than_taking_the_platform_s(tmp_path):
+    r"""The note's explicit `newline` → `None` cannot be killed by reading the bytes ON LINUX, where the
+    translation `None` asks for is the identity — so it is held at the source, the way `nightqc`'s tag
+    list is.
+
+    It is not decoration: the note is a provenance artifact read beside the capture, and a night written
+    on one platform and read on another must be the same bytes. The written file is checked too, so this
+    does not drift into a test that only reads code."""
+    import writers
+
+    from tests._srcscan import module_source
+
+    assert 'newline="\\n"' in module_source("writers.py"), "the note's line ending is declared, not inherited"
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    writers.write_sidecar_note(str(night))
+    assert b"\r" not in (night / writers.SIDECAR_NOTE_NAME).read_bytes()
+
+
+def test_the_note_is_written_as_UTF8_whatever_locale_the_daemon_started_in(tmp_path):
+    """The note's own text carries an em dash, so a DEFAULT-encoding write under `LC_CTYPE=C` raises
+    `UnicodeEncodeError` — which is not an `OSError`, so it goes straight past the guard above and out of
+    a capture path. `encoding="utf-8"` omitted, and set to `None`, both survived: every test in this file
+    runs in the box's own UTF-8 locale, and the capture unit may be started in any.
+
+    Measured: under `LC_CTYPE=C` the preferred encoding is `ANSI_X3.4-1968`, and the em dash is at
+    position 193 of the note."""
+    import locale
+
+    import writers
+
+    assert "\u2014" in writers.sidecar_note_text(), "this test needs the note to carry a non-ASCII character"
+    before = locale.setlocale(locale.LC_CTYPE)
+    try:
+        locale.setlocale(locale.LC_CTYPE, "C")
+        path = writers.write_sidecar_note(str(tmp_path))
+    finally:
+        locale.setlocale(locale.LC_CTYPE, before)
+    assert path is not None, "a night on a C-locale box still gets its note"
+    assert "\u2014" in (tmp_path / writers.SIDECAR_NOTE_NAME).read_text(encoding="utf-8")
+
+
 def test_a_note_that_cannot_be_written_says_so_and_costs_the_night_nothing(tmp_path, caplog):
     """The absence of the note is the very condition it exists to prevent, so it is logged, not
     swallowed — and it returns None rather than raising into a capture path."""
@@ -1107,6 +1172,40 @@ def test_a_note_that_cannot_be_written_says_so_and_costs_the_night_nothing(tmp_p
 
     import writers
 
+    missing = tmp_path / "no-such-folder"
     with caplog.at_level(logging.WARNING):
-        assert writers.write_sidecar_note(str(tmp_path / "no-such-folder")) is None
-    assert any("sidecar note unavailable" in r.getMessage() for r in caplog.records), caplog.records
+        assert writers.write_sidecar_note(str(missing)) is None
+    said = [r.getMessage() for r in caplog.records if "sidecar note unavailable" in r.getMessage()]
+    assert said, caplog.records
+    # 🔴 THE WHOLE LINE, FROM ITS FIRST CHARACTER. A substring check passes a mangled message and both
+    # of its arguments replaced by None — three mutants lived behind the `in` above. A warning naming
+    # neither the folder nor the error is a line the morning's reader cannot act on.
+    assert said[0].startswith(f"sidecar note unavailable in {missing}: "), said[0]
+    assert "No such file or directory" in said[0], f"the error ITSELF, not a None: {said[0]}"
+
+
+def test_a_lost_LINK_row_names_the_file_it_was_lost_from(tmp_path, caplog):
+    """The transition line must say WHICH sidecar stopped reaching the disk.
+
+    `_FlushHealth` is handed the path precisely so its one onset line can name it, and the writer's
+    own tests asserted only that the words "ROW LOST" appeared somewhere in the log. So the
+    constructor could be handed `None` instead of the path and every one of them still passed, which
+    is the mutant that survived here: the 3am reader is then told a row was lost and not told from
+    what, on a box writing six sidecars at once (§∅ — an unnamed file is an absent one).
+
+    The late row is the real occasion: a notification delivered after the runner closed the handle
+    raises inside the callback, is counted rather than crashed on, and is the one line that says when
+    the loss started."""
+    import logging
+
+    import writers
+
+    path = tmp_path / "Tepna_20260920223636_LINK.csv"
+    w = writers.LinkLogWriter(str(path), fsync=False)
+    w._fh.close()  # the stale-completion case, without inventing a generation counter
+    with caplog.at_level(logging.WARNING):
+        w.write(WHEN, "Polar H10", True, -61, 88)  # must NOT raise into the callback
+    said = [r.getMessage() for r in caplog.records if "ROW LOST" in r.getMessage()]
+    assert said, caplog.records
+    assert said[0].startswith(f"{path}: ROW LOST ("), said[0]
+    assert "ValueError" in said[0], f"the errno or exception name, not a bare complaint: {said[0]}"
