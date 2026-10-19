@@ -16,6 +16,7 @@ sidecar file starts a row with, and the O2Ring vendor layout `HH:MM:SS DD/MM/YYY
 
 from __future__ import annotations
 
+import calendar as _cal
 import datetime as _dt
 import hashlib
 import glob
@@ -126,6 +127,19 @@ ARRIVAL: tuple[str, ...] = ("*_PMDARRIVAL.csv",)
 _SESSION_STAMP = re.compile(r"_(\d{8})_?(\d{6})(?:_|\.)")
 
 
+def _band_date(edge: float) -> str:
+    """A band edge's own `YYYY-MM-DD`, read in the FLOATING frame the edge is in.
+
+    `fromtimestamp(edge)` without a zone resolves the edge THROUGH THE READER'S ZONE, and
+    `nightqc._floating_band` returns floating seconds, so the naive form named a different day either
+    side of the offset. It round-tripped correctly while the band was built naive-local too, which is
+    why the pair hid: the same wrong frame on both sides gave the right components back. Residue
+    `2026-10-12-the-night-band-mixes-a-floating-stamp-with-a-local-epoch`.
+
+    This is the published night KEY, so the day it names is the thing a reader indexes by."""
+    return _dt.datetime.fromtimestamp(edge, _dt.timezone.utc).strftime("%Y-%m-%d")
+
+
 def session_epoch(name: str) -> float | None:
     """The FLOATING epoch of a capture filename's `YYYYMMDD[_]HHMMSS` session stamp, or None.
 
@@ -139,10 +153,14 @@ def session_epoch(name: str) -> float | None:
     m = _SESSION_STAMP.search(os.path.basename(name))
     if not m:
         return None
-    try:
-        return _dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").timestamp()
-    except ValueError:
-        return None  # a real-looking stamp that is not a real instant (month 13, day 32)
+    # 🔴 IT SAID FLOATING AND RETURNED A LOCAL EPOCH, found 2026-10-18 while moving the bands into the
+    # floating frame. `.timestamp()` resolved the stamp through the READER'S ZONE, four hours off the
+    # components the capture wrote on this box, and `recording_start` published that shifted clock as
+    # "what a reader compares against the device's own screen". It hid because the band was naive local
+    # too: two wrong frames that cancelled for membership, and only the published field showed it.
+    # `floating_stamp_s` is nightqc's one conversion and owns the unreal-stamp case, so the try/except
+    # that used to sit here belongs to it rather than to a second copy.
+    return nightqc.floating_stamp_s(m.group(1) + m.group(2))
 
 
 _ISO = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})")
@@ -577,7 +595,11 @@ def night_entry(
         # without it two rows in one band are indistinguishable to every consumer — the page, a cache key,
         # a test. Published as wall-clock because that is what a reader compares against the device's own
         # screen; the epoch is `min(stamps)` and stays internal.
-        began = _dt.datetime.fromtimestamp(min(stamps))
+        # FLOATING, like the stamps themselves (`session_epoch`). `fromtimestamp` without a zone read
+        # them through the READER'S ZONE, so the published field was four hours off the device's own
+        # screen on the box — the exact opposite of what the line above says it is for. Same frame fix
+        # as `_band_date`, same residue.
+        began = _dt.datetime.fromtimestamp(min(stamps), _dt.timezone.utc)
         out["recording_start"] = began.strftime("%Y-%m-%d %H:%M")
         # ⚠️ A ROW THE SLEEP BAND ADMITS NOTHING INTO, AND THE FLAG IS WHAT MAKES IT READABLE. A 13:00
         # session gets a row, and `in_band` keeps every one of its files out: measured 2026-10-18, each
@@ -732,7 +754,7 @@ def recordings_of(entry: dict) -> tuple[list[dict], list[str]]:
             # ruling governs exactly this question. `night_key_band`'s docstring carries why passing it
             # to `in_band` or `night_view` would be wrong.
             b0, b1 = nightqc.night_key_band(ts)
-            name = _dt.datetime.fromtimestamp(b0).strftime("%Y-%m-%d")
+            name = _band_date(b0)
             r = by_band.setdefault(
                 name, {"recording": name, "begin": b0, "end": b1, "first": ts, "arrival": [], "files": {}}
             )
@@ -783,6 +805,11 @@ def _session_spans(root: str) -> dict[float, float]:
     # enumeration this module already vetted. My first version globbed, which orphaned this function and
     # would have admitted an impossible date as a night.
     for d in list_nights(root):
+        # ONE OFFSET PER FOLDER, READ ONCE, BEFORE THE FILES. `recorded_writer_offset` opens one small
+        # sidecar; reading it per file would open it as many times as the night has sessions for an
+        # answer that cannot differ between them. It is also the only I/O this pass adds, which is what
+        # keeps `_floating_mtime` inside the budget the header states.
+        rec = nightqc.recorded_writer_offset(d)
         # SORTED, so the scan order is FIXED. `glob` returns filesystem order, which made a
         # `continue` → `break` mutant on the skip below survive: a test can only see that mutant if the
         # skipped file is guaranteed to come BEFORE a file that must still be scanned, and an unsorted
@@ -792,11 +819,49 @@ def _session_spans(root: str) -> dict[float, float]:
             if t is None or not os.path.isfile(f):
                 continue
             try:
-                end = os.path.getmtime(f)
+                end = _floating_mtime(f, rec)
             except OSError:
                 continue  # vanished between glob and stat — it carries no span to add
             spans[t] = max(spans.get(t, end), end, t)
     return spans
+
+
+def _floating_mtime(path: str, recorded: "dict | None") -> float:
+    """A file's last write as a FLOATING second — the frame `session_epoch` returns.
+
+    🔴 A SPAN NEEDS ONE FRAME AND THIS FUNCTION HAS TWO SOURCES. The start comes from the NAME and is
+    civil (`session_epoch`); the end comes from the filesystem and is an absolute instant. Differencing
+    them directly is the defect `floating_stamp_s` warns about in capitals, and it was invisible here
+    only while `session_epoch` resolved its stamp through the reader's zone too — two wrong frames that
+    cancelled. Measured on 2026-10-18 once the start was corrected: in EDT every span grew by the 4 h
+    offset, which swallowed the 2 h doff gaps and merged three recordings into one row.
+
+    ⚠️ `recorded` IS THE OFFSET THE WRITER WROTE DOWN, and it is the only path here that measures
+    anything. `briefs/SESSION-SPAN-WRITER-OFFSET-2026-09-28-BRIEF.md` §1 rules that the night's own
+    writer offset is the ONE place a floating value becomes an instant, and this conversion crosses the
+    same seam in the other direction. So a night that recorded its offset takes an exact subtraction and
+    assumes nothing — every night from 2026-10-05, and every night from here on.
+
+    ∅ THE FALLBACK IS A PREMISE, AND NAMING IT IS THE WHOLE OF ITS DEFENCE. An older night recorded no
+    offset, so this reads the HOST's own zone at that instant instead. That premise holds while the index
+    runs on the box that wrote the files, which is where it runs today, and it is wrong by a whole UTC
+    offset anywhere else. The brief's answer to an unrecoverable offset is UNKNOWN with a named reason,
+    and this return value has nowhere to carry one: `_recordings` consumes the end as a chain bound and
+    publishes no field for it (`begin` and `end` on a row are BAND edges, not this). So the off-box case
+    is residue (`2026-10-18-nights-index-spans-assume-the-writers-host-zone`), and a correct answer stays
+    available for every night captured before the writer began recording its zone.
+
+    ⏪ A REFUSED RECOVERY LANDS HERE TOO, and that direction is the safe one. `recorded_writer_offset`
+    hands back None when a night's sessions disagree, which is a DST seam — and one offset is wrong for
+    half of such a night, while the host zone resolved AT each file's own instant is right across it."""
+    m = os.path.getmtime(path)
+    if recorded is not None:
+        # MINUS, because `offset_sec` RAISES a floating stamp into the `mtime` frame (`nightqc`'s sign,
+        # EDT = +14400). This brings an mtime DOWN into the floating frame, which is the way every other
+        # value in this module already points.
+        return m - float(recorded["offset_sec"])
+    d = _dt.datetime.fromtimestamp(m)
+    return float(_cal.timegm(d.timetuple())) + d.microsecond / 1e6
 
 
 def _recordings(root: str) -> list[tuple[str, frozenset[float]]]:
@@ -843,7 +908,7 @@ def _recordings(root: str) -> list[tuple[str, frozenset[float]]]:
         # 14:00 session to its OWN day. A midday session still gets its own row rather than merging into
         # a night, because `recording_start` is what distinguishes two recordings in one band.
         band = nightqc.night_key_band(t)
-        key = _dt.datetime.fromtimestamp(band[0]).strftime("%Y-%m-%d")
+        key = _band_date(band[0])
         by_band.setdefault(key, []).append(t)
     out: list[tuple[str, frozenset[float]]] = []
     # `stampless - by_band.keys()` rather than `setdefault(key, [])`: the sentinel `[]` was a mutant site
