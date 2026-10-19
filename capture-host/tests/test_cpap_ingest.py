@@ -266,3 +266,47 @@ def test_a_MEASURED_stall_leaves_the_unmeasured_list_while_post_drop_tail_stays(
     assert c.summary()["lost_coverage_missing"] == ["post_drop_tail"]
     assert c.total_lost == 0, "a stall is an event on the device clock, never an addend in a frame total"
     assert GapCounters(stalls=4).total_lost == 0, "still not in the total — the consumer sums it"
+
+
+# ── the post-drop tail: the last category with no writer ─────────────────────────────────────────────
+def test_an_UNFOLDED_post_drop_tail_is_None_and_one_FALSE_fold_makes_it_a_measured_zero():
+    """§∅ at the counter, and the whole reason `note_link_down_frame` takes every frame rather than
+    only the ones after a drop. None is "no probe looked"; 0 is "a probe looked at a frame and the
+    link was up". An increment-only writer cannot distinguish them, which is the shape this repo
+    keeps finding."""
+    c = GapCounters()
+    assert c.post_drop_tail is None
+    c.note_link_down_frame(False)
+    assert c.post_drop_tail == 0
+    assert "post_drop_tail" not in c.lost_coverage
+
+
+def test_only_the_frames_READ_AFTER_THE_DROP_are_counted():
+    """Four frames, the link gone before the last two. The count is the tail, never the stream."""
+    c = GapCounters()
+    for down in (False, False, True, True):
+        c.note_link_down_frame(down)
+    assert c.post_drop_tail == 2
+    assert c.total_lost == 0, "a tail frame arrived — counting it as loss would misname data we hold"
+
+
+def test_the_probe_is_read_for_TRUTH_so_an_instant_counts_as_well_as_a_flag():
+    """The transport hands back whatever it has. `capture._cpap_ble_connect` returns a bool today, and
+    a probe that returns the drop INSTANT instead must not read as "the link is up" because a float is
+    not True. Truthiness is the contract; the one trap is an instant of 0.0, which no monotonic clock
+    this box reads ever returns."""
+    c = GapCounters()
+    c.note_link_down_frame(None)
+    c.note_link_down_frame(1792443224.25)
+    assert c.post_drop_tail == 1
+
+
+def test_BOTH_unmeasured_categories_now_have_writers_so_the_list_can_empty():
+    """The state this unit exists to reach: `lost_coverage` empty means every category was LOOKED FOR,
+    which is what `acq_evidence_cpap` requires before it will stamp COMPLETE. It is not the same claim
+    as "nothing was lost" — `total_lost` answers that, and these two stay outside it."""
+    c = GapCounters(stalls=0)
+    c.note_link_down_frame(False)
+    assert c.lost_coverage == []
+    assert c.summary()["lost_coverage_missing"] == []
+    assert c.summary()["post_drop_tail"] == 0

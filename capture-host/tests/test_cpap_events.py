@@ -513,7 +513,15 @@ def test_a_subscribe_TIMEOUT_is_recorded_as_such_and_the_stream_still_runs():
     async def recv_frame():
         if hung["once"]:
             hung["once"] = False
-            await asyncio.sleep(10)  # far past the 0.05 s budget below
+            # 0.5 s: TEN TIMES the 0.05 s budget below, so the wait is unambiguously bounded by the
+            # budget — and 0.5 s rather than 10 s because the HANG IS WHAT THE MUTATION GATE MEASURES.
+            # `subscribe_timeout_s` → `None` makes this wait unbounded, so the mutant's cost is this
+            # sleep. mutmut bounds each mutant at `(sum of the covering tests' BASELINE durations + 1)
+            # x 3`; this test's baseline is 0.051 s (the budget fires and abandons the sleep), so the
+            # bound for `as11_pull.x_stream` was 3.21 s and a 10 s sleep blew it. The mutant then read
+            # UNDECIDED — unmeasured, not killed — and `mutate_diff` refused. At 0.5 s the same mutant
+            # fails the assertion below in half a second (measured 2026-10-19).
+            await asyncio.sleep(0.5)
         return await inner.recv_frame()
 
     batches = _collect(
@@ -533,6 +541,102 @@ def test_a_subscribe_TIMEOUT_is_recorded_as_such_and_the_stream_still_runs():
     )
     assert len(batches) == 1
     assert rec.subscribe_status == "failed:TimeoutError"
+
+
+def test_the_SUBSCRIBE_FRAME_CARRIES_THE_ID_THE_PUMP_THEN_AWAITS():
+    """The subscribe id is DERIVED from `start_id`, and the test above cannot see that.
+
+    `as11_link.subscribe_event`'s own default id is 17, which is exactly `start_id + 1` for the default
+    `start_id` of 16. So every test that opens the stream at 16 reads the same bytes whether the pump
+    passes its id or omits it. Measured 2026-10-19: `as11_pull.x_stream__mutmut_16` drops `rpc_id=sub_id`
+    from the call and the whole suite stayed green. Opened at 42, the frame on the wire must say 43.
+    """
+    rec = E.EventRecorder()
+    dev = FakeAS11([_sub_ack(rpc_id=43), _ack(rpc_id=42), _stream_data()])
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=42,
+            max_batches=1,
+            subscribe=["_ZLE"],
+            on_event=rec.note,
+            on_subscribed=rec.note_subscribed,
+        )
+    )
+    assert len(batches) == 1 and rec.subscribe_status == "ok"
+    sent = _sent(dev)
+    assert sent[0]["method"] == "SubscribeEvent"
+    assert sent[0]["id"] == 43, "the id on the wire is the one the pump awaits, not the builder's default"
+
+
+def test_the_SUBSCRIBE_BUDGET_DEFAULTS_TO_TEN_SECONDS(monkeypatch):
+    """The default budget is a number no test can afford to SPEND: a test that let it run would wait
+    ten seconds, and a test that shortens it reads back its own value. So the budget is observed where
+    it is HANDED OVER, by watching the call the pump makes.
+
+    Not read off the signature. Measured 2026-10-19: `inspect.signature(P.stream)` under the mutation
+    gate describes mutmut's dispatcher, not the mutant, so a signature assertion cannot see
+    `as11_pull.x_stream__mutmut_3` move the default to 11.0 — it survived a test that fails on the
+    same mutant applied by hand."""
+    seen = []
+    real = asyncio.wait_for
+
+    async def spy(aw, timeout=None):
+        seen.append(timeout)
+        return await real(aw, timeout=timeout)
+
+    monkeypatch.setattr(asyncio, "wait_for", spy)
+    rec = E.EventRecorder()
+    dev = FakeAS11([_sub_ack(), _ack(), _stream_data()])
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            subscribe=["_ZLE"],
+            on_event=rec.note,
+            on_subscribed=rec.note_subscribed,
+        )
+    )
+    assert len(batches) == 1 and rec.subscribe_status == "ok"
+    assert seen == [10.0], "the subscribe wait is handed the default budget, ten seconds"
+
+
+def test_a_MALFORMED_frame_is_NEVER_handed_to_the_recorder():
+    """Routing is a CONJUNCTION: an EVENT frame, AND a recorder to hand it to.
+
+    A mutant reading the second half as an alternative hands every non-OK frame to the recorder once a
+    recorder exists. A malformed StreamData then enters the sidecar as a notification with no rows, and
+    the JSONL carries an arrival the device never reported. Measured 2026-10-19:
+    `as11_pull.x_stream__mutmut_109` turns the `and` into an `or` and no test saw it."""
+    rec = E.EventRecorder()
+    c = GapCounters()
+    bad = _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {"data": "not-a-list", "streamId": 1}})
+    dev = FakeAS11([_ack(), bad, _stream_data()])
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            counters=c,
+            on_event=rec.note,
+        )
+    )
+    assert len(batches) == 1
+    assert (c.malformed, c.events) == (1, 0), "a malformed frame is malformed, not an event"
+    assert rec.notifications == 0 and rec.rows == []
 
 
 def test_an_EventNotification_is_ROUTED_to_the_recorder_counted_as_an_event_and_never_yielded():

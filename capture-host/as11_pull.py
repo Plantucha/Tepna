@@ -189,6 +189,7 @@ async def stream(
     on_event=None,
     on_subscribed=None,
     subscribe_timeout_s=10.0,
+    link_down=None,
 ):
     """Async generator over a LIVE AS11 waveform stream (StartStream → StreamData). READ-ONLY.
 
@@ -203,7 +204,18 @@ async def stream(
     dicts (`[{"PatientFlow":[…]},{"MaskPressure":[…]}]`) into one map.
 
     Stops after `max_batches` batches, or — when that is None — runs until the caller stops iterating.
-    There is no StopStream RPC: ending iteration and dropping the BLE link is what stops the device."""
+    There is no StopStream RPC: ending iteration and dropping the BLE link is what stops the device.
+
+    `link_down` is the transport's own drop probe: a zero-argument callable, truthy once the link has
+    gone away without us asking. INJECTED like every other transport dependency here, because this
+    module does no BLE — the instant lives in the connect layer's disconnect callback and nowhere else.
+    With it, every frame this loop reads is folded into `counters.post_drop_tail`, which is how the
+    buffered tail audit §7.3 measured (~230 ms, one fragment after the disconnect) becomes a number
+    instead of a field with no writer. Absent ⇒ the counter stays None, i.e. nothing looked.
+
+    ⚠️ It is a PREDICATE, not the instant itself, and deliberately: the tail's WIDTH in ms has no
+    consumer, and a field nothing reads is the half-wired shape the P3 brief exists to remove. The
+    probe's own source may hold the instant; this layer asks only whether the link is already gone."""
     # EVENT SUBSCRIPTION FIRST (cpap_events). Requested before StartStream so that awaiting its ack can
     # never consume a waveform batch — there are none yet. Non-fatal by design: a night must not be lost
     # because an optional witness declined, so a timeout or an error is RECORDED on the recorder and the
@@ -231,6 +243,12 @@ async def stream(
     count = 0
     while max_batches is None or count < max_batches:
         msg, _wire, _json = await _read_frame(recv_frame, unseal)
+        # THE POST-DROP TAIL, at the same frame boundary and before any classification: a frame that
+        # arrived after the transport lost the link counts whatever kind it turns out to be. Every
+        # frame is folded, not only the ones after a drop — see `note_link_down_frame` for why the
+        # zero matters.
+        if counters is not None and link_down is not None:
+            counters.note_link_down_frame(link_down())
         # P3 gap accounting at the frame boundary — count where the frame is SEEN, before the filter eats
         # it (INV7). ONE CLASSIFIER: `classify_frame` is the tested spec of this decision, and until
         # CPAP-ACQ-P3 W1 it was a DEAD TWIN — the decision was ALSO made inline here, so the copy under

@@ -14481,7 +14481,32 @@ async def _cpap_ble_connect(
     # tests/test_cpap_stream.py::test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg,
     # which asserts no bluez kwarg reaches bleak at all when there is no hci. Both constraints are
     # satisfied by choosing the call instead of the kwargs.
-    client = _BC(ble_addr, timeout=timeout, bluez={"adapter": hci}) if hci else _BC(ble_addr, timeout=timeout)
+    # THE DROP INSTANT, WHICH ONLY THIS LAYER CAN SEE (residue
+    # 2026-10-19-post-drop-tail-needs-a-drop-instant-this-layer-never-sees). bleak calls
+    # `disconnected_callback` when the peripheral goes away, and audit §7.3 measured one queued
+    # fragment arriving ~230 ms after that on real hardware — so a frame read afterwards is the
+    # buffered tail, and last-SEEN is not last-SENT. `as11_pull.stream` reads the frames and never
+    # sees the instant; `link_down` below is how it finally does.
+    #
+    # ⚠️ OURS IS NOT THEIRS. bleak fires the same callback for a stop WE asked for, and a clean stop
+    # that published a post-drop tail would make every ordinary night look like a drop on the
+    # evidence surface — the same shape as a detected stall under a clean stop stamping COMPLETE
+    # (#3700). `disconnect()` raises the flag before it closes, so only an unsolicited drop counts.
+    _link = {"down": False, "closing": False}
+
+    def _on_disconnect(_client):
+        _link["down"] = not _link["closing"]
+
+    def link_down():
+        """Truthy once the link went away without us asking. The PREDICATE, not the instant: the
+        tail's width in ms has no consumer, and a field nothing reads is the half-wired shape."""
+        return _link["down"]
+
+    client = (
+        _BC(ble_addr, timeout=timeout, bluez={"adapter": hci}, disconnected_callback=_on_disconnect)
+        if hci
+        else _BC(ble_addr, timeout=timeout, disconnected_callback=_on_disconnect)
+    )
     await client.connect()
     rx = bytearray()
     q: asyncio.Queue = asyncio.Queue()
@@ -14677,8 +14702,15 @@ async def _cpap_ble_connect(
         return await asyncio.wait_for(q.get(), recv_timeout)
 
     async def disconnect():
+        # BEFORE the close, never after: bleak may fire the callback inside `client.disconnect()`,
+        # and a flag raised afterwards would be raised too late to tell ours from theirs.
+        _link["closing"] = True
         await client.disconnect()
 
+    # The probe rides ON `disconnect` — see `cpap_stream._start`, which reads it. A fourth tuple
+    # element would change what fifteen P0 call sites unpack; this changes nothing for a caller that
+    # does not ask.
+    disconnect.link_down = link_down  # type: ignore[attr-defined]
     return write, recv_frame, disconnect
 
 
