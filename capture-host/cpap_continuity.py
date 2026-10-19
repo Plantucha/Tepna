@@ -43,6 +43,19 @@ start with no predecessor drop, or by a deliberate stop clearing the slate. A da
 persisted predecessor state — a crash, a SIGKILL — also cannot claim `continuous` for a session that may
 be a resume; the controller resolves that with `resume_hint` from the autostart record.
 
+MID-SESSION STALLS RIDE ON THE SAME COMPARISON (added 2026-10-19; residue row
+`2026-10-05-cpap-stall-and-post-drop-counters-have-no-writer`). The owed sample is recomputed on EVERY
+frame, so a break INSIDE a session was already being computed — and the next frame overwrote it, because
+only an armed drop triggered the comparison. `stalls` counts those breaks, which is the `spec §30
+STREAM_STALL` category `cpap_ingest.GapCounters` declared and nothing wrote.
+
+That count is deliberately NOT folded into `status`/`gap_ms`. Those four words answer "does this session
+follow a drop", and a consumer reading `verified-gap` would take a mid-session stall for one. The device
+clock is also why this detector is sound where a wall-clock inter-frame timer is not: a timer in the read
+loop measures device silence PLUS any time another callback held the shared event loop, which is exactly
+the attribution the loop-lag detector could not make over the 151 stalls measured 2026-09-18
+(CPAP-ACQ-P3-GAP-ACCOUNTING §W2(b)'s gate). The device's own stamps carry no host-side term.
+
 Pure and deterministic: no clock is read, no I/O, no transport. The stamp parser is EXPLICIT-FORMAT per the
 Clock Contract §2 — a regex on the device's own shape, never `datetime.fromisoformat` on a vendor string;
 anything else parses to None and the tracker stays honest rather than guessing.
@@ -94,7 +107,9 @@ class ContinuityTracker:
     """One per controller; lives across sessions so the session after a drop can see the one before it.
 
     The three notifications map onto the three things a controller actually knows:
-      • `note_frame`  — the pump saw an OK StreamData frame (called per frame; cheap)
+      • `note_frame`  — the pump saw an OK StreamData frame (called per frame; cheap). Advances the
+                        owed-sample clock, performs the post-drop verification, and counts a
+                        mid-session break into `stalls`
       • `note_end`    — the pump finished, and whether it did so CLEANLY (deliberate stop / therapy end)
                         or by RAISING (a drop). Only a drop arms a resume.
       • `note_start`  — a new session is opening; resolves the status the session begins in
@@ -102,6 +117,12 @@ class ContinuityTracker:
 
     status: Continuity = Continuity.CONTINUOUS
     gap_ms: int | None = None
+    # MID-SESSION STALLS (spec §30 STREAM_STALL), counted per session and reset by `note_start`.
+    # The SAME comparison `_verify` makes across a drop, made on every frame instead of one: the owed
+    # sample is already computed per frame, so a break inside a session was being computed and then
+    # overwritten. None until a comparison was possible — 0 means "compared, and the clock was
+    # contiguous", which is the `sink_max_ms` discipline, not a fabricated zero (§∅).
+    stalls: int | None = None
     # device epoch-ms of the sample the previous session was OWED (last frame's start + its span)
     _expected_next_ms: float | None = None
     # set by a drop, cleared by a clean end or by the first frame of the following session
@@ -123,6 +144,20 @@ class ContinuityTracker:
         if self._armed:
             self._verify(start)
             self._armed = False
+        elif start is not None and self._expected_next_ms is not None and self._interval_ms:
+            # A MID-SESSION BREAK. The link stayed up and the device's own clock says the samples
+            # between these two frames never arrived — "no frame for the timeout", spec §30. Counted
+            # here and NEVER folded into `status`/`gap_ms`: those two are the cross-session resume
+            # verdict, and a consumer reads `verified-gap` as "this session follows a drop".
+            #
+            # The device clock is why this is a sound stall detector and a wall-clock inter-frame timer
+            # is not. A timer in the read loop measures device silence PLUS any time another callback
+            # held the shared event loop, which is exactly the attribution the loop-lag detector could
+            # not make over the 151 stalls measured 2026-09-18 (CPAP-ACQ-P3 §W2(b)'s gate). The
+            # device's stamps carry no host-side term at all.
+            self.stalls = (self.stalls or 0) + (
+                1 if start - self._expected_next_ms > TOLERANCE_INTERVALS * self._interval_ms else 0
+            )
         if start is None or iv <= 0:
             return  # no usable device clock on this frame; the owed sample stays where it was
         self._interval_ms = iv
@@ -150,6 +185,10 @@ class ContinuityTracker:
         else:
             self.status = Continuity.CONTINUOUS
         self.gap_ms = None
+        # Per SESSION, not per tracker: one tracker lives across every session on this controller, and
+        # `GapCounters` is built fresh per pump. A count carried over would attribute one session's
+        # stalls to the next. Back to None, not 0 — the new session has compared nothing yet.
+        self.stalls = None
 
     # ── the verification ───────────────────────────────────────────────────────────────────────────
     def _verify(self, first_start_ms) -> None:

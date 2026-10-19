@@ -255,3 +255,14 @@ def test_sink_slow_counts_the_writes_that_could_HAVE_STALLED_the_loop():
     c.note_sink_write(1502.0)  # the measured stall median
     assert c.sink_slow == 2, "the bound is inclusive: a write AT the threshold could produce a stall"
     assert c.sink_max_ms == 1502.0
+
+
+def test_a_MEASURED_stall_leaves_the_unmeasured_list_while_post_drop_tail_stays():
+    """`stalls` gained a detector (`cpap_continuity.ContinuityTracker.stalls`, written on by
+    `cpap_stream.stream_to_bus`); `post_drop_tail` did not. So the list names one, not two — and a
+    measured 0 counts as measured, because 0 here is "compared, and nothing was lost"."""
+    c = GapCounters(stalls=0)
+    assert c.lost_coverage == ["post_drop_tail"]
+    assert c.summary()["lost_coverage_missing"] == ["post_drop_tail"]
+    assert c.total_lost == 0, "a stall is an event on the device clock, never an addend in a frame total"
+    assert GapCounters(stalls=4).total_lost == 0, "still not in the total — the consumer sums it"

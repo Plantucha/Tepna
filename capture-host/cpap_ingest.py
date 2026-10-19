@@ -99,11 +99,22 @@ class GapCounters:
     bytes_wire: int = 0
     bytes_json: int = 0
     overflow: int = 0  # frames dropped because the bounded queue was full (G5)
-    # ⚠️ None, NOT 0 — these two have NO DETECTOR, and `0` is a measurement they have not made (§∅).
-    # Measured 2026-09-18: nothing anywhere increments either one. A reader of `0` concludes no stall and
-    # no post-drop tail occurred; the truth is that neither is looked for. A missing field is visible and
-    # a zero is not, which is why the fields stay and the VALUE carries the absence.
-    stalls: "int | None" = None  # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — UNMEASURED
+    # ⚠️ None, NOT 0 — a field with no detector must not report a measurement it has not made (§∅).
+    # Measured 2026-09-18: nothing anywhere incremented either one. A reader of `0` concludes no stall
+    # and no post-drop tail occurred; the truth was that neither was looked for. A missing field is
+    # visible and a zero is not, which is why the fields stay and the VALUE carries the absence.
+    #
+    # `stalls` NOW HAS A DETECTOR — `cpap_continuity.ContinuityTracker.stalls`, written onto this
+    # record by `cpap_stream.stream_to_bus`. It counts frames whose device clock lands more than one
+    # interval past the sample the previous frame owed, which is the §30 condition measured on the
+    # device's own stamps. It stays None on a pump running without a continuity tracker, because that
+    # pump compared nothing.
+    #
+    # `post_drop_tail` still has none, and this layer cannot build one. A frame "after a logical link
+    # drop" needs the drop instant from the transport, and audit §7.3 measured that boundary ~230 ms
+    # wide: the device delivered a buffered fragment after the disconnect, so last-SEEN is not
+    # last-SENT. `as11_pull.stream` sees frames and raises on the drop; it never sees the instant.
+    stalls: "int | None" = None  # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — see above
     post_drop_tail: "int | None" = None  # frames after a logical link drop (audit §7.3, the ~230 ms tail) — UNMEASURED
     # HOW LONG A SINK WRITE HELD THE LOOP. `stream_to_bus` is a single sequential `async for` — producer
     # and consumer are the same coroutine — so a slow sink stops the loop pulling frames. Measured
@@ -166,11 +177,15 @@ class GapCounters:
 
     @property
     def lost_coverage(self) -> "list[str]":
-        """The loss categories `total_lost` does NOT cover, because nothing measures them yet.
+        """The loss categories NOTHING HAS MEASURED. Published beside the total so a reader can tell an
+        honest partial from a complete one.
 
-        Published beside the total so a reader can tell an honest partial from a complete one. Empty
-        means the total is complete — which is the state this field exists to let us reach, and to make
-        the reaching of it visible."""
+        ⚠️ Empty does NOT mean `total_lost` covers every category — it means every category was looked
+        for. `stalls` counts stall EVENTS on the device clock, not frames, so adding it to a frame total
+        would be the "lie with more addends" `total_lost` above refuses; it leaves this list once it has
+        a value and is still outside the total. `sink_errors` is already in that shape. The consumer
+        that decides completeness sums the measured categories itself and reads this list for the rest
+        (`acq_evidence_cpap`), which is why the two halves must stay separate here."""
         return [n for n in ("stalls", "post_drop_tail") if getattr(self, n) is None]
 
     def summary(self) -> dict:
