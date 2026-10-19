@@ -352,6 +352,13 @@ async function main(){
   for (const _pf of ['ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js']) {
     const _t = await fetchText(_pf); if(_t) (0, eval)(esmClassicify(_t));
   }
+  /* residue 2026-10-06-no-committed-fixture-pairs-an-ecg — oxydex-fusion.js, EXECUTED here and not
+     merely read as text, so the committed pair's equivalence leg recomputes the shipped block in this
+     lane too. Wrapped in an IIFE exactly as run-tests.mjs's render harness wraps it: that scopes its
+     top-level bare declarations while the Object.assign(window, …) surface still escapes. Deps are
+     already present — oxydex-util.js and dex-escape.js load classically above, oxydex-dsp.js evals
+     above it. Its only top-level DOM work is a wire() over getElementById, which no-ops on this page. */
+  { const _of = await fetchText('oxydex-fusion.js'); if(_of) (0, eval)('(function(){\n' + esmClassicify(_of) + '\n})();'); }
   // TEST-COVERAGE-FOLLOWUPS Item 2: the NSRR PSG ingest adapter (window.NSRR). Plain IIFE, no top-level
   // deps — its parseNsrrXml uses DOMParser (present here, absent in Node), so the XML→AHI-scoring leg of
   // the known-answer group runs in THIS lane; the DOM-free channel/resample/Clock-Contract legs run in both.
@@ -565,6 +572,23 @@ async function main(){
     try { fixture = await fetchJSON('uploads/' + encodeURIComponent(fxF)); } catch (e) { /* committed → normally present */ }
     setEquiv('oxydex_stored', input, fixture, fxF);
   }
+  /* residue 2026-10-06-no-committed-fixture-pairs-an-ecg — the SpO2-plus-ECG PAIR, in THIS lane too.
+     Three committed files (the O2Ring CSV, an ECG node-export built to overlap that night, and the
+     fixture computed from BOTH), so the leg has teeth on a fresh clone here as well. Hand-built rather
+     than setEquiv: this record carries no `input`, because its fixture needs TWO. Registering it here
+     is load-bearing — the fixture-reproducibility gate builds its "something re-runs this" registry
+     PER LANE out of equiv[*].fixtureFile, so wiring only run-tests.mjs left this lane reading a
+     code-gated fixture as a manifestHash claim nothing reproduces. That is the same one-lane blind
+     spot the oxydex_stored leg above records, and it reded this group on its first lap.
+     Each half loads alone, so an unreadable one is named by the group instead of skipping vacuously. */
+  {
+    const rec = { fixtureFile: 'OxyDex_synthetic_ecg_paired_summary.json' };
+    try { const t = await fetchText('uploads/synthetic_oxydex_o2ring.csv'); if (t != null) rec.csv = t; } catch (e) { /* absent → absent, never a default */ }
+    for (const [k, f] of [['ecg', 'synthetic_ecg_night.node-export.json'], ['fixture', 'OxyDex_synthetic_ecg_paired_summary.json']]) {
+      try { const j = await fetchJSON('uploads/' + f); if (j != null) rec[k] = j; } catch (e) { /* absent or malformed → absent */ }
+    }
+    if (rec.csv !== undefined || rec.ecg !== undefined || rec.fixture !== undefined) equiv.oxydex_ecg_pair = rec;
+  }
 
   // ── CPAPDex REAL-EDF legs (FIXTURE-REPRODUCIBILITY §1) — binary, multi-session ───────────────
   // Both were CODE-GATED (a manifestHash claiming "reproducible under this code") while NOTHING
@@ -767,6 +791,14 @@ async function main(){
         window[name] = saved;
       }
     },
+    /* residue 2026-10-06-no-committed-fixture-pairs-an-ecg — the fusion surface the committed
+       CSV-plus-ECG pair recomputes through. Wired here as well as in run-tests.mjs so the recompute
+       runs in BOTH lanes instead of skipping where oxydex-fusion.js is carried as text only.
+       `setEcgByDate` is a SETTER over the one realm global oxyEcgForNight reads, never the realm. */
+    oxyEcgFusionBlock: window.oxyEcgFusionBlock,
+    oxyEcgForNight: window.oxyEcgForNight,
+    oxyComputeFusion: window.oxyComputeFusion,
+    setEcgByDate: function (m) { window._ecgByDate = m; },
     adaptEnvelopeNode: window.adaptEnvelopeNode,
     // §4.3 — the apnea fusion + the twins' input builder, so the browser lane runs the same equiv
     // leg the Node lane does rather than self-skipping (a skip here is a gate that examines nothing).

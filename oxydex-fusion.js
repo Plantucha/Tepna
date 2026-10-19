@@ -1156,11 +1156,44 @@ function handleEcgJson(file) {
 })();
 
 // ESM-MIGRATION deep-3: fusion is now an ES module — publish the surface render/app consume.
+/* THE ecgFusion BLOCK of the node-export, mapped from oxyComputeFusion's result.
+   It used to sit inline in oxydex-app.js, which put it out of reach of everything headless: no
+   committed fixture could carry a non-null `ecgFusion`, so GATE C was blind to the whole fusion
+   path and a fusion change moved `computeHash` while every golden moved only its code stamps
+   (residue 2026-10-06-no-committed-fixture-pairs-an-ecg). It lives here, beside the computation it
+   maps, so the app and the fixture regenerator build the SAME block from ONE source. The mapping is
+   byte-for-byte the app's — moving it is not an occasion to change a field. */
+function oxyEcgFusionBlock(F) {
+  if (!F) return null;
+  return {
+    pairedEcgDate: typeof _oxyEcgDate === 'function' && F.rec ? _oxyEcgDate(F.rec.startEpochMs) : null,
+    confirmedApnea: { confirmed: F.confirmed, desaturations: F.desN, pct: F.confPct },
+    desatArousalLatencySec: F.medLat,
+    apneaType: F.apneaType,
+    pairedEvents: F.latencies.length,
+    hypoxicDosePerEvent: F.dosePerEv,
+    doseBasis: F.doseBasis,
+    doseDenominator: F.doseDenom,
+    nadirDepthByStage: Object.keys(F.stageAgg).reduce(function (o, k) {
+      var a = F.stageAgg[k];
+      o[k] = { count: a.count, deepestPct: +a.deepest.toFixed(1), meanPct: +(a.sum / a.count).toFixed(1), unstaged: !!a.unstaged };
+      return o;
+    }, {}),
+    stageProxyContext: F.stageProxyCtx,
+    crcPLV: { baseline: F.plvB, duringSurges: F.plvS, dropsDuringSurges: F.plvB != null && F.plvS != null ? F.plvS < F.plvB : null, wholeNight: F.cr ? F.cr.crcPLV : null },
+    hrCrossCheck: { oxyMeanHr: F.oxyMeanHr, ecgMeanHr: F.ecgMeanHr, deltaBpm: F.hrDelta, oxyFloor: F.oxyFloor, ecgFloor: F.ecgFloor },
+    realHRV: { rmssd: F.t.rmssd, sdnn: F.t.sdnn, pnn50: F.t.pnn50, meanHr: F.t.hr },
+    ecgApnea: F.ap ? { estimatedAHI: F.ap.estimatedAHI, cvhrIndex: F.ap.cvhrIndex, cvhrEvents: F.ap.cvhrEvents, riskCategory: F.ap.riskCategory } : null,
+    respRateInstability: F.rstat
+  };
+}
+
 Object.assign(window, {
   _oxyEcgDate,
   oxyEcgForNight,
   oxyHeroBenchCard,
   oxyComputeFusion,
+  oxyEcgFusionBlock,
   oxyEcgFusionSection,
   buildFullMetricsTable,
   oxyFrontFullTable

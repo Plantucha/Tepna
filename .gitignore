@@ -111,6 +111,11 @@ uploads/*
 !uploads/synthetic_ecgdex_h10_gapped.txt
 !uploads/synthetic_ecgdex_flat_edr.txt
 !uploads/synthetic_oxydex_golden.node-export.json
+# The ECG counterpart of the synthetic OxyDex night, plus the fixture computed from BOTH halves
+# (residue 2026-10-06-no-committed-fixture-pairs-an-ecg). The only committed pair in the repo that
+# makes the SpO2-plus-ECG fusion block reproducible — every other OxyDex fixture has no ECG beside it.
+!uploads/synthetic_ecg_night.node-export.json
+!uploads/OxyDex_synthetic_ecg_paired_summary.json
 !uploads/synthetic_pulsedex_golden.node-export.json
 !uploads/synthetic_hrvdex_golden.node-export.json
 !uploads/synthetic_glucodex_golden.node-export.json
