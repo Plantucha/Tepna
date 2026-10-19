@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="65c2b34099e3" data-compute-hash="d64f76e7a3f7">
+<html lang="en" data-manifest-hash="1b2a72116a61" data-compute-hash="168a98b86852">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6zdAWTbABJgTpJIGZt0CH39byvIjCsM7IXwmQCh10QI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-k8fu83nAacZrNcYx/MA4TCalr+wx9BAx7R/iLo0gBWc=' 'sha256-m00R3jtNtLVD6NnR/TeCVDJ6j2P1VpjwzKxQpHJqBU4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-G2wTUZRUKYwC63Cm6idt9r1etTPUJ1okcmMdzfj96XU=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-gk413vB4A0mqJpWYofu7FsRBTUlQ7ncO6A4L0zZXLQU=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-k8fu83nAacZrNcYx/MA4TCalr+wx9BAx7R/iLo0gBWc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.20.0</title>
@@ -20589,7 +20589,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        ABSENCE-SURVEY f0210dc347e1: with no stage estimate a "neutral" +5 was added — a value inside the range a
        measured stage produces, so the score could not be read as "stage absent". The component's weight is
        the halves actually present (`scores.sleepMax`), so readiness renormalises over what was measured. */
-    var durationMin = n > 0 ? n / 60 : durationMinHint > 0 ? durationMinHint : null;
+    /* Residue 2026-09-29-oxydex-counts-rows-as-seconds, the duration half: `n / 60` is minutes only
+       at exactly 1 Hz, and the box's ring runs 0.9854 rows/s, so the DURATION half of this component
+       read ~1.5 % low on every box night — enough to drop a 7.05 h night under the 420-minute step.
+       `_sampleDwell` reads the stamps and names its fallback. */
+    var _kdw = n > 0 ? _sampleDwell(rows) : null;
+    var durationMin = _kdw ? _kdw.coveredMs / 60000 : durationMinHint > 0 ? durationMinHint : null;
     var sleepScore = null,
       sleepMax = 0;
     if (durationMin != null) {
@@ -20902,18 +20907,82 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   // CT90 / CT89 / CT88 per-second (precise, already in tIdx but now surfaced as distinct fields)
-  function computeCTprecise(rows) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
+  /* ── dwell, not row counts ──────────────────────────────────────────────────────────────────
+     Residue 2026-09-29-oxydex-counts-rows-as-seconds: `computeCTprecise` counted ROWS below each
+     threshold and published them as `ct90s` … `ct80s`, and the sleep-duration component counted rows
+     as minutes. Both are true only if the device samples at exactly 1 Hz. The box's ring does not:
+     measured on vigil's 2026-09-28 night (`Wellue_O2Ring-S_S8AW2100_20260928213651_SPO2.csv`) 23 826
+     rows span 24 179 s, which is 0.9854 rows/s, with 538 two-second steps, one 3 s, one 4 s and 189
+     doubled (zero-second) stamps. So CT read ~1.5 % LOW on every box night and anything per hour of a
+     row-derived duration read ~1.5 % HIGH. A fixed cadence would fix new nights only; captured nights
+     stay as recorded, so the time has to come from the stamps the rows already carry.
+     This is the accident DEEP-AUDIT-II §2.3 fixed for `gapPct` — seconds divided by a sample count —
+     and it takes the same remedy: derive the time from the stamps and NAME the fallback when there
+     are none (`source`, the sibling of `gapSpanSource: 'assumed-1Hz'`).
+     Each row holds its value until the next stamp, so a doubled stamp holds it for 0 s. A step longer
+     than `_DWELL_CAP_MULT` cadences is a DISCONTINUITY and not dwell: the excess becomes
+     `uncoveredMs` rather than attributing a gap's whole length to the one sample before it, which is
+     §∅'s reduced-coverage half — the covered time is annotated, the metric is not refused. The last
+     row has no next stamp and holds its value for one cadence. */
+  var _DWELL_CAP_MULT = 2;
+  function _rowTMs(r) {
+    if (!r) return NaN;
+    if (r.tMs != null && isFinite(r.tMs)) return r.tMs;
+    return r.t != null ? +r.t : NaN;
+  }
+  function _sampleDwell(rows) {
+    var n = rows ? rows.length : 0,
+      dwell = new Array(n),
+      i,
+      dt;
+    if (!n) return { dwellMs: dwell, cadenceMs: null, coveredMs: 0, uncoveredMs: 0, source: 'empty' };
+    var steps = [];
+    for (i = 1; i < n; i++) {
+      dt = _rowTMs(rows[i]) - _rowTMs(rows[i - 1]);
+      if (isFinite(dt) && dt > 0) steps.push(dt);
+    }
+    if (!steps.length) {
+      /* ∅ — no usable stamps, so the seconds are SYNTHESISED under the ring's documented 1 Hz and the
+         caller publishes `source` so a reader can tell that from a stamped night. */
+      for (i = 0; i < n; i++) dwell[i] = 1000;
+      return { dwellMs: dwell, cadenceMs: 1000, coveredMs: n * 1000, uncoveredMs: 0, source: 'assumed-1Hz' };
+    }
+    steps.sort(function (a, b) {
+      return a - b;
     });
-    var n = rows.length;
-    var ct90 = 0,
-      ct89 = 0,
-      ct88 = 0,
-      ct85 = 0,
-      ct80 = 0;
+    var cad = steps[steps.length >> 1],
+      cap = _DWELL_CAP_MULT * cad,
+      covered = 0,
+      uncovered = 0,
+      d;
+    for (i = 0; i < n; i++) {
+      dt = i + 1 < n ? _rowTMs(rows[i + 1]) - _rowTMs(rows[i]) : cad;
+      // A backward or absent stamp holds nothing: it is a clock failure, not a dwell of its own.
+      if (!isFinite(dt) || dt < 0) dt = 0;
+      d = dt < cap ? dt : cap;
+      dwell[i] = d;
+      covered += d;
+      uncovered += dt - d;
+    }
+    return { dwellMs: dwell, cadenceMs: cad, coveredMs: covered, uncoveredMs: uncovered, source: 'stamps' };
+  }
+
+  function computeCTprecise(rows) {
+    var n = rows ? rows.length : 0;
+    // The seconds come from the stamps (see `_sampleDwell` above), never from the row count.
+    var dw = _sampleDwell(rows);
+    var ms90 = 0,
+      ms89 = 0,
+      ms88 = 0,
+      ms85 = 0,
+      ms80 = 0;
+    var c90 = 0,
+      c89 = 0,
+      c88 = 0,
+      c85 = 0,
+      c80 = 0;
     for (var i = 0; i < n; i++) {
-      var v = spo2[i];
+      var v = rows[i].spo2;
       /* 🔴 §∅ — `null < 90` IS TRUE IN JS, so an absent second counted as time below EVERY threshold.
          Latent until 2026-10-11: `parseCSV` deleted the device's `'- -'` rows, so no null ever reached
          this loop. #3408 carries them, which made the defect live — measured on the extracted function,
@@ -20926,22 +20995,56 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
          null guard a dropout reads as time in severe hypoxemia". This loop and `computeCT94` were the
          two the file had missed. */
       if (v == null || !isFinite(v)) continue;
-      if (v < 90) ct90++;
-      if (v < 89) ct89++;
-      if (v < 88) ct88++;
-      if (v < 85) ct85++;
-      if (v < 80) ct80++;
+      var d = dw.dwellMs[i];
+      if (v < 90) {
+        ms90 += d;
+        c90++;
+      }
+      if (v < 89) {
+        ms89 += d;
+        c89++;
+      }
+      if (v < 88) {
+        ms88 += d;
+        c88++;
+      }
+      if (v < 85) {
+        ms85 += d;
+        c85++;
+      }
+      if (v < 80) {
+        ms80 += d;
+        c80++;
+      }
     }
+    var _sec = function (ms) {
+      return +(ms / 1000).toFixed(0);
+    };
     return {
-      ct90s: ct90,
-      ct89s: ct89,
-      ct88s: ct88,
-      ct85s: ct85,
-      ct80s: ct80,
-      ct90m: +(ct90 / 60).toFixed(1),
-      ct89m: +(ct89 / 60).toFixed(1),
-      ct88m: +(ct88 / 60).toFixed(1),
-      ct85m: +(ct85 / 60).toFixed(1)
+      ct90s: _sec(ms90),
+      ct89s: _sec(ms89),
+      ct88s: _sec(ms88),
+      ct85s: _sec(ms85),
+      ct80s: _sec(ms80),
+      ct90m: +(ms90 / 60000).toFixed(1),
+      ct89m: +(ms89 / 60000).toFixed(1),
+      ct88m: +(ms88 / 60000).toFixed(1),
+      ct85m: +(ms85 / 60000).toFixed(1),
+      /* The basis travels with the numbers, flat and scalar like every other key in this file — the
+         full-metrics table walks these blocks leaf by leaf, and a nested object would reach the reader
+         as a JSON blob. `ctSource` is the sibling of `dataGaps.gapSpanSource`: it names a synthesised
+         cadence so a reader can tell that from a stamped night. The `…n` keys are the ROW counts the
+         thresholds hit, which is what makes the cadence visible (609 s over 600 samples), and
+         `ctUncoveredSec` is the time the cap excluded — gaps, which belong to no sample. */
+      ct90n: c90,
+      ct89n: c89,
+      ct88n: c88,
+      ct85n: c85,
+      ct80n: c80,
+      ctSource: dw.source,
+      ctCadenceMs: dw.cadenceMs,
+      ctCoveredSec: _sec(dw.coveredMs),
+      ctUncoveredSec: _sec(dw.uncoveredMs)
     };
   }
 
@@ -27761,7 +27864,20 @@ function buildFullMetricsTable(n) {
   r('Duration', _oxyFmt(s.durationMin, 1), 'min', '≥360', _oxySev(360, 300, s.durationMin), 'Recording span');
   r('Start', s.start || '—');
   r('End', s.end || '—');
-  r('Sample rate', 1, 'Hz', '1', '', 'O2Ring / Wellue native');
+  /* Residue 2026-09-29-oxydex-counts-rows-as-seconds, the surfaced half: this row published a
+     CONSTANT 1 Hz beside the night's own numbers, and the ring does not run at 1 Hz — vigil's
+     2026-09-28 night measures 0.9854 rows/s. The DSP now measures the cadence from the stamps and
+     publishes it on the CT block, so the table reports what the stamps say. With no cadence it reads
+     an em dash: a sample rate nobody measured is absent, not 1 (§∅). */
+  var _oxyCadMs = n.ctPrec && n.ctPrec.ctCadenceMs != null ? n.ctPrec.ctCadenceMs : null;
+  r(
+    'Sample rate',
+    _oxyCadMs ? _oxyFmt(1000 / _oxyCadMs, 3) : '—',
+    'Hz',
+    '≈1',
+    '',
+    n.ctPrec && n.ctPrec.ctSource === 'assumed-1Hz' ? 'no usable stamps — assumed 1 Hz' : 'median step between sample stamps'
+  );
 
   // ── SpO₂ ──
   sec('Oxygen Saturation (SpO₂)');
