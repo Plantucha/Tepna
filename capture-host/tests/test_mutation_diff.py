@@ -131,6 +131,18 @@ def test_a_MULTI_LINE_before_holds_only_while_EVERY_removed_line_is_still_there(
     assert M.entry_before_in_source(gone, src) is False
 
 
+def test_a_before_LINE_OF_ONE_CHARACTER_is_read_from_the_right_offset():
+    """A key's head is `"- "` plus the line, so the line starts at offset 2 and not at 3.
+
+    One character further in reads an EMPTY line for a one-character one, and an entry with nothing
+    to look for reports as orphaned. The ledger holds such a key today: mutmut's diff for a wrapped
+    call carries the lone `)` line, as `- address=addr, | - ) | + address=addr,` in `bonding.py`.
+    Every longer line hides the offset, because a substring test still matches text whose first
+    character is gone."""
+    src = "x = Found(\n    addr,\n)\n"
+    assert M.entry_before_in_source("- ) | + ),", src) is True
+
+
 def test_a_key_that_states_no_REMOVED_line_can_never_claim_its_line_is_present():
     """Absence of evidence is reported as orphaned, never as present (§∅): the entry is then the
     thing to re-verify. A key with no `- ` head, or none at all, states nothing to look for."""
