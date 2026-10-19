@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="65c2b34099e3" data-compute-hash="d64f76e7a3f7">
+<html lang="en" data-manifest-hash="15d283ee0107" data-compute-hash="a4471a916bc5">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6zdAWTbABJgTpJIGZt0CH39byvIjCsM7IXwmQCh10QI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-k8fu83nAacZrNcYx/MA4TCalr+wx9BAx7R/iLo0gBWc=' 'sha256-m00R3jtNtLVD6NnR/TeCVDJ6j2P1VpjwzKxQpHJqBU4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6zdAWTbABJgTpJIGZt0CH39byvIjCsM7IXwmQCh10QI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pYi7GbHIQzLnwVRvXsiwhnSQlKPFUZuqsoK8WKpGJBQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.20.0</title>
@@ -28049,11 +28049,44 @@ function handleEcgJson(file) {
 })();
 
 // ESM-MIGRATION deep-3: fusion is now an ES module — publish the surface render/app consume.
+/* THE ecgFusion BLOCK of the node-export, mapped from oxyComputeFusion's result.
+   It used to sit inline in oxydex-app.js, which put it out of reach of everything headless: no
+   committed fixture could carry a non-null `ecgFusion`, so GATE C was blind to the whole fusion
+   path and a fusion change moved `computeHash` while every golden moved only its code stamps
+   (residue 2026-10-06-no-committed-fixture-pairs-an-ecg). It lives here, beside the computation it
+   maps, so the app and the fixture regenerator build the SAME block from ONE source. The mapping is
+   byte-for-byte the app's — moving it is not an occasion to change a field. */
+function oxyEcgFusionBlock(F) {
+  if (!F) return null;
+  return {
+    pairedEcgDate: typeof _oxyEcgDate === 'function' && F.rec ? _oxyEcgDate(F.rec.startEpochMs) : null,
+    confirmedApnea: { confirmed: F.confirmed, desaturations: F.desN, pct: F.confPct },
+    desatArousalLatencySec: F.medLat,
+    apneaType: F.apneaType,
+    pairedEvents: F.latencies.length,
+    hypoxicDosePerEvent: F.dosePerEv,
+    doseBasis: F.doseBasis,
+    doseDenominator: F.doseDenom,
+    nadirDepthByStage: Object.keys(F.stageAgg).reduce(function (o, k) {
+      var a = F.stageAgg[k];
+      o[k] = { count: a.count, deepestPct: +a.deepest.toFixed(1), meanPct: +(a.sum / a.count).toFixed(1), unstaged: !!a.unstaged };
+      return o;
+    }, {}),
+    stageProxyContext: F.stageProxyCtx,
+    crcPLV: { baseline: F.plvB, duringSurges: F.plvS, dropsDuringSurges: F.plvB != null && F.plvS != null ? F.plvS < F.plvB : null, wholeNight: F.cr ? F.cr.crcPLV : null },
+    hrCrossCheck: { oxyMeanHr: F.oxyMeanHr, ecgMeanHr: F.ecgMeanHr, deltaBpm: F.hrDelta, oxyFloor: F.oxyFloor, ecgFloor: F.ecgFloor },
+    realHRV: { rmssd: F.t.rmssd, sdnn: F.t.sdnn, pnn50: F.t.pnn50, meanHr: F.t.hr },
+    ecgApnea: F.ap ? { estimatedAHI: F.ap.estimatedAHI, cvhrIndex: F.ap.cvhrIndex, cvhrEvents: F.ap.cvhrEvents, riskCategory: F.ap.riskCategory } : null,
+    respRateInstability: F.rstat
+  };
+}
+
 Object.assign(window, {
   _oxyEcgDate,
   oxyEcgForNight,
   oxyHeroBenchCard,
   oxyComputeFusion,
+  oxyEcgFusionBlock,
   oxyEcgFusionSection,
   buildFullMetricsTable,
   oxyFrontFullTable
@@ -31199,29 +31232,7 @@ function exportJSON() {
     // paired ECG + fusion + ANS age (computed the same way the dashboard renders them)
     var _ecg = typeof oxyEcgForNight === 'function' ? oxyEcgForNight(n) : null;
     var _F = _ecg && typeof oxyComputeFusion === 'function' ? oxyComputeFusion(n, _ecg) : null;
-    var _ecgFusion = _F
-      ? {
-          pairedEcgDate: typeof _oxyEcgDate === 'function' && _F.rec ? _oxyEcgDate(_F.rec.startEpochMs) : null,
-          confirmedApnea: { confirmed: _F.confirmed, desaturations: _F.desN, pct: _F.confPct },
-          desatArousalLatencySec: _F.medLat,
-          apneaType: _F.apneaType,
-          pairedEvents: _F.latencies.length,
-          hypoxicDosePerEvent: _F.dosePerEv,
-          doseBasis: _F.doseBasis,
-          doseDenominator: _F.doseDenom,
-          nadirDepthByStage: Object.keys(_F.stageAgg).reduce(function (o, k) {
-            var a = _F.stageAgg[k];
-            o[k] = { count: a.count, deepestPct: +a.deepest.toFixed(1), meanPct: +(a.sum / a.count).toFixed(1), unstaged: !!a.unstaged };
-            return o;
-          }, {}),
-          stageProxyContext: _F.stageProxyCtx,
-          crcPLV: { baseline: _F.plvB, duringSurges: _F.plvS, dropsDuringSurges: _F.plvB != null && _F.plvS != null ? _F.plvS < _F.plvB : null, wholeNight: _F.cr ? _F.cr.crcPLV : null },
-          hrCrossCheck: { oxyMeanHr: _F.oxyMeanHr, ecgMeanHr: _F.ecgMeanHr, deltaBpm: _F.hrDelta, oxyFloor: _F.oxyFloor, ecgFloor: _F.ecgFloor },
-          realHRV: { rmssd: _F.t.rmssd, sdnn: _F.t.sdnn, pnn50: _F.t.pnn50, meanHr: _F.t.hr },
-          ecgApnea: _F.ap ? { estimatedAHI: _F.ap.estimatedAHI, cvhrIndex: _F.ap.cvhrIndex, cvhrEvents: _F.ap.cvhrEvents, riskCategory: _F.ap.riskCategory } : null,
-          respRateInstability: _F.rstat
-        }
-      : null;
+    var _ecgFusion = _F && typeof oxyEcgFusionBlock === 'function' ? oxyEcgFusionBlock(_F) : null; // the block mapping lives in oxydex-fusion.js, so a fixture can carry it
     var _ansAge = null; // ANS age REMOVED 2026-06-21 (external-review WP-A);
     // key kept (null) for node-export back-compat — consumers tolerate null.
     // Element built by the SHARED oxyBuildNightElement (pulsedex-dsp sibling) so
