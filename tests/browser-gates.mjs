@@ -247,11 +247,22 @@ async function gateTestSuite() {
           return det ? n + '  —  ' + det : n;
         })
         .filter((t) => t.length > 0),
-      failTotal: document.querySelectorAll('div.test.no').length
+      failTotal: document.querySelectorAll('div.test.no').length,
+      /* The rows above are only as complete as the page's markup. Before the suite escaped its
+         names, an unclosed `<script …>` inside one detail turned every later row into script text:
+         4633 of 13198 rows rendered, and a failing row past the break had no element to name
+         (RESIDUE 2026-10-19-the-browser-gate-counts-a-failure-it-cannot-name). `ALL_GROUPS` is the
+         suite's top-level `let`, the same in-memory list its pill counts from. */
+      rowsRendered: document.querySelectorAll('#results div.test').length,
+      rowsInMemory: typeof ALL_GROUPS === 'undefined' ? null : ALL_GROUPS.reduce((a, G) => a + G.tests.length, 0)
     }),
     LABELS
   );
+  if (r.rowsInMemory !== null && r.rowsRendered !== r.rowsInMemory) {
+    FAILS.push('Dex-Test-Suite rendered ' + r.rowsRendered + ' of ' + r.rowsInMemory + ' test rows — a title, name or detail broke the page markup, so a failure past the break cannot be named here');
+  }
   say('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
+  say('   rows rendered:', r.rowsRendered + ' of ' + (r.rowsInMemory === null ? '(ALL_GROUPS unreadable)' : r.rowsInMemory));
   r.failures.forEach((f) => say('   ✕', f));
   if (r.failTotal > r.failures.length) say('   … and ' + (r.failTotal - r.failures.length) + ' more (listing capped at 25)');
   if (r.hasFail) FAILS.push('Dex-Test-Suite RED — ' + r.summary + (r.failures.length ? '\n     ' + r.failures.join('\n     ') : ''));
