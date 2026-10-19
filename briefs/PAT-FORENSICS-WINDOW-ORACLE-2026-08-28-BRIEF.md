@@ -607,6 +607,53 @@ under a model you are not assuming."* A drifting-lag plant is owed and is logged
 
 Logged as `2026-09-14-oracle-mode-not-stable-across-halves`.
 
+## ✅ WHICH NIGHTS THE HALF DECIDES — admissibility is half-dependent on a quarter of them (2026-10-19, Osprey)
+
+The section above measured that the halves MOVE. This one measures what that movement decides, which is
+the part a consumer acts on. The oracle's PHYS test — mode inside [200, 650] ms, else an ARTIFACT
+REFUSAL — reads the FIRST half's mode, because the out-of-sample design estimates the mode on half A so
+that half B's SD is earned. Nothing re-ran that test on half B, so nothing said whether the decision to
+score a night is a property of the night.
+
+`tools/pat-window-oracle.mjs` now answers it per night. Every verdict carries an `admissibility` class —
+`both-in` · `A-in-B-out` · `A-out-B-in` · `both-out`, and `null` where there is no second-half mode — the
+run counts the classes beside the tally, and `result.halvesAdmissibility` carries the counts. The
+numbers below come from one run per tree on 2026-10-19 at `4bd694ff0` plus this change, default
+`--half-width 100`, foot fiducial, linear axis.
+
+| tree | units | with both modes | `both-in` | `A-in-B-out` | `A-out-B-in` | `both-out` | half-dependent |
+|---|---|---|---|---|---|---|---|
+| `/srv/data/tepna-corpus/smoketest-captures` | 95 | 83 | 48 | 13 | 8 | 14 | **21 (25 %)** |
+| `uploads/vigil-archive/captures` | 86 | 51 | 26 | 10 | 5 | 10 | **15 (29 %)** |
+
+The vigil mirror is a strict subset of the box tree, as this brief's header records, so the two rows are
+not independent and nothing here pools them: all 15 of its half-dependent nights are among the 21, on
+the same dates and with the same two modes. Read the first row as the measurement and the second as the
+subset reproducing it.
+
+**The row's named case reproduces.** 2026-08-12 is SIGNAL RECOVERED at 315 ms on half A, and half B's
+mode is 185 ms — below `PHYS_LO`, where this tool refuses a night as an alignment artifact rather than
+scoring it. One of the four SIGNAL RECOVERED nights in the box tree therefore owes its verdict to which
+half a reader takes, and all four disagree on halves at all (405→325, 405→535, 315→185, 225→385). In the
+other direction, 8 of the 22 ARTIFACT REFUSALS have an admissible second half, so the refusal is
+half-dependent as often as the score is.
+
+**What this does not do.** It moves no bar and no threshold. The status, the criterion and every tally
+bucket read exactly what they read before, and a flipped night is still scored on its first-half mode.
+Whether a flip should REFUSE belongs to the acceptance layer — `PPG-FOOT-PLACEMENT` §4a, which owns the
+200–500 ms rail — and this tool states the population instead of deciding for it.
+
+**Two findings from building it.** The drifting plant that residue
+`2026-09-14-oracle-halves-plant-is-constant-by-construction` bought (#2512) drifts 300 → 620 ms with
+both endpoints inside PHYS, so it exercises the ⚠ and never a crossing; a second plant drifts 380 → 90 ms
+so the two half-centroid modes straddle `PHYS_LO` at ~307 and ~163, which is the 2026-08-12 shape rather
+than an arbitrary one, and the pair carries the same anti-vacuity assertion the halves check carries.
+And the selftest printed `SELFTEST PASS (45/45)` while its assertion helper ran **66** assertions: the
+count sat in `const TOTAL = 45` and reached the print interpolated, so `selftest-all.mjs`'s static half —
+which reads a print line for a digit literal — could not see it. The helper now counts, the run reads
+73/73 with the seven assertions above, and the gap in the check is logged as residue
+`2026-10-19-selftest-count-static-check-misses-a-one-hop-literal`.
+
 ## ✅ THE SEARCH BOUND VARIED — the mode is ROBUST and the bar is CALIBRATED (2026-09-15, Kestrel)
 
 The 🔴 section above found the *halves* diagnostic disagreeing on ~90 % of nights, and `WINDOW-REGIMES`
