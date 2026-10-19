@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**269 tools** · 268 with a purpose line · **1 without**
+**270 tools** · 269 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -94,6 +94,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`gate-tightness.mjs`](../tools/gate-tightness.mjs) | A SOURCE-SCAN ASSERTION THAT A RENAME CAN SATISFY Reported by a peer session, with one confirmed instance. |
 | [`gemini-review.mjs`](../tools/gemini-review.mjs) | THE SECOND READER, ON EXACTLY THE FORM CODEX WAS GIVEN. Owner ruling 2026-10-05: Codex's free tier is exhausted until 2026-11-03, so try Gemini's. |
 | [`gen-comparator-twin.mjs`](../tools/gen-comparator-twin.mjs) | Generate the committed SYNTHETIC live-vs-SD BRP pin-twin pair for the CPAPDex comparator fixture (CPAPDEX-LIVE-SD-COMPARATOR-2026-08-23-BRIEF). |
+| [`gen-ecg-night-pair.mjs`](../tools/gen-ecg-night-pair.mjs) | Generate the ECG COUNTERPART of the committed synthetic OxyDex night, as a rich ECGDex node-export that OxyDex's fusion path can pair with (residue… |
 | [`gen-maskoff-twin.mjs`](../tools/gen-maskoff-twin.mjs) | THE MASK-OFF TWIN (DEEP-AUDIT-VI-FOLLOWUPS §1.9). `detectBreaths().breathRate` divided breaths by the WHOLE RECORDING (`durSec = recordsRead × recDur`) while every sibling ventilation… |
 | [`geometry-passthrough.mjs`](../tools/geometry-passthrough.mjs) | DOES THE ALIGNMENT CHAIN INTRODUCE GEOMETRY THAT WAS NOT IN ITS INPUT? |
 | [`geometry-probe.mjs`](../tools/geometry-probe.mjs) | GEOMETRIC PROBES FOR THE TIMELINE-ALIGNMENT CHAIN (PAT-GEOMETRY-PROBE-2026-08-11). |
