@@ -635,7 +635,7 @@ def night_entry(
         #
         # 🔴 EVERY START, NOT THE FIRST. A recording is a CHAIN, and on vigil the daemon writes a session
         # file every hour of the day, so from 2026-10-18 each chain began in the afternoon and ran into
-        # the night: every row read daytime, and the page hid PASS verdicts for 10-14 to 10-17 behind
+        # the night: every row read daytime, and the page hid the solid verdicts for 10-14 to 10-17 behind
         # "not judged". A chain is daytime only when no session in it starts outside the window.
         out["daytime"] = all(
             nightqc._DAYTIME_BEGIN_H <= _dt.datetime.fromtimestamp(t, _dt.timezone.utc).hour < nightqc._DAYTIME_END_H
