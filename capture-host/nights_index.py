@@ -153,7 +153,7 @@ def session_epoch(name: str) -> float | None:
     m = _SESSION_STAMP.search(os.path.basename(name))
     if not m:
         return None
-    # 🔴 IT SAID FLOATING AND RETURNED A LOCAL EPOCH, found 2026-10-19 while moving the bands into the
+    # 🔴 IT SAID FLOATING AND RETURNED A LOCAL EPOCH, found 2026-10-18 while moving the bands into the
     # floating frame. `.timestamp()` resolved the stamp through the READER'S ZONE, four hours off the
     # components the capture wrote on this box, and `recording_start` published that shifted clock as
     # "what a reader compares against the device's own screen". It hid because the band was naive local
@@ -805,6 +805,11 @@ def _session_spans(root: str) -> dict[float, float]:
     # enumeration this module already vetted. My first version globbed, which orphaned this function and
     # would have admitted an impossible date as a night.
     for d in list_nights(root):
+        # ONE OFFSET PER FOLDER, READ ONCE, BEFORE THE FILES. `recorded_writer_offset` opens one small
+        # sidecar; reading it per file would open it as many times as the night has sessions for an
+        # answer that cannot differ between them. It is also the only I/O this pass adds, which is what
+        # keeps `_floating_mtime` inside the budget the header states.
+        rec = nightqc.recorded_writer_offset(d)
         # SORTED, so the scan order is FIXED. `glob` returns filesystem order, which made a
         # `continue` → `break` mutant on the skip below survive: a test can only see that mutant if the
         # skipped file is guaranteed to come BEFORE a file that must still be scanned, and an unsorted
@@ -814,30 +819,48 @@ def _session_spans(root: str) -> dict[float, float]:
             if t is None or not os.path.isfile(f):
                 continue
             try:
-                end = _floating_mtime(f)
+                end = _floating_mtime(f, rec)
             except OSError:
                 continue  # vanished between glob and stat — it carries no span to add
             spans[t] = max(spans.get(t, end), end, t)
     return spans
 
 
-def _floating_mtime(path: str) -> float:
+def _floating_mtime(path: str, recorded: "dict | None") -> float:
     """A file's last write as a FLOATING second — the frame `session_epoch` returns.
 
     🔴 A SPAN NEEDS ONE FRAME AND THIS FUNCTION HAS TWO SOURCES. The start comes from the NAME and is
     civil (`session_epoch`); the end comes from the filesystem and is an absolute instant. Differencing
     them directly is the defect `floating_stamp_s` warns about in capitals, and it was invisible here
     only while `session_epoch` resolved its stamp through the reader's zone too — two wrong frames that
-    cancelled. Measured on 2026-10-19 once the start was corrected: in EDT every span grew by the 4 h
+    cancelled. Measured on 2026-10-18 once the start was corrected: in EDT every span grew by the 4 h
     offset, which swallowed the 2 h doff gaps and merged three recordings into one row.
 
-    ⚠️ IT ASSUMES THE READER SITS IN THE WRITER'S ZONE, which is true for the index as it runs today —
-    on the capture box, over that box's own files. Off-box, or across a DST seam, the right offset is
-    `nightqc.recover_writer_offset`'s measured one, and the only honest conversion when it refuses is a
-    span with no end. That costs this module a chain-identity decision it cannot make alone, so it is
-    logged as residue (2026-10-19-nights-index-spans-assume-the-readers-zone) rather than guessed at
-    here. The assumption is stated because the alternative is for it to keep being invisible."""
-    d = _dt.datetime.fromtimestamp(os.path.getmtime(path))
+    ⚠️ `recorded` IS THE OFFSET THE WRITER WROTE DOWN, and it is the only path here that measures
+    anything. `briefs/SESSION-SPAN-WRITER-OFFSET-2026-09-28-BRIEF.md` §1 rules that the night's own
+    writer offset is the ONE place a floating value becomes an instant, and this conversion crosses the
+    same seam in the other direction. So a night that recorded its offset takes an exact subtraction and
+    assumes nothing — every night from 2026-10-05, and every night from here on.
+
+    ∅ THE FALLBACK IS A PREMISE, AND NAMING IT IS THE WHOLE OF ITS DEFENCE. An older night recorded no
+    offset, so this reads the HOST's own zone at that instant instead. That premise holds while the index
+    runs on the box that wrote the files, which is where it runs today, and it is wrong by a whole UTC
+    offset anywhere else. The brief's answer to an unrecoverable offset is UNKNOWN with a named reason,
+    and this return value has nowhere to carry one: `_recordings` consumes the end as a chain bound and
+    publishes no field for it (`begin` and `end` on a row are BAND edges, not this). So the off-box case
+    is residue (`2026-10-18-nights-index-spans-assume-the-writers-host-zone`), and a correct answer stays
+    available for every night captured before the writer began recording its zone.
+
+    ⏪ A REFUSED RECOVERY LANDS HERE TOO, and that direction is the safe one. `recorded_writer_offset`
+    hands back None when a night's sessions disagree, which is a DST seam — and one offset is wrong for
+    half of such a night, while the host zone resolved AT each file's own instant is right across it."""
+    m = os.path.getmtime(path)
+    if recorded is not None:
+        # MINUS, because `offset_sec` RAISES a floating stamp into the `mtime` frame (`nightqc`'s sign,
+        # EDT = +14400). This brings an mtime DOWN into the floating frame, which is the way every other
+        # value in this module already points.
+        return m - float(recorded["offset_sec"])
+    d = _dt.datetime.fromtimestamp(m)
     return float(_cal.timegm(d.timetuple())) + d.microsecond / 1e6
 
 

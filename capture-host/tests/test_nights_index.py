@@ -1285,6 +1285,58 @@ def test_a_file_that_is_not_a_FILE_is_not_a_session(tmp_path):
     )
 
 
+def test_the_span_END_comes_from_the_nights_RECORDED_writer_offset(tmp_path):
+    """🔴 THE END IS AN INSTANT AND THE START IS CIVIL, so one of them has to cross a frame — and the
+    night's own recorded offset is the only place `SESSION-SPAN-WRITER-OFFSET-2026-09-28-BRIEF.md` §1
+    allows that crossing. This asserts the crossing happened with THAT number, which is what tells a
+    read of `STARTS.csv` apart from a value computed and then dropped.
+
+    ⚠️ THE FIXTURE'S ZONE IS DELIBERATELY NOT THE RUNNER'S. `utc_offset_sec` is UTC+12 here, so the
+    recorded conversion lands 12 h from the mtime whatever zone the suite runs in — while the host-zone
+    fallback lands 0 h away under `TZ=UTC` and 4 h away under EDT. A fixture recording the runner's own
+    offset would agree with the fallback on one machine and hide the difference."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-09")
+    f = os.path.join(d, "Polar_H10_02849638_20261009220000_ECG.txt")
+    _w(f, ISO_ROWS)
+    # The HEADER names the column; `recorded_writer_offset` addresses it by name, and a five-column
+    # pre-2026-10-05 file must read as "nothing recorded" instead of a parse error.
+    _w(
+        os.path.join(d, "STARTS.csv"),
+        "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\n2026-10-09T22:00:00;1;abc0000;0;hci0;43200\n",
+    )
+    import nightqc
+
+    t = nightqc.floating_stamp_s("20261009220000")
+    spans = ni._session_spans(root)
+    # 43200 EAST of UTC is a raise of -43200, so the floating end sits 12 h AFTER the mtime. The sign is
+    # the half of this that a `+` for a `-` would survive without.
+    want = os.path.getmtime(f) + 43200.0
+    assert abs(spans[t] - want) < 1e-6, (spans[t], want, "the end must cross on the RECORDED offset")
+
+
+def test_a_night_that_recorded_NO_offset_falls_back_to_the_HOSTS_zone(tmp_path):
+    """The other branch, and the one every night before 2026-10-05 takes. `_floating_mtime` reads the
+    host's zone at the file's own instant, which is a PREMISE: it holds while the index runs on the box
+    that wrote the files. The assertion states the premise rather than restating the conversion — the
+    fallback must equal what a night would get had it recorded the host's own offset for that instant."""
+    p = os.path.join(str(tmp_path), "f.txt")
+    _w(p, "x")
+    import datetime as _dt
+
+    import nightqc
+
+    m = os.path.getmtime(p)
+    # EAST of UTC from the host's own rules AT THAT INSTANT, negated into the raise convention. Reading
+    # the zone at the instant rather than at import time is what carries a span across a DST seam.
+    east = _dt.datetime.fromtimestamp(m).astimezone().utcoffset()
+    assert east is not None
+    declared = nightqc.declared_offset(-east.total_seconds())
+    assert abs(ni._floating_mtime(p, None) - ni._floating_mtime(p, declared)) < 1e-6, (
+        "the fallback is the host's own zone at the file's instant, stated as a premise"
+    )
+
+
 def test_the_PRIMARY_re_read_takes_the_scope_too(tmp_path):
     """`_expand_alt`'s `pick` branch — the one that re-reads the chosen alternative so a node's primary
     comes from the tree its files came from. CI named `_expand(root, night_dir, pat[pick], None)` as a

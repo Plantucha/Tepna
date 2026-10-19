@@ -230,7 +230,7 @@ _NIGHT_END_H = 10
 #
 # ⏪ A TILING BAND MADE THE DST HOUR VISIBLE, where a 16 h band hid it: naive local arithmetic put
 # consecutive anchors 23 or 25 real hours apart on the two changeover days against a computed 24 h width,
-# so the keys left a 1 h gap or shared a 1 h overlap at the seam. 2026-10-19 moved both bands into the
+# so the keys left a 1 h gap or shared a 1 h overlap at the seam. 2026-10-18 moved both bands into the
 # FLOATING frame, which has no DST, so the tiling is exact on every day of the year. `_floating_band`
 # carries the measurement and what the frame costs in exchange.
 _KEY_BEGIN_H = 12
@@ -250,13 +250,13 @@ _DAYTIME_END_H = 18
 def _floating_band(ts: float, begin_h: int, width_h: int) -> tuple:
     """`[begin, end)` as FLOATING seconds for the band of width `width_h` h that opens at `begin_h`.
 
-    THE FRAME IS THE WHOLE POINT, and it changed on 2026-10-19. Both bands used to decompose `ts` with
+    THE FRAME IS THE WHOLE POINT, and it changed on 2026-10-18. Both bands used to decompose `ts` with
     `datetime.fromtimestamp` and rebuild the edge with `.timestamp()`, which resolves civil components
     THROUGH THE READER'S ZONE. Every stamp a band is given is floating — `_session_of`,
     `floating_stamp_s` and `nights_index.session_epoch` all say so — so the anchor test
     `d.hour >= begin_h` compared a reader-shifted hour against a civil constant.
 
-    🔴 THE DAMAGE WAS A WHOLE DAY, not a shifted edge. Measured 2026-10-19 on the floating stamp
+    🔴 THE DAMAGE WAS A WHOLE DAY, not a shifted edge. Measured 2026-10-18 on the floating stamp
     `20261004130000`: the key band began 2026-10-04 12:00 in UTC, 2026-10-03 16:00 in New York and
     2026-10-04 03:00 in Tokyo. The night KEY moved by a day, and in two of the three zones the edge was
     not the noon the function names. Residue
@@ -331,7 +331,7 @@ def _band_in_frame(ts: float, offset_sec: float | None) -> tuple:
     publishes which under `writer_offset.frame`), while a band edge is always civil. Comparing the two
     without this conversion is correct in exactly one of those two cases and wrong by a whole UTC offset
     in the other — which is what a local `night_band` used to hide: it matched the recovered case and
-    broke the refusing one, and moving the band into the floating frame on 2026-10-19 traded one for the
+    broke the refusing one, and moving the band into the floating frame on 2026-10-18 traded one for the
     other until this helper named the conversion.
 
     The sign is `recover_writer_offset`'s: `offset_sec` RAISES a floating value into the `mtime` frame

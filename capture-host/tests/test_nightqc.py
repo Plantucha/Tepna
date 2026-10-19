@@ -1338,7 +1338,7 @@ def _ts(y, mo, d, h, mi=0):
 
     This was `.timestamp()`, which resolves the components through the READER'S ZONE. The band tests
     stayed green in every zone because the band was built naive-local too and the two wrong frames
-    cancelled; `nightqc._floating_band` (2026-10-19) removed one half, so the fixture has to state the
+    cancelled; `nightqc._floating_band` (2026-10-18) removed one half, so the fixture has to state the
     frame the production code actually receives. `floating_stamp_s` is the one conversion, so this asks
     it rather than carrying a second `timegm`."""
     return nightqc.floating_stamp_s(f"{y:04d}{mo:02d}{d:02d}{h:02d}{mi:02d}00")
@@ -1407,7 +1407,7 @@ def test_a_BAND_EDGE_IS_THE_SAME_IN_EVERY_ZONE_and_sits_at_the_hour_it_names(mon
     `session_epoch` say so in their docstrings — so the anchor decision `d.hour >= _KEY_BEGIN_H`
     compared a reader-shifted hour against a civil constant.
 
-    🔴 AND THE DAMAGE WAS A WHOLE DAY, not a shifted edge. Measured 2026-10-19 on this stamp: the key
+    🔴 AND THE DAMAGE WAS A WHOLE DAY, not a shifted edge. Measured 2026-10-18 on this stamp: the key
     band began 2026-10-04 12:00 in UTC, 2026-10-03 16:00 in New York and 2026-10-04 03:00 in Tokyo. So
     the night KEY differed by a day, and in two zones the edge was not even the noon the function names.
 
@@ -5957,7 +5957,7 @@ def _floating_at_hour(stamp, hour):
     its argument with a bare `fromtimestamp`, so its edges came back as real epochs of a LOCAL hour
     while every stamp handed to it was floating; a fixture that had to sit exactly ON an edge measured
     the reader's offset and subtracted it, or the same filename named a different hour in every other
-    zone. `_floating_band` put both sides in one frame on 2026-10-19 (residue
+    zone. `_floating_band` put both sides in one frame on 2026-10-18 (residue
     2026-10-12-the-night-band-mixes-a-floating-stamp-with-a-local-epoch), so an edge is now the
     floating second of the hour it names and this is the plain conversion."""
     return nightqc.floating_stamp_s(stamp[:8] + f"{hour:02d}0000")

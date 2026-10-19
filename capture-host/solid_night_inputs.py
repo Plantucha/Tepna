@@ -356,7 +356,7 @@ def band_of(night_dir: str):
     # one. So the site is removed instead of being excused in the equivalence ledger. 23:00 is the hour
     # because it lies inside `[D 18:00, D+1 10:00)` and would for any lower edge at or before 23:00.
     # FLOATING, through `nightqc.floating_stamp_s`, because `night_band`'s edges are floating as of
-    # 2026-10-19 (`nightqc._floating_band` carries the measurement). `.timestamp()` here resolved the
+    # 2026-10-18 (`nightqc._floating_band` carries the measurement). `.timestamp()` here resolved the
     # civil 23:00 through the READER'S ZONE, and this module stayed green only because `in_band` made
     # the same conversion on the other side — two wrong frames that cancelled.
     probe = _nqc.floating_stamp_s(d.strftime("%Y%m%d") + "230000")
@@ -1869,7 +1869,7 @@ def _band_civil(edge: float) -> _dt.datetime:
 
     Its ends are row stamps, which are civil components with no zone, so the edge has to arrive the same
     way. `fromtimestamp(edge)` on its own gave that by double negation while the band was built naive
-    local too; against a floating edge (`nightqc._floating_band`, 2026-10-19) it is a frame mix. Read as
+    local too; against a floating edge (`nightqc._floating_band`, 2026-10-18) it is a frame mix. Read as
     UTC and dropped to naive, the components are the ones the capture wrote."""
     return _dt.datetime.fromtimestamp(edge, _dt.timezone.utc).replace(tzinfo=None)
 
