@@ -786,11 +786,12 @@ D1x is the blind Challenge test, paired with E1x.
 **Expectation: +0.000 to +0.015.** The seqnet sees the whole night in both directions, so it can learn most change on
 its own. The case for `ecg-delta` is the formula fit, which is the shipped model and cannot learn differences. A "no
 gain" here therefore does not drop the block from the formula fit. That fit gets its own pre-statement.
+
 ## 27 · Owner amendment to §25/§26: no blind Challenge arm for ECG (2026-10-18, before any D1 result)
 
-**Ruling (owner, 2026-10-18):** *"there wont be blind challange on ecg, somnotrace doesnt have that line measured.
-so you can fully include it in training."* Challenge 2018 is blind because it is where the published SomnoStage
-benchmark lives. That benchmark has no ECG line, so for the ECG arms Challenge 2018 is an ordinary cohort: it joins
+**Ruling (owner, 2026-10-18):** there will be no blind Challenge test for ECG, because the external benchmark has no
+ECG line measured, so Challenge can be fully included in training. Challenge 2018 is blind because it is where the
+published external benchmark lives. That benchmark has no ECG line, so for the ECG arms Challenge 2018 is an ordinary cohort: it joins
 cross-validation, train and test folds, like every other cohort. **The oximetry ruling is unchanged.** O1 and O1x keep
 Challenge 2018 test-only and blind.
 
