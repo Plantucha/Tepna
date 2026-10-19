@@ -44,6 +44,22 @@
  *   AND the null must be beaten: a night counts as recovered only if its real SD is lower than its
  *   own shifted-null SD. A band pass with no null separation is reported as NOT recovered.
  *
+ * THE MODE IS A FIRST-HALF PROPERTY, AND SO IS THE DECISION TO SCORE THE NIGHT (2026-10-19,
+ * residue `2026-09-14-oracle-mode-not-stable-across-halves`). The out-of-sample design estimates the
+ * mode on half A, which is what makes the second-half SD earned — and it also means the PHYS
+ * admissibility test above reads half A alone. Measured over both capture trees on 2026-09-14, the
+ * halves disagree on ~90 % of scored nights by a median 120–130 ms, and 2026-08-12 lands at 315 ms
+ * (admissible) on its first half against 195 ms (below PHYS_LO) on its second: the night is SIGNAL
+ * RECOVERED or an ARTIFACT REFUSAL by which half a reader takes. Every verdict therefore carries an
+ * `admissibility` class — `both-in` · `A-in-B-out` · `A-out-B-in` · `both-out` · `null` for a night
+ * with no second-half mode — the run counts the classes, and `result.halvesAdmissibility` carries
+ * the counts.
+ *   ⚠️ WHAT THIS DOES NOT CLAIM. It moves no bar and no threshold: the status, the criterion and
+ * every tally bucket are exactly what they were, and a flipped night is still scored on its
+ * first-half mode. It states which nights that choice decides, so a consumer quoting one cannot be
+ * unaware that the other half disagrees. Whether a flip should REFUSE is an acceptance-layer call,
+ * and the acceptance layer is `PPG-FOOT-PLACEMENT` §4a, not this tool.
+ *
  * MODE SEARCH IS DELIBERATELY WIDER THAN THE PHYS WINDOW (0–2000 ms). Searching inside [200, 650]
  * would inherit the very censoring under test — the mode has to be free to land outside it, which is
  * the case PAT-WINDOW-CENSORING records (one night at a median lag of 831 ms, 95.9 % above PHYS_HI).
@@ -231,7 +247,16 @@ export function oracleNight(rTimes, fTimes, halfWidth, searchMax = MODE_SEARCH_M
     nullSd: sd(narrowN),
     modeN,
     modeNInPhys: modeN != null && modeN >= PHYS_LO && modeN <= PHYS_HI,
-    modeInPhys: mode >= PHYS_LO && mode <= PHYS_HI
+    modeInPhys: mode >= PHYS_LO && mode <= PHYS_HI,
+    /* HALF-DEPENDENT ADMISSIBILITY (residue `2026-09-14-oracle-mode-not-stable-across-halves`).
+       `modeInPhys` decides whether a night is scored at all, and the mode it tests is the FIRST
+       half's by construction. Running the same test on `modeB` is the one number that says whether
+       that decision is a property of the NIGHT or of which half was estimated: 2026-08-12 returns
+       315 ms (admissible) on its first half and 195 ms (below PHYS_LO) on its second, so the night
+       is SIGNAL RECOVERED or an ARTIFACT REFUSAL depending on a choice nothing surfaced.
+       §∅ — no second-half mode is `null` here, never `false`: an unmeasured admissibility is not an
+       inadmissible one. */
+    modeBInPhys: modeB == null ? null : modeB >= PHYS_LO && modeB <= PHYS_HI
   };
 }
 
@@ -248,25 +273,45 @@ export function oracleNight(rTimes, fTimes, halfWidth, searchMax = MODE_SEARCH_M
    (500, 650] is suspect but arguable, and stays the acceptance layer's call. */
 export function oracleVerdict(res) {
   if (!res) return null;
+  /* The class travels with EVERY verdict, the refusals included: a night refused on its first-half
+     mode whose second half IS admissible is half-dependent in the other direction, and that is a
+     property of the refusal rather than an absence of one. Five values and no sixth — four classes
+     plus `null` for "there is no second-half mode", which is an ABSENCE and never `both-in`. */
+  const admissibility = res.refusal || res.modeBInPhys == null ? null : res.modeInPhys === res.modeBInPhys ? (res.modeInPhys ? 'both-in' : 'both-out') : res.modeInPhys ? 'A-in-B-out' : 'A-out-B-in';
   /* A named refusal propagates AS its name — the whole point. It gets its own tally bucket so a
      corpus report says how many nights refused and why, instead of folding them into a data verdict
      or (worse) into silence. */
-  if (res.refusal) return { refused: true, label: `⊘ REFUSED — ${res.refusal}`, tallyKey: 'REFUSED', halves: null };
+  if (res.refusal) return { refused: true, label: `⊘ REFUSED — ${res.refusal}`, tallyKey: 'REFUSED', halves: null, admissibility: null };
   const halves = res.modeB == null ? 'halves: B-mode n/a' : Math.abs(res.modeB - res.mode) <= BIN_MS ? 'halves ≡' : `halves ${res.mode.toFixed(0)}→${res.modeB.toFixed(0)} ⚠`;
+  const halfDep =
+    admissibility === 'A-in-B-out'
+      ? ` ⚠ PHYS admissibility is HALF-DEPENDENT — B-mode ${res.modeB.toFixed(0)} ms is outside PHYS ${PHYS_LO}–${PHYS_HI}`
+      : admissibility === 'A-out-B-in'
+        ? ` ⚠ PHYS admissibility is HALF-DEPENDENT — B-mode ${res.modeB.toFixed(0)} ms is INSIDE PHYS ${PHYS_LO}–${PHYS_HI}`
+        : '';
   if (!res.modeInPhys)
     return {
       refused: true,
-      label: `ARTIFACT REFUSAL — mode ${res.mode.toFixed(0)} ms outside PHYS ${PHYS_LO}–${PHYS_HI} (alignment artifact; mode diagnostic only, not a PAT)`,
+      label: `ARTIFACT REFUSAL — mode ${res.mode.toFixed(0)} ms outside PHYS ${PHYS_LO}–${PHYS_HI} (alignment artifact; mode diagnostic only, not a PAT)${halfDep}`,
       tallyKey: 'ARTIFACT REFUSAL',
-      halves
+      halves,
+      admissibility
     };
   const b = band(res.narrowSd, res.nullSd);
-  return { refused: false, label: `${b} · mode ${res.mode.toFixed(0)} ms (w-invariant, ${halves}); band label is w-dependent`, tallyKey: b, halves };
+  return {
+    refused: false,
+    label: `${b} · mode ${res.mode.toFixed(0)} ms (w-invariant, ${halves}); band label is w-dependent${halfDep}`,
+    tallyKey: b,
+    halves,
+    admissibility
+  };
 }
 
 function selftest() {
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     if (!c) fails.push(m);
   };
   /* A PLANTED TRUE LAG of 300 ms with 8 ms jitter must be recovered. */
@@ -419,6 +464,35 @@ function selftest() {
      `halves` field stuck on ⚠ would satisfy the three assertions above and be just as useless. */
   ok(oracleVerdict(res)?.label.includes('halves ≡'), 'the CONSTANT plant must still read halves ≡ (else the check is stuck on)');
 
+  /* ── THE ADMISSIBILITY PLANT: the half-dependence must be CLASSIFIED, not merely printed ──────
+     The drifting plant above moves 300 -> 620 ms with BOTH endpoints inside PHYS, so it exercises
+     the halves ⚠ and never the thing residue `2026-09-14-oracle-mode-not-stable-across-halves` is
+     about: a night whose ADMISSIBILITY — whether it is scored at all, or refused as an alignment
+     artifact — depends on which half the mode was estimated from. The corpus case is 2026-08-12,
+     315 ms admissible on the first half and 195 ms below PHYS_LO on the second. This plant drifts
+     380 -> 90 ms so the two half-centroid modes straddle PHYS_LO at ~307 and ~163, reproducing that
+     crossing rather than an arbitrary one. */
+  const Fcross = R2.map((r, i) => r + 380 - (i * 290) / 900 + rnd() * 14).sort((a, b) => a - b);
+  const resCross = oracleNight(R2, Fcross, 100);
+  ok(resCross != null && !resCross.refusal, `the crossing plant yields a scored night, got ${resCross?.refusal}`);
+  ok(
+    resCross?.modeInPhys === true && resCross?.modeBInPhys === false,
+    `A inside PHYS and B outside it, got ${resCross?.mode}→${resCross?.modeB} (inPhys ${resCross?.modeInPhys}/${resCross?.modeBInPhys})`
+  );
+  const vCross = oracleVerdict(resCross);
+  ok(vCross?.admissibility === 'A-in-B-out', `the class must be NAMED, got ${JSON.stringify(vCross?.admissibility)}`);
+  ok(/PHYS admissibility is HALF-DEPENDENT/.test(vCross?.label || ''), `…and must reach the label a consumer reads, got ${vCross?.label}`);
+  /* ANTI-VACUITY, the same pair as the halves check above: the constant plant is admissible on BOTH
+     halves, so a class stuck on a flip would satisfy the two assertions above and say nothing. */
+  ok(oracleVerdict(res)?.admissibility === 'both-in', `the CONSTANT plant must read both-in, got ${JSON.stringify(oracleVerdict(res)?.admissibility)}`);
+  /* §∅ — a second-half mode that does not exist is an ABSENCE, so the class is null and not an
+     agreement; and a run that never measured the population carries null, not a row of zeros. */
+  ok(oracleVerdict({ refusal: 'planted' })?.admissibility === null, 'a refused night carries no admissibility class');
+  ok(
+    runVerdict(sampleTally(), {}).result.halvesAdmissibility === null,
+    `an UNMEASURED admissibility population is null, never zeros — got ${JSON.stringify(runVerdict(sampleTally(), {}).result.halvesAdmissibility)}`
+  );
+
   /* ── NAMED REFUSALS: a refusing night must propagate its NAME, not a generic skip. ──
      The planted refusal is disjoint trains (feet 10^8 ms after the last R): structurally
      unscoreable, and the assertion is on the REASON STRING reaching the verdict layer — the
@@ -529,8 +603,12 @@ function selftest() {
     ok(V.validate(sh).ok && V.validate(arm({})).ok, 'every emitted arm validates under verdict.js');
   }
 
-  const TOTAL = 45;
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${TOTAL})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${TOTAL}/${TOTAL})`);
+  /* THE COUNT IS INCREMENTED BY THE ASSERTION HELPER, never typed. It used to be `const TOTAL = 45`
+     interpolated into the print, which reads as a computed figure and is not one: adding the seven
+     admissibility assertions below left it printing 45/45, and `selftest-all.mjs`'s static half
+     cannot see it because the print line carries no digit — the literal sits one hop away in a
+     variable. Residue `2026-10-19-a-typed-selftest-count-laundered-through-a-variable`. */
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${ran})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length === 0;
 }
 
@@ -615,7 +693,7 @@ export function rootLayoutVerdict(nightDirs, looseRecordings) {
    `population` is UNITS: `excluded` are the named refusals (`REFUSED`, `ARTIFACT REFUSAL`), which
    is why they have their own tally buckets in the first place — a refusal is not a data verdict and
    must not be averaged into one. PURE. */
-export function runVerdict(tally, { commit = null, evidence = [] } = {}) {
+export function runVerdict(tally, { commit = null, evidence = [], admissibility = null } = {}) {
   const Verdict = createRequire(import.meta.url)(join(HERE, '..', 'verdict.js'));
   const n = (k) => tally[k] || 0;
   const excluded = n('REFUSED') + n('ARTIFACT REFUSAL');
@@ -653,7 +731,11 @@ export function runVerdict(tally, { commit = null, evidence = [] } = {}) {
     criterion: { name: 'narrow_out_of_sample_sd_ms', threshold: BAND_RECOVERED, unit: 'ms', direction: 'lte' },
     /* NOT_RUN carries result: null by contract — nothing was examined, so nothing was measured.
        The validator caught this on the first run of the NOT_RUN arm; it is not a style choice. */
-    result: status === 'NOT_RUN' ? null : { tally, recovered, scored: checked, refused: excluded },
+    /* `halvesAdmissibility` is the counted population behind the half-dependence, not a second
+       criterion: the status and the threshold above are untouched by it. A caller that did not
+       measure it passes nothing and the field reads `null` — §∅, because a run that never looked is
+       not a run that found zero flips. */
+    result: status === 'NOT_RUN' ? null : { tally, recovered, scored: checked, refused: excluded, halvesAdmissibility: admissibility },
     evidence: ['tools/pat-window-oracle.mjs', ...evidence],
     reason,
     producedBy: { tool: 'tools/pat-window-oracle.mjs', commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
@@ -888,6 +970,11 @@ async function main() {
   } else {
     units = nights.map((n) => ({ label: n, dir: join(DIR, n), files: null }));
   }
+  /* One counter per class, so the report says which DIRECTION the half-dependence runs in. A night
+     with no second-half mode is counted apart (`bModeAbsent`) and never folded into agreement. */
+  const adm = { bothIn: 0, aInBOut: 0, aOutBIn: 0, bothOut: 0, bModeAbsent: 0 };
+  const ADM_KEY = { 'both-in': 'bothIn', 'A-in-B-out': 'aInBOut', 'A-out-B-in': 'aOutBIn', 'both-out': 'bothOut' };
+  const admFlipped = [];
   for (const u of units) {
     const n = u.label;
     const dir = u.dir;
@@ -932,12 +1019,16 @@ async function main() {
       continue;
     }
     tally[v.tallyKey] = (tally[v.tallyKey] || 0) + 1;
+    adm[v.admissibility == null ? 'bModeAbsent' : ADM_KEY[v.admissibility]] += 1;
+    if (v.admissibility === 'A-in-B-out' || v.admissibility === 'A-out-B-in') admFlipped.push(`${n} ${v.admissibility} ${res.mode.toFixed(0)}→${res.modeB.toFixed(0)}`);
     if (JSON_OUT)
       jsonRows.push({
         [SESSIONS ? 'session' : 'night']: n,
         searchMax: SMAX,
         mode: res.mode ?? null,
         modeB: res.modeB ?? null,
+        modeBInPhys: res.modeBInPhys ?? null,
+        admissibility: v.admissibility,
         modeN: res.modeN ?? null,
         modeInPhys: res.modeInPhys ?? null,
         modeNInPhys: res.modeNInPhys ?? null,
@@ -954,8 +1045,10 @@ async function main() {
     );
   }
   console.log('\nTALLY:', JSON.stringify(tally));
+  console.log('HALVES-ADMISSIBILITY:', JSON.stringify(adm));
+  for (const line of admFlipped) console.log('  half-dependent: ' + line);
   /* One object beside the prose — the reader above is a human, this one is a machine. */
-  console.log('VERDICT ' + JSON.stringify(runVerdict(tally, { commit: gitCommitShort(), evidence: [DIR] })));
+  console.log('VERDICT ' + JSON.stringify(runVerdict(tally, { commit: gitCommitShort(), evidence: [DIR], admissibility: adm })));
   if (JSON_OUT) console.log('JSONROWS ' + JSON.stringify({ searchMax: SMAX, rows: jsonRows }));
 }
 
