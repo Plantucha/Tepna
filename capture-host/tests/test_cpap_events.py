@@ -246,6 +246,158 @@ def test_a_delta_over_a_missing_edge_is_None_never_zero():
     assert r2.snapshot()["witness_start_delta_s"] is None, "no trigger mark ⇒ no delta"
 
 
+def _status(name, rt="2026-09-19T22:00:00.000Z"):
+    return {"dataId": "UsageEvents-TherapyStatusEvents", "events": [{"event": name, "reportTime": rt}]}
+
+
+def test_a_single_ZLE_report_falls_back_to_the_therapy_status_witness_and_NAMES_it():
+    """The measured 2026-10-19 night: one `_ZLE` report over 6 h 18 m, so `_note_zle` saw a level and
+    no edge, while a TherapyStop row and a MaskOff row sat in the sidecar. Both deltas read None."""
+    r = E.EventRecorder()
+    r.mark_trigger("start", host_epoch=1000.0)
+    r.note(_status("TherapyStart"), host_epoch=1002.0)
+    r.note(_status("MaskOn"), host_epoch=1003.0)
+    r.note({"dataId": "_ZLE", "events": [_zle(1)]}, host_epoch=1004.0)  # the only report: a LEVEL
+    r.note(_status("TherapyStop"), host_epoch=3400.0)
+    r.note(_status("MaskOff"), host_epoch=3401.0)
+    r.mark_trigger("stop", host_epoch=3518.0)
+    s = r.snapshot()
+    assert s["zle_edges"] == 0 and s["zle_rising_host"] is None and s["zle_falling_host"] is None
+    assert s["witness_start_source"] == "UsageEvents-TherapyStatusEvents:TherapyStart"
+    assert s["witness_stop_source"] == "UsageEvents-TherapyStatusEvents:TherapyStop"
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (1002.0, 3400.0)
+    assert s["witness_start_delta_s"] == 2.0, "therapy started 2 s AFTER the trigger"
+    assert s["witness_stop_delta_s"] == -118.0, "therapy stopped 118 s BEFORE the trigger"
+
+
+def test_the_fallback_is_per_EDGE_and_not_gated_on_the_edge_COUNT():
+    """A night with one rising edge carries `zle_edges` 1 and still has no falling edge. Gating the
+    fallback on the counter would leave that night's stop boundary exactly as uncomputed."""
+    r = E.EventRecorder()
+    r.mark_trigger("start", host_epoch=10.0)
+    r.note({"dataId": "_ZLE", "events": [_zle(0), _zle(1)]}, host_epoch=12.0)  # level, then ↑
+    r.note(_status("TherapyStop"), host_epoch=99.0)
+    r.mark_trigger("stop", host_epoch=100.0)
+    s = r.snapshot()
+    assert s["zle_edges"] == 1, "the counter is not 0, and the stop edge is still absent"
+    assert s["witness_start_source"] == "_ZLE" and s["witness_start_delta_s"] == 2.0
+    assert s["witness_stop_source"] == "UsageEvents-TherapyStatusEvents:TherapyStop"
+    assert s["witness_stop_delta_s"] == -1.0
+
+
+def test_the_ZLE_edge_WINS_when_both_witnesses_reported():
+    r = E.EventRecorder()
+    r.note(_status("TherapyStart"), host_epoch=1.0)
+    r.note(_status("TherapyStop"), host_epoch=2.0)
+    r.note({"dataId": "_ZLE", "events": [_zle(0), _zle(1), _zle(0)]}, host_epoch=5.0)
+    s = r.snapshot()
+    assert (s["witness_start_source"], s["witness_stop_source"]) == ("_ZLE", "_ZLE")
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (5.0, 5.0)
+
+
+def test_Mask_is_the_SECOND_choice_and_only_where_Therapy_never_reported():
+    """`Therapy*` is what this data id exists to report; the mask seal is a different quantity. So a
+    night that carries only `MaskOn`/`MaskOff` still gets a witness, and the source says which."""
+    r = E.EventRecorder()
+    r.note(_status("MaskOn"), host_epoch=7.0)
+    r.note(_status("MaskOff"), host_epoch=8.0)
+    s = r.snapshot()
+    assert s["witness_start_source"] == "UsageEvents-TherapyStatusEvents:MaskOn"
+    assert s["witness_stop_source"] == "UsageEvents-TherapyStatusEvents:MaskOff"
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (7.0, 8.0)
+
+
+def test_a_witness_absent_on_BOTH_sources_is_null_with_NO_borrowed_source():
+    r = E.EventRecorder()
+    r.mark_trigger("start", host_epoch=1.0)
+    r.mark_trigger("stop", host_epoch=2.0)
+    r.note(_status("AutoOnDetected"), host_epoch=1.5)  # a name the fallback does not read
+    s = r.snapshot()
+    assert (s["witness_start_source"], s["witness_stop_source"]) == (None, None)
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (None, None)
+    assert s["witness_start_delta_s"] is None and s["witness_stop_delta_s"] is None
+    assert r.status_first == {"AutoOnDetected": 1.5}, "an unread name is still recorded, not dropped"
+
+
+def test_the_start_witness_is_the_FIRST_status_row_and_the_stop_witness_the_LAST():
+    r = E.EventRecorder()
+    for host, name in ((10.0, "TherapyStart"), (20.0, "TherapyStop"), (30.0, "TherapyStart"), (40.0, "TherapyStop")):
+        r.note(_status(name), host_epoch=host)
+    s = r.snapshot()
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (10.0, 40.0)
+
+
+def test_a_status_row_with_no_event_NAME_is_not_a_witness_and_an_unrelated_id_is_ignored():
+    r = E.EventRecorder()
+    r.note({"dataId": "UsageEvents-TherapyStatusEvents", "events": [{"event": 7, "reportTime": "x"}]}, host_epoch=1.0)
+    r.note({"dataId": "SomeOtherStream", "events": [{"event": "TherapyStop", "reportTime": "x"}]}, host_epoch=2.0)
+    assert r.status_first == {} and r.status_last == {}
+    assert r.snapshot()["witness_stop_source"] is None, "a stop name on another data id is not a witness"
+    assert len(r.rows) == 2, "both rows are still recorded verbatim; only the witness declines them"
+
+
+def test_a_fresh_recorder_reports_ABSENCE_as_null_and_never_as_an_empty_string():
+    """§∅ on the recorder's own initial state: an unmeasured device stamp is None. An empty string is
+    a value a consumer cannot tell from a stamp the device sent, which is the defect, not the default."""
+    r = E.EventRecorder()
+    s = r.snapshot()
+    assert s["zle_rising_report"] is None and s["zle_falling_report"] is None
+    assert r.zle_value is None, "no `_ZLE` report has arrived, so there is no level either"
+
+
+def test_a_ZLE_row_with_NO_numeric_value_is_recorded_VERBATIM_and_moves_no_edge():
+    """The value slot holds a number or nothing (`parse_event_notification` refuses a bool or a string),
+    so the recorder must read the SLOT and not the data id alone. The row is still written: the sidecar
+    is verbatim, and only the witness declines it."""
+    r = E.EventRecorder()
+    r.note({"dataId": "_ZLE", "events": [{"value": "nope", "reportTime": "x"}]}, host_epoch=3.0)
+    assert len(r.rows) == 1 and r.rows[0]["value"] is None
+    assert r.rows[0]["host_epoch"] == 3.0, "the host stamp the caller gave, not the one `note` invented"
+    assert r.zle_value is None and r.zle_edges == 0
+
+
+def test_the_sidecar_LINE_IS_COMPACT_and_holds_ONE_notification(tmp_path):
+    """The separators are the published format, not an accident. A night is one line per notification
+    and the file is read back by `tail`, so a re-spaced dump rewrites every line of every sidecar."""
+    path = tmp_path / "cpap-events-compact.jsonl"
+    r = E.EventRecorder(str(path))
+    r.note({"dataId": "_ZLE", "events": [_zle(1, "x")]}, host_epoch=9.0)
+    r.close()
+    assert path.read_text(encoding="utf-8") == (
+        '{"host_epoch":9.0,"params":{"dataId":"_ZLE","events":[{"value":1,"reportTime":"x"}]}}\n'
+    )
+
+
+def test_the_SIDECAR_DECLARES_ITS_ENCODING(tmp_path):
+    """The sidecar `open()` asserted on the CALL. `-X warn_default_encoding` with
+    `-W error::EncodingWarning` makes an unset — or explicitly None — `encoding` raise, so a night
+    recorded on the box reads the same here whatever the machine's locale.
+
+    The in-process recorder first is NOT redundant: mutmut picks a mutant's tests from COVERAGE and a
+    subprocess is invisible to the tracer, so without it this mutant reads unkillable."""
+    import subprocess
+    import sys
+
+    path = tmp_path / "cpap-events-enc.jsonl"
+    r = E.EventRecorder(str(path))
+    r.note({"dataId": "_ZLE", "events": [_zle(1, "x")]}, host_epoch=1.0)
+    r.close()
+    src = (
+        "import cpap_events as E\n"
+        f"r = E.EventRecorder({str(path)!r})\n"
+        "r.note({'dataId': '_ZLE', 'events': [{'value': 1, 'reportTime': 'x'}]}, host_epoch=1.0)\n"
+        "r.close()\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.abspath(E.__file__)),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "EncodingWarning" not in out.stderr, out.stderr
+
+
 def test_mark_trigger_rejects_an_unknown_mark_and_stamps_the_host_clock_when_none_given():
     r = E.EventRecorder()
     with pytest.raises(ValueError):
