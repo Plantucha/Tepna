@@ -9,7 +9,10 @@ runs is `capture._qc_offload` and lives in tests/test_qc_offload.py.
 
 import json
 import os
+import pathlib
 import re
+import subprocess
+import sys
 
 import pytest
 
@@ -356,6 +359,34 @@ def test_peak_kb_is_None_for_an_absent_or_malformed_figure(tmp_path, body):
 
 def test_peak_kb_is_None_for_an_unreadable_file(tmp_path):
     assert qc_child.peak_kb(str(tmp_path / "absent")) is None
+
+
+# The kernel writes ONE VmHWM line. A malformed one is the answer, and it is None: the reader must not
+# search on and take a later line that parses. Splitting at the LAST colon would skip the malformed
+# line and return the second figure, so this is also the case that tells partition from rpartition.
+def test_peak_kb_refuses_at_a_malformed_VmHWM_line_and_does_not_read_a_later_one(tmp_path):
+    p = tmp_path / "status"
+    p.write_text("VmHWM:\t 8: kB\nVmHWM:\t 8192 kB\n")
+    assert qc_child.peak_kb(str(p)) is None
+
+
+# A source scan cannot see the encoding argument (see tests/test_oxy_inventory.py, the ledger's twin of
+# this test). The interpreter is the witness: under `-X warn_default_encoding`, an open() without an
+# explicit encoding emits EncodingWarning, and `-W error::EncodingWarning` makes that a non-zero exit.
+def test_peak_kb_names_its_encoding_under_warn_default_encoding(tmp_path):
+    status = tmp_path / "status"
+    status.write_text("VmHWM:\t 8192 kB\n", encoding="utf-8")
+    script = "import qc_child\nassert qc_child.peak_kb(%r) == 8192\n" % str(status)
+    env = dict(os.environ, PYTHONPATH=str(pathlib.Path(qc_child.__file__).parent))
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", script],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    # The witness first: an unrelated failure also exits non-zero, and that is not an encoding defect.
+    assert "EncodingWarning" not in r.stderr, "peak_kb's open() must name an encoding:\n" + r.stderr[-800:]
+    assert r.returncode == 0, "the probe itself failed, which says nothing about encoding:\n" + r.stderr[-800:]
 
 
 def test_peak_kb_reads_this_process_by_default():
