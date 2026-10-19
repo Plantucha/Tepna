@@ -505,3 +505,74 @@ def test_zero_publishes_the_block_and_logs_nothing(tmp_path, monkeypatch, caplog
         _loop(monkeypatch, tmp_path, passes=3, mem_log_sec=0)
     assert not any(r.getMessage().startswith("mem: ") for r in caplog.records)
     assert capture.STATUS["mem"]["gc"]["counts"]
+
+
+# ── the windowed peak (residue 2026-10-18-vmhwm-is-per-process-so-a-nights-peak-is-unobservable-…) ──
+# VmHWM is the peak since the PROCESS started, and the daemon restarts at every deploy. The line carries
+# the peak since the previous line instead, so a night's peak is the largest figure inside the night.
+
+
+def _status_file(tmp_path, body):
+    p = tmp_path / "status"
+    p.write_text(body)
+    return str(p)
+
+
+def test_the_window_reads_VmHWM_and_then_resets_it(tmp_path):
+    status = _status_file(tmp_path, "Name:\tpython\nVmHWM:\t    4096 kB\nVmRSS:\t    2048 kB\n")
+    clear = tmp_path / "clear_refs"
+    clear.write_text("")
+    assert capture.hwm_since_last_kb(status, str(clear)) == (4096, None)
+    assert clear.read_text() == "5", "5 resets the peak only; 1 to 4 clear page bits instead"
+
+
+def test_a_refused_reset_keeps_the_figure_and_names_what_it_now_means(tmp_path):
+    status = _status_file(tmp_path, "VmHWM:\t    4096 kB\n")
+    hwm, why = capture.hwm_since_last_kb(status, str(tmp_path))  # a directory cannot be opened for write
+    assert hwm == 4096
+    assert why == "VmHWM reset refused (IsADirectoryError): the figure is the peak since process start"
+
+
+def test_an_unreadable_peak_is_None_not_zero(tmp_path):
+    clear = tmp_path / "clear_refs"
+    assert capture.hwm_since_last_kb(str(tmp_path / "absent"), str(clear)) == (None, None)
+    assert capture.hwm_since_last_kb(_status_file(tmp_path, "VmRSS:\t 1 kB\n"), str(clear)) == (None, None)
+
+
+def test_proc_rss_kb_keeps_its_three_keys_when_no_keys_are_named(tmp_path):
+    status = _status_file(tmp_path, "VmHWM:\t 9 kB\nVmRSS:\t 7 kB\nRssAnon:\t 5 kB\nRssFile:\t 2 kB\n")
+    assert capture.proc_rss_kb(status) == {"VmRSS": 7, "RssAnon": 5, "RssFile": 2}
+    assert capture.proc_rss_kb(status, keys=("VmHWM",)) == {"VmHWM": 9}
+
+
+def test_the_REAL_kernel_resets_the_peak_so_the_next_window_starts_low():
+    # The contract the whole fix rests on, read from this process's own /proc: a 64 MiB spike that is
+    # gone again shows in the window it happened in, and not in the next one.
+    before, why = capture.hwm_since_last_kb()
+    assert why is None and before is not None
+    spike = bytearray(64 * 1024 * 1024)
+    for i in range(0, len(spike), 4096):
+        spike[i] = 1
+    del spike
+    during, _ = capture.hwm_since_last_kb()
+    after, _ = capture.hwm_since_last_kb()
+    assert during - after >= 60 * 1024, f"the reset did not take: {during} kB then {after} kB"
+
+
+def test_the_line_carries_the_window_and_null_when_it_is_unmeasured():
+    base = capture.mem_log_line(_snap())
+    assert capture.mem_log_line(_snap(), 1234) == base + " · VmHWM since last line 1234 kB"
+    assert capture.mem_log_line(_snap(), None) == base + " · VmHWM since last line null kB"
+
+
+def test_a_refused_reset_rides_the_line_after_the_figure():
+    line = capture.mem_log_line(_snap(), 4096, "VmHWM reset refused (PermissionError): x")
+    assert line.endswith(" · VmHWM since last line 4096 kB · VmHWM reset refused (PermissionError): x")
+
+
+def test_the_status_tick_logs_the_window_it_read(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(capture, "hwm_since_last_kb", lambda: (777, "a reason"))
+    with caplog.at_level("INFO"):
+        _loop(monkeypatch, tmp_path)
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("mem: ")]
+    assert len(lines) == 1 and lines[0].endswith(" · VmHWM since last line 777 kB · a reason")

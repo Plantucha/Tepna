@@ -336,3 +336,32 @@ def test_verdict_sample_without_a_checkout_carries_a_null_commit_and_a_now_stamp
     v = json.loads(qc_child._verdict_sample())
     assert v["producedBy"]["commit"] is None and v["producedBy"]["commitReason"]
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", v["at"])
+
+
+# ── the child's own peak ─────────────────────────────────────────────────────────────────────────
+
+
+def test_peak_kb_reads_VmHWM_in_kB(tmp_path):
+    p = tmp_path / "status"
+    p.write_text("Name:\tpython\nVmPeak:\t 99 kB\nVmHWM:\t   8192 kB\nVmRSS:\t 1 kB\n")
+    assert qc_child.peak_kb(str(p)) == 8192
+
+
+@pytest.mark.parametrize("body", ["VmRSS:\t 1 kB\n", "VmHWM:\t 8 MB\n", "VmHWM:\t x kB\n", "VmHWM:\t 8\n", ""])
+def test_peak_kb_is_None_for_an_absent_or_malformed_figure(tmp_path, body):
+    p = tmp_path / "status"
+    p.write_text(body)
+    assert qc_child.peak_kb(str(p)) is None
+
+
+def test_peak_kb_is_None_for_an_unreadable_file(tmp_path):
+    assert qc_child.peak_kb(str(tmp_path / "absent")) is None
+
+
+def test_peak_kb_reads_this_process_by_default():
+    assert qc_child.peak_kb() > 1024
+
+
+def test_measured_returns_the_result_beside_the_peak():
+    out, peak = qc_child.measured(lambda a, b: (a, b), 1, 2)
+    assert out == (1, 2) and isinstance(peak, int) and peak > 1024

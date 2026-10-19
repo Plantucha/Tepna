@@ -34,6 +34,31 @@ import solid_night
 import stitch_31d
 
 
+def peak_kb(status_path: str = "/proc/self/status") -> int | None:
+    """This process's `VmHWM` in kB, or `None` when the file or the key is unreadable (§∅).
+
+    The parser is local because a child must not import `capture`."""
+    try:
+        with open(status_path, encoding="utf-8") as fh:
+            for line in fh:
+                k, _, rest = line.partition(":")
+                if k == "VmHWM":
+                    parts = rest.split()
+                    if len(parts) == 2 and parts[1] == "kB" and parts[0].isdigit():
+                        return int(parts[0])
+                    return None
+    except OSError:
+        return None
+    return None
+
+
+def measured(fn: Any, *args: Any) -> tuple:
+    """`(fn(*args), peak_kb())`: the scan's result and the peak of the child that ran it.
+
+    A spawned child is fresh, so its `VmHWM` is the scan's own peak plus the interpreter it started."""
+    return fn(*args), peak_kb()
+
+
 def scan_night(night_dir: str, devices: list) -> dict:
     """The CURRENT night's two expensive scans, in one call: the QC summary and the wear ends.
 
