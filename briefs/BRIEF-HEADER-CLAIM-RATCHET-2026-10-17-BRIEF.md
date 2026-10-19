@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-10-17 · **Created:** 2026-10-17 · 782 grandfathered tuples, `CLAIM headerClaimTuples = 782 FROM tools/brief-header-claim-baseline.json#tupleCount`
+**Status:** DONE — 2026-10-17 · **Created:** 2026-10-17 · 747 grandfathered tuples, `CLAIM headerClaimTuples = 747 FROM tools/brief-header-claim-baseline.json#tupleCount`
 
 **Residue:** `2026-09-07-drain-stamp-asserted-a-count-it-never-read`
 

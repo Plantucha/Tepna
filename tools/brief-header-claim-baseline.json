@@ -3,8 +3,8 @@
  "frozen": "2026-10-17",
  "note": "Count-shaped assertions standing in brief **Status:** headers when the ratchet was frozen. GRANDFATHERED, never verified: an entry here is a number a stamp asserts and no artifact re-resolves. The only legal edit is REMOVAL — source the number as `CLAIM <name> = <value> FROM <path>#<pointer>` (resolved by tests/dex-tests.js §8d¹) or reword the header. Growth is refused by `--base`. Some entries are extraction false positives; they cost nothing here, which is why the ratchet is frozen rather than mandated.",
  "residue": "2026-09-07-drain-stamp-asserted-a-count-it-never-read",
- "tupleCount": 782,
- "headerCount": 194,
+ "tupleCount": 747,
+ "headerCount": 193,
  "headers": {
   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md": [
    "zero sentinel",
@@ -51,11 +51,9 @@
   ],
   "briefs/AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md": [
    "0 across",
-   "03 analysis",
    "37 POLL",
    "11 sessions",
-   "0 rows",
-   "03 clause"
+   "0 rows"
   ],
   "briefs/AS11-SESSION-DETECTOR-IMPLEMENTATION-2026-08-24-BRIEF.md": [
    "2 BUILT",
@@ -71,8 +69,7 @@
    "5 mutants"
   ],
   "briefs/BLE-SNIFFER-DUTY-CYCLE-2026-09-07-BRIEF.md": [
-   "4 Done-when",
-   "11 absence"
+   "4 Done-when"
   ],
   "briefs/BLE-TIMEBASE-AT-THE-EDGE-2026-09-16-BRIEF.md": [
    "6 fixtures"
@@ -95,9 +92,6 @@
    "4 closed",
    "1 closed"
   ],
-  "briefs/CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md": [
-   "09 sibling"
-  ],
   "briefs/CAPTURE-HOST-MUTATION-FLEET-2026-08-04-BRIEF.md": [
    "145 killed"
   ],
@@ -106,7 +100,6 @@
    "1 parked"
   ],
   "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md": [
-   "21 nights",
    "244 daemon-caused"
   ],
   "briefs/CITATION-INTEGRATION-2026-08-23-BRIEF.md": [
@@ -162,7 +155,6 @@
    "17 quad-modal"
   ],
   "briefs/CPAP-SPOOL-ACQUISITION-2026-08-25-BRIEF.md": [
-   "19 pass",
    "1 night",
    "2 rows",
    "22 consecutive"
@@ -426,10 +418,8 @@
    "258 sessions",
    "1 EXECUTED",
    "8 night",
-   "18 nothing",
    "4 devices",
    "243 polls",
-   "19 the",
    "1 parked"
   ],
   "briefs/KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md": [
@@ -497,7 +487,6 @@
    "6 open",
    "4 entries",
    "3 number",
-   "02 drain",
    "3 ticked",
    "8 mutation-specific",
    "1 commits",
@@ -541,9 +530,7 @@
   "briefs/MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md": [
    "3 ticked",
    "11 open",
-   "02 verdict",
    "24 pseudo-tested",
-   "02 drain",
    "9 open",
    "5 ticked",
    "1 commits",
@@ -552,10 +539,7 @@
   ],
   "briefs/MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md": [
    "11 sections",
-   "02 verdict",
    "8 mutation-specific",
-   "13 touch",
-   "02 stands",
    "3 commits",
    "1 stale",
    "56 pending"
@@ -685,21 +669,16 @@
    "114 rows",
    "23 sessions",
    "23 carry",
-   "25 first",
    "zero QUARANTINE",
    "75 pulls",
    "56 sessions",
    "55 identical",
-   "03 correction",
    "3 parked"
   ],
   "briefs/OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md": [
    "150 pulls",
    "76 clean",
-   "0 restarts",
-   "13 stamp",
-   "21 reading",
-   "15 ruled"
+   "0 restarts"
   ],
   "briefs/OXYII-PRESENCE-MODEL-2026-08-23-BRIEF.md": [
    "10 worn",
@@ -716,9 +695,7 @@
   "briefs/PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md": [
    "20 modes",
    "2 verdicts",
-   "01 stamp",
    "633 Verity",
-   "01 STAMP",
    "2 files",
    "72514 consensus",
    "0 fall",
@@ -727,8 +704,6 @@
   "briefs/PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md": [
    "364 usable",
    "839 beats",
-   "01 stamp",
-   "01 STAMP",
    "2 repo-tree",
    "1131 raw",
    "43 usable",
@@ -736,16 +711,13 @@
    "4 occurrences"
   ],
   "briefs/PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md": [
-   "01 stamp",
    "300 misses",
    "5 out-of-window",
-   "01 STAMP",
    "1131 raw",
    "48 nights",
    "35 pts",
    "9 cells",
    "8 rows",
-   "18 ratio",
    "110 ECG",
    "555 PPG",
    "0 landings"
@@ -755,12 +727,10 @@
    "6 cells",
    "3 verdicts",
    "2 ANSWERED",
-   "01 stamp",
    "43 box",
    "4 SIGNAL",
    "20 PARTIAL",
    "0 UNDEFINED",
-   "01 STAMP",
    "9 cells",
    "8 rows"
   ],
@@ -812,8 +782,7 @@
    "5 call"
   ],
   "briefs/PINNED-SPAN-POPULATIONS-2026-09-18-BRIEF.md": [
-   "968 captures",
-   "18 stamp"
+   "968 captures"
   ],
   "briefs/POLAR-OFFLINE-DOWNLOAD-2026-07-17-BRIEF.md": [
    "1 entries",
@@ -826,7 +795,6 @@
    "4 holds"
   ],
   "briefs/PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md": [
-   "19 night",
    "3 stuck",
    "0 rail-pinned"
   ],
@@ -878,7 +846,6 @@
    "2 rather"
   ],
   "briefs/PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md": [
-   "19 re-measure",
    "33 files",
    "332 checked",
    "341 checked",
@@ -1051,7 +1018,6 @@
   ],
   "briefs/TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md": [
    "0 hits",
-   "19 drain",
    "115 nights",
    "72 carrying",
    "3 corners",
@@ -1156,18 +1122,15 @@
    "42 nights",
    "20 relink",
    "24 connect",
-   "19 stamp",
    "2 WEDGEFIRE",
    "1 recorded"
   ],
   "briefs/VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md": [
    "92 files",
    "1388 files",
-   "2282 files",
-   "06 box"
+   "2282 files"
   ],
   "briefs/ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md": [
-   "13 except",
    "2 probe",
    "2 TRIAGED",
    "2 status",
