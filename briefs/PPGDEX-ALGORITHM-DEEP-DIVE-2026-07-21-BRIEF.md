@@ -293,7 +293,7 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | ~~3~~ | ~~Multi-session export shape fix~~ — **WITHDRAWN 2026-07-21, the claim was stale.** `integrator-dsp.js` already carries a `MULTI_CARRIERS` table matching all three fleet spellings (`nights`/`multiNight`, `recordings`/`multiRecording`, `sessions`/`multiSession`); DEEP-AUDIT-II §8.1 fixed exactly this bug. Verified in source before implementing. **No action.** | — | none | — | — |
 | 4 | **`isFinite` on ch1/ch2/amb, row-atomic drop** | `:269-278` | Closes a silent 3-LED→2-LED degradation that reports `ledAgreementPct: 67`, zero peaks, and no error | None; byte-inert on clean captures | Very high |
 | 5 | **ACC: per-file fs, sensor-ns join, overlap assert** | `:1811` | Removes a 2× rate error (25.84 vs assumed 52 Hz) and a 3.5–4.2 s (~600-sample) motion-gate misregistration | Low; motion gates shift where they were wrong | Very high |
-| 6 | **Whole-night channel scoring (p25 aggregate), still one fixed reference** — replaces the single ~90 s mid-record window that currently decides for the whole night | `:1706-1755` (the brief said `:380-435`, which is 1,300 lines off) | Removes a 1-in-85 single-point-of-failure; changes the pick on 2 of 8 nights | ✅ **shipped** 2026-10-19 (#PRNUM) — measured 8 of 27 nights, and the real-night fixture did NOT move a measured value. See §4 #6 EXECUTED | High |
+| 6 | **Whole-night channel scoring (p25 aggregate), still one fixed reference** — replaces the single ~90 s mid-record window that currently decides for the whole night | `:1706-1755` (the brief said `:380-435`, which is 1,300 lines off) | Removes a 1-in-85 single-point-of-failure; changes the pick on 2 of 8 nights | ✅ **shipped** 2026-10-19 (#3678) — measured 8 of 27 nights, and the real-night fixture did NOT move a measured value — the one committed metric that moved is the seeded `qrs-equiv` witness, rMSSD 41.4 → 41.2. See §4 #6 EXECUTED | High |
 | 7 | **Ambient-referenced perfusion index**, genuinely per-epoch | `:2121-2123`, `morph:263,289-303` | 2.0–3.4× correction to an exported number; PI becomes able to show posture/occlusion | Surfaced number changes 2–3.4×; docs must move with it | High on direction, medium on absolute calibration (§1.6) |
 | 8 | **`morph.pre` 0.15 → 0.50 s** (or feed it `det.feet`) | `ppgdex-morph.js:39` | `riseTimeMs`/`crestTimeMs` stop being pinned to the window (147.4 ms ceiling vs 296 ms true); fixes `augmentationIndexPct`, `reflectionIndex`, SDPPG a-wave | Isolated to one node — cheapest gate in the list | Very high |
 | 9 | **Autogain step detect + repair before filtering** — 39 steps/night at 5–25× pulse AC, and `filtfilt` is zero-phase so ringing propagates **both** directions in time | `:730` pre-filter | Removes bidirectional ringing artefacts around each step | One verifier measured net benefit ≈ 0; **measure before merging** | Medium — gated on E-3 |
@@ -410,7 +410,7 @@ pattern:
 | **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | ✅ **shipped** 2026-08-21 (#1614) — the prediction held, all six fixtures moved on OUTPUT |
 | **#2 ★** | ~29 % of the exported series stops being a fabricated constant | open |
 | #5 | motion gates shift where they were wrong | open |
-| #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | ✅ **shipped** 2026-10-19 (#PRNUM) |
+| #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | ✅ **shipped** 2026-10-19 (#3678) |
 | #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | open |
 | #8 | every morphology value (measured above) | ✅ **shipped** 2026-10-19 (#3673) — hash-only, see §4 #8 EXECUTED |
 | #10 | peak times shift by a near-constant | open |
@@ -544,7 +544,7 @@ which named #1614 in one command — cheap only because the source comment cites
 
 ---
 
-### ✅ #6 EXECUTED 2026-10-19 (#PRNUM) — the premise it rested on is measured, and it is false
+### ✅ #6 EXECUTED 2026-10-19 (#3678) — the premise it rested on is measured, and it is false
 
 `channelSNR` scored ONE ~90 s window from the middle of the record, and `pickChannel` ranked the three
 LEDs on it for the whole night. On a 7.7 h night that window is 1 part in 300. The reference channel it
