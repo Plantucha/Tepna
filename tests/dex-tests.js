@@ -17451,7 +17451,10 @@
          the night page's `kMethod` KPI builder and `fusedDiag` in the power tool's `fillRealTbl` row
          tooltip — which is where those pages read every other aggregate key too. They are surfaced on
          purpose: a worker key with no consumer is what the dead-key leg above would have called dead. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 36, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* pat-feasibility-worker.js 26 -> 27 on 2026-10-18 (the owner's three charts: a raw, b all sidecars,
+         c derived): the payload gains `threeSide`, the three legs' window medians on every arrival-floor
+         sidecar the night has. The page reads it in the `drawThree` helper, beside the raw hat it draws. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 36, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
