@@ -579,23 +579,38 @@ def night_entry(
         # screen; the epoch is `min(stamps)` and stays internal.
         began = _dt.datetime.fromtimestamp(min(stamps))
         out["recording_start"] = began.strftime("%Y-%m-%d %H:%M")
-        # ⚠️ A ROW THE BAND ADMITS NOTHING INTO, AND IT READS AS AN EMPTY NIGHT. `night_band` hands a
-        # 13:00 session the PREVIOUS evening's band — one that ended at 10:00 and does not contain it
-        # (the mismatch `_recordings` measures and records) — so this row exists while `in_band`
-        # correctly keeps every one of its files OUT: each node cell comes back `None` and the row says
-        # "recorded nothing" about a session that recorded fine. That is §∅ with the roles reversed, OUR
-        # grouping publishing an absence the capture does not have, so the row carries which one it is.
+        # ⚠️ A ROW THE SLEEP BAND ADMITS NOTHING INTO, AND THE FLAG IS WHAT MAKES IT READABLE. A 13:00
+        # session gets a row, and `in_band` keeps every one of its files out: measured 2026-10-18, each
+        # node cell comes back `None` and `recordings` is empty. Read without the flag that row says
+        # "recorded nothing" about a session that recorded fine — §∅ with the roles reversed, OUR
+        # grouping publishing an absence the capture does not have. `daytime` is what stops that reading.
+        #
+        # ⏪ THE KEY MOVED AND THE ADMISSION DID NOT, which is the half of this that changed. Under the
+        # 18/10 band the 13:00 session was also KEYED to the previous evening, so its empty row landed
+        # among that night's rows; the owner's 2026-10-13 noon-to-noon ruling keys it to its own day
+        # instead. Its cells are still `None`, and deliberately so: 13:00 is not sleep, and admitting it
+        # would manufacture night signal out of daytime wear. So the row is now a daytime sitting under
+        # its own date rather than an empty night under someone else's.
         #
         # THE HOURS ARE `nightqc`'s OWN EDGES, never a second copy of them: a start at or after
-        # `_NIGHT_END_H` and before `_NIGHT_BEGIN_H` is in the daytime gap no band covers. The flag is
-        # the START's, not the span's — a night session running past 10:00 is still the night's.
+        # `_DAYTIME_BEGIN_H` and before `_DAYTIME_END_H` carries the flag. The flag is the START's, not
+        # the span's — a night session running past 10:00 is still the night's.
         #
-        # ⚠️ AND IT DOES NOT REACH THE 09:18 CASE, which is deliberate and is NOT the same question. The
-        # band edge is an owner ruling (`nightqc`: moved 20 → 18 by ruling, not by a refit), so 09:18 is
-        # INSIDE 10-09's band and its files are rightly admitted; it is a second RECORDING in that band
+        # ⚠️ THE FLAG NO LONGER READS A GAP IN THE BAND, and that is why it has its own two constants.
+        # The band tiled the clock under the owner's 2026-10-13 noon-to-noon ruling, so
+        # `_NIGHT_END_H <= h < _NIGHT_BEGIN_H` is empty for every hour and the old expression flagged
+        # nothing. The ruling gave the flag its own window, 10:00 through 18:00, and a flagged session is
+        # never judged as a night. So the flag OVERLAPS the band deliberately rather than partitioning
+        # it — every daytime session is also inside some night's band, and the flag is what says it is
+        # not that night.
+        #
+        # ⚠️ AND IT DOES NOT REACH THE 09:18 CASE, which is deliberate and is NOT the same question. Both
+        # edges are owner rulings rather than refits (`nightqc`: 20 → 18 on 2026-10-05, then noon-to-noon
+        # on 2026-10-13), and 09:18 is below `_DAYTIME_BEGIN_H`, so it is INSIDE 10-09's band, carries no
+        # flag, and its files are rightly admitted; it is a second RECORDING in that band
         # and `recording_start` is what distinguishes it. Flagging it would need a wear rule nobody has
         # given — `_recordings`' docstring and §⑤ both record that it is open.
-        out["daytime"] = nightqc._NIGHT_END_H <= began.hour < nightqc._NIGHT_BEGIN_H
+        out["daytime"] = nightqc._DAYTIME_BEGIN_H <= began.hour < nightqc._DAYTIME_END_H
     # THE RECORDING'S FOLDER SET, ASKED OF THE JUDGE ONCE PER NIGHT. Once, because `recording_scope`
     # counts files per folder and `_expand` is called per node per pattern — asking it there would pay
     # that walk dozens of times against a deadline this function is explicitly budgeted by.
@@ -712,7 +727,11 @@ def recordings_of(entry: dict) -> tuple[list[dict], list[str]]:
                 if f not in unassigned:
                     unassigned.append(f)
                 continue
-            b0, b1 = nightqc.night_band(ts)
+            # THE KEY BAND, NOT THE SLEEP BAND. Only `strftime` of the begin edge is kept, so this site
+            # asks "which night?" and never "is this signal?" — the owner's 2026-10-13 noon-to-noon
+            # ruling governs exactly this question. `night_key_band`'s docstring carries why passing it
+            # to `in_band` or `night_view` would be wrong.
+            b0, b1 = nightqc.night_key_band(ts)
             name = _dt.datetime.fromtimestamp(b0).strftime("%Y-%m-%d")
             r = by_band.setdefault(
                 name, {"recording": name, "begin": b0, "end": b1, "first": ts, "arrival": [], "files": {}}
@@ -817,13 +836,13 @@ def _recordings(root: str) -> list[tuple[str, frozenset[float]]]:
         # before 18:00 it anchors to the PREVIOUS evening, so every plausible epoch gets a band and the
         # guard I first wrote was unreachable.
         #
-        # ⚠️ AND IT RETURNS A BAND THAT NEED NOT CONTAIN THE STAMP, which its docstring ("the [begin,
-        # end) night band containing `ts`") does not say: 14:00 sits in the 8 h daytime gap, and
-        # `night_band` hands back the previous evening's `[18:00, 10:00)`, which ends four hours before
-        # it. The consequence here is deliberate and consistent with the 09:18 case — a midday session
-        # joins the previous band as its OWN recording, so it gets its own row rather than vanishing or
-        # merging into the night. The mismatch is `nightqc`'s to fix; this records that it was measured.
-        band = nightqc.night_band(t)
+        # ⏪ THE BAND USED TO NOT CONTAIN THE STAMP, and that is now fixed rather than recorded. Under
+        # the sleep band 14:00 sat in the 8 h gap and `night_band` handed back the previous evening's
+        # `[18:00, 10:00)`, which ended four hours before it; this comment used to say "the mismatch is
+        # `nightqc`'s to fix". It was fixed by the owner's 2026-10-13 noon-to-noon ruling, which keys a
+        # 14:00 session to its OWN day. A midday session still gets its own row rather than merging into
+        # a night, because `recording_start` is what distinguishes two recordings in one band.
+        band = nightqc.night_key_band(t)
         key = _dt.datetime.fromtimestamp(band[0]).strftime("%Y-%m-%d")
         by_band.setdefault(key, []).append(t)
     out: list[tuple[str, frozenset[float]]] = []

@@ -812,14 +812,19 @@ def test_the_nights_view_is_the_owner_approved_design():
     assert "v.coverage==null) return v.hours ? 'rec' : 'unk'" in html
 
 
-def test_THREE_ROWS_IN_ONE_BAND_get_three_keys_and_every_keyed_site_uses_them(tmp_path):
-    """🔴 ONE BAND CAN CARRY THREE ROWS AND THE PAGE KEYED THEM ALL BY THE BAND. Measured on the owner's
-    screenshot night: the 10-09 ring at 21:25 with the after-midnight Polar sessions, a 09:18 ring
-    session and a 13:00 one all band to `2026-10-09`, so `/api/nights` returns three rows with
-    `night: "2026-10-09"`. The page emitted three `id="nrow-2026-10-09"` and three identical
-    `data-night`, and `openNight` resolved every one of them with `NIGHTS.find(x=>x.night===night)` —
-    the FIRST row of the band. A click on the 09:18 row opened the night's files and named them in the
-    toast. The server has published the second half of the identity since #3385; only the page dropped it.
+def test_TWO_ROWS_IN_ONE_BAND_get_distinct_keys_and_every_keyed_site_uses_them(tmp_path):
+    """🔴 ONE BAND CAN CARRY SEVERAL ROWS AND THE PAGE KEYED THEM ALL BY THE BAND. Measured on the
+    owner's screenshot night: the 10-09 ring at 21:25 with the after-midnight Polar sessions and a 09:18
+    ring session both key to `2026-10-09`, so `/api/nights` returns two rows with
+    `night: "2026-10-09"`. The page emitted two `id="nrow-2026-10-09"` and two identical `data-night`,
+    and `openNight` resolved both with `NIGHTS.find(x=>x.night===night)` — the FIRST row of the band. A
+    click on the 09:18 row opened the night's files and named them in the toast. The server has published
+    the second half of the identity since #3385; only the page dropped it.
+
+    ⏪ THE 13:00 SITTING USED TO BE A THIRD ROW IN THIS BAND. The owner's noon-to-noon ruling
+    (2026-10-13) keys it to its own day, so the collision this test exists for is now two rows rather
+    than three. Two is enough to collide, and the third row stays in the fixture: a key that mixed the
+    two bands up would red here.
 
     EXECUTED, not scanned, and then scanned for the population: running `nRowKey` proves the three keys
     differ, while the scan proves no keyed site was left behind — a presence test for `nRowKey` would go
@@ -851,7 +856,11 @@ def test_THREE_ROWS_IN_ONE_BAND_get_three_keys_and_every_keyed_site_uses_them(tm
     put("2026-10-10", "Wellue_O2Ring-S_S8AW_20261010091800_SPO2.csv", "Time,SpO2,PR\n", "20261010094800")
     put("2026-10-10", "Polar_H10_0284_20261010130000_ECG.txt", ROWS, "20261010133000")
     rows = ni.index_nights(str(tmp_path), budget_s=None)
-    assert len({r["night"] for r in rows}) == 1 and len(rows) == 3, [r["night"] for r in rows]
+    assert len(rows) == 3, [r["night"] for r in rows]
+    assert sorted(r["night"] for r in rows) == ["2026-10-09", "2026-10-09", "2026-10-10"], (
+        "two rows collide in the 10-09 key band and the 13:00 sitting keys to its own day: "
+        + str([r["night"] for r in rows])
+    )
 
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
@@ -862,7 +871,7 @@ def test_THREE_ROWS_IN_ONE_BAND_get_three_keys_and_every_keyed_site_uses_them(tm
     keys = json.loads(r.stdout.strip())
     assert len(set(keys)) == 3, f"three rows, three keys — the band alone collides: {keys}"
     assert sorted(k.split("@")[1] for k in keys) == ["09:18", "13:00", "21:25"], keys
-    assert all(k.startswith("2026-10-09@") for k in keys), keys
+    assert sorted(k.split("@")[0] for k in keys) == ["2026-10-09", "2026-10-09", "2026-10-10"], keys
 
     # A ROW WITH NO RECORDING START (the CPAP trees carry no session stamp) keys by the band alone —
     # unique, because `_recordings` never emits a date-keyed row for a band that has recordings.
@@ -886,10 +895,11 @@ def test_THREE_ROWS_IN_ONE_BAND_get_three_keys_and_every_keyed_site_uses_them(tm
 
 
 def test_a_DAYTIME_row_wears_no_verdict_and_says_why():
-    """∅ `SOLID-VERDICT.json` is the BAND's. A 13:00 sitting gets a row in the previous evening's band
-    (`night_band` has no other answer for it) whose every cell is `None`, so painting the night's PASS
-    on it would be a borrowed reason and showing it bare would publish our grouping as the capture's
-    absence. The row says which it is, and the gap's own hours are in the text a reader sees."""
+    """∅ `SOLID-VERDICT.json` is the BAND's. A 13:00 sitting gets a row under its own day (the owner's
+    noon-to-noon key, 2026-10-13) whose every cell is `None`, because the SLEEP band admits nothing from
+    the afternoon. Painting a night's PASS on it would be a borrowed reason and showing it bare would
+    publish our grouping as the capture's absence. The row says which it is, and the gap's own hours are
+    in the text a reader sees."""
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
     cell = _extract_fn(html, "nSolidCell", "\nfunction nSolidBlock")
