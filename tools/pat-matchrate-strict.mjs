@@ -121,7 +121,7 @@ function loadDsps() {
   PATAlign = ctx.PATAlign;
   DexClock = ctx.DexClock; // the Clock Contract's parser, so a sibling never hand-rolls a stamp regex
 
-  for (const [n, v] of Object.entries({ ECGDSP, PPGDSP, PATAlign })) if (!v) throw new Error('pat-matchrate-strict: ' + n + ' did not load into the headless realm');
+  for (const [n, v] of Object.entries({ ECGDSP, PPGDSP, PATAlign, DexClock })) if (!v) throw new Error('pat-matchrate-strict: ' + n + ' did not load into the headless realm');
 }
 
 /* ── beat derivation: ported from pat-feasibility-worker.js ───────────────────────────────────────
@@ -307,11 +307,15 @@ function ppgFootTimes(text) {
    early-morning one; if the chosen ECG/PPG pair sits at 22:31 then the two biggest ACC files can
    both end hours before it, and a size-ranked shortlist reports "no overlapping ACC" on a night that
    has plenty. The filename's YYYYMMDDHHMMSS is the cheap key that avoids parsing 339 MB to find out. */
+/* Through `DexClock.fileStamp`, because the loader two hundred lines up already says why: it keeps
+   DexClock on hand "so a sibling never hand-rolls a stamp regex", and this function was the sibling
+   hand-rolling one. The regex is the smaller half of the difference. The `Date.UTC` under it took
+   six digit slices nothing had range-checked, which §2.7 forbids, and it read the FIRST
+   underscore-delimited run, so a 14-digit device id would beat the session stamp beside it. */
 function nameStartMs(f) {
-  const m = /_(\d{14})_/.exec(f);
-  if (!m) return null;
-  const s = m[1];
-  return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
+  loadDsps();
+  const r = DexClock.fileStamp(f);
+  return r ? r.tMs : null;
 }
 function nearInTime(dir, re, t0, t1, n) {
   return readdirSync(dir)
