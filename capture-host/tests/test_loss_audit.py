@@ -393,6 +393,43 @@ def test_the_SAMPLE_FIXTURE_carries_the_properties_the_verdict_cannot_hold(tmp_p
     assert hr == ["Phone timestamp;HR [bpm]", f"{t0.isoformat(timespec='milliseconds')};{loss_audit.SAMPLE_HR_BPM}"], hr
 
 
+def test_the_SAMPLE_FIXTURE_DECLARES_ITS_ENCODING_on_both_of_its_writes(tmp_path):
+    """`encoding="utf-8"` -> `None` / dropped, on both files `sample_night` writes.
+
+    The sample is the corpus-free object the adoption gate publishes, so it must read the same on this
+    box and on a `C`-locale systemd unit. `encoding=None` takes `locale.getencoding()` instead, and
+    every byte this fixture writes is ASCII, so nothing raises and no byte moves here — the wrong codec
+    would surface the day a non-ASCII device name reaches a sample line, which is too late for a gate
+    object. The declaration is the property; the test observes the DECLARATION.
+
+    CPython resolves the default encoding in C, so no in-process patch reaches it; `-X
+    warn_default_encoding -W error::EncodingWarning` is the supported lever and asserts on the CALL.
+    Same two rules as the siblings in test_solid_night.py and test_solid_night_inputs.py:
+    IN-PROCESS FIRST (mutmut selects a mutant's tests from coverage and a subprocess is invisible to
+    the tracer, so without the direct call this never runs against the mutants it kills), and NO
+    `env=` (the child must inherit `MUTANT_UNDER_TEST`, or it runs the original function however the
+    parent was mutated)."""
+    import subprocess
+    import sys
+
+    night = tmp_path / loss_audit.SAMPLE_NIGHT
+    night.mkdir()
+    devices, readers = loss_audit.sample_night(str(night))
+    assert devices == [loss_audit.SAMPLE_DEVICE] and set(readers) == {"journal", "journal_shape_of"}
+    src = (
+        "import loss_audit\n"
+        f"devices, readers = loss_audit.sample_night({str(night)!r})\n"
+        "assert devices and set(readers) == {'journal', 'journal_shape_of'}, (devices, readers)\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.abspath(loss_audit.__file__)),
+    )
+    assert r.returncode == 0, r.stderr[-600:]
+
+
 def test_stream_gaps_reads_the_ring_s_own_csv_layout(tmp_path):
     p = tmp_path / "Wellue_O2Ring-S_S8AW_20260920220000_SPO2.csv"
     rows = ["Time,Oxygen Level,Pulse Rate,Motion"]
