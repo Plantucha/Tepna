@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff.
+**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.**
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -293,7 +293,7 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | ~~3~~ | ~~Multi-session export shape fix~~ — **WITHDRAWN 2026-07-21, the claim was stale.** `integrator-dsp.js` already carries a `MULTI_CARRIERS` table matching all three fleet spellings (`nights`/`multiNight`, `recordings`/`multiRecording`, `sessions`/`multiSession`); DEEP-AUDIT-II §8.1 fixed exactly this bug. Verified in source before implementing. **No action.** | — | none | — | — |
 | 4 | **`isFinite` on ch1/ch2/amb, row-atomic drop** | `:269-278` | Closes a silent 3-LED→2-LED degradation that reports `ledAgreementPct: 67`, zero peaks, and no error | None; byte-inert on clean captures | Very high |
 | 5 | **ACC: per-file fs, sensor-ns join, overlap assert** | `:1811` | Removes a 2× rate error (25.84 vs assumed 52 Hz) and a 3.5–4.2 s (~600-sample) motion-gate misregistration | Low; motion gates shift where they were wrong | Very high |
-| 6 | **Whole-night channel scoring (p25 aggregate), still one fixed reference** — replaces the single ~90 s mid-record window that currently decides for the whole night | `:380-435` | Removes a 1-in-85 single-point-of-failure; changes the pick on 2 of 8 nights | Reference identity changes ⇒ downstream moves on those nights. **Land separately from #1** | High |
+| 6 | **Whole-night channel scoring (p25 aggregate), still one fixed reference** — replaces the single ~90 s mid-record window that currently decides for the whole night | `:1706-1755` (the brief said `:380-435`, which is 1,300 lines off) | Removes a 1-in-85 single-point-of-failure; changes the pick on 2 of 8 nights | ✅ **shipped** 2026-10-19 (#3678) — measured 8 of 27 nights, and the real-night fixture did NOT move a measured value — the one committed metric that moved is the seeded `qrs-equiv` witness, rMSSD 41.4 → 41.2. See §4 #6 EXECUTED | High |
 | 7 | **Ambient-referenced perfusion index**, genuinely per-epoch | `:2121-2123`, `morph:263,289-303` | 2.0–3.4× correction to an exported number; PI becomes able to show posture/occlusion | Surfaced number changes 2–3.4×; docs must move with it | High on direction, medium on absolute calibration (§1.6) |
 | 8 | **`morph.pre` 0.15 → 0.50 s** (or feed it `det.feet`) | `ppgdex-morph.js:39` | `riseTimeMs`/`crestTimeMs` stop being pinned to the window (147.4 ms ceiling vs 296 ms true); fixes `augmentationIndexPct`, `reflectionIndex`, SDPPG a-wave | Isolated to one node — cheapest gate in the list | Very high |
 | 9 | **Autogain step detect + repair before filtering** — 39 steps/night at 5–25× pulse AC, and `filtfilt` is zero-phase so ringing propagates **both** directions in time | `:730` pre-filter | Removes bidirectional ringing artefacts around each step | One verifier measured net benefit ≈ 0; **measure before merging** | Medium — gated on E-3 |
@@ -410,7 +410,7 @@ pattern:
 | **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | ✅ **shipped** 2026-08-21 (#1614) — the prediction held, all six fixtures moved on OUTPUT |
 | **#2 ★** | ~29 % of the exported series stops being a fabricated constant | open |
 | #5 | motion gates shift where they were wrong | open |
-| #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | open |
+| #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | ✅ **shipped** 2026-10-19 (#3678) |
 | #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | open |
 | #8 | every morphology value (measured above) | ✅ **shipped** 2026-10-19 (#3673) — hash-only, see §4 #8 EXECUTED |
 | #10 | peak times shift by a near-constant | open |
@@ -540,9 +540,68 @@ which named #1614 in one command — cheap only because the source comment cites
 ---
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
+
+### ✅ #6 EXECUTED 2026-10-19 (#3678) — the premise it rested on is measured, and it is false
+
+`channelSNR` scored ONE ~90 s window from the middle of the record, and `pickChannel` ranked the three
+LEDs on it for the whole night. On a 7.7 h night that window is 1 part in 300. The reference channel it
+chose carries the scope trace, every morphology value and the SQI, and the PPI spine is re-derived on it.
+
+**The premise, quoted from the §2 note that recorded it.** `PPGDEX-BEAT-DETECTION-PERF §2` demoted a
+whole-record scorer to this windowed one for speed, and recorded the reason: *"a representative 60–120 s
+window ranks the 3 LEDs identically to the whole night"*. Its Done-when clause reads *"the reference
+channel on the reference night is unchanged vs the whole-record scorer"* — one night.
+
+**Measured 2026-10-19 over 27 real Verity nights** (2.4–7.7 h, ~176 Hz, the box corpus): the mid-window
+pick differs from the whole-night p25 pick on **8 of 27**. So the premise is false as written, and the
+rate matches this brief's own prediction of 2 of 8.
+
+**And the magnitude is small, which the brief never said either.** The mid-window pick's own whole-night
+p25 sits a median 1.0 % and at most 2.5 % below the best channel's. The three LEDs are near-identical
+(§1.2): the channel spread is a median 3.5 % and at most 12.2 %. So the pick was a near-tie, and the
+single-point-of-failure was real without ever having been expensive on this corpus. What the change buys
+is a bound: nothing bounded how wrong one 90 s window could be, and now the score reads every window.
+
+**The perf trade it reverses costs 0.60 s.** Scoring all three channels over both bands across a 7.7 h
+night takes 0.60 s, which is 3.6 % of what parsing the same file costs. The §2 note describes *"~6
+whole-record filter passes before detection even started"*, and that is what under a second buys.
+
+**What moved.** `PpgDex.html` manifestHash `70dc617787fb` → `f04d99a5cec4`, computeHash `a48ff5c3263e` →
+`98529940d0e2`. All six fixtures regenerated. Three synthetic goldens moved `recording.contentId` and
+its two `evidence.inputHash` mirrors, so the interval series moved and no surfaced metric did. **The
+real-night fixture moved its two hash fields and nothing else** — on that 8.5 min slice the whole-night
+p25 picks the channel the mid-window scorer picked.
+
+**`PPGDEX-MULTICHANNEL-FUSION` §2 had already named this defect**, from the other direction: *"~0.25 %
+of the data choosing the reference for 100 % of it"*, and an armband shift at 02:00 leaving the pick
+stale. Its answer was to FUSE the three channels rather than pick one, and a 20-night null refuted
+fusion (sign test p = 0.359), which left the windowed pick standing unexamined for another three months.
+That brief also benchmarked per-window SNR selection at 614.9 ms over a 121 min file — the same order as
+the 0.60 s measured here, and it was quoted there as the cost of doing selection *properly*.
+
+**One committed metric moved, and it is the seeded witness.** The `qrs-equiv` worker's known answer
+`PpgDex rMSSD (seed 12345)` reads 41.4 → **41.2**. On that seed the pick moves from ch2 to ch0, and both
+margins are a near-tie: ch2 led the mid window 4.0227 to 4.0170, ch0 leads the p25 3.8587 to 3.8489.
+`synth-gen.js renderPPG` builds ch2 at 1.05× pulse with 1.1× motion and 1.1× wander — 5 % more signal for
+10 % more noise — and the per-window scores show where that is paid: in the two worst windows (t=400 s,
+t=480 s) ch0 leads by 0.069 and 0.072, its largest margins anywhere, while ch2's 12 wins sit in clean
+windows and never exceed 0.017. The midpoint sampled ch2's favourable region. **The direction was
+predicted before the number was read**: a noisier reference jitters foot placement, rMSSD is a
+successive-difference statistic, so leaving the noisiest channel must lower it. Each channel's own spine
+ranks the same way (ch0 39.7 · ch1 39.1 · ch2 41.4, and ch2 alone at `cleanBeatPct` 97 against 98). `nn`
+stays 551 and `cleanBeatPct` 99 either side, so this is interval TIMING on a cleaner channel, not
+detection. The real-night fixture picks the same channel as before, which is why no fixture metric moved.
+
+**p25, not the mean or the median.** A bad hour has to cost a channel the pick. The median forgives any
+defect that holds for less than half the night, and the mean lets one clean hour pay for a bad one.
+
+**§∅ in the scorer.** A window holding a non-finite sample is not scored low, it is not scored. A channel
+with no scorable window carries `snr: null` and `nWindows: 0`, never `0`. `pickChannel` reads finiteness
+rather than ordering, because `null > -Infinity` is TRUE in JavaScript — so the retired comparison would
+have handed the reference slot to an unscorable channel ahead of a measured zero.
 
 ## 5 · Acceptance / Done-when
 
