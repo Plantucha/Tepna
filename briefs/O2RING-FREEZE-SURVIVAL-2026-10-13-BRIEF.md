@@ -131,6 +131,13 @@ watchdog takes the main thread's stack and every worker thread's stack with `sys
 It appends one row to `STALLS.jsonl` beside the night: the time, the lag and the top frames. Then every
 freeze names its job, and nobody guesses. This step ships first.
 
+✅ **BUILT 2026-10-18 (#3654).** `capture-host/stallsampler.py` plus `capture.stall_sampler_watch`,
+OFF by default behind `stall_sampler.enabled` and registered unconditionally. One row per stall
+EPISODE, written when the episode ends because that is the first moment its duration is known, with
+the stacks taken at the moment it opened. `check.sh` exits 0 at 100 % branch coverage.
+⚠️ **§6 acceptance item 1 stays OPEN**: it wants three nights of counts, which needs the arming and
+the deploy, and both of those are the owner's. Steps 2 and 3 wait on those three nights.
+
 **Step 2 — the moves.** After three nights of samples, each job that appears in a stall of 500 ms or
 more moves into a child. The child is the QC child from #3554 (`_qc_offload`, `qc_child.py`), or a
 second child where `qc_child` says a second spawn per poll is not available. One job moves per PR.
