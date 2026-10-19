@@ -292,6 +292,35 @@ else
 '
   adv_names+=("mypy"); adv_codes+=(127); adv_notes+=("not installed — nothing was examined"); adv_states+=("NOT_INSTALLED")
 fi
+# ── THE DEV FLOORS LEG: a declared version compared to an installed one ─────────────────────────────
+# NOTHING IN THIS TREE COMPARED A VERSION TO A FLOOR. `tests/test_dev_requirements.py` compares NAMES,
+# so `requirements-dev.txt` could raise a floor with nobody reading it — and it had: measured
+# 2026-10-12 on rig-x870, this venv ran ruff 0.16.0 against the declared `>=0.16.9` and hypothesis
+# 6.165.10 against `>=6.168.3`, with every gate green. Three ruffs are in play (this file, the lint
+# job's unpinned install, a session's venv) and no line said which one ran.
+#
+# ADVISORY, for the same reason mypy is: a floor nobody has installed yet is an environment fact, not a
+# finding about the diff, and a blocking check would red every local run until each box is upgraded.
+# The owner decides when it blocks.
+#
+# THE STATE COMES FROM THE MODULE'S OWN `=`-ANCHORED TOKEN, never from the exit code alone and never
+# from an English sentence — the same reasoning the `advisory-state:` block below records: `=` cannot
+# occur in a Python identifier, so the token is unforgeable by a test name. An absent token is NO_STATE
+# rather than a quiet pass, because a leg that printed nothing compared nothing.
+devfloors_advisory() {
+  local out rc
+  out="$("$PY" devfloors.py 2>&1)"; rc=$?
+  printf '%s\n' "$out"
+  ADVISORY_STATE="$(printf '%s\n' "$out" | sed -n 's/^devfloors-state=\([A-Z_]*\)$/\1/p' | tail -1)"
+  ADVISORY_NOTE="$(printf '%s\n' "$out" | sed -n 's/^devfloors-note=\(.*\)$/\1/p' | tail -1)"
+  if [ -z "$ADVISORY_STATE" ]; then
+    ADVISORY_STATE="NO_STATE"
+    ADVISORY_NOTE="devfloors.py printed no state token — nothing was compared"
+  fi
+  return "$rc"
+}
+run_advisory "devfloors" "floors from requirements-dev.txt against this interpreter" devfloors_advisory
+
 # THE WHOLE TREE, and BLOCKING since the owner's 2026-10-05 notice (see the block at the top of this
 # file for why both halves changed). `ruff format --check .` reads every tracked .py under this
 # directory, so there is no scope to be empty and no drifted file on main that a branch can miss by

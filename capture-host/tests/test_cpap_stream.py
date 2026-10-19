@@ -1869,6 +1869,59 @@ def test_therapy_end_sink_resets_the_hold_on_any_real_breath():
     assert not ev.is_set(), "a breath between quiet runs must reset the hold, not accumulate"
 
 
+def test_therapy_end_sink_stops_on_flow_FROZEN_outside_eps():
+    # 2026-10-18: the blower stopped and flow froze at -0.11 L/s, 0.01 outside eps 0.10. The value check
+    # alone never fired and the stream ran on for hours. A frozen value is the idle machine, whatever
+    # offset the device picks.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([-0.11] * 60))
+    assert ev.is_set(), "flow frozen at one value for the hold must end the stream"
+
+
+def test_therapy_end_sink_frozen_run_SHORTER_than_the_hold_does_not_stop():
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=120.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([-0.11] * (30 * 25)))  # 30 s frozen: under the 120 s hold
+    assert not ev.is_set()
+
+
+def test_therapy_end_sink_carries_the_frozen_value_ACROSS_batches():
+    # The pump delivers small batches; the previous sample must survive the batch boundary, or a
+    # frozen run is cut into pieces that each restart at one quiet sample.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    for _ in range(60):
+        s.on_batch(_batch([0.52]))
+    assert ev.is_set(), "a frozen run delivered one sample per batch must still reach the hold"
+
+
+def test_therapy_end_sink_does_NOT_stop_on_breathing_that_repeats_values():
+    # Real flow repeats a value for a sample or two (measured: at most 3.3 s on 55 nights). Changing
+    # values outside eps must keep resetting the hold.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.30, 0.30, 0.50, 0.50, -0.40, -0.40] * 200))
+    assert not ev.is_set(), "breathing with repeated pairs is not a frozen machine"
+
+
+def test_therapy_end_sink_an_unreadable_sample_breaks_the_frozen_run():
+    # A None between two equal values is no evidence that the value held; the run restarts.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.10, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([-0.11] * 40 + [None] + [-0.11] * 40))
+    assert not ev.is_set(), "the run must restart after an unreadable sample"
+    s.on_batch(_batch([-0.11] * 10))  # 39 + 10 = 49 quiet: the run's first sample repeats nothing
+    assert not ev.is_set()
+    s.on_batch(_batch([-0.11]))  # the 50th
+    assert ev.is_set(), "the run after the gap still reaches the hold on its own"
+
+
 def test_therapy_end_sink_times_from_SAMPLES_not_wall_clock():
     # A stalled link delivers nothing; the timer must not age while no data arrives, or a dropout
     # reads as "therapy ended" and the stream stops itself off a dead link.
@@ -1918,6 +1971,67 @@ def test_therapy_end_sink_fires_without_an_on_end_callback():
     s.open(CS.BRP_CHANNELS, 25.0)
     s.on_batch(_batch([0.0] * 30))
     assert ev.is_set() and s.fired
+
+
+# ── #3659 diff-scoped survivors. Each test below names the mutant class it separates. ────────────
+
+
+def _alternating(n, a, b):
+    """n quiet samples that never repeat back to back, so only the |x| <= eps arm can count them."""
+    return [a if i % 2 == 0 else b for i in range(n)]
+
+
+def test_therapy_end_sink_DEFAULT_hold_is_120_s_to_the_sample():
+    # The default is the shipped behaviour. 120 s at 25 Hz is 3000 quiet samples: 2999 must not stop,
+    # the 3000th must. A fresh sink starts at zero quiet samples, so no sample is counted twice.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch(_alternating(2999, 0.0, 0.1)))
+    assert not ev.is_set(), "2999 quiet samples are 1 short of the 120 s default"
+    s.on_batch(_batch([0.0]))
+    assert ev.is_set(), "the 3000th quiet sample reaches the 120 s default"
+
+
+def test_therapy_end_sink_DEFAULT_eps_is_half_a_litre_per_second():
+    # |1.0| L/s is breathing under the 0.5 default. Alternating signs keep the frozen arm out of it.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch(_alternating(3100, 1.0, -1.0)))
+    assert not ev.is_set(), "flow of 1.0 L/s is outside the 0.5 L/s default"
+
+
+def test_therapy_end_sink_counts_flow_EXACTLY_at_eps_as_quiet():
+    # The bound is inclusive: |x| == eps is quiet. Alternating +eps and -eps never repeats a value.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=1.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch(_alternating(25, 0.5, -0.5)))
+    assert ev.is_set(), "25 samples at exactly eps must reach a 1 s hold"
+
+
+def test_therapy_end_sink_restarts_the_count_at_ZERO_after_an_unreadable_sample():
+    # After a None the next quiet sample is the run's FIRST: 24 must not stop a 1 s hold, the 25th must.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=1.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.0] * 10 + [None] + _alternating(24, 0.0, 0.1)))
+    assert not ev.is_set(), "24 quiet samples after the gap are 1 short of the hold"
+    s.on_batch(_batch([0.0]))
+    assert ev.is_set(), "the 25th quiet sample after the gap reaches the hold"
+
+
+def test_therapy_end_sink_logs_the_stop_with_its_eps_and_hold(caplog):
+    # The log line is the only operator-visible witness that the auto-stop, not the button, ended the
+    # stream. It must render, and it must carry the thresholds that made the decision.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.25, hold_s=1.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        s.on_batch(_batch([0.0] * 25))
+    msgs = [r.getMessage() for r in caplog.records if "therapy end detected" in r.getMessage()]
+    assert msgs == ["CPAP therapy end detected — flow |x| <= 0.25 or frozen for 1 s; stopping the stream"]
 
 
 def test_controller_appends_the_therapy_end_sink_LAST():

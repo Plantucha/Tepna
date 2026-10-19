@@ -15444,6 +15444,29 @@
          an odd way to adopt it. */
       T.ok('CONTROL · Motion (%) still guards its absence', /'Motion \(%\),' \+ \(s\.motionPct != null \? s\.motionPct : ''\)/.test(app), 'the original instance of the convention');
       T.ok('CONTROL · Post-Dip HR Response still guards its absence', /ro\.postDipHrResponse !== null \? ro\.postDipHrResponse : ''/.test(app), "the rolling block's original instance");
+      /* ── 4 · THE SCRUB IS THE WHOLE INVARIANT (residue 2026-10-12-the-csv-null-scrub-is-the-unpinned-invariant).
+         75 numeric fields reach the CSV raw; what keeps the text `null` out of them is one `.replace` on
+         the joined text just before `download`, and deleting it redded no gate. These legs lift that regex
+         out of the source and RUN it, so a deleted, narrowed or misplaced scrub reds here.
+         The sample opens every line with a label, as every `lines.push` in `exportCSV` does: the regex
+         has no `m` flag, so its `^` is the start of the FILE, and an absent value as the first cell of a
+         later line would survive. No line has that shape today; a new one would need the flag. */
+      var _scrubM = app.match(/var _csv = \('\\uFEFF' \+ lines\.join\('\\r\\n'\)\)\.replace\(\/(.+?)\/g, '\$1'\);/);
+      T.ok('the CSV scrub exists on the joined text', !!_scrubM, 'no `.replace` on the joined CSV — every raw field can print the text null');
+      T.ok('…and the scrubbed text is what reaches download', /download\(_csv, exportName\(\{ node: 'OxyDex'/.test(app), 'the scrub must feed the one CSV download call');
+      var _scrub = null;
+      try {
+        _scrub = _scrubM ? new RegExp(_scrubM[1], 'g') : null;
+      } catch (_e) {
+        _scrub = null;
+      }
+      var _raw = 'Night,a,null,1\r\nT95,undefined,NaN,0\r\nb,"note null",nullable,null';
+      /* CONTROL · the sample carries every absent spelling, or a scrub that did nothing would pass. */
+      T.ok('CONTROL · the raw sample holds null, undefined and NaN cells', /,null,/.test(_raw) && /,undefined,/.test(_raw) && /,NaN,/.test(_raw), _raw);
+      var _out = _scrub ? _raw.replace(_scrub, '$1') : _raw;
+      T.eq('an absent cell (null · undefined · NaN, mid-line or at the end) reaches the file EMPTY', _out, 'Night,a,,1\r\nT95,,,0\r\nb,"note null",nullable,', JSON.stringify(_out));
+      T.ok('…a measured 0 survives as 0', /,,,0\r\n/.test(_out), JSON.stringify(_out));
+      T.ok('…and text that only CONTAINS null is left alone', _out.indexOf('"note null"') >= 0 && _out.indexOf('nullable') >= 0, JSON.stringify(_out));
     });
 
     group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
