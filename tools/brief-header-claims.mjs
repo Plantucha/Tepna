@@ -56,6 +56,10 @@ export const BASELINE_PATH = 'tools/brief-header-claim-baseline.json';
 export const FIXED_GRAMMARS = [
   /\b\d{4}-\d{2}-\d{2}\b/g,
   /\b\d{4}-\d{2}\b/g,
+  /* A bare month-day (`the 09-25 triage`): a real month 01-12 and day 01-31, both zero-padded, so a
+     range such as `13-20 nights` still reads as a count. A range inside that grammar (`10-12 nights`)
+     is masked too; that is the cost of the mask (residue 2026-10-18-a-date-fragment…). */
+  /\b(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])\b/g,
   /\b\d{1,2}:\d{2}(?::\d{2})?\b/g,
   /#\d+/g,
   /§\s?\d+(?:\.\d+)*[a-z]?/g,
@@ -204,10 +208,16 @@ export function selftest() {
     ['**Status:** DONE — a 21 min run at 49.7 ms', 'a magnitude carries its unit and is not a count'],
     ['**Status:** DONE — v2.19.0 shipped', 'a version is not a count'],
     ['**Status:** DONE — at 3c0dbdec', 'a sha is not a count'],
-    ['**Status:** DONE — the 18:40 poll', 'a clock time is not a count']
+    ['**Status:** DONE — the 18:40 poll', 'a clock time is not a count'],
+    ['**Status:** DONE — the 09-25 triage', 'a bare month-day is not a count']
   ])
     ok(countClaims(h).length === 0, why);
 
+  // …but a range outside the month-day grammar still counts.
+  ok(
+    countClaims('**Status:** DONE — 13-20 nights scored').some((x) => x.value === 20),
+    'a range that is no month-day still counts'
+  );
   // A NUMBER BEFORE A VERB is not a count, which is the measured false-positive class.
   ok(countClaims('**Status:** DONE — 11 name the defect, 0 run clean, 17 now pending').length === 0, 'a number before a verb or adverb is excluded');
   // …and a real count survives all of it.
