@@ -551,6 +551,88 @@ def test_stream_counts_ok_foreign_notification_and_malformed_where_frames_are_se
     assert c.bytes_wire == expect == c.bytes_json and expect > 0
 
 
+# ── the post-drop tail (link_down=) ─────────────────────────────────────────────────────────────────
+def _tail_frames():
+    """A HeartBeat, a foreign frame and two OK frames: four READS, two of them yielded batches."""
+    return [
+        _enc({"jsonrpc": "2.0", "method": "HeartBeat", "params": {}}),
+        _stream_data({"PatientFlow": [0.01]}, stream_id=99),
+        _stream_data({"PatientFlow": [0.03]}),
+        _stream_data({"PatientFlow": [0.05]}),
+    ]
+
+
+def _stream_with_probe(probe, *, max_batches=2, counters=None):
+    dev = FakeAS11([_ack([("PatientFlow", True)])] + _tail_frames())
+    kw = {} if probe is None else {"link_down": probe}
+    return _run(
+        _collect(
+            P.stream(
+                dev.write,
+                dev.recv_frame,
+                _seal,
+                _unseal,
+                ["PatientFlow"],
+                start_id=_START_ID,
+                max_batches=max_batches,
+                counters=counters,
+                **kw,
+            )
+        )
+    )
+
+
+def test_stream_counts_every_frame_read_after_the_link_dropped_as_the_post_drop_tail():
+    """🔴 THE FIELD THIS CLOSES. `post_drop_tail` carried an audit citation and no writer, so CPAP
+    completeness could never leave UNKNOWN. The instant lives in the transport's disconnect callback
+    and this loop never saw it; `link_down` is that probe, asked once per frame READ.
+
+    Audit §7.3 measured the boundary ~230 ms wide on real hardware — one queued fragment arrived after
+    the disconnect — so a frame read afterwards is the buffered tail. Counted whatever KIND it is: the
+    probe is asked before classification, because a HeartBeat after the drop is as much evidence of
+    the fuzzy boundary as a StreamData is."""
+    from cpap_ingest import GapCounters
+
+    c = GapCounters()
+    calls = {"n": 0}
+
+    def probe():
+        calls["n"] += 1
+        return calls["n"] > 2  # the link goes away between the second and the third READ
+
+    batches = _stream_with_probe(probe, counters=c)
+    assert len(batches) == 2, "filtering is unchanged — the probe decides nothing about delivery"
+    assert calls["n"] == 4, "asked once per frame read, including the HeartBeat and the foreign frame"
+    assert c.post_drop_tail == 2, "the third and fourth reads are the tail; the first two are not"
+    # the kind counters are untouched by the probe
+    assert (c.frames_ok, c.notifications, c.foreign_stream, c.malformed) == (2, 1, 1, 0)
+    assert c.total_lost == 0, "a tail frame ARRIVED — it is not loss, and this total must not move"
+
+
+def test_a_probe_that_never_fires_reports_a_measured_zero_not_an_absence():
+    """The reading that makes COMPLETE reachable (§∅). `0` says a probe looked at every frame and the
+    link never dropped; None says nothing looked. An increment-only writer could never say the first,
+    which is why `note_link_down_frame` folds EVERY frame."""
+    from cpap_ingest import GapCounters
+
+    c = GapCounters()
+    assert len(_stream_with_probe(lambda: False, counters=c)) == 2
+    assert c.post_drop_tail == 0
+    assert "post_drop_tail" not in c.lost_coverage, "measured, so it leaves the unmeasured list"
+
+
+def test_stream_without_a_drop_probe_leaves_the_post_drop_tail_unmeasured():
+    """A pump whose transport offers no probe looked for nothing, and says so. This is every caller
+    that is not the live BLE stream — the operator probes, the spool pull, an injected test
+    transport — and their behaviour is byte-for-byte what it was."""
+    from cpap_ingest import GapCounters
+
+    c = GapCounters()
+    assert len(_stream_with_probe(None, counters=c)) == 2
+    assert c.post_drop_tail is None
+    assert "post_drop_tail" in c.lost_coverage
+
+
 def test_stream_without_counters_is_unchanged():
     """counters defaults to None — the counting branches are skipped and behaviour is exactly as before."""
     dev = FakeAS11([_ack([("SpO2", True)]), _stream_data({"SpO2": [98.0]})])
