@@ -341,6 +341,12 @@ def main(argv=None) -> int:
         "excused": 0,
         "refuted": 0,
         "astNarrowed": 0,
+        # THE TWO EXCLUSIONS THAT HAD NO COUNTER. A string-literal mutant and a no-op mutant are both
+        # dropped from the required set below, and until now neither appeared anywhere in the verdict:
+        # not in `result`, not in `classification`. On #3654 that hid SIX decided mutants under a PASS
+        # whose every other number was honest (`mutation_diff.result_inconsistency`'s fourth bullet).
+        "notRequired": 0,
+        "emptyDiff": 0,
     }
     _pop = {"checked": 0, "eligible": 0}
     # THE SCOPE, so the prose can name it truthfully. The gate mutates whole FUNCTIONS (#1761 —
@@ -839,7 +845,15 @@ def main(argv=None) -> int:
             # NOWHERE, so every verdict this tool has ever emitted carried three zeros beside a
             # real `survived` — the impossible `generated: 0, decided: 0, survived: 26` block. All
             # three are measured here, from the same meta `_tested` comes from.
-            _counts["decided"] += _tested
+            #
+            # 🔴 BUT NOT FROM `_tested` ITSELF. That count is "mutmut ran it" (any non-null exit code),
+            # which is the right question for the §3 crash check above and the wrong one here: a
+            # timeout, a skip and a "no tests" all carry a code and settle NOTHING, and the gate's own
+            # `split_results` puts every one of them in UNDECIDED. Summing them into `decided` counted
+            # one mutant twice — measured on #3654 (run 39184063166), where one timed-out mutant made
+            # `decided + undecided` 191 over `generated` 190 and the verdict refused as
+            # self-inconsistent instead of naming the timeout it had actually found.
+            _counts["decided"] += mmeta.decision_count(work, module, g)
             _gen = mmeta.generated_count(work, module, g)
             if _gen is None:
                 # ∅ ABSENCE-SURVEY f2f47e27c21e: the mutants file could not be read back, so this glob's
@@ -924,6 +938,26 @@ def main(argv=None) -> int:
                     # measurement. Dropping it silently is what made the gate refuse over its own
                     # exclusion (exit 2, verdict UNKNOWN, on #3395).
                     not_required_keys.add(diff_key(show.stdout))
+                    # 🔴 AND IT IS COUNTED AND NAMED, because this exclusion is unbounded. mutmut's
+                    # string operator wraps EVERY literal in `XX…XX` sentinels, so the scan that reads
+                    # "the changed token lies inside a string literal" fires for a log message, a dict
+                    # KEY, a `strftime` pattern and a `join` separator alike — and a string value is
+                    # behaviour (`functions_with_changed_ast` says so in as many words). Measured on
+                    # #3654 at 76b7109b3: six excluded mutants, among them `"dropped_before"` →
+                    # `"XXdropped_beforeXX"` on an exported record's key and the sampler's whole
+                    # timestamp format, every one of them killable by a test that reads the value.
+                    # The gate still does not REQUIRE them — that line is the owner's to move — but it
+                    # no longer reports a pass without saying what it put aside.
+                    _counts["notRequired"] += 1
+                    verdict.setdefault("not_required", []).append(
+                        {
+                            "mutant": name,
+                            "module": module,
+                            "reason": sdetail,
+                            "key": diff_key(show.stdout),
+                            "file_line": mutant_file_line(show.stdout, _read_source(HERE / module), name),
+                        }
+                    )
                     continue  # log/prose mutation — deliberately not required
                 if sverdict == EMPTY_DIFF:
                     # EXCLUDED, BUT NOT AS "string-only". A mutant that changes nothing is equivalent
@@ -932,6 +966,7 @@ def main(argv=None) -> int:
                     # log-wording one. Recorded so the count is auditable rather than invisible.
                     verdict.setdefault("empty_diff", []).append({"mutant": name, "module": module})
                     not_required_keys.add(diff_key(show.stdout))
+                    _counts["emptyDiff"] += 1
                     continue
                 if sverdict == UNDECIDABLE:
                     # REFUSE LOUDLY. The literal scan is outside its documented competence, so any
@@ -1685,6 +1720,27 @@ def main(argv=None) -> int:
             return _b
         _refusal = _b
 
+    # ── WHAT THIS RUN PUT ASIDE, PRINTED BEFORE EITHER VERDICT ───────────────────────────────────
+    # Above the pass AND above the survivor report, because the exclusion is the same size either
+    # way and a reader of a PASS is the one who cannot otherwise know it happened. The gate's own
+    # rule, written in three places in this file: a filter that does not publish what it removed is
+    # the shape this gate exists to refuse.
+    _nr = verdict.get("not_required") or []
+    if _nr:
+        print(
+            f"\n  ⊘ {len(_nr)} mutant(s) NOT REQUIRED — the changed token lies inside a string literal, so "
+            "this\n     run does not demand a test that observes it. They are NOT killed and NOT equivalent:"
+        )
+        for _e in _nr[:12]:
+            _at = f"  {_e['file_line']}" if _e.get("file_line") else ""
+            print(f"      ── {_e['mutant']}{_at}")
+        if len(_nr) > 12:
+            print(f"      … and {len(_nr) - 12} more (all of them in the --json record)")
+        print(
+            "     mutmut wraps EVERY literal in XX sentinels, so this exclusion covers a dict key, a\n"
+            "     strftime pattern and a join separator as readily as a log message. If one of these\n"
+            "     carries data a consumer reads, the test that reads it is owed."
+        )
     blocking = cls["unclassified"] + cls["real_gap"]
     if not blocking:
         n_ex = len(cls["excused"])
@@ -1695,9 +1751,24 @@ def main(argv=None) -> int:
         if _checked() == 0:
             print("\nmutate-diff: nothing was mutated — every changed line is outside mutation scope.")
         else:
+            # THE HEADLINE CARRIES ITS EXCLUSIONS. "every mutant was killed" is FALSE while a mutant was
+            # set aside without any test observing it — #3654 printed that line over 182 killed, 2
+            # excused and 6 string-literal mutants nothing looked at, against decided 190. The headline
+            # is the sentence a reader quotes, so it names what it was reached under.
+            n_nr = _counts["notRequired"]
+            aside = ", ".join(
+                p
+                for p in (
+                    f"{n_ex} recorded as equivalent" if n_ex else "",
+                    f"{n_nr} not required" if n_nr else "",
+                )
+                if p
+            )
             print(
-                "\nmutate-diff: every mutant on the changed functions was killed"
-                + (f" ({n_ex} recorded as equivalent)." if n_ex else ".")
+                "\nmutate-diff: every mutant on the changed functions"
+                + (" a test is owed for" if n_nr else "")
+                + " was killed"
+                + (f" ({aside})." if aside else ".")
             )
         _ran_box[0] = _ran
         _counts["excused"] = n_ex

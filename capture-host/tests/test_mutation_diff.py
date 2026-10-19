@@ -1294,7 +1294,20 @@ def test_a_REFUSAL_or_a_FAILURE_over_zero_passes_through_UNTOUCHED():
 
 
 def _res(**kw):
-    base = {"generated": 10, "decided": 8, "killed": 5, "survived": 2, "undecided": 1, "excused": 0, "refuted": 0}
+    # The default BALANCES: killed 6 + survived 2 = decided 8, with nothing set aside. A default that
+    # left a decided mutant in no bucket would make the residual check below fire on every test that
+    # overrides something else, which is the shape that hid #3654's six.
+    base = {
+        "generated": 10,
+        "decided": 8,
+        "killed": 6,
+        "survived": 2,
+        "undecided": 1,
+        "excused": 0,
+        "refuted": 0,
+        "notRequired": 0,
+        "emptyDiff": 0,
+    }
     base.update(kw)
     return base
 
@@ -1328,16 +1341,68 @@ def test_more_DECIDED_than_GENERATED_is_caught():
     assert why and "exceeds result.generated" in why, why
 
 
-def test_decided_may_EXCEED_the_settled_outcomes_because_excused_are_counted_apart():
-    """NOT an equality. `excused` and `empty_diff` mutants are decided and counted separately, and a
-    generated mutant that is never decided is exactly what `undecided` means — so asserting equality
-    here would red every healthy run with an equivalence entry in it."""
+def test_decided_may_EXCEED_killed_plus_survived_when_mutants_were_SET_ASIDE():
+    """NOT an equality against `killed + survived` ALONE. A mutant whose only changed token sits inside
+    a string literal is decided and lands in `notRequired`; a mutant whose diff is empty lands in
+    `emptyDiff`. Both are decided and neither is killed or surviving, so asserting
+    `killed + survived == decided` would red every healthy run that set one aside. The bound is against
+    the FULL bucketing — and a generated mutant never decided is what `undecided` means, outside all
+    four."""
     assert (
         M.result_inconsistency(
-            _res(generated=100, decided=50, killed=5, survived=2, undecided=1), survivors_len=2, undecided_len=1
+            _res(generated=100, decided=50, killed=5, survived=2, undecided=1, notRequired=40, emptyDiff=3),
+            survivors_len=2,
+            undecided_len=1,
         )
         is None
     )
+
+
+def test_a_DECIDED_mutant_IN_NO_BUCKET_is_caught_with_the_SHIPPED_NUMBERS():
+    """🔴 THE ROW. #3654's verdict, as it shipped: `generated 190, decided 190, killed 182, survived 2`
+    — and the run printed `{"status": "PASS"}` over it. Six mutants had been dropped out of the
+    classification with no counter anywhere in `result`, which is why EVERY pre-existing inequality
+    held: a silently dropped mutant makes the arithmetic look SMALLER than the truth, never wrong.
+    182 + 2 + 0 + 0 = 184 against 190 decided is the residual that names them, and it is the only one
+    of these checks that could have seen them."""
+    why = M.result_inconsistency(
+        _res(generated=190, decided=190, killed=182, survived=2, undecided=0),
+        survivors_len=2,
+        undecided_len=0,
+    )
+    assert why and "6 decided mutant(s) are in no bucket" in why, why
+    assert why and "result.decided (190)" in why, why
+
+
+def test_the_REPAIRED_run_BALANCES_once_the_exclusions_are_COUNTED():
+    """The same run with the counter in place, re-measured 2026-10-19 against #3654's own commit over
+    the same scope: `notRequired` 6, and 182 + 2 + 6 + 0 = 190 closes. A check that reds the healthy
+    shape it was written to produce is a check nobody keeps."""
+    assert (
+        M.result_inconsistency(
+            _res(generated=190, decided=190, killed=182, survived=2, undecided=0, notRequired=6),
+            survivors_len=2,
+            undecided_len=0,
+        )
+        is None
+    )
+
+
+def test_an_EMPTY_DIFF_mutant_closes_the_residual_TOO():
+    """`emptyDiff` is the other exclusion that leaves no survivor and no kill. Both terms are exercised
+    separately, because a residual closed by one of them says nothing about the other."""
+    assert (
+        M.result_inconsistency(
+            _res(generated=10, decided=8, killed=5, survived=2, undecided=1, emptyDiff=1),
+            survivors_len=2,
+            undecided_len=1,
+        )
+        is None
+    )
+    why = M.result_inconsistency(
+        _res(generated=10, decided=8, killed=5, survived=2, undecided=1), survivors_len=2, undecided_len=1
+    )
+    assert why and "1 decided mutant(s) are in no bucket" in why, why
 
 
 def test_a_MISSING_counter_is_reported_rather_than_read_as_zero():
@@ -1345,7 +1410,7 @@ def test_a_MISSING_counter_is_reported_rather_than_read_as_zero():
     every inequality by arithmetic — absence as a number, in the function whose whole job is catching a
     verdict that misreports its own numbers. Every `.get` default here was a surviving mutant precisely
     because no input could reach it; the keys are required instead."""
-    for drop in ("generated", "decided", "killed", "survived", "undecided"):
+    for drop in ("generated", "decided", "killed", "survived", "undecided", "notRequired", "emptyDiff"):
         res = _res()
         del res[drop]
         why = M.result_inconsistency(res, survivors_len=2, undecided_len=1)
@@ -1354,7 +1419,9 @@ def test_a_MISSING_counter_is_reported_rather_than_read_as_zero():
 
 def test_an_empty_result_block_names_EVERY_counter_it_lacks():
     why = M.result_inconsistency({}, survivors_len=0, undecided_len=0)
-    assert why and all(k in why for k in ("generated", "decided", "killed", "survived", "undecided")), why
+    assert why and all(
+        k in why for k in ("generated", "decided", "killed", "survived", "undecided", "notRequired", "emptyDiff")
+    ), why
 
 
 def test_the_settled_total_ADDS_its_two_terms():
@@ -1380,11 +1447,17 @@ def test_an_UNDECIDED_mutant_is_NOT_counted_against_DECIDED():
     real refusal in the verdict's `reason`.
 
     These are #3237's measured numbers (run 36613550322): 109 decided, 23 undecided, 85 killed,
-    23 survived, 132 generated. Every one is honest. `mmeta.decided_under_glob` counts a mutant only
-    when its exit code is non-null and an undecided mutant is exactly one whose code is null, so the
-    two sets are disjoint and their sum is bounded by `generated`, never by `decided`.
+    23 survived, 132 generated. `mmeta.decisions_under_glob` counts a mutant only when its exit code is
+    a decision and an undecided mutant is exactly one whose code is null, so the two sets are disjoint
+    and their sum is bounded by `generated`, never by `decided`.
+
+    ⚠️ One number in that block does NOT balance: 85 + 23 = 108 against 109 decided, so that run had
+    one decided mutant in no bucket of its own — either an exclusion it never counted (the #3654
+    defect, a month earlier) or the timeout that `decided` used to credit. The cause was not
+    re-measured, and it is not what this test is about, so `notRequired` carries that one mutant here
+    to isolate the disjointness lesson from the residual one.
     """
-    res = _res(generated=132, decided=109, killed=85, survived=23, undecided=23)
+    res = _res(generated=132, decided=109, killed=85, survived=23, undecided=23, notRequired=1)
     assert M.result_inconsistency(res, survivors_len=23, undecided_len=23) is None
 
 
