@@ -1989,12 +1989,18 @@ function render(){
     const p=G.tests.filter(t=>t.pass && !t.skip).length;
     const f=G.tests.length - p - skp;
     totPass+=p; totFail+=f; totSkip+=skp;
-    html += '<div class="group"><h2>'+G.title+' <span class="tag">'+G.tag+'</span>'
+    /* Titles, names and details are TEXT, so they go through escapeHTML (dex-escape.js, loaded above).
+       Unescaped, the 2026-10-19 node run held 49 that carry markup, one of them an unclosed
+       `<script data-inline-src=…>`: the parser read every later row as script text, so the page
+       rendered 4633 of 13198 rows and 290 of 791 groups while the pill (counted in memory) still read
+       the failures. The browser gate names failures from those rows (RESIDUE
+       2026-10-19-the-browser-gate-counts-a-failure-it-cannot-name). */
+    html += '<div class="group"><h2>'+escapeHTML(G.title)+' <span class="tag">'+escapeHTML(G.tag)+'</span>'
       + '<span class="gstat '+(f?'fail':'pass')+'">'+p+'/'+(G.tests.length-skp)+(skp?(' <span class="sk">· '+skp+'⊘</span>'):'')+'</span></h2>';
     G.tests.forEach(t=>{
       const _mk=t.skip?'⊘':(t.pass?'✓':'✕'), _cls=t.skip?'sk':(t.pass?'ok':'no');
       html += '<div class="test '+_cls+'"><span class="mk">'+_mk+'</span>'
-        + '<span class="name">'+t.name+'</span><span class="detail">'+(t.detail||'')+'</span></div>';
+        + '<span class="name">'+escapeHTML(t.name)+'</span><span class="detail">'+escapeHTML(t.detail||'')+'</span></div>';
     });
     html += '</div>';
   });
