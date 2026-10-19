@@ -533,12 +533,11 @@ def test_EVERY_advisory_leg_gets_a_state_not_just_mypy(tmp_path):
     assert m, "no advisory-state line at all"
     states = dict(kv.split("=", 1) for kv in m.group(1).split())
     # `format` LEFT the advisory set on 2026-10-05 (owner: "Add formatter.") — it is blocking now, so
-    # mypy is the only advisory leg and the set shrinks to one. ⚠️ That makes this test weaker than it
-    # was and the docstring above says why it exists: with ONE leg left, "both legs appear" can no
-    # longer catch a dropped leg by arithmetic, only by name. Kept because the per-value token check
-    # still falsifies an empty or malformed state, and because the set equality still reds if a new
-    # advisory leg is added to the printout without being declared here.
-    assert set(states) == {"mypy"}, f"a leg is missing a state: {states}"
+    # the set shrank to mypy alone. `devfloors` JOINED it on 2026-10-19 (the declared-floor comparison
+    # that `tests/test_dev_requirements.py` could not make, because it compares names), and the set
+    # equality is what required this line to move — which is the mechanism this test exists for: a new
+    # advisory leg cannot reach the printout without being declared here.
+    assert set(states) == {"mypy", "devfloors"}, f"a leg is missing a state: {states}"
     for leg, st in states.items():
         assert re.fullmatch(r"[A-Z][A-Z_]*", st), f"{leg}={st!r} is not a state token"
     # ⚠️ KEPT FROM THE ORIGINAL, and I deleted it once while rewriting this test — restored after a
