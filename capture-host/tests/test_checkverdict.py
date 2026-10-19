@@ -287,3 +287,30 @@ def test_the_sample_hands_aggregate_a_green_unwired_object_and_the_two_advisory_
     assert v["result"]["advisory"] == advisory
     u = objects["unwired"]
     assert u["criterion"]["threshold"] == 0 and u["result"] == {"unexplained": 0} and u["status"] == "PASS"
+
+
+# ── `--refused`: the preflight stopped before any child ran ──────────────────────────────────────────
+
+
+def test_a_refusal_is_NOT_RUN_over_the_eligible_children_with_the_reason_kept():
+    """`checked + excluded == eligible` and `checked == 0` (§🧾): five children were eligible, none was
+    examined. The reason is the refusal's own, because a generic "no child ran" cannot be acted on."""
+    v = C.refusal(["ruff", "shellcheck", "pytest", "unwired", "format"], "no ruff — nothing was examined")
+    assert v["schema"] == "tepna.verdict/1" and v["gate"] == C.GATE
+    assert v["status"] == "NOT_RUN"
+    assert v["population"] == {"checked": 0, "eligible": 5, "excluded": 5}
+    assert v["population"]["checked"] + v["population"]["excluded"] == v["population"]["eligible"]
+    assert v["result"] is None, "nothing ran, so there is no result to report"
+    assert v["reason"] == "no ruff — nothing was examined"
+    assert v["evidence"][0] == C.TOOL and "ruff not invoked" in v["evidence"]
+
+
+def test_refused_takes_BARE_names_because_no_child_has_an_exit_code(tmp_path):
+    """Through the CLI, which is how check.sh calls it. `parse_pairs` rightly refuses a name without a
+    code, and fabricating one here would be the same lie in the other direction."""
+    out = tmp_path / "v.json"
+    rc = C.main(["--write", str(out), "--refused", "the interpreter carries none of: ruff", "ruff", "pytest"])
+    assert rc == 0
+    v = json.loads(out.read_text())
+    assert v["status"] == "NOT_RUN" and v["population"]["eligible"] == 2
+    assert v["reason"] == "the interpreter carries none of: ruff"

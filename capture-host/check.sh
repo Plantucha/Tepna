@@ -38,6 +38,38 @@ if [ -z "$PY" ]; then
   if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=python3; fi
 fi
 
+# ── THE PREFLIGHT: the interpreter must carry the gate's own tools ───────────────────────────────────
+# ⚠️ AN ABSENT MODULE IS INDISTINGUISHABLE FROM A FINDING, and that is why this runs BEFORE any gate.
+# `$PY -m ruff` with no ruff installed exits 1, and `checkverdict.py` reads ruff's exit 1 as FAIL
+# "violations found" — the one code where the environment and the diff produce the same number, so no
+# per-code contract can separate them (`checkverdict.py` CONTRACTS, "ruff"). `--cov` with no pytest-cov
+# is exit 4, UNKNOWN, and the 100 % floor goes unevaluated. Both land as a verdict ABOUT THE DIFF over a
+# run that examined nothing (§∅; CLAUDE.md §🐍 "an absent tool is not a failing gate").
+# Measured twice in one day from two worktrees — 2026-10-18 in `wt-mut63-osp`, 2026-10-19 in
+# `wt-nqcframe-hrn` — both read `3 gate(s) failed` and neither failure was about the diff. The remedy
+# was in this header both times, which is why it is now in the SCRIPT: a `git worktree` carries no
+# `.venv`, so `PY` falls back to a bare `python3` that has none of requirements-dev.txt.
+# Probed, never assumed from a path: wherever the tools exist — venv, system python, CI's installed
+# interpreter — the probe passes and the gate runs exactly as before.
+preflight_missing=()
+"$PY" -c 'import ruff' 2>/dev/null || preflight_missing+=(ruff)
+"$PY" -c 'import pytest_cov' 2>/dev/null || preflight_missing+=(pytest-cov)
+if [ "${#preflight_missing[@]}" -ne 0 ]; then
+  printf '\033[31m✗ REFUSED — the interpreter does not carry this gate'"'"'s own tools\033[0m\n'
+  printf '  interpreter : %s\n' "$("$PY" -c 'import sys; print(sys.executable)' 2>/dev/null || echo "$PY")"
+  printf '  missing     : %s\n' "${preflight_missing[*]}"
+  printf '  Running anyway would red ruff, pytest and format over a run that examined nothing, and\n'
+  printf '  ruff'"'"'s absent-module exit 1 is the same code as a real finding. Nothing ran.\n'
+  printf '  From a worktree, hand it an interpreter that has requirements-dev.txt:\n'
+  printf '    PYTHON=/home/michal/Tepna/capture-host/.venv/bin/python ./check.sh\n'
+  printf '  Or install them here: %s -m pip install -r requirements-dev.txt\n' "$PY"
+  "$PY" checkverdict.py --write "${CHECK_VERDICT_OUT:-.check-verdict.json}" \
+    --refused "the interpreter carries none of: ${preflight_missing[*]} — nothing was examined" \
+    ruff shellcheck pytest unwired format \
+    || printf '  verdict: NOT WRITTEN — checkverdict.py exited %s (nothing ran either way)\n' "$?"
+  exit 2
+fi
+
 # ── the per-test bound ────────────────────────────────────────────────────────────────────────────
 # A HANG HAS NO VERDICT, and that is its whole danger. Measured 2026-09-24: a check.sh run for a PR
 # that had already merged sat at 99 % CPU for FOUR HOURS and was killed by something else — no exit

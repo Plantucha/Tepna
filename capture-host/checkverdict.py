@@ -237,6 +237,25 @@ def load_object(path: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
+def refusal(children: list[str], reason: str) -> dict:
+    """`--refused`: check.sh's preflight stopped before any child ran, so no child HAS an exit code —
+    the only honest object is NOT_RUN over the children that were eligible (`checked 0`, all excluded,
+    §🧾). It exists because the alternative is worse than silence: a refusal that writes nothing leaves
+    the PREVIOUS run's `.check-verdict.json` on disk, and a reader keying on the object then reads a
+    PASS that describes a tree nobody examined. PURE."""
+    n = len(children)
+    return VD.make(
+        gate=GATE,
+        status="NOT_RUN",
+        population={"checked": 0, "eligible": n, "excluded": n},
+        criterion=CRITERION,
+        result=None,
+        evidence=[TOOL] + [f"{c} not invoked" for c in children],
+        tool=TOOL,
+        reason=reason,
+    )
+
+
 def main(argv: list[str]) -> int:
     """`--verdict-sample` · `--write <path> [--advisory k=v ...] [--object name=path ...] name=rc ...` (writes
     the object, prints one line, exits 0 — the exit code check.sh returns stays its own, §3d "the exit code
@@ -247,6 +266,7 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2 or argv[0] != "--write":
         print(
             "usage: checkverdict.py --verdict-sample | --write <path> [--advisory k=v ...] [--object name=path ...]"
+            " [--refused <reason> name ...]"
             " name=rc ...",
             file=sys.stderr,
         )
@@ -255,6 +275,7 @@ def main(argv: list[str]) -> int:
     advisory: dict[str, str] = {}
     objects: dict[str, dict | None] = {}
     pairs: list[str] = []
+    refused: str | None = None
     it = iter(rest)
     for a in it:
         if a == "--advisory":
@@ -263,9 +284,14 @@ def main(argv: list[str]) -> int:
         elif a == "--object":
             k, _, v = next(it, "=").partition("=")
             objects[k] = load_object(v)
+        elif a == "--refused":
+            refused = next(it, "")
         else:
             pairs.append(a)
-    obj = aggregate(parse_pairs(pairs), advisory, objects)
+    # `--refused` takes the children as BARE NAMES, because a preflight that stopped before the first
+    # gate cannot state an exit code for any of them, and `parse_pairs` rightly refuses a pair without
+    # one. Fabricating a code here would be the same lie in the other direction.
+    obj = refusal(pairs, refused) if refused is not None else aggregate(parse_pairs(pairs), advisory, objects)
     VD.write(path, obj)
     print(f"  verdict: {obj['status']} → {path}")
     return 0
