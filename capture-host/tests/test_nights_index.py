@@ -1203,15 +1203,13 @@ def test_a_MIDDAY_session_IS_KEYED_TO_ITS_OWN_DAY_not_the_previous_evening(tmp_p
 
     The listing consequence is still that a midday session gets its OWN row rather than vanishing or
     merging into a night's cells. Only the row's key moved."""
-    import datetime as _dt2
-
     import nightqc
 
     root = str(tmp_path)
     d = os.path.join(root, "captures", "2026-10-10")
     os.makedirs(d, exist_ok=True)
     _w(os.path.join(d, "Polar_H10_02849638_20261010140000_ECG.txt"), ISO_ROWS)
-    t = _dt2.datetime.strptime("20261010140000", "%Y%m%d%H%M%S").timestamp()
+    t = nightqc.floating_stamp_s("20261010140000")
     band = nightqc.night_band(t)
     assert band is not None and band[1] < t, (
         "the SLEEP band still returns the previous evening's window for a midday stamp — one that does "

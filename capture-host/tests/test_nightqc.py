@@ -441,7 +441,7 @@ def test_a_daemon_restart_does_not_merge_two_sessions_into_one_union_span(tmp_pa
     # it in Sydney, where the 2026-10-12 join then counted run 2 in and the span read 34048. 05:00 local
     # keeps run 1 inside the band and run 2 (10:00-14:50 local) outside it in every zone, which is the
     # input this test needs: the seam has to be read off `STARTS.csv`, never off the join.
-    s1 = _floating_at_local_hour("20260924000000", 5)  # run 1 opens
+    s1 = _floating_at_hour("20260924000000", 5)  # run 1 opens
     restart = s1 + 17990  # the daemon restarts 4 h 59 m in
     end2 = s1 + 35407  # run 2's last write (its file opens at s1 + 18000,
     #  10 s after the restart — see the stamp below)
@@ -479,7 +479,7 @@ def test_without_a_STARTS_sidecar_the_session_basis_says_gap_only(tmp_path):
     from "no evidence of a restart" is the bug this pair exists to prevent."""
     night = str(tmp_path / "2026-09-24")
     os.makedirs(night)
-    s1 = _floating_at_local_hour("20260924000000", 5)  # the same local anchor as its sidecar-bearing twin
+    s1 = _floating_at_hour("20260924000000", 5)  # the same anchor as its sidecar-bearing twin
     _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(s1) + "_HR.txt", 16641), s1 + 16641)
     _utime(_cap(night, "Wellue_O2Ring-S_S8AW_" + _floating_stampname(s1 + 18000) + "_SPO2.csv", 3000), s1 + 35407)
     devs = [
@@ -1334,7 +1334,14 @@ def test_the_rate_tolerance_bound_is_INCLUSIVE_at_a_bit_exact_boundary(tmp_path)
 
 
 def _ts(y, mo, d, h, mi=0):
-    return _dtmod.datetime(y, mo, d, h, mi).timestamp()
+    """A civil wall-clock moment as FLOATING seconds — the frame every band argument is in.
+
+    This was `.timestamp()`, which resolves the components through the READER'S ZONE. The band tests
+    stayed green in every zone because the band was built naive-local too and the two wrong frames
+    cancelled; `nightqc._floating_band` (2026-10-19) removed one half, so the fixture has to state the
+    frame the production code actually receives. `floating_stamp_s` is the one conversion, so this asks
+    it rather than carrying a second `timegm`."""
+    return nightqc.floating_stamp_s(f"{y:04d}{mo:02d}{d:02d}{h:02d}{mi:02d}00")
 
 
 def test_either_side_of_one_midnight_is_the_SAME_night():
@@ -1379,6 +1386,49 @@ def test_the_KEY_band_boundary_is_where_it_claims_to_be_and_its_edges_are_EXACT(
     assert before[0] == _ts(2026, 10, 3, 12), "11:59 still belongs to the night that opened yesterday"
     assert noon[1] - noon[0] == 24 * 3600.0, "noon to noon, so the keys tile the clock"
     assert before[1] == noon[0], "and consecutive key bands abut — no stamp falls between two nights"
+
+
+def _band_pair_in(zone, monkeypatch):
+    """Both bands for one pair of floating stamps, read with the process sitting in `zone`."""
+    monkeypatch.setenv("TZ", zone)
+    time.tzset()
+    return (
+        nightqc.night_key_band(nightqc.floating_stamp_s("20261004130000")),
+        nightqc.night_band(nightqc.floating_stamp_s("20261004210000")),
+    )
+
+
+def test_a_BAND_EDGE_IS_THE_SAME_IN_EVERY_ZONE_and_sits_at_the_hour_it_names(monkeypatch):
+    """Residue `2026-10-12-the-night-band-mixes-a-floating-stamp-with-a-local-epoch`, and CLAUDE.md §🔒's
+    standing requirement of an identical clock under a changed `TZ`.
+
+    Both band functions decomposed their argument with `datetime.fromtimestamp`, which resolves it
+    THROUGH THE READER'S ZONE. Every stamp they are given is FLOATING — `_session_of` and
+    `session_epoch` say so in their docstrings — so the anchor decision `d.hour >= _KEY_BEGIN_H`
+    compared a reader-shifted hour against a civil constant.
+
+    🔴 AND THE DAMAGE WAS A WHOLE DAY, not a shifted edge. Measured 2026-10-19 on this stamp: the key
+    band began 2026-10-04 12:00 in UTC, 2026-10-03 16:00 in New York and 2026-10-04 03:00 in Tokyo. So
+    the night KEY differed by a day, and in two zones the edge was not even the noon the function names.
+
+    > THE SECOND ASSERTION IS THE ONE LUCK CANNOT FAKE. A zone whose offset happens to keep the stamp on
+    the same side of noon agrees with UTC about the day while still placing the edge hours out, which is
+    exactly what Tokyo does here. So the edge is asserted as a VALUE against the stamp it should equal,
+    for the same reason the key-boundary test above asserts values rather than containment."""
+    before = os.environ.get("TZ")
+    try:
+        here = _band_pair_in("UTC", monkeypatch)
+        there = _band_pair_in("America/New_York", monkeypatch)
+        far = _band_pair_in("Asia/Tokyo", monkeypatch)
+    finally:
+        if before is None:
+            monkeypatch.delenv("TZ", raising=False)
+        else:
+            monkeypatch.setenv("TZ", before)
+        time.tzset()
+    assert here == there == far, f"one clock in every zone: UTC {here}, NY {there}, Tokyo {far}"
+    assert here[0][0] == nightqc.floating_stamp_s("20261004120000"), "the key band opens at ITS OWN noon"
+    assert here[1][0] == nightqc.floating_stamp_s("20261004180000"), "and the sleep band at its own 18:00"
 
 
 def test_a_19_00_DONNING_now_belongs_to_THE_EVENING_IT_STARTED_IN(tmp_path):
@@ -3184,8 +3234,8 @@ def test_the_night_window_and_arrival_are_computed_from_THIS_night(tmp_path, mon
     confident block computed from nothing."""
     seen = {}
 
-    def _nv(cur, files):
-        seen["nv"] = (cur, files)
+    def _nv(cur, files, offset_sec=None):
+        seen["nv"] = (cur, files, offset_sec)
         return {"ok": 1}
 
     def _aq(d):
@@ -3198,9 +3248,13 @@ def test_the_night_window_and_arrival_are_computed_from_THIS_night(tmp_path, mon
     os.makedirs(night)
     _utime(_cap(night, "Polar_H10_02849638_20260905220000_HR.txt", 1800), 1_000_000)
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
-    cur, files = seen["nv"]
+    cur, files, off = seen["nv"]
     assert files is not None and len(files) == 1, "night_view must receive the session's FILES"
     assert files[0]["file"].endswith("_HR.txt")
+    # THE FRAME IS PART OF THE SCOPE. `night_view` compares the session against a civil band, so it has
+    # to be told which timeline the session is on — passing the session without its offset is the same
+    # confident-block-computed-from-nothing this test guards, one frame deep.
+    assert off == s["writer_offset"]["offset_sec"], (off, "the offset night_view is judged under is this night's")
     assert seen["aq"] == night, "arrival_quality must be asked about this night's directory"
     assert s["night_window"] == {"ok": 1} and s["arrival"] == {"ok": 2}
 
@@ -5859,7 +5913,7 @@ def _touching_night(tmp_path):
     # before 18:00 in EDT and inside the band in UTC, which is how the CI runner disagreed with the box.
     # 17:00 local puts run 1 outside the band and run 3 inside it in EVERY zone — the one night that
     # carries both outcomes, which is what the exclusion and join tests below each need.
-    t0 = _floating_at_local_hour("20260924000000", 17)
+    t0 = _floating_at_hour("20260924000000", 17)
     seam1 = t0 + 600  # run 1 ends / run 2 opens, on the same second
     seam2 = seam1 + 7200  # run 2 ends / run 3 opens, on the same second
     _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 600), seam1)
@@ -5896,16 +5950,17 @@ def test_the_session_partition_is_DISJOINT_BUT_MAY_TOUCH(tmp_path):
         assert a1 == b0, (ss, "…and this fixture makes them TOUCH, which is what the boundary family needs")
 
 
-def _floating_at_local_hour(stamp, hour):
-    """The FLOATING second whose LOCAL rendering is `hour`:00 on `stamp`'s date.
+def _floating_at_hour(stamp, hour):
+    """The FLOATING second of `hour`:00 on `stamp`'s date — the frame a band edge is in.
 
-    `night_band` reads `datetime.fromtimestamp`, so a floating second lands at the READER's offset: a
-    fixture that must sit exactly ON a band edge computes the shift rather than writing one, or the
-    same filename names a different hour in every other zone. The band edges themselves are real
-    epochs of a local hour, which is what this returns, so `_overlap` compares like with like."""
-    probe = _stamp_epoch(stamp)
-    off = (_dtmod.datetime.fromtimestamp(probe) - _dtmod.datetime(1970, 1, 1)).total_seconds() - probe
-    return _stamp_epoch(stamp[:8] + f"{hour:02d}0000") - off
+    ⏪ THIS USED TO COMPUTE A ZONE SHIFT, and losing that shift is the point. `night_band` decomposed
+    its argument with a bare `fromtimestamp`, so its edges came back as real epochs of a LOCAL hour
+    while every stamp handed to it was floating; a fixture that had to sit exactly ON an edge measured
+    the reader's offset and subtracted it, or the same filename named a different hour in every other
+    zone. `_floating_band` put both sides in one frame on 2026-10-19 (residue
+    2026-10-12-the-night-band-mixes-a-floating-stamp-with-a-local-epoch), so an edge is now the
+    floating second of the hour it names and this is the plain conversion."""
+    return nightqc.floating_stamp_s(stamp[:8] + f"{hour:02d}0000")
 
 
 def _touching_band_edge_night(tmp_path):
@@ -5923,7 +5978,7 @@ def _touching_band_edge_night(tmp_path):
 
     night = str(tmp_path / "2026-09-24")
     os.makedirs(night)
-    seam1 = _floating_at_local_hour("20260924000000", nightqc._NIGHT_BEGIN_H)  # the band's opening edge
+    seam1 = _floating_at_hour("20260924000000", nightqc._NIGHT_BEGIN_H)  # the band's opening edge
     t0 = seam1 - 600  # the earlier run ENDS on that edge
     seam2 = seam1 + 57600  # 10:00 next day — _NIGHT_END_H, the closing edge
     _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 600), seam1)
@@ -6042,7 +6097,7 @@ def _joined_hole_night(tmp_path, *, second_device=True, judged_first=False):
     that reads which side a session is on."""
     night = str(tmp_path / "2026-09-24")
     os.makedirs(night)
-    a0 = _floating_at_local_hour("20260924000000", 19)  # 19:00 local, inside the band
+    a0 = _floating_at_hour("20260924000000", 19)  # 19:00, inside the band
     a1 = a0 + 7200 if judged_first else a0 + 3600
     b0 = a1 + 4800  # 80 min with no capture at all
     b1 = b0 + 3600 if judged_first else b0 + 7200
@@ -6604,7 +6659,7 @@ def test_a_zero_length_session_TOUCHING_the_judged_one_is_reported_once_on_its_o
     for judged_first, own_side in ((True, "later session"), (False, "earlier session")):
         night = str(tmp_path / ("a" if judged_first else "b") / "2026-09-24")
         os.makedirs(night)
-        t0 = _floating_at_local_hour("20260924000000", 12)
+        t0 = _floating_at_hour("20260924000000", 12)
         seam = t0 + 600
         _abs_cap(night, t0, 600 if judged_first else 1, seam, offset=0.0)
         _abs_cap(night, seam, 1 if judged_first else 600, seam, offset=0.0)  # zero length: opens AT its last write

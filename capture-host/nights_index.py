@@ -16,6 +16,7 @@ sidecar file starts a row with, and the O2Ring vendor layout `HH:MM:SS DD/MM/YYY
 
 from __future__ import annotations
 
+import calendar as _cal
 import datetime as _dt
 import hashlib
 import glob
@@ -126,6 +127,19 @@ ARRIVAL: tuple[str, ...] = ("*_PMDARRIVAL.csv",)
 _SESSION_STAMP = re.compile(r"_(\d{8})_?(\d{6})(?:_|\.)")
 
 
+def _band_date(edge: float) -> str:
+    """A band edge's own `YYYY-MM-DD`, read in the FLOATING frame the edge is in.
+
+    `fromtimestamp(edge)` without a zone resolves the edge THROUGH THE READER'S ZONE, and
+    `nightqc._floating_band` returns floating seconds, so the naive form named a different day either
+    side of the offset. It round-tripped correctly while the band was built naive-local too, which is
+    why the pair hid: the same wrong frame on both sides gave the right components back. Residue
+    `2026-10-12-the-night-band-mixes-a-floating-stamp-with-a-local-epoch`.
+
+    This is the published night KEY, so the day it names is the thing a reader indexes by."""
+    return _dt.datetime.fromtimestamp(edge, _dt.timezone.utc).strftime("%Y-%m-%d")
+
+
 def session_epoch(name: str) -> float | None:
     """The FLOATING epoch of a capture filename's `YYYYMMDD[_]HHMMSS` session stamp, or None.
 
@@ -139,10 +153,14 @@ def session_epoch(name: str) -> float | None:
     m = _SESSION_STAMP.search(os.path.basename(name))
     if not m:
         return None
-    try:
-        return _dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").timestamp()
-    except ValueError:
-        return None  # a real-looking stamp that is not a real instant (month 13, day 32)
+    # 🔴 IT SAID FLOATING AND RETURNED A LOCAL EPOCH, found 2026-10-19 while moving the bands into the
+    # floating frame. `.timestamp()` resolved the stamp through the READER'S ZONE, four hours off the
+    # components the capture wrote on this box, and `recording_start` published that shifted clock as
+    # "what a reader compares against the device's own screen". It hid because the band was naive local
+    # too: two wrong frames that cancelled for membership, and only the published field showed it.
+    # `floating_stamp_s` is nightqc's one conversion and owns the unreal-stamp case, so the try/except
+    # that used to sit here belongs to it rather than to a second copy.
+    return nightqc.floating_stamp_s(m.group(1) + m.group(2))
 
 
 _ISO = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})")
@@ -577,7 +595,11 @@ def night_entry(
         # without it two rows in one band are indistinguishable to every consumer — the page, a cache key,
         # a test. Published as wall-clock because that is what a reader compares against the device's own
         # screen; the epoch is `min(stamps)` and stays internal.
-        began = _dt.datetime.fromtimestamp(min(stamps))
+        # FLOATING, like the stamps themselves (`session_epoch`). `fromtimestamp` without a zone read
+        # them through the READER'S ZONE, so the published field was four hours off the device's own
+        # screen on the box — the exact opposite of what the line above says it is for. Same frame fix
+        # as `_band_date`, same residue.
+        began = _dt.datetime.fromtimestamp(min(stamps), _dt.timezone.utc)
         out["recording_start"] = began.strftime("%Y-%m-%d %H:%M")
         # ⚠️ A ROW THE SLEEP BAND ADMITS NOTHING INTO, AND THE FLAG IS WHAT MAKES IT READABLE. A 13:00
         # session gets a row, and `in_band` keeps every one of its files out: measured 2026-10-18, each
@@ -732,7 +754,7 @@ def recordings_of(entry: dict) -> tuple[list[dict], list[str]]:
             # ruling governs exactly this question. `night_key_band`'s docstring carries why passing it
             # to `in_band` or `night_view` would be wrong.
             b0, b1 = nightqc.night_key_band(ts)
-            name = _dt.datetime.fromtimestamp(b0).strftime("%Y-%m-%d")
+            name = _band_date(b0)
             r = by_band.setdefault(
                 name, {"recording": name, "begin": b0, "end": b1, "first": ts, "arrival": [], "files": {}}
             )
@@ -792,11 +814,31 @@ def _session_spans(root: str) -> dict[float, float]:
             if t is None or not os.path.isfile(f):
                 continue
             try:
-                end = os.path.getmtime(f)
+                end = _floating_mtime(f)
             except OSError:
                 continue  # vanished between glob and stat — it carries no span to add
             spans[t] = max(spans.get(t, end), end, t)
     return spans
+
+
+def _floating_mtime(path: str) -> float:
+    """A file's last write as a FLOATING second — the frame `session_epoch` returns.
+
+    🔴 A SPAN NEEDS ONE FRAME AND THIS FUNCTION HAS TWO SOURCES. The start comes from the NAME and is
+    civil (`session_epoch`); the end comes from the filesystem and is an absolute instant. Differencing
+    them directly is the defect `floating_stamp_s` warns about in capitals, and it was invisible here
+    only while `session_epoch` resolved its stamp through the reader's zone too — two wrong frames that
+    cancelled. Measured on 2026-10-19 once the start was corrected: in EDT every span grew by the 4 h
+    offset, which swallowed the 2 h doff gaps and merged three recordings into one row.
+
+    ⚠️ IT ASSUMES THE READER SITS IN THE WRITER'S ZONE, which is true for the index as it runs today —
+    on the capture box, over that box's own files. Off-box, or across a DST seam, the right offset is
+    `nightqc.recover_writer_offset`'s measured one, and the only honest conversion when it refuses is a
+    span with no end. That costs this module a chain-identity decision it cannot make alone, so it is
+    logged as residue (2026-10-19-nights-index-spans-assume-the-readers-zone) rather than guessed at
+    here. The assumption is stated because the alternative is for it to keep being invisible."""
+    d = _dt.datetime.fromtimestamp(os.path.getmtime(path))
+    return float(_cal.timegm(d.timetuple())) + d.microsecond / 1e6
 
 
 def _recordings(root: str) -> list[tuple[str, frozenset[float]]]:
@@ -843,7 +885,7 @@ def _recordings(root: str) -> list[tuple[str, frozenset[float]]]:
         # 14:00 session to its OWN day. A midday session still gets its own row rather than merging into
         # a night, because `recording_start` is what distinguishes two recordings in one band.
         band = nightqc.night_key_band(t)
-        key = _dt.datetime.fromtimestamp(band[0]).strftime("%Y-%m-%d")
+        key = _band_date(band[0])
         by_band.setdefault(key, []).append(t)
     out: list[tuple[str, frozenset[float]]] = []
     # `stampless - by_band.keys()` rather than `setdefault(key, [])`: the sentinel `[]` was a mutant site
