@@ -456,10 +456,34 @@ def test_stream_raises_on_a_partially_rejected_id_rather_than_streaming_a_subset
     """A device that accepts PatientFlow but not BadId must not silently stream just the good one — the
     caller asked for both, and a half-answer read as complete is the failure to avoid."""
     dev = FakeAS11([_ack([("PatientFlow", True), ("BadId", False)])])
-    with pytest.raises(P.As11Error, match="rejected"):
+    # The error NAMES the id it refused. `match="rejected"` alone let a mutant read `d.get(None)` —
+    # every rejected id becomes None, the raise still fires, and the message a human reads is
+    # `rejected dataId(s): [None]`. The whole point of raising here is saying WHICH id the device would
+    # not give us.
+    with pytest.raises(P.As11Error, match=r"rejected dataId\(s\): \['BadId'\]"):
         _run(
             _collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow", "BadId"], start_id=_START_ID))
         )
+
+
+def test_an_ACK_THAT_REPORTS_NO_dataIds_LIST_is_not_a_rejection():
+    """The real AirSense 11 always echoes `dataIds` (hardware-confirmed 2026-08-23, the shape above), so
+    this is the defensive half: an ack carrying a streamId and no list at all means nothing was refused,
+    and the stream proceeds. Pins the `[]` default — a mutant reading `None` there turns the absent key
+    into `TypeError: 'NoneType' object is not iterable` and kills the generator on a stream the device
+    accepted."""
+    dev = FakeAS11(
+        [
+            _enc({"id": _START_ID, "result": {"streamId": 1}}),
+            _stream_data({"PatientFlow": [0.25]}),
+        ]
+    )
+    batches = _run(
+        _collect(
+            P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"], start_id=_START_ID, max_batches=1)
+        )
+    )
+    assert batches[0]["channels"] == {"PatientFlow": [0.25]}
 
 
 def test_stream_skips_a_non_streamdata_notification():

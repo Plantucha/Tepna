@@ -712,9 +712,14 @@ def test_controller_start_is_idempotent_while_running():
     async def go():
         connect, events = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
-        await c.op("start")
+        first = await c.op("start")
         again = await c.op("start")
         assert again["already"] is True and events["connected"] == 1, "no second connect while running"
+        # The WHOLE answer, not just `already`. The two answers come from two different return
+        # statements, so reading only one key leaves the other one's `ok` and `streaming` unobserved:
+        # measured 2026-10-19, `_start__mutmut_3` and `_start__mutmut_6` flip each to False here and the
+        # suite stayed green, which would tell the monitor a running stream is not running.
+        assert again == {**first, "already": True}
         await c.op("stop")
 
     _run(go())
@@ -1346,6 +1351,45 @@ def test_the_controller_lifts_the_drop_probe_OFF_the_close_and_hands_it_to_the_p
         assert (await c.op("start"))["ok"] is True
         await asyncio.sleep(0.01)
         assert seen["link_down"] is probe, "the probe never reached the pump — the tail cannot be counted"
+        await c.op("stop")
+
+    _run(go())
+
+
+def test_the_pump_IS_HANDED_THE_TRANSPORTS_OWN_write_AND_recv_frame():
+    """The two positional arguments that ARE the radio. Every other test reaches the pump through them
+    and would notice nothing if one arrived as None: the fake pumps here never call `write`, and
+    `recv_frame` is a sleep that the cooperative stop abandons. Measured 2026-10-19,
+    `_start__mutmut_134` and `_start__mutmut_135` replace one each with None and the suite stayed
+    green — a stream that writes nothing and reads nothing, reported `ok`."""
+
+    async def go():
+        made, seen = {}, {}
+
+        async def connect():
+            async def write(_f):
+                pass
+
+            async def recv_frame():
+                await asyncio.sleep(3600)
+
+            async def disconnect():
+                pass
+
+            made["write"], made["recv_frame"] = write, recv_frame
+            return write, recv_frame, disconnect
+
+        async def pump(bus, write, recv_frame, pk, cid, *, should_stop=None, **kw):
+            seen["write"], seen["recv_frame"] = write, recv_frame
+            while should_stop is None or not should_stop.is_set():
+                await asyncio.sleep(0.005)
+            return 0
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump)
+        assert (await c.op("start"))["ok"] is True
+        await asyncio.sleep(0.01)
+        assert seen["write"] is made["write"], "the pump writes down the link this start opened"
+        assert seen["recv_frame"] is made["recv_frame"], "the pump reads the link this start opened"
         await c.op("stop")
 
     _run(go())
@@ -2175,12 +2219,14 @@ def test_controller_appends_the_therapy_end_sink_LAST():
             return s
 
         def therapy_factory(stop_ev):
+            seen["stop_arg"] = stop_ev
             s = CS.TherapyEndSink(stop_ev, hold_s=1.0)
             made.append(s)
             return s
 
         async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None, should_stop=None):
             seen["extra_sinks"] = list(extra_sinks or ())
+            seen["should_stop"] = should_stop
             while should_stop is None or not should_stop.is_set():
                 await asyncio.sleep(0.005)
             return 0
@@ -2200,6 +2246,12 @@ def test_controller_appends_the_therapy_end_sink_LAST():
         assert len(sinks) == 2, "both the durable sink and the therapy-end sink reach the pump"
         assert isinstance(sinks[-1], CS.TherapyEndSink), "the therapy-end sink must be LAST"
         assert isinstance(sinks[0], _RecordingSink), "the durable sink runs first"
+        # The sink must hold the SAME event the pump watches, or the auto-stop sets a flag nobody reads
+        # and the session runs until the button. `TherapyEndSink(None)` constructs happily, so the
+        # argument is invisible until it is compared: measured 2026-10-19, `_start__mutmut_112` passes
+        # None and every assertion above still held.
+        assert isinstance(seen["should_stop"], asyncio.Event)
+        assert seen["stop_arg"] is seen["should_stop"], "the acting sink sets the event the pump watches"
         await c.op("stop")
 
     _run(go())
