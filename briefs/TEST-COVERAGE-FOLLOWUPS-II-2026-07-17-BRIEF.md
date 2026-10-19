@@ -108,7 +108,10 @@ like 1a's.
       **realm-reconstruction** rig (WORKER-REALM-GATES §2 pattern, but for a real Worker FILE not a blob) —
       `new Function(workerSrc)` with deps passed as params + a no-op `importScripts` (deps already
       instantiated), drives the `init`/`job` message protocol, and asserts ready-no-err · done-no-error (the
-      throw class) · seed-12345 known-answer (AHI 25.9, 575 beats, ECGDex rMSSD 34.9, PpgDex rMSSD 41.8) ·
+      throw class) · seed-12345 known-answer (AHI 25.9, 575 beats, ECGDex rMSSD 34.9, PpgDex rMSSD **41.2**
+      as of 2026-10-19; the line read 41.8 here while the assertion moved 41.8 → 42.1 → 41.4 → 41.5 → 41.4
+      → 41.2, each time with a mechanism — this witness is re-baselined BY DESIGN, so read
+      `tests/dex-tests.js` for the live value and never this sentence) ·
       determinism across two runs. **qrs-yield-worker DONE** (11 assertions, PR #151): direct transfer of
       the rig (same 9 SCRIPTS + init/job protocol); seed-12345 known-answer (age 58.84, sev "mod", baseAHI
       28.2, ECG+PPG yield objects run in-realm). **Left as documented gaps (materially heavier, LOW value):**

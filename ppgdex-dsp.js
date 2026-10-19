@@ -1695,26 +1695,76 @@
   // ════════════════════════════════════════════════════════════════════════
   //  CHANNEL RANKING — best-SNR optical path (REFERENCE-channel selection)
   //  pulsatility = power in 0.7–3 Hz band ÷ power in 4–8 Hz band (after BP).
-  //  PPGDEX-BEAT-DETECTION-PERF §2: score on a representative ~90 s WINDOW, not the
-  //  whole record. SNR is a ratio of band powers, so a mid-recording window ranks the
-  //  3 LEDs identically to the whole night; the old scorer ran TWO whole-record
-  //  filtfilt bandpasses (4 biquad passes each) on EVERY channel — ~6 whole-record
-  //  filter passes before detection even started. Under §1 all three channels are now
-  //  DETECTED on (3-LED consensus), so this is only a RANKING to pick the reference
-  //  waveform for the scope/morphology/SQI — never a discard.
+  //  Under §1 all three channels are now DETECTED on (3-LED consensus), so this is only a
+  //  RANKING to pick the reference waveform for the scope/morphology/SQI — never a discard.
+  //
+  //  WHOLE-NIGHT SCORING (PPGDEX-ALGORITHM-DEEP-DIVE §4 #6, 2026-10-19). Score EVERY 20 s
+  //  window across the record and rank on the 25th percentile. A channel then wins by
+  //  holding up through the night, not by being clean at its midpoint.
+  //
+  //  What it replaces: ONE ~90 s window taken from the middle of the record. On a 7.7 h
+  //  night that is 1 part in 300, so a single stretch of motion inside that window chose
+  //  the reference waveform for every surfaced morphology value, the scope trace and the
+  //  SQI. PPGDEX-BEAT-DETECTION-PERF §2 made that trade for speed and wrote the premise
+  //  down: "a representative 60–120 s window ranks the 3 LEDs identically to the whole
+  //  night", with a Done-when clause that verified it on ONE reference night.
+  //  MEASURED 2026-10-19 over 27 real Verity nights (2.4–7.7 h, ~176 Hz): the mid-window pick
+  //  differs from the whole-night p25 pick on 8 of them, so the premise is false as written.
+  //  The magnitude is small on this corpus — the mid-window pick's own whole-night p25 sits a
+  //  median 1.0 % and at most 2.5 % below the best channel's, because the three LEDs are
+  //  near-identical (§1.2; channel spread median 3.5 %, max 12.2 %). What changes is that the
+  //  bound now exists by construction: nothing bounded how wrong one 90 s window could be.
+  //  Cost of reading the whole night: 0.60 s for three channels and both bands on a 7.7 h
+  //  night, 3.6 % of what parsing the same file costs. The shortcut bought under a second.
+  //  p25 and not the mean or the median: a bad hour has to cost a channel the pick, and
+  //  the median forgives any defect that holds for less than half the night.
+  //  Each window is filtered on its own, so each carries its own edge transient inside the
+  //  odd-reflected pad. Filtering the record once per band and taking a windowed std would
+  //  avoid that, at the cost of two whole-record copies in memory for the same sample count.
+  //  Every channel and every window take the identical treatment, so the ranking stays fair.
   // ════════════════════════════════════════════════════════════════════════
-  function channelSNR(sig, fs) {
-    // representative mid-recording window (SNR is scale- & length-invariant); touches
-    // ≤ ~90 s·fs samples per channel per band instead of the whole night.
-    const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.round(fs * 20)));
-    let s0 = Math.floor((sig.length - win) / 2);
-    if (s0 < 0) s0 = 0;
-    const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0 + win);
+  const CH_SCORE_WIN_SEC = 20; // one scoring window — ≥ 20 pulse cycles at 60 bpm
+  function snrOfSlice(slice, fs) {
     const pulse = bandpass(slice, fs, 0.7, 3.0);
     const noise = bandpass(slice, fs, 4.0, 8.0);
     const ps = std(pulse),
       ns = std(noise) || 1e-6;
     return { snr: ps / ns, amp: ps };
+  }
+  function channelSNR(sig, fs) {
+    const win = Math.round(fs * CH_SCORE_WIN_SEC);
+    // Shorter than two windows: score the record as ONE window, and say so in nWindows
+    // rather than reporting a percentile over a sample of one.
+    if (!(win > 1) || sig.length < win * 2) {
+      const one = snrOfSlice(sig, fs);
+      return {
+        snr: Number.isFinite(one.snr) ? one.snr : null,
+        amp: Number.isFinite(one.amp) ? one.amp : null,
+        nWindows: 1,
+        winSec: r1(sig.length / fs)
+      };
+    }
+    const snrs = [],
+      amps = [];
+    for (let s = 0; s + win <= sig.length; s += win) {
+      // subarray on a typed array, slice on the plain Array a caller or a test may hand in
+      const slice = sig.subarray ? sig.subarray(s, s + win) : sig.slice(s, s + win);
+      let finite = true;
+      for (let i = 0; i < slice.length; i++)
+        if (!Number.isFinite(slice[i])) {
+          finite = false;
+          break;
+        }
+      if (!finite) continue; // a window holding an absent sample is not scored low, it is not scored
+      const w = snrOfSlice(slice, fs);
+      if (!Number.isFinite(w.snr)) continue;
+      snrs.push(w.snr);
+      amps.push(w.amp);
+    }
+    // §∅ — no window survived, so this channel carries NO score. Never 0: a 0 here would
+    // rank an unscorable channel above nothing and below everything, which is a measurement.
+    if (!snrs.length) return { snr: null, amp: null, nWindows: 0, winSec: CH_SCORE_WIN_SEC };
+    return { snr: quantile(snrs, 0.25), amp: quantile(amps, 0.25), nWindows: snrs.length, winSec: CH_SCORE_WIN_SEC };
   }
   // ── DEGENERATE-CHANNEL GUARD (PPGDEX-MULTICHANNEL-FUSION §4, ENGINE-VERIFICATION §1.3) ──
   //  Two analog photodiodes CANNOT produce bit-identical streams over a recording — even the
@@ -1752,7 +1802,9 @@
     for (let c = 0; c < rec.ch.length; c++) {
       const s = channelSNR(rec.ch[c], rec.fs);
       scores.push(s);
-      if (s.snr > bestScore) {
+      // An unscored channel must never win the pick, and the test cannot be an ordering:
+      // `null > -Infinity` reads TRUE in JS, because null coerces to 0. So read finiteness.
+      if (s.snr != null && Number.isFinite(s.snr) && s.snr > bestScore) {
         bestScore = s.snr;
         best = c;
       }
