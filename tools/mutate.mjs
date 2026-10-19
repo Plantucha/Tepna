@@ -533,6 +533,26 @@ export function changedLinesFromDiff(diffText) {
   return out;
 }
 
+/* WHAT THIS FILE WILL COST, as one line. Pure, so the selftest pins it: every figure comes from the
+   caller's own calibration run and job count, and nothing here reads a clock.
+
+   MEASURED 2026-10-19 over #3506's own population (`oxydex-dsp.js` + `oxydex-render.js`, 89 changed
+   lines, 27 mutants, 4 jobs, rig): calibration 82 s, the per-mutant loop 557 s, the worker pool 0 s,
+   everything else ~10 s of a 658 s run. The loop therefore spends 85 % of the budget, and `mutants ×
+   calibration / jobs` — the `est` figure this line prints — read 553 s against those 557 s.
+
+   ⚠️ IT IS AN UPPER BOUND, NOT A PREDICTION. Bail returns a killed mutant before its selected groups
+   finish, so the estimate over-reads whenever few mutants run: measured the same day at `--limit 1`,
+   est 22 s against 7.0 s. It tightens as the population grows, and the agreement at 27 mutants is
+   that bound being nearly tight, never a law. Quote it as a ceiling against the job's cap. That is
+   the per-pass timing residue `2026-10-05-the-js-mutation-job-cannot-finish-on-the-pr-that-makes-its-own-target-fast`
+   asked for, and residue `2026-10-12-the-js-mutation-timeout-is-wider-than-the-self-speeding-pr`
+   widened to a class. */
+export function phaseNote({ file, baseMs, estMs, jobs }) {
+  const s = (ms) => (Number(ms) / 1000).toFixed(Number(ms) < 10000 ? 1 : 0);
+  return '  ' + file + '  calibration ' + s(baseMs) + ' s/run → per-mutant pass est ' + s(estMs) + ' s at ' + jobs + ' job(s)';
+}
+
 export function verdictFromOutput(out) {
   return String(out).includes('✓') || String(out).includes('✕') ? 'KILLED' : 'INVALID';
 }
@@ -1358,7 +1378,13 @@ async function runFile(file) {
         BUDGET +
         ' s. Raise --budget, lower --limit, or give this module cheaper groups.'
     };
-  if (!AS_JSON) process.stderr.write('  ' + file + '  baseline ' + (baseMs / 1000).toFixed(1) + ' s/run → est ' + (estMs / 1000).toFixed(0) + ' s\n');
+  /* IN EVERY MODE, because `--json` is the only mode the workflow runs. This line was gated on
+     `!AS_JSON`, so the one run whose budget decides whether the job finishes printed no projection at
+     all, and a job cancelled at its cap left a log that never said what it meant to spend. The
+     heartbeat below carries a comment making this same argument for progress; the two lines that
+     price the run were left behind. stdout stays pure NDJSON — this is stderr, which the workflow
+     tails into the job summary. */
+  process.stderr.write(phaseNote({ file, baseMs, estMs, jobs: JOBS }) + '\n');
 
   const original = readFileSync(abs, 'utf8');
   const allGenerated = mutantsFor(original);
@@ -1635,6 +1661,13 @@ async function runFile(file) {
           killed +
           '  elapsed ' +
           mmss(el) +
+          /* The calibration cost rides every heartbeat on purpose. A job cancelled at its cap gets
+             read through the last 40 lines of this log, and the pass that ran before the loop sits
+             far outside that window — so without this the reader sees the loop's elapsed and cannot
+             tell what share of the budget had already gone. */
+          '  (calibration ' +
+          (baseMs / 1000).toFixed(0) +
+          's)' +
           (r > 0 ? '  eta ' + mmss(left) + '  finishes ~' + new Date(Date.now() + left * 1000).toTimeString().slice(0, 5) : '  eta ?') +
           '\n'
       );
@@ -1982,6 +2015,13 @@ async function runFile(file) {
        result of "3" reads as "3 on the 2 lines you changed", not "this file is nearly mutant-free". */
     generatedInFile: touched ? allGenerated.length : undefined,
     touchedLines: touched ? touched.size : undefined,
+    /* WHERE THE BUDGET WENT, per file and per pass — the measurement both mutation residue rows
+       leave owed. `calibrationMs` is one clean run of the selected groups, paid once per file;
+       `mutantPassMs` is the worker pool plus the per-mutant loop at `jobs` workers, and that is the
+       pass which spends the budget. The job summary then states the split with no log tail to read. */
+    calibrationMs: baseMs,
+    mutantPassMs: Date.now() - _t0,
+    jobs: JOBS,
     // the canary is scaffolding, not a measurement — it must not enter the denominator it guards
     tested: picked.length - (canaryMu ? 1 : 0) + resumedCount + reusedCount,
     killed: canaryState === 'FAILED' ? null : killed,
@@ -2501,6 +2541,19 @@ function selftest() {
     0
   );
   /* blockingSurvivors -- what the diff gate subtracts: ONLY survivors an excusing entry covers. */
+  /* THE COST PROJECTION — pure, and printed in every mode since the gate's own mode is `--json`.
+     The figures are the ones measured on #3506: see phaseNote's header for the run behind them. */
+  ck(
+    'phases · the projection names the calibration, the per-mutant estimate and the job count',
+    phaseNote({ file: 'oxydex-dsp.js', baseMs: 82000, estMs: 553000, jobs: 4 }),
+    '  oxydex-dsp.js  calibration 82 s/run → per-mutant pass est 553 s at 4 job(s)'
+  );
+  ck(
+    'phases · a sub-10-second calibration keeps its decimal, so a cheap file is not priced at 0 s',
+    phaseNote({ file: 'b.js', baseMs: 5000, estMs: 4000, jobs: 2 }).includes('calibration 5.0 s/run'),
+    true
+  );
+  ck('phases · one job is reported as one, never collapsed to the plural', phaseNote({ file: 'c.js', baseMs: 1000, estMs: 1000, jobs: 1 }).includes('at 1 job(s)'), true);
   const blk = blockingSurvivors(cls, survived);
   ck('blocking · the excused survivor leaves, the real-gap and the unclassified one stay', blk.map((x) => x.line).join(','), '3,4');
   ck('blocking · no classification excuses nothing', blockingSurvivors({ excused: [] }, survived).length, 3);
@@ -2919,7 +2972,7 @@ if (!files.length) {
    file, but it cannot stop a re-WRAP — a biome format commit still selected 92 of clock.js's 123
    mutants. Someone expecting a PR gate should learn that from a line printed in the first second,
    not by watching a "quick check" run for two hours. Cheap because --dry-run runs no suite. */
-if (DIFF && !AS_JSON && !DRY) {
+if (DIFF && !DRY) {
   let planned = 0;
   for (const f of files) {
     try {
@@ -2929,8 +2982,10 @@ if (DIFF && !AS_JSON && !DRY) {
   }
   const each = FULL ? 461 : 180; // seconds/mutant, measured; bail makes KILLED ones far cheaper
   const mins = Math.round((planned * each) / Math.max(1, JOBS) / 60);
-  console.log('  diff gate: ' + planned + ' mutant(s) on ' + [...DIFF_LINES.values()].reduce((a, s) => a + s.size, 0) + ' changed line(s) in ' + files.length + ' file(s)');
-  console.log('  worst case ~' + mins + ' min at ' + JOBS + ' job(s); killed mutants return in seconds with bail' + (BAIL ? '' : ' (currently OFF)') + '\n');
+  /* STDERR, so `--json` carries the plan without a stray line in the NDJSON stream stdout owes its
+     consumers. A plan is worth more to the run that gets cancelled than to the one that finishes. */
+  process.stderr.write('  diff gate: ' + planned + ' mutant(s) on ' + [...DIFF_LINES.values()].reduce((a, s) => a + s.size, 0) + ' changed line(s) in ' + files.length + ' file(s)\n');
+  process.stderr.write('  worst case ~' + mins + ' min at ' + JOBS + ' job(s); killed mutants return in seconds with bail' + (BAIL ? '' : ' (currently OFF)') + '\n\n');
 }
 
 /* REPORT PER FILE, AS IT COMPLETES — never buffer a long run to the end.

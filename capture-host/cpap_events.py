@@ -33,6 +33,12 @@ CONTRACT
   stamp is the join key). Nothing is interpreted before it is written.
 - The `_ZLE` edges and the existing trigger's start/stop are BOTH recorded, and the delta between them
   is reported — `None` when either side is absent, never 0. Disagreement is the product, not a defect.
+- A DEVICE THAT NEVER FLIPS `_ZLE` STILL HAS A WITNESS. Measured 2026-10-19 on one AS11 night: the
+  device sent exactly one `_ZLE` report over 6 h 18 m, so `_note_zle` saw a level and no edge, and both
+  deltas read `None` while a TherapyStop row and a MaskOff row sat in the sidecar. So each boundary
+  falls back to the therapy-status rows PER EDGE (`WITNESS_*_FALLBACK`), and `witness_*_source` names
+  which witness the delta used. The fallback is not gated on `zle_edges`: a night with one rising edge
+  and no falling edge leaves the stop boundary just as uncomputed as a night with no edge at all.
 - This module DOES NOT replace `auto_start` / `auto_stop`. It adds the second witness. Acting on it is
   a later, separate decision.
 """
@@ -43,11 +49,28 @@ import json
 import os
 import time
 
-__all__ = ["EVENT_DATA_IDS_DEFAULT", "parse_event_notification", "EventRecorder"]
+__all__ = [
+    "EVENT_DATA_IDS_DEFAULT",
+    "WITNESS_START_FALLBACK",
+    "WITNESS_STOP_FALLBACK",
+    "parse_event_notification",
+    "EventRecorder",
+]
 
 # The subscribed set. Each id is here because a consumer is named above; add one only with its consumer.
 EVENT_DATA_IDS_DEFAULT = ("UsageEvents-TherapyStatusEvents", "_ZLE")
 ZLE = "_ZLE"
+THERAPY_STATUS = "UsageEvents-TherapyStatusEvents"
+
+# The witness fallback, in preference order, consumed by `EventRecorder.snapshot`. `_ZLE` is the
+# first choice at both boundaries because it is a different subsystem from the therapy state and
+# therefore independent of the trigger. When its edge is absent the therapy-status rows answer the
+# same question less tightly, so they are second — and the snapshot NAMES which one it used, so a
+# reader never has to guess which quantity a delta measured. `Therapy*` before `Mask*`: the therapy
+# boundary is what this data id exists to report, and the mask seal is a different quantity that
+# merely brackets it.
+WITNESS_START_FALLBACK = ("TherapyStart", "MaskOn")
+WITNESS_STOP_FALLBACK = ("TherapyStop", "MaskOff")
 
 
 def parse_event_notification(params, host_epoch: float) -> list[dict]:
@@ -103,6 +126,10 @@ class EventRecorder:
         self.zle_rising_report: str | None = None
         self.zle_falling_report: str | None = None
         self.zle_edges = 0
+        # First and last host stamp per named therapy-status event — the SECOND witness, read only
+        # when the `_ZLE` edge for that boundary never arrived. First for a start, last for a stop.
+        self.status_first: dict[str, float] = {}
+        self.status_last: dict[str, float] = {}
         self.trigger_start_host: float | None = None
         self.trigger_stop_host: float | None = None
         self._fh = None
@@ -121,6 +148,8 @@ class EventRecorder:
         for r in rows:
             if r["data_id"] == ZLE and r["value"] is not None:
                 self._note_zle(int(r["value"]), now, r["report_time"])
+            elif r["data_id"] == THERAPY_STATUS and r["event"] is not None:
+                self._note_status(r["event"], now)
         if self._fh is not None:
             try:
                 self._fh.write(json.dumps({"host_epoch": now, "params": params}, separators=(",", ":")) + "\n")
@@ -148,6 +177,13 @@ class EventRecorder:
         elif value == 0:
             self.zle_falling_host, self.zle_falling_report = host_epoch, report_time
 
+    def _note_status(self, event: str, host_epoch: float) -> None:
+        """One named therapy-status event's host stamp. Every name is kept, not just the four the
+        fallback reads, because the device may report names we have not seen and dropping them here
+        would make a later unit re-read the sidecar to learn they existed."""
+        self.status_first.setdefault(event, host_epoch)
+        self.status_last[event] = host_epoch
+
     def mark_trigger(self, which: str, host_epoch: float | None = None) -> None:
         """The EXISTING trigger's own boundary — `start` when the pump began (auto_start's sighting or a
         button), `stop` when it ended. Recorded so the two witnesses can be compared on one clock."""
@@ -164,9 +200,23 @@ class EventRecorder:
     def _delta(a, b):
         return None if a is None or b is None else round(b - a, 3)
 
+    def _witness(self, zle_host: float | None, names, stamps: dict) -> tuple[float | None, str | None]:
+        """The witness for ONE boundary and the name of where it came from: the `_ZLE` edge when the
+        device sent one, else the first therapy-status name in `names` that it did report. Returns
+        `(None, None)` when neither arrived — an absent witness is null with no borrowed source."""
+        if zle_host is not None:
+            return zle_host, ZLE
+        for name in names:
+            host = stamps.get(name)
+            if host is not None:
+                return host, f"{THERAPY_STATUS}:{name}"
+        return None, None
+
     def snapshot(self) -> dict:
         """The witness record that rides the gap-accounting line and the acquisition envelope. Every
         absent measurement is None — a delta over a missing edge is not 0 seconds of disagreement."""
+        start_host, start_source = self._witness(self.zle_rising_host, WITNESS_START_FALLBACK, self.status_first)
+        stop_host, stop_source = self._witness(self.zle_falling_host, WITNESS_STOP_FALLBACK, self.status_last)
         return {
             "events_subscribe": self.subscribe_status,
             "events_notifications": self.notifications,
@@ -178,9 +228,16 @@ class EventRecorder:
             "zle_falling_report": self.zle_falling_report,
             "trigger_start_host": self.trigger_start_host,
             "trigger_stop_host": self.trigger_stop_host,
-            # zle − trigger: positive when the device's edge came AFTER the trigger
-            "witness_start_delta_s": self._delta(self.trigger_start_host, self.zle_rising_host),
-            "witness_stop_delta_s": self._delta(self.trigger_stop_host, self.zle_falling_host),
+            # The witness each delta was built from, and the name of where it came from — `_ZLE` when
+            # the device sent that edge, a therapy-status row when it did not. A delta is NEVER
+            # source-ambiguous: read the source beside it before comparing two nights.
+            "witness_start_host": start_host,
+            "witness_start_source": start_source,
+            "witness_stop_host": stop_host,
+            "witness_stop_source": stop_source,
+            # witness − trigger: positive when the device's witness came AFTER the trigger
+            "witness_start_delta_s": self._delta(self.trigger_start_host, start_host),
+            "witness_stop_delta_s": self._delta(self.trigger_stop_host, stop_host),
         }
 
     def close(self) -> None:
