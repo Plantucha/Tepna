@@ -1548,6 +1548,79 @@ def test_a_link_that_JUST_DROPPED_still_defers_for_the_quiet_window(box):
     assert box["called"].exists(), "an empty radio past the quiet window is an idle box"
 
 
+def _write_status_devs(path, devs):
+    """status.json with whole per-device dicts, so a test can set `charging` and `connected`."""
+    path.write_text(json.dumps({"updated": "now", "recording": False, "devices": devs}))
+
+
+def test_links_held_ONLY_by_devices_on_their_CHARGER_do_not_hold_the_restart(box):
+    """🔴 MEASURED DEFECT, vigil 2026-10-17: 194 deferrals over 6h32m (`links:1`) while no device was
+    recording. The O2Ring and the Verity hold their link on the charger all day, so the box never read
+    idle. A device the daemon reports as connected, on its charger and not recording excuses one link."""
+    _advance(box)
+    _write_status_devs(
+        box["status"],
+        {
+            "Ring": {"connected": True, "charging": True, "recording": False},
+            "Sense": {"connected": True, "charging": True, "recording": False},
+        },
+    )
+    (box["ble"] / "hci2").mkdir()
+    (box["ble"] / "hci2:3220").mkdir()
+    (box["ble"] / "hci2:3621").mkdir()
+    r = _run(box)
+    out = r.stdout + r.stderr
+    assert r.returncode == 0, r.stderr
+    assert "box is idle — restarting the daemon" in out, out
+    assert box["called"].exists(), "two charging devices holding two links is an idle box"
+    assert "each held by a device on its charger" in out, out
+    assert not box["ble_seen"].exists(), "an excused link must not arm the quiet window"
+
+
+def test_a_link_BEYOND_the_charging_devices_still_defers(box):
+    """The excuse is a count, never a blanket: a third link (a worn strap, the CPAP stream) holds."""
+    _advance(box)
+    _write_status_devs(
+        box["status"],
+        {
+            "Ring": {"connected": True, "charging": True, "recording": False},
+            "Sense": {"connected": True, "charging": True, "recording": False},
+        },
+    )
+    for h in ("hci2:1", "hci2:2", "hci2:3"):
+        (box["ble"] / h).mkdir()
+    r = _run(box)
+    out = r.stdout + r.stderr
+    assert "restarting the daemon" not in out, out
+    assert not box["called"].exists()
+    assert "links:3, of which 2 held by a device on its charger" in out, out
+
+
+def test_charging_NULL_is_no_claim_and_excuses_nothing(box):
+    """§∅ — the daemon publishes `charging: null` when it cannot tell. Only an exact `true` excuses."""
+    for v in (None, False, "yes", 1):
+        _advance(box)  # a deferred run still fast-forwards, so each case needs new pending code
+        _write_status_devs(box["status"], {"Ring": {"connected": True, "charging": v, "recording": False}})
+        (box["ble"] / "hci2:7").mkdir(exist_ok=True)
+        r = _run(box)
+        out = r.stdout + r.stderr
+        assert "restarting the daemon" not in out, (v, out)
+        assert "links:1" in out, (v, out)
+    assert not box["called"].exists()
+
+
+def test_a_charging_device_that_is_NOT_connected_excuses_nothing(box):
+    """A device on the charger with no link of its own cannot account for the link that is there."""
+    _advance(box)
+    _write_status_devs(box["status"], {"Ring": {"connected": False, "charging": True, "recording": False}})
+    (box["ble"] / "hci2:7").mkdir()
+    r = _run(box)
+    out = r.stdout + r.stderr
+    assert "restarting the daemon" not in out, out
+    assert "links:1" in out, out
+    assert not box["called"].exists()
+
+
 def test_an_UNREADABLE_sysfs_defers_rather_than_reading_as_no_links(box):
     """§∅ — the absence of evidence about the links is not evidence that there are none, and the costs
     are asymmetric: deferring loses one timer tick, restarting over a live link splits a night. So an

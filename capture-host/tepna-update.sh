@@ -346,15 +346,49 @@ ble_link_count() {
   printf '%s\n' "$n"
 }
 
+# ── A DEVICE ON ITS CHARGER IS NOT A WEARER'S NIGHT (2026-10-18) ─────────────────────────────────────
+# The O2Ring and the Verity keep their link up while they sit on the charger, all day. Every link
+# counted, so the box never read idle: on 2026-10-17 this updater deferred 194 times over 6h32m
+# (13:36 -> 20:06, `links:1`) with no device recording. The restart guard in webmon.py already
+# ignores a charging device (a charging device cannot be on a body); this interlock did not.
+#
+# sysfs names no peer for a link, so the excuse is a COUNT: one link per device that the daemon
+# reports as connected, on its charger and not recording. `charging` must be exactly `true` — a
+# `null` is no claim (§∅) and excuses nothing. A link beyond that count still defers. Any doubt
+# about status.json prints 0, which excuses nothing. `recording_state` has already required a
+# fresh status.json before this runs.
+charger_link_count() {
+  python3 - "$STATUS_JSON" <<'PY' 2>/dev/null || echo 0
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        devs = json.load(f).get("devices")
+except Exception:
+    devs = None
+if not isinstance(devs, dict):
+    print(0)
+    sys.exit(0)
+print(sum(1 for v in devs.values() if isinstance(v, dict) and v.get("connected") is True
+          and v.get("charging") is True and v.get("recording") is not True))
+PY
+}
+
 ble_quiet_state() {
-  # Prints: quiet | links:N | unknown:<why>. The mark file carries the last time links were SEEN, so a
-  # link that drops seconds before the timer fires still blocks the restart for the quiet window.
-  local n now seen
+  # Prints: quiet | quiet:<why> | links:N | unknown:<why>. The mark file carries the last time links
+  # were SEEN, so a link that drops seconds before the timer fires still blocks the restart for the
+  # quiet window. A link excused by `charger_link_count` is not SEEN: it neither defers nor arms it.
+  local n c now seen
   n="$(ble_link_count)" || { echo "unknown:cannot read $BLE_SYSFS"; return; }
+  c="$(charger_link_count)"
+  case "$c" in '' | *[!0-9]*) c=0 ;; esac
   now=$(date +%s)
-  if [ "$n" -gt 0 ]; then
+  if [ "$n" -gt "$c" ]; then
     printf '%s\n' "$now" > "$BLE_SEEN_MARK" 2>/dev/null || true
-    echo "links:$n"
+    if [ "$c" -gt 0 ]; then
+      echo "links:$n, of which $c held by a device on its charger"
+    else
+      echo "links:$n"
+    fi
     return
   fi
   seen=$(cat "$BLE_SEEN_MARK" 2>/dev/null || echo 0)
@@ -363,7 +397,11 @@ ble_quiet_state() {
     echo "links:0 within ${BLE_QUIET_S}s of the last link ($((now - seen))s ago)"
     return
   fi
-  echo quiet
+  if [ "$n" -gt 0 ]; then
+    echo "quiet:links:$n, each held by a device on its charger"
+  else
+    echo quiet
+  fi
 }
 
 recording_state() {
@@ -711,6 +749,7 @@ else
     ble="$(ble_quiet_state)"
     case "$ble" in
       quiet) ;;
+      quiet:*) say "BLE ${ble#quiet:} — a charger is not a wearer's night, so it does not hold the restart" ;;
       *) state="ble:$ble" ;;
     esac
   fi
