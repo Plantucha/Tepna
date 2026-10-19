@@ -6662,6 +6662,7 @@ def test_the_RECORDED_and_the_RECOVERED_offset_AGREE_on_one_night_in_one_zone(tm
     America/New_York in summer; the recovered value is the mtime-vs-last-row vote over files whose mtime
     sits exactly where an EDT box would put it. The control asserts the vote on its own, so a broken vote
     cannot pass this by agreeing with a broken reader."""
+    before = os.environ.get("TZ")
     monkeypatch.setenv("TZ", "America/New_York")
     time.tzset()
     try:
@@ -6687,5 +6688,8 @@ def test_the_RECORDED_and_the_RECOVERED_offset_AGREE_on_one_night_in_one_zone(tm
         inferred_only = nightqc.summarize(night, _devices())["judged_session"]
         assert with_recorded["start"] == inferred_only["start"], (with_recorded, inferred_only)
     finally:
-        monkeypatch.delenv("TZ", raising=False)
+        if before is None:
+            monkeypatch.delenv("TZ", raising=False)
+        else:
+            monkeypatch.setenv("TZ", before)
         time.tzset()
