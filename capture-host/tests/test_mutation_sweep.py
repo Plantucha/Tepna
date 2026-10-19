@@ -309,3 +309,255 @@ def test_the_clean_run_report_includes_the_ASSERTION_BODY_not_just_the_summary()
         "clean_run_seconds no longer reads pytest's FAILURES section, so a refusal reports only the "
         "first line of the assertion — the part that says WHAT failed is dropped"
     )
+
+
+# ── the exit code: a run that decided NOTHING must not read as a pass ────────────────────────────
+#
+# 🔴 `tools/mutate.py main()` ended `return 1 if skipped else 0`, so the skip count was the only
+# fact that reached the shell. A `--only` glob matching no mutant put `"rc": 1` in the JSON, printed
+# a full `mutmut results` listing where every line read `not checked`, and exited 0 over a 128 s run
+# (measured 2026-10-18 on `writers.x_LinkLogWriter*__mutmut_*`; the corrected glob gave 42 mutants
+# and one real survivor nobody had logged). The assertions below pin the reason TEXT, not a
+# substring of it: a reason an operator cannot act on is the defect wearing a non-zero exit code.
+
+
+def test_a_clean_sweep_exits_zero_because_A_SURVIVOR_IS_NOT_A_FAILURE():
+    """`tools/mutate.py` is an audit tool. Survivors are its output, not its verdict."""
+    code, reasons = S.sweep_exit_verdict([{"module": "writers.py", "rc": 0}, {"module": "oxyii.py", "rc": 0}])
+    assert (code, reasons) == (0, [])
+
+
+def test_a_GLOB_THAT_MATCHED_NOTHING_is_named_rather_than_left_as_a_return_code():
+    """The measured case. `rc: 1` alone sends the reader to the tail; the glob is the first suspect."""
+    rec = {
+        "module": "writers.py",
+        "rc": 1,
+        "only": "writers.x_LinkLogWriter*__mutmut_*",
+        "tail": "AssertionError: " + S.NO_MATCH_ASSERTION + "\n",
+    }
+    code, reasons = S.sweep_exit_verdict([rec])
+    assert code == 1
+    assert reasons == [
+        "writers.py: mutmut exited 1 — the --only glob 'writers.x_LinkLogWriter*__mutmut_*' matched "
+        "no mutant. mutmut 3.x names a method's mutants module.xǁClassǁmethod__mutmut_N, "
+        "never Class_method"
+    ]
+
+
+def test_the_SEPARATOR_in_that_advice_is_the_character_mutmut_actually_uses():
+    """U+01C1 LATIN LETTER LATERAL CLICK, not a pipe and not two ASCII bars.
+
+    The advice exists to stop a second wrong glob. Spelling the separator with `||` would send the
+    reader to a name mutmut never emits, which is the original defect with extra steps."""
+    assert "ǁ" in S.sweep_exit_verdict([{"module": "w.py", "rc": 1, "only": "g", "tail": S.NO_MATCH_ASSERTION}])[1][0]
+    assert (
+        "||" not in S.sweep_exit_verdict([{"module": "w.py", "rc": 1, "only": "g", "tail": S.NO_MATCH_ASSERTION}])[1][0]
+    )
+
+
+def test_a_non_zero_run_WITHOUT_mutmuts_no_match_words_still_names_its_selection():
+    """mutmut can fail for its own reasons. Naming the glob as the cause would be a fabrication, so
+    the reason states the selection as a fact and stops."""
+    code, reasons = S.sweep_exit_verdict([{"module": "writers.py", "rc": 2, "only": "writers.x_f__*", "tail": "boom"}])
+    assert (code, reasons) == (1, ["writers.py: mutmut exited 2 — the selection was --only 'writers.x_f__*'"])
+
+
+def test_a_non_zero_run_with_NO_selection_does_not_invent_one():
+    code, reasons = S.sweep_exit_verdict([{"module": "writers.py", "rc": 3, "only": None}])
+    assert (code, reasons) == (1, ["writers.py: mutmut exited 3"])
+
+
+def test_an_ABSENT_TAIL_is_not_a_crash_and_is_not_a_match():
+    """A run killed before it wrote a tail has `tail` absent or None. `None` is not a string, and
+    reading the glob advice off it would be an absence treated as evidence either way."""
+    for tail in (None, ""):
+        code, reasons = S.sweep_exit_verdict([{"module": "w.py", "rc": 1, "only": "g", "tail": tail}])
+        assert (code, reasons) == (1, ["w.py: mutmut exited 1 — the selection was --only 'g'"]), tail
+
+
+def test_EVERY_way_a_run_can_decide_nothing_exits_non_zero_with_its_own_reason():
+    """One record each, so a single shared reason cannot stand in for the set. The old code exited 0
+    on all but the first."""
+    cases = [
+        (
+            {"module": "a.py", "error": "no budget: the clean run did not pass"},
+            "a.py: the run never started — no budget: the clean run did not pass",
+        ),
+        (
+            {"module": "b.py", "skipped": "clean run 40.0s exceeds --budget 30s"},
+            "b.py: skipped — clean run 40.0s exceeds --budget 30s. A skip is not a pass",
+        ),
+        (
+            {"module": "c.py", "rc": 1, "generation_timed_out": "…"},
+            "c.py: nothing was examined — mutant generation hit its own cap",
+        ),
+        (
+            {"module": "d.py", "rc": 0, "results_timed_out": "…"},
+            "d.py: the mutants' verdicts were never read — the results pass hit its cap",
+        ),
+        (
+            {"module": "e.py", "rc": -9, "timed_out": True},
+            "e.py: PARTIAL — the wall cap was hit, so unfinished mutants have no verdict",
+        ),
+        ({"module": "f.py"}, "f.py: no return code was recorded, so nothing says the run finished"),
+        ({"module": "g.py", "rc": 1}, "g.py: mutmut exited 1"),
+    ]
+    for rec, want in cases:
+        assert S.sweep_exit_verdict([rec]) == (1, [want]), rec
+
+
+def test_an_ESTIMATE_owes_no_verdict_and_a_sweep_of_estimates_exits_zero():
+    """`--estimate` prints a cost and stops. It has no `rc`, so the absent-return-code reason above
+    would fire on every estimate and make the flag unusable."""
+    assert S.sweep_exit_verdict([{"module": "a.py", "estimate_only": True, "clean_run_sec": 21.5}]) == (0, [])
+
+
+def test_ONE_record_contributes_ONE_reason_and_it_names_the_EARLIEST_phase():
+    """A generation that never finished also has a non-zero return code and a hit wall cap. Naming
+    the later symptom sends the reader to the wrong phase to make smaller."""
+    rec = {
+        "module": "capture.py",
+        "rc": 1,
+        "timed_out": True,
+        "generation_timed_out": "generation hit 600s",
+        "results_timed_out": "results hit 300s",
+        "only": "capture.x__now__*",
+        "tail": S.NO_MATCH_ASSERTION,
+    }
+    assert S.sweep_exit_verdict([rec]) == (1, ["capture.py: nothing was examined — mutant generation hit its own cap"])
+
+
+def test_a_MIXED_sweep_reports_every_undecided_module_in_order_and_skips_the_clean_ones():
+    code, reasons = S.sweep_exit_verdict(
+        [
+            {"module": "a.py", "rc": 0},
+            {"module": "b.py", "rc": 1},
+            {"module": "c.py", "rc": 0},
+            {"module": "d.py", "skipped": "too slow"},
+        ]
+    )
+    assert code == 1
+    assert reasons == ["b.py: mutmut exited 1", "d.py: skipped — too slow. A skip is not a pass"]
+
+
+def test_a_sweep_that_NAMED_NO_MODULE_does_not_exit_zero():
+    """`modules` is `nargs="*"`, so `mutate.py` with no arguments printed nothing, examined nothing
+    and exited 0 — the glob defect one level up. `--list` returns before this."""
+    assert S.sweep_exit_verdict([]) == (1, ["no module was examined — name at least one module, or use --list"])
+
+
+def test_the_TOOL_reads_this_verdict_and_NO_LONGER_counts_only_skips():
+    """`tools/mutate.py` is outside the coverage denominator, so the wiring is pinned by ast: the
+    decision can be correct here and never reached there, which is how the old comment came to claim
+    an invariant — "the same reason the tool refuses to report a timed-out module as complete" — that
+    the code did not hold."""
+    import ast
+
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    fn = next(
+        (n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "main"),
+        None,
+    )
+    assert fn is not None, "mutate.py main() is gone — this pin is stale, not passing"
+    called = {n.func.id for n in ast.walk(fn) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    assert "sweep_exit_verdict" in called, "main() decides its own exit code again"
+    returns = [n for n in ast.walk(fn) if isinstance(n, ast.Return)]
+    assert returns, "main() has no return"
+    # The old shape was `return 1 if skipped else 0`: an IfExp over a counter. Any return that is a
+    # bare conditional on a name is this defect coming back under a different variable.
+    assert not any(isinstance(r.value, ast.IfExp) for r in returns), (
+        "main() returns a conditional again — the exit code is being decided from a count rather than from the records"
+    )
+
+
+def test_the_record_CARRIES_the_selection_it_ran():
+    """`sweep_exit_verdict` can only name the glob if the run recorded it. The plan had no `only`
+    key, so the JSON could not distinguish a whole-module sweep from a one-function one."""
+    import ast
+
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    fn = next(
+        (n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "run_one"),
+        None,
+    )
+    assert fn is not None, "run_one is gone — this pin is stale, not passing"
+    keys = {
+        k.value
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Dict)
+        for k in n.keys
+        if isinstance(k, ast.Constant) and isinstance(k.value, str)
+    }
+    assert "only" in keys, "run_one's record no longer carries the selection it ran"
+
+
+def test_a_sweep_does_not_STOP_at_the_first_module_that_decided_nothing():
+    """Every skip in the loop is a `continue`, and a `break` reads identically on any sweep whose
+    undecided module happens to be LAST. The cost of the difference is an operator who fixes one
+    module, re-runs the whole sweep, and finds the next — once per module. So the pin is one sweep
+    carrying every undecided shape at once, with the reasons in the records' own order."""
+    records = [
+        {"module": "a.py", "estimate_only": True},
+        {"module": "b.py", "error": "no budget"},
+        {"module": "c.py", "skipped": "too slow"},
+        {"module": "d.py", "rc": 1, "generation_timed_out": "gen cap"},
+        {"module": "e.py", "rc": 0, "results_timed_out": "results cap"},
+        {"module": "f.py", "rc": -9, "timed_out": True},
+        {"module": "g.py"},
+        {"module": "h.py", "rc": 0},
+        {"module": "i.py", "rc": 1},
+    ]
+    code, reasons = S.sweep_exit_verdict(records)
+    assert code == 1
+    assert reasons == [
+        "b.py: the run never started — no budget",
+        "c.py: skipped — too slow. A skip is not a pass",
+        "d.py: nothing was examined — mutant generation hit its own cap",
+        "e.py: the mutants' verdicts were never read — the results pass hit its cap",
+        "f.py: PARTIAL — the wall cap was hit, so unfinished mutants have no verdict",
+        "g.py: no return code was recorded, so nothing says the run finished",
+        "i.py: mutmut exited 1",
+    ]
+
+
+def test_a_record_with_NO_MODULE_NAME_still_produces_a_readable_reason():
+    """`r.get("module", "?")`'s default is reached only by a record the tool did not build, which no
+    other test here supplies. `str(None)` would print `None: mutmut exited 1` — a module named None,
+    which reads as a fact rather than as a gap."""
+    code, reasons = S.sweep_exit_verdict([{"rc": 1}])
+    assert (code, reasons) == (1, ["?: mutmut exited 1"])
+
+
+def test_the_TOOLS_printed_prefix_carries_NO_contract_status_word():
+    """`tools/mutate.py`'s `verdict-adoption.json` row is `word-only` on the claim that verdict words
+    appear only in its comments, and `checkWordOnlyClaim` reads the SOURCE rather than that claim. A
+    prefix of `NO VERDICT` redded it. Pinned here because the reason text is the tempting repair and
+    the only honest one is to keep the claim true."""
+    import ast
+
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    fn = next(
+        (n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "main"),
+        None,
+    )
+    assert fn is not None, "mutate.py main() is gone — this pin is stale, not passing"
+    printed = [
+        n for n in ast.walk(fn) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "print"
+    ]
+    assert printed, "main() prints nothing"
+    words = (
+        "REFUSED",
+        "VERDICT",
+        "TALLY",
+        "RECOVERED",
+        "UNDERPOWERED",
+        "SHORTFALL",
+        "NOT_RUN",
+        "NOT_APPLICABLE",
+        "PASS",
+        "FAIL",
+    )
+    for call in printed:
+        for lit in (n.value for n in ast.walk(call) if isinstance(n, ast.Constant) and isinstance(n.value, str)):
+            hit = [w for w in words if w in lit]
+            assert not hit, f"main() prints a contract status word {hit} in {lit!r} while its row claims none"

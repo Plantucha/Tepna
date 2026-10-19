@@ -34,6 +34,9 @@ reports normally. So an unverified measurement REFUSES rather than quietly takin
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import Any
+
 __all__ = [
     "SOURCE_SCANNING_TESTS",
     "select_tests",
@@ -43,6 +46,8 @@ __all__ = [
     "budget_verdict",
     "BUDGET_OK",
     "BUDGET_REFUSED",
+    "NO_MATCH_ASSERTION",
+    "sweep_exit_verdict",
 ]
 
 BUDGET_OK = "ok"
@@ -185,3 +190,79 @@ def budget_verdict(clean_sec: float, measured_ok: bool) -> tuple[str, int | None
     if clean_sec <= 0:
         return BUDGET_REFUSED, None, f"implausible clean-run duration {clean_sec!r}"
     return BUDGET_OK, max(1800, int(clean_sec * 300)), f"300x the {clean_sec:.2f}s clean run"
+
+
+# mutmut's own words when a `--only` filter selects nothing. Matched as a SUBSTRING of the run tail,
+# because it arrives as an `AssertionError` traceback and the surrounding frames move between
+# versions. It is the one signal that separates "the glob is wrong" from "mutmut failed", and without
+# it the two are the same non-zero return code.
+NO_MATCH_ASSERTION = "Filtered for specific mutants, but nothing matches"
+
+
+def sweep_exit_verdict(records: Sequence[Mapping[str, Any]]) -> tuple[int, list[str]]:
+    """The sweep's EXIT CODE, read from the records it produced. Returns `(code, reasons)`.
+
+    🔴 THE DEFECT THIS EXISTS TO CLOSE. `tools/mutate.py main()` ended `return 1 if skipped else 0`,
+    so the skip count was the only fact that reached the exit code. Every other way a run can decide
+    nothing — mutmut exiting non-zero, the wall cap, the generation cap, the unread results pass, an
+    absent return code — exited 0. Measured 2026-10-18: a `--only` glob matching no mutant put
+    `"rc": 1` in the JSON, printed a full `mutmut results` listing where every line read `not
+    checked`, and exited 0 over a 128 s run. The tail looked like a finished sweep and the shell
+    agreed with it.
+
+    The comment above that return already claimed the opposite property — "the same reason the tool
+    refuses to report a timed-out module as complete" — while a timed-out module exited 0. A comment
+    asserting an invariant the code does not hold is worth more than a missing comment only if
+    something checks it, so the check is here, inside the coverage floor, and the tool calls it.
+
+    ⚠️ A SURVIVOR IS NOT A FAILURE. This is an audit tool (`tools/mutate.py` says so in its header):
+    surviving mutants are its normal output and exit 0. What exits non-zero is a run that decided
+    nothing — the §4b family, success reported about something never examined. `--estimate` owes no
+    verdict and is exempt by the same rule: it prints a cost and stops.
+
+    Reasons are ordered by PHASE, earliest first, and one record contributes at most one reason: a
+    generation that never finished also has a non-zero return code, and naming the later symptom
+    sends the reader to the wrong phase."""
+    if not records:
+        # THE SAME FAMILY AS THE GLOB, one level up: `mutate.py` takes `modules` as `nargs="*"`, so a
+        # sweep naming no module printed nothing, examined nothing and exited 0. `--list` returns
+        # before this, because listing IS its whole job.
+        return 1, ["no module was examined — name at least one module, or use --list"]
+    reasons: list[str] = []
+    for r in records:
+        mod = str(r.get("module", "?"))
+        if r.get("estimate_only"):
+            continue
+        err = r.get("error")
+        if err:
+            reasons.append(f"{mod}: the run never started — {err}")
+            continue
+        skipped = r.get("skipped")
+        if skipped:
+            reasons.append(f"{mod}: skipped — {skipped}. A skip is not a pass")
+            continue
+        if r.get("generation_timed_out"):
+            reasons.append(f"{mod}: nothing was examined — mutant generation hit its own cap")
+            continue
+        if r.get("results_timed_out"):
+            reasons.append(f"{mod}: the mutants' verdicts were never read — the results pass hit its cap")
+            continue
+        if r.get("timed_out"):
+            reasons.append(f"{mod}: PARTIAL — the wall cap was hit, so unfinished mutants have no verdict")
+            continue
+        rc = r.get("rc")
+        if rc is None:
+            reasons.append(f"{mod}: no return code was recorded, so nothing says the run finished")
+            continue
+        if rc != 0:
+            detail = f"{mod}: mutmut exited {rc}"
+            only = r.get("only")
+            if only and NO_MATCH_ASSERTION in str(r.get("tail") or ""):
+                detail += (
+                    f" — the --only glob {only!r} matched no mutant. mutmut 3.x names a method's "
+                    "mutants module.x\u01c1Class\u01c1method__mutmut_N, never Class_method"
+                )
+            elif only:
+                detail += f" — the selection was --only {only!r}"
+            reasons.append(detail)
+    return (1 if reasons else 0), reasons
