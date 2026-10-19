@@ -1203,15 +1203,13 @@ def test_a_MIDDAY_session_IS_KEYED_TO_ITS_OWN_DAY_not_the_previous_evening(tmp_p
 
     The listing consequence is still that a midday session gets its OWN row rather than vanishing or
     merging into a night's cells. Only the row's key moved."""
-    import datetime as _dt2
-
     import nightqc
 
     root = str(tmp_path)
     d = os.path.join(root, "captures", "2026-10-10")
     os.makedirs(d, exist_ok=True)
     _w(os.path.join(d, "Polar_H10_02849638_20261010140000_ECG.txt"), ISO_ROWS)
-    t = _dt2.datetime.strptime("20261010140000", "%Y%m%d%H%M%S").timestamp()
+    t = nightqc.floating_stamp_s("20261010140000")
     band = nightqc.night_band(t)
     assert band is not None and band[1] < t, (
         "the SLEEP band still returns the previous evening's window for a midday stamp — one that does "
@@ -1284,6 +1282,58 @@ def test_a_file_that_is_not_a_FILE_is_not_a_session(tmp_path):
     assert len(rows) == 1, rows
     assert rows[0]["recording_start"] == "2026-10-09 22:00", (
         "a directory whose NAME carries a session stamp is not a session: " + str(rows[0])
+    )
+
+
+def test_the_span_END_comes_from_the_nights_RECORDED_writer_offset(tmp_path):
+    """🔴 THE END IS AN INSTANT AND THE START IS CIVIL, so one of them has to cross a frame — and the
+    night's own recorded offset is the only place `SESSION-SPAN-WRITER-OFFSET-2026-09-28-BRIEF.md` §1
+    allows that crossing. This asserts the crossing happened with THAT number, which is what tells a
+    read of `STARTS.csv` apart from a value computed and then dropped.
+
+    ⚠️ THE FIXTURE'S ZONE IS DELIBERATELY NOT THE RUNNER'S. `utc_offset_sec` is UTC+12 here, so the
+    recorded conversion lands 12 h from the mtime whatever zone the suite runs in — while the host-zone
+    fallback lands 0 h away under `TZ=UTC` and 4 h away under EDT. A fixture recording the runner's own
+    offset would agree with the fallback on one machine and hide the difference."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-09")
+    f = os.path.join(d, "Polar_H10_02849638_20261009220000_ECG.txt")
+    _w(f, ISO_ROWS)
+    # The HEADER names the column; `recorded_writer_offset` addresses it by name, and a five-column
+    # pre-2026-10-05 file must read as "nothing recorded" instead of a parse error.
+    _w(
+        os.path.join(d, "STARTS.csv"),
+        "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\n2026-10-09T22:00:00;1;abc0000;0;hci0;43200\n",
+    )
+    import nightqc
+
+    t = nightqc.floating_stamp_s("20261009220000")
+    spans = ni._session_spans(root)
+    # 43200 EAST of UTC is a raise of -43200, so the floating end sits 12 h AFTER the mtime. The sign is
+    # the half of this that a `+` for a `-` would survive without.
+    want = os.path.getmtime(f) + 43200.0
+    assert abs(spans[t] - want) < 1e-6, (spans[t], want, "the end must cross on the RECORDED offset")
+
+
+def test_a_night_that_recorded_NO_offset_falls_back_to_the_HOSTS_zone(tmp_path):
+    """The other branch, and the one every night before 2026-10-05 takes. `_floating_mtime` reads the
+    host's zone at the file's own instant, which is a PREMISE: it holds while the index runs on the box
+    that wrote the files. The assertion states the premise rather than restating the conversion — the
+    fallback must equal what a night would get had it recorded the host's own offset for that instant."""
+    p = os.path.join(str(tmp_path), "f.txt")
+    _w(p, "x")
+    import datetime as _dt
+
+    import nightqc
+
+    m = os.path.getmtime(p)
+    # EAST of UTC from the host's own rules AT THAT INSTANT, negated into the raise convention. Reading
+    # the zone at the instant rather than at import time is what carries a span across a DST seam.
+    east = _dt.datetime.fromtimestamp(m).astimezone().utcoffset()
+    assert east is not None
+    declared = nightqc.declared_offset(-east.total_seconds())
+    assert abs(ni._floating_mtime(p, None) - ni._floating_mtime(p, declared)) < 1e-6, (
+        "the fallback is the host's own zone at the file's instant, stated as a premise"
     )
 
 
@@ -1781,3 +1831,72 @@ def test_BOTH_DAYTIME_EDGES_ARE_INCLUSIVE_ONE_SIDE_ONLY(tmp_path):
         assert len(recs) == 1, recs
         got = ni.night_entry(root, d, None, recs[0][1])["daytime"]
         assert got is want, f"a start at {hhmmss[:2]}:00 read daytime={got}: {why}"
+
+
+# ── a UTC-frame read is only visible from a zone that is not UTC ─────────────────────────────────
+#
+# 🔴 THE RUNNER'S OWN ZONE DECIDES WHETHER THESE MUTANTS CAN BE SEEN. `fromtimestamp(edge, utc)`
+# mutated to `fromtimestamp(edge)` is the exact naive-local read this module was fixed to stop, and on
+# a UTC runner the two agree for every input — so CI, which runs UTC, cannot kill it from any fixture
+# that does not set `TZ` itself. The same run on a box sitting in `America/New_York` killed eight
+# mutants CI reported as survivors. A gate's answer here is a fact about the runner as much as about
+# the code, which is why each of these pins the zone rather than inheriting it.
+_ZONES = ("UTC", "America/New_York", "Asia/Tokyo", "Australia/Sydney")
+
+
+def test_a_band_edge_names_THE_SAME_DAY_from_every_readers_zone(monkeypatch):
+    """`_band_date` is the published night KEY, so the day it names cannot depend on who reads it.
+
+    The edge is chosen for that: 02:30 is 22:30 the PREVIOUS DAY in New York, so a naive read renames
+    the night. Tokyo and Sydney are included because they move the hour without moving the date —
+    together they separate "reads UTC" from "happens to agree with UTC here"."""
+    import time as _time
+
+    edge = 1792290600.0  # 2026-10-18 02:30 floating
+    for zone in _ZONES:
+        monkeypatch.setenv("TZ", zone)
+        _time.tzset()
+        assert ni._band_date(edge) == "2026-10-18", f"the band edge was read through {zone}"
+
+
+def test_the_published_RECORDING_START_is_the_devices_own_wall_clock(tmp_path, monkeypatch):
+    """`recording_start` exists so a reader can compare a row against the device's own screen.
+
+    So it must be the components the filename stamp already carries. Read naively it is the reader's
+    rendering of an instant instead, which on the box was four hours from what the line says it is
+    for — and the published string is the only place that error would ever show."""
+    import time as _time
+
+    monkeypatch.setenv("TZ", "America/New_York")
+    _time.tzset()
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010220000_ECG.txt", "t\n1\n", "20261010223000")
+    recs = ni._recordings(root)
+    assert len(recs) == 1, recs
+    entry = ni.night_entry(root, os.path.join(c, "2026-10-10"), None, recs[0][1])
+    assert entry["recording_start"] == "2026-10-10 22:00", (
+        entry["recording_start"],
+        "the stamp the filename carries is 22:00:00; anything else is the reader's zone",
+    )
+
+
+def test_a_FLOATING_MTIME_keeps_its_microseconds_to_the_full_SECOND(tmp_path, monkeypatch):
+    """The seconds-per-microsecond divisor, asserted where a wrong one is visible.
+
+    `d.microsecond / 1e6` mutated to `/ 1000001.0` is wrong by `us * 1e-12`, which at an epoch of
+    1.79e9 is BELOW the float spacing there (2.4e-7) for most microsecond values — so an exact
+    assertion on a tidy `.123456` passes over the mutant. 999999 µs puts the gap at 1.0e-6, four
+    times the spacing, which is the smallest honest way to see it. The figure is chosen by that
+    arithmetic, not by taste: the gap is `us / (d * (d + 1))` and it has to clear the spacing."""
+    import time as _time
+
+    monkeypatch.setenv("TZ", "America/New_York")
+    _time.tzset()
+    p = os.path.join(str(tmp_path), "f.txt")
+    with open(p, "w"):
+        pass
+    os.utime(p, ns=(1792290600_999999000, 1792290600_999999000))
+    assert ni._floating_mtime(p, None) == 1792276200.999999
+    # And the recorded-offset path, which never reaches the divisor, still answers in the same frame.
+    assert ni._floating_mtime(p, {"offset_sec": 14400.0}) == 1792276200.999999
