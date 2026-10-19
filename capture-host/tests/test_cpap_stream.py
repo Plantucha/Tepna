@@ -1973,6 +1973,67 @@ def test_therapy_end_sink_fires_without_an_on_end_callback():
     assert ev.is_set() and s.fired
 
 
+# ── #3659 diff-scoped survivors. Each test below names the mutant class it separates. ────────────
+
+
+def _alternating(n, a, b):
+    """n quiet samples that never repeat back to back, so only the |x| <= eps arm can count them."""
+    return [a if i % 2 == 0 else b for i in range(n)]
+
+
+def test_therapy_end_sink_DEFAULT_hold_is_120_s_to_the_sample():
+    # The default is the shipped behaviour. 120 s at 25 Hz is 3000 quiet samples: 2999 must not stop,
+    # the 3000th must. A fresh sink starts at zero quiet samples, so no sample is counted twice.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch(_alternating(2999, 0.0, 0.1)))
+    assert not ev.is_set(), "2999 quiet samples are 1 short of the 120 s default"
+    s.on_batch(_batch([0.0]))
+    assert ev.is_set(), "the 3000th quiet sample reaches the 120 s default"
+
+
+def test_therapy_end_sink_DEFAULT_eps_is_half_a_litre_per_second():
+    # |1.0| L/s is breathing under the 0.5 default. Alternating signs keep the frozen arm out of it.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch(_alternating(3100, 1.0, -1.0)))
+    assert not ev.is_set(), "flow of 1.0 L/s is outside the 0.5 L/s default"
+
+
+def test_therapy_end_sink_counts_flow_EXACTLY_at_eps_as_quiet():
+    # The bound is inclusive: |x| == eps is quiet. Alternating +eps and -eps never repeats a value.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=1.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch(_alternating(25, 0.5, -0.5)))
+    assert ev.is_set(), "25 samples at exactly eps must reach a 1 s hold"
+
+
+def test_therapy_end_sink_restarts_the_count_at_ZERO_after_an_unreadable_sample():
+    # After a None the next quiet sample is the run's FIRST: 24 must not stop a 1 s hold, the 25th must.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=1.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.0] * 10 + [None] + _alternating(24, 0.0, 0.1)))
+    assert not ev.is_set(), "24 quiet samples after the gap are 1 short of the hold"
+    s.on_batch(_batch([0.0]))
+    assert ev.is_set(), "the 25th quiet sample after the gap reaches the hold"
+
+
+def test_therapy_end_sink_logs_the_stop_with_its_eps_and_hold(caplog):
+    # The log line is the only operator-visible witness that the auto-stop, not the button, ended the
+    # stream. It must render, and it must carry the thresholds that made the decision.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.25, hold_s=1.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        s.on_batch(_batch([0.0] * 25))
+    msgs = [r.getMessage() for r in caplog.records if "therapy end detected" in r.getMessage()]
+    assert msgs == ["CPAP therapy end detected — flow |x| <= 0.25 or frozen for 1 s; stopping the stream"]
+
+
 def test_controller_appends_the_therapy_end_sink_LAST():
     """ACTING wiring. Order is load-bearing: the durable sinks must persist the triggering batch BEFORE
     the therapy-end sink sets should_stop, or the batch that ends the session is the one batch lost."""
