@@ -32,29 +32,51 @@
     const n = peaks.length;
     if (n < 4) return null;
     // window: from a little before the foot to ~80% of a beat after the peak
-    const pre = Math.round(fs * 0.15); // before systolic peak
+    /* PPGDEX-ALGORITHM-DEEP-DIVE §4 item 8 (owner-approved 2026-09-06: PpgDex's exported values may
+       move). `pre` was 0.15 s — SHORTER than the foot-to-peak rise it has to contain (~296 ms on this
+       device), so `riseTimeMs` could never exceed ms(pre) and reported a 147.4 ms ceiling instead of a
+       measurement. 0.50 s holds the rise with headroom.
+       Widening ALONE would relocate the defect rather than remove it: the template-level foot used to
+       be a global minimum over [0, sysI), and once RR < pre + rise (above ~80 bpm, which a sports
+       armband reaches) the PREVIOUS beat's foot enters that window and wins the minimum — the same
+       pinning, at a number physiologically plausible enough to hide. So the search is gone too, and
+       `footOff` below carries the detector's own feet, which this function already trusts for the
+       amplitude normalisation a few lines down. See the brief's precondition (2026-08-19) and its
+       resolved design call (2026-08-20). */
+    const pre = Math.round(fs * 0.5); // before systolic peak — must contain the foot-to-peak rise
     const post = Math.round(fs * 0.55); // capture notch + diastolic + decay
     const L = pre + post;
     // collect amplitude-normalised, peak-aligned beats (clean only)
     const cols = [];
     for (let j = 0; j < L; j++) cols.push([]);
     let used = 0;
+    const footOffs = [];
     for (let k = 1; k < n - 1; k++) {
       if (sqi && sqi[k] < 0.5) continue;
       const p = peaks[k];
       if (p - pre < 0 || p + post >= bp.length) continue;
       // normalise this beat foot→peak so amplitude differences don't smear the template
-      const footV = bp[Math.max(0, Math.round(feet[k]))];
+      const fi = Math.round(feet[k]);
+      const footV = bp[Math.max(0, fi)];
       const pkV = bp[p];
       const amp = pkV - footV || 1;
       for (let j = 0; j < L; j++) cols[j].push((bp[p - pre + j] - footV) / amp);
+      /* This beat's own foot, in samples before its peak. A foot that is non-finite, at or after the
+         peak, or outside the template window contributes NOTHING — never a clamp and never a default
+         (CLAUDE.md §∅), because a fabricated offset here would read as a measured rise time. */
+      const off = p - fi;
+      if (Number.isFinite(off) && off >= 1 && off <= pre) footOffs.push(off);
       used++;
       if (used >= 600) break;
     }
     if (used < 4) return null;
+    /* The template's foot sits at the MEDIAN of those offsets, over the same beats the template is
+       built from. Under four surviving offsets there is no foot to carry, so it travels as null and
+       `delineate` refuses with a named reason rather than inventing one. */
+    const footOff = footOffs.length >= 4 ? Math.round(median(footOffs)) : null;
     const beat = new Float64Array(L);
     for (let j = 0; j < L; j++) beat[j] = median(cols[j]);
-    return { beat, pre, post, L, fs, nUsed: used };
+    return { beat, pre, post, L, fs, nUsed: used, footOff };
   }
 
   // ── delineate the median pulse → fiducials + indices ───────────────────────
@@ -70,15 +92,13 @@
         sysI = i;
       }
     }
-    // foot = minimum before the systolic peak
-    let footI = 0,
-      footV = beat[0];
-    for (let i = 0; i < sysI; i++) {
-      if (beat[i] < footV) {
-        footV = beat[i];
-        footI = i;
-      }
-    }
+    /* foot = the detector's own foot, mapped into template coordinates (§4 item 8). The minimum
+       search this replaces could be won by the previous beat's foot at any RR shorter than the
+       window; a derived offset cannot be, at any heart rate. */
+    if (!Number.isFinite(mp.footOff)) return { valid: false, reason: 'foot-offset-absent' };
+    const footI = pre - mp.footOff;
+    if (footI < 0 || footI >= sysI) return { valid: false, reason: 'foot-outside-template' };
+    const footV = beat[footI];
     const amp = sysV - footV || 1;
     // first & second derivative
     const d1 = new Float64Array(L),
@@ -306,7 +326,7 @@
     const perWindow = perWindowMorph(bp, raw, det, fs, sqi, 60);
     const pi = perfusionIndex(bp, raw);
     return {
-      medianBeat: mp ? { beat: Array.from(mp.beat), pre: mp.pre, fs: mp.fs, L: mp.L, nUsed: mp.nUsed } : null,
+      medianBeat: mp ? { beat: Array.from(mp.beat), pre: mp.pre, fs: mp.fs, L: mp.L, nUsed: mp.nUsed, footOff: mp.footOff } : null,
       delin: del,
       riseTimeMs: del.valid ? del.riseTimeMs : null,
       crestTimeMs: del.valid ? del.crestTimeMs : null,
