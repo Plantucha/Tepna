@@ -3178,6 +3178,93 @@
 
      The phone maximum is exactly one stamp quantum (1 ms): its host column is the device time rounded.
      Nothing in either tree lands between 1.00 and 101.89 ms. */
+    /* PPGDEX-ALGORITHM-DEEP-DIVE §4 item 8. Two defects live at one site, and fixing either alone
+       leaves the other: the median-pulse template was 0.15 s wide, so `riseTimeMs` could not exceed
+       148 ms and reported the window instead of the rise; and the template-level foot was a global
+       minimum over [0, sysI), which any deeper trough inside a WIDER window wins. The brief's
+       precondition (2026-08-19) measured the first and predicted the second, and its design call
+       (2026-08-20) resolved that #8 must widen the window AND take the foot from `det.feet`.
+       Nothing downstream pins these numbers — morphology reaches the UI and never the node export —
+       so the committed fixtures moved only their two hash fields when this landed, and these
+       assertions are the only thing that can see the behaviour. They are known-answer: the synthetic
+       train carries a rise the test itself chose. */
+    group('the median-pulse foot comes from the detector, so rise time is a measurement and not the template width', 'ppgdex-morph · PPGDEX-ALGORITHM-DEEP-DIVE-item-8 · known-answer', function (T) {
+      var PM = env.PPGMorph;
+      if (!PM || typeof PM.medianPulse !== 'function' || typeof PM.delineate !== 'function') {
+        T.skip('PPGMorph.medianPulse + PPGMorph.delineate reachable', 'not loaded');
+        return;
+      }
+      var FS = 135,
+        RR = 122, // ~66 bpm, the committed corpus regime
+        RISE = 34; // 251.9 ms foot→peak — ABOVE the retired 148 ms ceiling, by construction
+      // A pulse train whose foot→peak distance is exactly RISE. `dip` plants a trough deeper than the
+      // foot at a fixed offset from each window start, which is what a minimum search would find.
+      function train(nBeats, dipOff, dipV, footsFinite) {
+        var start = 2 * RR,
+          len = start + (nBeats + 2) * RR,
+          bp = new Float64Array(len),
+          peaks = [],
+          feet = [];
+        for (var b = 0; b < nBeats; b++) {
+          var pk = start + b * RR,
+            ft = pk - RISE;
+          for (var i = ft; i <= pk; i++) bp[i] = Math.sin((Math.PI / 2) * ((i - ft) / RISE));
+          var decay = RR - RISE;
+          for (var j = 1; j <= decay; j++) bp[pk + j] = 0.5 * (1 + Math.cos((Math.PI * j) / decay));
+          if (dipOff != null) {
+            var di = pk - Math.round(FS * 0.5) + dipOff;
+            if (di >= 0) bp[di] = dipV;
+          }
+          peaks.push(pk);
+          feet.push(footsFinite ? ft : NaN);
+        }
+        return { bp: bp, det: { peaks: peaks, feet: feet } };
+      }
+      var trueRiseMs = Math.round((RISE / FS) * 10000) / 10;
+      var RETIRED_CEILING_MS = 148.1; // ms(round(135 * 0.15)) — what the 0.15 s template could report
+
+      // ── 1 · the rise is the rise, not the window
+      var A = train(10, null, 0, true);
+      var mpA = PM.medianPulse(A.bp, A.det, FS, null);
+      var dA = mpA ? PM.delineate(mpA) : { valid: false };
+      var okA = !!(mpA && dA && dA.valid);
+      // the detail is the FAILURE's reason only — a pass that prints "no template" reads as an absence
+      T.ok('a 10-beat train delineates', okA, okA ? undefined : (dA && dA.reason) || 'no template');
+      if (mpA && dA && dA.valid) {
+        T.ok(
+          'riseTimeMs reports the planted 251.9 ms rise, which the retired 0.15 s template could not express',
+          Math.abs(dA.riseTimeMs - trueRiseMs) <= 0.2 && dA.riseTimeMs > RETIRED_CEILING_MS,
+          dA.riseTimeMs + ' vs ' + trueRiseMs
+        );
+        T.eq('the foot offset travels in the export, so a reader can check where the foot came from', mpA.footOff, RISE);
+      }
+
+      // ── 2 · a trough deeper than the foot cannot win, because nothing searches
+      var B = train(10, 2, -3, true);
+      var mpB = PM.medianPulse(B.bp, B.det, FS, null);
+      var dB = mpB ? PM.delineate(mpB) : { valid: false };
+      if (mpB && dB && dB.valid) {
+        T.ok(
+          'a −3 trough two samples into the window leaves riseTimeMs unchanged — a minimum search would have read ~489 ms',
+          Math.abs(dB.riseTimeMs - trueRiseMs) <= 0.2,
+          dB.riseTimeMs + ' vs ' + trueRiseMs
+        );
+      } else T.ok('the trough train still delineates', false, dB && dB.reason ? dB.reason : 'no template');
+
+      // ── 3 · ∅ no detected foot is NOT a foot at sample 0: the refusal is named and every
+      //      morphology number the consumer reads is null, never a plausible number.
+      var C = train(10, null, 0, false);
+      var mpC = PM.medianPulse(C.bp, C.det, FS, null);
+      var dC = mpC ? PM.delineate(mpC) : { valid: false };
+      T.eq('feet that are all non-finite refuse with a named reason', JSON.stringify({ v: dC.valid, r: dC.reason || null }), '{"v":false,"r":"foot-offset-absent"}');
+      var anC = PM.analyze(C.bp, C.bp, C.det, FS, null);
+      T.eq(
+        '…and the morphology block the UI reads is null throughout, with no fabricated rise',
+        JSON.stringify({ r: anC.riseTimeMs, c: anC.crestTimeMs, w: anC.pulseWidthMs, a: anC.augmentationIndexPct }),
+        '{"r":null,"c":null,"w":null,"a":null}'
+      );
+    });
+
     group('hostAxis declares an INERT axis — host ≡ device is not "two clocks that agree"', 'clock · known-answer', function (T) {
       var C = env.DexClock;
       T.ok('DexClock.hostAxis present', !!(C && typeof C.hostAxis === 'function'));

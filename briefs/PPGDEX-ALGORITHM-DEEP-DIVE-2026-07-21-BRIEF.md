@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged.
+**Status:** IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS.
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -466,6 +466,37 @@ needs no new machinery — `CLAUDE.md` §🔏's list naming only CPAPDex/GlucoDe
 corrected in this PR. The row's *"cheapest gate in the list"* stands; what changes is that the
 regeneration is routine rather than a prerequisite project.
 
+### ✅ #8 EXECUTED 2026-10-19 — both halves, and the row's blast radius was wrong in the cheap direction
+
+`ppgdex-morph.js` now spans `pre = 0.50 s` AND takes the template foot from `det.feet` — the median
+offset over the same beats the template is built from. The minimum search is deleted, so the previous
+beat's foot cannot win it at any heart rate and the precondition's HR > 80 bpm relocation cannot occur.
+A foot that is non-finite, at or after the peak, or outside the window contributes nothing; under four
+surviving offsets the foot travels as `null` and `delineate` refuses with `reason:
+'foot-offset-absent'`, which nulls every morphology number the UI reads.
+
+**What moved, measured rather than asserted:** `PpgDex.html` manifestHash `f98ba9fe8953` →
+`70dc617787fb`, computeHash `a9141203d3c5` → `a48ff5c3263e`. All six fixtures regenerated with
+`tools/regen-ppgdex-goldens.mjs`, and **the only fields that moved in any of them are those two hashes
+— not one measured value.** §5's primary endpoint is untouched by construction: `PPGMorph.analyze` is a
+terminal consumer at `ppgdex-dsp.js:5432` and nothing in the detection or PPI path reads it, so no beat
+time, interval or jitter figure depends on this change.
+
+⚠️ **The blast-radius paragraph above says "every morphology number moves, not four of them". That is
+true of the UI and false of the export.** No morphology value is carried in `ganglior.node-export` —
+`riseTimeMs` and its siblings reach `ppgdex-app.js`'s cards and the median-pulse figure and stop there —
+so no fixture ever held one, and no gate could see either the defect or its repair. The three committed
+assertions added with this change are the only artifact that can: the planted 251.9 ms rise the retired
+0.15 s template could not express (its ceiling was `ms(round(135 × 0.15))` = 148.1 ms), a −3 trough two
+samples into the window that the deleted search would have read as ~489 ms, and all-non-finite feet
+refusing by name.
+
+⚠️ **Carried forward for #1, #6, #7 and #10:** §5's *"the `env.equiv` PPG leg **will** red"* holds only
+for values the export carries. Size those items against the export, and when the number lives in the UI
+the committed assertion is the deliverable, not the fixture move.
+
+---
+
 **Still NOT implemented here, deliberately.** This resolves the design question the precondition
 posed, but #8 moves every exported morphology value on a shipped node — that is an owner-visible
 change to published health numbers, and the two prior passes both stopped at the same line. The
@@ -473,7 +504,7 @@ implementation is now unblocked and specified; the decision to move those number
 to take unilaterally.
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 → 1 → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
 
