@@ -135,12 +135,17 @@ PREWORK_RECORD_FILE = PREWORK_FILE
 
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK,
+    SWEEP_CRITERION,
+    SWEEP_GATE,
     budget_verdict,
     deselect_args,
     deselect_notes,
     select_tests,
     sweep_exit_verdict,
+    sweep_verdict_fields,
 )
+
+import verdict as VD  # noqa: E402
 
 
 def _primary_checkout_venv() -> str | None:
@@ -881,7 +886,31 @@ def main(argv=None) -> int:
         f"record the diff-scoped gate's pre-work bound reads. Off by default, on the same terms as "
         f"--record-sizes; a run that never reached a mutant records nothing",
     )
+    ap.add_argument(
+        "--verdict-sample",
+        action="store_true",
+        help="print one synthetic tepna.verdict/1 object built by the real builder and exit (the "
+        "adoption gate reads this — it runs no mutant and needs no venv)",
+    )
     a = ap.parse_args(argv)
+    if a.verdict_sample:
+        # SYNTHETIC BY THE REAL BUILDER: two modules examined, both decided. A sample assembled by
+        # hand would pass the adoption gate while the production path emitted something else.
+        print(
+            json.dumps(
+                VD.make(
+                    gate=SWEEP_GATE,
+                    criterion=SWEEP_CRITERION,
+                    tool="capture-host/tools/mutate.py",
+                    **sweep_verdict_fields(
+                        [{"module": "nightqc.py", "rc": 0}, {"module": "capture.py", "rc": 0}],
+                        [],
+                    ),
+                ),
+                indent=1,
+            )
+        )
+        return 0
     if a.list:
         for m in modules():
             print(f"{m:24s} {len(tests_for(m))} test file(s)")
@@ -986,17 +1015,32 @@ def main(argv=None) -> int:
     # outside the coverage denominator, and an exit code that can be WRONG rather than loud belongs
     # inside it. The reasons are printed, because a bare non-zero exit sends the reader to the tail.
     #
-    # ⚠️ THE PREFIX DELIBERATELY CARRIES NO DECISION WORD. This file's `verdict-adoption.json` row is
-    # `word-only` on the claim that "verdict words appear only in comments", and the first wording
-    # here was `NO VERDICT`, which made that claim false and redded `checkWordOnlyClaim` — correctly,
-    # since the check reads the source and never the reason text. The honest repair is to keep the
-    # claim TRUE rather than to re-assert it: what this line owes the reader is which PHASE decided
-    # nothing, and that needs none of the contract's status words. A real `tepna.verdict/1` object
-    # here is a separate adoption, with its own criterion and population, and it is logged as residue
-    # rather than smuggled into an exit-code fix.
+    # ⚠️ THE PREFIX DELIBERATELY CARRIES NO DECISION WORD, and it keeps that property now that the
+    # object is here. The first wording was `NO VERDICT`, which made the old `word-only` adoption claim
+    # false and redded `checkWordOnlyClaim` — correctly, since that check reads the source and never
+    # the reason text. What the line owes its reader is which PHASE decided nothing, and that needs
+    # none of the contract's status words. The status words now belong to the object below.
+    #
+    # ADOPTED 2026-10-19 (residue `2026-10-19-mutate-sweep-prints-nothing-decided-with-no-verdict-object`,
+    # promised in #3684's body). ONE read of the records feeds both surfaces: `sweep_exit_verdict`
+    # returns the exit code and the reasons, the prose prints the reasons, and `sweep_verdict_fields`
+    # turns the same two into the object's status, population and reason. A second read could part
+    # from the first, and a verdict disagreeing with the prose beside it is worse than either alone.
     code, reasons = sweep_exit_verdict(records)
     for why in reasons:
         print(f"NOTHING DECIDED  {why}", flush=True)
+    print(
+        json.dumps(
+            VD.make(
+                gate=SWEEP_GATE,
+                criterion=SWEEP_CRITERION,
+                tool="capture-host/tools/mutate.py",
+                **sweep_verdict_fields(records, reasons),
+            ),
+            indent=1,
+        ),
+        flush=True,
+    )
     return code
 
 
