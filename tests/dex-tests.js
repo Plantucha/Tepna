@@ -20121,8 +20121,19 @@
          physiologically plausible series hides both. */
       var f8b = flat(8);
       var z = P.lombScargle(f8b.tt, f8b.nn);
-      T.eq('a FLAT 8-beat series reports zero power, not null', z && z.totalPower, 0);
-      T.eq('…vlf/lf/hf are each exactly 0', JSON.stringify(z && [z.vlf, z.lf, z.hf]), '[0,0,0]');
+      /* PUNCH LIST #11 — `flat(n)` spaces its beats 1 s apart, so eight of them span 7 s and the
+         lowest frequency that span can resolve is 1/7 = 0.143 Hz. That sits ABOVE the VLF band's
+         0.04 Hz upper edge, so this series holds no resolvable VLF bin at all and the band refuses.
+         LF survives by 0.007 Hz (its upper edge is 0.15) and HF by a wide margin, and both measure a
+         real zero. `totalPower` is DEFINED as the sum of the three bands, so a total over the two
+         that reported would under-report by exactly the refused one — it refuses with them. The
+         zero-power witness itself now sits on `flat(400)` below, which has the support for all
+         three bands, so the mutants this shape was aimed at stay killable on BOTH series. */
+      T.eq('a flat 8-beat series refuses the VLF its 7 s cannot resolve', z && z.vlf, null);
+      T.eq('…vlf/lf/hf read [null,0,0]: one band absent, two measuring a real zero', JSON.stringify(z && [z.vlf, z.lf, z.hf]), '[null,0,0]');
+      T.eq('…totalPower refuses with it, because it is the SUM of the reported bands', z && z.totalPower, null);
+      T.eq('…and the refusal names itself rather than leaving a bare null', z && z.bandReason, 'span-below-band-resolution');
+      T.eq('…the covered span travels with the result, so the support is never inferred', z && z.spanSec, 7);
       T.eq('…respRate is null: no oscillation means no HF peak to report', z && z.respRate, null);
       T.eq('…and no method is claimed for a rate that does not exist', z && z.respRateMethod, null);
       /* ⚠️ DO NOT COMPARE THESE THROUGH `JSON.stringify` — that is how this assertion was written, and
@@ -20139,6 +20150,26 @@
         'lfhf=' + (z && String(z.lfhf)) + ' lfnu=' + (z && String(z.lfnu)) + ' hfnu=' + (z && String(z.hfnu))
       );
       T.ok('…and none of them is NaN (the shape JSON.stringify would have hidden)', z && !Number.isNaN(z.lfhf) && !Number.isNaN(z.lfnu) && !Number.isNaN(z.hfnu), 'lfhf=' + (z && String(z.lfhf)));
+
+      /* #11 — ZERO POWER IS A MEASUREMENT, and this is where that claim now rests: 400 flat beats
+         span 399 s, which resolves down to 0.0025 Hz, under the VLF band's 0.003 Hz lower edge. So
+         every band has the support to report, all three report a true zero, and `totalPower` is 0
+         rather than null. Keeping this witness beside the 7 s one is the point: the first proves a
+         band with no resolvable bin refuses, the second proves a resolvable band does NOT refuse
+         merely because its answer is zero — the failure mode §∅ exists to catch, read the other way
+         round. The `hf > 0` and `lf + hf > 0` mutants are observable on both. */
+      var fLong = flat(400);
+      var zl = P.lombScargle(fLong.tt, fLong.nn);
+      T.eq('400 flat beats span enough for every band, so a flat spectrum reports zero power', zl && zl.totalPower, 0);
+      T.eq('…vlf/lf/hf are each exactly 0, none of them refused', JSON.stringify(zl && [zl.vlf, zl.lf, zl.hf]), '[0,0,0]');
+      T.eq('…and no reason is attached, because nothing refused', zl && zl.bandReason === undefined, true);
+      T.eq('…the span it rests on is reported, not assumed', zl && zl.spanSec, 399);
+      T.ok(
+        '…lfhf/lfnu/hfnu stay STRICTLY null over a measured zero, exactly as on the short series',
+        zl && zl.lfhf === null && zl.lfnu === null && zl.hfnu === null,
+        'lfhf=' + (zl && String(zl.lfhf)) + ' lfnu=' + (zl && String(zl.lfnu)) + ' hfnu=' + (zl && String(zl.hfnu))
+      );
+      T.eq('…and respRate is null on it too: a flat series has no HF peak at any length', zl && zl.respRate, null);
 
       /* THE VLF LOWER BOUND IS INCLUSIVE, and only a component sitting exactly ON it can show that.
          `f >= bands.vlf[0]` mutated to `f >` drops the bin at exactly 0.003 Hz. A first attempt

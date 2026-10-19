@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a84d0b466fab" data-compute-hash="6e63d9a8b71e"><head>
+<html lang="en" data-manifest-hash="21be639c7262" data-compute-hash="f38a1dbe2b85"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dOJCQs60dAm5qOBE+3EnKdPWLYhPtThItycDVLJ4tNE=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jPmO7lAwGPLkhRdFiKGmCOWTvq2ZFvhgA9HQnhu7cLU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-6oOaq1BljSGUj1Xz/c8r6YyRfyw90IYbZesm/4RA3f8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dOJCQs60dAm5qOBE+3EnKdPWLYhPtThItycDVLJ4tNE=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -31699,6 +31699,20 @@ __exports.GlucoDex = window.GlucoDex;
       icpt = (sy - slope * st) / N;
     for (let i = 0; i < N; i++) y[i] -= slope * t[i] + icpt;
     const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };
+    /* PUNCH LIST #11 — the span the beats COVER decides which bands this series can carry, not the
+       window they sit in. `buildEpochs` cuts 300 s windows by the clock and gates on a beat COUNT
+       (`idx.length < 5`), and the guard above gates on another (`nn.length < 8`), so an epoch holding
+       8 beats across 20 s used to report a VLF whose lowest RESOLVABLE frequency (1/span = 0.05 Hz)
+       sits above that band's upper edge: a number over a band with no resolvable bin in it at all.
+       Such a band is `null` with a named reason, never 0 (CLAUDE.md §∅).
+       A band whose LOWER edge alone is unresolvable is TRUNCATED, not absent, and reduced coverage
+       ANNOTATES (owner 2026-09-17) — so `spanSec` travels with the result and the band keeps its
+       value. That is the VLF case at this window: 1/300 s = 0.0033 Hz against a 0.003 Hz lower edge,
+       measured on 1098 of 1098 band-reporting epochs over the nine reference nights. */
+    const spanSec = t.length > 1 ? t[t.length - 1] - t[0] : 0;
+    const resFloorHz = spanSec > 0 ? 1 / spanSec : Infinity;
+    const bandRefused = (b) => resFloorHz >= bands[b][1];
+    const spanReason = 'span-below-band-resolution';
     const fmin = 0.003,
       fmax = 0.4,
       df = 0.002;
@@ -31788,23 +31802,35 @@ __exports.GlucoDex = window.GlucoDex;
        vlf+lf+hf == totalPower holds EXACTLY rather than to within rounding — the same treatment
        ecgdex-dsp.js and pulsedex-dsp.js already apply. Rounding a separately-accumulated `total`
        could differ by 1 from the sum of the rounded parts, which is what it just did. */
-    const _v = Math.round(vlf),
-      _l = Math.round(lf),
-      _h = Math.round(hf);
+    const _v = bandRefused('vlf') ? null : Math.round(vlf),
+      _l = bandRefused('lf') ? null : Math.round(lf),
+      _h = bandRefused('hf') ? null : Math.round(hf);
+    /* #11 — the Task-Force identity vlf+lf+hf == totalPower is what totalPower MEANS here, so a total
+       over a subset of the bands would under-report by exactly the refused band. A refused band nulls
+       the total with it, and every derived figure dies with its own inputs: lfhf/lfnu/hfnu need lf AND
+       hf, and respRate is the HF argmax. */
+    const _anyRefused = _v == null || _l == null || _h == null;
+    const _hfOK = _h != null,
+      _ratioOK = _l != null && _hfOK;
     return {
       vlf: _v,
       lf: _l,
       hf: _h,
-      totalPower: _v + _l + _h,
-      lfhf: lfhf != null ? r2(lfhf) : null,
-      lfnu: lfnu != null ? Math.round(lfnu) : null,
-      hfnu: hfnu != null ? Math.round(hfnu) : null,
+      totalPower: _anyRefused ? null : _v + _l + _h,
+      lfhf: _ratioOK && lfhf != null ? r2(lfhf) : null,
+      lfnu: _ratioOK && lfnu != null ? Math.round(lfnu) : null,
+      hfnu: _ratioOK && hfnu != null ? Math.round(hfnu) : null,
+      /* The support behind every band above, in seconds — present always, so a consumer never has to
+         infer it from the window. The reason rides along only when a band actually refused, so a
+         series with full support keeps a byte-stable shape. */
+      spanSec: r2(spanSec),
+      ...(_anyRefused ? { bandReason: spanReason } : {}),
       /* §1.6 link 1 — the HF peak as a RESPIRATION RATE, breaths/min. Same method and same name as
          ECGDex's (`RSA (HF-peak of RR spectrum)`), so the Integrator's existing
          `summary.respRateBrpm = _hf.respRate` branch picks PpgDex up with no consumer change — link 3
          was already in place and had nothing to read. null when the HF band held no bin at all. */
-      respRate: hfPeakF != null ? r2(hfPeakF * 60) : null,
-      respRateMethod: hfPeakF != null ? 'RSA (HF-peak of RR spectrum)' : null
+      respRate: _hfOK && hfPeakF != null ? r2(hfPeakF * 60) : null,
+      respRateMethod: _hfOK && hfPeakF != null ? 'RSA (HF-peak of RR spectrum)' : null
     };
   }
   /* ── #2 treatment (2): the sequence-structure metrics SEGMENT, they do not splice ────────────────
@@ -33402,6 +33428,9 @@ __exports.GlucoDex = window.GlucoDex;
         idx.map((i) => tt[i]),
         seg
       );
+      /* #11 — the span this epoch's beats actually cover. Measured here rather than read off `ls`,
+         because an epoch of 5 to 7 beats has a span too and `lombScargle` refuses below 8. */
+      const epSpanSec = r2(tt[idx[idx.length - 1]] - tt[idx[0]]);
       /* §3a: average only over beats the inertial stream actually COVERED. `motion.hasData` is a
          SESSION-level fact, so without this an epoch past the end of a short ACC stream averaged a
          run of fabricated zeros into a confident "still" reading. No coverage in this epoch ⇒ null
@@ -33439,6 +33468,11 @@ __exports.GlucoDex = window.GlucoDex;
         vlf: ls ? ls.vlf : null,
         tp: ls ? ls.totalPower : null,
         lfhf: ls ? ls.lfhf : null,
+        /* #11 — the support behind the five band figures above. A consumer reading an epoch's `lfhf`
+           can see the span it rests on instead of assuming the 300 s window. The reason rides along
+           only when a band refused, so a full-support epoch keeps a byte-stable shape. */
+        spanSec: epSpanSec,
+        ...(ls && ls.bandReason ? { bandReason: ls.bandReason } : {}),
         // §1.6 link 2 — was a hardcoded `null` sitting among computed siblings, which is why the
         // modulation showed up as hf power on every epoch and never as a rate.
         respRate: ls ? ls.respRate : null,
@@ -35459,6 +35493,11 @@ __exports.GlucoDex = window.GlucoDex;
             rmssd: nz(e.rmssd),
             sdnn: nz(e.sdnn),
             lfhf: nz(e.lfhf),
+            /* #11 — `lfhf` leaves the node with the span it was computed over, so a consumer never
+               has to read the 5-min window as the support. A band with no resolvable bin in it is
+               null and names why. */
+            spanSec: nz(e.spanSec),
+            ...(e.bandReason ? { bandReason: e.bandReason } : {}),
             motionIndex: nz(e.motionIndex),
             ledAgreementPct: nz(e.ledAgreementPct),
             position: e.position || 'unknown',
