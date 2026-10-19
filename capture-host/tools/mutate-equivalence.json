@@ -5212,6 +5212,24 @@
       "probe": "4536 candidate RTCLOG rows: 3 timestamp fields x 7 event spellings (`read`, `push`, `reset`, `read ` with a trailing space, ` read`, `battery`, empty) x 9 offset fields x 3 trailing-column shapes (none, the writer's `;;;;`, a bare `;`) x 4 line endings x 2 leading-newline variants. Compared the reader's DECISION per row -- skip / drop / read / push / reset -- across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
       "why": "The stripped text has exactly two consumers and an end-of-line strip reaches neither: `c[1] not in (\"push\", \"read\", \"reset\")` compares an INTERIOR field, and `float(c[2])` already tolerates surrounding whitespace. `len(c) < 3` counts `;` separators, which no strip variant changes. A row whose event field carries its own trailing space fails the membership test identically under all three.",
       "note": "PROBED AT THIS CALL SITE, not transferred. The same mutation text in `clocks` has its own pair of entries with its own probe, and this file's history records that a claim does not carry between call sites because the mutation looks the same — there the consumer is `float(p[2])` alone, here it is also an exact membership test on `c[1]`."
+    },
+    {
+      "brief": "NIGHTQC-FLOATING-BAND (#3663) — every night band edge built in the floating frame, 2026-10-19",
+      "class": "no-distinguishing-input",
+      "key": "- return _nqc.night_band(cast(float, probe)) | + return _nqc.night_band(cast(None, probe))",
+      "function": "band_of",
+      "op": "type-argument substitution inside `typing.cast`, which is the identity at runtime",
+      "probe": "No probe is possible and none is owed: the mutated subexpression's VALUE is `probe` on both sides, so every input is a non-distinguishing input. Verified by reading `typing.cast`'s own source in the interpreter the gate runs and by the identity check in `why`, 2026-10-19.",
+      "why": "`typing.cast` IS THE IDENTITY FUNCTION AT RUNTIME. Its body is `return val`, so `cast(None, v)` returns `v` itself whatever the first argument says — measured against the interpreter this gate runs: `inspect.getsource(typing.cast)` ends in `return val`, and `cast(None, o) is o` is True for an arbitrary object. The first argument is consumed by the TYPE CHECKER and never by the interpreter, so no input to this module can distinguish the mutant and there is nothing for a test to observe. The claim is NOT that the mutation is harmless: a different gate in the same `check.sh` owns it and does catch it. mypy on `return cast(None, x)` under a `-> float` signature reports `error: Incompatible return value type (got \"None\", expected \"float\")  [return-value]`, reproduced 2026-10-19 on a three-line file of this shape. A test written to chase it could only re-assert the surrounding behaviour the suite already covers. FALSIFY THIS by finding any first argument to `cast` that changes its return value."
+    },
+    {
+      "brief": "NIGHTQC-FLOATING-BAND (#3663) — every night band edge built in the floating frame, 2026-10-19",
+      "class": "no-distinguishing-input",
+      "key": "- t = cast(float, _nqc.floating_stamp_s(stamp)) | + t = cast(None, _nqc.floating_stamp_s(stamp))",
+      "function": "in_band",
+      "op": "type-argument substitution inside `typing.cast`, which is the identity at runtime",
+      "probe": "Same construct and same measurement as the entry above: `t` is bit-identical either side of the mutation, because the expression evaluates to `_nqc.floating_stamp_s(stamp)` whatever the first argument says, so every later use of `t` is identical too.",
+      "why": "`typing.cast` IS THE IDENTITY FUNCTION AT RUNTIME. Its body is `return val`, so `cast(None, v)` returns `v` itself whatever the first argument says — measured against the interpreter this gate runs: `inspect.getsource(typing.cast)` ends in `return val`, and `cast(None, o) is o` is True for an arbitrary object. The first argument is consumed by the TYPE CHECKER and never by the interpreter, so no input to this module can distinguish the mutant and there is nothing for a test to observe. The claim is NOT that the mutation is harmless: a different gate in the same `check.sh` owns it and does catch it. mypy on `return cast(None, x)` under a `-> float` signature reports `error: Incompatible return value type (got \"None\", expected \"float\")  [return-value]`, reproduced 2026-10-19 on a three-line file of this shape. A test written to chase it could only re-assert the surrounding behaviour the suite already covers. FALSIFY THIS by finding any first argument to `cast` that changes its return value."
     }
   ],
   "telemetry.py": [
