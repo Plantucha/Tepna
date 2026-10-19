@@ -139,6 +139,7 @@ from mutation_sweep import (  # noqa: E402
     deselect_args,
     deselect_notes,
     select_tests,
+    sweep_exit_verdict,
 )
 
 
@@ -395,6 +396,10 @@ def run_one(
         "clean_run_sec": round(clean_sec, 2),
         "timeout_sec": cap,
         "derived": timeout is None,
+        # THE SELECTION IS PART OF THE RECORD. Without it a reader of the JSON cannot tell a sweep of
+        # the whole module from one scoped to a single function, and `sweep_exit_verdict` cannot name
+        # the glob when the glob is what matched nothing. `None` is the honest value for "everything".
+        "only": only,
     }
     if budget and clean_sec > budget:
         # LOUD, with the numbers and the way out — the mjs sibling's --budget, same reasoning: a module
@@ -882,7 +887,7 @@ def main(argv=None) -> int:
             print(f"{m:24s} {len(tests_for(m))} test file(s)")
         return 0
     targets = [m if m.endswith(".py") else m + ".py" for m in a.modules]
-    skipped = 0
+    records: list[dict[str, Any]] = []
     for m in targets:
         print(f"\n=== {m} ===", flush=True)
         r = run_one(
@@ -894,8 +899,7 @@ def main(argv=None) -> int:
             reuse=not a.no_reuse,
             tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None,
         )
-        if r.get("skipped"):
-            skipped += 1
+        records.append(r)
         if a.record_sizes and r.get("mutants_bytes") and r.get("mutant_generation"):
             # Written only on request: the record is committed, so an ordinary run must not dirty the
             # tree. The measurement is whatever the generator actually wrote, keyed to the source hash
@@ -975,9 +979,25 @@ def main(argv=None) -> int:
         if rest:
             print(json.dumps(rest, indent=2)[:1600], flush=True)
         print(r.get("results", "")[:4000], flush=True)
-    # A skip is not a pass. Exit non-zero so a caller that skipped everything cannot mistake the run
-    # for a clean one — the same reason the tool refuses to report a timed-out module as complete.
-    return 1 if skipped else 0
+    # A skip is not a pass — and neither is a run mutmut refused, a cap that was hit, or a results
+    # pass that was never read. This used to be `1 if skipped else 0`, which made the skip count the
+    # ONLY fact reaching the exit code while the comment claimed the timed-out case too. The decision
+    # lives in `mutation_sweep.sweep_exit_verdict` for this file's own stated reason: `tools/` is
+    # outside the coverage denominator, and an exit code that can be WRONG rather than loud belongs
+    # inside it. The reasons are printed, because a bare non-zero exit sends the reader to the tail.
+    #
+    # ⚠️ THE PREFIX DELIBERATELY CARRIES NO DECISION WORD. This file's `verdict-adoption.json` row is
+    # `word-only` on the claim that "verdict words appear only in comments", and the first wording
+    # here was `NO VERDICT`, which made that claim false and redded `checkWordOnlyClaim` — correctly,
+    # since the check reads the source and never the reason text. The honest repair is to keep the
+    # claim TRUE rather than to re-assert it: what this line owes the reader is which PHASE decided
+    # nothing, and that needs none of the contract's status words. A real `tepna.verdict/1` object
+    # here is a separate adoption, with its own criterion and population, and it is logged as residue
+    # rather than smuggled into an exit-code fix.
+    code, reasons = sweep_exit_verdict(records)
+    for why in reasons:
+        print(f"NOTHING DECIDED  {why}", flush=True)
+    return code
 
 
 if __name__ == "__main__":
