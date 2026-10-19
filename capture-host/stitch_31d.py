@@ -283,11 +283,11 @@ def stitch_tool(
                 mark, held = out.tell(), fmt
                 try:
                     if src is None:
-                        raise FileNotFoundError(night_dir)
+                        raise FileNotFoundError  # caught below; only its type is read
                     with open(src, encoding="utf-8", errors="replace") as fh:
                         first = fh.readline()
                         if not first:
-                            raise EOFError(src)
+                            raise EOFError  # caught below; only its type is read
                         if fmt is None:
                             header = first.rstrip("\n")
                             delimiter = _detect_delimiter(header)
