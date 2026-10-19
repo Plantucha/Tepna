@@ -847,8 +847,10 @@ def test_a_folder_holding_TWO_NIGHTS_is_published_as_TWO_RECORDINGS(tmp_path):
     one set — and `pat-three-corner` re-grouped it wrong, taking the largest file per device independently
     and computing a -14.94 h three-way overlap.
 
-    Grouping is `nightqc.night_band`, the SAME band the QC verdict is scoped by, so a monitor click and a
-    verdict cannot disagree about which sessions are one night. The folder-wide keys stay as they were —
+    Grouping is `nightqc.night_key_band`, the noon-to-noon window the owner ruled on 2026-10-13. The QC
+    verdict is scoped by the SLEEP band, and the two answer different questions — which night a session
+    belongs to, and what counts as that night's signal — so a monitor click and a verdict still cannot
+    disagree about which sessions are one night. The folder-wide keys stay as they were —
     this is an additive field, because an existing reader of `files` must not silently receive a subset."""
     root = str(tmp_path)
     d = os.path.join(root, "captures", "2026-10-04")
@@ -882,15 +884,27 @@ def test_a_folder_holding_TWO_NIGHTS_is_published_as_TWO_RECORDINGS(tmp_path):
     assert second["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"]
     # the recording start is the second half of the identity, so two rows are distinguishable
     assert first["recording_start"] == "2026-10-04 00:28" and second["recording_start"] == "2026-10-04 22:02"
-    # ⚠️ CONSECUTIVE BANDS DO NOT ABUT, and the gap is the design, not a hole: a band is 16 h
-    # (18:00→10:00), so 10:00–18:00 belongs to NO night. That is the DAYTIME class — wear there is
-    # excluded from the night with its span named (NIGHT-IS-THE-RECORDING §scope) rather than folded into
-    # whichever night is nearer. I first asserted the bands abutted; they are 8 h apart and should be.
+    # 🔴 CONSECUTIVE KEY BANDS ABUT, BY OWNER RULING (2026-10-13): "no session falls between two
+    # nights". These are the bands the LISTING keys by, and they are noon-to-noon, so they tile the clock
+    # and every stamp has exactly one night.
+    #
+    # ⏪ THEY USED TO SIT 8 H APART, and that gap is now the SLEEP band's, not the key's. A sleep band is
+    # 16 h (18:00→10:00), so 10:00–18:00 belongs to no night's SIGNAL — wear there is excluded from the
+    # night with its span named (NIGHT-IS-THE-RECORDING §scope) rather than folded into whichever night
+    # is nearer. The exclusion survives this change: the gap moved from the key to admission, where the
+    # numbers are actually read. `nightqc._NIGHT_BEGIN_H`'s comment carries the 24-test measurement.
     b1, b2 = first["recordings"][0], second["recordings"][0]
-    assert b2["begin"] - b1["end"] == 8 * 3600.0, (
-        f"the daytime window between two nights is 8 h and belongs to neither: {b1['end']} → {b2['begin']}"
+    assert b2["begin"] - b1["end"] == 0.0, (
+        f"the key bands tile, so night D+1 opens where night D closed: {b1['end']} → {b2['begin']}"
     )
-    assert b1["end"] - b1["begin"] == 16 * 3600.0
+    assert b1["end"] - b1["begin"] == 24 * 3600.0
+    # and the SLEEP band it is keyed beside still leaves the 8 h daytime window to neither night
+    import nightqc as _nq
+
+    s1 = _nq.night_band(first["recordings"][0]["first"])
+    s2 = _nq.night_band(second["recordings"][0]["first"])
+    assert s2[0] - s1[1] == 8 * 3600.0, f"the sleep bands still stand 8 h apart: {s1} → {s2}"
+    assert s1[1] - s1[0] == 16 * 3600.0
 
 
 def test_a_file_with_NO_SESSION_STAMP_is_named_not_filed_under_a_guessed_band(tmp_path):
@@ -963,6 +977,41 @@ def test_an_unstamped_file_does_not_STOP_the_grouping_and_first_is_the_EARLIEST_
         f"and not None: {recs[0]['first']} != {want}"
     )
     assert recs[0]["begin"] <= recs[0]["first"] < recs[0]["end"]
+
+
+def test_ARRIVAL_FILES_BAND_AND_SORT_and_TWO_KEY_BANDS_STAY_TWO_RECORDINGS(tmp_path):
+    """Four more mutants of `recordings_of` that the tests above could not see (#3650's diff-scoped
+    gate). All four need one shape: an `arrival` list that is NON-EMPTY and spans two key bands.
+
+    `entry.get("arrival") or []` -> `and []`, and `entry.get("arrival")` -> `entry.get(None)`: both hand
+    back an EMPTY arrival list. Every test above passes `arrival: []` already, and an empty list cannot
+    tell an emptied one from itself.
+
+    `r["arrival"] = sorted(r["arrival"])` -> `None`: a recording's arrival files are SORTED, so this
+    fixture lists them out of walk order and the assertion names the order rather than the membership.
+
+    `by_band.setdefault(name, ...)` -> `setdefault(None, ...)`: one key for every band merges two nights
+    into ONE recording carrying the first name. A single-band fixture cannot see it, so this one spans
+    two — which is also the §(6) property stated through `recordings_of` directly rather than through
+    `index_nights`."""
+    entry = {
+        "arrival": [
+            # OUT OF ORDER on purpose: the later session is listed first
+            "2026-10-04/Polar_H10_02849638_20261004233000_PMDARRIVAL.csv",
+            "2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv",
+            # and this one sits in the NEXT key band, 15:00 the following afternoon
+            "2026-10-05/Polar_H10_02849638_20261005150000_PMDARRIVAL.csv",
+        ],
+    }
+    recs, unassigned = ni.recordings_of(entry)
+    assert [r["recording"] for r in recs] == ["2026-10-04", "2026-10-05"], recs
+    assert recs[0]["arrival"] == [
+        "2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv",
+        "2026-10-04/Polar_H10_02849638_20261004233000_PMDARRIVAL.csv",
+    ], f"the arrival files band, and they are sorted rather than kept in walk order: {recs[0]['arrival']}"
+    assert recs[1]["arrival"] == ["2026-10-05/Polar_H10_02849638_20261005150000_PMDARRIVAL.csv"]
+    assert unassigned == []
+    assert recs[1]["begin"] == recs[0]["end"], "the key bands abut, so the two recordings are adjacent"
 
 
 # ══ ONE NIGHT IS ONE ROW, EVEN WHEN THE POLAR STREAMS START AFTER MIDNIGHT (owner report 2026-10-09→10) ══
@@ -1141,18 +1190,19 @@ def test_an_EMPTY_date_keyed_tree_is_not_a_night(tmp_path):
     assert ni.index_nights(root, budget_s=None) == []
 
 
-def test_a_MIDDAY_session_joins_the_previous_band_as_its_own_row(tmp_path):
-    """⚠️ CONSECUTIVE BANDS DO NOT ABUT: a band is 16 h (18:00→10:00), so 10:00–18:00 belongs to no
-    night. I expected `nightqc.night_band` to return None there and asserted it; it does not.
+def test_a_MIDDAY_session_IS_KEYED_TO_ITS_OWN_DAY_not_the_previous_evening(tmp_path):
+    """🔴 THE OWNER'S NOON-TO-NOON RULING (2026-10-13), at the one site that used to get it wrong. A
+    14:00 session now keys to its OWN day, because the key band runs 12:00 to 12:00 and contains it.
 
-    🔴 MEASURED INSTEAD OF ASSUMED: for a stamp before 18:00 `night_band` anchors to the PREVIOUS
-    evening, so 14:00 is handed `[prev 18:00, 10:00)` — a band that ENDS FOUR HOURS BEFORE IT, which its
-    docstring ("the [begin, end) night band containing `ts`") does not say. Every plausible epoch
-    therefore has a band, and the `band is None` guard I first wrote was unreachable code; it is gone.
+    ⏪ WHAT IT USED TO DO, kept because it is why there are two bands. The sleep band is 16 h
+    (18:00→10:00), so 10:00–18:00 belongs to no night under it. I expected `night_band` to return None
+    there and asserted it; it does not. For a stamp before 18:00 it anchors to the PREVIOUS evening, so
+    14:00 was handed `[prev 18:00, 10:00)` — a band ENDING FOUR HOURS BEFORE IT. That is still true of
+    the sleep band and is asserted below, which is the point: a band that does not contain the stamp can
+    decide ADMISSION but must never decide the KEY.
 
-    The listing consequence is consistent with the 09:18 case and is what this asserts: a midday session
-    joins the previous band as its OWN recording and gets its own row, rather than vanishing from the
-    listing or merging into the night's cells."""
+    The listing consequence is still that a midday session gets its OWN row rather than vanishing or
+    merging into a night's cells. Only the row's key moved."""
     import datetime as _dt2
 
     import nightqc
@@ -1164,11 +1214,13 @@ def test_a_MIDDAY_session_joins_the_previous_band_as_its_own_row(tmp_path):
     t = _dt2.datetime.strptime("20261010140000", "%Y%m%d%H%M%S").timestamp()
     band = nightqc.night_band(t)
     assert band is not None and band[1] < t, (
-        "night_band returns the PREVIOUS evening's band for a midday stamp — one that does not contain "
-        f"it: {band} vs {t}"
+        "the SLEEP band still returns the previous evening's window for a midday stamp — one that does "
+        f"not contain it: {band} vs {t}"
     )
+    kb = nightqc.night_key_band(t)
+    assert kb[0] <= t < kb[1], f"the KEY band must contain the stamp it keys: {kb} vs {t}"
     rows = ni.index_nights(root, budget_s=None)
-    assert [r["night"] for r in rows] == ["2026-10-09"], rows
+    assert [r["night"] for r in rows] == ["2026-10-10"], rows
     assert rows[0]["recording_start"] == "2026-10-10 14:00", rows[0]
 
 
@@ -1606,9 +1658,10 @@ def test_THE_SCREENSHOT_NIGHT_is_one_row_and_the_daytime_sitting_is_flagged(tmp_
     The new facts are the other two rows the same band carries, and they are DIFFERENT QUESTIONS:
       · 09:18 is INSIDE `[18:00, 10:00)`, so its files are admitted and it is a second RECORDING — not
         daytime. The 10:00 edge is an owner ruling; moving it to catch this would move every span.
-      · 13:00 is in the gap no band covers. `night_band` still hands it the previous evening's band, so
-        it gets a row whose every cell is `None` — a session that recorded fine, published as a night
-        that recorded nothing. `daytime` is what stops that reading (§∅)."""
+      · 13:00 is keyed to ITS OWN day by the owner's noon-to-noon ruling (2026-10-13), so it is no
+        longer an empty row among this night's rows. Its cells are still every one `None`, because the
+        SLEEP band correctly says 13:00 is not night signal — a session that recorded fine, published as
+        a night that recorded nothing. `daytime` is what stops that reading (§∅)."""
     root = str(tmp_path)
     c = os.path.join(root, "captures")
     _put(c, "2026-10-09", "Wellue_O2Ring-S_S8AW_20261009212500_SPO2.csv", "Time,SpO2,PR\n", "20261010031300")
@@ -1620,8 +1673,13 @@ def test_THE_SCREENSHOT_NIGHT_is_one_row_and_the_daytime_sitting_is_flagged(tmp_
     rows = ni.index_nights(root, budget_s=None)
     by_start = {r["recording_start"][11:]: r for r in rows}
     assert sorted(by_start) == ["09:18", "13:00", "21:25"], sorted(by_start)
-    assert {r["night"] for r in rows} == {"2026-10-09"}, (
-        "all three band to the 10-09 evening — one band, three rows: " + str([r["night"] for r in rows])
+    assert {by_start[k]["night"] for k in ("21:25", "09:18")} == {"2026-10-09"}, (
+        "the 21:25 donning and the 09:18 sitting key to the 10-09 evening — one night, two rows: "
+        + str([r["night"] for r in rows])
+    )
+    assert by_start["13:00"]["night"] == "2026-10-10", (
+        "a 13:00 start is at or after the key band's noon, so it keys to its OWN day: "
+        + str(by_start["13:00"]["night"])
     )
 
     # ① THE NIGHT IS ONE ROW, ACROSS TWO FOLDERS — the screenshot's two half-nights.
@@ -1650,10 +1708,16 @@ def test_THE_SCREENSHOT_NIGHT_is_one_row_and_the_daytime_sitting_is_flagged(tmp_
     assert {r["daytime"] for r in rows} == {True, False}, [r["daytime"] for r in rows]
 
 
-def test_the_daytime_flag_sits_on_nightqc_s_OWN_band_edges(tmp_path):
-    """A second copy of 18 and 10 would drift the moment the owner moves an edge again — it was already
-    moved once (20 → 18 by ruling, 2026-10-05). So the edges are read from `nightqc` and the test
-    MONKEYPATCHES them: a flag computed from literals stays `True` at 13:00 and this reds."""
+def test_the_daytime_flag_sits_on_nightqc_s_OWN_DAYTIME_edges(tmp_path):
+    """A second copy of 10 and 18 would drift the moment the owner moves an edge again — the sleep band
+    was already moved once (20 → 18 by ruling, 2026-10-05) and the key band once more (noon-to-noon,
+    2026-10-13). So the edges are read from `nightqc` and the test MONKEYPATCHES them: a flag computed
+    from literals stays `True` at 13:00 and this reds.
+
+    ⚠️ IT IS `_DAYTIME_*` IT READS, NOT THE BAND. The flag used to be the sleep band's uncovered gap,
+    `_NIGHT_END_H <= h < _NIGHT_BEGIN_H`, which gave the same two hours by coincidence. The owner ruled
+    the flag separately, so patching a SLEEP edge must no longer move it — which is the second half of
+    what this asserts."""
     import nightqc
 
     root = str(tmp_path)
@@ -1667,11 +1731,21 @@ def test_the_daytime_flag_sits_on_nightqc_s_OWN_band_edges(tmp_path):
     stamps = recs[0][1]
     assert ni.night_entry(root, d, None, stamps)["daytime"] is True
 
+    lo, hi = nightqc._DAYTIME_BEGIN_H, nightqc._DAYTIME_END_H
+    try:
+        nightqc._DAYTIME_BEGIN_H, nightqc._DAYTIME_END_H = 14, 18  # 13:00 is now below the flag's floor
+        assert ni.night_entry(root, d, None, stamps)["daytime"] is False, (
+            "the flag read a literal 10 instead of nightqc._DAYTIME_BEGIN_H"
+        )
+    finally:
+        nightqc._DAYTIME_BEGIN_H, nightqc._DAYTIME_END_H = lo, hi
+
+    # AND A SLEEP EDGE MUST NOT MOVE IT. Same stamp, same expectation, with the band patched instead.
     end, begin = nightqc._NIGHT_END_H, nightqc._NIGHT_BEGIN_H
     try:
-        nightqc._NIGHT_END_H, nightqc._NIGHT_BEGIN_H = 14, 18  # 13:00 is now INSIDE the night
-        assert ni.night_entry(root, d, None, stamps)["daytime"] is False, (
-            "the flag read a literal 10 instead of nightqc._NIGHT_END_H"
+        nightqc._NIGHT_END_H, nightqc._NIGHT_BEGIN_H = 14, 18
+        assert ni.night_entry(root, d, None, stamps)["daytime"] is True, (
+            "the flag still reads the sleep band — the owner ruled the two separately"
         )
     finally:
         nightqc._NIGHT_END_H, nightqc._NIGHT_BEGIN_H = end, begin
