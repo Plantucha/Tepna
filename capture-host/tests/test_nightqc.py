@@ -6748,3 +6748,99 @@ def test_the_RECORDED_and_the_RECOVERED_offset_AGREE_on_one_night_in_one_zone(tm
         else:
             monkeypatch.setenv("TZ", before)
         time.tzset()
+
+
+# ── the writer offset is an ARGUMENT, and an argument no fixture varies is invisible ──────────────
+#
+# 🔴 EVERY SUMMARIZE FIXTURE ABOVE DECLARES AN OFFSET OF 0. `_band_in_frame(ts, 0.0)` and
+# `_band_in_frame(ts, None)` return the same pair, so the whole offset argument was indistinguishable
+# from absent across the suite — the diff-scoped mutation gate dropped `offset_sec` from both call
+# sites and from `night_view`'s, and nothing moved. That is the same blind spot as a `mkstemp` test
+# whose `tmp_path` shares a device with `/tmp`: the FIXTURE's environment, not the assertion, is what
+# hid the mutant. These four tests use a NON-ZERO offset for that reason alone.
+def test_the_writer_offset_moves_the_band_BY_ITS_OWN_SIGN(tmp_path):
+    """`_band_in_frame`'s three signs, asserted as VALUES.
+
+    🔴 THE SIGN IS THE WHOLE OF THIS HELPER and a flipped one is wrong by a whole UTC offset — the
+    defect `_band_date` and `_floating_mtime` were both fixed for. The docstring states the direction
+    (`offset_sec` RAISES a floating value, so the midpoint comes DOWN to choose the band and the edges
+    go back UP); nothing asserted it, and the gate flipped all three.
+
+    The figures are chosen so the four candidate answers are four DIFFERENT pairs. At 14:00 with a
+    +4 h offset the midpoint lands at 10:00 one way and 18:00 the other, and `_NIGHT_BEGIN_H` is 18,
+    so an input-sign flip does not shift the band — it selects the NEXT one. A test at a midpoint
+    comfortably inside one band would have read identical edges either way."""
+    t, off = 1792332000.0, 14400.0  # 2026-10-18 14:00 floating, the writer 4 h east of UTC
+    assert nightqc._band_in_frame(t, off) == (1792274400.0, 1792332000.0)
+    # Named as what must NOT come back, because each shares an edge with the right answer: pinning one
+    # edge rather than the pair passes over two of the three.
+    assert nightqc._band_in_frame(t, off) != (1792360800.0, 1792418400.0), "the midpoint went UP"
+    assert nightqc._band_in_frame(t, off) != (1792245600.0, 1792332000.0), "begin came back DOWN"
+    assert nightqc._band_in_frame(t, off) != (1792274400.0, 1792303200.0), "end came back DOWN"
+    # And the relation the docstring promises, so the pair stays tied to `night_band` itself.
+    b0, b1 = nightqc.night_band(t - off)
+    assert nightqc._band_in_frame(t, off) == (b0 + off, b1 + off)
+    assert nightqc._band_in_frame(t, None) == nightqc.night_band(t), "no offset, no conversion"
+
+
+def _night_with_one_session(tmp_path):
+    """One night, one stamped file — the smallest tree `summarize` publishes a judged session for."""
+    night = str(tmp_path / "2026-09-05")
+    os.makedirs(night)
+    _utime(_cap(night, "Polar_H10_02849638_20260905220000_HR.txt", 1800), 1_000_000)
+    return night
+
+
+def test_EVERY_band_this_summary_builds_carries_the_nights_own_offset(tmp_path):
+    """Both `_band_in_frame` call sites in `summarize`'s path, by a spy that delegates.
+
+    One is `night_view`'s own (it judges the session against the band), the other the JOIN test. A
+    band built without the offset is in the wrong frame by the offset itself, which is the one error
+    this whole change exists to remove — so the assertion is that no band is built any other way."""
+    seen = []
+    real = nightqc._band_in_frame
+
+    def _spy(ts, offset_sec):
+        seen.append((ts, offset_sec))
+        return real(ts, offset_sec)
+
+    night = _night_with_one_session(tmp_path)
+    try:
+        nightqc._band_in_frame = _spy
+        nightqc.summarize(
+            night,
+            [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}],
+            writer_offset=nightqc.declared_offset(14400.0),
+        )
+    finally:
+        nightqc._band_in_frame = real
+    assert seen, "summarize built no band at all — the fixture stopped reaching the judged session"
+    assert all(o == 14400.0 for _, o in seen), seen
+
+
+def test_night_view_IS_HANDED_the_offset_and_a_zero_one_cannot_show_it(tmp_path):
+    """The `night_window` call site, with the offset the suite's other fixtures leave at 0.
+
+    `test_the_night_window_and_arrival_are_computed_from_THIS_night` already captures this argument and
+    compares it with the published `writer_offset`. It passes over a mutant that drops the argument,
+    because in that fixture the recovered offset is not a number a dropped argument differs from. The
+    frame is part of the scope exactly as that test says; this one declares a frame that shows it."""
+    seen = {}
+
+    def _nv(cur, files, offset_sec=None):
+        seen["off"] = offset_sec
+        return {"ok": 1}
+
+    night = _night_with_one_session(tmp_path)
+    real = nightqc.night_view
+    try:
+        nightqc.night_view = _nv
+        s = nightqc.summarize(
+            night,
+            [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}],
+            writer_offset=nightqc.declared_offset(14400.0),
+        )
+    finally:
+        nightqc.night_view = real
+    assert s["night_window"] == {"ok": 1}, "the spy did not stand in for night_view"
+    assert seen["off"] == 14400.0, (seen, "night_view was judged in a frame that is not this night's")

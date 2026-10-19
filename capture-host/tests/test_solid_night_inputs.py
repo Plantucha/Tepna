@@ -6187,3 +6187,22 @@ def test_a_devices_FIRST_ROW_comes_from_a_STAMPED_span_never_from_an_unstamped_o
     ctx = si._device_context(str(tmp_path), H10, None)
     assert ctx["first"] == T0, "the stamped file's first row, not the unstamped file's None"
     assert len(ctx["spans"]) == 2 and any(v == (None, None) for v in ctx["spans"].values())
+
+
+def test_a_band_edge_arrives_as_the_CIVIL_COMPONENTS_the_capture_wrote(monkeypatch):
+    """`_band_civil` hands `worn_interval` a naive civil datetime, so its components are the capture's.
+
+    A naive `fromtimestamp` gives the READER's rendering instead, and the two agree on a UTC runner —
+    which is why this pins four zones rather than trusting the one it happens to run in. 02:30 is the
+    previous day in New York and late morning in Tokyo, so a naive read is wrong in the date one way
+    and in the hour the other."""
+    import time as _time
+
+    edge = 1792290600.0  # 2026-10-18 02:30 floating
+    want = dt.datetime(2026, 10, 18, 2, 30, 0)
+    for zone in ("UTC", "America/New_York", "Asia/Tokyo", "Australia/Sydney"):
+        monkeypatch.setenv("TZ", zone)
+        _time.tzset()
+        got = si._band_civil(edge)
+        assert got == want, f"the edge was read through {zone}"
+        assert got.tzinfo is None, "worn_interval's ends are naive, so this one has to be too"

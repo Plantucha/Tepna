@@ -1831,3 +1831,72 @@ def test_BOTH_DAYTIME_EDGES_ARE_INCLUSIVE_ONE_SIDE_ONLY(tmp_path):
         assert len(recs) == 1, recs
         got = ni.night_entry(root, d, None, recs[0][1])["daytime"]
         assert got is want, f"a start at {hhmmss[:2]}:00 read daytime={got}: {why}"
+
+
+# ── a UTC-frame read is only visible from a zone that is not UTC ─────────────────────────────────
+#
+# 🔴 THE RUNNER'S OWN ZONE DECIDES WHETHER THESE MUTANTS CAN BE SEEN. `fromtimestamp(edge, utc)`
+# mutated to `fromtimestamp(edge)` is the exact naive-local read this module was fixed to stop, and on
+# a UTC runner the two agree for every input — so CI, which runs UTC, cannot kill it from any fixture
+# that does not set `TZ` itself. The same run on a box sitting in `America/New_York` killed eight
+# mutants CI reported as survivors. A gate's answer here is a fact about the runner as much as about
+# the code, which is why each of these pins the zone rather than inheriting it.
+_ZONES = ("UTC", "America/New_York", "Asia/Tokyo", "Australia/Sydney")
+
+
+def test_a_band_edge_names_THE_SAME_DAY_from_every_readers_zone(monkeypatch):
+    """`_band_date` is the published night KEY, so the day it names cannot depend on who reads it.
+
+    The edge is chosen for that: 02:30 is 22:30 the PREVIOUS DAY in New York, so a naive read renames
+    the night. Tokyo and Sydney are included because they move the hour without moving the date —
+    together they separate "reads UTC" from "happens to agree with UTC here"."""
+    import time as _time
+
+    edge = 1792290600.0  # 2026-10-18 02:30 floating
+    for zone in _ZONES:
+        monkeypatch.setenv("TZ", zone)
+        _time.tzset()
+        assert ni._band_date(edge) == "2026-10-18", f"the band edge was read through {zone}"
+
+
+def test_the_published_RECORDING_START_is_the_devices_own_wall_clock(tmp_path, monkeypatch):
+    """`recording_start` exists so a reader can compare a row against the device's own screen.
+
+    So it must be the components the filename stamp already carries. Read naively it is the reader's
+    rendering of an instant instead, which on the box was four hours from what the line says it is
+    for — and the published string is the only place that error would ever show."""
+    import time as _time
+
+    monkeypatch.setenv("TZ", "America/New_York")
+    _time.tzset()
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010220000_ECG.txt", "t\n1\n", "20261010223000")
+    recs = ni._recordings(root)
+    assert len(recs) == 1, recs
+    entry = ni.night_entry(root, os.path.join(c, "2026-10-10"), None, recs[0][1])
+    assert entry["recording_start"] == "2026-10-10 22:00", (
+        entry["recording_start"],
+        "the stamp the filename carries is 22:00:00; anything else is the reader's zone",
+    )
+
+
+def test_a_FLOATING_MTIME_keeps_its_microseconds_to_the_full_SECOND(tmp_path, monkeypatch):
+    """The seconds-per-microsecond divisor, asserted where a wrong one is visible.
+
+    `d.microsecond / 1e6` mutated to `/ 1000001.0` is wrong by `us * 1e-12`, which at an epoch of
+    1.79e9 is BELOW the float spacing there (2.4e-7) for most microsecond values — so an exact
+    assertion on a tidy `.123456` passes over the mutant. 999999 µs puts the gap at 1.0e-6, four
+    times the spacing, which is the smallest honest way to see it. The figure is chosen by that
+    arithmetic, not by taste: the gap is `us / (d * (d + 1))` and it has to clear the spacing."""
+    import time as _time
+
+    monkeypatch.setenv("TZ", "America/New_York")
+    _time.tzset()
+    p = os.path.join(str(tmp_path), "f.txt")
+    with open(p, "w"):
+        pass
+    os.utime(p, ns=(1792290600_999999000, 1792290600_999999000))
+    assert ni._floating_mtime(p, None) == 1792276200.999999
+    # And the recorded-offset path, which never reaches the divisor, still answers in the same frame.
+    assert ni._floating_mtime(p, {"offset_sec": 14400.0}) == 1792276200.999999
