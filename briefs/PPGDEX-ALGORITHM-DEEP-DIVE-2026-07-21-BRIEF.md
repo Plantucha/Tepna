@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS.
+**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #2 treatment (2) LANDED (#3687).** DFA-α1 and sample entropy now segment at a dropped interval and pool inside the estimator. Both had read `null` on every Verity night of this corpus, so neither had ever shipped a value. Treatment (3) stays open, because `cvhrFromNN` reaches ECGDex. Status stays IN-PROGRESS.
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -392,6 +392,49 @@ a method choice with a real refusal threshold behind it, and (3) reaches a secon
 together would move every frequency, complexity and CVHR number at once with one changeset to explain
 it.
 
+### ✅ #2 treatment (2) EXECUTED 2026-10-19 (#3687) — the sequence metrics SEGMENT, and they had never shipped a value
+
+Treatment (2) above asked for *"gap-aware segmentation (compute per contiguous run, combine), or an
+explicit refusal when the clean runs are too short"*. The tree shipped the refusal, as
+`hasSequenceGap ? null : dfaAlpha1(nn)`. This unit measured four things before moving any code, over
+the 27 Verity `_PPG.txt` nights of this corpus:
+
+1. **DFA-α1 and SampEn have never shipped a value from a real night.** Both read `null` on 27 of 27,
+   because every night carries at least one dropped interval — 10 to 673 of them, median 93. The item's
+   "~29 % of the exported series" undersells it: for these two metrics the exported series was EMPTY.
+2. **The refusal was not buying much.** A median 97.7 % of each night's intervals sit in contiguous runs
+   long enough to score. So most of the night the refusal threw away was scoreable.
+3. **Pooling must live INSIDE the estimator, not over its outputs.** DFA sums squared residuals and
+   window counts per scale across the runs and then fits ONE slope; SampEn sums the template counts A
+   and B across the runs and then takes ONE log ratio. A mean of per-run outputs is a different and
+   worse estimator: a log of a ratio is not the mean of logs, and a 50-beat run only ever sees the
+   small scales.
+4. **The splice bias carries a sign for SampEn and none for α1.** With the same pooled estimator on
+   both sides, splicing reads SampEn HIGHER on 27 of 27 nights, median 0.08. For α1 there
+   is no consistent sign — lower on 16, equal on 2, higher on 9 — though a stepped synthetic shows
+   splicing can read a level change as long-range correlation (0.84 spliced against 0.57 pooled).
+
+⚠️ **One measurement here was wrong before it was right, and the lesson is worth more than the number.**
+The first draft of the SampEn direction came from a per-run AVERAGE of the two metrics. That average
+stands in for the pooled estimator. It is not the estimator. It reported the opposite sign. An
+estimator is not a stand-in for itself.
+
+**What shipped.** `dfaAlpha1Segmented(nn, runs)` and `sampEnSegmented(nn, runs, m, tol)` pool as above;
+`dfaAlpha1(nn)` and `sampEn(nn, m, r)` keep their exact signatures and delegate over a single run, so
+every other caller is untouched and the whole-record values are bit-identical at four sizes, including
+above the `MAXN` decimation cap. Per-run floors refuse a run under 50 beats (DFA) or 60 (SampEn), and a
+night with no run over the floor still reports `null`, now with a named reason. The result literal
+carries the §∅ annotation keys — `dfa1Segments`, `dfa1CoveragePct`, `sampenSegments`,
+`sampenCoveragePct` and the two `*Reason` fields — only once a drop actually cut the series. So a
+gapless committed fixture stays byte-stable. The segmented
+path needs no O(N²) cap: its cost is Σnᵢ² over the runs, bounded by (longest run)·(intervals kept),
+which peaks at 1.2e8 over these 27 nights against the 4e8 the existing cap still permits.
+
+**Treatment (3) stays open on purpose.** `cvhrFromNN` needs the gap as a hole in TIME, and it is a
+faithful port of ECGDex's `detectCVHR`, so it reaches a second node and belongs in its own unit with
+its own changeset. Treatment (1) landed earlier; its call-site comment, which said these two metrics
+were *"deliberately left alone"*, moved with this diff.
+
 ### 🔴 THE PUNCH LIST IS ONE OWNER DECISION, NOT NINE ENGINEERING ITEMS (2026-08-20)
 
 This brief has sat `IN-PROGRESS` since 2026-07-21 with exactly two items shipped. **Those two are
@@ -408,7 +451,7 @@ pattern:
 | #12 | *"None"* (a comment correction) | ✅ **shipped** 2026-07-21 |
 | #3 | — | withdrawn, claim was stale |
 | **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | ✅ **shipped** 2026-08-21 (#1614) — the prediction held, all six fixtures moved on OUTPUT |
-| **#2 ★** | ~29 % of the exported series stops being a fabricated constant | open |
+| **#2 ★** | ~29 % of the exported series stops being a fabricated constant | **partly shipped** — treatment (1) landed, treatment (2) 2026-10-19 (#3687); (3) `cvhrFromNN` reaches ECGDex and stays open |
 | #5 | motion gates shift where they were wrong | open |
 | #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | ✅ **shipped** 2026-10-19 (#3678) |
 | #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | ✅ **shipped** 2026-10-19 — measured 0.78–3.90×, median 2.02×, and hash-only on every fixture |
@@ -596,7 +639,7 @@ which named #1614 in one command — cheap only because the source comment cites
 ---
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ◐ → 10 → 5 → 11 → [9 experiment]` *(#2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
 

@@ -3445,6 +3445,126 @@
       }
     );
 
+    /* ── PPGDEX-ALGORITHM-DEEP-DIVE punch-list #2, treatment (2) ─────────────────────────────────
+       `dfaAlpha1` and `sampEn` read ADJACENCY, so `correctRR`'s dropped intervals cannot simply be
+       deleted from the series they see: that splices two beats which were never neighbours. What
+       shipped instead was a whole-record refusal — one drop anywhere nulled both metrics for the
+       night — and over the 27 Verity nights of this corpus that fired on 27 of 27, every one of which
+       carries a drop. So neither number has ever reached an export from a real night.
+       Both estimators now pool over the CONTIGUOUS RUNS, and the pooling lives inside the estimator:
+       DFA sums squared residuals and window counts per scale and fits one slope, SampEn sums the
+       template counts A and B and takes one log ratio. These assertions are what holds that apart
+       from the cheap version — a mean of per-run outputs — which is a different and worse estimator.
+       They are also the only thing that can see the change on a committed input: a fixture without a
+       drop is ONE run, which reproduces the whole-record numbers exactly and gains no annotation key. */
+    group('the sequence-structure metrics pool over contiguous runs and never splice across a drop', 'ppgdex-dsp · PPGDEX-ALGORITHM-DEEP-DIVE-item-2 · known-answer', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.dfaAlpha1Segmented !== 'function' || typeof P.sampEnSegmented !== 'function') {
+        T.skip('PPGDSP.dfaAlpha1Segmented + sampEnSegmented reachable', 'not loaded');
+        return;
+      }
+      var lcg = function (seed) {
+        var s = seed;
+        return function () {
+          s = (s * 1103515245 + 12345) & 0x7fffffff;
+          return s / 0x7fffffff;
+        };
+      };
+      var sdOf = function (a) {
+        var m = 0,
+          i;
+        for (i = 0; i < a.length; i++) m += a[i];
+        m /= a.length;
+        var v = 0;
+        for (i = 0; i < a.length; i++) v += (a[i] - m) * (a[i] - m);
+        return Math.sqrt(v / (a.length - 1));
+      };
+
+      /* ONE RUN IS THE WHOLE RECORD. The old code paths must survive byte-for-byte on an input with
+         nothing dropped, which is every committed fixture — that is why none of them moved. */
+      var r = lcg(20261019),
+        nn = [],
+        i;
+      for (i = 0; i < 4000; i++) nn.push(900 + 80 * (r() - 0.5) + 25 * Math.sin(i / 37));
+      var tol = 0.2 * sdOf(nn);
+      T.eq('one run spanning the series reproduces the whole-record DFA-α1 exactly', P.dfaAlpha1Segmented(nn, [[0, 4000]]).value, P.dfaAlpha1(nn));
+      T.eq('…and the whole-record SampEn exactly, below the decimation cap', P.sampEnSegmented(nn, [[0, 4000]], 2, tol).value, P.sampEn(nn));
+
+      /* THE ANNOTATION TRAVELS WITH THE VALUE (§∅ — reduced coverage annotates, it does not refuse). */
+      var two = P.dfaAlpha1Segmented(nn, [
+        [0, 1500],
+        [1600, 4000]
+      ]);
+      T.eq('the number of runs that scored travels with the value', two.segments, 2);
+      T.eq('…and so does the interval count they covered', two.covered, 3900);
+
+      /* A RUN UNDER THE FLOOR CONTRIBUTES NOTHING, and no qualifying run reports nothing. */
+      T.eq(
+        'runs of 49 and 40 are both under the 50-interval DFA floor, so there is no slope to report',
+        P.dfaAlpha1Segmented(nn, [
+          [0, 49],
+          [100, 140]
+        ]),
+        null
+      );
+      T.eq('§∅ · a 59-interval run is under the SampEn floor and reports null, never a number over nothing', P.sampEnSegmented(nn, [[0, 59]], 2, tol), null);
+
+      /* POOLING IS IN THE COUNTS, NOT OVER THE OUTPUTS — the sharpest statement of that is an exact
+         identity. Duplicate a run and score the two copies as two runs: cross-run pairs are excluded,
+         so A and B both double and −ln(A/B) cannot move. A mean of per-run SampEn would also hold here,
+         which is why the splice below is the other half of the proof. */
+      var r2s = lcg(770011),
+        run = [];
+      for (i = 0; i < 1000; i++) run.push(900 + 70 * (r2s() - 0.5));
+      var dup = run.concat(run),
+        tolD = 0.2 * sdOf(dup);
+      T.eq(
+        'duplicating a run leaves pooled SampEn exactly where it was — the counts scale, the log ratio does not',
+        P.sampEnSegmented(
+          dup,
+          [
+            [0, 1000],
+            [1000, 2000]
+          ],
+          2,
+          tolD
+        ).value,
+        P.sampEnSegmented(dup, [[0, 1000]], 2, tolD).value
+      );
+      T.eq('…and splicing those same two copies into one run reads 1.95 instead of 2.22', P.sampEnSegmented(dup, [[0, 2000]], 2, tolD).value, 1.95);
+
+      /* THE DIRECTION, with the mechanism visible. Twenty level-stepped blocks: a template that
+         straddles a cut matches nothing, the lost m+1 matches shrink A against B, and −ln(A/B) rises.
+         Measured on the corpus too — SampEn is higher spliced on 27 of 27 nights, median 0.08. */
+      var r3 = lcg(31337),
+        st = [],
+        runs = [];
+      for (var b = 0; b < 20; b++) {
+        var base = 900 + (b % 2 ? 15 : -15),
+          a0 = st.length;
+        for (i = 0; i < 200; i++) st.push(base + 60 * (r3() - 0.5));
+        runs.push([a0, st.length]);
+      }
+      var tolS = 0.2 * sdOf(st);
+      T.eq('pooled over the runs the blocks read 1.92', P.sampEnSegmented(st, runs, 2, tolS).value, 1.92);
+      T.eq('…and spliced they read 2.03 — higher, which is the corpus direction', P.sampEnSegmented(st, [[0, st.length]], 2, tolS).value, 2.03);
+
+      /* α1 has no consistent sign across the corpus, because a real drop rarely lands on a level
+         change. Where it does, splicing reads the step as long-range correlation: 60 stepped blocks
+         give 0.84 spliced against 0.57 pooled. This is what the refusal was protecting against, and
+         segmenting keeps the protection without discarding the night. */
+      var r4 = lcg(99991),
+        sp = [],
+        runs2 = [];
+      for (b = 0; b < 60; b++) {
+        var base2 = 900 + (b % 2 ? 30 : -30),
+          a1 = sp.length;
+        for (i = 0; i < 100; i++) sp.push(base2 + 60 * (r4() - 0.5));
+        runs2.push([a1, sp.length]);
+      }
+      T.eq('pooled over the runs the stepped series reads α1 0.57', P.dfaAlpha1Segmented(sp, runs2).value, 0.57);
+      T.eq('…and spliced it reads 0.84, the step mistaken for long-range correlation', P.dfaAlpha1Segmented(sp, [[0, sp.length]]).value, 0.84);
+    });
     group('hostAxis declares an INERT axis — host ≡ device is not "two clocks that agree"', 'clock · known-answer', function (T) {
       var C = env.DexClock;
       T.ok('DexClock.hostAxis present', !!(C && typeof C.hostAxis === 'function'));
@@ -56945,17 +57065,22 @@
       T.eq('edge-only rejection creates no internal retained-index gap', internalGap, false);
     });
 
-    /* Structural regression for correctRR internal gaps: sequence metrics must refuse
-       non-adjacent retained intervals, but edge-only rejection must not trigger the guard. */
-    group('PpgDex nonlinear metrics refuse internal correctRR gaps', 'ppgdex-dsp · nonlinear · regression', function (T) {
+    /* Structural regression for correctRR internal gaps. The contract CHANGED with punch-list #2's
+       treatment (2): a non-adjacent retained interval still may not be spliced over, but it no longer
+       costs the night. The series is cut at every gap and both estimators pool over the contiguous
+       runs, so what this group guards is that the cut happens and that the whole-record refusal it
+       replaced does not come back. The behavioural leg lives in the item-2 known-answer group; this
+       one is source-shaped on purpose, because the regression it catches is a call site reverting. */
+    group('PpgDex nonlinear metrics SEGMENT at a correctRR gap, they do not refuse the night', 'ppgdex-dsp · nonlinear · regression', function (T) {
       var Pp = env.sources && env.sources['ppgdex-dsp.js'];
       T.ok('PpgDex DSP source is available', typeof Pp === 'string' && Pp.length > 5000);
       if (typeof Pp !== 'string') return;
 
       var pc = Pp;
-      T.ok('gap detection ignores the first retained interval and detects later breaks', /const hasSequenceGap\s*=\s*adj\.some\(\(isAdjacent,\s*j\)\s*=>\s*j\s*>\s*0\s*&&\s*!isAdjacent\);/.test(pc));
-      T.ok('DFA alpha-1 is null when an internal sequence gap exists', /const dfa1\s*=\s*hasSequenceGap\s*\?\s*null\s*:\s*dfaAlpha1\(nn\);/.test(pc));
-      T.ok('sample entropy is null when an internal sequence gap exists', /const se\s*=\s*hasSequenceGap\s*\?\s*null\s*:\s*sampEn\(nn\);/.test(pc));
+      T.ok('the kept series is cut where a dropped interval sits, and the first interval is vacuous', /if\s*\(j === nn\.length \|\| adj\[j\] === false\)\s*\{/.test(pc));
+      T.ok('DFA alpha-1 goes through the segmented estimator, not the whole-record one', /const _dfaSeg = nn\.length \? dfaAlpha1Segmented\(nn, _seqRuns\) : null;/.test(pc));
+      T.ok('sample entropy likewise, with the tolerance scaled to the series it was handed', /const _seSeg = nn\.length \? sampEnSegmented\(nn, _seqRuns, 2, 0\.2 \* std\(nn\)\) : null;/.test(pc));
+      T.ok('the whole-record refusal is GONE — one drop no longer nulls the night (27 of 27 corpus nights carry one)', pc.indexOf('hasSequenceGap') === -1);
     });
 
     group('PpgDex DFA-α1 box range — known-answer (§EP-rest)', 'ppgdex-dsp · nonlinear · known-answer', function (T) {
