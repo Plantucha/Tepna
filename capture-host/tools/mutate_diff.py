@@ -85,6 +85,7 @@ from mutation_diff import (  # noqa: E402
     clean_run_failures,
     classify,
     diff_key,
+    entry_before_in_source,
     function_of_mutant,
     kill_is_a_detection,
     refutation_corroborated,
@@ -1315,15 +1316,16 @@ def main(argv=None) -> int:
         # own header names, so the three causes are now distinguished instead of merged.
         #
         # The discriminator is cheap and needs no scope plumbing: if the entry's `before` text is
-        # STILL PRESENT VERBATIM in the module, the line did not move and the entry is not stale —
-        # it is simply out of scope for this diff.
-        before = k.split(" | + ")[0][2:].strip() if k and k.startswith("- ") else None
-        in_source = False
-        if before:
-            try:
-                in_source = before in (HERE / e["module"]).read_text(encoding="utf-8")
-            except OSError:
-                in_source = False
+        # STILL PRESENT in the module, the line did not move and the entry is not stale — it is
+        # simply out of scope for this diff. ⚠️ Read it the way `diff_key` WROTE it: the key is
+        # whitespace-normalised, so a raw substring test over the source missed every line the source
+        # spaces differently, and ruff's two spaces before an inline comment are exactly that. See
+        # `entry_before_in_source`, which measured 8 entries misreported as orphaned.
+        try:
+            module_source = (HERE / e["module"]).read_text(encoding="utf-8")
+        except OSError:
+            module_source = ""
+        in_source = entry_before_in_source(k, module_source)
         if in_source:
             print(
                 f"  out-of-scope equivalence entry ({e['module']}): {shown} — its line is unchanged "
