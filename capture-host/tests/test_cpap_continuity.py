@@ -223,3 +223,156 @@ def test_resume_hint_reads_only_a_numeric_open_session_from_the_autostart_record
     assert cc.resume_hint_from_autostart({"session_ms": 1789719792589}) is True
     for rec in ({"session_ms": None}, {}, {"session_ms": "x"}, {"session_ms": True}, None, [], "str"):
         assert cc.resume_hint_from_autostart(rec) is False, rec
+
+
+# ── mid-session stalls (spec §30 STREAM_STALL) ──────────────────────────────────────────────────
+# The owed sample was already computed per frame; only the comparison was missing. These pin the
+# comparison, its §∅ null, and the line between it and the resume verdict.
+
+
+def test_a_MID_SESSION_break_on_the_device_clock_is_counted_as_a_stall():
+    """The link stayed up and no drop armed anything: the device's own clock says the samples between
+    these two frames never arrived. That is the §30 condition, and nothing counted it."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)  # owes T0+400
+    t.note_frame(_stamp(_ms(T0), 400 + 2000), 10, 40.0)  # 2 s late
+    assert t.stalls == 1
+    t.note_frame(_stamp(_ms(T0), 400 + 2000 + 400), 10, 40.0)  # contiguous again
+    assert t.stalls == 1, "a contiguous frame does not add one"
+    t.note_frame(_stamp(_ms(T0), 400 + 2000 + 400 + 400 + 5000), 10, 40.0)
+    assert t.stalls == 2, "a second break counts again"
+
+
+def test_a_contiguous_session_reports_ZERO_and_a_session_that_compared_NOTHING_reports_NULL():
+    """§∅ at the counter: 0 means "compared, and the clock was contiguous"; None means no comparison
+    was possible. One frame affords no comparison, so the honest value is None."""
+    one = cc.ContinuityTracker()
+    one.note_start()
+    one.note_frame(T0, 10, 40.0)
+    assert one.stalls is None, "a single frame compares nothing — not a measured zero"
+    two = cc.ContinuityTracker()
+    two.note_start()
+    two.note_frame(T0, 10, 40.0)
+    two.note_frame(_stamp(_ms(T0), 400), 10, 40.0)
+    assert two.stalls == 0, "compared, and nothing was lost"
+
+
+def test_the_stall_tolerance_is_the_SAME_one_the_resume_verification_uses():
+    """Exactly one interval late is device batching, not a stall — the boundary `TOLERANCE_INTERVALS`
+    exists to draw. A frame past it counts. `>=` here would call ordinary batching a loss."""
+    at = cc.ContinuityTracker()
+    at.note_start()
+    at.note_frame(T0, 10, 40.0)
+    at.note_frame(_stamp(_ms(T0), 400 + 40), 10, 40.0)  # exactly one interval
+    assert at.stalls == 0, "one interval of batching is still continuous"
+    over = cc.ContinuityTracker()
+    over.note_start()
+    over.note_frame(T0, 10, 40.0)
+    over.note_frame(_stamp(_ms(T0), 400 + 41), 10, 40.0)  # one millisecond past it
+    assert over.stalls == 1
+
+
+def test_a_stall_NEVER_moves_the_resume_verdict():
+    """`status`/`gap_ms` are the cross-session verdict and a consumer reads `verified-gap` as "this
+    session follows a drop". A mid-session stall is a different finding and keeps its own field."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_frame(_stamp(_ms(T0), 400 + 9000), 10, 40.0)
+    assert t.stalls == 1
+    assert t.status is C.CONTINUOUS and t.gap_ms is None
+    assert t.snapshot() == {"continuity_status": "continuous", "continuity_gap_ms": None}
+
+
+def test_the_post_drop_verification_is_not_ALSO_counted_as_a_stall():
+    """One tracker, two categories. The first frame after a drop is verified and reported as
+    `verified-gap`; counting it as a mid-session stall too would double-count one loss."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)
+    t.note_start()
+    t.note_frame(_stamp(_ms(T0), 400 + 5400), 10, 40.0)
+    assert t.status is C.VERIFIED_GAP and t.gap_ms == 5400
+    assert t.stalls is None, "the drop is the gap verdict's to report, and it compared nothing since"
+
+
+def test_the_stall_count_is_per_SESSION_and_note_start_clears_it():
+    """One tracker lives across every session on the controller; `GapCounters` is built per pump. A
+    count carried over would attribute one session's stalls to the next."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_frame(_stamp(_ms(T0), 400 + 3000), 10, 40.0)
+    assert t.stalls == 1
+    t.note_end(clean=True)
+    t.note_start()
+    assert t.stalls is None, "back to None, not 0 — the new session has compared nothing"
+
+
+def test_a_frame_with_no_usable_clock_compares_nothing_and_counts_nothing():
+    """Every guard on the comparison. An unparseable stamp, a predecessor that left no owed sample,
+    and a frame whose interval never arrived each leave the count untouched (§∅)."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_frame("not-a-stamp", 10, 40.0)
+    assert t.stalls is None, "no device clock on this frame — nothing to compare"
+    fresh = cc.ContinuityTracker()
+    fresh.note_start()
+    fresh.note_frame("not-a-stamp", 10, 40.0)  # leaves no owed sample
+    fresh.note_frame(_stamp(_ms(T0), 99999), 10, 40.0)
+    assert fresh.stalls is None, "no predecessor clock — nothing to compare against"
+    noiv = cc.ContinuityTracker()
+    noiv.note_start()
+    noiv.note_frame(T0, 10, "x")  # unusable interval: the owed clock never moves
+    noiv.note_frame(_stamp(_ms(T0), 99999), 10, 40.0)
+    assert noiv.stalls is None, "no interval — no tolerance to measure the lateness in"
+
+
+def test_a_positive_FRACTIONAL_interval_still_advances_the_owed_clock():
+    """The guard is `iv <= 0`, and the bound matters: an interval of 0.5 ms is positive, so it is
+    usable. `iv <= 1` would discard it and leave the owed sample where the previous frame put it,
+    which turns a usable frame into an absent one."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 0.5)  # owes T0+5
+    t.note_frame(_stamp(_ms(T0), 5), 10, 0.5)
+    assert t.stalls == 0, "the owed sample advanced by 10 x 0.5 ms, and the next frame landed on it"
+    assert t._interval_ms == 0.5
+
+
+def test_a_resume_hint_over_a_LIVE_predecessor_clock_clears_it_and_does_not_raise():
+    """The crash path the module docstring names: the daemon went down with a therapy in progress and
+    left no `note_end`, so the tracker still holds a predecessor clock while nothing armed it. The hint
+    arms it and must CLEAR that clock — `_verify` subtracts from it, so any non-None leftover either
+    verifies against a stale predecessor or raises into the pump."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)  # a live owed sample and a live interval, then no note_end at all
+    assert t._expected_next_ms is not None and t._interval_ms == 40.0
+    t.note_start(resume_hint=True)
+    assert t._expected_next_ms is None, "a hinted resume has no predecessor to compare against"
+    t.note_frame(_stamp(_ms(T0), 400), 10, 40.0)
+    assert t.status is C.RESUMED_UNVERIFIED and t.gap_ms is None
+
+
+def test_the_armed_flag_is_CLEARED_TO_A_BOOL_once_a_resume_has_been_verified():
+    """`_armed` is declared `bool`, and the frame that performs the verification clears it. A falsy
+    stand-in such as `None` reads identically through every truth test, so no consumer-visible value
+    moves — measured over 2310 call scripts. The declared type is therefore the contract worth
+    pinning. The flag also routes frames: the armed branch and the mid-session stall branch are the
+    two arms of one `if`, so a frame after the verification must reach the second."""
+    t = cc.ContinuityTracker()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)
+    t.note_start()
+    assert t._armed is True, "the drop armed it"
+    t.note_frame(_stamp(_ms(T0), 400), 10, 40.0)
+    assert t._armed is False, "the verifying frame cleared it, to the bool the field declares"
+    assert t.status is C.VERIFIED_CONTINUOUS and t.stalls is None, "and it counted no stall"
+    t.note_frame(_stamp(_ms(T0), 1000), 10, 40.0)  # owed T0+800, arrived 200 ms late
+    assert t.stalls == 1, "the cleared flag routed this frame to the stall comparison"
+    assert t.status is C.VERIFIED_CONTINUOUS, "which never touches the resume verdict"

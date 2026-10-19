@@ -143,7 +143,16 @@ def assemble_live(
         # purpose: a MEASURED loss still makes the acquisition PARTIAL even while another category is
         # unmeasured, because known loss is a finding and should not be downgraded to UNKNOWN by its
         # neighbour's absence. PARTIAL plus a named unmeasured category says more than UNKNOWN does.
-        lost = sum(int(v) for v in (counters.get("total_lost"), counters.get("sink_errors")) if v is not None)
+        # `stalls` JOINS THE SUM for the same reason `sink_errors` did: GapCounters keeps it out of
+        # `total_lost` (it counts stall events on the device clock, not frames), and a measured loss
+        # that no axis reads is a measurement thrown away. Without this line a session with a detected
+        # stall, a clean stop and nothing else wrong would stamp COMPLETE — the `sink_errors` defect
+        # recorded below, reappearing in the field that just gained a writer.
+        lost = sum(
+            int(v)
+            for v in (counters.get("total_lost"), counters.get("sink_errors"), counters.get("stalls"))
+            if v is not None
+        )
     # ∅ COMPLETE IS A CLAIM ABOUT EVERY LOSS CATEGORY (ABSENCE-SURVEY aa1146c0a994; ruled 2026-10-05 for the
     # owner). `lost_coverage_missing` names the categories `total_lost` does not measure, and a category
     # nothing measures is absence — neither a discontinuity to refuse nor reduced coverage to annotate. So

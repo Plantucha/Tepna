@@ -142,6 +142,7 @@ RATCHET = {
     "blind_spots.py": 1,
     "bonding.py": 4,
     "clock.js": 0,
+    "cpap_continuity.py": 1,
     "cpap_edf.py": 0,
     "cpap_edf_writer.py": 6,
     "cpap_live.py": 1,

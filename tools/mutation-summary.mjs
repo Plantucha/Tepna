@@ -69,8 +69,55 @@ const SENTENCE = {
   NOT_RUN: 'the gate did not run. Not a pass.'
 };
 
-/* The decision: which status the summary shows and why. Pure, so the selftest pins every branch. */
+/* WHERE THE BUDGET WENT. Each per-file record carries its two passes, so the summary can state which
+   pass spent the job's time without anyone reading a log tail — the measurement residue
+   `2026-10-05-the-js-mutation-job-cannot-finish-on-the-pr-that-makes-its-own-target-fast` left owed.
+   A file still running when the job stopped writes no record, so a short table is the honest shape:
+   it reports the files that finished and claims nothing about the one that did not. Pure. */
+export function phaseSplit(text) {
+  const rows = [];
+  for (const line of String(text || '').split('\n')) {
+    if (!line.trim()) continue;
+    let d;
+    try {
+      d = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    /* A record earns a row only by carrying BOTH passes. An older gate, a dry run and the pre-run
+       exits all write records without them, and a blank cell in a budget table reads as zero. */
+    if (d && d.schema !== 'tepna.verdict/1' && d.file && Number.isFinite(d.calibrationMs) && Number.isFinite(d.mutantPassMs))
+      rows.push({ file: d.file, calibrationMs: d.calibrationMs, mutantPassMs: d.mutantPassMs, jobs: d.jobs, tested: d.tested });
+  }
+  return rows;
+}
+
+/* The rendered table, or '' when no record carried a split. Pure. */
+export function phaseTable(rows) {
+  if (!rows || !rows.length) return '';
+  const s = (ms) => (Number(ms) / 1000).toFixed(Number(ms) < 10000 ? 1 : 0) + ' s';
+  const out = [
+    '',
+    '**Where the budget went** — one calibration run per file, then the per-mutant pass that spends it',
+    '',
+    '| file | calibration | per-mutant pass | jobs | mutants |',
+    '|---|---|---|---|---|'
+  ];
+  for (const r of rows) out.push(`| \`${r.file}\` | ${s(r.calibrationMs)} | ${s(r.mutantPassMs)} | ${r.jobs == null ? '?' : r.jobs} | ${r.tested == null ? '?' : r.tested} |`);
+  out.push('', 'A file the job stopped inside writes no record, so an absent row is unmeasured rather than free.', '');
+  return out.join('\n');
+}
+
+/* The split is appended to EVERY status, the early returns included: a run with no verdict object is
+   the timed-out one, and that is the reader who most needs to know which pass had the budget. */
 export function render(text, exitCode) {
+  const out = renderStatus(text, exitCode);
+  const tail = phaseTable(phaseSplit(text));
+  return tail ? { ...out, md: out.md + tail } : out;
+}
+
+/* The decision: which status the summary shows and why. Pure, so the selftest pins every branch. */
+function renderStatus(text, exitCode) {
   const code = Number(exitCode);
   const v = lastVerdict(text);
   const head = (st, line) => `## Diff-scoped JS mutation\n\n**${GLYPH[st] || '?'} ${st}** — ${line}\n`;
@@ -148,6 +195,25 @@ function selftest() {
   const r7 = render(nd(bad), 0);
   ok('an INVALID object (PASS over checked 0) → UNKNOWN with the validator error', r7.status === 'UNKNOWN' && /examined-nothing/.test(r7.md), r7.md);
   ok('an eighth status word → UNKNOWN via the validator, never rendered as itself', render(nd({ ...pass, status: 'GREEN' }), 0).status === 'UNKNOWN');
+
+  /* THE BUDGET SPLIT. These pin the shape of the table and, more importantly, what earns a row:
+     a record has to carry both passes, because a blank cell in a budget table reads as zero. */
+  const phased = { file: 'oxydex-dsp.js', survivors: [], calibrationMs: 82000, mutantPassMs: 557000, jobs: 4, tested: 27 };
+  const rows = phaseSplit(nd(phased, pass));
+  ok('phases · a record carrying both passes earns one row, and the verdict object earns none', rows.length === 1 && rows[0].file === 'oxydex-dsp.js', JSON.stringify(rows));
+  ok('phases · a record with only the calibration pass earns NO row — a blank budget cell reads as zero', phaseSplit(nd({ file: 'a.js', calibrationMs: 82000 }, pass)).length === 0);
+  ok(
+    'phases · the table states both passes, the job count and the mutant count',
+    /82 s/.test(phaseTable(rows)) && /557 s/.test(phaseTable(rows)) && /\| 4 \| 27 \|/.test(phaseTable(rows)),
+    phaseTable(rows)
+  );
+  ok('phases · no record with a split renders no table at all, never an empty one', phaseTable(phaseSplit(nd(pass))) === '');
+  /* The timed-out run is the one that needs the split most, and it has no verdict object at all. */
+  ok('phases · the split is appended even when there is no verdict to render', /Where the budget went/.test(render(nd(phased), 1).md) && render(nd(phased), 1).status === 'UNKNOWN');
+  ok(
+    'phases · a sub-10-second pass keeps its decimal, so a cheap file is not reported as 0 s',
+    /5\.0 s/.test(phaseTable([{ file: 'b.js', calibrationMs: 5000, mutantPassMs: 4000, jobs: 2, tested: 1 }]))
+  );
   console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);
   return fail ? 1 : 0;
 }
