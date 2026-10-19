@@ -367,8 +367,10 @@ if (IS_MAIN && has('--selftest')) {
   eq('no functions in an empty source', functionBodies('').length, 0);
   eq('…nor in a source with no function declarations', functionBodies('const f = (a) => a + 1;').length, 0);
   /* The arrow-const limitation, stated as a test so it cannot be forgotten: `const f = () => {}` is
-     invisible to this tool, exactly as it is to probe-coverage's functionRange. */
-  eq('an ARROW CONST is not found — a known, shared limitation', functionBodies('const rmssd = (a) => { return a; };').length, 0);
+     invisible to this tool. It is THIS tool's limitation alone: probe-equivalence's functionRange
+     resolves arrow consts since §8 (MUTATION-PROGRAM-FOLLOWUPS). Any population this tool surveys
+     (§11's 543 functions, and the 24 pseudo-tested among them) therefore excludes every arrow const. */
+  eq('an ARROW CONST is not found — a known limitation of this tool', functionBodies('const rmssd = (a) => { return a; };').length, 0);
 
   /* ── DESCARTES' STOP-MATCHERS ─────────────────────────────────────────────────────────────── */
   const TRIV = [
