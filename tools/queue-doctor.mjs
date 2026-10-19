@@ -38,7 +38,7 @@
  *   node tools/queue-doctor.mjs --dry-run    # report only, change nothing
  *   node tools/queue-doctor.mjs --report     # report only, exit 1 if anything is stuck (for a timer)
  *
- * Exit: 0 acted or nothing to do · 1 --report found stuck or RED PRs · 2 REFUSED (could not read state).
+ * Exit: 0 acted or nothing to do · 1 --report found stuck, RED or CANCELLED PRs · 2 REFUSED (could not read state).
  */
 
 import { execFileSync } from 'node:child_process';
@@ -79,6 +79,16 @@ export function classify(pr, required, nowMs) {
   const pending = names.filter((c) => c.bucket === 'pending' && req.has(c.name)).map((c) => c.name);
 
   if (failing.length) return { k: 'failing', why: `required check(s) failed: ${failing.join(', ')}` };
+  /* 🔴 A CANCELLED REQUIRED CHECK IS TERMINAL, AND IT USED TO READ AS GREEN. `gh pr checks` puts it
+     in bucket `cancel`, which is neither `fail` nor `pending`, and the context did report, so it is
+     not absent either: every test above fell through and the PR classified `ready`. Nothing re-runs
+     a cancelled run, so the context never becomes a success and the merge bot waits on it forever.
+     Measured on #3688, 2026-10-19: `biome` and `typecheck` cancelled by the supersede-on-push group
+     of a base-merge update, with seven other workflows green on the same head. A hand re-run of the
+     two runs cleared it. It ranks below `failing` because a red is a code question and a
+     cancellation is a queue question. */
+  const cancelled = names.filter((c) => c.bucket === 'cancel' && req.has(c.name)).map((c) => c.name);
+  if (cancelled.length) return { k: 'cancelled', why: `required check(s) cancelled: ${cancelled.join(', ')} — terminal, so nothing re-runs them (\`gh run rerun <run-id>\`)` };
   /* A REQUIRED CONTEXT THAT NEVER REPORTED is not pending and not passing — it is absent, and absent
      reads identically to satisfied if you only count buckets. Same hole that let land-pr merge past
      four unreported contexts; stated here rather than inherited, because this tool counts too. */
@@ -136,12 +146,14 @@ export function classify(pr, required, nowMs) {
  * What the report must NAME. `stuck` is the green-and-cannot-merge set; `failing` is a PR whose REQUIRED
  * checks are red. classify() has always returned `failing`, but the report printed only `stuck`, so a red
  * (abandoned) PR read as "no PR is green-and-stuck" and `--report` exited 0 over it — a red PR looked like
- * an idle queue. `--report` is clean only when BOTH are empty.
+ * an idle queue. `cancelled` is a PR whose REQUIRED check was cancelled: terminal, so it waits forever.
+ * `--report` is clean only when ALL THREE are empty.
  */
 export function attention(classified) {
   return {
     stuck: classified.filter((c) => c.k === 'stuck-behind' || c.k === 'stuck-unarmed'),
-    failing: classified.filter((c) => c.k === 'failing')
+    failing: classified.filter((c) => c.k === 'failing'),
+    cancelled: classified.filter((c) => c.k === 'cancelled')
   };
 }
 
@@ -335,7 +347,7 @@ function main() {
   const now = Date.now();
   const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now) }));
 
-  const { stuck, failing } = attention(classified);
+  const { stuck, failing, cancelled } = attention(classified);
   const stamp = new Date(now).toISOString().slice(11, 19);
 
   /* SAY THE THING NO VIEW SAYS. This line is the whole point of the tool: a PR that is green, armed
@@ -351,6 +363,11 @@ function main() {
     console.log(`${stamp}  ✗ RED: ${failing.length} PR(s) with a failing REQUIRED check — updating cannot land them`);
     for (const c of failing) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
   }
+  /* A CANCELLED REQUIRED CHECK LOOKS NEARLY GREEN in every rollup, and nothing re-runs it. */
+  if (cancelled.length) {
+    console.log(`${stamp}  ⊘ CANCELLED: ${cancelled.length} PR(s) with a cancelled REQUIRED check — no merge until someone re-runs it`);
+    for (const c of cancelled) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
+  }
   const fresh = writeRedLedger(failing, required, now);
   for (const l of fresh) console.log(`    ${l.includes('  RED ') ? 'NEW this run' : 'cleared'}: ${l.slice(22)}`);
   for (const p of unreadable) console.log(`    #${p.number}  checks unreadable — NOT counted either way`);
@@ -360,7 +377,7 @@ function main() {
     console.log(`    → ${unarmed.length} need a human: arm auto-merge (\`gh pr merge <N> --auto --squash\`); updating cannot land them.`);
   }
 
-  if (REPORT) process.exit(stuck.length || failing.length ? 1 : 0);
+  if (REPORT) process.exit(stuck.length || failing.length || cancelled.length ? 1 : 0);
 
   const d = pick(classified);
   if (d.action !== 'update') {

@@ -38382,6 +38382,59 @@
       T.eq('an advisory red is not a red PR', att([advisoryRed]).failing.length, 0);
     });
 
+    /* ── queue-doctor: a CANCELLED required check is named, not read as green (residue
+       2026-10-19-queue-doctor-is-silent-on-a-cancelled-required-check). Bucket `cancel` is neither
+       `fail` nor `pending` and the context did report, so #3688 classified `ready` while it waited
+       forever on two cancelled runs. */
+    group('Queue-doctor — a PR with a cancelled REQUIRED check is reported and trips --report', 'tools · queue-doctor-cancel', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention;
+      if (typeof cl !== 'function' || typeof att !== 'function') {
+        T.skip('queue-doctor attention set is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1755000000000;
+      var wrap = function (o, checks) {
+        var pr = { number: 1, title: 't', state: 'OPEN', isDraft: false, mergeState: 'CLEAN', autoMerge: true, updatedAtMs: NOW - 90 * 60000, checks: checks };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test', 'biome'], NOW);
+        r.pr = pr;
+        return r;
+      };
+      var cancelled = wrap({ number: 3 }, [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'cancel' }
+      ]);
+      var green = wrap({ number: 4 }, [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'pass' }
+      ]);
+      var advisoryCancel = wrap({ number: 5 }, [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'pass' },
+        { name: 'mutation', bucket: 'cancel' }
+      ]);
+      var redAndCancelled = wrap({ number: 6 }, [
+        { name: 'test', bucket: 'fail' },
+        { name: 'biome', bucket: 'cancel' }
+      ]);
+      T.eq('a cancelled required check classifies as cancelled, not ready', cancelled.k, 'cancelled');
+      T.ok('…and the reason names the context', /biome/.test(cancelled.why));
+      T.eq('the same PR with the check passed is ready (non-vacuity)', green.k, 'ready');
+      T.eq('an advisory cancellation does not block', advisoryCancel.k, 'ready');
+      T.eq('a red beats a cancellation', redAndCancelled.k, 'failing');
+      var a = att([cancelled, green, advisoryCancel]);
+      T.eq(
+        'the cancelled PR alone is in the attention set',
+        a.cancelled.map(function (c) {
+          return c.pr.number;
+        }),
+        [3]
+      );
+      T.eq('…and is neither stuck nor failing', a.stuck.length + a.failing.length, 0);
+      T.eq('a healthy queue has nothing cancelled to name', att([green, advisoryCancel]).cancelled.length, 0);
+    });
+
     /* ── queue-doctor: a red PR is an EVENT once, not a journal line every ten minutes (owner,
        2026-10-12: "some auto system should warn you" — #3477 and #3481 sat red for an hour under a
        running timer that printed the red on every run into a journal nobody read). ── */
