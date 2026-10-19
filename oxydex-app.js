@@ -154,29 +154,7 @@ function exportJSON() {
     // paired ECG + fusion + ANS age (computed the same way the dashboard renders them)
     var _ecg = typeof oxyEcgForNight === 'function' ? oxyEcgForNight(n) : null;
     var _F = _ecg && typeof oxyComputeFusion === 'function' ? oxyComputeFusion(n, _ecg) : null;
-    var _ecgFusion = _F
-      ? {
-          pairedEcgDate: typeof _oxyEcgDate === 'function' && _F.rec ? _oxyEcgDate(_F.rec.startEpochMs) : null,
-          confirmedApnea: { confirmed: _F.confirmed, desaturations: _F.desN, pct: _F.confPct },
-          desatArousalLatencySec: _F.medLat,
-          apneaType: _F.apneaType,
-          pairedEvents: _F.latencies.length,
-          hypoxicDosePerEvent: _F.dosePerEv,
-          doseBasis: _F.doseBasis,
-          doseDenominator: _F.doseDenom,
-          nadirDepthByStage: Object.keys(_F.stageAgg).reduce(function (o, k) {
-            var a = _F.stageAgg[k];
-            o[k] = { count: a.count, deepestPct: +a.deepest.toFixed(1), meanPct: +(a.sum / a.count).toFixed(1), unstaged: !!a.unstaged };
-            return o;
-          }, {}),
-          stageProxyContext: _F.stageProxyCtx,
-          crcPLV: { baseline: _F.plvB, duringSurges: _F.plvS, dropsDuringSurges: _F.plvB != null && _F.plvS != null ? _F.plvS < _F.plvB : null, wholeNight: _F.cr ? _F.cr.crcPLV : null },
-          hrCrossCheck: { oxyMeanHr: _F.oxyMeanHr, ecgMeanHr: _F.ecgMeanHr, deltaBpm: _F.hrDelta, oxyFloor: _F.oxyFloor, ecgFloor: _F.ecgFloor },
-          realHRV: { rmssd: _F.t.rmssd, sdnn: _F.t.sdnn, pnn50: _F.t.pnn50, meanHr: _F.t.hr },
-          ecgApnea: _F.ap ? { estimatedAHI: _F.ap.estimatedAHI, cvhrIndex: _F.ap.cvhrIndex, cvhrEvents: _F.ap.cvhrEvents, riskCategory: _F.ap.riskCategory } : null,
-          respRateInstability: _F.rstat
-        }
-      : null;
+    var _ecgFusion = _F && typeof oxyEcgFusionBlock === 'function' ? oxyEcgFusionBlock(_F) : null; // the block mapping lives in oxydex-fusion.js, so a fixture can carry it
     var _ansAge = null; // ANS age REMOVED 2026-06-21 (external-review WP-A);
     // key kept (null) for node-export back-compat — consumers tolerate null.
     // Element built by the SHARED oxyBuildNightElement (pulsedex-dsp sibling) so

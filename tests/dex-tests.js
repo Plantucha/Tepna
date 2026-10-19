@@ -48912,6 +48912,96 @@
       }
     });
 
+    /* residue 2026-10-06-no-committed-fixture-pairs-an-ecg — until this leg landed, EVERY assertion about
+       the SpO2-plus-ECG fusion ran on a hand-built night, so no committed artifact pinned the block the app
+       actually ships. Three committed files close that: the O2Ring CSV, an ECG node-export built to overlap
+       the same night (tools/gen-ecg-night-pair.mjs), and the fixture computed from BOTH. The block mapping
+       moved out of oxydex-app.js into oxydex-fusion.js for exactly this reason — an app-level mapping is
+       unreachable from a headless regen, so no fixture could carry it. */
+    group('OxyDex × ECG · the committed pair reproduces the shipped fusion block', 'oxydex-fusion · ecg-pair · fixture · provenance', function (T) {
+      var P = (env.equiv || {}).oxydex_ecg_pair;
+      var OD = env.OxyDex;
+      var blockOf = typeof env.oxyEcgFusionBlock === 'function' ? env.oxyEcgFusionBlock : null;
+      var forNight = typeof env.oxyEcgForNight === 'function' ? env.oxyEcgForNight : null;
+      var computeFusion = typeof env.oxyComputeFusion === 'function' ? env.oxyComputeFusion : null;
+      var setByDate = typeof env.setEcgByDate === 'function' ? env.setEcgByDate : null;
+
+      /* A NODE-lane group: run-tests.mjs executes oxydex-fusion.js headless and reads uploads/ off disk,
+         while the browser lane carries it as TEXT only. Skip BY NAME there, never vacuously green. */
+      if (!P) {
+        T.skip('the committed CSV + ECG-export pair is reachable (env.equiv.oxydex_ecg_pair)', 'uploads/ not readable in this lane');
+        return;
+      }
+      T.ok('the O2Ring CSV half is committed and readable', typeof P.csv === 'string' && P.csv.length > 0, 'synthetic_oxydex_o2ring.csv absent');
+      T.ok('the ECG node-export half is committed and parsed', !!(P.ecg && P.ecg.recording), 'synthetic_ecg_night.node-export.json absent or malformed');
+      T.ok('the derived fixture is committed and parsed', Array.isArray(P.fixture) && P.fixture.length === 1, P.fixtureFile + ' absent, malformed, or not a one-element array');
+      if (!(P.fixture && P.fixture[0])) return;
+
+      var shipped = P.fixture[0].ecgFusion;
+      T.ok('the fixture CARRIES a fusion block — the whole point of the pair', !!shipped && typeof shipped === 'object', 'ecgFusion is ' + JSON.stringify(shipped));
+      if (!shipped) return;
+
+      /* The measured values. They are the pair's own arithmetic, not a target: four desaturations, each
+         with a surge inside the asymmetric −15 s / +60 s gate, so confirmation is 4 of 4. */
+      T.eq('4 desaturations, 4 confirmed by an autonomic surge', JSON.stringify([shipped.confirmedApnea.desaturations, shipped.confirmedApnea.confirmed]), '[4,4]');
+      T.eq('the paired-event count agrees with the confirmed count', shipped.pairedEvents, 4);
+      T.eq('the ECG side is dated onto the SpO2 night', shipped.pairedEcgDate, '2026-06-13');
+      T.eq('median desat-to-arousal latency, in seconds', shipped.desatArousalLatencySec, 1);
+      T.eq('an apnea type the pair can actually support', shipped.apneaType, 'mixed / co-incident');
+      T.eq('nadir depth is split by stage, not pooled', Object.keys(shipped.nadirDepthByStage).sort().join(','), 'Deep,Light');
+      T.eq('…and the per-stage counts sum to the confirmed events', shipped.nadirDepthByStage.Deep.count + shipped.nadirDepthByStage.Light.count, 4);
+      T.eq(
+        'the two devices agree on mean HR to a fifth of a beat',
+        JSON.stringify([shipped.hrCrossCheck.oxyMeanHr, shipped.hrCrossCheck.ecgMeanHr, shipped.hrCrossCheck.deltaBpm]),
+        '[58.2,58.4,-0.2]'
+      );
+      T.eq('real HRV comes from the RR series, not the ring summary', JSON.stringify([shipped.realHRV.rmssd, shipped.realHRV.sdnn]), '[39.1,52.8]');
+      T.eq('the ECG apnea screen reports its own CVHR count', JSON.stringify([shipped.ecgApnea.cvhrIndex, shipped.ecgApnea.cvhrEvents]), '[2,4]');
+
+      /* §∅ — what the pair does NOT measure stays null. A synthetic PPG-free night has no coupling to
+         read and no ECG HR floor, so those report absence rather than a floor of 0. */
+      T.eq('an unmeasured PLV baseline is null, never 0', shipped.crcPLV.baseline, null);
+      T.eq('an unmeasured surge PLV is null, never 0', shipped.crcPLV.duringSurges, null);
+      T.eq('…so "drops during surges" is null, not false', shipped.crcPLV.dropsDuringSurges, null);
+      T.eq('an unmeasured ECG HR floor is null, never the oxy floor', shipped.hrCrossCheck.ecgFloor, null);
+      T.eq('an unmeasured respiration-rate instability is null', shipped.respRateInstability, null);
+
+      // ── The equivalence leg: recompute the block from the two committed inputs and diff it. ──
+      if (!(blockOf && forNight && computeFusion && setByDate && OD && typeof OD.computeNight === 'function')) {
+        T.skip('the fusion surface + OxyDex.computeNight are reachable', 'node-lane handles absent in this runner');
+        return;
+      }
+      var night = OD.computeNight({ text: P.csv }, 'synthetic_oxydex_o2ring.csv');
+      T.ok('the CSV computes an internal night (compute() returns export ELEMENTS, which carry no desat.events)', !!night, 'computeNight returned ' + JSON.stringify(night));
+      if (!night) return;
+      var m = {};
+      m[shipped.pairedEcgDate] = P.ecg;
+      setByDate(m);
+      var paired = forNight(night);
+      T.ok('the ECG export pairs with that night BY DATE', !!paired, 'oxyEcgForNight found no ECG for ' + (night.date || 'the night'));
+      var rebuilt = paired ? blockOf(computeFusion(night, paired)) : null;
+      T.eq('the recomputed block EQUALS the committed one, field for field', JSON.stringify(rebuilt), JSON.stringify(shipped));
+      setByDate({});
+      T.eq('a null fusion maps to a null block, not an object of nulls', blockOf(null), null);
+
+      /* The extraction itself: the mapping lives in oxydex-fusion.js, and oxydex-app.js CALLS it. An app
+         that rebuilds the mapping inline puts the block back out of a regen's reach, which is what made
+         this fixture impossible before. */
+      var src = env.sources || {};
+      var fusionSrc = src['oxydex-fusion.js'] || '';
+      var appSrc = src['oxydex-app.js'] || '';
+      if (!fusionSrc || !appSrc) {
+        T.skip('oxydex-fusion.js and oxydex-app.js sources are readable (env.sources)', 'sources absent in this lane');
+        return;
+      }
+      T.ok('oxydex-fusion.js DEFINES the block mapping', /function oxyEcgFusionBlock\s*\(/.test(fusionSrc), 'oxyEcgFusionBlock is not defined there');
+      T.ok('…and exports it on the module surface', /oxyEcgFusionBlock/.test(fusionSrc.slice(fusionSrc.indexOf('Object.assign(window'))), 'not on the exported surface');
+      T.ok('oxydex-app.js CALLS it', /oxyEcgFusionBlock\s*\(/.test(appSrc), 'the app does not call the shared mapping');
+      ['desatArousalLatencySec', 'nadirDepthByStage', 'hypoxicDosePerEvent'].forEach(function (k) {
+        T.ok('oxydex-app.js no longer builds `' + k + '` inline', appSrc.indexOf(k + ':') === -1, 'the app still assembles the block itself');
+      });
+    });
+
     group('OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0', 'oxydex-fusion · absence', function (T) {
       // fusion's PUBLISHED surface only (its window / stamp helpers are module-private): node reads env, browser globals
       var W = typeof globalThis !== 'undefined' ? globalThis : {};

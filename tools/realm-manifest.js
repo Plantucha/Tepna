@@ -53,6 +53,12 @@ var ECG_REALM = Object.freeze(['kernel-constants.js', 'clock.js', 'signal-frame.
 /* The OxyDex realm with the ECGDex leg loaded on top (measurement-walk walks both nodes). */
 var OXY_ECG_REALM = Object.freeze(OXY_REALM.concat(ECG_LEG));
 
+/* The OxyDex realm with the FUSION module on top. The regenerator needs it: `oxyEcgFusionBlock`
+   maps the node-export's ecgFusion block, and the app is not loadable headless (residue
+   2026-10-06-no-committed-fixture-pairs-an-ecg). The ECGDex leg is deliberately absent — the ECG side
+   of a fixture pair is a committed node-export, which fusion reads as plain data. */
+var OXY_FUSION_REALM = Object.freeze(OXY_REALM.concat(['oxydex-fusion.js']));
+
 /* The PpgDex realm — clock.js before ppgdex-dsp.js (the DSP aliases DexClock.parseTimestamp at load). */
 var PPG_REALM = Object.freeze([
   'kernel-constants.js',
@@ -74,6 +80,7 @@ module.exports = {
   OXY_REALM: OXY_REALM,
   OXY_DSP_REALM: OXY_DSP_REALM,
   OXY_ECG_REALM: OXY_ECG_REALM,
+  OXY_FUSION_REALM: OXY_FUSION_REALM,
   ECG_LEG: ECG_LEG,
   ECG_REALM: ECG_REALM,
   PPG_REALM: PPG_REALM
