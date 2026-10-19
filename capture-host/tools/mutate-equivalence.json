@@ -1564,6 +1564,13 @@
       "key": "- \"host_minus_device_s\": None if advance is None else round(span - advance, 3), | + \"host_minus_device_s\": None if advance is None else round(span - advance, 4),",
       "probe": "Measured, not argued. The writer of this file stamps the host clock to the MILLISECOND and no finer: `writers.py`'s OXYFRAME row builds `when.strftime(\"%Y-%m-%dT%H:%M:%S.\") + f\"{when.microsecond // 1000:03d}\"`, and over every microsecond value the field is 3 digits wide (measured across `range(0, 1_000_000, 7)`: the set of widths is `{3}`). `oxyframe_samples` reads those stamps with `nights_index.parse_host_stamp`, which keeps exactly the digits written, so `last - first` is always a whole number of milliseconds. Over 1,000,000 random spans up to 12 h with a random integer advance beside each, `max |round(x, 3) - round(x, 4)| = 0.0` for both this field and `host_minus_device_s`.",
       "why": "The same argument one subtraction later: `advance` is an integer count of device-seconds, so `span - advance` is the span's own millisecond grid shifted by a whole number. A fourth decimal of zero stays zero under subtraction of an integer, and the probe measures that over 1,000,000 spans rather than reasoning about it. The mutants that return an INT here are killed by `test_a_TWO_frame_run_reads_its_span_to_the_MILLISECOND_the_writer_STAMPED`, which asserts -4.766 s; only the extra decimal is unreachable."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "sample_object",
+      "key": "- return write_night(night, devices, commit=None, **readers) | + return write_night(night, devices, **readers)",
+      "probe": "Hand-applied 2026-10-19 one at a time with PYTHONDONTWRITEBYTECODE=1, against the whole of tests/test_loss_audit.py (170 tests), reverted after and the file confirmed byte-identical: SURVIVED, 170 passed. Read the signature in the same session: `inspect.signature(write_night).parameters['commit']` is `default=None, kind=KEYWORD_ONLY`, so the mutant passes exactly what the default supplies. POSITIVE CONTROLS in the same sweep, on this same call: dropping `**readers` and emptying `devices` were each KILLED by that run (1 failed, 169 passed), so the suite does observe a changed argument list here.",
+      "why": "The explicit keyword passes the value the signature already defaults to, so the original and the mutant bind `write_night`'s parameters identically and no input separates them. The keyword stays because a synthetic night records NO commit and the call should say so. The claim is self-policing: give `write_night`'s `commit` a different default and this mutant becomes distinguishable, which this gate reports as REFUTED rather than passing quietly."
     }
   ],
   "mmeta.py": [
