@@ -112,16 +112,64 @@ only, with no affiliation or endorsement implied.
 
 ### Runtime libraries
 
-The capture-host installs four third-party Python libraries at runtime.
-`capture-host/requirements.txt` declares them. I read each licence from its
-installed distribution.
+`capture-host/requirements.txt` declares four third-party Python libraries. I
+read every licence below from the installed distribution: its SPDX expression
+where it publishes one, otherwise the `LICENSE` text it ships in its own
+`dist-info`.
 
-| Library | Version | Licence | Purpose |
+A version is a measurement, not a pin, so each table names its host and its
+date. The **capture box** is production. Its venv is
+`/opt/tepna/capture-host/.venv`, the interpreter `tepna-capture.service` names in
+its own `ExecStart`, on CPython 3.14.4. The **rig** is the development checkout,
+`/home/michal/Tepna/capture-host/.venv`, on CPython 3.13.11. I read both on
+2026-10-18.
+
+| Library | Box | Rig | Licence | Purpose |
+|---|---|---|---|---|
+| **bleak** | 3.0.2 | 3.0.2 | MIT | Cross-platform BLE central; the capture daemon's radio interface. |
+| **PyYAML** | 6.0.3 | 6.0.3 | MIT | Parses `config.yaml`. |
+| **aiohttp** | 3.14.3 | 3.14.2 | Apache-2.0 AND MIT | The monitor and control surface (`webmon.py`): scan, bond, forget, and the live waveform stream. |
+| **cryptography** | 50.0.0 | 50.0.0 | Apache-2.0 OR BSD-3-Clause | AES-256-CBC for the ResMed AS11 encrypted BLE channel (`as11_cipher.py`). |
+
+An earlier revision of this table read aiohttp 3.14.4 and cryptography 50.0.2.
+Neither number matched either venv. The aiohttp figure equals the box's *Python*
+version, which is the shape of a transcription slip.
+
+`requirements.txt` declares `cryptography>=50.0.1`. Both venvs carry 50.0.0, so
+production misses its own declared floor. That is a deployment fact rather than a
+licensing one. `briefs/RESIDUE.md` logs it as
+`2026-10-18-the-cryptography-floor-is-met-by-neither-venv`. Raising it on the box
+is a deploy, and only the owner authorizes one.
+
+#### The runtime closure
+
+The four declared libraries pull in eleven more. Walking `requires_dist` with
+each host's own environment markers evaluated returns the same fifteen
+distributions on both, so only aiohttp's patch version differs between the
+hosts. A walk that ignores markers over-counts: the rig also installs
+`typing_extensions` for the development tooling, and the runtime closure asks
+for that package only below Python 3.13.
+
+| Library | Version | Licence | Pulled in by |
 |---|---|---|---|
-| **bleak** | 3.0.2 | MIT | Cross-platform BLE central; the capture daemon's radio interface. |
-| **PyYAML** | 6.0.3 | MIT | Parses `config.yaml`. |
-| **aiohttp** | 3.14.4 | Apache-2.0 AND MIT | The monitor and control surface (`webmon.py`): scan, bond, forget, and the live waveform stream. |
-| **cryptography** | 50.0.2 | Apache-2.0 OR BSD-3-Clause | AES-256-CBC for the ResMed AS11 encrypted BLE channel (`as11_cipher.py`). |
+| **aiohappyeyeballs** | 2.7.1 | PSF-2.0 | aiohttp |
+| **aiosignal** | 1.4.0 | Apache-2.0 | aiohttp |
+| **attrs** | 26.1.0 | MIT | aiohttp |
+| **cffi** | 2.1.1 | MIT-0 | cryptography |
+| **dbus-fast** | 5.0.22 | MIT | bleak |
+| **frozenlist** | 1.8.0 | Apache-2.0 | aiohttp |
+| **idna** | 3.18 | BSD-3-Clause | yarl |
+| **multidict** | 6.7.1 | Apache-2.0 | yarl |
+| **propcache** | 0.5.2 | Apache-2.0 | yarl |
+| **pycparser** | 3.0 | BSD-3-Clause | cffi |
+| **yarl** | 1.24.5 | Apache-2.0 | aiohttp |
+
+Every version above matches on both hosts. The whole closure is permissive and
+Apache-2.0 compatible: MIT, MIT-0, BSD-3-Clause, Apache-2.0 and PSF-2.0. Three
+packages publish a licence classifier rather than an SPDX expression
+(`aiosignal`, `multidict`, `propcache`), so for those three I read Apache-2.0
+from the `LICENSE` text each one ships. No copyleft licence appears anywhere in
+the closure, and none of these packages reaches a browser bundle.
 
 ---
 
