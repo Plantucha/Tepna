@@ -1360,6 +1360,27 @@ def test_the_band_boundary_is_where_it_claims_to_be():
     assert round(late[1] - late[0]) == 16 * 3600  # 18:00 -> 10:00 is 16 h
 
 
+def test_the_KEY_band_boundary_is_where_it_claims_to_be_and_its_edges_are_EXACT():
+    """The key's twin of the test above, and it exists because three mutants of `night_key_band` lived
+    through the whole suite (#3650's diff-scoped gate): `>=` -> `>` at the noon edge, and
+    `_KEY_BEGIN_H * 3600.0` -> `/ 3600.0` and `-> * 3601.0` in the begin edge.
+
+    The owner's 2026-10-13 ruling names 12:00 itself — a session starting from 12:00 on D through 11:59
+    on D+1 belongs to night D — so the boundary case here is the ruling's own wording rather than an hour
+    somebody chose.
+
+    > AND AN ASSERTION THAT ONLY ASKS WHETHER A STAMP FALLS INSIDE ITS BAND CANNOT SEE A MISPLACED EDGE.
+    A 24 h window swallows an edge 12 s out of place and an edge 12 h out of place alike, which is exactly
+    how two of the three mutants survived. So these edges are asserted as VALUES."""
+    noon = nightqc.night_key_band(_ts(2026, 10, 4, 12, 0))
+    before = nightqc.night_key_band(_ts(2026, 10, 4, 11, 59))
+    assert noon != before
+    assert noon[0] == _ts(2026, 10, 4, 12), "12:00 opens its OWN night, which is the ruling's wording"
+    assert before[0] == _ts(2026, 10, 3, 12), "11:59 still belongs to the night that opened yesterday"
+    assert noon[1] - noon[0] == 24 * 3600.0, "noon to noon, so the keys tile the clock"
+    assert before[1] == noon[0], "and consecutive key bands abut — no stamp falls between two nights"
+
+
 def test_a_19_00_DONNING_now_belongs_to_THE_EVENING_IT_STARTED_IN(tmp_path):
     """What the ruling bought, and the one case the old edge got wrong.
 
