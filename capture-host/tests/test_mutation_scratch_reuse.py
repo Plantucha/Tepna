@@ -645,6 +645,7 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
         "sensor-trio-power-analysis.js",
         "suite.manifest.json",
         "tests/dex-tests.js",
+        "tools/argv-guard.mjs",
         "tools/mutate-equivalence.json",
         "tools/mutate.mjs",
         "tools/o2ring-dat-timefit.mjs",

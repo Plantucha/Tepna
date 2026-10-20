@@ -61,6 +61,10 @@ const DIR = process.argv[2] || '/home/michal/tepna-smoketest/captures/2026-07-26
    lands within one quantum of the fitted line every row. Two quanta is the §7 threshold — a property
    of the data (the bimodality has a ~100× gap), not a tuned knob. */
 const MIN_SPAN_MIN = 60;
+/* The size pre-filter, named and exported rather than a literal in the pipeline. It is a CHEAP
+   pre-filter and never the span rule: MIN_SPAN_MIN above is what decides whether a fragment may be
+   quoted, and this only avoids opening files too small to hold an hour of either stream. */
+export const MIN_FRAGMENT_BYTES = 3e6;
 export const HOST_QUANTUM_MS = 1;
 export const INDEPENDENT_MIN_SPREAD_MS = 2 * HOST_QUANTUM_MS;
 /* A CRYSTAL does not change rate between fragments of one night. The two Polar devices hold ±1.6 ppm
@@ -267,6 +271,65 @@ async function rateOf(file) {
   };
 }
 
+/* The names this tool can read a rate out of. Exported so the refusal below and the test gate the
+   SAME pattern — a second copy drifts silently, which is this file's own crystal-bound lesson. */
+export const CAPTURE_FILE_RE = /(H10.*_ECG|(?:Verity)?Sense.*_PPG|O2Ring.*_PPG)\.txt$/;
+
+/* ABSENCE AND EMPTINESS ARE DIFFERENT ANSWERS AND THE CALLER OWES BOTH BY NAME (CLAUDE.md §∅).
+   Residue `2026-10-20-dual-clock-rate-reports-an-absent-directory-as-a-stack-trace`: an absent
+   directory reached `readdirSync` and left a `node:fs` scandir trace at exit 1, which says nothing
+   about what was looked for or where. A directory that EXISTS and matches no capture file was worse
+   than that — it printed the header and an empty table, which reads like a measurement over nothing.
+   Pure on purpose: the probe does the I/O, this decides, so a test reaches every branch without a
+   filesystem. Returns null when there is nothing to refuse. */
+export function captureDirRefusal(dir, probe) {
+  if (!dir) return { reason: 'no-directory-given', detail: 'no capture directory was given and this tool has no default worth guessing' };
+  if (probe && probe.error) return { reason: 'directory-unreadable', detail: `could not read ${dir}: ${probe.error}` };
+  if (!probe || !probe.exists) return { reason: 'directory-absent', detail: `looked for a capture night directory at ${dir} and it does not exist` };
+  if (!probe.isDirectory) return { reason: 'not-a-directory', detail: `${dir} exists but is not a directory` };
+  const names = probe.names || [];
+  const matching = names.filter((n) => CAPTURE_FILE_RE.test(n));
+  if (matching.length === 0) {
+    /* The two emptinesses are reported apart, because "you staged nothing" and "you staged the wrong
+       night" send a reader to different places. */
+    return names.length === 0
+      ? { reason: 'directory-empty', detail: `${dir} is an empty directory, so no raw file was read` }
+      : { reason: 'no-capture-file-matched', detail: `${dir} holds ${names.length} entr${names.length === 1 ? 'y' : 'ies'} and none is an H10 _ECG, a Verity _PPG or an O2Ring _PPG file` };
+  }
+  return null;
+}
+
+/* THE SEVENTH REASON, pure for the same cause as the six above. It is a SEPARATE predicate because it
+   decides over file SIZES, which `captureDirRefusal` never sees — folding it in would make that one
+   take two kinds of input and answer two questions. Takes the matched entries as `[{ f, sz }]`. */
+export function fragmentFloorRefusal(dir, matched) {
+  if (!matched || matched.length === 0) return null; /* an absent match is the other predicate's answer, not this one's */
+  if (matched.some((m) => m.sz > MIN_FRAGMENT_BYTES)) return null;
+  const mb = (MIN_FRAGMENT_BYTES / 1e6).toFixed(0);
+  return {
+    reason: 'no-fragment-over-size-floor',
+    detail: `${dir} holds ${matched.length} capture file(s) and none exceeds ${mb} MB, so no fragment could hold an hour of either stream`
+  };
+}
+
+/* The I/O half, kept out of the predicate. An errno that is not absence becomes its own named reason
+   rather than a trace: a crash is not a verdict (tools/verify-seals.mjs states the same rule). */
+export function probeCaptureDir(dir) {
+  if (!dir) return { exists: false };
+  let st;
+  try {
+    st = fs.statSync(dir);
+  } catch (e) {
+    return e && e.code === 'ENOENT' ? { exists: false } : { exists: true, error: (e && e.code) || String(e) };
+  }
+  if (!st.isDirectory()) return { exists: true, isDirectory: false };
+  try {
+    return { exists: true, isDirectory: true, names: fs.readdirSync(dir) };
+  } catch (e) {
+    return { exists: true, isDirectory: true, error: (e && e.code) || String(e) };
+  }
+}
+
 /* A ppm slope needs TIME LEVERAGE, and file size is not a proxy for it — a high-rate ECG
    fragment can exceed 3 MB while spanning eleven minutes. Measured on 2026-07-27 with this
    tool: the 373-minute H10 fragment gives -20.3 ppm, the 10.9-minute one gives -65.8. Both
@@ -276,13 +339,38 @@ async function rateOf(file) {
 
 /* Importable: the predicate above is gated on VALUES by tests/dex-tests.js, and importing a module
    must not fire its I/O. Only a direct `node tools/dual-clock-rate.mjs …` runs the report. */
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const files = fs.readdirSync(DIR).filter((f) => /(H10.*_ECG|(?:Verity)?Sense.*_PPG|O2Ring.*_PPG)\.txt$/.test(f));
+if (IS_CLI) {
+  /* ONE predicate, not a second copy: `IS_CLI` above is the same test this used to spell out inline.
+     Two spellings of one rule drift, and only one of them gets fixed. */
+  const probe = probeCaptureDir(DIR);
+  const refusal = captureDirRefusal(DIR, probe);
+  if (refusal) {
+    console.error(`✕ dual-clock-rate: ${refusal.reason} — ${refusal.detail}`);
+    console.error('usage: node tools/dual-clock-rate.mjs <capture-night-dir>');
+    console.error('  <capture-night-dir> needs Polar_H10_*_ECG.txt, *Sense_*_PPG.txt or O2Ring*_PPG.txt');
+    console.error('nothing was read and nothing was written.');
+    process.exit(2);
+  }
+  const files = probe.names.filter((f) => CAPTURE_FILE_RE.test(f));
   const big = files
     .map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size }))
-    .filter((x) => x.sz > 3e6)
+    .filter((x) => x.sz > MIN_FRAGMENT_BYTES)
     .sort((a, b) => b.sz - a.sz)
     .slice(0, 6);
+  /* THE THIRD EMPTINESS, and the one that got closest to reading as a result: the names matched and
+     the size floor then removed every one of them, so the header and the column line printed over an
+     empty table. An output over absent input reports the absence (CLAUDE.md §∅) — refuse before the
+     header, and say how many matched and what the floor is, which is what tells a mis-aimed path from
+     a night of short fragments. */
+  const floorRefusal = fragmentFloorRefusal(
+    DIR,
+    files.map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size }))
+  );
+  if (floorRefusal) {
+    console.error(`✕ dual-clock-rate: ${floorRefusal.reason} — ${floorRefusal.detail}`);
+    console.error('nothing was read and nothing was written.');
+    process.exit(2);
+  }
   console.log('DEVICE RATE vs HOST CLOCK — measured directly from the two columns in each raw file\n');
   const byDev = {};
   const entriesBy = {}; // device -> [{ppm, ppmUncertainty}] for the χ² crystal verdict
