@@ -13019,6 +13019,150 @@
       } else T.skip('ppgdex-dsp.js source in env.sources', 'not available in this runner');
     });
 
+    group('PpgDex PUBLISHES the gap mask it ran on — runs, decoder, and the count they reproduce', 'ppgdex-dsp · cvhr · gap · export · §∅', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.runsFromMask === 'function' && typeof P.maskFromRuns === 'function')) {
+        T.skip('PPGDSP.runsFromMask / maskFromRuns available', 'not loaded');
+        return;
+      }
+      /* Residue `2026-10-19-the-cvhr-gap-mask-does-not-leave-the-node`. `cvhrFromNN` drops an event on
+         a second a gap spans, and the mask stayed inside `analyze`, so an outside recomputation could
+         rebuild only the half a beat-axis discontinuity explains. The CONTROL at the end of this group
+         IS that defect, in one record: a 95 ms hole — twelve rows at 125.7 Hz, against the node's
+         two-sample rule — invalidates one interval, costs one CVHR event, and leaves the beat axis
+         gap-free, so a consumer rebuilding the mask from `tt` scores a different detector. */
+      // ── the encoding, on a mask written out by hand ──
+      T.eq('runs encode each contiguous span once', JSON.stringify(P.runsFromMask([0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1])), '[[1,2],[5,1],[9,3]]');
+      T.eq('a run that reaches the last index keeps its length', JSON.stringify(P.runsFromMask([0, 0, 1, 1])), '[[2,2]]');
+      T.eq(
+        'the decode is exact',
+        Array.prototype.join.call(
+          P.maskFromRuns(
+            [
+              [1, 2],
+              [5, 1],
+              [9, 3]
+            ],
+            12
+          ),
+          ''
+        ),
+        '011001000111'
+      );
+      T.eq('decoded length is the series length the caller names, not the last run', P.maskFromRuns([[1, 2]], 12).length, 12);
+      T.eq('a zero-length run marks nothing', Array.prototype.join.call(P.maskFromRuns([[1, 0]], 4), ''), '0000');
+      /* §∅ — the two answers a count cannot tell apart. `[]` is "computed, and nothing spans a gap";
+         `null` is "no kept series to describe". A zero-filled array would be neither. */
+      T.eq('§∅ · a mask with no gap encodes to an EMPTY list, not null', JSON.stringify(P.runsFromMask([0, 0, 0])), '[]');
+      T.eq('§∅ · an absent mask encodes to null, not an empty list', P.runsFromMask(null), null);
+      T.eq('§∅ · an absent run list decodes to null — absence travels through', P.maskFromRuns(null, 5), null);
+
+      if (typeof P.analyze !== 'function' || typeof P.parsePPG !== 'function') {
+        T.skip('PPGDSP.analyze available', 'not loaded');
+        return;
+      }
+      // ── the publication, on a real analyze run ──
+      /* A gapped/clean twin pair in the §4 shape, with two differences from the §4 generator. The HR
+         is modulated on a 30 s cycle so CVHR RESOLVES — against a flat record every count below is 0
+         and every assertion about reproducing it is vacuous. And the gapped twin's hole is cut by
+         DELETING ROWS, not by planting a sentinel value: a sentinel's bridged interval is ~2x and
+         Malik rejects it, so it never reaches the kept series and the published mask stays empty
+         (measured here first, 3 input intervals spanning a gap and 0 kept). The sentinel runs stay in
+         as well, which is what keeps the two-population bound below non-trivial. */
+      var FS = 125.7,
+        DUR = 300,
+        N = Math.round(FS * DUR),
+        HOLE_AT = 114.0,
+        HOLE_S = 0.095;
+      var mk = function (plant) {
+        var out = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+        var t0 = Date.UTC(2026, 6, 25, 2, 0, 0);
+        var ph = 0;
+        for (var i = 0; i < N; i++) {
+          var t = i / FS;
+          var hr = 60 + 9 * Math.sin((2 * Math.PI * t) / 30);
+          ph += hr / 60 / FS;
+          if (plant && t > HOLE_AT && t < HOLE_AT + HOLE_S) continue; // the hole: twelve absent rows
+          var q = ph % 1;
+          var v = 1000 + 200 * Math.exp(-Math.pow((q - 0.18) / 0.07, 2)) + 60 * Math.exp(-Math.pow((q - 0.42) / 0.11, 2));
+          if (plant && ((t > 39.85 && t < 40.15) || (t > 74.85 && t < 75.15))) v = 156;
+          var ms = new Date(t0 + Math.round(t * 1000)).toISOString().replace('Z', '');
+          out += ms + ';' + Math.round(t * 1e9) + ';' + Math.round(v) + '\n';
+        }
+        return out;
+      };
+      var gapped = P.analyze(P.parsePPG(mk(true)));
+      var clean = P.analyze(P.parsePPG(mk(false)));
+      T.ok(
+        'the published field is an array on both twins',
+        Array.isArray(gapped.spansGapRuns) && Array.isArray(clean.spansGapRuns),
+        'gapped=' + JSON.stringify(gapped.spansGapRuns) + ' clean=' + JSON.stringify(clean.spansGapRuns)
+      );
+      T.eq('§∅ · the clean twin publishes an EMPTY list — computed, and nothing spans a gap', JSON.stringify(clean.spansGapRuns), '[]');
+      // ANTI-VACUITY: with no published run the control assertions below would prove nothing.
+      T.ok('the gapped twin publishes at least one run (the field is exercised)', gapped.spansGapRuns.length > 0, 'runs=' + JSON.stringify(gapped.spansGapRuns));
+      var dec = P.maskFromRuns(gapped.spansGapRuns, gapped.nn.length);
+      var trues = 0;
+      for (var i2 = 0; i2 < dec.length; i2++) if (dec[i2]) trues++;
+      T.eq('the decoded mask spans the nn series exactly — the runs index nn, not the input intervals', dec.length, gapped.nn.length);
+      T.ok('…and it marks at least one kept interval', trues > 0, 'marked=' + trues);
+      /* THE TWO POPULATIONS, which the counter beside this field does NOT share. `nGapSpanIntervals`
+         counts over EVERY INPUT interval; this mask describes the KEPT subset, so the mask can never
+         mark more than the counter counts. Dividing one by the other mixes them — the measured
+         symptom of that mix was a per-file "800 %". */
+      T.ok('the kept-interval mask never marks more than the input-interval count', trues <= gapped.nGapSpanIntervals, 'marked=' + trues + ' nGapSpanIntervals=' + gapped.nGapSpanIntervals);
+      // ── the contract a consumer depends on ──
+      T.ok('CVHR resolved AND found events (else every count below is vacuous)', gapped.cvhrReason == null && gapped.cvhrEvents > 0, 'reason=' + gapped.cvhrReason + ' events=' + gapped.cvhrEvents);
+      var active = 0;
+      for (var k = 1; k < gapped.tt.length; k++) {
+        var d = gapped.tt[k] - gapped.tt[k - 1];
+        if (d > 0 && d <= 10) active += d; // PPG_CVHR_GAP_S, the node's own cut
+      }
+      var re = P.cvhrFromNN(gapped.nn, gapped.tt, active, dec);
+      T.eq('the published runs REPRODUCE the published event count', re.events.length, gapped.cvhrEvents);
+      /* THE CONTROL — the defect this field closes, measured. Both twins' beat axes are gap-free:
+         the hole is 95 ms, far under the 10 s rule a `tt`-based rebuild applies, so the rebuild marks
+         NOTHING while the node's own mask marks the interval that straddles it. Scoring the same
+         beats with that rebuilt mask returns MORE events than the node published — masking can only
+         remove events — so the recomputation was scoring a different detector. */
+      var rebuilt = new Uint8Array(gapped.tt.length);
+      for (var k2 = 1; k2 < gapped.tt.length; k2++) if (gapped.tt[k2] - gapped.tt[k2 - 1] > 10) rebuilt[k2] = 1;
+      var rebuiltTrues = 0;
+      for (var i3 = 0; i3 < rebuilt.length; i3++) if (rebuilt[i3]) rebuiltTrues++;
+      T.eq('CONTROL · a mask rebuilt from the beat axis finds NOTHING — a 95 ms hole is invisible there', rebuiltTrues, 0);
+      var reRebuilt = P.cvhrFromNN(gapped.nn, gapped.tt, active, rebuilt);
+      T.ok(
+        'CONTROL · …so the rebuild over-counts the events the node published — that is the residue row',
+        reRebuilt.events.length > gapped.cvhrEvents,
+        'rebuilt=' + reRebuilt.events.length + ' published=' + gapped.cvhrEvents
+      );
+      /* ── AND IT LEAVES THE NODE. The row's own words are "not reconstructible from the node
+         output", so the mask rides in `timeseries.ppi`, the block that carries the series it
+         indexes — under `opts.rich`, which is where that series itself lives. The assertions below
+         recompute the detector FROM THE EXPORT ALONE, through the rounding the export applies:
+         `ms` is integer milliseconds and `tSec` three decimals.
+         ⚠️ THE COMMITTED FIXTURES PIN ONLY THE EMPTY CASE. Three of the six PpgDex goldens are rich
+         and all three moved by exactly `timeseries.ppi.spansGapRuns: undefined → []` — the one
+         fixture that HAS a gap (`synthetic_ppgdex_gapped_golden`) is not rich, so no committed
+         golden carries a non-empty mask. The planted twin below is what pins that half. */
+      if (typeof P.compute === 'function') {
+        var ex = P.compute(mk(true), { rich: true });
+        var ppi = ex && ex.timeseries ? ex.timeseries.ppi : null;
+        T.ok('the rich export carries the mask beside the series it indexes', !!(ppi && ppi.spansGapRuns), 'ppi=' + (ppi ? JSON.stringify(ppi.spansGapRuns) : 'absent'));
+        T.eq('…byte-for-byte the runs analyze published', JSON.stringify(ppi.spansGapRuns), JSON.stringify(gapped.spansGapRuns));
+        var exDec = P.maskFromRuns(ppi.spansGapRuns, ppi.n);
+        var exActive = 0;
+        for (var k3 = 1; k3 < ppi.tSec.length; k3++) {
+          var d3 = ppi.tSec[k3] - ppi.tSec[k3 - 1];
+          if (d3 > 0 && d3 <= 10) exActive += d3;
+        }
+        var exScore = P.cvhrFromNN(ppi.ms, ppi.tSec, exActive, exDec);
+        T.eq('a consumer with ONLY the export reproduces the published event count', exScore.events.length, ex.apnea.cvhrEvents);
+        var exNoMask = P.cvhrFromNN(ppi.ms, ppi.tSec, exActive, null);
+        T.ok('CONTROL · the same consumer without the mask does not', exNoMask.events.length > ex.apnea.cvhrEvents, 'noMask=' + exNoMask.events.length + ' published=' + ex.apnea.cvhrEvents);
+      } else T.skip('PPGDSP.compute available', 'not loaded');
+    });
+
     group('OxyDex waveform SpO2 trend — self-calibrated, refuses without its pair, experimental tier', 'oxydex-dsp · oxydex-registry · spo2w', function (T) {
       var P = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.spo2WaveformTrend ? env.OxyDex._bare : null) || env.OxyDex;
       if (!P || typeof P.spo2WaveformTrend !== 'function') {
