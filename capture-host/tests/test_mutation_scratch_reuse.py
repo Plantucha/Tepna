@@ -617,9 +617,15 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # fold tool by BASENAME while building a stub tree under tmp_path, and the basename rule flags that.
     # A mention, not a read — the test never opens the real file. Staged anyway, because the rule
     # over-flags by design and one small copy is the cheaper of the two errors.
+    # 2026-10-20: ONE new MENTION, the BLE sniffer duty-cycle brief (0.013 MB, measured). The
+    # `adapter-hci` verdict now CITES the owner decision that leaves the sniffer inert, so
+    # `adapter_hci.SNIFF_DECISION` carries that brief's path as a literal. A mention, not a read:
+    # nothing opens the brief, and the citation is the whole point of the field (residue
+    # 2026-09-25-adapterhci-cannot-express-inert-sniffer).
     assert got == [
         "Dex-Test-Suite.html",
         "README.md",
+        "briefs/BLE-SNIFFER-DUTY-CYCLE-2026-09-07-BRIEF.md",
         "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
         "briefs/SOLID-NIGHT-2026-09-23-BRIEF.md",
         "clock.js",
