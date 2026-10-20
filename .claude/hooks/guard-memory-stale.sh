@@ -136,8 +136,20 @@
 # and are deliberately writing over it; say so in the memory's own body.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
+# ⚡ DRAIN STDIN FIRST, AND WITH A BUILTIN — the harness writes this hook's payload down a PIPE, so
+#   every exit above this line leaves the writer holding a closed pipe: it takes SIGPIPE, the
+#   pipeline reports 141, and this hook's own code still reads 0 (#3493; `trim-output.sh:72-91`).
+#   The old order — both exits below ahead of a FORKED `payload="$(cat)"` — was deliberate and
+#   priced, and a `read` builtin is not that fork. Measured 2026-10-20, 400 calls per variant on a
+#   HOME with no memory directory, two laps, as ms/call at a production payload / at 100 KB:
+#     no drain 0.59 / 0.56 and 0.55 / 0.56 — and the writer takes 141, five times out of five
+#     builtin drain 0.55 / 1.28 and 0.57 / 1.30 — writer 0
+#     forked drain 1.58 / 2.28 and 1.73 / 2.25 — writer 0
+#   So the contract cost nothing at the size this hook actually sees, the forked drain is what the
+#   6.6 ms finding below rejects, and the hot path lost a fork on the way.
+IFS= read -r -d '' payload || true
 [ "${CLAUDE_ALLOW_STALE_MEMORY:-}" = "1" ] && exit 0
-# ⚡ NO MEMORY DIRECTORY ⇒ NOTHING TO GUARD — exit before reading the payload or forking anything.
+# ⚡ NO MEMORY DIRECTORY ⇒ NOTHING TO GUARD — decide it before forking anything.
 #   A cloud container or a fresh clone has no `~/.claude/projects/*/memory/` at all, and this hook
 #   rides EVERY Read, Edit, Write and Bash call (pre AND post). Measured 2026-09-26 on such a HOME:
 #   6.6 ms per call spent parsing a payload for a directory that cannot exist. The glob below is one
@@ -145,7 +157,7 @@ set -uo pipefail
 _mem_any=
 for _d in "${HOME:-/nonexistent}"/.claude/projects/*/memory; do [ -d "$_d" ] && { _mem_any=1; break; }; done
 [ -z "$_mem_any" ] && exit 0
-payload="$(cat 2>/dev/null)" || exit 0
+[ -z "$payload" ] && exit 0
 # ⚡ CHEAP REJECT FIRST — this hook rides Read, the hottest tool in the loop, and almost every Read is
 # not a memory file. A substring test on the RAW payload costs nothing and skips the jq fork for all
 # of them; only a payload that could name a memory path pays for parsing. (Measured: 5.2 ms → 1.4 ms
