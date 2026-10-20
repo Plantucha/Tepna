@@ -544,20 +544,14 @@ export function markDuplicates(rows) {
   return rows;
 }
 
-export function summarize(rows) {
-  const derived = rows.filter((r) => r.ahi !== null);
-  const byReason = {};
-  for (const r of rows) if (r.nullReason) byReason[r.nullReason] = (byReason[r.nullReason] || 0) + 1;
+/* The pooled shape of one set of derived rows. Taken over whatever rows the caller hands it, so the
+   all-files population and the distinct-subject population read through ONE code path and cannot
+   drift apart. */
+export function pooled(derived) {
   const vals = derived.map((r) => r.ahi).sort((a, b) => a - b);
   const q = (p) => (vals.length ? vals[Math.min(vals.length - 1, Math.floor(p * (vals.length - 1) + 0.5))] : null);
-  const dupes = rows.filter((r) => r.duplicateOf);
   return {
-    records: rows.length,
     derived: derived.length,
-    nulls: rows.length - derived.length,
-    duplicates: dupes.length,
-    distinctDerived: derived.filter((r) => !r.duplicateOf).length,
-    byReason,
     distribution: vals.length
       ? {
           min: vals[0],
@@ -574,6 +568,31 @@ export function summarize(rows) {
       from15to30: derived.filter((r) => r.ahi >= 15 && r.ahi < 30).length,
       over30: derived.filter((r) => r.ahi >= 30).length
     }
+  };
+}
+
+export function summarize(rows) {
+  const derived = rows.filter((r) => r.ahi !== null);
+  const byReason = {};
+  for (const r of rows) if (r.nullReason) byReason[r.nullReason] = (byReason[r.nullReason] || 0) + 1;
+  const dupes = rows.filter((r) => r.duplicateOf);
+  const all = pooled(derived);
+  /* ── THE DISTINCT-SUBJECT POPULATION RIDES BESIDE THE ALL-FILES ONE ──────────────────────────
+     `duplicates` and `distinctDerived` were counts with no figures behind them, so a reader could
+     see that three files repeat and still quote a median pooled over all of them. The subject rule
+     is `markDuplicates`: the first copy in sorted record-id order keeps the record. A set with no
+     duplicate reads IDENTICAL figures in both fields, which is the control. */
+  const distinctRows = derived.filter((r) => !r.duplicateOf);
+  return {
+    records: rows.length,
+    derived: all.derived,
+    nulls: rows.length - derived.length,
+    duplicates: dupes.length,
+    distinctDerived: distinctRows.length,
+    byReason,
+    distribution: all.distribution,
+    bands: all.bands,
+    distinct: pooled(distinctRows)
   };
 }
 
@@ -982,6 +1001,40 @@ function selftest() {
   const dupSum = summarize(pair);
   ok('a duplicate still derives its index', dupSum.derived, 3);
   ok('…and the distinct population is reported beside it', [dupSum.duplicates, dupSum.distinctDerived], [1, 2]);
+  ok('…and the distinct figures count the subjects, not the files', dupSum.distinct.derived, 2);
+  ok('…so a band loses the repeated copy', dupSum.distinct.bands.over30, 1);
+  ok('…while the all-files band still carries both', dupSum.bands.over30, 2);
+  /* THE CONTROL: a set with no duplicate must read identical figures in both fields. A `distinct`
+     block that differs there would be filtering on something other than `duplicateOf`. */
+  const cleanSum = summarize([
+    { recordId: 'a', contentHash: 'aaaaaaaaaaaa', ahi: 4, nullReason: null, duplicateOf: null },
+    { recordId: 'b', contentHash: 'bbbbbbbbbbbb', ahi: 20, nullReason: null, duplicateOf: null }
+  ]);
+  ok(
+    'with no duplicate the two populations agree on every figure',
+    [cleanSum.distinct.derived, cleanSum.distinct.distribution, cleanSum.distinct.bands],
+    [cleanSum.derived, cleanSum.distribution, cleanSum.bands]
+  );
+  /* THE DECOY: a null row carries no `ahi`, so it belongs to neither population even when its hash
+     repeats one that derived. */
+  const decoySum = summarize([
+    { recordId: 'a', contentHash: 'cccccccccccc', ahi: 11, nullReason: null, duplicateOf: null },
+    { recordId: 'b', contentHash: 'cccccccccccc', ahi: null, nullReason: 'no-respiratory-scoring', duplicateOf: 'a' }
+  ]);
+  ok('a null row joins neither population', [decoySum.derived, decoySum.distinct.derived, decoySum.nulls], [1, 1, 1]);
+  /* The quantile moves when the repeated copy sits off centre, which is the whole question the row
+     asks. Five files, four subjects: the median of 1·2·3·9 is 3 with the copy and 2.5 without. */
+  const moved = summarize(
+    markDuplicates([
+      { recordId: 'a', contentHash: 'a1a1a1a1a1a1', ahi: 1, nullReason: null, duplicateOf: null },
+      { recordId: 'b', contentHash: 'b2b2b2b2b2b2', ahi: 2, nullReason: null, duplicateOf: null },
+      { recordId: 'c', contentHash: 'b2b2b2b2b2b2', ahi: 2, nullReason: null, duplicateOf: null },
+      { recordId: 'd', contentHash: 'c3c3c3c3c3c3', ahi: 3, nullReason: null, duplicateOf: null },
+      { recordId: 'e', contentHash: 'd4d4d4d4d4d4', ahi: 9, nullReason: null, duplicateOf: null }
+    ])
+  );
+  ok('a repeated copy off centre moves the pooled median', moved.distribution.median, 2);
+  ok('…and the distinct median differs from it', moved.distinct.distribution.median, 3);
   ok('a row with no hash is never a duplicate', markDuplicates([{ recordId: 'x', ahi: null, nullReason: 'no-scorer-1-workbook', duplicateOf: null }])[0].duplicateOf, null);
 
   /* the summary and the criterion */
@@ -1084,6 +1137,13 @@ if (DIRECT) {
           );
         if (s.duplicates) console.log(`  duplicates: ${s.duplicates} record(s) repeat an earlier workbook byte for byte — ${s.distinctDerived} distinct derived`);
         console.log(`  bands: ${s.bands.under5} under 5 · ${s.bands.from5to15} from 5 to 15 · ${s.bands.from15to30} from 15 to 30 · ${s.bands.over30} at 30 or above`);
+        if (s.duplicates && s.distinct.distribution) {
+          const d = s.distinct.distribution;
+          console.log(`  distinct subjects: ${s.distinct.derived} derived · median ${d.median} · p25 ${d.p25} · p75 ${d.p75} · mean ${d.mean}`);
+          console.log(
+            `  distinct bands: ${s.distinct.bands.under5} under 5 · ${s.distinct.bands.from5to15} from 5 to 15 · ${s.distinct.bands.from15to30} from 15 to 30 · ${s.distinct.bands.over30} at 30 or above`
+          );
+        }
       }
       const unread = rows.filter((r) => r.nullReason === 'unreadable');
       for (const r of unread) console.log(`  unreadable ${r.recordId}: ${r.error}`);
