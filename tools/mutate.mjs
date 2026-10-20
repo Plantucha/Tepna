@@ -541,6 +541,20 @@ export function changedLinesFromDiff(diffText) {
    everything else ~10 s of a 658 s run. The loop therefore spends 85 % of the budget, and `mutants ×
    calibration / jobs` — the `est` figure this line prints — read 553 s against those 557 s.
 
+   ⚠️ CORRECTED 2026-10-20: that formula reads "mutants x calibration / jobs", and the 27 above is
+   #3506's DIFF population — but the caller passed `mutantsFor(whole file)`, so every diff run was
+   priced over a population it never tested. Measured over 17 CI file records from the 14 h after
+   #3697 shipped the line: `est` equals `calibration x mutantsInFile / jobs` to within 1 % on all 17,
+   and est/actual ran 4x to 1298x, median 125x. The estimate now prices the touched lines, which is
+   what the paragraph above always claimed it did. Re-priced over the same 17 records it reads 0.59x
+   to 1.42x of the measured pass, median 1.12x.
+
+   ⚠️ SO IT IS NOT AN UPPER BOUND AT SMALL N, AND NOT FOR THE REASON BELOW. `mutantPassMs` includes
+   the worker-pool build, which the estimate omits, so the ratio falls UNDER 1 on 7 of the 17 — all
+   of them 2 to 9 mutants, down to 0.59x on `ecgdex-app.js` with 4. Bail makes it over-read as the
+   population grows and the fixed pool cost makes it under-read when the population is small; quote
+   it as a projection with its mutant count, never as a ceiling, below roughly ten mutants.
+
    ⚠️ IT IS AN UPPER BOUND, NOT A PREDICTION. Bail returns a killed mutant before its selected groups
    finish, so the estimate over-reads whenever few mutants run: measured the same day at `--limit 1`,
    est 22 s against 7.0 s. It tightens as the population grows, and the agreement at 27 mutants is
@@ -548,9 +562,24 @@ export function changedLinesFromDiff(diffText) {
    the per-pass timing residue `2026-10-05-the-js-mutation-job-cannot-finish-on-the-pr-that-makes-its-own-target-fast`
    asked for, and residue `2026-10-12-the-js-mutation-timeout-is-wider-than-the-self-speeding-pr`
    widened to a class. */
-export function phaseNote({ file, baseMs, estMs, jobs }) {
+/* HOW MANY MUTANTS THIS RUN WILL ACTUALLY TEST. Pure, so the selftest pins it without a sweep: the
+   enumeration is the whole file, `lines` is the diff's touched-line set (null outside --diff), and
+   `limit` is --limit. A file in the diff with no entry in the map is an empty set, hence 0 — the same
+   "nothing to do" the run concludes, never the file's own count. */
+export function pricedCount(all, lines, limit) {
+  const n = (lines ? (all || []).filter((m) => lines.has(m.line)) : all || []).length;
+  return Math.min(n, Number.isFinite(limit) ? limit : n);
+}
+
+export function phaseNote({ file, baseMs, estMs, jobs, priced, inFile }) {
   const s = (ms) => (Number(ms) / 1000).toFixed(Number(ms) < 10000 ? 1 : 0);
-  return '  ' + file + '  calibration ' + s(baseMs) + ' s/run → per-mutant pass est ' + s(estMs) + ' s at ' + jobs + ' job(s)';
+  /* THE POPULATION IS PART OF THE PRICE. Until 2026-10-20 this line named seconds and jobs and never
+     said how many mutants it had priced, while the caller handed it the WHOLE FILE's count in diff
+     mode — so the figure described a run that was never going to happen (residue
+     2026-10-20-the-cost-projection-prices-the-whole-file-in-diff-mode). `priced` is optional and last,
+     so a caller that has no count still gets the old line rather than a fabricated one. */
+  const pop = Number.isFinite(priced) ? ' over ' + priced + (Number.isFinite(inFile) && inFile !== priced ? ' of ' + inFile : '') + ' mutant(s)' : '';
+  return '  ' + file + '  calibration ' + s(baseMs) + ' s/run → per-mutant pass est ' + s(estMs) + ' s' + pop + ' at ' + jobs + ' job(s)';
 }
 
 export function verdictFromOutput(out) {
@@ -1401,7 +1430,18 @@ async function runFile(file) {
   const baseMs = Math.max(1, Date.now() - t0);
   process.stderr.write('  calibrated: clean run took ' + (baseMs / 1000).toFixed(0) + 's\n');
   const timeoutMs = Math.max(30000, baseMs * 5);
-  const estMs = (baseMs * Math.min(mutantsFor(readFileSync(abs, 'utf8')).length, LIMIT)) / Math.max(1, JOBS);
+  /* PRICE THE POPULATION THIS RUN WILL TEST, not the file it lives in. `mutantsFor` enumerates the
+     whole file; a diff run tests only the mutants on the changed lines (the `all` filter one screen
+     down), so pricing the file overstated every diff run's mutant pass — measured over 17 CI file
+     records on 2026-10-20 at a median of 125x, up to 1298x on `ecgdex-dsp.js`, where 2 touched
+     mutants were priced as 2141 (residue
+     2026-10-20-the-cost-projection-prices-the-whole-file-in-diff-mode). `--budget` compares against
+     this same number, so the overstatement would have skipped files on a cost no run was going to
+     pay. The diff lines are read once at startup into DIFF_LINES; an absent entry is an empty set,
+     which is the same "nothing to do" the run itself concludes. */
+  const estAll = mutantsFor(readFileSync(abs, 'utf8'));
+  const estPriced = pricedCount(estAll, DIFF ? DIFF_LINES.get(file) || new Set() : null, LIMIT);
+  const estMs = (baseMs * estPriced) / Math.max(1, JOBS);
   if (BUDGET && estMs > BUDGET * 1000)
     return {
       file,
@@ -1411,8 +1451,8 @@ async function runFile(file) {
         '` costs ' +
         (baseMs / 1000).toFixed(1) +
         ' s, so ' +
-        LIMIT +
-        ' mutants ≈ ' +
+        estPriced +
+        ' mutant(s) on the lines this run tests ≈ ' +
         (estMs / 1000).toFixed(0) +
         ' s > --budget ' +
         BUDGET +
@@ -1424,7 +1464,7 @@ async function runFile(file) {
      heartbeat below carries a comment making this same argument for progress; the two lines that
      price the run were left behind. stdout stays pure NDJSON — this is stderr, which the workflow
      tails into the job summary. */
-  process.stderr.write(phaseNote({ file, baseMs, estMs, jobs: JOBS }) + '\n');
+  process.stderr.write(phaseNote({ file, baseMs, estMs, jobs: JOBS, priced: estPriced, inFile: estAll.length }) + '\n');
 
   const original = readFileSync(abs, 'utf8');
   const allGenerated = mutantsFor(original);
@@ -2647,6 +2687,26 @@ function selftest() {
     true
   );
   ck('phases · one job is reported as one, never collapsed to the plural', phaseNote({ file: 'c.js', baseMs: 1000, estMs: 1000, jobs: 1 }).includes('at 1 job(s)'), true);
+  /* THE POPULATION IS PART OF THE PRICE (residue 2026-10-20-the-cost-projection-prices-the-whole-file-in-diff-mode).
+     A diff run's line must say how many of the file's mutants it priced, or a reader cannot tell a
+     27-mutant projection from a 359-mutant one — they differ by 13x and print the same words. */
+  ck(
+    'phases · a diff run names the population it priced, and the file it came out of',
+    phaseNote({ file: 'oxydex-dsp.js', baseMs: 82000, estMs: 553000, jobs: 4, priced: 27, inFile: 359 }),
+    '  oxydex-dsp.js  calibration 82 s/run → per-mutant pass est 553 s over 27 of 359 mutant(s) at 4 job(s)'
+  );
+  ck('phases · a whole-file run says the count once, not "27 of 27"', phaseNote({ file: 'a.js', baseMs: 1000, estMs: 1000, jobs: 1, priced: 27, inFile: 27 }).includes('over 27 mutant(s)'), true);
+  ck('phases · no count ⇒ the old line, never a fabricated population', phaseNote({ file: 'a.js', baseMs: 1000, estMs: 1000, jobs: 1 }).includes('mutant(s)'), false);
+  /* pricedCount · what the run will test. The whole-file count is the DECOY: it is what the caller
+     used to pass, and in diff mode it overstated the mutant pass by a median of 125x in CI. */
+  const PM = [{ line: 5 }, { line: 5 }, { line: 9 }, { line: 40 }];
+  ck('priced · no diff ⇒ the whole enumeration', pricedCount(PM, null, Number.POSITIVE_INFINITY), 4);
+  ck('priced · a diff prices only the touched lines', pricedCount(PM, new Set([5]), Number.POSITIVE_INFINITY), 2);
+  ck('priced · …and both mutants on one touched line count', pricedCount(PM, new Set([5, 40]), Number.POSITIVE_INFINITY), 3);
+  ck('priced · DECOY a file in the diff with no touched line prices 0, never the file', pricedCount(PM, new Set(), Number.POSITIVE_INFINITY), 0);
+  ck('priced · --limit caps it', pricedCount(PM, null, 2), 2);
+  ck('priced · …and never raises it above what exists', pricedCount(PM, new Set([9]), 60), 1);
+  ck('priced · an empty enumeration is 0, not a crash', pricedCount(undefined, null, 60), 0);
   const blk = blockingSurvivors(cls, survived);
   ck('blocking · the excused survivor leaves, the real-gap and the unclassified one stay', blk.map((x) => x.line).join(','), '3,4');
   ck('blocking · no classification excuses nothing', blockingSurvivors({ excused: [] }, survived).length, 3);
