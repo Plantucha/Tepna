@@ -2,10 +2,10 @@
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    localStorage-backed user profile (UP) and every personalization formula:
-   upLoad/upSave/upFromDOM/upToDOM, HRmax/BMI/BSA/IBW/MAP/BMR/BAP/pop-avg/
+   upLoad/upFromDOM, HRmax/BMI/BSA/IBW/MAP/BMR/BAP/pop-avg/
    ideal-weight/Karvonen, profileDerivedUpdate/profileAutoDetectUpdate/
    recomputeFromProfile, the ANS-age hero, plus the inline-handler entrypoints
-   profileChanged/toggleProfile/openProfile. Runs initProfile() at load.
+   toggleProfile/openProfile. Runs initProfile() at load.
    Plain global script — shares page scope with the other oxydex-*.js files,
    exactly as in the original single-script monolith. No behavior change.
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
@@ -71,7 +71,7 @@ function upLoad() {
       UP.hrRestOverride = man.hrRest > 0 ? man.hrRest : 0;
       UP.elevation = p.elevation != null && isFinite(p.elevation) ? p.elevation : null; // §∅ — absent stays absent
       UP.cpap = p.cpap || 'no';
-    } catch (e) {}
+    } catch {}
     return;
   }
   try {
@@ -80,31 +80,16 @@ function upLoad() {
       var p2 = JSON.parse(raw);
       for (var k in p2) if (p2.hasOwnProperty(k)) UP[k] = p2[k];
     }
-  } catch (e) {}
+  } catch {}
 }
 
-function upSave() {
-  if (window.DexProfile) {
-    try {
-      DexProfile.setManual('age', UP.age);
-      DexProfile.setManual('sex', UP.sex);
-      DexProfile.setManual('weight', UP.weight);
-      DexProfile.setManual('height', UP.height);
-      DexProfile.setManual('sbp', UP.sbp);
-      DexProfile.setManual('dbp', UP.dbp);
-      DexProfile.setManual('vo2', UP.vo2GT > 0 ? UP.vo2GT : null);
-      DexProfile.setManual('hrMax', UP.hrmaxOverride > 0 ? UP.hrmaxOverride : null);
-      DexProfile.setManual('hrRest', UP.hrRestOverride > 0 ? UP.hrRestOverride : null);
-      DexProfile.setManual('elevation', UP.elevation);
-      DexProfile.setManual('cpap', UP.cpap);
-    } catch (e) {}
-    return;
-  }
-  try {
-    localStorage.setItem('oxydex_profile', JSON.stringify(UP));
-  } catch (e) {}
-}
-
+/* The page has no form left to read: OxyDex's profile moved to the shared DexProfile panel, and
+   OxyDex.src.html carries none of the eleven `prof*` ids this reads. Its one live consumer is the
+   node-lane seam `env.OxyUpFromDOM` (tests/run-tests.mjs), which the §∅ group "OxyDex profile · an
+   unentered setting or unmeasured term is not a number" uses to pin that an EMPTY elevation field
+   reads as null and never 0 m — the fix `tools/absence-ledger.mjs` records against this function.
+   Deleting it would delete that §∅ assertion with it, so it stays and the suppression names why. */
+// biome-ignore lint/correctness/noUnusedVariables: the node-lane seam env.OxyUpFromDOM (tests/run-tests.mjs) calls it — the §∅ empty-elevation pin
 function upFromDOM() {
   var age = parseInt(gv('profAge'), 10) || 49;
   var sex = gv('profSex') || 'male';
@@ -120,20 +105,6 @@ function upFromDOM() {
   var elv = isFinite(_elv) ? _elv : null;
   var cpap = gv('profCPAP') || 'no';
   UP = { age: age, sex: sex, weight: wt, height: ht, sbp: sbp, dbp: dbp, vo2GT: vo2, hrmaxOverride: hrm, hrRestOverride: hrr, elevation: elv, cpap: cpap };
-}
-
-function upToDOM() {
-  sv('profAge', UP.age);
-  sv('profSex', UP.sex);
-  sv('profWeight', UP.weight);
-  sv('profHeight', UP.height);
-  sv('profSBP', UP.sbp);
-  sv('profDBP', UP.dbp);
-  sv('profVO2', UP.vo2GT || '');
-  sv('profHRmax', UP.hrmaxOverride || 0);
-  sv('profHRrest', UP.hrRestOverride || 0);
-  sv('profElevation', UP.elevation != null ? UP.elevation : '');
-  sv('profCPAP', UP.cpap || 'no');
 }
 
 // SpO₂ altitude correction — returns adjustment to subtract from normal thresholds
@@ -557,7 +528,7 @@ function profileAutoDetectUpdate(allNights) {
   if (hrRestEst && window.DexProfile) {
     try {
       window.DexProfile.prefillFrom({ hrRest: hrRestEst });
-    } catch (e) {}
+    } catch {}
   }
   // Always update HRrest sublabel with avg + last-night value
   if (hrFloorMed) {
@@ -594,7 +565,7 @@ function profileAutoDetectUpdate(allNights) {
     if (window.DexProfile) {
       try {
         window.DexProfile.prefillFrom({ vo2: vo2Med });
-      } catch (e) {}
+      } catch {}
     }
     // Update sublabel with avg + last + ACSM category
     var _vc = upVO2category(vo2Med);
@@ -645,26 +616,8 @@ function recomputeFromProfile() {
       // ── Karvonen zones + readiness (pass null rows — guard allows it now) ──
       var newKarv = window.OxyDex._bare.computeKarvonenZones(null, n.hrv, n.vo2est, n.odi4, n.hypDose, n.sleepArch, n.stageProxy, UP.age || 49, n.stats ? n.stats.durationMin : null);
       if (newKarv) n.karv = newKarv;
-    } catch (e) {}
+    } catch {}
   });
-}
-
-function profileChanged() {
-  upFromDOM();
-  upSave();
-  profileDerivedUpdate();
-  if (window.allNights && Object.keys(window.allNights).length > 0) {
-    // Debounce the heavy dashboard re-render so typing in a profile field
-    // doesn't rebuild #results on every keystroke (which moved the focused
-    // input mid-edit and felt like the value was being lost).
-    clearTimeout(window._profRenderTimer);
-    window._profRenderTimer = setTimeout(function () {
-      try {
-        recomputeFromProfile(); // re-run VO2max + Karvonen before re-render
-        renderAll();
-      } catch (e) {}
-    }, 450);
-  }
 }
 
 function toggleProfile() {
@@ -693,7 +646,6 @@ function openProfile() {
 // ── Init on page load ──
 (function initProfile() {
   upLoad();
-  upToDOM();
   profileDerivedUpdate();
   if (window.DexProfile && window.DexProfile.renderPanel) {
     window._oxyPanel = window.DexProfile.renderPanel({
@@ -708,7 +660,7 @@ function openProfile() {
             try {
               recomputeFromProfile();
               renderAll();
-            } catch (e) {}
+            } catch {}
           }, 350);
         }
       }
