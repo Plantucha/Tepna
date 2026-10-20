@@ -12,6 +12,7 @@ import statistics
 import pytest
 
 import loss_audit
+import nightqc
 import verdict
 from tests.test_verdict import js_validate
 
@@ -1127,6 +1128,76 @@ def test_a_ring_tail_the_spo2_stream_contradicts_is_published_and_is_not_a_doff(
     assert e["tail_off"] is True and e["ppg2w_contradicted"] is True
     assert e["reason"] == "link-loss" and e["relink_gap_s"] == 19
     assert e["worn_end_at"] == e["end_at"] == (R0 + dt.timedelta(seconds=301)).isoformat()
+
+
+def test_a_ring_session_that_reconnected_after_midnight_keeps_its_ppg2w_witness(tmp_path):
+    """2026-10-18 on vigil: the ring relinked at 03:46:22 and its second session landed in the NEXT
+    day's folder. The SpO2 file was found there and its PPG2W file was not, so the end read
+    `quiet-end-unclassified` and the ring's night went UNKNOWN."""
+    night = tmp_path / "captures" / "2026-09-22"
+    nxt = tmp_path / "captures" / "2026-09-23"
+    night.mkdir(parents=True)
+    nxt.mkdir()
+    _ring(night, R0, worn_s=120, off_s=0, spo2_s=120)
+    late = dt.datetime(2026, 9, 23, 3, 46, 22)
+    _ring(nxt, late, worn_s=120, off_s=40, spo2_s=119)
+    # A daytime session in the next folder, paired with no in-band SpO2 file of this night: never read.
+    _ring(nxt, dt.datetime(2026, 9, 23, 13, 0, 0), worn_s=60, off_s=0, spo2_s=60)
+    w = loss_audit.wear_ends(str(night), "O2Ring-S")
+    ends = {e["file"]: e for e in w["ends"]}
+    e2 = ends["Wellue_O2Ring-S_S8AW2100_20260923034622_SPO2.csv"]
+    assert e2["ppg2w_file"] == "Wellue_O2Ring-S_S8AW2100_20260923034622_PPG2W.txt", e2
+    assert e2["ppg2w_unusable"] is None and e2["reason"] == "doff", e2
+    assert w["worn_end"]["reason"] == "doff", w["worn_end"]
+    assert len(w["ends"]) == 2, sorted(ends)
+
+
+def test_the_ring_contact_read_skips_a_next_day_ppg2w_file_no_spo2_file_of_the_night_pairs(tmp_path, monkeypatch):
+    """The next folder holds the whole next day. Reading its unpaired PPG2W files costs ~4 M rows each."""
+    night = tmp_path / "captures" / "2026-09-22"
+    nxt = tmp_path / "captures" / "2026-09-23"
+    night.mkdir(parents=True)
+    nxt.mkdir()
+    _ring(night, R0, worn_s=70, off_s=0, spo2_s=70)
+    _ring(nxt, dt.datetime(2026, 9, 23, 3, 46, 22), worn_s=70, off_s=0, spo2_s=70)
+    _ring(nxt, dt.datetime(2026, 9, 23, 13, 0, 0), worn_s=70, off_s=0, spo2_s=70)
+    read = []
+    real = nightqc.ppg2w_contact_quality
+
+    def spy(d, **kw):
+        out = real(d, **kw)
+        read.extend(b["file"] for b in out)
+        return out
+
+    monkeypatch.setattr(nightqc, "ppg2w_contact_quality", spy)
+    loss_audit.wear_ends(str(night), "O2Ring-S")
+    assert sorted(read) == [
+        "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt",
+        "Wellue_O2Ring-S_S8AW2100_20260923034622_PPG2W.txt",
+    ]
+
+
+def test_a_strap_night_reads_no_ring_contact(tmp_path, monkeypatch):
+    d, _ = _h10_night(tmp_path, 300)
+
+    def boom(*a, **kw):
+        raise AssertionError("an H10 night read PPG2W contact")
+
+    monkeypatch.setattr(nightqc, "ppg2w_contact_quality", boom)
+    assert loss_audit.wear_ends(str(d), "H10")["ends"][0]["reason"] == "doff"
+
+
+def test_ppg2w_contact_quality_reads_only_the_named_files(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=70, off_s=0, spo2_s=70)
+    _ring(d, R0 + dt.timedelta(hours=1), worn_s=70, off_s=0, spo2_s=70)
+    both = nightqc.ppg2w_contact_quality(str(d))
+    one = nightqc.ppg2w_contact_quality(str(d), only=frozenset({"Wellue_O2Ring-S_S8AW2100_20260922233924_PPG2W.txt"}))
+    assert [b["file"] for b in both] == [
+        "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt",
+        "Wellue_O2Ring-S_S8AW2100_20260922233924_PPG2W.txt",
+    ]
+    assert [b["file"] for b in one] == ["Wellue_O2Ring-S_S8AW2100_20260922233924_PPG2W.txt"]
 
 
 def test_ring_end_doff_agreement_bound_is_inclusive_and_absence_is_none():
