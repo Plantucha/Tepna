@@ -204,3 +204,73 @@ def test_an_UNRECORDED_exit_code_says_it_was_never_decided_not_merely_that_it_is
     assert "never decided in this run" in why, why
     # and the inverted guard would hand this sentence to a RECORDED code, which is the other half
     assert "never decided" not in md.kill_is_a_detection(0)[1]
+
+
+# ── THE BOUND IS PART OF THE MEASUREMENT ────────────────────────────────────────────────────────────
+# `timeout` is the one UNDECIDED status that says the mutant RAN. Every other one — not checked, no
+# tests, skipped, caught by type check — says it never did, so a wider clock would measure nothing
+# new about it. That split is why the retry reads the status rather than the bucket.
+
+GLOB = "widget.x_drain__mutmut_*"
+
+
+def test_only_a_TIMEOUT_is_retryable_because_the_other_statuses_never_ran():
+    """A wider bound buys nothing for a mutant no test executed. Retrying `not checked` would spend
+    the module's budget twice over and come back with the same word."""
+    blob = (
+        "widget.x_drain__mutmut_1: timeout\n"
+        "widget.x_drain__mutmut_2: not checked\n"
+        "widget.x_drain__mutmut_3: suspicious\n"
+        "widget.x_drain__mutmut_4: no tests\n"
+    )
+    assert md.timed_out_in_scope(blob, GLOB) == ["widget.x_drain__mutmut_1"]
+
+
+def test_a_timeout_on_a_function_the_diff_never_touched_is_not_retried():
+    """`mutmut results` enumerates the WHOLE workspace while the run is scoped to one glob, so the
+    listing carries mutants this invocation never selected — the finding behind `in_glob_scope`."""
+    blob = "widget.x_drain__mutmut_1: timeout\nwidget.x_other__mutmut_1: timeout\n"
+    assert md.timed_out_in_scope(blob, GLOB) == ["widget.x_drain__mutmut_1"]
+
+
+def test_the_retry_set_keeps_LISTING_ORDER_and_names_each_mutant_once():
+    """The names are printed to a reader and compared against the second run's set, so a duplicate
+    would inflate `retried` and make `settled` unreadable. mutmut lists a mutant twice when a results
+    pass is appended to an earlier one in the same blob."""
+    blob = "widget.x_drain__mutmut_7: timeout\nwidget.x_drain__mutmut_2: timeout\nwidget.x_drain__mutmut_7: timeout\n"
+    assert md.timed_out_in_scope(blob, GLOB) == ["widget.x_drain__mutmut_7", "widget.x_drain__mutmut_2"]
+
+
+def test_no_results_text_asks_for_no_retry():
+    """The caller passes `r.get("results") or ""`, and an empty set is what makes the retry cost zero
+    on the ordinary run where nothing timed out."""
+    assert md.timed_out_in_scope("", GLOB) == []
+    assert md.timed_out_in_scope("widget.x_drain__mutmut_1: killed\n", GLOB) == []
+
+
+def test_SETTLED_means_the_clock_stopped_deciding_it_NOT_that_it_was_killed():
+    """A mutant the wider bound settles may be KILLED or SURVIVING, and a survivor must block. So the
+    second run is harvested through the ordinary survivor path and this counter never says `killed`
+    — the lesson of #3729, where a counter that named a kill was read as evidence of one."""
+    got = md.retry_outcome(["a", "b"], ["b"])
+    assert got["retried"] == 2
+    assert got["settled"] == ["a"]
+    assert got["stillTimingOut"] == ["b"]
+    assert got["newlyTimingOut"] == []
+
+
+def test_a_mutant_that_times_out_ONLY_under_the_WIDER_bound_is_REPORTED():
+    """Dropping it would be the examined-nothing pass in its purest form: the gate widened the clock,
+    a mutant became unmeasurable, and the record would say the retry settled everything it had."""
+    got = md.retry_outcome(["a"], ["a", "c"])
+    assert got["settled"] == []
+    assert got["stillTimingOut"] == ["a"]
+    assert got["newlyTimingOut"] == ["c"]
+
+
+def test_a_retry_that_settles_everything_leaves_both_timing_out_lists_empty():
+    """The measured case: three lab mutants timed out at 3x and all three came back killed at 15x."""
+    got = md.retry_outcome(["a", "b", "c"], [])
+    assert got["retried"] == 3
+    assert got["settled"] == ["a", "b", "c"]
+    assert got["stillTimingOut"] == [] and got["newlyTimingOut"] == []

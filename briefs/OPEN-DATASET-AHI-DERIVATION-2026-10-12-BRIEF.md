@@ -3,9 +3,9 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-10-12 · **Relates:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` (PROPOSED, §5 and §8), `docs/SHHS-COHORT-REFERENCE.md`, `docs/CORPUS-LOCATIONS.md`
+**Status:** IN-PROGRESS — 2026-10-20 · **Created:** 2026-10-12 · **Relates:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` (PROPOSED, §5 and §8), `docs/SHHS-COHORT-REFERENCE.md`, `docs/CORPUS-LOCATIONS.md`
 
-# Deriving an AHI from open-dataset annotations — 154 of 579 recordings, and the four sets that carry no respiratory event at all
+# Deriving an AHI from open-dataset annotations — 156 distinct of 579 recordings, and the four sets that carry no respiratory event at all
 
 The sizing brief put the open sets at "**842 EDFs**, none carrying a published AHI column", and sent the
 derivation here as R3. The owner ruled that the open sets join the refit once this brief reaches DONE.
@@ -198,20 +198,78 @@ control is **reproduction**: the tool must land on the counts this survey measur
 derived AHI or on the null reason. The threshold is **0 records**. Any disagreement is a `FAIL`, and the tool
 reporting more derived records than 154 is also a `FAIL`.
 
+### 6a · The derivation ran on 2026-10-20, and the survey is the side that moved
+
+`tools/derive-open-ahi.mjs` reproduces the iSleeps half exactly. It refutes four ISRUC counts.
+
+| figure | the hand survey, 2026-10-12 | the tool, 2026-10-20 |
+|---|---|---|
+| ISRUC records enumerated | 127 | **128** |
+| ISRUC derived | 115 | **120** |
+| ISRUC null `no-respiratory-scoring` | 11 | **6** |
+| ISRUC null `no-scorer-1-workbook` | 1 | **2** |
+| iSleeps records enumerated | 40 | 40 |
+| iSleeps derived | 39 | 39 |
+| iSleeps null `no-event-stage-column` | 1 | 1 |
+
+So the verdict reads **FAIL over four disagreements**, and §6 keeps the criterion it pre-stated. A
+criterion that moves to meet its own data decides nothing. Each disagreement names its cause.
+
+**The two unsuffixed workbooks.** `subgroupII/65` and `subgroupII/95` each hold a workbook with no
+`_1` or `_2` suffix, so neither names a scorer. §0 above names both directories in its privacy
+paragraph, and the survey counted one of them. The tool counts two. It identifies each as
+`<dir>#unsuffixed`, so a name-bearing basename never leaves the process.
+
+**The five records the survey called unscored.** 120 of 126 scorer-1 workbooks carry a respiratory
+token, which is the figure #3499 published the same day. The survey's own list of eleven holds those
+six, plus `subgroupI/8`, `subgroupII/16`, `subgroupII/17`, `subgroupII/33` and `subgroupIII/2/1`. All
+five of those carry tokens in column E — 41, 70, 191, 65 and 191 event cells. One survey therefore
+disagrees with itself, and the instrument agrees with the half that reached the repository.
+
+**iSleeps agrees on every count and differs on two quantiles.** The tool reproduces 5356 apnea and
+hypopnea rows in sleep of 5450 scored, 53 `RERA`, both extremes of the spread, all four severity
+bands, and the note's TST summary to two decimals. The index values stay held under §0, in the
+private note. Two quantiles of the distribution differ from that note, and one choice explains the
+whole gap. The hypnogram carries 352 epochs of stage `A`, over 35 of the 40 records. Count those as
+sleep and both quantiles land exactly on the note's figures, which is how the hand pass computed them.
+
+This tool counts `N1 N2 N3 N4 REM` and nothing else, because an artifact epoch is not scored sleep.
+No respiratory event sits in an `A` epoch — 0 of 5450 — so those epochs only ever enlarged a
+denominator. **A sleep test written as "not Wake" admits every token it never heard of.**
+
+**Three ISRUC workbooks are byte-identical across subgroups.** The 126 scorer-1 files hash to 123
+distinct contents: `subgroupII/17` repeats as `subgroupIII/2/1`, `subgroupII/34` as `subgroupIII/3/1`,
+and `subgroupII/38` as `subgroupIII/4/1`. A cohort built by a tree walk weights three subjects twice,
+and no filename says so. Every row now carries a `contentHash`, and a later copy names the record it
+repeats.
+
+**One Excel owner file is not a recording.** A glob over `*.xlsx` picked up `~$SN1.xlsx` and
+`~$SN2.xlsx`, which hold no zip directory, and reported iSleeps as 42 records. The enumerators skip
+a `~$` basename by name.
+
+**What the owner decides.** Whether the measured counts replace the hand figures as this brief's
+reference. Until then §6 stands as written, the tool reports FAIL against it, and the per-record
+indices stay in the private note of §0.
+
 ## 7 · Acceptance
 
-1. `tools/derive-open-ahi.mjs` reproduces 115 ISRUC and 39 iSleeps AHIs, and the 13 nulls with their
-   reasons.
-2. A test covers the `SN28` shape: scored events, no stage column, result `null`.
-3. A test covers the ISRUC epoch-prefix strip, with a fixture cell reading `66 AR`.
-4. The tool refuses an unread argv token, as `tools/verify-fixtures.mjs` now does.
-5. The verdict object validates, and `checked + excluded = eligible` holds.
-6. `npm run check` passes, and `docs-ledger` passes with the `DOCS-INDEX.md` row in place.
+- [ ] 1. `tools/derive-open-ahi.mjs` reproduces 115 ISRUC and 39 iSleeps AHIs, and the 13 nulls with
+      their reasons. **Refuted for ISRUC on 2026-10-20 — §6a.** iSleeps reproduces exactly; ISRUC reads
+      120 derived of 128 with 6 unscored, and the item waits on the owner's choice of reference.
+- [x] 2. A test covers the `SN28` shape: scored events, no stage column, result `null`.
+- [x] 3. A test covers the ISRUC epoch-prefix strip, with a fixture cell reading `66 AR`.
+- [x] 4. The tool refuses an unread argv token, as `tools/verify-fixtures.mjs` now does.
+- [x] 5. The verdict object validates, and `checked + excluded = eligible` holds.
+- [x] 6. `npm run check` passes, and `docs-ledger` passes with the `DOCS-INDEX.md` row in place.
 
 ## 8 · What this changes upstream
 
 The sizing brief sized the open sets at 842 records. **154 recordings can carry a derived AHI**, so
-the open sets add under a fifth of what that figure implied. Their value is the range, not the volume.
+the open sets add under a fifth of what that figure implied.
+
+**Amended 2026-10-20 by the tool.** The derivation yields **159 rows over 156 distinct recordings**:
+120 ISRUC rows of which three repeat another row's bytes, plus 39 iSleeps. The 154 above was the hand
+count, and §6a reconciles every difference. Their value is the range, not the volume.
 The two sets sit in different severity bands, and between them they populate all four.
 
 That spread is the argument for using them. The SHHS fit cohort is large and single-protocol, and

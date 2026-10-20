@@ -214,9 +214,36 @@ def test_the_driver_bounds_a_SINGLE_mutant_not_just_the_module():
     # `tests/_srcscan.py` warns about, and it fails here the moment the thing is documented.
     assert "[tool.mutmut]" in src, "the driver no longer writes a [tool.mutmut] table"
     table = src.split("[tool.mutmut]", 1)[1].split('"""', 1)[0]
-    assert "timeout_multiplier = 3.0" in table, (
+    # The knob is TEMPLATED since the timeout retry, because the gate re-runs a timed-out mutant at a
+    # wider bound (residue `2026-10-19-a-mutant-whose-cost-is-a-wait-spends-its-own-bound`). What this
+    # pin protects is unchanged: the table must still SET the knob, and the ordinary value must still be
+    # the narrow one — a template that defaulted to mutmut's own 15.0 would restore the half-hour mutant
+    # above while reading as configured.
+    assert "timeout_multiplier = {timeout_multiplier}" in table, (
         "the per-mutant timeout is unset inside [tool.mutmut] — a runaway mutant will hang the whole "
         f"run behind the module cap, which cannot distinguish it from honest work. Table was:\n{table}"
+    )
+    import ast as _ast
+
+    _consts = {}
+    for _n in _ast.parse(src).body:
+        if isinstance(_n, _ast.Assign) and isinstance(_n.targets[0], _ast.Name):
+            if isinstance(_n.value, _ast.Constant):
+                _consts[_n.targets[0].id] = _n.value.value
+    assert _consts.get("TIMEOUT_MULTIPLIER") == 3.0, (
+        f"the ORDINARY per-mutant bound is no longer the narrow one: {_consts.get('TIMEOUT_MULTIPLIER')!r}"
+    )
+    # 15.0 is mutmut's own default (`mutmut/configuration.py`), so the retry bound is PRE-STATED
+    # upstream rather than derived from the run it judges (CLAUDE.md §🧾).
+    assert _consts.get("WIDE_TIMEOUT_MULTIPLIER") == 15.0, (
+        f"the retry bound is no longer mutmut's own default: {_consts.get('WIDE_TIMEOUT_MULTIPLIER')!r}"
+    )
+    _run_one = next(n for n in _ast.walk(_ast.parse(src)) if isinstance(n, _ast.FunctionDef) and n.name == "run_one")
+    _defaults = dict(zip([a.arg for a in _run_one.args.args][-len(_run_one.args.defaults) :], _run_one.args.defaults))
+    _tm = _defaults.get("timeout_multiplier")
+    assert isinstance(_tm, _ast.Name) and _tm.id == "TIMEOUT_MULTIPLIER", (
+        "run_one's bound no longer defaults to the narrow constant, so an ordinary caller may be "
+        "running every mutant at the retry bound"
     )
 
 
