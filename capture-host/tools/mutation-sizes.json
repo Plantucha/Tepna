@@ -62,6 +62,11 @@
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
     },
+    "probe_oxyii_0x03.py@eb385f6bbd59": {
+      "generatedBytes": 2524582,
+      "measuredAt": "2026-10-19",
+      "host": "rig-x870"
+    },
     "solid_night_inputs.py@7e4cd329b389": {
       "generatedBytes": 3688680,
       "measuredAt": "2026-09-28",

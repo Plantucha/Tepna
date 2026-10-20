@@ -546,7 +546,11 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # which is where the drop instant is visible and nowhere else; the counting itself lives in
     # `cpap_ingest.note_link_down_frame` and is mutated under that module.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 320, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 320 → 322 on 2026-10-19 (residue vmhwm-is-per-process): `hwm_since_last_kb`, which reads `VmHWM`
+    # and resets it through `clear_refs` so each `mem:` line carries the peak since the previous one, and
+    # the PURE `qc_peak_line`, tested directly. +2, the whole delta. The child's own reader lives in
+    # `qc_child.py` and adds nothing here. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 322, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
