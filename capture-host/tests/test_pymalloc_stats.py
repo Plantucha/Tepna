@@ -65,18 +65,20 @@ class _Lib:
     """A libc + libpython stand-in. `stats` writes `text` into the stream `open_memstream` opened."""
 
     def __init__(self, text=TEXT, rc=1, stream=1, raises=None, missing=()):
-        self.freed, self.closed = [], []
+        self.freed, self.closed, self.streams, self.read_at = [], [], [], []
         self._text, self._rc, self._stream, self._raises, self._missing = text, rc, stream, raises, missing
         self._buf = None
 
         def oms(pbuf, psize):
             if self._stream:
-                self._buf = ctypes.create_string_buffer(self._text.encode())
+                data = self._text if isinstance(self._text, bytes) else self._text.encode()
+                self._buf = ctypes.create_string_buffer(data)
                 pbuf._obj.value = ctypes.addressof(self._buf)
-                psize._obj.value = len(self._text)
+                psize._obj.value = len(data)
             return self._stream
 
-        def stats(_fh):
+        def stats(fh):
+            self.streams.append(fh)
             if self._raises:
                 raise self._raises
             return self._rc
@@ -103,6 +105,7 @@ def _fake(monkeypatch, lib=None, dlopen_error=None):
 
         @staticmethod
         def string_at(p, n):
+            lib.read_at.append(ctypes.cast(p, ctypes.c_void_p).value)
             return ctypes.string_at(p, n)
 
         @staticmethod
@@ -122,6 +125,32 @@ def test_the_read_binds_through_PyDLL_and_frees_its_buffer(monkeypatch):
     out = pymalloc_stats.read()
     assert out == {"arenas": 6, "held": 6291456, "live": 2799664, "reason": None}
     assert len(lib.freed) == 1 and lib.closed == [1]
+    # The statistics go to the stream that was opened, and the text is read from, and the free is
+    # given, the buffer that stream wrote. Each is a NULL in a wrong call, which the counts above miss.
+    assert lib.streams == [1]
+    assert lib.read_at == [ctypes.addressof(lib._buf)]
+    assert lib.freed[0].value == ctypes.addressof(lib._buf)
+
+
+def _args(fn):
+    return tuple(fn.argtypes or ())
+
+
+def _assert_signatures(stats, oms, fcl, fre):
+    assert stats.restype is ctypes.c_int and _args(stats) == (ctypes.c_void_p,)
+    assert oms.restype is ctypes.c_void_p
+    assert _args(oms) == (ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(ctypes.c_size_t))
+    assert fcl.restype is ctypes.c_int and _args(fcl) == (ctypes.c_void_p,)
+    assert fre.restype is None and _args(fre) == (ctypes.c_void_p,)
+
+
+def test_every_binding_declares_its_C_signature(monkeypatch):
+    # Without a declared signature ctypes passes a Python int as a C int, so a 64-bit stream pointer
+    # reaches libc truncated and the process crashes. No result value shows this; the binding does.
+    lib = _Lib()
+    _fake(monkeypatch, lib)
+    pymalloc_stats.read()
+    _assert_signatures(*(lib.fns[n] for n in ("_PyObject_DebugMallocStats", "open_memstream", "fclose", "free")))
 
 
 def test_the_resolution_happens_once_per_process(monkeypatch):
@@ -153,7 +182,13 @@ def test_rc_0_means_the_allocator_is_not_in_use_not_zero_arenas(monkeypatch):
     lib = _Lib(rc=0)
     _fake(monkeypatch, lib)
     out = pymalloc_stats.read()
-    assert out["arenas"] is None and "not in use" in out["reason"] and len(lib.freed) == 1
+    assert out["arenas"] is None and len(lib.freed) == 1
+    assert out["reason"] == "pymalloc stats: the small-object allocator is not in use"
+
+
+def test_a_byte_outside_ascii_is_replaced_not_fatal(monkeypatch):
+    _fake(monkeypatch, _Lib(text=TEXT.encode() + b"\xff\n"))
+    assert pymalloc_stats.read() == {"arenas": 6, "held": 6291456, "live": 2799664, "reason": None}
 
 
 def test_a_text_without_the_arena_block_names_itself(monkeypatch):
@@ -177,11 +212,27 @@ def test_an_empty_stream_buffer_parses_as_absent(monkeypatch):
     lib.fns["open_memstream"] = _Fn(lambda pbuf, psize: 1)
     assert real_oms  # the stand-in above left the buffer NULL
     out = pymalloc_stats.read()
-    assert out["reason"] == "pymalloc stats: no arena block in the text" and lib.freed == []
+    assert out == {"arenas": None, "held": None, "live": None, "reason": "pymalloc stats: the stream left no buffer"}
+    assert lib.freed == [] and lib.read_at == []
 
 
-def test_the_REAL_interpreter_answers_or_names_its_absence():
+def test_the_REAL_interpreter_answers_or_names_its_absence(monkeypatch):
+    pymalloc_stats._resolve()
+    if pymalloc_stats._BOUND is None:
+        assert pymalloc_stats.read()["arenas"] is None
+        return
+    stats, oms, fcl, fre = pymalloc_stats._BOUND
+    # Checked BEFORE the native call: a wrong binding fails here instead of crashing the process.
+    _assert_signatures(stats, oms, fcl, fre)
+    streams = []
+
+    def guarded(fh):
+        streams.append(fh)
+        return stats(fh) if fh else 1  # a NULL stream never reaches the native call
+
+    monkeypatch.setattr(pymalloc_stats, "_BOUND", (guarded, oms, fcl, fre))
     out = pymalloc_stats.read()
+    assert len(streams) == 1 and streams[0]
     if out["reason"] is None:
         assert out["arenas"] > 0 and out["held"] >= out["live"] > 0
         assert out["held"] % out["arenas"] == 0

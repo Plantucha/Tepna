@@ -98,7 +98,10 @@ def read() -> dict:
         if rc == 0:
             out["reason"] = "pymalloc stats: the small-object allocator is not in use"
             return out
-        out.update(parse(ctypes.string_at(buf, size.value).decode("ascii", "replace") if buf else ""))
+        if not buf:
+            out["reason"] = "pymalloc stats: the stream left no buffer"
+            return out
+        out.update(parse(ctypes.string_at(buf, size.value).decode(errors="replace")))
         if out["arenas"] is None:
             out["reason"] = "pymalloc stats: no arena block in the text"
         return out
