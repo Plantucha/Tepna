@@ -125,7 +125,9 @@ function saveCkpt(o) {
 
 if (flag('--selftest')) {
   let fail = 0;
+  let ran = 0;
   const A = (m, c) => {
+    ran += 1;
     if (!c) {
       console.error('SELFTEST FAIL:', m);
       fail++;
@@ -155,7 +157,7 @@ if (flag('--selftest')) {
   A('checkpoint round-trips', (loadCkpt() || {}).done?.[0] === 'a');
   writeFileSync(CKPT, 'not json');
   A('an unreadable checkpoint is discarded, never half-trusted', loadCkpt() === null);
-  console.log(fail ? `SELFTEST FAIL (${fail})` : 'SELFTEST PASS (8/8)');
+  console.log(fail ? `SELFTEST FAIL (${fail})` : `SELFTEST PASS (${ran}/${ran})`);
   process.exit(fail ? 1 : 0);
 }
 

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# 05:40 with a 10-minute jitter. The window is argued in the service unit beside this one: the mutation
+# crawl starts at 09:30 and can hold the rig into the afternoon, and the whole-tree backlog runs at
+# 03:40 with its own jitter. The ordered run is 6 minutes, so it clears both. NOT Persistent: a tick
+# missed while the rig was off must not fire at boot, because boot can land inside the crawl's window
+# and the whole point of the schedule is that they never overlap. A missed day costs one pass of a
+# detector that has run zero times since the row was logged on 2026-10-04.
+
+[Unit]
+Description=Tepna — daily ordered run of the capture-host suite
+
+[Timer]
+OnCalendar=*-*-* 05:40:00
+RandomizedDelaySec=600
+Persistent=false
+Unit=tepna-seq-suite.service
+
+[Install]
+WantedBy=timers.target

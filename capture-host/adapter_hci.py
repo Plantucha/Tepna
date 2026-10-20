@@ -218,7 +218,9 @@ def sniffer_timer(unit: str = SNIFF_UNIT, run=None) -> tuple:
     import subprocess
 
     runner = run or (lambda argv: subprocess.run(argv, capture_output=True, text=True, timeout=10))
-    out = []
+    # Tri-state per verb, and the annotation says so: True, False, or None for a word this function
+    # could not read. A `list[bool]` would be the hint's plausible completion and the wrong type.
+    out: list[bool | None] = []
     for verb, words in (("is-enabled", ("enabled", "disabled")), ("is-active", ("active", "inactive"))):
         try:
             said = runner(["systemctl", verb, unit]).stdout.strip()

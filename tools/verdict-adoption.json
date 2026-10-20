@@ -465,6 +465,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_seq_suite.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_solid_night.py": {
    "bin": "test",
    "status": "exempt"
@@ -586,6 +590,19 @@
     ]
    },
    "note": "wave 2: verdict_object() over verdict()'s per-stream record — criterion = streams outside a band <= 0 with both pre-stated bands and every ratio in result · PASS · FAIL naming the stream and the band · UNDERPOWERED any INCONCLUSIVE stream (the prose overall; minimum and counts as numbers) · NOT_RUN no stream; population = streams, INCONCLUSIVE excluded; printed after the matrix"
+  },
+  "capture-host/tools/seq_suite.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-20",
+   "note": "ADOPTED 2026-10-20 (residue 2026-10-04-the-suite-is-never-run-sequentially-so-order-dependencies-are-invisible, the owner's shape 1 ruled the same day): the ordered whole-suite run emits ONE tepna.verdict/1 at every exit. criterion = ordered_run_failures == 0, pre-stated in CRITERION and keyed to the RUN rather than to the order-dependent subset, because a red ordered suite is a red suite whichever half it lands in. PASS a green ordered run · FAIL any failing test, with result.orderDependent (passed when re-run alone) and result.failsAlone (did not) each carrying the execution position · NOT_RUN the rig lock is held or pytest could not enumerate the suite · UNKNOWN the junit report is unreadable or counts more tests than the collection offered, so the run has no denominator. population: eligible = collected, checked = the junit report's own count, excluded = the difference; checked never comes from the collection, because pytest can abort a run after an error. Sampled with --verdict-sample, which is synthetic and runs no suite.",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/seq_suite.py",
+     "--verdict-sample"
+    ]
+   }
   },
   "capture-host/unseal.py": {
    "bin": "already-json",
@@ -1665,6 +1682,18 @@
    },
    "note": "wave-3 adopter (#3368 gates): --json prints ONE tepna.verdict/1. Was binned word-only/exempt on the grounds that \"the machine-readable result is the exit code\" — which the VERDICT-CONTRACT rejects as a reason: an exit code carries no population, no criterion and no reason, so it cannot say what was examined. PASS/FAIL over the four body-and-changeset checks, and NOT_RUN outside a pull_request event (the PR-only skip, preserved) — population.checked names how many of the four were actually evaluated, so a body-only run cannot read as having passed the diff checks."
   },
+  "tools/probe-child-death-codes.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/probe-child-death-codes.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the measured answer to residue 2026-09-22-heap-retry-would-misdiagnose-enospc, which feared that a child killed by a FULL DISK aborts the way a heap death aborts — so trio-batch's isHeapOom would read it as a memory cap and retry the night at RETRY_HEAP_MB, the wrong remedy for a cause the retry cannot touch. The row gates its own fix on one real occurrence and none arrived, so this takes the third path: measure whether a disk fault can reach the code the predicate keys on at all. The instrument is /dev/full, which raises the kernel's own ENOSPC without root and without filling anything. Pre-stated criterion: the number of uncaught disk deaths reaching exit 134 must be 0, and one is enough to make the hazard real. Two controls, and a control that fails to establish itself makes the object UNKNOWN rather than a pass — a heap exhaustion under a 24 MB cap must abort with its own word (a probe blind to an abort would report the same zero), and a child that catches ENOSPC and calls process.exit(134) must be seen as 134 (a probe blind to a 134 would report it too). It does NOT import trio-batch, which has no exports and spawns children during module evaluation, and it does NOT re-implement the predicate: it reports the raw code, signal and word, while the predicate's own pins live in trio-batch --selftest over the strings measured here. The cmd is a sample object and probes nothing."
+  },
   "tools/probe-clock-equivalence.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1675,7 +1704,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "wave-2 adopter (residue 2026-09-22-word-only-claims-go-stale). Keyed on the CONTROLS, not the survivors: a survivor here is the thing under investigation (the sweep could not kill it; this probe asks whether that is a test gap or a genuine equivalence), so FAIL on one would convict correct code — the tool's own `if (lo < 0) lo = 0` -> `<=` example. The criterion is the tool's soundness gate: every control (a mutant a test DID kill) must be distinguishable by this battery. PASS 0 blind; FAIL = the BATTERY is blind and every equivalence verdict in the run is void (it convicts the instrument, never clock.js); NOT_RUN = the base realm did not build; UNDERPOWERED = no control realm built. Population in CONTROLS (checked + excluded = offered); survivor findings are counts in `result`. Adoption also fixed a silent drop: the control loop's `if (r.err) continue` shrank the control set unnamed, so 14 -> 8 read as 8/8."
+   "note": "wave-2 adopter (residue 2026-09-22-word-only-claims-go-stale). Keyed on the CONTROLS, not the survivors: a survivor here is the thing under investigation (the sweep could not kill it; this probe asks whether that is a test gap or a genuine equivalence), so FAIL on one would convict correct code — the tool's own `if (lo < 0) lo = 0` -> `<=` example. The criterion is the tool's soundness gate: every control (a mutant a test DID kill) must be distinguishable by this battery. PASS 0 blind; FAIL = the BATTERY is blind and every equivalence verdict in the run is void (it convicts the instrument, never clock.js); NOT_RUN = the base realm did not build; UNDERPOWERED = no control realm built, or the sweep named no kills (reason `kill-list-absent`, 2026-10-20: the control pool is the sweep's recorded `killedMutants` set and never the remainder after the survivors, which counted an untested or an invalid mutant as a control). Population in CONTROLS (checked + excluded = offered); survivor findings are counts in `result`. Adoption also fixed a silent drop: the control loop's `if (r.err) continue` shrank the control set unnamed, so 14 -> 8 read as 8/8."
   },
   "tools/probe-equivalence.mjs": {
    "bin": "decides",
@@ -1900,7 +1929,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "the PUBLIC record of the sibling tool's reference check \u2014 pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS \u00a74's owed comparison \u2014 is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI \u2014 and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
+   "note": "the PUBLIC record of the sibling tool's reference check — pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS §4's owed comparison — is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI — and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
   },
   "tools/tch-multinight.mjs": {
    "bin": "decides",
