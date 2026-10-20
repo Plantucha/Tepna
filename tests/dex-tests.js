@@ -13526,6 +13526,21 @@
         'control · the DSP builder still emits the same pair (the sibling being matched)',
         /site:\s*r\.site \|\| 'wrist'/.test(dsp) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(dsp)
       );
+      /* EXPORT-SOURCE-KEY-KINDS — the same sibling divergence, one field earlier in the same block.
+         This builder wrote the upload FILENAME where the DSP's sibling writes a semantic tag, and a
+         consumer cannot tell the two kinds apart: `signal-orchestrate.js` routes on that key holding
+         'welltory'. So the filename was a value no consumer reads, in a key one consumer dispatches
+         on. Source-scanned for the reason the device assertions above are: nothing executes this
+         builder. ⚠️ Keep the fix's own comment free of the offending expression — this group already
+         went RED once against a FIXED source, because the explanation beside it carried the literal. */
+      T.ok('the app export writes the semantic tag', /source:\s*'ppg'/.test(app), "buildV2's recording.source is no longer the tag the DSP sibling writes");
+      T.ok('…and the upload filename no longer rides the tag key', !/source:\s*r\.fname/.test(app), 'the upload filename is back in recording.source');
+      T.ok(
+        '…and the filename rides a key that MEANS a filename',
+        /fname:\s*r\.fname \|\| null/.test(app),
+        'recording.fname is gone, so the filename is dropped rather than carried under an honest key'
+      );
+      T.ok('control · the DSP builder writes that same tag (the sibling being matched)', /source:\s*'ppg'/.test(dsp));
     });
 
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
@@ -37414,6 +37429,108 @@
       else T.skip('adapters/o2ring-ppg.js source not in env.sources');
     });
 
+    /* ── §∅ P5 clause 2 — THE TRIO LANE NOW READS ITS VALIDITY COMPANION ──────────────────────────────
+       `sensor-trio-worker.js` derives H10 HR from `_ECG.txt` with its own Pan–Tompkins walk (CLAUDE.md
+       §🎙️ Honest HR), so it never reaches ECGDex's epoch path — the one place in the node that reads
+       `rec.blankingSpans`. A blanking run the box recorded therefore became an ordinary RR interval,
+       against the §∅ ruling that a DISCONTINUITY refuses. Measured 2026-10-20 over the corpus: the H10
+       `_ECGRUNS.txt` companion exists for 38 of 38 `_ECG.txt` files and records 306 runs, so this is
+       the stream where the omission costs a number; the ring's pleth carries runs for 85 of its 164
+       companions, and Verity's 111 companions record none, so wiring those two moves nothing today and
+       is wired for the night a writer blanks them.
+       `tests/dex-tests.js` already records that the trio inputs are computed in a WORKER and the suite
+       cannot execute worker-local functions. So this splits in two, and the split is the point: the
+       overlap RULE is tested numerically where it now lives — `ECGDSP.intersectsRun`, reachable in both
+       lanes — and the worker's USE of it is pinned structurally, because the un-wired site is the thing
+       under test, never the mechanism. The pin strips comments first: the fix's own comment names the
+       symbol the scan searches for. Residue `2026-10-17-sample-parsers-called-without-their-sidecar`. */
+    group('§∅ the trio HR walk refuses an RR interval that touches a blanking run', 'ecgdex-dsp · sensor-trio · §∅ · source-scan · regression', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E) {
+        T.skip('ECGDSP exposed', 'ecgdex-dsp.js not co-loaded in this runner');
+      } else {
+        /* ASSERTED, never skipped: a missing export would otherwise take the whole truth table out of
+           the run and read as a clean pass — an absence scoring as a verdict. */
+        T.ok('ecgdex-dsp.js exports the sample-frame overlap rule', typeof E.intersectsRun === 'function', 'the worker has no predicate to call');
+      }
+      if (E && typeof E.intersectsRun === 'function') {
+        /* The run is [100, 110) in SAMPLE indices — the frame the box writes `_ECGRUNS.txt` in. Both
+             sides are half-open, so the two boundary rows are the whole content of the rule. */
+        var S = [{ first: 100, n: 10 }];
+        var TWO = [
+          { first: 0, n: 5 },
+          { first: 100, n: 10 }
+        ];
+        [
+          ['an interval ENDING exactly at the run start does not touch it', S, 90, 10, false],
+          ['…one sample longer does', S, 90, 11, true],
+          ['an interval starting on the run’s LAST blanked sample touches it', S, 109, 11, true],
+          ['…one starting exactly at the run end does not', S, 110, 10, false],
+          ['an interval identical to the run touches it', S, 100, 10, true],
+          ['an interval inside the run touches it', S, 101, 4, true],
+          ['an interval containing the run touches it', S, 50, 150, true],
+          ['a zero-length interval touches nothing', S, 100, 0, false],
+          ['a negative length touches nothing', S, 100, -5, false],
+          ['no span list at all', null, 100, 10, false],
+          ['an empty span list', [], 100, 10, false],
+          ['the SECOND run is tested too, not just the first', TWO, 101, 2, true],
+          ['an interval between two runs touches neither', TWO, 50, 10, false]
+        ].forEach(function (r) {
+          T.eq('intersectsRun · ' + r[0], E.intersectsRun(r[1], r[2], r[3]), r[4]);
+        });
+        /* The predicate TRUSTS ITS PRODUCER on the span's own length: a degenerate `n: 0` span reads
+             as touching any interval that strictly contains its index, where this node's seconds-frame
+             path skips such a span by hand (`!(b.n > 0)`). `parseEcgRuns` rejects `n <= 0` at the row,
+             so no span the parser built can reach this arm — stated here so the asymmetry is a known
+             boundary and not a surprise to the next consumer. */
+        T.eq('a degenerate zero-length span is trusted, and the PARSER is what makes that safe', E.intersectsRun([{ first: 100, n: 0 }], 99, 3), true);
+      }
+
+      /* ── the worker's use of it, structurally ── */
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+      }
+      var raw = (env.sources || {})['sensor-trio-worker.js'] || '';
+      var c = code(raw);
+      T.ok('sensor-trio-worker.js is in env.sources (' + raw.length + ' bytes)', raw.length > 20000, 'an unread source reads exactly like a clean one');
+      T.ok(
+        'the comment strip is load-bearing — the fix names `intersectsRun` in prose too',
+        (raw.match(/intersectsRun/g) || []).length > (c.match(/intersectsRun/g) || []).length,
+        'if the counts match, the scan below could be passing on a comment'
+      );
+      T.ok('the worker calls the node’s predicate', /ECGDSP\.intersectsRun\s*\(/.test(c), 'the overlap rule must come from ecgdex-dsp.js');
+      T.ok('…and carries no second body for the half-open rule', !/\.first\s*\+\s*\w+\[\w+\]\.n/.test(c), 'a mirrored predicate is the one line no gate compares');
+      T.ok(
+        '…and drops the interval BEFORE it forms the RR, so a blanked run yields no value',
+        /blanked\(\s*peaks\[i - 1\]\s*,\s*peaks\[i\] \+ 1\s*\)[\s\S]{0,120}?continue;[\s\S]{0,80}?var rr =/.test(c),
+        'the §∅ ruling refuses a DISCONTINUITY; a drop after the formation would still publish it'
+      );
+      T.ok('…and reports what it dropped', /intervalsDropped\s*:/.test(c), 'a silent refusal is unreadable downstream');
+
+      /* ── the three feeders pair the companion BY NAME ── */
+      ['sensor-trio-night.js', 'sensor-trio-power-analysis.js', 'sigma-no-reference-analysis.js'].forEach(function (f) {
+        var fc = code((env.sources || {})[f] || '');
+        T.ok(f + ' is in env.sources', fc.length > 5000, 'an unread feeder reads exactly like a wired one');
+        T.ok(
+          f + ' captures the `…RUNS.txt` companion out of the file list',
+          /RUNS_NAME\.test\(/.test(fc) && /COMPANIONS\.set\(/.test(fc),
+          'a companion carries no sample rows, so the night key cannot read one — it is paired by NAME at selection time'
+        );
+        ['o2ppgRuns', 'h10ecgRuns', 'verityPPGRuns'].forEach(function (k) {
+          T.ok(
+            f + ' pairs `' + k + '` and ships it in the job',
+            new RegExp('\\b' + k + '\\s*=\\s*companionOf\\(').test(fc) && (fc.match(new RegExp('\\b' + k + '\\b', 'g')) || []).length >= 2,
+            'paired but not shipped is the same blindness one hop later'
+          );
+        });
+      });
+    });
+
     /* ── SAMPLE-VALIDITY-ENVELOPE done-when 4 — A RATCHET ON THE CALLERS THAT READ NO VALIDITY ────────────
        Six sample parsers accept the box's `…RUNS.txt` validity sidecar as `opts.runsText`: `parseECG` /
        `parseECGText` (ecgdex-dsp), `parseDeviceACC` (ecgdex-dsp), `parsePPG` (ppgdex-dsp), `parsePPG2W`
@@ -37447,8 +37564,7 @@
           'ppgdex-app.js': [2, 'GYRO, MAGN: no RUNS writer for the stream'],
           'qrs-equiv-worker.js': [1, SYNTH],
           'qrs-yield-worker.js': [1, SYNTH],
-          'resp-acc-analysis-app.js': [1, OPEN],
-          'sensor-trio-worker.js': [3, OPEN]
+          'resp-acc-analysis-app.js': [1, OPEN]
         };
 
         /* `tools/` is pinned as ONE population, never per file. The adoption gate (tools/, verdict manifest) counts a
@@ -37537,7 +37653,15 @@
         T.ok('the scan has a denominator (' + names.length + ' authored sources)', names.length > 200, 'an empty scan reads exactly like a clean one');
         T.ok('…and it read the adapters', names.indexOf('adapters/polar-h10-ecg.js') >= 0, 'adapters/*.js is out of the population');
         T.ok('…and it SEES calls (' + total + ')', total >= 80, 'the call pattern matches nothing — the verdict below would be vacuous');
-        ['ecgdex-app.js parseECG', 'oxydex-dsp.js parsePPG2W', 'ppgdex-app.js parsePPG', 'motiondex-dsp.js parseSensorXYZ', 'adapters/polar-h10-ecg.js parseDeviceACC'].forEach(function (k) {
+        [
+          'ecgdex-app.js parseECG',
+          'oxydex-dsp.js parsePPG2W',
+          'ppgdex-app.js parsePPG',
+          'motiondex-dsp.js parseSensorXYZ',
+          'adapters/polar-h10-ecg.js parseDeviceACC',
+          'sensor-trio-worker.js parseECG',
+          'sensor-trio-worker.js parsePPG'
+        ].forEach(function (k) {
           T.ok('…and it sees the WIRED caller `' + k + '` carry the sidecar', carried.indexOf(k) >= 0, 'carrying: ' + carried.join(' · '));
         });
 
@@ -38823,6 +38947,90 @@
       );
       T.eq('…and is neither stuck nor failing', a.stuck.length + a.failing.length, 0);
       T.eq('a healthy queue has nothing cancelled to name', att([green, advisoryCancel]).cancelled.length, 0);
+    });
+
+    /* ── queue-doctor: DIRTY is two states, and the local merge probe tells them apart (residue
+       2026-09-22-residue-dirty-carries-no-signal). GitHub merges without the `merge=residue` driver,
+       so a RESIDUE-only append reads DIRTY there and merges clean here, and a real conflict reads the
+       same. Every DIRTY said "needs a human rebase". The probe is `git merge-tree --write-tree
+       --name-only`; the outputs below are its real shapes from #3749's head 7a8b60dbc, 2026-10-20. */
+    group('Queue-doctor — a DIRTY PR names whether the conflict is real, from a local merge probe', 'tools · queue-doctor-dirty', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention,
+        dv = env.qdDirtyVerdict,
+        pmt = env.qdParseMergeTree,
+        probe = env.qdProbeMerge;
+      if (typeof cl !== 'function' || typeof dv !== 'function' || typeof pmt !== 'function' || typeof probe !== 'function') {
+        T.skip('queue-doctor DIRTY probe is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var OID = 'a467cf5d0784eabccefb3dbe77f735d40a0bb4fa';
+      var CLEAN_OUT = OID + '\n';
+      var CONFLICT_OUT = OID + '\nbriefs/RESIDUE.md\n\nAuto-merging briefs/RESIDUE.md\nCONFLICT (content): Merge conflict in briefs/RESIDUE.md\n';
+      T.eq('a clean merge parses as exit 0', pmt(CLEAN_OUT, 0), { exit: 0, paths: [] });
+      T.eq('a conflict parses its paths and stops at the blank line', pmt(CONFLICT_OUT, 1), { exit: 1, paths: ['briefs/RESIDUE.md'] });
+      T.eq('exit 0 over no tree line is not a clean merge (examined nothing)', pmt('', 0), null);
+      T.eq('exit 1 that names no path is unreadable, not a conflict list', pmt(CLEAN_OUT, 1), null);
+      T.eq('a usage error (exit 128) is unreadable', pmt(OID + '\n', 128), null);
+      T.eq('a SHA-256 tree id parses too', pmt('a'.repeat(64) + '\n', 0), { exit: 0, paths: [] });
+
+      var NOW = 1755000000000;
+      var wrap = function (o) {
+        var pr = { number: 1, title: 't', state: 'OPEN', isDraft: false, mergeState: 'DIRTY', autoMerge: true, updatedAtMs: NOW - 90 * 60000, checks: [{ name: 'test', bucket: 'pass' }] };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test'], NOW);
+        r.pr = pr;
+        return r;
+      };
+      var display = wrap({ number: 11, mergeProbe: pmt(CLEAN_OUT, 0) });
+      var real = wrap({ number: 12, mergeProbe: pmt(CONFLICT_OUT, 1) });
+      var unprobed = wrap({ number: 13, mergeProbe: null });
+      var green = wrap({ number: 14, mergeState: 'CLEAN' });
+      T.eq('a clean local merge reads as the display artifact', display.k, 'dirty-display');
+      T.ok('…and its remedy is a merge and one push, never a rebase', /git merge origin\/main/.test(display.why) && /no rebase/.test(display.why));
+      T.eq('a conflicting local merge stays dirty (the plant: the probe can say "real")', real.k, 'dirty');
+      T.ok('…and names the conflicted path', /briefs\/RESIDUE\.md/.test(real.why));
+      T.eq('no probe keeps the old class and remedy', [unprobed.k, unprobed.why], ['dirty', 'merge conflict — needs a human rebase']);
+      T.eq('a malformed probe is not a clean merge', dv({ exit: 0.5 }).k, 'dirty');
+      T.eq('a red beats a DIRTY probe', wrap({ number: 15, mergeProbe: pmt(CLEAN_OUT, 0), checks: [{ name: 'test', bucket: 'fail' }] }).k, 'failing');
+      var a = att([display, real, unprobed, green]);
+      T.eq(
+        'both DIRTY kinds are in the attention set',
+        a.dirty.map(function (c) {
+          return c.pr.number;
+        }),
+        [11, 12, 13]
+      );
+      T.eq('…and none of them is green-and-stuck, red or cancelled', a.stuck.length + a.failing.length + a.cancelled.length, 0);
+      T.eq('a clean queue has nothing DIRTY to name (non-vacuity)', att([green]).dirty.length, 0);
+
+      /* The I/O probe with an injected git: the merge-tree exit reaches the parser, and any earlier
+         failure returns null rather than a guess. */
+      var calls = [];
+      var fake = function (out, status) {
+        return function (a) {
+          calls.push(a[0]);
+          if (a[0] === 'rev-parse') return 'b'.repeat(40) + '\n';
+          if (a[0] === 'merge-tree') {
+            if (status) {
+              var e = new Error('exit ' + status);
+              e.status = status;
+              e.stdout = out;
+              throw e;
+            }
+            return out;
+          }
+          return '';
+        };
+      };
+      T.eq('the probe passes a clean merge through', probe(5, OID, 'main', fake(CLEAN_OUT, 0)), { exit: 0, paths: [] });
+      T.eq('…and fetches before it merges', calls.slice(0, 4), ['fetch', 'rev-parse', 'cat-file', 'merge-tree']);
+      T.eq('the probe passes a conflict through', probe(5, OID, 'main', fake(CONFLICT_OUT, 1)), { exit: 1, paths: ['briefs/RESIDUE.md'] });
+      var failFetch = function (a) {
+        if (a[0] === 'fetch') throw new Error('network');
+        return CLEAN_OUT;
+      };
+      T.eq('a failed fetch is null, not a clean merge', probe(5, OID, 'main', failFetch), null);
     });
 
     /* ── queue-doctor: a red PR is an EVENT once, not a journal line every ten minutes (owner,
@@ -43915,6 +44123,38 @@
                   : 'a DIFFERENT function than the node exposes'
           );
         });
+      });
+      /* Shim parity (RESIDUE `2026-10-12-orchestrator-shims-bypass-signalspec`). The table above
+         reads each `object` expectation off the global the RESOLVER names. The emit shims in
+         `signal-orchestrate.js` read their own global (`_<node>Win = { <Name>: root.<Name> }`). For
+         four types the two globals are one object. For `cgm` they are not: the resolver returns
+         `GLUDSP` and `glucoHost` reads `GlucoDex`, two objects that `glucodex-dsp.js` publishes
+         separately (and `GlucoDex` only when no earlier one exists). These assertions join the two
+         copies: every function name both objects carry must be the SAME function, so a drift on
+         either side reds here instead of on a shipped page. The member types (`rr`, `spo2`, `hrv`)
+         need no row: the table above already reads them off the shim's own namespace. */
+      var SHIM_NS = { ecg: 'ECGDex', ppg: 'PpgDex', cgm: 'GlucoDex', cpap: 'CPAPDex', acc: 'MotionDex' };
+      Object.keys(WANT).forEach(function (t) {
+        if (!WANT[t].object) return;
+        var name = SHIM_NS[t];
+        T.ok('the ' + t + ' emit shim names its namespace here (a new object type cannot land unpinned)', !!name, name || 'add the global its _HOSTS shim reads');
+        if (!name) return;
+        var ns = env[name],
+          got = SS[t] && typeof SS[t].dsp === 'function' ? SS[t].dsp() : undefined;
+        T.ok('env.' + name + ' (the namespace the ' + t + ' shim reads) is co-loaded in this lane', !!ns, ns ? 'present' : 'add it to env in BOTH lanes');
+        if (!(ns && got)) return;
+        var shared = Object.keys(got).filter(function (k) {
+          return typeof got[k] === 'function' && typeof ns[k] === 'function';
+        });
+        T.ok(t + ': the resolver object and root.' + name + ' share at least one function name (the identity below is vacuous otherwise)', shared.length > 0, shared.join(', ') || 'none');
+        var differ = shared.filter(function (k) {
+          return got[k] !== ns[k];
+        });
+        T.ok(
+          'SignalSpec.' + t + '.dsp() and root.' + name + ' hold the SAME function under every shared name (shim/resolver parity)',
+          shared.length > 0 && differ.length === 0,
+          differ.length ? 'a DIFFERENT function under: ' + differ.join(', ') : shared.length + ' shared, all identical'
+        );
       });
       /* The aux + un-migrated types resolve to `undefined` because no node owns them yet, and that
          is a measured fact rather than a convention: `hr` is an auxiliary channel with no DSP of its
@@ -52911,6 +53151,12 @@
         if (pe) {
           T.ok('  schema.name === ganglior.node-export', pe.schema && pe.schema.name === 'ganglior.node-export', pe.schema && pe.schema.name);
           T.ok('  schema.node === PpgDex', pe.schema && pe.schema.node === 'PpgDex', pe.schema && pe.schema.node);
+          /* EXPORT-SOURCE-KEY-KINDS — the per-node tag assertion this family lacked. PulseDex ('rr'),
+             OxyDex ('spo2'), HRVDex ('welltory') and ECGDex ('ecg') are each pinned in this group, and
+             PpgDex was the one node with none. It is also the one node whose two export builders
+             diverged on the field: the app's wrote the upload filename where this one writes the tag.
+             The unpinned member of a family is where the drift lives. */
+          T.ok('  recording.source === ppg', pe.recording && pe.recording.source === 'ppg', pe.recording && pe.recording.source);
           T.ok('  ganglior_events is an array', Array.isArray(pe.ganglior_events), typeof pe.ganglior_events);
           T.ok('  recording.startEpochMs is finite', pe.recording && isFinite(pe.recording.startEpochMs), pe.recording && pe.recording.startEpochMs);
         }
@@ -75313,11 +75559,13 @@
       T.ok('the serial-scrub note does not say ALL tracked files while those filenames are tracked', !(o2.length > 0 && /scrubbed from ALL tracked files/i.test(src)));
     });
 
-    group('§∅ — ecgdex-dsp std/median/quant return null for an input too short to measure, never 0', 'ecgdex-dsp · absence-as-value · empty-helpers', function (T) {
-      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, ECGDex HALF. Six helpers answered `0` for an input too
-         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed here) and pulsedex-dsp `std`/`sdsd`/
-         `medianOf` (NOT fixed: editing pulsedex-dsp.js moves the `treatment-response · pinned yield` pin,
-         whose re-stamp needs a paper-scale re-cut budgeted in hours). A 0 is a LEGAL
+    group('§∅ — ecgdex-dsp and pulsedex-dsp return null for an input too short to measure, never 0', 'ecgdex-dsp · pulsedex-dsp · absence-as-value · empty-helpers', function (T) {
+      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, BOTH HALVES. Six helpers answered `0` for an input too
+         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed in #3567) and pulsedex-dsp `std`/`sdsd`/
+         `medianOf` (fixed here). The PulseDex half waited because editing `pulsedex-dsp.js` moves the
+         `treatment-response · pinned yield` pin, and the deferral priced that re-stamp in hours. The pin
+         gate's own failure text prices the re-cut at ~1005 s, and it allows a re-stamp on the SAME counts
+         for a provably inert edit. A 0 is a LEGAL
          dispersion and a LEGAL median, so the next caller cannot tell "measured flat" from "nothing to
          measure" — the shape #3346 fixed one function away in `rmssd`, where it reached Math.log(0). The
          one call site that was NOT guarded is pinned end to end: `validateRR` exported `devSDNN: 0` for a
@@ -75357,6 +75605,41 @@
       T.eq('CONTROL · ecgdex std([-1, 1]) is the sample SD', E.std([-1, 1]), 1.4142135623730951);
       var ok2 = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }, { rr: 810 }, { rr: 795 }, { rr: 805 }, { rr: 820 }, { rr: 790 }]);
       T.ok('CONTROL · a measurable device record keeps a finite devSDNN', typeof ok2.devSDNN === 'number' && isFinite(ok2.devSDNN), 'got ' + show(ok2.devSDNN));
+
+      // ── PulseDex ── the other half of the same row ────────────────────────────────────
+      var P0 = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P0 || typeof P0.std !== 'function' || typeof P0.medianOf !== 'function') {
+        T.skip('pulsedex-dsp reachable through PulseDex._bare', 'PulseDex is not co-loaded namespaced in this runner');
+      } else {
+        T.ok('pulsedex std([]) is null, not 0', P0.std([]) === null, 'got ' + show(P0.std([])));
+        T.ok('pulsedex std([5]) is null — one value has no sample SD', P0.std([5]) === null, 'got ' + show(P0.std([5])));
+        T.ok('pulsedex medianOf([]) is null, not 0', P0.medianOf([]) === null, 'got ' + show(P0.medianOf([])));
+        /* THE GUARD THAT MAKES THE EDIT INERT, asserted rather than asserted ABOUT: the record itself
+           refuses under ten beats, which is why no exported path can reach one of the three helpers with
+           a short input, and why the pinned yield re-stamps on the same counts. */
+        T.eq('pdComputeResult refuses a 9-beat record, so no exported path reaches a short helper input', P0.pdComputeResult([800, 810, 795, 805, 820, 790, 800, 815, 805]), null);
+        var many = [];
+        for (var qi = 0; qi < 40; qi++) many.push(800 + (qi % 5) * 4);
+        var pr = P0.pdComputeResult(many);
+        T.ok('CONTROL · a 40-beat record still computes a finite SDNN', !!pr && typeof pr.sdnn === 'number' && isFinite(pr.sdnn), 'got ' + show(pr && pr.sdnn));
+        T.eq('CONTROL · pulsedex std([5, 5]) is a MEASURED 0', P0.std([5, 5]), 0);
+        T.eq('CONTROL · pulsedex std([-1, 1]) is the sample SD', P0.std([-1, 1]), 1.4142135623730951);
+        T.eq('CONTROL · pulsedex medianOf([0]) is a MEASURED 0', P0.medianOf([0]), 0);
+        T.eq('CONTROL · pulsedex medianOf([1, 2, 3, 4]) is 2.5', P0.medianOf([1, 2, 3, 4]), 2.5);
+      }
+      /* `sdsd` is NOT on the `_bare` surface, so no leg can CALL it. Its guard is read as text instead, and
+         this leg says so — a source read is weaker than a value and is only honest when it is named. */
+      var psrc2 = (env.sources && env.sources['pulsedex-dsp.js']) || '';
+      if (!psrc2) {
+        T.skip('pulsedex-dsp.js source readable', 'pulsedex-dsp.js is not in this lane’s source list, so the sdsd guard cannot be read');
+      } else {
+        T.ok(
+          'SOURCE · sdsd answers null under three values (not exported, so this reads the guard)',
+          /const sdsd = \(a\) => \{\s*\n\s*if \(a\.length < 3\) return null;/.test(psrc2),
+          'the sdsd guard no longer reads `return null`'
+        );
+        T.eq('SOURCE · no length-guarded helper in pulsedex-dsp still answers a 0', (psrc2.match(/if \((?:!a\.length|a\.length < [23])\) return 0;/g) || []).length, 0);
+      }
     });
 
     /* ════ trio-batch PRINTS THE DIGEST OF THE CURRENT TREE (residue 2026-10-12-trio-batch-prints-no-current-tree-digest) ══

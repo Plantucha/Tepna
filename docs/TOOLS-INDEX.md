@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**274 tools** · 273 with a purpose line · **1 without**
+**276 tools** · 275 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -69,6 +69,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`defect-bench-solve.mjs`](../tools/defect-bench-solve.mjs) | // // Solver runner for audits/DEFECT-BENCHMARK.json. Measures the BENCHMARK // METHOD with a local model, never the fleet. |
 | [`defect-bench.mjs`](../tools/defect-bench.mjs) | the frozen benchmark of past defects, built node tools/defect-bench.mjs --build # enumerate, classify, write the set node tools/defect-bench.mjs --build --prove 8 # …and prove up to 8 more… |
 | [`defect-pin-census.mjs`](../tools/defect-pin-census.mjs) | the enumeration gate for tests that once asserted the defect they were written for |
+| [`derive-open-ahi.mjs`](../tools/derive-open-ahi.mjs) | DERIVE AN AHI PER RECORDING OVER THE TWO ANNOTATED OPEN SETS — ISRUC and iSleeps. |
 | [`derive-sigma-window.mjs`](../tools/derive-sigma-window.mjs) | Headless derivation of the two raw-signal 1-Hz HR series a three-device σ window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md): • Verity HR ← raw PPG via the suite's… |
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | WHO IS USING THE SEMANTIC SEARCH — the per-session query stamps, counted (rule 0's audit). |
@@ -104,6 +105,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`guarantees.mjs`](../tools/guarantees.mjs) | GUARANTEE CENSUS — find the promises the comments make, and ask which of them nothing checks. |
 | [`guide-anchor-audit.mjs`](../tools/guide-anchor-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 5, mechanised — the third sibling of `severity-ladder-audit.mjs` (dim 3) and `formula-constant-audit.mjs` (dim 2). |
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
+| [`hook-contract.mjs`](../tools/hook-contract.mjs) | EVERY CLAUDE-CODE HOOK DRAINS ITS STDIN BEFORE IT CAN EXIT. The harness writes each hook's tool-call JSON down a PIPE. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
 | [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | every Integrator key declares its surface node tools/integrator-surface-gate.mjs # gate node tools/integrator-surface-gate.mjs --json # verdict only node tools/integrator-surface-gate.mjs… |

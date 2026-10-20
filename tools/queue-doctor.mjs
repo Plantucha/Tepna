@@ -38,7 +38,7 @@
  *   node tools/queue-doctor.mjs --dry-run    # report only, change nothing
  *   node tools/queue-doctor.mjs --report     # report only, exit 1 if anything is stuck (for a timer)
  *
- * Exit: 0 acted or nothing to do · 1 --report found stuck, RED or CANCELLED PRs · 2 REFUSED (could not read state).
+ * Exit: 0 acted or nothing to do · 1 --report found stuck, RED, CANCELLED or DIRTY PRs · 2 REFUSED (could not read state).
  */
 
 import { execFileSync } from 'node:child_process';
@@ -60,6 +60,50 @@ export const IDLE_MIN = 20;
    doctor was serialising behind either merged (and this PR should have been picked up next) or did
    not (so the wait was never going to pay). Either way the premise has failed. */
 export const STARVED_MIN = 30;
+
+/* 🔴 DIRTY ON GITHUB IS TWO STATES, AND GITHUB SHOWS THEM AS ONE (residue
+   2026-09-22-residue-dirty-carries-no-signal). `.gitattributes` sets `briefs/RESIDUE.md merge=residue`,
+   and GitHub computes mergeability without custom drivers. So two branches that each append a row read
+   DIRTY there while git merges them cleanly here, and a genuinely conflicted PR reads the same. Every
+   DIRTY used to say "needs a human rebase": the wrong remedy for the display case (a rebase replays
+   rows against a moving ledger) and no help for the real one, because it named no path.
+
+   The discriminator is the real merge, run locally WITH this clone's merge drivers:
+       git merge-tree --write-tree --name-only <head> <base>   # exit 0 clean · exit 1 conflict + paths
+   Measured 2026-10-20 on #3749's DIRTY head 7a8b60dbc: exit 0 with the driver installed, and exit 1
+   naming `briefs/RESIDUE.md` under `-c merge.residue.driver=false`.
+   ⚠️ NOT the 3-argument `merge-tree … | grep -c '<<<<<<<'` form the row first named: on #2900 it
+   printed 0 markers for a branch whose real merge conflicted.
+   A clone WITHOUT the driver falls back to the 3-way merge, which conflicts on the ledger, so a missing
+   driver errs toward `dirty`, the safe direction. Anything but a parsed exit 0 or exit 1 is `dirty`
+   with the old remedy: an unreadable probe is not a clean merge. */
+const TREE_OID = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+
+/** Parse `git merge-tree --write-tree --name-only` output: line 1 is the tree, then on a conflict the
+    conflicted paths up to the first blank line. Returns `{ exit, paths }`, or null when it is not that. */
+export function parseMergeTree(stdout, exit) {
+  const lines = String(stdout || '').split('\n');
+  if (!TREE_OID.test(lines[0])) return null;
+  if (exit === 0) return { exit: 0, paths: [] };
+  if (exit !== 1) return null;
+  const paths = [];
+  for (const ln of lines.slice(1)) {
+    if (ln === '') break;
+    paths.push(ln);
+  }
+  return paths.length ? { exit: 1, paths } : null;
+}
+
+/** Classify a DIRTY PR from its local merge probe (`parseMergeTree`'s result, or null). */
+export function dirtyVerdict(probe) {
+  if (probe && probe.exit === 0) {
+    return { k: 'dirty-display', why: "DIRTY on GitHub only: the local merge with this clone's drivers is clean — `git merge origin/main`, then one push (no rebase, no force)" };
+  }
+  if (probe && probe.exit === 1 && Array.isArray(probe.paths) && probe.paths.length) {
+    return { k: 'dirty', why: `merge conflict in ${probe.paths.join(', ')} — resolve by hand` };
+  }
+  return { k: 'dirty', why: 'merge conflict — needs a human rebase' };
+}
 
 /* ── PURE CORE ───────────────────────────────────────────────────────────────────────────────────
    Separated so the decisions are gate-backed without `gh`, a network or a clock — the same shape as
@@ -129,7 +173,7 @@ export function classify(pr, required, nowMs) {
       armed: !!pr.autoMerge
     };
   }
-  if (pr.mergeState === 'DIRTY') return { k: 'dirty', why: 'merge conflict — needs a human rebase' };
+  if (pr.mergeState === 'DIRTY') return dirtyVerdict(pr.mergeProbe);
 
   /* Green. Everything below is a flavour of STUCK — the state with no name. */
   const idleMin = pr.updatedAtMs ? (nowMs - pr.updatedAtMs) / 60000 : 0;
@@ -147,13 +191,15 @@ export function classify(pr, required, nowMs) {
  * checks are red. classify() has always returned `failing`, but the report printed only `stuck`, so a red
  * (abandoned) PR read as "no PR is green-and-stuck" and `--report` exited 0 over it — a red PR looked like
  * an idle queue. `cancelled` is a PR whose REQUIRED check was cancelled: terminal, so it waits forever.
- * `--report` is clean only when ALL THREE are empty.
+ * `dirty` holds both DIRTY kinds: neither merges until a human merges `main` in, and the `why` says which.
+ * `--report` is clean only when ALL FOUR are empty.
  */
 export function attention(classified) {
   return {
     stuck: classified.filter((c) => c.k === 'stuck-behind' || c.k === 'stuck-unarmed'),
     failing: classified.filter((c) => c.k === 'failing'),
-    cancelled: classified.filter((c) => c.k === 'cancelled')
+    cancelled: classified.filter((c) => c.k === 'cancelled'),
+    dirty: classified.filter((c) => c.k === 'dirty' || c.k === 'dirty-display')
   };
 }
 
@@ -252,6 +298,29 @@ export function pick(classified) {
    Everything below talks to `gh`. Nothing below makes a decision. */
 
 const gh = (a) => execFileSync('gh', a, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+const git = (a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
+
+/* The probe behind dirtyVerdict(). It fetches the base branch and the PR head first, so the merge
+   reads what GitHub reads and not a stale remote-tracking ref, and it pins the head to the OID `gh`
+   reported. Any failure returns null, which classifies `dirty` with the old remedy. */
+export function probeMerge(number, headOid, baseRef, run = git) {
+  try {
+    run(['fetch', '-q', '--no-write-fetch-head', 'origin', baseRef, `pull/${number}/head`]);
+    const base = run(['rev-parse', '--verify', `refs/remotes/origin/${baseRef}^{commit}`]).trim();
+    run(['cat-file', '-e', `${headOid}^{commit}`]);
+    let out = '';
+    let exit = 0;
+    try {
+      out = run(['merge-tree', '--write-tree', '--name-only', headOid, base]);
+    } catch (e) {
+      exit = e.status;
+      out = String(e.stdout || '');
+    }
+    return parseMergeTree(out, exit);
+  } catch {
+    return null;
+  }
+}
 
 function requiredContexts() {
   try {
@@ -266,7 +335,7 @@ function requiredContexts() {
 }
 
 function snapshotAll() {
-  const prs = JSON.parse(gh(['pr', 'list', '--limit', '100', '--json', 'number,state,isDraft,mergeStateStatus,autoMergeRequest,updatedAt,title']));
+  const prs = JSON.parse(gh(['pr', 'list', '--limit', '100', '--json', 'number,state,isDraft,mergeStateStatus,autoMergeRequest,updatedAt,title,headRefOid,baseRefName']));
   return prs.map((p) => {
     let checks = [];
     let readable = true;
@@ -294,7 +363,8 @@ function snapshotAll() {
       autoMerge: p.autoMergeRequest != null,
       updatedAtMs: Date.parse(p.updatedAt),
       checks,
-      readable
+      readable,
+      mergeProbe: p.mergeStateStatus === 'DIRTY' && !p.isDraft ? probeMerge(p.number, p.headRefOid, p.baseRefName) : null
     };
   });
 }
@@ -347,7 +417,7 @@ function main() {
   const now = Date.now();
   const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now) }));
 
-  const { stuck, failing, cancelled } = attention(classified);
+  const { stuck, failing, cancelled, dirty } = attention(classified);
   const stamp = new Date(now).toISOString().slice(11, 19);
 
   /* SAY THE THING NO VIEW SAYS. This line is the whole point of the tool: a PR that is green, armed
@@ -368,6 +438,12 @@ function main() {
     console.log(`${stamp}  ⊘ CANCELLED: ${cancelled.length} PR(s) with a cancelled REQUIRED check — no merge until someone re-runs it`);
     for (const c of cancelled) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
   }
+  /* DIRTY IS NAMED WITH ITS REMEDY. The local merge probe tells GitHub's display artifact from a real
+     conflict, and the `why` carries the remedy for each. */
+  if (dirty.length) {
+    console.log(`${stamp}  ⇄ DIRTY: ${dirty.length} PR(s) — neither kind merges until someone merges main in`);
+    for (const c of dirty) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
+  }
   const fresh = writeRedLedger(failing, required, now);
   for (const l of fresh) console.log(`    ${l.includes('  RED ') ? 'NEW this run' : 'cleared'}: ${l.slice(22)}`);
   for (const p of unreadable) console.log(`    #${p.number}  checks unreadable — NOT counted either way`);
@@ -377,7 +453,7 @@ function main() {
     console.log(`    → ${unarmed.length} need a human: arm auto-merge (\`gh pr merge <N> --auto --squash\`); updating cannot land them.`);
   }
 
-  if (REPORT) process.exit(stuck.length || failing.length || cancelled.length ? 1 : 0);
+  if (REPORT) process.exit(stuck.length || failing.length || cancelled.length || dirty.length ? 1 : 0);
 
   const d = pick(classified);
   if (d.action !== 'update') {
