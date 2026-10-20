@@ -189,6 +189,17 @@ DAEMON_REGRESSION = (
     "daemon:clock re-sync",
     "daemon:stream stall re-negotiate",
     "daemon:not-worn drop",
+    # ⚠️ A HOLDING POSITION, NOT A RULING. `loss_audit.JOB_SPANS` attributes a gap that starts inside the
+    # box's own `solid-night … re-judged` bracket to the box, and that cause is new here. Listing it
+    # PRESERVES every verdict this corpus holds: the only 5 gaps it reaches are the ring's on
+    # 2026-10-12→13, that band already FAILs on `6 unattributed gap(s), 87 s`, and it keeps FAILing —
+    # with the program named instead of nobody. Leaving it OFF this tuple would have been the silent
+    # change: the 5 gaps would leave `un`, the remaining one is 23 s under both bars, and the night would
+    # turn PASS because the audit learned the cause. Whether a re-judge the box CHOSE to start is instead
+    # a declared action, excluded and annotated like `daemon:restart` (the owner's 2026-10-13 ruling
+    # above), is the owner's call and not a measurement — residue
+    # `2026-10-20-a-re-judge-that-tears-the-ring-is-classified-by-a-holding-position`.
+    "daemon:solid-night re-judge",
 )
 UNATTRIBUTED = "unattributed"
 # AN EVENT-LOOP STALL KEEPS THE BAR IT HAD. Until `loss_audit` read the device-less stall line, a gap a
