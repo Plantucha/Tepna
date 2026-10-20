@@ -246,4 +246,32 @@ ok 0 "$(nomem Bash "$F" post)"    '…and a Bash post, the phase that otherwise 
 ok DENY "$(run Write "$F")"       'control: with the memory dir present the same Write is still DENIED'
 rm -rf "$NOMEM"
 
+# ⚠ THE HOOK MUST DRAIN STDIN BEFORE EITHER EARLY EXIT, AND NO LEG ABOVE CAN SEE IT. Every leg
+# above reads the hook's verdict as DENY (exit 2) or ALLOW (anything else), so an exit that left
+# the writer on a closed pipe — the harness, in production — scored as the ALLOW it wanted: the
+# writer's 141 (SIGPIPE) is "not 2". These two legs watch the WRITER's fate instead, one per early
+# exit: the hatch, and the HOME that holds no memory directory. The pipe stays ON PURPOSE (a
+# redirect has no writer to lose), the payload is 100 KB so it cannot fit the 64 KB pipe buffer,
+# and each repeats because the defect is a race. Same contract trim-output.test.sh pins (#3493).
+head -c 100000 /dev/zero | tr '\0' x > "$TMP/stdin-big"
+jq -nc --rawfile c "$TMP/stdin-big" '{tool_input:{file_path:"/home/x/Repo/README.md"},pad:$c}' > "$TMP/stdin-big.json"
+NOPIPE="$(mktemp -d)"; mkdir -p "$NOPIPE/.claude/projects/-home-x-Repo"   # project dir WITHOUT memory/
+_worst=0
+for _i in 1 2 3 4 5; do
+  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_STALE_MEMORY=1 bash "$H" pre >/dev/null 2>&1
+  _rc="${PIPESTATUS[0]}"; [ "$_rc" != 0 ] && _worst="$_rc"
+done
+ok 0 "$_worst" 'the writer into the HATCHED hook survives (141 = SIGPIPE, the hook never read it)'
+_worst=0
+for _i in 1 2 3 4 5; do
+  # ⚠ INLINE ASSIGNMENTS, NEVER AN `env` PREFIX. Measured 2026-10-20 against the unrepaired hook
+  # over ONE exit path: this form reports the writer's 141 three times out of three, and
+  # `env VAR=… bash` reports 0 three times out of three. The leg's probe form decides whether the
+  # leg can see the defect at all, so the `env -u` the verdict helpers above use cannot appear here.
+  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_STALE_MEMORY= HOME="$NOPIPE" bash "$H" pre >/dev/null 2>&1
+  _rc="${PIPESTATUS[0]}"; [ "$_rc" != 0 ] && _worst="$_rc"
+done
+ok 0 "$_worst" '…and the writer into the hook on a HOME with no memory directory survives too'
+rm -rf "$NOPIPE"
+
 if [ "$fail" -eq 0 ]; then echo "guard-memory-stale: all checks passed"; else echo "guard-memory-stale: $fail FAILED"; exit 1; fi
