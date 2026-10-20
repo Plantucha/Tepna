@@ -193,6 +193,29 @@ def test_an_abstaining_detector_does_not_veto_one_that_can_still_speak():
     assert "ambient" not in why
 
 
+def test_the_LEVEL_detector_s_DOMAIN_travels_with_the_CALL_not_just_with_the_detector():
+    """`optical_worn` refuses outside 55 Hz, so `worn_verdict` must hand it the rate it was given.
+
+    A mutant that passes `fs=None` instead reads an UNKNOWN rate, which `calibrated_for` admits by
+    design for callers older than the parameter — so a bright buffer at 135 Hz would vote NOT WORN
+    at a rate nothing was measured at, and a not-worn vote drops a live link mid-night. 135 Hz is
+    calibrated for neither optical detector, which is what makes the omission visible here."""
+    assert telemetry.calibrated_for(None) is True, "an unknown rate is in domain — that is the hazard"
+    verdict, why = telemetry.worn_verdict(ambient=[9e5] * 400, fs=135.0)
+    assert (verdict, why) == (None, "no worn detector is available and in domain at 135 Hz")
+
+
+def test_an_ABSTENTION_IS_NAMED_BESIDE_A_DECIDED_VERDICT_and_not_only_when_nothing_decided():
+    """The no-verdict path names its abstention; this is the other half, on the DECIDED path.
+
+    A dark 55 Hz buffer abstains because dark reads alike on skin and in a dark room, while the PPI
+    contact bit decides. The operator acts on the reason, so the abstention has to survive the
+    verdict: a reason that drops it reports a lone contact bit as the whole of the evidence."""
+    verdict, why = telemetry.worn_verdict(ambient=[140.0] * 400, fs=55.0, ppi_flags=0x06)
+    assert verdict is True
+    assert why == "worn per ppi-contact; ambient-level abstains: dark reads alike on skin and in a dark room"
+
+
 # ── CHARGING AT FULL — the hole the rising rule cannot reach ────────────────────────────────────────
 
 
