@@ -246,27 +246,72 @@ export function referenceBeatTimes(rec, r, refAxis) {
     vals = [],
     inBand = (x) => Number.isFinite(x) && x >= 200 && x <= 3000;
   if (axis === 'corrected') {
+    /* 🔴 nn/tt ARE NOT INDEX-ALIGNED WITH refIdx, AND THE GUARD IS WHAT FOUND IT. `analyze` runs a
+       beat-confidence filter after `buildNN` and PUSHES the survivors (`ecgdex-dsp.js:2882-2894`), so
+       on a real night 5829 refined peaks become 5808 intervals. Its own comment says it: "`peaks[i]`,
+       `nnRes.nn[i]` and `sqi[i]` share an index only BEFORE the confidence filter below." The first
+       version of this function took the index for granted and the alignment check refused 2 of 2
+       nights rather than mis-pairing them.
+
+       So the beat is recovered BY ITS VALUE, not by its position. `tt[i]` is pushed unchanged from
+       `times[k] = devMsAt(refIdx[k]) / 1000` (`ecgdex-dsp.js:2802-2812`), so rebuilding that same
+       quantity over the unfiltered `refIdx` and keying it gives each surviving interval its sample
+       index back. Two beats sharing a device ms collapse to one key harmlessly: the correction is a
+       function of the device ms alone.
+
+       THE KEY IS ROUNDED TO MICROSECONDS, and raw float equality would have been a trap. In the real
+       path both sides evaluate the same expression on the same inputs and agree to the last bit, so
+       `===` works — and it stops working the moment either side is written differently. `3 * 0.01`
+       and `30 / 1000` are different doubles, which the selftest below plants on purpose. A microsecond
+       key cannot collide either: refined peaks sit ~7.7 ms apart at 130 Hz.
+
+       THIS BRANCH NEEDS THE DEVICE COUNTER. Without one, `analyze` builds its beat clock from the
+       sample index plus a dead-time fold and `tMsAt` does the same — there is no device axis to
+       correct, and a match by value would be a match between two different quantities. It refuses. */
     const idx = r && r.refIdx;
-    if (typeof (rec && rec.tMsAt) !== 'function' || !idx || idx.length !== nn.length)
+    if (typeof (rec && rec.tMsAt) !== 'function' || typeof (rec && rec.devMsAt) !== 'function' || !idx || !idx.length)
       return {
         ms: null,
         nn: null,
         axis,
         applied: null,
         dropped: null,
+        matched: null,
         reason:
-          'the corrected reference axis needs rec.tMsAt and a refIdx aligned with nn — got ' +
+          'the corrected reference axis needs rec.tMsAt, rec.devMsAt and a non-empty refIdx — got ' +
           typeof (rec && rec.tMsAt) +
+          ', ' +
+          typeof (rec && rec.devMsAt) +
           ' and ' +
-          (idx ? idx.length : 'no refIdx') +
-          ' index/es for ' +
-          nn.length +
-          ' interval(s)'
+          (idx ? idx.length : 'no refIdx')
       };
-    let dropped = 0;
+    const byDevMs = new Map();
+    for (let k = 0; k < idx.length; k++) {
+      const d = rec.devMsAt(idx[k]);
+      if (d == null || !Number.isFinite(d))
+        return {
+          ms: null,
+          nn: null,
+          axis,
+          applied: null,
+          dropped: null,
+          matched: null,
+          reason:
+            'the record carries no usable device counter at refined peak ' +
+            k +
+            ' of ' +
+            idx.length +
+            ', so the beat clock is not on the device axis and there is nothing to place on the corrected one'
+        };
+      byDevMs.set(Math.round(d * 1e3), idx[k]);
+    }
+    let dropped = 0,
+      wanted = 0;
     for (let i = 0; i < nn.length; i++) {
-      if (!inBand(nn[i])) continue;
-      const t = Number.isFinite(idx[i]) ? rec.tMsAt(idx[i]) : null;
+      if (!inBand(nn[i]) || !Number.isFinite(tt[i])) continue;
+      wanted++;
+      const at = byDevMs.get(Math.round(tt[i] * 1e6));
+      const t = at === undefined ? null : rec.tMsAt(at);
       if (!Number.isFinite(t)) {
         dropped++;
         continue;
@@ -274,10 +319,23 @@ export function referenceBeatTimes(rec, r, refAxis) {
       ms.push(t);
       vals.push(nn[i]);
     }
-    return { ms, nn: vals, axis, applied: !!rec.tMsCorrected, dropped, reason: null };
+    /* A night that mostly fails to match is not a measurement of the corrected axis. The identity
+       above either holds for a record or it does not; a partial match means it broke, so the night
+       says so instead of scoring a mixture. */
+    if (wanted && ms.length < 0.99 * wanted)
+      return {
+        ms: null,
+        nn: null,
+        axis,
+        applied: null,
+        dropped,
+        matched: ms.length,
+        reason: 'only ' + ms.length + ' of ' + wanted + ' in-band beats matched a refined peak by device ms — the beat-clock identity this branch rests on does not hold for this record'
+      };
+    return { ms, nn: vals, axis, applied: !!rec.tMsCorrected, dropped, matched: ms.length, reason: null };
   }
   for (let i = 0; i < nn.length; i++) if (inBand(nn[i]) && Number.isFinite(tt[i])) ms.push(t0 + tt[i] * 1000), vals.push(nn[i]);
-  return { ms, nn: vals, axis, applied: false, dropped: 0, reason: null };
+  return { ms, nn: vals, axis, applied: false, dropped: 0, matched: ms.length, reason: null };
 }
 export const ROLLING_N = 30;
 export const AXIS_WALL_REASON = '--axis wall: host discipline suppressed for the paired comparison';
@@ -664,6 +722,17 @@ function selftest() {
     'ANTI-VACUITY · a planted +1000 ppm correction moves every reference beat time by exactly the plant (' + (rbC.ms[2] - rbD.ms[2]).toFixed(3) + ' ms at the last beat)'
   );
   ok(rbC.applied === true && rbD.applied === false, 'the row reports whether the correction was LIVE (rec.tMsCorrected), which is not the same gate as which axis was asked for');
+  /* THE REAL SHAPE: `analyze`'s confidence filter drops beats, so nn/tt is SHORTER than refIdx and
+     carries no index into it. Recovery is by device ms, so the survivors still place exactly. */
+  const filtered = referenceBeatTimes(
+    mkRec((d) => d * 0.001),
+    { t0Ms: 1000000, nn: [900, 1000, 1000], tt: [0, 0.02, 0.05], refIdx: [0, 1, 2, 3, 4, 5] },
+    'corrected'
+  );
+  ok(
+    filtered.ms.length === 3 && filtered.matched === 3 && Math.abs(filtered.ms[2] - (1000000 + 50 + 0.05)) < 1e-9,
+    'a filtered nn/tt shorter than refIdx still places every surviving beat — the beat is found by its device ms, never by its position'
+  );
   let threwRef = null;
   try {
     referenceBeatTimes(mkRec(null), rBeats, 'corrrected');
@@ -673,10 +742,22 @@ function selftest() {
   ok(threwRef != null && /unknown reference axis/.test(threwRef), 'an unknown --reference-axis THROWS rather than quietly running the default');
   const noAcc = referenceBeatTimes({ t0Ms: 1000000 }, rBeats, 'corrected');
   ok(noAcc.ms === null && /needs rec.tMsAt/.test(noAcc.reason), 'a record with no tMsAt REFUSES the night by name — it never falls back to the device axis wearing the corrected label');
-  const misaligned = referenceBeatTimes(mkRec(null), { ...rBeats, refIdx: [0, 1] }, 'corrected');
-  ok(misaligned.ms === null && /index\/es for 4 interval/.test(misaligned.reason), 'a refIdx that is not aligned with nn refuses, because beat k would then be a different beat');
-  const holed = referenceBeatTimes({ ...mkRec(null), tMsAt: (i) => (i === 2 ? NaN : 1000000 + i * 10) }, rBeats, 'corrected');
-  ok(holed.ms.join(',') === '1000000,1000030' && holed.dropped === 1, '§∅ · an unplaceable beat is dropped and COUNTED, never placed at t0');
+  const noCounter = referenceBeatTimes({ t0Ms: 1000000, tMsAt: (i) => 1000000 + i * 10, devMsAt: () => null }, rBeats, 'corrected');
+  ok(noCounter.ms === null && /no usable device counter/.test(noCounter.reason), 'a record whose counter is unusable refuses: there is no device axis to place on the corrected one');
+  const shortIdx = referenceBeatTimes(mkRec(null), { ...rBeats, refIdx: [0, 1] }, 'corrected');
+  ok(
+    shortIdx.ms === null && shortIdx.matched === 1 && /beat-clock identity/.test(shortIdx.reason),
+    'beats that match no refined peak by device ms refuse the night — a partial match means the identity broke, so no mixture is scored'
+  );
+  const holedRec = { ...mkRec(null), tMsAt: (i) => (i === 2 ? NaN : 1000000 + i * 10) };
+  const holed = referenceBeatTimes(
+    holedRec,
+    { t0Ms: 1000000, nn: Array.from({ length: 200 }, () => 1000), tt: Array.from({ length: 200 }, (_, i) => i * 0.01), refIdx: Array.from({ length: 200 }, (_, i) => i) },
+    'corrected'
+  );
+  ok(holed.ms.length === 199 && holed.dropped === 1 && holed.matched === 199, '§∅ · one unplaceable beat in 200 is dropped and COUNTED, never placed at t0');
+  const holedMany = referenceBeatTimes(holedRec, rBeats, 'corrected');
+  ok(holedMany.ms === null && /beat-clock identity/.test(holedMany.reason), 'one unplaceable beat in three is past the 99 % floor, so that night refuses instead of scoring two thirds of a reference');
   /* DECOY · the key must separate the matched pair from the mixed one. A device-axis reference under
      --axis host is exactly the row the paired comparison must not accept as a corrected-axis row. */
   ok(

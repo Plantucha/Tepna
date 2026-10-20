@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-20 · **Created:** 2026-10-20 · **Follows:** `TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md` · **Residue:** 2026-10-18-tch-reference-and-h10-corner-sit-on-two-axes
+**Status:** DONE — 2026-10-20 · **Created:** 2026-10-20 · **Follows:** `TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md` · **Residue:** 2026-10-18-tch-reference-and-h10-corner-sit-on-two-axes
 
 # Does matching the reference's clock axis remove the H10's host-minus-wall gap?
 
@@ -80,13 +80,53 @@ Then `tools/tch-reference-record.mjs --host <leg 1> --wall <leg 2>`, which emits
 ## 6 · Acceptance
 
 - [x] Both tools' selftests cover the five outcomes, with a negative control and a decoy.
-- [ ] The four legs run over the box captures, and §7 records the result with its n and its span.
-- [ ] The negative control reproduces leg 2 row for row.
-- [ ] §7 states C1 as it fell.
+- [x] The four legs run over the box captures, and §7 records the result with its n and its span.
+- [x] The negative control reproduces leg 2 row for row.
+- [x] §7 states C1 as it fell.
 
 ## 7 · Result
 
-Pending the run.
+**C1 PASSED. The published H10 gap was the axis mismatch.**
+
+The gate `tch-reference-record:axis-match` reads PASS over 56 paired nights, 2026-07-27 to 2026-10-18.
+The H10 median paired absolute delta sigma is **0.019 bpm** against the pre-stated 0.05 bpm line.
+
+All four legs ran over the box captures. Legs 1 and 2 scored 56 nights of the 93 they read, and legs 3
+and 4 scored 57 of 97. The table pairs every figure on the 56 nights that all four legs scored.
+
+| corner | reference on the device axis | reference on the corrected axis |
+|---|---|---|
+| H10 | 0.531 bpm · median +0.531 · 55 of 56 one-sided | **0.019 bpm · median −0.004 · 20 of 56** |
+| Verity | 0.494 bpm · median −0.444 · 7 of 56 | 0.164 bpm · median −0.097 · 15 of 56 |
+| O2Ring | 0.310 bpm · median −0.310 · 15 of 56 | 0.303 bpm · median −0.303 · 13 of 56 |
+
+Three readings carry the argument.
+
+1. The H10 gap falls by a factor of 27 and loses its direction. C2's two-sided band holds at 0.357.
+2. The O2Ring barely moves, from 0.310 to 0.303. Its corner never rode `rec.tMsAt`, so a matched axis
+   owes it nothing. That corner is the control the table carries inside itself.
+3. Verity falls by a factor of three. Its corner reads the corrected axis for its own HR map.
+
+**The negative control holds exactly.** On the wall axis the two reference axes are one axis, and
+`trueSd` agrees on all 56 nights for all three corners.
+
+The status-quo pair cannot pass its own test, by design. `axisMatchVerdict` returns NOT_APPLICABLE when
+the host leg carries the device reference, because that run is the mismatch. Its figure comes from
+`pairedDrift`, never from a verdict status.
+
+### 7a · The corpus moved between the two pairs
+
+A daily job re-syncs the box captures root around 09:37 local and preserves each mtime. It ran in the
+60 seconds between leg 2 finishing and leg 3 starting. Four nights gained content, so the second pair
+read 97 night directories where the first pair read 93.
+
+**The directory mtime is blind to that arrival.** One night directory reads mtime 06:28 and ctime 09:41,
+and the H10 `_ECG.txt` that appeared inside it reads mtime 04:43 with ctime 09:41. A preserving copy
+keeps mtime and moves ctime alone.
+
+Each pair stays internally paired, because both legs of a pair start within seconds of each other. So
+every figure above runs over the 56-night intersection of all four legs. The finding has its own OPEN
+residue row.
 
 ## 8 · Out of scope
 
