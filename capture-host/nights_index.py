@@ -897,7 +897,7 @@ def _session_spans(root: str, deadline: float | None = None) -> dict[float, floa
     1794 is what takes the three zones from 32 / 31 / 32 rows to 32 / 32 / 32, IDENTICAL rows — and on the
     writer's own zone the listing does not move at all, 32 rows with the same sessions in each.
 
-    ⏳ THE DEADLINE BUYS A COLD CACHE ONE PASS OF THE OLD ANSWER. Cold, the vote costs 12.2 ms per file
+    ⏳ THE DEADLINE BUYS A COLD CACHE ONE SWEEP OF THE OLD ANSWER. Cold, the vote costs 12.2 ms per file
     (85.9 s over that tree, seek-bound), which is five budgets; warm it is 0.62 ms and the whole pass is
     0.09 s. So past the deadline a file answers from the cache or takes `_floating_mtime`, which is
     exactly what this function returned before — never a new answer under pressure, and the next call

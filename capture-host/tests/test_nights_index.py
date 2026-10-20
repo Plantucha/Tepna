@@ -1326,7 +1326,7 @@ def test_the_span_END_comes_from_the_nights_RECORDED_writer_offset(tmp_path):
     fallback lands 0 h away under `TZ=UTC` and 4 h away under EDT. A fixture recording the runner's own
     offset would agree with the fallback on one machine and hide the difference.
 
-    🔴 THIS IS NOW THE BUDGET-EXHAUSTED PASS, which is the only place a span still crosses a frame at all.
+    🔴 THIS IS NOW THE BUDGET-EXHAUSTED SWEEP, which is the only place a span still crosses a frame at all.
     A stamped file states its own end and needs no offset; this fixture is therefore a file with NO stamp
     and a deadline already past, so the recorded conversion is the one thing left that can answer. The
     frame question did not go away — it moved to the branch that converges as the cache fills."""
