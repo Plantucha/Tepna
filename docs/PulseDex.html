@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="430b5acdfc55" data-compute-hash="7b71c28b6533"><head>
+<html lang="en" data-manifest-hash="b49e83a39ef0" data-compute-hash="c4eac54e8f4a"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Zpjuz9HNd+LLNjkoKzMtvjd/eUkluuel1K4d1OmNQg=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F3NHiGTYMI9L2FxTH1NkmMI68ps02XdfPhj+h8DZ74U=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-pjsZSrNAaZH9vKKKd7Co81sel60gUKh93MH/+BvPuJc=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Zpjuz9HNd+LLNjkoKzMtvjd/eUkluuel1K4d1OmNQg=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F3NHiGTYMI9L2FxTH1NkmMI68ps02XdfPhj+h8DZ74U=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GT9IG2tI1DXdX/Z8jOmnLHD0kf/+8Gf7gpmodQ0/TcA=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-pjsZSrNAaZH9vKKKd7Co81sel60gUKh93MH/+BvPuJc=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.20.0</title>
@@ -6898,8 +6898,15 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
    still conserves time. */
   const PD_MAX_TIME_RATIO = 2.0;
   const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  /* ∅ ABSENCE IS NULL — the PulseDex half of RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, whose
+     ECGDex half landed in #3567. A flat series has a sample SD of exactly 0, so `0` on an input of
+     fewer than two values told the next caller "measured, and flat" about nothing measured. All 20
+     call sites of the three helpers guard a short input today — `pdComputeResult` refuses under 10
+     beats, `windowAnalysis` needs 20 per window, `_pdSeriesStats` 3, `compareIntervalSeries` 5 matched
+     beats, the window medians 3 windows — so no number moves here; what changes is what the helper
+     tells a caller that forgets to. */
   const std = (a) => {
-    if (a.length < 2) return 0;
+    if (a.length < 2) return null;
     const m = mean(a);
     let s = 0;
     for (let i = 0; i < a.length; i++) {
@@ -6959,8 +6966,14 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   // mean(Δ)² ≈ 0, so this is numerically negligible, but it unifies the SD1 definition with ECGDex/PpgDex
   // (both SDSD/√2) so the three nodes can never drift definitionally. sd1/sd2 keep the geometric identity —
   // pass SDSD in place of rMSSD: SD1²=SDSD²/2, SD2=√(2·SDNN²−SD1²) hold exactly as before.
+  /* ∅ a measured number rounds; an absent one stays absent — ECGDex's `_rmOrNull` in the same role.
+     Every rounding site below that can now receive a `null` carries it through instead of crashing on
+     `.toFixed`. Those branches are unreachable on today's call graph, which is why no exported number
+     moves; they are what a caller gets if a guard is ever loosened. */
+  const _pdOrNull = (v, d) => (v == null ? null : +v.toFixed(d));
+  // ∅ fewer than three values yield fewer than two successive differences, so there is no SD to take.
   const sdsd = (a) => {
-    if (a.length < 3) return 0;
+    if (a.length < 3) return null;
     const d = [];
     for (let i = 1; i < a.length; i++) d.push(a[i] - a[i - 1]);
     return std(d);
@@ -7730,8 +7743,9 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i];
     return m;
   }
+  // ∅ an empty input has no median — `null`, never a 0 that the next caller reads as a measured one.
   function medianOf(a) {
-    if (!a.length) return 0;
+    if (!a.length) return null;
     const s = [...a].sort((x, y) => x - y),
       n = s.length;
     return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
@@ -7844,7 +7858,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       if (seg.length >= 20) {
         // need enough beats for a valid window
         const m = mean(seg);
-        wins.push({ tMin: +(w0 / 60).toFixed(1), hr: +(60000 / m).toFixed(1), rmssd: +rmssd(seg).toFixed(1), sdnn: +std(seg).toFixed(1), pnn: +pnn50(seg).toFixed(1), meanRR: +m.toFixed(1) });
+        wins.push({ tMin: +(w0 / 60).toFixed(1), hr: +(60000 / m).toFixed(1), rmssd: +rmssd(seg).toFixed(1), sdnn: _pdOrNull(std(seg), 1), pnn: +pnn50(seg).toFixed(1), meanRR: +m.toFixed(1) });
         segs.push(seg);
       }
     }
@@ -7922,7 +7936,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   function _pdSeriesStats(a) {
     if (!a || a.length < 3) return null;
     const m = mean(a);
-    return { n: a.length, meanRR: +m.toFixed(1), hr: +(60000 / m).toFixed(1), sdnn: +std(a).toFixed(1), rmssd: +rmssd(a).toFixed(1), pnn50: +pnn50(a).toFixed(1) };
+    return { n: a.length, meanRR: +m.toFixed(1), hr: +(60000 / m).toFixed(1), sdnn: _pdOrNull(std(a), 1), rmssd: +rmssd(a).toFixed(1), pnn50: +pnn50(a).toFixed(1) };
   }
   // each side: { vals, tsMs|null, t0Ms|null, label, kind('ppi'|'rr'|'auto') }
   function compareIntervalSeries(primary, reference) {
@@ -7992,7 +8006,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       sdA = std(matchA),
       sdB = std(matchB);
     const dRMSSD = +(rmB - rmA).toFixed(1),
-      dSDNN = +(sdB - sdA).toFixed(1);
+      dSDNN = sdA == null || sdB == null ? null : +(sdB - sdA).toFixed(1);
     const rmssdRatio = rmA > 0 ? +(rmB / rmA).toFixed(2) : null;
     // pulse-transit-time variability surrogate: variance PRV adds over HRV.
     // PRV² ≈ HRV² + PTTV²  →  PTTV ≈ √(rmssd_PRV² − rmssd_HRV²).  (vascular/BP jitter)
@@ -8022,9 +8036,9 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       statsB,
       agreement: {
         biasMs: +bias.toFixed(1),
-        sdDiffMs: +sdDiff.toFixed(1),
-        loaLoMs: +(bias - 1.96 * sdDiff).toFixed(1),
-        loaHiMs: +(bias + 1.96 * sdDiff).toFixed(1),
+        sdDiffMs: _pdOrNull(sdDiff, 1),
+        loaLoMs: sdDiff == null ? null : +(bias - 1.96 * sdDiff).toFixed(1),
+        loaHiMs: sdDiff == null ? null : +(bias + 1.96 * sdDiff).toFixed(1),
         madMs: +mad.toFixed(1),
         within25Pct: +within25.toFixed(0),
         pearsonR: r,
