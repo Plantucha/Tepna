@@ -327,7 +327,7 @@ def test_the_link_log_holds_64_KiB_before_the_disk_sees_a_row(tmp_path):
     w = LinkLogWriter(p, flush_interval=1e9, fsync=False)
     first = None
     for i in range(1900):
-        w.write(WHEN, "Synthetic H10", True, -50, 90, 0, 0, 1, "00:11:22:33:44:55")
+        w.write(WHEN, "Synthetic H10", True, -50, 90, 0, 0, 1, "SYNTHETIC-ADDR-01")
         if os.path.getsize(p) > 0:
             first = i
             break
