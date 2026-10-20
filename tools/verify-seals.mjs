@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
 import { webcrypto } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 // THE contract's only definition (VERDICT-CONTRACT §2): every object this tool emits is validated by it
@@ -314,6 +315,17 @@ export async function judge(file, opts) {
 
 // ── CLI ─────────────────────────────────────────────────────────────────────────────────────────────
 async function main(argv) {
+  /* argv[0] is a seal path, so a mistyped flag becomes the file this tool then fails to read,
+     and `--card-key`/`--pin` are read by index, so a typo there reads as the flag being absent. */
+  refuseUnknownArgvOrExit(
+    argv,
+    {
+      valued: ['--card-key', '--pin', '--known-revision'],
+      boolean: ['--vectors', '--json'],
+      positional: true
+    },
+    { tool: 'verify-seals' }
+  );
   if (argv[0] === '--vectors') {
     const dir = join(HERE, '..', 'capture-host', 'tests', 'vectors', 'tepna-seal-1');
     const exp = JSON.parse(readFileSync(join(dir, 'expected.json'), 'utf-8'));
