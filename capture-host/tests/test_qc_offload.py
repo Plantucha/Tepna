@@ -9,6 +9,7 @@ import asyncio
 import concurrent.futures
 import concurrent.futures.process  # lazily loaded by the package; an xdist worker may not have touched it yet
 import os
+import re
 
 import pytest
 
@@ -124,3 +125,26 @@ def test_the_two_pollers_keep_their_own_isolation_record():
 
     asyncio.run(go())
     assert capture._LOSS_ISOLATION == "process" and capture._QC_ISOLATION == "thread"
+
+
+def test_the_child_names_its_own_peak_in_the_journal(caplog):
+    # The child's peak leaves with the child and never reaches the parent's VmHWM. The line keeps it.
+    with caplog.at_level("INFO", logger="tepna-capture"):
+        out = asyncio.run(capture._qc_offload(_qc_child_target.pid_stamp, "2026-09-22", []))
+    assert out["pid"] != os.getpid() and out["night"] == "2026-09-22", "the result reaches the caller unchanged"
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("QC child peak: ")]
+    assert len(lines) == 1
+    m = re.fullmatch(r"QC child peak: VmHWM (\d+) kB \(pid_stamp\)", lines[0])
+    assert m and int(m.group(1)) > 1024, lines[0]
+
+
+def test_a_thread_scan_logs_no_child_peak(monkeypatch, caplog):
+    # No child ran, so its peak is in this process's own window, and a child line would invent one.
+    with caplog.at_level("INFO", logger="tepna-capture"):
+        asyncio.run(capture._qc_offload(lambda n, d: {"night": n}, "2026-09-22", []))
+    assert not [r for r in caplog.records if r.getMessage().startswith("QC child peak")]
+
+
+def test_the_child_peak_line_prints_null_for_an_unread_peak():
+    assert capture.qc_peak_line(None, "scan_night") == "QC child peak: VmHWM null kB (scan_night)"
+    assert capture.qc_peak_line(51200, "scan_night") == "QC child peak: VmHWM 51200 kB (scan_night)"

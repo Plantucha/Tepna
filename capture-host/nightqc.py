@@ -2681,17 +2681,21 @@ def ppg2w_contact(ch0, ch1, secs):
     return out
 
 
-def ppg2w_contact_quality(night_dir: str) -> list:
+def ppg2w_contact_quality(night_dir: str, *, only: frozenset[str] | None = None) -> list:
     """One `ppg2w_contact` block per `*_PPG2W.txt` in the night. Empty list when the stream was not
     captured — nothing to report is not the same as everything healthy, and the key stays honest by
     holding sessions, not a verdict.
+
+    `only`, when given, names the files to read and skips every other one. A caller that reads a folder
+    for a few sessions (the next day's folder, for a ring that reconnected after midnight) must not pay
+    for that whole day's PPG2W rows.
 
     Rows that do not parse as numbers are SKIPPED, not fatal: a mid-file repeated header is a real
     rotation artifact (seen 20260815100132) and one bad row must not erase a session's verdict.
     """
     out = []
     for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
-        if not name.endswith("_PPG2W.txt"):
+        if not name.endswith("_PPG2W.txt") or (only is not None and name not in only):
             continue
         # Memory, because this runs inside the daemon over ~4 M rows a night: the channels are machine ints, and
         # every row of one second shares ONE label object (consecutive rows repeat it), so `secs` is pointers
@@ -4409,11 +4413,16 @@ def backcheck_verdict(night_dir: str, summary: dict) -> dict:
         return _v.unknown(gate=_BACKCHECK_GATE, criterion=_BACKCHECK_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
 
 
-def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
+def adapter_hci_verdict(night_dir: str, summary: dict, sniffer_timer=None) -> dict:
     """The `adapter-hci` verdict (adapter_hci.py — the pre-stated rule lives there) over the rows of
     `<root>/ADAPTERHCI.csv` that fall inside the night's session window. The root is the night dir's
     grandparent (`<root>/captures/<night>`); a night with no session window has no rows to read and
-    is NOT_RUN by the builder's own rule."""
+    is NOT_RUN by the builder's own rule.
+
+    The sniffer timer is read HERE, on the box, and injected into the pure rule — the verdict carries the
+    sniffer's state so a reader of a PASS night learns that no radio sniffs and that this is D2's recorded
+    decision (residue `2026-09-25-adapterhci-cannot-express-inert-sniffer`). An unread timer reads as
+    `unknown`, never as inert."""
     import adapter_hci
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(night_dir)))
@@ -4426,7 +4435,10 @@ def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
             start = min(int(s["start"]) for s in sessions) * 1000
             end = max(int(s["end"]) for s in sessions) * 1000
             rows = adapter_hci.read_rows(root, start, end)
-        return adapter_hci.verdict_object(rows, night=night, root=root)
+        # Read the timer only when there ARE rows: a night with no rows is NOT_RUN with no `result`, so
+        # asking the box would buy nothing and cost two subprocess calls per night.
+        sniff = (sniffer_timer or adapter_hci.sniffer_timer)() if rows else (None, None)
+        return adapter_hci.verdict_object(rows, night=night, root=root, sniff_enabled=sniff[0], sniff_active=sniff[1])
     except Exception as exc:  # noqa: BLE001 — a crash is not a verdict
         import verdict as _v
 

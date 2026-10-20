@@ -19723,6 +19723,17 @@
         )
       );
 
+      /* A FLOOR, NOT A COUNT. `history[]` also carries digest-move notes a session wrote by hand, and a
+         re-cut deleted three of them on main (`bc84db9f6` held 5 entries, `f71d741ec` held 2 — residue
+         `2026-10-18-yield-pin-rerun-deletes-hand-appended-history`). Appending a note keeps this green;
+         only REMOVING one reds it, which is the single direction that loses a record. Raise the floor
+         when a note is added if you want the new one protected too. */
+      T.ok(
+        'the hand-written digest-move notes are still there — the record only ever grows',
+        Array.isArray(pin.history) && pin.history.length >= 6,
+        'history ' + (pin.history || []).length + ' entries, floor 6'
+      );
+
       /* ── STAGE 1 · THE GENERATOR, REPLAYED — this is the assertion that can exonerate it ─────── */
       var sel = YieldPin.selectionCounts(CG, { nSubj: pin.config.nSubj, minN: pin.config.minN, seedCap: pin.config.seedCap });
       T.eq(
@@ -39148,6 +39159,48 @@
       // Still-verified is the common case and must stay completely quiet.
       var ok = cs({ 'D · f': true }, { 'D · f': true });
       T.eq('an untouched, still-verified stamp reports nothing at all', ok.staled.length + ok.pre.length + ok.restored.length, 0);
+    });
+    group('Rebase-safe — a rebase that drops a quoted verdict says so, and only then', 'tools · rebase-safe-verdicts', function (T) {
+      /* `pr-compliance` check 8 holds a PR body's quoted verdict to the code that merges, and a rebase
+         rewrites every commit on the branch, so it drops that commit unconditionally. The body lives on
+         GitHub, so nothing local notices: the branch comes back green and reds in CI minutes later.
+         #3506 paid three 4-minute re-runs of one sweep in an evening, all three reporting the same 27
+         mutants and the same 7 survivors — the re-runs bought nothing. Residue
+         2026-10-12-a-quoted-verdict-costs-a-re-measure-on-every-rebase. */
+      var qv = env.rebaseQuotedVerdictKeys;
+      var ex = env.prExtractVerdicts;
+      if (typeof qv !== 'function' || typeof ex !== 'function') {
+        T.skip('the quoted-verdict guard is wired into this lane', 'browser lane cannot import tools/*.mjs');
+        return;
+      }
+      /* REACHING THIS LINE IS THE ASSERTION for the entry guard: before 2026-10-20 importing
+         tools/pr-compliance.mjs ran the gate and exited the importer, so this whole suite would be gone
+         rather than one assertion red. */
+      T.ok('the gate module is importable at all, so its entry is guarded', typeof ex === 'function', 'extractVerdicts reached');
+
+      var V = function (gate, commit) {
+        return JSON.stringify({ schema: 'tepna.verdict/1', gate: gate, status: 'PASS', producedBy: { tool: 't', commit: commit } });
+      };
+      T.eq('a quoted verdict is keyed by gate and commit', qv('prose ' + V('mutate-diff-js', 'e30aaa37') + ' prose')[0].key, 'mutate-diff-js at e30aaa37');
+      T.eq('…and carries the sha the reachability test needs', qv(V('g', 'abc1234'))[0].commit, 'abc1234');
+      T.eq('two quoted verdicts are both watched', qv(V('a', 'aaaaaaa') + ' and ' + V('b', 'bbbbbbb')).length, 2);
+
+      /* NULL IS NOT EMPTY. "this body quotes nothing to judge" must not reach the reporter as
+         "nothing is wrong here" — the reporter refuses to run on a null snapshot for that reason. */
+      T.eq('a body quoting no verdict yields null, never an empty all-clear', qv('no verdict here'), null);
+      T.eq(
+        'an empty or absent body yields null rather than throwing',
+        [qv(''), qv(null), qv(undefined)].filter(function (x) {
+          return x === null;
+        }).length,
+        3
+      );
+
+      /* CONTROLS — each is a verdict this guard cannot be RIGHT about, so it must stay quiet rather
+         than name a key whose reachability it would then test against nothing. */
+      T.eq('control · a verdict naming no producedBy.commit is not watched', qv(JSON.stringify({ schema: 'tepna.verdict/1', gate: 'g', producedBy: { tool: 't' } })), null);
+      T.eq('control · a commit that is not a sha is not watched', qv(V('g', 'HEAD~1')), null);
+      T.eq('control · an object of another schema is not a verdict', qv(JSON.stringify({ schema: 'other/1', producedBy: { commit: 'abc1234' } })), null);
     });
     group('Rebase-safe — the porcelain parse keeps the first path intact (REBASE-SAFE)', 'tools · rebase-safe-porcelain', function (T) {
       var pp = env.rebaseParsePorcelain;
@@ -66154,6 +66207,40 @@
       // ── the message that turned a dead end into a one-step recovery ───────────────────────────
       T.ok('an absent input names the path that was searched', /looked in \$\{corpusDir\}/.test(core), 'INPUT ABSENT must print the resolved corpus dir');
       T.ok('the summary separates an unreached input from a deliberate skip', /NOT REACHED/.test(core) && /absent\+\+/.test(core), 'a hole must not be counted as `skipped`');
+      /* ── THE THIRD CONSUMER: the test runner (2026-10-19) ─────────────────────────────────────────
+         §3.4 gated the two halves of the fixture workflow — the regen tools that WRITE and the verify
+         tool that STAMPS. The runner that RE-RUNS the inputs was outside that set, and it resolved every
+         input against one directory: `$DEX_UPLOADS` or `<repo>/uploads`, chosen once per run. One
+         directory cannot hold both halves of the input set. A recording is gitignored and lives only in
+         the corpus; a committed input is a repo artifact and lives only in a checkout. Measured with
+         `DEX_UPLOADS` at the canonical corpus root: the CPAPDex measured-window group RED on its own
+         "present in every environment" message. Measured in a worktree with no override: the real-corpus
+         equiv legs read as absent. So the runner searches the same rails, PER FILE, through the same
+         helper — and this leg is what keeps a future edit from collapsing it back to one path.
+         The runner's text comes from `env.hosts` (both lanes load it); the fixture (ANSWER-KEY) side is
+         asserted to stay repo-local, because a redirected corpus must never supply a reference. */
+      var runner = (env.hosts && env.hosts['tests/run-tests.mjs']) || null;
+      if (typeof runner !== 'string' || runner.length < 2000) {
+        T.ok('tests/run-tests.mjs text available (runner input-rail check)', true, 'not in env.hosts — skipped for this lane');
+      } else {
+        T.ok('the Node runner IMPORTS the same helper from the core', reImport.test(runner), 'tests/run-tests.mjs must resolve inputs through regen-goldens-core.mjs, not its own path rule');
+        T.ok('the runner builds its rail list FROM corpusSearch, never hand-rolled', /corpusSearch\(ROOT\)\.candidates/.test(runner), 'a second rail order is a second resolver');
+        T.ok(
+          'an input is a SEARCH over the rails, not one path',
+          /function inputPath\s*\(name\)\s*\{[\s\S]{0,400}?for \(const rail of INPUT_RAILS\)[\s\S]{0,200}?existsSync\(/.test(runner),
+          'inputPath must try each rail and return the first that exists'
+        );
+        T.ok(
+          'the historical rail stays at the HEAD of the list, so no input resolves elsewhere',
+          /INPUT_RAILS\s*=\s*\[UPLOADS,/.test(runner),
+          'prepending UPLOADS is what makes the search a widening rather than a redirect'
+        );
+        T.ok(
+          'the FIXTURE side stays repo-local (a redirected corpus supplies no answer key)',
+          /join\(ROOT, 'uploads'\)/.test(runner) && !/inputPath\((?:fx|fix)/.test(runner),
+          'a fixture is the committed reference this checkout is diffed against'
+        );
+      }
     });
 
     /* REGEN-CORPUS-PATH-FOLLOWUPS §4 — ONE Mode/AMo50, decided option (a).

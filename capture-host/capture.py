@@ -7336,7 +7336,8 @@ async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: flo
         # smooth 6 h curve is volume without information.
         if mem_log_sec > 0 and _time.monotonic() >= next_mem_log:
             next_mem_log = _time.monotonic() + mem_log_sec
-            log.info("%s", mem_log_line(STATUS["mem"]))
+            _hwm, _hwm_why = hwm_since_last_kb()
+            log.info("%s", mem_log_line(STATUS["mem"], _hwm, _hwm_why))
         # LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture). `oxy_inventory.
         # reconcile()` already classifies a lost recording, but it is reached only at PULL and
         # COLD-START boundaries; the incident that opened the row was a LIVE session losing two files
@@ -9164,6 +9165,11 @@ def _importable_by_reference(fn: Any) -> bool:
     return mod is not None and getattr(mod, getattr(fn, "__qualname__", ""), None) is fn
 
 
+def qc_peak_line(peak_kb: int | None, name: str) -> str:
+    """The journal line for one QC child's peak. §∅: an unreadable peak prints `null`, never 0."""
+    return "QC child peak: VmHWM %s kB (%s)" % ("null" if peak_kb is None else peak_kb, name)
+
+
 async def _qc_offload(fn: Any, *args: Any, deps: tuple = (), record: str = "qc") -> Any:
     """Run one night-QC scan off the interpreter: in a spawned child when `fn` is importable by
     reference (the production case), on a thread otherwise. The pool lives exactly as long as the
@@ -9195,7 +9201,11 @@ async def _qc_offload(fn: Any, *args: Any, deps: tuple = (), record: str = "qc")
         max_workers=1, mp_context=multiprocessing.get_context("spawn"), initializer=qc_child.lower_priority
     )
     try:
-        return await asyncio.get_running_loop().run_in_executor(pool, fn, *args)
+        # The child's peak never reaches this process's `VmHWM`, and it leaves with the child. So the
+        # child reads its own and hands it back beside the result; the journal line is what keeps it.
+        out, peak_kb = await asyncio.get_running_loop().run_in_executor(pool, qc_child.measured, fn, *args)
+        log.info("%s", qc_peak_line(peak_kb, fn.__qualname__))
+        return out
     finally:
         pool.shutdown(wait=False)
 
@@ -11714,7 +11724,7 @@ HEAP_PROBE_NAME = "heap-probe.json"
 _RSS_KEYS = ("VmRSS", "RssAnon", "RssFile", "VmSwap")
 
 
-def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
+def proc_rss_kb(status_path: str = "/proc/self/status", keys: tuple = _RSS_KEYS) -> dict:
     """PURE-ish: `{key: kB}` from `/proc/self/status`, and `None` per key that is not there.
 
     🔴 WHY THIS EXISTS AT ALL. The probe was armed to explain a RESIDENT-memory climb — its own docstring
@@ -11726,7 +11736,7 @@ def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
 
     §∅: an unreadable file or an absent key is `None`, never 0 — a kernel without `RssAnon` (pre-4.5) and
     a process using no anonymous memory must not produce the same row."""
-    out: dict[str, int | None] = {k: None for k in _RSS_KEYS}
+    out: dict[str, int | None] = {k: None for k in keys}
     try:
         with open(status_path, encoding="utf-8") as fh:
             for line in fh:
@@ -11740,6 +11750,31 @@ def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
     except OSError:
         pass  # every key stays None: unreadable is not zero
     return out
+
+
+def hwm_since_last_kb(status_path: str = "/proc/self/status", clear_path: str = "/proc/self/clear_refs") -> tuple:
+    """`(kB, reason)`: this process's peak resident set SINCE THE LAST CALL, then the peak is reset.
+
+    🔴 WHY A WINDOW AND NOT `VmHWM` AS IT STANDS (residue 2026-10-18-vmhwm-is-per-process-so-a-nights-
+    peak-is-unobservable-across-restarts). `VmHWM` is the peak since the process STARTED, and the daemon
+    restarts at every deploy (18 processes in five days, 2 of them spanning a night). A per-process peak
+    cannot be cut to a night, and the per-minute `VmRSS` samples miss a spike that comes and goes between
+    two lines. Writing `5` to `/proc/self/clear_refs` resets the kernel's peak to the current RSS
+    (proc(5), Linux >= 4.0), so each journal line carries the peak of its own minute. A night's peak is
+    then the largest figure on the lines inside the night, whichever process wrote them, because the
+    journal outlives every restart. The first line of a process covers the time since the process started.
+
+    A peak reached between the read and the reset is lost; the gap is two syscalls wide.
+
+    §∅: an unreadable `VmHWM` is `None`, never 0. A refused reset keeps the figure and names the refusal,
+    because the figure is then the peak since process start, not since the last line."""
+    hwm = proc_rss_kb(status_path, keys=("VmHWM",))["VmHWM"]
+    try:
+        with open(clear_path, "w", encoding="ascii") as fh:
+            fh.write("5")
+    except OSError as e:
+        return hwm, f"VmHWM reset refused ({type(e).__name__}): the figure is the peak since process start"
+    return hwm, None
 
 
 #: glibc's `struct mallinfo2` (malloc.h), ten `size_t` fields in DECLARATION ORDER — ctypes maps by
@@ -11958,6 +11993,9 @@ def gc_counters() -> dict:
     return {"counts": counts, "collections": per, "enabled": gc.isenabled()}
 
 
+_UNSET_HWM = object()  # `mem_log_line` was given no windowed peak
+
+
 def mem_snapshot() -> dict:
     """The four populations the RSS climb needs side by side, cheap enough for every status tick.
 
@@ -11974,7 +12012,7 @@ def mem_snapshot() -> dict:
     }
 
 
-def mem_log_line(snap: dict) -> str:
+def mem_log_line(snap: dict, hwm: Any = _UNSET_HWM, hwm_reason: str | None = None) -> str:
     """One journal line from a snapshot, as kB throughout, with `null` for an absent figure.
 
     A line rather than only the status file: `status.json` is REWRITTEN every tick, so it answers "what
@@ -11984,7 +12022,10 @@ def mem_log_line(snap: dict) -> str:
     kB for every figure, including the `mallinfo2` and `malloc_info` ones that arrive in bytes, so the
     numbers on one line are comparable without the reader converting. The `main` segment is the main
     arena alone and the `all` segment is every arena, which is the comparison the line exists to make.
-    §∅: `null`, never 0, for anything unmeasured, and each absent instrument appends its own reason."""
+    §∅: `null`, never 0, for anything unmeasured, and each absent instrument appends its own reason.
+
+    `hwm` is `hwm_since_last_kb()`'s figure. A caller that passes none gets the line without the segment,
+    and `None` prints `null`."""
     rss, mi, ar, g = snap["rss_kb"], snap["mallinfo2"], snap["arenas"], snap["gc"]
 
     def _kb(v, scale=1):
@@ -12009,7 +12050,9 @@ def mem_log_line(snap: dict) -> str:
         ",".join(str(c) for c in g["counts"]),
         ",".join("null" if c is None else str(c) for c in g["collections"]),
     )
-    for reason in (mi.get("reason"), ar.get("reason")):
+    if hwm is not _UNSET_HWM:
+        line += " · VmHWM since last line %s kB" % _kb(hwm)
+    for reason in (mi.get("reason"), ar.get("reason"), hwm_reason):
         if reason is not None:
             line += f" · {reason}"
     return line
@@ -12146,7 +12189,7 @@ def holder_of(obj, depth: int = _HOLDER_DEPTH) -> dict:
 
 
 #: The one-shot request. `heap_probe.enabled` says the probe MAY run; this file says run it ONCE, and it
-#: is consumed on arm so the next daemon start does not repeat it.
+#: is consumed when tracing starts, so a later daemon start does not repeat it.
 _HEAP_REQUEST_NAME = "heap-probe.request"
 
 
@@ -12289,16 +12332,15 @@ async def heap_probe(cfg: dict, root: str):
     if not hcfg.get("enabled", False):
         log.info("heap probe: OFF — heap_probe.enabled is false")
         return
-    # PERMISSION IS NOT A REQUEST. `enabled` says the probe MAY run; the marker file says run it once, and
-    # it is consumed here so a restart does not re-arm it. This is what keeps a SOLID-NIGHT night clean by
-    # DEFAULT: with no file, nothing traces and the per-subsystem attribution below never runs either —
-    # `DecodeCensus` and `top_container_holders` are reached only past this point, so one gate covers all
-    # three costs (tracemalloc's allocation tax, the json wrapper's frame walk, the referrer walk).
+    # PERMISSION IS NOT A REQUEST. `enabled` says the probe MAY run; the marker file says run it once.
+    # This is what keeps a SOLID-NIGHT night clean by DEFAULT: with no file, nothing traces and the
+    # per-subsystem attribution below never runs either — `DecodeCensus` and `top_container_holders` are
+    # reached only past the consume below, so one gate covers all three costs (tracemalloc's allocation
+    # tax, the json wrapper's frame walk, the referrer walk).
     req = str(hcfg.get("request_path") or os.path.join(root, _HEAP_REQUEST_NAME))
-    if not consume_heap_request(req):
+    if not os.path.exists(req):
         log.info("heap probe: not requested — no consumable %s; tracemalloc stays off", req)
         return
-    log.info("heap probe: request consumed (%s) — this run is one-shot", req)
     import tracemalloc
 
     start_after_s = float(hcfg.get("start_after_min", 30)) * 60.0
@@ -12328,6 +12370,15 @@ async def heap_probe(cfg: dict, root: str):
     log.info("heap probe: capture is live — tracing starts in %.0f min", start_after_s / 60.0)
     if await _stop_or_sleep(start_after_s):
         return
+    # 🔴 CONSUMED HERE, AT THE FIRST TRACED MOMENT, NOT AT ARM. Measured on vigil 2026-10-13: a request
+    # written for that night was consumed at arm 14:36:14 (PID 854652), capture never went live under that
+    # daemon, and the 17:15:52 restart lost it — the night ran untraced and nothing said so. Every return
+    # above this line leaves the file in place for the next start; consuming here still makes the run
+    # one-shot, and a request that cannot be consumed still refuses to trace (fail closed).
+    if not consume_heap_request(req):
+        log.info("heap probe: request gone before tracing (%s); tracemalloc stays off", req)
+        return
+    log.info("heap probe: request consumed (%s) — this run is one-shot", req)
     already = tracemalloc.is_tracing()
     if not already:
         tracemalloc.start(1)  # ONE frame: the allocation site is the container

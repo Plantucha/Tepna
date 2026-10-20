@@ -161,17 +161,55 @@ export const EXT_MAX_BYTES = 256 * 1024;
    usually looking for is a PASSAGE — a decision recorded in §7 of a brief about something else.
    Measured: whole-file indexing put a node-export question at rank 42; the decision it wanted was
    three sections into a brief whose title is about something adjacent. */
-export function chunk(text, size = 1200, stride = 900) {
-  const t = String(text || '')
+const collapse = (text) =>
+  String(text || '')
     .replace(/\s+/g, ' ')
     .trim();
+/* True when index k falls between the two halves of a surrogate pair. */
+const midPair = (t, k) => {
+  if (k <= 0 || k >= t.length) return false;
+  const lo = t.charCodeAt(k);
+  const hi = t.charCodeAt(k - 1);
+  return lo >= 0xdc00 && lo <= 0xdfff && hi >= 0xd800 && hi <= 0xdbff;
+};
+/* The cache marks an entry embedded under this chunker with `c`. An entry without it came from the
+   fixed-unit cutter, and it stays valid only where that cutter split no pair (see `cacheHit`). */
+export const CHUNKER = 2;
+/* A cut that lands inside a surrogate pair moves outward by one unit, so the whole character stays in
+   the chunk. Every other cut stays where the fixed-unit cutter put it, so a text with no split pair
+   chunks exactly as before and its cached vectors still pair with its chunks.
+   Measured 2026-10-10: the fixed-unit cutter split a pair in 6 of 58,071 chunks, and a JSON consumer
+   refused the lone half (`2026-10-10-doc-search-chunker-splits-surrogate-pairs`). */
+export function chunk(text, size = 1200, stride = 900) {
+  const t = collapse(text);
   if (!t) return [];
   const out = [];
   for (let i = 0; i < t.length; i += stride) {
-    out.push(t.slice(i, i + size));
+    const a = midPair(t, i) ? i - 1 : i;
+    const b = midPair(t, i + size) ? i + size + 1 : i + size;
+    out.push(t.slice(a, b));
     if (i + size >= t.length) break;
   }
   return out;
+}
+
+/* Would the fixed-unit cutter have split a pair in this text? Only then do its chunks differ. */
+export function legacySplitsPair(text, size = 1200, stride = 900) {
+  if (!/[\uD800-\uDBFF]/.test(String(text || ''))) return false;
+  const t = collapse(text);
+  for (let i = 0; i < t.length; i += stride) {
+    if (midPair(t, i) || midPair(t, i + size)) return true;
+    if (i + size >= t.length) break;
+  }
+  return false;
+}
+
+/* THE ONE VALIDITY RULE for a cached entry, shared with `xerj-load.mjs`. Vector i pairs with chunk i
+   only when the body hash matches, the count matches, and the chunk text is what was embedded. The
+   count alone cannot see a moved edge: the new cutter keeps the count and shifts one unit. */
+export function cacheHit(entry, h, chunks, text) {
+  if (!entry || entry.h !== h || !Array.isArray(entry.vecs) || entry.vecs.length !== chunks.length) return false;
+  return entry.c === CHUNKER || !legacySplitsPair(text);
 }
 
 export function cosine(a, b) {
@@ -626,7 +664,7 @@ export function loadCache(path = CACHE, legacy = LEGACY_CACHE, linesFn = readLin
           continue;
         }
         const e = JSON.parse(line);
-        entries[e.file] = { h: e.h, vecs: e.vecs };
+        entries[e.file] = e.c === undefined ? { h: e.h, vecs: e.vecs } : { h: e.h, vecs: e.vecs, c: e.c };
       }
       return head ? { entries, model: head.model } : empty;
     } catch (e) {
@@ -664,7 +702,7 @@ export function saveCache(cache, path = CACHE, openFn = openSync, writeFn = writ
     tmpPath = tmp;
     fd = openFn(tmp, 'w');
     writeFn(fd, JSON.stringify({ model: cache.model }) + '\n');
-    for (const [file, e] of Object.entries(cache.entries)) writeFn(fd, JSON.stringify({ file, h: e.h, vecs: e.vecs }) + '\n');
+    for (const [file, e] of Object.entries(cache.entries)) writeFn(fd, JSON.stringify(e.c === undefined ? { file, h: e.h, vecs: e.vecs } : { file, h: e.h, vecs: e.vecs, c: e.c }) + '\n');
     closeFn(fd);
     fd = null;
     renameSync(tmp, path);
@@ -702,8 +740,9 @@ async function buildIndex(quiet, scope = 'all') {
     }
     const h = createHash('sha256').update(body).digest('hex').slice(0, 16);
     const hit = cache.entries[f];
-    const chunks = chunk(`${f} :: ${body}`);
-    if (hit && hit.h === h && hit.vecs && hit.vecs.length === chunks.length) {
+    const text = `${f} :: ${body}`;
+    const chunks = chunk(text);
+    if (cacheHit(hit, h, chunks, text)) {
       chunks.forEach((t, i) => entries.push({ file: f, text: t, vec: hit.vecs[i] }));
     } else {
       pending.push({ file: f, h, chunks });
@@ -714,7 +753,7 @@ async function buildIndex(quiet, scope = 'all') {
   for (const p of pending) {
     try {
       const vecs = await embed(p.chunks);
-      cache.entries[p.file] = { h: p.h, vecs };
+      cache.entries[p.file] = { h: p.h, vecs, c: CHUNKER };
       p.chunks.forEach((t, i) => entries.push({ file: p.file, text: t, vec: vecs[i] }));
       embedded += p.chunks.length;
     } catch {
@@ -766,6 +805,32 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('chunking overlaps so a passage is not split away', chunk('x'.repeat(3000)).length >= 3);
   ok('an empty document yields no chunks', chunk('').length === 0);
   ok('a short document is one chunk', chunk('hello world').length === 1);
+  {
+    /* row 2026-10-10-doc-search-chunker-splits-surrogate-pairs: a cut inside a pair keeps the pair. */
+    const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    const endCut = `${'a'.repeat(1199)}\u{1F600}${'b'.repeat(2000)}`;
+    const startCut = `${'a'.repeat(899)}\u{1F600}${'b'.repeat(2000)}`;
+    ok('an end cut inside a pair keeps the whole character', chunk(endCut).every((c) => !lone.test(c)) && chunk(endCut)[0].endsWith('\u{1F600}'));
+    ok('a start cut inside a pair keeps the whole character', chunk(startCut).every((c) => !lone.test(c)) && chunk(startCut)[1].startsWith('\u{1F600}'));
+    ok('…and the chunk count does not move', chunk(endCut).length === 4 && chunk(startCut).length === 3);
+    const plain = `${'word '.repeat(700)}\u{1F600} ${'more '.repeat(300)}`;
+    const t = plain.replace(/\s+/g, ' ').trim();
+    const fixed = [];
+    for (let i = 0; i < t.length; i += 900) {
+      fixed.push(t.slice(i, i + 1200));
+      if (i + 1200 >= t.length) break;
+    }
+    ok('a text with no split pair chunks exactly as the fixed-unit cutter did', JSON.stringify(chunk(plain)) === JSON.stringify(fixed));
+    ok('legacySplitsPair names the texts the old cutter split', legacySplitsPair(endCut) && legacySplitsPair(startCut) && !legacySplitsPair(plain) && !legacySplitsPair('x'.repeat(3000)));
+    const two = { h: 'h', vecs: [[1], [2], [3], [4]] };
+    ok('a legacy entry over a split text is stale', !cacheHit(two, 'h', chunk(endCut), endCut));
+    ok('…and valid once embedded under this chunker', cacheHit({ ...two, c: CHUNKER }, 'h', chunk(endCut), endCut));
+    ok('a legacy entry over an unsplit text stays valid', cacheHit({ h: 'h', vecs: chunk(plain).map(() => [1]) }, 'h', chunk(plain), plain));
+    ok(
+      'a changed hash or count is stale whatever the mark',
+      !cacheHit({ ...two, c: CHUNKER }, 'x', chunk(endCut), endCut) && !cacheHit({ h: 'h', vecs: [[1]], c: CHUNKER }, 'h', chunk(endCut), endCut)
+    );
+  }
   ok('cosine of a vector with itself is 1', Math.abs(cosine([1, 2, 3], [1, 2, 3]) - 1) < 1e-12);
   ok('cosine of orthogonal vectors is 0', Math.abs(cosine([1, 0], [0, 1])) < 1e-12);
   ok('a zero vector scores 0 rather than NaN', cosine([0, 0], [1, 1]) === 0);
@@ -889,7 +954,7 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
       mkdir: () => {}
     };
     const orig = renameSync;
-    const cacheIn = { model: EMBED_MODEL, entries: { 'a.md': { h: 'h1', vecs: [[0.1, 0.2]] }, 'b.md': { h: 'h2', vecs: [[0.3]] } } };
+    const cacheIn = { model: EMBED_MODEL, entries: { 'a.md': { h: 'h1', vecs: [[0.1, 0.2]] }, 'b.md': { h: 'h2', vecs: [[0.3]], c: CHUNKER } } };
     let renamed = null;
     const err = saveCache(cacheIn, '/x/idx.jsonl', fakeFs.open, fakeFs.write, fakeFs.close, fakeFs.mkdir);
     void orig;
@@ -974,6 +1039,7 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
       (p) => p === '/x/idx.jsonl'
     );
     ok('loadCache round-trips the JSONL form', back.entries['a.md'].h === 'h1' && back.entries['b.md'].vecs[0][0] === 0.3);
+    ok('…with the chunker mark, and no mark where none was written', back.entries['b.md'].c === CHUNKER && !('c' in back.entries['a.md']));
     const legacy = loadCache(
       '/none.jsonl',
       '/legacy.json',

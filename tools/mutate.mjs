@@ -1067,9 +1067,11 @@ export function loadEquivalence() {
 // `no-distinguishing-input` to `equivalent` with their proofs therefore made them weaker in effect;
 // strengthening the evidence silently downgraded the classification.
 const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design', 'equivalent']);
-/* PURE, so the selftest can pin it without a sweep. Matched on (line, op, before) -- the same key
-   `findCanary` uses; `after` is documentation, so changing an operator's output text cannot silently
-   orphan an entry. */
+/* PURE, so the selftest can pin it without a sweep. ⚠️ This comment USED to say entries match on
+   (line, op, before) with `after` as documentation. The code has never done that: `survivorKey`
+   carries `after`, and `classifySurvivors` says why — line+op+before collapses two same-operator
+   mutants on one line into one entry. Corrected 2026-10-20; the matching rule lives at
+   `survivorKey`, which is the only place that should state it. */
 /* ── readJournal — the resume decision, PURE so it is known-answer testable ───────────────────
    Returns { done, jammed }:
      done   Map(key -> record)   every mutant that reached a verdict, with its fingerprints
@@ -1217,7 +1219,15 @@ export function survivorKey(m) {
      is part of it. Exported so the diff gate subtracts what the classifier excused by the SAME rule. */
   return m.line + '\u0000' + m.op + '\u0000' + m.before + '\u0000' + (m.after ?? '');
 }
-export function classifySurvivors(entries, survivors, generated, killed) {
+/* The SAME mutant without its address. An entry detached from its line is still recognisable by the
+   mutation it describes, which is what separates a LAPSED excuse from a dead one — see
+   classifySurvivors. Never a matching key for an excuse: `op + before` is not unique within a file
+   (measured 2026-10-20: 95 of 434 committed entries have more than one candidate), and a wrong
+   re-anchor silently excuses a mutant nobody probed. It identifies a CAUSE, never a claim. */
+export function survivorTextKey(m) {
+  return m.op + '\u0000' + m.before + '\u0000' + (m.after ?? '');
+}
+export function classifySurvivors(entries, survivors, generated, killed, inFile) {
   /* `after` is part of the key for the reason findCanary documents: line+op+before collapses two
      same-operator mutants on one line into one entry, so a classification computed for one silently
      covers the other. Kept NUL-separated like `jkey` so a field boundary cannot be forged by text. */
@@ -1231,13 +1241,43 @@ export function classifySurvivors(entries, survivors, generated, killed) {
      tell a reader to delete a correct claim (the defect the Python gate's classify was fixed for).
      Omitted (`undefined`) means no kill was recorded, so NOTHING can be refuted: fail closed. */
   const kil = new Set((killed || []).map(key));
-  const out = { excused: [], realGap: [], refuted: [], orphaned: [], unclassified: [], notDecided: [] };
+  const out = { excused: [], realGap: [], refuted: [], orphaned: [], drifted: [], stale: [], unclassified: [], notDecided: [] };
+  /* WHY an entry is orphaned, which one counter could never say. `inFile` is the WHOLE-FILE
+     enumeration when the caller has one; `generated` is only what this run tested, so in a diff run
+     the two differ and the difference is the whole point. ABSENT it stays `null` and both sub-buckets
+     stay EMPTY: a caller that cannot say what the file holds must not be told a cause, because
+     "out of scope" and "the code is gone" look identical from the tested subset alone. Fail closed,
+     the same way `killed` does two comments above. */
+  const scope = inFile && inFile.length ? inFile : null;
+  const inFull = new Set((scope || []).map(key));
+  const byText = new Map();
+  for (const m of scope || []) {
+    const t = survivorTextKey(m);
+    const at = byText.get(t);
+    if (at) at.push(m.line);
+    else byText.set(t, [m.line]);
+  }
   const seen = new Set();
   for (const e of entries || []) {
     const k = key(e);
     seen.add(k);
     if (!gen.has(k)) {
       out.orphaned.push(e);
+      /* ORPHANED stays the union, so no existing reader changes meaning. The two sub-buckets are
+         disjoint subsets of it and they carry the CAUSE. An entry absent from this run but present
+         in the file is merely OUT OF SCOPE — the ordinary state of a diff run, and neither bucket.
+         An entry whose byte-identical mutant sits at ANOTHER line has DRIFTED: the excuse lapsed
+         under an edit above it, and `tools/reanchor-equivalence.mjs` can move it. One with no text
+         match anywhere is STALE: the code it excused is gone, so only re-verification can replace
+         it. Measured 2026-10-20 over the 434 committed entries: 71 anchored, 239 drifted and
+         unambiguous, 95 drifted and ambiguous, 29 stale — so 363 excuses excused nothing while this
+         function reported one number that blocks nothing
+         (residue 2026-10-19-an-equivalence-excuse-keyed-to-a-line-lapses-on-drift). */
+      if (scope && !inFull.has(k)) {
+        const at = byText.get(survivorTextKey(e));
+        if (at) out.drifted.push({ ...e, foundAtLines: at.slice(0, 8) });
+        else out.stale.push(e);
+      }
       continue;
     }
     if (!surv.has(k)) {
@@ -1438,13 +1478,19 @@ async function runFile(file) {
      never mutated, so writing one there left a stray `*.mutate-backup` in the working tree after every
      parallel run for no benefit. Observed after a killed sweep: a lone `ppgdex-dsp.js.mutate-backup`
      beside a perfectly clean source. */
+  /* The degraded serial fallback TOOK OVER: `JOBS > 1` was asked for and no worker tree could be
+     created, so the mutants ran in place. It is a property of the RUN, not of the request, and two
+     readers need it — `restore()` below, whose guard is keyed on JOBS === 1, and the record. */
+  let degradedSerial = false;
   const bak = abs + '.mutate-backup';
   if (JOBS === 1) {
     writeFileSync(bak, original);
     _dirty.set(abs, original);
   }
   const restore = () => {
-    if (JOBS !== 1) return; // nothing was written here
+    // `JOBS > 1` writes only inside the worker trees — except on the degraded serial fallback,
+    // which writes the caller's own copy and so owes the same restore.
+    if (JOBS !== 1 && !degradedSerial) return;
     try {
       writeFileSync(abs, original);
     } catch {}
@@ -1881,7 +1927,9 @@ async function runFile(file) {
       }
       if (!trees.length) {
         /* No worker could be created — degrade to the serial in-place path rather than doing nothing.
-           The backup/recovery machinery is keyed on JOBS === 1, so mark this file dirty explicitly. */
+           The backup/recovery machinery is keyed on JOBS === 1, so mark this file dirty explicitly and
+           tell `restore()` and the record that this path ran. */
+        degradedSerial = true;
         writeFileSync(bak, original);
         _dirty.set(abs, original);
         for (const mu of picked) {
@@ -1896,28 +1944,15 @@ async function runFile(file) {
           jwrite({ k: jkey(mu) });
           classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
         }
-        writeFileSync(abs, original);
-        rmSync(bak, { force: true });
-        _dirty.delete(abs);
-        return {
-          file,
-          groupsRun: filter || 'FULL SUITE',
-          groupCount: g ? g.count : null,
-          groupsSelected: g ? g.selected : null,
-          generated: all.length,
-          generatedInFile: touched ? allGenerated.length : undefined,
-          touchedLines: touched ? touched.size : undefined,
-          tested: picked.length + resumedCount,
-          killed,
-          invalid,
-          invalids,
-          quarantined: quarantinedThisRun,
-          quarantinedMu: quarantined,
-          killers: Array.from(killers.entries())
-            .sort((a, b) => b[1] - a[1])
-            .map(([group, n]) => ({ group, n })),
-          survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
-        };
+        /* NO SECOND RECORD BUILDER, AND NO EARLY RETURN. `restore()` covers this path now, and control
+           falls through the worker pool — `trees` is empty, so `trees.map(worker)` is a no-op — to the
+           ONE builder at the end of runFile. Until 2026-10-20 this block returned a record of its own,
+           and every field added to the other one missed it: it carried no `equivalence`, so no excuse
+           was applied and no REFUTED claim could fire, and no `canary`/`voided`, so a run whose canary
+           SURVIVED published a kill count and escaped the gate's void filter. It also returned BEFORE
+           the canary post-processing, so a degraded run never learned a canary and never printed the
+           UNTRUSTED warning (residue 2026-10-20-the-degraded-serial-sweep-reports-no-equivalence-split,
+           the second instance after `killedMutants`). */
       }
       let next = 0;
       const worker = async (dir) => {
@@ -2021,7 +2056,11 @@ async function runFile(file) {
        pass which spends the budget. The job summary then states the split with no log tail to read. */
     calibrationMs: baseMs,
     mutantPassMs: Date.now() - _t0,
-    jobs: JOBS,
+    jobs: degradedSerial ? 1 : JOBS,
+    /* …and whether that is what was ASKED for. `--jobs 4` degraded to one in-place worker reads as
+       `jobs: 1, degradedSerial: true`, so two runs of the same command are no longer identical on
+       paper while one of them paid four times the wall clock. */
+    degradedSerial,
     // the canary is scaffolding, not a measurement — it must not enter the denominator it guards
     tested: picked.length - (canaryMu ? 1 : 0) + resumedCount + reusedCount,
     killed: canaryState === 'FAILED' ? null : killed,
@@ -2040,18 +2079,32 @@ async function runFile(file) {
       .sort((a, b) => b[1] - a[1])
       .map(([group, n]) => ({ group, n })),
     survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after })),
+    /* THE KILL LIST BY NAME, not only its count. `killedMu` above is "the only evidence a refutation
+       may use", and until 2026-10-19 it never left this process: the record shipped `killed` as a bare
+       number. So `tools/probe-equivalence.mjs` had to build its positive controls by SUBTRACTION —
+       every in-range mutant that was neither a survivor nor an invalid. That identity holds only for a
+       sweep that tested everything it enumerated; under `--only` the remainder is mostly mutants the
+       sweep NEVER TESTED, and a control that never ran cannot fail
+       (residue 2026-10-19-probe-controls-inferred-by-subtraction). Same shape as `survivors`, so one
+       reader serves both. `null` under a FAILED canary, matching `killed` above: kill detection in
+       doubt is no evidence of reach, and a reader owes that case a refusal rather than a pool. */
+    killedMutants: canaryState === 'FAILED' ? null : killedMu.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after })),
     /* The equivalence split (MUTATION-EQUIVALENCE §5). Reported ALONGSIDE the raw numbers above, never
        instead of them: `killed / tested` stays visible so the two denominators can be compared, which
        is the whole argument the brief makes. `distinguishable` is what the 90 % target should be read
        against once that call is made. */
     equivalence: (function () {
-      const c = classifySurvivors(loadEquivalence()[file], survivors, all, killedMu);
+      /* `allGenerated` is the WHOLE file; `all` is what this run tested (a diff run filters it to the
+         touched lines). Passing both is what lets an out-of-scope entry be told from a lapsed one. */
+      const c = classifySurvivors(loadEquivalence()[file], survivors, all, killedMu, allGenerated);
       return {
         excused: c.excused.length,
         realGap: c.realGap.length,
         unclassified: c.unclassified.length,
         refuted: c.refuted,
         orphaned: c.orphaned,
+        drifted: c.drifted,
+        stale: c.stale,
         notDecided: c.notDecided,
         // what the diff gate still blocks on: the survivors no recorded equivalence entry excuses
         blocking: blockingSurvivors(c, survivors).map((x) => ({ line: x.line, op: x.op, before: x.before, after: x.after })),
@@ -2188,9 +2241,16 @@ export function diffVerdict(results, meta) {
   /* REFUTED means a kill was POSITIVELY RECORDED against an entry claiming the mutant cannot be killed
      (`classifySurvivors` never reads it off absence), so the claim is wrong and that is a FAIL, as in
      the Python gate. ORPHANED / not-decided are reported, never blocking: in a diff run most entries name
-     lines the change did not touch, and an entry whose mutant was not decided excused nothing. */
+     lines the change did not touch, and an entry whose mutant was not decided excused nothing.
+     ⚠️ That excuse is true of the UNION only, which is why `drifted` and `stale` ride beside it: both
+     are orphans the file itself can explain, so neither is out of scope in any run mode. They do not
+     block either — a drift is recoverable by `tools/reanchor-equivalence.mjs` and a stale entry needs
+     re-verification, and neither is evidence about the diff under test — but a number nobody can read
+     is how 363 of 434 committed excuses came to excuse nothing unnoticed. */
   const refuted = ok.flatMap((r) => ((r.equivalence && r.equivalence.refuted) || []).map((e) => ({ file: r.file, ...e })));
   const orphaned = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.orphaned) || []).length, 0);
+  const drifted = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.drifted) || []).length, 0);
+  const stale = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.stale) || []).length, 0);
   const notDecided = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.notDecided) || []).length, 0);
   const voided = ok.filter((r) => r.voided);
   const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0), 0);
@@ -2204,6 +2264,8 @@ export function diffVerdict(results, meta) {
     excused: rawSurv - surv.length,
     refuted: refuted.length,
     orphaned,
+    drifted,
+    stale,
     notDecided,
     invalid: unrun,
     changedLines: lines,
@@ -2540,6 +2602,30 @@ function selftest() {
     classifySurvivors([{ line: 2, op: 'cmp > → >=', before: 'b', class: 'real-gap' }], [], genAll, [M(2, 'cmp > → >=', 'b')]).refuted.length,
     0
   );
+  /* ⚠️ THE ORPHAN COUNTER CARRIED TWO MEANINGS (residue
+     2026-10-19-an-equivalence-excuse-keyed-to-a-line-lapses-on-drift). An entry keys on an absolute
+     line, so any edit ABOVE it detaches the excuse. That read exactly like the ordinary diff-run
+     orphan — an entry on a line the change never touched — and the one number blocks nothing, so
+     363 of 434 committed entries excused nothing and nobody could see it. */
+  const drFile = [M(1, 'cmp < → <=', 'a'), M(7, 'bool && → ||', 'c')]; // `c` now sits at L7
+  const drEnt = [
+    { line: 3, op: 'bool && → ||', before: 'c', class: 'equivalent' }, // the identical mutant moved ⇒ DRIFTED
+    { line: 9, op: 'num → 0', before: 'q', class: 'equivalent' } // nothing like it in the file ⇒ STALE
+  ];
+  const drCls = classifySurvivors(drEnt, [], drFile, [], drFile);
+  ck('classify · an entry whose identical mutant MOVED is drifted, and a vanished one is stale', drCls.drifted.length + ':' + drCls.stale.length, '1:1');
+  ck('classify · …and drift names the line it moved to, so a re-anchor needs no second enumeration', String(drCls.drifted[0].foundAtLines), '7');
+  ck('classify · the two causes PARTITION orphaned, which keeps its old meaning for old readers', drCls.orphaned.length, 2);
+  /* The diff-run case, which is the one that hid: `generated` is the TOUCHED subset, so an entry on
+     an untouched line is orphaned and must read as neither cause. Calling it drift would cry wolf on
+     every diff run, which is why the whole-file enumeration is a separate argument. */
+  const scoped = classifySurvivors([{ line: 1, op: 'cmp < → <=', before: 'a', class: 'equivalent' }], [], [M(7, 'bool && → ||', 'c')], [], drFile);
+  ck('classify · a diff run does not call an UNTOUCHED entry drifted', scoped.orphaned.length + ':' + scoped.drifted.length + ':' + scoped.stale.length, '1:0:0');
+  /* DECOY · the caller that cannot say what the file holds. From the tested subset alone "out of
+     scope" and "the code is gone" are the same bytes, so a cause here would be invented. Fail closed. */
+  const noFile = classifySurvivors([{ line: 1, op: 'cmp < → <=', before: 'a', class: 'equivalent' }], [], [M(7, 'bool && → ||', 'c')]);
+  ck('classify · DECOY no whole-file enumeration ⇒ an orphan with NO cause, never a guessed one', noFile.orphaned.length + ':' + noFile.drifted.length + ':' + noFile.stale.length, '1:0:0');
+  ck('classify · the text key drops the line and keeps `after`, so a collision cannot excuse its twin', survivorTextKey({ line: 5, op: 'num → 0', before: 'b', after: 'c' }), 'num → 0\u0000b\u0000c');
   /* blockingSurvivors -- what the diff gate subtracts: ONLY survivors an excusing entry covers. */
   /* THE COST PROJECTION — pure, and printed in every mode since the gate's own mode is `--json`.
      The figures are the ones measured on #3506: see phaseNote's header for the run behind them. */
@@ -2702,6 +2788,27 @@ function selftest() {
   ck('NULL CONTROL · …and refuses nothing', _full.ok, true);
   ck('E4b · a duplicated entry does not double-count its mutant', selectRecorded(_collide, [_collide[0], _collide[0]]).picked.length, 1);
 
+  console.log('\none record builder — runFile returns through ONE object literal, on every path');
+  {
+    /* `runFile` built its result in TWO places — the main tail and the degraded serial fallback — and
+       a field added to one reached neither the other nor any check. `killedMutants` hit it in #3717,
+       and `equivalence` had been missing from the degraded record the whole time. The record's own
+       signature keys ARE the tripwire: a second object literal carrying them is a second builder,
+       whatever it is called. `groupsRun` and `killedMutants` read 2 on the code this replaced. */
+    const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const sites = (k) => (self.match(new RegExp('^\\s+' + k + ':', 'gm')) || []).length;
+    for (const k of ['groupsRun', 'killedMutants', 'equivalence', 'canary', 'voided', 'jobs', 'calibrationMs']) {
+      ok('the result record builds `' + k + '` in exactly ONE place', sites(k) === 1, 'sites=' + sites(k));
+    }
+    /* WHY one builder is worth a gate, in one assertion: the void filter reads a KEY, so a record
+       built without it is not "void and reported" — it is a run the gate cannot tell from a measured
+       one. The degraded builder also published `killed` raw where the main one nulls it. The other
+       half of this pair is the `voided: true` case in the verdict section below, which reads UNKNOWN. */
+    const degradedShape = { file: 'clock.js', tested: 12, invalid: 0, killed: 12, touchedLines: 4, survivors: [{ line: 7, op: 'num → 0', before: 'a', after: 'b' }] };
+    const blind = diffVerdict([degradedShape], { base: 'origin/main', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' });
+    ok('a record with NO `voided` key escapes the void filter entirely', blind.verdict.status !== 'UNKNOWN', blind.verdict.status);
+  }
+
   console.log('\nverdict — tepna.verdict/1 at every diff-gate exit, pinned against verdict.js');
   {
     const V = createRequire(import.meta.url)('../verdict.js');
@@ -2732,6 +2839,12 @@ function selftest() {
     ck('…valid', val(refuted.verdict), true);
     const quiet = diffVerdict([row({ equivalence: { blocking: [], refuted: [], orphaned: [_ref, _ref], notDecided: [_ref] } })], meta);
     ck('ORPHANED and NOT-DECIDED entries are REPORTED in the result and block nothing', quiet.verdict.status + ':' + quiet.verdict.result.orphaned + ':' + quiet.verdict.result.notDecided, 'PASS:2:1');
+    /* The cause rides beside the union at verdict level too, because the verdict object is the API
+       and the prose is not. Both stay non-blocking: a drift is recoverable and a stale entry owes
+       re-verification, and neither is evidence about the diff under test. */
+    const causes = diffVerdict([row({ equivalence: { blocking: [], refuted: [], orphaned: [_ref, _ref, _ref], drifted: [_ref], stale: [_ref], notDecided: [] } })], meta);
+    ck('…and the verdict reports WHY, which one counter could not', causes.verdict.status + ':' + causes.verdict.result.drifted + ':' + causes.verdict.result.stale, 'PASS:1:1');
+    ck('…a record from before the split still verdicts, with the causes at zero', quiet.verdict.result.drifted + ':' + quiet.verdict.result.stale, '0:0');
     const f = diffVerdict([row({ killed: 9, survivors: [{ line: 7, op: 'num → 0', before: 'x' }] })], meta);
     ck('a survivor → FAIL, exit 1, reason names it', f.verdict.status + ':' + f.code + ':' + /a\.js:7/.test(f.verdict.reason), 'FAIL:1:true');
     ck('…valid', val(f.verdict), true);
@@ -3037,8 +3150,29 @@ function reportOne(r) {
       console.log(
         '      \u25cb ' + eq.notDecided.length + ' entr(ies) NOT DECIDED \u2014 the mutant was generated but no kill or survival was recorded for it in this run; the claim is unchecked, not refuted.'
       );
-    for (const e of eq.orphaned)
-      console.log('      \u26a0 ORPHANED ' + r.file + ':' + e.line + '  [' + e.op + '] matches no generated mutant - the line moved or the code changed. Excluded from every count until re-verified.');
+    /* "the line moved or the code changed" named BOTH causes and separated neither, so the only
+       actionable one -- a lapsed excuse an existing tool can move back -- was unreadable. */
+    const drift = eq.drifted || [];
+    const dead = eq.stale || [];
+    const outOfScope = eq.orphaned.length - drift.length - dead.length;
+    if (outOfScope > 0)
+      console.log('      \u25cb ' + outOfScope + ' entr(ies) OUT OF SCOPE \u2014 the mutant is in the file and this run did not test its line. Ordinary in a diff run; it excuses nothing here.');
+    for (const e of drift)
+      console.log(
+        '      \u26a0 DRIFTED  ' +
+          r.file +
+          ':' +
+          e.line +
+          '  [' +
+          e.op +
+          '] \u2014 the identical mutant now sits at L' +
+          (e.foundAtLines || []).join(', L') +
+          '.\n        The excuse LAPSED on an edit above it. Run node tools/reanchor-equivalence.mjs to move it, which re-addresses the entry and never renews its claim.'
+      );
+    for (const e of dead)
+      console.log(
+        '      \u2298 STALE    ' + r.file + ':' + e.line + '  [' + e.op + '] matches no mutant anywhere in the file \u2014 the code it excused is gone, so only re-verification replaces it.'
+      );
   }
   for (const s of r.survivors.slice(0, 25)) console.log('      SURVIVED ' + r.file + ':' + s.line + '  [' + s.op + ']\n        ' + s.before + '\n        ' + s.after);
   if (r.survivors.length > 25) console.log('      … and ' + (r.survivors.length - 25) + ' more');

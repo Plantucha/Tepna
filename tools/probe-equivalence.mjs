@@ -264,6 +264,28 @@ export function sampleEvenly(arr, n) {
 
 export const mutantKey = (m) => m.line + '|' + m.op + '|' + (m.after || '').trim();
 
+/* ── CONTROLS ARE A NAMED SET, NEVER A REMAINDER ───────────────────────────────────────────────
+   RULE 1 wants controls the sweep KILLED. Until 2026-10-19 this tool had no kill list to read:
+   `mutate.mjs --json` shipped `killed` as a COUNT, so the pool was taken by subtraction — every
+   in-range mutant that was neither a survivor nor an invalid. That identity holds only for a sweep
+   that tested every mutant it enumerated. Under `--only '<glob>'` it is false, and silently: the
+   untested mutants dominate the remainder, a control that never ran cannot fail, and the battery
+   then reads clean by arithmetic. Measured on #3699's oxydex battery, which reported 55 of 55, 30 of
+   30 and 25 of 25 controls surviving nothing over a scope that tested a fraction of the file
+   (residue 2026-10-19-probe-controls-inferred-by-subtraction).
+
+   `null` is the answer for a sweep that named no kills, and it is NOT an empty pool. An empty pool
+   says the sweep killed nothing in this function; `null` says this sweep cannot say. A caller owes
+   those two outcomes different words. A `killedMutants: null` from a failed canary arrives here too,
+   which is right: kill detection under doubt is no evidence of reach. */
+export const killedKeySet = (sweep) => (Array.isArray(sweep && sweep.killedMutants) ? new Set(sweep.killedMutants.map(mutantKey)) : null);
+
+/* The in-range control pool, or `null` when the sweep named no kills. Never a subtraction. */
+export function controlPool(dry, inRange, killedKeys) {
+  if (!killedKeys) return null;
+  return dry.filter((m) => inRange(m) && killedKeys.has(mutantKey(m)));
+}
+
 /* ── A SWEEP ARRIVES IN TWO FORMATS, AND THIS TOOL COULD ONLY READ ONE ────────────────────────
    `mutate.mjs --json` emits NDJSON — one dense line per file — so the original reader took the first
    line starting with `{` and parsed that. `tools/mutation-crawl.mjs:365` writes the SAME record
@@ -387,7 +409,7 @@ export function ledgerIndent(text) {
    `families` is one `{ name, outcome }` per DECLARED family. `outcome` is the reason it ended:
    'clean' | 'blind' (both EVALUATED — the controls ran) or one of the withheld reasons
    'fn-not-found' | 'baseline-threw' | 'probe-not-array' | 'degenerate-battery' | 'no-controls' |
-   'no-control-ran' (excluded — the criterion never bound). */
+   'no-control-ran' | 'kill-list-absent' (excluded — the criterion never bound). */
 export const EVALUATED = new Set(['clean', 'blind']);
 
 /* THE EMITTED PROBE STRING MUST BE ABLE TO EXPRESS A PARTIAL CONTROL DROP.
@@ -613,6 +635,30 @@ if (IS_MAIN && has('--selftest')) {
     applyMutant(['  if (a > b) x();'], { line: 1, op: 'cmp > → >=', after: 'if (a >= b) x();' }).trim() === 'if (a >= b) x();'
   );
   ok('mutantKey ignores surrounding whitespace in `after`', mutantKey({ line: 5, op: 'cmp', after: '  x  ' }) === mutantKey({ line: 5, op: 'cmp', after: 'x' }));
+
+  /* ── CONTROLS COME FROM A NAMED SET (residue 2026-10-19-probe-controls-inferred-by-subtraction) ──
+     The decoy below is the whole row: a mutant the sweep NEVER TESTED is neither a survivor nor an
+     invalid, so the retired subtraction form counted it KILLED and offered it as a control. */
+  const _dry = [
+    { line: 2, op: 'num', after: '0' }, // recorded killed, in range
+    { line: 3, op: 'num', after: '1' }, // NEVER TESTED — an `--only` sweep leaves hundreds of these
+    { line: 4, op: 'cmp', after: '<=' }, // survivor
+    { line: 5, op: 'num', after: '9' }, // invalid (non-terminating)
+    { line: 90, op: 'num', after: '0' } // recorded killed, OUT of this function
+  ];
+  const _inR = (m) => m.line >= 1 && m.line <= 10;
+  const _swp = { killed: 2, killedMutants: [_dry[0], _dry[4]], survivors: [_dry[2]], invalids: [_dry[3]] };
+  ok('killedKeySet names the sweep’s kills', killedKeySet(_swp).size === 2);
+  ok('killedKeySet returns null for a COUNT-ONLY sweep, which is not an empty pool', killedKeySet({ killed: 2, survivors: [], invalids: [] }) === null);
+  ok('killedKeySet returns null when a FAILED canary nulls the list', killedKeySet({ killed: null, killedMutants: null }) === null, 'kill detection in doubt is no evidence of reach');
+  const _pool = controlPool(_dry, _inR, killedKeySet(_swp));
+  ok('controlPool takes the named kills IN RANGE only', _pool.length === 1 && _pool[0].line === 2, JSON.stringify(_pool.map((m) => m.line)));
+  ok('DECOY · a mutant the sweep NEVER TESTED is not a control — the subtraction form made it one', !_pool.some((m) => m.line === 3), 'line 3 is neither survivor, invalid nor killed');
+  ok(
+    'controlPool returns null rather than [] when the sweep named no kills',
+    controlPool(_dry, _inR, null) === null,
+    'an empty pool says the sweep killed nothing here; null says this sweep cannot say'
+  );
   ok(
     'the LEDGER key is `line op before` UNTRIMMED — a 100-char cut landing on a space must still match',
     (() => {
@@ -705,6 +751,12 @@ if (IS_MAIN && has('--selftest')) {
   ok('verdict · the withheld families are counted BY REASON, not lumped', _blind.result.excludedBy['degenerate-battery'] === 1, JSON.stringify(_blind.result.excludedBy));
   const _none = probeEquivalenceVerdict({ file: 'x.js', families: [_F('no-controls'), _F('fn-not-found')], survivors: _sv, commit: 'abc1234' });
   ok('verdict · nothing evaluable ⇒ UNDERPOWERED, never PASS', _none.status === 'UNDERPOWERED' && _eq(_none) && _none.population.checked === 0, _none.status);
+  const _kla = probeEquivalenceVerdict({ file: 'x.js', families: [_F('kill-list-absent'), _F('kill-list-absent')], survivors: _sv, commit: 'abc1234' });
+  ok(
+    'verdict · a sweep that named no kills is UNDERPOWERED and counted by its own reason',
+    _kla.status === 'UNDERPOWERED' && _kla.result.excludedBy['kill-list-absent'] === 2 && _eq(_kla),
+    _kla.status
+  );
   const _nr = probeEquivalenceVerdict({ file: 'x.js', families: [_F('clean')], survivors: _sv, baseErr: 'SyntaxError', commit: 'abc1234' });
   ok('verdict · baseline realm failed ⇒ NOT_RUN with result null', _nr.status === 'NOT_RUN' && _nr.result === null, _nr.status);
   ok('verdict · the survivor findings ride in result, never as a status', _clean.result.survivors.noDistinguishing === 5);
@@ -826,6 +878,8 @@ async function main() {
      of CPU at 99.9 % with its log untouched, which is indistinguishable from a slow battery.
      The sweep already knows which ones these are. Use that. */
   const invalidKeys = new Set((sweep.invalids || []).map(mutantKey));
+  // the sweep's own kill list, or null when it recorded only a count (see killedKeySet)
+  const killedKeys = killedKeySet(sweep);
 
   /* `deps` are the files the SUITE co-loads before this one (dex-coload.js `shared:`). Loading them is
      not a convenience — omitting one manufactures differences that belong to the probe rather than to
@@ -897,6 +951,7 @@ async function main() {
 
   console.log(`probe-equivalence · ${FILE}`);
   console.log(`  sweep: ${sweep.killed ?? '?'} killed, ${(sweep.survivors || []).length} survivors, ${(sweep.invalids || []).length} invalid`);
+  console.log(`  kill list: ${killedKeys ? killedKeys.size + ' mutants named' : 'ABSENT — this sweep states no kills, so no family can be controlled'}`);
   console.log(`  ${dry.length} mutants enumerated · ${battery.families.length} famil${battery.families.length === 1 ? 'y' : 'ies'} declared\n`);
 
   const emit = [];
@@ -916,9 +971,10 @@ async function main() {
     }
     const inRange = (m) => m.line >= range.start && m.line <= range.end;
     const survivors = dry.filter((m) => inRange(m) && survKeys.has(mutantKey(m)) && !invalidKeys.has(mutantKey(m)));
-    /* KILLED = not a survivor AND not invalid. See the invalidKeys note: "everything that is not a
-       survivor" silently includes the non-terminating ones. */
-    const controlsAll = dry.filter((m) => inRange(m) && !survKeys.has(mutantKey(m)) && !invalidKeys.has(mutantKey(m)));
+    /* Controls are the mutants the sweep RECORDED killed, narrowed to this function — see
+       `controlPool`. The old form took the remainder, which hands a scoped sweep its untested mutants
+       as controls; the invalidKeys note below is the earlier half of the same mistake. */
+    const controlsAll = controlPool(dry, inRange, killedKeys);
 
     let baseFp;
     try {
@@ -948,6 +1004,14 @@ async function main() {
 
     /* RULE 1 — controls FROM THIS FUNCTION. No controls means no evidence of reach, which is not the
        same as a clean bill and must not read like one. */
+    if (!controlsAll) {
+      blindFamilies.push(fam.name);
+      console.log('  ⚠ NO KILL LIST — this sweep records a killed COUNT and no killed mutants, so its');
+      console.log('    controls cannot be named and reach is UNPROVEN. Verdicts withheld: re-run the sweep');
+      console.log('    under a `mutate.mjs` that emits `killedMutants` (2026-10-19 onward).\n');
+      famRows.push({ name: fam.name, outcome: 'kill-list-absent' });
+      continue;
+    }
     const controls = sampleEvenly(controlsAll, NCTL);
     if (!controls.length) {
       blindFamilies.push(fam.name);

@@ -24,9 +24,16 @@ import {
   classifyStamps as rebaseClassifyStamps,
   duplicateLedgerKeys as rebaseDuplicateLedgerKeys,
   generatedSet as rebaseGeneratedSet,
-  docsOutputFromText as rebaseDocsOutputFromText
+  docsOutputFromText as rebaseDocsOutputFromText,
+  quotedVerdictKeys as rebaseQuotedVerdictKeys
 } from '../tools/rebase-safe.mjs';
+/* AND THIS IMPORT IS ITSELF AN ASSERTION. `tools/pr-compliance.mjs` ended in a bare
+   `process.exit(main())`, so importing it ran the whole gate and exited the importer before the
+   import resolved — measured 2026-10-20. An unguarded entry takes this SUITE down, loudly, which is
+   the right failure for a module whose exported surface other tools now depend on. */
+import { extractVerdicts as prExtractVerdicts } from '../tools/pr-compliance.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
+import { corpusSearch } from '../tools/regen-goldens-core.mjs';
 import { classify as qdClassify, pick as qdPick, attention as qdAttention, redLedger as qdRedLedger, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import {
   classify as pwClassify,
@@ -75,6 +82,30 @@ const ROOT = join(__dirname, '..');
    a worktree), so the mandated workflow can run the gate it claims to run. It is ALSO how you reproduce
    CI's exact coverage locally — point it at a dir holding only the tracked fixtures. */
 const UPLOADS = process.env.DEX_UPLOADS ? resolve(process.env.DEX_UPLOADS) : join(ROOT, 'uploads');
+/* AN INPUT IS A SEARCH OVER THE RAILS, NEVER ONE PATH — `FIXTURE-CORPUS-REACHABILITY`'s own search
+   order, applied PER FILE instead of once per run. `corpusSearch` picks the first rail that exists as a
+   DIRECTORY, which is the right answer for a whole-corpus consumer and the wrong one here: a recording
+   is gitignored and lives only in the corpus, while a COMMITTED input (`tools/make-synthetic-edf.mjs`,
+   `tools/gen-maskoff-twin.mjs`) is a repo artifact that lives only in a checkout — so whichever rail
+   wins the directory test hides the other half. Measured 2026-10-19 with
+   `DEX_UPLOADS=/srv/data/tepna-corpus/uploads`, the canonical corpus root: the CPAPDex measured-window
+   group RED on its own "present in every environment" message, and in a worktree the stored-`.dat`
+   equiv leg read as absent because a worktree's `uploads/` holds no gitignored symlink.
+   The rail LIST is single-sourced from `corpusSearch`, so the two halves of the fixture workflow cannot
+   drift apart. `UPLOADS` — the one rail this runner resolved against until today — stays at the HEAD of
+   it, so every input that resolves today resolves to the same bytes tomorrow and the change is a
+   widening only; the remaining rails are `corpusSearch`'s, in its order. The FIXTURE rail is untouched:
+   an answer key is always `ROOT/uploads`. */
+const INPUT_RAILS = [UPLOADS, ...corpusSearch(ROOT).candidates.map((c) => c.dir)].filter((d, i, a) => a.indexOf(d) === i);
+function inputPath(name) {
+  for (const rail of INPUT_RAILS) {
+    const p = join(rail, name);
+    if (existsSync(p)) return p;
+  }
+  /* No rail holds it: name the rail this runner has always used, so an "absent" message still says
+     where the file was looked for. */
+  return join(UPLOADS, name);
+}
 
 /* The declared skip budget (G1). Missing/corrupt file → an EMPTY allow-list, which means every skip is
    undeclared and the run reds — deliberately fail-closed: a lost allow-list must not silently re-open
@@ -1120,7 +1151,7 @@ function readEquiv() {
   // them (the old behavior) silently starved the fixture-only consumers too, and made the diff
   // hard-FAIL instead of skip on a fresh CI clone.
   const pairFrom = (base, key, inFile, fixFile) => {
-    const inP = join(base, inFile),
+    const inP = base === UPLOADS ? inputPath(inFile) : join(base, inFile),
       // ⚠️ The FIXTURE always comes from the REPO, never from DEX_UPLOADS.
       //
       // A fixture is a COMMITTED repo artifact — the reference this checkout's code is being diffed
@@ -1178,8 +1209,8 @@ function readEquiv() {
   {
     const datFile = 'Wellue_O2Ring-S_20260919224526_STORED.dat',
       metaFile = datFile + '.meta.json';
-    const datP = join(UPLOADS, datFile),
-      metaP = join(UPLOADS, metaFile),
+    const datP = inputPath(datFile),
+      metaP = inputPath(metaFile),
       fxP = join(ROOT, 'uploads', 'OxyDex_2026-09-19_2245_stored_summary.json');
     const rec = {};
     if (existsSync(datP) && existsSync(metaP)) {
@@ -1300,7 +1331,7 @@ function readEquiv() {
     const inp = {};
     let complete = true;
     for (const k of KINDS) {
-      const p = join(UPLOADS, `20260613_231433_${k}.edf`);
+      const p = inputPath(`20260613_231433_${k}.edf`);
       if (!existsSync(p)) {
         complete = false;
         break;
@@ -1329,7 +1360,11 @@ function readEquiv() {
       const mo = {};
       let ok2 = true;
       for (const k of ['BRP', 'PLD']) {
-        const p2 = join(UPLOADS, `cpapdex_maskoff_twin_${k}.edf`);
+        /* `inputPath`, not a bare corpus join: this twin is a generated repo artifact
+           (`tools/gen-maskoff-twin.mjs` writes it into the checkout's `uploads/`), so a corpus root
+           outside a checkout held no copy and the group RED with its own "present in every
+           environment" message. */
+        const p2 = inputPath(`cpapdex_maskoff_twin_${k}.edf`);
         if (!existsSync(p2)) {
           ok2 = false;
           break;
@@ -1348,8 +1383,8 @@ function readEquiv() {
   // person), so both ship in git and this leg RUNS IN CI. The consuming assertion (comparator group)
   // readEDFs both and re-runs CPAPCross.compareChannel, diffing against the committed golden.
   {
-    const liveP = join(UPLOADS, 'cpapdex_comparator_live_twin_BRP.edf');
-    const sdP = join(UPLOADS, 'cpapdex_comparator_sd_twin_BRP.edf');
+    const liveP = inputPath('cpapdex_comparator_live_twin_BRP.edf');
+    const sdP = inputPath('cpapdex_comparator_sd_twin_BRP.edf');
     const fxP = join(ROOT, 'uploads', 'cpapdex_comparator_golden.json');
     const rec = {};
     if (existsSync(liveP) && existsSync(sdP)) {
@@ -1388,7 +1423,7 @@ function readEquiv() {
     for (const sess of sessions) {
       const set = {};
       for (const [kind, file] of Object.entries(sess)) {
-        const p = join(UPLOADS, file);
+        const p = inputPath(file);
         if (!existsSync(p)) {
           complete = false;
           break;
@@ -3080,6 +3115,14 @@ async function main() {
        `merge=union` path never conflicts — so the STOP branch cannot fire and the tool reports success
        over a corrupted ledger. Pure, so the suite can hold both controls. */
     rebaseDuplicateLedgerKeys: rebaseDuplicateLedgerKeys,
+    /* Which quoted verdicts a rebase is allowed to speak about. Pure, so the suite drives the two
+       directions that matter by value: a body quoting nothing yields `null` rather than an empty
+       all-clear, and a verdict this guard cannot be right about — no commit, a sha-shaped nothing —
+       is dropped rather than guessed at. */
+    rebaseQuotedVerdictKeys: rebaseQuotedVerdictKeys,
+    /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
+       parser that judges it, so the two cannot disagree about what a quoted verdict is. */
+    prExtractVerdicts: prExtractVerdicts,
     /* land-pr's PURE decision core. Same shape and same reason as rebaseClassify above: the tool's
        value is a state machine that must not be re-derived by hand in every session, and a state
        machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),
