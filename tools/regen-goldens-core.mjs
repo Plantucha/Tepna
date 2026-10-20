@@ -20,6 +20,48 @@ import { execFileSync } from 'node:child_process';
 import { fmtDuration, progressLine } from './run-progress.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/* This file lives at <repo>/tools/, so the repo root is one level up. Derived from the MODULE's own
+   location rather than from `fixturesDir` or `process.cwd()`: `--list-owned` prints repo-relative
+   paths that another tool classifies, and a path that silently re-roots when the caller's cwd moves
+   is a classifier input nobody can check. */
+const CORE_REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/* ── WHICH FIXTURES DOES THIS RECIPE OWN — the answer `tools/rebase-safe.mjs` asks for ──
+   The classifier called every `uploads/*.node-export.json` SOURCE, so a PpgDex PR that fell behind
+   main stopped on six fixtures no human edits, and the sanctioned way through was blocked: deleting
+   them and regenerating does not work either, because `isNew` skips an absent fixture that carries no
+   `newRecord` and the merge below needs the committed bytes as its base. Measured by Magpie on #3765;
+   logged as `2026-10-20-rebase-safe-calls-a-regen-owned-fixture-source`.
+
+   The set is READ FROM THE RECIPE, never globbed: `uploads/` is 653 files of which the goldens are a
+   named handful, and a `uploads/*.json` glob would be the second version of the `docs/` prefix bug
+   that `tools/build-docs.mjs --list-owned` exists to prevent.
+
+   Each row is `<repo-relative path>\t<corpus|committed>\t<input,input>`:
+     · `corpus`    the input is a real recording, gitignored — a caller MUST NOT auto-resolve it.
+     · `committed` the input ships in the checkout, so a re-run reproduces the bytes anywhere.
+     · the inputs a recipe DECLARES, which is only the ones carrying a `newRecord`. An older fixture
+       declares none here, and the caller reads them from the fixture ledger instead. Printing an
+       empty field rather than guessing is what lets the caller fail closed on it.
+
+   Returns `null` on anything it cannot state exactly — no fixtures, a nameless fixture, a path that
+   lands outside the repo. The caller treats `null` as "this builder could not be asked", which is
+   what keeps an unreadable recipe from being read as an empty set. ── */
+export function ownedListing(fixtures, fixturesDir, repo) {
+  if (!Array.isArray(fixtures) || !fixtures.length) return null;
+  if (typeof fixturesDir !== 'string' || !fixturesDir || typeof repo !== 'string' || !repo) return null;
+  const rows = [];
+  for (const F of fixtures) {
+    if (!F || typeof F.name !== 'string' || !F.name || F.name.includes('\t') || F.name.includes('\n')) return null;
+    const rel = path.relative(repo, path.join(fixturesDir, F.name)).split(path.sep).join('/');
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+    const declared = F.newRecord && Array.isArray(F.newRecord.inputs) ? F.newRecord.inputs.filter((s) => typeof s === 'string' && s && !s.includes(',') && !s.includes('\t')) : [];
+    rows.push(rel + '\t' + (F.real ? 'corpus' : 'committed') + '\t' + declared.join(','));
+  }
+  return rows;
+}
 
 /* The volatile keys the equivalence gate EXCLUDES — preserved verbatim from the committed file. */
 export const VOLATILE = new Set(['file', 'provenance', 'kernel', 'generated', 'vo2est', 'karv']);
@@ -203,6 +245,19 @@ export function makeRerecord({ repo, node, bundle, fixturesDir, corpusDir, Manif
    newRecord? }]. Absent committed file + no newRecord ⇒ skip; + newRecord ⇒ mint. build()→null ⇒ input
    absent (gitignored recording). Preserves the exact read→build→diff→merge→write→rerecord flow. */
 export async function runRegen({ fixtures, fixturesDir, corpusDir, check, rerecord, absentInputHint }) {
+  /* `--list-owned` ANSWERS AND RETURNS, before a single fixture is built or written. Asking a builder
+     what it owns must never be able to move a byte — the same contract `build-docs.mjs --list-owned`
+     carries, where the flag implies `--check`. */
+  if (process.argv.includes('--list-owned')) {
+    const rows = ownedListing(fixtures, fixturesDir, CORE_REPO);
+    if (!rows) {
+      console.error('✕ --list-owned: this recipe does not declare a readable fixture set');
+      process.exitCode = 2;
+      return;
+    }
+    rows.forEach((r) => console.log(r));
+    return;
+  }
   let moved = 0,
     minted = 0,
     skipped = 0,

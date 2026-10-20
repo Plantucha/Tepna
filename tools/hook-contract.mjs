@@ -86,6 +86,32 @@ export function pipeMaxSize() {
 }
 export const PROBE_TRIALS = 5;
 
+/* ⚠ THE NINE SHELL LEGS STAGED 100 KB, AND A 100 KB PAYLOAD IS A COIN FLIP ON A BROKEN HOOK. Each
+   hook self-test pipes a staged payload into its hook and asserts the writer survived, which reads
+   the drain the gate above reads in Node. They all wrote `head -c 100000`, so against an unrepaired
+   hook each leg stranded the writer only when the kernel happened not to absorb the payload — 7 of
+   12 trials, measured 2026-10-20 — and 35 of 36 when the same rig ran that afternoon under load
+   average 20, one batch reading 11 of 12. So the RATE is the box's scheduling at that moment and no
+   sample bounds it; the derived size needs no rate, because nothing past `fs.pipe-max-size` can be
+   absorbed at all. The error direction is what makes it worth fixing: the legs pass today because
+   every hook drains, so a coin-flip leg is SILENT rather than flaky, and it would announce a
+   reintroduced defect only sometimes. The legs now read `--probe-bytes`, so one formula
+   serves Node and shell alike, and `scanWriterFateLeg` keeps a literal from coming back. */
+/* A writer-fate leg is the one that reads `PIPESTATUS[0]` — the WRITER's own code rather than the
+   pipeline's, which is the only way to see whether the hook drained. The two retired sizes are the
+   regression this names: 100 KB in the nine `stdin-big` legs and 70 KB in `trim-output.test.sh`,
+   both measured as coin flips against an unrepaired hook. A size that cannot track the box's own
+   `fs.pipe-max-size` cannot stay beyond absorption, and that is what the payload is for. */
+const WF_LEG = /PIPESTATUS\[0\]/;
+const WF_DERIVES = /--probe-bytes/;
+const WF_RETIRED = /head\s+-c\s+(100000|70000)\b/g;
+
+export function scanWriterFateLeg(text, name = '<text>') {
+  const t = String(text || '');
+  const retired = [...t.matchAll(WF_RETIRED)].map((m) => Number.parseInt(m[1], 10));
+  return { name, hasLeg: WF_LEG.test(t), derives: WF_DERIVES.test(t), retired };
+}
+
 /* ── the declared probes ──────────────────────────────────────────────────────────────────────
    `env` stages each hook's EARLIEST exit. The child gets a CLEAN environment plus these, so a hatch
    exported in the session that runs this gate cannot move which exit the probe reaches. */
@@ -405,6 +431,49 @@ function selftest() {
   ok('…and its drained twin never does', pr2.epipe === 0, `stranded on ${pr2.epipe} of ${pr2.trials}, codes ${JSON.stringify(pr2.codes)}`);
   ok('…so the two readings agree on the plants', scanHook(readFileSync(nodrain, 'utf-8')).drain === null && scanHook(readFileSync(drained, 'utf-8')).drain === 2);
 
+  /* PLANT 6 · THE NINE SHELL LEGS, read statically. The planted pair differs in ONE property, so a
+     scanner that answered the same for both would score as loudly here as it does on the tree. */
+  const legDerived = 'x="$(node t/hook-contract.mjs --probe-bytes)"\nhead -c "$x" /dev/zero > "$TMP/p"\nrc="${PIPESTATUS[0]}"\n';
+  const legRetired = 'head -c 100000 /dev/zero > "$TMP/p"\nrc="${PIPESTATUS[0]}"\n';
+  ok(
+    'a leg that reads --probe-bytes scans as derived',
+    (() => {
+      const r = scanWriterFateLeg(legDerived);
+      return r.hasLeg && r.derives && r.retired.length === 0;
+    })(),
+    JSON.stringify(scanWriterFateLeg(legDerived))
+  );
+  ok(
+    'a leg on a retired size is named with that size',
+    (() => {
+      const r = scanWriterFateLeg(legRetired);
+      return r.hasLeg && !r.derives && r.retired[0] === 100000;
+    })(),
+    JSON.stringify(scanWriterFateLeg(legRetired))
+  );
+  ok("a file that never reads the WRITER's code carries no leg", scanWriterFateLeg('set -u\nhead -c 100000 /dev/zero > b\n').hasLeg === false);
+  ok('…and a payload size that is neither retired size is left alone', scanWriterFateLeg('rc="${PIPESTATUS[0]}"\nhead -c 120000 /dev/zero > b\n').retired.length === 0);
+
+  /* And the tree itself: every self-test that stages a payload must derive its size. This is the
+     population half — the two plants above would pass while no real leg was ever read. */
+  const legFiles = existsSync(HOOK_DIR)
+    ? readdirSync(HOOK_DIR)
+        .filter((f) => f.endsWith('.test.sh'))
+        .map((f) => scanWriterFateLeg(readFileSync(join(HOOK_DIR, f), 'utf-8'), f))
+        .filter((r) => r.hasLeg)
+    : [];
+  ok('the writer-fate legs are found in the real tree (non-vacuous)', legFiles.length >= 10, `found ${legFiles.length} leg(s)`);
+  ok(
+    '…and every one of them derives its payload size',
+    legFiles.every((r) => r.derives),
+    JSON.stringify(legFiles.filter((r) => !r.derives).map((r) => r.name))
+  );
+  ok(
+    '…and none of them stages a retired size',
+    legFiles.every((r) => r.retired.length === 0),
+    JSON.stringify(legFiles.filter((r) => r.retired.length).map((r) => `${r.name}:${r.retired.join(',')}`))
+  );
+
   /* THE REAL TREE IS THE POPULATION CHECK. Every assertion above would pass while this gate examined
      no real hook — the §4b shape: success reported about something never examined. */
   const files = hookFiles();
@@ -427,6 +496,12 @@ function selftest() {
 const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
 if (entry === import.meta.url) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
+  if (process.argv.includes('--probe-bytes')) {
+    /* The one number the nine shell legs cannot derive for themselves without repeating the formula
+       nine times. It prints bytes and nothing else, so a caller can read it with `$(...)`. */
+    process.stdout.write(`${probeBytes()}\n`);
+    process.exit(0);
+  }
   if (process.argv.includes('--verdict-sample')) {
     process.stdout.write(`${JSON.stringify(evaluate(collect(), producedBy()).verdict, null, 1)}\n`);
     process.exit(0);
