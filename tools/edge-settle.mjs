@@ -32,6 +32,17 @@
 // §∅: a sensor with no clean run reads `null` with the reason `never-clean`, never 0. A night
 // without a sensor's export has no row for that sensor; it is not a zero-length settle.
 //
+// POPULATION — the fold's own stamp, read and never inferred. `tools/trio-batch.mjs` writes
+// `.trio-stamp` into a night directory only when the fold completed there, and a night the fold
+// REJECTS keeps whatever exports it held from whenever it last passed (residue
+// `2026-10-12-rejected-trio-nights-keep-exports-no-fold-rewrites`: 57 such nights hold 80 exports
+// whose code era is unrecorded). Walking the directory pools the two: measured 2026-10-20, that
+// moved two of the six floors this tool feeds — PPG start p95 280 s against 270 s, O2Ring end
+// 40 s against 50 s. So the default population is the STAMPED nights, the unstamped ones are
+// counted and named rather than dropped silently, and `--all-nights` restores the pooled walk for
+// anyone who wants the old number. `tools/tch-multinight.mjs` reads the same stamp for the same
+// reason.
+//
 // The verdict asks one pre-stated question: does the 90th percentile of each sensor's settle, at
 // each edge, fit inside ONE 5-min analysis window (BUDGET_S)? That is the owner's "a window or two"
 // bound, turned into a test the corpus can fail.
@@ -40,11 +51,13 @@
 //   node tools/edge-settle.mjs --nights        # plus one line per night
 //   node tools/edge-settle.mjs --json          # the full report as JSON
 //   node tools/edge-settle.mjs --root <dir>    # another export tree
+//   node tools/edge-settle.mjs --all-nights    # pool the fold-rejected nights too (not the floor population)
 //   node tools/edge-settle.mjs --verdict-sample  # the tepna.verdict/1 object, corpus-free
 //   node tools/edge-settle.mjs --selftest
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { corpusSearch } from './regen-goldens-core.mjs';
@@ -205,13 +218,16 @@ export function summarize(nights) {
   return out;
 }
 
-/** Summary → one tepna.verdict/1. Pre-stated: p90 settle ≤ BUDGET_S at both edges of every sensor. */
-export function verdictOf(summary, evidence, at) {
+/** Summary → one tepna.verdict/1. Pre-stated: p90 settle ≤ BUDGET_S at both edges of every sensor.
+    `excludedLegs` carries the legs this run refused to measure — one per (sensor row, edge) on a
+    night the fold never folded — so `checked + excluded = eligible` still describes the whole tree
+    and an unstamped night is counted rather than vanishing from the population. */
+export function verdictOf(summary, evidence, at, excludedLegs = 0) {
   const legs = [];
   for (const { key } of SENSORS) for (const edge of ['start', 'end']) legs.push({ key, edge, ...summary[key][edge] });
   const powered = legs.filter((l) => l.settle.n >= MIN_NIGHTS);
   const over = powered.filter((l) => l.settle.p90 > BUDGET_S);
-  const eligible = legs.reduce((a, l) => a + l.eligible, 0);
+  const eligible = legs.reduce((a, l) => a + l.eligible, 0) + excludedLegs;
   const checked = legs.reduce((a, l) => a + l.settle.n, 0);
   let status = 'PASS';
   let reason = null;
@@ -233,7 +249,7 @@ export function verdictOf(summary, evidence, at) {
     status,
     population: { checked, eligible, excluded: eligible - checked },
     criterion: { name: 'edge_settle_p90_s', threshold: BUDGET_S, unit: 's', direction: 'lte' },
-    result: { legs: legs.map((l) => ({ sensor: l.key, edge: l.edge, ...l.settle, lateWear: l.lateWear, neverClean: l.neverClean })), common: summary.common },
+    result: { legs: legs.map((l) => ({ sensor: l.key, edge: l.edge, ...l.settle, lateWear: l.lateWear, neverClean: l.neverClean })), common: summary.common, nights: summary.nights },
     evidence,
     reason,
     producedBy: { tool: 'tools/edge-settle.mjs', commit: null, commitReason: 'not stamped by this tool' },
@@ -241,7 +257,21 @@ export function verdictOf(summary, evidence, at) {
   });
 }
 
-/** One night directory → { night, rows, common }. Reads one export at a time (lazy-load rule). */
+/** Scanned nights → the measured population, the nights left out, and the legs that leaves
+    unmeasured. The fold's stamp decides it: a night `tools/trio-batch.mjs` never folded keeps the
+    exports of whenever it last passed, so measuring it pools two code eras. `pooled` restores the
+    old walk over every directory and then excludes nothing, because nothing was left out. */
+export function partition(scanned, pooled) {
+  const unstamped = scanned.filter((n) => !n.hasStamp);
+  return {
+    nights: pooled ? scanned : scanned.filter((n) => n.hasStamp),
+    unstamped,
+    /* Two legs per sensor row — a start and an end — so the count stays in the verdict's units. */
+    excludedLegs: pooled ? 0 : unstamped.reduce((a, n) => a + n.rows.length, 0) * 2
+  };
+}
+
+/** One night directory → { night, rows, common, hasStamp }. Reads one export at a time (lazy-load rule). */
 export function readNight(dir, night) {
   const rows = [];
   for (const s of SENSORS) {
@@ -256,7 +286,9 @@ export function readNight(dir, night) {
     }
     rows.push(sensorRow(s, exp));
   }
-  return { night, rows, common: commonWindow(rows) };
+  /* Read, not inferred: the fold's own completion stamp, exactly as `tools/tch-multinight.mjs`
+     reads it. `.trio-stamp` is deliberately not `*.json`, so no export glob can pick it up. */
+  return { night, rows, common: commonWindow(rows), hasStamp: existsSync(join(dir, '.trio-stamp')) };
 }
 
 function selftest() {
@@ -296,6 +328,37 @@ function selftest() {
   const v = verdictOf(summarize(many), ['x'], undefined);
   eq([v.status, /ecg start p90 400/.test(v.reason)], ['FAIL', true], 'a leg over budget is named');
   eq(Verdict.validate(v).ok, true, 'the verdict validates');
+  /* The fold's stamp decides the population (residue 2026-10-20-edge-settle-floors-pool-fold-
+     rejected-nights). Real directories, because the claim IS that the file on disk is read. */
+  const tmp = mkdtempSync(join(tmpdir(), 'edge-settle-'));
+  try {
+    const mk = (name, stamped) => {
+      const d = join(tmp, name);
+      mkdirSync(d);
+      writeFileSync(join(d, `OxyDex_${name}.node-export.json`), '{}');
+      if (stamped) writeFileSync(join(d, '.trio-stamp'), 'folded\n');
+      return d;
+    };
+    eq(readNight(mk('2026-01-01', true), '2026-01-01').hasStamp, true, 'a folded night reports its stamp');
+    eq(readNight(mk('2026-01-02', false), '2026-01-02').hasStamp, false, 'a night the fold rejected reports none');
+    /* An unreadable export still yields a row, so the stamp is read for its own sake and never
+       inferred from whether the night happened to parse. */
+    eq(readNight(join(tmp, '2026-01-02'), '2026-01-02').rows.length, 1, 'the rejected night still has a row to exclude');
+    /* The partition itself, over the two real directories just written. */
+    const scan = ['2026-01-01', '2026-01-02'].map((d) => readNight(join(tmp, d), d));
+    const kept = partition(scan, false);
+    eq([kept.nights.map((n) => n.night), kept.unstamped.length, kept.excludedLegs], [['2026-01-01'], 1, 2], 'the default measures the folded night and counts the other');
+    const all = partition(scan, true);
+    eq([all.nights.length, all.excludedLegs], [2, 0], '--all-nights pools both and then excludes nothing');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+  /* `checked + excluded = eligible` must still describe the WHOLE tree: a night left out of the
+     measurement is counted, never dropped from the population. One excluded sensor row is two
+     legs, a start and an end. */
+  const vx = verdictOf(summarize([night(10, 0), night(20, 0)]), ['x'], undefined, 6);
+  eq([vx.population.checked + vx.population.excluded === vx.population.eligible, vx.population.eligible], [true, 10], 'excluded legs stay inside eligible');
+  eq(verdictOf(summarize([night(10, 0)]), ['x'], undefined).population.eligible, 2, 'the default excludes nothing, so an old caller is unchanged');
   console.log(`selftest: all ${ran} selftests passed`);
 }
 
@@ -321,7 +384,9 @@ function sampleNights() {
 function main(argv) {
   if (argv.includes('--selftest')) return selftest();
   if (argv.includes('--verdict-sample')) {
-    console.log(JSON.stringify(verdictOf(summarize(sampleNights()), ['tools/edge-settle.mjs --verdict-sample (synthetic nights)'], undefined), null, 2));
+    const sample = summarize(sampleNights());
+    sample.nights = { scanned: MIN_NIGHTS, folded: MIN_NIGHTS, unstamped: 0, measured: MIN_NIGHTS, pooled: false };
+    console.log(JSON.stringify(verdictOf(sample, ['tools/edge-settle.mjs --verdict-sample (synthetic nights)'], undefined, 0), null, 2));
     return;
   }
   const at = argv.indexOf('--root');
@@ -330,15 +395,23 @@ function main(argv) {
     console.error(`edge-settle: no export tree at ${root} — pass --root <dir>`);
     process.exit(2);
   }
-  const nights = [];
+  const pooled = argv.includes('--all-nights');
+  const scanned = [];
   for (const night of readdirSync(root)
     .filter((d) => /^\d{4}-\d\d-\d\d$/.test(d))
     .sort()) {
     const n = readNight(join(root, night), night);
-    if (n.rows.length) nights.push(n);
+    if (n.rows.length) scanned.push(n);
+  }
+  const { nights, unstamped, excludedLegs } = partition(scanned, pooled);
+  if (!nights.length && unstamped.length) {
+    console.error(`edge-settle: ${unstamped.length} night(s) under ${root} and not one carries a .trio-stamp, so the fold completed on none of them.`);
+    console.error('Pass --all-nights to measure them anyway; the result then pools nights the fold rejects and is not the floor population.');
+    process.exit(2);
   }
   const summary = summarize(nights);
-  const verdict = verdictOf(summary, nights.length ? [root] : [], undefined);
+  summary.nights = { scanned: scanned.length, folded: scanned.length - unstamped.length, unstamped: unstamped.length, measured: nights.length, pooled };
+  const verdict = verdictOf(summary, nights.length ? [root] : [], undefined, excludedLegs);
   if (argv.includes('--json')) {
     console.log(
       JSON.stringify({ constants: { BIN_S, CLEAN_RUN_S, BEAT_MIN_PER_BIN, BEAT_CLEAN_SHARE, CONF_MIN, OXY_MIN_PER_BIN, LATE_WEAR_S, BUDGET_S, MIN_NIGHTS }, nights, summary, verdict }, null, 2)
@@ -354,6 +427,11 @@ function main(argv) {
     }
   }
   console.log(`edge-settle over ${nights.length} nights in ${root}`);
+  console.log(
+    pooled
+      ? `POOLED by --all-nights: ${summary.nights.folded} folded + ${summary.nights.unstamped} with no .trio-stamp. The fold rejected those, so this is NOT the floor population.`
+      : `population: ${summary.nights.folded} folded (.trio-stamp present) · ${summary.nights.unstamped} excluded, the fold never folded them (--all-nights to pool them)`
+  );
   console.log(`settle seconds (late wear > ${LATE_WEAR_S} s excluded and counted; never-clean is null, not 0)`);
   console.log('sensor edge    n   p50   p90   p95   max   late  never');
   for (const { key } of SENSORS)

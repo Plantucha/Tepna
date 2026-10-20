@@ -258,6 +258,7 @@ coverage/
 capture-host/.mypy-latest.txt
 capture-host/.check-verdict.json
 capture-host/.unwired-verdict.json
+capture-host/.covscope-verdict.json
 
 # Hypothesis example database — per-machine and regenerated. ⚠️ Hypothesis ALREADY writes its own
 # `.gitignore` inside the directory, which is why `git status` never showed it while `git check-ignore`
