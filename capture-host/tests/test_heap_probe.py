@@ -208,6 +208,68 @@ def test_a_daemon_that_STOPS_BEFORE_CAPTURE_arms_nothing(tmp_path, monkeypatch):
     assert not (tmp_path / "captures" / capture.HEAP_PROBE_NAME).exists()
 
 
+def test_PLANT_a_restart_between_ARM_and_TRACING_keeps_the_request(tmp_path, monkeypatch):
+    """The 2026-10-13 defect. A request written for that night was consumed at arm 14:36:14, capture never
+    went live under that daemon, and the 17:15:52 restart lost it, so the night ran untraced. Both early
+    exits — a stop before capture and a stop during the start-after wait — must leave the file for the
+    next start, which then traces."""
+    req = tmp_path / "heap-probe.request"
+    req.write_text("2026-10-13 night")
+    capture.STATUS.clear()  # never recording
+
+    async def stop(_s):
+        return True
+
+    monkeypatch.setattr(capture, "_stop_or_sleep", stop)
+    _run(capture.heap_probe({"heap_probe": {"enabled": True}}, str(tmp_path)))
+    assert req.exists(), "a stop before capture must not use up the request"
+
+    capture.STATUS["recording"] = True  # capture is live, then the daemon stops inside start_after
+    _run(capture.heap_probe({"heap_probe": {"enabled": True}}, str(tmp_path)))
+    assert req.exists(), "a stop during the start-after wait must not use up the request"
+    assert not (tmp_path / "captures" / capture.HEAP_PROBE_NAME).exists()
+
+    _capture_is_live(monkeypatch)  # the next start reaches tracing and consumes it there
+    cfg = {"heap_probe": {"enabled": True, "start_after_min": 0, "interval_min": 0, "snapshots": 1, "top": 5}}
+    _run(capture.heap_probe(cfg, str(tmp_path)))
+    assert not req.exists() and (tmp_path / "heap-probe.request.consumed").exists()
+    assert (tmp_path / "captures" / capture.HEAP_PROBE_NAME).exists()
+
+
+def test_a_request_still_fires_ONCE_only(tmp_path, monkeypatch):
+    """Moving the consume must not bring back the standing-flag defect: a traced run uses the request,
+    and the next start with the same permission traces nothing."""
+    _capture_is_live(monkeypatch)
+    (tmp_path / "heap-probe.request").write_text("t")
+    cfg = {"heap_probe": {"enabled": True, "start_after_min": 0, "interval_min": 0, "snapshots": 1, "top": 5}}
+    _run(capture.heap_probe(cfg, str(tmp_path)))
+    out = tmp_path / "captures" / capture.HEAP_PROBE_NAME
+    assert len(json.loads(out.read_text())["rows"]) == 1
+    _run(capture.heap_probe(cfg, str(tmp_path)))
+    assert len(json.loads(out.read_text())["rows"]) == 1, "a second start must not trace again"
+    assert not tracemalloc.is_tracing()
+
+
+def test_a_request_that_VANISHES_before_tracing_refuses_to_trace(tmp_path, monkeypatch, caplog):
+    """Fail closed at the new consume site. The file existed at arm and is gone when tracing would start
+    (another start used it, or someone removed it), so the consume fails and nothing traces."""
+    req = tmp_path / "heap-probe.request"
+    req.write_text("t")
+    capture.STATUS["recording"] = True
+
+    async def vanish(_s):
+        req.unlink()
+        return False
+
+    monkeypatch.setattr(capture, "_stop_or_sleep", vanish)
+    was_tracing = tracemalloc.is_tracing()
+    with caplog.at_level("INFO"):
+        _run(capture.heap_probe({"heap_probe": {"enabled": True}}, str(tmp_path)))
+    assert "request gone before tracing" in caplog.text
+    assert tracemalloc.is_tracing() == was_tracing
+    assert not (tmp_path / "captures" / capture.HEAP_PROBE_NAME).exists()
+
+
 def test_a_stop_MID_window_still_stops_tracing_and_disarms(tmp_path, monkeypatch):
     """The `finally` is the point: shutdown must not leave tracemalloc taxing every allocation."""
     _capture_is_live(monkeypatch)

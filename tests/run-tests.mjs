@@ -24,8 +24,14 @@ import {
   classifyStamps as rebaseClassifyStamps,
   duplicateLedgerKeys as rebaseDuplicateLedgerKeys,
   generatedSet as rebaseGeneratedSet,
-  docsOutputFromText as rebaseDocsOutputFromText
+  docsOutputFromText as rebaseDocsOutputFromText,
+  quotedVerdictKeys as rebaseQuotedVerdictKeys
 } from '../tools/rebase-safe.mjs';
+/* AND THIS IMPORT IS ITSELF AN ASSERTION. `tools/pr-compliance.mjs` ended in a bare
+   `process.exit(main())`, so importing it ran the whole gate and exited the importer before the
+   import resolved — measured 2026-10-20. An unguarded entry takes this SUITE down, loudly, which is
+   the right failure for a module whose exported surface other tools now depend on. */
+import { extractVerdicts as prExtractVerdicts } from '../tools/pr-compliance.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { corpusSearch } from '../tools/regen-goldens-core.mjs';
 import { classify as qdClassify, pick as qdPick, attention as qdAttention, redLedger as qdRedLedger, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
@@ -3109,6 +3115,14 @@ async function main() {
        `merge=union` path never conflicts — so the STOP branch cannot fire and the tool reports success
        over a corrupted ledger. Pure, so the suite can hold both controls. */
     rebaseDuplicateLedgerKeys: rebaseDuplicateLedgerKeys,
+    /* Which quoted verdicts a rebase is allowed to speak about. Pure, so the suite drives the two
+       directions that matter by value: a body quoting nothing yields `null` rather than an empty
+       all-clear, and a verdict this guard cannot be right about — no commit, a sha-shaped nothing —
+       is dropped rather than guessed at. */
+    rebaseQuotedVerdictKeys: rebaseQuotedVerdictKeys,
+    /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
+       parser that judges it, so the two cannot disagree about what a quoted verdict is. */
+    prExtractVerdicts: prExtractVerdicts,
     /* land-pr's PURE decision core. Same shape and same reason as rebaseClassify above: the tool's
        value is a state machine that must not be re-derived by hand in every session, and a state
        machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),

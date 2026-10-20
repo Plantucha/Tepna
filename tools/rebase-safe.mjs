@@ -61,6 +61,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
 import { parseRows as parseLedgerRows } from './residue-ids.mjs';
+import { extractVerdicts } from './pr-compliance.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -475,6 +476,75 @@ async function reportStampDamage(before) {
   }
 }
 
+/* THE SECOND KIND OF EVIDENCE A REBASE DESTROYS — and the one that costs a CI round-trip rather than a
+   corpus run. `pr-compliance` check 8 holds a body's quoted `tepna.verdict/1` to the code that merges:
+   the object's `producedBy.commit` must be in the PR's history. A rebase rewrites every commit on the
+   branch, so it drops that one UNCONDITIONALLY. The body lives on GitHub, where nothing else in this
+   tool looks, so the branch comes back green here and reds in CI minutes later.
+
+   MEASURED 2026-10-20 on two branches off one base, each carrying one non-Markdown file commit: the
+   rebased leg reds with "is not in this PR's history", the merged leg raises nothing. #3506 paid three
+   4-minute re-runs of one mutation sweep in one evening, and all three reported the same 27 mutants
+   and the same 7 survivors at the same 5 lines — the re-runs bought nothing, because the code they
+   examined had not moved.
+
+   SILENT WITHOUT EVIDENCE, AND NEVER FAILING. No `gh`, no network, no PR, or a body quoting no
+   verdict all yield a `null` snapshot, and a null snapshot is not an all-clear — the report refuses to
+   run on one rather than printing a clean line it cannot support. The three-way split is
+   `classifyStamps`, reused rather than re-derived: before-and-after booleans over a keyed map is the
+   same decision, and a verdict already foreign BEFORE the rebase must not be blamed on it. */
+export function quotedVerdictKeys(body) {
+  const vs = extractVerdicts(String(body || '')).filter((v) => v.commit && /^[0-9a-f]{7,40}$/i.test(v.commit));
+  /* `null`, not `[]`: "this body quotes nothing to judge" is not "nothing is wrong here", and the
+     reporter distinguishes them. A verdict naming no commit, or a sha check 8 would call
+     `unresolved` on its own terms, is dropped here — this guard speaks only where it can be right. */
+  if (!vs.length) return null;
+  return vs.map((v) => ({ key: (v.gate || 'a verdict') + ' at ' + v.commit, commit: v.commit }));
+}
+
+function reachableFromHead(sha) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false; /* absent from the clone, or on no path to HEAD — check 8 reds either way */
+  }
+}
+
+function quotedVerdictStates() {
+  let body = null;
+  try {
+    /* stderr ignored on purpose: with no PR for this branch `gh` writes a multi-line error, and a
+       guard that is silent by design must not leak the probe it used to decide it had nothing to say. */
+    body = execFileSync('gh', ['pr', 'view', '--json', 'body', '--jq', '.body'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch {
+    return null;
+  }
+  const ks = quotedVerdictKeys(body);
+  if (!ks) return null;
+  const st = {};
+  for (const k of ks) st[k.key] = reachableFromHead(k.commit);
+  return st;
+}
+
+function reportVerdictDamage(before) {
+  if (!before || !Object.keys(before).length) return;
+  const after = quotedVerdictStates();
+  if (!after) return; // the body stopped being readable ⇒ no claim in either direction
+  const { staled, pre } = classifyStamps(before, after);
+  if (staled.length) {
+    console.log(paint('\n⚠ THIS REBASE DROPPED THE COMMIT ' + staled.length + ' QUOTED tepna.verdict/1 OBJECT(S) NAME — pr-compliance check 8 will red the body:', C.red));
+    staled.forEach((k) => console.log('    ' + k));
+    console.log('  Re-run the deciding tool on the NEW head, put the new object in the PR body, and push');
+    console.log('  an empty commit — a body edit alone does not re-run the gate, which reads the trigger payload.');
+    console.log('  (A `git merge origin/main` keeps a quote fresh: the commit stays an ancestor, and the');
+    console.log('   briefs/RESIDUE.md conflict that forces most of these rebases is Markdown, which check 8 excludes.)');
+  }
+  if (pre.length && !staled.length) {
+    console.log(paint('\n· ' + pre.length + ' quoted verdict(s) were already outside this history before the rebase — not damage from it.', C.yel));
+  }
+}
+
 /**
  * THE BACKSTOP FOR THE CONFLICT-DRIVEN MODEL'S ONE BLIND SPOT (see the header).
  *
@@ -593,6 +663,10 @@ async function main() {
     stampsBefore = null; // no snapshot ⇒ the report stays silent rather than guessing
   }
 
+  /* Same before/after shape as the stamps, and for the same reason: a verdict this branch quoted at a
+     commit that was ALREADY outside its history is not damage this rebase did. */
+  const verdictsBefore = quotedVerdictStates();
+
   const doBuild = !argv.includes('--no-build');
 
   if (git('status', '--porcelain')) {
@@ -658,6 +732,7 @@ async function main() {
     }
   }
   await reportStampDamage(stampsBefore);
+  reportVerdictDamage(verdictsBefore);
 
   console.log(paint('\n✓ rebase-safe done. VERIFY YOUR OWN CHANGES SURVIVED before pushing, e.g.', C.bold));
   console.log('    git show HEAD:<file> | grep -c <an identifier your change adds>');
