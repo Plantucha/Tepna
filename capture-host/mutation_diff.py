@@ -482,12 +482,42 @@ def entry_before_in_source(key: "str | None", source: str) -> bool:
     inline comment and the eighth for a before spanning two lines of a wrapped call, whose key reads
     `- a | - b | + c`. Comparing normalised to normalised corrects all 8 and moves nothing the other
     way. The test stays a SUBSTRING, because a mutant of a wrapped expression carries a fragment of
-    its source line, and a multi-line before holds only when EVERY removed line is still there."""
-    if not key or not key.startswith("- "):
+    its source line, and a multi-line before holds only when EVERY removed line is still there.
+
+    ⚠️ THE SPACE AFTER THE MARKER IS NOT PART OF THE FORMAT, and reading it as part of the format was
+    the second instance of this same misreport. A unified-diff line is the marker plus the source line
+    verbatim, so a line at ZERO indentation carries no space at all: `diff_key` writes
+    `-def _drain_fsync(timeout: float = 5.0) -> None:`. The old guard `key.startswith("- ")` rejected
+    every such key, and the `[2:]` slice would have eaten the first character of the code. Measured
+    2026-10-20 over the ledger's 306 keyed entries: 1 was misreported that way, `writers.py`'s
+    `_drain_fsync` signature, and the 2026-10-19 measurement above missed the class because every
+    entry it read carried indentation. The excuse itself never lapsed — `classify` compares the key
+    against `diff_key` output verbatim — so what this function got wrong was the DIAGNOSIS, which told
+    a reader to re-verify an entry whose line sits unchanged in its module.
+
+    ⚠️ A REMOVED LINE MAY CONTAIN THE ` | ` THAT KEYS ARE JOINED WITH, which is residue
+    `2026-09-29-survivor-printer-splits-a-key-on-its-own-separator` met on this side of the file. So
+    the parse walks the segments and re-joins any segment that does not open with a marker onto the
+    one before it, rather than splitting on ` | + ` and hoping no source line holds that text."""
+    if not key:
         return False
-    normalised = "\n".join(" ".join(ln.split()) for ln in source.splitlines())
-    removed = [" ".join(seg.split()) for seg in key.split(" | + ")[0][2:].split(" | - ")]
+    segments: list[str] = []
+    for part in key.split(" | "):
+        if part[:1] in ("-", "+"):
+            segments.append(part)
+        elif segments:
+            segments[-1] += " | " + part
+        else:
+            return False
+    if not segments[0].startswith("-"):
+        return False
+    removed = []
+    for seg in segments:
+        if seg.startswith("+"):
+            break
+        removed.append(" ".join(seg[1:].split()))
     removed = [seg for seg in removed if seg]
+    normalised = "\n".join(" ".join(ln.split()) for ln in source.splitlines())
     return bool(removed) and all(seg in normalised for seg in removed)
 
 

@@ -143,6 +143,44 @@ def test_a_before_LINE_OF_ONE_CHARACTER_is_read_from_the_right_offset():
     assert M.entry_before_in_source("- ) | + ),", src) is True
 
 
+def test_a_before_line_at_ZERO_INDENTATION_carries_NO_SPACE_after_the_marker():
+    """🔴 The marker is structural; the space after it belongs to the INDENTED case alone.
+
+    A unified-diff line is the marker plus the source line verbatim, so a module-level line gives
+    `-def f(...)` with nothing between — and `diff_key` writes exactly that. The old guard
+    `key.startswith("- ")` refused every such key, and the `[2:]` slice would have eaten the first
+    character of the code. `mutate_diff.py` then told a reader the entry was ORPHANED, which reads
+    "the line moved, or the entry is malformed", about a line sitting unchanged in its module.
+
+    Measured 2026-10-20 over the ledger's 306 keyed entries: 1 misreported that way, `writers.py`'s
+    `_drain_fsync` signature, and 0 moved the other way. The excuse itself never lapsed, because
+    `classify` compares the key against `diff_key` output verbatim — the DIAGNOSIS lied."""
+    src = "import os\n\n\ndef _drain_fsync(timeout: float = 5.0) -> None:\n    return os.sync()\n"
+    key = "-def _drain_fsync(timeout: float = 5.0) -> None: | +def _drain_fsync(timeout: float = 6.0) -> None:"
+    assert key.startswith("- ") is False, "the old guard's assumption is the bug this test pins"
+    assert M.entry_before_in_source(key, src) is True
+    moved = "-def _drain_fsync(timeout: float = 4.0) -> None: | +def _drain_fsync(timeout: float = 6.0) -> None:"
+    assert M.entry_before_in_source(moved, src) is False
+
+
+def test_a_removed_line_may_CONTAIN_the_separator_that_keys_are_joined_with():
+    """Residue `2026-09-29-survivor-printer-splits-a-key-on-its-own-separator`, met on this side of it.
+
+    `diff_key` joins its lines with ` | `, so a source line holding a bitwise or puts that same text
+    INSIDE one line. A split on the separator alone then reads one line as two and finds neither. The
+    parse walks the segments instead and re-joins any segment that opens with no marker onto the one
+    before it."""
+    src = "def f(a, b):\n    mask = a | b\n    return mask\n"
+    assert M.entry_before_in_source("- mask = a | b | + mask = a & b", src) is True
+    assert M.entry_before_in_source("- mask = a | c | + mask = a & c", src) is False
+
+
+def test_a_key_whose_FIRST_SEGMENT_IS_NOT_A_DIFF_LINE_states_nothing_to_look_for():
+    """A key opening with neither marker is not diff output, so it claims nothing checkable and reads
+    as orphaned rather than as present (§∅). The entry is then the thing to re-verify."""
+    assert M.entry_before_in_source("mask = a | b", "mask = a | b\n") is False
+
+
 def test_a_key_that_states_no_REMOVED_line_can_never_claim_its_line_is_present():
     """Absence of evidence is reported as orphaned, never as present (§∅): the entry is then the
     thing to re-verify. A key with no `- ` head, or none at all, states nothing to look for."""
