@@ -96,9 +96,25 @@ const DEVICE = String(opt('--device', 'o2ring')).toLowerCase();
    cannot see it" — and that is the reading that kept a settling measurement looking impossible. */
 const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
 
-import { EPOCH_MS, MATCH_MS, HR_BIN_MS, MAX_LAG_MS, mean, sd, quantile, median, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
+import {
+  EPOCH_MS,
+  MATCH_MS,
+  HR_BIN_MS,
+  MAX_LAG_MS,
+  mean,
+  sd,
+  quantile,
+  median,
+  hrEnvelope,
+  envelopeLagMs,
+  refineLagByMatch,
+  matchBeats,
+  refinePeaks,
+  ppiJitterMs,
+  rateAgreement
+} from './ppi-match.mjs';
 /* Re-exported so the existing import surface of this file is unchanged for any consumer. */
-export { hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs };
+export { hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs, rateAgreement };
 
 /* ════════════════════════════════════════ SELFTEST ════════════════════════════════════════ */
 /* The usage string is a CONSTANT so the selftest can check it against the flags the tool actually
@@ -195,6 +211,65 @@ function selftest() {
   ok('a non-consecutive pair contributes no jitter sample (too few ⇒ null)', gj === null, JSON.stringify(gj));
   ok('sd is the SAMPLE sd (÷ n−1)', Math.abs(sd([800, 900]) - Math.sqrt(5000)) < 1e-9);
   ok('quantile interpolates — IQR is not a nearest-rank approximation', quantile([1, 2, 3, 4], 0.25) === 1.75, String(quantile([1, 2, 3, 4], 0.25)));
+  /* THE HARMONIC LEG (row `2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic`). A detector
+     firing twice per beat is the failure this endpoint gated nine punch-list items against, and it
+     could not see one: the extra beats pair with nothing, no two matched pairs stay consecutive, and
+     `ppiJitterMs` REFUSES — which the corpus loop reads as "drop this epoch". The epochs that remain
+     are the ones where nothing went wrong. Both halves are asserted below, the blindness and the
+     figure that replaces it, because asserting only the fix would leave the next reader to guess what
+     it is for. The train is planted at 48 bpm: that is the rate the witness in `tests/dex-tests.js`
+     reads as 106.57 bpm under a centred TERMA average, and the nine comparable nights never go there. */
+  const slow = (bpm, seed) => {
+    let z = seed;
+    const r = () => {
+      z = (z * 1103515245 + 12345) & 0x7fffffff;
+      return z / 0x7fffffff - 0.5;
+    };
+    const base = 60000 / bpm;
+    const ecg = [],
+      finger = [];
+    let t = 0;
+    while (t < EPOCH_MS) {
+      const rr = base + 0.07 * base * Math.sin(ecg.length / 17.3) + 0.045 * base * Math.sin(ecg.length / 7.1 + 1.3);
+      t += rr;
+      ecg.push(t);
+      finger.push(t + 200 + r() * 6 * 3.46);
+    }
+    return { ecg, finger };
+  };
+  const twice = (f) => {
+    const o = [];
+    for (let i = 0; i < f.length; i++) {
+      o.push(f[i]);
+      if (i + 1 < f.length) o.push((f[i] + f[i + 1]) / 2);
+    }
+    return o;
+  };
+  {
+    const S48 = slow(48, 7);
+    const win = (a) => a.filter((x) => x >= 0 && x < EPOCH_MS);
+    const clean = win(S48.finger),
+      harm = win(twice(S48.finger));
+    const jc = ppiJitterMs(clean, S48.ecg, matchBeats(clean, S48.ecg, 200));
+    const jh = ppiJitterMs(harm, S48.ecg, matchBeats(harm, S48.ecg, 200));
+    ok('a clean 48 bpm train yields a jitter at all', jc != null, JSON.stringify(jc));
+    ok('a DOUBLED train refuses the jitter — so the corpus loop drops the epoch rather than scoring it', jh === null, JSON.stringify(jh));
+    const rc = rateAgreement(clean, S48.ecg, 0, EPOCH_MS);
+    const rh = rateAgreement(harm, S48.ecg, 0, EPOCH_MS);
+    ok('the count ratio reads ~1.0 on the clean train', rc && Math.abs(rc.ratio - 1) < 0.05, rc && rc.ratio.toFixed(3));
+    ok('…and ~2.0 on the doubled one, which is the figure the jitter and the match rate cannot carry', rh && Math.abs(rh.ratio - 2) < 0.05, rh && rh.ratio.toFixed(3));
+    ok(
+      'the covered rate is reported from the ECG side, so it survives a finger-side harmonic',
+      rc && rh && Math.abs(rc.ecgBpm - rh.ecgBpm) < 1e-9,
+      rc && rc.ecgBpm.toFixed(2) + ' vs ' + (rh && rh.ecgBpm.toFixed(2))
+    );
+    ok('…and the planted 48 bpm is what it reports', rc && Math.abs(rc.ecgBpm - 48) < 2, rc && rc.ecgBpm.toFixed(2));
+    /* ∅ — an empty side has no ratio. A 0 here would read as "the devices disagree completely", which
+       is a measurement; absence is not. */
+    ok('a window with no ECG beat has NO ratio, not a ratio of 0', rateAgreement(clean, [], 0, EPOCH_MS) === null);
+    ok('a zero-length window has no ratio either', rateAgreement(clean, S48.ecg, 0, 0) === null);
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -259,7 +334,7 @@ const ecgs = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
 
 console.log('O2RING-FINGER-HRV-VALIDATION §3 — PPI-jitter sd vs paired H10 ECG (per-epoch alignment)');
 console.log('device: ' + (DEVICE === 'verity' ? 'Polar Verity Sense (WRIST — the deep-dive reference leg)' : "Wellue O2Ring (FINGER — this brief's subject)") + '\n');
-console.log('night                                        eps  jitter_sd  match%   lag_ms   RMSSD_f  RMSSD_e  bias%   sdnnRob%');
+console.log('night                                        eps  jitter_sd  match%  ratio  refBpm  drop   lag_ms   RMSSD_f  RMSSD_e  bias%   sdnnRob%');
 
 /* Build the UNITS to score. Merged: one unit per NIGHT, its beat train the union of every session's
    beats on the shared absolute (floating) clock. Unmerged: one unit per file, the legacy behaviour.
@@ -410,20 +485,47 @@ for (const unit of buildUnits(fingerFiles)) {
   const jit = [],
     rawJit = [],
     lags = [],
-    rates = [];
+    rates = [],
+    ratios = [],
+    refBpms = [];
+  /* An epoch that never reaches the figures still happened. Counting the drops by reason is what makes
+     a harmonic visible at all: its epochs do not score badly, they leave the population (§∅ — an output
+     over absent input reports the absence). */
+  let dropThin = 0,
+    dropNoLag = 0,
+    dropNoJitter = 0;
   const lo = Math.max(fw[0], best.u.t0),
     hi = Math.min(fw[1], best.u.t1);
   for (let t = lo; t + EPOCH_MS <= hi; t += EPOCH_MS) {
     const fe = fBeats.filter((x) => x >= t && x < t + EPOCH_MS);
     const ee = eBeats.filter((x) => x >= t - MAX_LAG_MS && x < t + EPOCH_MS + MAX_LAG_MS);
-    if (fe.length < 60 || ee.length < 60) continue;
+    if (fe.length < 60 || ee.length < 60) {
+      dropThin++;
+      continue;
+    }
+    /* TAKEN BEFORE THE JITTER GATE, deliberately. The gate below is where a doubled rate escapes:
+       `ppiJitterMs` refuses when no two matched pairs are consecutive, this loop then drops the epoch,
+       and both figures end up describing the epochs where nothing went wrong. Measured 2026-10-20 on a
+       planted 48 bpm train: doubling every beat refuses the jitter outright, so the epoch disappears
+       rather than reading 50 % — which is why the match rate beside the jitter never caught it. */
+    const ra = rateAgreement(fe, ee, t, t + EPOCH_MS);
+    if (ra) {
+      ratios.push(ra.ratio);
+      refBpms.push(ra.ecgBpm);
+    }
     const coarse = envelopeLagMs(hrEnvelope(fe, t, t + EPOCH_MS), hrEnvelope(ee, t, t + EPOCH_MS));
-    if (!coarse) continue;
+    if (!coarse) {
+      dropNoLag++;
+      continue;
+    }
     const lag = refineLagByMatch(fe, ee, coarse.lagMs); // §3.3 stage (b)
     const pairs = matchBeats(fe, ee, lag.lagMs);
     const rate = pairs.length / fe.length;
     const j = ppiJitterMs(fe, ee, pairs);
-    if (!j) continue;
+    if (!j) {
+      dropNoJitter++;
+      continue;
+    }
     jit.push(j.sd);
     /* The SAME epoch scored against the UNREFINED reference, so §3.2's refinement is measured rather
        than assumed. Measured on this corpus it removes ~0.08 ms at the finger's ~26 ms jitter (they add
@@ -472,6 +574,14 @@ for (const unit of buildUnits(fingerFiles)) {
     eps: jit.length,
     jitter: median(jit),
     rate: median(rates),
+    rateRatio: ratios.length ? median(ratios) : null,
+    ratioWorst: ratios.length ? ratios.reduce((a, b) => (Math.abs(b - 1) > Math.abs(a - 1) ? b : a)) : null,
+    refBpm: refBpms.length ? median(refBpms) : null,
+    refBpmLo: refBpms.length ? Math.min(...refBpms) : null,
+    refBpmHi: refBpms.length ? Math.max(...refBpms) : null,
+    dropThin,
+    dropNoLag,
+    dropNoJitter,
     lag: median(lags),
     refGain: rawJit.length ? median(rawJit) - median(jit) : null,
     cvF,
@@ -485,7 +595,7 @@ for (const unit of buildUnits(fingerFiles)) {
   });
   const n = nights[nights.length - 1];
   console.log(
-    `${n.name.slice(0, 42).padEnd(42)} ${String(n.eps).padStart(4)} ${n.jitter.toFixed(2).padStart(10)} ${(n.rate * 100).toFixed(1).padStart(7)} ${n.lag.toFixed(0).padStart(8)} ${String(n.rf ?? '—').padStart(9)} ${String(n.re ?? '—').padStart(8)} ${(n.bias == null ? '—' : n.bias.toFixed(1)).padStart(7)} ${(n.sdnnBias == null ? '—' : n.sdnnBias.toFixed(1)).padStart(9)}`
+    `${n.name.slice(0, 42).padEnd(42)} ${String(n.eps).padStart(4)} ${n.jitter.toFixed(2).padStart(10)} ${(n.rate * 100).toFixed(1).padStart(7)} ${(n.rateRatio == null ? '—' : n.rateRatio.toFixed(2)).padStart(6)} ${(n.refBpm == null ? '—' : n.refBpm.toFixed(1)).padStart(7)} ${String(n.dropThin + n.dropNoLag + n.dropNoJitter).padStart(5)} ${n.lag.toFixed(0).padStart(8)} ${String(n.rf ?? '—').padStart(9)} ${String(n.re ?? '—').padStart(8)} ${(n.bias == null ? '—' : n.bias.toFixed(1)).padStart(7)} ${(n.sdnnBias == null ? '—' : n.sdnnBias.toFixed(1)).padStart(9)}`
   );
 }
 
@@ -511,6 +621,29 @@ console.log(
   `  PPI-jitter sd (PRIMARY)   ${fmt(J)} ms      [${DEVICE === 'verity' ? 'Verity WRIST reference: 5.92 ms — like-for-like' : 'no published reference for the O2Ring FINGER; 5.92 ms is the VERITY WRIST figure and is NOT comparable'}]`
 );
 console.log(`  beat match rate           ${fmt(R)} %`);
+/* THREE FIGURES THE MATCH RATE CANNOT CARRY, and the row `2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic`
+   is why they are here. The jitter and the match rate are both scored over beats that PAIRED, and a
+   detector firing twice per beat refuses the jitter instead of lowering the rate, so its epochs leave
+   the population and the survivors read clean. The count ratio is taken before the pairing; the drop
+   tally says how many epochs never reached a figure, by reason; and the covered rate range says which
+   rates were examined at all, because a variant that only misbehaves at 48 bpm is invisible on a corpus
+   that never goes there. Read as a verdict about data these three decide nothing on their own — the
+   acceptance bar lives in the brief's §4, which now reads them. */
+const RA = nights.filter((n) => n.rateRatio != null).map((n) => n.rateRatio);
+const BP = nights.filter((n) => n.refBpm != null).map((n) => n.refBpm);
+const LOS = nights.filter((n) => n.refBpmLo != null).map((n) => n.refBpmLo);
+const HIS = nights.filter((n) => n.refBpmHi != null).map((n) => n.refBpmHi);
+const WORST = nights.filter((n) => n.ratioWorst != null).map((n) => n.ratioWorst);
+const dThin = nights.reduce((a, n) => a + n.dropThin, 0);
+const dLag = nights.reduce((a, n) => a + n.dropNoLag, 0);
+const dJit = nights.reduce((a, n) => a + n.dropNoJitter, 0);
+const kept = nights.reduce((a, n) => a + n.eps, 0);
+console.log(`  beat-count ratio f/ECG    ${fmt(RA)}        [1.00 is one finger beat per ECG beat; a doubled rate reads 2.00]`);
+console.log(
+  `                            worst night ${WORST.length ? WORST.reduce((a, b) => (Math.abs(b - 1) > Math.abs(a - 1) ? b : a)).toFixed(2) : 'n/a'} — taken BEFORE the jitter gate, so a refused epoch still counts here`
+);
+console.log(`  epochs dropped            ${dThin} thin · ${dLag} no envelope lag · ${dJit} jitter refused   (${kept} kept — a dropped epoch leaves both figures above)`);
+console.log(`  reference rate covered    ${BP.length ? `median ${median(BP).toFixed(1)} bpm · slowest epoch ${Math.min(...LOS).toFixed(1)} · fastest ${Math.max(...HIS).toFixed(1)}` : 'n/a'}`);
 console.log(`  RMSSD bias vs ECG         ${fmt(Bs)} %`);
 /* §4: CVHR promotes only if the finger agrees with ECGDex within the Integrator's band on SLEEP nights.
    Scored only where BOTH nodes produced an index and the records genuinely overlap — a thin overlap makes
@@ -539,5 +672,7 @@ console.log(`  ^ dispSd is ECGDex's MEDIAN of per-5-min epoch SDNN — sdnnRobus
     Pairing it against whole-record \`sdnn\` instead reads ~−29 % on BOTH devices: an offset of construction.`);
 console.log(
   '\nThe match rate is reported BESIDE the jitter, never folded into it: a low rate means the jitter\n' +
-    'figure describes whichever beats happened to pair, not the night. Read them together or not at all.'
+    'figure describes whichever beats happened to pair, not the night. Read them together or not at all.\n' +
+    'And both describe the RATE RANGE named above, not every rate a device can reach: a change that\n' +
+    'misbehaves outside that range moves nothing here. Quote the range with the figure.'
 );

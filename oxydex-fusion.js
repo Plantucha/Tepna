@@ -1163,6 +1163,20 @@ function handleEcgJson(file) {
    (residue 2026-10-06-no-committed-fixture-pairs-an-ecg). It lives here, beside the computation it
    maps, so the app and the fixture regenerator build the SAME block from ONE source. The mapping is
    byte-for-byte the app's — moving it is not an occasion to change a field. */
+/* ECGDex's `estimatedAHI` and `riskCategory` are RETIRED (ECGDEX-CARDIOPULMONARY-COUPLING §10) and
+   ECGDex REMOVES them rather than nulling them (`ecgdex-dsp.js`), so a CURRENT export carries neither
+   key and reading them here dropped out of `JSON.stringify` by luck. A LEGACY export still carrying
+   `estimatedAHI` folded it straight back into a node export — the resurrection `integrator-dsp.js`
+   refuses by name. Only the CVHR screen travels, and the index's DENOMINATOR travels WITH it:
+   `cvhrIndex` is events per hour of OBSERVED recording, so a reader who sees "N /h" can see which
+   hours. `cvhrHours` is attached only where ECGDex attached it — a refusal carries no basis, and a
+   null key invites someone to fill it. */
+function _ecgApneaScreen(ap) {
+  var out = { cvhrIndex: ap.cvhrIndex, cvhrEvents: ap.cvhrEvents };
+  if (ap.cvhrHours != null) out.cvhrHours = ap.cvhrHours;
+  return out;
+}
+
 function oxyEcgFusionBlock(F) {
   if (!F) return null;
   return {
@@ -1183,7 +1197,7 @@ function oxyEcgFusionBlock(F) {
     crcPLV: { baseline: F.plvB, duringSurges: F.plvS, dropsDuringSurges: F.plvB != null && F.plvS != null ? F.plvS < F.plvB : null, wholeNight: F.cr ? F.cr.crcPLV : null },
     hrCrossCheck: { oxyMeanHr: F.oxyMeanHr, ecgMeanHr: F.ecgMeanHr, deltaBpm: F.hrDelta, oxyFloor: F.oxyFloor, ecgFloor: F.ecgFloor },
     realHRV: { rmssd: F.t.rmssd, sdnn: F.t.sdnn, pnn50: F.t.pnn50, meanHr: F.t.hr },
-    ecgApnea: F.ap ? { estimatedAHI: F.ap.estimatedAHI, cvhrIndex: F.ap.cvhrIndex, cvhrEvents: F.ap.cvhrEvents, riskCategory: F.ap.riskCategory } : null,
+    ecgApnea: F.ap ? _ecgApneaScreen(F.ap) : null,
     respRateInstability: F.rstat
   };
 }
