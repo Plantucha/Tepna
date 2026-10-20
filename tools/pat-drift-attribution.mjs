@@ -173,7 +173,9 @@ export function attribute(observedSlope, predictedSlope) {
 
 function selftest() {
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     if (!c) fails.push(m);
   };
   /* A planted pure clock drift must be attributed to the clock. */
@@ -232,7 +234,7 @@ function selftest() {
   const rrSum = R[3] - R[0];
   ok(Math.abs(lagDelta - (ffSum - rrSum)) < 1e-9, 'lag drift IS sum(ff)-sum(rr) — identically, so it cannot discriminate');
 
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (22/22)');
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length === 0;
 }
 

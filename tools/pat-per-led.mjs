@@ -198,7 +198,9 @@ function selftest() {
     return s;
   };
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     console.log(`  ${c ? 'ok  ' : 'FAIL'}  ${m}`);
     if (!c) fails.push(m);
   };
@@ -207,7 +209,7 @@ function selftest() {
   ok(s1 > 5 && s1 < 20, `A/B=10 lands near 10 through both passbands (got ${s1.toFixed(2)})`);
   ok(Math.abs(s1 / s2 - 2) < 0.15, `doubling the noise tone halves SNR (ratio ${(s1 / s2).toFixed(3)})`);
   ok(chanSNR(mk(1, 10), fs) < 1, `noise-dominated signal reads SNR < 1 (got ${chanSNR(mk(1, 10), fs).toFixed(2)})`);
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})` : 'SELFTEST PASS (3/3)');
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length === 0;
 }
 if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);

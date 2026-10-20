@@ -127,7 +127,9 @@ if (argv.includes('--verdict-sample')) {
 
 if (argv.includes('--selftest')) {
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     if (!c) fails.push(m);
   };
   const S = { distinguishable: 2, noDistinguishing: 3, realmFail: 0 };
@@ -148,13 +150,12 @@ if (argv.includes('--selftest')) {
   const nr = probeVerdict({ offered: 14, built: 0, blind: 0, survivors: S, baseErr: 'ReferenceError: x', commit: 'abc1234' });
   ok(nr.status === 'NOT_RUN' && nr.result === null && eq(nr), `BASE FAILED ⇒ NOT_RUN with result null: ${nr.status}`);
   ok(/may contain genuine equivalents/.test(clean.criterion.name), 'criterion.name says the survivor plant set may contain equivalents, so nobody later scores it');
-  const N = 8;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
-    console.log(`SELFTEST FAIL (${fails.length} of ${N})`);
+    console.log(`SELFTEST FAIL (${fails.length} of ${ran})`);
     process.exit(1);
   }
-  console.log(`all ${N} selftests passed`);
+  console.log(`all ${ran} selftests passed`);
   process.exit(0);
 }
 

@@ -130,14 +130,86 @@ export function declaresNearMissSelftest(src) {
    `N assertions passed`, `… failed of 19` — is a typed count. An interpolated one (`${ran}`) carries
    no digit and is not matched. Comments are skipped, and so is a line that is not itself a print (a
    plant such as `suiteReported('✓ all 7 assertions passed')` quotes a summary, it does not print one).
-   PURE: returns the offending lines, trimmed. */
+
+   ⚠️ THE READER HAD TWO BLIND SPOTS, and both printed a number no run produced. Residue
+   `2026-10-19-selftest-count-static-check-misses-a-one-hop-literal` reported the second; measuring it
+   on 2026-10-20 over `origin/main` found the first as well, in TEN tools:
+
+     SPELLING (4) — `pat-axis-leg-audit`, `pat-drift-attribution`, `pat-per-led`, `pin-coverage` print
+     a flat `'SELFTEST PASS (7/7)'`. Two regexes here read `N selftests passed` and `failed of N`, so
+     the `PASS (n/m)` spelling that `SUMMARY_FORMATS` one function above ALREADY parses was invisible.
+     The two halves of one reader disagreed about what a summary looks like — the same defect as the
+     2026-09-16 widening, pointed at the static side.
+
+     HOP (6) — `measurement-walk` (34), `pat-mode-posture` (21), `probe-clock-equivalence` (8),
+     `residue-cite-drift` (15), `stuck-run-lengths` (12), `verdict-adoption` (83) held the count in
+     `const N = <digits>` and interpolated it, so no digit reached the print line. `pat-window-oracle`
+     was the reported instance (#3675) and the row's sweep named it the only one, because that sweep
+     looked for a digit ON the print line — the very shape this rule could not see.
+
+   So `typedSummary` now reads the file's own `SUMMARY_FORMATS` vocabulary, and the scan resolves one
+   hop through `typedNumericConsts`. Both widenings are deliberately narrow, because this file's own
+   warning against a sixth regex applies to its static half too:
+   - A `SUMMARY_FORMATS` match must share its line with the word `selftest`. `PASS (n/m)` is generic,
+     and without the marker a tool printing a RESULT ratio would read as an assertion count — this
+     file's defect class pointed at itself. Measured cost today: 0 of the 4, which all say `SELFTEST`.
+     A typed `PASS (n/m)` printed with no marker word stays invisible, and that is a known limit, not
+     an oversight.
+   - Only a `const` counts as a hop. See `typedNumericConsts`.
+   PURE: returns the offending lines, trimmed; a hop line names the constant it resolved. */
 export function literalCountLines(src) {
+  const text = String(src || '');
+  const consts = typedNumericConsts(text);
   const out = [];
-  for (const raw of String(src || '').split('\n')) {
+  for (const raw of text.split('\n')) {
     const s = raw.trim();
     if (/^(\/\/|\/\*|\*)/.test(s)) continue;
     if (!/console\.(log|error)\(|process\.stdout\.write\(/.test(s)) continue;
-    if (/\b\d+\s+(?:selftests?|assertions?)\s+passed\b/.test(s) || /\b(?:failed|FAILED)\b[^\n]*\bof\s+\d+\b/.test(s)) out.push(s.slice(0, 120));
+    if (typedSummary(s)) {
+      out.push(s.slice(0, 120));
+      continue;
+    }
+    let sub = s;
+    const used = [];
+    for (const [k, v] of consts) {
+      const re = new RegExp('\\$\\{\\s*' + k + '\\s*\\}', 'g');
+      if (!re.test(sub)) continue;
+      sub = sub.replace(re, v);
+      used.push(k + ' = ' + v);
+    }
+    if (used.length && typedSummary(sub)) out.push(s.slice(0, 100) + '   \u2190 typed one hop away: ' + used.join(', '));
+  }
+  return out;
+}
+
+/* A summary line carrying a count somebody typed. The first two spellings are the original rule. The
+   rest come from `SUMMARY_FORMATS` — the same list the RUNTIME half parses — and only on a line that
+   names a selftest, which is the false-positive guard the doc above states. PURE. */
+export function typedSummary(line) {
+  const s = String(line || '');
+  if (/\b\d+\s+(?:selftests?|assertions?)\s+passed\b/.test(s)) return true;
+  if (/\b(?:failed|FAILED)\b[^\n]*\bof\s+\d+\b/.test(s)) return true;
+  if (!/selftest/i.test(s)) return false;
+  return SUMMARY_FORMATS.some((re) => {
+    const m = s.match(re);
+    return !!m && m[1] !== undefined;
+  });
+}
+
+/* The `const NAME = <digits>` bindings in a file, as NAME → the digits. A `const` can never be
+   reassigned, so a numeric one is a typed number on every line that reads it, however far from the
+   print it sits. ⚠️ A COUNTER IS NOT A HOP, and the exclusion is load-bearing: a first pass that took
+   any `let`/`var` numeric flagged 56 of 104 tools (measured 2026-10-20), nearly all of them correct
+   counters — `let ran = 0` incremented by the assertion helper is exactly what this rule ASKS for.
+   `let` and `var` are therefore left alone, which also means a never-reassigned `let` holding a count
+   stays invisible here; that is the safe direction. PURE. */
+export function typedNumericConsts(src) {
+  const out = new Map();
+  for (const raw of String(src || '').split('\n')) {
+    const s = raw.trim();
+    if (/^(\/\/|\/\*|\*)/.test(s)) continue;
+    const m = s.match(/^const\s+([A-Za-z_$][\w$]*)\s*=\s*(\d+)\s*(?:;|$)/);
+    if (m) out.set(m[1], m[2]);
   }
   return out;
 }
@@ -420,6 +492,29 @@ if (argv.includes('--selftest')) {
     eq(literalCountLines('console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);').length === 0, 'literal · an interpolated denominator is NOT flagged');
     eq(literalCountLines("// console.log('all 14 selftests passed')\n * 'all 14 selftests passed'").length === 0, 'literal · a comment is not a print');
     eq(literalCountLines("ok(suiteReported('✓ all 7 assertions passed') === true);").length === 0, 'literal · a quoted plant that is not itself a print is not flagged');
+
+    /* ── THE SPELLING HALF ── the `PASS (n/m)` form `SUMMARY_FORMATS` parses, which the two original
+       regexes could not see. Four tools printed a flat one (measured 2026-10-20). */
+    eq(literalCountLines("console.log('SELFTEST PASS (7/7)');").length === 1, 'spelling · a flat `SELFTEST PASS (7/7)` is a typed count');
+    eq(literalCountLines("console.log(fail ? `FAIL (${fail})` : 'SELFTEST PASS (22/22)');").length === 1, 'spelling · a typed PASS beside an interpolated FAIL is still caught');
+    eq(literalCountLines("console.log('SELFTEST PASS (12 passed, 0 failed)');").length === 1, 'spelling · the `N passed, M failed` form counts too');
+    eq(literalCountLines('console.log(`SELFTEST PASS (${ran}/${ran})`);').length === 0, 'spelling · an interpolated PASS ratio is NOT flagged');
+    /* DECOY: the marker word is the false-positive guard this file's own ratchet comment asks for. A
+       RESULT ratio is not an assertion count, and a reader matching `n/m` anywhere would say it is. */
+    eq(literalCountLines("console.log('GATE PASS (12/12)');").length === 0, 'spelling DECOY · a PASS ratio with no selftest marker is a RESULT, never an assertion count');
+    eq(literalCountLines("console.log('coupling PASS (31/52) nights');").length === 0, 'spelling DECOY · a measured ratio in a tool report is not a summary');
+
+    /* ── THE HOP HALF ── residue `2026-10-19-selftest-count-static-check-misses-a-one-hop-literal`. */
+    eq(typedNumericConsts('const N = 83;\nconst NAME = 4;\n').get('N') === '83', 'hop · a numeric const is collected');
+    eq(typedNumericConsts('const ROWS = items.length;\nconst R = /\\d+/;\n').size === 0, 'hop · a computed or non-numeric const is not a typed number');
+    eq(typedNumericConsts('// const N = 9;\n   * const M = 9;\n').size === 0, 'hop · a const inside a comment is not collected');
+    eq(typedNumericConsts('let ran = 0;\nvar seen = 0;\n').size === 0, 'hop DECOY · a `let`/`var` counter is NOT a hop — taking them flagged 56 of 104 tools, nearly all correct');
+    eq(literalCountLines('const N = 83;\nconsole.log(`all ${N} selftests passed`);').length === 1, 'hop · a count one hop away in a const IS a typed count');
+    eq(literalCountLines('const TOTAL = 45;\nconsole.log(`SELFTEST PASS (${TOTAL}/${TOTAL})`);').length === 1, 'hop · the `pat-window-oracle` shape the row reported (#3675)');
+    eq(/typed one hop away: TOTAL = 45/.test(literalCountLines('const TOTAL = 45;\nconsole.log(`SELFTEST PASS (${TOTAL}/${TOTAL})`);')[0]), 'hop · the reported line NAMES the constant and its value');
+    eq(literalCountLines('let ran = 0;\nconsole.log(`all ${ran} selftests passed`);').length === 0, 'hop DECOY · a counter interpolated the same way is NOT flagged — it is what the rule asks for');
+    eq(literalCountLines('const FS = 100;\nconsole.log(`resampled at ${FS} Hz`);').length === 0, 'hop DECOY · a const in a print that is not a summary is not a count');
+    eq(literalCountLines('const N = 8;\nconsole.log(`all ${N} selftests passed`);\nconsole.log(`${f} failed of ${N}`);').length === 2, 'hop · both summary lines of one tool are reported');
     const typed = readdirSync(TOOLS)
       .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
       .filter((f) => literalCountLines(readFileSync(join(TOOLS, f), 'utf8')).length > 0)
