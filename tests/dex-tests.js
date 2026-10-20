@@ -49718,6 +49718,13 @@
       );
       T.eq('real HRV comes from the RR series, not the ring summary', JSON.stringify([shipped.realHRV.rmssd, shipped.realHRV.sdnn]), '[39.1,52.8]');
       T.eq('the ECG apnea screen reports its own CVHR count', JSON.stringify([shipped.ecgApnea.cvhrIndex, shipped.ecgApnea.cvhrEvents]), '[2,4]');
+      /* residue 2026-10-18-oxydex-fusion-rebuilds-a-retired-ahi-field. The screen carries the CVHR
+         index, its event count and the HOURS the index divides by — and neither retired field. The
+         fixture pinned the first two and nothing pinned the absence of the other two, so the block
+         read correct only because a current ECGDex export happens to carry no such key. */
+      T.eq('…with the hours the index divides by, carried from ECGDex', shipped.ecgApnea.cvhrHours, 1.97);
+      T.ok('the retired estimatedAHI is not even a key on the screen (§10)', !('estimatedAHI' in shipped.ecgApnea), 'ecgApnea = ' + JSON.stringify(shipped.ecgApnea));
+      T.ok('…nor is the retired riskCategory', !('riskCategory' in shipped.ecgApnea), 'ecgApnea = ' + JSON.stringify(shipped.ecgApnea));
 
       /* §∅ — what the pair does NOT measure stays null. A synthetic PPG-free night has no coupling to
          read and no ECG HR floor, so those report absence rather than a floor of 0. */
@@ -49744,6 +49751,23 @@
       T.eq('the recomputed block EQUALS the committed one, field for field', JSON.stringify(rebuilt), JSON.stringify(shipped));
       setByDate({});
       T.eq('a null fusion maps to a null block, not an object of nulls', blockOf(null), null);
+      /* THE RESURRECTION LEG. A legacy ECGDex export still carries `apnea.estimatedAHI` and
+         `riskCategory`, and the mapping used to copy both — so a legacy pairing folded a retired
+         number back into a CURRENT node export, which is exactly what integrator-dsp.js refuses to
+         read. Current exports carry no such key, so only a hand-built legacy block can see it. */
+      var legacyAp = {
+        estimatedAHI: { value: 9, band: 'Mild' },
+        riskCategory: 'High',
+        cvhrIndex: 3,
+        cvhrEvents: 6,
+        cvhrHours: 7.5
+      };
+      var legacyBlock = blockOf({ ap: legacyAp, latencies: [], stageAgg: {}, t: {} });
+      T.eq('a LEGACY estimatedAHI is NOT folded into the fusion block (retired §10)', JSON.stringify(legacyBlock.ecgApnea), '{"cvhrIndex":3,"cvhrEvents":6,"cvhrHours":7.5}');
+      /* And an ECGDex refusal carries no denominator, so the key is ABSENT rather than null — the same
+         no-null-key discipline ECGDex applies on its own side. */
+      var noBasis = blockOf({ ap: { cvhrIndex: null, cvhrEvents: null }, latencies: [], stageAgg: {}, t: {} });
+      T.ok('a CVHR refusal carries no cvhrHours key at all, not a null one', !('cvhrHours' in noBasis.ecgApnea), 'ecgApnea = ' + JSON.stringify(noBasis.ecgApnea));
 
       /* The extraction itself: the mapping lives in oxydex-fusion.js, and oxydex-app.js CALLS it. An app
          that rebuilds the mapping inline puts the block back out of a regen's reach, which is what made
