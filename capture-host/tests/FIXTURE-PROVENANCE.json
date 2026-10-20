@@ -572,6 +572,12 @@
       "source": "real device address(es) 28:0C:50:0C:18:FD, A0:9E:1A:9C:3B:60, E4:22:F1:C2:23:2B; was: \"CONSTRUCTED FROM A HEADER, NOT CAPTURED FROM THE AIR\"",
       "sha256": null
     },
+    "test_rate_intent.py": {
+      "class": "captured",
+      "kind": "host-output",
+      "source": "journal line and timestamp transcribed from vigil, 2026-10-19 10:59:39 — the daemon's own rate warning for the Verity Sense ACC stream",
+      "sha256": null
+    },
     "test_rec_to_psl.py": {
       "class": "derived",
       "kind": "real-night-values",
