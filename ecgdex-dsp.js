@@ -6913,6 +6913,16 @@
 
   global.ECGDSP.parseECG = parseECGText;
   global.ECGDSP.parseECGLines = parseECGLines; // bounded/streaming callers (Node fold path)
+  /* THE SAMPLE-FRAME OVERLAP RULE, exported beside the parser that produces the spans. It was
+     written with `parseEcgRuns` and then called by nobody: this node's own epoch path converts the
+     spans to the SECONDS frame its windows use (`_blankSec`), so the sample-frame form had no
+     consumer inside the node. It has one outside it — a consumer that derives beats from
+     `_ECG.txt` itself holds RR intervals as SAMPLE index pairs, which is the frame the box wrote
+     the runs in, and converting them to seconds only to compare would introduce a rounding the
+     box's own numbers do not have. Exported rather than copied: a second body would drift, and a
+     half-open predicate is exactly where an off-by-one hides. `analyze` does not call it, so
+     `computeHash` moves without any number moving. */
+  global.ECGDSP.intersectsRun = _intersectsRun;
   /* THE TWO HALVES OF THE TIMING WALK, exported because the APP LANE IS A CONSUMER (DEEP-AUDIT-VI F2)
      — not merely for assertability. `ecgdex-app.js` builds its streaming Worker from
      `ecgTimingScan.toString()` and calls `ecgTimingResolve` on the scan the Worker ships back, so
