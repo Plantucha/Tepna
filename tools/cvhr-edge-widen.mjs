@@ -298,7 +298,12 @@ export function spansGapFromHoles(tt, holes) {
 }
 
 export function scoreNight(P, path) {
-  const rec = P.parsePPG(readFileSync(path, 'utf8'), undefined);
+  /* ∅ P5 clause 2 — validity travels out of band, so the `_PPGRUNS.txt` companion goes in beside the
+     stream whenever the writer left one. This corpus holds none, so the figures this tool reports are
+     the no-sidecar ones either way; the read is here so a later capture does not silently lose it. */
+  const runs = path.replace(/\.txt$/, 'RUNS.txt');
+  const runsText = existsSync(runs) ? readFileSync(runs, 'utf8') : null;
+  const rec = P.parsePPG(readFileSync(path, 'utf8'), runsText ? { runsText } : undefined);
   if (!rec || !rec.relSec || !(rec.n > 0)) return { reason: 'parsePPG returned no samples' };
   const r = P.analyze(rec, null);
   if (!r || !r.nn || !r.tt || r.tt.length !== r.nn.length) return { reason: 'analyze returned no beat series' };
