@@ -67210,6 +67210,88 @@
       );
     });
 
+    /* Residue `2026-10-20-dual-clock-rate-reports-an-absent-directory-as-a-stack-trace`. An absent
+       capture directory reached `readdirSync` and left a `node:fs` scandir trace at exit 1 — true,
+       and undiagnosable: nothing in it said what was looked for or where. Worse were the emptinesses
+       UNDER absence, which exited 0: a directory holding the wrong night printed the header and an
+       empty table, which reads like a measurement over nothing (CLAUDE.md §∅ — an output over absent
+       input reports the absence). The predicate is pure so every branch is reachable without a
+       filesystem, and the exit-code probe below is what separates a REFUSAL from a trace, because
+       both name the path and only one of them is a decision. */
+    group('An absent, empty or mis-aimed capture directory is refused BY NAME', 'tools · clock · dir-refusal', function (T) {
+      var DC = env.DualClock;
+      /* TWO CONDITIONS, NOT ONE. The lane is the only legitimate reason to skip. Measured while
+         building this group: a single `!DC || typeof DC.captureDirRefusal !== 'function'` guard turned
+         the negative control — main's copy of the tool, with no predicate at all — into a ⊘ SKIP
+         instead of a red, so the group could not detect the export being deleted. Only the SKIP BUDGET
+         caught it, and that is a different gate's accident, not this group's assertion. */
+      if (!DC) {
+        T.skip('env.DualClock provided to the runner', 'Node-lane only (run-tests.mjs imports tools/dual-clock-rate.mjs) — the browser lane has no ESM tool import so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      T.ok('the refusal predicate is EXPORTED — its absence is a failure, never a skip', typeof DC.captureDirRefusal === 'function', 'typeof captureDirRefusal = ' + typeof DC.captureDirRefusal);
+      if (typeof DC.captureDirRefusal !== 'function') return;
+      /* ANTI-VACUITY · the shared names exist, so the tool and this group cannot be reading two
+         different patterns or two different floors. */
+      T.ok('the capture-name pattern is exported and real', DC.CAPTURE_FILE_RE instanceof RegExp && DC.CAPTURE_FILE_RE.test('Polar_H10_x_20260726_010203_ECG.txt'));
+      T.eq('the size floor is exported, not a literal in the pipeline', DC.MIN_FRAGMENT_BYTES, 3e6);
+
+      var R = function (dir, probe) {
+        return DC.captureDirRefusal(dir, probe);
+      };
+      var cases = [
+        ['no directory at all', R('', { exists: true, isDirectory: true, names: [] }), 'no-directory-given'],
+        ['an absent directory', R('/nope/nope-9f3', { exists: false }), 'directory-absent'],
+        ['a path that is a FILE', R('/tmp/afile', { exists: true, isDirectory: false }), 'not-a-directory'],
+        ['an empty directory', R('/tmp/d', { exists: true, isDirectory: true, names: [] }), 'directory-empty'],
+        ['a directory holding the wrong night', R('/tmp/d', { exists: true, isDirectory: true, names: ['readme.txt', 'notes.csv'] }), 'no-capture-file-matched'],
+        ['an unreadable directory', R('/tmp/d', { exists: true, error: 'EACCES' }), 'directory-unreadable']
+      ];
+      for (var i = 0; i < cases.length; i++) {
+        T.eq(cases[i][0] + ' is refused as ' + cases[i][2], cases[i][1] && cases[i][1].reason, cases[i][2]);
+      }
+      /* The six reasons must be SIX. A predicate that collapsed them would pass every line above while
+         sending a reader to the wrong place — "empty" and "wrong night" are different mistakes. */
+      var reasons = {};
+      for (var j = 0; j < cases.length; j++) if (cases[j][1]) reasons[cases[j][1].reason] = 1;
+      T.eq('each cause has its OWN reason, not one shared refusal', Object.keys(reasons).length, cases.length);
+      /* A refusal names WHAT IT LOOKED FOR AND WHERE, or the reader cannot tell mis-aim from genuine
+         absence in one glance. */
+      T.ok('the absence detail names the path it looked for', /\/nope\/nope-9f3/.test(String(R('/nope/nope-9f3', { exists: false }).detail)));
+      T.ok('the wrong-night detail names how many entries it saw', /\b2 entries\b/.test(String(R('/tmp/d', { exists: true, isDirectory: true, names: ['a.txt', 'b.csv'] }).detail)));
+      /* THE OTHER ARM: a directory that CAN be read is not refused. Without this the group passes on a
+         predicate that refuses everything, which is the failure mode of a fail-closed guard. */
+      T.eq('a readable directory with one matching file is NOT refused', R('/tmp/d', { exists: true, isDirectory: true, names: ['SenseLogger_20260726_PPG.txt', 'readme.txt'] }), null);
+      T.eq('…and an O2Ring PPG counts too', R('/tmp/d', { exists: true, isDirectory: true, names: ['O2Ring_20260726_PPG.txt'] }), null);
+
+      /* THE SEVENTH REASON lives in its own predicate, because it decides over SIZES. It is the one
+         that got closest to reading as a result: the names matched, the floor removed all of them, and
+         the header printed over an empty table at exit 0. */
+      T.ok('the size-floor predicate is EXPORTED too', typeof DC.fragmentFloorRefusal === 'function', 'typeof fragmentFloorRefusal = ' + typeof DC.fragmentFloorRefusal);
+      if (typeof DC.fragmentFloorRefusal === 'function') {
+        var under = [{ f: 'Polar_H10_x_ECG.txt', sz: DC.MIN_FRAGMENT_BYTES }];
+        var over = [{ f: 'Polar_H10_x_ECG.txt', sz: DC.MIN_FRAGMENT_BYTES + 1 }];
+        T.eq('every match under the floor is refused by name', DC.fragmentFloorRefusal('/tmp/d', under) && DC.fragmentFloorRefusal('/tmp/d', under).reason, 'no-fragment-over-size-floor');
+        /* THE BOUND IS THE TEST CASE. The filter is `> MIN_FRAGMENT_BYTES`, so exactly the floor is
+           refused and one byte more is kept — a sample well inside either side proves neither. */
+        T.eq('one byte over the floor is NOT refused', DC.fragmentFloorRefusal('/tmp/d', over), null);
+        T.eq("an absent match is the OTHER predicate's answer, not a floor refusal", DC.fragmentFloorRefusal('/tmp/d', []), null);
+        T.ok('the detail names the count and the floor', /1 capture file\(s\).*3 MB/.test(String(DC.fragmentFloorRefusal('/tmp/d', under).detail)));
+      }
+
+      /* THE EXIT CODE IS THE DEFECT. A source scan cannot tell a refusal from a stack trace: both
+         print the path, and the difference is the status and whether anything was written. */
+      if (typeof env.probeToolArgv !== 'function') {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only');
+        return;
+      }
+      var r = env.probeToolArgv('tools/dual-clock-rate.mjs', ['/nope/nope-9f3']);
+      T.eq('the CLI exits 2 on an absent directory, not 1 with a trace', r.status, 2);
+      T.ok('…naming the reason', /directory-absent/.test(r.out), r.out.split('\n')[0]);
+      T.ok('…and NOT as a node:fs scandir trace, which is the regression', !/node:fs|ENOENT: no such file or directory, scandir/.test(r.out), r.out.split('\n')[0]);
+      T.eq('…having written nothing', r.wrote.length, 0);
+    });
+
     /* BADGE-COVERAGE-AUDIT §5 (corrected on execution) — no badge may carry a tier nobody assigned.
        The audit's headline was that five nodes emit NO badge. That is refuted: every one of them calls
        a registry-resolved `evBadge(...)` 3–30 times per bundle; the audit counted `.badge(` and missed
