@@ -21,7 +21,7 @@
  * rules are pure functions with planted cases (`--selftest`).
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -790,6 +790,76 @@ function localYMD(d) {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
 
+/* THE PLAN METER, ESTIMATED BETWEEN READINGS (owner, 2026-10-20: "automate maximum"). The owner's usage
+   screen is the truth, but it is read by hand a few times a day. ccusage prices this machine's session
+   logs at API list rates in 5-hour blocks; that price is not a bill, but it moves with the meter. The
+   estimate fits one ratio, plan % per API-equivalent dollar, through the origin over every reading of
+   the current week, then applies it to the dollars spent since the week began. Measured 2026-10-20: the
+   ratio held at 29-30 % per $1,000 after the first day, and the fit read 57 % against a 58 % reading.
+   Pure, so --selftest can plant it. Fewer than two readings this week refuses: one point fits anything. */
+export function costBetween(blocks, t0, t1) {
+  let s = 0;
+  for (const b of blocks) {
+    if (!(b.end > b.start) || typeof b.cost !== 'number') continue;
+    const lo = Math.max(b.start, t0);
+    const hi = Math.min(b.end, t1);
+    if (hi > lo) s += (b.cost * (hi - lo)) / (b.end - b.start);
+  }
+  return s;
+}
+
+export function estimatePlan(blocks, readings, weekStartMs, nowMs) {
+  const pts = readings
+    .map((r) => ({ t: Date.parse(r.at), all: r.all }))
+    .filter((r) => Number.isFinite(r.t) && typeof r.all === 'number' && r.t > weekStartMs && r.t <= nowMs)
+    .map((r) => ({ ...r, cost: costBetween(blocks, weekStartMs, r.t) }))
+    .filter((r) => r.cost > 0);
+  if (pts.length < 2) return { ok: false, reason: `${pts.length} plan reading(s) this week; the estimate needs 2` };
+  const k = pts.reduce((a, r) => a + r.all * r.cost, 0) / pts.reduce((a, r) => a + r.cost * r.cost, 0);
+  const cost = costBetween(blocks, weekStartMs, nowMs);
+  const last24 = costBetween(blocks, nowMs - 864e5, nowMs);
+  const elapsedH = (nowMs - weekStartMs) / 3.6e6;
+  const pct = k * cost;
+  const leftH = 168 - elapsedH;
+  return {
+    ok: true,
+    pct: +pct.toFixed(1),
+    perKUsd: +(k * 1000).toFixed(1),
+    readings: pts.length,
+    costUsd: Math.round(cost),
+    last24Usd: Math.round(last24),
+    pace24hPctPerH: +((k * last24) / 24).toFixed(2),
+    sustainablePctPerH: leftH > 0 ? +((100 - pct) / leftH).toFixed(2) : null,
+    elapsedPct: Math.round((elapsedH / 168) * 100)
+  };
+}
+
+/* ccusage is found by $CCUSAGE_BIN, else in the npx cache. Absent → a named refusal, never a 0. */
+function planEstimate() {
+  try {
+    const j = JSON.parse(readFileSync(path.join(OUT_DIR, 'plan.json'), 'utf-8'));
+    const readings = Array.isArray(j.usage) ? j.usage : [];
+    const last = [...readings].reverse().find((r) => r && r.resets);
+    if (!last) return fail('no plan reading carries the weekly reset time');
+    const weekStartMs = Date.parse(last.resets) - 7 * 864e5;
+    let bin = process.env.CCUSAGE_BIN || null;
+    if (!bin) {
+      const npx = path.join(homedir(), '.npm', '_npx');
+      for (const d of existsSync(npx) ? readdirSync(npx) : []) {
+        const c = path.join(npx, d, 'node_modules', 'ccusage', 'src', 'cli.js');
+        if (existsSync(c)) bin = c;
+      }
+    }
+    if (!bin) return fail('ccusage not found (set CCUSAGE_BIN)');
+    const since = new Date(weekStartMs - 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+    const out = JSON.parse(sh(process.execPath, [bin, 'blocks', '--json', '--offline', '--since', since]));
+    const blocks = (out.blocks || []).filter((b) => !b.isGap).map((b) => ({ start: Date.parse(b.startTime), end: Date.parse(b.actualEndTime || b.endTime), cost: b.costUSD }));
+    return estimatePlan(blocks, readings, weekStartMs, Date.now());
+  } catch (e) {
+    return fail(`plan estimate failed: ${e.message}`);
+  }
+}
+
 function planPct() {
   const f = path.join(OUT_DIR, 'plan.json');
   if (!existsSync(f)) return { spentPct: null, reportedAt: null };
@@ -872,6 +942,7 @@ export function collect() {
     planNote: plan.note || null,
     planPoint: plan.point || null,
     planRate: plan.rate || null,
+    planEstimate: planEstimate(),
     planPoints: plan.points || null,
     prs: pr,
     mainCi: ci,
@@ -1055,6 +1126,12 @@ export function renderHtml(b) {
        <p><b>${esc(b.budget.label)}</b>${b.budget.range ? ' <span class="dim">(a band, as reported — not collapsed to a midpoint)</span>' : ''} of the weekly pool, as last reported by the owner${b.budget.ageHours != null ? ` <span class="${b.budget.stale ? 'red' : 'dim'}">(${b.budget.ageHours} h ago${b.budget.stale ? ' — STALE' : ''})</span>` : ''}</p>
        ${b.planPoint ? `<p>All <b>${b.planPoint.all} %</b>${b.planPoint.fable != null ? ` · Fable <b>${b.planPoint.fable} %</b>` : ''}${b.planPoint.session != null ? ` · session ${b.planPoint.session} %` : ''} <span class="dim">at ${esc(String(b.planPoint.at).slice(11, 16))} local${b.planPoint.resets ? `, week resets ${esc(String(b.planPoint.resets).slice(0, 16).replace('T', ' '))}` : ''}</span></p>${b.planRate && b.planRate.all != null ? `<p class="dim">pace since the previous point (${b.planRate.hours} h): All ${b.planRate.all} %/h${b.planRate.fable != null ? ` · Fable ${b.planRate.fable} %/h` : ''}</p>` : ''}` : b.planNote ? `<p class="dim">${esc(b.planNote)}</p>` : ''}`
     : unread(b.budget);
+  const pe = b.planEstimate;
+  const est = !pe
+    ? ''
+    : pe.ok
+      ? `<p>Estimated now: <b class="${pe.pace24hPctPerH > (pe.sustainablePctPerH ?? Infinity) ? 'red' : ''}">${pe.pct} %</b> <span class="dim">with ${pe.elapsedPct} % of the week gone · ccusage $${pe.costUsd} API-equivalent × ${pe.perKUsd} % per $1,000, fitted over ${pe.readings} readings</span></p><p class="dim">last 24 h: $${pe.last24Usd} = ${pe.pace24hPctPerH} %/h · sustainable to the reset: ${pe.sustainablePctPerH ?? '—'} %/h</p>`
+      : `<p class="dim">Estimate: not read — ${esc(pe.reason)}</p>`;
   const od = b.ownerDecisions;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1153,7 +1230,7 @@ ${banners}
 </div>
 ${sec('Token usage <span class="sub">last 24 hours</span>', renderUsage(b.usage24h, 'bird'), !b.usage24h.ok)}
 ${sec('Token usage <span class="sub">last 7 days</span>', renderUsage(b.usage7d, 'bird'), !b.usage7d.ok)}
-${sec('Weekly allowance', bud, b.budget.ok && b.budget.stale)}
+${sec('Weekly allowance', bud + est, b.budget.ok && b.budget.stale)}
 ${sec(
   'Release watch',
   relBody,
@@ -1357,6 +1434,26 @@ function runSelftest() {
       'the evaluation card drops the OWNER DECISIONS OPEN block and keeps the blocks around it (owner, 2026-10-20)'
     );
     ok(parseOwnerDecisions(ev).items.length === 2, 'the owner decisions card still reads the block from the same text');
+  }
+  {
+    const H = 3.6e6;
+    const w0 = Date.parse('2026-10-17T20:00:00Z');
+    const blocks = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45].map((h) => ({ start: w0 + h * H, end: w0 + (h + 5) * H, cost: 100 }));
+    ok(costBetween(blocks, w0, w0 + 2.5 * H) === 50, 'cost inside one block is prorated by time');
+    const at = (h) => new Date(w0 + h * H).toISOString();
+    const est = estimatePlan(
+      blocks,
+      [
+        { at: at(10), all: 6 },
+        { at: at(20), all: 12 },
+        { at: at(-5), all: 99 }
+      ],
+      w0,
+      w0 + 30 * H
+    );
+    ok(est.ok && est.pct === 18 && est.perKUsd === 30 && est.readings === 2, 'the ratio fits through the origin over this week only: 600 $ x 30 %/k$ = 18 %');
+    const one = estimatePlan(blocks, [{ at: at(10), all: 6 }], w0, w0 + 30 * H);
+    ok(!one.ok && /needs 2/.test(one.reason), 'one reading this week refuses with a reason, never a number');
   }
   {
     const rows = herderRows('{"id":"x","result":{"agents":[{"name":"kestrel","agent_status":"working","pane_id":"w1:p1"},{"name":"magpie","agent_status":"idle","pane_id":"w1:p6"}]}}', 'birds');
