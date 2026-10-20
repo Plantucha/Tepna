@@ -204,7 +204,9 @@ function selftest() {
   const file = ['import os', 'def alpha():', '    return 1', '', 'def beta(x):', '    return x + 1', 'BETA_CONST = 3', 'import pull_session'];
   const ids = identifiers('cites `beta` and `BETA_CONST` and "pull_session" and `mod.alpha()` here');
   const fails = [];
+  let ran = 0;
   const check = (n, c) => {
+    ran += 1;
     if (!c) fails.push(n);
   };
   check(
@@ -259,13 +261,12 @@ function selftest() {
       return n === 2;
     })()
   );
-  const N = 15;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
-    console.log(`${fails.length} failed of ${N}`);
+    console.log(`${fails.length} failed of ${ran}`);
     process.exit(1);
   }
-  console.log(`all ${N} selftests passed`);
+  console.log(`all ${ran} selftests passed`);
 }
 
 function main() {

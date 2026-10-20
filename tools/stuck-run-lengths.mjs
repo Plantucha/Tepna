@@ -208,7 +208,9 @@ export function plantFailHighBelowCut() {
 
 async function selftest() {
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     if (!c) fails.push(m);
   };
   const N_OF = (h) => [...h.keys()].filter((l) => l >= T_STUCK).reduce((s, l) => s + h.get(l), 0);
@@ -250,13 +252,12 @@ async function selftest() {
   ok(verdictOf(plateauOnly, 5e6).status === 'NOT-EXERCISED' && N_OF(plateauOnly) === 0, 'a stream with no run reaching the cut ⇒ NOT-EXERCISED, not NO GAP');
   ok(verdictOf(plantStream(), 1000).status === 'UNDERPOWERED', 'under 1e6 samples ⇒ UNDERPOWERED whatever the shape');
 
-  const N = 12;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
-    console.log(`SELFTEST FAIL (${fails.length} of ${N})`);
+    console.log(`SELFTEST FAIL (${fails.length} of ${ran})`);
     process.exit(1);
   }
-  console.log(`SELFTEST PASS (${N}/${N})`);
+  console.log(`SELFTEST PASS (${ran}/${ran})`);
 }
 
 /* ── STREAMS ──────────────────────────────────────────────────────────────────────────────────

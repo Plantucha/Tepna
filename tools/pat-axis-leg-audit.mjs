@@ -118,7 +118,9 @@ export function axisIsNominal(rel, n, fs) {
 
 function selftest() {
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     if (!c) fails.push(m);
   };
   const fs = 100;
@@ -147,7 +149,7 @@ function selftest() {
   /* MAGNITUDE: with a 20 ms ramp the fractional-foot error spans ~16 ms over these five feet. */
   ok(a.fragmentSpreadMs > 10 && a.fragmentSpreadMs < 20, `planted ramp error spread ~16 ms, got ${a.fragmentSpreadMs.toFixed(2)}`);
 
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (7/7)');
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length === 0;
 }
 
