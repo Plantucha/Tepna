@@ -323,12 +323,23 @@ function legEvidence(pick) {
 const RETRY_HEAP_MB = 4096;
 
 function isHeapOom(code, text) {
-  // V8 aborts on heap exhaustion: SIGABRT -> 134, or a null code when the signal is reported instead.
-  // EITHER signal is enough, and that is deliberate rather than sloppy: 134 is also an ordinary
-  // assert, so this DOES convict a non-heap abort. The asymmetry is the reason — a wasted retry
-  // costs one run of one night, while a heap death missed (a child killed before it could print)
-  // costs the night entirely and leaves it unstamped. The selftest names that case as ACCEPTED, not
-  // as rejected, so the trade stays visible to whoever narrows this later.
+  // V8 aborts on heap exhaustion, and the WORD is what convicts here. The `code === 134` arm is the
+  // asymmetry: 134 is also an ordinary assert, so the arm DOES convict a non-heap abort. A wasted
+  // retry costs one run of one night, while a heap death missed (a child killed before it could
+  // print) costs the night entirely and leaves it unstamped. The selftest names that case as
+  // ACCEPTED, not as rejected, so the trade stays visible to whoever narrows this later.
+  //
+  // ⚠️ MEASURED 2026-10-20 (`tools/probe-child-death-codes.mjs`, residue
+  // `2026-09-22-heap-retry-would-misdiagnose-enospc`): in THIS tool's topology the 134 arm is
+  // unreachable, so the word is doing all the work. Two independent halves say so.
+  //   · The spawn below is shell-less and settles on `close` with the raw code, so a signalled death
+  //     arrives as `code === null` and never as 134. Only a child that CATCHES an error and calls
+  //     `process.exit(134)` reaches that arm, and nothing under `tools/` or `capture-host/` does.
+  //   · Every ordinary full-disk death — `writeFileSync`, `createWriteStream`, `writeSync` on an fd,
+  //     `fs/promises.writeFile` — exits 1 carrying `ENOSPC: no space left on device` and no heap
+  //     word, so this predicate already rejects it. The row's misdiagnosis cannot happen here.
+  // Narrowing the arm to exclude ENOSPC would therefore change no outcome. Do not re-derive this from
+  // the comment: re-run the probe, which emits its own verdict object.
   const said = /(heap out of memory|Ineffective mark-compacts|Reached heap limit|FATAL ERROR: .*[Aa]llocation failed)/.test(String(text || ''));
   return said || code === 134;
 }
@@ -686,6 +697,19 @@ if (flag('--selftest')) {
     eq('a heap death reported by signal, code null', isHeapOom(null, 'FATAL ERROR: Reached heap limit Allocation failed'), true);
     eq('a bare 134 with no heap message IS retried — a wasted retry beats a missed night', isHeapOom(134, 'Assertion failed: bad fixture'), true);
     eq('a plain non-zero exit is NOT a heap death', isHeapOom(1, 'TypeError: x is not a function'), false);
+    /* ── A FULL DISK IS NOT A CAP (measured 2026-10-20, `tools/probe-child-death-codes.mjs`) ─────
+       Residue `2026-09-22-heap-retry-would-misdiagnose-enospc` feared a disk-killed child aborting
+       the way a heap death aborts, which would retry the night at RETRY_HEAP_MB — the wrong remedy
+       for a cause the retry cannot touch. The probe wrote to `/dev/full`, which raises the kernel's
+       own ENOSPC without filling anything. All four write paths gave the SAME line at exit 1. */
+    const ENOSPC_LINE = 'Error: ENOSPC: no space left on device, write';
+    eq('an uncaught writeFileSync to a full device is NOT a heap death', isHeapOom(1, ENOSPC_LINE), false);
+    eq('…nor is the stream, the fd or the promise path — one message, one code', isHeapOom(1, 'noise\n' + ENOSPC_LINE), false);
+    /* The abort side, in THIS topology: `spawn` is shell-less and settles on `close` with the raw
+       code, so a signalled death arrives as code null. The 134 arm is therefore unreachable by any
+       death the runtime produces, and the WORD is what convicts a real heap exhaustion. */
+    eq('a signalled death arrives as code null, which the 134 arm cannot see', isHeapOom(null, 'Aborted'), false);
+    eq('…and a real heap exhaustion is still caught at code null, by its word', isHeapOom(null, 'FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed'), true);
     eq('a SUCCESSFUL child is never a heap death', isHeapOom(0, 'all good'), false);
     eq('empty output does not throw or match', isHeapOom(2, ''), false);
     /* ── ONE RECORDING, INGESTED ONCE (2026-09-22) ──────────────────────────────────────────────
