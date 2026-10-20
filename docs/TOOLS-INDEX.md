@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**277 tools** · 276 with a purpose line · **1 without**
+**278 tools** · 277 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -106,6 +106,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`guarantees.mjs`](../tools/guarantees.mjs) | GUARANTEE CENSUS — find the promises the comments make, and ask which of them nothing checks. |
 | [`guide-anchor-audit.mjs`](../tools/guide-anchor-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 5, mechanised — the third sibling of `severity-ladder-audit.mjs` (dim 3) and `formula-constant-audit.mjs` (dim 2). |
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
+| [`h10-session-rate.mjs`](../tools/h10-session-rate.mjs) | what moves the ECG sample rate between sessions of ONE chest strap |
 | [`hook-contract.mjs`](../tools/hook-contract.mjs) | EVERY CLAUDE-CODE HOOK DRAINS ITS STDIN BEFORE IT CAN EXIT. The harness writes each hook's tool-call JSON down a PIPE. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
