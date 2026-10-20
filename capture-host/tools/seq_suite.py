@@ -156,7 +156,9 @@ def classify(
     """Re-run each failing test ALONE and split by what that says. Passing alone means the neighbours
     failed it; failing alone means the tree is red and the order had nothing to do with it."""
     pos = _positions(order, ids)
-    dependent, alone = [], []
+    # Both hold the same row shape, and it is the one this function's return type declares.
+    dependent: list[dict] = []
+    alone: list[dict] = []
     for nodeid in ids:
         rc, _ = run([python, "-m", "pytest", "-q", "-p", "no:xdist", f"--timeout={timeout}", nodeid], cwd)
         row = {"nodeid": nodeid, "position": pos[nodeid], "of": len(order)}

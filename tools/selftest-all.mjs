@@ -54,6 +54,7 @@ import os from 'node:os';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { codeMask } from './js-lex.mjs';
 import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -150,22 +151,50 @@ export function declaresNearMissSelftest(src) {
    So `typedSummary` now reads the file's own `SUMMARY_FORMATS` vocabulary, and the scan resolves one
    hop through `typedNumericConsts`. Both widenings are deliberately narrow, because this file's own
    warning against a sixth regex applies to its static half too:
-   - A `SUMMARY_FORMATS` match must share its line with the word `selftest`. `PASS (n/m)` is generic,
-     and without the marker a tool printing a RESULT ratio would read as an assertion count — this
-     file's defect class pointed at itself. Measured cost today: 0 of the 4, which all say `SELFTEST`.
-     A typed `PASS (n/m)` printed with no marker word stays invisible, and that is a known limit, not
-     an oversight.
-   - Only a `const` counts as a hop. See `typedNumericConsts`.
+   - A `SUMMARY_FORMATS` match must share its line with the word `selftest`, OR sit inside the
+     tool's own `--selftest` block. `PASS (n/m)` is generic, and a RESULT ratio printed elsewhere in a
+     tool must never read as an assertion count — this file's defect class pointed at itself.
+   - A `const` is a hop, and so is a `let`/`var` numeric that nothing in the file ever reassigns. See
+     `typedNumericConsts` and `neverReassignedNumerics`.
+
+   ⚠️ BOTH NARROWINGS WERE BLIND SPOTS, and residue `2026-10-20-two-narrowings-leave-a-typed-count-invisible`
+   named them the day they were written: a typed `PASS (12/12)` printed with no marker word, and a
+   `let N = 83` nothing reassigns, each read as clean. Closing them needed what a line scan cannot do,
+   so this half now reads `codeMask` from `tools/js-lex.mjs` — the repo's one regex-aware lexer:
+     · a `--selftest` guard's block is found by brace depth over real code, which is the REGION that
+       licenses a marker-less ratio;
+     · a reassignment is looked for over real code only, so a string or a comment naming the binding
+       proves nothing, and a counter — `ran += 1`, `n++`, a later `N = xs.length` — is never a hop;
+     · a print is a `console.log(` at an UNMASKED position. A line that QUOTES one inside a string
+       literal does not print, which is what keeps this file's own decoy plants clean. Until today the
+       marker-word guard did that job by accident of their wording, and inside a region it would not.
+   MEASURED 2026-10-20 over all 276 files in `tools/`, 6 MiB of source: the two widenings add **0**
+   flags, and 0 of 685 numeric `let`/`var` declarations survive the never-reassigned test, so neither
+   blind spot has a live instance here — they buy a bound, not a repair. Cost, best of three warm
+   passes: 139 ms against 18 ms, all of it the lexer; the three helpers share ONE mask per scan, which
+   is what keeps it there, since a mask apiece read the same 6 MiB three times and cost 465 ms. The
+   whole step spawns 181 child selftests, so a tenth of a second is not the figure that decides this.
+   Ten plants and controls below pin the direction in both senses, and a false positive on a real
+   counter was the cost that would have stopped the change.
    PURE: returns the offending lines, trimmed; a hop line names the constant it resolved. */
 export function literalCountLines(src) {
   const text = String(src || '');
-  const consts = typedNumericConsts(text);
+  const mask = codeMask(text);
+  const regions = selftestRegions(text, mask);
+  const consts = new Map([...typedNumericConsts(text), ...neverReassignedNumerics(text, mask)]);
+  /* Inside the tool's own selftest block the marker word buys nothing, because every summary there IS
+     a selftest summary; outside it the word is the only thing separating an assertion count from a
+     measured result. */
+  const typedHere = (line, at) => typedSummary(line) || (regions.some(([a, b]) => at >= a && at <= b) && SUMMARY_FORMATS.some((re) => (line.match(re) || [])[1] !== undefined));
   const out = [];
+  let off = 0;
   for (const raw of text.split('\n')) {
+    const at = off;
+    off += raw.length + 1;
     const s = raw.trim();
     if (/^(\/\/|\/\*|\*)/.test(s)) continue;
-    if (!/console\.(log|error)\(|process\.stdout\.write\(/.test(s)) continue;
-    if (typedSummary(s)) {
+    if (!printsAt(mask, at + (raw.length - raw.trimStart().length), s)) continue;
+    if (typedHere(s, at)) {
       out.push(s.slice(0, 120));
       continue;
     }
@@ -177,9 +206,76 @@ export function literalCountLines(src) {
       sub = sub.replace(re, v);
       used.push(k + ' = ' + v);
     }
-    if (used.length && typedSummary(sub)) out.push(s.slice(0, 100) + '   \u2190 typed one hop away: ' + used.join(', '));
+    if (used.length && typedHere(sub, at)) out.push(s.slice(0, 100) + '   \u2190 typed one hop away: ' + used.join(', '));
   }
   return out;
+}
+
+/* Every character span that sits inside a `--selftest` guard block, by brace depth over real code.
+   The flag itself always sits inside a STRING, so the mask cannot gate the anchor — a comment line
+   naming the flag is skipped the way every other reader here skips one. A file with no guard returns
+   no span, which is why a tool printing a bare `PASS (n/m)` in its report is untouched. PURE. */
+export function selftestRegions(src, mask = null) {
+  const text = String(src || '');
+  const m = mask || codeMask(text);
+  const spans = [];
+  for (const g of text.matchAll(/--selftest/g)) {
+    const bol = text.lastIndexOf('\n', g.index) + 1;
+    if (/^\s*(\/\/|\/\*|\*)/.test(text.slice(bol, g.index))) continue;
+    const open = text.indexOf('{', g.index);
+    if (open < 0) continue;
+    let depth = 0;
+    for (let i = open; i < text.length; i++) {
+      if (!m[i]) continue;
+      if (text[i] === '{') depth += 1;
+      else if (text[i] === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          spans.push([open, i]);
+          break;
+        }
+      }
+    }
+  }
+  return spans;
+}
+
+/* The numeric `let`/`var` bindings nothing in the file ever reassigns, as NAME → the digits. A binding
+   that is never reassigned is a typed number on every line that reads it, exactly as a `const` is, and
+   `typedNumericConsts` explains why taking ANY numeric `let` was refused: 56 of 104 tools flagged, and
+   nearly all of them correct counters. The difference here is the test — a reassignment is searched for
+   over real CODE, so `ran += 1`, `n++` and a later `N = xs.length` all disqualify a binding, while a
+   string or a comment naming it does not. Measured 2026-10-20: 644 numeric `let`/`var` bindings across
+   `tools/`, and 0 of them survive this test, so the widening flags nothing today. PURE. */
+export function neverReassignedNumerics(src, mask = null) {
+  const text = String(src || '');
+  const m = mask || codeMask(text);
+  let code = '';
+  for (let i = 0; i < text.length; i++) code += m[i] ? text[i] : text[i] === '\n' ? '\n' : ' ';
+  const out = new Map();
+  const decl = /(?:^|[;{}\s])(?:let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(\d+)\s*(?:;|$|\n)/gm;
+  for (const d of code.matchAll(decl)) out.set(d[1], d[2]);
+  for (const k of [...out.keys()]) {
+    const assigns = (code.match(new RegExp('\\b' + k + '\\s*=(?!=)', 'g')) || []).length;
+    const decls = (code.match(new RegExp('(?:let|var)\\s+' + k + '\\s*=(?!=)', 'g')) || []).length;
+    const bumps = (code.match(new RegExp('\\b' + k + '\\s*(?:\\+=|-=|\\*=|/=|\\+\\+|--)|(?:\\+\\+|--)\\s*' + k + '\\b', 'g')) || []).length;
+    if (assigns > decls || bumps > 0) out.delete(k);
+  }
+  return out;
+}
+
+/* Does this line PRINT, or does it QUOTE a print? The mask decides: a `console.log(` inside a string
+   literal is not a call, so a plant such as `eq(literalCountLines("console.log('PASS (31/52)')") …)`
+   is read as what it is. `at` is the line's offset in the source the mask was built from. PURE. */
+export function printsAt(mask, at, line) {
+  for (const call of ['console.log(', 'console.error(', 'process.stdout.write(']) {
+    let i = line.indexOf(call);
+    while (i >= 0) {
+      if (mask[at + i]) return true;
+      i = line.indexOf(call, i + 1);
+    }
+  }
+  return false;
 }
 
 /* A summary line carrying a count somebody typed. The first two spellings are the original rule. The
@@ -512,7 +608,34 @@ if (argv.includes('--selftest')) {
     eq(literalCountLines('const N = 83;\nconsole.log(`all ${N} selftests passed`);').length === 1, 'hop · a count one hop away in a const IS a typed count');
     eq(literalCountLines('const TOTAL = 45;\nconsole.log(`SELFTEST PASS (${TOTAL}/${TOTAL})`);').length === 1, 'hop · the `pat-window-oracle` shape the row reported (#3675)');
     eq(/typed one hop away: TOTAL = 45/.test(literalCountLines('const TOTAL = 45;\nconsole.log(`SELFTEST PASS (${TOTAL}/${TOTAL})`);')[0]), 'hop · the reported line NAMES the constant and its value');
-    eq(literalCountLines('let ran = 0;\nconsole.log(`all ${ran} selftests passed`);').length === 0, 'hop DECOY · a counter interpolated the same way is NOT flagged — it is what the rule asks for');
+    eq(
+      literalCountLines('let ran = 0;\nconst ok = () => { ran += 1; };\nconsole.log(`all ${ran} selftests passed`);').length === 0,
+      'hop DECOY · a counter the helper increments is NOT flagged — it is what the rule asks for'
+    );
+    eq(literalCountLines('let N = 83;\nconsole.log(`all ${N} selftests passed`);').length === 1, 'hop · a `let` nothing ever reassigns is a typed count, exactly as a const is');
+    eq(literalCountLines('let N = 83;\nN = xs.length;\nconsole.log(`all ${N} selftests passed`);').length === 0, 'hop DECOY · a binding reassigned anywhere in the file is no hop');
+    eq(
+      literalCountLines('let n = 0;\nfor (const x of xs) n++;\nconsole.log(`all ${n} selftests passed`);').length === 0,
+      'hop DECOY · an inc-only counter is disqualified by the `n++`, with no assignment to find'
+    );
+    eq(neverReassignedNumerics("let N = 7;\nconst s = 'N = 1; N += 1';\n").get('N') === '7', 'hop · a reassignment QUOTED in a string is not a reassignment — the mask reads code only');
+    eq(
+      neverReassignedNumerics('let ran = 0;\nran += 1;\n').size === 0 && neverReassignedNumerics('var N = 5;\n').get('N') === '5',
+      'hop · a compound assign disqualifies, a lone `var` numeric does not'
+    );
+    eq(
+      literalCountLines("if (argv.includes('--selftest')) {\n  console.log(fail ? `FAIL (${fail})` : 'PASS (12/12)');\n}").length === 1,
+      'region · a typed ratio INSIDE the selftest block needs no marker word'
+    );
+    eq(
+      literalCountLines("if (argv.includes('--selftest')) {\n  console.log('PASS (12/12)');\n}\nconsole.log('GATE PASS (9/9)');").length === 1,
+      'region DECOY · the same spelling outside the block is still a RESULT, so only one line is reported'
+    );
+    eq(selftestRegions("// argv.includes('--selftest') {\nconsole.log('PASS (3/3)');").length === 0, 'region · a comment naming the flag opens no block');
+    eq(
+      literalCountLines("if (argv.includes('--selftest')) {\n  eq(f(\"console.log('coupling PASS (31/52)')\").length === 0, 'decoy');\n}").length === 0,
+      'region · a print QUOTED inside the block is not a print — the mask decides it, never the wording'
+    );
     eq(literalCountLines('const FS = 100;\nconsole.log(`resampled at ${FS} Hz`);').length === 0, 'hop DECOY · a const in a print that is not a summary is not a count');
     eq(literalCountLines('const N = 8;\nconsole.log(`all ${N} selftests passed`);\nconsole.log(`${f} failed of ${N}`);').length === 2, 'hop · both summary lines of one tool are reported');
     const typed = readdirSync(TOOLS)
