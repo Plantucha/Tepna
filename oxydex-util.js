@@ -2,15 +2,29 @@
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    Small null-safe + export-safety helpers loaded FIRST so the profile init
-   IIFE can reach them: csvSafe, sanitizeFname, escHTML, gv/sv, safeEl/safeSet/
-   safeStyle, getBaseline, computeBaselineArr, and the lineChart cache + global
-   trend-control state (gcWin/gcSmooth).
+   IIFE can reach them: csvSafe/csvNum, sanitizeFname, escHTML, gv, safeEl/
+   safeSet/safeStyle, smoothVals, computeCeilingBaselineArr, and the lineChart
+   cache + global trend-control state (gcWin/gcSmooth).
    Plain global script — shares page scope with the other oxydex-*.js files,
    exactly as in the original single-script monolith. No behavior change.
+
+   WHY EVERY FUNCTION HERE CARRIES A biome-ignore: this file is the one OxyDex
+   source the shell loads as a CLASSIC script (`<script src>`), ahead of the five
+   ES modules that consume it (`<script type="module">`). Its top-level functions
+   are therefore page globals, and their callers live in the sibling FILES. Biome
+   lints one file at a time and has no option to declare a file a script rather
+   than a module, so every global here reads as unused to it. The suppression
+   names the caller, which keeps the rule at `error` for this file: a helper that
+   genuinely loses its last caller, or a new dead local, still reds the gate.
+   Three did lose their last caller and are gone (`getBaseline` and
+   `computeBaselineArr`, both superseded by `computeCeilingBaselineArr`, and the
+   form-field setter `sv`, whose only caller was the legacy `upToDOM`
+   that this change removes).
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
    ════════════════════════════════════════════════════════════════════════ */
 
 // ── csvSafe: prevent Excel formula injection in CSV exports ──
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js calls it (the CSV export path)
 function csvSafe(v) {
   if (v === null || v === undefined) return '';
   var s = String(v);
@@ -31,10 +45,12 @@ function csvSafe(v) {
    anything starting with `-` with a TAB, so a legitimately negative metric would arrive as "\t-3.2".
    This one is for numbers: absent ⇒ '', otherwise the number unchanged. A real 0 is a number and
    prints as 0 — only an unmeasured value is blank. */
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js calls it (the CSV export path)
 function csvNum(v) {
   return v == null || typeof v !== 'number' || !isFinite(v) ? '' : v;
 }
 // ── sanitizeFname: strip HTML-dangerous chars from filenames ──
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-render.js calls it
 function sanitizeFname(s) {
   if (!s) return '';
   return String(s).replace(/[<>&"'`]/g, function (c) {
@@ -48,6 +64,7 @@ var _lineChartCache = {};
 // ── Global trend controls state (View Window + Smoothing) ──
 var _gcWin = 999; // trend/list view window in nights (999 = All)
 var _gcSmooth = 0; // moving-average radius for trend charts (0 = off)
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-render.js calls it
 function smoothVals(arr, k) {
   if (!k || k < 1 || !arr || arr.length < 3) return arr;
   return arr.map(function (_v, i) {
@@ -64,72 +81,40 @@ function smoothVals(arr, k) {
   });
 }
 // ── getBaseline: shared baseline computation (replaces 11x duplication) ──
-function getBaseline(spo2, WIN) {
-  WIN = WIN || 60;
-  if (!spo2 || !spo2.length) return 95;
-  var sl = spo2.slice(Math.max(0, spo2.length - WIN));
-  return sl.length
-    ? sl.reduce(function (a, b) {
-        return a + b;
-      }, 0) / sl.length
-    : spo2.length
-      ? spo2[0]
-      : 95;
-}
 // safeEl: safe getElementById wrapper injected by audit fix
 // Escape any file-derived / user-controlled string before it enters innerHTML.
 // (Filenames and CSV cell values can contain markup; a crafted shared export
 // must never be able to execute script in the page that holds your health data.)
 // Delegates to THE canonical suite escaper (dex-escape.js, loaded first in the
 // OxyDex shell) — one implementation, no per-app copy (SECURITY-REMEDIATION F1/F3).
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js, oxydex-dsp.js, oxydex-fusion.js, oxydex-render.js and OxyDex.src.html call it
 function escHTML(s) {
   return escapeHTML(s);
 }
 function safeEl(id) {
   return document.getElementById(id);
 }
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js, oxydex-dsp.js and oxydex-render.js call it
 function setIfPresent(id, prop, val) {
   var el = safeEl(id);
   if (el) el[prop] = val;
 }
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js, oxydex-dsp.js and oxydex-render.js call it
 function safeStyle(id, prop, val) {
   var el = safeEl(id);
   if (el) el.style[prop] = val;
 }
 // gv/sv: null-safe value getter/setter for form inputs (guards all profile field access)
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-profile.js reads every profile field through it
 function gv(id) {
   var el = document.getElementById(id);
   return el ? el.value : '';
-}
-function sv(id, val) {
-  var el = document.getElementById(id);
-  if (el) el.value = val;
 }
 
 // ── computeBaselineArr: O(n) sliding-window baseline precomputation ──────────
 // Returns an array bl[] where bl[i] = mean(spo2[max(0,i-WIN)..i-1]).
 // Replaces the O(n²) pattern: getBaseline(spo2.slice(0,i), WIN) inside loops.
 // Usage: var blArr = computeBaselineArr(spo2, WIN); … var bl = blArr[i];
-function computeBaselineArr(spo2, WIN) {
-  WIN = WIN || 300;
-  var n = spo2.length;
-  var bl = new Array(n);
-  var sum = 0,
-    cnt = 0;
-  for (var i = 0; i < n; i++) {
-    // Window covers spo2[max(0,i-WIN)..i-1] (samples already seen)
-    if (i > 0) {
-      sum += spo2[i - 1];
-      cnt++;
-    }
-    if (i > WIN) {
-      sum -= spo2[i - WIN - 1];
-      cnt--;
-    }
-    bl[i] = cnt > 0 ? sum / cnt : 95;
-  }
-  return bl;
-}
 
 // ── computeCeilingBaselineArr: O(n) trailing high-percentile "ceiling" baseline ──
 // Returns bl[] where bl[i] = pct-th percentile of spo2[max(0,i-WIN)..i-1] (the recent
@@ -145,6 +130,7 @@ function computeBaselineArr(spo2, WIN) {
 // histogram low→high to the first value whose cumulative count reaches the target rank.
 // Integer SpO2 makes the histogram exact; the per-index walk is over a fixed 101 bins → O(n).
 // Window/fallback semantics mirror computeBaselineArr exactly (same coverage, bl[0]=95).
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-dsp.js calls it (the ODI ceiling baseline)
 function computeCeilingBaselineArr(spo2, WIN, pct) {
   WIN = WIN || 300;
   pct = pct == null ? 90 : pct; // p90 = the stable resting ceiling (default, brief §2a)

@@ -774,6 +774,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/argv-reads.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/argv-reads.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the STATIC half of residue 2026-09-28-one-hundred-sixty-three-argv-reading-tools-are-unprobed, which the row names as one of its two routes: enumerate every line touching argv and confirm each is a literal-name lookup. It runs nothing, so the sibling survey's safety bound (no write, exec or network in the transitive closure) does not apply and the denominator is the whole population. Precedence is declared, not discovered: a guard call outranks everything, a positional read outranks a proof of ignoring, and an abstention outranks a proof but never a hazard. Pre-stated criterion: zero static classes contradicting a RECORDED RUN in audits/ARGV-REFUSAL-SURVEY-2026-09-28.json, where the three contradicting pairs are named in contradiction() and an abstention contradicts nothing. Each control row is judged on the bytes the probe RAN, read from the artifact's treeCommit, because the survey's own PR repaired all five swallowers and judging today's bytes excluded the entire positive class. The undecidable class carries a named reason and is never a clearance. The cmd is a sample object and scans nothing."
+  },
   "tools/argv-survey.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1211,6 +1223,18 @@
     ]
    },
    "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): FAIL iff \u2265 1 lower-tier band issues a clinical directive with no declared disclaimer (the same `undeclared` list the exit code keys on) \u00b7 the two REFUSE paths (< 7 guides; 0 lower cards or 0 bands) are the examined-nothing shape \u2192 UNDERPOWERED with the counts, still exit 2. Population = lower-tier cards, checked = those carrying a band, band-less cards excluded. --json prints { \u2026verdict, census, hits } \u2014 a superset of the old shape; the cmd is the real run over the seven reference guides in the tree."
+  },
+  "tools/hook-contract.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/hook-contract.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "every .claude/hooks hook must drain stdin before it can exit (residue 2026-10-12-seven-hooks-exit-before-draining-stdin-and-their-tests-cannot-see-it; #3493, #3759). Three readings per hook: STATIC (only comments, set/shopt and plain assignments may precede the drain), BEHAVIOURAL (a payload past fs.pipe-max-size down a real pipe, 5 trials, the writer's own PIPESTATUS[0] — 141 is SIGPIPE), ENUMERATION (a <name>.test.sh exists and test:hooks names it). Population = hooks found; a hook with no PROBES row is EXCLUDED and FAILs, so a new hook cannot arrive unmeasured. NOT_RUN when the hook directory holds nothing."
   },
   "tools/integrator-block-precision.mjs": {
    "bin": "word-only",
@@ -1793,9 +1817,17 @@
    "reason": "verdict words appear only in comments"
   },
   "tools/residue-ids.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/residue-ids.mjs",
+     "--open",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the residue-pickup verdict (row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale). --open reads the ledger from origin/main rather than from the working tree, and compares every row's state against the copy on disk. Pre-stated rule: a row whose state differs, or a row the disk copy does not carry at all, is a stale read and FAILs. Population = the rows on the ref, a row only on the ref excluded as unreadable. An unresolvable base refuses with exit 2, and NOT_RUN appears only under --verdict-sample, where there is no ref to resolve"
   },
   "tools/resp-acc-headless.mjs": {
    "bin": "word-only",
