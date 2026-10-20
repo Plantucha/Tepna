@@ -117,6 +117,26 @@
   }
 
   function ingestJSON(json, filename) {
+    // A FUSION export (this page's own Export, or OverDex's "download fused" button) holds findings
+    // already fused from node exports; it carries no ganglior_events of its own. normalizeFile reads
+    // it as an Unknown node and says "unrecognized format", which tells the user nothing about what
+    // to drop instead. Name the file kind and the node exports it was built from, then skip it.
+    if (json && !Array.isArray(json) && (json.kind === 'fusion' || (json.schema && /\.fusion-export$/.test(json.schema.name || '')))) {
+      var _built = Array.isArray(json.nodes)
+        ? json.nodes
+            .map(function (n) {
+              return n && n.label;
+            })
+            .filter(Boolean)
+        : [];
+      WARN.push(
+        '"' +
+          (filename || 'file') +
+          '" is a fusion export (output of the Integrator or OverDex), not a node export, so it has no events to fuse; skipped. ' +
+          (_built.length ? 'Load the node exports it was built from: ' + _built.join(', ') + '.' : 'Load the node exports it was built from.')
+      );
+      return;
+    }
     // Structural conformance (precise diagnostics; ADVISORY — never blocks ingest,
     // the adapters still read by structure). Surfaces exact reasons a node export is
     // malformed instead of the generic "no events found".
@@ -416,7 +436,14 @@
         fetch(path)
           .then(function (r) {
             if (!r.ok) throw new Error(r.status);
-            return r.json();
+            return r.text();
+          })
+          .then(function (text) {
+            // A host that answers a missing path with a web page (status 200) would surface as
+            // "Unexpected token '<'". The samples are git-tracked beside the source page only; a
+            // served copy (docs/) has no uploads/ folder next to it.
+            if (/^\s*</.test(text)) throw new Error('the host returned a web page, not the sample; this copy of the page has no uploads/ folder beside it');
+            return JSON.parse(text);
           })
           .then(function (json) {
             ingestJSON(json, path.split('/').pop());

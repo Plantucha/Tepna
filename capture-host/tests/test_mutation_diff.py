@@ -3234,20 +3234,22 @@ def test_the_crash_refusal_is_NOT_RUN_when_nothing_was_decided_anywhere():
 
 
 def test_the_crash_split_is_the_SAME_RULE_as_its_three_siblings():
-    """Four refusals, one split — a fourth spelling of it would be a fourth thing to get wrong.
+    """Four refusals, one split — a fifth spelling of it would be a fifth thing to get wrong.
     Asserted as a property over all of them rather than restated per function."""
     cases = [
         M.crash_refusal_verdict(1, 0),
         M.memory_exhaustion_verdict(1, 0),
         M.budget_exhaustion_verdict(1, 0, 10.0),
+        M.clean_run_exhaustion_verdict(1, 0),
     ]
-    assert [s for s, _ in cases] == ["NOT_RUN"] * 3, "nothing decided ⇒ the run examined nothing"
+    assert [s for s, _ in cases] == ["NOT_RUN"] * 4, "nothing decided ⇒ the run examined nothing"
     cases = [
         M.crash_refusal_verdict(1, 7),
         M.memory_exhaustion_verdict(1, 7),
         M.budget_exhaustion_verdict(1, 7, 10.0),
+        M.clean_run_exhaustion_verdict(1, 7),
     ]
-    assert [s for s, _ in cases] == ["UNKNOWN"] * 3, "something decided ⇒ measured in part, cannot speak for the rest"
+    assert [s for s, _ in cases] == ["UNKNOWN"] * 4, "something decided ⇒ measured in part, cannot speak for the rest"
     # THE BOUNDARY, which is where the split actually lives. `decided > 0` → `decided > 1` survived:
     # under it a run that decided exactly ONE mutant reports "examined nothing". One is not nothing —
     # that mutant was run, and its result is the only thing standing between this run and a false
@@ -3256,8 +3258,9 @@ def test_the_crash_split_is_the_SAME_RULE_as_its_three_siblings():
         M.crash_refusal_verdict(1, 1),
         M.memory_exhaustion_verdict(1, 1),
         M.budget_exhaustion_verdict(1, 1, 10.0),
+        M.clean_run_exhaustion_verdict(1, 1),
     ]
-    assert [s for s, _ in cases] == ["UNKNOWN"] * 3, "ONE decided mutant is something, not nothing"
+    assert [s for s, _ in cases] == ["UNKNOWN"] * 4, "ONE decided mutant is something, not nothing"
 
 
 def test_EVERY_TERMINAL_IN_main_EMITS_A_VERDICT_OBJECT():
@@ -4462,3 +4465,97 @@ def test_a_source_the_parser_and_splitlines_number_differently_is_refused_not_re
     show = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2"
     assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") is None
     assert M.mutant_file_line(show, src.replace("\x0c", ""), "m.x_f__mutmut_1") == 2  # the same text, no form feed
+
+
+# ── the RED BASELINE, which the gate used to answer PASS over (#3704) ────────────────────────────
+def test_a_RED_BASELINE_can_never_read_as_a_PASS_or_a_FAIL():
+    """THE DEFECT, stated as the property that was missing. `mutate_diff` printed `clean run FAILED
+    (exit 1)` for three modules and emitted `status: PASS`, exit 0, "every mutant on the changed
+    functions was killed" — because mutmut calls a mutant killed when the covering tests fail with it
+    applied, and a red baseline fails without one too. The coverage was arithmetic over a population
+    nothing discriminated, and it hid 14 survivors.
+
+    Asserted over a spread of (refused, decided) rather than one pair: PASS is wrong at every count,
+    and so is FAIL — the refused modules were not measured, so the run can neither vouch for them nor
+    convict the diff."""
+    for n in (1, 3, 11):
+        for decided in (0, 1, 7, 900):
+            status, reason = M.clean_run_exhaustion_verdict(n, decided)
+            assert status in ("NOT_RUN", "UNKNOWN"), f"{n},{decided} → {status}: a refusal is not a verdict"
+            assert reason, "a non-PASS status with no reason is invalid under §🧾"
+
+
+def test_the_RED_BASELINE_verdict_says_WHY_a_pass_there_would_be_arithmetic():
+    """The reason has to carry the mechanism, or the next reader raises a flag to clear the refusal —
+    which is the one remedy that cannot work. Pinned on the words that name the cause, not on the
+    sentence they sit in."""
+    _, reason = M.clean_run_exhaustion_verdict(2, 0)
+    assert "2 module(s) not mutated" in reason
+    assert "clean baseline failed" in reason
+    assert "arithmetic" in reason and "every mutant reads killed" in reason
+    assert "examined nothing" in reason
+    _, partial = M.clean_run_exhaustion_verdict(2, 7)
+    assert "7 mutant(s) were decided elsewhere" in partial
+    assert "unmeasured, not failed" in partial
+
+
+def test_the_RED_BASELINE_refusal_names_the_module_the_count_and_the_elapsed():
+    """A refusal must carry its numbers. The first version of this message said only that the
+    baseline failed, which sends the reader to the diff — the failure belongs to the covering set."""
+    note = M.clean_run_refusal("cpap_stream.py", 36.4, 5)
+    assert note.startswith("cpap_stream.py:")
+    assert "5 function(s) selected, none mutated" in note
+    assert "36.4s" in note, "the elapsed is the only clue to whether the run got anywhere"
+    assert "not this diff's" in note, "whose failure it is decides who fixes it"
+    assert "Fix or quarantine THAT test" in note
+
+
+def test_run_one_CHECKS_THE_BASELINE_AHEAD_OF_THE_CALLER_SUPPLIED_TIMEOUT():
+    """THE HOLE ITSELF, and the reason the gate could not see its own red baseline: `clean_ok` had one
+    consumer, inside the `else` of `if timeout is not None`, and `tools/mutate_diff.py` always passes
+    `timeout=max(1, _left)`. So the check was switched off on exactly the path the gate runs — a guard
+    behind a parameter the caller always sets is not a guard.
+
+    Asserted on the AST and on ORDER, which is the invariant: the baseline guard must be a statement
+    of `run_one`'s own body, ahead of the timeout branch, so no caller can route around it. A text
+    scan would pin the spelling instead; a reformat moves that and this must survive it (#3196).
+
+    ⚠️ NOT driven by importing `tools/mutate.py`. `tools/` has no `__init__.py`, so coverage's
+    unexecuted-file scan never descends into it and the file is absent from the denominator — until a
+    test imports it, at which point 289 statements arrive at 19 % and the 100 % floor fails. Measured
+    here: that import alone took TOTAL from 100 % to 99.21 %."""
+    import ast as _ast
+    import pathlib as _pl
+
+    _src = (_pl.Path(__file__).resolve().parent.parent / "tools" / "mutate.py").read_text(encoding="utf-8")
+    _fn = next(n for n in _ast.walk(_ast.parse(_src)) if isinstance(n, _ast.FunctionDef) and n.name == "run_one")
+
+    def _is_timeout_branch(node):
+        return (
+            isinstance(node, _ast.If)
+            and isinstance(node.test, _ast.Compare)
+            and isinstance(node.test.left, _ast.Name)
+            and node.test.left.id == "timeout"
+            and any(isinstance(o, _ast.IsNot) for o in node.test.ops)
+        )
+
+    def _is_baseline_guard(node):
+        return (
+            isinstance(node, _ast.If)
+            and isinstance(node.test, _ast.UnaryOp)
+            and isinstance(node.test.op, _ast.Not)
+            and isinstance(node.test.operand, _ast.Name)
+            and node.test.operand.id == "clean_ok"
+            and any(isinstance(b, _ast.Return) for b in node.body)
+        )
+
+    _guards = [i for i, st in enumerate(_fn.body) if _is_baseline_guard(st)]
+    _branches = [i for i, st in enumerate(_fn.body) if _is_timeout_branch(st)]
+    assert _guards, (
+        "run_one has no `if not clean_ok: return` in its own body — the guard is reachable only through a branch"
+    )
+    assert _branches, "the `timeout is not None` branch moved; re-read this test before trusting it"
+    assert min(_guards) < min(_branches), (
+        f"the baseline guard is at body index {min(_guards)}, the timeout branch at {min(_branches)} — "
+        "a caller that supplies a timeout skips the check, which is the #3704 defect verbatim"
+    )

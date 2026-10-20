@@ -712,9 +712,14 @@ def test_controller_start_is_idempotent_while_running():
     async def go():
         connect, events = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
-        await c.op("start")
+        first = await c.op("start")
         again = await c.op("start")
         assert again["already"] is True and events["connected"] == 1, "no second connect while running"
+        # The WHOLE answer, not just `already`. The two answers come from two different return
+        # statements, so reading only one key leaves the other one's `ok` and `streaming` unobserved:
+        # measured 2026-10-19, `_start__mutmut_3` and `_start__mutmut_6` flip each to False here and the
+        # suite stayed green, which would tell the monitor a running stream is not running.
+        assert again == {**first, "already": True}
         await c.op("stop")
 
     _run(go())
@@ -1164,8 +1169,12 @@ class _FakeBleak:
     # real service list is a mypy [assignment] error — and that count may only go DOWN.
     _services: "list | None" = _FULL_TREE  # class-level; a subclass overrides it or grows it per publish
 
-    def __init__(self, addr, timeout=None, bluez=None):
+    def __init__(self, addr, timeout=None, bluez=None, disconnected_callback=None):
         self.addr, self.bluez = addr, bluez
+        # bleak's own ctor keyword (bleak/__init__.py), STORED rather than swallowed: the shim registers
+        # a callback here and reads what it set, so a stub that accepted the kwarg and dropped it would
+        # let the registration pass while the box never called anything — the class docstring's rule.
+        self.disconnected_callback = disconnected_callback
         self.connected = False
         self.notify_cb = None
         self.written = []
@@ -1205,6 +1214,11 @@ class _FakeBleak:
     async def disconnect(self):
         self.connected = False
         self._backend.services = None  # bleak: `_cleanup_all` resets it — see the class docstring
+        # AND BLEAK FIRES THE CALLBACK FOR OUR OWN CLOSE TOO. It has one disconnected path, so the
+        # callback cannot tell who asked; a stub that fired it only for an unsolicited drop would make
+        # the shim's ours-vs-theirs guard untestable here and unfalsifiable on the box.
+        if self.disconnected_callback is not None:
+            self.disconnected_callback(self)
 
 
 def test_cpap_ble_connect_wires_write_recv_and_disconnect(monkeypatch):
@@ -1243,6 +1257,163 @@ def test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg(monkeypatch):
     async def go():
         await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", None)
         assert _FakeBleak.instances[-1].bluez is None, "no hci → no bluez adapter kwarg"
+
+    _run(go())
+
+
+# ── the drop probe: residue 2026-10-19-post-drop-tail-needs-a-drop-instant-this-layer-never-sees ──
+def _connect_with_probe(monkeypatch):
+    """Connect through the stubbed bleak and hand back the client, the probe and the close."""
+    import bleak
+    import capture
+
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+
+    async def go():
+        _write, _recv, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1")
+        probe = getattr(disconnect, "link_down", None)
+        assert probe is not None, "the close carries no drop probe — `cpap_stream._start` reads this"
+        return _FakeBleak.instances[-1], probe, disconnect
+
+    return _run(go())
+
+
+def test_the_connect_shim_registers_the_callback_WITH_BLEAK_and_reads_FALSE_on_a_live_link(monkeypatch):
+    """The registration is asserted on the client, not on the shim: a callback the ctor swallowed would
+    leave the probe permanently falsy and the post-drop tail permanently zero on the box."""
+    client, probe, _disconnect = _connect_with_probe(monkeypatch)
+    assert client.disconnected_callback is not None, "bleak was never asked to report the disconnect"
+    assert not probe(), "a live link must read FALSE, so the tail counter can say `0` and mean it"
+
+
+def test_an_UNSOLICITED_bleak_disconnect_makes_the_drop_probe_truthy(monkeypatch):
+    """🔴 THE UNIT. The peripheral went away and nobody asked it to — every frame read from here on is
+    the buffered tail (audit §7.3 measured one arriving ~230 ms later on real hardware)."""
+    client, probe, _disconnect = _connect_with_probe(monkeypatch)
+    client.disconnected_callback(client)  # bleak's own call signature: the client, positionally
+    assert probe(), "an unsolicited drop was not seen, so no frame after it can be attributed to one"
+
+
+def test_OUR_OWN_CLOSE_IS_NOT_A_DROP_so_the_probe_stays_falsy_through_disconnect(monkeypatch):
+    """🔴 OURS IS NOT THEIRS. bleak has one disconnected path and fires the same callback for the close
+    we asked for, so without the flag every clean stop would publish a post-drop tail — the shape that
+    makes an ordinary night read as a drop on the evidence surface."""
+    client, probe, disconnect = _connect_with_probe(monkeypatch)
+    _run(disconnect())
+    assert client.disconnected_callback is not None and not client.connected
+    assert not probe(), "our own close counted as a drop — the closing flag was not raised before it"
+
+
+def _probe_connector(probe):
+    """A transport whose `disconnect` carries `probe` as its `link_down` attribute, or plain when None."""
+
+    async def connect():
+        async def write(_f):
+            pass
+
+        async def recv_frame():
+            await asyncio.sleep(3600)
+
+        async def disconnect():
+            pass
+
+        if probe is not None:
+            disconnect.link_down = probe
+        return write, recv_frame, disconnect
+
+    return connect
+
+
+def _probe_recording_pump():
+    seen = {}
+
+    async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, link_down=None):
+        seen["link_down"] = link_down
+        seen["called"] = True
+        while should_stop is None or not should_stop.is_set():
+            await asyncio.sleep(0.005)
+        return 0
+
+    return pump, seen
+
+
+def test_the_controller_lifts_the_drop_probe_OFF_the_close_and_hands_it_to_the_pump():
+    """The join the whole unit rests on: the instant is visible only in the connect layer and the frame
+    boundary only in the pull loop, and this is the one hop between them."""
+
+    async def go():
+        def probe():
+            return False
+
+        pump, seen = _probe_recording_pump()
+        c = CS.LiveStreamController(_ControllerBus(), _probe_connector(probe), _creds, _idle_devices, pump=pump)
+        assert (await c.op("start"))["ok"] is True
+        await asyncio.sleep(0.01)
+        assert seen["link_down"] is probe, "the probe never reached the pump — the tail cannot be counted"
+        await c.op("stop")
+
+    _run(go())
+
+
+def test_the_pump_IS_HANDED_THE_TRANSPORTS_OWN_write_AND_recv_frame():
+    """The two positional arguments that ARE the radio. Every other test reaches the pump through them
+    and would notice nothing if one arrived as None: the fake pumps here never call `write`, and
+    `recv_frame` is a sleep that the cooperative stop abandons. Measured 2026-10-19,
+    `_start__mutmut_134` and `_start__mutmut_135` replace one each with None and the suite stayed
+    green — a stream that writes nothing and reads nothing, reported `ok`."""
+
+    async def go():
+        made, seen = {}, {}
+
+        async def connect():
+            async def write(_f):
+                pass
+
+            async def recv_frame():
+                await asyncio.sleep(3600)
+
+            async def disconnect():
+                pass
+
+            made["write"], made["recv_frame"] = write, recv_frame
+            return write, recv_frame, disconnect
+
+        async def pump(bus, write, recv_frame, pk, cid, *, should_stop=None, **kw):
+            seen["write"], seen["recv_frame"] = write, recv_frame
+            while should_stop is None or not should_stop.is_set():
+                await asyncio.sleep(0.005)
+            return 0
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump)
+        assert (await c.op("start"))["ok"] is True
+        await asyncio.sleep(0.01)
+        assert seen["write"] is made["write"], "the pump writes down the link this start opened"
+        assert seen["recv_frame"] is made["recv_frame"], "the pump reads the link this start opened"
+        await c.op("stop")
+
+    _run(go())
+
+
+def test_a_TRANSPORT_WITH_NO_PROBE_makes_the_byte_identical_pump_call_it_always_made():
+    """Additive, not a widened contract: the injected triples in these tests and the fifteen P0 call
+    sites carry no attribute, and for them the kwarg must be ABSENT rather than None — so the counter
+    stays unmeasured and `lost_coverage` keeps saying so."""
+
+    async def go():
+        seen = {}
+
+        async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, **kw):
+            seen["kw"] = kw
+            while should_stop is None or not should_stop.is_set():
+                await asyncio.sleep(0.005)
+            return 0
+
+        c = CS.LiveStreamController(_ControllerBus(), _probe_connector(None), _creds, _idle_devices, pump=pump)
+        assert (await c.op("start"))["ok"] is True
+        await asyncio.sleep(0.01)
+        assert "link_down" not in seen["kw"], f"a probe-less transport forwarded one: {seen['kw']}"
+        await c.op("stop")
 
     _run(go())
 
@@ -2048,12 +2219,14 @@ def test_controller_appends_the_therapy_end_sink_LAST():
             return s
 
         def therapy_factory(stop_ev):
+            seen["stop_arg"] = stop_ev
             s = CS.TherapyEndSink(stop_ev, hold_s=1.0)
             made.append(s)
             return s
 
         async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None, should_stop=None):
             seen["extra_sinks"] = list(extra_sinks or ())
+            seen["should_stop"] = should_stop
             while should_stop is None or not should_stop.is_set():
                 await asyncio.sleep(0.005)
             return 0
@@ -2073,6 +2246,12 @@ def test_controller_appends_the_therapy_end_sink_LAST():
         assert len(sinks) == 2, "both the durable sink and the therapy-end sink reach the pump"
         assert isinstance(sinks[-1], CS.TherapyEndSink), "the therapy-end sink must be LAST"
         assert isinstance(sinks[0], _RecordingSink), "the durable sink runs first"
+        # The sink must hold the SAME event the pump watches, or the auto-stop sets a flag nobody reads
+        # and the session runs until the button. `TherapyEndSink(None)` constructs happily, so the
+        # argument is invisible until it is compared: measured 2026-10-19, `_start__mutmut_112` passes
+        # None and every assertion above still held.
+        assert isinstance(seen["should_stop"], asyncio.Event)
+        assert seen["stop_arg"] is seen["should_stop"], "the acting sink sets the event the pump watches"
         await c.op("stop")
 
     _run(go())

@@ -118,6 +118,48 @@ def test_an_ABSENT_cpap_is_an_ORDINARY_ANSWER_not_a_500():
     _run(go())
 
 
+def test_a_NOT_FOUND_CLASS_is_enough_on_its_own_even_when_the_MESSAGE_says_nothing():
+    """Half one of the recognition, alone. The test above raises an exception whose class name AND
+    whose message both say not-found, so it holds whichever half the code reads — measured 2026-10-19,
+    `_start__mutmut_51` narrows the two halves to an `and` and the suite stayed green. bleak carries
+    the fact in the CLASS; the message is whatever the transport had to say."""
+
+    async def go():
+        class _NotFound(Exception):
+            pass
+
+        _NotFound.__name__ = "BleakDeviceNotFoundError"
+
+        async def connect():
+            raise _NotFound("org.bluez.Error.Failed: le-connection-abort-by-local")
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
+        r = await c.op("start")
+        assert r["ok"] is False and r["unreachable"] is True
+        assert "myAir" in r["error"]
+
+    _run(go())
+
+
+def test_a_MESSAGE_that_says_NOT_FOUND_is_enough_even_when_the_CLASS_does_not():
+    """Half two, alone — and the half that pins the CASE FOLD. A transport that reports the fact only
+    in its text, in whatever case it chose, is still an absent device. Measured 2026-10-19:
+    `_start__mutmut_59` folds the message the other way and `_start__mutmut_60` reads the string of
+    None instead of the exception, and both stayed green because every other not-found test carries
+    the class name as well."""
+
+    async def go():
+        async def connect():
+            raise OSError("[org.bluez] Device NOT FOUND on hci0")
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
+        r = await c.op("start")
+        assert r["ok"] is False and r["unreachable"] is True
+        assert "myAir" in r["error"]
+
+    _run(go())
+
+
 def test_an_UNEXPECTED_connect_error_is_still_reported_as_itself():
     """The control: only a not-found becomes the friendly sentence. Anything else must keep its own
     identity rather than being flattened into 'the CPAP is off'."""

@@ -453,6 +453,89 @@ def test_an_interrupted_session_still_emits_and_is_partial():
     assert got[0].completeness == ae.PARTIAL
 
 
+# ── `post_drop_tail` gained a writer (capture → cpap_stream → as11_pull), so the list CAN empty ────
+def _data_at(start, *, interval_ms=40):
+    """A StreamData frame on the DEVICE clock, so the continuity tracker can compare two of them —
+    `_data()` above repeats one stamp, which reads as a mid-session break and counts a stall."""
+    return _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {
+                "data": [{"PatientFlow": [0.1, 0.2]}, {"MaskPressure": [5.0, 5.1]}],
+                "intervalMs": interval_ms,
+                "startTime": start,
+                "streamId": 1,
+            },
+        }
+    )
+
+
+def test_the_production_pump_with_BOTH_WRITERS_LIVE_finally_reaches_COMPLETE():
+    """🔴 THE END OF THE CENSUS. The two categories `lost_coverage` named on every session now have
+    writers — `stalls` from the continuity tracker (#3700) and `post_drop_tail` from the transport's
+    drop probe — so a clean, lossless night on the production pump earns COMPLETE by MEASURING every
+    category, not by the list going quiet."""
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    got = []
+    # two frames, 2 samples x 40 ms apart on the device's own clock: contiguous, so `stalls` is a
+    # measured 0 rather than None — the state COMPLETE exists to be reachable from.
+    dev = _FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z"), _data_at("2026-08-23T01:30:28.810Z")])
+    n = asyncio.run(
+        CS.stream_to_bus(
+            _FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=2,
+            extra_sinks=[_FakeRaw()],
+            acq_evidence_out=got.append,
+            continuity=tracker,
+            link_down=lambda: False,
+        )
+    )
+    assert n == 2
+    ev = got[0]
+    assert ev.provenance["unmeasured_loss"] == [], "a category still unlooked-for keeps COMPLETE away"
+    assert ev.completeness == ae.COMPLETE
+    assert ev.transport_gaps == 0, "both terms measured and both zero — a number, not UNKNOWN"
+
+
+def test_a_COUNTED_TAIL_IS_NOT_LOSS_and_the_drop_is_what_makes_the_night_PARTIAL():
+    """The line this unit draws. `stream_to_bus` DRAINS the tail on disconnect and every sink receives
+    it, so a tail frame is delivered data and stays out of `total_lost` and out of the completeness sum.
+    What makes such a night partial is the unsolicited stop itself, which the envelope already read."""
+    got = []
+    dev = _FakeDev(_handshake() + [_ack(), _data()])  # frames run out mid-stream → the link "drops"
+    try:
+        asyncio.run(
+            CS.stream_to_bus(
+                _FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                extra_sinks=[_FakeRaw()],
+                acq_evidence_out=got.append,
+                link_down=lambda: True,
+            )
+        )
+    except Exception:  # noqa: BLE001 — the drop is the point; the envelope is what we assert on
+        pass
+    ev = got[0]
+    assert ev.transport_gaps >= 1, "the tail was read and not counted"
+    assert ev.provenance["gap_counters"]["post_drop_tail"] >= 1
+    assert ev.provenance["gap_counters"]["total_lost"] == 0, "a delivered tail frame is not lost"
+    assert "post_drop_tail" not in ev.provenance["unmeasured_loss"]
+    assert ev.completeness == ae.PARTIAL and ev.provenance["stopped_cleanly"] is False
+
+
 def test_no_evidence_callback_leaves_the_pump_unchanged():
     dev = _FakeDev(_handshake() + [_ack(), _data()])
     n = asyncio.run(

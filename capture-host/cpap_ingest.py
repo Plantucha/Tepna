@@ -110,12 +110,21 @@ class GapCounters:
     # device's own stamps. It stays None on a pump running without a continuity tracker, because that
     # pump compared nothing.
     #
-    # `post_drop_tail` still has none, and this layer cannot build one. A frame "after a logical link
-    # drop" needs the drop instant from the transport, and audit §7.3 measured that boundary ~230 ms
-    # wide: the device delivered a buffered fragment after the disconnect, so last-SEEN is not
-    # last-SENT. `as11_pull.stream` sees frames and raises on the drop; it never sees the instant.
+    # `post_drop_tail` NOW HAS ONE TOO — `note_link_down_frame`, called by `as11_pull.stream` for every
+    # frame it reads once the transport hands it a drop probe. The probe is the BLE transport's own
+    # disconnect callback (`capture._cpap_ble_connect`), which is where the instant lives; audit §7.3
+    # measured that boundary ~230 ms wide on real hardware, so a frame read after it is the buffered
+    # tail and last-SEEN is not last-SENT. It stays None on a pump whose transport offers no probe,
+    # because that pump looked for nothing.
+    #
+    # ⚠️ A TAIL FRAME IS NOT A LOST FRAME, which is why this one is outside `total_lost` as well. The
+    # loop consumes it and every sink receives it (`stream_to_bus`'s DRAIN-ON-DISCONNECT). What the
+    # count says is that the session's END is fuzzy: the device was still sending when we stopped
+    # being connected. The completeness axis already reads that session as PARTIAL through
+    # `stopped_cleanly`, so adding this to a loss total would double-count a drop and misname arrived
+    # data as missing.
     stalls: "int | None" = None  # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — see above
-    post_drop_tail: "int | None" = None  # frames after a logical link drop (audit §7.3, the ~230 ms tail) — UNMEASURED
+    post_drop_tail: "int | None" = None  # frames read after a logical link drop (audit §7.3) — see above
     # HOW LONG A SINK WRITE HELD THE LOOP. `stream_to_bus` is a single sequential `async for` — producer
     # and consumer are the same coroutine — so a slow sink stops the loop pulling frames. Measured
     # 2026-09-18: the loop stalls 10-35x/day, median 1502 ms, and 121 of 151 logged stalls fall inside a
@@ -149,6 +158,16 @@ class GapCounters:
             self.notifications += 1
         else:
             self.malformed += 1
+
+    def note_link_down_frame(self, down) -> None:
+        """Fold one frame's LINK STATE in: `down` is truthy when the transport has already reported an
+        unsolicited disconnect, so this frame is part of the post-drop tail.
+
+        Call it for EVERY frame the loop reads, not only the ones after a drop. The field must be able
+        to say "a probe looked and the link never dropped", and that reading is `0`; an increment-only
+        writer can only ever leave it None or positive, which is the §∅ shape where absence and zero
+        are indistinguishable. Same construction as `note_sink_write` one method down."""
+        self.post_drop_tail = (self.post_drop_tail or 0) + (1 if down else 0)
 
     def note_sink_write(self, ms: float) -> None:
         """Fold one sink write's duration in. Call it for EVERY write, not only slow ones — a maximum

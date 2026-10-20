@@ -113,6 +113,11 @@
    "status": "exempt",
    "reason": "the PURE builder (verdict_object, VERDICT_STATUSES) and the classifier vocabulary; the emitting producer is capture-host/tools/mutate_diff.py (adopted)"
   },
+  "capture-host/mutation_sweep.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the PURE builder (sweep_verdict_fields, SWEEP_CRITERION) for the module-scoped sweep; it names the statuses and fills the fields, and the emitting producer is capture-host/tools/mutate.py (adopted) — same split as mutation_diff.py beside tools/mutate_diff.py"
+  },
   "capture-host/night_report.py": {
    "bin": "word-only",
    "status": "exempt",
@@ -542,9 +547,16 @@
    "note": "ADOPTED 2026-10-13 (residue 2026-10-12-find-unwired-has-not-adopted-the-verdict-schema-so-check-sh-can-never-read-pass): --check --verdict-out writes ONE tepna.verdict/1 over the findings the scan examined (every row of the five gated scans, allowed or not, plus every allowlist entry checked for being spent); criterion = unexplained findings + spent suppressions == 0, the same sum --check exits 1 on, pre-stated; PASS none unexplained · FAIL any · NOT_RUN a scan that examined nothing or was refused by the interpreter floor (exit 2); the advisory provenance scan rides in result and never moves the status. capture-host/check.sh reads THIS object for its unwired child (checkverdict.ADOPTED_OURS), so a green run reads PASS. Sampled with --verdict-sample, which is synthetic and needs no tree and no particular interpreter."
   },
   "capture-host/tools/mutate.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
+   "bin": "decides",
+   "status": "adopted",
+   "note": "ADOPTED 2026-10-19 (residue 2026-10-19-mutate-sweep-prints-nothing-decided-with-no-verdict-object, promised in #3684; it replaces the word-only exemption, which read true of the source and said nothing about what the tool decides): the module-scoped mutation sweep emits ONE tepna.verdict/1 at its single deciding exit, over the same read of the same records its NOTHING DECIDED lines print. criterion = undecided_modules == 0, pre-stated in mutation_sweep.SWEEP_CRITERION and the same sum the exit code already used. PASS every examined module decided · UNKNOWN a module decided nothing (generation cap, unread results pass, wall cap, non-zero mutmut, absent rc, a skip) · NOT_APPLICABLE --estimate priced the sweep and no mutant ever existed · NOT_RUN no module was named. FAIL is reachable from nothing, deliberately: this is an audit whose documented normal output is surviving mutants at exit 0, so a declining phase is UNKNOWN and never a claim the module was measured and found wanting. --list returns before the exit path, because listing decides nothing. population: eligible = modules named, excluded = modules only priced, checked = modules examined for mutants; the undecided count rides in result, since a module that decided nothing was still examined.",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/mutate.py",
+     "--verdict-sample"
+    ]
+   }
   },
   "capture-host/tools/mutate_diff.py": {
    "bin": "decides",
@@ -966,6 +978,18 @@
     ]
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); event → desat coupling lift per class × window (the UNDERPOWERED/SATURATED flags ride as fields) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+  },
+  "tools/cvhr-gap-edge.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cvhr-gap-edge.mjs",
+     "--json"
+    ]
+   },
+   "note": "the planted-beat battery behind PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21 item 2 treatment (3): does a TIME HOLE in the beat series make the two CVHR detectors disagree? Pre-stated criterion ppg_minus_ecg_event_count_max_abs <= 0 events over 51 planted cases (3 rate steps x 17 hole lengths, each against the SAME leg built with no hole at all). PASS says the two nodes count the same events for the same beats and the same mask, which is what the Integrator's corroboration of their two apnea.cvhrIndex values rests on; it does NOT say either count is right. Measured 2026-10-19: FAIL before the mask was ported into cvhrFromNN (3 of 51 cases disagreed by one event), PASS after. The record is planted, so no figure here is corpus evidence, and the unrepaired edge term is reported in `result` beside the criterion rather than judged by it."
   },
   "tools/cvhr-fold-rescore.mjs": {
    "bin": "word-only",
@@ -1576,6 +1600,18 @@
     ]
    },
    "note": "wave-2 adopter (Magpie): the #2758 heuristic (a lone 156 is a beat marker, a run of 156s is signal) — PASS holds with >= 1 discriminating run row · UNDERPOWERED holds but VACUOUS (no run of 156s seen; minimum 1) · FAIL names which of the three counts is non-zero · NOT_RUN nothing scored. Population = rows scored. --json prints the object after the report; the sample is the #2758 corpus counts."
+  },
+  "tools/ppg-autogain-e2.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ppg-autogain-e2.mjs",
+     "--json"
+    ]
+   },
+   "note": "experiment E-2 of briefs/PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md (item 9, autogain step detect + repair before filtering): does the zero-phase settling ringing around an autogain level step cost the shipped rMSSD more than a tenth of the brief's own 1 % bias figure? Pre-stated criterion ac_quiet_rmssd_delta_median <= 0.35 ms over the AC-quiet steps; population = the recordings the stated size rule finds under --dir, nights whose per-night positive control fails are excluded and nights whose real delta does not clear a matched random null are not counted toward the median. Without --dir it emits NOT_RUN, so the gate can run it with no corpus; the unfiltered pass is NOT_APPLICABLE because the criterion is stated over AC-quiet steps only."
   },
   "tools/ppg-bridge-hrv-validate.mjs": {
    "bin": "word-only",
