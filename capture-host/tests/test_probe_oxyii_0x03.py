@@ -26,10 +26,14 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def _payload(vals, count=None, trailer=b""):
-    """A real 0x03 reply: 4 opaque header bytes, u16 LE record count at [4:6], then the 8-bit body."""
+def _payload(vals, count=None, trailer=b"", hdr0=0):
+    """A real 0x03 reply: the u32 LE header word at [0:4], the u16 LE record count at [4:6], then body.
+
+    `hdr0` defaults to 0 because that is what the ring sends — measured on all 887 replies of the
+    2026-10-06 header run. A test that wants a MOVING word passes one, which is the only way to prove
+    the probe would see a firmware that started filling the field."""
     n = len(vals) if count is None else count
-    return b"\x00\x00\x00\x00" + n.to_bytes(2, "little") + bytes(vals) + trailer
+    return hdr0.to_bytes(4, "little") + n.to_bytes(2, "little") + bytes(vals) + trailer
 
 
 def _s(counts, dt=0.2, markers=0, iso=0):
@@ -207,8 +211,13 @@ class _FakeRing:
     that fails CRC, a reply of some other opcode, and a live header too short to parse.
     """
 
-    def __init__(self, vals=(10, 156, 20), pr=60, *, bad_crc=False, short_live=False, other_op=False):
+    def __init__(
+        self, vals=(10, 156, 20), pr=60, *, bad_crc=False, short_live=False, other_op=False, hdr_advances=False
+    ):
         self.vals, self.pr = list(vals), pr
+        # A ring whose [0:4] carries a cumulative sample position — the firmware this one is NOT.
+        self.hdr_advances = hdr_advances
+        self.hdr0 = 0
         self.bad_crc, self.short_live, self.other_op = bad_crc, short_live, other_op
         self.notify = None
         self.notify_char = None
@@ -257,7 +266,9 @@ class _FakeRing:
         self.write_modes.append(response)
         op = frame[1]
         if op == probe.OP_SAMPLES_A:
-            reply = oxyii.encode(probe.OP_SAMPLES_A, _payload(self.vals))
+            reply = oxyii.encode(probe.OP_SAMPLES_A, _payload(self.vals, hdr0=self.hdr0))
+            if self.hdr_advances:
+                self.hdr0 += len(self.vals)
             if self.bad_crc:
                 reply = reply[:-1] + bytes([reply[-1] ^ 0xFF])
             self.notify(0, reply)
@@ -638,7 +649,17 @@ def test_the_result_and_every_record_carry_exactly_the_documented_keys(monkeypat
     _install(monkeypatch, ring, device=_FakeDevice())
     res = _run(probe.run("D1:98:62:7C:92:B3", 6.0, 5.0, None))
     assert set(res) == {"summary", "samples", "beats"}
-    assert set(res["samples"][0]) == {"t", "count", "body_len", "payload_len", "markers", "isolated", "body_hex"}
+    assert set(res["samples"][0]) == {
+        "t",
+        "count",
+        "body_len",
+        "payload_len",
+        "markers",
+        "isolated",
+        "body_hex",
+        "hdr0",
+        "hdr_hex",
+    }
     assert set(res["beats"][0]) == {"t", "pr", "spo2"}
     assert res["beats"][0]["spo2"] == 96 and res["beats"][0]["pr"] == 60, (
         "the live fields are read from the parsed header by their names"
@@ -774,12 +795,29 @@ def _full(r=125.0):
         "rate_unsaturated_hz": r,
         "span_s": 11.5,
         "unsaturated_span_s": 8.25,
+        # The header diagnostic, in the shape measured on the ring: a constant word. The one truncated
+        # reply is also the one that carried no header, and it excludes the two pairs it sits between.
+        "header_read": 8,
+        "header_absent": 1,
+        "header_values_distinct": 1,
+        "header_min": 0,
+        "header_max": 0,
+        "header_constant": True,
+        "header_pairs": 6,
+        "header_pairs_excluded": 2,
+        "header_steps_matching_count": 0,
+        "header_position_share": 0.0,
+        "header_nondecreasing": True,
+        "header_reading": "not-a-position",
     }
 
 
 def test_verdict_object_result_carries_exactly_the_documented_keys_with_the_values_it_was_given():
     v = probe.verdict_object(_full(125.0))
-    assert v["result"] == {**_full(125.0), "matched_hz": [125.0], "closest_fraction": 0.0}
+    # `header_min`/`header_max` stay in the per-run log and out of the object — the object answers
+    # whether the word MOVED, and the extremes are only readable beside the body they came from.
+    expect = {k: v2 for k, v2 in _full(125.0).items() if k not in ("header_min", "header_max")}
+    assert v["result"] == {**expect, "matched_hz": [125.0], "closest_fraction": 0.0}
     assert v["evidence"] == ["capture-host/probe_oxyii_0x03.py"]
     assert v["producedBy"]["tool"] == "capture-host/probe_oxyii_0x03.py"
     assert v["population"] == {"checked": 7, "eligible": 9, "excluded": 2}
@@ -831,6 +869,14 @@ def _v(r, **kw):
         "cap": 250,
         "rate_unsaturated_hz": r,
         "unsaturated_span_s": 4.5,
+        "header_read": 5,
+        "header_absent": 0,
+        "header_min": 0,
+        "header_max": 0,
+        "header_pairs": 4,
+        "header_steps_matching_count": 0,
+        "header_position_share": 0.0,
+        "header_reading": "not-a-position",
         **kw,
     }
 
@@ -847,30 +893,39 @@ def test_verdict_prose_lines_are_exact_for_every_outcome():
     assert probe.verdict(_v(125.0)) == [
         "VERDICT: unsaturated rate 125.0 Hz over 4.5 s",
         "  → consistent with 125.000 Hz (within 2 %)",
+        "  [0:4] reads not-a-position: 0/4 steps match the previous declared count (0.0%), against the 95% pre-stated in §P1; values 0..0",
     ]
     assert probe.verdict(_v(112.9, saturated_replies=1, saturated_fraction=0.2)) == [
         "VERDICT: unsaturated rate 112.9 Hz over 4.5 s",
         "  ⚠ 1/5 replies (20.0%) hit the 250-record cap — see the warning "
         "in this file's header; a high fraction makes even the unsaturated rate suspect.",
         "  → consistent with 112.9 Hz (within 2 %)",
+        "  [0:4] reads not-a-position: 0/4 steps match the previous declared count (0.0%), against the 95% pre-stated in §P1; values 0..0",
     ]
     assert probe.verdict(_v(100.0)) == [
         "VERDICT: unsaturated rate 100.0 Hz over 4.5 s",
         "  → consistent with NEITHER candidate — a third answer, not a tie-break",
+        "  [0:4] reads not-a-position: 0/4 steps match the previous declared count (0.0%), against the 95% pre-stated in §P1; values 0..0",
     ]
 
 
 def test_verdict_candidate_bands_sit_on_112_9_and_125_not_a_unit_away():
     """Probes placed just inside one candidate's 2 % band and OUTSIDE every shifted copy of it, so a
     candidate nudged by a Hz, or a band widened past 2 %, changes the lines."""
+
+    # Addressed by NAME, not by position: the header diagnostic is the last line now, and an index
+    # would have silently started asserting about a different line.
+    def _cand(r):
+        got = [ln for ln in probe.verdict(_v(r)) if "consistent with" in ln]
+        assert len(got) == 1, got
+        return got[0]
+
     inside_low = 112.9 * 0.981  # 1.9 % under 112.9; 2.8 % under 113.9
-    assert probe.verdict(_v(inside_low))[-1] == "  → consistent with 112.9 Hz (within 2 %)"
+    assert _cand(inside_low) == "  → consistent with 112.9 Hz (within 2 %)"
     inside_high = 125.0 * 0.981  # 1.9 % under 125; 2.7 % under 126
-    assert probe.verdict(_v(inside_high))[-1] == "  → consistent with 125.000 Hz (within 2 %)"
+    assert _cand(inside_high) == "  → consistent with 125.000 Hz (within 2 %)"
     for beyond in (113.9 * 1.019, 126.0 * 1.019):  # not within 2 % of EITHER real candidate
-        assert (
-            probe.verdict(_v(beyond))[-1] == "  → consistent with NEITHER candidate — a third answer, not a tie-break"
-        )
+        assert _cand(beyond) == "  → consistent with NEITHER candidate — a third answer, not a tie-break"
 
 
 def _capture_run(monkeypatch, summary=None):
@@ -954,3 +1009,164 @@ def test_main_prints_each_summary_row_the_verdict_object_and_where_the_log_went(
     text = log.read_text(encoding="utf-8")
     assert text == json.dumps(json.loads(text), indent=1)
     assert json.loads(text)["verdict"] == obj
+
+
+# ── [0:4]: the header word, recorded instead of re-patched ────────────────────────────────────────
+# RING-POLL-SPLIT §P1 answered its criterion (b) with a SCRATCH copy of this probe recording
+# `payload[:6]`. That copy was never committed, so the measurement behind "[0:4] is not a stream
+# position" could not be re-run without writing the patch again. What is covered here is the committed
+# reader, its ABSENCE case, the pre-stated share, and — the control that matters — a ring whose word
+# DOES advance. Without that control the reader could be hard-wired to the 2026-10-06 constant and
+# every test would still pass.
+def _hw(words, counts, dt=0.2):
+    """A per-reply log carrying one header word per reply. `None` in `words` is a reply never read."""
+    return [
+        {"t": i * dt, "count": c, "body_len": c or 0, "markers": 0, "isolated": 0, "hdr0": w}
+        for i, (w, c) in enumerate(zip(words, counts))
+    ]
+
+
+def test_parse_header_word_reads_the_u32_le_at_zero():
+    assert probe.parse_header_word(_payload([1, 2, 3], hdr0=0x04030201)) == 0x04030201
+
+
+def test_a_header_too_short_to_read_is_none_and_a_measured_zero_is_a_value():
+    # ∅ The two must not render alike, because the measured value IS 0: five bytes cannot carry the
+    # six-byte header, and reporting 0 there would publish the constant for a reply never read.
+    assert probe.parse_header_word(b"\x00\x00\x00\x00\x00") is None
+    assert probe.parse_header_word(_payload([7], hdr0=0)) == 0
+
+
+def test_the_measured_constant_reads_as_not_a_position():
+    # P1's shape, worn, 2026-10-06: 887 replies, `[0:4]` zero on every one, and 11 of the 886 steps
+    # matching — the replies that had declared 0 records. The share is 1.2 %, not 95 %.
+    counts = [0] * 11 + [250] * 876
+    s = probe.header_word_stats(_hw([0] * 887, counts))
+    assert s["header_read"] == 887
+    assert s["header_absent"] == 0
+    assert s["header_values_distinct"] == 1
+    assert s["header_constant"] is True
+    assert (s["header_pairs"], s["header_steps_matching_count"]) == (886, 11)
+    assert s["header_position_share"] == 0.0124
+    assert s["header_nondecreasing"] is True
+    assert s["header_reading"] == "not-a-position"
+
+
+def test_a_cumulative_word_reads_as_a_position():
+    # The control. A firmware whose `[0:4]` carries the stream position must come out the other way,
+    # or the reader is a constant dressed as a measurement.
+    s = probe.header_word_stats(_hw([0, 10, 20, 30], [10, 10, 10, 10]))
+    assert (s["header_pairs"], s["header_steps_matching_count"]) == (3, 3)
+    assert s["header_position_share"] == 1.0
+    assert s["header_reading"] == "position"
+    assert s["header_constant"] is False
+
+
+def test_the_pre_stated_share_is_the_boundary_and_empty_replies_can_meet_it():
+    # 38 of 40 is exactly 0.95, so it reads as a position — off REPLIES THAT DECLARED NOTHING, whose
+    # step of 0 matches their count of 0. The criterion was pre-stated with that artifact in it, so it
+    # stays; the reading is only honest beside the declared counts, which is why both are published.
+    at = probe.header_word_stats(_hw([0] * 41, [0] * 38 + [250] * 3))
+    assert (at["header_pairs"], at["header_steps_matching_count"]) == (40, 38)
+    assert at["header_position_share"] == 0.95
+    assert at["header_reading"] == "position"
+    below = probe.header_word_stats(_hw([0] * 41, [0] * 37 + [250] * 4))
+    assert below["header_position_share"] == 0.925
+    assert below["header_reading"] == "not-a-position"
+
+
+def test_nothing_read_leaves_every_derived_field_null():
+    # ∅ A run whose replies were all too short decided nothing about the field. Only the two counts
+    # answer 0; a share of 0.0 or a `False` for `constant` would be an answer nobody measured.
+    s = probe.header_word_stats(_hw([None, None, None], [250, 250, 250]))
+    assert (s["header_read"], s["header_absent"]) == (0, 3)
+    for k in (
+        "header_values_distinct",
+        "header_min",
+        "header_max",
+        "header_constant",
+        "header_pairs",
+        "header_position_share",
+        "header_steps_matching_count",
+        "header_nondecreasing",
+        "header_reading",
+    ):
+        assert s[k] is None, k
+    assert s["header_pairs_excluded"] == 2
+
+
+def test_an_unreadable_reply_excludes_its_pairs_rather_than_failing_them():
+    # The middle reply was never read, so neither pair it belongs to is examinable. Scoring them as
+    # mismatches would push a real position below the share by nothing but a truncated link.
+    s = probe.header_word_stats(_hw([0, None, 20, 30], [10, 10, 10, 10]))
+    assert (s["header_pairs"], s["header_pairs_excluded"]) == (1, 2)
+    assert s["header_position_share"] == 1.0
+
+
+def test_a_reply_declaring_nothing_excludes_the_pair_it_opens():
+    # A truncated reply has no declared count, so the step has nothing to be compared against.
+    s = probe.header_word_stats(_hw([0, 10, 20], [10, None, 10]))
+    assert (s["header_pairs"], s["header_pairs_excluded"]) == (1, 1)
+    assert s["header_steps_matching_count"] == 1
+
+
+def test_a_word_that_goes_backwards_is_reported():
+    s = probe.header_word_stats(_hw([30, 20, 10], [10, 10, 10]))
+    assert s["header_nondecreasing"] is False
+    assert s["header_reading"] == "not-a-position"
+
+
+def test_summarise_carries_the_header_diagnostic():
+    s = probe.summarise(_hw([0, 0, 0], [25, 25, 25]))
+    assert s["header_read"] == 3
+    assert s["header_reading"] == "not-a-position"
+    # The rate is unchanged by the diagnostic riding along.
+    assert s["rate_unsaturated_hz"] == 125.0
+
+
+def test_the_verdict_object_carries_the_reading_and_keeps_the_rate_as_its_status():
+    v = probe.verdict_object(probe.summarise(_hw([0] * 51, [25] * 51)))
+    assert v["status"] == "PASS"
+    assert v["criterion"]["name"] == "rate_within_candidate"
+    assert v["result"]["header_reading"] == "not-a-position"
+    assert v["result"]["header_constant"] is True
+
+
+def test_the_prose_states_the_reading_with_the_pre_stated_share():
+    line = [ln for ln in probe.verdict(probe.summarise(_hw([0] * 51, [25] * 51))) if "[0:4]" in ln]
+    assert len(line) == 1
+    assert "not-a-position" in line[0]
+    assert "95%" in line[0].replace(" %", "%")
+    assert "0/50" in line[0]
+
+
+def test_the_prose_says_so_when_the_header_has_no_reading():
+    rows = [{"t": i * 0.2, "count": 25, "markers": 0, "isolated": 0} for i in range(51)]
+    line = [ln for ln in probe.verdict(probe.summarise(rows)) if "[0:4]" in ln]
+    assert len(line) == 1
+    assert "no examinable pair" in line[0]
+    assert "51 absent" in line[0]
+
+
+def test_run_records_the_header_word_and_the_raw_header_bytes(monkeypatch):
+    ring = _FakeRing(vals=(10, 20, 30))
+    _install(monkeypatch, ring, device=_FakeDevice())
+    res = _run(probe.run("D1:98:62:7C:92:B3", 4.0, 5.0, None))
+    assert res["samples"], "the fake ring answered no 0x03 reply"
+    for rec in res["samples"]:
+        assert rec["hdr0"] == 0
+        # The whole six bytes, the declared count included: the count varying is what proves the
+        # header was read at all when the word reads a constant.
+        assert rec["hdr_hex"] == "000000000300"
+    assert res["summary"]["header_reading"] == "not-a-position"
+
+
+def test_run_sees_a_ring_whose_header_word_advances(monkeypatch):
+    # The end-to-end control: same probe, same loop, a firmware that fills the field.
+    ring = _FakeRing(vals=(10, 20, 30), hdr_advances=True)
+    _install(monkeypatch, ring, device=_FakeDevice())
+    res = _run(probe.run("D1:98:62:7C:92:B3", 4.0, 5.0, None))
+    words = [rec["hdr0"] for rec in res["samples"]]
+    assert words == sorted(words) and words[-1] > 0, words
+    assert res["summary"]["header_reading"] == "position"
+    assert res["summary"]["header_nondecreasing"] is True

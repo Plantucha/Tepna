@@ -8559,8 +8559,8 @@ def test_SPLIT_mode_logs_the_wave_frames_with_a_BLANK_position_never_a_running_s
 
     `PPG_FRAME` is 0x04 and carries `ppg_stream_offset` — the ring's own cumulative position.
     `PPG_FRAME_A` is 0x03 (LIVE_SAMPLES_A), whose reply header is 6 bytes with only a declared count at
-    [4:6]; [0:4] is unexamined and no cumulative position is known there. So the position column is
-    BLANK.
+    [4:6]. `[0:4]` was examined on 2026-10-06 and is not a position — 0 on all 887 worn replies
+    (RING-POLL-SPLIT §P1) — so no cumulative position exists there. The position column is BLANK.
 
     NOT a host-maintained running sum, which is the tempting fix and the wrong one: a sum advances across
     a dropout the device sat out, which is precisely the event an arrival floor exists to SEE, so it

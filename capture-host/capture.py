@@ -5966,8 +5966,14 @@ async def run_oxyii(dev: dict, root: str):
                                 # differ in what they can anchor and a consumer must not have to guess:
                                 # `PPG_FRAME` is 0x04 and carries `ppg_stream_offset`; `PPG_FRAME_A` is
                                 # 0x03 (LIVE_SAMPLES_A) and carries NO cumulative position — its reply
-                                # header is 6 bytes with only the declared count at [4:6], and [0:4] is
-                                # unexamined (brief §③, probe P1).
+                                # header is 6 bytes with only the declared count at [4:6]. `[0:4]` was
+                                # EXAMINED and is not a position: worn, 2026-10-06, it read 0 on all 887
+                                # replies, and 11 of the 886 steps matched the previous declared count
+                                # because those replies had declared 0 (RING-POLL-SPLIT §P1, criterion
+                                # (b) FAIL). The same session's 0x04 `[20:24]` read 0 on all 177 frames,
+                                # so NEITHER opcode carries a moving device position on this unit.
+                                # `probe_oxyii_0x03.py` records the word per reply, so a firmware that
+                                # starts filling it is visible without patching the probe again.
                                 # ∅ So the position column is written BLANK, never as a host-maintained
                                 # running sum: a sum would advance across a dropout the device sat out,
                                 # which is precisely the event the arrival floor exists to see, and it
