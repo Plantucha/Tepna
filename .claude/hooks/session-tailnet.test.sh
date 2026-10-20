@@ -12,6 +12,21 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/session-tailnet.sh"
+# ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
+# four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be
+# absorbed into a pipe. The literal 100 KB these legs used to stage looked like twice the 64 KB pipe
+# buffer, but `cat` moves a file in with `copy_file_range`, which may push pages past the 16-slot
+# limit up to `fs.pipe-max-size` (1048576 here). Measured 2026-10-20 against a planted non-draining
+# hook, 12 trials a size: 100 KB stranded the writer 7 times, 4000 KB 12 of 12. Re-measured the same
+# day under load average 20: 100 KB stranded it 35 times of 36, one batch reading 11 of 12 — so the
+# RATE is the box's scheduling at that moment, not a property of the size, and a sample cannot bound
+# it. The derived size needs no rate: nothing past `fs.pipe-max-size` can be absorbed at all. A leg
+# that is a coin flip on a broken hook is SILENT rather than flaky, because the hook it guards drains.
+# A size that cannot be derived refuses (exit 2) — it is a leg that would examine nothing.
+_PROBE_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-contract.mjs"
+_PROBE_BYTES="$(node "$_PROBE_TOOL" --probe-bytes 2>/dev/null)"
+case "$_PROBE_BYTES" in ''|*[!0-9]*) printf '  REFUSE  the writer-fate payload size could not be derived (%s --probe-bytes)\n' "$_PROBE_TOOL" >&2; exit 2 ;; esac
+
 REPO="$(cd "$(dirname "$H")/../.." && pwd)"
 fail=0
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
@@ -26,7 +41,7 @@ run() { # run <with_key:0|1> <helper:none|ok|fail>  → prints "<rc>|<combined o
     fail) printf '#!/bin/sh\necho "ts-up: failed 1 (see the log)"\nexit 1\n' > "$TMP/bin/ts-up"; chmod +x "$TMP/bin/ts-up" ;;
   esac
   [ "$1" = 1 ] && envs+=(TS_AUTHKEY="$KEY")
-  out="$("${envs[@]}" bash "$H" 2>&1)"; rc=$?
+  out="$("${envs[@]}" bash "$H" 2>&1 </dev/null)"; rc=$?
   printf '%s|%s' "$rc" "$out"
 }
 check() { # check <label> <run-result> <want_rc> <want_substring | EMPTY>
@@ -48,6 +63,28 @@ check "key, no helper"           "$(run 1 none)" 0 EMPTY
 echo "### joins when both are present — one line, exit 0 either way, the key never printed"
 check "key + helper succeeds"    "$(run 1 ok)"   0 "session-tailnet: ts-up: up"
 check "key + helper fails"       "$(run 1 fail)" 0 "session-tailnet: join FAILED"
+echo "### the WRITER survives both early exits — a payload sized from `fs.pipe-max-size` cannot be absorbed"
+# Every leg above reads only the hook's own exit code, and a hook that exits before it reads stdin
+# still exits 0 there. This leg watches the WRITER: an unread pipe kills it with SIGPIPE (141). The
+# pipe stays ON PURPOSE (a redirect has no writer to lose), and it repeats because the defect is a
+# race. The assignments stay INLINE: an `env` prefix hid the writer's 141 in #3759's measurement.
+# PATH names an empty directory, so no real `ts-up` can run, and bash is called by its full path.
+head -c "$_PROBE_BYTES" /dev/zero | tr '\0' x > "$TMP/stdin-big"
+mkdir -p "$TMP/nobin"
+BASH_BIN="$(command -v bash)"
+writer() { # writer <key value or empty> → the worst writer exit over five laps
+  local worst=0 rc i
+  for i in 1 2 3 4 5; do
+    cat "$TMP/stdin-big" | TS_AUTHKEY="$1" PATH="$TMP/nobin" "$BASH_BIN" "$H" >/dev/null 2>&1
+    rc="${PIPESTATUS[0]}"; [ "$rc" != 0 ] && worst="$rc"
+  done
+  printf '%s' "$worst"
+}
+for leg in "no key|" "key, no helper|$KEY"; do
+  w="$(writer "${leg#*|}")"
+  if [ "$w" = 0 ]; then echo "  ✓ ${leg%%|*}: the writer survives"
+  else echo "  ✗ ${leg%%|*}: the writer exited $w (141 = SIGPIPE, the hook never read stdin)"; fail=1; fi
+done
 echo "### the WIRING — a hook that is not wired is inert, however green its behaviour reads"
 S="$REPO/.claude/settings.json"
 wired="$(jq -r '[.hooks.SessionStart[]? | .hooks[]? | .command] | join(",")' "$S" 2>/dev/null)"

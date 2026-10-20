@@ -434,7 +434,7 @@ function mayWriteVerdicts({ child, dry }) {
 function gateVerdictLine(run, path) {
   const head = `gate verdict  : ${run.status}`;
   if (!run.result) return `${head} — no night was judged (${run.reason || 'no reason given'}) → ${path}`;
-  return `${head} — ${run.result.folded} folded · ${run.result.rejected} rejected · ${run.result.notTrio} not trio → ${path}`;
+  return `${head} — ${run.result.folded} admitted · ${run.result.rejected} rejected · ${run.result.notTrio} not trio → ${path}`;
 }
 function writeVerdicts(list, { dry }) {
   const run = runVerdict(list, { dry });
@@ -444,6 +444,60 @@ function writeVerdicts(list, { dry }) {
   }
   if (flag('--json')) console.log(JSON.stringify(run));
   return run;
+}
+/* THE FOLD OUTCOME — a second object, because the gate above judges the PLAN and nothing judged the RESULT.
+   A PASS night is a night the gate ADMITTED. Its nodes then run, and a node can still throw: `mergeEcg`
+   refuses sessions whose fs disagree by more than 0.05 Hz. Measured 2026-10-20 on three admitted nights
+   (residue `2026-10-20-three-accepted-trio-nights-lose-ecg-to-the-fs-merge-bound`): the run printed
+   `gate verdict : PASS — 1 folded` beside `complete trios : 0`, and the verdicts file kept the PASS. The
+   gate run is not wrong — it decided admission, and it decided it before any node ran. The defect was
+   that the outcome had no verdict at all, so the one machine-readable object on disk read as success.
+   One record per admitted night, `landed` = trio node-exports on disk after the run. Pure, so
+   `--selftest` pins it. PASS only when every admitted night landed all three; SHORTFALL when some did;
+   FAIL when none did; NOT_RUN when the gate admitted nothing (examined nothing, §∅: no 0 of 0). */
+function foldVerdict(landed) {
+  const n = landed.length;
+  const want = TRIO_NODES.length;
+  const short = landed.filter((r) => r.landed < want);
+  const complete = n - short.length;
+  let status, reason;
+  if (!n) {
+    status = 'NOT_RUN';
+    reason = 'the gate admitted no night, so no fold ran';
+  } else if (!short.length) {
+    status = 'PASS';
+    reason = null;
+  } else {
+    status = complete ? 'SHORTFALL' : 'FAIL';
+    reason = `${short.length} of ${n} admitted night(s) landed fewer than ${want} node-exports: ${short.map((r) => `${r.night} (${r.landed}/${want})`).join(', ')}`;
+  }
+  const v = Verdict.make({
+    gate: 'trio-batch-fold',
+    status,
+    population: { checked: n, eligible: n, excluded: 0 },
+    criterion: { name: 'trio_node_exports_landed', threshold: want, unit: 'node-exports', direction: 'gte' },
+    result: status === 'NOT_RUN' ? null : { complete, short: short.length, nights: landed.map((r) => ({ night: r.night, landed: r.landed })) },
+    evidence: ['tools/trio-batch.mjs', `${OUT} (node-exports on disk)`],
+    reason,
+    producedBy: gateProducer()
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`trio-batch: fold verdict is invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  return v;
+}
+const foldVerdictLine = (v) =>
+  v.result
+    ? `fold verdict  : ${v.status} — ${v.result.complete} of ${v.result.nights.length} admitted night(s) landed all ${TRIO_NODES.length} node-exports${v.reason ? ` · ${v.reason}` : ''}`
+    : `fold verdict  : ${v.status} — ${v.reason}`;
+// The parent re-writes the verdicts file with the outcome beside the plan verdict. Only where the plan
+// verdict itself may be written (never a child, never a dry run — a dry run folds nothing).
+function writeFoldVerdict(plans, run) {
+  const v = foldVerdict(plans.map((p) => ({ night: p.key, landed: countTrioExports(join(OUT, p.key)) })));
+  if (mayWriteVerdicts({ child: CHILD, dry: DRY })) {
+    mkdirSync(OUT, { recursive: true });
+    writeFileSync(join(OUT, 'trio-batch-verdicts.json'), JSON.stringify({ run, fold: v, nights: nightVerdicts }, null, 1) + '\n');
+  }
+  return v;
 }
 /* --verdict-sample: the manifest's corpus-free emission (VERDICT-CONTRACT §3, `emits.cmd`) — one PASS night
    and one FAIL night from synthetic decisions, through the same builder the real run uses, no --src. */
@@ -901,10 +955,47 @@ if (flag('--selftest')) {
 
     /* THE CONSOLE LINE over a run that judged nothing. `result` is null for NOT_RUN and
        NOT_APPLICABLE, and the line used to read `run.result.folded` unguarded. */
-    eq('the line quotes the three counts when the run judged nights', gateVerdictLine(run, 'OUT/f.json'), 'gate verdict  : SHORTFALL — 1 folded · 1 rejected · 1 not trio → OUT/f.json');
+    eq('the line quotes the three counts when the run judged nights', gateVerdictLine(run, 'OUT/f.json'), 'gate verdict  : SHORTFALL — 1 admitted · 1 rejected · 1 not trio → OUT/f.json');
     eq('…and over ZERO nights it reports the absence instead of crashing', /^gate verdict  : NOT_RUN — no night was judged \(.+\) → OUT\/f\.json$/.test(gateVerdictLine(runNone, 'OUT/f.json')), true);
-    eq('…and invents no count there (§∅: a 0 nobody measured)', /folded/.test(gateVerdictLine(runNone, 'OUT/f.json')), false);
+    eq('…and invents no count there (§∅: a 0 nobody measured)', /admitted/.test(gateVerdictLine(runNone, 'OUT/f.json')), false);
     eq('…same for a run that judged none of the nights it was offered', gateVerdictLine(runNa, 'OUT/f.json').startsWith('gate verdict  : NOT_APPLICABLE — no night was judged ('), true);
+
+    /* THE FOLD OUTCOME (residue 2026-10-20-three-accepted-trio-nights-lose-ecg-to-the-fs-merge-bound):
+       an admitted night whose ECG merge was refused landed 2 of 3 exports, and the run still read PASS. */
+    const fv = (rows) => foldVerdict(rows.map(([night, landed]) => ({ night, landed })));
+    const oneShort = fv([['2026-01-01', 2]]);
+    eq('the one measured case — one admitted night, ECG refused — is FAIL, not PASS', oneShort.status, 'FAIL');
+    eq('…it validates, and the reason names the night and the count', val(oneShort) === true && /2026-01-01 \(2\/3\)/.test(oneShort.reason), true);
+    eq(
+      'some nights short, some complete ⇒ SHORTFALL',
+      fv([
+        ['2026-01-01', 3],
+        ['2026-01-02', 2]
+      ]).status,
+      'SHORTFALL'
+    );
+    eq(
+      '…population is every admitted night',
+      JSON.stringify(
+        fv([
+          ['2026-01-01', 3],
+          ['2026-01-02', 2]
+        ]).population
+      ),
+      '{"checked":2,"eligible":2,"excluded":0}'
+    );
+    eq(
+      'every admitted night landed all three ⇒ PASS',
+      fv([
+        ['2026-01-01', 3],
+        ['2026-01-02', 3]
+      ]).status,
+      'PASS'
+    );
+    const none = fv([]);
+    eq('the gate admitted nothing ⇒ NOT_RUN with no result (§∅)', val(none) === true && none.status === 'NOT_RUN' && none.result === null, true);
+    eq('the fold line quotes the count beside the status', foldVerdictLine(oneShort).startsWith('fold verdict  : FAIL — 0 of 1 admitted night(s) landed all 3 node-exports · '), true);
+    eq('…and over no admitted night it states the absence', foldVerdictLine(none), 'fold verdict  : NOT_RUN — the gate admitted no night, so no fold ran');
     nightVerdicts.length = before;
   }
 
@@ -2259,6 +2350,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   console.log(`nights        : ${work.length} planned · ${complete} complete trio(s) on disk${failed ? ` · ${failed} child failure(s)` : ''}`);
   console.log(`wall-clock    : ${secs.toFixed(0)}s  (${(secs / Math.max(1, work.length)).toFixed(0)}s/night at ${plan.jobs}×${splitNodes ? `, nodes split ${TRIO_NODES.length}-way` : ''})`);
   console.log(foldLedgerLine(writeFoldLedger(trio, { dry: DRY })));
+  console.log(foldVerdictLine(writeFoldVerdict(LIMIT ? trio.slice(0, LIMIT) : trio, gateRun)));
   console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);
   process.exit(failed ? 1 : 0);
 }
@@ -3458,4 +3550,5 @@ if (noMotion)
       `                  TCH FU-III §1 needs that DSP change, not more data.)`
   );
 if (!CHILD) console.log(foldLedgerLine(writeFoldLedger(trio, { dry: DRY })));
+if (!CHILD) console.log(foldVerdictLine(writeFoldVerdict(LIMIT ? trio.slice(0, LIMIT) : trio, gateRun)));
 console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);

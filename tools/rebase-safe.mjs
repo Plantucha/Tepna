@@ -61,7 +61,8 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
 import { parseRows as parseLedgerRows } from './residue-ids.mjs';
-import { readFileSync, existsSync } from 'node:fs';
+import { extractVerdicts } from './pr-compliance.mjs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -206,7 +207,24 @@ export function generatedSet() {
   const idx = askSingleDocsOutput('tools/tools-index.mjs');
   if (!idx) return null; // FAIL CLOSED — same rule: an unanswerable builder means we know nothing
   bundles.add(idx);
+  /* THE GOLDEN REGENERATORS, asked the same way and failing closed the same way — see
+     askRegenGoldens() for the two rails and for why a held fixture stays SOURCE. Nine spawns that
+     build nothing: measured 379 ms for all nine, against a rebase that rebuilds four trees. */
+  const goldens = askRegenGoldens();
+  if (!goldens) return null; // FAIL CLOSED
+  _recipeByFixture = new Map();
+  goldens.generated.forEach((g) => {
+    bundles.add(g.path);
+    _recipeByFixture.set(g.path, g.recipe);
+  });
   return bundles;
+}
+
+/* Which recipe rewrites a given auto-resolved fixture. Written by `generatedSet()` so `rebuild()` can
+   run exactly the regenerators a conflict needs, rather than all nine on every rebase. */
+let _recipeByFixture = new Map();
+export function recipeForFixture(p) {
+  return _recipeByFixture.get(p) || null;
 }
 
 /* The ONE `docs/` path a builder declares, read out of its source text. Returns null — never a
@@ -229,6 +247,181 @@ function askSingleDocsOutput(file) {
   } catch {
     return null;
   }
+}
+
+/* ── THE GOLDEN REGENERATORS OWN FIXTURES UNDER `uploads/`, AND THE CLASSIFIER CALLED THEM SOURCE ──
+   Measured by Magpie on #3765 and logged as `2026-10-20-rebase-safe-calls-a-regen-owned-fixture-source`:
+   a PpgDex PR that fell behind main stopped on six `uploads/*.node-export.json` files no human edits,
+   and the documented way out was blocked in both directions. Keeping one side wholesale is wrong for a
+   regenerated artifact, and deleting the files to regenerate them does not work either — `isNew` skips
+   an absent fixture with no `newRecord`, and the merge needs the committed bytes as its base. The only
+   authority on those bytes is `tools/regen-<node>-goldens.mjs`, which is exactly the shape this tool
+   already uses for `docs/`: ask the builder, never glob the tree.
+
+   TWO RAILS, BOTH REQUIRED, because the question is not "does a builder write it" but "can the rebuild
+   RESTORE it here" — the same test that keeps `docs/MUTATION-INVENTORY.md` source:
+
+     1 · THE RECIPE DECLARES IT REPRODUCIBLE. A `corpus` row is a real recording's golden; its input is
+         gitignored, so a fresh worktree cannot re-run it and an auto-resolve would discard the branch's
+         regeneration with nothing to put back.
+     2 · EVERY INPUT IS TRACKED IN THIS CHECKOUT. The flag is a declaration; tracking is a measurement,
+         and it is the one that answers "here". A fixture whose inputs nobody declared — in the recipe
+         or in the fixture ledger — is held too: a classifier that guesses on absent evidence is the
+         silent revert this tool exists to prevent.
+
+   Anything held stays SOURCE, so the rebase stops on it and says why. That is the expensive-but-correct
+   side: one hand-run of the node's regenerator against a real corpus, instead of a ✓ over reverted bytes. */
+export function parseOwnedListing(text) {
+  if (typeof text !== 'string') return null;
+  const lines = text.split('\n').filter((l) => l.trim().length);
+  if (!lines.length) return null;
+  const rows = [];
+  for (const l of lines) {
+    const f = l.split('\t');
+    if (f.length !== 3) return null; // not the contract — unreadable, not empty
+    const path = f[0].trim();
+    const kind = f[1].trim();
+    if (!path || (kind !== 'corpus' && kind !== 'committed')) return null;
+    rows.push({
+      path,
+      kind,
+      inputs: f[2]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    });
+  }
+  return rows;
+}
+
+/* The decision, separated from the spawns and the git calls so the suite drives every rail by value.
+   `isTracked(name)` answers whether an input ships in THIS checkout. Returns null on an unreadable
+   listing, which the caller turns into a null generated set — fail CLOSED, never an empty one. */
+export function classifyOwnedFixtures(rows, isTracked, ledgerInputs) {
+  if (!Array.isArray(rows) || typeof isTracked !== 'function') return null;
+  const led = ledgerInputs && typeof ledgerInputs === 'object' ? ledgerInputs : {};
+  const generated = [];
+  const held = [];
+  for (const r of rows) {
+    if (!r || typeof r.path !== 'string' || !r.path) return null;
+    if (r.kind === 'corpus') {
+      held.push({ path: r.path, why: 'the recipe declares it corpus-backed — its input is gitignored' });
+      continue;
+    }
+    const base = r.path.slice(r.path.lastIndexOf('/') + 1);
+    const declared = (Array.isArray(r.inputs) ? r.inputs : []).concat(Array.isArray(led[base]) ? led[base] : []);
+    const inputs = [...new Set(declared.filter((s) => typeof s === 'string' && s))];
+    if (!inputs.length) {
+      held.push({ path: r.path, why: 'neither the recipe nor the fixture ledger names an input' });
+      continue;
+    }
+    const absent = inputs.filter((n) => !isTracked(n));
+    if (absent.length) {
+      held.push({ path: r.path, why: 'input not tracked in this checkout: ' + absent.join(', ') });
+      continue;
+    }
+    generated.push(r.path);
+  }
+  return { generated, held };
+}
+
+/* Which auto-resolved fixtures a regen run did NOT rewrite. The regenerator reports an item it could
+   not reach rather than failing — `⊘ <name> — INPUT ABSENT`, `⊘ <name> — committed fixture absent`,
+   `✗ <name> — build threw` — and exits 0. So a caller that reads only the exit code would auto-resolve
+   a fixture to main's bytes, watch the restore silently not happen, and print ✓. */
+export function unrestoredFrom(text, names) {
+  if (typeof text !== 'string' || !Array.isArray(names)) return null;
+  const bad = [];
+  for (const p of names) {
+    if (typeof p !== 'string' || !p) return null;
+    const base = p.slice(p.lastIndexOf('/') + 1);
+    const re = new RegExp('[⊘✗]\\s+' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+—');
+    if (re.test(text)) bad.push(p);
+  }
+  return bad;
+}
+
+/* The recipes, read off disk rather than typed here: a node that gains a regenerator reaches this tool
+   the day it lands. `regen-goldens.mjs` (the front door) and `regen-goldens-core.mjs` (the scaffolding)
+   are not recipes and own nothing. */
+function regenRecipeFiles() {
+  try {
+    return readdirSync(join(ROOT, 'tools'))
+      .filter((n) => /^regen-.+-goldens\.mjs$/.test(n) && n !== 'regen-goldens.mjs')
+      .sort()
+      .map((n) => 'tools/' + n);
+  } catch {
+    return null;
+  }
+}
+
+/* Every fixture record's declared inputs, keyed by fixture name. An older golden declares none in its
+   recipe (only a `newRecord` carries them there) and the ledger is where that evidence lives. */
+function ledgerInputsByFixture() {
+  const out = {};
+  let names = [];
+  try {
+    names = readdirSync(join(ROOT, 'provenance')).filter((n) => n.endsWith('.json'));
+  } catch {
+    return out;
+  }
+  for (const n of names) {
+    let j = null;
+    try {
+      j = JSON.parse(readFileSync(join(ROOT, 'provenance', n), 'utf8'));
+    } catch {
+      continue; // an unparseable fragment contributes no evidence; the tracking rail then holds the fixture
+    }
+    const fx = (j && j.fixtures) || null;
+    if (!fx || typeof fx !== 'object') continue;
+    for (const [k, v] of Object.entries(fx)) {
+      if (v && Array.isArray(v.inputs) && v.inputs.length) out[k] = (out[k] || []).concat(v.inputs);
+    }
+  }
+  return out;
+}
+
+/* The held set, kept so `main()` can name the reason when it stops on one. Written by `askRegenGoldens`
+   and read nowhere else; `--classify` answers from the set itself. */
+let _heldGoldens = [];
+export function heldGoldens() {
+  return _heldGoldens.slice();
+}
+
+function askRegenGoldens() {
+  const files = regenRecipeFiles();
+  if (!files || !files.length) return null; // FAIL CLOSED — the recipes could not be listed
+  let tracked = null;
+  try {
+    tracked = new Set(
+      execFileSync('git', ['ls-files', '--', 'uploads'], { cwd: ROOT, encoding: 'utf8' })
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((p) => p.slice(p.lastIndexOf('/') + 1))
+    );
+  } catch {
+    return null; // no answer about what ships here ⇒ no classification
+  }
+  const led = ledgerInputsByFixture();
+  const generated = [];
+  const held = [];
+  for (const f of files) {
+    let out = '';
+    try {
+      out = execFileSync(process.execPath, [join(ROOT, f), '--list-owned'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {
+      return null; // a recipe that cannot be asked is not an empty recipe
+    }
+    const rows = parseOwnedListing(out);
+    if (!rows) return null;
+    const d = classifyOwnedFixtures(rows, (n) => tracked.has(n), led);
+    if (!d) return null;
+    d.generated.forEach((p) => generated.push({ path: p, recipe: f }));
+    d.held.forEach((h) => held.push({ ...h, recipe: f }));
+  }
+  _heldGoldens = held;
+  return { generated, held };
 }
 
 function askBuildDocs() {
@@ -324,7 +517,7 @@ export function classify(path, gen) {
   return 'source';
 }
 
-function rebuild() {
+function rebuild(regenFixtures) {
   const steps = [
     ['tools/build.mjs', ['--all']],
     ['tools/build-analysis.mjs', []],
@@ -354,6 +547,55 @@ function rebuild() {
     console.log(paint('STALE', C.red));
     console.error(String((e && (e.stdout || e.message)) || ''));
     process.exit(1);
+  }
+  regenAutoResolved(regenFixtures);
+}
+
+/* ── THE REGEN STEP, AND WHY IT RUNS ONLY FOR WHAT CONFLICTED ──────────────────────────────────────
+   A committed-input golden is in the generated set, so a conflict there is auto-resolved — and an
+   auto-resolve is only safe because something puts the right bytes back. The four steps above do not:
+   `build.mjs` re-stamps `manifestHash` and never an `outputHash`, so the fixture would keep `onto`'s
+   payload and the rebase would report ✓ over a reverted regeneration.
+
+   The node's own regenerator is the authority, and it is the EXPENSIVE step here — it re-runs the real
+   modules over each input — so it runs for the recipes that actually conflicted and for no others. A
+   rebase with no fixture conflict pays nothing.
+
+   AND IT CHECKS THAT THE RESTORE HAPPENED. The regenerator reports an item it could not reach and
+   exits 0, so the exit code alone would read "restored" over a fixture it skipped. `unrestoredFrom`
+   reads the report; anything unrestored stops the tool with the path named. */
+function regenAutoResolved(fixtures) {
+  const list = (Array.isArray(fixtures) ? fixtures : []).filter((p) => typeof p === 'string' && p);
+  if (!list.length) return;
+  const byRecipe = new Map();
+  for (const p of list) {
+    const r = recipeForFixture(p);
+    if (!r) {
+      console.error(paint('\n✕ no regenerator owns ' + p + ' — it should not have been auto-resolved.', C.red));
+      process.exit(1);
+    }
+    byRecipe.set(r, (byRecipe.get(r) || []).concat(p));
+  }
+  for (const [recipe, names] of byRecipe) {
+    process.stdout.write('  ▸ ' + recipe + ' (' + names.length + ' auto-resolved fixture(s)) … ');
+    let out = '';
+    try {
+      out = String(execFileSync(process.execPath, [join(ROOT, recipe)], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) || '');
+    } catch (e) {
+      console.log(paint('FAILED', C.red));
+      console.error(String((e && (e.stdout || e.message)) || ''));
+      process.exit(1);
+    }
+    const bad = unrestoredFrom(out, names);
+    if (bad === null || bad.length) {
+      console.log(paint('NOT RESTORED', C.red));
+      (bad || names).forEach((p) => console.error('    ' + p));
+      console.error(paint('\n  The regenerator did not rewrite the fixture(s) above, so they still carry', C.yel));
+      console.error(paint('  the base branch’s bytes and your regeneration is gone from the tree.', C.yel));
+      console.error('  Point DEX_UPLOADS at the corpus and re-run ' + recipe + ' by hand, then amend.');
+      process.exit(1);
+    }
+    console.log(paint('regenerated', C.grn));
   }
 }
 
@@ -475,6 +717,75 @@ async function reportStampDamage(before) {
   }
 }
 
+/* THE SECOND KIND OF EVIDENCE A REBASE DESTROYS — and the one that costs a CI round-trip rather than a
+   corpus run. `pr-compliance` check 8 holds a body's quoted `tepna.verdict/1` to the code that merges:
+   the object's `producedBy.commit` must be in the PR's history. A rebase rewrites every commit on the
+   branch, so it drops that one UNCONDITIONALLY. The body lives on GitHub, where nothing else in this
+   tool looks, so the branch comes back green here and reds in CI minutes later.
+
+   MEASURED 2026-10-20 on two branches off one base, each carrying one non-Markdown file commit: the
+   rebased leg reds with "is not in this PR's history", the merged leg raises nothing. #3506 paid three
+   4-minute re-runs of one mutation sweep in one evening, and all three reported the same 27 mutants
+   and the same 7 survivors at the same 5 lines — the re-runs bought nothing, because the code they
+   examined had not moved.
+
+   SILENT WITHOUT EVIDENCE, AND NEVER FAILING. No `gh`, no network, no PR, or a body quoting no
+   verdict all yield a `null` snapshot, and a null snapshot is not an all-clear — the report refuses to
+   run on one rather than printing a clean line it cannot support. The three-way split is
+   `classifyStamps`, reused rather than re-derived: before-and-after booleans over a keyed map is the
+   same decision, and a verdict already foreign BEFORE the rebase must not be blamed on it. */
+export function quotedVerdictKeys(body) {
+  const vs = extractVerdicts(String(body || '')).filter((v) => v.commit && /^[0-9a-f]{7,40}$/i.test(v.commit));
+  /* `null`, not `[]`: "this body quotes nothing to judge" is not "nothing is wrong here", and the
+     reporter distinguishes them. A verdict naming no commit, or a sha check 8 would call
+     `unresolved` on its own terms, is dropped here — this guard speaks only where it can be right. */
+  if (!vs.length) return null;
+  return vs.map((v) => ({ key: (v.gate || 'a verdict') + ' at ' + v.commit, commit: v.commit }));
+}
+
+function reachableFromHead(sha) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false; /* absent from the clone, or on no path to HEAD — check 8 reds either way */
+  }
+}
+
+function quotedVerdictStates() {
+  let body = null;
+  try {
+    /* stderr ignored on purpose: with no PR for this branch `gh` writes a multi-line error, and a
+       guard that is silent by design must not leak the probe it used to decide it had nothing to say. */
+    body = execFileSync('gh', ['pr', 'view', '--json', 'body', '--jq', '.body'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch {
+    return null;
+  }
+  const ks = quotedVerdictKeys(body);
+  if (!ks) return null;
+  const st = {};
+  for (const k of ks) st[k.key] = reachableFromHead(k.commit);
+  return st;
+}
+
+function reportVerdictDamage(before) {
+  if (!before || !Object.keys(before).length) return;
+  const after = quotedVerdictStates();
+  if (!after) return; // the body stopped being readable ⇒ no claim in either direction
+  const { staled, pre } = classifyStamps(before, after);
+  if (staled.length) {
+    console.log(paint('\n⚠ THIS REBASE DROPPED THE COMMIT ' + staled.length + ' QUOTED tepna.verdict/1 OBJECT(S) NAME — pr-compliance check 8 will red the body:', C.red));
+    staled.forEach((k) => console.log('    ' + k));
+    console.log('  Re-run the deciding tool on the NEW head, put the new object in the PR body, and push');
+    console.log('  an empty commit — a body edit alone does not re-run the gate, which reads the trigger payload.');
+    console.log('  (A `git merge origin/main` keeps a quote fresh: the commit stays an ancestor, and the');
+    console.log('   briefs/RESIDUE.md conflict that forces most of these rebases is Markdown, which check 8 excludes.)');
+  }
+  if (pre.length && !staled.length) {
+    console.log(paint('\n· ' + pre.length + ' quoted verdict(s) were already outside this history before the rebase — not damage from it.', C.yel));
+  }
+}
+
 /**
  * THE BACKSTOP FOR THE CONFLICT-DRIVEN MODEL'S ONE BLIND SPOT (see the header).
  *
@@ -593,6 +904,10 @@ async function main() {
     stampsBefore = null; // no snapshot ⇒ the report stays silent rather than guessing
   }
 
+  /* Same before/after shape as the stamps, and for the same reason: a verdict this branch quoted at a
+     commit that was ALREADY outside its history is not damage this rebase did. */
+  const verdictsBefore = quotedVerdictStates();
+
   const doBuild = !argv.includes('--no-build');
 
   if (git('status', '--porcelain')) {
@@ -610,6 +925,9 @@ async function main() {
   }
   console.log('  ' + behind + ' commit(s) behind ' + onto);
 
+  /* The regen-owned fixtures this rebase auto-resolves, carried to the rebuild so the node's own
+     regenerator puts their bytes back. Empty on a clean rebase, which costs nothing. */
+  let autoResolvedFixtures = [];
   const r = gitQuiet('rebase', onto);
   if (!r.ok) {
     const conflicts = git('diff', '--name-only', '--diff-filter=U').split('\n').filter(Boolean);
@@ -624,6 +942,15 @@ async function main() {
         generated.forEach((p) => console.error('    ' + p));
         console.error(paint('  )', C.yel));
       }
+      /* A regen-owned fixture that is HELD stops the rebase, and the reason is the whole value of
+         stopping: "resolve it by hand" is unactionable, "its input is gitignored, point DEX_UPLOADS at
+         the corpus and re-run this recipe" is one command. */
+      const heldHit = heldGoldens().filter((h) => source.includes(h.path));
+      if (heldHit.length) {
+        console.error(paint('\n  Of those, these are GOLDENS a regenerator owns — held because the rebuild cannot restore them here:', C.yel));
+        heldHit.forEach((h) => console.error('    ' + h.path + '\n      ' + h.why + '\n      authority: ' + h.recipe));
+        console.error('  Resolve by taking ' + onto + "'s copy, then re-run that recipe with DEX_UPLOADS pointed at the corpus.");
+      }
       console.error('\n  For tests/dex-tests.js specifically: restore ' + onto + "'s copy and RE-RUN your insertion.");
       console.error('  Never keep one side wholesale — that is how a test group is silently dropped.');
       console.error('  Aborting the rebase so your branch is exactly as it was.');
@@ -635,6 +962,7 @@ async function main() {
     console.log(paint('  auto-resolving ' + generated.length + ' generated artifact(s) (rebuilt below):', C.yel));
     generated.forEach((p) => console.log('    ' + p));
     for (const p of generated) gitQuiet('checkout', onto, '--', p);
+    autoResolvedFixtures = generated.filter((p) => recipeForFixture(p));
     gitQuiet('add', ...generated);
     const cont = execFileSync('git', ['-c', 'core.editor=true', 'rebase', '--continue'], { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' });
     void cont;
@@ -645,7 +973,7 @@ async function main() {
 
   if (doBuild) {
     console.log(paint('▸ rebuilding every generated tree from source', C.bold));
-    rebuild();
+    rebuild(autoResolvedFixtures);
     /* RAW, not `git()` — `git()` trims, and the leading space of an unstaged entry is load-bearing.
        See parsePorcelain's header: trimming it corrupts the first path. */
     const dirty = parsePorcelain(gitRaw('status', '--porcelain'));
@@ -658,6 +986,7 @@ async function main() {
     }
   }
   await reportStampDamage(stampsBefore);
+  reportVerdictDamage(verdictsBefore);
 
   console.log(paint('\n✓ rebase-safe done. VERIFY YOUR OWN CHANGES SURVIVED before pushing, e.g.', C.bold));
   console.log('    git show HEAD:<file> | grep -c <an identifier your change adds>');

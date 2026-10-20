@@ -828,6 +828,15 @@
   //  raw PPG. Nothing uploaded; all local, off the UI thread.
   // ════════════════════════════════════════════════════════════════════════
   const NIGHTS_IDX = {};
+  /* ── §∅ · THE VALIDITY COMPANION IS PAIRED BY NAME, NOT NIGHT-KEYED ──────────────────────────────
+     Residue `2026-10-17-sample-parsers-called-without-their-sidecar`. The box writes
+     `<base>RUNS.txt` beside a stream it blanked, and the parsers take those bytes as `opts.runsText`.
+     A companion carries no sample rows, so a night key read from rows cannot read one; its night is
+     the night of the file it sits beside, which is what pairing by name says and nothing else can. */
+  const COMPANIONS = new Map();
+  const RUNS_NAME = /RUNS\.txt$/i;
+  const companionOf = (file) => (file ? COMPANIONS.get(file.name.replace(/\.txt$/i, 'RUNS.txt')) || null : null);
+
   function classifyF(file) {
     const n = file.name;
     if (/^O2Ring.*_(\d{14})\.csv$/i.test(n)) return { role: 'o2', stamp: n.match(/(\d{14})\.csv$/i)[1] };
@@ -886,11 +895,18 @@
     nt.verityPPG = vp ? vp.file : null;
     nt.verityPPI = vi ? vi.file : null;
     nt.verityHR = vh ? vh.file : null;
+    nt.o2ppgRuns = companionOf(nt.o2ppg);
+    nt.h10ecgRuns = companionOf(nt.h10ecg);
+    nt.verityPPGRuns = companionOf(nt.verityPPG);
   }
   function ingestFiles(list) {
     for (let i = 0; i < list.length; i++) {
       const f = list[i],
         c = classifyF(f);
+      if (RUNS_NAME.test(f.name)) {
+        COMPANIONS.set(f.name, f);
+        continue;
+      }
       if (!c) continue;
       const nk = nightKeyOf(c.stamp),
         nt = NIGHTS_IDX[nk] || (NIGHTS_IDX[nk] = { key: nk, cand: {} });
@@ -1131,7 +1147,17 @@
           wantSeries: true,
           label: nt.key,
           seed: hashStr(nt.key),
-          files: { o2: nt.o2, h10: nt.h10, h10ecg: nt.h10ecg || null, verityPPG: nt.verityPPG || null, verityPPI: nt.verityPPI || null, verityHR: nt.verityHR || null }
+          files: {
+            o2: nt.o2,
+            h10: nt.h10,
+            h10ecg: nt.h10ecg || null,
+            verityPPG: nt.verityPPG || null,
+            verityPPI: nt.verityPPI || null,
+            verityHR: nt.verityHR || null,
+            o2ppgRuns: nt.o2ppgRuns || null,
+            h10ecgRuns: nt.h10ecgRuns || null,
+            verityPPGRuns: nt.verityPPGRuns || null
+          }
         });
         doneN++;
         bytesDone += weight(nt);

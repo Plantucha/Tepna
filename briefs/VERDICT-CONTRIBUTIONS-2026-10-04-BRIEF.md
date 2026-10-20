@@ -81,11 +81,16 @@ publishes a `contributions` block beside it:
 
 | figure | file | method | why first |
 |---|---|---|---|
-| hat per-site σ (classic and drift-removed) | `analysis-stats.js tchSigmasPairwiseFromVars` | `analytic` | the UNDERPOWERED corner is the open question of the solid-night programme |
+| hat per-site σ (classic and drift-removed) | `analysis-stats.js threeCorneredHat` | `analytic` | the UNDERPOWERED corner is the open question of the solid-night programme |
 | SOLID-NIGHT night verdict | `capture-host/solid_night.py` compose | `decomposition` over bands × devices | "which band" is asked every morning |
 | LOSS verdict `worn_not_recorded_fraction` | `capture-host/loss_audit.py night_verdict` | `decomposition` over devices and causes (`by_device` already exists — this names it as the block) | cheapest; mostly a rename |
 | trio pooled hat §11 (`tch-pooled-hat-*.json`) | `tools/trio-batch.mjs` | `leave-one-out` over nights | the re-fold question: which night moved the pooled σ |
 | Integrator fused sleep summary | `integrator-dsp.js` | `leave-one-out` over nodes | the Integrator is the namesake; last because its consumers are render-only today |
+
+The hat row names the closed form, `threeCorneredHat`. The correlated solve `tchSigmasPairwiseFromVars` is out:
+it is a damped-Newton iteration, so it has no closed-form partials (residue `2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form`).
+No reader-facing surface shows a σ from it. The trio card shows its pass count only, and the independence panel shows a ρ-collapse point.
+Add it here only when a surface starts to show its σ.
 
 Everything else is out until it is added here; `verify:verdict-adoption` gains a `contributions` leg that reds
 a figure in this table without the block and a block whose shares do not sum to 1 ± 1e-9.

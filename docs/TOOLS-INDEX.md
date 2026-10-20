@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**273 tools** · 272 with a purpose line · **1 without**
+**278 tools** · 277 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -24,6 +24,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`aperiodic-method-compare.mjs`](../tools/aperiodic-method-compare.mjs) | EXTERNAL-METHODS-SURVEY §2's measurement. The question: our aperiodic alignment failed with a correlation/argmax method, and Schranz et al. |
 | [`aperiodic-offset.mjs`](../tools/aperiodic-offset.mjs) | aperiodic-offset — target 1 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE, finally testable. |
 | [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
+| [`argv-reads.mjs`](../tools/argv-reads.mjs) | WHICH TOOLS IGNORE AN UNKNOWN ARGV TOKEN BY CONSTRUCTION. WHY. |
 | [`argv-survey.mjs`](../tools/argv-survey.mjs) | WHICH TOOLS CAN TELL AN UNKNOWN FLAG FROM AN ABSENT ONE. Executable, controlled, and bounded to the tools it can prove are inert. |
 | [`assertion-strength.mjs`](../tools/assertion-strength.mjs) | WHICH ASSERTIONS PIN A DIRECTION WHERE THEY COULD PIN A VALUE |
 | [`astgrep-gate.mjs`](../tools/astgrep-gate.mjs) | FOUR REVIEWER BUGS, MATCHED ON THE SYNTAX TREE — §∅ and the Clock Contract, mechanised. |
@@ -60,6 +61,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
 | [`cpap-sa2-agreement.mjs`](../tools/cpap-sa2-agreement.mjs) | the CPAP's wired SpO₂ against the ring's WHY — CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF. |
+| [`cvhr-edge-widen.mjs`](../tools/cvhr-edge-widen.mjs) | what widening the CVHR dropout exclusion by the detector's own support costs |
 | [`cvhr-fold-rescore.mjs`](../tools/cvhr-fold-rescore.mjs) | THE CROSS-NODE CVHR ρ ON THE FOLD'S NIGHT SELECTION — a re-score, not a sweep. |
 | [`cvhr-gap-edge.mjs`](../tools/cvhr-gap-edge.mjs) | what a TIME HOLE does to the two CVHR detectors, measured on planted beats |
 | [`deep-desat-falsifier.mjs`](../tools/deep-desat-falsifier.mjs) | THE STANDING CROSS-SIGNAL FALSIFIER for called sleep stages (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §6 item 4 / REM-STAGING-REDESIGN §5): "REM/Deep should carry a stage-appropriate… |
@@ -68,6 +70,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`defect-bench-solve.mjs`](../tools/defect-bench-solve.mjs) | // // Solver runner for audits/DEFECT-BENCHMARK.json. Measures the BENCHMARK // METHOD with a local model, never the fleet. |
 | [`defect-bench.mjs`](../tools/defect-bench.mjs) | the frozen benchmark of past defects, built node tools/defect-bench.mjs --build # enumerate, classify, write the set node tools/defect-bench.mjs --build --prove 8 # …and prove up to 8 more… |
 | [`defect-pin-census.mjs`](../tools/defect-pin-census.mjs) | the enumeration gate for tests that once asserted the defect they were written for |
+| [`derive-open-ahi.mjs`](../tools/derive-open-ahi.mjs) | DERIVE AN AHI PER RECORDING OVER THE TWO ANNOTATED OPEN SETS — ISRUC and iSleeps. |
 | [`derive-sigma-window.mjs`](../tools/derive-sigma-window.mjs) | Headless derivation of the two raw-signal 1-Hz HR series a three-device σ window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md): • Verity HR ← raw PPG via the suite's… |
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | WHO IS USING THE SEMANTIC SEARCH — the per-session query stamps, counted (rule 0's audit). |
@@ -103,6 +106,8 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`guarantees.mjs`](../tools/guarantees.mjs) | GUARANTEE CENSUS — find the promises the comments make, and ask which of them nothing checks. |
 | [`guide-anchor-audit.mjs`](../tools/guide-anchor-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 5, mechanised — the third sibling of `severity-ladder-audit.mjs` (dim 3) and `formula-constant-audit.mjs` (dim 2). |
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
+| [`h10-session-rate.mjs`](../tools/h10-session-rate.mjs) | what moves the ECG sample rate between sessions of ONE chest strap |
+| [`hook-contract.mjs`](../tools/hook-contract.mjs) | EVERY CLAUDE-CODE HOOK DRAINS ITS STDIN BEFORE IT CAN EXIT. The harness writes each hook's tool-call JSON down a PIPE. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
 | [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | every Integrator key declares its surface node tools/integrator-surface-gate.mjs # gate node tools/integrator-surface-gate.mjs --json # verdict only node tools/integrator-surface-gate.mjs… |

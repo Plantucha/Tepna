@@ -2787,6 +2787,42 @@ def retry_budget_alert(
     return rate
 
 
+def retry_rate_report(
+    stamps: "dict[str, list[float]]",
+    since: dict[str, float],
+    now: float,
+    window_sec: float = _RETRY_RATE_WINDOW_S,
+) -> dict:
+    """PURE: the per-device ERROR-backoff rate as a REPORTABLE mapping, one entry per device observed.
+
+    `retry_budget_alert` above spends this rate on a warning and publishes nothing, so a device UNDER
+    budget has a measured rate that reaches no reader at all — which is `blestats`' own stated defect
+    ("a recovery that hides its own frequency") one layer up. This is the same rate, carried instead of
+    consumed.
+
+    ∅ EVERY ABSENCE HERE NAMES ITS OWN REASON, because the two absences differ and a bare `null` cannot
+    tell them apart: a device whose observation does not yet cover the window has no rate, while a
+    device whose window IS covered and holds no stamp has a rate of 0.0 that was MEASURED. The second
+    is the figure an operator wants after a bad night ends.
+
+    `since` is the authority for which devices appear, not `stamps`: the two are written in one block
+    at the single backoff site, and this one is the lower bound on when watching began — the quantity
+    the rate needs. Reading the union instead would add a branch no caller can reach."""
+    out = {}
+    for dev, observing_since in sorted(since.items()):
+        rate = retry_rate_per_hour(stamps.get(dev, []), now, observing_since, window_sec)
+        observed = now - observing_since
+        out[dev] = {
+            "rate": rate,
+            "window_sec": window_sec,
+            "observed_s": observed,
+            "reason": None
+            if rate is not None
+            else f"backoff rate {dev}: observed {observed:.0f} s of the {window_sec:.0f} s window",
+        }
+    return out
+
+
 async def _retry_sleep(name: str, delay: float, why: str, attempt: int) -> float:
     """THE one wait a runner takes before trying its device again (CAPTURE-HOST-RESOURCE-ORCHESTRATION-
     AUDIT §D2). It publishes the wait, so STATUS can answer the two questions an operator at 3am and
@@ -4430,7 +4466,33 @@ async def run_polar(dev: dict, root: str):
                             # us. Logged once per negotiation, at WARNING, naming what was asked for,
                             # what was used, and what the device actually offered, because "176 was
                             # ignored" without the menu beside it sends the reader to the wrong file.
-                            if _prefer is not None and _prefer != used_fs:
+                            # ∅ A MENU THAT WAS NEVER REPORTED IS NOT A REFUSAL (CLAUDE.md §∅). The two
+                            # cases reach this branch identically — `chosen_rate` returns the fixed
+                            # table's rate whenever the menu is empty — and reporting both as a refusal
+                            # states three things that are not true. Measured on the box 2026-10-19
+                            # 10:59:39: one GET_SETTINGS timed out and the daemon warned "configured rate
+                            # 52 Hz was NOT offered by the device — capturing at 200 Hz instead (device
+                            # offers: no menu reported)". The same unit had answered `[52]` 75 s earlier
+                            # and answered it again 61 s later, the START timed out in the same second
+                            # (`START acc (negotiated) → no_response`), and 200 Hz is simply what
+                            # `START[ACC]` asks for. So: the device did offer the rate, nothing captured
+                            # at 200, and the monitor chip drew `acc 200/52 Hz` under the sentence "the
+                            # device did NOT offer the configured rate and is capturing at a LOWER one".
+                            # 7 of the retention's 3086 warnings are this shape (6 acc, 1 mag).
+                            _menu = settings.get(0x00) if settings else None
+                            if _prefer is not None and _prefer != used_fs and not _menu:
+                                log.warning(
+                                    "%s %s: the device reported NO rate menu, so the configured %s Hz "
+                                    "could not be checked. START falls back to the fixed table, which "
+                                    "asks %s Hz and may ask a rate THIS device does not offer. An "
+                                    "unread menu is not a refusal: re-read it before changing the "
+                                    "config.",
+                                    name,
+                                    pmd.MEAS_NAME.get(meas, meas),
+                                    _prefer,
+                                    used_fs,
+                                )
+                            elif _prefer is not None and _prefer != used_fs:
                                 log.warning(
                                     "%s %s: configured rate %s Hz was NOT offered by the device — "
                                     "capturing at %s Hz instead (device offers: %s). The config still "
@@ -4439,7 +4501,7 @@ async def run_polar(dev: dict, root: str):
                                     pmd.MEAS_NAME.get(meas, meas),
                                     _prefer,
                                     used_fs,
-                                    settings.get(0x00) or "no menu reported",
+                                    _menu,
                                     _prefer,
                                 )
                                 _set(
@@ -4456,7 +4518,6 @@ async def run_polar(dev: dict, root: str):
                             # empty list for a stream whose GET_SETTINGS timed out or parsed to nothing, and webmon
                             # copies any non-empty `pmd_options` into `pmd_options_seen` — erasing the menu it had
                             # actually seen. A stream with no menu read now contributes no key at all.
-                            _menu = settings.get(0x00) if settings else None
                             if _menu:
                                 _set(
                                     name,
@@ -7282,11 +7343,15 @@ def status_path(root: str, instance: str | None = None) -> str:
 _LIVE_LOSS_SEEN: dict = {}
 
 
-async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: float = 60.0):
+async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: float = 60.0, ble_log_sec: float = 60.0):
     path = status_path(root, INSTANCE)
     # The journal cadence for the memory line, as a LOCAL: one status loop runs per process, so a module
     # global would only make two tests share a deadline. 0 publishes the block and logs nothing.
     next_mem_log = 0.0
+    # The BLE line keeps the same two locals for the same reason, plus the previous snapshot — the line
+    # carries increments, so the baseline belongs to the loop that writes the lines and to nothing else.
+    next_ble_log = 0.0
+    prev_ble: dict | None = None
     while not _STOP.is_set():
         # `updated` was written here on every publish and read by NOTHING — instance health ages
         # `heartbeat_ms` instead, deliberately. A field written forever and read never is
@@ -7320,6 +7385,13 @@ async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: flo
         # BLE-TRANSPORT-REDESIGN §1.5: the counters reach a REPORT. Counters nothing reads are the
         # same blindness as logging only failures — the denominator existed and no one could see it.
         STATUS["ble"] = blestats.snapshot()
+        # §1.6: the counters are a LEVEL and this is the RATE. `retry_budget_alert` measures the same
+        # figure to decide a warning and then drops it, so until now the only device whose rate reached
+        # a reader was one already over budget — the box looked identical at 0/h and at 19/h against a
+        # 20/h budget. The absence beside it is named rather than bare (residue
+        # 2026-09-16-ble-counters-not-drawn): a window not yet covered is `null` with its reason, while
+        # a covered window holding no stamp is a measured 0.0.
+        STATUS["ble"]["backoff_rate"] = retry_rate_report(_RETRY_STAMPS, _RETRY_SINCE, _time.monotonic())
         # §1.3: the per-unit capability record reaches a reader. A record nothing consults is the
         # same as the comment it replaced — an answer nobody has to look at.
         STATUS["devcaps"] = devcaps.snapshot()
@@ -7343,6 +7415,15 @@ async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: flo
             # CPython's arenas ride the LINE, not the 10 s publish: the walk costs about 0.5 ms with the
             # GIL held, which is cheap once a minute and pointless every tick that nothing reads.
             log.info("%s", mem_log_line(STATUS["mem"], _hwm, _hwm_why, pymalloc_stats.read()))
+        # §1.6's done-when asks for a SERIES, and `status.json` is rewritten every tick. The journal is
+        # the only surface here that keeps one, which is why `mem` writes a line too. The totals stay in
+        # the status block: a cumulative count on a line steps back at every deploy and reads as the
+        # problem going away, so the line carries the delta since its own previous line.
+        if ble_log_sec > 0 and _time.monotonic() >= next_ble_log:
+            next_ble_log = _time.monotonic() + ble_log_sec
+            _snap = STATUS["ble"]
+            log.info("%s", blestats.log_line(_snap, prev_ble, _snap.get("backoff_rate")))
+            prev_ble = _snap
         # LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture). `oxy_inventory.
         # reconcile()` already classifies a lost recording, but it is reached only at PULL and
         # COLD-START boundaries; the incident that opened the row was a LIVE session losing two files
@@ -12205,7 +12286,7 @@ def holder_of(obj, depth: int = _HOLDER_DEPTH) -> dict:
 
 
 #: The one-shot request. `heap_probe.enabled` says the probe MAY run; this file says run it ONCE, and it
-#: is consumed on arm so the next daemon start does not repeat it.
+#: is consumed when tracing starts, so a later daemon start does not repeat it.
 _HEAP_REQUEST_NAME = "heap-probe.request"
 
 
@@ -12348,16 +12429,15 @@ async def heap_probe(cfg: dict, root: str):
     if not hcfg.get("enabled", False):
         log.info("heap probe: OFF — heap_probe.enabled is false")
         return
-    # PERMISSION IS NOT A REQUEST. `enabled` says the probe MAY run; the marker file says run it once, and
-    # it is consumed here so a restart does not re-arm it. This is what keeps a SOLID-NIGHT night clean by
-    # DEFAULT: with no file, nothing traces and the per-subsystem attribution below never runs either —
-    # `DecodeCensus` and `top_container_holders` are reached only past this point, so one gate covers all
-    # three costs (tracemalloc's allocation tax, the json wrapper's frame walk, the referrer walk).
+    # PERMISSION IS NOT A REQUEST. `enabled` says the probe MAY run; the marker file says run it once.
+    # This is what keeps a SOLID-NIGHT night clean by DEFAULT: with no file, nothing traces and the
+    # per-subsystem attribution below never runs either — `DecodeCensus` and `top_container_holders` are
+    # reached only past the consume below, so one gate covers all three costs (tracemalloc's allocation
+    # tax, the json wrapper's frame walk, the referrer walk).
     req = str(hcfg.get("request_path") or os.path.join(root, _HEAP_REQUEST_NAME))
-    if not consume_heap_request(req):
+    if not os.path.exists(req):
         log.info("heap probe: not requested — no consumable %s; tracemalloc stays off", req)
         return
-    log.info("heap probe: request consumed (%s) — this run is one-shot", req)
     import tracemalloc
 
     start_after_s = float(hcfg.get("start_after_min", 30)) * 60.0
@@ -12387,6 +12467,15 @@ async def heap_probe(cfg: dict, root: str):
     log.info("heap probe: capture is live — tracing starts in %.0f min", start_after_s / 60.0)
     if await _stop_or_sleep(start_after_s):
         return
+    # 🔴 CONSUMED HERE, AT THE FIRST TRACED MOMENT, NOT AT ARM. Measured on vigil 2026-10-13: a request
+    # written for that night was consumed at arm 14:36:14 (PID 854652), capture never went live under that
+    # daemon, and the 17:15:52 restart lost it — the night ran untraced and nothing said so. Every return
+    # above this line leaves the file in place for the next start; consuming here still makes the run
+    # one-shot, and a request that cannot be consumed still refuses to trace (fail closed).
+    if not consume_heap_request(req):
+        log.info("heap probe: request gone before tracing (%s); tracemalloc stays off", req)
+        return
+    log.info("heap probe: request consumed (%s) — this run is one-shot", req)
     already = tracemalloc.is_tracing()
     if not already:
         tracemalloc.start(1)  # ONE frame: the allocation site is the container
@@ -14889,6 +14978,7 @@ async def main():
                 root,
                 float(_acfg.get("data_stale_sec", 120)),
                 float((cfg.get("mem") or {}).get("log_sec", 60)),
+                float((cfg.get("ble") or {}).get("log_sec", 60)),
             ),
         ),
         ("adapter_watchdog", lambda: adapter_watchdog(ADAPTER, cfg)),

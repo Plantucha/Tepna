@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d9c485724eb7" data-compute-hash="db6e8f4a4e18">
+<html lang="en" data-manifest-hash="d6011ab48c22" data-compute-hash="ff39110efebc">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-X14KyJJxLR8/HKzEnkJbn34oAwBnF0kbzGCqjKgOu7g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-brcVxTI6BShvL8gR+V83Km/RAvADXOTbir/uhFdqiC0=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>ECGDex — Raw ECG Analyzer · v2.20.0</title>
+<title>ECGDex — Raw ECG Analyzer · v2.21.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -2827,7 +2827,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">ECGDex</div>
-        <div class="logo-sub">v2.20.0 · Tepna</div>
+        <div class="logo-sub">v2.21.0 · Tepna</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -2895,7 +2895,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">ECGDex <span class="version-badge">v2.20.0</span></div>
+        <div class="topbar-title">ECGDex <span class="version-badge">v2.21.0</span></div>
         <div class="page-sub">Raw ECG (130 Hz µV) → R-peaks → HRV · CVHR · sleep staging &middot; one signal, computed end-to-end, all local</div>
       </div>
       <div class="topbar-actions">
@@ -2986,7 +2986,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           <div class="xload-top"><span class="xload-icon">📈</span><span class="xload-name">Accelerometer</span></div>
           <div class="xload-sub">Tri-axial <b>ACC</b> → derived <b>breathing</b> (vs EDR) + <b>motion</b> (vs sleep stages).</div>
           <label for="accInput" class="xload-btn">＋ Load ACC file</label>
-          <input type="file" id="accInput" accept=".txt,.csv" style="display:none">
+          <input type="file" id="accInput" accept=".txt,.csv" multiple style="display:none">
           <span class="xload-status" id="accStatus">No ACC file</span>
         </div>
       </div>
@@ -16080,7 +16080,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     } else {
       var txt = typeof input === 'string' ? input : input && typeof input.text === 'string' ? input.text : input && input.samples && typeof input.samples.text === 'string' ? input.samples.text : null;
       if (txt == null) throw new Error('ECGDex.compute: need a Polar Sensor Logger *_ECG.txt string, {text}, a parsed rec {int16,fs}, or an ecg SignalFrame {samples:Float32Array,fs}.');
-      rec = parseECGText(txt);
+      /* §3.2 — `opts.runsText`, else `input.runsText` beside `input.text`: the `_ECGRUNS.txt` bytes when
+         the caller has them. Absent, the call is the 1-arg parse it always was. */
+      /* `input` is non-null here (a null input has no `txt` and threw above), and a string input reads
+         `.runsText` as undefined, so no `input &&` guard: the guard was dead, and an `&&` that no input can
+         flip is a mutant no test can kill. */
+      var rt = typeof opts.runsText === 'string' ? opts.runsText : typeof input.runsText === 'string' ? input.runsText : null;
+      rec = rt ? parseECGText(txt, { runsText: rt }) : parseECGText(txt);
     }
     if (opts.source) rec.source = opts.source;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;
@@ -16091,6 +16097,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
   global.ECGDSP.parseECG = parseECGText;
   global.ECGDSP.parseECGLines = parseECGLines; // bounded/streaming callers (Node fold path)
+  /* THE SAMPLE-FRAME OVERLAP RULE, exported beside the parser that produces the spans. It was
+     written with `parseEcgRuns` and then called by nobody: this node's own epoch path converts the
+     spans to the SECONDS frame its windows use (`_blankSec`), so the sample-frame form had no
+     consumer inside the node. It has one outside it — a consumer that derives beats from
+     `_ECG.txt` itself holds RR intervals as SAMPLE index pairs, which is the frame the box wrote
+     the runs in, and converting them to seconds only to compare would introduce a rounding the
+     box's own numbers do not have. Exported rather than copied: a second body would drift, and a
+     half-open predicate is exactly where an off-by-one hides. `analyze` does not call it, so
+     `computeHash` moves without any number moving. */
+  global.ECGDSP.intersectsRun = _intersectsRun;
   /* THE TWO HALVES OF THE TIMING WALK, exported because the APP LANE IS A CONSUMER (DEEP-AUDIT-VI F2)
      — not merely for assertability. `ecgdex-app.js` builds its streaming Worker from
      `ecgTimingScan.toString()` and calls `ecgTimingResolve` on the scan the Worker ships back, so
@@ -19729,10 +19745,20 @@ self.onmessage = async (e) => {
     };
     fr.readAsText(file);
   }
-  function loadDeviceACC(file) {
+  // `runsFile` is the ACC's `_ACCRUNS.txt` when the pick carried one (§3.2); absent, the parse is unchanged.
+  function loadDeviceACC(file, runsFile) {
     const fr = new FileReader();
-    fr.onload = (e) => {
-      const parsed = DSP.parseDeviceACC(e.target.result); // { acc:[{tsMs,x,y,z}], accFs } | { acc:null }
+    const readRuns = runsFile
+      ? new Promise((res) => {
+          const rr = new FileReader();
+          rr.onload = (e) => res(String(e.target.result || ''));
+          rr.onerror = () => res(null); // an unreadable sidecar is not a reason to lose the ACC
+          rr.readAsText(runsFile);
+        })
+      : Promise.resolve(null);
+    fr.onload = async (e) => {
+      const _rt = await readRuns;
+      const parsed = _rt ? DSP.parseDeviceACC(e.target.result, { runsText: _rt }) : DSP.parseDeviceACC(e.target.result); // { acc:[{tsMs,x,y,z}], accFs } | { acc:null }
       if (!parsed.acc) {
         showErr('Too few ACC samples parsed (need ≥3 numeric columns per row).');
         return;
@@ -22376,8 +22402,11 @@ self.onmessage = async (e) => {
       if (f) loadDeviceHR(f);
     });
     $('accInput').addEventListener('change', (e) => {
-      const f = e.target.files[0];
-      if (f) loadDeviceACC(f);
+      // The ACC and its `_ACCRUNS.txt` may arrive together; the sidecar is told apart by name, never by order.
+      const fs = Array.from(e.target.files || []);
+      const isRuns = (f) => /_ACCRUNS\b|_ACCRUNS\./i.test(f.name);
+      const f = fs.find((x) => !isRuns(x));
+      if (f) loadDeviceACC(f, fs.find(isRuns) || null);
     });
 
     // scope controls
@@ -22487,6 +22516,6 @@ self.onmessage = async (e) => {
 function showChip(name){ document.getElementById('ecgChipName').textContent = name; document.getElementById('ecgChip').classList.add('show'); }
 </script>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.20.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.21.0</div>
 </body>
 </html>

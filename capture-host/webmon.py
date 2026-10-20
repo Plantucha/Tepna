@@ -31,6 +31,7 @@ import storage_targets
 import alerts
 import timeline as _timeline
 import nights_index as _nights
+import mem_series as _mem
 import build_id
 import seal
 import sealbox
@@ -650,6 +651,16 @@ def make_app(
                 "loop": status.get("loop"),
                 "gates": status.get("gates"),
                 "tasks": status.get("tasks"),
+                # BLE TRANSPORT COUNTERS (BLE-TRANSPORT-REDESIGN §1.5/§1.6, residue
+                # 2026-09-16-ble-counters-not-drawn). `ops` is attempts/successes/failure-classes per
+                # (operation, device) with a §∅ `rate` that is null over zero attempts; `retries` counts
+                # each backoff by cause; `backoff_rate` is the trailing-hour ERROR-backoff rate per
+                # device against the 20/h budget of VIGIL-OVERNIGHT-FINDINGS P2.1, null with its own
+                # reason while the window is not yet covered. Forwarded for the reason the blocks above
+                # record, and this one carried it furthest: `find_unwired.py` allowlisted the key
+                # BECAUSE nothing read it, and the §1.6 done-when — "a rising retry rate is itself the
+                # alert" — needs a reader, not another counter. Null until the first status tick.
+                "ble": status.get("ble"),
                 # THE LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture): the files
                 # the daemon holds open, stat'd each status round against the last look — `findings` is
                 # THIS round, `last`/`last_at` the most recent event. Forwarded on the day it was written
@@ -1936,6 +1947,26 @@ def make_app(
         block["error"] = None
         return block
 
+    # Residue row 2026-10-13-daemon-mem-block-not-drawn. The route and the docstring avoid the bare status
+    # key as a word: find_unwired reads strings in webmon.py as consumers of STATUS keys, and this
+    # handler reads the journal, not that key.
+    async def memory_get(req):
+        """GET /api/memory[?hours=N] — the daemon's memory series, read back from its own journal lines.
+
+        `status.json` holds only the newest snapshot, so a climb over a night is visible only as the
+        journal's series. Off the status round deliberately,
+        like the timeline: a journal read on every 5 s poll of every tab is the stall #292 moved off the
+        loop. 503 with `segments: null` when the journal cannot be read — never an empty series, which
+        would say the daemon logged nothing (§∅)."""
+        try:
+            hours = max(1.0, min(72.0, float(req.query.get("hours", 12))))
+        except (TypeError, ValueError):
+            hours = 12.0
+        out = await asyncio.to_thread(_mem.read_mem_series, hours)
+        if out is None:
+            return web.json_response({"error": "the journal could not be read", "segments": None}, status=503)
+        return web.json_response(out)
+
     async def probe_night_get(req):
         """GET /api/probe-night[?night=YYYY-MM-DD] — is this night declared a probe night, and by what.
 
@@ -2217,6 +2248,7 @@ def make_app(
             web.get("/api/stitched/{tool}", stitched_result),
             web.get("/api/state", state),
             web.get("/api/version", version_get),
+            web.get("/api/memory", memory_get),
             web.get("/api/wifi", wifi_get),
             web.post("/api/wifi/scan", wifi_scan_h),
             web.post("/api/wifi/connect", wifi_connect_h),

@@ -157,13 +157,16 @@ import { PPGUI } from './ppgdex-render.js';
             gyroF = nearest('gyro'),
             magF = nearest('magn'),
             ppiF = nearest('ppi'),
-            markF = nearest('marker');
-          rec.acc = accF ? DSP.parseSensorXYZ(accF.text) : null;
+            markF = nearest('marker'),
+            accRunsF = accF ? nearest('accruns') : null;
+          // §3.2 — the ACC's own `_ACCRUNS.txt`, when the drop carried one, so a held run is not read as stillness.
+          rec.acc = accF ? (accRunsF ? DSP.parseSensorXYZ(accF.text, { runsText: accRunsF.text }) : DSP.parseSensorXYZ(accF.text)) : null;
           rec.gyro = gyroF ? DSP.parseSensorXYZ(gyroF.text) : null;
           rec.magn = magF ? DSP.parseSensorXYZ(magF.text) : null;
           rec.devicePPI = ppiF ? DSP.parseDevicePPI(ppiF.text) : null;
           rec.companions = { acc: accF ? accF.name : null, gyro: gyroF ? gyroF.name : null, magn: magF ? magF.name : null, ppi: ppiF ? ppiF.name : null, marker: markF ? markF.name : null };
           rec.companions.runs = runsF ? runsF.name : null; // §3.2 — which validity sidecar fed parsePPG, or none
+          rec.companions.accruns = accRunsF ? accRunsF.name : null; // and which one fed the ACC parse
           if (markF) {
             const rows = markF.text.split(/\r?\n/);
             const mk = [];
@@ -1019,7 +1022,17 @@ import { PPGUI } from './ppgdex-render.js';
         units: { ppi: 'ms', rmssd: 'ms', sdnn: 'ms', hr: 'bpm', power: 'ms^2', pi: '%', riseTime: 'ms', ai: '%', motionIndex: '0..1', headingDeg: 'deg', positionConf: '0..1' }
       },
       recording: {
-        source: r.fname || 'wrist-ppg',
+        /* EXPORT-SOURCE-KEY-KINDS — this key held the upload filename, while every other node writes a
+           semantic tag here, and so does this node's OWN DSP builder. A consumer cannot tell the two
+           kinds apart: `signal-orchestrate.js` dispatches on `recording.source === 'welltory'`. So a
+           filename here was a value no consumer reads, sitting in a key one consumer routes on.
+           Measured over the committed corpus: 441 of 442 values are tag-shaped, and the single
+           path-shaped value is this builder's. The tag now matches the DSP sibling. The upload
+           filename rides a key that MEANS a filename, and `recording.fname` is undeclared in the
+           export allow-list, so the scrub drops it and names it in the drop report — what the
+           contract already does with every identifier route. */
+        source: 'ppg',
+        fname: r.fname || null,
         /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — the device string was HARDCODED to "Polar Sense", so an
            O2Ring finger recording exported a file claiming it came from a Polar Verity worn on the
            wrist. Observed on a real night: source "Wellue_O2Ring-S_..._PPG.txt", device "Polar Sense".

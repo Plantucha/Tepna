@@ -59,8 +59,15 @@
    still conserves time. */
   const PD_MAX_TIME_RATIO = 2.0;
   const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  /* ∅ ABSENCE IS NULL — the PulseDex half of RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, whose
+     ECGDex half landed in #3567. A flat series has a sample SD of exactly 0, so `0` on an input of
+     fewer than two values told the next caller "measured, and flat" about nothing measured. All 20
+     call sites of the three helpers guard a short input today — `pdComputeResult` refuses under 10
+     beats, `windowAnalysis` needs 20 per window, `_pdSeriesStats` 3, `compareIntervalSeries` 5 matched
+     beats, the window medians 3 windows — so no number moves here; what changes is what the helper
+     tells a caller that forgets to. */
   const std = (a) => {
-    if (a.length < 2) return 0;
+    if (a.length < 2) return null;
     const m = mean(a);
     let s = 0;
     for (let i = 0; i < a.length; i++) {
@@ -120,8 +127,14 @@
   // mean(Δ)² ≈ 0, so this is numerically negligible, but it unifies the SD1 definition with ECGDex/PpgDex
   // (both SDSD/√2) so the three nodes can never drift definitionally. sd1/sd2 keep the geometric identity —
   // pass SDSD in place of rMSSD: SD1²=SDSD²/2, SD2=√(2·SDNN²−SD1²) hold exactly as before.
+  /* ∅ a measured number rounds; an absent one stays absent — ECGDex's `_rmOrNull` in the same role.
+     Every rounding site below that can now receive a `null` carries it through instead of crashing on
+     `.toFixed`. Those branches are unreachable on today's call graph, which is why no exported number
+     moves; they are what a caller gets if a guard is ever loosened. */
+  const _pdOrNull = (v, d) => (v == null ? null : +v.toFixed(d));
+  // ∅ fewer than three values yield fewer than two successive differences, so there is no SD to take.
   const sdsd = (a) => {
-    if (a.length < 3) return 0;
+    if (a.length < 3) return null;
     const d = [];
     for (let i = 1; i < a.length; i++) d.push(a[i] - a[i - 1]);
     return std(d);
@@ -508,8 +521,7 @@
     // periodic breathing — the corpus plants CSR at ~0.017 Hz) was invisible: respRate reported
     // the tiny residual HF peak and the sub-HF rhythm vanished. Track it globally and expose where
     // the dominant component actually sits (SYNTH-TEXTURE-FOLLOWUPS §1).
-    let tp = 0,
-      vlf = 0,
+    let vlf = 0,
       lf = 0,
       hf = 0,
       peakF = 0,
@@ -547,7 +559,6 @@
          and gPeakF — the GLOBAL peak that surfaces sub-HF CSR/PB — would be free to land above
          0.4 Hz, where no respiratory or Cheyne-Stokes rhythm can live. */
       if (f < fHi) {
-        tp += e;
         if (P > gPeakP) {
           gPeakP = P;
           gPeakF = f;
@@ -891,8 +902,9 @@
     for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i];
     return m;
   }
+  // ∅ an empty input has no median — `null`, never a 0 that the next caller reads as a measured one.
   function medianOf(a) {
-    if (!a.length) return 0;
+    if (!a.length) return null;
     const s = [...a].sort((x, y) => x - y),
       n = s.length;
     return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
@@ -1005,7 +1017,7 @@
       if (seg.length >= 20) {
         // need enough beats for a valid window
         const m = mean(seg);
-        wins.push({ tMin: +(w0 / 60).toFixed(1), hr: +(60000 / m).toFixed(1), rmssd: +rmssd(seg).toFixed(1), sdnn: +std(seg).toFixed(1), pnn: +pnn50(seg).toFixed(1), meanRR: +m.toFixed(1) });
+        wins.push({ tMin: +(w0 / 60).toFixed(1), hr: +(60000 / m).toFixed(1), rmssd: +rmssd(seg).toFixed(1), sdnn: _pdOrNull(std(seg), 1), pnn: +pnn50(seg).toFixed(1), meanRR: +m.toFixed(1) });
         segs.push(seg);
       }
     }
@@ -1083,7 +1095,7 @@
   function _pdSeriesStats(a) {
     if (!a || a.length < 3) return null;
     const m = mean(a);
-    return { n: a.length, meanRR: +m.toFixed(1), hr: +(60000 / m).toFixed(1), sdnn: +std(a).toFixed(1), rmssd: +rmssd(a).toFixed(1), pnn50: +pnn50(a).toFixed(1) };
+    return { n: a.length, meanRR: +m.toFixed(1), hr: +(60000 / m).toFixed(1), sdnn: _pdOrNull(std(a), 1), rmssd: +rmssd(a).toFixed(1), pnn50: +pnn50(a).toFixed(1) };
   }
   // each side: { vals, tsMs|null, t0Ms|null, label, kind('ppi'|'rr'|'auto') }
   function compareIntervalSeries(primary, reference) {
@@ -1153,7 +1165,7 @@
       sdA = std(matchA),
       sdB = std(matchB);
     const dRMSSD = +(rmB - rmA).toFixed(1),
-      dSDNN = +(sdB - sdA).toFixed(1);
+      dSDNN = sdA == null || sdB == null ? null : +(sdB - sdA).toFixed(1);
     const rmssdRatio = rmA > 0 ? +(rmB / rmA).toFixed(2) : null;
     // pulse-transit-time variability surrogate: variance PRV adds over HRV.
     // PRV² ≈ HRV² + PTTV²  →  PTTV ≈ √(rmssd_PRV² − rmssd_HRV²).  (vascular/BP jitter)
@@ -1183,9 +1195,9 @@
       statsB,
       agreement: {
         biasMs: +bias.toFixed(1),
-        sdDiffMs: +sdDiff.toFixed(1),
-        loaLoMs: +(bias - 1.96 * sdDiff).toFixed(1),
-        loaHiMs: +(bias + 1.96 * sdDiff).toFixed(1),
+        sdDiffMs: _pdOrNull(sdDiff, 1),
+        loaLoMs: sdDiff == null ? null : +(bias - 1.96 * sdDiff).toFixed(1),
+        loaHiMs: sdDiff == null ? null : +(bias + 1.96 * sdDiff).toFixed(1),
         madMs: +mad.toFixed(1),
         within25Pct: +within25.toFixed(0),
         pearsonR: r,
