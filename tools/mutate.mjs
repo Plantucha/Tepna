@@ -1916,7 +1916,9 @@ async function runFile(file) {
           killers: Array.from(killers.entries())
             .sort((a, b) => b[1] - a[1])
             .map(([group, n]) => ({ group, n })),
-          survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
+          survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after })),
+          // the named kill list on the degraded serial path too — a reader cannot tell which path ran
+          killedMutants: canaryState === 'FAILED' ? null : killedMu.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
         };
       }
       let next = 0;
@@ -2040,6 +2042,16 @@ async function runFile(file) {
       .sort((a, b) => b[1] - a[1])
       .map(([group, n]) => ({ group, n })),
     survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after })),
+    /* THE KILL LIST BY NAME, not only its count. `killedMu` above is "the only evidence a refutation
+       may use", and until 2026-10-19 it never left this process: the record shipped `killed` as a bare
+       number. So `tools/probe-equivalence.mjs` had to build its positive controls by SUBTRACTION —
+       every in-range mutant that was neither a survivor nor an invalid. That identity holds only for a
+       sweep that tested everything it enumerated; under `--only` the remainder is mostly mutants the
+       sweep NEVER TESTED, and a control that never ran cannot fail
+       (residue 2026-10-19-probe-controls-inferred-by-subtraction). Same shape as `survivors`, so one
+       reader serves both. `null` under a FAILED canary, matching `killed` above: kill detection in
+       doubt is no evidence of reach, and a reader owes that case a refusal rather than a pool. */
+    killedMutants: canaryState === 'FAILED' ? null : killedMu.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after })),
     /* The equivalence split (MUTATION-EQUIVALENCE §5). Reported ALONGSIDE the raw numbers above, never
        instead of them: `killed / tested` stays visible so the two denominators can be compared, which
        is the whole argument the brief makes. `distinguishable` is what the 90 % target should be read
