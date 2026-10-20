@@ -910,6 +910,36 @@ distribution, and the gap one wants a residue row once somebody measures it.
   6.52–21.46). Historical: the original §2.1 table's 5.92 ms (IQR 3.98–10.61, range 3.02–48.80).
   See `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` §4 and
   `PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS-2026-08-03-BRIEF.md` §1.
+- **No change may move the beat-count ratio out of 0.95–1.05 on any night, and the drop tally and the
+  covered rate range go in the PR beside the two medians above** — added 2026-10-20, discharging
+  `2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic`. The two medians above could not see a
+  change that DOUBLES the detected rate, and the reason is the gate inside the endpoint rather than the
+  corpus alone.
+
+  `ppiJitterMs` refuses a window in which no two matched pairs are consecutive. A detector firing twice
+  per beat leaves every second beat unpaired, so the refusal fires and the corpus loop drops the epoch.
+  The epochs that survive are the ones where nothing went wrong, and both medians then read clean —
+  a harmonic does not score badly here, it leaves the population. Measured 2026-10-20 on a planted
+  48 bpm train: the clean train reads a jitter and a count ratio of 1.00, and doubling every beat
+  refuses the jitter outright while the count ratio reads 2.00. The selftest pins both halves.
+
+  So the endpoint now reports three figures the two medians cannot carry, and §4 reads them:
+  the **beat-count ratio** finger/ECG per epoch, taken BEFORE the jitter gate; the **epochs dropped**
+  by reason (thin · no envelope lag · jitter refused), because an epoch that never reached a figure
+  still happened; and the **covered rate range** from the ECG side, because a variant that only
+  misbehaves at 48 bpm is invisible on a corpus that never goes there.
+
+  Measured 2026-10-20 on the sleep nights of the Verity leg: 9 nights, 810 epochs kept. The drop tally
+  reads 0 thin, 0 no envelope lag and 0 jitter refused. So the gate never fired on this corpus, and the
+  counters stand as a tripwire rather than a recovered loss.
+
+  The ratio median is 1.00 with an IQR of 1.00–1.00, and the worst single epoch reads 1.85. That epoch
+  sat inside both medians the whole time, which read 7.65 ms and 99.6 % on the same run. The covered
+  reference rate has a median of 49.4 bpm, over epochs from 41.6 to 133.6 bpm.
+
+  The ratio is a coverage bound, not a repair: a harmonic confined to a stretch of a night still only
+  moves the ratio over the epochs it touches, and the per-night figure is a median. Quote the range with
+  the figure, and never read the medians as a statement about rates the corpus does not contain.
 - **Gate cost per `ppgdex-dsp.js` edit** (`CLAUDE.md` §🧪, §🔏, memory `tepna-three-stage-build`):
   `node tools/build.mjs --app PpgDex`, then `build-analysis.mjs` **and** `build-docs.mjs` (orchestrators,
   analysis and docs all inline the DSP — skipping these reds the CI drift guards), `npm run typecheck`,
