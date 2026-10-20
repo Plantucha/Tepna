@@ -124,7 +124,8 @@
       if (comp && typeof comp === 'object' && dsp) {
         try {
           if (comp.acc && typeof dsp.parseSensorXYZ === 'function') {
-            var a = dsp.parseSensorXYZ(comp.acc);
+            // §3.2 — the ACC's own sidecar, as `polar-acc.js` and `polar-h10-ecg.js` pass it.
+            var a = comp.accruns ? dsp.parseSensorXYZ(comp.acc, { runsText: comp.accruns }) : dsp.parseSensorXYZ(comp.acc);
             if (a && a.length) frame.acc = a;
           }
         } catch (e0) {
