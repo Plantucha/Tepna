@@ -120,6 +120,7 @@ def test_two_consecutive_unanswered_polls_is_FAIL_naming_the_radio_the_run_and_t
 def test_an_isolated_miss_is_SHORTFALL_not_a_conviction():
     v = ok(H.verdict_object(_rows([True, False, True, True])), "SHORTFALL")
     assert "1 isolated unanswered poll(s) of 4" in v["reason"]
+    assert f"hci0 {PIN} (pinned): 1 isolated" in v["reason"], "a reason names the radio it convicts"
 
 
 def test_a_FAIL_outranks_a_SHORTFALL_on_another_radio():
@@ -288,3 +289,206 @@ def test_the_watchdog_calls_the_recorder_every_poll(tmp_path, monkeypatch):
     assert len(lines) >= 1 + 2 * 2, lines  # header + (pinned + other) per poll, at least two polls
     v = ok(H.verdict_object(H.read_rows(str(tmp_path), 0, 10**15), night="rig", root=str(tmp_path)), "PASS")
     assert v["population"]["eligible"] == 2
+
+
+# ── the sniffer: a recorded decision in `result`, never a verdict of its own ──────────────────────
+class _Said:
+    """What `systemctl` printed, and the exit code the reader must ignore."""
+
+    def __init__(self, stdout: str, returncode: int = 1):
+        self.stdout, self.returncode = stdout, returncode
+
+
+def test_the_sniffer_state_table_is_pre_stated_over_every_tri_state_pair():
+    table = {
+        (True, True): "armed",
+        (True, False): "armed",
+        (True, None): "armed",
+        (False, True): "armed",
+        (None, True): "armed",
+        (False, False): "inert",
+        (False, None): "unknown",
+        (None, False): "unknown",
+        (None, None): "unknown",
+    }
+    for (enabled, active), state in table.items():
+        b = H.sniffer_block(enabled, active)
+        assert b["state"] == state, (enabled, active, b)
+        assert b["enabled"] is enabled and b["active"] is active, "the inputs travel with the verdict"
+        assert (b["why"] is None) is (state != "unknown"), b
+    assert H.sniffer_block(None, None)["state"] != "inert", "an unread timer is not a disabled one"
+
+
+def test_the_unknown_reason_names_both_inputs_and_the_decision_it_cannot_vouch_for():
+    why = H.sniffer_block(None, False)["why"]
+    assert "enabled=None" in why and "active=False" in why
+    assert H.SNIFF_DECISION["id"] in why, "a reason says which ruling is left unevidenced"
+
+
+def test_the_block_cites_the_decision_and_hands_out_a_copy_of_it():
+    b = H.sniffer_block(False, False, radios_on_hci=4)
+    assert b == {
+        "unit": "tepna-sniff.timer",
+        "state": "inert",
+        "enabled": False,
+        "active": False,
+        "radios_on_hci": 4,
+        "decision": dict(H.SNIFF_DECISION),
+        "why": None,
+    }
+    assert b["decision"]["doc"].endswith("-BRIEF.md") and "SNIFFER" in b["decision"]["doc"]
+    b["decision"]["id"] = "D9"
+    assert H.SNIFF_DECISION["id"] != "D9", "the constant is copied out, never handed out"
+
+
+def test_the_timer_reader_answers_on_the_word_never_on_the_exit_code():
+    said = {"is-enabled": "disabled", "is-active": "inactive"}
+
+    def run(argv):
+        assert argv[0] == "systemctl" and argv[2] == H.SNIFF_UNIT, argv
+        return _Said(said[argv[1]] + "\n")
+
+    assert H.sniffer_timer(run=run) == (False, False), "a non-zero exit saying `disabled` is disabled"
+    said["is-enabled"], said["is-active"] = "enabled", "active"
+    assert H.sniffer_timer(run=run) == (True, True)
+    said["is-enabled"] = "static"
+    assert H.sniffer_timer(run=run) == (None, True), "a third word is unread, never False"
+
+
+def test_a_reader_that_raises_is_unread_not_disabled():
+    def boom(_argv):
+        raise FileNotFoundError("systemctl")
+
+    assert H.sniffer_timer(run=boom) == (None, None)
+    assert H.sniffer_block(*H.sniffer_timer(run=boom))["state"] == "unknown"
+
+
+def test_the_default_reader_shells_out_and_an_absent_unit_is_never_inert():
+    # No injected runner: the real `systemctl` path. Either answer is honest — no systemd at all raises
+    # and reads (None, None), and a systemd that never heard of the unit prints nothing for `is-enabled`.
+    enabled, active = H.sniffer_timer(f"tepna-no-such-unit-{os.getpid()}.timer")
+    assert enabled is None, enabled
+    assert H.sniffer_block(enabled, active)["state"] == "unknown", "an absent unit is not an inert one"
+
+
+def test_the_sniffer_moves_neither_status_nor_reason_nor_population():
+    rows = _rows([True, False, False, True])
+    base = ok(H.verdict_object(rows), "FAIL")
+    assert base["result"]["sniffer"]["state"] == "unknown", "unread by default, never inert"
+    for enabled, active in ((False, False), (True, False), (None, None)):
+        v = ok(H.verdict_object(rows, sniff_enabled=enabled, sniff_active=active), "FAIL")
+        assert v["status"] == base["status"] and v["reason"] == base["reason"]
+        assert v["population"] == base["population"]
+        assert v["result"]["sniffer"]["state"] == H.sniffer_block(enabled, active)["state"]
+
+
+def test_radios_on_hci_counts_the_radios_that_answered_not_the_determinable_ones():
+    rows = _rows([True, True]) + _rows([False, False], mac=OTHER, hci="hci1", pinned=False)
+    v = ok(H.verdict_object(rows, sniff_enabled=False, sniff_active=False), "FAIL")
+    assert v["result"]["radios"][OTHER]["determinable"] == 2, "an all-False radio is determinable"
+    assert v["result"]["sniffer"]["radios_on_hci"] == 1, "and it answered nothing"
+    v = ok(H.verdict_object(_rows([None, None]), sniff_enabled=False, sniff_active=False), "UNKNOWN")
+    assert v["result"]["sniffer"]["radios_on_hci"] == 0
+
+
+def test_a_night_with_no_rows_keeps_no_result_even_once_the_timer_was_read():
+    v = ok(H.verdict_object([], sniff_enabled=False, sniff_active=False), "NOT_RUN")
+    assert v["result"] is None, "nothing was examined, so there is nothing to report about the sniffer"
+
+
+def test_nightqc_reads_the_timer_once_and_a_night_with_no_rows_never_asks_the_box(tmp_path):
+    root, night = _night(tmp_path)
+    H.append_rows(str(root), [H.row(T0 + i * 60_000, "hci0", PIN, True, True, True, 1) for i in range(3)])
+    calls: list[int] = []
+
+    def timer():
+        calls.append(1)
+        return (False, False)
+
+    inside = {"sessions": [{"start": T0 // 1000, "end": T0 // 1000 + 180}]}
+    v = ok(nightqc.adapter_hci_verdict(str(night), inside, sniffer_timer=timer), "PASS")
+    assert v["result"]["sniffer"] == H.sniffer_block(False, False, radios_on_hci=1)
+    assert len(calls) == 1
+    assert ok(nightqc.adapter_hci_verdict(str(night), {"sessions": []}, sniffer_timer=timer), "NOT_RUN")
+    assert len(calls) == 1, "no rows means no result, so the box is never asked"
+
+
+# ── the rule's own reads, in scope because this branch changed these functions ────────────────────
+def test_the_default_runner_asks_systemctl_for_captured_text_under_a_timeout(monkeypatch):
+    # The default reader is the one the box uses, so its arguments are part of the rule: without
+    # `capture_output` and `text` there is no word to read, and without a timeout a wedged systemctl
+    # hangs the nightly verdict. `subprocess` is imported inside the function, so patching the module
+    # attribute reaches it.
+    import subprocess
+
+    seen: list[tuple] = []
+
+    def fake(argv, **kw):
+        seen.append((list(argv), kw))
+        return _Said("enabled\n" if argv[1] == "is-enabled" else "active\n", 0)
+
+    monkeypatch.setattr(subprocess, "run", fake)
+    assert H.sniffer_timer() == (True, True)
+    assert [a for a, _ in seen] == [
+        ["systemctl", "is-enabled", H.SNIFF_UNIT],
+        ["systemctl", "is-active", H.SNIFF_UNIT],
+    ]
+    assert all(kw == {"capture_output": True, "text": True, "timeout": 10} for _, kw in seen), seen
+
+
+def test_the_evidence_names_the_sidecar_under_the_root_it_was_read_from():
+    v = ok(H.verdict_object(_rows([True, True]), night="2026-09-22", root="/srv/cap"), "PASS")
+    assert v["evidence"] == [H.TOOL, os.path.join("/srv/cap", H.FILE_NAME), "2026-09-22"]
+
+
+def test_a_radio_takes_its_hci_name_from_the_LAST_poll_not_an_earlier_one():
+    # Re-enumeration moves a radio between hci names mid-night; the report says where it ended up.
+    rows = [
+        H.parse_row(H.row(T0 + i * 60_000, h, PIN, True, True, True, 10))
+        for i, h in enumerate(("hci0", "hci1", "hci2"))
+    ]
+    v = ok(H.verdict_object(rows), "PASS")
+    assert v["result"]["radios"][PIN]["hci"] == "hci2"
+
+
+def test_one_determinable_poll_is_enough_to_be_checked():
+    v = ok(H.verdict_object(_rows([True, None])), "PASS")
+    assert v["result"]["radios"][PIN]["determinable"] == 1
+    assert v["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
+
+
+def test_an_unpinned_radio_is_never_named_pinned():
+    v = ok(H.verdict_object(_rows([True, False, False], mac=OTHER, hci="hci1", pinned=False)), "FAIL")
+    assert v["reason"].startswith(f"hci1 {OTHER}: ")
+    assert "(pinned)" not in v["reason"]
+
+
+def test_nightqc_trims_a_trailing_slash_before_it_names_the_night(tmp_path):
+    root, night = _night(tmp_path)
+    H.append_rows(str(root), [H.row(T0, "hci0", PIN, True, True, True, 1)])
+    inside = {"sessions": [{"start": T0 // 1000, "end": T0 // 1000 + 60}]}
+    v = ok(nightqc.adapter_hci_verdict(str(night) + "/", inside, sniffer_timer=lambda: (False, False)), "PASS")
+    assert v["evidence"] == [H.TOOL, os.path.join(str(root), H.FILE_NAME), "2026-09-22"]
+
+
+def test_nightqc_the_window_start_is_seconds_and_leaves_earlier_rows_out(tmp_path):
+    root, night = _night(tmp_path)
+    H.append_rows(str(root), [H.row(T0 + i * 60_000, "hci0", PIN, True, True, True, 1) for i in range(10)])
+    late = {"sessions": [{"start": T0 // 1000 + 5 * 60, "end": T0 // 1000 + 9 * 60}]}
+    v = ok(nightqc.adapter_hci_verdict(str(night), late, sniffer_timer=lambda: (False, False)), "PASS")
+    assert v["result"]["polls"] == 5, "the five rows before the window start are not this night's"
+
+
+def test_nightqc_hands_the_two_timer_facts_over_in_order(tmp_path):
+    root, night = _night(tmp_path)
+    H.append_rows(str(root), [H.row(T0, "hci0", PIN, True, True, True, 1)])
+    inside = {"sessions": [{"start": T0 // 1000, "end": T0 // 1000 + 60}]}
+    v = ok(nightqc.adapter_hci_verdict(str(night), inside, sniffer_timer=lambda: (True, False)), "PASS")
+    assert v["result"]["sniffer"]["enabled"] is True and v["result"]["sniffer"]["active"] is False
+    assert v["result"]["sniffer"]["state"] == "armed", "enabled alone arms it"
+
+
+def test_nightqc_a_crash_still_names_the_sidecar_it_was_reading(tmp_path):
+    root, night = _night(tmp_path)
+    v = ok(nightqc.adapter_hci_verdict(str(night), {"sessions": [{"start": "x", "end": 1}]}), "UNKNOWN")
+    assert v["evidence"][:2] == [H.TOOL, os.path.join(str(root), H.FILE_NAME)]
