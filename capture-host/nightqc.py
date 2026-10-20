@@ -4413,11 +4413,16 @@ def backcheck_verdict(night_dir: str, summary: dict) -> dict:
         return _v.unknown(gate=_BACKCHECK_GATE, criterion=_BACKCHECK_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
 
 
-def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
+def adapter_hci_verdict(night_dir: str, summary: dict, sniffer_timer=None) -> dict:
     """The `adapter-hci` verdict (adapter_hci.py — the pre-stated rule lives there) over the rows of
     `<root>/ADAPTERHCI.csv` that fall inside the night's session window. The root is the night dir's
     grandparent (`<root>/captures/<night>`); a night with no session window has no rows to read and
-    is NOT_RUN by the builder's own rule."""
+    is NOT_RUN by the builder's own rule.
+
+    The sniffer timer is read HERE, on the box, and injected into the pure rule — the verdict carries the
+    sniffer's state so a reader of a PASS night learns that no radio sniffs and that this is D2's recorded
+    decision (residue `2026-09-25-adapterhci-cannot-express-inert-sniffer`). An unread timer reads as
+    `unknown`, never as inert."""
     import adapter_hci
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(night_dir)))
@@ -4430,7 +4435,10 @@ def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
             start = min(int(s["start"]) for s in sessions) * 1000
             end = max(int(s["end"]) for s in sessions) * 1000
             rows = adapter_hci.read_rows(root, start, end)
-        return adapter_hci.verdict_object(rows, night=night, root=root)
+        # Read the timer only when there ARE rows: a night with no rows is NOT_RUN with no `result`, so
+        # asking the box would buy nothing and cost two subprocess calls per night.
+        sniff = (sniffer_timer or adapter_hci.sniffer_timer)() if rows else (None, None)
+        return adapter_hci.verdict_object(rows, night=night, root=root, sniff_enabled=sniff[0], sniff_active=sniff[1])
     except Exception as exc:  # noqa: BLE001 — a crash is not a verdict
         import verdict as _v
 
