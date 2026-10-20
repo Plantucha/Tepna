@@ -16,6 +16,7 @@ reader refuses and the other accepts is a drift, which is the whole reason the N
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -421,6 +422,20 @@ def test_the_NODE_verifier_also_says_why_its_commit_is_null(tmp_path):
     (away / "tools").mkdir(parents=True)
     shutil.copy(os.path.join(root, "tools", "verify-seals.mjs"), away / "tools" / "verify-seals.mjs")
     shutil.copy(os.path.join(root, "verdict.js"), away / "verdict.js")
+    # This copy list IS the tool's import closure, and #3797 grew the closure without growing the
+    # list: `verify-seals.mjs` gained `./argv-guard.mjs`, the scratch went on holding two files, and
+    # the tool died with ERR_MODULE_NOT_FOUND where this test expects a verdict — on every PR that
+    # left capture-host/ alone, because the relevance filter skips this suite for a `tools/**` diff.
+    # The list stays explicit and the ASSERTION below reads the real closure beside it, so the next
+    # import reds here under its own name instead of as a resolve trace in a CI log.
+    # The name is spelled as a LITERAL here on purpose. `mutation_diff.root_reads` stages a root file
+    # into the mutation scratch only when some test names it as a string literal, so a path assembled
+    # from the import string would be invisible to that census and this copy would then raise
+    # FileNotFoundError inside the scratch — the 0-tested failure that function exists to prevent.
+    shutil.copy(os.path.join(root, "tools", "argv-guard.mjs"), away / "tools" / "argv-guard.mjs")
+    with open(NODE_VERIFIER, encoding="utf-8") as fh:
+        closure = sorted(set(re.findall(r"""^import .* from ['"]\./([^'"]+)['"]""", fh.read(), re.M)))
+    assert closure == ["argv-guard.mjs"], f"verify-seals.mjs's relative imports moved: {closure}"
     shutil.copytree(V.VECTOR_DIR, away / "capture-host" / "tests" / "vectors" / os.path.basename(V.VECTOR_DIR))
     assert not (away / ".git").exists(), "the point of this fixture is that git cannot be read here"
     r = subprocess.run(
