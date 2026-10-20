@@ -30,6 +30,103 @@ changesets.)
 
 ---
 
+## [2.21.0] — 2026-10-20
+
+### Added
+- OverDex now routes a Polar ACC file to MotionDex as its own node. The new polar-acc adapter reads the H10 chest ACC and the Verity Sense arm ACC with MotionDex's own parser and its validity sidecar. OverDex folds a chest and an arm ACC from the same night into one MotionDex run, so the Integrator receives one MotionDex export. The ACC also stays an ECG and PPG companion, so ECGDex posture and motion gating are unchanged.
+- Pull the CPAP stored spool 300 s after each retained therapy session, and retry the next minute when another actor holds the link.
+- `tools/defect-pin-census.mjs` enumerates every in-tree annotation of a test that once asserted a defect. `tests/defect-pin-inventory.json` carries one entry per annotation, with its mechanism and one line of why. The gate reds on an annotation with no entry, and on an entry whose annotation moved. It reads the annotations rather than the tests, so its counts bound the class.
+- The Integrator cell on the box's Nights page opens OverDex with the night's raw files and presses Run & fuse. OverDex runs each analyzer on those files and fuses the exports with the Integrator's engine. OverDex keeps Run & fuse disabled until it has read and classified the files.
+- The OxyDex night view shows six charts of the night:
+- PAT Feasibility now draws the three legs across the night three ways. Chart a keeps the raw receive stamps. Chart b (`PAT-FEASIBILITY-2026-07-08-BRIEF.md`)
+- Land the sleep-stage lab's research record, paper draft and ECG-HRV feature block. The brief carries every pre-stated (`STAGE-LAB-2026-09-27-BRIEF.md`)
+- Publish the hat's reference check as a record of pooled figures only. The trio card now composes its validation note from that record. No night count and no σ on the card survives as a typed literal. (`TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md`)
+- Measure whether repairing the sensor's autogain level steps before filtering would move the exported (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- Compare every dev-tool floor `requirements-dev.txt` declares with the version the gate's own interpreter has installed, and name each shortfall. The leg is advisory: `check.sh` reports the comparison, nothing blocks on it yet.
+- A new measurement tool asks what it would cost to exclude a CVHR decision whose support window reaches (`CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md`)
+- The capture-host mutation sweep emits one `tepna.verdict/1` object at its deciding exit, over the same read of its records that prints the NOTHING DECIDED lines.
+- Name the nights whose admissibility depends on which half the PAT oracle estimated its mode from. The mode decides whether the oracle scores a night at all, and the design estimates it on the first half. So every verdict now carries an `admissibility` class, the run counts the classes, and `result.halvesAdmissibility` carries the counts. The selftest counts its own assertions instead of printing a typed total. (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- Commit the ECG half of a paired night, plus a fixture computed from both halves. A reproducible artifact now pins the SpO₂-plus-ECG fusion block, where before only hand-built nights did. The block mapping moves out of `oxydex-app.js` into `oxydex-fusion.js`, which is what brings it within a headless regeneration's reach. (`RESIDUE.md`)
+- Give `oxydex-dsp.js` its first probe battery, so a surviving mutant in four `rows`-taking functions answers to execution.
+- Name the job that held the event loop: a watchdog thread samples every thread's stack while the stall is (`O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF.md`)
+- Carry the sniffer timer's state in the `adapter-hci` verdict. A reader of a PASS night now learns that no radio sniffs, and that owner decision D2 ruled it so.
+- Run the capture-host suite in one ordered process on a rig timer, and name every failing test that passes alone.
+- `verify:analysis` now reads the served page.
+
+### Changed
+- Label a night by the noon-to-noon window it starts in, so no session falls between two nights. The daytime flag now carries its own 10:00 to 18:00 edges. (`NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md`)
+
+### Fixed
+- Correct two drifted capture-host runtime versions in `THIRD-PARTY.md` and add the eleven-package transitive closure. Give the four declared libraries their own SOUP-list section instead of the developer-tooling table.
+- End the live CPAP stream when the flow value freezes after therapy, at any idle offset.
+- Scale the ECG Waveform Explorer's y-axis to the window on screen, clipped at p0.5/p99.5, so one
+- The `extreme-mutate.mjs` selftest no longer calls its arrow-const blindness a limitation that it shares with `functionRange`. That peer resolves arrow consts since §8. The comment now states that any population this tool surveys, including §11's 543 functions, excludes every arrow const. (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- The format guard's BLOCKED message prints the Biome it just ran, with the directory to run it from. It replaces an `npx --no-install biome` line that resolves npx's cache. The same run now passes `--colors=off`, so a filename in that message carries no ANSI escape into the shell.
+- The brief-header gate now masks a bare month-day such as `09-25` before it looks for counts. A date fragment no longer reads as a count that needs a source. The change retires the 35 baseline entries that were date fragments, so the baseline holds 747 entries. (`BRIEF-HEADER-CLAIM-RATCHET-2026-10-17-BRIEF.md`)
+- Build every night band edge in the floating frame the capture stamps are in. A session now reaches that frame by an explicit conversion rather than by accident, so a night lands in the same band in every zone.
+- A click on a device cell in the box's Nights page hands over the night's unstamped CPAP files only when that app reads them. A click on the O2Ring cell gave OxyDex five CPAP EDF files, and OxyDex listed each one as a parse issue.
+- OxyDex derived every cumulative-time figure by counting rows and calling each one a second. A 1.015 s cadence therefore under-reported T90 by 1.5 %, and a doubled stamp added a second no sample covered.
+- Restore the process timezone after every capture-host test. A teardown that drops `TZ` left the C library on the box's own zone. A suite launched `TZ=UTC` then ran every later file in that zone.
+- Let the deploy restart the daemon when the only held BLE links belong to devices on their charger.
+- Refuse a spectral band the covered span cannot resolve, and report the span beside the bands it keeps. (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- The fleet board reads the solid-night verdicts again. `tools/board.mjs` now sends its verdict reader to the capture box over ssh stdin. The box's reboot on 2026-10-18 wiped the old copy in its `/tmp`, and every board pass after that read "solid-night read failed".
+- Order the boot catch-up against the end already harvested, so a restart cannot re-harvest an
+- # `check.sh` refuses an interpreter that lacks its own tools
+- # The filename stamp gets one owner: `DexClock.fileStamp` (`RESIDUE.md`)
+- Resolve a test-suite input over every corpus rail per file, instead of picking one directory per run, so (`FIXTURE-CORPUS-REACHABILITY-2026-08-09-BRIEF.md`)
+- Count the CPAP frames read after an unsolicited link drop, so the last unmeasured loss category has a writer and COMPLETE becomes reachable. (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Give the CPAP `stalls` counter the detector it cited. The continuity tracker already computes the sample each frame owes, so compare every frame against it. A mid-session break is a spec §30 STREAM_STALL, and the acquisition evidence surface sums a measured one as known loss beside `sink_errors`. `post_drop_tail` stays null: the drop instant it needs never reaches this layer.
+- Give each CPAP session-boundary witness a named fallback. A device that reports `_ZLE` once leaves that edge absent, so the delta against our own trigger read null. The therapy-status rows answered the same question and sat unread in the sidecar. Each boundary now falls back per edge, and the snapshot names which witness the delta used.
+- PpgDex's CVHR detector now takes the per-second gap mask ECGDex already had, so the (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- The nights page on capture-host flagged every row as "daytime, not judged" and hid the stored solid-night verdicts. The flag read only the first session start of a recording. On vigil the daemon writes a session file every hour, so each recording chained from an afternoon start into the night. The flag now marks a recording as daytime only when every session in it starts inside the daytime window. A read-only run on vigil's own captures gives `daytime` false for the nine newest rows, so their verdicts show again.
+- Keep the equivalence ledger's own indent when `--emit` writes it, so a seven-entry addition diffs as seven entries.
+- The Integrator page now names a dropped fusion export. Before, a file from the Integrator's own Export or from the OverDex "download fused" button read as "unrecognized format, no events found". The new message says the file is a fusion export with no events to fuse. It also lists the node exports that the file was built from.
+- Observe the journal-shape bars at their exact value and every rounding digit the record publishes. Split the adoption sample's night layout out so a test can measure its bytes. Make a lost LINK row name the sidecar it was lost from. Assert that the sample's two writes pass `encoding=`, which kills four mutants no decoded byte can tell apart. Record the one survivor that no input distinguishes in the equivalence ledger, with its probe.
+- Count the mutants `mutate_diff` sets aside. A string-literal exclusion lands in `result.notRequired` with the mutant named, an empty diff in `result.emptyDiff`. `result.decided` now counts only killed and surviving mutants, never a timeout. A decided mutant in no bucket refuses the verdict.
+- Decide `tools/mutate.py`'s exit code from the records it produced, not from the skip count alone. A `--only` glob matching no mutant exited 0. The log ended in a full `not checked` listing that looked finished. The decision now lives in `mutation_sweep.sweep_exit_verdict`, inside the coverage floor. It names the phase that decided nothing. The record also carries the selection it ran.
+- Print the diff-scoped mutation gate's cost projection in `--json` mode, and report which pass spent the budget.
+- capture-host/tools/mutate_diff.py now refuses a module whose own clean baseline failed. It used to report PASS over one. mutmut calls a mutant killed when the covering tests fail with it applied. A red baseline fails without one too, so every mutant read as killed. Measured on #3704: three red baselines, `status: PASS`, exit 0, and 14 survivors nobody saw. `run_one` also consults `clean_ok` ahead of the `timeout is not None` branch. The one consumer of that flag sat inside that branch, and the gate always supplies a timeout.
+- capture-host: an archive offload window that crosses midnight now stays open past it. An evening `schedule.at` runs the full `window_min` it declares, instead of stopping at 00:00.
+- Read an equivalence entry's key the way `diff_key` writes it. An entry whose line never moved then stops reading as orphaned. Eight read that way today, seven for the two spaces before an inline comment.
+- A test now pins the OxyDex CSV scrub. That scrub keeps the text `null`, `undefined` and `NaN` out of 75 numeric fields. The test lifts the scrub from `oxydex-app.js` and runs it on a sample CSV. A deleted scrub now fails 3 assertions.
+- The PpgDex perfusion index divided by the detector's zero-light pedestal, about 650,000 counts of (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- Take the median-pulse foot from the detector and widen the template. Rise time now reports the rise, not the template width. (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- Pool DFA alpha-1 and sample entropy over the contiguous runs of a night instead of refusing the whole night at the first dropped interval. (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- Score every optical channel across the whole night, not over one 90 s window at its midpoint. The 25th percentile of the per-window scores decides, so a channel wins the reference slot by holding up. Measured on 27 real nights: the old window picked a different channel on 8 of them. (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- `tools/queue-doctor.mjs` now names a PR with a cancelled required check. Before the fix, the tool read the `cancel` bucket as green, because that bucket is neither `fail` nor `pending`. A cancelled run is terminal, so the PR waited forever while the report called it ready. The report now prints a `CANCELLED` line, and `--report` exits 1 on that state.
+- Five residue rows close on the merged PRs that discharged them. Four of the five move out of OPEN. The fifth row is new, and it records a boot catch-up that re-harvested a therapy end its own marker already covered.
+- Re-size the oldest capture-host residue row from four tasks to one surface. Log two gate blindnesses beside it. A cancelled required check wedges a PR and no tool names that state. A mutation sweep decides with no machine-readable verdict. One row moves to the PR that discharged it.
+- The capture-host judged no 2026-10-18 night on vigil, and the Nights page showed "unknown". The O2Ring lost its link at 03:46 and reconnected at once. Its second session landed in the 2026-10-19 folder. The wear check found that session's SpO2 file in the next folder, but it read the PPG2W contact file from the night's own folder only.
+- Record the stored-spool pull's run day on disk, so a daemon restart inside the pull window no
+- The 31-night stitch in capture-host now streams each night to a temporary file and renames the file into place. Before the fix, `stitch_31d.py` held every row of six tools in memory. It also rewrote all 19 GB of output after every PASS verdict, even when no input had changed. On vigil on 2026-10-19 that rewrite pushed the capture daemon into swap and stalled its loop for 15.7 s, 25.1 s and 25.4 s.
+- The test suite page now escapes each group title, test name and detail before it writes them into the page. Before the fix, an unclosed `<script …>` tag inside one detail made the browser read every later row as script text. The page showed 4633 of 13198 rows, so the browser gate counted a failure and could not name it. The gate now also compares the rendered rows with the in-memory count and fails when they differ.
+- Log the capture daemon's memory peak per log interval and the QC child's own peak, so a night's peak survives a daemon restart.
+- Measure what a dying child reports, so the heap retry is no longer argued from a hypothesis: every
+- Keep a surrogate pair whole at a doc-search chunk edge, and re-embed only the files the old cut split.
+- Read the clock prober's positive controls from the sweep's recorded kill list, and refuse a sweep that names no kills.
+- Return every mutation sweep record through one object literal, so the degraded serial path reports the equivalence split and its canary state.
+- Widen the two experiment tools' filename-stamp pairing pre-filter to the 24 h bound the ingest path already applies, above the measured 18.7 h name error. (`FILENAME-STAMP-JS-CONSUMERS-2026-10-20-BRIEF.md`)
+- Consume a heap-probe request when tracing starts, so a daemon restart before capture keeps the request for the next start.
+- Attribute a gap to an event-loop stall near it, dated at the stall's start, so the loss audit names the daemon.
+- Journal a START record on the serial sweep path, so the quarantine can still see a wedged mutant. The journal reader no longer counts the scope header as a surviving mutant.
+- Annotate three empty list literals in `capture-host` from what the loops below them append, not from mypy's hint. The type count returns to its baseline of zero.
+- Measure a capture session's span end from the last stamped row in its own files. The monitor's recording count then no longer moves with the reader's zone.
+- Name why an equivalence entry lost its anchor, so a lapsed excuse reads as drift and names the line it moved to.
+- The OxyDex fusion block no longer reads ECGDex's retired `estimatedAHI` and `riskCategory`. It carries the CVHR index's own denominator across instead.
+- Record the 0x03 probe module's measured mutation cost, so a later session reads the price instead of predicting it.
+- The PPI-jitter endpoint now reports the beat-count ratio, the epochs it dropped and the rate range it (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- Record each killed mutant by name in a sweep, so the probe battery stops treating an untested mutant as a positive control.
+- Report the quoted verdict a rebase drops, and guard the compliance gate’s entry so another tool can import its parser.
+- The timezone-leak row closes on the PR that discharged it. Its own repro now reads 726 passed, where the row measured one failure.
+- Pass the ACC and ECG validity sidecars to the PpgDex and ECGDex parsers, so a held ACC stretch no longer reads as stillness. (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- Past the span budget, give no end to a session whose night recorded no writer offset. Mark its row pending.
+- Key each trio night on the file's first data row, not its filename stamp. The capture-host writes that stamp at session start, and 10 of 121 corpus nights change a chosen file. (`FILENAME-STAMP-JS-CONSUMERS-2026-10-20-BRIEF.md`)
+- Read a typed selftest count inside the selftest block and one hop through a never-reassigned binding, over the repo lexer.
+- Catch a typed selftest count that reaches the print one hop away, and make ten tools count the
+- Keep the yield pin’s hand-written digest-move notes through a re-cut, and restore the three notes a re-stamp deleted.
+
+---
+
 ## [2.20.0] — 2026-10-18
 
 ### Added
@@ -3207,7 +3304,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.20.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.21.0...HEAD
+[2.21.0]: https://github.com/Plantucha/Tepna/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/Plantucha/Tepna/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/Plantucha/Tepna/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/Plantucha/Tepna/compare/v2.17.0...v2.18.0

@@ -13526,6 +13526,21 @@
         'control · the DSP builder still emits the same pair (the sibling being matched)',
         /site:\s*r\.site \|\| 'wrist'/.test(dsp) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(dsp)
       );
+      /* EXPORT-SOURCE-KEY-KINDS — the same sibling divergence, one field earlier in the same block.
+         This builder wrote the upload FILENAME where the DSP's sibling writes a semantic tag, and a
+         consumer cannot tell the two kinds apart: `signal-orchestrate.js` routes on that key holding
+         'welltory'. So the filename was a value no consumer reads, in a key one consumer dispatches
+         on. Source-scanned for the reason the device assertions above are: nothing executes this
+         builder. ⚠️ Keep the fix's own comment free of the offending expression — this group already
+         went RED once against a FIXED source, because the explanation beside it carried the literal. */
+      T.ok('the app export writes the semantic tag', /source:\s*'ppg'/.test(app), "buildV2's recording.source is no longer the tag the DSP sibling writes");
+      T.ok('…and the upload filename no longer rides the tag key', !/source:\s*r\.fname/.test(app), 'the upload filename is back in recording.source');
+      T.ok(
+        '…and the filename rides a key that MEANS a filename',
+        /fname:\s*r\.fname \|\| null/.test(app),
+        'recording.fname is gone, so the filename is dropped rather than carried under an honest key'
+      );
+      T.ok('control · the DSP builder writes that same tag (the sibling being matched)', /source:\s*'ppg'/.test(dsp));
     });
 
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
@@ -38825,6 +38840,90 @@
       T.eq('a healthy queue has nothing cancelled to name', att([green, advisoryCancel]).cancelled.length, 0);
     });
 
+    /* ── queue-doctor: DIRTY is two states, and the local merge probe tells them apart (residue
+       2026-09-22-residue-dirty-carries-no-signal). GitHub merges without the `merge=residue` driver,
+       so a RESIDUE-only append reads DIRTY there and merges clean here, and a real conflict reads the
+       same. Every DIRTY said "needs a human rebase". The probe is `git merge-tree --write-tree
+       --name-only`; the outputs below are its real shapes from #3749's head 7a8b60dbc, 2026-10-20. */
+    group('Queue-doctor — a DIRTY PR names whether the conflict is real, from a local merge probe', 'tools · queue-doctor-dirty', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention,
+        dv = env.qdDirtyVerdict,
+        pmt = env.qdParseMergeTree,
+        probe = env.qdProbeMerge;
+      if (typeof cl !== 'function' || typeof dv !== 'function' || typeof pmt !== 'function' || typeof probe !== 'function') {
+        T.skip('queue-doctor DIRTY probe is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var OID = 'a467cf5d0784eabccefb3dbe77f735d40a0bb4fa';
+      var CLEAN_OUT = OID + '\n';
+      var CONFLICT_OUT = OID + '\nbriefs/RESIDUE.md\n\nAuto-merging briefs/RESIDUE.md\nCONFLICT (content): Merge conflict in briefs/RESIDUE.md\n';
+      T.eq('a clean merge parses as exit 0', pmt(CLEAN_OUT, 0), { exit: 0, paths: [] });
+      T.eq('a conflict parses its paths and stops at the blank line', pmt(CONFLICT_OUT, 1), { exit: 1, paths: ['briefs/RESIDUE.md'] });
+      T.eq('exit 0 over no tree line is not a clean merge (examined nothing)', pmt('', 0), null);
+      T.eq('exit 1 that names no path is unreadable, not a conflict list', pmt(CLEAN_OUT, 1), null);
+      T.eq('a usage error (exit 128) is unreadable', pmt(OID + '\n', 128), null);
+      T.eq('a SHA-256 tree id parses too', pmt('a'.repeat(64) + '\n', 0), { exit: 0, paths: [] });
+
+      var NOW = 1755000000000;
+      var wrap = function (o) {
+        var pr = { number: 1, title: 't', state: 'OPEN', isDraft: false, mergeState: 'DIRTY', autoMerge: true, updatedAtMs: NOW - 90 * 60000, checks: [{ name: 'test', bucket: 'pass' }] };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test'], NOW);
+        r.pr = pr;
+        return r;
+      };
+      var display = wrap({ number: 11, mergeProbe: pmt(CLEAN_OUT, 0) });
+      var real = wrap({ number: 12, mergeProbe: pmt(CONFLICT_OUT, 1) });
+      var unprobed = wrap({ number: 13, mergeProbe: null });
+      var green = wrap({ number: 14, mergeState: 'CLEAN' });
+      T.eq('a clean local merge reads as the display artifact', display.k, 'dirty-display');
+      T.ok('…and its remedy is a merge and one push, never a rebase', /git merge origin\/main/.test(display.why) && /no rebase/.test(display.why));
+      T.eq('a conflicting local merge stays dirty (the plant: the probe can say "real")', real.k, 'dirty');
+      T.ok('…and names the conflicted path', /briefs\/RESIDUE\.md/.test(real.why));
+      T.eq('no probe keeps the old class and remedy', [unprobed.k, unprobed.why], ['dirty', 'merge conflict — needs a human rebase']);
+      T.eq('a malformed probe is not a clean merge', dv({ exit: 0.5 }).k, 'dirty');
+      T.eq('a red beats a DIRTY probe', wrap({ number: 15, mergeProbe: pmt(CLEAN_OUT, 0), checks: [{ name: 'test', bucket: 'fail' }] }).k, 'failing');
+      var a = att([display, real, unprobed, green]);
+      T.eq(
+        'both DIRTY kinds are in the attention set',
+        a.dirty.map(function (c) {
+          return c.pr.number;
+        }),
+        [11, 12, 13]
+      );
+      T.eq('…and none of them is green-and-stuck, red or cancelled', a.stuck.length + a.failing.length + a.cancelled.length, 0);
+      T.eq('a clean queue has nothing DIRTY to name (non-vacuity)', att([green]).dirty.length, 0);
+
+      /* The I/O probe with an injected git: the merge-tree exit reaches the parser, and any earlier
+         failure returns null rather than a guess. */
+      var calls = [];
+      var fake = function (out, status) {
+        return function (a) {
+          calls.push(a[0]);
+          if (a[0] === 'rev-parse') return 'b'.repeat(40) + '\n';
+          if (a[0] === 'merge-tree') {
+            if (status) {
+              var e = new Error('exit ' + status);
+              e.status = status;
+              e.stdout = out;
+              throw e;
+            }
+            return out;
+          }
+          return '';
+        };
+      };
+      T.eq('the probe passes a clean merge through', probe(5, OID, 'main', fake(CLEAN_OUT, 0)), { exit: 0, paths: [] });
+      T.eq('…and fetches before it merges', calls.slice(0, 4), ['fetch', 'rev-parse', 'cat-file', 'merge-tree']);
+      T.eq('the probe passes a conflict through', probe(5, OID, 'main', fake(CONFLICT_OUT, 1)), { exit: 1, paths: ['briefs/RESIDUE.md'] });
+      var failFetch = function (a) {
+        if (a[0] === 'fetch') throw new Error('network');
+        return CLEAN_OUT;
+      };
+      T.eq('a failed fetch is null, not a clean merge', probe(5, OID, 'main', failFetch), null);
+    });
+
     /* ── queue-doctor: a red PR is an EVENT once, not a journal line every ten minutes (owner,
        2026-10-12: "some auto system should warn you" — #3477 and #3481 sat red for an hour under a
        running timer that printed the red on every run into a journal nobody read). ── */
@@ -52911,6 +53010,12 @@
         if (pe) {
           T.ok('  schema.name === ganglior.node-export', pe.schema && pe.schema.name === 'ganglior.node-export', pe.schema && pe.schema.name);
           T.ok('  schema.node === PpgDex', pe.schema && pe.schema.node === 'PpgDex', pe.schema && pe.schema.node);
+          /* EXPORT-SOURCE-KEY-KINDS — the per-node tag assertion this family lacked. PulseDex ('rr'),
+             OxyDex ('spo2'), HRVDex ('welltory') and ECGDex ('ecg') are each pinned in this group, and
+             PpgDex was the one node with none. It is also the one node whose two export builders
+             diverged on the field: the app's wrote the upload filename where this one writes the tag.
+             The unpinned member of a family is where the drift lives. */
+          T.ok('  recording.source === ppg', pe.recording && pe.recording.source === 'ppg', pe.recording && pe.recording.source);
           T.ok('  ganglior_events is an array', Array.isArray(pe.ganglior_events), typeof pe.ganglior_events);
           T.ok('  recording.startEpochMs is finite', pe.recording && isFinite(pe.recording.startEpochMs), pe.recording && pe.recording.startEpochMs);
         }
