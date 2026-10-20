@@ -7326,7 +7326,10 @@ async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: flo
         # DAEMON-RSS PART A. The climb Wren measured from OUTSIDE the process (94 → 549 MB, VmHWM 847 MB
         # over the 10-11 night, smooth at ~+300 MB/6 h while streams record) cannot be attributed from
         # outside: `/proc/<pid>/status` does not split live Python objects from memory Python freed and
-        # glibc kept, and `smaps`, which would, is root-only on the box. This publishes the split from
+        # glibc kept, and `smaps_rollup`, which would, is refused to every reader but root on this box
+        # (the unit's CAP_NET_ADMIN grant makes the daemon non-dumpable). The refusal does NOT reach the
+        # daemon's own read of itself, measured 2026-10-20, so the rollup rides this block. This
+        # publishes the split from
         # inside — RSS beside `mallinfo2`'s in-use and free-inside-the-arena bytes, beside the gc
         # counters that say whether collection is happening at all. Measured cost: 0.6 us per call with
         # the GIL held, which is why `_resolve_mallinfo2` binds through PyDLL (see its docstring).
@@ -11752,6 +11755,57 @@ def proc_rss_kb(status_path: str = "/proc/self/status", keys: tuple = _RSS_KEYS)
     return out
 
 
+#: `/proc/self/smaps_rollup` keys worth having beside the glibc figures, in the order a reader wants
+#: them. `Rss` is the cross-check against `/proc/self/status`; `Pss` is the fork-aware figure, which is
+#: what tells the qc child's shared pages from the daemon's own; `Anonymous` covers EVERY anonymous
+#: mapping, CPython's obmalloc arenas included; `Private_Dirty` is the part no reclaim can take back;
+#: `Swap` is what tells a FALL in resident anon from a release.
+_ROLLUP_KEYS = ("Rss", "Pss", "Anonymous", "Private_Dirty", "Swap")
+
+
+def proc_smaps_rollup(path: str = "/proc/self/smaps_rollup", keys: tuple = _ROLLUP_KEYS) -> dict:
+    """PURE-ish: `{key: kB}` from the kernel's whole-process mapping rollup, and a `reason` on refusal.
+
+    🔴 THE CAPABILITY GRANT BOUNDS THE OUTSIDE READER, NOT THIS ONE (residue 2026-10-18-cap-net-admin-
+    makes-the-daemon-non-dumpable-so-smaps-is-root-only). The unit grants `AmbientCapabilities=
+    CAP_NET_ADMIN`; the kernel marks a process holding capabilities beyond its uid non-dumpable, and
+    `/proc/<pid>/smaps_rollup` then refuses every reader but root. Measured on vigil 2026-10-20 against
+    PID 627481: Permission denied as `vigil`, with `CapAmb` 0x1000. The row read that as a bound on what
+    the in-process `mem` block can ever answer, and it is not one. The kernel's access check
+    short-circuits for the process asking about ITSELF, which is why `hwm_since_last_kb` writes
+    `/proc/self/clear_refs` on that same box every minute and 52 of 52 journal lines over the whole
+    retention carry no refusal. A local control agrees: a process that sets `PR_SET_DUMPABLE` to 0 still
+    reads its own rollup.
+
+    🔴 WHAT IT ADDS THAT `mallinfo2` CANNOT. glibc accounts for its own arenas. CPython's obmalloc arenas
+    are mmap'd outside them, and so are thread stacks and every buffer a C extension maps. That is the
+    ~100 MB residue 2026-10-18-most-of-the-climb-sits-outside-glibc-arena-accounting names, and
+    `Anonymous` counts all of it.
+
+    ⚠️ THE COMPARISON IS BETWEEN SLOPES, NEVER BETWEEN LEVELS. glibc's `arena` and `hblkhd` are the
+    allocator's VIRTUAL totals and every figure here is RESIDENT, so subtracting one from the other
+    would publish two populations under one name. No difference is computed: the line carries both, and
+    a climb in `Anonymous` while `main arena` and `hblkhd` stay flat is the attribution.
+
+    §∅: an unreadable file or an absent key is `None`, never 0. A kernel without `smaps_rollup` (before
+    4.14) and a process holding no anonymous memory must not produce the same row."""
+    out: dict[str, int | None] = {k: None for k in keys}
+    reason: str | None = None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                k, _, rest = line.partition(":")
+                if k in out:
+                    parts = rest.split()
+                    # "12345 kB" — the unit is asserted here as in `proc_rss_kb`, because a row that
+                    # silently changed units is indistinguishable from a 1024x climb.
+                    if len(parts) == 2 and parts[1] == "kB" and parts[0].isdigit():
+                        out[k] = int(parts[0])
+    except OSError as e:
+        reason = f"smaps_rollup unreadable ({type(e).__name__}): the mapping view is absent, not zero"
+    return {**out, "reason": reason}
+
+
 def hwm_since_last_kb(status_path: str = "/proc/self/status", clear_path: str = "/proc/self/clear_refs") -> tuple:
     """`(kB, reason)`: this process's peak resident set SINCE THE LAST CALL, then the peak is reset.
 
@@ -11997,17 +12051,22 @@ _UNSET_HWM = object()  # `mem_log_line` was given no windowed peak
 
 
 def mem_snapshot() -> dict:
-    """The four populations the RSS climb needs side by side, cheap enough for every status tick.
+    """The five populations the RSS climb needs side by side, cheap enough for every status tick.
 
     RSS is what the kernel gave us, `mallinfo2` is how the MAIN arena has carved it, `arenas` is the
     same question across EVERY arena, and the gc counters say whether Python is collecting at all. Part
     A of the daemon-RSS split (Wren, 2026-10-12: +300 MB over 6 h while streams record, smooth, with
     per-job arena retention of ~50 MB on top). Which population it is cannot be told from outside the
-    process, which is why this is published from inside it."""
+    process, which is why this is published from inside it.
+
+    `rollup` is the kernel's own mapping view, and it is the only one of the five that sees the
+    anonymous memory glibc never accounted for. It reads from inside the daemon although an outside
+    reader of the same uid is refused — see `proc_smaps_rollup`, which carries the measurement."""
     return {
         "rss_kb": proc_rss_kb(),
         "mallinfo2": mallinfo2(),
         "arenas": malloc_arenas(),
+        "rollup": proc_smaps_rollup(),
         "gc": gc_counters(),
     }
 
@@ -12027,6 +12086,7 @@ def mem_log_line(snap: dict, hwm: Any = _UNSET_HWM, hwm_reason: str | None = Non
     `hwm` is `hwm_since_last_kb()`'s figure. A caller that passes none gets the line without the segment,
     and `None` prints `null`."""
     rss, mi, ar, g = snap["rss_kb"], snap["mallinfo2"], snap["arenas"], snap["gc"]
+    ro = snap["rollup"]
 
     def _kb(v, scale=1):
         return "null" if v is None else str(v // scale)
@@ -12050,9 +12110,19 @@ def mem_log_line(snap: dict, hwm: Any = _UNSET_HWM, hwm_reason: str | None = Non
         ",".join(str(c) for c in g["counts"]),
         ",".join("null" if c is None else str(c) for c in g["collections"]),
     )
+    # The kernel's mapping view, labelled apart from every glibc figure above it: these are RESIDENT
+    # kB and those are the allocator's VIRTUAL totals, so the two are read as slopes and never
+    # subtracted (`proc_smaps_rollup`).
+    line += (" · mapped rss %s kB mapped pss %s kB mapped anon %s kB mapped private dirty %s kB mapped swap %s kB") % (
+        _kb(ro.get("Rss")),
+        _kb(ro.get("Pss")),
+        _kb(ro.get("Anonymous")),
+        _kb(ro.get("Private_Dirty")),
+        _kb(ro.get("Swap")),
+    )
     if hwm is not _UNSET_HWM:
         line += " · VmHWM since last line %s kB" % _kb(hwm)
-    for reason in (mi.get("reason"), ar.get("reason"), hwm_reason):
+    for reason in (mi.get("reason"), ar.get("reason"), ro.get("reason"), hwm_reason):
         if reason is not None:
             line += f" · {reason}"
     return line

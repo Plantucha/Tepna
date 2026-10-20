@@ -5,11 +5,16 @@ counters, and the journal keeps the series.
 
 The climb under investigation was measured from OUTSIDE the process (94 → 549 MB over one night, smooth
 at ~+300 MB/6 h while streams record). From outside, memory Python freed and glibc kept is
-indistinguishable from live objects, and `smaps` is root-only on the box. These are the three
-populations that separate them, published from inside."""
+indistinguishable from live objects, and `smaps_rollup` is refused to every reader but root on the box.
+These are the populations that separate them, published from inside — the rollup among them, because the
+refusal never reached the daemon's own read of itself (measured 2026-10-20, `proc_smaps_rollup`)."""
 
 import asyncio
 import ctypes
+import subprocess
+import sys
+
+import pytest
 
 import capture
 from tests.test_capture_coverage_100 import _run, _stop_after
@@ -406,6 +411,108 @@ def test_the_real_libc_reports_more_than_the_main_arena_or_names_its_absence():
         assert out["reason"].startswith("malloc_info")
 
 
+# ── the mapping rollup ───────────────────────────────────────────────────────────────────────────
+
+_ROLLUP_SAMPLE = """\
+5578bbe8d000-7ffdc0fd4000 ---p 00000000 00:00 0                          [rollup]
+Rss:              125084 kB
+Pss:              118000 kB
+Pss_Dirty:        117000 kB
+Shared_Clean:       6000 kB
+Private_Dirty:     98000 kB
+Anonymous:         99480 kB
+Swap:                  0 kB
+Locked:                0 kB
+"""
+
+
+def _rollup(tmp_path, text):
+    f = tmp_path / "smaps_rollup"
+    f.write_text(text, encoding="utf-8")
+    return str(f)
+
+
+def test_the_rollup_reads_its_five_keys_in_kB_and_ignores_the_rest(tmp_path):
+    """The kernel writes 20-odd keys. Five answer the climb, and a key this reader does not name must
+    not arrive under one it does — `Pss_Dirty` sitting beside `Pss` is the case that would."""
+    out = capture.proc_smaps_rollup(_rollup(tmp_path, _ROLLUP_SAMPLE))
+    assert out == {
+        "Rss": 125084,
+        "Pss": 118000,
+        "Anonymous": 99480,
+        "Private_Dirty": 98000,
+        "Swap": 0,
+        "reason": None,
+    }
+
+
+def test_a_REFUSED_rollup_is_null_with_a_reason_and_never_zero(tmp_path):
+    """§∅ and the point of the whole unit: root-only is the answer an OUTSIDE reader gets, and a zero
+    here would read as "no anonymous memory" on a box where the instrument was simply not allowed."""
+    out = capture.proc_smaps_rollup(str(tmp_path / "absent"))
+    assert all(out[k] is None for k in capture._ROLLUP_KEYS)
+    assert out["reason"] == "smaps_rollup unreadable (FileNotFoundError): the mapping view is absent, not zero"
+
+
+def test_a_key_the_kernel_did_not_write_stays_null_while_the_others_read(tmp_path):
+    """A kernel without `Pss` (before 2.6.25) and a process whose proportional set is zero are different
+    facts, and the other four figures are still evidence."""
+    out = capture.proc_smaps_rollup(_rollup(tmp_path, "Rss:  10 kB\nAnonymous:  4 kB\n"))
+    assert out["Rss"] == 10 and out["Anonymous"] == 4
+    assert out["Pss"] is None and out["Private_Dirty"] is None and out["Swap"] is None
+    assert out["reason"] is None  # the file WAS read; an absent key is not a refusal
+
+
+def test_a_figure_in_another_unit_or_not_a_number_is_refused(tmp_path):
+    """The unit is asserted, never assumed: a silent kB-to-MB change is indistinguishable from a 1024x
+    fall, and `[rollup]`'s own header line must not parse as a figure."""
+    out = capture.proc_smaps_rollup(_rollup(tmp_path, "Rss:  12 MB\nPss:  nope kB\nAnonymous:  7 kB\nSwap:  3\n"))
+    assert out["Rss"] is None and out["Pss"] is None and out["Swap"] is None
+    assert out["Anonymous"] == 7
+
+
+def test_the_rollup_keeps_its_default_keys_when_no_keys_are_named(tmp_path):
+    out = capture.proc_smaps_rollup(_rollup(tmp_path, _ROLLUP_SAMPLE), keys=("Locked",))
+    assert out == {"Locked": 0, "reason": None}
+    assert set(capture.proc_smaps_rollup(_rollup(tmp_path, _ROLLUP_SAMPLE))) == {*capture._ROLLUP_KEYS, "reason"}
+
+
+def test_the_REAL_kernel_answers_for_THIS_process_or_names_its_absence():
+    """The claim under test is that a process reads its own rollup. Here that is the test runner; the
+    control below is the box's own case, a process the kernel has marked non-dumpable."""
+    out = capture.proc_smaps_rollup()
+    if out["reason"] is None:
+        assert out["Rss"] is not None and out["Anonymous"] is not None
+        assert out["Rss"] > 0  # a running Python has resident pages
+    else:
+        assert out["reason"].startswith("smaps_rollup unreadable (")
+
+
+def test_a_NON_DUMPABLE_process_STILL_READS_ITS_OWN_rollup():
+    """🔴 THE CONTROL FOR THE ROW THIS UNIT ANSWERS (2026-10-18-cap-net-admin-makes-the-daemon-non-
+    dumpable-so-smaps-is-root-only). The unit grants CAP_NET_ADMIN, the kernel marks the daemon
+    non-dumpable, and `/proc/<pid>/smaps_rollup` is then refused to every reader but root — measured on
+    vigil 2026-10-20 against PID 627481, Permission denied as `vigil`. The row read that as a bound on
+    the in-process instrument. This runs the kernel's side of it: a child that sets `PR_SET_DUMPABLE` to
+    0 reads its own rollup regardless, because the access check short-circuits for the process asking
+    about itself. Without this test the refusal and the bound look like one fact."""
+    probe = (
+        "import ctypes,sys\n"
+        "libc=ctypes.CDLL(None,use_errno=True)\n"
+        "assert libc.prctl(4,0,0,0,0)==0\n"  # PR_SET_DUMPABLE = 4, value 0
+        "assert libc.prctl(3,0,0,0,0)==0\n"  # PR_GET_DUMPABLE = 3, and it took
+        "try:\n"
+        "    open('/proc/self/smaps_rollup',encoding='utf-8').readline()\n"
+        "except OSError as e:\n"
+        "    sys.exit(type(e).__name__)\n"
+        "sys.exit(0)\n"
+    )
+    if capture.proc_smaps_rollup()["reason"] is not None:
+        pytest.skip("this kernel has no readable smaps_rollup at all, so it cannot answer the control")
+    r = subprocess.run([sys.executable, "-I", "-c", probe], capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, f"a non-dumpable process was refused its own rollup: {r.returncode}"
+
+
 # ── the line ─────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -431,6 +538,15 @@ def _snap(**kw):
             "system_max": 6688768,
             "reason": None,
         },
+        "rollup": {
+            # measured shape on vigil: resident kB, so these are NOT comparable to the virtual totals above
+            "Rss": 125084,
+            "Pss": 118000,
+            "Anonymous": 99480,
+            "Private_Dirty": 98000,
+            "Swap": 0,
+            "reason": None,
+        },
         "gc": {"counts": [700, 3, 1], "collections": [12345, 1100, 9], "enabled": True},
     }
     base.update(kw)
@@ -445,7 +561,21 @@ def test_the_line_is_one_unit_throughout():
         "mem: VmRSS 262144 kB RssAnon 245760 kB VmSwap 94208 kB · main arena 300 kB hblkhd 65536 kB uordblks 200 kB "
         "fordblks 100 kB keepcost 95 kB · all arenas heaps 9 system 6500 kB rest 3026 kB mmap 392 kB "
         "· gc counts 700,3,1 collections 12345,1100,9"
+        " · mapped rss 125084 kB mapped pss 118000 kB mapped anon 99480 kB mapped private dirty 98000 kB "
+        "mapped swap 0 kB"
     )
+
+
+def test_the_mapping_view_is_LABELLED_APART_and_never_subtracted():
+    """RESIDENT kB against the allocator's VIRTUAL totals. A difference between the two would publish two
+    populations under one name, so the line carries both and a reader compares their slopes. The labels
+    share no token with the glibc ones, which is what lets a label-keyed parser take either."""
+    line = capture.mem_log_line(_snap())
+    assert "· mapped rss 125084 kB" in line and "mapped anon 99480 kB" in line
+    glibc, mapped = line.index("main arena"), line.index("mapped rss")
+    assert glibc < mapped, "the mapping view rides after the glibc figures, as its own segment"
+    for label in ("main arena", "hblkhd", "uordblks", "fordblks", "keepcost", "VmRSS", "RssAnon", "VmSwap"):
+        assert line.count(label) == 1, f"{label} appears twice, so a label-keyed reader could take the wrong one"
 
 
 def test_an_unmeasured_figure_prints_null_and_the_reason_rides_the_line():
@@ -454,6 +584,8 @@ def test_an_unmeasured_figure_prints_null_and_the_reason_rides_the_line():
         rss_kb={"VmRSS": None, "RssAnon": None, "RssFile": None, "VmSwap": None},
         mallinfo2=dict.fromkeys(capture._MALLINFO2_FIELDS) | {"reason": "mallinfo2 unavailable: AttributeError"},
         arenas=dict.fromkeys(capture._ARENA_KEYS) | {"reason": "malloc_info unavailable: AttributeError"},
+        rollup=dict.fromkeys(capture._ROLLUP_KEYS)
+        | {"reason": "smaps_rollup unreadable (PermissionError): the mapping view is absent, not zero"},
         gc={"counts": [1, 2, 3], "collections": [5, None, None], "enabled": True},
     )
     line = capture.mem_log_line(snap)
@@ -461,7 +593,11 @@ def test_an_unmeasured_figure_prints_null_and_the_reason_rides_the_line():
     assert "all arenas heaps null system null kB" in line
     assert "collections 5,null,null" in line
     # each instrument names its own absence, and one absent instrument never speaks for the other
-    assert line.endswith("· mallinfo2 unavailable: AttributeError · malloc_info unavailable: AttributeError")
+    assert "mapped anon null kB" in line and "mapped swap null kB" in line
+    assert line.endswith(
+        "· mallinfo2 unavailable: AttributeError · malloc_info unavailable: AttributeError"
+        " · smaps_rollup unreadable (PermissionError): the mapping view is absent, not zero"
+    )
     assert " 0 kB" not in line
 
 
@@ -478,11 +614,12 @@ def _loop(monkeypatch, tmp_path, passes=1, **kw):
     capture._STOP.clear()
 
 
-def test_the_status_tick_publishes_the_four_populations(tmp_path, monkeypatch, caplog):
+def test_the_status_tick_publishes_the_five_populations(tmp_path, monkeypatch, caplog):
     with caplog.at_level("INFO"):
         _loop(monkeypatch, tmp_path)
     mem = capture.STATUS["mem"]
-    assert set(mem) == {"rss_kb", "mallinfo2", "arenas", "gc"}
+    assert set(mem) == {"rss_kb", "mallinfo2", "arenas", "rollup", "gc"}
+    assert set(mem["rollup"]) == {*capture._ROLLUP_KEYS, "reason"}
     assert set(mem["rss_kb"]) == {"VmRSS", "RssAnon", "RssFile", "VmSwap"}
     assert set(mem["mallinfo2"]) == {*capture._MALLINFO2_FIELDS, "reason"}
     assert set(mem["arenas"]) == {*capture._ARENA_KEYS, "reason"}
