@@ -10,3 +10,4 @@ brief: RESIDUE.md
 - Each candidate records `stampSource`, so a consumer can tell a row-keyed night from a name-keyed one.
 - The reader range-checks every component before `Date.UTC`, which the replaced `stampMs` did not. Clock Contract §2.7: a bad component rolls onto a wrong instant, and the one legal overflow is ISO `24:00:00`.
 - The suite now slices the reader out of all THREE page sources and executes each copy. One table drives all three, so no copy can drift alone.
+- `sigma-no-reference-analysis.js` accepts 337 of 28,958 corpus recordings and zero box-layout names, so this repair is pre-emptive for that page. RESIDUE row `2026-10-20-sigma-classifier-still-phone-only` carries the narrow classifier, and it stays OPEN.
