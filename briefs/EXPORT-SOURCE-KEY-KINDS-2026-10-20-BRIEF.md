@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED — 2026-10-20 · **Created:** 2026-10-20 · **Owner:** unassigned · **Relates:** `briefs/EXPORT-SCRUB-ALLOWLIST-2026-10-07-BRIEF.md` §7, residue `2026-10-12-one-key-carries-both-a-semantic-tag-and-an-upload-filename`, `export-schema.js` GUARDS, `ppgdex-app.js` buildV2
+**Status:** DONE — 2026-10-20 · **Created:** 2026-10-20 · **Owner:** unassigned · **Relates:** `briefs/EXPORT-SCRUB-ALLOWLIST-2026-10-07-BRIEF.md` §7, residue `2026-10-12-one-key-carries-both-a-semantic-tag-and-an-upload-filename`, `export-schema.js` GUARDS, `ppgdex-app.js` buildV2
 
 # `recording.source`: one overloaded key, one node, one line
 
@@ -94,7 +94,10 @@ either way; an unscrubbed local export keeps the filename, under a key that mean
 4. `tests/fixtures/ppgdex.node-export.json` is NOT regenerated. It is a committed sample of a real app
    export, referenced by `audits/ABSENCE-SURVEY-2026-09-22.json` for an unrelated field. After item 1
    it reads as evidence of the defect, which is what a dated sample is for.
-5. The residue row closes as `fixed #<the PR that lands item 1>`.
+5. The residue row closes as `fixed #3762`.
+
+**Discharged by #3762.** Items 1, 2, 3 and 5 landed there. Item 4 is a
+negative: the fixture was not regenerated, and it now reads as evidence of the defect.
 
 ## 6 · Sequencing
 

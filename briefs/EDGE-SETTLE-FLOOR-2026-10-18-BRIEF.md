@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-10-18
+**Status:** PROPOSED · **Created:** 2026-10-18 · **Residue:** 2026-10-20-edge-settle-floors-pool-fold-rejected-nights
 
 # Edge-settle floor: one fixed settle time per sensor, one common start for fusion
 

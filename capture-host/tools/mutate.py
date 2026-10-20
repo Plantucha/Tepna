@@ -200,6 +200,22 @@ _mmspec.loader.exec_module(mmeta)
 # Modules whose value is the JSON they print rather than a contract anyone depends on.
 SKIP = {"probe_oxyii_ppg.py", "probe_polar_onboard.py", "ppg_grid_check.py", "adapter_ab.py"}
 
+# ── THE TWO BOUNDS, AND WHY THERE ARE TWO ────────────────────────────────────────────────────────
+# mutmut bounds each mutant at `(the covering tests' BASELINE durations + timeout_constant) *
+# timeout_multiplier` (`mutmut/workers/isolation.py:875`). The baseline runs UNMUTATED code, so a wait
+# only a mutant can lengthen never enters the bound that judges it, and the mutant reads UNDECIDED
+# (timeout) however sensitive the suite is. Measured in a 13-mutant lab on 2026-10-20: three mutants
+# that lengthen one `time.sleep` read `timeout` at 3.0 and were all KILLED at 15.0, in 6.6 s.
+#
+# 3.0 stays the FIRST bound: it is what keeps a mutant that lengthens a watchdog loop from running for
+# 67 hours, which is the measurement in §4 of this file's header. 15.0 is mutmut's own default
+# (`mutmut/configuration.py:203`), used for the RETRY of a mutant that hit the first bound — a
+# pre-stated number from upstream rather than one derived from the run it judges (CLAUDE.md §🧾).
+# A retry costs only the timed-out mutants: changing `timeout_multiplier` makes mutmut reset the
+# timeout verdicts ALONE and keep every other one from cache (`_apply_config_change_invalidation`).
+TIMEOUT_MULTIPLIER = 3.0
+WIDE_TIMEOUT_MULTIPLIER = 15.0
+
 CONFIG = """
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -209,7 +225,7 @@ source_paths = [{source!r}]
 also_copy = [{also_copy}]
 pytest_add_cli_args_test_selection = [{tests}]
 do_not_mutate = ["tests/*"]
-timeout_multiplier = 3.0
+timeout_multiplier = {timeout_multiplier}
 """
 
 
@@ -334,6 +350,7 @@ def run_one(
     estimate_only: bool = False,
     reuse: bool = True,
     clean: tuple[float, bool] | None = None,
+    timeout_multiplier: float = TIMEOUT_MULTIPLIER,
 ) -> dict:
     """`only` is a mutant-name glob, `tests_override` a hand-picked selection.
 
@@ -555,7 +572,13 @@ def run_one(
 
     selection = list(tests) + deselect_args()
     (work / "pyproject.toml").write_text(
-        CONFIG.format(source=module, also_copy=also, tests=", ".join(repr(t) for t in selection)), encoding="utf-8"
+        CONFIG.format(
+            source=module,
+            also_copy=also,
+            tests=", ".join(repr(t) for t in selection),
+            timeout_multiplier=timeout_multiplier,
+        ),
+        encoding="utf-8",
     )
     # §2 — clear mutmut's cached verdicts for this module iff the test tree changed since the scratch was
     # last run, so an added or modified killer is credited on the FIRST run rather than the second. The

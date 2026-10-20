@@ -518,4 +518,29 @@ Escape hatch when the tree is genuinely yours alone: CLAUDE_ALLOW_BLANKET_GIT=1"
 fi
 
 
+# `git fetch --depth` / `git pull --depth` — grafts the ONE object store every worktree shares.
+# Residue 2026-10-20-a-depth-limited-fetch-grafts-the-shared-object-store. A worktree has its own
+# tree and index but NOT its own object store: a depth-limited fetch in any of them writes
+# `.git/shallow` for all of them. `tools/commit-shape.mjs` refuses on a shallow clone by design
+# (exit 2), so every session's `npm run check` then stops at step 3 and the other 36 steps never
+# run, with the cause outside every failing diff. Measured 2026-10-20 04:41Z: one
+# `git fetch origin <branch> --depth=1` in the primary checkout left exactly one sha in
+# `.git/shallow`, and a peer repaired it with `git fetch --unshallow origin`. The shared store has
+# no use for ANY depth option, so `--deepen` and the two `--shallow-*` forms are denied with it.
+# `--unshallow` is the repair and is allowed. A `git clone --depth` writes a NEW store and is allowed.
+if grep -qE "$GITX"'(fetch|pull)([[:space:]]+[^;&|]*)?[[:space:]]--(depth|deepen|shallow-since|shallow-exclude)([=[:space:]]|$)' <<<"$cmd_nohere"; then
+  deny "BLOCKED: a depth-limited 'git fetch' / 'git pull' in a checkout that SHARES its object store.
+
+Every worktree of this repo reads one .git object store. A depth option writes .git/shallow for ALL
+of them, and tools/commit-shape.mjs then refuses every session's 'npm run check' (exit 2, shallow clone).
+
+To read a peer's branch, fetch nothing extra:
+    gh pr diff <N>
+    git fetch origin <branch> && git show FETCH_HEAD:<path>     # a FULL fetch
+If .git/shallow already exists, repair it:
+    git fetch --unshallow origin
+
+Escape hatch, only in a clone that is genuinely yours alone: CLAUDE_ALLOW_BLANKET_GIT=1"
+fi
+
 exit 0

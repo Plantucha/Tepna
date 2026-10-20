@@ -3500,6 +3500,55 @@ def split_results(results_text: str) -> _SplitResults:
     return out
 
 
+# ── A TIMEOUT IS THE ONE UNDECIDED STATUS A WIDER BOUND CAN SETTLE ───────────────────────────────
+#
+# mutmut bounds each mutant at `(the covering tests' BASELINE durations + timeout_constant) *
+# timeout_multiplier` (`mutmut/workers/isolation.py:875`). The baseline runs the UNMUTATED code, so a
+# wait only a MUTANT can lengthen never enters the bound that judges it. The gate then reports that
+# mutant UNDECIDED and refuses — over a mutant its own tests do catch, 0.01 s after the bound expired
+# (residue `2026-10-19-a-mutant-whose-cost-is-a-wait-spends-its-own-bound`).
+#
+# Only `timeout` is retryable, and that is a statement about CAUSE rather than a convenience. The other
+# undecided statuses say the mutant was never run (`no tests`, `not checked`), was skipped, or landed
+# on an exit code nobody has mapped (`suspicious`) — a wider clock measures nothing new about any of
+# them, so they stay undecided and keep blocking.
+BOUND_TIMEOUT = "timeout"
+
+
+def timed_out_in_scope(results_text: str, glob: str) -> list[str]:
+    """The in-scope mutants a run could not settle BECAUSE THE CLOCK RAN OUT, in listing order.
+
+    `mutmut results` takes no glob and enumerates the whole workspace, so the scope filter is the same
+    one the survivor and undecided harvests use — without it a function the diff never touched would
+    hand this list mutants nobody asked about."""
+    seen: list[str] = []
+    for name, status in split_results(results_text)[UNDECIDED]:
+        if status == BOUND_TIMEOUT and in_glob_scope(name, glob) and name not in seen:
+            seen.append(name)
+    return seen
+
+
+def retry_outcome(before: list[str], after: list[str]) -> dict:
+    """What a re-run under a wider bound settled: `{retried, settled, stillTimingOut, newlyTimingOut}`.
+
+    🔴 `settled` IS NOT `killed`. A mutant the wider bound settles may be killed OR surviving, and a
+    survivor is blocking — so the caller harvests the SECOND run's results through the ordinary
+    survivor path rather than reading a kill out of this function. The sibling prober taught the
+    general form: never predict which way a re-measurement will read (#3729).
+
+    `newlyTimingOut` exists because `after` is not guaranteed to be a subset of `before`: the retry
+    re-runs the reset timeouts, and the listing it parses still covers the whole workspace, so a
+    mutant that timed out only on the second pass must be REPORTED rather than dropped. A gate that
+    forgets it would turn a fresh timeout into a silent pass."""
+    before_set, after_set = set(before), set(after)
+    return {
+        "retried": len(before),
+        "settled": [n for n in before if n not in after_set],
+        "stillTimingOut": [n for n in before if n in after_set],
+        "newlyTimingOut": [n for n in after if n not in before_set],
+    }
+
+
 def report_only_refusal_note(report_only: bool) -> str:
     """The one line that makes a refusal under --report-only read as what it is.
 

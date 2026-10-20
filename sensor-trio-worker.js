@@ -762,11 +762,21 @@ function blockCI(hh, vv, oo, B) {
 // PRODUCTION H10 HR — raw ECG → ECGDSP Pan–Tompkins QRS (parseECG → bandpass → detectPeaks)
 // → RR → per-second HR on the absolute floating-ms grid. The paper's "gold leg" (the H10
 // corner the whole three-cornered-hat method rests on) — not the device onboard HR.
-function ecgHrMap(text, onPhase) {
+/* ── §∅ · THE VALIDITY COMPANION TRAVELS WITH THE STREAM, AND THIS DERIVATION OBEYS IT ────────────
+   Residue `2026-10-17-sample-parsers-called-without-their-sidecar`. `parseECG` has accepted the box's
+   `…_ECGRUNS.txt` bytes since 2026-09-25 and attaches them as `rec.blankingSpans` in SAMPLE indices,
+   half-open. ECGDex's own epoch path reads them; THIS derivation does not go through that path — it
+   calls `bandpass` and `detectPeaks` itself — so a blanking run the box recorded reached the gold
+   corner as signal. Measured over the corpus on 2026-10-20: every one of the 38 H10 `_ECGRUNS.txt`
+   companions carries runs, 306 in all, so this is the stream where the omission costs a number.
+   An RR interval that touches a blanked run does not describe one continuous stretch of signal, so
+   per the §∅ discontinuity ruling it yields no value rather than a wrong one. The count rides out
+   with the map, because a silent exclusion is the defect this repairs. */
+function ecgHrMap(text, onPhase, runsText) {
   self.__ecgErr = null;
   try {
     if (onPhase) onPhase('parsing ECG');
-    var rec = ECGDSP.parseECG(text);
+    var rec = runsText ? ECGDSP.parseECG(text, { runsText: runsText }) : ECGDSP.parseECG(text);
     if (!rec || !rec.int16 || !rec.int16.length || !rec.fs) {
       self.__ecgErr = 'parseECG empty';
       return null;
@@ -782,7 +792,21 @@ function ecgHrMap(text, onPhase) {
       t0 = rec.t0Ms || 0,
       pairs = [],
       i;
+    /* The spans are the box's own, in sample indices; an interval [prev, cur] that overlaps one is
+       dropped, which also drops a peak the detector found INSIDE a blanked run. */
+    var spans = Array.isArray(rec.blankingSpans) ? rec.blankingSpans : null;
+    /* The predicate is `ECGDSP.intersectsRun`, not a copy of it: the overlap rule is half-open on
+       both sides and the node already owns one body for it. A mirror here would be the one line
+       no gate compares. */
+    var blanked = function (a0, a1) {
+      return spans ? ECGDSP.intersectsRun(spans, a0, a1 - a0) : false;
+    };
+    var dropped = 0;
     for (i = 1; i < peaks.length; i++) {
+      if (blanked(peaks[i - 1], peaks[i] + 1)) {
+        dropped++;
+        continue;
+      }
       var rr = ((peaks[i] - peaks[i - 1]) / fs) * 1000;
       if (!(rr > 250 && rr < 2200)) continue;
       var hr = 60000 / rr;
@@ -816,17 +840,21 @@ function ecgHrMap(text, onPhase) {
     }
     // fused-hat: per-second artifact confidence for THIS corner (density × SQI, AF-safe) — TCH-FUSED-ROBUST-HAT
     var conf = ECGDSP.hrConfidence ? ECGDSP.hrConfidence(rec.int16, bp, peaks, fs, t0) : null;
-    return { hr: out, conf: conf };
+    return { hr: out, conf: conf, blanking: { spans: spans ? spans.length : null, intervalsDropped: dropped } };
   } catch (e) {
     self.__ecgErr = (e && e.message) || '' + e;
     return null;
   }
 }
-function ppgHrMapReal(text, onPhase) {
+/* The PPG side needs no span rule out here: `parsePPG` merges the companion's runs into the node's
+   own per-sample validity and the detector downstream of it already reads that. Passing the bytes IS
+   the repair; the 111 Verity companions in the corpus record 0 runs, so no Verity number moves today
+   and the ring's raw pleth, where 85 of 164 companions do record runs, is the one that can. */
+function ppgHrMapReal(text, onPhase, runsText) {
   self.__ppgErr = null;
   try {
     if (onPhase) onPhase('parsing PPG');
-    var rec = PPGDSP.parsePPG(text);
+    var rec = runsText ? PPGDSP.parsePPG(text, { runsText: runsText }) : PPGDSP.parsePPG(text);
     if (!rec || !rec.ch || !rec.ch.length || !rec.n) {
       self.__ppgErr = 'parsePPG empty';
       return null;
@@ -950,9 +978,9 @@ function ppgHrMapReal(text, onPhase) {
    Measured 2026-09-26 on 2026-09-25 (22,729 markers), the O2Ring corner σ̂ against the H10 + Verity:
    _SPO2.csv pulse 3.19 bpm · raw pleth via PPGDSP feet 1.98 · the markers 1.33. The CSV is a smoothed 1 Hz
    integer; most of the ring's apparent noise was that summary, not the sensor. */
-function o2MarkerHrMap(text) {
+function o2MarkerHrMap(text, runsText) {
   try {
-    var rec = PPGDSP.parsePPG(text);
+    var rec = runsText ? PPGDSP.parsePPG(text, { runsText: runsText }) : PPGDSP.parsePPG(text);
     var ms = rec && rec.beatMarkerSec;
     if (!ms || ms.length < 30) return null;
     var b = PPGDSP.buildPPI(Array.from(ms));
@@ -999,14 +1027,22 @@ async function runRealNight(m) {
     var O = null,
       osrc = null,
       Oconf = null;
+    /* The companion rides in `files` beside the stream it describes, paired by NAME at selection
+       time: a `…RUNS.txt` carries no sample rows, so the row-stamp night key cannot read one, and
+       its night is by definition the night of the file it sits beside. A feeder that sends none
+       leaves these null and every parse below keeps its no-sidecar behaviour. */
+    var _runsOf = async function (file) {
+      return file && typeof file.text === 'function' ? await file.text() : null;
+    };
     if (f.o2ppg && HAVE_PPGDSP) {
       var _ot = await f.o2ppg.text();
+      var _or = await _runsOf(f.o2ppgRuns);
       pg('ring beat markers');
-      O = o2MarkerHrMap(_ot);
+      O = o2MarkerHrMap(_ot, _or);
       if (O) osrc = 'ring·156-markers';
       else {
         pg('ring pleth feet');
-        var _op = ppgHrMapReal(_ot, pg);
+        var _op = ppgHrMapReal(_ot, pg, _or);
         if (_op && _op.hr) {
           O = _op.hr;
           Oconf = _op.conf || null;
@@ -1021,7 +1057,7 @@ async function runRealNight(m) {
     var H = null,
       hsrc = null;
     if (f.h10ecg && HAVE_ECGDSP) {
-      H = ecgHrMap(await f.h10ecg.text(), pg);
+      H = ecgHrMap(await f.h10ecg.text(), pg, await _runsOf(f.h10ecgRuns));
       if (H) hsrc = 'ecg·PanTompkins';
     }
     if (!H && f.h10) {
@@ -1037,7 +1073,7 @@ async function runRealNight(m) {
     if (!V && f.verityPPG) {
       var _tx = await f.verityPPG.text();
       if (HAVE_PPGDSP) {
-        V = ppgHrMapReal(_tx, pg);
+        V = ppgHrMapReal(_tx, pg, await _runsOf(f.verityPPGRuns));
         if (V) src = 'ppg·PPGDSP';
       }
       if (!V) {

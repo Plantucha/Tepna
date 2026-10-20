@@ -57,7 +57,7 @@
   },
   "overrides": [
     {
-      "includes": ["synth-gen.js", "oxydex-util.js", "oxydex-profile.js", "pulsedex-dsp.js"],
+      "includes": ["synth-gen.js"],
       "linter": { "rules": { "correctness": { "noUnusedVariables": "warn" } } }
     }
   ],
