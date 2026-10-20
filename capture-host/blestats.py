@@ -179,6 +179,9 @@ def _delta(cur: int, prev: dict | None, key: str) -> int | None:
     """One figure's increment, or `None` when there is no previous line to measure against."""
     if prev is None:
         return None
+    # A TALLY, per the house rule's own reason: these keys appear on their first bump, so a key the
+    # previous line omits was counted exactly zero times and the default IS the measurement. The
+    # absence this function reports is the absent LINE above, not an absent key (see the block above).
     return cur - int(prev.get(key, 0))
 
 
