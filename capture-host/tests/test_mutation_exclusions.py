@@ -540,16 +540,16 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # machine and the frame rendering live in `stallsampler.py` rather than here, so they add nothing to
     # this count and are mutated under their own module. `moduleFunctionsAtDeclaration` stays where it
     # is, per the note above.
-    # 318 → 320 on 2026-10-19 (residue vmhwm-is-per-process): `hwm_since_last_kb`, which reads `VmHWM`
-    # and resets it through `clear_refs` so each `mem:` line carries the peak since the previous one, and
-    # the PURE `qc_peak_line`, tested directly. +2, the whole delta. The child's own reader lives in
-    # `qc_child.py` and adds nothing here. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    # 320 → 322 on 2026-10-19 (the post-drop tail's drop instant): `_on_disconnect`, the callback bleak
+    # 318 → 320 on 2026-10-19 (the post-drop tail's drop instant): `_on_disconnect`, the callback bleak
     # calls when the peripheral goes away, and `link_down`, the predicate the pull loop reads at each
     # frame boundary. +2, the whole delta. Both are closures over one dict inside `_cpap_ble_connect`,
     # which is where the drop instant is visible and nowhere else; the counting itself lives in
     # `cpap_ingest.note_link_down_frame` and is mutated under that module.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    # 320 → 322 on 2026-10-19 (residue vmhwm-is-per-process): `hwm_since_last_kb`, which reads `VmHWM`
+    # and resets it through `clear_refs` so each `mem:` line carries the peak since the previous one, and
+    # the PURE `qc_peak_line`, tested directly. +2, the whole delta. The child's own reader lives in
+    # `qc_child.py` and adds nothing here. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
     assert n == 322, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 

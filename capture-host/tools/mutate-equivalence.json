@@ -5806,7 +5806,7 @@
   ],
   "qc_child.py": [
     {
-      "line": 42,
+      "line": 44,
       "before": "with open(status_path, encoding=\"utf-8\") as fh:",
       "op": "kwarg encoding=\"utf-8\" → None",
       "class": "untestable-by-design",
@@ -5816,7 +5816,7 @@
       "why": "`/proc/<pid>/status` is ASCII, and the default encoding on this platform IS UTF-8, so no in-process assertion can distinguish the mutant: the reader returns the same figure. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. Recorded as untestable-by-design rather than as a gap because the probe below KILLS each mutant when the mutant is applied by hand, and mutmut still reports it surviving: the test exists and works, and mutmut never routes it to these mutants. Same mechanism and same deduction as the oxy_inventory.py line-139 entries: the probe runs peak_kb in a SUBPROCESS, so the in-process tracer never records it touching this code. The two measurements are the hand-applied kill and the CI survival on #3693 at 428c9abe7; the selection mechanism is the hypothesis."
     },
     {
-      "line": 42,
+      "line": 44,
       "before": "with open(status_path, encoding=\"utf-8\") as fh:",
       "op": "kwarg encoding=\"utf-8\" → removed",
       "class": "untestable-by-design",
