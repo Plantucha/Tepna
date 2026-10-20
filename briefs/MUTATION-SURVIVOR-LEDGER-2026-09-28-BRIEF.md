@@ -87,13 +87,28 @@ A set difference over survivor lists reports *not a survivor today* and calls it
 **60** kills here, and 30 of those 60 are mutants no test ever saw. **Three different events make a
 recorded survivor stop appearing, and only one of them is progress.**
 
-#### ABSENT usually means RELOCATED, which a function-scoped re-survey cannot see
+#### ABSENT is not RELOCATED — a docstring moves the WORK, never the mutant identity
 
-26 of the 30 absent keys are `loss_audit.sample_object`, whose `t0 = _dt.datetime(2026, 1, 1, 22, 0, 0)`
-line no longer exists. It was not deleted. #3667 split the fixture layout into `sample_night`, and its
-docstring says why: *"twenty-seven mutations of this layout survived the mutation gate while
-`sample_object` was the only way in"*. The mutants moved to a function whose name no record named, so a
-re-survey keyed on the recorded function reports absence where the finding is alive somewhere else.
+26 of the 30 absent keys (27 recorded entries; the `__mutmut_16`/`_17` pair shares one `diff_key`) are
+`loss_audit.sample_object`, whose `t0 = _dt.datetime(2026, 1, 1, 22, 0, 0)` line no longer exists. It
+was not deleted. #3667 split the fixture layout into `sample_night`, and its docstring says why:
+*"twenty-seven mutations of this layout survived the mutation gate while `sample_object` was the only
+way in"*.
+
+**That docstring is a citation, and this section first published it as if it were a measurement.** The
+sweep says otherwise. `--only 'loss_audit.x_sample_night__*'` (2026-10-20, 108 s wall) generates **81**
+mutants, kills **79**, and leaves **2** survivors — both `encoding="utf-8"` → `"UTF-8"`, which
+`string_only_verdict` rules out, so **0 are gate-required**. And **0 of the 27 recorded keys appear
+among those 81.**
+
+So the keys are genuinely ABSENT, not alive one scope away: the split rewrote the mutated TEXT, which
+is exactly the condition under which a `diff_key` finding stops applying (§2a, below). A successor
+function inherits the RESPONSIBILITY named in the docstring it carries. It does not inherit the
+predecessor's mutants, and no docstring can say whether it is survivor-free.
+Only the sweep can, and here it is — `sample_night` carries the layout today with zero required
+survivors. The general limitation still holds — a function-scoped re-survey cannot see relocation — but
+on this population relocation is not what happened.
+
 The remaining four behave the same way: `proc_util.kill`'s `signalled_group` flag is gone from the
 module (#3544) and `write_night`'s wrapped call was re-spelled, and in both cases the sweep over the
 **whole** enclosing function reports zero required survivors, which is what settles those four.
@@ -133,8 +148,9 @@ other seven are one family: every keyword of an `open()` call in `writers.py` �
 
 **For this brief the measurement is one more acceptance argument.** Every number above came out of a
 1540 s mutation run plus a hand-written parse, because the record was a prose list of mutmut ids. An
-entry keyed as §2a-bis specifies would have answered *killed*, *relocated* or *still alive* for each of
-the 74 without running anything.
+entry keyed as §2a-bis specifies would have answered *killed*, *absent* or *still alive* for each of the
+74 without running anything — note that *relocated* is not among them: the key orphans when the mutated
+text changes, and only a sweep of the successor function can say whether the finding travelled.
 
 ## 2 · Design
 
