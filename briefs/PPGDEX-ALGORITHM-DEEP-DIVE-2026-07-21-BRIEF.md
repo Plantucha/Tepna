@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #2 treatment (2) LANDED (#3687).** DFA-α1 and sample entropy now segment at a dropped interval and pool inside the estimator. Both had read `null` on every Verity night of this corpus, so neither had ever shipped a value. Treatment (3) stays open, because `cvhrFromNN` reaches ECGDex. Status stays IN-PROGRESS.
+**Status:** IN-PROGRESS — 2026-10-19 (NOT owner-blocked: the decision was answered 2026-09-06 — YES, exported values may move, all eight punch-list items approved in sequenced order. What remains is EXECUTION of those items; verified 2026-09-20 that approval ≠ landed. Executable by the fleet) · **Created:** 2026-07-21 · **TRIAGED 2026-09-25 (Osprey): re-verified against `OWNER-DECISION-QUEUE-2026-09-03` — NOT owner-blocked, and the queue itself says so.** The queue's 2026-09-17 re-verification records this brief as *"answered directly"* on 2026-09-06 (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and reclassifies it as *"an engineering programme now, not a decision"*. So no owner call is outstanding and the remainder is fleet-executable, exactly as the 2026-09-20 stamp says. ⚠️ Carried forward for whoever executes: this brief is `BRIEF-CODE-ANCHOR-CHECK`'s motivating case — a punch-list item quoted `ppgdex-dsp.js:1999-2002` after #2333 deleted it — so re-read every anchor against the tree rather than against the brief's own text. Status unchanged. · **EXECUTED 2026-10-19 (Magpie): the median-pulse foot item LANDED** — the foot now comes from `det.feet` and the template is wide enough to hold the rise; the fixtures moved their two hash fields and no measured value, because morphology never reaches the node export. The rest of the punch list is unchanged and ticked in the landing order below, so the status stays IN-PROGRESS. · **RECORDED 2026-10-19 (Magpie): the `filtfilt` padding item had ALREADY LANDED on 2026-08-21 in #1614** and the punch list still read it open, so the next session opened a worktree for work already on `main`. Its section now records what shipped, including the half the author measured and dropped. No code moves in that diff. · **EXECUTED 2026-10-19 (Magpie): whole-night channel scoring LANDED (§4 #6 EXECUTED) — the scorer reads every 20 s window and ranks on the p25.** · **EXECUTED 2026-10-19 (Magpie).** The perfusion index LANDED. Its denominator now divides by the light, not by the detector's zero-light pedestal. Each epoch integrates its own span instead of repeating one whole-record number. The row's "2.0–3.4×" is wrong as written. Measured over the Verity nights of this corpus the correction runs 0.78–3.90×, median 2.02×, and 1.14–177× within one night. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #2 treatment (2) LANDED (#3687).** DFA-α1 and sample entropy now segment at a dropped interval and pool inside the estimator. Both had read `null` on every Verity night of this corpus, so neither had ever shipped a value. Treatment (3) stays open, because `cvhrFromNN` reaches ECGDex. Status stays IN-PROGRESS. · **MEASURED 2026-10-19 (Magpie): #10 is NOT SHIPPED — see §✗ #10.** The group delay the row names is real and measured. Centring the ONE-BEAT average reads a planted 48 bpm waveform as 106.57 bpm, the 2× harmonic. Centring the short average alone is safe and changes nothing the acceptance endpoint can see: the jitter median reads 4.93 ms over nine nights for all three variants. The symmetric window the row pairs with the change has nothing to find. The code is unchanged and the item reads ✗ in the landing order. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #11 LANDED.** A band whose upper edge sits at or below the covered span’s resolution floor now reads `null` with a named reason, and a band that loses only its lower edge keeps its value and carries `spanSec`. Measured over the Verity nights of this corpus, no epoch refuses — the shortest covered span sits well above every band’s threshold — while every band-reporting epoch carries a truncated VLF that now reports its support. §#11 holds the counts and the spans. #11 landed ahead of #5, which is the ACC item and sits in another lane. Status stays IN-PROGRESS. · **MEASURED 2026-10-19 (Magpie): #9 is NOT SHIPPED — see §6.5.** Experiment E-2, named in §6, now carries its apparatus, `tools/ppg-autogain-e2.mjs`, and the row's unsourced *"net benefit ≈ 0"* has a measurement behind it. Over the wrist recordings a stated size rule finds in this corpus, a level-step window costs a median 0.459 ms of rMSSD. Counting only the steps that leave the pulse AC alone — all that autogain can explain — four in five of those steps drop out as motion-shaped. The median falls with them to 0.147 ms, under the pre-stated bar. The section named above holds the counts. The code is unchanged and the item reads ✗ in the landing order. Status stays IN-PROGRESS. · **EXECUTED 2026-10-19 (Magpie): #2 treatment (3) LANDED, and the row asked for the wrong half.** The hole was already in the time axis: `tt` is gap-accumulated, and the detector holds the last rate flat across it. The per-second MASK is what the two nodes did not share. ECGDex drops an event stamped on a second a dropout spans. `cvhrFromNN` did not, so the same beats could yield different event counts on the two indices the Integrator corroborates against each other. `cvhrFromNN` now takes the mask, and the two nodes agree on every case of a planted battery that `tools/cvhr-gap-edge.mjs` carries. A HOLE EDGE ⚠️ STILL ADDS EVENTS in BOTH nodes, on covered seconds, because the band-pass support reaches across the boundary. Logged as residue, not repaired here. §#2 treatment (3) holds the counts. Status stays IN-PROGRESS. **Residue:** 2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -289,16 +289,16 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | # | Change | Site | Expected gain | Risk | Confidence |
 |---|---|---|---|---|---|
 | **1 ★** | **Odd-reflected padding in `filtfilt`** (PAD = 3·fs/f_hp) + subtract record median. Currently there is **no padding at all** (`return reverse(applyBiquad(reverse(applyBiquad(x,c)),c))`). | `:142-144` | Repairs five surfaced numbers at once: terminal spurious beat 2→0; `orient` skew 65×→1×; `std(bp)` 6.18×→1×; `channelSNR` 2.92→10.9–21.0; first-window cadence 33.6→52 bpm | **Moves every fixture**; `env.equiv` PPG leg reds by design. Interior samples change <1e−6 | Very high |
-| **2 ★** | **`buildPPI` gap flag; `correctRR` EXCLUDES, never fills.** Today rejected intervals are replaced by a running median of the last 7 accepted — a fabricated value that then flows into `nn`, SDNN, LF/HF, DFA-α1, SampEn, CVHR, epochs and `contentId`. | `:1116`, `:1149-1153`, `:1917`, `:2116` | At the file's own 28.8 % correction rate, ~29 % of the exported series stops being a constant. DFA-α1 falls and SampEn rises on degraded nights — that is the bias being removed | Low on clean data; large and *correct* on degraded | Very high |
+| **2 ★ ✅** | **`buildPPI` gap flag; `correctRR` EXCLUDES, never fills.** Today rejected intervals are replaced by a running median of the last 7 accepted — a fabricated value that then flows into `nn`, SDNN, LF/HF, DFA-α1, SampEn, CVHR, epochs and `contentId`. | `:1116`, `:1149-1153`, `:1917`, `:2116` | At the file's own 28.8 % correction rate, ~29 % of the exported series stops being a constant. DFA-α1 falls and SampEn rises on degraded nights — that is the bias being removed | Low on clean data; large and *correct* on degraded | Very high |
 | ~~3~~ | ~~Multi-session export shape fix~~ — **WITHDRAWN 2026-07-21, the claim was stale.** `integrator-dsp.js` already carries a `MULTI_CARRIERS` table matching all three fleet spellings (`nights`/`multiNight`, `recordings`/`multiRecording`, `sessions`/`multiSession`); DEEP-AUDIT-II §8.1 fixed exactly this bug. Verified in source before implementing. **No action.** | — | none | — | — |
 | 4 | **`isFinite` on ch1/ch2/amb, row-atomic drop** | `:269-278` | Closes a silent 3-LED→2-LED degradation that reports `ledAgreementPct: 67`, zero peaks, and no error | None; byte-inert on clean captures | Very high |
 | 5 | **ACC: per-file fs, sensor-ns join, overlap assert** | `:1811` | Removes a 2× rate error (25.84 vs assumed 52 Hz) and a 3.5–4.2 s (~600-sample) motion-gate misregistration | Low; motion gates shift where they were wrong | Very high |
 | 6 | **Whole-night channel scoring (p25 aggregate), still one fixed reference** — replaces the single ~90 s mid-record window that currently decides for the whole night | `:1706-1755` (the brief said `:380-435`, which is 1,300 lines off) | Removes a 1-in-85 single-point-of-failure; changes the pick on 2 of 8 nights | ✅ **shipped** 2026-10-19 (#3678) — measured 8 of 27 nights, and the real-night fixture did NOT move a measured value — the one committed metric that moved is the seeded `qrs-equiv` witness, rMSSD 41.4 → 41.2. See §4 #6 EXECUTED | High |
 | 7 ✅ | **Ambient-referenced perfusion index**, genuinely per-epoch — **EXECUTED 2026-10-19, see below** | `ppgdex-dsp.js perfWindow`, `ppgdex-morph.js perfusionIndex` + `perWindowMorph` (the `:2121-2123` anchor was stale) | PI stops dividing by the detector's ~650,000-count zero-light pedestal, and its per-epoch series stops being one repeated number | **Measured, not 2.0–3.4×: 0.78–3.90× over 27 nights, median 2.02×, and 1.14–177× WITHIN one night** — so the trend's shape moved too; docs moved with it | High on direction, medium on absolute calibration (§1.6) |
 | 8 | **`morph.pre` 0.15 → 0.50 s** (or feed it `det.feet`) | `ppgdex-morph.js:39` | `riseTimeMs`/`crestTimeMs` stop being pinned to the window (147.4 ms ceiling vs 296 ms true); fixes `augmentationIndexPct`, `reflectionIndex`, SDPPG a-wave | Isolated to one node — cheapest gate in the list | Very high |
-| 9 | **Autogain step detect + repair before filtering** — 39 steps/night at 5–25× pulse AC, and `filtfilt` is zero-phase so ringing propagates **both** directions in time | `:730` pre-filter | Removes bidirectional ringing artefacts around each step | One verifier measured net benefit ≈ 0; **measure before merging** | Medium — gated on E-3 |
-| 10 | **Centred TERMA moving averages** + symmetric search window | `:827-836`, `:656` | `movavg` is trailing, so W1/W2 impose 57 ms / 335 ms group delay; Elgendi specifies centred | Peak times shift by a near-constant; foot spine largely insulated | High |
-| 11 | **Epoch validity by time + per-band minimum durations** | new | Converts "we computed rMSSD" into a bounded claim; stops silently reporting boundary-limited HF | Some nights emit `null` where they emitted a number — correct, but consumer-visible | Very high |
+| 9 ✗ | **Autogain step detect + repair before filtering** — **MEASURED 2026-10-19 as E-2, NOT SHIPPED** (§6.5). The steps are real (§1.5 counts 39 in one night at 5–25× pulse AC) and `filtfilt` is zero-phase, so ringing does propagate **both** directions in time | `:730` pre-filter | Would remove bidirectional ringing around each step — measured at a median **0.147 ms** of rMSSD over 19 eligible nights, under the 0.35 ms bar, against a blast radius of every PpgDex fixture | The cell's *"one verifier measured net benefit ≈ 0"* had **no apparatus anywhere in the tree**; it does now (`tools/ppg-autogain-e2.mjs`), and the measurement agrees with the cell for a reason the cell never gave: 78 % of what a level-step detector finds is motion | High — positive control on 37/37 nights, plus a seeded null, because dropping any 1 % of adjacent pairs moves rMSSD by itself |
+| 10 | **Centred TERMA moving averages** + symmetric search window — **MEASURED 2026-10-19, NOT SHIPPED** (§#10 below) | `:2178-2179`, `:2379` (the row's `:827-836`, `:656` are pre-#2333 anchors) | `movavg` is trailing, so W1/W2 impose 57 ms / 335 ms group delay; Elgendi specifies centred | Centring the ONE-BEAT average reads a planted 48 bpm as 106.57 bpm; centring the short one alone changes nothing the endpoint can see | High |
+| 11 ✅ | **Epoch validity by time + per-band minimum durations** — **EXECUTED 2026-10-19, see below** | new | Converts "we computed rMSSD" into a bounded claim; stops silently reporting boundary-limited HF | Some nights emit `null` where they emitted a number — correct, but consumer-visible | Very high |
 | 12 | **Fix the `:161` comment** — it says *"three co-located photodiodes"*; it is **one** photodiode and three LED pairs, and the site is the upper arm, not the wrist | `:161` | Documentation correctness (§1.1) | None | Very high |
 
 ### ⚠️ #8 has a PRECONDITION — measured 2026-08-19, before implementing it
@@ -435,6 +435,67 @@ faithful port of ECGDex's `detectCVHR`, so it reaches a second node and belongs 
 its own changeset. Treatment (1) landed earlier; its call-site comment, which said these two metrics
 were *"deliberately left alone"*, moved with this diff.
 
+### ✅ #2 treatment (3) EXECUTED 2026-10-19 — the hole was already in the axis, the MASK was what the two nodes did not share
+
+Treatment (3) above reads *"needs the gap, not the mask … a removed interval must leave a HOLE in time,
+not close up"*. Read against the tree first, that premise does not hold: `tt` comes from `buildPPI` over
+`footSec`, which is gap-accumulated, so a dropped interval has always left real time behind it, and the
+1 Hz resample inside the detector holds the last beat's rate flat across that time rather than closing
+it up. There was nothing to repair in the axis.
+
+**What WAS split is the numerator.** ECGDex's `detectCVHR` takes a `spansGap` mask, builds a per-second
+`covered` array, skips an event stamped on a second a dropout spans and publishes `coveredSec`.
+`cvhrFromNN` took no mask at all — the parameter did not exist — so the same beats could produce
+different event counts on the two nodes. That is the one thing the row was right to call cross-node: the
+Integrator corroborates `apnea.cvhrIndex` between them, and a mask on one side only makes that
+comparison a function of the dropouts.
+
+**Both files argue, in a comment, that the mask cannot matter.** The words are *"the 1 Hz resample holds
+the last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate stays shut"*
+(`ppgdex-dsp.js`, and its twin in `ecgdex-dsp.js`). Residue row
+`2026-09-24-cvhr-held-grid-is-sound-the-plot-and-mae-are-not` read that reasoning as a complete answer
+and closed the index as sound. It is right about the inside of a hole and silent about its edges.
+
+**The apparatus: `tools/cvhr-gap-edge.mjs`**, a planted battery with a pre-stated criterion — over three
+rate steps and seventeen hole lengths, the two nodes must return the SAME event count for the same beats
+and the same mask. The control for each case is the identical leg built with no hole inserted at all.
+
+🔴 **The control is the finding's first lesson.** The battery's first version used the same leg with a
+ZERO-length hole as its control, because that keeps the beat count equal. A zero-length hole is a 0 ms
+interval and an infinite instantaneous rate, and it suppresses three events on its own — so every hole
+length read as *"the hole fabricated three events"*, a figure that was the control's artefact and not
+the hole's. A control has to be a record the code can process, not merely one that differs in the single
+field under test.
+
+**Measured 2026-10-19, over 51 planted cases:**
+
+| | before the port | after |
+|---|---|---|
+| cases where the two nodes disagree | **3 of 51** | **0 of 51** |
+| largest disagreement | 1 event | 0 |
+| events the ECGDex mask excludes | 3 | 3 |
+
+All three disagreements are a rate step across a hole of 20 s to 25 s, where an event's stamped second
+lands inside the hole itself. ECGDex dropped it and PpgDex kept it. The shipped comment's claim is
+therefore false in a narrow band, which is exactly why the mask is not cosmetic.
+
+🔴 **AND THE LARGER TERM IS UNREPAIRED, IN BOTH NODES.** Against the no-hole control a hole ADDS up to
+two events, and they sit on COVERED seconds near the boundary. The reason is mechanical: a per-second
+mask covers the seconds the hole spans, while the band-pass support — a 47 s and a 9 s moving average —
+and the dip-to-rebound search of up to 48 s all reach ACROSS the boundary, so the flat held stretch
+enters windows that are scored as measured. Both files state a ±2 s limit of this kind, and that limit
+is about the exported HR series, not about the event detector. Logged as
+`2026-10-19-a-cvhr-hole-edge-adds-events-on-covered-seconds`; repairing it is its own unit, because the
+honest treatment is to exclude an event whose support window touches a hole, and that moves the index on
+both nodes at once.
+
+**Blast radius.** The six PpgDex fixtures moved their two hash fields and no measured value. None of
+them carries a CVHR value at all — five refuse before the detector runs (*"beats 42 < 60"* and its
+siblings) and the corpus-backed one is not a rich export — so GATE B and GATE C are blind to this change
+and to its repair, exactly as they were for the morphology item. The executable group
+*"PpgDex cvhrFromNN takes the GAP MASK"* is the only evidence that the wire is live: seven of its eleven
+assertions red against `main`'s copy of the file.
+
 ### 🔴 THE PUNCH LIST IS ONE OWNER DECISION, NOT NINE ENGINEERING ITEMS (2026-08-20)
 
 This brief has sat `IN-PROGRESS` since 2026-07-21 with exactly two items shipped. **Those two are
@@ -451,7 +512,7 @@ pattern:
 | #12 | *"None"* (a comment correction) | ✅ **shipped** 2026-07-21 |
 | #3 | — | withdrawn, claim was stale |
 | **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | ✅ **shipped** 2026-08-21 (#1614) — the prediction held, all six fixtures moved on OUTPUT |
-| **#2 ★** | ~29 % of the exported series stops being a fabricated constant | **partly shipped** — treatment (1) landed, treatment (2) 2026-10-19 (#3687); (3) `cvhrFromNN` reaches ECGDex and stays open |
+| **#2 ★** | ~29 % of the exported series stops being a fabricated constant | **shipped** — treatment (1) landed, (2) 2026-10-19 (#3687), (3) 2026-10-19 (the gap mask reached `cvhrFromNN`, and the two nodes now count one way) |
 | #5 | motion gates shift where they were wrong | open |
 | #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | ✅ **shipped** 2026-10-19 (#3678) |
 | #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | ✅ **shipped** 2026-10-19 — measured 0.78–3.90×, median 2.02×, and hash-only on every fixture |
@@ -639,9 +700,71 @@ which named #1614 in one command — cheap only because the source comment cites
 ---
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ◐ → 10 → 5 → 11 → [9 experiment]` *(#2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ✅ → 10 ✗ → 11 ✅ → 5 → 9 ✗` *(#9 reads ✗: measured 2026-10-19 as E-2 and not shipped, §6.5. #10 reads ✗: measured 2026-10-19 and not shipped. One half breaks beat detection at 48 bpm. The other half changes nothing the acceptance endpoint can see. #2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #11 landed ahead of #5, which is the ACC item and sits in another lane. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
+
+### ✗ #10 MEASURED 2026-10-19 (Magpie) — the delay is real, half the remedy breaks detection, and the endpoint sees neither
+
+The row asked for two changes: centred TERMA moving averages, and a symmetric search window. Both were
+measured on this corpus before either shipped. Neither ships. The code is unchanged.
+
+**The group delay is real.** `movavg` (`ppgdex-dsp.js:2379`) is causal. The TERMA block calls it twice,
+at 111 ms and 667 ms (`:2178-2179`), so the two averages lag by different amounts. The block of interest
+straddles the systolic peak instead of ending on it. Centring the SHORT window corrects that: over three
+corpus nights the peak's median offset from the block end moves from −62 ms to −11 ms at 176 Hz, and the
+count of blocks whose chosen peak pins to the block START falls from 94 and 161 to 16 and 0.
+
+**Centring the one-beat average breaks beat detection.** A planted 48 bpm waveform then reads
+106.57 bpm. That is the 2× harmonic, and the suite names it `NOT the 2x harmonic` — its own label calls
+that rate the one this failure mode exposes. The spine falls back from feet to peaks in the same run.
+
+The mechanism is the lag itself. A trailing 667 ms mean stays elevated across the dicrotic notch. A
+centred one dips under the short average there and opens a second block per beat. Centring the short
+window alone keeps all 101 assertions of that group green, so the row's plural — "averages" — names two
+changes and not one.
+
+**The symmetric window has nothing to find.** The peak search runs forward from the block start. Across
+three nights, each with over 7000 blocks, the chosen peak sits AT the block start 94, 161 and 4 times
+under trailing averages, and 16, 0 and 2 times under centred ones. No peak sits before the block, so
+widening the window backwards would find nothing. Widening it forward is worse. A tail sweep from
+120 ms to 500 ms leaves the edge-pinned fraction nearly flat and drives the in-band RR share from 96 %
+to 66 %, because the window reaches into the next upstroke.
+
+**The brief's own endpoint adjudicates none of it.** All three variants read the same primary figure:
+
+| variant | planted 48 bpm | PPI-jitter sd (IQR) | beat match | RMSSD bias | CVHR in band |
+|---|---|---|---|---|---|
+| shipped — both averages trailing | 48 bpm | **4.93 ms** (4.68–5.03) | 100.00 % | 3.79 % | 8/9 |
+| short average centred | 48 bpm | **4.93 ms** (4.68–5.03) | 100.00 % | 4.07 % | 7/9 |
+| both averages centred | **106.57 bpm** | **4.93 ms** (4.66–5.03) | 100.00 % | 4.07 % | 7/9 |
+
+Nine nights of the Verity corpus, `tools/ppi-jitter-vs-ecg.mjs --dir <captures> --device verity
+--sleep-only`, one run per variant. The acceptance bar in §4 is met by every row, including the row that
+doubles the rate on a slow waveform: the jitter median does not rise and the match rate does not fall.
+The corpus carries no low-rate night, and the jitter figure describes only beats that PAIR with ECG, so
+a harmonic that fires at 48 bpm is invisible to both. The 48 bpm witness in `tests/dex-tests.js` is the
+only surface that saw it. Logged as residue `2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic`.
+
+**What the safe half costs.** Centring the short average moves three fixture-equivalence legs. The detector recovers
+one beat at the record start, where the trailing mean needed history before the first block could form
+(`ppi.n` 43 → 44). The node then marks that beat as not analyzable (`analyzablePct` 100 → 98), and the
+RMSSD bias median moves 3.79 % → 4.07 % with one night leaving the Integrator CVHR band. Mechanism and
+predicted direction hold; the second surface does not confirm them. Six fixtures and three equivalence legs would
+move for a change with no measured benefit, so it stays unshipped.
+
+**For whoever picks #10 up.** The row argues from the published method, and that argument is weaker than
+it reads. `PPGDEX-BEAT-DETECTION-PERF-AND-HRV-FIDELITY-FOLLOWUPS-2026-07-02-BRIEF.md` §3 records that
+this block already departs from Elgendi on the FEATURE, and for a measured reason: the clipped-amplitude
+square recovered 10 beats in 6.5 min on a real channel against 338 for positive-slope energy, because a
+supra-physiologic baseline transient dominates the amplitude energy. A window placement specified for
+one feature does not carry to another by citation.
+
+So the remaining case for centring the short average rests on the group delay alone, and that delay
+costs nothing the endpoint can see. It needs a low-rate
+surface in the endpoint first — a seeded slow night, or a corpus night under 50 bpm. Centring the
+one-beat average needs no further work — this measurement refutes it, and the 48 bpm assertion will
+catch it again.
 
 ### ✅ #6 EXECUTED 2026-10-19 (#3678) — the premise it rested on is measured, and it is false
 
@@ -702,6 +825,62 @@ with no scorable window carries `snr: null` and `nWindows: 0`, never `0`. `pickC
 rather than ordering, because `null > -Infinity` is TRUE in JavaScript — so the retired comparison would
 have handed the reference slot to an unscorable channel ahead of a measured zero.
 
+### ✅ #11 EXECUTED 2026-10-19 — the gate was a beat COUNT, and the bands now answer to the span
+
+`buildEpochs` cuts 300 s windows by the clock (`for (let e0 = 0; e0 < tEnd; e0 += epLen)`) and drops an
+epoch only at `idx.length < 5`. `lombScargle` refuses only at `nn.length < 8`. Neither gate reads a
+DURATION, so an epoch holding 8 beats across 20 s reported `vlf`, `lf` and `hf` as if 300 s of signal
+stood behind them.
+
+**The criterion, pre-stated.** A covered span of `S` seconds resolves nothing below `1/S`. A band whose
+UPPER edge sits at or below that floor holds no resolvable bin at all, so it reads `null` with
+`bandReason: 'span-below-band-resolution'` — never `0` (§∅). A band that loses only its LOWER edge counts
+as truncation, not absence: reduced coverage annotates (owner 2026-09-17), so it keeps its value and
+carries `spanSec` beside it. The band edges alone fix the refusal thresholds: VLF refuses at or below
+25 s, LF at or below 6.67 s, HF at or below 2.5 s.
+
+**What dies with a refused band.** `totalPower` means the sum of the reported bands — the Task-Force
+identity the suite asserts — so a total over the surviving subset would under-report by exactly the
+refused band, and it refuses alongside any of them. `lfhf`, `lfnu` and `hfnu` need lf AND hf. `respRate`
+is the HF argmax. Each reads `null` when its own inputs do. The epoch projection in the export carries
+`spanSec` and, when it fires, `bandReason`; a key absent from a full-support path keeps the shape
+byte-stable, exactly as `cvhrReason` and `ppiConfReason` already do in this file.
+
+**Measured over 1099 epochs from 32 sessions of the box corpus**, counted at the shipped gate's own
+output: 1098 report at least one band. The shortest covered span runs 35 s, so **this corpus refuses
+nothing** — the change buys a bound, not a repair of a value anyone has seen. What it changes on every
+night is the annotation: 1098 of 1098 band-reporting epochs carry a VLF whose LOWER edge needs 333 s
+against a median covered span of 299 s, so every reported VLF sits truncated, and now says so by carrying
+its span. Ten epochs cover under 120 s and two cover under 60 s. HF is never span-limited anywhere in the
+corpus.
+
+**VLF annotates rather than refuses, and that is deliberate.** The tempting remedy — fall back to the
+whole-record spectrum for the low band — reaches for a number this programme already rejected.
+`ppgdex-dsp.js` records that split as a grid lottery, with `df` pinned at 0.002 Hz against a night's
+intrinsic ~3.8e-5 Hz, which is why the deep audit moved the primary band set ONTO the 5-minute epoch
+median. Nothing honest stands ready to swap in, so the epoch VLF keeps its truncated value and reports
+the support it rests on.
+
+**No committed fixture moved a band value.** `tools/regen-ppgdex-goldens.mjs` moved 6 fixtures and the
+census names only `manifestHash`, `computeHash` and the new `spanSec`
+(`timeseries.epochs.0.spanSec: undefined → 37.35`). So the gates cannot witness this change on their own,
+and two seeded tests carry it instead.
+
+**The witness is a PAIR, because a refusal and a measured zero look alike.** `JSON.stringify(NaN)` reads
+`null`, so an assertion comparing a band set through it can never fail. A flat 8-beat series spaces its
+beats 1 s apart, spans 7 s and floors at 0.1429 Hz: VLF refuses, LF survives by 0.007 Hz and HF survives
+wide, so the set reads `[null, 0, 0]` — one band absent, two measuring a real zero. A new flat 400-beat
+series spans 399 s, floors at 0.0025 Hz under VLF's own lower edge, and reports every band as `0` while
+attaching no reason. The first proves that a band with no resolvable bin refuses; the second proves that a
+resolvable band does NOT refuse merely because its answer is zero.
+
+**What this item does NOT ship.** The row pairs the duration gate with per-band minimum durations well
+above the resolution floor — three cycles of a band's lowest frequency, for instance. That threshold nulls
+the VLF of every epoch in this corpus, and the paragraph above says why nothing honest replaces it. The
+inner-gap threshold also stays open: 5 of the 1098 epochs report across a gap over 60 s, and picking the
+number from those 5 would read a threshold off the data it judges (§🧾). Both wait for a measured gap
+distribution, and the gap one wants a residue row once somebody measures it.
+
 ## 5 · Acceptance / Done-when
 
 - **Primary endpoint: PPI jitter sd**, measured against paired H10 ECG using the §2.2 per-epoch alignment,
@@ -746,7 +925,10 @@ have handed the reference slot to an unscorable channel ahead of a measured zero
 - **E-1 — ANSWERED 2026-08-03: NO** (§6.1). Foot-domain consensus does not recover the 1-of-3 drop
   rate — it roughly quintuples it — for no PPV gain. Apparatus: `tools/ppg-foot-consensus-e1.mjs`.
   The run's *incidental* finding (§6.2) is the one worth acting on.
-- **E-2** — does autogain step repair (#9) move jitter at all? One measurement says no.
+- **E-2 — ANSWERED 2026-10-19: NO** (§6.5). Repairing autogain level steps before filtering is worth a
+  median 0.147 ms of rMSSD over 19 eligible nights, under the pre-stated 0.35 ms bar: 78 % of what a
+  level-step detector finds is motion. Apparatus: `tools/ppg-autogain-e2.mjs`. The run's *incidental*
+  finding is the one worth acting on, and it is a mask question, not a filter one.
 - **E-3 — ANSWERED 2026-08-04 (§6.4): the refutation STANDS, residual CLOSED.** On sleep nights fusion
   is a wash (+0.03 ms, 1.003x); the apparent 0.94 ms all-nights win lives entirely in daytime segments
   where nothing could promote. Apparatus: `tools/ppg-fusion-e3.mjs`.
@@ -899,8 +1081,79 @@ or projecting channels whose polarity disagrees **cancels** the pulse, and the p
 3 of 7 sleep nights here. The shipped `applyConsensusPolarity` pass runs before any fusion in this
 tool, so what is measured is fusion rather than the polarity defect. Pinned by a selftest assertion.
 
-**Remaining open in §6: E-2** (autogain step repair — one measurement already says no) and **E-4**
-(occlusion ramp to zero perfusion, which needs a deliberate capture, not analysis).
+**Remaining open in §6: E-4 alone** (occlusion ramp to zero perfusion, which needs a deliberate
+capture, not analysis). E-2 closed 2026-10-19 against the repair (§6.5).
+
+### 6.5 · E-2 answered — the ringing is real, the repair cannot pay for itself, and most of what a step detector finds is motion
+
+The row for #9 carried an unsourced cell: *"One verifier measured net benefit ≈ 0; measure before
+merging."* `git log -S` finds that phrase only in this brief's own creation commit, `autogain` appears
+in no source file and in no residue row, and no tool in the tree detects a level step. So the verdict
+had no apparatus, and the item was unmeasured rather than answered. This section measures it.
+
+**Apparatus: `tools/ppg-autogain-e2.mjs`** (`--selftest`, and a `tepna.verdict/1` object on every run).
+The population is a stated rule, not a night list: every `Polar_VeritySense*_PPG.txt` under `--dir` at
+or above 20 MB read through the symlink — **37 recordings, 2026-08-09 … 2026-08-19**. Four criteria are
+stated in the file header before any count:
+
+1. **Detection** on the raw chosen channel pre-filter, at the row's own site: 1 s block medians, a step
+   where the adjacent medians differ by ≥ 5 robust sd of the blocks either side. The scale comes from
+   the blocks' own IQR, so a step cannot inflate the figure that judges it.
+2. **Window width** from the exported `settlingWidenSec(displacement, scale, 0.5, true)` — the brief's
+   own closed form, at the detector path's 0.5 Hz corner, zero-phase, so the window opens on both sides
+   of the step. This is that function's first use outside its unit test.
+3. **Endpoint** `|rMSSD(all kept intervals) − rMSSD(intervals clear of every window)|`, where rMSSD is
+   computed by a line-for-line mirror of the shipped `timeDomain` at full precision, because the node
+   rounds rMSSD to 0.1 ms and the bar sits below that grid.
+4. **The bar: 0.35 ms**, a tenth of §2.1's own 3.51 ms figure for 1 % rMSSD bias — so the threshold
+   comes from this brief's published closed form and not from the data it judges.
+
+| | all steps ≥ 5 sd | AC-quiet steps only |
+|---|---|---|
+| steps over the 19 eligible nights | 1226 (median 12.1/h) | 267 (22 % survive) |
+| of those, ≥ 10 sd · ≥ 20 sd | 323 · 177 | 9 · 3 |
+| median window width, each side | 3.09 s | 3.00 s |
+| kept intervals a window touches | **1.34 %** | 0.47 % |
+| of those, the clean mask already dropped | 6 % | 3 % |
+| **median \|Δ rMSSD\|** | **0.459 ms** | **0.147 ms** |
+| worst night | 2.757 ms | 0.528 ms |
+| nights over both the bar and their own null | 12 of 19 | 3 of 19 |
+
+**Two controls decide this, and both earned their place.** The POSITIVE control calls the node's own
+`timeDomain(nn, cleanMask, null, adj)` and compares it with the baseline leg: it reproduced the shipped
+rMSSD on **37 of 37** nights, and it failed on the first probe written for this experiment, which had
+dropped the shipped clean-pair discipline and read 1.3 ms high. The NEGATIVE control is 40 seeded draws
+that re-centre the same window set at random: dropping *any* 1–6 % of adjacent pairs moves rMSSD, so a
+delta only counts above the p95 of that null. It immediately justified itself twice — the twelve nights
+that clear it sit at **7–31×** their own null median, and it refuses all 18 nights whose whole-record
+rMSSD runs 211–314 ms without any hand-drawn eligibility line.
+
+**The answer is NO, and the discriminator is why.** A level-step detector fires on autogain *and* on
+motion, and the two differ in a readable way: autogain moves the DC level and leaves the pulse AC
+alone, while motion moves the level and inflates the AC with it. Count a step as autogain only when
+`max(iqr[b−1], iqr[b]) < 2 ×` the record's AC scale and **1226 steps fall to 267** — 78 % of what the
+detector finds is motion-shaped. The median delta falls with them, from 0.459 ms to **0.147 ms**, under
+the pre-stated bar, and the count of nights clearing it falls from 12 to 3. The discriminator is
+deliberately generous toward calling a step autogain, so 0.147 ms **over-states** the autogain share.
+Repairing autogain steps before filtering cannot buy a tenth of 1 % rMSSD bias, and the row's blast
+radius is every PpgDex fixture.
+
+**The reconciliation with §1.5 holds.** §1.5 measured 39 steps in one night on ch0 at 5–25× the pulse
+AC. The large steps here run at the same order — 177 steps at ≥ 20 sd over 19 nights — and the ≥ 5 sd
+bound admits roughly seven times as many, almost all of them small.
+
+**What this cannot say.** The endpoint is PPG-internal: it shows that the intervals around a level step
+carry excess beat-to-beat variability, never that they are *wrong*, since nothing here references the
+paired ECG. An ECG-paired follow-up would read the real error — and it owes §#10's lesson, that an
+endpoint scoring only beats which pair with ECG is blind exactly where the pairing fails. The delta is
+also a CEILING on a repair, not a prediction of one: dropping a damaged interval and repairing it both
+converge on the clean population's statistic, so the figure bounds what any repair could recover and
+does not say a repair would recover it.
+
+**The measurement leaves one finding worth acting on, and it is not about autogain.** Over the eligible
+nights a level-step-keyed window marks a median 1.34 % of kept intervals whose beat-to-beat variability
+sits at 7–31× a matched random null, and the shipped clean mask keeps about **94 %** of them. That is a
+mask question rather than a filter question, and most of it is motion. Logged as residue.
 
 ## 7 · References
 

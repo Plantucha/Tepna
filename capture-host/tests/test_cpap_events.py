@@ -246,6 +246,158 @@ def test_a_delta_over_a_missing_edge_is_None_never_zero():
     assert r2.snapshot()["witness_start_delta_s"] is None, "no trigger mark ⇒ no delta"
 
 
+def _status(name, rt="2026-09-19T22:00:00.000Z"):
+    return {"dataId": "UsageEvents-TherapyStatusEvents", "events": [{"event": name, "reportTime": rt}]}
+
+
+def test_a_single_ZLE_report_falls_back_to_the_therapy_status_witness_and_NAMES_it():
+    """The measured 2026-10-19 night: one `_ZLE` report over 6 h 18 m, so `_note_zle` saw a level and
+    no edge, while a TherapyStop row and a MaskOff row sat in the sidecar. Both deltas read None."""
+    r = E.EventRecorder()
+    r.mark_trigger("start", host_epoch=1000.0)
+    r.note(_status("TherapyStart"), host_epoch=1002.0)
+    r.note(_status("MaskOn"), host_epoch=1003.0)
+    r.note({"dataId": "_ZLE", "events": [_zle(1)]}, host_epoch=1004.0)  # the only report: a LEVEL
+    r.note(_status("TherapyStop"), host_epoch=3400.0)
+    r.note(_status("MaskOff"), host_epoch=3401.0)
+    r.mark_trigger("stop", host_epoch=3518.0)
+    s = r.snapshot()
+    assert s["zle_edges"] == 0 and s["zle_rising_host"] is None and s["zle_falling_host"] is None
+    assert s["witness_start_source"] == "UsageEvents-TherapyStatusEvents:TherapyStart"
+    assert s["witness_stop_source"] == "UsageEvents-TherapyStatusEvents:TherapyStop"
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (1002.0, 3400.0)
+    assert s["witness_start_delta_s"] == 2.0, "therapy started 2 s AFTER the trigger"
+    assert s["witness_stop_delta_s"] == -118.0, "therapy stopped 118 s BEFORE the trigger"
+
+
+def test_the_fallback_is_per_EDGE_and_not_gated_on_the_edge_COUNT():
+    """A night with one rising edge carries `zle_edges` 1 and still has no falling edge. Gating the
+    fallback on the counter would leave that night's stop boundary exactly as uncomputed."""
+    r = E.EventRecorder()
+    r.mark_trigger("start", host_epoch=10.0)
+    r.note({"dataId": "_ZLE", "events": [_zle(0), _zle(1)]}, host_epoch=12.0)  # level, then ↑
+    r.note(_status("TherapyStop"), host_epoch=99.0)
+    r.mark_trigger("stop", host_epoch=100.0)
+    s = r.snapshot()
+    assert s["zle_edges"] == 1, "the counter is not 0, and the stop edge is still absent"
+    assert s["witness_start_source"] == "_ZLE" and s["witness_start_delta_s"] == 2.0
+    assert s["witness_stop_source"] == "UsageEvents-TherapyStatusEvents:TherapyStop"
+    assert s["witness_stop_delta_s"] == -1.0
+
+
+def test_the_ZLE_edge_WINS_when_both_witnesses_reported():
+    r = E.EventRecorder()
+    r.note(_status("TherapyStart"), host_epoch=1.0)
+    r.note(_status("TherapyStop"), host_epoch=2.0)
+    r.note({"dataId": "_ZLE", "events": [_zle(0), _zle(1), _zle(0)]}, host_epoch=5.0)
+    s = r.snapshot()
+    assert (s["witness_start_source"], s["witness_stop_source"]) == ("_ZLE", "_ZLE")
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (5.0, 5.0)
+
+
+def test_Mask_is_the_SECOND_choice_and_only_where_Therapy_never_reported():
+    """`Therapy*` is what this data id exists to report; the mask seal is a different quantity. So a
+    night that carries only `MaskOn`/`MaskOff` still gets a witness, and the source says which."""
+    r = E.EventRecorder()
+    r.note(_status("MaskOn"), host_epoch=7.0)
+    r.note(_status("MaskOff"), host_epoch=8.0)
+    s = r.snapshot()
+    assert s["witness_start_source"] == "UsageEvents-TherapyStatusEvents:MaskOn"
+    assert s["witness_stop_source"] == "UsageEvents-TherapyStatusEvents:MaskOff"
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (7.0, 8.0)
+
+
+def test_a_witness_absent_on_BOTH_sources_is_null_with_NO_borrowed_source():
+    r = E.EventRecorder()
+    r.mark_trigger("start", host_epoch=1.0)
+    r.mark_trigger("stop", host_epoch=2.0)
+    r.note(_status("AutoOnDetected"), host_epoch=1.5)  # a name the fallback does not read
+    s = r.snapshot()
+    assert (s["witness_start_source"], s["witness_stop_source"]) == (None, None)
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (None, None)
+    assert s["witness_start_delta_s"] is None and s["witness_stop_delta_s"] is None
+    assert r.status_first == {"AutoOnDetected": 1.5}, "an unread name is still recorded, not dropped"
+
+
+def test_the_start_witness_is_the_FIRST_status_row_and_the_stop_witness_the_LAST():
+    r = E.EventRecorder()
+    for host, name in ((10.0, "TherapyStart"), (20.0, "TherapyStop"), (30.0, "TherapyStart"), (40.0, "TherapyStop")):
+        r.note(_status(name), host_epoch=host)
+    s = r.snapshot()
+    assert (s["witness_start_host"], s["witness_stop_host"]) == (10.0, 40.0)
+
+
+def test_a_status_row_with_no_event_NAME_is_not_a_witness_and_an_unrelated_id_is_ignored():
+    r = E.EventRecorder()
+    r.note({"dataId": "UsageEvents-TherapyStatusEvents", "events": [{"event": 7, "reportTime": "x"}]}, host_epoch=1.0)
+    r.note({"dataId": "SomeOtherStream", "events": [{"event": "TherapyStop", "reportTime": "x"}]}, host_epoch=2.0)
+    assert r.status_first == {} and r.status_last == {}
+    assert r.snapshot()["witness_stop_source"] is None, "a stop name on another data id is not a witness"
+    assert len(r.rows) == 2, "both rows are still recorded verbatim; only the witness declines them"
+
+
+def test_a_fresh_recorder_reports_ABSENCE_as_null_and_never_as_an_empty_string():
+    """§∅ on the recorder's own initial state: an unmeasured device stamp is None. An empty string is
+    a value a consumer cannot tell from a stamp the device sent, which is the defect, not the default."""
+    r = E.EventRecorder()
+    s = r.snapshot()
+    assert s["zle_rising_report"] is None and s["zle_falling_report"] is None
+    assert r.zle_value is None, "no `_ZLE` report has arrived, so there is no level either"
+
+
+def test_a_ZLE_row_with_NO_numeric_value_is_recorded_VERBATIM_and_moves_no_edge():
+    """The value slot holds a number or nothing (`parse_event_notification` refuses a bool or a string),
+    so the recorder must read the SLOT and not the data id alone. The row is still written: the sidecar
+    is verbatim, and only the witness declines it."""
+    r = E.EventRecorder()
+    r.note({"dataId": "_ZLE", "events": [{"value": "nope", "reportTime": "x"}]}, host_epoch=3.0)
+    assert len(r.rows) == 1 and r.rows[0]["value"] is None
+    assert r.rows[0]["host_epoch"] == 3.0, "the host stamp the caller gave, not the one `note` invented"
+    assert r.zle_value is None and r.zle_edges == 0
+
+
+def test_the_sidecar_LINE_IS_COMPACT_and_holds_ONE_notification(tmp_path):
+    """The separators are the published format, not an accident. A night is one line per notification
+    and the file is read back by `tail`, so a re-spaced dump rewrites every line of every sidecar."""
+    path = tmp_path / "cpap-events-compact.jsonl"
+    r = E.EventRecorder(str(path))
+    r.note({"dataId": "_ZLE", "events": [_zle(1, "x")]}, host_epoch=9.0)
+    r.close()
+    assert path.read_text(encoding="utf-8") == (
+        '{"host_epoch":9.0,"params":{"dataId":"_ZLE","events":[{"value":1,"reportTime":"x"}]}}\n'
+    )
+
+
+def test_the_SIDECAR_DECLARES_ITS_ENCODING(tmp_path):
+    """The sidecar `open()` asserted on the CALL. `-X warn_default_encoding` with
+    `-W error::EncodingWarning` makes an unset — or explicitly None — `encoding` raise, so a night
+    recorded on the box reads the same here whatever the machine's locale.
+
+    The in-process recorder first is NOT redundant: mutmut picks a mutant's tests from COVERAGE and a
+    subprocess is invisible to the tracer, so without it this mutant reads unkillable."""
+    import subprocess
+    import sys
+
+    path = tmp_path / "cpap-events-enc.jsonl"
+    r = E.EventRecorder(str(path))
+    r.note({"dataId": "_ZLE", "events": [_zle(1, "x")]}, host_epoch=1.0)
+    r.close()
+    src = (
+        "import cpap_events as E\n"
+        f"r = E.EventRecorder({str(path)!r})\n"
+        "r.note({'dataId': '_ZLE', 'events': [{'value': 1, 'reportTime': 'x'}]}, host_epoch=1.0)\n"
+        "r.close()\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.abspath(E.__file__)),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "EncodingWarning" not in out.stderr, out.stderr
+
+
 def test_mark_trigger_rejects_an_unknown_mark_and_stamps_the_host_clock_when_none_given():
     r = E.EventRecorder()
     with pytest.raises(ValueError):
@@ -361,7 +513,15 @@ def test_a_subscribe_TIMEOUT_is_recorded_as_such_and_the_stream_still_runs():
     async def recv_frame():
         if hung["once"]:
             hung["once"] = False
-            await asyncio.sleep(10)  # far past the 0.05 s budget below
+            # 0.5 s: TEN TIMES the 0.05 s budget below, so the wait is unambiguously bounded by the
+            # budget — and 0.5 s rather than 10 s because the HANG IS WHAT THE MUTATION GATE MEASURES.
+            # `subscribe_timeout_s` → `None` makes this wait unbounded, so the mutant's cost is this
+            # sleep. mutmut bounds each mutant at `(sum of the covering tests' BASELINE durations + 1)
+            # x 3`; this test's baseline is 0.051 s (the budget fires and abandons the sleep), so the
+            # bound for `as11_pull.x_stream` was 3.21 s and a 10 s sleep blew it. The mutant then read
+            # UNDECIDED — unmeasured, not killed — and `mutate_diff` refused. At 0.5 s the same mutant
+            # fails the assertion below in half a second (measured 2026-10-19).
+            await asyncio.sleep(0.5)
         return await inner.recv_frame()
 
     batches = _collect(
@@ -381,6 +541,102 @@ def test_a_subscribe_TIMEOUT_is_recorded_as_such_and_the_stream_still_runs():
     )
     assert len(batches) == 1
     assert rec.subscribe_status == "failed:TimeoutError"
+
+
+def test_the_SUBSCRIBE_FRAME_CARRIES_THE_ID_THE_PUMP_THEN_AWAITS():
+    """The subscribe id is DERIVED from `start_id`, and the test above cannot see that.
+
+    `as11_link.subscribe_event`'s own default id is 17, which is exactly `start_id + 1` for the default
+    `start_id` of 16. So every test that opens the stream at 16 reads the same bytes whether the pump
+    passes its id or omits it. Measured 2026-10-19: `as11_pull.x_stream__mutmut_16` drops `rpc_id=sub_id`
+    from the call and the whole suite stayed green. Opened at 42, the frame on the wire must say 43.
+    """
+    rec = E.EventRecorder()
+    dev = FakeAS11([_sub_ack(rpc_id=43), _ack(rpc_id=42), _stream_data()])
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=42,
+            max_batches=1,
+            subscribe=["_ZLE"],
+            on_event=rec.note,
+            on_subscribed=rec.note_subscribed,
+        )
+    )
+    assert len(batches) == 1 and rec.subscribe_status == "ok"
+    sent = _sent(dev)
+    assert sent[0]["method"] == "SubscribeEvent"
+    assert sent[0]["id"] == 43, "the id on the wire is the one the pump awaits, not the builder's default"
+
+
+def test_the_SUBSCRIBE_BUDGET_DEFAULTS_TO_TEN_SECONDS(monkeypatch):
+    """The default budget is a number no test can afford to SPEND: a test that let it run would wait
+    ten seconds, and a test that shortens it reads back its own value. So the budget is observed where
+    it is HANDED OVER, by watching the call the pump makes.
+
+    Not read off the signature. Measured 2026-10-19: `inspect.signature(P.stream)` under the mutation
+    gate describes mutmut's dispatcher, not the mutant, so a signature assertion cannot see
+    `as11_pull.x_stream__mutmut_3` move the default to 11.0 — it survived a test that fails on the
+    same mutant applied by hand."""
+    seen = []
+    real = asyncio.wait_for
+
+    async def spy(aw, timeout=None):
+        seen.append(timeout)
+        return await real(aw, timeout=timeout)
+
+    monkeypatch.setattr(asyncio, "wait_for", spy)
+    rec = E.EventRecorder()
+    dev = FakeAS11([_sub_ack(), _ack(), _stream_data()])
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            subscribe=["_ZLE"],
+            on_event=rec.note,
+            on_subscribed=rec.note_subscribed,
+        )
+    )
+    assert len(batches) == 1 and rec.subscribe_status == "ok"
+    assert seen == [10.0], "the subscribe wait is handed the default budget, ten seconds"
+
+
+def test_a_MALFORMED_frame_is_NEVER_handed_to_the_recorder():
+    """Routing is a CONJUNCTION: an EVENT frame, AND a recorder to hand it to.
+
+    A mutant reading the second half as an alternative hands every non-OK frame to the recorder once a
+    recorder exists. A malformed StreamData then enters the sidecar as a notification with no rows, and
+    the JSONL carries an arrival the device never reported. Measured 2026-10-19:
+    `as11_pull.x_stream__mutmut_109` turns the `and` into an `or` and no test saw it."""
+    rec = E.EventRecorder()
+    c = GapCounters()
+    bad = _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {"data": "not-a-list", "streamId": 1}})
+    dev = FakeAS11([_ack(), bad, _stream_data()])
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            counters=c,
+            on_event=rec.note,
+        )
+    )
+    assert len(batches) == 1
+    assert (c.malformed, c.events) == (1, 0), "a malformed frame is malformed, not an event"
+    assert rec.notifications == 0 and rec.rows == []
 
 
 def test_an_EventNotification_is_ROUTED_to_the_recorder_counted_as_an_event_and_never_yielded():

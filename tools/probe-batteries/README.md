@@ -102,3 +102,37 @@ the crawl's format, which is why two tools built to feed each other never had (M
 degenerate or uncontrolled. **DISTINGUISHABLE survivors are never emitted** — they are real gaps, and
 they stay in the denominator. A classification file is not a place to launder debt into a better
 number.
+
+## A battery may cover part of a file, and `oxydex-dsp.mjs` does
+
+`oxydex-dsp.js` carries **3296 mutants over 57 suite groups** (`--dry-run`, 2026-10-19), so a
+whole-file sweep costs hours and nothing adjudicates one survivor until it finishes. The oxydex
+battery therefore declares four families over the `rows`-taking cluster — `computeDataGaps`,
+`computeHRFlatlines`, `computeSpO2Ceiling` and `computeHRCV`, 55 mutants between them — and every
+other function in that file stays unadjudicated. Adding one is adding a family: the realm and the
+row builder are already written.
+
+**Scope the SWEEP to the families, or the controls are a fiction.** The engine reads KILLED as
+"enumerated by the dry run, absent from the sweep's survivor list", so a mutant the sweep never
+tested is indistinguishable from one a test caught. A sweep narrowed with `--only` is sound **only
+for the functions the list covered in full**:
+
+```sh
+node tools/mutate.mjs --file oxydex-dsp.js --dry-run --json --limit 99999 > /tmp/dry.json
+# filter /tmp/dry.json to the families' line ranges, keeping line, op, before and after
+node tools/mutate.mjs --file oxydex-dsp.js --only /tmp/only.json --no-bail --json > /tmp/sweep.json
+```
+
+`--only` matches that list against the CURRENT surface on all four fields and refuses on a miss, so
+a list derived from a fresh `--dry-run` matches by construction while a list carried over from an
+older sweep does not.
+
+**`--controls` saturates at the sweep's kill count inside the function range, and the cap is worth
+reporting.** The growth method above says to raise the number until the blind list stops growing,
+which leaves open what to do when the number runs out. On the oxydex battery it ran out at once: the
+55-mutant scoped sweep killed 30, all four function ranges hold every one of them, and the four
+families report `7/7`, `6/6`, `7/7` and `10/10` separated. `--controls 12` and `--controls 40`
+therefore print the same four lines and the same verdict — no larger number can change them, because
+the pool is the kill list and not the flag. Widening the reach from here means a WIDER SWEEP, which
+hands the families more kills to separate; raising the flag alone measures nothing new. Record the
+figure as `n/n`, never as the number the flag asked for.

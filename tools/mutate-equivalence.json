@@ -3862,14 +3862,77 @@
  ],
  "oxydex-dsp.js": [
   {
-   "line": 865,
+   "line": 922,
    "op": "bool || → &&",
    "before": "_mv = mStr == null || mStr === '' ? NaN : parseInt(mStr, 10),",
    "after": "_mv = mStr == null && mStr === '' ? NaN : parseInt(mStr, 10),",
    "class": "equivalent",
-   "why": "PROOF (the Codex reader, verified): mStr is only ever null or a .trim()med string (line 861). Under `&&` the condition is always false, so parseInt runs on every value; for the only two values the original sends to NaN directly, null and the empty string, parseInt of each with radix 10 is NaN too. Every input gives the same _mv, so the same motion.",
+   "why": "PROOF (the Codex reader, verified): mStr is only ever null or a .trim()med string (line 861). Under `&&` the condition is always false, so parseInt runs on every value; for the only two values the original sends to NaN directly, null and the empty string, parseInt of each with radix 10 is NaN too. Every input gives the same _mv, so the same motion. RE-KEYED 2026-10-19 from line 865 to line 922: the file drifted 57 lines and the entry matched no generated mutant, so `mutate.mjs` reported it ORPHANED and the mutant it excuses lost its excuse. The argument is unchanged and the mutated text is byte-identical; only the line number moved.",
    "probe": "evaluated parseInt(null, 10) and parseInt with an empty string, radix 10 (both NaN); read line 861's mStr assignment",
    "brief": "ABSENCE-SURVEY-2026-09-22 group B1"
+  },
+  {
+   "line": 6003,
+   "op": "cmp > → >=",
+   "before": "if (dt > maxGap) maxGap = dt;",
+   "after": "if (dt >= maxGap) maxGap = dt;",
+   "class": "no-distinguishing-input",
+   "why": "In computeDataGaps, on the running maximum gap. An idempotent assignment, so no input separates the two. The mutant also assigns when the candidate EQUALS the running maximum, and writing a value the variable already holds changes nothing; a non-finite candidate compares false under both operators. Every probe input produced byte-identical output.",
+   "probe": "computeDataGaps · dropout accounting (16 mutants): 22 inputs, 14 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file oxydex-dsp.js"
+  },
+  {
+   "line": 6115,
+   "op": "cmp > → >=",
+   "before": "if (run > maxFlat) maxFlat = run;",
+   "after": "if (run >= maxFlat) maxFlat = run;",
+   "class": "no-distinguishing-input",
+   "why": "In computeHRFlatlines, on the running longest flat run (the in-loop site). An idempotent assignment, so no input separates the two. The mutant also assigns when the candidate EQUALS the running maximum, and writing a value the variable already holds changes nothing; a non-finite candidate compares false under both operators. Every probe input produced byte-identical output.",
+   "probe": "computeHRFlatlines · stuck-HR runs (12 mutants): 17 inputs, 13 distinct baseline answers; 6/6 same-function controls separated. tools/probe-equivalence.mjs --file oxydex-dsp.js"
+  },
+  {
+   "line": 6122,
+   "op": "cmp > → >=",
+   "before": "if (run > maxFlat) maxFlat = run;",
+   "after": "if (run >= maxFlat) maxFlat = run;",
+   "class": "no-distinguishing-input",
+   "why": "In computeHRFlatlines, on the running longest flat run (the tail site). An idempotent assignment, so no input separates the two. The mutant also assigns when the candidate EQUALS the running maximum, and writing a value the variable already holds changes nothing; a non-finite candidate compares false under both operators. Every probe input produced byte-identical output.",
+   "probe": "computeHRFlatlines · stuck-HR runs (12 mutants): 17 inputs, 13 distinct baseline answers; 6/6 same-function controls separated. tools/probe-equivalence.mjs --file oxydex-dsp.js"
+  },
+  {
+   "line": 6143,
+   "op": "cmp > → >=",
+   "before": "if (run > maxCeil) maxCeil = run;",
+   "after": "if (run >= maxCeil) maxCeil = run;",
+   "class": "no-distinguishing-input",
+   "why": "In computeSpO2Ceiling, on the running longest ceiling run (the in-loop site). An idempotent assignment, so no input separates the two. The mutant also assigns when the candidate EQUALS the running maximum, and writing a value the variable already holds changes nothing; a non-finite candidate compares false under both operators. Every probe input produced byte-identical output.",
+   "probe": "computeSpO2Ceiling · sensor-lift runs (13 mutants): 17 inputs, 10 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file oxydex-dsp.js"
+  },
+  {
+   "line": 6151,
+   "op": "cmp > → >=",
+   "before": "if (run > maxCeil) maxCeil = run;",
+   "after": "if (run >= maxCeil) maxCeil = run;",
+   "class": "no-distinguishing-input",
+   "why": "In computeSpO2Ceiling, on the running longest ceiling run (the tail site). An idempotent assignment, so no input separates the two. The mutant also assigns when the candidate EQUALS the running maximum, and writing a value the variable already holds changes nothing; a non-finite candidate compares false under both operators. Every probe input produced byte-identical output.",
+   "probe": "computeSpO2Ceiling · sensor-lift runs (13 mutants): 17 inputs, 10 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file oxydex-dsp.js"
+  },
+  {
+   "line": 6250,
+   "op": "num → 0",
+   "before": "if (n < 60) return null;",
+   "after": "if (n < 0) return null;",
+   "class": "no-distinguishing-input",
+   "why": "In computeHRCV. The measured-count guard nine lines below SUBSUMES this one: `m` counts the finite `hr` values of the same `n` rows, so `m <= n`, and every night the original refuses at `n < 60` the mutant refuses at `m < 60`. The mutant drops a guard that cannot change an answer, and it does not drop the 60-sample floor. Every probe input produced byte-identical output, including nights of exactly 59 and exactly 60 rows.",
+   "probe": "computeHRCV · coefficient of variation (14 mutants): 15 inputs, 10 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file oxydex-dsp.js"
+  },
+  {
+   "line": 6265,
+   "op": "cmp <= → <",
+   "before": "if (!mean || mean <= 0) return null;",
+   "after": "if (!mean || mean < 0) return null;",
+   "class": "no-distinguishing-input",
+   "why": "In computeHRCV. `!mean` already rejects 0 and NaN, so the `<= 0` arm only ever fires on a strictly negative mean, which `< 0` catches identically. The `<=` is redundant with the truthiness test beside it. Every probe input produced byte-identical output, including a mean of exactly 0 reached by two routes and a negative mean.",
+   "probe": "computeHRCV · coefficient of variation (14 mutants): 15 inputs, 10 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file oxydex-dsp.js"
   }
  ],
  "oxydex-fusion.js": [

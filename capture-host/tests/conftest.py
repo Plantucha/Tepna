@@ -524,3 +524,35 @@ def _process_timezone_is_not_leaked():
     before, names = os.environ.get("TZ"), _time.tzname
     yield
     _restore_process_timezone(before, names)
+
+
+@_pytest.fixture(autouse=True)
+def _cpap_stop_grace_is_bounded_for_the_suite():
+    """Bound `cpap_stream.STOP_GRACE_S`, whose real value is 5 s: a test that stops a pump which cannot
+    see `should_stop` waits the whole grace and still PASSES, so the wait is invisible until something
+    meters it.
+
+    The mutation gate meters it. Measured 2026-10-19 against
+    `cpap_stream.xǁLiveStreamControllerǁ_start__mutmut_143`, which drops `**kw` from the pump call so
+    `should_stop` never arrives: `test_controller_start_is_idempotent_while_running` and
+    `test_last_sink_paths_never_yields_a_None_for_an_edf_that_has_no_name_yet` each took 5.00 s and
+    passed, and mutmut allows each mutant `(the covering tests' BASELINE durations + 1 s) x 3`, here
+    `(1.03 + 1) x 3 = 6.09 s`. Those two waits spent the bound before the run reached the test that
+    fails on that mutant 0.01 s later, so the gate recorded the mutant UNDECIDED — unmeasured, never
+    killed — and `mutate_diff` refused. The grace is production's number; no test needs to spend it.
+
+    0.2 s is a twentyfold margin over the ~0.01 s a cooperative stop costs here, and the three tests
+    that are ABOUT the grace set their own value in the body, which wins over this one.
+
+    Saved and restored by hand rather than through `monkeypatch`, and guarded on an already-imported
+    module, for the reasons `_bonding_select_is_the_configured_address` above records."""
+    mod = sys.modules.get("cpap_stream")
+    if mod is None:
+        yield
+        return
+    saved = mod.STOP_GRACE_S
+    mod.STOP_GRACE_S = 0.2
+    try:
+        yield
+    finally:
+        mod.STOP_GRACE_S = saved

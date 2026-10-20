@@ -48,7 +48,22 @@ __all__ = [
     "BUDGET_REFUSED",
     "NO_MATCH_ASSERTION",
     "sweep_exit_verdict",
+    "sweep_verdict_fields",
+    "SWEEP_GATE",
+    "SWEEP_CRITERION",
 ]
+
+SWEEP_GATE = "mutate-sweep"
+
+# PRE-STATED, and a module constant for the reason verdict.py's header gives: a criterion written
+# beside the measurement it judges is a target. It counts MODULES THAT DECIDED NOTHING, which is the
+# same sum `sweep_exit_verdict` exits non-zero on — one rule, read once, printed twice.
+SWEEP_CRITERION = {
+    "name": "undecided_modules",
+    "threshold": 0,
+    "unit": "modules",
+    "direction": "lte",
+}
 
 BUDGET_OK = "ok"
 BUDGET_REFUSED = "refused"
@@ -266,3 +281,74 @@ def sweep_exit_verdict(records: Sequence[Mapping[str, Any]]) -> tuple[int, list[
                 detail += f" — the selection was --only {only!r}"
             reasons.append(detail)
     return (1 if reasons else 0), reasons
+
+
+def sweep_verdict_fields(records: Sequence[Mapping[str, Any]], reasons: Sequence[str]) -> dict[str, Any]:
+    """The sweep's `tepna.verdict/1` FIELDS, over the records it produced. Pure — `verdict.make` adds
+    the sha and the instant, and validates the object this fills in.
+
+    🔴 WHY THE CALLER PASSES `reasons` RATHER THAN THE OBJECT RE-DERIVING THEM. The tool prints one
+    `NOTHING DECIDED <why>` line per reason and then emits this object. Two reads of the same records
+    can part — a later edit to one path, a records list mutated between calls — and the failure mode
+    is an object disagreeing with the prose beside it, which is worse than either alone. So the
+    reasons are read ONCE, by `sweep_exit_verdict`, and both surfaces spend that one read.
+
+    ⚠️ FAIL IS REACHABLE FROM NOTHING HERE, deliberately. `tools/mutate.py` is an audit: surviving
+    mutants are its normal output and its documented exit 0. What this object judges is whether the
+    sweep DECIDED — and a module whose generation timed out, whose results pass was never read or
+    whose mutmut exited non-zero asserts nothing about that module's tests. That is `UNKNOWN` under
+    the contract, never `FAIL`, which would claim the module was measured and found wanting.
+
+    The two zero-population statuses are the ones the contract separates, and the phase that declined
+    decides which:
+
+    · `NOT_RUN` — no record at all. The run examined nothing and meant to (§🧾: `NOT_RUN` examined
+      nothing).
+    · `NOT_APPLICABLE` — every record is `estimate_only`. `--estimate` prices a sweep and stops before
+      a mutant exists, so the kill requirement does not bind. `--list` never reaches here: listing is
+      its whole job and decides nothing.
+
+    POPULATION. `eligible` is the modules the run named, `excluded` the ones it only priced, and
+    `checked` the ones it examined for mutants. `undecided` rides in `result`, because it is what the
+    criterion counts rather than a slice of the population — a module that decided nothing was still
+    examined."""
+    priced = sum(1 for r in records if r.get("estimate_only"))
+    eligible = len(records)
+    checked = eligible - priced
+    evidence = ["capture-host/tools/mutate.py", "capture-host/mutation_sweep.py"]
+    evidence += [f"capture-host/{r['module']}" for r in records if r.get("module")]
+    population = {"checked": checked, "eligible": eligible, "excluded": priced}
+    if not records:
+        return {
+            "status": "NOT_RUN",
+            "population": population,
+            "result": None,
+            # `sweep_exit_verdict` names this case itself; the fallback exists so the object cannot be
+            # built reasonless if a caller ever passes an empty records list with no reasons.
+            "reason": reasons[0] if reasons else "the sweep named no module, so nothing was examined",
+            "evidence": evidence,
+        }
+    if checked == 0:
+        return {
+            "status": "NOT_APPLICABLE",
+            "population": population,
+            "result": None,
+            "reason": f"--estimate priced {priced} module(s) and examined no mutant, so the kill requirement does not bind",
+            "evidence": evidence,
+        }
+    result = {"modules": eligible, "priced": priced, "examined": checked, "undecided": len(reasons)}
+    if reasons:
+        return {
+            "status": "UNKNOWN",
+            "population": population,
+            "result": result,
+            "reason": "; ".join(reasons),
+            "evidence": evidence,
+        }
+    return {
+        "status": "PASS",
+        "population": population,
+        "result": result,
+        "reason": None,
+        "evidence": evidence,
+    }

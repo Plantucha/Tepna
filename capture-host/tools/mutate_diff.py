@@ -83,6 +83,8 @@ from mutation_diff import (  # noqa: E402
     UNDECIDED,
     annotation_only,
     clean_run_failures,
+    clean_run_refusal,
+    clean_run_exhaustion_verdict,
     classify,
     diff_key,
     entry_before_in_source,
@@ -529,6 +531,7 @@ def main(argv=None) -> int:
     _declared_modules: list[dict] = []  # modules retired by a MODULE-level declaration, with counts
     _refused_budget: list[str] = []
     _refused_memory: list[str] = []  # projected RSS over the cap — refused before starting
+    _refused_clean: list[str] = []  # the module's own baseline is red — nothing there is measurable
     _prework_sec = 0.0  # clean-baseline time: reported, but not charged to the
     # MUTATION budget (see the comment at its measurement below)
     _refused_generation: list[str] = []  # generation outlived its phase bound — nothing was examined
@@ -633,6 +636,19 @@ def main(argv=None) -> int:
         _clean = mut.clean_run_seconds(_tests) if _tests else (0.0, False)
         _prework_sec += time.monotonic() - _pre_t0
         _left = GATE_BUDGET_SEC - (time.monotonic() - _gate_t0 - _prework_sec)
+        # ── THE BASELINE DECIDES WHETHER THIS MODULE CAN BE MEASURED AT ALL ──────────────────────
+        # `clean_run_seconds` returns `(seconds, passed)` and this path read only the seconds. A red
+        # baseline makes mutmut call every mutant killed — the covering tests fail without one too —
+        # so the module reports total coverage over a population nothing discriminated. Refuse it
+        # here, before a mutant is generated: the functions stay in `_pop["eligible"]`, never reach
+        # `checked`, and `excluded = eligible - checked` reports them. `continue` and not a return,
+        # because another module in the same diff may still have a green baseline and a survivor
+        # there must still FAIL.
+        if _tests and not _clean[1]:
+            _why_clean = clean_run_refusal(module, _clean[0], len(globs))
+            _refused_clean.append(_why_clean)
+            print(f"  ⊘ {_why_clean}", flush=True)
+            continue
         # THE BOUND READS A MEASUREMENT OR SAYS IT HAS NONE. `budget_refusal` returning None means this
         # bound raised no refusal — with an unmeasured stats pass that is NOT "the module fits", so the
         # absence is printed and carried into the verdict rather than passing silently (§∅).
@@ -1093,6 +1109,7 @@ def main(argv=None) -> int:
         and not _crashed
         and len(_nothing_to_mutate) == _attempted
         and not _refused_budget
+        and not _refused_clean
     ):
         print(
             f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
@@ -1115,6 +1132,7 @@ def main(argv=None) -> int:
         and not _attempted
         and not _crashed
         and not _refused_budget
+        and not _refused_clean
         and not _refused_memory
         and not _refused_generation
         and not _refused_results
@@ -1599,6 +1617,39 @@ def main(argv=None) -> int:
         if not a.report_only:
             return _r
         _refusal = _r
+
+    # ── the RED-BASELINE refusal — ahead of every other cause, because it precedes them ─────────
+    # A module whose own clean run fails cannot be mutated at all: mutmut reads "the covering tests
+    # fail with this mutant" as a kill, and they already fail without it. So the arithmetic reports
+    # every mutant killed over a population nothing discriminated. This block is why the gate can no
+    # longer answer PASS there — measured on #3704, where three red baselines printed their failure
+    # and the verdict said PASS, exit 0, over 14 survivors nobody saw.
+    if _refused_clean:
+        verdict["refused_clean_run"] = _refused_clean
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        print(
+            f"\nmutate-diff: REFUSING — {len(_refused_clean)} module(s) were NOT mutated because "
+            f"their own clean baseline failed first:"
+        )
+        for w in _refused_clean:
+            print(f"  ⊘ {w}")
+        print(
+            "  A PASS over a red baseline is ARITHMETIC, not measurement: mutmut calls a mutant\n"
+            "  killed when the covering tests fail with it applied, and those tests already fail\n"
+            "  without it. Nothing above about modules whose baseline was GREEN is withdrawn. Do NOT\n"
+            "  reach for a mutation flag to clear this — read the FAILED/ERROR lines printed with the\n"
+            "  clean run, fix or quarantine that test, and run the gate again."
+        )
+        _note = report_only_refusal_note(a.report_only)
+        if _note:
+            print(_note)
+        _ran_box[0] = _ran
+        _cstatus, _creason = clean_run_exhaustion_verdict(len(_refused_clean), _counts["decided"])
+        _cb = emit(_cstatus, _creason, 2)
+        if not a.report_only:
+            return _cb
+        _refusal = _cb
 
     # ── the MEMORY refusal — same placement and same reasoning as the budget refusal below ───────
     if _refused_memory:

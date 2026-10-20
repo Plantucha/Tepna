@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**270 tools** · 269 with a purpose line · **1 without**
+**272 tools** · 271 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -61,6 +61,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
 | [`cpap-sa2-agreement.mjs`](../tools/cpap-sa2-agreement.mjs) | the CPAP's wired SpO₂ against the ring's WHY — CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF. |
 | [`cvhr-fold-rescore.mjs`](../tools/cvhr-fold-rescore.mjs) | THE CROSS-NODE CVHR ρ ON THE FOLD'S NIGHT SELECTION — a re-score, not a sweep. |
+| [`cvhr-gap-edge.mjs`](../tools/cvhr-gap-edge.mjs) | what a TIME HOLE does to the two CVHR detectors, measured on planted beats |
 | [`deep-desat-falsifier.mjs`](../tools/deep-desat-falsifier.mjs) | THE STANDING CROSS-SIGNAL FALSIFIER for called sleep stages (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §6 item 4 / REM-STAGING-REDESIGN §5): "REM/Deep should carry a stage-appropriate… |
 | [`deep-flow-join.mjs`](../tools/deep-flow-join.mjs) | DEEP-epoch × flow-event join, with a PER-COHORT clock offset instead of one global shift. |
 | [`deep-vlf-probe.mjs`](../tools/deep-vlf-probe.mjs) | THE STANDING VLF-vs-CONTAMINATED-DEEP PROBE (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §9/§11/§12). |
@@ -181,6 +182,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`per-group-coverage.mjs`](../tools/per-group-coverage.mjs) | WHICH GROUP EXECUTES WHICH LINE — the map two separate optimisations have been blocked on. |
 | [`pin-coverage.mjs`](../tools/pin-coverage.mjs) | HOW MUCH OF THE CORPUS IS IN-BAND BLANKING? — the denominator behind `nPinSpanIntervals`. |
 | [`pletha-marker-oracle.mjs`](../tools/pletha-marker-oracle.mjs) | SCORE THE "ISOLATED 156 IS A MARKER" HEURISTIC AGAINST THE DEVICE'S OWN BEAT FLAG. |
+| [`ppg-autogain-e2.mjs`](../tools/ppg-autogain-e2.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-2, punch-list item 9 |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |
 | [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED candidates. |

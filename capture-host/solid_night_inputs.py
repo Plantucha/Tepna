@@ -48,7 +48,7 @@ import json
 import math
 import os
 import re
-from typing import Any
+from typing import Any, cast
 
 import nights_index as _ni
 import loss_audit as _la
@@ -355,8 +355,12 @@ def band_of(night_dir: str):
     # minutes {00, 01, 30, 59}: zero disagreements, and 23:00 fell inside the band it selects on every
     # one. So the site is removed instead of being excused in the equivalence ledger. 23:00 is the hour
     # because it lies inside `[D 18:00, D+1 10:00)` and would for any lower edge at or before 23:00.
-    probe = _dt.datetime.combine(d, _dt.time(23)).timestamp()
-    return _nqc.night_band(probe)
+    # FLOATING, through `nightqc.floating_stamp_s`, because `night_band`'s edges are floating as of
+    # 2026-10-18 (`nightqc._floating_band` carries the measurement). `.timestamp()` here resolved the
+    # civil 23:00 through the READER'S ZONE, and this module stayed green only because `in_band` made
+    # the same conversion on the other side — two wrong frames that cancelled.
+    probe = _nqc.floating_stamp_s(d.strftime("%Y%m%d") + "230000")
+    return _nqc.night_band(cast(float, probe))
 
 
 def _scope_file_count(night_dir: str, band) -> int:
@@ -470,7 +474,12 @@ def in_band(path: str, band) -> bool:
     # plausible year, so `strptime` cannot raise on what it hands back — and a `return True` that no
     # input can reach is a branch the mutation gate can neither kill nor excuse. The guarantee belongs
     # to `file_stamp`; duplicating it as dead code only hides which function owns it.
-    t = _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
+    # FLOATING, matching the band's own frame and `_session_of`'s contract. `.timestamp()` resolved the
+    # stamp through the reader's zone; it cancelled against `band_of`'s probe and does not cancel against
+    # a floating edge. `cast` states `file_stamp`'s guarantee — a 14-digit field with a plausible year,
+    # so `floating_stamp_s` cannot answer None — without adding the unreachable branch the comment
+    # above refuses.
+    t = cast(float, _nqc.floating_stamp_s(stamp))
     return band[0] <= t < band[1]
 
 
@@ -1855,6 +1864,16 @@ def expected_devices(night_dir: str, devices: list) -> list[dict]:
     return out
 
 
+def _band_civil(edge: float) -> _dt.datetime:
+    """A band edge as a NAIVE CIVIL datetime — the frame `worn_interval`'s ends are already in.
+
+    Its ends are row stamps, which are civil components with no zone, so the edge has to arrive the same
+    way. `fromtimestamp(edge)` on its own gave that by double negation while the band was built naive
+    local too; against a floating edge (`nightqc._floating_band`, 2026-10-18) it is a frame mix. Read as
+    UTC and dropped to naive, the components are the ones the capture wrote."""
+    return _dt.datetime.fromtimestamp(edge, _dt.timezone.utc).replace(tzinfo=None)
+
+
 def _truncate_to_band(night_dir: str, start, end):
     """Clip a worn interval to the night band, reporting whether it had to. `(start, end, truncated)`.
 
@@ -1863,8 +1882,8 @@ def _truncate_to_band(night_dir: str, start, end):
     band = band_of(night_dir)
     if band is None or start is None or end is None:
         return start, end, False
-    lo = _dt.datetime.fromtimestamp(band[0])
-    hi = _dt.datetime.fromtimestamp(band[1])
+    lo = _band_civil(band[0])
+    hi = _band_civil(band[1])
     new_start = max(start, lo)
     new_end = min(end, hi)
     if new_end <= new_start:  # the interval lies wholly outside its own band: nothing of it is this night

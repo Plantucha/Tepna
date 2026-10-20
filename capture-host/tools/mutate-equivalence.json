@@ -5212,6 +5212,24 @@
       "probe": "4536 candidate RTCLOG rows: 3 timestamp fields x 7 event spellings (`read`, `push`, `reset`, `read ` with a trailing space, ` read`, `battery`, empty) x 9 offset fields x 3 trailing-column shapes (none, the writer's `;;;;`, a bare `;`) x 4 line endings x 2 leading-newline variants. Compared the reader's DECISION per row -- skip / drop / read / push / reset -- across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
       "why": "The stripped text has exactly two consumers and an end-of-line strip reaches neither: `c[1] not in (\"push\", \"read\", \"reset\")` compares an INTERIOR field, and `float(c[2])` already tolerates surrounding whitespace. `len(c) < 3` counts `;` separators, which no strip variant changes. A row whose event field carries its own trailing space fails the membership test identically under all three.",
       "note": "PROBED AT THIS CALL SITE, not transferred. The same mutation text in `clocks` has its own pair of entries with its own probe, and this file's history records that a claim does not carry between call sites because the mutation looks the same — there the consumer is `float(p[2])` alone, here it is also an exact membership test on `c[1]`."
+    },
+    {
+      "brief": "NIGHTQC-FLOATING-BAND (#3663) — every night band edge built in the floating frame, 2026-10-19",
+      "class": "no-distinguishing-input",
+      "key": "- return _nqc.night_band(cast(float, probe)) | + return _nqc.night_band(cast(None, probe))",
+      "function": "band_of",
+      "op": "type-argument substitution inside `typing.cast`, which is the identity at runtime",
+      "probe": "No probe is possible and none is owed: the mutated subexpression's VALUE is `probe` on both sides, so every input is a non-distinguishing input. Verified by reading `typing.cast`'s own source in the interpreter the gate runs and by the identity check in `why`, 2026-10-19.",
+      "why": "`typing.cast` IS THE IDENTITY FUNCTION AT RUNTIME. Its body is `return val`, so `cast(None, v)` returns `v` itself whatever the first argument says — measured against the interpreter this gate runs: `inspect.getsource(typing.cast)` ends in `return val`, and `cast(None, o) is o` is True for an arbitrary object. The first argument is consumed by the TYPE CHECKER and never by the interpreter, so no input to this module can distinguish the mutant and there is nothing for a test to observe. The claim is NOT that the mutation is harmless: a different gate in the same `check.sh` owns it and does catch it. mypy on `return cast(None, x)` under a `-> float` signature reports `error: Incompatible return value type (got \"None\", expected \"float\")  [return-value]`, reproduced 2026-10-19 on a three-line file of this shape. A test written to chase it could only re-assert the surrounding behaviour the suite already covers. FALSIFY THIS by finding any first argument to `cast` that changes its return value."
+    },
+    {
+      "brief": "NIGHTQC-FLOATING-BAND (#3663) — every night band edge built in the floating frame, 2026-10-19",
+      "class": "no-distinguishing-input",
+      "key": "- t = cast(float, _nqc.floating_stamp_s(stamp)) | + t = cast(None, _nqc.floating_stamp_s(stamp))",
+      "function": "in_band",
+      "op": "type-argument substitution inside `typing.cast`, which is the identity at runtime",
+      "probe": "Same construct and same measurement as the entry above: `t` is bit-identical either side of the mutation, because the expression evaluates to `_nqc.floating_stamp_s(stamp)` whatever the first argument says, so every later use of `t` is identical too.",
+      "why": "`typing.cast` IS THE IDENTITY FUNCTION AT RUNTIME. Its body is `return val`, so `cast(None, v)` returns `v` itself whatever the first argument says — measured against the interpreter this gate runs: `inspect.getsource(typing.cast)` ends in `return val`, and `cast(None, o) is o` is True for an arbitrary object. The first argument is consumed by the TYPE CHECKER and never by the interpreter, so no input to this module can distinguish the mutant and there is nothing for a test to observe. The claim is NOT that the mutation is harmless: a different gate in the same `check.sh` owns it and does catch it. mypy on `return cast(None, x)` under a `-> float` signature reports `error: Incompatible return value type (got \"None\", expected \"float\")  [return-value]`, reproduced 2026-10-19 on a three-line file of this shape. A test written to chase it could only re-assert the surrounding behaviour the suite already covers. FALSIFY THIS by finding any first argument to `cast` that changes its return value."
     }
   ],
   "telemetry.py": [
@@ -5788,7 +5806,7 @@
   ],
   "qc_child.py": [
     {
-      "line": 42,
+      "line": 44,
       "before": "with open(status_path, encoding=\"utf-8\") as fh:",
       "op": "kwarg encoding=\"utf-8\" → None",
       "class": "untestable-by-design",
@@ -5798,7 +5816,7 @@
       "why": "`/proc/<pid>/status` is ASCII, and the default encoding on this platform IS UTF-8, so no in-process assertion can distinguish the mutant: the reader returns the same figure. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. Recorded as untestable-by-design rather than as a gap because the probe below KILLS each mutant when the mutant is applied by hand, and mutmut still reports it surviving: the test exists and works, and mutmut never routes it to these mutants. Same mechanism and same deduction as the oxy_inventory.py line-139 entries: the probe runs peak_kb in a SUBPROCESS, so the in-process tracer never records it touching this code. The two measurements are the hand-applied kill and the CI survival on #3693 at 428c9abe7; the selection mechanism is the hypothesis."
     },
     {
-      "line": 42,
+      "line": 44,
       "before": "with open(status_path, encoding=\"utf-8\") as fh:",
       "op": "kwarg encoding=\"utf-8\" → removed",
       "class": "untestable-by-design",
@@ -5806,6 +5824,16 @@
       "key": "- with open(status_path, encoding=\"utf-8\") as fh: | + with open(status_path, ) as fh:",
       "probe": "tests/test_qc_child.py::test_peak_kb_names_its_encoding_under_warn_default_encoding runs peak_kb under -X warn_default_encoding -W error::EncodingWarning. Applied by hand with PYTHONDONTWRITEBYTECODE=1 python -B: encoding=None fails it, the argument removed fails it, the shipped line passes it.",
       "why": "`/proc/<pid>/status` is ASCII, and the default encoding on this platform IS UTF-8, so no in-process assertion can distinguish the mutant: the reader returns the same figure. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. Recorded as untestable-by-design rather than as a gap because the probe below KILLS each mutant when the mutant is applied by hand, and mutmut still reports it surviving: the test exists and works, and mutmut never routes it to these mutants. Same mechanism and same deduction as the oxy_inventory.py line-139 entries: the probe runs peak_kb in a SUBPROCESS, so the in-process tracer never records it touching this code. The two measurements are the hand-applied kill and the CI survival on #3693 at 428c9abe7; the selection mechanism is the hypothesis."
+    }
+  ],
+  "cpap_continuity.py": [
+    {
+      "brief": "CPAP mid-session stall counter (residue 2026-10-05-cpap-stall-and-post-drop-counters-have-no-writer)",
+      "class": "untestable-by-design",
+      "function": "ContinuityTracker.note_frame",
+      "key": "- n, iv = 0, 0.0 | + n, iv = 1, 0.0",
+      "probe": "Loaded the original module and the mutant side by side and ran 2310 call scripts against each: 7 start stamps x 10 sample counts x 11 intervals, each driven through three call sequences (a fresh start then a following frame; a drop then a resume hint; a full session then a clean end). After every call the probe compared `snapshot()`, `status`, `gap_ms`, `stalls`, `_expected_next_ms`, `_interval_ms` and any exception raised. 0 of 2310 differed. Run empirically 2026-10-19.",
+      "why": "The line is the `except (TypeError, ValueError)` fallback, so it runs only when `int()` or `float()` raised, and it sets `iv` to 0.0 unconditionally. Four lines later `if start is None or iv <= 0: return` fires on that 0.0. `n` has exactly one reader, `self._expected_next_ms = start + n * iv`, which sits after that return. The mutated value is unreachable by construction rather than merely untested. Surfaced because the stall counter put `note_frame` in diff-scope."
     }
   ]
 }

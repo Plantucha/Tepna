@@ -99,12 +99,32 @@ class GapCounters:
     bytes_wire: int = 0
     bytes_json: int = 0
     overflow: int = 0  # frames dropped because the bounded queue was full (G5)
-    # ⚠️ None, NOT 0 — these two have NO DETECTOR, and `0` is a measurement they have not made (§∅).
-    # Measured 2026-09-18: nothing anywhere increments either one. A reader of `0` concludes no stall and
-    # no post-drop tail occurred; the truth is that neither is looked for. A missing field is visible and
-    # a zero is not, which is why the fields stay and the VALUE carries the absence.
-    stalls: "int | None" = None  # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — UNMEASURED
-    post_drop_tail: "int | None" = None  # frames after a logical link drop (audit §7.3, the ~230 ms tail) — UNMEASURED
+    # ⚠️ None, NOT 0 — a field with no detector must not report a measurement it has not made (§∅).
+    # Measured 2026-09-18: nothing anywhere incremented either one. A reader of `0` concludes no stall
+    # and no post-drop tail occurred; the truth was that neither was looked for. A missing field is
+    # visible and a zero is not, which is why the fields stay and the VALUE carries the absence.
+    #
+    # `stalls` NOW HAS A DETECTOR — `cpap_continuity.ContinuityTracker.stalls`, written onto this
+    # record by `cpap_stream.stream_to_bus`. It counts frames whose device clock lands more than one
+    # interval past the sample the previous frame owed, which is the §30 condition measured on the
+    # device's own stamps. It stays None on a pump running without a continuity tracker, because that
+    # pump compared nothing.
+    #
+    # `post_drop_tail` NOW HAS ONE TOO — `note_link_down_frame`, called by `as11_pull.stream` for every
+    # frame it reads once the transport hands it a drop probe. The probe is the BLE transport's own
+    # disconnect callback (`capture._cpap_ble_connect`), which is where the instant lives; audit §7.3
+    # measured that boundary ~230 ms wide on real hardware, so a frame read after it is the buffered
+    # tail and last-SEEN is not last-SENT. It stays None on a pump whose transport offers no probe,
+    # because that pump looked for nothing.
+    #
+    # ⚠️ A TAIL FRAME IS NOT A LOST FRAME, which is why this one is outside `total_lost` as well. The
+    # loop consumes it and every sink receives it (`stream_to_bus`'s DRAIN-ON-DISCONNECT). What the
+    # count says is that the session's END is fuzzy: the device was still sending when we stopped
+    # being connected. The completeness axis already reads that session as PARTIAL through
+    # `stopped_cleanly`, so adding this to a loss total would double-count a drop and misname arrived
+    # data as missing.
+    stalls: "int | None" = None  # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — see above
+    post_drop_tail: "int | None" = None  # frames read after a logical link drop (audit §7.3) — see above
     # HOW LONG A SINK WRITE HELD THE LOOP. `stream_to_bus` is a single sequential `async for` — producer
     # and consumer are the same coroutine — so a slow sink stops the loop pulling frames. Measured
     # 2026-09-18: the loop stalls 10-35x/day, median 1502 ms, and 121 of 151 logged stalls fall inside a
@@ -139,6 +159,16 @@ class GapCounters:
         else:
             self.malformed += 1
 
+    def note_link_down_frame(self, down) -> None:
+        """Fold one frame's LINK STATE in: `down` is truthy when the transport has already reported an
+        unsolicited disconnect, so this frame is part of the post-drop tail.
+
+        Call it for EVERY frame the loop reads, not only the ones after a drop. The field must be able
+        to say "a probe looked and the link never dropped", and that reading is `0`; an increment-only
+        writer can only ever leave it None or positive, which is the §∅ shape where absence and zero
+        are indistinguishable. Same construction as `note_sink_write` one method down."""
+        self.post_drop_tail = (self.post_drop_tail or 0) + (1 if down else 0)
+
     def note_sink_write(self, ms: float) -> None:
         """Fold one sink write's duration in. Call it for EVERY write, not only slow ones — a maximum
         over an unknown denominator cannot be read.
@@ -166,11 +196,15 @@ class GapCounters:
 
     @property
     def lost_coverage(self) -> "list[str]":
-        """The loss categories `total_lost` does NOT cover, because nothing measures them yet.
+        """The loss categories NOTHING HAS MEASURED. Published beside the total so a reader can tell an
+        honest partial from a complete one.
 
-        Published beside the total so a reader can tell an honest partial from a complete one. Empty
-        means the total is complete — which is the state this field exists to let us reach, and to make
-        the reaching of it visible."""
+        ⚠️ Empty does NOT mean `total_lost` covers every category — it means every category was looked
+        for. `stalls` counts stall EVENTS on the device clock, not frames, so adding it to a frame total
+        would be the "lie with more addends" `total_lost` above refuses; it leaves this list once it has
+        a value and is still outside the total. `sink_errors` is already in that shape. The consumer
+        that decides completeness sums the measured categories itself and reads this list for the rest
+        (`acq_evidence_cpap`), which is why the two halves must stay separate here."""
         return [n for n in ("stalls", "post_drop_tail") if getattr(self, n) is None]
 
     def summary(self) -> dict:

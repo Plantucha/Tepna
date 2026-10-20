@@ -368,6 +368,20 @@ export function newEntries(existing, emit) {
   return (emit || []).filter((e) => !seen.has(ekey(e)) && !(seen3.has(k3(e)) && !collides.has(k3(e))));
 }
 
+/* THE LEDGER'S INDENT IS READ FROM THE LEDGER, NEVER ASSUMED.
+   `--emit` serialised with a hardcoded 2-space indent while the committed
+   `tools/mutate-equivalence.json` carries 1 space, so adding 7 entries rewrote all 3918 lines and
+   the review surface became the whole file rather than the 7 entries (measured 2026-10-19 on the
+   oxydex-dsp battery: 3981 insertions, 3918 deletions for a 64-line addition). A reviewer who
+   cannot see the entries cannot check them, and this ledger EXCUSES mutants from the gate's
+   denominator — the one place a diff must stay legible. Neither indent is canonical; whatever the
+   file already carries is. A ledger with no indented line falls back to one space, which is what
+   every committed entry uses. */
+export function ledgerIndent(text) {
+  const m = /^\{\r?\n([ \t]+)"/.exec(String(text || ''));
+  return m ? m[1] : ' ';
+}
+
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
 /* ── THE VERDICT, PURE ─────────────────────────────────────────────────────────────────────────
    `families` is one `{ name, outcome }` per DECLARED family. `outcome` is the reason it ended:
@@ -524,6 +538,19 @@ if (IS_MAIN && has('--selftest')) {
   ok('batteryIsDegenerate CATCHES a one-answer baseline (the #1052 artefact)', batteryIsDegenerate(['x', 'x', 'x', 'x'], 2) === true);
   ok('batteryIsDegenerate accepts a varied baseline', batteryIsDegenerate(['x', 'y', 'z'], 2) === false);
   ok('batteryIsDegenerate counts DISTINCT, not length', batteryIsDegenerate(new Array(500).fill('same'), 2) === true, '500 identical inputs is still one answer');
+
+  ok('ledgerIndent reads the committed ledger\u2019s own 1-space indent', ledgerIndent('{\n "a": 1\n}') === ' ');
+  ok('ledgerIndent reads a 2-space ledger as 2 spaces', ledgerIndent('{\n  "a": 1\n}') === '  ');
+  ok('ledgerIndent reads a tab-indented ledger as a tab', ledgerIndent('{\n\t"a": 1\n}') === '\t');
+  ok('ledgerIndent falls back to one space when nothing is indented', ledgerIndent('{}') === ' ', 'an empty ledger must not reflow the next one');
+  ok(
+    'serialising with the read indent REPRODUCES the file, so an emit of nothing diffs nothing',
+    (() => {
+      const src = '{\n "x.js": [\n  {\n   "line": 1\n  }\n ]\n}\n';
+      return JSON.stringify(JSON.parse(src), null, ledgerIndent(src)) + '\n' === src;
+    })(),
+    'the hardcoded 2-space writer reflowed all 3918 lines of a 1-space ledger'
+  );
 
   const REC = { file: 'x.js', killed: 2, survivors: [{ line: 9, op: 'cmp', after: 'a >= b' }], invalids: [] };
   ok('parseSweep reads NDJSON — one dense line, the mutate.mjs --json shape', parseSweep(JSON.stringify(REC) + '\n').survivors[0].line === 9);
@@ -1047,7 +1074,8 @@ async function main() {
       process.exit(1);
     }
     const path = join(ROOT, 'tools/mutate-equivalence.json');
-    const doc = JSON.parse(readFileSync(path, 'utf8'));
+    const raw = readFileSync(path, 'utf8');
+    const doc = JSON.parse(raw);
     const existing = doc[FILE] || [];
     /* Both sides of the dedup must build the key the SAME way, and the way `classifySurvivors` does:
        no trim. The two halves disagreed (`(e.before||'').trim()` here against a raw `e.before`
@@ -1067,7 +1095,7 @@ async function main() {
        recoverable; a silently excused mutant is not. */
     const added = newEntries(existing, emit);
     doc[FILE] = existing.concat(added);
-    writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
+    writeFileSync(path, JSON.stringify(doc, null, ledgerIndent(raw)) + '\n');
     console.log(`emitted ${added.length} new entr${added.length === 1 ? 'y' : 'ies'} for ${FILE} (${emit.length - added.length} already recorded)`);
     console.log('DISTINGUISHABLE survivors are deliberately NOT emitted — they are debt, and they stay in the denominator.');
   } else if (emit.length) {

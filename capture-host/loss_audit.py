@@ -1317,14 +1317,33 @@ def wear_ends(night_dir: str, model: str) -> dict:
     spec = (_RING_SPO2, []) if ring else _WEAR_STREAM.get(model)
     if spec is None:
         return {"available": False, "reason": f"no wear-end rule for model {model!r}"}
-    contact = nightqc.ppg2w_contact_quality(night_dir) if ring else []
+    files = _recording_glob(night_dir, spec[0])
+    contact = _ring_contact(files) if ring else []
     ends = []
-    for f in _recording_glob(night_dir, spec[0]):
+    for f in files:
         try:
             ends.append(_ring_end(f, night_dir, contact) if ring else _wear_end(f, night_dir, model))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
     return {"available": True, "ends": ends, "worn_end": worn_end_of(ends)}
+
+
+def _ring_contact(spo2_files: list[str]) -> list[dict]:
+    """The PPG2W contact blocks for these ring SpO2 files, read from EACH file's own folder.
+
+    🔴 2026-10-18: the ring lost its link at 03:46 and reconnected at 03:46:22, so the second session's
+    files landed in the 2026-10-19 folder. `_recording_glob` found that SpO2 file there, but the contact
+    blocks were read from the night's folder alone. The second session had no PPG2W witness, its end read
+    `quiet-end-unclassified`, and the ring's whole night went UNKNOWN although its PPG2W file was on disk.
+    Each folder reads only the PPG2W files paired with a ring SpO2 file it holds, so a next-day folder
+    costs only the sessions that belong to this night."""
+    by_dir: dict[str, set[str]] = {}
+    for f in spo2_files:
+        by_dir.setdefault(os.path.dirname(f), set()).add(os.path.basename(f)[: -len("_SPO2.csv")] + "_PPG2W.txt")
+    out: list[dict] = []
+    for d in sorted(by_dir):
+        out.extend(nightqc.ppg2w_contact_quality(d, only=frozenset(by_dir[d])))
+    return out
 
 
 def worn_end_of(ends: list[dict]) -> dict | None:

@@ -160,6 +160,7 @@ async def stream_to_bus(
     continuity=None,
     events=None,
     extra_ids=(),
+    link_down=None,
 ):
     """Establish the encrypted session, then fan each AS11 StreamData batch out to `bus` AND to any
     `extra_sinks`. Returns the number of batches delivered.
@@ -180,6 +181,11 @@ async def stream_to_bus(
     batch before the read fails. So every sink is CLOSED in a finally: a disconnect is never treated as
     end-of-data, and each delivered batch is finalized rather than lost with the exception. The file an
     EDF sink writes is only whole once closed, so this is what makes an interrupted night's EDF readable.
+
+    AND THE TAIL IS NOW COUNTED. `link_down` is the transport's drop probe, forwarded to the pull loop,
+    which folds every frame it reads into `counters.post_drop_tail`. The paragraph above has described
+    that ~230 ms fragment since the drain was written; until the probe reached this layer the field it
+    belongs in had no writer, so CPAP completeness could never be anything but UNKNOWN.
     """
     channels = channels or BRP_CHANNELS
     # UNPUBLISHED ids (Unit 2, 2026-09-19). Requested from the device in the SAME stream — one stream, no
@@ -215,6 +221,10 @@ async def stream_to_bus(
                 "on_event": events.note,
                 "on_subscribed": events.note_subscribed,
             }
+        # The drop probe rides the same bag, for the same reason: a pump whose transport offers none
+        # makes the byte-identical pull call it always made, and the counter stays None.
+        if link_down is not None:
+            _ev_kw["link_down"] = link_down
         async for batch in as11_pull.stream(
             write,
             recv_frame,
@@ -299,6 +309,13 @@ async def stream_to_bus(
     finally:
         for s in sinks:
             s.close()
+        if continuity is not None:
+            # THE STALL WRITER. `stalls` was declared with a spec citation and no detector behind it,
+            # so `lost_coverage_missing` named it on every session and completeness could never read
+            # COMPLETE. The detector is the continuity tracker's own owed-sample comparison; this line
+            # is what carries it onto the gap-accounting record. BEFORE `summary()`, because
+            # `lost_coverage` reads the field.
+            counters.stalls = continuity.stalls
         _summary = counters.summary()
         if events is not None:
             # The trigger's stop is the pump ending — however it ended. Recorded before the snapshot so
@@ -313,7 +330,8 @@ async def stream_to_bus(
             # (measured 2026-09-18: raw_record_factory None ⇒ acq_evidence_out None ⇒ no envelope).
             _summary = {**_summary, **continuity.snapshot()}
             continuity.note_end(clean=clean)
-        if counters.total_lost or counters.sink_errors or counters.foreign_stream:
+        # A measured stall is known loss, so it raises the line to WARNING like the other categories.
+        if counters.total_lost or counters.sink_errors or counters.foreign_stream or counters.stalls:
             _log.warning("CPAP stream gap accounting: %s", _summary)
         else:
             _log.info("CPAP stream gap accounting: %s", _summary)
@@ -583,6 +601,16 @@ class LiveStreamController:
         self._disconnect = disconnect
         self._stop = asyncio.Event()
         kw = {"channels": self._channels, "should_stop": self._stop}
+        # THE DROP PROBE, when this transport carries one. It rides ON `disconnect` rather than as a
+        # fourth element of the tuple, and that is a deliberate choice about blast radius: the connect
+        # result is unpacked as a triple at fifteen call sites on the P0 path — the two operator
+        # probes, the spool pull, the adapter failover, the one-shot notify retry — and in every
+        # injected transport in the tests. Widening the contract for all of them to serve one consumer
+        # is the change this unit exists not to make. The carrier is the right one too: both halves
+        # answer a question about the link ending, one asking and one telling.
+        _probe = getattr(disconnect, "link_down", None)
+        if _probe is not None:
+            kw["link_down"] = _probe
         # INV8: the session's opening continuity state is resolved HERE, before the pump sees a frame.
         # After a drop it is `resumed-unverified` until the first frame's device clock says otherwise.
         if self._continuity is not None:
