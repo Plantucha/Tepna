@@ -973,10 +973,10 @@ def _floating_mtime(path: str, recorded: "dict | None") -> float:
     runs on the box that wrote the files, which is where it runs today, and it is wrong by a whole UTC
     offset anywhere else. The brief's answer to an unrecoverable offset is UNKNOWN with a named reason,
     and this return value has nowhere to carry one: `_recordings` consumes the end as a chain bound and
-    publishes no field for it (`begin` and `end` on a row are BAND edges, not this). So `_session_spans`
-    reaches this function only for a file whose own last row cannot answer — 172 of 1794 sessions on the
-    Aug-2026 tree, where `cached_row_end` answers for the other 1622 — and the premise is confined to
-    those (row `2026-10-20-a-session-with-no-host-column-still-ends-on-the-reader-zone`).
+    publishes no field for it (`begin` and `end` on a row are BAND edges, not this). 🔴 So the ONE caller
+    reaches this function only PAST ITS OWN DEADLINE, which is a cold cache's first pass — a file whose
+    last row cannot answer inside the budget adds no end at all, and keeps its own start. The premise is
+    confined to that one pass (row `2026-10-20-a-span-pass-past-its-budget-ends-on-the-reader-zone`).
 
     ⏪ A REFUSED RECOVERY LANDS HERE TOO, and that direction is the safe one. `recorded_writer_offset`
     hands back None when a night's sessions disagree, which is a DST seam — and one offset is wrong for
