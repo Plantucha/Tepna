@@ -95,6 +95,8 @@ from mutation_diff import (  # noqa: E402
     mutant_file_line,
     survivor_location,
     in_glob_scope,
+    timed_out_in_scope,
+    retry_outcome,
     source_function_of_glob,
     undecided_by_function,
     unmutatable_decorator,
@@ -350,6 +352,12 @@ def main(argv=None) -> int:
         # whose every other number was honest (`mutation_diff.result_inconsistency`'s fourth bullet).
         "notRequired": 0,
         "emptyDiff": 0,
+        # THE BOUND IS PART OF THE MEASUREMENT. A mutant reported UNDECIDED because the clock ran out
+        # says nothing about the suite, and a reader cannot tell that case from "no test covers it"
+        # unless the verdict says how many mutants ran again under the wider bound and how many that
+        # settled (residue `2026-10-19-a-mutant-whose-cost-is-a-wait-spends-its-own-bound`).
+        "timeoutRetried": 0,
+        "boundTooTight": 0,
     }
     _pop = {"checked": 0, "eligible": 0}
     # THE SCOPE, so the prose can name it truthfully. The gate mutates whole FUNCTIONS (#1761 —
@@ -372,6 +380,8 @@ def main(argv=None) -> int:
         _counts["astNarrowed"] = _narrow_box[0]
         _counts["survived"] = len(verdict.get("survivors", []))
         _counts["undecided"] = len(undecided)
+        _counts["timeoutRetried"] = _timeout_retry["retried"]
+        _counts["boundTooTight"] = len(_timeout_retry["settled"])
         # A PASS OVER NOTHING IS NOT A PASS (§🧾). Python changed, every changed line fell outside
         # mutation scope, each file was correctly announced as skipped — and then this emitted PASS with
         # `checked: 0`, which the contract calls invalid. NOT_APPLICABLE is what the same function
@@ -513,6 +523,10 @@ def main(argv=None) -> int:
     # THIS TOOL CANNOT MUTATE ONE, so it was never examined. Counted apart so the summary can say so.
     _unexaminable: list = []
     _out_of_scope: int = 0  # undecided mutants belonging to functions the diff never touched
+    # A mutant that hit the FIRST wall bound and ran again under the wider one. `settled` holds the
+    # names the retry settled either way — killed or surviving — because the second run is harvested
+    # through the ordinary survivor path and this counter never claims a kill (mutation_diff.retry_outcome).
+    _timeout_retry: dict = {"retried": 0, "settled": [], "stillTimingOut": [], "newlyTimingOut": []}
     # §3c — a glob whose COUNT could not be trusted: the scan read nothing, or two independent
     # counts of the same mutants disagreed. Neither "crashed" (something did run) nor "nothing to
     # mutate" (that claims a fact about the code); the honest word is that this tool cannot say.
@@ -722,6 +736,69 @@ def main(argv=None) -> int:
                 print(f"    ⊘ {_refused_budget[-1]}", flush=True)
                 continue
             _ran += 1
+            # ── A MUTANT WHOSE COST IS A WAIT SPENDS A BOUND THAT NEVER COUNTED THE WAIT ─────────
+            # mutmut's bound is derived from the CLEAN baseline, which never pays a wait only a mutant
+            # can lengthen, so the mutant reads `timeout` however sensitive the suite is — and this
+            # gate refuses on it. The row measured two real ones in `/home/michal/wt-cpdrop-hrn`: a
+            # starved `should_stop` spent a 6.09 s bound on a 5 s grace, and a `None`
+            # `subscribe_timeout_s` ran a 10 s hung read against a 3.21 s bound. Both killers fired
+            # inside 0.7 s once the waits were bounded.
+            #
+            # So a timeout gets ONE retry at the wider bound, alone, inside what is left of the gate
+            # budget. It is cheap because mutmut resets the TIMEOUT verdicts alone when the multiplier
+            # changes and keeps every other one from cache: in the 13-mutant lab the retry cost 6.6 s
+            # and settled all three. A retry that cannot produce a verdict leaves the first one
+            # standing — a timeout the gate already refuses on is the cautious side.
+            _tmo = timed_out_in_scope(r.get("results") or "", g)
+            if _tmo:
+                _left2 = int(GATE_BUDGET_SEC - (time.monotonic() - _gate_t0 - _prework_sec))
+                if _left2 <= 0:
+                    print(
+                        f"    ⊘ {len(_tmo)} mutant(s) hit the {mut.TIMEOUT_MULTIPLIER}x bound and the "
+                        f"gate budget is spent — no retry, so they stay UNDECIDED",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"    \N{ALARM CLOCK} {len(_tmo)} mutant(s) hit the {mut.TIMEOUT_MULTIPLIER}x "
+                        f"bound; re-running them at {mut.WIDE_TIMEOUT_MULTIPLIER}x  [{_left2}s left]",
+                        flush=True,
+                    )
+                    r2 = mut.run_one(
+                        module,
+                        only=g,
+                        clean=_clean,
+                        timeout=max(1, _left2),
+                        timeout_multiplier=mut.WIDE_TIMEOUT_MULTIPLIER,
+                    )
+                    _dead = (
+                        r2.get("error")
+                        or r2.get("refused_memory")
+                        or r2.get("generation_timed_out")
+                        or r2.get("results_timed_out")
+                        or r2.get("timed_out")
+                        or not (r2.get("results") or "").strip()
+                    )
+                    if _dead:
+                        print(
+                            f"    ! the retry of {g} produced no verdict — the {len(_tmo)} timeout(s) stand",
+                            flush=True,
+                        )
+                    else:
+                        _rout = retry_outcome(_tmo, timed_out_in_scope(r2.get("results") or "", g))
+                        _timeout_retry["retried"] += _rout["retried"]
+                        for _k in ("settled", "stillTimingOut", "newlyTimingOut"):
+                            _timeout_retry[_k] += _rout[_k]
+                        print(
+                            f"      the wider bound settled {len(_rout['settled'])} of {_rout['retried']}"
+                            f"; {len(_rout['stillTimingOut']) + len(_rout['newlyTimingOut'])} still timing out",
+                            flush=True,
+                        )
+                        # The SECOND run is the one that gets harvested: its results carry the settled
+                        # mutants' real outcomes, and a mutant that SURVIVES the wider bound is a
+                        # survivor that must block. Never read a kill off the retry counter (#3729).
+                        r = r2
+                        _secs = time.monotonic() - _t0
             work = Path(r["work"])
             # §3 — run_one returned no error, but did mutmut actually TEST anything? A crash after
             # generation (a collection failure, a bad conftest) leaves the mutants recorded as null in the
@@ -1477,6 +1554,26 @@ def main(argv=None) -> int:
             "results` takes no glob and lists the whole workspace, including functions this diff\n"
             "  never touched. They were never run, so they are not evidence either way."
         )
+    # UNCONDITIONAL, for the reason the note above gives: a retry that settled EVERY timeout leaves
+    # `undecided` empty, so a count printed only inside that branch would go silent in exactly the run
+    # where the bound was the whole story. And a SETTLED mutant is not a clean bill of health — it says
+    # a wait in that function's covering set is unsized, which is the repair the row asks for
+    # (`memory/size-a-waiting-fixture-against-the-mutant`). The retry buys the verdict, not the fix.
+    if _timeout_retry["retried"]:
+        print(
+            f"\n  bound: {_timeout_retry['retried']} mutant(s) hit the {mut.TIMEOUT_MULTIPLIER}x "
+            f"per-mutant bound and were re-run once at {mut.WIDE_TIMEOUT_MULTIPLIER}x, which is "
+            f"mutmut's own default.\n"
+            f"  {len(_timeout_retry['settled'])} settled either way, "
+            f"{len(_timeout_retry['stillTimingOut'])} still timed out, "
+            f"{len(_timeout_retry['newlyTimingOut'])} timed out only under the wider bound.\n"
+            "  A settled one means a grace, sleep or timeout in its covering tests is unsized — size\n"
+            "  the wait against the MUTANT that removes it, not against the bound under test."
+        )
+        for _nm in _timeout_retry["settled"][:6]:
+            print(f"    ── settled at the wider bound: {_nm}")
+        if len(_timeout_retry["settled"]) > 6:
+            print(f"    … and {len(_timeout_retry['settled']) - 6} more")
     if undecided:
         by_status: dict[str, list[dict]] = {}
         for u in undecided:
@@ -1534,6 +1631,16 @@ def main(argv=None) -> int:
             "  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
             "  nobody measured, which is precisely what this refusal is here to stop."
         )
+        # ⚠️ AND THE GATE HAS ALREADY WIDENED THE BOUND ONCE, which is NOT the thing forbidden above.
+        # The forbidden move is a human tuning the knob against a refusal until it clears: the bound
+        # then comes from the data it judges, and nobody learns which mutants moved. The retry differs
+        # on three counts — the wider bound is mutmut's OWN default, pre-stated and never tuned here;
+        # it runs once and names the mutants; and the second run is re-harvested, so a mutant that
+        # SURVIVES the wider clock blocks like any other survivor. A `timeout` still listed above has
+        # therefore already had that bound, and a wider one is not what it needs. The count itself is
+        # printed UNCONDITIONALLY above, for the reason the out-of-scope note gives.
+        if _timeout_retry["retried"]:
+            print("  Every `timeout` above has already had the wider bound; it is unmeasured at both.")
         _note = report_only_refusal_note(a.report_only)
         if _note:
             print(_note)
