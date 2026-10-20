@@ -58,6 +58,84 @@ nobody re-checked is how a ledger becomes a place findings go to look answered.
 > re-anchored-or-removed). There is nothing outstanding from #3095 to work from. The #3022/#3024 ten
 > above are the live case, and they are the case the residue row was actually filed about.
 
+### Measured 2026-10-20 — re-surveying two merged batches, and the three ways a survivor stops being one
+
+Residue row `2026-10-12-the-api-lane-drain-batches-leave-mutation-survivors` recorded two CI survivor
+sets by mutmut id, read out of the job logs: **63** for #3476 at `05f4731f2` and **12** for #3494 at
+`b72f3f36d`. Both PRs merged on 2026-10-13, so the row is the only record. Re-measuring it on `main`
+at `a9e028a83` took ten scoped `tools/mutate.py --only` sweeps under the fleet rig lock — 1540 s,
+**645 mutants** over the ten functions that carried a survivor.
+
+**The 75 recorded entries are 74 distinct diff keys.** `loss_audit.x_sample_object__mutmut_16` and
+`__mutmut_17` delete different arguments of the same call and print the same line,
+`_dt.datetime(2026, 1, 22, 0, 0)`. §2a-bis argues content alone loses a twin from the ingest side;
+this is the same collision seen from the re-survey side, on the first set anyone re-measured.
+
+**And an id drifts while its text holds.** `mutation_diff.x_result_inconsistency__mutmut_45` is
+`__mutmut_50` today, same diff, same function, five positions along.
+
+#### What a set difference would have claimed, and what the sweeps found
+
+| | | share |
+|---|---|---|
+| **KILLED** — the mutant exists today and a test now sees it | **30** | 41 % |
+| **ABSENT** — no mutant with that text is generated any more | **30** | 41 % |
+| **STILL** — alive again today, and the gate requires it | **12** | 16 % |
+| **EXCUSED** — a `mutate-equivalence.json` entry now covers it | **2** | 3 % |
+
+A set difference over survivor lists reports *not a survivor today* and calls it a kill. That reads
+**60** kills here, and 30 of those 60 are mutants no test ever saw. **Three different events make a
+recorded survivor stop appearing, and only one of them is progress.**
+
+#### ABSENT usually means RELOCATED, which a function-scoped re-survey cannot see
+
+26 of the 30 absent keys are `loss_audit.sample_object`, whose `t0 = _dt.datetime(2026, 1, 1, 22, 0, 0)`
+line no longer exists. It was not deleted. #3667 split the fixture layout into `sample_night`, and its
+docstring says why: *"twenty-seven mutations of this layout survived the mutation gate while
+`sample_object` was the only way in"*. The mutants moved to a function whose name no record named, so a
+re-survey keyed on the recorded function reports absence where the finding is alive somewhere else.
+The remaining four behave the same way: `proc_util.kill`'s `signalled_group` flag is gone from the
+module (#3544) and `write_night`'s wrapped call was re-spelled, and in both cases the sweep over the
+**whole** enclosing function reports zero required survivors, which is what settles those four.
+
+#### The gate's own exclusions are part of a survivor's identity
+
+Today's ten sweeps leave **31 raw survivors**. The gate would demand twelve of them:
+
+| | |
+|---|---|
+| raw survivors | 31 |
+| `mutation_diff.string_only_verdict` rules out as a string-literal mutation | −14 |
+| `tools/mutate-equivalence.json` excuses | −5 |
+| **gate-required** | **12** |
+
+Every one of the twelve was already in the two recorded sets. **Nothing regressed, and no function
+grew a required survivor the CI runs had not named.** Read the raw list as a backlog and you size 31
+tests for twelve findings — the error this brief's §2f and the row `2026-10-13-eleven-mutants-survive-the-worn-verdict-and-the-process-kill` both record.
+
+#### Who killed the thirty
+
+Attribution here is by file history and by test name, not by bisection. #3667 is the answer for 26 of
+them: it pins `journal_shape` (19), `read_journal_shape` (3) and `write_sidecar_note` (4), and its own
+measurement reads *"436 killed / 113 survived becomes 507 killed / 18 survived"*. #3544's `test_proc_util.py`
+work covers `_leads_own_group` (2), and one of `mutation_diff.py`'s seven later commits covers
+`result_inconsistency` (1). The last kill is `LinkLogWriter.__init__`'s `_FlushHealth(None)`, where
+neither the function nor `test_writers.py` changed — so a sibling module's test now reaches it, and
+naming that test would cost a bisection this measurement did not buy.
+
+#### What is still open
+
+The twelve live in three functions. `telemetry.worn_verdict` holds five, which DRAFT #3748 addresses and
+which row `2026-10-13-eleven-mutants-survive-the-worn-verdict-and-the-process-kill` already carries. The
+other seven are one family: every keyword of an `open()` call in `writers.py` — `newline="\n"`,
+`encoding="utf-8"` and `buffering=1 << 16` — on `write_sidecar_note` (2) and `LinkLogWriter.__init__`
+(5). Row `2026-10-20-seven-open-keyword-mutants-survive-in-writers` carries them.
+
+**For this brief the measurement is one more acceptance argument.** Every number above came out of a
+1540 s mutation run plus a hand-written parse, because the record was a prose list of mutmut ids. An
+entry keyed as §2a-bis specifies would have answered *killed*, *relocated* or *still alive* for each of
+the 74 without running anything.
+
 ## 2 · Design
 
 One file, `mutation-survivors.json`, with a **`lane` field** — not two files. The mutant key is
