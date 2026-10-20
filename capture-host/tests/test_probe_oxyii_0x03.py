@@ -1037,6 +1037,22 @@ def test_a_header_too_short_to_read_is_none_and_a_measured_zero_is_a_value():
     assert probe.parse_header_word(_payload([7], hdr0=0)) == 0
 
 
+def test_a_payload_of_exactly_the_header_length_reads_and_one_byte_short_does_not():
+    # The boundary is `< HDR`, not `<= HDR`. Six bytes ARE the header, so a reply carrying the header
+    # and no body has still read the word, and only the fifth byte decides the refusal.
+    assert probe.parse_header_word(b"\x01\x02\x03\x04\x05\x06") == 0x04030201
+    assert probe.parse_header_word(b"\x01\x02\x03\x04\x05") is None
+
+
+def test_header_min_and_max_report_the_extremes_the_run_read():
+    # The ring reads a constant 0, so the extremes only separate from the constant on a firmware that
+    # fills the field. Three distinct words pin both ends against that day.
+    s = probe.header_word_stats(_hw([5, 9, 7], [250, 250, 250]))
+    assert (s["header_min"], s["header_max"]) == (5, 9)
+    assert s["header_values_distinct"] == 3
+    assert s["header_constant"] is False
+
+
 def test_the_measured_constant_reads_as_not_a_position():
     # P1's shape, worn, 2026-10-06: 887 replies, `[0:4]` zero on every one, and 11 of the 886 steps
     # matching — the replies that had declared 0 records. The share is 1.2 %, not 95 %.
