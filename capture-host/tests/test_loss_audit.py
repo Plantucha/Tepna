@@ -3676,6 +3676,34 @@ def _journal(stdout):
     return lambda *a, **k: R()
 
 
+def test_the_TUPLE_PROJECTION_carries_the_job_span_so_it_cannot_disagree_with_the_detail():
+    """🔴 Found by merging #3714, which landed a second answer to this same residue row. `attribute_gaps`
+    and `attribute` took no `spans`, so each returned the attribution the detail function gave BEFORE job
+    spans existed, under a docstring promising the two can never disagree.
+
+    The shape is a 10-12 gap: a stall whose START precedes it (#3714 dates a stall at its start, so it is
+    the BACKWARD candidate) inside a declared re-judge bracket. A job span outranks a backward line, so
+    the two surfaces disagreed by one cause string."""
+    start = dt.datetime(2026, 10, 13, 3, 22, 57)
+    spans = [(start, start + dt.timedelta(seconds=52), _REJUDGE)]
+    gap_at = start + dt.timedelta(seconds=33)
+    gaps = [(gap_at, 40.0)]
+    events = [(gap_at - dt.timedelta(seconds=12), loss_audit.LOOP_STALL)]
+
+    (bare,) = loss_audit.attribute_gaps_detail(gaps, events)
+    assert (bare["cause"], bare["cause_dir"]) == (loss_audit.LOOP_STALL, "before"), "the state on main"
+
+    (detail,) = loss_audit.attribute_gaps_detail(gaps, events, spans=spans)
+    assert (detail["cause"], detail["cause_dir"]) == (_REJUDGE, "in_job")
+    assert loss_audit.attribute_gaps(gaps, events, spans=spans) == [(gap_at, 40.0, _REJUDGE)], (
+        "the projection dropped the span and reported the stall"
+    )
+    assert loss_audit.attribute(gaps, events, spans=spans) == {_REJUDGE: 40.0 / 60.0}
+    # the bound: no span given, and all three agree on the stall again
+    assert loss_audit.attribute_gaps(gaps, events) == [(gap_at, 40.0, loss_audit.LOOP_STALL)]
+    assert loss_audit.attribute(gaps, events) == {loss_audit.LOOP_STALL: 40.0 / 60.0}
+
+
 def test_a_job_the_box_declares_is_read_as_a_SPAN_not_a_line():
     """Two lines bracket the job, and the span is what they bracket. The stall warning between them is a
     SAMPLE of the job's occupancy: it is read as no span of its own and ends nothing."""
@@ -3809,6 +3837,8 @@ def test_the_audit_writes_the_job_spans_beside_the_night(tmp_path):
         job_spans=lambda since, until: None,
     )
     assert unread["job_spans"] is None, unread["job_spans"]
+
+
 def test_a_loop_stall_line_names_no_device_and_is_still_a_cause_dated_at_the_stall_START():
     ev = loss_audit.read_journal("Test Ring TR-01", T0, T0 + dt.timedelta(days=2), run=_journal(_STALL_LINE))
     # logged when the loop woke (03:46:14); 15682 ms earlier is when the cause began

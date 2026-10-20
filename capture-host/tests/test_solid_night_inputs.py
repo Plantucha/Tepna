@@ -6235,6 +6235,8 @@ def test_the_box_s_own_re_judge_fails_the_band_the_way_the_unattributed_night_al
     d2 = tmp_path / "lone"
     d2.mkdir()
     assert _cont(d2, gaps=lone)["status"] == "PASS"
+
+
 # ── AN EVENT-LOOP STALL KEEPS THE BAR IT HAD (residue 2026-10-13-the-stall-that-tore-the-ring-is-invisible-…) ──
 def test_five_stall_gaps_fail_the_band_as_five_unattributed_gaps_did(tmp_path):
     five = [(f"2026-09-20T23:01:{s}0", 1.0, si.LOOP_STALL) for s in (1, 2, 3)] + [

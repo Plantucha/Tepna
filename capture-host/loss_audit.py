@@ -1072,14 +1072,20 @@ def attribute_gaps_detail(gaps, events, spans=None) -> list[dict]:
     return out
 
 
-def attribute_gaps(gaps, events) -> list[tuple[_dt.datetime, float, str]]:
+def attribute_gaps(gaps, events, spans=None) -> list[tuple[_dt.datetime, float, str]]:
     """[(gap start, seconds, cause)], one per gap — the tuple projection of `attribute_gaps_detail`.
 
     Published per gap (not only summed) because a consumer judging the WORN interval must count the gaps
     INSIDE it: the SOLID-NIGHT verdict's continuity band counts unattributed gaps by number as well as
     minutes, and only inside the worn interval (SOLID-NIGHT §3.4). A per-cause sum over the whole file
-    can answer neither."""
-    return [(r["at"], r["s"], r["cause"]) for r in attribute_gaps_detail(gaps, events)]
+    can answer neither.
+
+    ⚠️ `spans` RIDES THROUGH, and it is last and optional so every existing call reads unchanged. A
+    projection that dropped it returned the attribution the detail function had BEFORE job spans existed,
+    while claiming to be its projection — measured on a 10-12-shaped gap, `daemon:event-loop stall`
+    (`before`) here against `daemon:solid-night re-judge` (`in_job`) there. The docstring below promising
+    the two can never disagree is what made the omission unreadable."""
+    return [(r["at"], r["s"], r["cause"]) for r in attribute_gaps_detail(gaps, events, spans=spans)]
 
 
 def by_cause_of(per_gap) -> dict[str, float]:
@@ -1090,9 +1096,10 @@ def by_cause_of(per_gap) -> dict[str, float]:
     return out
 
 
-def attribute(gaps, events) -> dict[str, float]:
-    """Minutes per cause — the sum of `attribute_gaps`, so the two can never disagree."""
-    return by_cause_of(attribute_gaps(gaps, events))
+def attribute(gaps, events, spans=None) -> dict[str, float]:
+    """Minutes per cause — the sum of `attribute_gaps`, so the two can never disagree. `spans` rides
+    through for the same reason it does there."""
+    return by_cause_of(attribute_gaps(gaps, events, spans=spans))
 
 
 def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
