@@ -45,6 +45,12 @@ jobs:
     # pass spends the budget is still unmeasured, so a wider cap buys the job room to finish and says
     # nothing about why it needed the room. The residue row keeps that measurement owed:
     # 2026-10-05-the-js-mutation-job-cannot-finish-on-the-pr-that-makes-its-own-target-fast
+    # MEASURED 2026-10-20 over one population CI and the rig both ran, so the pass is no longer
+    # unmeasured: `briefs/JS-MUTATION-LANE-CI-COST-2026-10-20-BRIEF.md`. The worst of 63 runs spent
+    # 1506 s, 60 % of the step cap, and 37 % of that went on the per-FILE clean calibration run —
+    # `ecgdex-dsp.js` alone bills 407 CI seconds before one mutant runs. The whole-gate CI:rig factor
+    # is 2.32x-2.45x over two rig legs, NOT the 1.53x #3202 measured on capture-host clean runs, so size as rig
+    # seconds x 2.4 against the 2520 s step cap (break-even 1050 rig seconds).
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
