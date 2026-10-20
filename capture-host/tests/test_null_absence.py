@@ -174,3 +174,26 @@ def test_visibility_treats_adapters_null_as_an_empty_map():
     """`{"adapters": None}` is a record whose key exists with no value; `.get(k, {})` hands back the None.
     Hypothesis found it on 2026-10-10; an absent map is an empty one, never a crash."""
     assert ble_visibility.visibility([{"adapters": None}, {"adapters": {}}], "0") == {}
+
+
+def test_visibility_treats_a_truthy_non_map_adapters_as_an_empty_map():
+    """`or {}` admits any truthy non-map; Hypothesis found `{"adapters": True}` on 2026-10-20."""
+    for foreign in (True, 1, "hci0", [["hci0", {}]]):
+        assert ble_visibility.visibility([{"adapters": foreign}], "0") == {}
+
+
+def test_visibility_counts_a_non_map_adapter_entry_as_no_scan():
+    """An entry that is not a map is neither a completed scan nor a failed one; a real entry beside it still counts."""
+    recs = [{"adapters": {"hci0": 7, "hci1": {"devices_seen": 2, "targets": {"AA": -60}}}}]
+    out = ble_visibility.visibility(recs, "aa")
+    assert set(out) == {"hci1"}
+    assert out["hci1"]["scans_ok"] == 1
+    assert out["hci1"]["seen"] == 1
+
+
+def test_visibility_reads_a_non_map_targets_as_target_not_seen():
+    """A scan whose `targets` is not a map completed but cannot have seen the target."""
+    out = ble_visibility.visibility([{"adapters": {"hci0": {"devices_seen": 3, "targets": ["AA"]}}}], "AA")
+    assert out["hci0"]["scans_ok"] == 1
+    assert out["hci0"]["seen"] == 0
+    assert out["hci0"]["rate"] == 0.0
