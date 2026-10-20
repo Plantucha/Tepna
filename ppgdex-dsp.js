@@ -2927,6 +2927,53 @@
      `tools/cvhr-gap-edge.mjs`: 3 of 51 cases disagreed by one event — a 20-25 s hole with a rate
      step across it stamps an event on a second the hole itself spans, which ECGDex dropped and this
      node kept. Absent, nothing is excluded and the function behaves exactly as before. */
+  /* ── §∅ · THE MASK THE DETECTOR RAN ON, PUBLISHED AS RUN LENGTHS ───────────────────────────────
+     Residue `2026-10-19-the-cvhr-gap-mask-does-not-leave-the-node`. `cvhrFromNN` takes `spansGap`
+     and skips an event on a second a gap spans, so a consumer that recomputes the detector needs
+     that exact mask. `analyze` published a COUNT (`quality.nGapSpanIntervals`) and kept the mask
+     internal, so an outside recomputation rebuilt the time-gap half from the BEAT axis with a
+     `> GAP_S` rule and could not recover the bridged half at all. Measured 2026-10-19 by
+     `tools/cvhr-edge-widen.mjs`: 68 of 418 eligible streams refused, because the recomputed event
+     count differed from the published one by 1 to 8 events.
+
+     RUN LENGTHS, as `[first, n]` pairs over the SAME index space as `nn` and `tt` — the kept series,
+     never the input intervals. That is the distinction `quality.nInputIntervals` exists to make:
+     `nGapSpanIntervals` counts over EVERY input interval, this mask describes the kept subset, and
+     dividing one by the other mixes two populations (the measured symptom was a per-file "800 %").
+
+     §∅ — an absent mask is `null`, never `[]`. `[]` says "computed, and no interval spans a gap",
+     which is the common and the informative case. `null` says the node had no kept series to
+     describe. A zero-filled array says neither, which is the failure this rule exists to stop. */
+  function runsFromMask(mask) {
+    if (!mask || mask.length == null) return null;
+    const runs = [];
+    let first = -1;
+    for (let i = 0; i < mask.length; i++) {
+      if (mask[i]) {
+        if (first < 0) first = i;
+      } else if (first >= 0) {
+        runs.push([first, i - first]);
+        first = -1;
+      }
+    }
+    if (first >= 0) runs.push([first, mask.length - first]);
+    return runs;
+  }
+  /* The decoder ships beside the encoder, so a consumer reads the mask instead of reimplementing the
+     encoding. `len` is the length of the series the mask described (`nn.length`): the runs alone
+     cannot say where the series ends, and a consumer that guessed would mask the wrong tail. An
+     absent `runs` decodes to `null` — absence travels through, it does not become an empty mask. */
+  function maskFromRuns(runs, len) {
+    if (runs == null || !(len >= 0)) return null;
+    const mask = new Uint8Array(len);
+    for (const r of runs) {
+      if (!r || !(r[1] > 0)) continue;
+      const a = Math.max(0, r[0] | 0),
+        b = Math.min(len, (r[0] | 0) + (r[1] | 0));
+      for (let i = a; i < b; i++) mask[i] = 1;
+    }
+    return mask;
+  }
   function cvhrFromNN(nn, tt, activeSec, spansGap) {
     const N = nn.length;
     /* ── EVERY REFUSAL NAMES ITSELF, WITH THE QUANTITY AND THE BOUND (§∅, residue
@@ -5327,6 +5374,9 @@
     // …projected onto the kept series: cleanMask[j] / spansGap[j] describe nn[j], not input interval j.
     const kIdx = corr.keptIdx;
     const _spansGap = kIdx.map((i) => spansGapIn[i]);
+    /* §∅ — `null` when there is no kept series at all, because `[]` over an empty series would
+       claim "no interval spans a gap" about a series that does not exist. */
+    const _spansGapRuns = kIdx && kIdx.length ? runsFromMask(_spansGap) : null;
     const _spansPin = kIdx.map((i) => spansPinIn[i]);
     /* ⚠️ BOTH CONSUMERS, because `timeDomain` excludes through TWO separate channels and they feed
        different metrics: `omit` filters the base that SDNN/meanRR/HR are computed over, while
@@ -5861,6 +5911,12 @@
       sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
+      /* The mask `cvhrFromNN` ran on, as `[first, n]` runs over the `nn` index space, so an outside
+         recomputation scores the detector that shipped these numbers rather than one rebuilt from
+         the beat axis. `PPGDSP.maskFromRuns(runs, nn.length)` is the decoder. Published on the
+         refusal paths too: the mask describes the series whether or not the detector consumed it,
+         and `cvhrReason` already names a refusal. */
+      spansGapRuns: _spansGapRuns,
       // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
       // refusal path stays byte-stable and no committed fixture moves for an inert key.
       ...(_cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
@@ -6369,6 +6425,11 @@
        a contract between the nodes, not an internal detail of either. No existing caller reaches it
        through this surface; `analyze` still calls it directly. */
     cvhrFromNN,
+    /* ADDITIVE EXPORT — the published encoding's own pair. A consumer decoding `spansGapRuns` by
+       hand would fork the contract; `analyze` calls the encoder, and the decoder exists so the
+       reader of an export does not have to write one. */
+    runsFromMask,
+    maskFromRuns,
     timeDomain,
     poincare,
     lombScargle,
@@ -7052,7 +7113,24 @@
              this is the per-beat weight `analysis-stats.js tchSigmasFused` multiplies in. Unlike
              ECGDex's twin, NO beat is dropped on this value here — the full spine ships and the
              consumer weights it, so a low-c stretch stays visible rather than becoming a silent gap. */
-          conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() : null
+          conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() : null,
+          /* WHICH INTERVALS STRADDLE A GAP — the mask `cvhrFromNN` ran on, as `[first, n]` runs over
+             THIS series' index space, decoded by `PPGDSP.maskFromRuns(runs, n)`. It travels here, in
+             the block that carries the series it indexes, rather than beside `apnea.cvhrEvents`:
+             the runs are meaningless without `tSec`/`ms`, and two homes for one index space is how
+             an off-by-one gets published.
+             Residue `2026-10-19-the-cvhr-gap-mask-does-not-leave-the-node`. `quality.nGapSpanIntervals`
+             shipped a COUNT and the mask stayed inside `analyze`, so a consumer recomputing CVHR
+             rebuilt the time-gap half from this `tSec` axis with a `> 10 s` rule and could not
+             recover the bridged half at all. That rebuild cannot see a SHORT hole either: the node's
+             rule is two samples (16 ms at 125.7 Hz), so a 95 ms dropout invalidates an interval and
+             leaves `tSec` looking contiguous — measured in the suite as one CVHR event of
+             disagreement on a planted twin, and measured on the corpus as 68 of 418 eligible streams
+             refusing a recomputation by 1 to 8 events.
+             §∅ — `[]` is "computed, and no interval straddles a gap", which is the common case. The
+             key is absent only where this whole block is (no kept series), so an absent key is never
+             a zero. */
+          spansGapRuns: r.spansGapRuns || null
         };
       }
     }
