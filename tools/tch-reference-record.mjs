@@ -115,7 +115,39 @@ export function bootCiMean(xs, draws = BOOT_DRAWS, seed = BOOT_SEED) {
 }
 
 /* ── §8's paired drift, recomputed from the two runs rather than quoted from the brief ──────────── */
+/* A PAIR IS ONLY A PAIR WHEN BOTH LEGS CARRY THE SAME REFERENCE AXIS. `detail.axis` was the only
+   thing the two legs were ever checked on, and that check cannot see which timebase the REFERENCE was
+   built on (`tools/tch-firmware-reference.mjs --reference-axis`, residue
+   2026-10-18-tch-reference-and-h10-corner-sit-on-two-axes). A device-axis host leg against a
+   corrected-axis wall leg differs in TWO things at once, and the difference would be published as the
+   host discipline's cost. A legacy run carries no `detail.referenceAxis` and reads as `device`, which
+   is the only axis the reference ever had before the option existed. */
+export const REF_AXIS_DEFAULT = 'device';
+export function runReferenceAxis(run) {
+  return (run && run.detail && run.detail.referenceAxis) || REF_AXIS_DEFAULT;
+}
 export function pairedDrift(hostRun, wallRun) {
+  const hRef = runReferenceAxis(hostRun),
+    wRef = runReferenceAxis(wallRun);
+  if (hRef !== wRef) {
+    const corners = {};
+    for (const k of KEYS) corners[k] = null;
+    return {
+      quantity: 'reference-measured σ, host axis − wall axis, per night',
+      nights: 0,
+      first: null,
+      last: null,
+      line: DRIFT_LINE,
+      referenceAxis: null,
+      refused:
+        'the host leg built its reference on the ' +
+        hRef +
+        ' axis and the wall leg on the ' +
+        wRef +
+        ' axis — a σ is not comparable across reference axes either, so the difference would carry two changes at once',
+      corners
+    };
+  }
   const H = new Map(okRows(hostRun).map((r) => [r.night, r]));
   const W = new Map(okRows(wallRun).map((r) => [r.night, r]));
   const nights = [...H.keys()].filter((n) => W.has(n)).sort();
@@ -126,7 +158,16 @@ export function pairedDrift(hostRun, wallRun) {
       ? { n: d.length, medianAbs: r3(median(d.map(Math.abs))), median: r3(median(d)), hostLarger: d.filter((v) => v > 0).length, material: median(d.map(Math.abs)) > DRIFT_LINE }
       : null;
   }
-  return { quantity: 'reference-measured σ, host axis − wall axis, per night', nights: nights.length, first: nights[0] || null, last: nights[nights.length - 1] || null, line: DRIFT_LINE, corners };
+  return {
+    quantity: 'reference-measured σ, host axis − wall axis, per night',
+    nights: nights.length,
+    first: nights[0] || null,
+    last: nights[nights.length - 1] || null,
+    line: DRIFT_LINE,
+    referenceAxis: hRef,
+    refused: null,
+    corners
+  };
 }
 
 /* ── per corner, how many nights the classic hat put inside the pre-stated band ─────────────────── */
@@ -237,6 +278,99 @@ export function biasStratumVerdict(run, meta = {}) {
   });
 }
 
+/* ── §4's materiality line, spent on ONE pre-stated question ────────────────────────────────────── */
+/* DOES MATCHING THE REFERENCE AXIS REMOVE THE H10's HOST-MINUS-WALL GAP?
+   TCH-REFERENCE-POPULATIONS §8 published +0.540 bpm median Δσ on the H10 with host larger on 53 of 54
+   nights, one-sided, against −0.444 (7 of 54) and −0.278 (15 of 54) on the two optical corners. §8's
+   own reading: the H10's direction is the §2.3 axis defect rather than drift, because the reference
+   rode the raw device counter while the corner rode the corrected one.
+
+   THE CRITERION IS STATED HERE, BEFORE THE RUN THAT JUDGES IT (brief
+   TCH-REFERENCE-AXIS-MATCH-2026-10-20 §3): with the reference placed on the corner's own axis, the
+   H10's median paired |Δσ| against the wall leg is AT OR UNDER §4's materiality line of
+   ${DRIFT_LINE} bpm. PASS ⇒ the published gap was the mismatch. FAIL ⇒ the gap survives a matched
+   axis and the mismatch is not its cause — which is a finding, not a threshold to move.
+
+   THE SIDEDNESS IS REPORTED, NEVER DECIDED, and its band is pre-stated too: a two-sided difference
+   puts `hostLarger` inside [${AXIS_MATCH_SIDED[0]}, ${AXIS_MATCH_SIDED[1]}] of the scored nights.
+   It is a second quantity over the same data, and a verdict carries one criterion. */
+export const AXIS_MATCH_LINE = DRIFT_LINE;
+export const AXIS_MATCH_SIDED = [0.25, 0.75];
+export function axisMatchVerdict(runs, meta = {}) {
+  const drift = pairedDrift(runs.host, runs.wall),
+    hRef = runReferenceAxis(runs.host),
+    h = drift.corners.h10,
+    frac = h && drift.nights ? h.hostLarger / h.n : null;
+  let status, reason, result;
+  if (drift.refused) {
+    status = 'NOT_RUN';
+    reason = drift.refused;
+    result = null;
+  } else if (hRef !== 'corrected') {
+    status = 'NOT_APPLICABLE';
+    /* The contract wants `result: null` here, and that is the right shape: the criterion does not
+       bind, so there is no measurement of it. The figures this run DOES hold are the mismatch's own
+       cost, and they ride `pairedDrift` in the record beside this verdict. */
+    reason =
+      'the host leg built its reference on the ' +
+      hRef +
+      ' axis (' +
+      drift.nights +
+      ' paired night(s)), so this run is the mismatch itself and not a test of it — re-run the host leg with --reference-axis corrected';
+    result = null;
+  } else if (!h || drift.nights < MIN_NIGHTS) {
+    status = 'UNDERPOWERED';
+    reason = drift.nights + ' paired night(s) against the pre-stated minimum of ' + MIN_NIGHTS + (h ? '' : ' and no H10 Δσ was computable');
+    result = { referenceAxis: hRef, h10: h, nights: drift.nights };
+  } else {
+    status = h.medianAbs <= AXIS_MATCH_LINE ? 'PASS' : 'FAIL';
+    reason =
+      status === 'PASS'
+        ? null
+        : 'the H10 median |Δσ| is ' +
+          h.medianAbs +
+          " bpm with the reference on the corner's own axis, over §4's line of " +
+          AXIS_MATCH_LINE +
+          ' bpm (host larger on ' +
+          h.hostLarger +
+          ' of ' +
+          h.n +
+          ' nights) — a matched reference axis does not account for the gap';
+    result = {
+      referenceAxis: hRef,
+      h10: h,
+      verity: drift.corners.verity,
+      o2: drift.corners.o2,
+      nights: drift.nights,
+      sidedness: {
+        hostLarger: h.hostLarger,
+        of: h.n,
+        fraction: frac == null ? null : r3(frac),
+        band: AXIS_MATCH_SIDED,
+        twoSided: frac != null && frac >= AXIS_MATCH_SIDED[0] && frac <= AXIS_MATCH_SIDED[1]
+      }
+    };
+  }
+  return V.make({
+    gate: 'tch-reference-record:axis-match',
+    status,
+    population: {
+      name: 'nights paired across the two clock axes',
+      checked: status === 'NOT_RUN' ? 0 : drift.nights,
+      eligible: status === 'NOT_RUN' ? 0 : drift.nights,
+      excluded: 0,
+      first: drift.first,
+      last: drift.last
+    },
+    criterion: { name: 'h10_median_abs_dsigma_matched_reference_axis_vs_wall', threshold: AXIS_MATCH_LINE, unit: 'bpm', direction: 'lte' },
+    result,
+    evidence: ['tools/tch-reference-record.mjs', 'tools/tch-firmware-reference.mjs', 'briefs/TCH-REFERENCE-AXIS-MATCH-2026-10-20-BRIEF.md', CORPUS_PLACEHOLDER],
+    reason,
+    producedBy: { tool: 'tools/tch-reference-record.mjs', commit: meta.commit || null, ...(meta.commit ? {} : { commitReason: 'not run from a git checkout' }) },
+    at: meta.at
+  });
+}
+
 /* ── the privacy scrub: rewrite, then judge what was written ────────────────────────────────────── */
 const ABS_PATH = /(^|[\s"'(=])(\/[A-Za-z0-9_.-]+\/[^\s"')]*|[A-Za-z]:\\[^\s"')]*)/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -334,6 +468,9 @@ export function buildRecord(runs, meta = {}) {
       ', so it reproduces byte-for-byte',
     publishedIn: 'sensor-trio-night.html (the validation note under the per-device heroes), which inlines codegen/generated/tch-reference-record.js — the card composes every figure from this record',
     axisCanonical: 'host',
+    referenceAxisCanonical: runReferenceAxis(runs.host),
+    referenceAxisNote:
+      'which timebase the two-detector REFERENCE was built on. device is the status quo and the default: the beat clock is the raw device counter (ecgdex-dsp.js analyze). corrected places the reference on rec.tMsAt, the same axis the H10 corner already rides, which is what makes the H10 leg a same-axis comparison',
     axisNote:
       'host is the status quo: ECGDex and PpgDex already add DexClock.hostAxis correctionAt to the device counter, so the card runs on the host-disciplined axis. wall is the counterfactual leg — hostAxis suppressed, each parser on its raw device counter',
     band: { abs: BAND_ABS, rel: BAND_REL, passFraction: PASS_FRAC, minNights: MIN_NIGHTS },
@@ -368,7 +505,7 @@ export function buildRecord(runs, meta = {}) {
     },
     result: { verdicts: [] }
   };
-  rec.result.verdicts = [scrubVerdict(rec, meta), ...AXES.filter((ax) => runs[ax]).map((ax) => biasStratumVerdict(runs[ax], meta))];
+  rec.result.verdicts = [scrubVerdict(rec, meta), ...AXES.filter((ax) => runs[ax]).map((ax) => biasStratumVerdict(runs[ax], meta)), axisMatchVerdict(runs, meta)];
   return rec;
 }
 
@@ -468,6 +605,63 @@ function selftest() {
   ok(d.nights === 24 && d.corners.h10.medianAbs === 0.5 && d.corners.h10.hostLarger === 24, 'the paired drift is host − wall on the SAME nights: a planted +0.5 bpm reads as 0.5 on every night');
   ok(d.corners.verity.medianAbs === 0 && d.corners.verity.material === false, 'a corner with no planted drift reads 0 and is not material against the ' + DRIFT_LINE + ' bpm line');
   ok(pairedDrift(host, { detail: { nights: [] } }).nights === 0, 'no shared night ⇒ no paired result, never a one-sided difference');
+  /* THE MIXED PAIR. Both legs here hold the SAME nights and the same planted +0.5 bpm, so the drift is
+     computable — and must still be refused, because the two legs disagree on the reference axis. A
+     comparator that drifts them anyway publishes the axis change as the host discipline's cost. */
+  const hostCorr = { ...host, detail: { ...host.detail, referenceAxis: 'corrected' } };
+  const mixed = pairedDrift(hostCorr, wall);
+  ok(
+    mixed.refused != null && /different reference axes|reference on the corrected axis/.test(mixed.refused) && mixed.nights === 0 && KEYS.every((k) => mixed.corners[k] === null),
+    'DECOY · a corrected-axis host leg against a device-axis wall leg is REFUSED, not drifted (' + (mixed.refused || 'not refused').slice(0, 60) + '…)'
+  );
+  const matched = pairedDrift(hostCorr, { ...wall, detail: { ...wall.detail, referenceAxis: 'corrected' } });
+  ok(
+    matched.refused === null && matched.nights === 24 && matched.corners.h10.medianAbs === 0.5 && matched.referenceAxis === 'corrected',
+    'ANTI-VACUITY · the same two legs on a MATCHED reference axis drift exactly as before and the result names the axis'
+  );
+  ok(
+    runReferenceAxis(host) === 'device' && runReferenceAxis({}) === 'device' && pairedDrift(host, wall).referenceAxis === 'device',
+    'a legacy run with no detail.referenceAxis reads as device — the only axis the reference ever had'
+  );
+  /* the axis-match criterion: five pre-stated outcomes over planted pairs */
+  const wallCorr = { ...wall, detail: { ...wall.detail, referenceAxis: 'corrected' } };
+  const amNA = axisMatchVerdict({ host, wall }, { at: '2026-10-20T00:00:00Z' });
+  ok(
+    amNA.status === 'NOT_APPLICABLE' && /is the mismatch itself/.test(amNA.reason) && V.validate(amNA).ok,
+    'a device-axis host leg is NOT_APPLICABLE — it IS the mismatch, so it cannot test it (' + V.validate(amNA).errors.join(' | ') + ')'
+  );
+  const amMixed = axisMatchVerdict({ host: hostCorr, wall }, { at: '2026-10-20T00:00:00Z' });
+  ok(
+    amMixed.status === 'NOT_RUN' && amMixed.result === null && amMixed.population.checked === 0 && V.validate(amMixed).ok,
+    'a mixed pair examined nothing ⇒ NOT_RUN over checked 0, never a PASS by refusal'
+  );
+  const amFail = axisMatchVerdict({ host: hostCorr, wall: wallCorr }, { at: '2026-10-20T00:00:00Z' });
+  ok(
+    amFail.status === 'FAIL' && /0.5 bpm/.test(amFail.reason) && amFail.result.sidedness.twoSided === false && amFail.result.sidedness.hostLarger === 24 && V.validate(amFail).ok,
+    'ANTI-VACUITY · the planted +0.5 bpm one-sided gap FAILS the ' + AXIS_MATCH_LINE + ' bpm line and the sidedness is reported beside it'
+  );
+  const corr = (r) => ({ ...r, detail: { ...r.detail, referenceAxis: 'corrected' } });
+  const amPass = axisMatchVerdict({ host: corr(synthRun('host', { shift: 0 })), wall: corr(synthRun('wall', { shift: 0 })) }, { at: '2026-10-20T00:00:00Z' });
+  ok(
+    amPass.status === 'PASS' && amPass.result.h10.medianAbs === 0 && amPass.reason === null && amPass.result.sidedness.fraction === 0 && V.validate(amPass).ok,
+    'two legs that agree exactly on the H10 PASS and carry no reason — and read `hostLarger` 0, because a difference of zero has no side'
+  );
+  /* THE SHAPE THE BRIEF IS ACTUALLY ASKING ABOUT: a gap that survives but has lost its direction.
+     ±0.02 bpm alternating is under the line AND two-sided, which is what "the mismatch accounted for
+     it" looks like — distinct from the exact-zero leg above, which no real night produces. */
+  const alt = corr(synthRun('host', { shift: 0 }));
+  alt.detail = { ...alt.detail, nights: alt.detail.nights.map((r, i) => ({ ...r, trueSd: { ...r.trueSd, h10: r.trueSd.h10 + (i % 2 ? 0.02 : -0.02) } })) };
+  const amTwo = axisMatchVerdict({ host: alt, wall: corr(synthRun('wall', { shift: 0 })) }, { at: '2026-10-20T00:00:00Z' });
+  ok(
+    amTwo.status === 'PASS' && amTwo.result.h10.medianAbs === 0.02 && amTwo.result.sidedness.hostLarger === 12 && amTwo.result.sidedness.twoSided === true,
+    'ANTI-VACUITY · a ±0.02 bpm alternating gap PASSES the line and reads TWO-SIDED (12 of 24), which is the outcome the criterion was written to detect'
+  );
+  const amFew = axisMatchVerdict({ host: corr(synthRun('host', { shift: 0.5, n: 4 })), wall: corr(synthRun('wall', { shift: 0, n: 4 })) }, { at: '2026-10-20T00:00:00Z' });
+  ok(amFew.status === 'UNDERPOWERED' && /4 paired night/.test(amFew.reason) && V.validate(amFew).ok, 'fewer than MIN_NIGHTS paired nights ⇒ UNDERPOWERED, never a PASS on four nights');
+  ok(
+    buildRecord({ host, wall }, { at: '2026-10-20T00:00:00Z' }).result.verdicts.filter((v) => v.gate === 'tch-reference-record:axis-match').length === 1,
+    'the record carries exactly one axis-match verdict'
+  );
 
   const ci = bootCiMean([1, 1, 1, 1, 1]);
   ok(ci.lo === 1 && ci.hi === 1 && ci.mean === 1, 'the bootstrap of a constant is that constant');
@@ -603,6 +797,12 @@ async function main(argv) {
       return 2;
     }
   }
+  if (runReferenceAxis(runs.host) !== runReferenceAxis(runs.wall)) {
+    console.error(
+      `--host built its reference on the ${runReferenceAxis(runs.host)} axis and --wall on the ${runReferenceAxis(runs.wall)} axis — run both legs with the same --reference-axis, or the published drift carries two changes at once`
+    );
+    return 2;
+  }
   const out = arg('--out');
   const rec = buildRecord(runs, { commit, generated: arg('--date') || undefined, out: out || undefined });
   const scrub = rec.result.verdicts[0];
@@ -616,7 +816,9 @@ async function main(argv) {
   if (js) fs.writeFileSync(path.join(ROOT, js), twinSource(rec, out || 'analysis/published-numbers/tch-firmware-reference-' + rec.generated + '.json'));
   if (!out && !js) console.log(JSON.stringify(rec, null, 1));
   else {
-    console.error(`record: ${rec.claims.nightsScored} night(s) scored of ${rec.claims.nightsEligible}, ${rec.claims.dateFirst} → ${rec.claims.dateLast} · axis ${rec.axisCanonical}`);
+    console.error(
+      `record: ${rec.claims.nightsScored} night(s) scored of ${rec.claims.nightsEligible}, ${rec.claims.dateFirst} → ${rec.claims.dateLast} · axis ${rec.axisCanonical} · reference axis ${rec.referenceAxisCanonical}`
+    );
     for (const v of rec.result.verdicts) console.error(`  ${v.gate.padEnd(38)} ${v.status}${v.reason ? ' — ' + v.reason : ''}`);
     console.error(`  wrote ${[out, js].filter(Boolean).join(' + ')}`);
   }

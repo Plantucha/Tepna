@@ -213,6 +213,130 @@ export function pool(rows) {
 }
 /* ── the axis switch and the three populations (TCH-REFERENCE-POPULATIONS §5.1) ─────────────────── */
 export const AXES = ['host', 'wall'];
+/* ── THE REFERENCE'S OWN AXIS (residue 2026-10-18-tch-reference-and-h10-corner-sit-on-two-axes) ──
+   `--axis` decides whether the host discipline runs at all. It does NOT decide which of the two
+   timebases the REFERENCE is built on, and until this option existed the answer was fixed: the
+   reference rode the raw device counter (`analyze`'s `r.tt`, `ecgdex-dsp.js:2802-2812`) while the
+   H10 corner rode the corrected one (`rec.tMsAt`, `ecgdex-dsp.js:5610`). Under `--axis host` the
+   H10 was therefore scored against a reference derived from its own beats on a DIFFERENT axis, and
+   the divergence between the two is the host discipline's own correction.
+
+   `--reference-axis device` is that status quo and stays the default, so no shipped number moves.
+   `--reference-axis corrected` places the reference on the corner's axis by reading the record's own
+   accessor at the beat's sample index — `rec.tMsAt(refIdx[k])`, where `tt[k] = devMsAt(refIdx[k])/1000`
+   makes k the same beat (`ecgdex-dsp.js:1172-1176`, 2802-2812). NOTHING IN THE ESTIMATOR MOVES: the
+   same `nn` values are paired with times that carry the correction (brief §7, owner D7 2026-10-12 —
+   the hat itself is out of scope). Under `--axis wall` the two are the same axis by construction,
+   because `hostAxis` refuses and `_ecgCorrAt` is then null — which is the negative control. */
+export const REFERENCE_AXES = ['device', 'corrected'];
+export const REF_AXIS_DEFAULT = 'device';
+/* §∅ — A BEAT THAT CANNOT BE PLACED IS DROPPED, NEVER PLACED AT t0. The corrected branch refuses the
+   whole night when the record carries no `tMsAt` or a `refIdx` that is not aligned with `nn`: a
+   silent fall back to the device axis would make a corrected-axis row a device-axis row wearing the
+   other label, which is the very confusion this option exists to end. `applied` reports
+   `rec.tMsCorrected`, so a reader can tell "placed on the corrected axis" from "the correction was
+   live", which are different gates (`ecgdex-dsp.js:5612`). */
+export function referenceBeatTimes(rec, r, refAxis) {
+  const axis = refAxis || REF_AXIS_DEFAULT;
+  if (REFERENCE_AXES.indexOf(axis) < 0) throw new Error('unknown reference axis "' + axis + '" — one of ' + REFERENCE_AXES.join('|'));
+  const nn = (r && r.nn) || [],
+    tt = (r && r.tt) || [],
+    t0 = (r && r.t0Ms) || (rec && rec.t0Ms) || 0,
+    ms = [],
+    vals = [],
+    inBand = (x) => Number.isFinite(x) && x >= 200 && x <= 3000;
+  if (axis === 'corrected') {
+    /* 🔴 nn/tt ARE NOT INDEX-ALIGNED WITH refIdx, AND THE GUARD IS WHAT FOUND IT. `analyze` runs a
+       beat-confidence filter after `buildNN` and PUSHES the survivors (`ecgdex-dsp.js:2882-2894`), so
+       on a real night 5829 refined peaks become 5808 intervals. Its own comment says it: "`peaks[i]`,
+       `nnRes.nn[i]` and `sqi[i]` share an index only BEFORE the confidence filter below." The first
+       version of this function took the index for granted and the alignment check refused 2 of 2
+       nights rather than mis-pairing them.
+
+       So the beat is recovered BY ITS VALUE, not by its position. `tt[i]` is pushed unchanged from
+       `times[k] = devMsAt(refIdx[k]) / 1000` (`ecgdex-dsp.js:2802-2812`), so rebuilding that same
+       quantity over the unfiltered `refIdx` and keying it gives each surviving interval its sample
+       index back. Two beats sharing a device ms collapse to one key harmlessly: the correction is a
+       function of the device ms alone.
+
+       THE KEY IS ROUNDED TO MICROSECONDS, and raw float equality would have been a trap. In the real
+       path both sides evaluate the same expression on the same inputs and agree to the last bit, so
+       `===` works — and it stops working the moment either side is written differently. `3 * 0.01`
+       and `30 / 1000` are different doubles, which the selftest below plants on purpose. A microsecond
+       key cannot collide either: refined peaks sit ~7.7 ms apart at 130 Hz.
+
+       THIS BRANCH NEEDS THE DEVICE COUNTER. Without one, `analyze` builds its beat clock from the
+       sample index plus a dead-time fold and `tMsAt` does the same — there is no device axis to
+       correct, and a match by value would be a match between two different quantities. It refuses. */
+    const idx = r && r.refIdx;
+    if (typeof (rec && rec.tMsAt) !== 'function' || typeof (rec && rec.devMsAt) !== 'function' || !idx || !idx.length)
+      return {
+        ms: null,
+        nn: null,
+        axis,
+        applied: null,
+        dropped: null,
+        matched: null,
+        reason:
+          'the corrected reference axis needs rec.tMsAt, rec.devMsAt and a non-empty refIdx — got ' +
+          typeof (rec && rec.tMsAt) +
+          ', ' +
+          typeof (rec && rec.devMsAt) +
+          ' and ' +
+          (idx ? idx.length : 'no refIdx')
+      };
+    const byDevMs = new Map();
+    for (let k = 0; k < idx.length; k++) {
+      const d = rec.devMsAt(idx[k]);
+      if (d == null || !Number.isFinite(d))
+        return {
+          ms: null,
+          nn: null,
+          axis,
+          applied: null,
+          dropped: null,
+          matched: null,
+          reason:
+            'the record carries no usable device counter at refined peak ' +
+            k +
+            ' of ' +
+            idx.length +
+            ', so the beat clock is not on the device axis and there is nothing to place on the corrected one'
+        };
+      byDevMs.set(Math.round(d * 1e3), idx[k]);
+    }
+    let dropped = 0,
+      wanted = 0;
+    for (let i = 0; i < nn.length; i++) {
+      if (!inBand(nn[i]) || !Number.isFinite(tt[i])) continue;
+      wanted++;
+      const at = byDevMs.get(Math.round(tt[i] * 1e6));
+      const t = at === undefined ? null : rec.tMsAt(at);
+      if (!Number.isFinite(t)) {
+        dropped++;
+        continue;
+      }
+      ms.push(t);
+      vals.push(nn[i]);
+    }
+    /* A night that mostly fails to match is not a measurement of the corrected axis. The identity
+       above either holds for a record or it does not; a partial match means it broke, so the night
+       says so instead of scoring a mixture. */
+    if (wanted && ms.length < 0.99 * wanted)
+      return {
+        ms: null,
+        nn: null,
+        axis,
+        applied: null,
+        dropped,
+        matched: ms.length,
+        reason: 'only ' + ms.length + ' of ' + wanted + ' in-band beats matched a refined peak by device ms — the beat-clock identity this branch rests on does not hold for this record'
+      };
+    return { ms, nn: vals, axis, applied: !!rec.tMsCorrected, dropped, matched: ms.length, reason: null };
+  }
+  for (let i = 0; i < nn.length; i++) if (inBand(nn[i]) && Number.isFinite(tt[i])) ms.push(t0 + tt[i] * 1000), vals.push(nn[i]);
+  return { ms, nn: vals, axis, applied: false, dropped: 0, matched: ms.length, reason: null };
+}
 export const ROLLING_N = 30;
 export const AXIS_WALL_REASON = '--axis wall: host discipline suppressed for the paired comparison';
 export const SOLID_GATE = 'solid-night';
@@ -379,9 +503,12 @@ export function selectPopulations(rows, solid) {
 /* A LEDGER ROW IS KEYED BY NIGHT **AND** AXIS. Without the axis a wall-axis row satisfies a host-axis
    run and the paired comparison silently compares a population with itself. A legacy row carries no
    `axis` field and reads as `host`, which is what it was: every row written before this option existed
-   was produced with `clock.js` in the realm, i.e. host-disciplined. */
-export function ledgerKey(night, axis) {
-  return String(night) + '\u0000' + (axis || 'host');
+   was produced with `clock.js` in the realm, i.e. host-disciplined. THE SAME HOLDS FOR THE REFERENCE
+   AXIS: a row with no `referenceAxis` reads as `device`, which is the only axis the reference was ever
+   built on before `--reference-axis` existed. A matched-axis row and a mixed-axis row must never share
+   a key, or the paired comparison compares a population with itself. */
+export function ledgerKey(night, axis, refAxis) {
+  return String(night) + '\u0000' + (axis || 'host') + '\u0000' + (refAxis || REF_AXIS_DEFAULT);
 }
 
 export function verdictObject(P, rows, meta) {
@@ -389,6 +516,11 @@ export function verdictObject(P, rows, meta) {
   const r3 = (x) => (Number.isFinite(x) ? +x.toFixed(3) : null);
   const span = dateSpan(rows);
   const axis = meta.axis || 'host';
+  /* BOTH axes ride the verdict. A σ measured against a reference on the device counter and one
+     measured against a reference on the corrected axis are different measurements of the same night;
+     a reader that sees only `axis` cannot tell them apart. */
+  const refAxis = meta.referenceAxis || REF_AXIS_DEFAULT;
+  const axisWord = 'axis ' + axis + ' · reference axis ' + refAxis;
   let status,
     reason = null;
   if (meta.notRun) {
@@ -396,11 +528,11 @@ export function verdictObject(P, rows, meta) {
     reason = meta.notRun;
   } else if (P.nights < MIN_NIGHTS) {
     status = 'UNDERPOWERED';
-    reason = `${P.nights} night(s) scored < the pre-stated minimum of ${MIN_NIGHTS} · axis ${axis}`;
+    reason = `${P.nights} night(s) scored < the pre-stated minimum of ${MIN_NIGHTS} · ${axisWord}`;
   } else if (P.classic.frac >= PASS_FRAC) status = 'PASS';
   else {
     status = 'FAIL';
-    reason = `classic hat: ${P.classic.pass}/${P.classic.total} optical night-corners within ±${BAND_ABS} bpm or ±${BAND_REL * 100} % of the reference-measured σ (< ${PASS_FRAC * 100} %); Verity σ̂ ${r3(P.medians.verity.classic)} vs true ${r3(P.medians.verity.trueSd)} bpm, ρ(V,O) ${r3(P.medians.rho.vo)} · axis ${axis}`;
+    reason = `classic hat: ${P.classic.pass}/${P.classic.total} optical night-corners within ±${BAND_ABS} bpm or ±${BAND_REL * 100} % of the reference-measured σ (< ${PASS_FRAC * 100} %); Verity σ̂ ${r3(P.medians.verity.classic)} vs true ${r3(P.medians.verity.trueSd)} bpm, ρ(V,O) ${r3(P.medians.rho.vo)} · ${axisWord}`;
   }
   const m = {};
   for (const k of KEYS) m[k] = { trueSd: r3(P.medians[k].trueSd), bias: r3(P.medians[k].bias), classic: r3(P.medians[k].classic), correlated: r3(P.medians[k].correlated) };
@@ -408,6 +540,7 @@ export function verdictObject(P, rows, meta) {
     schema: 'tepna.verdict/1',
     gate: meta.gate || 'tch-firmware-reference',
     axis,
+    referenceAxis: refAxis,
     scope: 'internal',
     status,
     population: {
@@ -561,6 +694,84 @@ function selftest() {
     ledgerKey('2026-09-26', 'wall') !== ledgerKey('2026-09-26', 'host') && ledgerKey('2026-09-26', null) === ledgerKey('2026-09-26', 'host'),
     'the ledger key separates the two axes, and a legacy row with no axis reads as host — which is what it was'
   );
+  // 6b · the reference's own axis: the two timebases, the plant that separates them, and no silent fallback
+  const mkRec = (corr) => ({
+    t0Ms: 1000000,
+    tMsCorrected: !!corr,
+    devMsAt: (i) => i * 10,
+    tMsAt: (i) => 1000000 + i * 10 + (corr ? corr(i * 10) : 0)
+  });
+  /* nn[1] is out of band on purpose: both branches must drop the same beat, or a "same axis"
+     comparison would also be comparing different beat sets. */
+  const rBeats = { t0Ms: 1000000, nn: [900, 50, 1000, 1000], tt: [0, 0.01, 0.02, 0.03], refIdx: [0, 1, 2, 3] };
+  const rbD = referenceBeatTimes(mkRec(null), rBeats, 'device');
+  ok(rbD.ms.join(',') === '1000000,1000020,1000030' && rbD.nn.join(',') === '900,1000,1000' && rbD.axis === 'device', 'the device branch is t0 + tt·1000 over the in-band beats, unchanged');
+  const rbZ = referenceBeatTimes(
+    mkRec(() => 0),
+    rBeats,
+    'corrected'
+  );
+  ok(rbZ.ms.join(',') === rbD.ms.join(',') && rbZ.nn.join(',') === rbD.nn.join(','), 'NEGATIVE CONTROL · with a zero correction the corrected axis reproduces the device axis beat for beat');
+  const rbC = referenceBeatTimes(
+    mkRec((d) => d * 0.001),
+    rBeats,
+    'corrected'
+  );
+  ok(
+    rbC.ms.length === 3 && rbC.ms.every((t, k) => Math.abs(t - rbD.ms[k] - (rbD.ms[k] - 1000000) * 0.001) < 1e-9) && rbC.ms[2] !== rbD.ms[2],
+    'ANTI-VACUITY · a planted +1000 ppm correction moves every reference beat time by exactly the plant (' + (rbC.ms[2] - rbD.ms[2]).toFixed(3) + ' ms at the last beat)'
+  );
+  ok(rbC.applied === true && rbD.applied === false, 'the row reports whether the correction was LIVE (rec.tMsCorrected), which is not the same gate as which axis was asked for');
+  /* THE REAL SHAPE: `analyze`'s confidence filter drops beats, so nn/tt is SHORTER than refIdx and
+     carries no index into it. Recovery is by device ms, so the survivors still place exactly. */
+  const filtered = referenceBeatTimes(
+    mkRec((d) => d * 0.001),
+    { t0Ms: 1000000, nn: [900, 1000, 1000], tt: [0, 0.02, 0.05], refIdx: [0, 1, 2, 3, 4, 5] },
+    'corrected'
+  );
+  ok(
+    filtered.ms.length === 3 && filtered.matched === 3 && Math.abs(filtered.ms[2] - (1000000 + 50 + 0.05)) < 1e-9,
+    'a filtered nn/tt shorter than refIdx still places every surviving beat — the beat is found by its device ms, never by its position'
+  );
+  let threwRef = null;
+  try {
+    referenceBeatTimes(mkRec(null), rBeats, 'corrrected');
+  } catch (e) {
+    threwRef = String((e && e.message) || e);
+  }
+  ok(threwRef != null && /unknown reference axis/.test(threwRef), 'an unknown --reference-axis THROWS rather than quietly running the default');
+  const noAcc = referenceBeatTimes({ t0Ms: 1000000 }, rBeats, 'corrected');
+  ok(noAcc.ms === null && /needs rec.tMsAt/.test(noAcc.reason), 'a record with no tMsAt REFUSES the night by name — it never falls back to the device axis wearing the corrected label');
+  const noCounter = referenceBeatTimes({ t0Ms: 1000000, tMsAt: (i) => 1000000 + i * 10, devMsAt: () => null }, rBeats, 'corrected');
+  ok(noCounter.ms === null && /no usable device counter/.test(noCounter.reason), 'a record whose counter is unusable refuses: there is no device axis to place on the corrected one');
+  const shortIdx = referenceBeatTimes(mkRec(null), { ...rBeats, refIdx: [0, 1] }, 'corrected');
+  ok(
+    shortIdx.ms === null && shortIdx.matched === 1 && /beat-clock identity/.test(shortIdx.reason),
+    'beats that match no refined peak by device ms refuse the night — a partial match means the identity broke, so no mixture is scored'
+  );
+  const holedRec = { ...mkRec(null), tMsAt: (i) => (i === 2 ? NaN : 1000000 + i * 10) };
+  const holed = referenceBeatTimes(
+    holedRec,
+    { t0Ms: 1000000, nn: Array.from({ length: 200 }, () => 1000), tt: Array.from({ length: 200 }, (_, i) => i * 0.01), refIdx: Array.from({ length: 200 }, (_, i) => i) },
+    'corrected'
+  );
+  ok(holed.ms.length === 199 && holed.dropped === 1 && holed.matched === 199, '§∅ · one unplaceable beat in 200 is dropped and COUNTED, never placed at t0');
+  const holedMany = referenceBeatTimes(holedRec, rBeats, 'corrected');
+  ok(holedMany.ms === null && /beat-clock identity/.test(holedMany.reason), 'one unplaceable beat in three is past the 99 % floor, so that night refuses instead of scoring two thirds of a reference');
+  /* DECOY · the key must separate the matched pair from the mixed one. A device-axis reference under
+     --axis host is exactly the row the paired comparison must not accept as a corrected-axis row. */
+  ok(
+    ledgerKey('2026-09-26', 'host', 'corrected') !== ledgerKey('2026-09-26', 'host', 'device') &&
+      ledgerKey('2026-09-26', 'host') === ledgerKey('2026-09-26', 'host', 'device') &&
+      ledgerKey('2026-09-26', 'wall', 'corrected') !== ledgerKey('2026-09-26', 'host', 'corrected'),
+    'the ledger key separates the reference axes too, and a legacy row with no referenceAxis reads as device — the only axis the reference ever had'
+  );
+  const vref = verdictObject(pool(syntheticRows(3, 0)), syntheticRows(3, 0), { axis: 'host', referenceAxis: 'corrected', at: '2026-10-20T00:00:00Z' });
+  ok(vref.referenceAxis === 'corrected' && /axis host · reference axis corrected/.test(vref.reason || ''), 'the verdict carries the reference axis and every non-PASS reason names BOTH axes');
+  ok(
+    verdictObject(pool(syntheticRows(3, 0)), syntheticRows(3, 0), { at: '2026-10-20T00:00:00Z' }).referenceAxis === 'device',
+    'a verdict written with no reference axis reads as device, so a legacy verdict file is not relabelled'
+  );
   // 7 · the solid stratum, read-only from each night's own verdict; a typo never reads as "no solid nights"
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tchref-solid-'));
   const plant = (n, o) => {
@@ -616,7 +827,7 @@ function selftest() {
 }
 
 /* ── corpus side: the page's own worker functions in a headless realm ─────────────────────────── */
-function loadRealm(axis) {
+function loadRealm(axis, refAxis) {
   const DexBuild = req(path.join(ROOT, 'tools', 'build-core.js'));
   const ctx = vm.createContext({
     console: { log() {}, warn() {}, error() {} },
@@ -656,6 +867,9 @@ function loadRealm(axis) {
      second clock at all. */
   const patched = axisPatch(ctx, axis || 'host');
   if (!patched.patched) throw new Error('axis ' + (axis || 'host') + ' not installed: ' + patched.reason);
+  const rA = refAxis || REF_AXIS_DEFAULT;
+  if (REFERENCE_AXES.indexOf(rA) < 0) throw new Error('unknown reference axis "' + rA + '" — one of ' + REFERENCE_AXES.join('|'));
+  ctx.__refAxis = rA;
   return ctx;
 }
 function largest(dir, re) {
@@ -667,6 +881,7 @@ export function scoreNightDir(ctx, dir) {
     fn = (n) => vm.runInContext(n, ctx),
     night = path.basename(dir),
     axis = ctx.__axis || 'host',
+    refAxis = ctx.__refAxis || REF_AXIS_DEFAULT,
     tag = (t) => {
       ctx.__axisTag = t;
     };
@@ -679,16 +894,17 @@ export function scoreNightDir(ctx, dir) {
     spo2: largest(dir, /_SPO2\.csv$/)
   };
   const missing = ['ecg', 'rr', 'ppg'].filter((k) => !f[k]).concat(f.ring || f.spo2 ? [] : ['ring']);
-  if (missing.length) return { night, axis, ok: false, reason: 'missing ' + missing.join(', ') };
+  if (missing.length) return { night, axis, referenceAxis: refAxis, ok: false, reason: 'missing ' + missing.join(', ') };
   try {
     const ecgTxt = fs.readFileSync(f.ecg, 'utf8');
     tag('reference·h10');
     const rec = E.parseECG(ecgTxt),
       dev = E.parseDeviceRR(fs.readFileSync(f.rr, 'utf8')),
       r = E.analyze(rec, null);
-    const t0 = r.t0Ms || rec.t0Ms || 0,
-      selfMs = [],
-      selfNN = [];
+    const ref = referenceBeatTimes(rec, r, refAxis);
+    if (ref.reason) return { night, axis, referenceAxis: refAxis, ok: false, reason: ref.reason };
+    const selfMs = ref.ms,
+      selfNN = ref.nn;
     /* ⚠️ THE REFERENCE AND THE H10 CORNER DO NOT SHARE AN AXIS (read 2026-10-18, Osprey; left
        standing on purpose). `analyze` builds `r.tt` from `rec.devMsAt` — the RAW device counter,
        with no `correctionAt` (`ecgdex-dsp.js:2824-2831`) — while the H10 corner's HR series below
@@ -698,13 +914,6 @@ export function scoreNightDir(ctx, dir) {
        `--axis wall` both collapse onto the device counter and agree. Moving the reference onto
        `tMsAt` changes the estimator's inputs, which the brief puts out of scope (§7), so this stays
        a named defect rather than a silent repair. */
-    for (let i = 0; i < r.nn.length; i++) {
-      const x = r.nn[i];
-      if (Number.isFinite(x) && x >= 200 && x <= 3000 && Number.isFinite(r.tt[i])) {
-        selfMs.push(t0 + r.tt[i] * 1000);
-        selfNN.push(x);
-      }
-    }
     const fw = firmwareHostTimes(dev, 300),
       fwMs = [],
       fwRR = [];
@@ -745,9 +954,17 @@ export function scoreNightDir(ctx, dir) {
     }
     if (!H || !V || !O) return { night, axis, ok: false, reason: 'a corner produced no HR map (' + (!H ? 'H10 ' : '') + (!V ? 'Verity ' : '') + (!O ? 'O2Ring' : '') + ')' };
     const s = scoreSeries(REF, H, V, O);
-    return { night, axis, o2Source, reference: { consecutivePairs: cp.consecutive, agreeing: cp.pairs.length, seconds: REF.size }, hostAxis: axisSummary(ctx.__axisCalls), ...s };
+    return {
+      night,
+      axis,
+      referenceAxis: refAxis,
+      o2Source,
+      reference: { consecutivePairs: cp.consecutive, agreeing: cp.pairs.length, seconds: REF.size, beats: selfNN.length, axisApplied: ref.applied, unplaceable: ref.dropped },
+      hostAxis: axisSummary(ctx.__axisCalls),
+      ...s
+    };
   } catch (e) {
-    return { night, axis, ok: false, reason: String((e && e.message) || e).slice(0, 160) };
+    return { night, axis, referenceAxis: refAxis, ok: false, reason: String((e && e.message) || e).slice(0, 160) };
   }
 }
 
@@ -763,11 +980,13 @@ async function main(argv) {
   };
   const dir = arg('--dir');
   const axis = arg('--axis') || 'host';
-  if (!dir || !fs.existsSync(dir) || AXES.indexOf(axis) < 0) {
+  const refAxis = arg('--reference-axis') || REF_AXIS_DEFAULT;
+  if (!dir || !fs.existsSync(dir) || AXES.indexOf(axis) < 0 || REFERENCE_AXES.indexOf(refAxis) < 0) {
     console.error(
-      'usage: node tools/tch-firmware-reference.mjs --selftest | --verdict-sample | --dir <captures root> [--axis host|wall] [--solid auto|<file|list>] [--night YYYY-MM-DD]… [--ledger f.jsonl] [--json]'
+      'usage: node tools/tch-firmware-reference.mjs --selftest | --verdict-sample | --dir <captures root> [--axis host|wall] [--reference-axis device|corrected] [--solid auto|<file|list>] [--night YYYY-MM-DD]… [--ledger f.jsonl] [--json]'
     );
     if (AXES.indexOf(axis) < 0) console.error('  --axis must be one of ' + AXES.join('|') + ', got ' + JSON.stringify(axis));
+    if (REFERENCE_AXES.indexOf(refAxis) < 0) console.error('  --reference-axis must be one of ' + REFERENCE_AXES.join('|') + ', got ' + JSON.stringify(refAxis));
     return 2;
   }
   const only = argv.flatMap((a, i) => (a === '--night' && argv[i + 1] ? [argv[i + 1]] : []));
@@ -777,7 +996,7 @@ async function main(argv) {
     for (const l of fs.readFileSync(ledger, 'utf8').split('\n'))
       if (l.trim()) {
         const r = JSON.parse(l);
-        seen.set(ledgerKey(r.night, r.axis), r);
+        seen.set(ledgerKey(r.night, r.axis, r.referenceAxis), r);
       }
   const nights = fs
     .readdirSync(dir)
@@ -785,15 +1004,19 @@ async function main(argv) {
     .sort();
   let ctx = null;
   for (const n of nights) {
-    if (seen.has(ledgerKey(n, axis))) continue;
-    ctx = ctx || loadRealm(axis);
+    if (seen.has(ledgerKey(n, axis, refAxis))) continue;
+    ctx = ctx || loadRealm(axis, refAxis);
     const row = scoreNightDir(ctx, path.join(dir, n));
-    seen.set(ledgerKey(n, axis), row);
+    seen.set(ledgerKey(n, axis, refAxis), row);
     if (ledger) fs.appendFileSync(ledger, JSON.stringify(row) + '\n');
-    console.error(`${n}  axis ${axis}  ${row.ok ? 'scored ' + row.n + ' s' : 'refused: ' + row.reason}`);
+    console.error(`${n}  axis ${axis}/${refAxis}  ${row.ok ? 'scored ' + row.n + ' s' : 'refused: ' + row.reason}`);
   }
-  /* A row from the OTHER axis is a different measurement of the same night, never a substitute. */
-  const rows = [...seen.values()].filter((r) => (r.axis || 'host') === axis && (!only.length || only.includes(r.night))).sort((a, b) => (a.night < b.night ? -1 : 1));
+  /* A row from the OTHER axis — EITHER axis — is a different measurement of the same night, never a
+     substitute. The reference axis filters here as well as keying the ledger, because a legacy ledger
+     holds device-axis rows under both `--axis` values. */
+  const rows = [...seen.values()]
+    .filter((r) => (r.axis || 'host') === axis && (r.referenceAxis || REF_AXIS_DEFAULT) === refAxis && (!only.length || only.includes(r.night)))
+    .sort((a, b) => (a.night < b.night ? -1 : 1));
   const solidSpec = arg('--solid');
   const solid = parseSolidSpec(solidSpec, { dir, nights: rows.map((r) => r.night) });
   if (solidSpec && !solid.parsed) {
@@ -808,7 +1031,7 @@ async function main(argv) {
   }
   const P = pool(rows);
   const pops = selectPopulations(rows, solid);
-  const verdicts = pops.map((p) => verdictObject(pool(p.rows), p.rows, { roots: [dir], commit, axis, gate: p.gate, population: p.name, listed: p.listed, notRun: p.notRun }));
+  const verdicts = pops.map((p) => verdictObject(pool(p.rows), p.rows, { roots: [dir], commit, axis, referenceAxis: refAxis, gate: p.gate, population: p.name, listed: p.listed, notRun: p.notRun }));
   /* The ALL population stays at the top level, byte-shape unchanged for every existing reader
      (`tepna-tchref-nightly.service` writes this object straight to its verdict file); the two new
      populations ride beside it in `verdicts`. */
@@ -816,14 +1039,18 @@ async function main(argv) {
   if (argv.includes('--json'))
     console.log(
       JSON.stringify(
-        { ...verdict, verdicts, detail: { axis, solid, populations: pops.map((p) => ({ name: p.name, label: p.label, nights: p.rows.length, listed: p.listed })), pooled: P, nights: rows } },
+        {
+          ...verdict,
+          verdicts,
+          detail: { axis, referenceAxis: refAxis, solid, populations: pops.map((p) => ({ name: p.name, label: p.label, nights: p.rows.length, listed: p.listed })), pooled: P, nights: rows }
+        },
         null,
         1
       )
     );
   else {
     const f = (x) => (Number.isFinite(x) ? x.toFixed(2) : '—');
-    console.log(`HR three-cornered hat vs the two-detector reference — ${P.nights} night(s) scored of ${rows.length} · axis ${axis}`);
+    console.log(`HR three-cornered hat vs the two-detector reference — ${P.nights} night(s) scored of ${rows.length} · axis ${axis} · reference axis ${refAxis}`);
     for (const k of KEYS) {
       const M = P.medians[k];
       console.log(
