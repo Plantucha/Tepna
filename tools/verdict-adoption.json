@@ -465,6 +465,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_seq_suite.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_solid_night.py": {
    "bin": "test",
    "status": "exempt"
@@ -586,6 +590,19 @@
     ]
    },
    "note": "wave 2: verdict_object() over verdict()'s per-stream record — criterion = streams outside a band <= 0 with both pre-stated bands and every ratio in result · PASS · FAIL naming the stream and the band · UNDERPOWERED any INCONCLUSIVE stream (the prose overall; minimum and counts as numbers) · NOT_RUN no stream; population = streams, INCONCLUSIVE excluded; printed after the matrix"
+  },
+  "capture-host/tools/seq_suite.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-20",
+   "note": "ADOPTED 2026-10-20 (residue 2026-10-04-the-suite-is-never-run-sequentially-so-order-dependencies-are-invisible, the owner's shape 1 ruled the same day): the ordered whole-suite run emits ONE tepna.verdict/1 at every exit. criterion = ordered_run_failures == 0, pre-stated in CRITERION and keyed to the RUN rather than to the order-dependent subset, because a red ordered suite is a red suite whichever half it lands in. PASS a green ordered run · FAIL any failing test, with result.orderDependent (passed when re-run alone) and result.failsAlone (did not) each carrying the execution position · NOT_RUN the rig lock is held or pytest could not enumerate the suite · UNKNOWN the junit report is unreadable or counts more tests than the collection offered, so the run has no denominator. population: eligible = collected, checked = the junit report's own count, excluded = the difference; checked never comes from the collection, because pytest can abort a run after an error. Sampled with --verdict-sample, which is synthetic and runs no suite.",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/seq_suite.py",
+     "--verdict-sample"
+    ]
+   }
   },
   "capture-host/unseal.py": {
    "bin": "already-json",
@@ -1900,7 +1917,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "the PUBLIC record of the sibling tool's reference check \u2014 pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS \u00a74's owed comparison \u2014 is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI \u2014 and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
+   "note": "the PUBLIC record of the sibling tool's reference check — pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS §4's owed comparison — is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI — and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
   },
   "tools/tch-multinight.mjs": {
    "bin": "decides",
