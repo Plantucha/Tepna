@@ -12,7 +12,7 @@
 
 | measurement | value | window |
 |---|---|---|
-| first-parent commits on `main` that touch a root bundle | 64 of 400 | the 400 commits before `fd159fdda` |
+| first-parent commits on `main` that touch a root bundle | 64 of 400 | the last 400, as of 2026-10-20 |
 | bundles inside GATE A | 9 | `manifest-gate.js MANIFEST_BUNDLES` |
 | orchestrators re-bundled by any inlined change | 2 | `build.mjs ORCHESTRATORS` |
 
