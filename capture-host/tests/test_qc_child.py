@@ -9,7 +9,10 @@ runs is `capture._qc_offload` and lives in tests/test_qc_offload.py.
 
 import json
 import os
+import pathlib
 import re
+import subprocess
+import sys
 
 import pytest
 
@@ -336,6 +339,63 @@ def test_verdict_sample_without_a_checkout_carries_a_null_commit_and_a_now_stamp
     v = json.loads(qc_child._verdict_sample())
     assert v["producedBy"]["commit"] is None and v["producedBy"]["commitReason"]
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", v["at"])
+
+
+# ── the child's own peak ─────────────────────────────────────────────────────────────────────────
+
+
+def test_peak_kb_reads_VmHWM_in_kB(tmp_path):
+    p = tmp_path / "status"
+    p.write_text("Name:\tpython\nVmPeak:\t 99 kB\nVmHWM:\t   8192 kB\nVmRSS:\t 1 kB\n")
+    assert qc_child.peak_kb(str(p)) == 8192
+
+
+@pytest.mark.parametrize("body", ["VmRSS:\t 1 kB\n", "VmHWM:\t 8 MB\n", "VmHWM:\t x kB\n", "VmHWM:\t 8\n", ""])
+def test_peak_kb_is_None_for_an_absent_or_malformed_figure(tmp_path, body):
+    p = tmp_path / "status"
+    p.write_text(body)
+    assert qc_child.peak_kb(str(p)) is None
+
+
+def test_peak_kb_is_None_for_an_unreadable_file(tmp_path):
+    assert qc_child.peak_kb(str(tmp_path / "absent")) is None
+
+
+# The kernel writes ONE VmHWM line. A malformed one is the answer, and it is None: the reader must not
+# search on and take a later line that parses. Splitting at the LAST colon would skip the malformed
+# line and return the second figure, so this is also the case that tells partition from rpartition.
+def test_peak_kb_refuses_at_a_malformed_VmHWM_line_and_does_not_read_a_later_one(tmp_path):
+    p = tmp_path / "status"
+    p.write_text("VmHWM:\t 8: kB\nVmHWM:\t 8192 kB\n")
+    assert qc_child.peak_kb(str(p)) is None
+
+
+# A source scan cannot see the encoding argument (see tests/test_oxy_inventory.py, the ledger's twin of
+# this test). The interpreter is the witness: under `-X warn_default_encoding`, an open() without an
+# explicit encoding emits EncodingWarning, and `-W error::EncodingWarning` makes that a non-zero exit.
+def test_peak_kb_names_its_encoding_under_warn_default_encoding(tmp_path):
+    status = tmp_path / "status"
+    status.write_text("VmHWM:\t 8192 kB\n", encoding="utf-8")
+    script = "import qc_child\nassert qc_child.peak_kb(%r) == 8192\n" % str(status)
+    env = dict(os.environ, PYTHONPATH=str(pathlib.Path(qc_child.__file__).parent))
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", script],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    # The witness first: an unrelated failure also exits non-zero, and that is not an encoding defect.
+    assert "EncodingWarning" not in r.stderr, "peak_kb's open() must name an encoding:\n" + r.stderr[-800:]
+    assert r.returncode == 0, "the probe itself failed, which says nothing about encoding:\n" + r.stderr[-800:]
+
+
+def test_peak_kb_reads_this_process_by_default():
+    assert qc_child.peak_kb() > 1024
+
+
+def test_measured_returns_the_result_beside_the_peak():
+    out, peak = qc_child.measured(lambda a, b: (a, b), 1, 2)
+    assert out == (1, 2) and isinstance(peak, int) and peak > 1024
 
 
 # ── lower_priority: the child yields the box to the recording (vigil 2026-10-19) ──
