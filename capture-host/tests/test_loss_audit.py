@@ -1152,6 +1152,41 @@ def test_a_ring_session_that_reconnected_after_midnight_keeps_its_ppg2w_witness(
     assert len(w["ends"]) == 2, sorted(ends)
 
 
+def test_the_ring_contact_read_skips_a_next_day_ppg2w_file_no_spo2_file_of_the_night_pairs(tmp_path, monkeypatch):
+    """The next folder holds the whole next day. Reading its unpaired PPG2W files costs ~4 M rows each."""
+    night = tmp_path / "captures" / "2026-09-22"
+    nxt = tmp_path / "captures" / "2026-09-23"
+    night.mkdir(parents=True)
+    nxt.mkdir()
+    _ring(night, R0, worn_s=70, off_s=0, spo2_s=70)
+    _ring(nxt, dt.datetime(2026, 9, 23, 3, 46, 22), worn_s=70, off_s=0, spo2_s=70)
+    _ring(nxt, dt.datetime(2026, 9, 23, 13, 0, 0), worn_s=70, off_s=0, spo2_s=70)
+    read = []
+    real = nightqc.ppg2w_contact_quality
+
+    def spy(d, **kw):
+        out = real(d, **kw)
+        read.extend(b["file"] for b in out)
+        return out
+
+    monkeypatch.setattr(nightqc, "ppg2w_contact_quality", spy)
+    loss_audit.wear_ends(str(night), "O2Ring-S")
+    assert sorted(read) == [
+        "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt",
+        "Wellue_O2Ring-S_S8AW2100_20260923034622_PPG2W.txt",
+    ]
+
+
+def test_a_strap_night_reads_no_ring_contact(tmp_path, monkeypatch):
+    d, _ = _h10_night(tmp_path, 300)
+
+    def boom(*a, **kw):
+        raise AssertionError("an H10 night read PPG2W contact")
+
+    monkeypatch.setattr(nightqc, "ppg2w_contact_quality", boom)
+    assert loss_audit.wear_ends(str(d), "H10")["ends"][0]["reason"] == "doff"
+
+
 def test_ppg2w_contact_quality_reads_only_the_named_files(tmp_path):
     d = _ring_dir(tmp_path)
     _ring(d, R0, worn_s=70, off_s=0, spo2_s=70)
