@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — run the capture-host suite in ONE ordered process, so an order-dependent test is visible
+# (residue row `2026-10-04-the-suite-is-never-run-sequentially-so-order-dependencies-are-invisible`).
+# `capture-host/check.sh` runs pytest under `-n auto`, so the suite has never executed in order here,
+# and a test that depends on what ran before it passes alone, passes in its file, and passes in every
+# green gate. The owner ruled this shape on 2026-10-04: a rig user timer, one ordered process, clear of
+# the mutation crawl, emitting ONE tepna.verdict/1 to a tracked path a bird reads in the morning.
+#
+# MEASURED BEFORE THIS UNIT EXISTED, on origin/main at 545f5e4be (2026-10-20, rig): one ordered run of
+# 10761 collected tests is 10758 passed, 3 skipped, 0 failed in 6 min 01 s, peak RSS 843 MB, coverage
+# 100 % statement and branch. So the detector finds NOTHING today — it buys a tripwire, not a repair.
+# The cost figure also corrects a stale one: `check.sh` records serial at 15 min 52 s for 6833 tests
+# (2026-09-09), and the suite is now 57 % larger and runs serially in 38 % of that time.
+#
+# 🔴 A FAILURE FILES NOTHING BY ITSELF (owner, same ruling). The unit writes the object and exits
+# non-zero. Nobody is paged, no row is logged, no PR opens. A bird reads it.
+#
+# 🔴 THE TOOL SPLITS THE FAILURES, AND THAT IS WHY THIS IS NOT JUST `check.sh` WITHOUT XDIST. Every
+# failing test is re-run ALONE: passing alone means the neighbours failed it, failing alone means the
+# tree is red and the order had nothing to do with it. Without the split a reader cannot tell a blind
+# spot from a bug, and the first morning of noise would retire the unit.
+#
+# WHY THE WINDOW IS 05:40 AND WHY THE TIMER IS NOT PERSISTENT. `tepna-nightly-triage` starts the
+# mutation crawl at 09:30 with `--max-hours 5` inside `TimeoutStartSec=8h`, so the crawl can hold the
+# rig into the afternoon; `tepna-full-tree-backlog` runs at 03:40 with a 15-minute jitter. 05:40 sits
+# between them with room on both sides for a 6-minute run. `Persistent=false` is the second half of
+# "never overlap": a tick missed while the rig was off would otherwise fire at boot, which can be any
+# time of day — including the middle of the crawl.
+#
+# THE RIG LOCK IS THE GUARD, NOT THE SCHEDULE. `--lock` takes `flock` non-blocking and answers NOT_RUN
+# when a crawl or a session already holds it, so an overlap costs a skipped pass instead of two slow
+# unreliable runs. A pid file would not do: a crawl SIGKILLed mid-mutation (2026-09-29) leaves a pid
+# file behind and a lock it never held.
+#
+# THE PER-TEST BOUND IS 300 s HERE, NOT THE GATE'S 180 s, AND THE REASON IS THIS UNIT'S NICENESS. The
+# bound exists to convert a hang into one named failing test (the measured quantity was FOUR HOURS). A
+# timeout here is reported as a failing test, so a niced background run on a contended box must not be
+# able to convict a working test: the slowest instrumented test measured 36.99 s, and 300 s is 8.1x it.
+#
+# NO `MemoryMax`. A cap on this unit would make the suite fail for want of memory and the object would
+# report that as failing tests. The consumer is one pytest process whose peak is measured above, which
+# is what the lazy-load rule asks for; re-measure with `/usr/bin/time -v` before adding any cap.
+#
+# THE INTERPRETER IS THE RIG'S, THE CODE IS origin/main's. A worktree carries no `.venv`, so the unit
+# runs the primary checkout's interpreter against the detached tree below. That is deliberate: the
+# suite must run against what landed, with the toolchain the rig actually has.
+#
+# INSTALL — the rig only, and NOT performed by the PR that adds this file:
+#   1. give the timer its OWN worktree (nobody edits there):
+#        git -C ~/Tepna worktree add --detach ~/wt-seqsuite-timer origin/main
+#   2. name the verdict path, which must sit OUTSIDE any repo:
+#        mkdir -p ~/.config/tepna ~/.local/state/tepna
+#        printf 'SEQ_SUITE_VERDICT=%s\nSEQ_SUITE_LOCK=%s\n' \
+#          "$HOME/.local/state/tepna/seq-suite-verdict.json" "/tmp/claude-1000/mutate-rig.lock" \
+#          > ~/.config/tepna/seq-suite.env
+#   3. cp ~/Tepna/tools/systemd/tepna-seq-suite.service ~/.config/systemd/user/
+#      cp ~/Tepna/tools/systemd/tepna-seq-suite.timer   ~/.config/systemd/user/
+#   4. read it once by hand first: systemctl --user start tepna-seq-suite.service
+#   5. systemctl --user daemon-reload && systemctl --user enable --now tepna-seq-suite.timer
+# 🔴 The timer is ENABLED BY THE OWNER. A session never installs or starts it.
+
+[Unit]
+Description=Tepna — the capture-host suite in one ordered process (order-dependency detector)
+Documentation=file:%h/Tepna/capture-host/tools/seq_suite.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/wt-seqsuite-timer
+EnvironmentFile=%h/.config/tepna/seq-suite.env
+# A niced background reader. It decides nothing and gates no PR, so it yields to every session.
+Nice=10
+IOSchedulingClass=idle
+# The outer bound, 15x the measured run. The inner one is the per-test timeout; this one catches the
+# shape the crawl hit on 2026-09-29, where the unit's own timeout ended an 8-hour run that the tool's
+# own budget should have ended.
+TimeoutStartSec=90min
+ExecStartPre=/usr/bin/git fetch -q origin main
+ExecStartPre=/usr/bin/git switch -q --detach origin/main
+ExecStart=/bin/sh -c '[ -f capture-host/tools/seq_suite.py ] || { echo "seq_suite.py not on origin/main yet — nothing to run"; exit 0; }; [ -n "$SEQ_SUITE_VERDICT" ] || { echo "seq-suite.env incomplete (SEQ_SUITE_VERDICT)"; exit 2; }; "$HOME/Tepna/capture-host/.venv/bin/python" capture-host/tools/seq_suite.py --cwd capture-host --timeout 300 --junit capture-host/.seq-suite-junit.xml --lock "${SEQ_SUITE_LOCK:-/tmp/mutate-rig.lock}" --verdict-out "$SEQ_SUITE_VERDICT"'
+
+[Install]
+WantedBy=default.target
