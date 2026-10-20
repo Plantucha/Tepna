@@ -11784,99 +11784,144 @@
         'only ' + checkedPairs + ' of 3 pairs collapsed upward — the loop passed by skipping the rest'
       );
     });
-    /* ════ THE NIGHT KEY COMES FROM THE FIRST DATA ROW, NOT THE FILENAME ═══════════════════════════════
-       FILENAME-STAMP-JS-CONSUMERS §4: the trio hat grouped files into nights on the 14-digit stamp in
-       their NAME, which the capture host writes when the file is OFFLOADED. Measured 2026-10-20 over the
-       9853 corpus files this classifier accepts: 9738 carry a parseable row stamp, median name-to-content
-       error 3.9 s, 74 files over 5 min, worst 18.71 h — and 8 files cross the noon fold, so the name
-       indexed them one night EARLY. The pure half of the reader is sliced out of the page source and
-       EXECUTED here, because a source scan would pass on a re-indented copy whose arithmetic drifted.
-       The fallback is the other half of the row: a file whose rows carry no stamp keeps the filename key,
-       and the ingest note must SAY how many did — a fallback nobody can see is the defect this replaces
-       (§∅). ════════════════════════════════════════════════════════════════════════════════════════════ */
+    /* ════ THE NIGHT KEY COMES FROM THE FIRST DATA ROW, NOT THE FILENAME — ON ALL THREE TRIO PAGES ══
+       FILENAME-STAMP-JS-CONSUMERS §4. The trio pages grouped files into nights on the 14-digit stamp in
+       their NAME, which the capture host writes when it OPENS the session, before the connect; the first
+       data row is written when the recording actually started. #3746 repaired `sensor-trio-night.js`,
+       and its two siblings carried the same code VERBATIM — so one corpus now buckets the same way
+       whichever of the three pages reads it.
+
+       Measured 2026-10-20 over the canonical corpus `/srv/data/tepna-corpus`: 62,706 entries carrying
+       28,958 DISTINCT recordings, once the NAS cold-tier symlinks are followed and the staging views
+       deduped by recording (63 % of the tree is a symlink, and each file is staged into several views —
+       a walk that does neither reads a different corpus and a different number).
+
+         page                            accepted  row stamp  >5 min   worst  fold  chosen-file moves
+         sensor-trio-night.js               9,569      8,501      75  18.71 h    10         13 of 155
+         sensor-trio-power-analysis.js      6,698      5,900      51  18.71 h     8         11 of 155
+         sigma-no-reference-analysis.js       337        274       0   3.25 s     0           1 of 59
+
+       THE NIGHT COUNT DOES NOT MOVE on any of the three — 155/155 nights and 123/123 eligible for the
+       first two, 59/59 and 31/31 for the third — while a chosen corner file does, because
+       `resolveTriple` takes the file NEAREST the anchor. A population delta would have called the whole
+       change a no-op; count what the tool CHOOSES.
+
+       The pure half of the reader is sliced out of EACH page source and EXECUTED here against ONE
+       table: a source scan would pass on a re-indented copy whose arithmetic drifted, and three copies
+       of one reader are three chances for one of them to drift alone.
+
+       The fallback is the other half of the row: a file whose rows carry no stamp keeps the filename
+       key, and the ingest note must SAY how many did — a fallback nobody can see is the defect this
+       replaces (§∅). ═══════════════════════════════════════════════════════════════════════════════ */
     group('the trio night key reads the first data row, and says when it could not', 'sensor-trio · night-key · §🔒', function (T) {
-      var page = env.sources && env.sources['sensor-trio-night.js'];
-      T.ok('the page source is readable in this lane', !!page, 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
-      if (!page) return;
+      /* `classifierPin` is the one literal the repair must NOT have touched: for the first two pages
+         capture-host `test_the_tool_classifiers_accept_box_filenames` extracts exactly this regex from
+         the `classify` body and runs the box's real filenames through it. */
+      var PAGES = [
+        { file: 'sensor-trio-night.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
+        { file: 'sensor-trio-power-analysis.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
+        { file: 'sigma-no-reference-analysis.js', bucket: 'NIGHTS_IDX', classify: 'classifyF', classifierPin: '/^O2Ring.*_(\\d{14})\\.csv$/i' }
+      ];
+      var executed = 0;
+      PAGES.forEach(function (P) {
+        var tag = ' · ' + P.file;
+        var page = env.sources && env.sources[P.file];
+        T.ok('the page source is readable in this lane' + tag, !!page, P.file + ' not in env.sources — list it in BOTH lanes');
+        if (!page) return;
 
-      /* ── the ingest keys on the row, and the fallback is visible ──────────────────────────────────── */
-      T.ok('the ingest awaits a first-row stamp per file', /const rowMs = await firstRowTMs\(f\)/.test(page), 'ingestFiles must read the row before it chooses a bucket');
-      T.ok(
-        'the bucket is the row key when a row stamp exists, the filename key only when it does not',
-        /rowMs == null \? nightKeyOf\(c\.stamp\) : nightKeyOfMs\(rowMs\)/.test(page),
-        'keying on the name while a row stamp is in hand is the defect'
-      );
-      T.ok(
-        'the contemporaneity comparison uses the same instant',
-        /ms: rowMs == null \? stampMs\(c\.stamp\) : rowMs/.test(page),
-        'resolveTriple picks the file nearest the anchor, so a name-derived ms mis-picks even inside one bucket'
-      );
-      T.ok(
-        'each candidate records WHICH clock keyed it',
-        /stampSource: rowMs == null \? 'filename' : 'first-row'/.test(page),
-        'a consumer cannot distinguish a row-keyed night from a name-keyed one without the field'
-      );
-      T.ok(
-        'the ingest note states how many files fell back to the filename',
-        /keyed by filename \(no row stamp\)/.test(page) && /keyedByName \?/.test(page),
-        '§∅ — an invisible fallback is what this row replaces'
-      );
-      T.ok('the classifier body is untouched by this change', /the hat's classifier, VERBATIM/.test(page), 'capture-host test_the_tool_classifiers_accept_box_filenames reads that body as text');
+        /* ── the ingest keys on the row, and the fallback is visible ────────────────────────────────── */
+        T.ok('the ingest awaits a first-row stamp per file' + tag, /const rowMs = await firstRowTMs\(f\)/.test(page), 'ingestFiles must read the row before it chooses a bucket');
+        T.ok(
+          'the bucket is the row key when a row stamp exists, the filename key only when it does not' + tag,
+          /rowMs == null \? nightKeyOf\(c\.stamp\) : nightKeyOfMs\(rowMs\)/.test(page),
+          'keying on the name while a row stamp is in hand is the defect'
+        );
+        T.ok(
+          'the contemporaneity comparison uses the same instant' + tag,
+          /ms: rowMs == null \? stampMs\(c\.stamp\) : rowMs/.test(page),
+          'resolveTriple picks the file nearest the anchor, so a name-derived ms mis-picks even inside one bucket'
+        );
+        T.ok(
+          'each candidate records WHICH clock keyed it' + tag,
+          /stampSource: rowMs == null \? 'filename' : 'first-row'/.test(page),
+          'a consumer cannot distinguish a row-keyed night from a name-keyed one without the field'
+        );
+        T.ok(
+          'the ingest note states how many files fell back to the filename' + tag,
+          /keyed by filename \(no row stamp\)/.test(page) && /keyedByName \?/.test(page),
+          '§∅ — an invisible fallback is what this row replaces'
+        );
+        /* Every mention of the ingest must DRIVE its promise: the `async function` declaration,
+           `void ingestFiles(x)` in a listener, or `.then(ingestFiles)` on a collected folder. A bare
+           `ingestFiles(x)` is the real risk — the handler returns before one night is bucketed. Every
+           occurrence is classified, so a NEW call site cannot slip in undriven. */
+        var sites = [],
+          at = page.indexOf('ingestFiles');
+        while (at >= 0) {
+          var pre = page.slice(Math.max(0, at - 15), at);
+          sites.push(/function $/.test(pre) ? 'function' : /void $/.test(pre) ? 'void' : /\.then\($/.test(pre) ? 'then' : 'BARE «' + pre.slice(-14) + 'ingestFiles»');
+          at = page.indexOf('ingestFiles', at + 1);
+        }
+        var undriven = sites.filter(function (c) {
+          return c !== 'function' && c !== 'void' && c !== 'then';
+        });
+        T.ok('the ingest is declared async' + tag, /async function ingestFiles\(list\) \{/.test(page), 'the row read makes it async; a sync ingest cannot await it');
+        T.ok('the page names the ingest at all' + tag, sites.length >= 2, 'a declaration with no call site means this leg examined nothing');
+        T.eq('every ingest call site drives the promise' + tag, undriven.length, 0, 'an un-driven ingestFiles() returns before a single night is bucketed: ' + JSON.stringify(undriven));
+        T.ok('the classifier body is untouched by this change' + tag, page.indexOf(P.classifierPin) >= 0, 'capture-host test_the_tool_classifiers_accept_box_filenames reads that body as text');
+        T.ok('the page still buckets into its own index' + tag, page.indexOf(P.bucket + '[nk]') >= 0, 'the bucket map name moved — this group names it per page');
 
-      /* ── the reader itself, executed ──────────────────────────────────────────────────────────────── */
-      var a = page.indexOf('  const ROW_SCAN_BYTES'),
-        b = page.indexOf('  function hashStr(s) {');
-      T.ok('the pure reader is sliceable out of the page', a >= 0 && b > a, 'the slice markers moved — update this group with them');
-      if (!(a >= 0 && b > a)) return;
-      var pure = page.slice(a, b).replace(/async function firstRowTMs[\s\S]*?\n  }\n/, '');
-      var M = null,
-        mErr = '';
-      try {
-        M = new Function(pure + '\nreturn { _rowTMs: _rowTMs, nightKeyOfMs: nightKeyOfMs, _mkTMs: _mkTMs };')();
-      } catch (e) {
-        mErr = String((e && e.message) || e);
-      }
-      T.ok('the sliced reader evaluates on its own', !!(M && M._rowTMs), 'the reader now depends on page state — keep it pure or this leg cannot run' + (mErr ? ': ' + mErr : ''));
-      if (!(M && M._rowTMs)) return;
+        /* ── the reader itself, executed ──────────────────────────────────────────────────────────── */
+        var a = page.indexOf('  const ROW_SCAN_BYTES'),
+          b = page.indexOf('  function hashStr(s) {');
+        T.ok('the pure reader is sliceable out of the page' + tag, a >= 0 && b > a, 'the slice markers moved — update this group with them');
+        if (!(a >= 0 && b > a)) return;
+        var pure = page.slice(a, b).replace(/async function firstRowTMs[\s\S]*?\n  }\n/, '');
+        var M = null,
+          mErr = '';
+        try {
+          M = new Function(pure + '\nreturn { _rowTMs: _rowTMs, nightKeyOfMs: nightKeyOfMs, _mkTMs: _mkTMs };')();
+        } catch (e) {
+          mErr = String((e && e.message) || e);
+        }
+        T.ok('the sliced reader evaluates on its own' + tag, !!(M && M._rowTMs), 'the reader now depends on page state — keep it pure or this leg cannot run' + (mErr ? ': ' + mErr : ''));
+        if (!(M && M._rowTMs)) return;
 
-      var psl = 'Phone timestamp;sensor timestamp [ns];channel 0\n2026-08-20T23:59:54.260;840599993105734761;-43485\n';
-      T.eq(
-        'a sensor-logger head yields its first row instant',
-        M._rowTMs(psl),
-        Date.UTC(2026, 7, 20, 23, 59, 54, 260),
-        'the ISO row is the recording start — the name on that measured file said 2026-08-20 05:17'
+        var psl = 'Phone timestamp;sensor timestamp [ns];channel 0\n2026-08-20T23:59:54.260;840599993105734761;-43485\n';
+        T.eq('a sensor-logger head yields its first row instant' + tag, M._rowTMs(psl), Date.UTC(2026, 7, 20, 23, 59, 54, 260), 'the ISO row is the one the Clock Contract reads verbatim');
+        T.eq('the same head buckets onto its own evening' + tag, M.nightKeyOfMs(M._rowTMs(psl)), '2026-08-20', 'a 23:59 start belongs to the evening it started in');
+        T.eq(
+          "the ring's DMY head is read day-first" + tag,
+          M._rowTMs('Time,Oxygen Level,Pulse Rate,Motion\n21:43:24 30/09/2026,96,67,0\n'),
+          Date.UTC(2026, 8, 30, 21, 43, 24, 0),
+          '§3 — a field over 12 locks the order for the whole head'
+        );
+        T.eq(
+          "the same vendor's MDY head is read month-first" + tag,
+          M._rowTMs('Time,SpO2\n21:43:24 09/30/2026,96\n'),
+          Date.UTC(2026, 8, 30, 21, 43, 24, 0),
+          '§3 — the lock reads whichever field exceeds 12'
+        );
+        T.eq('a head with no stamp at all is null, never a date' + tag, M._rowTMs('channel 0;channel 1\n-43485;-70877\n'), null, '§∅ — absence is null');
+        T.eq('an out-of-range component is null rather than a rolled instant' + tag, M._mkTMs(2026, 13, 32, 25, 61, 61, 0), null, '§2.7 — Date.UTC rolls bad components onto a wrong instant');
+        T.eq('a real leap day survives the range check' + tag, M._mkTMs(2024, 2, 29, 1, 2, 3, 0), Date.UTC(2024, 1, 29, 1, 2, 3, 0), 'the check must reject only impossible days');
+        T.eq('a non-leap 29 February is null' + tag, M._mkTMs(2026, 2, 29, 1, 2, 3, 0), null, 'Date.UTC would roll it to 1 March');
+        T.eq('minute 99 is null, and only the explicit bound can say so' + tag, M._mkTMs(2026, 6, 15, 10, 99, 3, 0), null, 'it rolls the HOUR and leaves the date, so the round-trip passes it');
+        T.eq(
+          'ISO 24:00:00 rolls to the next midnight rather than being refused' + tag,
+          M._mkTMs(2026, 6, 15, 24, 0, 0, 0),
+          Date.UTC(2026, 5, 16, 0, 0, 0, 0),
+          "§2.7 — the contract's one legitimate overflow, and no bare h > 23 guard"
+        );
+        T.eq('the noon fold puts a pre-noon start on the previous evening' + tag, M.nightKeyOfMs(Date.UTC(2026, 7, 20, 5, 17, 13, 0)), '2026-08-19', "the fold is the tool's own rule, unchanged");
+        T.eq('a 23:59 start stays on its own evening' + tag, M.nightKeyOfMs(Date.UTC(2026, 7, 20, 23, 59, 54, 0)), '2026-08-20', 'the fold must not move an evening start');
+        executed++;
+      });
+      T.ok(
+        'ANTI-VACUITY · all three trio pages were sliced and executed',
+        executed === PAGES.length,
+        'only ' + executed + ' of ' + PAGES.length + ' pages ran — a page whose reader will not slice or evaluate must RED, never pass by being skipped'
       );
-      T.eq(
-        'the measured flip: the name folds one night early, the row does not',
-        M.nightKeyOfMs(M._rowTMs(psl)),
-        '2026-08-20',
-        'a 05:17 filename stamp folds to 2026-08-19 under the noon rule, which is the defect'
-      );
-      T.eq(
-        "the ring's CSV row locks DMY on a day over 12",
-        M._rowTMs('Time,Oxygen Level,Pulse Rate,Motion\n21:43:24 30/09/2026,96,67,0\n'),
-        Date.UTC(2026, 8, 30, 21, 43, 24, 0),
-        '§3 — a row whose first date field exceeds 12 fixes the order for the head'
-      );
-      T.eq(
-        'an MDY head locks the other way when its SECOND field exceeds 12',
-        M._rowTMs('Time,SpO2\n21:43:24 09/30/2026,96\n'),
-        Date.UTC(2026, 8, 30, 21, 43, 24, 0),
-        '§3 — the same lock, read from whichever field cannot be a month'
-      );
-      T.eq('a head with no stamp at all is null, never a date', M._rowTMs('channel 0;channel 1\n-43485;-70877\n'), null, '§∅ — absence is null');
-      T.eq('an out-of-range component is null rather than a rolled instant', M._mkTMs(2026, 13, 32, 25, 61, 61, 0), null, '§2.7 — Date.UTC rolls bad components onto a wrong instant');
-      T.eq('a real leap day survives the range check', M._mkTMs(2024, 2, 29, 1, 2, 3, 0), Date.UTC(2024, 1, 29, 1, 2, 3, 0), 'the check must reject only impossible days');
-      T.eq('a non-leap 29 February is null', M._mkTMs(2026, 2, 29, 1, 2, 3, 0), null, 'Date.UTC would roll it to 1 March');
-      T.eq('minute 99 is null, and only the explicit bound can say so', M._mkTMs(2026, 6, 15, 10, 99, 3, 0), null, 'it rolls the HOUR and leaves the date, so the round-trip passes it');
-      T.eq(
-        'ISO end-of-day 24:00:00 is the next midnight, not null',
-        M._mkTMs(2026, 6, 15, 24, 0, 0, 0),
-        Date.UTC(2026, 5, 16, 0, 0, 0, 0),
-        "§2.7 — the contract's one legitimate overflow, and no bare h > 23 guard"
-      );
-      T.eq('the noon fold puts a pre-noon start on the previous evening', M.nightKeyOfMs(Date.UTC(2026, 7, 20, 5, 17, 13, 0)), '2026-08-19', "the fold is the tool's own rule, unchanged");
-      T.eq('a 23:59 start stays on its own evening', M.nightKeyOfMs(Date.UTC(2026, 7, 20, 23, 59, 54, 0)), '2026-08-20', 'the fold must not move an evening start');
     });
     /* ════ THE CARD'S POOLED NOTE IS COMPOSED FROM THE PUBLISHED RECORD ══════════════════════════════
        TCH-REFERENCE-POPULATIONS §2 defect 1: `sensor-trio-night.js` hard-coded "37 nights" and three
@@ -67163,6 +67208,88 @@
           return v.usable === false && !!v.reason;
         })
       );
+    });
+
+    /* Residue `2026-10-20-dual-clock-rate-reports-an-absent-directory-as-a-stack-trace`. An absent
+       capture directory reached `readdirSync` and left a `node:fs` scandir trace at exit 1 — true,
+       and undiagnosable: nothing in it said what was looked for or where. Worse were the emptinesses
+       UNDER absence, which exited 0: a directory holding the wrong night printed the header and an
+       empty table, which reads like a measurement over nothing (CLAUDE.md §∅ — an output over absent
+       input reports the absence). The predicate is pure so every branch is reachable without a
+       filesystem, and the exit-code probe below is what separates a REFUSAL from a trace, because
+       both name the path and only one of them is a decision. */
+    group('An absent, empty or mis-aimed capture directory is refused BY NAME', 'tools · clock · dir-refusal', function (T) {
+      var DC = env.DualClock;
+      /* TWO CONDITIONS, NOT ONE. The lane is the only legitimate reason to skip. Measured while
+         building this group: a single `!DC || typeof DC.captureDirRefusal !== 'function'` guard turned
+         the negative control — main's copy of the tool, with no predicate at all — into a ⊘ SKIP
+         instead of a red, so the group could not detect the export being deleted. Only the SKIP BUDGET
+         caught it, and that is a different gate's accident, not this group's assertion. */
+      if (!DC) {
+        T.skip('env.DualClock provided to the runner', 'Node-lane only (run-tests.mjs imports tools/dual-clock-rate.mjs) — the browser lane has no ESM tool import so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      T.ok('the refusal predicate is EXPORTED — its absence is a failure, never a skip', typeof DC.captureDirRefusal === 'function', 'typeof captureDirRefusal = ' + typeof DC.captureDirRefusal);
+      if (typeof DC.captureDirRefusal !== 'function') return;
+      /* ANTI-VACUITY · the shared names exist, so the tool and this group cannot be reading two
+         different patterns or two different floors. */
+      T.ok('the capture-name pattern is exported and real', DC.CAPTURE_FILE_RE instanceof RegExp && DC.CAPTURE_FILE_RE.test('Polar_H10_x_20260726_010203_ECG.txt'));
+      T.eq('the size floor is exported, not a literal in the pipeline', DC.MIN_FRAGMENT_BYTES, 3e6);
+
+      var R = function (dir, probe) {
+        return DC.captureDirRefusal(dir, probe);
+      };
+      var cases = [
+        ['no directory at all', R('', { exists: true, isDirectory: true, names: [] }), 'no-directory-given'],
+        ['an absent directory', R('/nope/nope-9f3', { exists: false }), 'directory-absent'],
+        ['a path that is a FILE', R('/tmp/afile', { exists: true, isDirectory: false }), 'not-a-directory'],
+        ['an empty directory', R('/tmp/d', { exists: true, isDirectory: true, names: [] }), 'directory-empty'],
+        ['a directory holding the wrong night', R('/tmp/d', { exists: true, isDirectory: true, names: ['readme.txt', 'notes.csv'] }), 'no-capture-file-matched'],
+        ['an unreadable directory', R('/tmp/d', { exists: true, error: 'EACCES' }), 'directory-unreadable']
+      ];
+      for (var i = 0; i < cases.length; i++) {
+        T.eq(cases[i][0] + ' is refused as ' + cases[i][2], cases[i][1] && cases[i][1].reason, cases[i][2]);
+      }
+      /* The six reasons must be SIX. A predicate that collapsed them would pass every line above while
+         sending a reader to the wrong place — "empty" and "wrong night" are different mistakes. */
+      var reasons = {};
+      for (var j = 0; j < cases.length; j++) if (cases[j][1]) reasons[cases[j][1].reason] = 1;
+      T.eq('each cause has its OWN reason, not one shared refusal', Object.keys(reasons).length, cases.length);
+      /* A refusal names WHAT IT LOOKED FOR AND WHERE, or the reader cannot tell mis-aim from genuine
+         absence in one glance. */
+      T.ok('the absence detail names the path it looked for', /\/nope\/nope-9f3/.test(String(R('/nope/nope-9f3', { exists: false }).detail)));
+      T.ok('the wrong-night detail names how many entries it saw', /\b2 entries\b/.test(String(R('/tmp/d', { exists: true, isDirectory: true, names: ['a.txt', 'b.csv'] }).detail)));
+      /* THE OTHER ARM: a directory that CAN be read is not refused. Without this the group passes on a
+         predicate that refuses everything, which is the failure mode of a fail-closed guard. */
+      T.eq('a readable directory with one matching file is NOT refused', R('/tmp/d', { exists: true, isDirectory: true, names: ['SenseLogger_20260726_PPG.txt', 'readme.txt'] }), null);
+      T.eq('…and an O2Ring PPG counts too', R('/tmp/d', { exists: true, isDirectory: true, names: ['O2Ring_20260726_PPG.txt'] }), null);
+
+      /* THE SEVENTH REASON lives in its own predicate, because it decides over SIZES. It is the one
+         that got closest to reading as a result: the names matched, the floor removed all of them, and
+         the header printed over an empty table at exit 0. */
+      T.ok('the size-floor predicate is EXPORTED too', typeof DC.fragmentFloorRefusal === 'function', 'typeof fragmentFloorRefusal = ' + typeof DC.fragmentFloorRefusal);
+      if (typeof DC.fragmentFloorRefusal === 'function') {
+        var under = [{ f: 'Polar_H10_x_ECG.txt', sz: DC.MIN_FRAGMENT_BYTES }];
+        var over = [{ f: 'Polar_H10_x_ECG.txt', sz: DC.MIN_FRAGMENT_BYTES + 1 }];
+        T.eq('every match under the floor is refused by name', DC.fragmentFloorRefusal('/tmp/d', under) && DC.fragmentFloorRefusal('/tmp/d', under).reason, 'no-fragment-over-size-floor');
+        /* THE BOUND IS THE TEST CASE. The filter is `> MIN_FRAGMENT_BYTES`, so exactly the floor is
+           refused and one byte more is kept — a sample well inside either side proves neither. */
+        T.eq('one byte over the floor is NOT refused', DC.fragmentFloorRefusal('/tmp/d', over), null);
+        T.eq("an absent match is the OTHER predicate's answer, not a floor refusal", DC.fragmentFloorRefusal('/tmp/d', []), null);
+        T.ok('the detail names the count and the floor', /1 capture file\(s\).*3 MB/.test(String(DC.fragmentFloorRefusal('/tmp/d', under).detail)));
+      }
+
+      /* THE EXIT CODE IS THE DEFECT. A source scan cannot tell a refusal from a stack trace: both
+         print the path, and the difference is the status and whether anything was written. */
+      if (typeof env.probeToolArgv !== 'function') {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only');
+        return;
+      }
+      var r = env.probeToolArgv('tools/dual-clock-rate.mjs', ['/nope/nope-9f3']);
+      T.eq('the CLI exits 2 on an absent directory, not 1 with a trace', r.status, 2);
+      T.ok('…naming the reason', /directory-absent/.test(r.out), r.out.split('\n')[0]);
+      T.ok('…and NOT as a node:fs scandir trace, which is the regression', !/node:fs|ENOENT: no such file or directory, scandir/.test(r.out), r.out.split('\n')[0]);
+      T.eq('…having written nothing', r.wrote.length, 0);
     });
 
     /* BADGE-COVERAGE-AUDIT §5 (corrected on execution) — no badge may carry a tier nobody assigned.
