@@ -3,9 +3,9 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (core BUILT, remainder owner-gated — verified 2026-10-20: items 1, 2 and 7 met
-on a read-only rig replay; 3 and 6 need restating; 4 waits on the owner-authorized box run; 5 waits on
-the RESIDUE-only slot; 8 is half met) — 2026-10-05 · **Created:** 2026-10-05
+**Status:** PROPOSED (core BUILT, remainder owner-gated — verified 2026-10-20 on a read-only rig
+replay: three items tick, two need restating, one waits on the owner-authorized box run, one waits on
+the RESIDUE-only slot, and one is half met; the Verification section names each) — 2026-10-05 · **Created:** 2026-10-05
 
 # NIGHT-IS-THE-RECORDING — one recording, one night, one verdict; and why the folder boundary is the wrong lever
 
