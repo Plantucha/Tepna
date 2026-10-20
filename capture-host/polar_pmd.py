@@ -440,10 +440,13 @@ def chosen_rate(meas: int, settings: dict[int, list[int]], prefer: int | None = 
     headroom. "The device does not offer what we asked for" means "pick the closest thing it does",
     never "pick the biggest".
 
-    An EMPTY menu is a different case and deliberately keeps the vendor default: `build_start` only
-    emits a rate TLV when the device reported a menu, so with none the device runs at its own default
-    and `SAMPLE_HZ` is what actually happens. Returning the configured value there would be a claim
-    about the wire that is not true — capture.py warns about that mismatch separately."""
+    An EMPTY menu is a different case and returns `SAMPLE_HZ` — but read what that number IS. With no
+    settings `build_start` returns `START[meas]`, and every entry of that table carries an explicit
+    rate TLV equal to `SAMPLE_HZ[meas]`, so this is the rate the START ASKS FOR and not a rate the
+    device has agreed to. It can be refused: `START[ACC]` asks 200 Hz, and a Verity Sense in normal
+    mode offers [52] alone. Returning the CONFIGURED value here would be just as false, so the number
+    stays and the honesty is owed at the reporting site — capture.py says the menu went unread rather
+    than calling it a device refusal (residue 2026-10-20-an-unread-rate-menu-reads-as-a-refusal)."""
     rates = settings.get(0x00) or []
     if not rates:
         return SAMPLE_HZ.get(meas, 0)
