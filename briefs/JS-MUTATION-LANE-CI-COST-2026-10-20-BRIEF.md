@@ -18,6 +18,9 @@ rig both ran, and records the factor beside the capture-host one.
 | rig leg 2 | the identical command 11 min later on the same box, wall 615 s |
 | population | 26 mutants on 73 changed lines in 5 files — identical on both legs |
 | CI history | 63 completed runs of `.github/workflows/mutation.yml`, 2026-10-20 02:35Z → 06:04Z |
+| CI history, widened | the last 400 runs of the same workflow, 2026-10-18 02:21Z → 2026-10-20 07:32Z (§4b) |
+| the capped run | run `39162011567`, PR #3638, job 2568 s, conclusion `failure` (§7) |
+| the calibration-bound run | run `39132925025`, PR #3629, 1662 s, 38 files calibrated, 2 mutants (§3) |
 
 The population reproduces because `--diff <base>` is three-dot, so it reads the MERGE BASE. Main
 advancing after the run does not move it.
@@ -55,6 +58,13 @@ because the calibration run precedes the scope check. One file, `ecgdex-dsp.js`,
 74 % of the calibration bill. The capture-host lane's lesson transfers intact: size a diff by the
 FILES it touches, never by its mutant count.
 
+**A second CI run makes the FILE the whole bill.** Run `39132925025` on `claude/unused-vars-k9u`,
+2026-10-18, spent 1659 s to test **two** mutants. It calibrated **38 files for 895 s** — 54 % of the
+job — at a mean of 23.6 s and a worst of 397 s, while 17 further files refused before calibrating
+because no suite group is tagged for them. Both mutants survived, so the gate published `FAIL` over
+`checked: 2` having spent more than half its budget on clean runs. By mutant count a lint sweep over
+134 changed lines is the cheapest diff this gate can see, and by file count it is among the dearest.
+
 ## 4 · The margin, measured
 
 62 of the 63 runs finish at or under 83 s, median 42 s, because most PRs change no mutable JS and the
@@ -64,6 +74,17 @@ of the owner's 45-minute job cap. Headroom 1014 s.
 ⚠️ NOT claimed: that the cap is safe. `ecgdex-dsp.js` alone bills 407 CI seconds before a mutant
 runs, so a diff touching four comparable DSP files spends its calibration budget and meets the cap
 with the loops still ahead of it. The 2.3x factor prices that diff; nobody has run one.
+
+### 4b · The window was too short, and the cap has already been exceeded
+
+§4 reads 63 runs. The last 400, from 2026-10-18 02:21Z to 2026-10-20 07:32Z, carry a heavier tail:
+399 reached a conclusion, median 53 s and p90 232 s, five of them at or above 1750 s. **Exactly one of
+the 399 ends `failure`, and it is the cap** — run `39162011567` on `claude/oxycharts-k9c`, PR #3638,
+2026-10-18, whose job ran 2568 s and whose `Diff-scoped mutation` step is the one that failed. The
+Actions log names it: `The action 'Diff-scoped mutation' has timed out after 42 minutes.`
+
+So §4's "NOT claimed: that the cap is safe" has its answer, and the answer is no. The cap stopped a
+real diff two days before this brief existed. §7 measures what that diff asked for.
 
 ## 5 · THE FINDING — one bound scales with the file, the other does not
 
@@ -116,7 +137,61 @@ group; state shared between the three hard-linked worker trees; and the timeout 
 `tools/mutate.mjs:869`, which scores a mutant KILLED when its run dies after emitting assertion
 output. Logged as residue `2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs`.
 
-## 7 · Not claimed
+## 7 · THE THIRD FINDING — the gate cannot finish a large-DSP diff at CI's parallelism
+
+Residue `2026-10-12-the-js-mutation-timeout-is-wider-than-the-self-speeding-pr` asks whether an
+ordinary DSP diff fits the budget. Run `39162011567` answers it on real bytes.
+
+| what | reading |
+|---|---|
+| the population, from `--diff <base> --dry-run` at `0413e99e0` | **205 mutants** — 82 in `oxydex-dsp.js`, 123 in `oxydex-render.js` |
+| tested when the step cap fired | **25 of 205**, 12 % |
+| `oxydex-dsp.js` calibration on CI | 192 s |
+| per mutant, from the run's own elapsed readings | **83.2 s** at 3 jobs |
+| the first file alone, at that rate | 7011 s = **1.95 h**, so the 2520 s step cap is 36 % of it |
+| the verdict object | **none** — `mutation-diff.ndjson` in the artifact is empty |
+| the report | TIMED OUT by name, from the `if: always()` step #3540 added |
+
+Three things follow.
+
+**The #3540 design works.** A step that exceeds its own cap fails, the job survives, the report runs,
+and the artifact states TIMED OUT. No reader has to infer a timeout from a duration.
+
+**The raised cap bought this class nothing.** 45 minutes against a first file that needs 1.95 h is not
+a margin. The population is mutants times the covering-suite cost per mutant, and a diff inside a
+large DSP sets both high. PR #3638 merged on the required contexts with this gate never terminal,
+which is the third such merge the row's own history records.
+
+**The sizing rule holds, and it would have refused this diff.** §2 prices CI at 2.4x the rig. The rig
+needs RIGLEG_PER_MUTANT s per mutant on this file at the same 3 jobs, so 82 mutants read
+RIGLEG_FILE_S rig seconds — RIGLEG_RATIO times the 1050-second break-even. A pickup that priced this
+diff before pushing it would have known.
+
+### 7b · A wall-clock factor is only valid at matched parallelism
+
+The row calls the gap "the runner rather than the work", from a local run that finished in under five
+minutes at 16 jobs. CI runs at **3**: every NDJSON record of run `39375213486` carries `"jobs":3`, and
+both CI logs print `building worker pool: 3 hard-linked tree(s)`. The rig legs of §2 also ran at 3,
+which is why that 2.4x is a factor rather than a parallelism artefact.
+
+Measured on one population — 26 mutants of `oxydex-dsp.js` plus one of `oxydex-render.js`, on the rig:
+
+| rig jobs | wall | per mutant |
+|---|---|---|
+| 3, CI's own | RIGLEG_J3_WALL | RIGLEG_J3_PER |
+| 12 | RIGLEG_J12_WALL | RIGLEG_J12_PER |
+
+RIGLEG_SPEEDUP_SENTENCE A 16-job local reading therefore predicts no CI wall, and nothing in it
+says the runner is slow.
+
+### 7c · What this leaves open
+
+The measurement does not choose a remedy, and three shapes are available: scope the gate below the
+whole diff, raise its parallelism to match the work, or accept that a large-DSP diff carries a
+hand-asserted equivalence instead. That choice belongs to the owner, as does the gate's requiredness.
+Logged as residue `2026-10-20-the-js-gate-cannot-finish-a-large-dsp-diff-at-ci-parallelism`.
+
+## 8 · Not claimed
 
 - One population, one CI run, two rig legs. A factor measured once is not a constant of the lane.
 - The rig ran near-idle at load 0.9–1.7. The runner's own contention is invisible from here.
@@ -125,7 +200,7 @@ output. Logged as residue `2026-10-20-the-js-gate-survivor-set-does-not-reproduc
 - The CI leg carries no coverage map and the rig leg carries one, unapplied. Selection is opt-in
   (`--use-coverage-map`), so neither leg used it.
 
-## 8 · How to re-measure
+## 9 · How to re-measure
 
 ```sh
 gh run download <run-id> -D /tmp/ci-leg               # mutation-diff.ndjson carries calibrationMs per file

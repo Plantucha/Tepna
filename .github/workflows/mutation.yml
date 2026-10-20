@@ -51,6 +51,12 @@ jobs:
     # `ecgdex-dsp.js` alone bills 407 CI seconds before one mutant runs. The whole-gate CI:rig factor
     # is 2.32x-2.45x over two rig legs, NOT the 1.53x #3202 measured on capture-host clean runs, so size as rig
     # seconds x 2.4 against the 2520 s step cap (break-even 1050 rig seconds).
+    # AND THE CAP HAS ALREADY FIRED. Run 39162011567 on #3638, 2026-10-18, spent 2571 s and ended
+    # `failure` — the step cap stopping a real diff, not a near miss. That diff carried 205 mutants
+    # (82 in `oxydex-dsp.js`, 123 in `oxydex-render.js`) and the step tested 25, 12 %, at 83.2 s per
+    # mutant on 3 jobs, so the first file alone needs 1.95 h. The artifact's `mutation-diff.ndjson` is
+    # empty, so that run emitted no verdict at all and only the report names the timeout. Logged as
+    # 2026-10-20-the-js-gate-cannot-finish-a-large-dsp-diff-at-ci-parallelism
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -76,8 +82,8 @@ jobs:
       # records three attempts spent before the 25m13s duration was read. A step that exceeds its own
       # `timeout-minutes` instead FAILS the step, the job stays alive, and the `if: always()` report
       # below still runs and says TIMED OUT. 42 leaves the job's 45 a margin for checkout, setup,
-      # the report and the artifact upload. This does not change WHICH pass consumes the budget
-      # (still unmeasured) nor the owner's 45-minute job cap.
+      # the report and the artifact upload. This does not change WHICH pass consumes the budget —
+      # measured since, in the brief the job comment above cites — nor the owner's 45-minute job cap.
       - name: Diff-scoped mutation
         id: mutate
         timeout-minutes: 42
