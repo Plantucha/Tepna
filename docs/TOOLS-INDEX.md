@@ -24,6 +24,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`aperiodic-method-compare.mjs`](../tools/aperiodic-method-compare.mjs) | EXTERNAL-METHODS-SURVEY §2's measurement. The question: our aperiodic alignment failed with a correlation/argmax method, and Schranz et al. |
 | [`aperiodic-offset.mjs`](../tools/aperiodic-offset.mjs) | aperiodic-offset — target 1 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE, finally testable. |
 | [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
+| [`argv-reads.mjs`](../tools/argv-reads.mjs) | WHICH TOOLS IGNORE AN UNKNOWN ARGV TOKEN BY CONSTRUCTION. WHY. |
 | [`argv-survey.mjs`](../tools/argv-survey.mjs) | WHICH TOOLS CAN TELL AN UNKNOWN FLAG FROM AN ABSENT ONE. Executable, controlled, and bounded to the tools it can prove are inert. |
 | [`assertion-strength.mjs`](../tools/assertion-strength.mjs) | WHICH ASSERTIONS PIN A DIRECTION WHERE THEY COULD PIN A VALUE |
 | [`astgrep-gate.mjs`](../tools/astgrep-gate.mjs) | FOUR REVIEWER BUGS, MATCHED ON THE SYNTAX TREE — §∅ and the Clock Contract, mechanised. |
