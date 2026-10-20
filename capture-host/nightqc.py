@@ -2681,17 +2681,21 @@ def ppg2w_contact(ch0, ch1, secs):
     return out
 
 
-def ppg2w_contact_quality(night_dir: str) -> list:
+def ppg2w_contact_quality(night_dir: str, *, only: frozenset[str] | None = None) -> list:
     """One `ppg2w_contact` block per `*_PPG2W.txt` in the night. Empty list when the stream was not
     captured — nothing to report is not the same as everything healthy, and the key stays honest by
     holding sessions, not a verdict.
+
+    `only`, when given, names the files to read and skips every other one. A caller that reads a folder
+    for a few sessions (the next day's folder, for a ring that reconnected after midnight) must not pay
+    for that whole day's PPG2W rows.
 
     Rows that do not parse as numbers are SKIPPED, not fatal: a mid-file repeated header is a real
     rotation artifact (seen 20260815100132) and one bad row must not erase a session's verdict.
     """
     out = []
     for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
-        if not name.endswith("_PPG2W.txt"):
+        if not name.endswith("_PPG2W.txt") or (only is not None and name not in only):
             continue
         # Memory, because this runs inside the daemon over ~4 M rows a night: the channels are machine ints, and
         # every row of one second shares ONE label object (consecutive rows repeat it), so `secs` is pointers
