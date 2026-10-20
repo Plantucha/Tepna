@@ -152,10 +152,12 @@ rm -f "$COVSCOPE_VERDICT"
 run_gate "covscope"   "$PY" tools/covscope.py --check --verdict-out "$COVSCOPE_VERDICT"
 
 # ── ADVISORY GATES (PYTHON-TYPES-AND-FORMAT-2026-08-27) ─────────────────────────────────────────
-# These RUN and REPORT but cannot fail the run yet. Advisory here is not the ignorable kind: the
-# counts print in the summary, and the flip conditions are pre-stated in the brief, not per-PR —
-# mypy flips BLOCKING at 0 errors (see MYPY_BASELINE below for the live figure and its date; the
-# number may only go DOWN). ⚠️ THIS LINE USED TO CARRY THE NUMBER ITSELF and drifted the moment
+# These RUN and REPORT but cannot fail the run. Advisory here is not the ignorable kind: the counts
+# print in the summary, and the flip conditions are pre-stated in the brief, not per-PR. 🔴 mypy's
+# condition — 0 errors — was MET on 2026-10-09 and the flip is taken: the advisory leg still measures
+# and reports, and a BLOCKING sibling named `mypy-ratchet` convicts on the state it recorded (see the
+# §P3 block after it). An advisory leg cannot contribute to the verdict it sits inside, and two PRs
+# raised the count above the baseline and merged green before this leg had one. ⚠️ THIS LINE USED TO CARRY THE NUMBER ITSELF and drifted the moment
 # the ratchet was banked: it still read "baseline 99, 2026-09-13" after MYPY_BASELINE moved to
 # 68, and that stale prose was handed between sessions as if it were a reading. A number written
 # twice has one copy that nobody updates; the constant is the only place it may live.
@@ -234,8 +236,13 @@ MYPY_OUT="${MYPY_OUT:-.mypy-latest.txt}"
 # know. It did: the brief recorded 102 on 2026-09-03 and the tree measured 103 three days later,
 # with every gate green throughout. An invariant stated in a label is not an invariant.
 #
-# Still ADVISORY: this reports the direction, it does not fail the run. §P3 is what flips mypy
-# blocking, and it flips at 0 — moving that decision here would pre-empt it.
+# ⚠️ A DECLARED RAISE GOES IN A COMMENT BESIDE THIS CONSTANT, and the CI job's refusal message names
+# the marker verbatim. THIS BLOCK MUST NOT NAME IT: the job reads the constant's line and ONE line
+# either side, and a glob for the marker cannot tell an instruction that spells it from a declaration
+# that uses it — an instruction sitting in the window would make every raise read as declared. Any
+# prose about the marker therefore stays here, two lines up or further, and never adjacent.
+#
+# §P3 FLIPPED 2026-10-20: this leg reports the direction and `mypy-ratchet` below fails the run on it.
 MYPY_BASELINE=0
 MYPY_BASELINE_DATE="2026-10-09"
 mypy_advisory() {
@@ -291,7 +298,11 @@ mypy_advisory() {
   return "$rc"
 }
 if "$PY" -c 'import mypy' 2>/dev/null; then
-  run_advisory "mypy" "baseline $MYPY_BASELINE ($MYPY_BASELINE_DATE) — count may only go DOWN; flips blocking at 0"     mypy_advisory
+  run_advisory "mypy" "baseline $MYPY_BASELINE ($MYPY_BASELINE_DATE) — count may only go DOWN; BLOCKING at 0"     mypy_advisory
+  # `run_advisory` clears `ADVISORY_STATE` before each leg and `mypy_advisory` sets it, so this reads
+  # the state THAT RUN recorded. Captured into its own name because the ratchet below must not depend
+  # on which advisory leg ran last.
+  MYPY_STATE="$ADVISORY_STATE"
 else
   # No mypy ⇒ REMOVE the feed rather than leave yesterday's. A stale queue is worse than an absent
   # one: the lane would propose fixes for errors that may already be gone, and its acceptance rate —
@@ -302,7 +313,66 @@ else
   mypy not installed (pip install -r requirements-dev.txt) — ADVISORY GATE DID NOT RUN
 '
   adv_names+=("mypy"); adv_codes+=(127); adv_notes+=("not installed — nothing was examined"); adv_states+=("NOT_INSTALLED")
+  MYPY_STATE="NOT_INSTALLED"
 fi
+
+# ── §P3: THE RATCHET IS BLOCKING, AND IT BLOCKS ON THE STATE ────────────────────────────────────────
+# PYTHON-TYPES-AND-FORMAT-2026-08-27 §P3 pre-stated this flip and its condition: mypy blocks when the
+# count reaches 0. `MYPY_BASELINE` reached 0 on 2026-10-09 (#3373), so the condition was met and the
+# flip was owed. It was not taken, and the cost is measured rather than argued: #3715 and #3728 each
+# raised the count above the baseline and BOTH merged with every gate green, because `run_advisory`
+# records a leg's code and then returns 0 whatever it read. A leg that cannot fail does not contribute
+# to the verdict it sits inside.
+#
+# IT READS THE STATE, NEVER mypy's EXIT CODE. Measured 2026-09-19: the leg exits 1 at the baseline and
+# 1 above it, because mypy exits non-zero whenever any error exists — so an aggregate keyed on the code
+# cannot tell the two apart, and at a baseline above 0 it would fire forever on every clean run. The
+# state is the discriminator (`advisory-state: mypy=RISEN`), and `=` cannot occur in a Python
+# identifier, so no test name can forge it.
+#
+# TWO STATES CANNOT CONVICT, and both stay a pass with the advisory's own loud note above:
+#   · NOT_COMPARABLE — the runtime requirements are absent, so the count is not the baseline's
+#     quantity (36 against 39 on one tree with one mypy, measured 2026-09-26). Convicting here would
+#     red every box that has not installed requirements.txt, over a number that does not describe it.
+#   · NOT_INSTALLED — an absent tool is not a failing gate (CLAUDE.md §🐍, the shellcheck-127 rule).
+# NO_COUNT exits 2, not 1: mypy aborted, so the count was never measured, and `checkverdict.py` reads
+# that as UNKNOWN rather than FAIL. The run still fails — nothing was examined, which is not a pass —
+# but the object does not claim a finding about the diff that nobody made.
+#
+# The advisory ROW and the `advisory-state:` token are deliberately untouched: `test_check_script.py`
+# asserts both directions of that prose and a peer's handoff predicate is anchored to its prefix, so
+# this adds a blocking leg beside them rather than restructuring what readers already key on.
+mypy_ratchet() {
+  case "${MYPY_STATE:-}" in
+    AT_BASELINE | BELOW)
+      printf '  the count is at or below the %s baseline (%s) — the ratchet holds.\n' \
+             "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+      return 0 ;;
+    RISEN)
+      printf '  BLOCKING: the count ROSE above the %s baseline (%s). The count may only go DOWN.\n' \
+             "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+      printf '  Fix the new errors, or — if an upstream mypy release reports more on unchanged code —\n'
+      printf '  raise MYPY_BASELINE with a declared reason on its own line: baseline-raised:<reason>.\n'
+      return 1 ;;
+    NO_COUNT)
+      printf '  BLOCKING: mypy printed no summary line, so the count was never measured.\n'
+      printf '  An unfinished measurement is not a clean tree. Read the output above for the abort.\n'
+      return 2 ;;
+    NOT_COMPARABLE)
+      printf '  not convicting: the runtime requirements are absent, so this count is not the\n'
+      printf '  baseline%ss quantity. pip install -r requirements.txt, then read the direction.\n' "'"
+      return 0 ;;
+    NOT_INSTALLED)
+      printf '  not convicting: mypy is not installed, and an absent tool is not a failing gate.\n'
+      printf '  install it: %s -m pip install -r requirements-dev.txt\n' "$PY"
+      return 0 ;;
+    *)
+      printf '  BLOCKING: the mypy leg recorded no state (%s), so nothing above compared a count.\n' \
+             "${MYPY_STATE:-empty}"
+      return 2 ;;
+  esac
+}
+run_gate "mypy-ratchet" mypy_ratchet
 # ── THE DEV FLOORS LEG: a declared version compared to an installed one ─────────────────────────────
 # NOTHING IN THIS TREE COMPARED A VERSION TO A FLOOR. `tests/test_dev_requirements.py` compares NAMES,
 # so `requirements-dev.txt` could raise a floor with nobody reading it — and it had: measured

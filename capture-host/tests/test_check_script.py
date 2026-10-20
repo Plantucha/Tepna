@@ -51,8 +51,9 @@ def _sandbox(
     format_rc=0,
     shellcheck_rc=0,
     pytest_rc=0,
-    mypy_found=None,
+    mypy_found=0,
     mypy_line=None,
+    mypy_mod=True,
     timeout_plugin=True,
     runtime_deps=True,
     ruff_mod=True,
@@ -62,7 +63,13 @@ def _sandbox(
     covscope_rc=0,
     covscope_object="PASS",
 ):
-    """A PATH where each gate is a stub that records that it ran and exits as scripted."""
+    """A PATH where each gate is a stub that records that it ran and exits as scripted.
+
+    ⚠️ `mypy_found` DEFAULTS TO A CLEAN COUNT, and did not until 2026-10-20. The default used to script
+    mypy printing NOTHING, which is an abort — tenable only while the mypy leg could not fail the run.
+    `mypy-ratchet` blocks on that state now, so a default of "no summary line" would have made every
+    test here assert over a gate failing for a reason it never meant to plant. A default sandbox is a
+    GREEN tree, and a green tree's mypy prints a count."""
     binn = tmp_path / "bin"
     binn.mkdir()
     log = tmp_path / "ran.log"
@@ -154,6 +161,9 @@ for a in "$@"; do
     "import pytest_timeout") exit {0 if timeout_plugin else 1} ;;
     # The RUNTIME-requirements probe (bleak): absent, the mypy count is not the baseline's quantity.
     "import bleak") exit {0 if runtime_deps else 1} ;;
+    # The mypy PRESENCE probe. An absent tool is not a failing gate, and the ratchet below must not
+    # convict over one — unscriptable until this dispatch existed, because the fallthrough exits 0.
+    "import mypy") exit {0 if mypy_mod else 1} ;;
     # The PREFLIGHT probes. These two absences are the ones no exit code can report honestly — ruff's
     # absent-module exit 1 is also its "violations found" code — so the script refuses before any gate.
     "import ruff") exit {0 if ruff_mod else 1} ;;
@@ -342,6 +352,96 @@ def test_the_bound_agrees_with_the_one_CI_runs():
     assert set(ci) == {local.group(1)}, f"check.sh says {local.group(1)}, CI says {sorted(set(ci))}"
 
 
+def _wf_text():
+    wf = pathlib.Path(HERE).parent / ".github" / "workflows" / "capture-host-ci.yml"
+    if not wf.exists():  # pragma: no cover - lane shipped alone
+        pytest.skip("workflow not present in this checkout")
+    return wf.read_text(encoding="utf-8")
+
+
+def _wf_line(prefix):
+    """The CI job's OWN shell line, to be RUN rather than re-implemented here. A test that re-writes
+    the extraction it is checking agrees with itself, never with the job."""
+    m = re.search(rf"^\s*({re.escape(prefix)}=\$\(.*)$", _wf_text(), re.M)
+    assert m, f"the mypy job no longer assigns {prefix} — this test cannot mean anything"
+    return m.group(1).strip()
+
+
+def _fn_body(name):
+    src = open(CHECK, encoding="utf-8").read()
+    m = re.search(rf"^{re.escape(name)}\(\) \{{\n(.*?)^\}}$", src, re.M | re.S)
+    assert m, f"check.sh no longer defines {name}() — this test cannot mean anything"
+    return m.group(1)
+
+
+def test_EVERY_STATE_THE_MEASURING_LEG_CAN_SET_IS_NAMED_BY_THE_CONVICTING_LEG():
+    """The two legs are separate on purpose, and separation is what lets them drift: a state added to
+    `mypy_advisory` and not to `mypy_ratchet` would fall to the `*)` arm. That arm fails closed, which
+    is correct and also silent about WHY — it reports "recorded no state" for a state that was recorded
+    perfectly well. So the parity is asserted here, where the answer is a list of names rather than a
+    run: the fallback is the net, not the design."""
+    measured = set(re.findall(r'ADVISORY_STATE="([A-Z_]+)"', _fn_body("mypy_advisory")))
+    measured.add("NOT_INSTALLED")  # set beside the `import mypy` probe, not inside the leg
+    assert len(measured) >= 5, f"only {sorted(measured)} — the leg's states are no longer readable here"
+    labels = set(re.findall(r"^\s*([A-Z_|\s]+?)\)", _fn_body("mypy_ratchet"), re.M))
+    named = {tok.strip() for lab in labels for tok in lab.split("|")}
+    assert measured <= named, f"states the ratchet does not name: {sorted(measured - named)}"
+    assert named <= measured, f"the ratchet names states nothing can set: {sorted(named - measured)}"
+
+
+def test_the_CI_RATCHET_READS_THE_NUMBER_check_sh_ENFORCES():
+    """TWO invocations, ONE number — the sibling of `test_the_bound_agrees_with_the_one_CI_runs`, and
+    this one is not hypothetical. 🔴 The job used to extract its baseline with
+    `grep -oE 'baseline [0-9]+.*'`, which matches PROSE as readily as a constant, and the file's first
+    such match is a COMMENT quoting the historical "baseline 99, 2026-09-13". Measured on #3715's own
+    job log: `mypy errors: 1   baseline here: 99   on origin/main: 99   delta: -98` → `ratchet ok
+    (1 <= 99)`, conclusion SUCCESS, on a tree whose recorded baseline was 0. The job permitted 99
+    errors while reporting that the ratchet held, for six weeks, over the number it names in its own
+    header as having one home.
+
+    So this test RUNS the job's line and compares the VALUE, never the shape: a grep for the anchored
+    pattern would have passed the day the job read 99, because the pattern was in the file — in the
+    tests."""
+    line = _wf_line("BASE")
+    p = subprocess.run(
+        ["bash", "-uo", "pipefail", "-c", f'{line}\nprintf "%s" "$BASE"'],
+        cwd=HERE,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert p.stdout == str(_baseline()), (
+        f"the CI job extracts {p.stdout!r} and check.sh enforces {_baseline()} — "
+        "the ratchet would bound a number nothing enforces"
+    )
+
+
+def test_THE_RAISE_DECLARATION_WINDOW_DOES_NOT_ITSELF_DECLARE_A_RAISE():
+    """A raise is allowed only with a declared reason beside the constant, and the job tests for the
+    marker with a glob over that window. Prose that SPELLS the marker inside the window is therefore
+    indistinguishable from a declaration that USES it — an instruction sitting there would make every
+    future raise read as declared, which is the detector-wider-than-the-defect family. Both halves are
+    read from the job itself, so neither can drift away from the other."""
+    m = re.search(r"\*(baseline-[a-z]+:)\*\)", _wf_text())
+    assert m, "the mypy job no longer globs for a declaration marker"
+    marker = m.group(1)
+    line = _wf_line("LINE")
+    p = subprocess.run(
+        ["bash", "-uo", "pipefail", "-c", f'{line}\nprintf "%s" "$LINE"'],
+        cwd=HERE,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert p.stdout.strip(), "the window is empty — the job cannot read a declaration out of it"
+    assert marker not in p.stdout, (
+        f"{marker!r} appears in the declaration window:\n{p.stdout}\n"
+        "Move the prose about it two or more lines from MYPY_BASELINE."
+    )
+
+
 def test_it_is_not_set_e(monkeypatch):
     """`set -e` would abort at the first failing gate and silently undo the whole point."""
     src = open(CHECK, encoding="utf-8").read()
@@ -454,12 +554,68 @@ def test_ANY_OTHER_LINE_is_still_NO_COUNT_the_honest_refusal(tmp_path):
         assert "NO COUNT" in out and "aborted, not passed" in out, line
 
 
-def test_THE_ADVISORY_STILL_DOES_NOT_FAIL_THE_RUN(tmp_path):
-    """Advisory means advisory. §P3 is what flips mypy blocking, and it flips at 0 — deciding that
-    here would pre-empt it."""
+def test_A_RISEN_COUNT_NOW_FAILS_THE_RUN(tmp_path):
+    """THE FLIP, and the inversion of this test is the whole of it. §P3 pre-stated the condition — mypy
+    blocks at 0 — and `MYPY_BASELINE` reached 0 on 2026-10-09, so the assertion that used to read
+    `returncode == 0` was reading a condition that had already been met.
+
+    What it cost while it stood: #3715 and #3728 each raised the count above the baseline and BOTH
+    merged with every gate green, because `run_advisory` records a leg's exit code and then returns 0
+    whatever it read. An advisory leg cannot contribute to the verdict it sits inside."""
     env, _log = _sandbox(tmp_path, mypy_found=999)
     p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
-    assert p.returncode == 0, "a risen mypy count must report, not fail the gate"
+    out = p.stdout + p.stderr
+    assert p.returncode != 0, f"a risen mypy count must FAIL the gate now:\n{out[-2000:]}"
+    assert "mypy-ratchet" in out, "the failing leg must be NAMED, not merely counted"
+    assert "RISEN" in out, "and the advisory leg must still report the direction it measured"
+
+
+def test_THE_ADVISORY_ROW_SURVIVES_THE_FLIP_it_is_not_replaced_by_the_blocking_leg(tmp_path):
+    """The measurement and the conviction are separate legs on purpose. A reader keyed on
+    `advisory-state: mypy=…` — `test_the_PROSE_ANCHOR_a_downstream_reader_keys_on_is_byte_STABLE`
+    pins one such reader — must still find its token when the count is risen and the run is red."""
+    out = _mypy_run(tmp_path, _baseline() + 1)
+    assert _state_of(out, "mypy") == "RISEN", out[-2000:]
+    assert re.search(r"^\s*mypy: \d+ errors — RISEN from the", out, re.M), "the advisory PROSE is unchanged"
+    assert re.search(r"mypy\s+advisory ok", out), "the advisory ROW is still printed in the summary"
+    assert re.search(r"mypy-ratchet\s+FAILED", out), "and the blocking sibling is the one that fails"
+
+
+def test_AN_ABORT_FAILS_THE_RUN_but_the_object_says_UNKNOWN_not_FAIL(tmp_path):
+    """NO_COUNT is a refusal, and a refusal is neither a clean tree nor a finding. The run fails —
+    nothing was examined, which cannot read as a pass — while `checkverdict.py` records UNKNOWN,
+    because no count was measured to convict the diff with. Exit 2 is what carries the difference."""
+    env, _log = _sandbox(tmp_path, mypy_found=None)  # mypy prints no summary line at all
+    p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    out = p.stdout + p.stderr
+    assert p.returncode != 0, out[-2000:]
+    assert "exit 2" in out and "never measured" in out, out[-2000:]
+    v = _verdict(tmp_path)
+    assert v["result"]["statuses"]["mypy-ratchet"] == "UNKNOWN", v
+    assert v["status"] == "UNKNOWN", "an unmeasured count is not a FAIL about the diff"
+
+
+def test_A_COUNT_THAT_IS_NOT_THE_BASELINES_QUANTITY_CANNOT_CONVICT(tmp_path):
+    """NOT_COMPARABLE: without the runtime requirements mypy counts a different thing (36 against 39 on
+    one tree with one mypy, measured 2026-09-26). Convicting here would red every box that has not
+    installed requirements.txt, over a number that does not describe it."""
+    env, _log = _sandbox(tmp_path, mypy_found=_baseline() + 50, runtime_deps=False)
+    p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    out = p.stdout + p.stderr
+    assert _state_of(out, "mypy") == "NOT_COMPARABLE"
+    assert p.returncode == 0, f"a count that is not the baseline's quantity must not fail the run:\n{out[-2000:]}"
+
+
+def test_AN_ABSENT_mypy_IS_NOT_A_FAILING_GATE(tmp_path):
+    """CLAUDE.md §🐍, the shellcheck-127 rule, applied to the leg that now blocks: an absent tool is a
+    missing measurement, not a finding. The ratchet must not convict a contributor who has not
+    installed requirements-dev.txt."""
+    env, _log = _sandbox(tmp_path, mypy_mod=False)
+    p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    out = p.stdout + p.stderr
+    assert "ADVISORY GATE DID NOT RUN" in out, out[-2000:]
+    assert _state_of(out, "mypy") == "NOT_INSTALLED"
+    assert p.returncode == 0, f"an absent mypy must not fail the run:\n{out[-2000:]}"
 
 
 # ── THE VERDICT IS A STATUS, NOT AN ADJECTIVE ───────────────────────────────────────────────────────
@@ -665,16 +821,18 @@ def test_a_green_run_writes_the_object_over_the_six_blocking_children_and_it_rea
         "shellcheck": "PASS",
         "pytest": "PASS",
         "unwired": "PASS",
+        "mypy-ratchet": "PASS",
         "covscope": "PASS",
     }
     assert v["result"]["unknown"] == 0 and v["result"]["notRun"] == 0 and v["result"]["fail"] == 0
-    # 4 → 5 children with `format` blocking (2026-10-05), 6 with `covscope` (2026-10-20). The population
-    # is the BLOCKING set, so this equality is the one that would have caught a leg added to the printout
-    # and not to the object.
-    assert v["population"] == {"checked": 6, "eligible": 6, "excluded": 0}
-    assert (
-        v["result"]["advisory"]["mypy"] == "NO_COUNT"
-    )  # the fake mypy prints no summary line: an abort, carried as the token
+    # 4 → 5 children with `format` blocking (2026-10-05), 6 with `mypy-ratchet` and 7 with `covscope`
+    # (both 2026-10-20, landed from separate PRs — this count is what the two conflicted on). The
+    # population is the BLOCKING set, so this equality is the one that would have caught a leg added to
+    # the printout and not to the object.
+    assert v["population"] == {"checked": 7, "eligible": 7, "excluded": 0}
+    # AT_BASELINE, from the sandbox's clean count. It read NO_COUNT until 2026-10-20, when the default
+    # stopped scripting an abort — see `_sandbox`.
+    assert v["result"]["advisory"]["mypy"] == "AT_BASELINE"
     assert "verdict: PASS" in p.stdout
 
 
@@ -786,8 +944,9 @@ def test_a_MISSING_TOOL_is_NOT_RUN_for_that_child_and_leaves_the_run_UNKNOWN_nev
     _run(tmp_path, shellcheck_rc=127)
     v = _verdict(tmp_path)
     assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["shellcheck"] == "NOT_RUN"
-    # 4 → 5 eligible with `format` blocking (2026-10-05); one tool missing still excludes exactly one.
-    assert v["population"] == {"checked": 5, "eligible": 6, "excluded": 1}
+    # 4 → 5 eligible with `format` blocking (2026-10-05), 6 with `mypy-ratchet` and 7 with `covscope`
+    # (both 2026-10-20); one tool absent still excludes exactly one.
+    assert v["population"] == {"checked": 6, "eligible": 7, "excluded": 1}
     assert "not installed" in v["reason"]
 
 

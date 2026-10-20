@@ -3,11 +3,19 @@
 """`check.sh`'s verdict as ONE `tepna.verdict/1` object, written beside `.mypy-latest.txt` (VERDICT-CONTRACT
 §3d — the runner-level object; wave 2 for the capture-host gate).
 
-`check.sh` decides nothing of its own: it runs five BLOCKING children (ruff · shellcheck · pytest · unwired ·
-covscope) and two advisory legs, and its "all gates green" is an aggregation of their exit codes. This module writes
-that aggregation down as an object so a downstream reader keys on `status`, not on the sentence.
+`check.sh` decides nothing of its own: it runs seven BLOCKING children (ruff · format · shellcheck · pytest ·
+unwired · mypy-ratchet · covscope) and two advisory legs, and its "all gates green" is an aggregation of their
+exit codes. This module writes that aggregation down as an object so a downstream reader keys on `status`,
+not on the sentence.
 
-THREE CHILDREN ARE EXTERNAL TOOLS WITH A PUBLISHED EXIT-CODE CONTRACT, and §3d reads such a child BY
+A CHILD WITH NO ROW HERE IS UNKNOWN WHATEVER IT MEASURED, and that is a hole, not a safe default:
+`format` blocked from 2026-10-05 and had no row until 2026-10-20, so a drifted tree published
+`status: UNKNOWN` — "nobody decided" — about a failure `ruff format --check` had measured and named.
+The shell exited 1 throughout, so the prose was right and the API was wrong, which is the one direction
+§🧾 exists to catch. Every name passed as a blocking child belongs in `CONTRACTS`, `ADOPTED_OURS` or
+`UNADOPTED_OURS` on the same commit that makes it blocking.
+
+FOUR CHILDREN ARE EXTERNAL TOOLS WITH A PUBLISHED EXIT-CODE CONTRACT, and §3d reads such a child BY
 that contract (Kestrel's ruling, 2026-09-22): the exit code is a machine-readable API the tool already
 publishes, so keying on it is not prose-parsing. The mapping lives here, beside the versions it was read
 from (ruff 0.16.0 · shellcheck 0.11.0 · pytest 9.1.1), and any code a contract does not name is UNKNOWN:
@@ -35,9 +43,19 @@ coverage data, so nothing about the tree was examined. Its object says UNKNOWN t
 an exit code alone could not distinguish from a finding.
 `UNADOPTED_OURS` stays as the floor for the NEXT tool of ours that joins this gate before it adopts.
 
+`mypy-ratchet` IS NOT A TOOL AND TAKES NO EXEMPTION. It is a function inside `check.sh`, so the codes
+below are not a third party's contract read off a tool that might have crashed instead — they are OUR
+contract, declared here and chosen there from the state the mypy leg recorded. The distinction the
+provenance rule protects is kept rather than waived: the external tool that can abort is mypy itself,
+and that abort is exactly what exit 2 carries (NO_COUNT ⇒ UNKNOWN, never FAIL). A conviction (exit 1)
+therefore always rests on a count mypy actually printed.
+
 Aggregation is §3d's precedence, not a vote: FAIL > UNKNOWN > PASS, and `checked = 0` is NOT_RUN. The
-advisory legs (mypy · devfloors; `format` left the set on 2026-10-05 and blocks now) are NOT in the population — they cannot fail the run — and ride along in
-`result.advisory` as the `advisory-state` tokens `check.sh` already prints.
+advisory legs (mypy · devfloors; `format` left the set on 2026-10-05 and blocks now) are NOT in the
+population — they cannot fail the run — and ride along in `result.advisory` as the `advisory-state`
+tokens `check.sh` already prints. mypy keeps its advisory ROW and its token: the blocking child
+`mypy-ratchet` reads that row's recorded state, so the leg that measures and the leg that convicts are
+both visible and a reader can see which state produced the verdict.
 """
 
 from __future__ import annotations
@@ -62,6 +80,8 @@ DEFAULT_OUT = ".check-verdict.json"
 # shared by every child and handled first; a code absent from a row is UNKNOWN with the number named.
 CONTRACTS: dict[str, dict[int, tuple[str, str]]] = {
     "ruff": {1: ("FAIL", "violations found"), 2: ("UNKNOWN", "abnormal termination")},
+    # `ruff format --check .` — the same tool and the same two codes, a separate child since 2026-10-05.
+    "format": {1: ("FAIL", "files are not formatted"), 2: ("UNKNOWN", "abnormal termination")},
     "shellcheck": {
         1: ("FAIL", "some files had issues"),
         2: ("UNKNOWN", "some files could not be processed"),
@@ -74,6 +94,11 @@ CONTRACTS: dict[str, dict[int, tuple[str, str]]] = {
         3: ("UNKNOWN", "internal error"),
         4: ("UNKNOWN", "usage error"),
         5: ("UNKNOWN", "no tests collected — a vacuous run examined nothing"),
+    },
+    # OURS, and the only row whose codes `check.sh` chooses itself (see the paragraph above).
+    "mypy-ratchet": {
+        1: ("FAIL", "the mypy count rose above the recorded baseline"),
+        2: ("UNKNOWN", "mypy printed no summary line, so the count was never measured"),
     },
 }
 # Children of OURS that have not adopted the contract: read by PROVENANCE, never by an exit code they do
