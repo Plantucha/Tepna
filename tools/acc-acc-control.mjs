@@ -43,8 +43,9 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 /* REPO defaults to THIS FILE's own repo root, never to an absolute path.
    It used to default to `/run/media/…/Tepna`, and that is worse than a crash: run from a WORKTREE the
@@ -56,6 +57,13 @@ import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undecl
    defect as a hard constant and were dead outright (PR #686); this one ran, which is why it survived.
    An explicit argv[2] still overrides, for pointing it at another checkout ON PURPOSE. */
 const SELF_REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+/* The two positionals below already decline a `-` token, which means a mistyped flag silently
+   selects the DEFAULT repo and root rather than the ones the operator named. Refuse it instead. */
+/* The refusal must fire for the CLI ONLY. `process.argv` belongs to whoever is running, so a
+   module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
+   reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--verdict-sample', '--help', '-h'], positional: true }, { tool: 'acc-acc-control' });
 const argRepo = process.argv[2] && !process.argv[2].startsWith('-') ? process.argv[2] : null;
 const REPO = argRepo || SELF_REPO;
 const argRoot = process.argv[3] && !process.argv[3].startsWith('-') ? process.argv[3] : null;
