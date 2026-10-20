@@ -367,6 +367,16 @@ def main(argv=None) -> int:
     _scope = {"lines": 0, "functions": 0}
     _ran_box = [0]  # mirrors `_ran` (a local of main, rebound below) so emit() can read it
     _narrow_box = [0]  # same trick for the AST-narrowed count, for the same reason
+    # A mutant that hit the FIRST wall bound and ran again under the wider one. `settled` holds the
+    # names the retry settled either way — killed or surviving — because the second run is harvested
+    # through the ordinary survivor path and this counter never claims a kill (mutation_diff.retry_outcome).
+    # ⚠️ BOUND HERE, BESIDE THE OTHER THINGS `emit` READS, AND NOT BESIDE THE RETRY LOOP THAT FILLS IT.
+    # It was declared next to the loop, 101 lines below the first `emit` call, and `emit` reads it on
+    # every path: the three early returns above the loop therefore raised `NameError` and the gate
+    # exited 1 with a traceback. The worst of the three was the preflight REFUSAL, whose whole purpose
+    # is to keep a gate that cannot look from reporting green — it stopped being distinguishable from
+    # an ordinary crash. `tests/test_mutate_diff_emit_scope.py` now fails on the next name bound late.
+    _timeout_retry: dict = {"retried": 0, "settled": [], "stillTimingOut": [], "newlyTimingOut": []}
 
     def _checked() -> int:
         """How many modules this run actually examined. ONE expression, because the prose below and the
@@ -523,10 +533,6 @@ def main(argv=None) -> int:
     # THIS TOOL CANNOT MUTATE ONE, so it was never examined. Counted apart so the summary can say so.
     _unexaminable: list = []
     _out_of_scope: int = 0  # undecided mutants belonging to functions the diff never touched
-    # A mutant that hit the FIRST wall bound and ran again under the wider one. `settled` holds the
-    # names the retry settled either way — killed or surviving — because the second run is harvested
-    # through the ordinary survivor path and this counter never claims a kill (mutation_diff.retry_outcome).
-    _timeout_retry: dict = {"retried": 0, "settled": [], "stillTimingOut": [], "newlyTimingOut": []}
     # §3c — a glob whose COUNT could not be trusted: the scan read nothing, or two independent
     # counts of the same mutants disagreed. Neither "crashed" (something did run) nor "nothing to
     # mutate" (that claims a fact about the code); the honest word is that this tool cannot say.
