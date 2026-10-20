@@ -823,7 +823,7 @@ class FakePolarClient:
     """A Polar PMD device: answers control-point commands (STOP/GET_SETTINGS/START) with real
     parse_settings_response / START-ack frames, and feeds one ECG data frame once PMD_DATA is subscribed."""
 
-    def __init__(self, start_status=0x00, hr_frame=None, sdk_start_ok=True, ecg=None):
+    def __init__(self, start_status=0x00, hr_frame=None, sdk_start_ok=True, ecg=None, settings_silent=False):
         self.cbs = {}  # uuid -> notify callback
         self._connected = True
         self.writes = []
@@ -839,6 +839,11 @@ class FakePolarClient:
         # device declining with `invalid_state` because a stream was still running.
         self.sdk_start_ok = sdk_start_ok
         self.sdk_mode_on = False
+        # `settings_silent`: answer GET_SETTINGS with a SUCCESS envelope carrying NO settings body, the
+        # state the box reaches when the control-point read times out (`parse_settings_response` returns
+        # `{}` for both). A device that always answers its menu cannot reach the branch that reports an
+        # unread menu, which is how that branch shipped reporting it as a device refusal.
+        self.settings_silent = settings_silent
 
     @property
     def is_connected(self):
@@ -903,7 +908,9 @@ class FakePolarClient:
             ctrl(0, bytes([0xF0, op, pmd.SDK_MODE, 0x00, 0x00, int(self.sdk_mode_on)]))
             return
         meas = cmd[1]
-        if op == 0x01:  # GET_SETTINGS
+        if op == 0x01 and self.settings_silent:  # GET_SETTINGS, answered with no menu
+            resp = bytes([0xF0, 0x01, meas, 0x00, 0x00])
+        elif op == 0x01:  # GET_SETTINGS
             # In SDK mode the device answers with a LARGER menu — that is the entire point of the mode,
             # so a fake answering identically either way could not tell the two states apart.
             rates = [130, 176] if self.sdk_mode_on else [130]

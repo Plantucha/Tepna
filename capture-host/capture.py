@@ -4429,7 +4429,33 @@ async def run_polar(dev: dict, root: str):
                             # us. Logged once per negotiation, at WARNING, naming what was asked for,
                             # what was used, and what the device actually offered, because "176 was
                             # ignored" without the menu beside it sends the reader to the wrong file.
-                            if _prefer is not None and _prefer != used_fs:
+                            # ∅ A MENU THAT WAS NEVER REPORTED IS NOT A REFUSAL (CLAUDE.md §∅). The two
+                            # cases reach this branch identically — `chosen_rate` returns the fixed
+                            # table's rate whenever the menu is empty — and reporting both as a refusal
+                            # states three things that are not true. Measured on the box 2026-10-19
+                            # 10:59:39: one GET_SETTINGS timed out and the daemon warned "configured rate
+                            # 52 Hz was NOT offered by the device — capturing at 200 Hz instead (device
+                            # offers: no menu reported)". The same unit had answered `[52]` 75 s earlier
+                            # and answered it again 61 s later, the START timed out in the same second
+                            # (`START acc (negotiated) → no_response`), and 200 Hz is simply what
+                            # `START[ACC]` asks for. So: the device did offer the rate, nothing captured
+                            # at 200, and the monitor chip drew `acc 200/52 Hz` under the sentence "the
+                            # device did NOT offer the configured rate and is capturing at a LOWER one".
+                            # 7 of the retention's 3086 warnings are this shape (6 acc, 1 mag).
+                            _menu = settings.get(0x00) if settings else None
+                            if _prefer is not None and _prefer != used_fs and not _menu:
+                                log.warning(
+                                    "%s %s: the device reported NO rate menu, so the configured %s Hz "
+                                    "could not be checked. START falls back to the fixed table, which "
+                                    "asks %s Hz and may ask a rate THIS device does not offer. An "
+                                    "unread menu is not a refusal: re-read it before changing the "
+                                    "config.",
+                                    name,
+                                    pmd.MEAS_NAME.get(meas, meas),
+                                    _prefer,
+                                    used_fs,
+                                )
+                            elif _prefer is not None and _prefer != used_fs:
                                 log.warning(
                                     "%s %s: configured rate %s Hz was NOT offered by the device — "
                                     "capturing at %s Hz instead (device offers: %s). The config still "
@@ -4438,7 +4464,7 @@ async def run_polar(dev: dict, root: str):
                                     pmd.MEAS_NAME.get(meas, meas),
                                     _prefer,
                                     used_fs,
-                                    settings.get(0x00) or "no menu reported",
+                                    _menu,
                                     _prefer,
                                 )
                                 _set(
@@ -4455,7 +4481,6 @@ async def run_polar(dev: dict, root: str):
                             # empty list for a stream whose GET_SETTINGS timed out or parsed to nothing, and webmon
                             # copies any non-empty `pmd_options` into `pmd_options_seen` — erasing the menu it had
                             # actually seen. A stream with no menu read now contributes no key at all.
-                            _menu = settings.get(0x00) if settings else None
                             if _menu:
                                 _set(
                                     name,
