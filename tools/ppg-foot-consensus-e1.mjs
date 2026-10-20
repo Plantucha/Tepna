@@ -370,9 +370,19 @@ function score(beatMs, eBeats, lo, hi) {
   return ppv.length ? { ppv: median(ppv), rec: rec.length ? median(rec) : null, jit: jit.length ? median(jit) : null, eps: ppv.length } : null;
 }
 
-/* Cheap filename pre-filter: an ECG whose stamp is more than 12 h from the PPG start cannot overlap
-   it. Files without a parseable stamp are NOT rejected — they fall through to the full parse, so the
-   optimisation can only save work, never silently drop a pairing. */
+/* Cheap filename pre-filter: an ECG whose name stamp sits further than OVERLAP_MAX_GAP_MS from the
+   PPG start cannot overlap it. A file without a parseable stamp is NOT rejected — it falls through to
+   the full parse, so the filter can only save work there, never silently drop a pair.
+
+   THE BOUND HAS TO EXCEED THE MEASURED NAME ERROR, and a 12 h bound did not. §4 ranks the filename
+   as anchor source (2), and the row `2026-09-22-filename-stamp-still-wrong-for-other-consumers`
+   measured captures whose name sits up to 18.7 h from their own first data row. A name that wrong
+   read as a different night here, so the pair was dropped — which is the one case the old comment
+   promised could not happen. 24 h is the bound `dex-ingest.js` already applies to the same question
+   (`PICK_MAX_GAP_MS`), and over the 591 ECG files that carry a name stamp in this corpus the worst
+   error measures 2.41 h (median 36.7 s, 2 files over 5 min, none at 12 h). So the widening costs no
+   work today and removes the case the promise could not cover. */
+const OVERLAP_MAX_GAP_MS = 24 * 3600 * 1000;
 const stampOf = (p) => {
   /* Both stamp layouts, and the validation this used to skip, come from `DexClock.fileStamp` — §4's
      anchor source (2), with one owner. The `Date.UTC` over digit slices that stood here built an
@@ -383,7 +393,7 @@ const stampOf = (p) => {
 };
 const plausiblyOverlaps = (p, t0) => {
   const t = stampOf(p);
-  return t == null || Math.abs(t - t0) < 12 * 3600 * 1000;
+  return t == null || Math.abs(t - t0) < OVERLAP_MAX_GAP_MS;
 };
 const _ecgMemo = new Map();
 function ecgCache(p) {

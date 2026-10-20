@@ -53,7 +53,7 @@ import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -118,7 +118,7 @@ export function spansGapOf(tt) {
 }
 
 /* ═════════════════════════════════ REALMS — the real modules ═══════════════════════════════════ */
-async function realms() {
+export async function realms() {
   const B = await import(join(ROOT, 'tools/build-core.js'));
   const classicify = B.classicify || B.default?.classicify;
   const { PPG_REALM, ECG_REALM } = await import(join(ROOT, 'tools/realm-manifest.js'));
@@ -221,75 +221,85 @@ function selftest() {
   return fail;
 }
 
-if (has('--selftest')) process.exit(selftest() ? 1 : 0);
+/* ═══════════════════════════════════ THE ENTRY POINT ═══════════════════════════════════════════
+   Everything below runs only when this file is the program. The planter, the two series the callers
+   derive and the realm loader are exports, and `tools/cvhr-edge-widen.mjs` imports them; without
+   this guard an import ran the whole battery and consumed the importer's own argv. */
+const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+async function main() {
+  if (has('--selftest')) return selftest() ? 1 : 0;
 
-/* ═════════════════════════════════════ THE BATTERY ═════════════════════════════════════════════ */
-const { P, E } = await realms();
-const rows = [];
-let parityMaxAbs = 0,
-  parityDisagreements = 0,
-  maskExcludedTotal = 0,
-  edgeAddedMaxPpg = 0,
-  edgeAddedMaxEcg = 0;
-for (const stepBpm of STEPS_BPM) {
-  const ref = score(P, E, { holeSec: 0, stepBpm, insert: false });
-  for (const holeSec of HOLES_S) {
-    const r = score(P, E, { holeSec, stepBpm });
-    const parity = r.ppg - r.ecg;
-    const addedPpg = r.ppg - ref.ppg,
-      addedEcg = r.ecg - ref.ecg;
-    parityMaxAbs = Math.max(parityMaxAbs, Math.abs(parity));
-    if (parity !== 0) parityDisagreements++;
-    maskExcludedTotal += r.maskExcluded;
-    edgeAddedMaxPpg = Math.max(edgeAddedMaxPpg, addedPpg);
-    edgeAddedMaxEcg = Math.max(edgeAddedMaxEcg, addedEcg);
-    rows.push({ stepBpm, holeSec, refPpg: ref.ppg, refEcg: ref.ecg, ...r, parity, addedPpg, addedEcg });
+  /* ═════════════════════════════════════ THE BATTERY ═════════════════════════════════════════════ */
+  const { P, E } = await realms();
+  const rows = [];
+  let parityMaxAbs = 0,
+    parityDisagreements = 0,
+    maskExcludedTotal = 0,
+    edgeAddedMaxPpg = 0,
+    edgeAddedMaxEcg = 0;
+  for (const stepBpm of STEPS_BPM) {
+    const ref = score(P, E, { holeSec: 0, stepBpm, insert: false });
+    for (const holeSec of HOLES_S) {
+      const r = score(P, E, { holeSec, stepBpm });
+      const parity = r.ppg - r.ecg;
+      const addedPpg = r.ppg - ref.ppg,
+        addedEcg = r.ecg - ref.ecg;
+      parityMaxAbs = Math.max(parityMaxAbs, Math.abs(parity));
+      if (parity !== 0) parityDisagreements++;
+      maskExcludedTotal += r.maskExcluded;
+      edgeAddedMaxPpg = Math.max(edgeAddedMaxPpg, addedPpg);
+      edgeAddedMaxEcg = Math.max(edgeAddedMaxEcg, addedEcg);
+      rows.push({ stepBpm, holeSec, refPpg: ref.ppg, refEcg: ref.ecg, ...r, parity, addedPpg, addedEcg });
+    }
   }
-}
-const checked = rows.length;
+  const checked = rows.length;
 
-if (!JSON_OUT) {
-  /* The table goes to STDERR: stdout is the object, and the adoption gate parses stdout from its
+  if (!JSON_OUT) {
+    /* The table goes to STDERR: stdout is the object, and the adoption gate parses stdout from its
      first brace, so prose there would have to stay brace-free forever. */
-  console.error('step  hole      ref  ppg  ecg  ecgNoMask  masked  parity  addedPPG  addedECG');
-  for (const r of rows) {
+    console.error('step  hole      ref  ppg  ecg  ecgNoMask  masked  parity  addedPPG  addedECG');
+    for (const r of rows) {
+      console.error(
+        `${String(r.stepBpm).padStart(4)}  ${String(r.holeSec).padStart(4)}s  ${String(r.refPpg).padStart(7)}  ${String(r.ppg).padStart(3)}  ${String(r.ecg).padStart(3)}  ${String(r.ecgNoMask).padStart(9)}  ${String(r.maskExcluded).padStart(6)}  ${String(r.parity).padStart(6)}  ${String(r.addedPpg).padStart(8)}  ${String(r.addedEcg).padStart(8)}`
+      );
+    }
     console.error(
-      `${String(r.stepBpm).padStart(4)}  ${String(r.holeSec).padStart(4)}s  ${String(r.refPpg).padStart(7)}  ${String(r.ppg).padStart(3)}  ${String(r.ecg).padStart(3)}  ${String(r.ecgNoMask).padStart(9)}  ${String(r.maskExcluded).padStart(6)}  ${String(r.parity).padStart(6)}  ${String(r.addedPpg).padStart(8)}  ${String(r.addedEcg).padStart(8)}`
+      `\nparity max |PPG-ECG| = ${parityMaxAbs} over ${checked} planted case(s); the ECGDex mask excluded ${maskExcludedTotal} event(s); a hole ADDED at most ${Math.max(edgeAddedMaxPpg, edgeAddedMaxEcg)} event(s) at its edges, which neither node removes.`
     );
   }
-  console.error(
-    `\nparity max |PPG-ECG| = ${parityMaxAbs} over ${checked} planted case(s); the ECGDex mask excluded ${maskExcludedTotal} event(s); a hole ADDED at most ${Math.max(edgeAddedMaxPpg, edgeAddedMaxEcg)} event(s) at its edges, which neither node removes.`
-  );
+
+  const commit = (() => {
+    try {
+      return execSync('git rev-parse --short HEAD', { cwd: ROOT, encoding: 'utf-8' }).trim();
+    } catch {
+      return null;
+    }
+  })();
+  const status = parityMaxAbs <= PARITY_CEIL ? 'PASS' : 'FAIL';
+  const v = Verdict.make({
+    gate: 'cvhr-gap-mask-parity',
+    status,
+    population: { checked, eligible: checked, excluded: 0 },
+    criterion: { name: 'ppg_minus_ecg_event_count_max_abs', threshold: PARITY_CEIL, unit: 'events', direction: 'lte' },
+    result: {
+      parityMaxAbs,
+      parityDisagreements,
+      maskExcludedTotal,
+      edgeEventsAddedMaxPpg: edgeAddedMaxPpg,
+      edgeEventsAddedMaxEcg: edgeAddedMaxEcg,
+      rows
+    },
+    evidence: ['tools/cvhr-gap-edge.mjs', 'briefs/PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md'],
+    reason: status === 'PASS' ? null : `${parityDisagreements} of ${checked} planted case(s) disagree between the two nodes by up to ${parityMaxAbs} event(s)`,
+    producedBy: { tool: 'tools/cvhr-gap-edge.mjs', commit }
+  });
+  const bad = Verdict.validate(v);
+  if (bad && bad.length) {
+    console.error('verdict does not validate: ' + bad.join('; '));
+    process.exit(2);
+  }
+  console.log(JSON.stringify(v));
+  return 0;
 }
 
-const commit = (() => {
-  try {
-    return execSync('git rev-parse --short HEAD', { cwd: ROOT, encoding: 'utf-8' }).trim();
-  } catch {
-    return null;
-  }
-})();
-const status = parityMaxAbs <= PARITY_CEIL ? 'PASS' : 'FAIL';
-const v = Verdict.make({
-  gate: 'cvhr-gap-mask-parity',
-  status,
-  population: { checked, eligible: checked, excluded: 0 },
-  criterion: { name: 'ppg_minus_ecg_event_count_max_abs', threshold: PARITY_CEIL, unit: 'events', direction: 'lte' },
-  result: {
-    parityMaxAbs,
-    parityDisagreements,
-    maskExcludedTotal,
-    edgeEventsAddedMaxPpg: edgeAddedMaxPpg,
-    edgeEventsAddedMaxEcg: edgeAddedMaxEcg,
-    rows
-  },
-  evidence: ['tools/cvhr-gap-edge.mjs', 'briefs/PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md'],
-  reason: status === 'PASS' ? null : `${parityDisagreements} of ${checked} planted case(s) disagree between the two nodes by up to ${parityMaxAbs} event(s)`,
-  producedBy: { tool: 'tools/cvhr-gap-edge.mjs', commit }
-});
-const bad = Verdict.validate(v);
-if (bad && bad.length) {
-  console.error('verdict does not validate: ' + bad.join('; '));
-  process.exit(2);
-}
-console.log(JSON.stringify(v));
+if (isMain) process.exit(await main());
