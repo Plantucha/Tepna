@@ -3839,6 +3839,118 @@ def test_the_audit_writes_the_job_spans_beside_the_night(tmp_path):
     assert unread["job_spans"] is None, unread["job_spans"]
 
 
+# ── THE EDGES OF THE FOUR WINDOWS THIS BIN ADDS (mutation gate on #3750: ten survivors, no test observed
+# them). Every one is a closed interval, and a flip to the open form loses exactly the sample ON the edge —
+# which is the sample the journal is most likely to carry, because journald stamps to the second and the
+# bracket's own two lines are the stamps being compared. ──
+def test_the_forward_window_INCLUDES_the_event_on_its_own_edge():
+    """3 s is the whole forward reach, so an event at t0+3.000 s is the last one the audit may NAME. Under
+    the open form it names nobody: there is no backward event and no span, so the gap reads
+    `unattributed` while the journal holds the line that explains it."""
+    edge = [(T0 + dt.timedelta(seconds=loss_audit.ATTRIB_FORWARD_S), "daemon:pull paused live")]
+    r = loss_audit.attribute_gaps_detail([(T0, 11.0)], edge)[0]
+    assert (r["cause"], r["cause_dir"]) == ("daemon:pull paused live", "after"), r
+
+
+def test_the_in_gap_record_INCLUDES_an_event_on_the_gap_s_LAST_second():
+    """`in_gap_cause` is never the attribution — it is what the journal held further into the outage, and
+    an event at t0+g is still inside the gap it describes. The attribution stays `unattributed`, which is
+    the half that keeps the record from becoming a cause."""
+    deep = [(T0 + dt.timedelta(seconds=11.0), "link:dbus busy")]
+    r = loss_audit.attribute_gaps_detail([(T0, 11.0)], deep)[0]
+    assert r["in_gap_cause"] == "link:dbus busy", r
+    assert (r["cause"], r["cause_dir"]) == ("unattributed", None), r
+
+
+def test_a_job_span_is_CLOSED_at_both_ends():
+    """A gap that starts in the second the bracket opens, or in the second it closes, was inside the job.
+    Either edge excluded hands the gap that the job's own first line explains to nobody — and the opening
+    line is exactly where a job that tears a stream does its tearing."""
+    opens_at_the_gap = [(T0, T0 + dt.timedelta(seconds=52), _REJUDGE)]
+    r = loss_audit.attribute_gaps_detail([(T0, 11.0)], [], opens_at_the_gap)[0]
+    assert (r["cause"], r["cause_dir"], r["job_cause"]) == (_REJUDGE, "in_job", _REJUDGE), r
+    closes_at_the_gap = [(T0 - dt.timedelta(seconds=52), T0, _REJUDGE)]
+    r2 = loss_audit.attribute_gaps_detail([(T0, 11.0)], [], closes_at_the_gap)[0]
+    assert (r2["cause"], r2["cause_dir"], r2["job_cause"]) == (_REJUDGE, "in_job", _REJUDGE), r2
+
+
+def test_a_bracket_EXACTLY_as_wide_as_the_cap_is_KEPT():
+    """The complement of the dropped 87,982 s bracket above: the cap is the widest span the measurement
+    bounds, so 300 s is a job that ran and closed, not a start whose end never came. Under `>=` the start
+    is forgotten one line before its own verdict arrives, and the verdict then brackets nothing."""
+    start = dt.datetime(2026, 10, 13, 3, 22, 57)
+    end = start + dt.timedelta(seconds=loss_audit.JOB_SPAN_CAP_S)
+    lines = "\n".join(
+        [
+            f"{start.isoformat()}-04:00 vigil python[1]: solid-night: 2026-10-11 — re-judged: the code moved",
+            f"{end.isoformat()}-04:00 vigil python[1]: solid-night: 2026-10-11 PASS — 6 solid of 6 nights",
+        ]
+    )
+    spans = loss_audit.read_job_spans(T0, T0 + dt.timedelta(hours=8), run=_jrun(lines))
+    assert spans == [(start, end, _REJUDGE)], spans
+
+
+def test_a_line_with_no_stamp_is_SKIPPED_and_does_not_end_the_read():
+    """journalctl opens with `-- Journal begins at … --`, and a rotated read carries more such lines
+    mid-stream. A stampless line is one line to skip: stopping at it would read the whole night as "no
+    job ran" — a `[]` that §∅ licenses attributing elsewhere — whenever the first line is not a log line."""
+    start = dt.datetime(2026, 10, 13, 3, 22, 57)
+    end = start + dt.timedelta(seconds=52)
+    lines = "\n".join(
+        [
+            "-- Journal begins at Mon 2026-09-01 00:00:00 EDT, ends at Tue 2026-10-13 03:30:00 EDT. --",
+            f"{start.isoformat()}-04:00 vigil python[1]: solid-night: 2026-10-11 — re-judged: the code moved",
+            f"{end.isoformat()}-04:00 vigil python[1]: solid-night: 2026-10-11 PASS — 6 solid of 6 nights",
+        ]
+    )
+    spans = loss_audit.read_job_spans(T0, T0 + dt.timedelta(hours=8), run=_jrun(lines))
+    assert spans == [(start, end, _REJUDGE)], spans
+
+
+def test_the_journal_read_is_time_BOUNDED_and_the_bound_is_the_asserted_number():
+    """The audit runs on the capture box between captures, so journalctl against a large or rotating
+    journal must not be able to hold it open. `timeout=None` and no `timeout` at all are both unbounded,
+    and no assertion weaker than the number separates 120 s from forever."""
+    seen = []
+
+    def rec(argv, **kw):
+        seen.append(kw)
+
+        class R:
+            returncode = 0
+            stdout = ""
+
+        return R()
+
+    assert loss_audit.read_job_spans(T0, T0 + dt.timedelta(hours=8), run=rec) == []
+    assert len(seen) == 1 and seen[0].get("timeout") == 120, seen
+
+
+def test_write_night_FORWARDS_the_job_span_reader_it_was_GIVEN(tmp_path):
+    """The injected reader is how a caller with no journal of its own audits a night — a replay, a test, a
+    night pulled back off the NAS. Dropping the keyword does not fail: `audit_night`'s default reads THIS
+    machine's journal, so the night would be audited against what some other machine was doing. The
+    recorder is what makes that fall-through visible, since a silent default returns a plausible `[]`."""
+    d = _night(tmp_path)
+    span = (T0 + dt.timedelta(seconds=180), T0 + dt.timedelta(seconds=260), _REJUDGE)
+    calls = []
+
+    def spans(since, until):
+        calls.append((since, until))
+        return [span]
+
+    loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [], job_spans=spans)
+    assert len(calls) == 1, calls
+    audit = json.load(open(os.path.join(d, "LOSS-AUDIT.json")))
+    assert audit["job_spans"] == [
+        {
+            "at": span[0].isoformat(timespec="seconds"),
+            "until": span[1].isoformat(timespec="seconds"),
+            "cause": _REJUDGE,
+        }
+    ], audit["job_spans"]
+
+
 def test_a_loop_stall_line_names_no_device_and_is_still_a_cause_dated_at_the_stall_START():
     ev = loss_audit.read_journal("Test Ring TR-01", T0, T0 + dt.timedelta(days=2), run=_journal(_STALL_LINE))
     # logged when the loop woke (03:46:14); 15682 ms earlier is when the cause began
