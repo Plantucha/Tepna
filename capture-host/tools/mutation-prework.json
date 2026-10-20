@@ -37,6 +37,12 @@
       "cleanSec": 36.1,
       "measuredAt": "2026-10-17",
       "host": "rig-x870"
+    },
+    "probe_oxyii_0x03.py@72f2e9e44d08": {
+      "statsSec": 14.4,
+      "cleanSec": 1.1,
+      "measuredAt": "2026-10-19",
+      "host": "rig-x870"
     }
   }
 }
