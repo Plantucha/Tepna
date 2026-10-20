@@ -657,7 +657,13 @@ The derivation holds to floating point. **The prediction it makes, however, is f
 > | h10 | CLAIM tch4LhsH10 = 0.014025171 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/lhsH10 | CLAIM tch4GapH10 = 0.014025171 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/gapH10 | 6.0e-16 |
 > | verity | CLAIM tch4LhsVerity = 0.000159799 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/lhsVerity | CLAIM tch4GapVerity = 0.000159799 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/gapVerity | 2.9e-16 |
 > | o2 | CLAIM tch4LhsO2 = 0.023737541 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/lhsO2 | CLAIM tch4GapO2 = 0.023737541 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/gapO2 | 1.7e-15 |
-> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=5390791458eb output=b214f558d44e generated=2026-10-12 -->
+> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=660ca80e6ab3 output=b214f558d44e generated=2026-10-12 -->
+>
+> **Re-stamped 2026-10-20 (#3787).** #3787 adds the tracked file `uploads/trio/2026-08-15/.trio-stamp`.
+> That file moves the tracked-file digest from `5390791458eb` (658 files) to `660ca80e6ab3` (659 files).
+> `tools/tch-pooled-hat.mjs` does not read `.trio-stamp` files.
+> A re-run of the stamp invocation on 2026-10-20 gives a `result` byte-equal to the 2026-10-12 record.
+> The table text and `output` did not move, so this stamp stays clearable with the new digest.
 >
 > **What moved.** h10 +0.04 % (0.014019917 → 0.014025171), o2 −0.57 % (0.023873666 → 0.023737541), and
 > verity −2.07 % (0.000163184 → 0.000159799). The between-night SHARES (B/within) are **0.395 / 0.272 /

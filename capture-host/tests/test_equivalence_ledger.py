@@ -22,6 +22,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import mutation_diff  # noqa: E402
+
 from _srcscan import HERE  # noqa: E402
 
 LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
@@ -371,3 +373,38 @@ def test_the_README_does_not_tell_authors_that_after_is_not_matched_on():
             text = " ".join(json.load(fh)["_README"])
         assert "not for matching" not in text, f"{path}: the README still says `after` is not matched on"
         assert "(line, op, before, after)" in text, f"{path}: the README must name the real four-field matcher key"
+
+
+def test_every_KEYED_entry_s_BEFORE_TEXT_is_still_in_its_MODULE():
+    """🔴 Row `2026-09-28-equivalence-keys-holding-prose-can-never-match`, met as a check.
+
+    An entry whose before text is absent from its module excuses nothing, and it excuses nothing
+    FOREVER: `classify` matches a key against the mutants a run GENERATED, and no generator emits text
+    the file does not hold. Two entries were keyed in English on 2026-09-28 (`- inside_old body: a <
+    old_end and | + a < old_end or`), and `mutate_diff.py` reported them ORPHANED and excluded them
+    from every count — so nothing red, nothing shrank, and the file still read like an answer.
+
+    ⚠️ IT IS NOT A PARSE CHECK, which is what that row proposed. A prose key parses as a
+    minus-plus pair perfectly well, and a pair-parse flags 1 of the 306 keyed entries. Presence in the
+    module is the property that separates a live excuse from a dead one, and `entry_before_in_source`
+    is the reader `mutate_diff.py` already uses for it. Measured 2026-10-20: 306 of 306 present, and
+    the two prose keys are gone. A failure here is not a style finding — name the entry and re-verify
+    it, or delete it and say what it stopped excusing."""
+    led = _load()
+    root = os.path.dirname(str(HERE))
+    absent = []
+    for mod, entries in led.items():
+        if mod == "_README":
+            continue
+        # A JS module sits at the repo root, a Python one beside this suite. An absent file RAISES
+        # rather than skipping: a ledger naming a module nobody can read is its own defect, and a
+        # `continue` here would hide it behind a green check.
+        with open(os.path.join(root if mod.endswith(".js") else str(HERE), mod), encoding="utf-8") as fh:
+            src = fh.read()
+        for i, e in enumerate(entries):
+            if isinstance(e.get("key"), str) and not mutation_diff.entry_before_in_source(e["key"], src):
+                absent.append(f"{mod}[{i}]: {e['key'][:100]}")
+    assert not absent, (
+        "equivalence entries whose BEFORE text is absent from their module — each one excuses nothing "
+        "until re-verified:\n  " + "\n  ".join(absent)
+    )
