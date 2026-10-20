@@ -858,6 +858,14 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
         <div id="stDisk" class="hint">—</div>
       </div>
 
+      <div class="card" id="memCard">
+        <div class="section-title">Daemon memory · last 12 h</div>
+        <p class="hint">From the daemon's own journal line, one per minute. Each daemon process draws its
+          own line: a restart starts a new process, so the lines never join across one (dashed mark).</p>
+        <canvas id="memCv" style="width:100%;height:180px;display:block"></canvas>
+        <div id="memLegend" class="hint">—</div>
+      </div>
+
       <div class="card" id="sealCard">
         <div class="section-title">Night seal</div>
         <div id="stSeal" class="hint">—</div>
@@ -1843,6 +1851,7 @@ $('#view-nights').addEventListener('click', nightsClick);
 
 async function loadStorage(){
   STORAGE = await api('/api/storage');
+  loadMem();
   const sel = $('#stProto');
   if(sel && !sel.options.length){
     sel.innerHTML = (STORAGE.protocols||[]).map(p =>
@@ -1863,6 +1872,66 @@ async function loadStorage(){
   if(s.window_min) $('#stWin').value = s.window_min;
   stSyncFields();
   renderStorageStatus();
+}
+
+// Daemon memory (row 2026-10-13-daemon-mem-block-not-drawn). /api/memory returns one SEGMENT per daemon
+// PID; a line never crosses a segment, because a restart starts a new process and joining two of them
+// draws a fall that never happened. Every plotted key is a LEVEL (mem_series.SHAPES); the cumulative gc
+// totals are not drawn. A null point breaks the line (§∅) instead of dropping it to zero.
+const MEM_KEYS = [
+  ['rss_kb', 'VmRSS', '--blue'],
+  ['rss_anon_kb', 'RssAnon', '--teal'],
+  ['system_kb', 'all arenas', '--amber'],
+  ['uordblks_kb', 'live in main arena', '--green'],
+];
+async function loadMem(){
+  const lg = $('#memLegend'), cv = $('#memCv');
+  if(!lg || !cv) return;
+  let d;
+  try { d = await api('/api/memory?hours=12'); } catch(e){ d = null; }
+  if(!d || !Array.isArray(d.segments)){ lg.textContent = 'The journal could not be read, so no series is drawn.'; return; }
+  const segs = d.segments.filter(s => s.points && s.points.length);
+  if(!segs.length){ lg.textContent = 'No memory line in the last 12 h.'; return; }
+  const css = getComputedStyle(document.documentElement);
+  const dpr = window.devicePixelRatio||1, W = cv.clientWidth||600, H = cv.clientHeight||180;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  let t0 = Infinity, t1 = -Infinity, vmax = 0;
+  for(const s of segs) for(const p of s.points){
+    t0 = Math.min(t0, p.tMs); t1 = Math.max(t1, p.tMs);
+    for(const [k] of MEM_KEYS) if(p[k] != null) vmax = Math.max(vmax, p[k]);
+  }
+  if(t1 <= t0) t1 = t0 + 60000;
+  const L = 44, R = 8, T = 8, B = 18, mb = Math.max(64, Math.ceil(vmax/1024/64)*64);
+  const x = t => L + (t - t0)/(t1 - t0)*(W - L - R), y = kb => T + (1 - kb/1024/mb)*(H - T - B);
+  g.font = '10px ui-monospace,monospace'; g.fillStyle = css.getPropertyValue('--text4');
+  g.strokeStyle = css.getPropertyValue('--surface3'); g.lineWidth = 1;
+  for(let i = 0; i <= 4; i++){
+    const v = mb*i/4, yy = y(v*1024);
+    g.beginPath(); g.moveTo(L, yy); g.lineTo(W - R, yy); g.stroke();
+    g.fillText(`${v} MB`, 2, yy + 3);
+  }
+  const hhmm = t => new Date(t).toISOString().slice(11,16);   // floating tMs: read as UTC (Clock Contract §5)
+  g.fillText(hhmm(t0), L, H - 4); g.fillText(hhmm(t1), W - R - 30, H - 4);
+  g.setLineDash([3,3]);
+  for(const s of segs.slice(1)){ const xx = x(s.points[0].tMs); g.beginPath(); g.moveTo(xx, T); g.lineTo(xx, H - B); g.stroke(); }
+  g.setLineDash([]);
+  for(const [k, , col] of MEM_KEYS){
+    g.strokeStyle = css.getPropertyValue(col); g.lineWidth = 1.5;
+    for(const s of segs){
+      g.beginPath(); let pen = false;
+      for(const p of s.points){
+        if(p[k] == null){ pen = false; continue; }
+        if(pen) g.lineTo(x(p.tMs), y(p[k])); else g.moveTo(x(p.tMs), y(p[k]));
+        pen = true;
+      }
+      g.stroke();
+    }
+  }
+  const last = segs[segs.length-1].points.slice(-1)[0];
+  lg.innerHTML = MEM_KEYS.map(([k, name, col]) =>
+    `<span style="color:var(${col})">■</span> ${esc(name)} ${last[k] == null ? '—' : Math.round(last[k]/1024) + ' MB'}`
+  ).join(' · ') + ` · ${segs.length} process${segs.length === 1 ? '' : 'es'} in the window`;
 }
 
 // The ring's RTC-reset alarm. STATUS.ring_rtc_reset_suspect is set by capture.py the moment a clock
