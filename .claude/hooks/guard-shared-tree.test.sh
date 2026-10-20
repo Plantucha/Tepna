@@ -203,6 +203,17 @@ git diff --name-only --diff-filter=U | xargs git checkout origin/main --
 git checkout --ours -- tests/dex-tests.js
 git checkout --theirs -- oxydex-dsp.js
 git checkout --theirs oxydex-dsp.js
+
+# ── depth-limited fetch grafts the SHARED object store (2026-10-20) ──────────────────────────────
+# The first case is the measured command. The rest are the other spellings of a depth option.
+git fetch origin claude/spanzone-wrn --depth=1
+git fetch --depth 1 origin main
+git -C ../wt-x fetch origin --depth=50
+git pull --depth=1 origin main
+git fetch --deepen=10 origin
+git fetch --shallow-since=2026-10-01 origin
+git fetch --shallow-exclude=v2.20.0 origin
+git fetch -q origin main --depth=1 && git log -1 FETCH_HEAD
 DENY
 
 echo
@@ -497,6 +508,14 @@ node tools/rebase-safe.mjs && npm run check
 # and the rebuild settles it. The new clause must not swallow that.
 git checkout --ours -- docs/OxyDex.html
 npm run rebase
+# ── the safe forms the depth-fetch denial points at (2026-10-20) ─────────────────────────────────
+git fetch origin
+git fetch -q origin main
+git fetch origin claude/spanzone-wrn
+git fetch --unshallow origin
+git clone --depth 1 https://example.invalid/x.git /tmp/x
+gh pr diff 3742
+git log --oneline -1 origin/main -- depth.md
 ALLOW
 
 echo
