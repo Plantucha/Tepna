@@ -65,7 +65,7 @@ if [ "${#preflight_missing[@]}" -ne 0 ]; then
   printf '  Or install them here: %s -m pip install -r requirements-dev.txt\n' "$PY"
   "$PY" checkverdict.py --write "${CHECK_VERDICT_OUT:-.check-verdict.json}" \
     --refused "the interpreter carries none of: ${preflight_missing[*]} — nothing was examined" \
-    ruff shellcheck pytest unwired format \
+    ruff shellcheck pytest unwired covscope format \
     || printf '  verdict: NOT WRITTEN — checkverdict.py exited %s (nothing ran either way)\n' "$?"
   exit 2
 fi
@@ -139,6 +139,17 @@ run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100
 UNWIRED_VERDICT="${UNWIRED_VERDICT_OUT:-.unwired-verdict.json}"
 rm -f "$UNWIRED_VERDICT"
 run_gate "unwired"    "$PY" tools/find_unwired.py --check --verdict-out "$UNWIRED_VERDICT"
+# WHICH tools/*.py THE 100 % FLOOR NEVER LOOKED AT. `pyproject.toml` has `source = [".", "deploy"]` and
+# coverage does not descend into a non-package directory, so a `tools/*.py` nothing imports is measured
+# NOWHERE and its absence from the report reads exactly like 100 % (§∅). Measured 2026-10-20: nine of the
+# fourteen print a row, five print none. The remedy is not coverage for the five — `tools/` is uncovered by
+# design — it is a PIN per absent file with a reason, so a sixth cannot join them in silence.
+# ⚠️ IT RUNS AFTER pytest AND READS THAT RUN'"'"'S `.coverage`: it cannot produce the data, only read it, and
+# data older than the scope it would judge is a REFUSAL (exit 2), never a pass. Same object-not-exit-code
+# reading as `unwired`, and the same removal of a stale file first.
+COVSCOPE_VERDICT="${COVSCOPE_VERDICT_OUT:-.covscope-verdict.json}"
+rm -f "$COVSCOPE_VERDICT"
+run_gate "covscope"   "$PY" tools/covscope.py --check --verdict-out "$COVSCOPE_VERDICT"
 
 # ── ADVISORY GATES (PYTHON-TYPES-AND-FORMAT-2026-08-27) ─────────────────────────────────────────
 # These RUN and REPORT but cannot fail the run yet. Advisory here is not the ignorable kind: the
@@ -379,7 +390,7 @@ done
 child_pairs=(); for i in "${!names[@]}"; do child_pairs+=("${names[$i]}=${codes[$i]}"); done
 adv_args=();    for i in "${!adv_names[@]}"; do adv_args+=(--advisory "${adv_names[$i]}=${adv_states[$i]:-UNSPECIFIED}"); done
 "$PY" checkverdict.py --write "${CHECK_VERDICT_OUT:-.check-verdict.json}" "${adv_args[@]}" \
-  --object "unwired=$UNWIRED_VERDICT" "${child_pairs[@]}" \
+  --object "unwired=$UNWIRED_VERDICT" --object "covscope=$COVSCOPE_VERDICT" "${child_pairs[@]}" \
   || printf '  verdict: NOT WRITTEN — checkverdict.py exited %s (the exit code below is still the gate)\n' "$?"
 
 if [ "$failed" -ne 0 ]; then

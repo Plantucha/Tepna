@@ -3,8 +3,8 @@
 """`check.sh`'s verdict as ONE `tepna.verdict/1` object, written beside `.mypy-latest.txt` (VERDICT-CONTRACT
 §3d — the runner-level object; wave 2 for the capture-host gate).
 
-`check.sh` decides nothing of its own: it runs four BLOCKING children (ruff · shellcheck · pytest · unwired)
-and two advisory legs, and its "all gates green" is an aggregation of their exit codes. This module writes
+`check.sh` decides nothing of its own: it runs five BLOCKING children (ruff · shellcheck · pytest · unwired ·
+covscope) and two advisory legs, and its "all gates green" is an aggregation of their exit codes. This module writes
 that aggregation down as an object so a downstream reader keys on `status`, not on the sentence.
 
 THREE CHILDREN ARE EXTERNAL TOOLS WITH A PUBLISHED EXIT-CODE CONTRACT, and §3d reads such a child BY
@@ -29,6 +29,10 @@ this module reads THAT, not the exit code — the exit code still cannot separat
 exception, the object can (a crash writes none). So `unwired` is read from its object when it ran and
 published one; a missing, unreadable, invalid or foreign object, or a PASS object beside a non-zero exit,
 is UNKNOWN. A green run therefore reads PASS, and PASS can no longer mean "unwired was never asked".
+`covscope` ADOPTED on arrival (2026-10-20) and is read the same way: it asks whether every `tools/*.py` is
+either measured by the coverage floor or pinned with a reason, and its exit 2 is a REFUSAL — no readable
+coverage data, so nothing about the tree was examined. Its object says UNKNOWN there, which is exactly what
+an exit code alone could not distinguish from a finding.
 `UNADOPTED_OURS` stays as the floor for the NEXT tool of ours that joins this gate before it adopts.
 
 Aggregation is §3d's precedence, not a vote: FAIL > UNKNOWN > PASS, and `checked = 0` is NOT_RUN. The
@@ -77,7 +81,7 @@ CONTRACTS: dict[str, dict[int, tuple[str, str]]] = {
 UNADOPTED_OURS: frozenset[str] = frozenset()
 # Children of OURS that HAVE adopted: `{name: the gate its object must carry}`. Read from the child's own
 # object (§3d provenance "object"), never from its exit code alone.
-ADOPTED_OURS = {"unwired": "find-unwired"}
+ADOPTED_OURS = {"unwired": "find-unwired", "covscope": "capture-host-coverage-scope"}
 
 
 def _object_status(name: str, rc: int, obj: dict | None) -> tuple[str, str]:
@@ -202,8 +206,8 @@ def parse_pairs(pairs: list[str]) -> dict[str, int]:
 
 
 def verdict_sample() -> dict:
-    """The object the adoption gate reads (`--verdict-sample`): a green run of the four children, `unwired`
-    read from a synthetic PASS object of its own — the gate's real green shape now that it has adopted."""
+    """The object the adoption gate reads (`--verdict-sample`): a green run of the children, with each
+    ADOPTED tool of ours read from a synthetic PASS object of its own — the gate's real green shape."""
     unwired = VD.make(
         gate=ADOPTED_OURS["unwired"],
         status="PASS",
@@ -219,10 +223,25 @@ def verdict_sample() -> dict:
         reason=None,
         tool="capture-host/tools/find_unwired.py",
     )
+    covscope = VD.make(
+        gate=ADOPTED_OURS["covscope"],
+        status="PASS",
+        population={"checked": 14, "eligible": 14, "excluded": 0},
+        criterion={
+            "name": "tools_absent_from_the_coverage_report_without_a_pin",
+            "threshold": 0,
+            "unit": "files",
+            "direction": "lte",
+        },
+        result={"findings": 0},
+        evidence=["capture-host/tools/covscope.py"],
+        reason=None,
+        tool="capture-host/tools/covscope.py",
+    )
     return aggregate(
-        {"ruff": 0, "shellcheck": 0, "pytest": 0, "unwired": 0},
+        {"ruff": 0, "shellcheck": 0, "pytest": 0, "unwired": 0, "covscope": 0},
         {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"},
-        {"unwired": unwired},
+        {"unwired": unwired, "covscope": covscope},
     )
 
 
