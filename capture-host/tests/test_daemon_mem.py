@@ -572,7 +572,12 @@ def test_a_refused_reset_rides_the_line_after_the_figure():
 
 def test_the_status_tick_logs_the_window_it_read(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(capture, "hwm_since_last_kb", lambda: (777, "a reason"))
+    pm = {"arenas": 3, "held": 3 * 1048576, "live": 2048, "reason": None}
+    monkeypatch.setattr(capture.pymalloc_stats, "read", lambda: pm)
     with caplog.at_level("INFO"):
         _loop(monkeypatch, tmp_path)
     lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("mem: ")]
-    assert len(lines) == 1 and lines[0].endswith(" · VmHWM since last line 777 kB · a reason")
+    # Every reason rides the END of the line, after every segment, so the window's reason now follows
+    # CPython's arena segment (row 2026-10-18-cap-net-admin-makes-the-daemon-non-dumpable-…).
+    assert len(lines) == 1
+    assert lines[0].endswith(" · VmHWM since last line 777 kB · pymalloc arenas 3 held 3072 kB live 2 kB · a reason")
