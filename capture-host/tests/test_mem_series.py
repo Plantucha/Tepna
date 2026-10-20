@@ -53,6 +53,26 @@ def test_a_zoneless_and_a_positive_zone_stamp():
     assert mem_series.parse_mem_line(_line(5, "01:00:00", 5000, zone="+0530"))["offsetMin"] == 330
 
 
+def test_a_two_digit_zone_hour_reads_both_digits():
+    """A single-digit zone hour cannot tell `zone[1:3]` from `zone[2:3]`: "05" and "5" are both 5."""
+    assert mem_series.parse_mem_line(_line(5, "01:00:00", 5000, zone="+10:30"))["offsetMin"] == 630
+    assert mem_series.parse_mem_line(_line(5, "01:00:00", 5000, zone="-1130"))["offsetMin"] == -690
+
+
+def test_only_the_text_after_the_needle_is_the_body():
+    """A figure just BEFORE `INFO mem:` belongs to the logger prefix, not to the mem line."""
+    r = mem_series.parse_mem_line("2026-01-02T01:00:00Z synthbox python[5]: x rest 99 INFO mem: VmRSS 7 kB")
+    assert r["rss_kb"] == 7 and r["rest_kb"] is None
+
+
+def test_the_first_needle_opens_the_body():
+    """A second `INFO mem: VmRSS` later in the line is text inside the body, not a new body."""
+    r = mem_series.parse_mem_line(
+        "2026-01-02T01:00:00Z synthbox python[5]: INFO mem: VmRSS 7 kB RssAnon 6 kB · echo INFO mem: VmRSS 9 kB"
+    )
+    assert r["rss_kb"] == 7 and r["rss_anon_kb"] == 6
+
+
 def test_a_line_that_is_not_a_mem_line_is_skipped():
     assert mem_series.parse_mem_line("2026-01-02T01:00:00Z synthbox python[5]: INFO connected") is None
     assert mem_series.parse_mem_line("no stamp here INFO mem: VmRSS 7 kB") is None
@@ -122,6 +142,8 @@ def test_read_defaults_to_now_and_the_real_runner(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake)
     assert mem_series.read_mem_series(1)["segments"] == []
     assert seen["kw"]["timeout"] == 60
+    # The parser reads `stdout` as str lines: bytes, or an uncaptured stream, would parse to nothing.
+    assert seen["kw"]["capture_output"] is True and seen["kw"]["text"] is True
 
 
 # ── /api/memory ──────────────────────────────────────────────────────────────────────────────────────
