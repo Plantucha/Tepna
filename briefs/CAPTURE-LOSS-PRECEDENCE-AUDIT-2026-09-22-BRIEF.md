@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 BUILT (`loss_audit.py` + `capture.loss_poller`: LOSS-AUDIT.json + LOSS-VERDICT.json per settled night, gate `night-loss`; UNKNOWN with the number until the owner sets a bar — none ruled; re-run on the box's 09-20 / 09-21 nights: 210 / 244 daemon-caused minutes, `daemon:not-worn drop` named); R3 BUILT (`telemetry.WORN_VOTES` — every vote, its rank and whether it MEASURES wear or INFERS it; `worn_verdict` reads the table instead of naming `flat-at-full` inline; §2a is rendered from it and diffed by `test_worn_precedence`). All four rulings executed 2026-09-22) · **Residue:** 2026-09-23-loss-audit-cannot-attribute-a-night-with-no-file · **Created:** 2026-09-22
+**Status:** DONE — 2026-10-20 (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 BUILT (`loss_audit.py` + `capture.loss_poller`: LOSS-AUDIT.json + LOSS-VERDICT.json per settled night, gate `night-loss`; UNKNOWN with the number until the owner sets a bar — none ruled; re-run on the box's 09-20 / 09-21 nights: 210 / 244 daemon-caused minutes, `daemon:not-worn drop` named); R3 BUILT (`telemetry.WORN_VOTES` — every vote, its rank and whether it MEASURES wear or INFERS it; `worn_verdict` reads the table instead of naming `flat-at-full` inline; §2a is rendered from it and diffed by `test_worn_precedence`). All four rulings executed 2026-09-22; the 14-night re-measurement closed it on 2026-10-20 — §7) · **Residue:** 2026-09-23-loss-audit-cannot-attribute-a-night-with-no-file · **Created:** 2026-09-22
 
 # CAPTURE-LOSS-PRECEDENCE-AUDIT — where the box loses a night it was wearing, measured
 
@@ -218,7 +218,61 @@ the tripwire that would have caught 09-03 (25 fragments) eighteen nights before 
 - [x] R4: `LOSS-AUDIT.json` beside every night's QC summary; the 09-20 and 09-21 nights re-audited
       name `daemon:not-worn drop` as the cause (210 / 244 daemon-caused min) — 2026-09-22. They read UNKNOWN,
       not FAIL: no bar has been set (owner), so the object carries the number and refuses to judge it.
-- [ ] Re-measured after 14 nights: daemon-caused gap minutes on both Polars = 0.
+- [x] Re-measured after 14 nights: daemon-caused gap minutes on both Polars = 0 — **28 Polar
+      device-nights over 2026-10-06 → 2026-10-19, maximum `daemon_caused_min` 0, no unattributed
+      gap in the window. Measured read-only on the box 2026-10-20 (§7).
+
+## 7 · The 14-night re-measurement (2026-10-20)
+
+Rule 0: `daemon-caused gap minutes on both Polars re-measured over fourteen nights` →
+`ext:memory/owner-questions-2026-09-25-morning`, `briefs/WEARABLE-SYNC-APPLIED-2026-07-31-BRIEF.md`,
+`briefs/PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md`.
+
+**The top hit names the mechanism behind all three gaps in the window.** The 09-25 owner-questions note
+records an H10 night whose `daemon:pull paused live` was the owner's own 22:00:54 time-sync click, and
+it asked for an `operator:time-sync` bin. That bin now carries every gap in this window. So the zero is
+not an absence of gaps. It is an attribution that no longer charges the daemon for an operator action.
+
+§6 pre-stated the criterion, and I read no value first: `daemon_caused_min` equals 0 for every Polar device-night
+in the window. The window is the 14 most recent nights that carry a Polar primary stream.
+
+| figure | value |
+|---|---|
+| window | 2026-10-06 → 2026-10-19 |
+| Polar device-nights in the window | 28 — 14 Verity Sense, 14 H10 |
+| maximum `daemon_caused_min` | 0 |
+| Polar gaps in the window | 3, totalling 3.3 min, every one `operator:time-sync` |
+| unattributed Polar gaps in the window | 0 |
+
+**The wider population says when the zero began.** Over every audited night from 2026-09-23 to
+2026-10-20 there are 54 Polar device-nights, 51 of them eligible and 3 excluded as `night_absent` with
+the reason `no primary file this night` (the Verity on 09-29, both Polars on 10-20, which had not
+recorded yet). Three eligible device-nights carry a non-zero figure, and all three predate the window:
+the Verity at 1.7 min and the H10 at 0.8 min on 2026-09-27, and the H10 at 0.2 min on 2026-10-01. No
+eligible device-night carries a null.
+
+**A re-attribution cannot move this zero.** The window holds three Polar gaps and every one already
+names a cause, so no later change to the attribution of unattributed gaps reaches the figure. That
+matters because #3750 re-attributes a gap inside a job the box declared for itself, and a reader would
+otherwise owe a re-measure after it lands.
+
+**NOT CLAIMED: that the deployed code is this checkout.** The box ran `deeb062f` and the daemon started
+2026-10-19 21:59 EDT, so the figures describe the attribution the deployed audit performs. A reader
+re-runs them by reading `devices[*].daemon_caused_min`, `by_cause` and `gaps[*].cause` out of each
+night's `/srv/tepna/captures/<night>/LOSS-AUDIT.json`, which is read-only work on the box.
+
+**NOT CLAIMED: that the night-loss gate now judges these nights.** It still publishes UNKNOWN with the
+number, because the owner has set no bar. This section judges the §6 item, not the night.
+
+```json
+{ "schema": "tepna.verdict/1", "gate": "loss-precedence-polar-remeasure", "status": "PASS",
+  "population": { "checked": 28, "eligible": 28, "excluded": 0 },
+  "criterion": { "name": "daemon_caused_min", "threshold": 0, "unit": "minutes", "direction": "lte" },
+  "result": { "max": 0, "nights": 14, "devices": 2, "unattributed_gaps": 0 },
+  "evidence": ["/srv/tepna/captures/2026-10-06..2026-10-19/LOSS-AUDIT.json", "capture-host/loss_audit.py"],
+  "reason": null,
+  "producedBy": { "tool": "capture-host/loss_audit.py", "commit": "deeb062f" }, "at": "2026-10-20T09:40:16Z" }
+```
 
 The general half of #2831's row (`2026-09-22-inferred-dock-outranked-the-heartbeat`, sourced to
 `telemetry.py`) is what R1/R2 execute; that row closes on the PR that lands them.

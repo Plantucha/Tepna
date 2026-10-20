@@ -774,6 +774,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/argv-reads.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/argv-reads.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the STATIC half of residue 2026-09-28-one-hundred-sixty-three-argv-reading-tools-are-unprobed, which the row names as one of its two routes: enumerate every line touching argv and confirm each is a literal-name lookup. It runs nothing, so the sibling survey's safety bound (no write, exec or network in the transitive closure) does not apply and the denominator is the whole population. Precedence is declared, not discovered: a guard call outranks everything, a positional read outranks a proof of ignoring, and an abstention outranks a proof but never a hazard. Pre-stated criterion: zero static classes contradicting a RECORDED RUN in audits/ARGV-REFUSAL-SURVEY-2026-09-28.json, where the three contradicting pairs are named in contradiction() and an abstention contradicts nothing. Each control row is judged on the bytes the probe RAN, read from the artifact's treeCommit, because the survey's own PR repaired all five swallowers and judging today's bytes excluded the entire positive class. The undecidable class carries a named reason and is never a clearance. The cmd is a sample object and scans nothing."
+  },
   "tools/argv-survey.mjs": {
    "bin": "decides",
    "status": "adopted",

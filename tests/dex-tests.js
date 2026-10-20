@@ -65768,8 +65768,65 @@
          in the boolean bucket — and the guard then reads its value as a stray positional and refuses
          THAT instead. Classify each helper by what its body does with argv: `includes(n)` tests
          presence, `indexOf(n)` plus `argv[i + 1]` reads a value. */
+      /* ⚠ A TOOL THAT EMBEDS TOOL SOURCE AS A FIXTURE DEFEATS A RAW-TEXT SCAN — which is this scan.
+         `argv-reads.mjs` carries planted tool sources inside template and double-quoted strings. One
+         plant declares `const arg = (k, d) => … argv.indexOf(k) …` and calls `arg('--out', 'x')`, so
+         the helper discovery enrolled a helper that does not exist and charged the tool with reading a
+         flag it never reads; another plant's `{ boolean: ['--json'] }` matched BEFORE the real guard
+         call, so three flags the tool does declare read as missing. Blank the embedded spans first.
+         Biome writes this repo's strings single-quoted, so a backtick or double-quoted span is prose or
+         embedded source, never the `flag('--x')` call this scan looks for. Comments are NOT masked and
+         an apostrophe in prose can end the scan early: both errors can only leave MORE text standing,
+         which demands more declarations, never fewer. Measured 2026-10-20 across all 20 adopters: the
+         mask changes `argv-reads.mjs` alone and leaves every other read set identical. */
+      function maskEmbedded(text) {
+        var out = text.split(''),
+          i = 0,
+          j,
+          k,
+          q;
+        while (i < text.length) {
+          if (text[i] === '\\') {
+            i += 2;
+            continue;
+          }
+          if (text[i] === '`' || text[i] === '"') {
+            q = text[i];
+            j = i + 1;
+            while (j < text.length) {
+              if (text[j] === '\\') {
+                j += 2;
+                continue;
+              }
+              if (text[j] === q) break;
+              j++;
+            }
+            for (k = i + 1; k < Math.min(j, text.length); k++) if (out[k] !== '\n') out[k] = ' ';
+            i = j + 1;
+            continue;
+          }
+          if (text[i] === "'") {
+            j = i + 1;
+            while (j < text.length && text[j] !== "'" && text[j] !== '\n') {
+              if (text[j] === '\\') j++;
+              j++;
+            }
+            i = j + 1;
+            continue;
+          }
+          i++;
+        }
+        return out.join('');
+      }
+      /* DECOY: the same call text twice over, once as code and once inside an embedded plant. */
+      var decoyMask = maskEmbedded(
+        "const argv = process.argv.slice(2);\nconst opt = (n) => argv[argv.indexOf(n) + 1];\nconst a = opt('--real');\nconst plant = \"const opt = (n) => argv.indexOf(n); opt('--planted');\";\n"
+      );
+      T.ok('DECOY · a real single-quoted call survives the mask', /opt\(\s*'--real'/.test(decoyMask), decoyMask);
+      T.ok('DECOY · …and the identical call inside an embedded plant does not', !/opt\(\s*'--planted'/.test(decoyMask), decoyMask);
+
       adopters.forEach(function (name) {
-        var src = TSg[name];
+        var src = maskEmbedded(TSg[name]);
         var helpers = { flag: 'boolean', opt: 'valued', optAll: 'valued' };
         var hre = /(?:const|let|var)\s+(\w+)\s*=\s*\([^)]*\)\s*=>/g,
           _hm;
