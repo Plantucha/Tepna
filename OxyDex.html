@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="97aef176fcdc" data-compute-hash="394a51594a7e">
+<html lang="en" data-manifest-hash="32feaf0e6655" data-compute-hash="2d1063a2809c">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>OxyDex — Nocturnal Oximetry Analyzer · v2.20.0</title>
+<title>OxyDex — Nocturnal Oximetry Analyzer · v2.21.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -6128,7 +6128,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
     <div>
       <div class="logo-title">OxyDex</div>
-      <div class="logo-sub">v2.20.0 · Tepna</div>
+      <div class="logo-sub">v2.21.0 · Tepna</div>
     </div>
   </div>
   <hr class="sidebar-logo-rule">
@@ -6168,7 +6168,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">OxyDex <span class="version-badge">v2.20.0</span></div>
+    <div class="topbar-title">OxyDex <span class="version-badge">v2.21.0</span></div>
     <div class="topbar-sub" id="topbarSub">Nocturnal oximetry · SpO₂ · HR · HRV · 75+ metrics · Tepna</div>
   </div>
   <div class="topbar-actions">
@@ -7786,15 +7786,29 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    Small null-safe + export-safety helpers loaded FIRST so the profile init
-   IIFE can reach them: csvSafe, sanitizeFname, escHTML, gv/sv, safeEl/safeSet/
-   safeStyle, getBaseline, computeBaselineArr, and the lineChart cache + global
-   trend-control state (gcWin/gcSmooth).
+   IIFE can reach them: csvSafe/csvNum, sanitizeFname, escHTML, gv, safeEl/
+   safeSet/safeStyle, smoothVals, computeCeilingBaselineArr, and the lineChart
+   cache + global trend-control state (gcWin/gcSmooth).
    Plain global script — shares page scope with the other oxydex-*.js files,
    exactly as in the original single-script monolith. No behavior change.
+
+   WHY EVERY FUNCTION HERE CARRIES A biome-ignore: this file is the one OxyDex
+   source the shell loads as a CLASSIC script (`<script src>`), ahead of the five
+   ES modules that consume it (`<script type="module">`). Its top-level functions
+   are therefore page globals, and their callers live in the sibling FILES. Biome
+   lints one file at a time and has no option to declare a file a script rather
+   than a module, so every global here reads as unused to it. The suppression
+   names the caller, which keeps the rule at `error` for this file: a helper that
+   genuinely loses its last caller, or a new dead local, still reds the gate.
+   Three did lose their last caller and are gone (`getBaseline` and
+   `computeBaselineArr`, both superseded by `computeCeilingBaselineArr`, and the
+   form-field setter `sv`, whose only caller was the legacy `upToDOM`
+   that this change removes).
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
    ════════════════════════════════════════════════════════════════════════ */
 
 // ── csvSafe: prevent Excel formula injection in CSV exports ──
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js calls it (the CSV export path)
 function csvSafe(v) {
   if (v === null || v === undefined) return '';
   var s = String(v);
@@ -7815,10 +7829,12 @@ function csvSafe(v) {
    anything starting with `-` with a TAB, so a legitimately negative metric would arrive as "\t-3.2".
    This one is for numbers: absent ⇒ '', otherwise the number unchanged. A real 0 is a number and
    prints as 0 — only an unmeasured value is blank. */
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js calls it (the CSV export path)
 function csvNum(v) {
   return v == null || typeof v !== 'number' || !isFinite(v) ? '' : v;
 }
 // ── sanitizeFname: strip HTML-dangerous chars from filenames ──
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-render.js calls it
 function sanitizeFname(s) {
   if (!s) return '';
   return String(s).replace(/[<>&"'`]/g, function (c) {
@@ -7832,6 +7848,7 @@ var _lineChartCache = {};
 // ── Global trend controls state (View Window + Smoothing) ──
 var _gcWin = 999; // trend/list view window in nights (999 = All)
 var _gcSmooth = 0; // moving-average radius for trend charts (0 = off)
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-render.js calls it
 function smoothVals(arr, k) {
   if (!k || k < 1 || !arr || arr.length < 3) return arr;
   return arr.map(function (_v, i) {
@@ -7848,72 +7865,40 @@ function smoothVals(arr, k) {
   });
 }
 // ── getBaseline: shared baseline computation (replaces 11x duplication) ──
-function getBaseline(spo2, WIN) {
-  WIN = WIN || 60;
-  if (!spo2 || !spo2.length) return 95;
-  var sl = spo2.slice(Math.max(0, spo2.length - WIN));
-  return sl.length
-    ? sl.reduce(function (a, b) {
-        return a + b;
-      }, 0) / sl.length
-    : spo2.length
-      ? spo2[0]
-      : 95;
-}
 // safeEl: safe getElementById wrapper injected by audit fix
 // Escape any file-derived / user-controlled string before it enters innerHTML.
 // (Filenames and CSV cell values can contain markup; a crafted shared export
 // must never be able to execute script in the page that holds your health data.)
 // Delegates to THE canonical suite escaper (dex-escape.js, loaded first in the
 // OxyDex shell) — one implementation, no per-app copy (SECURITY-REMEDIATION F1/F3).
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js, oxydex-dsp.js, oxydex-fusion.js, oxydex-render.js and OxyDex.src.html call it
 function escHTML(s) {
   return escapeHTML(s);
 }
 function safeEl(id) {
   return document.getElementById(id);
 }
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js, oxydex-dsp.js and oxydex-render.js call it
 function setIfPresent(id, prop, val) {
   var el = safeEl(id);
   if (el) el[prop] = val;
 }
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-app.js, oxydex-dsp.js and oxydex-render.js call it
 function safeStyle(id, prop, val) {
   var el = safeEl(id);
   if (el) el.style[prop] = val;
 }
 // gv/sv: null-safe value getter/setter for form inputs (guards all profile field access)
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-profile.js reads every profile field through it
 function gv(id) {
   var el = document.getElementById(id);
   return el ? el.value : '';
-}
-function sv(id, val) {
-  var el = document.getElementById(id);
-  if (el) el.value = val;
 }
 
 // ── computeBaselineArr: O(n) sliding-window baseline precomputation ──────────
 // Returns an array bl[] where bl[i] = mean(spo2[max(0,i-WIN)..i-1]).
 // Replaces the O(n²) pattern: getBaseline(spo2.slice(0,i), WIN) inside loops.
 // Usage: var blArr = computeBaselineArr(spo2, WIN); … var bl = blArr[i];
-function computeBaselineArr(spo2, WIN) {
-  WIN = WIN || 300;
-  var n = spo2.length;
-  var bl = new Array(n);
-  var sum = 0,
-    cnt = 0;
-  for (var i = 0; i < n; i++) {
-    // Window covers spo2[max(0,i-WIN)..i-1] (samples already seen)
-    if (i > 0) {
-      sum += spo2[i - 1];
-      cnt++;
-    }
-    if (i > WIN) {
-      sum -= spo2[i - WIN - 1];
-      cnt--;
-    }
-    bl[i] = cnt > 0 ? sum / cnt : 95;
-  }
-  return bl;
-}
 
 // ── computeCeilingBaselineArr: O(n) trailing high-percentile "ceiling" baseline ──
 // Returns bl[] where bl[i] = pct-th percentile of spo2[max(0,i-WIN)..i-1] (the recent
@@ -7929,6 +7914,7 @@ function computeBaselineArr(spo2, WIN) {
 // histogram low→high to the first value whose cumulative count reaches the target rank.
 // Integer SpO2 makes the histogram exact; the per-index walk is over a fixed 101 bins → O(n).
 // Window/fallback semantics mirror computeBaselineArr exactly (same coverage, bl[0]=95).
+// biome-ignore lint/correctness/noUnusedVariables: a page global — oxydex-dsp.js calls it (the ODI ceiling baseline)
 function computeCeilingBaselineArr(spo2, WIN, pct) {
   WIN = WIN || 300;
   pct = pct == null ? 90 : pct; // p90 = the stable resting ceiling (default, brief §2a)
@@ -12630,10 +12616,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    localStorage-backed user profile (UP) and every personalization formula:
-   upLoad/upSave/upFromDOM/upToDOM, HRmax/BMI/BSA/IBW/MAP/BMR/BAP/pop-avg/
+   upLoad/upFromDOM, HRmax/BMI/BSA/IBW/MAP/BMR/BAP/pop-avg/
    ideal-weight/Karvonen, profileDerivedUpdate/profileAutoDetectUpdate/
    recomputeFromProfile, the ANS-age hero, plus the inline-handler entrypoints
-   profileChanged/toggleProfile/openProfile. Runs initProfile() at load.
+   toggleProfile/openProfile. Runs initProfile() at load.
    Plain global script — shares page scope with the other oxydex-*.js files,
    exactly as in the original single-script monolith. No behavior change.
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
@@ -12699,7 +12685,7 @@ function upLoad() {
       UP.hrRestOverride = man.hrRest > 0 ? man.hrRest : 0;
       UP.elevation = p.elevation != null && isFinite(p.elevation) ? p.elevation : null; // §∅ — absent stays absent
       UP.cpap = p.cpap || 'no';
-    } catch (e) {}
+    } catch {}
     return;
   }
   try {
@@ -12708,31 +12694,16 @@ function upLoad() {
       var p2 = JSON.parse(raw);
       for (var k in p2) if (p2.hasOwnProperty(k)) UP[k] = p2[k];
     }
-  } catch (e) {}
+  } catch {}
 }
 
-function upSave() {
-  if (window.DexProfile) {
-    try {
-      DexProfile.setManual('age', UP.age);
-      DexProfile.setManual('sex', UP.sex);
-      DexProfile.setManual('weight', UP.weight);
-      DexProfile.setManual('height', UP.height);
-      DexProfile.setManual('sbp', UP.sbp);
-      DexProfile.setManual('dbp', UP.dbp);
-      DexProfile.setManual('vo2', UP.vo2GT > 0 ? UP.vo2GT : null);
-      DexProfile.setManual('hrMax', UP.hrmaxOverride > 0 ? UP.hrmaxOverride : null);
-      DexProfile.setManual('hrRest', UP.hrRestOverride > 0 ? UP.hrRestOverride : null);
-      DexProfile.setManual('elevation', UP.elevation);
-      DexProfile.setManual('cpap', UP.cpap);
-    } catch (e) {}
-    return;
-  }
-  try {
-    localStorage.setItem('oxydex_profile', JSON.stringify(UP));
-  } catch (e) {}
-}
-
+/* The page has no form left to read: OxyDex's profile moved to the shared DexProfile panel, and
+   OxyDex.src.html carries none of the eleven `prof*` ids this reads. Its one live consumer is the
+   node-lane seam `env.OxyUpFromDOM` (tests/run-tests.mjs), which the §∅ group "OxyDex profile · an
+   unentered setting or unmeasured term is not a number" uses to pin that an EMPTY elevation field
+   reads as null and never 0 m — the fix `tools/absence-ledger.mjs` records against this function.
+   Deleting it would delete that §∅ assertion with it, so it stays and the suppression names why. */
+// biome-ignore lint/correctness/noUnusedVariables: the node-lane seam env.OxyUpFromDOM (tests/run-tests.mjs) calls it — the §∅ empty-elevation pin
 function upFromDOM() {
   var age = parseInt(gv('profAge'), 10) || 49;
   var sex = gv('profSex') || 'male';
@@ -12748,20 +12719,6 @@ function upFromDOM() {
   var elv = isFinite(_elv) ? _elv : null;
   var cpap = gv('profCPAP') || 'no';
   UP = { age: age, sex: sex, weight: wt, height: ht, sbp: sbp, dbp: dbp, vo2GT: vo2, hrmaxOverride: hrm, hrRestOverride: hrr, elevation: elv, cpap: cpap };
-}
-
-function upToDOM() {
-  sv('profAge', UP.age);
-  sv('profSex', UP.sex);
-  sv('profWeight', UP.weight);
-  sv('profHeight', UP.height);
-  sv('profSBP', UP.sbp);
-  sv('profDBP', UP.dbp);
-  sv('profVO2', UP.vo2GT || '');
-  sv('profHRmax', UP.hrmaxOverride || 0);
-  sv('profHRrest', UP.hrRestOverride || 0);
-  sv('profElevation', UP.elevation != null ? UP.elevation : '');
-  sv('profCPAP', UP.cpap || 'no');
 }
 
 // SpO₂ altitude correction — returns adjustment to subtract from normal thresholds
@@ -13185,7 +13142,7 @@ function profileAutoDetectUpdate(allNights) {
   if (hrRestEst && window.DexProfile) {
     try {
       window.DexProfile.prefillFrom({ hrRest: hrRestEst });
-    } catch (e) {}
+    } catch {}
   }
   // Always update HRrest sublabel with avg + last-night value
   if (hrFloorMed) {
@@ -13222,7 +13179,7 @@ function profileAutoDetectUpdate(allNights) {
     if (window.DexProfile) {
       try {
         window.DexProfile.prefillFrom({ vo2: vo2Med });
-      } catch (e) {}
+      } catch {}
     }
     // Update sublabel with avg + last + ACSM category
     var _vc = upVO2category(vo2Med);
@@ -13273,26 +13230,8 @@ function recomputeFromProfile() {
       // ── Karvonen zones + readiness (pass null rows — guard allows it now) ──
       var newKarv = window.OxyDex._bare.computeKarvonenZones(null, n.hrv, n.vo2est, n.odi4, n.hypDose, n.sleepArch, n.stageProxy, UP.age || 49, n.stats ? n.stats.durationMin : null);
       if (newKarv) n.karv = newKarv;
-    } catch (e) {}
+    } catch {}
   });
-}
-
-function profileChanged() {
-  upFromDOM();
-  upSave();
-  profileDerivedUpdate();
-  if (window.allNights && Object.keys(window.allNights).length > 0) {
-    // Debounce the heavy dashboard re-render so typing in a profile field
-    // doesn't rebuild #results on every keystroke (which moved the focused
-    // input mid-edit and felt like the value was being lost).
-    clearTimeout(window._profRenderTimer);
-    window._profRenderTimer = setTimeout(function () {
-      try {
-        recomputeFromProfile(); // re-run VO2max + Karvonen before re-render
-        renderAll();
-      } catch (e) {}
-    }, 450);
-  }
 }
 
 function toggleProfile() {
@@ -13321,7 +13260,6 @@ function openProfile() {
 // ── Init on page load ──
 (function initProfile() {
   upLoad();
-  upToDOM();
   profileDerivedUpdate();
   if (window.DexProfile && window.DexProfile.renderPanel) {
     window._oxyPanel = window.DexProfile.renderPanel({
@@ -13336,7 +13274,7 @@ function openProfile() {
             try {
               recomputeFromProfile();
               renderAll();
-            } catch (e) {}
+            } catch {}
           }, 350);
         }
       }

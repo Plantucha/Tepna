@@ -21,6 +21,13 @@
 # would only add noise on top of the line that already says what happened.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -u
+# ⚡ DRAIN STDIN FIRST, AND WITH A BUILTIN. The harness writes the SessionStart payload down a PIPE,
+#   and both exits below fire before anything reads it. A payload over the 64 KB pipe buffer then
+#   leaves the writer on a closed pipe: it takes SIGPIPE (141) while this hook reads 0. The builtin
+#   costs nothing measurable at a production payload (#3759 priced it at 0.55 ms/call against 0.59
+#   for no drain, 400 calls a variant over two laps), so the contract no longer rests on the
+#   payload staying small.
+IFS= read -r -d '' _payload || true
 [ -n "${TS_AUTHKEY:-}" ] || exit 0
 command -v ts-up >/dev/null 2>&1 || exit 0
 if out="$(ts-up 2>&1)"; then
