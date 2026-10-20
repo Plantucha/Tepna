@@ -38825,6 +38825,90 @@
       T.eq('a healthy queue has nothing cancelled to name', att([green, advisoryCancel]).cancelled.length, 0);
     });
 
+    /* ── queue-doctor: DIRTY is two states, and the local merge probe tells them apart (residue
+       2026-09-22-residue-dirty-carries-no-signal). GitHub merges without the `merge=residue` driver,
+       so a RESIDUE-only append reads DIRTY there and merges clean here, and a real conflict reads the
+       same. Every DIRTY said "needs a human rebase". The probe is `git merge-tree --write-tree
+       --name-only`; the outputs below are its real shapes from #3749's head 7a8b60dbc, 2026-10-20. */
+    group('Queue-doctor — a DIRTY PR names whether the conflict is real, from a local merge probe', 'tools · queue-doctor-dirty', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention,
+        dv = env.qdDirtyVerdict,
+        pmt = env.qdParseMergeTree,
+        probe = env.qdProbeMerge;
+      if (typeof cl !== 'function' || typeof dv !== 'function' || typeof pmt !== 'function' || typeof probe !== 'function') {
+        T.skip('queue-doctor DIRTY probe is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var OID = 'a467cf5d0784eabccefb3dbe77f735d40a0bb4fa';
+      var CLEAN_OUT = OID + '\n';
+      var CONFLICT_OUT = OID + '\nbriefs/RESIDUE.md\n\nAuto-merging briefs/RESIDUE.md\nCONFLICT (content): Merge conflict in briefs/RESIDUE.md\n';
+      T.eq('a clean merge parses as exit 0', pmt(CLEAN_OUT, 0), { exit: 0, paths: [] });
+      T.eq('a conflict parses its paths and stops at the blank line', pmt(CONFLICT_OUT, 1), { exit: 1, paths: ['briefs/RESIDUE.md'] });
+      T.eq('exit 0 over no tree line is not a clean merge (examined nothing)', pmt('', 0), null);
+      T.eq('exit 1 that names no path is unreadable, not a conflict list', pmt(CLEAN_OUT, 1), null);
+      T.eq('a usage error (exit 128) is unreadable', pmt(OID + '\n', 128), null);
+      T.eq('a SHA-256 tree id parses too', pmt('a'.repeat(64) + '\n', 0), { exit: 0, paths: [] });
+
+      var NOW = 1755000000000;
+      var wrap = function (o) {
+        var pr = { number: 1, title: 't', state: 'OPEN', isDraft: false, mergeState: 'DIRTY', autoMerge: true, updatedAtMs: NOW - 90 * 60000, checks: [{ name: 'test', bucket: 'pass' }] };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test'], NOW);
+        r.pr = pr;
+        return r;
+      };
+      var display = wrap({ number: 11, mergeProbe: pmt(CLEAN_OUT, 0) });
+      var real = wrap({ number: 12, mergeProbe: pmt(CONFLICT_OUT, 1) });
+      var unprobed = wrap({ number: 13, mergeProbe: null });
+      var green = wrap({ number: 14, mergeState: 'CLEAN' });
+      T.eq('a clean local merge reads as the display artifact', display.k, 'dirty-display');
+      T.ok('…and its remedy is a merge and one push, never a rebase', /git merge origin\/main/.test(display.why) && /no rebase/.test(display.why));
+      T.eq('a conflicting local merge stays dirty (the plant: the probe can say "real")', real.k, 'dirty');
+      T.ok('…and names the conflicted path', /briefs\/RESIDUE\.md/.test(real.why));
+      T.eq('no probe keeps the old class and remedy', [unprobed.k, unprobed.why], ['dirty', 'merge conflict — needs a human rebase']);
+      T.eq('a malformed probe is not a clean merge', dv({ exit: 0.5 }).k, 'dirty');
+      T.eq('a red beats a DIRTY probe', wrap({ number: 15, mergeProbe: pmt(CLEAN_OUT, 0), checks: [{ name: 'test', bucket: 'fail' }] }).k, 'failing');
+      var a = att([display, real, unprobed, green]);
+      T.eq(
+        'both DIRTY kinds are in the attention set',
+        a.dirty.map(function (c) {
+          return c.pr.number;
+        }),
+        [11, 12, 13]
+      );
+      T.eq('…and none of them is green-and-stuck, red or cancelled', a.stuck.length + a.failing.length + a.cancelled.length, 0);
+      T.eq('a clean queue has nothing DIRTY to name (non-vacuity)', att([green]).dirty.length, 0);
+
+      /* The I/O probe with an injected git: the merge-tree exit reaches the parser, and any earlier
+         failure returns null rather than a guess. */
+      var calls = [];
+      var fake = function (out, status) {
+        return function (a) {
+          calls.push(a[0]);
+          if (a[0] === 'rev-parse') return 'b'.repeat(40) + '\n';
+          if (a[0] === 'merge-tree') {
+            if (status) {
+              var e = new Error('exit ' + status);
+              e.status = status;
+              e.stdout = out;
+              throw e;
+            }
+            return out;
+          }
+          return '';
+        };
+      };
+      T.eq('the probe passes a clean merge through', probe(5, OID, 'main', fake(CLEAN_OUT, 0)), { exit: 0, paths: [] });
+      T.eq('…and fetches before it merges', calls.slice(0, 4), ['fetch', 'rev-parse', 'cat-file', 'merge-tree']);
+      T.eq('the probe passes a conflict through', probe(5, OID, 'main', fake(CONFLICT_OUT, 1)), { exit: 1, paths: ['briefs/RESIDUE.md'] });
+      var failFetch = function (a) {
+        if (a[0] === 'fetch') throw new Error('network');
+        return CLEAN_OUT;
+      };
+      T.eq('a failed fetch is null, not a clean merge', probe(5, OID, 'main', failFetch), null);
+    });
+
     /* ── queue-doctor: a red PR is an EVENT once, not a journal line every ten minutes (owner,
        2026-10-12: "some auto system should warn you" — #3477 and #3481 sat red for an hour under a
        running timer that printed the red on every run into a journal nobody read). ── */
@@ -75313,11 +75397,13 @@
       T.ok('the serial-scrub note does not say ALL tracked files while those filenames are tracked', !(o2.length > 0 && /scrubbed from ALL tracked files/i.test(src)));
     });
 
-    group('§∅ — ecgdex-dsp std/median/quant return null for an input too short to measure, never 0', 'ecgdex-dsp · absence-as-value · empty-helpers', function (T) {
-      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, ECGDex HALF. Six helpers answered `0` for an input too
-         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed here) and pulsedex-dsp `std`/`sdsd`/
-         `medianOf` (NOT fixed: editing pulsedex-dsp.js moves the `treatment-response · pinned yield` pin,
-         whose re-stamp needs a paper-scale re-cut budgeted in hours). A 0 is a LEGAL
+    group('§∅ — ecgdex-dsp and pulsedex-dsp return null for an input too short to measure, never 0', 'ecgdex-dsp · pulsedex-dsp · absence-as-value · empty-helpers', function (T) {
+      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, BOTH HALVES. Six helpers answered `0` for an input too
+         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed in #3567) and pulsedex-dsp `std`/`sdsd`/
+         `medianOf` (fixed here). The PulseDex half waited because editing `pulsedex-dsp.js` moves the
+         `treatment-response · pinned yield` pin, and the deferral priced that re-stamp in hours. The pin
+         gate's own failure text prices the re-cut at ~1005 s, and it allows a re-stamp on the SAME counts
+         for a provably inert edit. A 0 is a LEGAL
          dispersion and a LEGAL median, so the next caller cannot tell "measured flat" from "nothing to
          measure" — the shape #3346 fixed one function away in `rmssd`, where it reached Math.log(0). The
          one call site that was NOT guarded is pinned end to end: `validateRR` exported `devSDNN: 0` for a
@@ -75357,6 +75443,41 @@
       T.eq('CONTROL · ecgdex std([-1, 1]) is the sample SD', E.std([-1, 1]), 1.4142135623730951);
       var ok2 = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }, { rr: 810 }, { rr: 795 }, { rr: 805 }, { rr: 820 }, { rr: 790 }]);
       T.ok('CONTROL · a measurable device record keeps a finite devSDNN', typeof ok2.devSDNN === 'number' && isFinite(ok2.devSDNN), 'got ' + show(ok2.devSDNN));
+
+      // ── PulseDex ── the other half of the same row ────────────────────────────────────
+      var P0 = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P0 || typeof P0.std !== 'function' || typeof P0.medianOf !== 'function') {
+        T.skip('pulsedex-dsp reachable through PulseDex._bare', 'PulseDex is not co-loaded namespaced in this runner');
+      } else {
+        T.ok('pulsedex std([]) is null, not 0', P0.std([]) === null, 'got ' + show(P0.std([])));
+        T.ok('pulsedex std([5]) is null — one value has no sample SD', P0.std([5]) === null, 'got ' + show(P0.std([5])));
+        T.ok('pulsedex medianOf([]) is null, not 0', P0.medianOf([]) === null, 'got ' + show(P0.medianOf([])));
+        /* THE GUARD THAT MAKES THE EDIT INERT, asserted rather than asserted ABOUT: the record itself
+           refuses under ten beats, which is why no exported path can reach one of the three helpers with
+           a short input, and why the pinned yield re-stamps on the same counts. */
+        T.eq('pdComputeResult refuses a 9-beat record, so no exported path reaches a short helper input', P0.pdComputeResult([800, 810, 795, 805, 820, 790, 800, 815, 805]), null);
+        var many = [];
+        for (var qi = 0; qi < 40; qi++) many.push(800 + (qi % 5) * 4);
+        var pr = P0.pdComputeResult(many);
+        T.ok('CONTROL · a 40-beat record still computes a finite SDNN', !!pr && typeof pr.sdnn === 'number' && isFinite(pr.sdnn), 'got ' + show(pr && pr.sdnn));
+        T.eq('CONTROL · pulsedex std([5, 5]) is a MEASURED 0', P0.std([5, 5]), 0);
+        T.eq('CONTROL · pulsedex std([-1, 1]) is the sample SD', P0.std([-1, 1]), 1.4142135623730951);
+        T.eq('CONTROL · pulsedex medianOf([0]) is a MEASURED 0', P0.medianOf([0]), 0);
+        T.eq('CONTROL · pulsedex medianOf([1, 2, 3, 4]) is 2.5', P0.medianOf([1, 2, 3, 4]), 2.5);
+      }
+      /* `sdsd` is NOT on the `_bare` surface, so no leg can CALL it. Its guard is read as text instead, and
+         this leg says so — a source read is weaker than a value and is only honest when it is named. */
+      var psrc2 = (env.sources && env.sources['pulsedex-dsp.js']) || '';
+      if (!psrc2) {
+        T.skip('pulsedex-dsp.js source readable', 'pulsedex-dsp.js is not in this lane’s source list, so the sdsd guard cannot be read');
+      } else {
+        T.ok(
+          'SOURCE · sdsd answers null under three values (not exported, so this reads the guard)',
+          /const sdsd = \(a\) => \{\s*\n\s*if \(a\.length < 3\) return null;/.test(psrc2),
+          'the sdsd guard no longer reads `return null`'
+        );
+        T.eq('SOURCE · no length-guarded helper in pulsedex-dsp still answers a 0', (psrc2.match(/if \((?:!a\.length|a\.length < [23])\) return 0;/g) || []).length, 0);
+      }
     });
 
     /* ════ trio-batch PRINTS THE DIGEST OF THE CURRENT TREE (residue 2026-10-12-trio-batch-prints-no-current-tree-digest) ══

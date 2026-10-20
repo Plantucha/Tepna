@@ -62,11 +62,19 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
+# ⚡ DRAIN STDIN FIRST, AND WITH A BUILTIN — the harness writes the payload down a PIPE, so an exit
+#   above this line leaves the writer on a closed pipe: it takes SIGPIPE and the pipeline reports
+#   141 while this hook's own code reads 0 (#3493; `trim-output.sh:72-91`). The two exits below used
+#   to sit ahead of a forked `payload="$(cat)"`. A `read` builtin buys the contract for nothing
+#   measurable — priced on 2026-10-20 at 0.55 ms/call against 0.59 for no drain at all and 1.58 for
+#   the fork, 400 calls a variant over two laps.
+IFS= read -r -d '' payload || true
+
 [ "${CLAUDE_ALLOW_SYNTAX_ERROR:-}" = "1" ] && exit 0
 
 command -v jq >/dev/null 2>&1 || exit 0          # no jq ⇒ FAIL OPEN (see the header)
 
-payload="$(cat 2>/dev/null)" || exit 0
+[ -z "$payload" ] && exit 0
 path="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
 [ -z "$path" ] && exit 0
 [ -f "$path" ] && [ -r "$path" ] || exit 0       # deleted, renamed, or never written

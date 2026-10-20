@@ -34,7 +34,17 @@ import {
 import { extractVerdicts as prExtractVerdicts } from '../tools/pr-compliance.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { corpusSearch } from '../tools/regen-goldens-core.mjs';
-import { classify as qdClassify, pick as qdPick, attention as qdAttention, redLedger as qdRedLedger, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
+import {
+  classify as qdClassify,
+  pick as qdPick,
+  attention as qdAttention,
+  redLedger as qdRedLedger,
+  dirtyVerdict as qdDirtyVerdict,
+  parseMergeTree as qdParseMergeTree,
+  probeMerge as qdProbeMerge,
+  IDLE_MIN as QD_IDLE_MIN,
+  STARVED_MIN as QD_STARVED_MIN
+} from '../tools/queue-doctor.mjs';
 import {
   classify as pwClassify,
   plan as pwPlan,
@@ -3132,6 +3142,9 @@ async function main() {
     qdPick: qdPick,
     qdAttention: qdAttention,
     qdRedLedger: qdRedLedger,
+    qdDirtyVerdict: qdDirtyVerdict,
+    qdParseMergeTree: qdParseMergeTree,
+    qdProbeMerge: qdProbeMerge,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
     /* pr-walker's PURE core: classify() and plan() decide every action the timer takes on a PR, and

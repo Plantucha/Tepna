@@ -1569,6 +1569,41 @@
         "VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.21.0",
+      "date": "2026-10-20",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "424f63618045",
+        "OxyDex": "97aef176fcdc",
+        "PulseDex": "430b5acdfc55",
+        "GlucoDex": "88bfa298a1ae",
+        "PpgDex": "54a3b96c6d3d",
+        "HRVDex": "ece5f6b32622",
+        "CPAPDex": "64fbb961a76c",
+        "Integrator": "c7b952bff004",
+        "MotionDex": "628c53a97933"
+      },
+      "briefs": [
+        "MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md",
+        "BRIEF-HEADER-CLAIM-RATCHET-2026-10-17-BRIEF.md",
+        "NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md",
+        "PAT-FEASIBILITY-2026-07-08-BRIEF.md",
+        "STAGE-LAB-2026-09-27-BRIEF.md",
+        "TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md",
+        "PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md",
+        "RESIDUE.md",
+        "FIXTURE-CORPUS-REACHABILITY-2026-08-09-BRIEF.md",
+        "CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md",
+        "CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md",
+        "PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md",
+        "O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF.md",
+        "FILENAME-STAMP-JS-CONSUMERS-2026-10-20-BRIEF.md",
+        "SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
