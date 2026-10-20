@@ -28,8 +28,10 @@
  * the tool is fully usable from a download. The fetch path degrades to its existing error.
  *
  *   node tools/build-analysis.mjs            (bundle all tools in place)
- *   node tools/build-analysis.mjs --check    (diff-only; non-zero exit if any tool is stale)
+ *   node tools/build-analysis.mjs --check    (diff-only; non-zero exit if any tool is stale OR fails the artifact audit)
  *   node tools/build-analysis.mjs --tool sensor-trio-power-analysis.html   (one tool)
+ *   node tools/build-analysis.mjs --check --json   (stdout is ONE tepna.verdict/1; prose → stderr)
+ *   node tools/build-analysis.mjs --selftest (the artifact audit's negative controls)
  *
  * Pure / no-deps / no-network. The `.js` sibling files stay the source of truth; this only
  * rewrites the tool HTML. Re-run after editing any inlined script or worker.
@@ -38,6 +40,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
+import { elementBlocks } from './strip-markup.mjs';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 // ESM-MIGRATION Phase 2: a co-loaded DSP may be a dual-mode ES module (top-level export) — a classic
@@ -45,6 +49,13 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 // classic files; the DSP's IIFE + window attaches are untouched). Same bridge the test runners use.
 const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
 const CHECK = process.argv.includes('--check');
+const JSON_OUT = process.argv.includes('--json');
+const SELFTEST = process.argv.includes('--selftest');
+/* With --json, stdout is the verdict object and NOTHING else — the adoption gate parses it. Prose
+   then goes to stderr, where a human still reads it. An error line is always stderr. */
+const say = (line, err) => {
+  (err || JSON_OUT ? process.stderr : process.stdout).write(line + '\n');
+};
 const ONE = (() => {
   const i = process.argv.indexOf('--tool');
   return i >= 0 ? process.argv[i + 1] : null;
@@ -232,44 +243,338 @@ function bundle(html) {
   return html;
 }
 
+/* ── THE ARTIFACT AUDIT — assertions about the SERVED BYTES, not about the generator ─────────────
+ * `--check` re-bundles and byte-compares, so the only thing it can decide is that THIS generator
+ * reproduces what the tree holds: a generator compared to itself. The one defect that ever shipped
+ * from here passed exactly that test — the writer spliced the document into the worker map (the ⚠️
+ * comment in `bundle` has the mechanism), four pages shipped a SyntaxError, and a re-bundle of the
+ * same source reproduced the same broken bytes byte for byte. Residue
+ * `2026-09-28-generator-compared-to-itself-examines-no-artifact`.
+ *
+ * These legs read the artifact and know nothing about how it was made:
+ *   L1 self-document  no inlined block may carry the page's own first SELF_HEAD_LEN bytes. The
+ *                     detector is the page's OWN signature, never value membership: `oxydex-dsp.js`
+ *                     builds a literal '<!DOCTYPE html>' on purpose, and a membership test flags 6
+ *                     blocks in today's tree (CLAUDE.md §∅ — detect against the stream's own
+ *                     distribution, never against a value).
+ *   L2 size band      a block whose `data-inline-src` names an existing file must sit inside
+ *                     RATIO_BAND of that file's bytes. Measured 2026-10-20 over 69 sourced blocks
+ *                     (38 distinct files): 0.9999–1.0013. The only legal way past 1.0 is the two
+ *                     newlines the writer wraps the body in, which is why the upper bound is 1.02 —
+ *                     it holds for any source of 100 bytes or more, and the smallest one inlined
+ *                     here is 1495. Downward there is no such bound: classicify strips top-level
+ *                     import/export, so a dual-mode module may legitimately inline shorter, and the
+ *                     lower bound only has to catch a truncation. A splice is orders of magnitude,
+ *                     not percent — the shipped defect carried 1.9 MB into one block.
+ *   L3 worker map     the injected `__WSRC` map must PARSE as JSON, every `__mkWorker('x.js')` name
+ *                     on the page must be a key of it, and no entry may be empty. This is the leg
+ *                     the shipped defect fails: the spliced literal never closed.
+ *
+ * Populations are reported, never assumed. A block whose `data-inline-src` names no file on disk is
+ * `synthetic` (the worker shim, and any inlined asset whose source has since moved), and a block
+ * carrying a non-classic `type=` is COUNTED as `moduleTyped` rather than guessed at — the same split
+ * `readInlineParseCensus` publishes for the app bundles.
+ */
+export const SELF_HEAD_LEN = 200;
+export const RATIO_BAND = { lo: 0.5, hi: 1.02 };
+const WSRC_RE = /var __WSRC =\s*([\s\S]*?);\nfunction __mkWorker\b/;
+const MKWORKER_RE = /__mkWorker\(\s*(['"])([\w.-]+\.js)\1\s*\)/g;
+
+const attrOf = (attrs, name) => {
+  const m = new RegExp('\\b' + name + '="([^"]*)"', 'i').exec(attrs);
+  return m ? m[1] : null;
+};
+
+/* The one scan: `strip-markup.mjs`'s element walker, the same one the test runner's parse census
+   uses, so this audit and that census cannot disagree about what a block IS. */
+function inlineBlocks(html) {
+  const out = [];
+  for (const tag of ['script', 'style']) {
+    for (const b of elementBlocks(html, tag)) {
+      const name = attrOf(b.attrs, 'data-inline-src');
+      if (name !== null) out.push({ tag, name, type: attrOf(b.attrs, 'type'), body: b.body });
+    }
+  }
+  return out;
+}
+
+/** auditArtifact(html, { sizeOf }) → { blocks, sourced, synthetic, moduleTyped, ratios, findings, workerNames, workerKeys } */
+export function auditArtifact(html, opts = {}) {
+  const sizeOf = opts.sizeOf || ((f) => (exists(f) ? readFile(f).length : null));
+  const sig = html.slice(0, SELF_HEAD_LEN);
+  const findings = [];
+  const ratios = [];
+  let sourced = 0;
+  let synthetic = 0;
+  let moduleTyped = 0;
+  const blocks = inlineBlocks(html);
+  for (const b of blocks) {
+    if (b.type && !/^(?:text|application)\/javascript$/i.test(b.type) && b.tag === 'script') moduleTyped += 1;
+    if (sig.length === SELF_HEAD_LEN && b.body.includes(sig)) {
+      findings.push({ leg: 'self-document', block: b.name, detail: "the block carries the page's own first " + SELF_HEAD_LEN + ' bytes' });
+    }
+    const n = sizeOf(b.name);
+    if (n == null) {
+      synthetic += 1;
+      continue;
+    }
+    sourced += 1;
+    if (n === 0) {
+      findings.push({ leg: 'size-band', block: b.name, detail: 'the source file is empty, so no ratio exists' });
+      continue;
+    }
+    const ratio = b.body.length / n;
+    ratios.push(ratio);
+    if (ratio < RATIO_BAND.lo || ratio > RATIO_BAND.hi) {
+      findings.push({ leg: 'size-band', block: b.name, detail: 'ratio ' + ratio.toFixed(3) + ' is outside ' + RATIO_BAND.lo + '–' + RATIO_BAND.hi });
+    }
+  }
+  /* L3 — the worker map. `named` is what the PAGE asks for; `keys` is what the map can serve. */
+  const named = [...new Set([...html.matchAll(MKWORKER_RE)].map((m) => m[2]))];
+  const shim = blocks.find((b) => b.name === '__file-local-workers');
+  let keys = null;
+  if (named.length && !shim) {
+    findings.push({ leg: 'worker-map', block: '__file-local-workers', detail: 'the page names ' + named.length + ' blob worker(s) and carries no map' });
+  } else if (shim) {
+    const m = WSRC_RE.exec(shim.body);
+    let map = null;
+    if (!m) {
+      findings.push({ leg: 'worker-map', block: '__file-local-workers', detail: 'no `var __WSRC = {…};` literal — the block is not the map it claims to be' });
+    } else {
+      try {
+        map = JSON.parse(m[1]);
+      } catch (e) {
+        findings.push({ leg: 'worker-map', block: '__file-local-workers', detail: 'the map does not parse as JSON — ' + String(e.message || e).slice(0, 80) });
+      }
+    }
+    if (map && typeof map === 'object') {
+      keys = Object.keys(map);
+      for (const w of named) {
+        if (!keys.includes(w)) findings.push({ leg: 'worker-map', block: '__file-local-workers', detail: w + ' is constructed on the page and is not a key of the map' });
+      }
+      for (const k of keys) {
+        if (typeof map[k] !== 'string' || map[k].length === 0) findings.push({ leg: 'worker-map', block: '__file-local-workers', detail: k + ' has an empty source' });
+      }
+    }
+  }
+  return { blocks: blocks.length, sourced, synthetic, moduleTyped, ratios, findings, workerNames: named.length, workerKeys: keys === null ? null : keys.length };
+}
+
+/* ── SELFTEST — the negative control lives here, so the detector is proven on every CI run ───────
+   A detector that has never seen the defect is a claim. Each leg below plants one defect in a
+   synthetic page and asserts THIS audit names it; the clean legs assert it stays silent, including
+   on the `'<!DOCTYPE html>'` literal that a value-membership detector flags. Discovered, not
+   listed: `tools/selftest-all.mjs` and CI's selftest loop find this by the `--selftest` handler. */
+function selftest() {
+  let ran = 0;
+  let fail = 0;
+  const ok = (cond, label) => {
+    ran += 1;
+    if (!cond) {
+      fail += 1;
+      console.error('  ✗ ' + label);
+    }
+  };
+  const HEAD =
+    '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">' +
+    '<title>artifact-audit fixture — a head deliberately longer than the signature the self-document leg reads, so the fixture exercises the real comparison</title>';
+  const page = (body) => HEAD + '</head><body>\n' + body + '\n</body></html>\n';
+  const block = (name, body, extra) => '<script data-inline-src="' + name + '"' + (extra || '') + '>\n' + body + '\n</script>';
+  const sizes = { 'a.js': 1000, 'empty.js': 0 };
+  const A = (html) => auditArtifact(html, { sizeOf: (f) => (Object.hasOwn(sizes, f) ? sizes[f] : null) });
+  const legs = (r, leg) => r.findings.filter((f) => f.leg === leg).length;
+
+  const clean = page(block('a.js', 'x'.repeat(900)));
+  const sig = clean.slice(0, SELF_HEAD_LEN);
+  ok(sig.length === SELF_HEAD_LEN, 'fixture · the head is longer than the signature');
+  let r = A(clean);
+  ok(r.findings.length === 0, 'clean · a page whose only block is its own source has no finding');
+  ok(r.blocks === 1 && r.sourced === 1 && r.synthetic === 0, 'clean · populations: 1 block, 1 sourced, 0 synthetic');
+  ok(r.ratios.length === 1 && r.ratios[0] > RATIO_BAND.lo && r.ratios[0] < RATIO_BAND.hi, 'clean · the ratio is inside the band');
+
+  r = A(page(block('a.js', 'x'.repeat(450) + sig + 'x'.repeat(450))));
+  ok(legs(r, 'self-document') === 1, 'L1 · a block carrying the document prefix is named');
+  r = A(page(block('a.js', "var _parserSource = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;" + 'x'.repeat(830))));
+  ok(r.findings.length === 0, "L1 · a legitimate '<!DOCTYPE html>' literal is NOT a finding (value membership is the wrong detector)");
+
+  ok(legs(A(page(block('a.js', 'x'.repeat(100)))), 'size-band') === 1, 'L2 · a truncated block is outside the band');
+  ok(legs(A(page(block('a.js', 'x'.repeat(2000)))), 'size-band') === 1, 'L2 · a block larger than its source is outside the band');
+  ok(legs(A(page(block('empty.js', 'x'))), 'size-band') === 1, 'L2 · an empty source has no ratio and is reported');
+  r = A(page(block('nosuch.js', 'x'.repeat(50))));
+  ok(r.synthetic === 1 && r.sourced === 0 && r.findings.length === 0, 'L2 · a block with no source file is synthetic, not a finding');
+  ok(A(page(block('a.js', 'x'.repeat(900), ' type="module"'))).moduleTyped === 1, 'population · a non-classic type is counted, never guessed');
+
+  const shim = (map) => block('__file-local-workers', 'var __WSRC = ' + JSON.stringify(map) + ';\nfunction __mkWorker(name){ return name; }');
+  const call = '\n<script data-inline-src="t.js">\n__mkWorker(\'w.js\');\n</script>';
+  r = A(page(shim({ 'w.js': 'self.onmessage = function () {};' }) + call));
+  ok(r.findings.length === 0 && r.workerNames === 1 && r.workerKeys === 1, 'L3 · a map that serves every worker the page names has no finding');
+  r = A(page(block('__file-local-workers', 'var __WSRC = {"w.js": "' + sig + ';\nfunction __mkWorker(name){ return name; }') + call));
+  ok(legs(r, 'worker-map') === 1, 'L3 · the shipped defect: a spliced map does not parse as JSON');
+  ok(legs(r, 'self-document') === 1, 'L3 · the same splice also fires the self-document leg');
+  ok(legs(A(page(shim({ 'other.js': 'x' }) + call)), 'worker-map') === 1, 'L3 · a worker the page constructs and the map lacks is named');
+  ok(legs(A(page(shim({ 'w.js': '' }) + call)), 'worker-map') === 1, 'L3 · an empty worker source is named');
+  ok(legs(A(page(block('t.js', "__mkWorker('w.js');"))), 'worker-map') === 1, 'L3 · a page that names a worker and carries no map is named');
+  ok(A(page(block('a.js', 'x'.repeat(900)))).workerKeys === null, 'L3 · a page with no workers reports no map, not an empty one');
+
+  /* The verdict is part of the contract, so build one of each reachable status here. */
+  for (const s of ['PASS', 'FAIL', 'NOT_RUN']) {
+    let built = null;
+    try {
+      built = verdictOf({
+        status: s,
+        audited: s === 'NOT_RUN' ? [] : ['x.html'],
+        eligible: 1,
+        missing: s === 'NOT_RUN' ? ['x.html'] : [],
+        stale: s === 'FAIL' ? ['x.html'] : [],
+        findings: s === 'FAIL' ? [{ tool: 'x.html', leg: 'self-document', block: 'a.js', detail: 'fixture' }] : [],
+        totals: { blocks: 1, sourced: 1, synthetic: 0, moduleTyped: 0 },
+        ratios: [0.9]
+      });
+    } catch (e) {
+      console.error('  ✗ verdict ' + s + ' — ' + String(e.message || e));
+    }
+    ok(built !== null && built.status === s, 'verdict · a ' + s + ' object validates under verdict.js');
+  }
+
+  console.log(fail ? fail + ' failed of ' + ran : 'all ' + ran + ' selftests passed');
+  process.exit(fail ? 1 : 0);
+}
+
+// ── the verdict (tepna.verdict/1, CLAUDE.md §🧾) ─────────────────────────────────────────────
+/* ONE object for what `--check` decides, which is two things about the same page set: it is
+   REGENERABLE (this generator reproduces the tree) and its blocks are SOUND (the audit above).
+   Both are defects of a served page, so both count against one pre-stated threshold of zero. */
+function verdictOf({ status, audited, eligible, missing, stale, findings, totals, ratios }) {
+  const lo = ratios.length ? Math.min(...ratios) : null;
+  const hi = ratios.length ? Math.max(...ratios) : null;
+  const r3 = (v) => (v == null ? null : +v.toFixed(3));
+  return makeVerdict({
+    gate: 'analysis-tool-artifacts',
+    tool: 'tools/build-analysis.mjs',
+    status,
+    population: { checked: audited.length, eligible, excluded: missing.length },
+    criterion: {
+      name: 'no-served-analysis-page-is-stale-or-carries-a-defective-inline-block',
+      threshold: 0,
+      unit: 'defective pages',
+      direction: 'eq'
+    },
+    result: audited.length
+      ? {
+          pages: audited.length,
+          stale,
+          findings,
+          blocks: totals.blocks,
+          sourced: totals.sourced,
+          synthetic: totals.synthetic,
+          moduleTyped: totals.moduleTyped,
+          ratioBand: RATIO_BAND,
+          ratioMin: r3(lo),
+          ratioMax: r3(hi)
+        }
+      : null,
+    evidence: ['tools/build-analysis.mjs'].concat(audited),
+    reason:
+      status === 'PASS'
+        ? null
+        : status === 'NOT_RUN'
+          ? 'no analysis page was readable — ' + missing.length + ' of ' + eligible + ' missing from the tree'
+          : [stale.length ? stale.length + ' page(s) stale against this generator' : null, findings.length ? findings.length + ' artifact finding(s)' : null].filter(Boolean).join('; '),
+    at: new Date().toISOString()
+  });
+}
+
 // ── run ──────────────────────────────────────────────────────────────────────────────────
+if (SELFTEST) selftest();
+
 const targets = ONE ? [ONE] : TOOLS;
 const stale = [];
 const wrote = [];
+const missing = [];
+const refused = [];
+const audited = [];
+const findings = [];
+const ratios = [];
+const totals = { blocks: 0, sourced: 0, synthetic: 0, moduleTyped: 0 };
 for (const t of targets) {
   if (!exists(t)) {
-    console.error('  ! missing tool: ' + t);
+    missing.push(t);
+    say('  ! missing tool: ' + t, true);
     continue;
   }
   const orig = readFile(t);
   const next = bundle(orig);
+  /* The audit judges the ARTIFACT: under --check the bytes the tree holds (what a reader downloads),
+     on a write the bytes this run is about to ship. A page that fails its own audit is NEVER
+     WRITTEN — the defect this closes was a writer shipping a page it had broken. */
+  const a = auditArtifact(CHECK ? orig : next);
+  audited.push(t);
+  for (const k of Object.keys(totals)) totals[k] += a[k];
+  for (const r of a.ratios) ratios.push(r);
+  for (const f of a.findings) findings.push({ tool: t, ...f });
   if (next === orig) continue;
   if (CHECK) stale.push(t);
-  else {
+  else if (a.findings.length) {
+    refused.push(t);
+    say('  ! refusing to write ' + t + ' — it fails the artifact audit', true);
+  } else {
     writeFileSync(join(ROOT, t), next);
     wrote.push(t);
   }
 }
 
+const status = audited.length === 0 ? 'NOT_RUN' : stale.length + findings.length ? 'FAIL' : 'PASS';
+if (JSON_OUT) process.stdout.write(JSON.stringify(verdictOf({ status, audited, eligible: targets.length, missing, stale, findings, totals, ratios }), null, 1) + '\n');
+
+if (findings.length) {
+  say('ARTIFACT FINDINGS (' + findings.length + '):', true);
+  for (const f of findings) say('  ' + f.tool + ' · ' + f.leg + ' · ' + f.block + ' — ' + f.detail, true);
+}
 if (CHECK) {
   if (stale.length) {
-    console.error('STALE (' + stale.length + '): ' + stale.join(', '));
-    console.error('run: node tools/build-analysis.mjs');
-    process.exit(1);
+    say('STALE (' + stale.length + '): ' + stale.join(', '), true);
+    say('run: node tools/build-analysis.mjs', true);
   }
-  console.log('analysis tools current — ' + targets.length + ' checked, all self-contained');
-  /* `--check` compares the WORKING TREE, so it says "current" the moment the writer has run — even
-     when the commit does not carry the regenerated files. That asymmetry has now shipped a
-     half-staged commit twice (the v1.14.0 release PR, and again while landing DEEP-AUDIT-II §6.2),
-     both caught only by CI or by hand. Say so here, where the misleading "current" is printed. */
-  console.log('  (this compares the working tree — `git status` is what tells you the COMMIT carries them)');
+  if (!stale.length && !findings.length) {
+    say('analysis tools current — ' + audited.length + ' checked, all self-contained');
+    /* `--check` compares the WORKING TREE, so it says "current" the moment the writer has run — even
+       when the commit does not carry the regenerated files. That asymmetry has now shipped a
+       half-staged commit twice (the v1.14.0 release PR, and again while landing DEEP-AUDIT-II §6.2),
+       both caught only by CI or by hand. Say so here, where the misleading "current" is printed. */
+    say('  (this compares the working tree — `git status` is what tells you the COMMIT carries them)');
+    say(
+      '  artifact audit: ' +
+        totals.blocks +
+        ' inline block(s) — ' +
+        totals.sourced +
+        ' sourced, ' +
+        totals.synthetic +
+        ' synthetic, ' +
+        totals.moduleTyped +
+        ' module-typed; size ratios ' +
+        (ratios.length ? Math.min(...ratios).toFixed(3) + '–' + Math.max(...ratios).toFixed(3) : 'none') +
+        ' against band ' +
+        RATIO_BAND.lo +
+        '–' +
+        RATIO_BAND.hi
+    );
+  }
 } else {
-  console.log('bundled ' + wrote.length + ' of ' + targets.length + ' tool(s)' + (wrote.length ? ': ' + wrote.join(', ') : ' (all current)'));
+  say(
+    'bundled ' +
+      wrote.length +
+      ' of ' +
+      targets.length +
+      ' tool(s)' +
+      (wrote.length ? ': ' + wrote.join(', ') : refused.length ? '' : ' (all current)') +
+      (refused.length ? ' — ' + refused.length + ' REFUSED by the artifact audit, left as they were' : '')
+  );
   /* Print the exact stage line for what THIS run wrote — the same contract build-docs.mjs adopted in
      #236. A tool is the only honest place to say which paths it touched; a caller reconstructing that
      list by hand is how files get left unstaged. Explicit paths only, never `git add -A` (§👥.2). */
   if (wrote.length) {
     const q = (p) => (/\s/.test(p) ? `"${p}"` : p);
-    console.log('\nStage exactly what this run wrote:\n    git add ' + wrote.map(q).sort().join(' '));
+    say('\nStage exactly what this run wrote:\n    git add ' + wrote.map(q).sort().join(' '));
   }
 }
+if (stale.length || findings.length) process.exit(1);

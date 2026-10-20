@@ -12189,7 +12189,7 @@ def holder_of(obj, depth: int = _HOLDER_DEPTH) -> dict:
 
 
 #: The one-shot request. `heap_probe.enabled` says the probe MAY run; this file says run it ONCE, and it
-#: is consumed on arm so the next daemon start does not repeat it.
+#: is consumed when tracing starts, so a later daemon start does not repeat it.
 _HEAP_REQUEST_NAME = "heap-probe.request"
 
 
@@ -12332,16 +12332,15 @@ async def heap_probe(cfg: dict, root: str):
     if not hcfg.get("enabled", False):
         log.info("heap probe: OFF — heap_probe.enabled is false")
         return
-    # PERMISSION IS NOT A REQUEST. `enabled` says the probe MAY run; the marker file says run it once, and
-    # it is consumed here so a restart does not re-arm it. This is what keeps a SOLID-NIGHT night clean by
-    # DEFAULT: with no file, nothing traces and the per-subsystem attribution below never runs either —
-    # `DecodeCensus` and `top_container_holders` are reached only past this point, so one gate covers all
-    # three costs (tracemalloc's allocation tax, the json wrapper's frame walk, the referrer walk).
+    # PERMISSION IS NOT A REQUEST. `enabled` says the probe MAY run; the marker file says run it once.
+    # This is what keeps a SOLID-NIGHT night clean by DEFAULT: with no file, nothing traces and the
+    # per-subsystem attribution below never runs either — `DecodeCensus` and `top_container_holders` are
+    # reached only past the consume below, so one gate covers all three costs (tracemalloc's allocation
+    # tax, the json wrapper's frame walk, the referrer walk).
     req = str(hcfg.get("request_path") or os.path.join(root, _HEAP_REQUEST_NAME))
-    if not consume_heap_request(req):
+    if not os.path.exists(req):
         log.info("heap probe: not requested — no consumable %s; tracemalloc stays off", req)
         return
-    log.info("heap probe: request consumed (%s) — this run is one-shot", req)
     import tracemalloc
 
     start_after_s = float(hcfg.get("start_after_min", 30)) * 60.0
@@ -12371,6 +12370,15 @@ async def heap_probe(cfg: dict, root: str):
     log.info("heap probe: capture is live — tracing starts in %.0f min", start_after_s / 60.0)
     if await _stop_or_sleep(start_after_s):
         return
+    # 🔴 CONSUMED HERE, AT THE FIRST TRACED MOMENT, NOT AT ARM. Measured on vigil 2026-10-13: a request
+    # written for that night was consumed at arm 14:36:14 (PID 854652), capture never went live under that
+    # daemon, and the 17:15:52 restart lost it — the night ran untraced and nothing said so. Every return
+    # above this line leaves the file in place for the next start; consuming here still makes the run
+    # one-shot, and a request that cannot be consumed still refuses to trace (fail closed).
+    if not consume_heap_request(req):
+        log.info("heap probe: request gone before tracing (%s); tracemalloc stays off", req)
+        return
+    log.info("heap probe: request consumed (%s) — this run is one-shot", req)
     already = tracemalloc.is_tracing()
     if not already:
         tracemalloc.start(1)  # ONE frame: the allocation site is the container
