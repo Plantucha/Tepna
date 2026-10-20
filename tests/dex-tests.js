@@ -39149,6 +39149,48 @@
       var ok = cs({ 'D · f': true }, { 'D · f': true });
       T.eq('an untouched, still-verified stamp reports nothing at all', ok.staled.length + ok.pre.length + ok.restored.length, 0);
     });
+    group('Rebase-safe — a rebase that drops a quoted verdict says so, and only then', 'tools · rebase-safe-verdicts', function (T) {
+      /* `pr-compliance` check 8 holds a PR body's quoted verdict to the code that merges, and a rebase
+         rewrites every commit on the branch, so it drops that commit unconditionally. The body lives on
+         GitHub, so nothing local notices: the branch comes back green and reds in CI minutes later.
+         #3506 paid three 4-minute re-runs of one sweep in an evening, all three reporting the same 27
+         mutants and the same 7 survivors — the re-runs bought nothing. Residue
+         2026-10-12-a-quoted-verdict-costs-a-re-measure-on-every-rebase. */
+      var qv = env.rebaseQuotedVerdictKeys;
+      var ex = env.prExtractVerdicts;
+      if (typeof qv !== 'function' || typeof ex !== 'function') {
+        T.skip('the quoted-verdict guard is wired into this lane', 'browser lane cannot import tools/*.mjs');
+        return;
+      }
+      /* REACHING THIS LINE IS THE ASSERTION for the entry guard: before 2026-10-20 importing
+         tools/pr-compliance.mjs ran the gate and exited the importer, so this whole suite would be gone
+         rather than one assertion red. */
+      T.ok('the gate module is importable at all, so its entry is guarded', typeof ex === 'function', 'extractVerdicts reached');
+
+      var V = function (gate, commit) {
+        return JSON.stringify({ schema: 'tepna.verdict/1', gate: gate, status: 'PASS', producedBy: { tool: 't', commit: commit } });
+      };
+      T.eq('a quoted verdict is keyed by gate and commit', qv('prose ' + V('mutate-diff-js', 'e30aaa37') + ' prose')[0].key, 'mutate-diff-js at e30aaa37');
+      T.eq('…and carries the sha the reachability test needs', qv(V('g', 'abc1234'))[0].commit, 'abc1234');
+      T.eq('two quoted verdicts are both watched', qv(V('a', 'aaaaaaa') + ' and ' + V('b', 'bbbbbbb')).length, 2);
+
+      /* NULL IS NOT EMPTY. "this body quotes nothing to judge" must not reach the reporter as
+         "nothing is wrong here" — the reporter refuses to run on a null snapshot for that reason. */
+      T.eq('a body quoting no verdict yields null, never an empty all-clear', qv('no verdict here'), null);
+      T.eq(
+        'an empty or absent body yields null rather than throwing',
+        [qv(''), qv(null), qv(undefined)].filter(function (x) {
+          return x === null;
+        }).length,
+        3
+      );
+
+      /* CONTROLS — each is a verdict this guard cannot be RIGHT about, so it must stay quiet rather
+         than name a key whose reachability it would then test against nothing. */
+      T.eq('control · a verdict naming no producedBy.commit is not watched', qv(JSON.stringify({ schema: 'tepna.verdict/1', gate: 'g', producedBy: { tool: 't' } })), null);
+      T.eq('control · a commit that is not a sha is not watched', qv(V('g', 'HEAD~1')), null);
+      T.eq('control · an object of another schema is not a verdict', qv(JSON.stringify({ schema: 'other/1', producedBy: { commit: 'abc1234' } })), null);
+    });
     group('Rebase-safe — the porcelain parse keeps the first path intact (REBASE-SAFE)', 'tools · rebase-safe-porcelain', function (T) {
       var pp = env.rebaseParsePorcelain;
       if (typeof pp !== 'function') {
