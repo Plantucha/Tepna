@@ -1008,6 +1008,18 @@
    },
    "note": "the planted-beat battery behind PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21 item 2 treatment (3): does a TIME HOLE in the beat series make the two CVHR detectors disagree? Pre-stated criterion ppg_minus_ecg_event_count_max_abs <= 0 events over 51 planted cases (3 rate steps x 17 hole lengths, each against the SAME leg built with no hole at all). PASS says the two nodes count the same events for the same beats and the same mask, which is what the Integrator's corroboration of their two apnea.cvhrIndex values rests on; it does NOT say either count is right. Measured 2026-10-19: FAIL before the mask was ported into cvhrFromNN (3 of 51 cases disagreed by one event), PASS after. The record is planted, so no figure here is corpus evidence, and the unrepaired edge term is reported in `result` beside the criterion rather than judged by it."
   },
+  "tools/cvhr-edge-widen.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cvhr-edge-widen.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the cost of widening the CVHR hole exclusion from the hole's own seconds to the DECISION's support window, which reaches 37 s back and 72 s forward. Pre-stated criterion excluded_events_per_hole_mean <= 2 events, the bound the artefact itself carries (a planted hole adds at most 2 events, tools/cvhr-gap-edge.mjs), so a widen removing more real events per hole than that cannot pay for itself. Phase 1 is planted and phase 2 reads every optical stream of the corpus; `--verdict-sample` is what this gate reads, because both phases together outlast its timeout and a real run needs a corpus. The recomputation refuses a night whose event count does not reproduce the node's own, so `population.excluded` is part of the result and not an aside."
+  },
   "tools/cvhr-fold-rescore.mjs": {
    "bin": "word-only",
    "status": "exempt",

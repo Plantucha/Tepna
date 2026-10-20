@@ -157,13 +157,16 @@ import { PPGUI } from './ppgdex-render.js';
             gyroF = nearest('gyro'),
             magF = nearest('magn'),
             ppiF = nearest('ppi'),
-            markF = nearest('marker');
-          rec.acc = accF ? DSP.parseSensorXYZ(accF.text) : null;
+            markF = nearest('marker'),
+            accRunsF = accF ? nearest('accruns') : null;
+          // §3.2 — the ACC's own `_ACCRUNS.txt`, when the drop carried one, so a held run is not read as stillness.
+          rec.acc = accF ? (accRunsF ? DSP.parseSensorXYZ(accF.text, { runsText: accRunsF.text }) : DSP.parseSensorXYZ(accF.text)) : null;
           rec.gyro = gyroF ? DSP.parseSensorXYZ(gyroF.text) : null;
           rec.magn = magF ? DSP.parseSensorXYZ(magF.text) : null;
           rec.devicePPI = ppiF ? DSP.parseDevicePPI(ppiF.text) : null;
           rec.companions = { acc: accF ? accF.name : null, gyro: gyroF ? gyroF.name : null, magn: magF ? magF.name : null, ppi: ppiF ? ppiF.name : null, marker: markF ? markF.name : null };
           rec.companions.runs = runsF ? runsF.name : null; // §3.2 — which validity sidecar fed parsePPG, or none
+          rec.companions.accruns = accRunsF ? accRunsF.name : null; // and which one fed the ACC parse
           if (markF) {
             const rows = markF.text.split(/\r?\n/);
             const mk = [];
