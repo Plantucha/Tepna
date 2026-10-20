@@ -25,8 +25,39 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 HERE = Path(__file__).resolve().parent
 TOOL = HERE.parent / "tools" / "mutate_diff.py"
+
+
+def _inside_git_work_tree() -> bool:
+    """Is `HERE.parent` a git work tree — the one thing the annotation leg cannot do without?
+
+    🔴 THIS FILE DECIDED NOTHING FOR A WHOLE MODULE BECAUSE ONE LEG FAILED WHERE IT CANNOT RUN.
+    mutmut's scratch is a `copytree` of `capture-host/` into `/tmp`, so the mutants tree is not a
+    git repository and `git show <merge-base>:capture-host/<module>` cannot resolve. The driver
+    then takes its documented fail-closed path, keeps full scope, and reports `NOT_APPLICABLE` for
+    a DIFFERENT reason than the annotation check this leg names — so the assertion on the reason
+    string fails. That failure lands in mutmut's CLEAN-TEST pass, which stops at the first failure,
+    so every mutant of `mutation_diff.py` was recorded as "generated but 0 tested" and
+    `mutate_diff` refused the whole diff at exit 2 with `NOT_RUN`. It bites ONLY a PR that changes
+    `mutation_diff.py`, because this file names that module and is pulled into its selected test
+    set only then — which is exactly why it reads as "only my diff is broken" (measured 2026-10-20
+    on #3744, reproduced in 0.20 s inside the leftover `/tmp/mut-mutation_diff-*/work/mutants/`).
+
+    A leg whose claim is unreadable in an environment SKIPS there and says so; it does not fail,
+    and it does not weaken its assertion to one that holds everywhere. Under the gate that
+    evaluates it — `check.sh`, the `test` job, a bare `pytest` — this returns True and the leg runs
+    in full.
+    """
+    r = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=str(HERE.parent),
+        capture_output=True,
+        text=True,
+    )
+    return r.returncode == 0 and r.stdout.strip() == "true"
 
 
 # ── THE STRUCTURAL CHECK ────────────────────────────────────────────────────────────────────────
@@ -215,6 +246,8 @@ def test_no_capture_host_python_changed_is_not_applicable_at_exit_zero(tmp_path)
 
 
 def test_annotation_only_change_is_not_applicable_at_exit_zero(tmp_path):
+    if not _inside_git_work_tree():
+        pytest.skip(f"no git work tree at {HERE.parent} — the base version this leg's reason names is unreadable")
     code, v, out = _run(
         tmp_path,
         {"changed": {"verdict.py": [1]}, "annotation_only": [True, "signature annotations only"]},
