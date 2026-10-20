@@ -28,21 +28,27 @@ Rule 0: `session start end transient settle trim common overlap window across se
 
 `tools/edge-settle.mjs` (#3620) measures the settle time per sensor and edge from the trio node exports. A bin is 10 s. The settle point is the first or the last 60 s run of clean bins. An edge over 600 s is late wear, not settling: the tool counts it and leaves it out of the distribution.
 
-The population is 147 nights in `uploads/trio`, run on 2026-10-18. Values are seconds.
+The population is the **90 nights the fold folded**, read from each night's own `.trio-stamp`, run on 2026-10-20. Values are seconds.
+
+The first run of this table, on 2026-10-18, walked all 147 night directories under `uploads/trio`. 57 of those are nights the fold REJECTS. They keep the exports of whenever the night last passed. The floors therefore pooled two code eras, which residue `2026-10-20-edge-settle-floors-pool-fold-rejected-nights` logged.
+
+Two of the six floors move when the run reads the stamp. PPG start p95 is 270 s, not 280 s. O2Ring end p95 is 50 s, not 40 s.
+
+`tools/edge-settle.mjs --all-nights` still reproduces the 2026-10-18 numbers exactly.
 
 | sensor | edge | n | p50 | p90 | p95 | max | late wear |
 |---|---|---|---|---|---|---|---|
-| ECG | start | 95 | 0 | 110 | 140 | 520 | 0 |
-| ECG | end | 86 | 10 | 170 | 210 | 300 | 9 |
-| PPG | start | 90 | 30 | 240 | 280 | 390 | 9 |
-| PPG | end | 89 | 30 | 230 | 260 | 460 | 10 |
-| O2Ring | start | 147 | 0 | 30 | 60 | 110 | 0 |
-| O2Ring | end | 146 | 0 | 10 | 40 | 220 | 1 |
+| ECG | start | 90 | 0 | 110 | 140 | 520 | 0 |
+| ECG | end | 82 | 10 | 170 | 210 | 300 | 8 |
+| PPG | start | 81 | 30 | 210 | **270** | 390 | 9 |
+| PPG | end | 80 | 30 | 230 | 260 | 460 | 10 |
+| O2Ring | start | 90 | 0 | 40 | 60 | 100 | 0 |
+| O2Ring | end | 89 | 0 | 30 | **50** | 220 | 1 |
 
-| device start spread, 104 multi-sensor nights | seconds |
+| device start spread, 90 multi-sensor nights | seconds |
 |---|---|
-| p50 | 127 |
-| p90 | 1447 |
+| p50 | 143 |
+| p90 | 1734 |
 | max | 9501 |
 
 The device start spread is larger than the settle time. So the common start must come from the start stamps of each night. The settle time itself can be a constant.
@@ -54,8 +60,8 @@ The device start spread is larger than the settle time. So the common start must
 | sensor | start floor | end floor |
 |---|---|---|
 | ECG (H10) | 140 s | 210 s |
-| PPG (Verity Sense) | 280 s | 260 s |
-| O2Ring | 60 s | 40 s |
+| PPG (Verity Sense) | 270 s | 260 s |
+| O2Ring | 60 s | 50 s |
 
 Reasons:
 
@@ -81,9 +87,11 @@ The owner's ruling of 2026-09-17 applies: a discontinuity refuses, a reduced cov
 
 The floors come from the same nights that the hat analyses. This is acceptable for two reasons. The floor is a data-quality rule, not the quantity the hat tests. It is also the same constant on every night, so it cannot favour one result.
 
+**This sentence was false when first written, and the measurement that made it true is §3.** The 2026-10-18 run pooled 57 nights the fold rejects, and the hat solves none of them. Reading `.trio-stamp` makes the population and the hat's population the same 90 nights. The claim now holds by construction, not by assumption.
+
 ## 5 · Done when
 
-- [ ] 1. One shared constant table holds the six floors. A comment names the source: this brief, 2026-10-18 and 147 nights. `kernel-constants.js` is the candidate, because all 8 bundles carry it (`CLAUDE.md` §👥.3).
+- [ ] 1. One shared constant table holds the six floors. A comment names the source: this brief, 2026-10-20 and the 90 folded nights. `kernel-constants.js` is the candidate, because all 8 bundles carry it (`CLAUDE.md` §👥.3).
 - [ ] 2. ECGDex, PpgDex and OxyDex compute from `t0Ms` + start floor to end − end floor. OxyDex keeps `trimSensorWarmup`; the floor applies after it.
 - [ ] 3. Each export carries `recording.computeStartMs`, `recording.computeEndMs` and the floor values used. `recording.startEpochMs` stays the first valid sample.
 - [ ] 4. Fusion starts every leg's epoch grid at the common start of §4.2. Fusion here is `tools/trio-batch.mjs`, the Integrator and `tools/pat-three-corner.mjs`.
