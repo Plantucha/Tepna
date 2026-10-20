@@ -58,6 +58,7 @@
  *   node tools/cvhr-edge-widen.mjs                 # tables on stderr, one tepna.verdict/1 on stdout
  *   node tools/cvhr-edge-widen.mjs --json          # the object alone
  *   node tools/cvhr-edge-widen.mjs --planted-only  # phase 1 alone: seconds, no corpus
+ *   node tools/cvhr-edge-widen.mjs --rebuilt-mask   # CONTROL: rebuild the mask out here instead of reading the node's
  *   node tools/cvhr-edge-widen.mjs --selftest      # the widen filter's own properties
  *   node tools/cvhr-edge-widen.mjs --tree <dir> --limit N --out <json>
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -78,6 +79,7 @@ const arg = (f, d) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
 const JSON_OUT = has('--json');
+const REBUILT_MASK = has('--rebuilt-mask');
 const say = (s) => {
   if (!JSON_OUT) console.error(s);
 };
@@ -299,8 +301,11 @@ export function spansGapFromHoles(tt, holes) {
 
 export function scoreNight(P, path) {
   /* ∅ P5 clause 2 — validity travels out of band, so the `_PPGRUNS.txt` companion goes in beside the
-     stream whenever the writer left one. This corpus holds none, so the figures this tool reports are
-     the no-sidecar ones either way; the read is here so a later capture does not silently lose it. */
+     stream whenever the writer left one. SIDECAR COVERAGE IS A PROPERTY OF THE TREE, NOT OF THE
+     CORPUS, so it is named per tree rather than assumed: measured 2026-10-20 over `inputs()`, the
+     flat `uploads` tree has 0 companions for its 59 streams, and `smoketest-captures` has 161 for
+     its 4489. A leg over the first reports the no-sidecar figures; a leg over the second reads a
+     sidecar for 161 of its streams and does not. */
   const runs = path.replace(/\.txt$/, 'RUNS.txt');
   const runsText = existsSync(runs) ? readFileSync(runs, 'utf8') : null;
   const rec = P.parsePPG(readFileSync(path, 'utf8'), runsText ? { runsText } : undefined);
@@ -309,16 +314,29 @@ export function scoreNight(P, path) {
   if (!r || !r.nn || !r.tt || r.tt.length !== r.nn.length) return { reason: 'analyze returned no beat series' };
   if (r.cvhrReason) return { reason: r.cvhrReason, beats: r.nn.length };
   const holes = holesOf(rec.relSec, rec.fs);
-  const sg = spansGapFromHoles(r.tt, holes);
+  /* ── THE MASK COMES FROM THE NODE, NOT FROM THIS FILE (residue
+     `2026-10-19-the-cvhr-gap-mask-does-not-leave-the-node`) ───────────────────────────────────────
+     `spansGapFromHoles` rebuilds only the half of the mask that a `relSec` discontinuity explains.
+     The node's mask is `spansTime[i] || bridged[i]`, so the bridged half was unreachable from out
+     here and the recomputation scored a DIFFERENT detector. The row's own measurement, taken 2026-10-19
+     with this tool, is 68 of 418 eligible streams refused on exactly that disagreement. `analyze` now publishes the mask as `[first, n]` runs over the `nn`
+     index space and exports its own decoder, so the mask below is the one the detector ran on.
+     `--rebuilt-mask` forces the old reconstruction: it is the CONTROL for the refusal figure, and
+     it keeps the reconstruction wired so the comparison can be re-run. */
+  const nodeRuns = REBUILT_MASK ? null : r.spansGapRuns;
+  const sg = nodeRuns != null ? P.maskFromRuns(nodeRuns, r.nn.length) : spansGapFromHoles(r.tt, holes);
+  const maskSource = nodeRuns != null ? 'node' : REBUILT_MASK ? 'rebuilt (--rebuilt-mask)' : 'rebuilt (node published none)';
   const mine = P.cvhrFromNN(r.nn, r.tt, activeSecOf(r.tt), sg);
   /* THE CONTROL. The recomputation must land on the count the node published, or the figures below
      describe a pipeline nobody runs. A disagreement is a refusal, never a warning. */
   if (mine.events.length !== r.cvhrEvents)
     return {
       reason: `reconstruction disagrees with analyze: ${mine.events.length} events against ${r.cvhrEvents}`,
-      beats: r.nn.length
+      beats: r.nn.length,
+      maskSource
     };
   const row = {
+    maskSource,
     beats: r.nn.length,
     spanSec: Math.round(r.tt[r.tt.length - 1]),
     fs: rec.fs,
@@ -553,7 +571,21 @@ async function main() {
     perHole[c.key] = holes ? +(lost / holes).toFixed(3) : null;
     share[c.key] = events ? +((100 * lost) / events).toFixed(1) : null;
   }
+  /* WHERE THE MASK CAME FROM, over the rows AND the refusals, because the refusal population is the
+     quantity this flag moves. A run that mixes the two sources measures neither detector. */
+  const maskTally = {};
+  for (const r of rows.concat(refused)) {
+    /* A stream refused by a NODE guard (no samples, no beat series, a named `cvhrReason`) never
+       reached the mask, so it is not evidence about either source. It is counted, under its own
+       label, rather than folded into one of them. */
+    const k = r.maskSource || 'refused before the mask';
+    maskTally[k] = (maskTally[k] || 0) + 1;
+  }
   say(`\n  nights ${rows.length} · refused ${refused.length} · holes ${holes} · events ${events}`);
+  const maskLine = Object.entries(maskTally)
+    .map(([k, n]) => `${k}: ${n}`)
+    .join(' · ');
+  say(`  mask source · ${maskLine || 'none'}`);
   say('  candidate   lost/hole   % of events   what it is');
   for (const c of CANDIDATES) say(`    ${c.key.padEnd(10)} ${String(perHole[c.key]).padStart(8)} ${String(share[c.key]).padStart(12)}   ${c.what}`);
 
@@ -590,7 +622,8 @@ async function main() {
     events,
     lostPerHole: perHole,
     lostPctOfEvents: share,
-    primary: PRIMARY
+    primary: PRIMARY,
+    maskSource: maskTally
   };
   const v = Verdict.make({
     gate: 'cvhr-edge-widen',
