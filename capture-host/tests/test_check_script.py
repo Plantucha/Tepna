@@ -60,6 +60,8 @@ def _sandbox(
     cov_plugin=True,
     unwired_rc=0,
     unwired_object="PASS",
+    covscope_rc=0,
+    covscope_object="PASS",
 ):
     """A PATH where each gate is a stub that records that it ran and exits as scripted.
 
@@ -98,6 +100,38 @@ if kind != "NONE" and out:
             evidence=["capture-host/tools/find_unwired.py"],
             reason="1 unexplained finding(s)" if failing else None,
             tool="capture-host/tools/find_unwired.py",
+        ),
+    )
+sys.exit(rc)
+""",
+    )
+
+    # `covscope` is the second tool of OURS that publishes its own object, and the one whose REFUSAL
+    # (exit 2, no readable coverage data) must not read like a finding. Same four scripted kinds as the
+    # unwired stub, plus "UNKNOWN" — the refusal shape, which only this child has.
+    _write_exec(
+        str(binn / "covscope_stub.py"),
+        f"""import sys
+sys.path.insert(0, {HERE!r})
+import verdict as VD
+
+rc, kind = int(sys.argv[1]), sys.argv[2]
+args = sys.argv[3:]
+out = args[args.index("--verdict-out") + 1] if "--verdict-out" in args else None
+crit = {{"name": "tools_absent_from_the_coverage_report_without_a_pin", "threshold": 0, "unit": "files", "direction": "lte"}}
+if kind != "NONE" and out:
+    status = {{"PASS": "PASS", "WRONG_GATE": "PASS", "FAIL": "FAIL"}}.get(kind, "UNKNOWN")
+    VD.write(
+        out,
+        VD.make(
+            gate="not-covscope" if kind == "WRONG_GATE" else "capture-host-coverage-scope",
+            status=status,
+            population={{"checked": 14, "eligible": 14, "excluded": 0}} if kind != "UNKNOWN" else {{"checked": 0, "eligible": 0, "excluded": 0}},
+            criterion=crit,
+            result=None if kind == "UNKNOWN" else {{"findings": 1 if kind == "FAIL" else 0}},
+            evidence=["capture-host/tools/covscope.py"],
+            reason={{"FAIL": "1 absent from the coverage report with no pin", "UNKNOWN": "no coverage data to read"}}.get(kind),
+            tool="capture-host/tools/covscope.py",
         ),
     )
 sys.exit(rc)
@@ -156,6 +190,7 @@ for a in "$@"; do
     # "verdict: NOT WRITTEN" and this test reads as a missing file.
     checkverdict.py) exec {_PY} "$@" ;;
     *find_unwired.py) exec {_PY} "{binn}/unwired_stub.py" {unwired_rc} {unwired_object} "$@" ;;
+    *covscope.py) exec {_PY} "{binn}/covscope_stub.py" {covscope_rc} {covscope_object} "$@" ;;
   esac
 done
 exit 0
@@ -173,6 +208,7 @@ exit {shellcheck_rc}
     env["PYTHON"] = str(binn / "fakepy")
     env["CHECK_VERDICT_OUT"] = str(tmp_path / "check-verdict.json")  # never the real tree's file
     env["UNWIRED_VERDICT_OUT"] = str(tmp_path / "unwired-verdict.json")  # …nor the real tree's unwired object
+    env["COVSCOPE_VERDICT_OUT"] = str(tmp_path / "covscope-verdict.json")  # …nor the real tree's covscope object
     env["MYPY_OUT"] = str(tmp_path / "mypy-latest.txt")  # per sandbox: eight boxes, eight files
     return env, log
 
@@ -786,12 +822,14 @@ def test_a_green_run_writes_the_object_over_the_six_blocking_children_and_it_rea
         "pytest": "PASS",
         "unwired": "PASS",
         "mypy-ratchet": "PASS",
+        "covscope": "PASS",
     }
     assert v["result"]["unknown"] == 0 and v["result"]["notRun"] == 0 and v["result"]["fail"] == 0
-    # 4 → 5 children with `format` blocking (2026-10-05), 5 → 6 with `mypy-ratchet` (2026-10-20). The
+    # 4 → 5 children with `format` blocking (2026-10-05), 6 with `mypy-ratchet` and 7 with `covscope`
+    # (both 2026-10-20, landed from separate PRs — this count is what the two conflicted on). The
     # population is the BLOCKING set, so this equality is the one that would have caught a leg added to
     # the printout and not to the object.
-    assert v["population"] == {"checked": 6, "eligible": 6, "excluded": 0}
+    assert v["population"] == {"checked": 7, "eligible": 7, "excluded": 0}
     # AT_BASELINE, from the sandbox's clean count. It read NO_COUNT until 2026-10-20, when the default
     # stopped scripting an abort — see `_sandbox`.
     assert v["result"]["advisory"]["mypy"] == "AT_BASELINE"
@@ -840,6 +878,58 @@ def test_a_STALE_unwired_object_from_an_earlier_run_is_never_read_as_this_runs(t
     assert _verdict(tmp_path)["result"]["statuses"]["unwired"] == "UNKNOWN"
 
 
+@pytest.mark.parametrize(
+    "kind, rc, want",
+    [
+        ("NONE", 0, "UNKNOWN"),  # exit 0 and NO object: an adopted tool that wrote nothing decided nothing
+        ("WRONG_GATE", 0, "UNKNOWN"),  # an object about some other gate is not covscope's
+        ("PASS", 1, "UNKNOWN"),  # a PASS object beside a non-zero exit contradicts itself
+        ("FAIL", 1, "FAIL"),  # its own FAIL object, and the run is FAIL naming it
+        # EXIT 2 IS COVSCOPE'S OWN REFUSAL CODE (it cannot read the coverage data, so it decided
+        # nothing). The object carries that as UNKNOWN, and the run must read the object rather than
+        # treat a third exit code as a failing gate or — worse — as one more non-zero to ignore.
+        ("UNKNOWN", 2, "UNKNOWN"),
+    ],
+)
+def test_covscope_is_read_from_ITS_OWN_object_never_from_the_exit_code_alone(tmp_path, kind, rc, want):
+    p, _ = _run(tmp_path, covscope_rc=rc, covscope_object=kind)
+    v = _verdict(tmp_path)
+    assert v["result"]["statuses"]["covscope"] == want, v
+    assert v["status"] == want, v
+    assert p.returncode == (1 if rc else 0), "§3d: the exit code STAYS the shell's verdict"
+
+
+def test_a_STALE_covscope_object_from_an_earlier_run_is_never_read_as_this_runs(tmp_path):
+    """The unwired twin, for the child added 2026-10-20: check.sh removes the object before the child
+    runs. Plant a valid PASS where the child will write and let the child write NOTHING — a script that
+    did not clear the file would report a coverage-scope pass nobody measured this run."""
+    env, _ = _sandbox(tmp_path, covscope_object="NONE")
+    stale = tmp_path / "covscope-verdict.json"
+    import verdict as VD
+
+    VD.write(
+        str(stale),
+        VD.make(
+            gate="capture-host-coverage-scope",
+            status="PASS",
+            population={"checked": 14, "eligible": 14, "excluded": 0},
+            criterion={
+                "name": "tools_absent_from_the_coverage_report_without_a_pin",
+                "threshold": 0,
+                "unit": "files",
+                "direction": "lte",
+            },
+            result={"findings": 0},
+            evidence=["capture-host/tools/covscope.py"],
+            reason=None,
+            tool="capture-host/tools/covscope.py",
+        ),
+    )
+    subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    assert not stale.exists(), "check.sh did not clear the previous run's covscope object"
+    assert _verdict(tmp_path)["result"]["statuses"]["covscope"] == "UNKNOWN"
+
+
 def test_a_failing_child_is_a_FAIL_object_naming_it_and_the_exit_code_stays(tmp_path):
     p, _ = _run(tmp_path, pytest_rc=1)
     assert p.returncode == 1, "§3d: the exit code STAYS the shell's verdict"
@@ -854,9 +944,9 @@ def test_a_MISSING_TOOL_is_NOT_RUN_for_that_child_and_leaves_the_run_UNKNOWN_nev
     _run(tmp_path, shellcheck_rc=127)
     v = _verdict(tmp_path)
     assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["shellcheck"] == "NOT_RUN"
-    # 4 → 5 eligible with `format` blocking (2026-10-05), 5 → 6 with `mypy-ratchet` (2026-10-20); one
-    # tool missing still excludes exactly one.
-    assert v["population"] == {"checked": 5, "eligible": 6, "excluded": 1}
+    # 4 → 5 eligible with `format` blocking (2026-10-05), 6 with `mypy-ratchet` and 7 with `covscope`
+    # (both 2026-10-20); one tool absent still excludes exactly one.
+    assert v["population"] == {"checked": 6, "eligible": 7, "excluded": 1}
     assert "not installed" in v["reason"]
 
 
@@ -920,7 +1010,7 @@ def test_the_refusal_writes_a_NOT_RUN_object_so_no_reader_sees_a_STALE_pass(tmp_
     assert p.returncode == 2, p.stdout + p.stderr
     obj = json.loads(out_path.read_text())
     assert obj["status"] == "NOT_RUN", f"a refusal must overwrite the stale PASS: {obj['status']}"
-    assert obj["population"] == {"checked": 0, "eligible": 5, "excluded": 5}
+    assert obj["population"] == {"checked": 0, "eligible": 6, "excluded": 6}
     assert obj["result"] is None
     assert "ruff" in obj["reason"] and "nothing was examined" in obj["reason"]
 
