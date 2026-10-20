@@ -3567,3 +3567,46 @@ def test_the_night_absent_UNKNOWN_carries_the_commit_and_yields_only_to_a_loss_O
     assert o2["result"]["worn_but_not_recorded_fraction"] == loss_audit.THRESHOLD, o2["result"]
     assert o2["status"] == "UNKNOWN", o2["status"]
     assert o2["producedBy"]["commit"] == "abc1234"
+
+
+# ── AN EVENT-LOOP STALL names no device (residue 2026-10-13-the-stall-that-tore-the-ring-is-invisible-…) ──
+_STALL_LINE = (
+    "2026-10-19T03:46:14-04:00 vigil python[1]: 2026-10-19 03:46:14,000 WARNING event loop stalled 15682 ms — "
+    "every live stream's host stamps waited behind whatever held it (stalls so far: 1, max 15682 ms)\n"
+)
+
+
+def _journal(stdout):
+    class R:
+        returncode = 0
+
+    R.stdout = stdout
+    return lambda *a, **k: R()
+
+
+def test_a_loop_stall_line_names_no_device_and_is_still_a_cause_dated_at_the_stall_START():
+    ev = loss_audit.read_journal("Test Ring TR-01", T0, T0 + dt.timedelta(days=2), run=_journal(_STALL_LINE))
+    # logged when the loop woke (03:46:14); 15682 ms earlier is when the cause began
+    assert ev == [(dt.datetime(2026, 10, 19, 3, 45, 58, 318000), loss_audit.LOOP_STALL)]
+    assert loss_audit.LOOP_STALL == "daemon:event-loop stall"
+
+
+def test_a_stall_line_without_a_length_is_dropped_not_dated_at_its_log_time():
+    line = _STALL_LINE.replace("stalled 15682 ms", "stalled ? ms")
+    assert loss_audit.read_journal("Test Ring TR-01", T0, T0, run=_journal(line)) == []
+
+
+def test_the_ring_gap_a_stall_opened_is_the_daemons_and_not_unattributed():
+    # vigil 10-18: a 17 s ring gap from 03:45:57, the stall began 1.3 s later
+    ev = loss_audit.read_journal("Test Ring TR-01", T0, T0, run=_journal(_STALL_LINE))
+    (row,) = loss_audit.attribute_gaps_detail([(dt.datetime(2026, 10, 19, 3, 45, 57), 17.0)], ev)
+    assert (row["cause"], row["cause_dir"]) == ("daemon:event-loop stall", "after")
+    # a stall that ended before the gap is the backward candidate, as any other cause (vigil 10-12, 01:50)
+    early = _STALL_LINE.replace("03:46:14", "01:50:22").replace("15682", "4630")
+    ev = loss_audit.read_journal("Test Ring TR-01", T0, T0, run=_journal(early))
+    (row,) = loss_audit.attribute_gaps_detail([(dt.datetime(2026, 10, 19, 1, 50, 28), 12.0)], ev)
+    assert (row["cause"], row["cause_dir"]) == ("daemon:event-loop stall", "before")
+    # and it counts as the daemon's minutes, which read 0 while the stall was invisible
+    assert loss_audit.by_cause_of(loss_audit.attribute_gaps([(dt.datetime(2026, 10, 19, 1, 50, 28), 12.0)], ev)) == {
+        "daemon:event-loop stall": 0.2
+    }
