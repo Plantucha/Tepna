@@ -181,8 +181,9 @@ and reached 25 of 82 only because the cap killed it, so its 25 are the **first**
 `--limit 25`, and `tools/mutate.mjs:334` `thin` samples evenly across the population
 (`list[Math.floor(i * step)]`), so its 25 are **spread over** the 82. Both legs ran the same file at the
 same parallelism, and their kill mix is close — CI 9 killed of 25, the rig 10 of 25 — so the per-mutant
-rates are comparable. They are not two readings of one subset, and the **3.2x** between 83.2 s and
-26.4 s is a factor over two different samples of one file.
+rates are comparable. They are not two readings of one subset. Two rig legs thinned this file
+independently and agree within 8 % — 26.4 s here and §7b's 28.5 s — so the per-mutant factor against
+CI's 83.2 s reads **2.9x to 3.2x**, over samples that are not CI's own 25.
 
 ### 7b · A wall-clock factor is only valid at matched parallelism
 
