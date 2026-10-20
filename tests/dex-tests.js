@@ -13526,6 +13526,21 @@
         'control · the DSP builder still emits the same pair (the sibling being matched)',
         /site:\s*r\.site \|\| 'wrist'/.test(dsp) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(dsp)
       );
+      /* EXPORT-SOURCE-KEY-KINDS — the same sibling divergence, one field earlier in the same block.
+         This builder wrote the upload FILENAME where the DSP's sibling writes a semantic tag, and a
+         consumer cannot tell the two kinds apart: `signal-orchestrate.js` routes on that key holding
+         'welltory'. So the filename was a value no consumer reads, in a key one consumer dispatches
+         on. Source-scanned for the reason the device assertions above are: nothing executes this
+         builder. ⚠️ Keep the fix's own comment free of the offending expression — this group already
+         went RED once against a FIXED source, because the explanation beside it carried the literal. */
+      T.ok('the app export writes the semantic tag', /source:\s*'ppg'/.test(app), "buildV2's recording.source is no longer the tag the DSP sibling writes");
+      T.ok('…and the upload filename no longer rides the tag key', !/source:\s*r\.fname/.test(app), 'the upload filename is back in recording.source');
+      T.ok(
+        '…and the filename rides a key that MEANS a filename',
+        /fname:\s*r\.fname \|\| null/.test(app),
+        'recording.fname is gone, so the filename is dropped rather than carried under an honest key'
+      );
+      T.ok('control · the DSP builder writes that same tag (the sibling being matched)', /source:\s*'ppg'/.test(dsp));
     });
 
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
@@ -52995,6 +53010,12 @@
         if (pe) {
           T.ok('  schema.name === ganglior.node-export', pe.schema && pe.schema.name === 'ganglior.node-export', pe.schema && pe.schema.name);
           T.ok('  schema.node === PpgDex', pe.schema && pe.schema.node === 'PpgDex', pe.schema && pe.schema.node);
+          /* EXPORT-SOURCE-KEY-KINDS — the per-node tag assertion this family lacked. PulseDex ('rr'),
+             OxyDex ('spo2'), HRVDex ('welltory') and ECGDex ('ecg') are each pinned in this group, and
+             PpgDex was the one node with none. It is also the one node whose two export builders
+             diverged on the field: the app's wrote the upload filename where this one writes the tag.
+             The unpinned member of a family is where the drift lives. */
+          T.ok('  recording.source === ppg', pe.recording && pe.recording.source === 'ppg', pe.recording && pe.recording.source);
           T.ok('  ganglior_events is an array', Array.isArray(pe.ganglior_events), typeof pe.ganglior_events);
           T.ok('  recording.startEpochMs is finite', pe.recording && isFinite(pe.recording.startEpochMs), pe.recording && pe.recording.startEpochMs);
         }
