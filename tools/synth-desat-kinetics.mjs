@@ -32,6 +32,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { pathToFileURL } from 'node:url';
 
 /* The gate this tool mirrors. Kept as a LITERAL rather than imported from
    oxydex-dsp: if the DSP's constant is ever loosened to make a bad fixture pass,
@@ -121,7 +122,11 @@ if (args.includes('--help') || args.includes('-h')) {
 }
 /* Every positional went straight into `statSync`, so an unknown flag died on an uncaught ENOENT at
    exit 1 (residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path). */
-refuseUnknownArgvOrExit(args, { boolean: ['--selftest', '--help', '-h'], positional: true }, { tool: 'tools/synth-desat-kinetics.mjs' });
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
+   arguments, so an import of anything in this file judged flags it never passed (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) refuseUnknownArgvOrExit(args, { boolean: ['--selftest', '--help', '-h'], positional: true }, { tool: 'tools/synth-desat-kinetics.mjs' });
 if (args.includes('--selftest')) selftest();
 if (!args.length) {
   console.error('usage: node tools/synth-desat-kinetics.mjs <dir-or-csv>...  |  --selftest');
