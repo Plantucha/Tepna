@@ -74,6 +74,7 @@ export const STEPS = [
   'verify:survivor-ratchet',
   'verify:absence',
   'verify:seals',
+  'verify:hook-contract',
   'test:guards',
   'test:tools',
   'lint',

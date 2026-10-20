@@ -44,9 +44,16 @@
  *   node tools/residue-ids.mjs --base <ref>
  *   node tools/residue-ids.mjs --json
  *   node tools/residue-ids.mjs --full-tree      # every merged commit's `Closes residue <key>` claim vs that row's state
+ *   node tools/residue-ids.mjs --open           # the OPEN rows AT THE REF, plus every state the file on disk gets wrong
+ *   node tools/residue-ids.mjs --open --verdict-sample   # the pickup verdict alone, for the adoption gate
  * ════════════════════════════════════════════════════════════════════════ */
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+
+/* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/mutate.mjs` uses. */
+const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 export const LEDGER_PATH = 'briefs/RESIDUE.md';
 
@@ -247,6 +254,121 @@ export function verdict(baseText, headText, tipText) {
   return { collisions, mutated, added };
 }
 
+/* ── THE PICKUP HALF: the list a session sizes work from must come from the REF ───────────────────
+   Row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale. A session picks a unit by
+   reading `briefs/RESIDUE.md` in the shared primary checkout. That file sits at branch `main`, which
+   trails `origin/main` by hours, so a row closed this morning still reads OPEN and NOTHING in the
+   output says the file is behind. Measured 2026-10-20 in `/home/michal/Tepna`: 13 commits behind, 86
+   OPEN rows on disk against 79 on the ref, and 11 of those 86 were already closed.
+   ⚠️ THE STALENESS IS IN THE FILE, NOT ONLY IN THE REF. `git rev-list --count main..origin/main` = 0
+   does not mean the tree is current (CLAUDE.md §👥.2), and the reverse also holds: a non-zero count
+   means the READ is stale, not merely the ref. So this half compares the ref against the bytes ON
+   DISK, which is what a session actually read. */
+
+/**
+ * Pure. The OPEN rows of a ledger text, in file order.
+ * @param {string} text
+ * @returns {string[]} keys
+ */
+export function openKeys(text) {
+  return parseRows(text)
+    .filter((r) => r.state === 'OPEN')
+    .map((r) => r.id);
+}
+
+/**
+ * Pure. What a session reading the file on disk would get wrong about the ref.
+ *
+ * `differs` is the finding that matters: the same row, two states. `staleOpen` is the subset that
+ * misleads a PICKUP — OPEN on disk, closed on the ref — because that is the one that costs a
+ * claim on work someone already did. The other direction (`earlyClosed`) is rarer and matters
+ * too: a session would skip a row that is still open.
+ *
+ * `onlyRef` are rows the disk copy cannot see at all, which is how a duplicate row gets logged
+ * for a defect the ledger already tracks.
+ *
+ * @param {string} refText   ledger at the ref (authoritative)
+ * @param {string} diskText  ledger as the session read it
+ * @returns {{openOnRef: string[], openOnDisk: string[], differs: Array<{key: string, disk: string, ref: string}>,
+ *            staleOpen: string[], earlyClosed: string[], onlyRef: string[], onlyDisk: string[], checked: number}}
+ */
+export function pickupDrift(refText, diskText) {
+  const ref = parseRows(refText);
+  const disk = parseRows(diskText);
+  const diskById = new Map(disk.map((r) => [r.id, r]));
+  const refById = new Map(ref.map((r) => [r.id, r]));
+  const differs = [];
+  const staleOpen = [];
+  const earlyClosed = [];
+  const onlyRef = [];
+  for (const r of ref) {
+    const d = diskById.get(r.id);
+    if (!d) {
+      onlyRef.push(r.id);
+      continue;
+    }
+    if (d.state === r.state) continue;
+    differs.push({ key: r.id, disk: d.state, ref: r.state });
+    if (d.state === 'OPEN') staleOpen.push(r.id);
+    else if (r.state === 'OPEN') earlyClosed.push(r.id);
+  }
+  /* A row only on DISK is not symmetric with one only on the ref: it is this branch's own
+     unpushed work, which is normal. It is reported, never counted as drift. */
+  const onlyDisk = disk.filter((r) => !refById.has(r.id)).map((r) => r.id);
+  return {
+    checked: ref.length - onlyRef.length,
+    openOnRef: ref.filter((r) => r.state === 'OPEN').map((r) => r.id),
+    openOnDisk: disk.filter((r) => r.state === 'OPEN').map((r) => r.id),
+    differs,
+    staleOpen,
+    earlyClosed,
+    onlyRef,
+    onlyDisk
+  };
+}
+
+/**
+ * Pure. The `tepna.verdict/1` for a pickup read. The criterion is pre-stated in the brief-free
+ * form the row asked for: a read a session may size work from carries ZERO rows whose state
+ * differs from the ref, and zero rows the ref holds and the read does not.
+ *
+ * `eligible` is the ref's row count — the population the ref enumerates. `checked` are the rows
+ * present in BOTH, which is the only set a comparison can speak about; `excluded` are the rows
+ * the read cannot see (`onlyRef`), and they are named in the reason rather than silently dropped.
+ *
+ * @param {ReturnType<typeof pickupDrift>} drift
+ * @param {{behind: number|null, base: string, commit: string|null}} ctx
+ */
+export function pickupVerdict(drift, ctx) {
+  const stale = drift.differs.length + drift.onlyRef.length;
+  const v = Verdict.make({
+    gate: 'residue-pickup',
+    status: stale === 0 ? 'PASS' : 'FAIL',
+    population: { checked: drift.checked, eligible: drift.checked + drift.onlyRef.length, excluded: drift.onlyRef.length },
+    criterion: { name: 'stale_row_states', threshold: 0, unit: 'rows', direction: 'lte' },
+    result: {
+      differs: drift.differs.length,
+      staleOpen: drift.staleOpen.length,
+      earlyClosed: drift.earlyClosed.length,
+      onlyRef: drift.onlyRef.length,
+      onlyDisk: drift.onlyDisk.length,
+      openOnRef: drift.openOnRef.length,
+      openOnDisk: drift.openOnDisk.length,
+      behindCommits: ctx.behind,
+      base: ctx.base
+    },
+    evidence: [LEDGER_PATH, 'tools/residue-ids.mjs'],
+    reason:
+      stale === 0
+        ? null
+        : `the read is stale: ${drift.differs.length} row(s) differ (${drift.staleOpen.length} read OPEN and are closed on ${ctx.base}), and ${drift.onlyRef.length} row(s) exist only on ${ctx.base}`,
+    producedBy: { tool: 'tools/residue-ids.mjs', commit: ctx.commit }
+  });
+  const ck = Verdict.validate(v);
+  if (!ck.ok) throw new Error(`pickup verdict invalid: ${ck.errors.join('; ')}`);
+  return v;
+}
+
 /* ── everything below is I/O; the core above is pure and is what the suite drives ── */
 
 const git = (args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
@@ -276,6 +398,86 @@ function main() {
       'A comparison against a base it cannot read would report 0 collisions because it sees 0 rows —',
       'the exact blindness this guard exists to close. Set `fetch-depth: 0` on actions/checkout.'
     ]);
+  }
+
+  /* ── THE PICKUP READ ───────────────────────────────────────────────────────────────────────────
+     The list comes from the REF, always, so the output cannot be stale. The drift block says what
+     the file on disk would have told you instead. */
+  if (argv.includes('--open')) {
+    const sample = argv.includes('--verdict-sample');
+    const refText = readAt(base);
+    if (refText === null) {
+      /* `--verdict-sample` is the adoption gate's shape probe and must print a valid object even
+         where the ref is absent. NOT_RUN examined nothing, so its result is null. An operator run
+         still REFUSES: a pickup list it cannot vouch for is the defect this mode closes. */
+      if (sample) {
+        const v = Verdict.make({
+          gate: 'residue-pickup',
+          status: 'NOT_RUN',
+          population: { checked: 0, eligible: 0, excluded: 0 },
+          criterion: { name: 'stale_row_states', threshold: 0, unit: 'rows', direction: 'lte' },
+          result: null,
+          evidence: [LEDGER_PATH, 'tools/residue-ids.mjs'],
+          reason: `\`${LEDGER_PATH}\` is not readable at \`${base}\`, so no read was compared`,
+          producedBy: { tool: 'tools/residue-ids.mjs', commit: null, commitReason: 'no ref to resolve' }
+        });
+        process.stdout.write(`${JSON.stringify(v)}\n`);
+        process.exit(0);
+      }
+      refuse(`\`${LEDGER_PATH}\` is not readable at \`${base}\`.`, ['The pickup list must come from the ref. Fetch it (`git fetch origin main`) or pass --base <ref>.']);
+    }
+    let diskText = '';
+    let top = '';
+    try {
+      top = git(['rev-parse', '--show-toplevel']).trim();
+      diskText = readFileSync(`${top}/${LEDGER_PATH}`, 'utf8');
+    } catch {
+      refuse(`\`${LEDGER_PATH}\` is not readable on disk under \`${top || 'the working tree'}\`.`, ['This mode reports what a session READ, so it needs the bytes on disk, not a commit.']);
+    }
+    let behind = null;
+    try {
+      behind = Number(git(['rev-list', '--count', `HEAD..${base}`]).trim());
+      if (!Number.isFinite(behind)) behind = null;
+    } catch {
+      behind = null;
+    }
+    let commit = null;
+    try {
+      commit = git(['rev-parse', '--short=9', 'HEAD']).trim() || null;
+    } catch {
+      commit = null;
+    }
+    const drift = pickupDrift(refText, diskText);
+    const v = pickupVerdict(drift, { behind, base, commit });
+    if (sample) {
+      process.stdout.write(`${JSON.stringify(v)}\n`);
+      process.exit(0);
+    }
+    if (asJson) {
+      process.stdout.write(`${JSON.stringify({ verdict: v, ...drift }, null, 2)}\n`);
+      process.exit(v.status === 'PASS' ? 0 : 1);
+    }
+    process.stdout.write(`residue-pickup: ${drift.openOnRef.length} OPEN row(s) at ${base}${behind === null ? '' : ` (this tree is ${behind} commit(s) behind it)`}\n`);
+    for (const k of drift.openOnRef) process.stdout.write(`  ${k}\n`);
+    if (v.status === 'PASS') {
+      process.stdout.write(`\nresidue-pickup: the file on disk agrees with ${base} on all ${drift.checked} shared row(s)\n`);
+    } else {
+      process.stdout.write(`\nresidue-pickup: THE FILE ON DISK DISAGREES — do not size work from it\n`);
+      for (const d of drift.differs) process.stdout.write(`  ✗ ${d.key}: on disk ${d.disk} · at ${base} ${d.ref}\n`);
+      for (const k of drift.onlyRef) process.stdout.write(`  ✗ ${k}: at ${base} only — a read of the disk copy cannot see this row at all\n`);
+      process.stdout.write(
+        `\n  ${drift.staleOpen.length} row(s) read OPEN and are already closed, which is a claim on work someone else finished.\n` +
+          `  ${drift.earlyClosed.length} row(s) read closed and are still OPEN, which is work a read would skip.\n` +
+          '  The list above this block came from the ref, so it is safe to pick from. Advancing the shared\n' +
+          "  checkout's ref is NOT the remedy: it changes tracked files under every other session using it.\n"
+      );
+    }
+    if (drift.onlyDisk.length) {
+      process.stdout.write(`\n  ${drift.onlyDisk.length} row(s) exist on disk only — this branch's own unpushed rows, not drift:\n`);
+      for (const k of drift.onlyDisk) process.stdout.write(`    ${k}\n`);
+    }
+    process.stdout.write(`\n${JSON.stringify(v)}\n`);
+    process.exit(v.status === 'PASS' ? 0 : 1);
   }
 
   if (argv.includes('--full-tree')) {
@@ -457,6 +659,44 @@ if (process.argv.includes('--selftest')) {
   assert(closeClaims(log('A commit can say `Closes residue <key>` and nothing follows')).length === 0, 'the placeholder is not a claim');
   assert(closeClaims(log(`Closes residue \`${A}\` ... Closes residue \`${A}\``)).length === 1, 'one claim per (commit, key)');
   assert(closeClaims('').length === 0 && closeClaims(undefined).length === 0, 'an empty log has no claims');
+
+  /* ── THE PICKUP HALF — every assertion is a PLANT, because the real defect was a read that
+     looked perfectly ordinary. The drift must be found by COMPARISON, never by a row's own text. */
+  const stale = [row(A), row(B), row(C)].join('\n'); // the disk copy: all three OPEN
+  const current = [row(A, 'd', 'fixed #1'), row(B), row(C, 'd', 'answered #2')].join('\n');
+  let d = pickupDrift(current, stale);
+  assert(d.differs.length === 2, 'two states differ between the ref and the disk copy');
+  assert(d.staleOpen.join() === [A, C].join(), 'staleOpen names the rows a pickup would wrongly claim');
+  assert(d.earlyClosed.length === 0, 'nothing reads closed-but-open in this direction');
+  assert(d.openOnRef.join() === B && d.openOnDisk.join() === [A, B, C].join(), 'the OPEN list comes from the ref, not from disk');
+  assert(d.checked === 3 && d.onlyRef.length === 0, 'all three rows are comparable');
+
+  // the OTHER direction: a disk copy that closed a row the ref still holds OPEN
+  d = pickupDrift([row(A)].join('\n'), [row(A, 'd', 'fixed #1')].join('\n'));
+  assert(d.earlyClosed.join() === A && d.staleOpen.length === 0, 'a row closed on disk and OPEN at the ref is work a read would skip');
+
+  // a row the disk copy cannot see at all — how a duplicate row gets logged
+  d = pickupDrift([row(A), row(B)].join('\n'), [row(A)].join('\n'));
+  assert(d.onlyRef.join() === B && d.checked === 1, 'a row only at the ref is excluded from the comparison and named');
+  // ⚠️ and the asymmetry: a row only on DISK is this branch's own work, never drift
+  d = pickupDrift([row(A)].join('\n'), [row(A), row(B)].join('\n'));
+  assert(d.onlyDisk.join() === B && d.differs.length === 0 && d.onlyRef.length === 0, 'an unpushed local row is not drift');
+
+  // openKeys reads the STATE cell, and a closed row is not open
+  assert(openKeys(current).join() === B, 'openKeys returns only the OPEN rows');
+  assert(openKeys('').length === 0 && openKeys(undefined).length === 0, 'an empty ledger has no open rows');
+
+  /* THE VERDICT. `checked + excluded = eligible` is an equality, so the ref's row count is the
+     population and a row the read cannot see is an EXCLUSION, never a silent drop. */
+  d = pickupDrift(current, stale);
+  let pv = pickupVerdict(d, { behind: 13, base: 'origin/main', commit: 'abc1234' });
+  assert(pv.status === 'FAIL' && pv.result.differs === 2 && pv.reason !== null, 'drift is a FAIL carrying a reason');
+  assert(pv.population.checked + pv.population.excluded === pv.population.eligible, 'the population balances');
+  assert(pv.criterion.threshold === 0 && pv.criterion.direction === 'lte', 'the criterion is the pre-stated one');
+  pv = pickupVerdict(pickupDrift(current, current), { behind: 0, base: 'origin/main', commit: 'abc1234' });
+  assert(pv.status === 'PASS' && pv.reason === null && pv.population.checked === 3, 'an identical read passes over the rows it compared');
+  pv = pickupVerdict(pickupDrift([row(A), row(B)].join('\n'), [row(A)].join('\n')), { behind: 2, base: 'origin/main', commit: 'abc1234' });
+  assert(pv.status === 'FAIL' && pv.population.excluded === 1, 'a row the read cannot see fails the pickup on its own');
 
   // Phrased so `selftest-all.mjs` can PARSE the count: a tool that silently drops from 8
   // assertions to 1 still exits 0, and only a readable number makes that visible.
