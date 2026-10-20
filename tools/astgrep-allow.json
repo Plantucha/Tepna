@@ -97,6 +97,12 @@
         "why": "tally"
       },
       {
+        "file": "capture-host/blestats.py",
+        "match": "prev.get(key, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
         "file": "capture-host/capture.py",
         "match": "_OXYII_RESTART_TOTAL.get(addr, 0)",
         "ordinal": 0,

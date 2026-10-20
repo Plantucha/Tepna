@@ -550,7 +550,12 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # and resets it through `clear_refs` so each `mem:` line carries the peak since the previous one, and
     # the PURE `qc_peak_line`, tested directly. +2, the whole delta. The child's own reader lives in
     # `qc_child.py` and adds nothing here. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 322, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 322 → 323 on 2026-10-20 (residue ble-counters-not-drawn): `retry_rate_report`, the PURE collector
+    # that turns the per-device backoff stamps into a windowed rate carrying its own coverage, tested
+    # directly. +1, the whole delta. The line it feeds is built in `blestats.log_line` and the drawing in
+    # `monitor.html`, so neither adds to this count. `moduleFunctionsAtDeclaration` stays where it is,
+    # per the note above.
+    assert n == 323, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
