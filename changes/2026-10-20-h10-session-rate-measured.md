@@ -4,4 +4,4 @@ type: added
 brief: none
 ---
 
-Measure what moves the chest strap's per-session ECG rate: a new tool reads every exported stream, and the two axes' guard asymmetry does not account for it.
+Measure what moves the chest strap's per-session ECG rate. A new tool reads every exported stream. The two axes' guard asymmetry accounts for none of it.
