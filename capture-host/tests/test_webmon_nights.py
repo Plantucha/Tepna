@@ -844,9 +844,16 @@ def test_TWO_ROWS_IN_ONE_BAND_get_distinct_keys_and_every_keyed_site_uses_them(t
         pytest.skip("node is not installed")
 
     def put(day, name, body, end):
+        """`end` ON BOTH RAILS. The span end is MEASURED from the last stamped row since the frame defect
+        was removed, so a header-only CSV whose end was stated as an mtime alone stated it to nobody: each
+        session reached only its own start and this band came back as three rows."""
+        import datetime as _d
+
         d = tmp_path / "captures" / day
         d.mkdir(parents=True, exist_ok=True)
-        (d / name).write_text(body)
+        iso = _d.datetime.strptime(end, "%Y%m%d%H%M%S").strftime("%Y-%m-%dT%H:%M:%S.000")
+        body = body if body.endswith("\n") else body + "\n"
+        (d / name).write_text(body + f"{iso};0\n")
         ep = _t.mktime(_t.strptime(end, "%Y%m%d%H%M%S"))
         os.utime(d / name, (ep, ep))
 

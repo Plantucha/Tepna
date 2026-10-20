@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**272 tools** · 271 with a purpose line · **1 without**
+**273 tools** · 272 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -194,6 +194,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ppi-match.mjs`](../tools/ppi-match.mjs) | PPG-beat ↔ ECG-beat alignment and jitter, shared by the §3 apparatus |
 | [`pr-compliance.mjs`](../tools/pr-compliance.mjs) | Enforces the standing PR rules from the fleet workflow: 1. Body starts with a "Rule 0:" line (the git-grep evidence line). |
 | [`pr-walker.mjs`](../tools/pr-walker.mjs) | pr-walker — the landing pipeline runs ITSELF: every open PR is classified each pass and the walker takes the one action its state calls for, with nobody typing a number into a queue file. |
+| [`probe-child-death-codes.mjs`](../tools/probe-child-death-codes.mjs) | WHAT A DYING CHILD ACTUALLY REPORTS — measured, not reasoned. |
 | [`probe-clock-equivalence.mjs`](../tools/probe-clock-equivalence.mjs) | IS A SURVIVING clock.js MUTANT A TEST GAP, OR IS IT UNKILLABLE? |
 | [`probe-coverage.mjs`](../tools/probe-coverage.mjs) | A BATTERY CAN ONLY CLASSIFY SURVIVORS INSIDE ITS FAMILIES' FUNCTIONS — AND NOTHING SAID SO. |
 | [`probe-equivalence.mjs`](../tools/probe-equivalence.mjs) | IS A SURVIVING MUTANT A TEST GAP, OR IS IT UNKILLABLE? — the general form. |
