@@ -2039,7 +2039,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "the corpus fold's per-night gate (VERDICT-CONTRACT \u00a73b #7): every night the plan DECIDES on emits one tepna.verdict/1 \u2014 PASS entered the fold \u00b7 FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) \u00b7 NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) \u2014 plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write"
+   "note": "the corpus fold's per-night gate (VERDICT-CONTRACT \u00a73b #7): every night the plan DECIDES on emits one tepna.verdict/1 \u2014 PASS entered the fold \u00b7 FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) \u00b7 NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) \u2014 plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write; beside it, one fold-outcome object (gate trio-batch-fold) over the admitted nights \u2014 PASS only when each landed all three trio node-exports, SHORTFALL or FAIL naming every short night, NOT_RUN when nothing was admitted"
   },
   "tools/trio-power-headless.mjs": {
    "bin": "decides",
