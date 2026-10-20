@@ -755,14 +755,29 @@ export function todaysEntries(txt, today) {
   return { text: last, note: `(no entry dated ${today}; showing the latest, ${when})` };
 }
 
-function todaySection(name, rel, note) {
+/* The evaluation card shows the work; the owner decisions have their own card (owner, 2026-10-20:
+   "OWNER DECISIONS OPEN should be in different card"). Each OWNER DECISIONS OPEN block is cut from the
+   card's text, from its header line to the first blank line, which is where parseOwnerDecisions ends
+   it too. Pure, so --selftest can plant it. */
+export function withoutOwnerDecisions(txt) {
+  const out = [];
+  let skipping = false;
+  for (const l of txt.split('\n')) {
+    if (/^OWNER DECISIONS OPEN\b/.test(l)) skipping = true;
+    else if (skipping && !l.trim()) skipping = false;
+    if (!skipping) out.push(l);
+  }
+  return out.join('\n');
+}
+
+function todaySection(name, rel, note, transform = (x) => x) {
   const f = path.join(OUT_DIR, rel);
   if (!existsSync(f)) return { ok: false, reason: `${rel} not written yet — ${note}` };
   try {
     const txt = readFileSync(f, 'utf-8');
     const today = new Date().toISOString().slice(0, 10);
     const t = todaysEntries(txt, localYMD(new Date()));
-    const text = (t.note ? `${t.note}\n\n` : '') + t.text;
+    const text = (t.note ? `${t.note}\n\n` : '') + transform(t.text);
     return { ok: true, text: text.slice(0, 8000), bytes: txt.length, today: today };
   } catch (e) {
     return fail(`${rel} unreadable: ${e.message}`);
@@ -876,7 +891,7 @@ export function collect() {
        must say so with a date — a manual entry is a measurement of what a person copied, not of the
        night, and the board says which. Owner, 2026-10-11: "put placeholders in it". */
     solidNights: solidNights(),
-    evaluation: todaySection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it'),
+    evaluation: todaySection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it', withoutOwnerDecisions),
     /* The PR walker (tools/pr-walker.mjs, under tepna-pr-walker.timer) writes landing.md every pass:
        one line per open PR with its state, the actions it took, and an ALERT line for every PR it can
        no longer move (red after a rerun, a hand rebase, a stuck or stale required check). */
@@ -1333,6 +1348,15 @@ function runSelftest() {
     );
     const none = todaysEntries(txt, '2026-10-13');
     ok(none.note === '(no entry dated 2026-10-13; showing the latest, 2026-10-12)' && none.text.includes('noon'), 'with no entry dated today the latest entry is shown under a dated note');
+  }
+  {
+    const ev = 'WORKING NOW\n- heron #3750\n\nOWNER DECISIONS OPEN\n1. deploy main\n2. heap probe\n\nRISKS / DEFECTS SEEN\n1. stale mergeable\n';
+    const cut = withoutOwnerDecisions(ev);
+    ok(
+      !cut.includes('deploy main') && !cut.includes('OWNER DECISIONS OPEN') && cut.includes('heron #3750') && cut.includes('stale mergeable'),
+      'the evaluation card drops the OWNER DECISIONS OPEN block and keeps the blocks around it (owner, 2026-10-20)'
+    );
+    ok(parseOwnerDecisions(ev).items.length === 2, 'the owner decisions card still reads the block from the same text');
   }
   {
     const rows = herderRows('{"id":"x","result":{"agents":[{"name":"kestrel","agent_status":"working","pane_id":"w1:p1"},{"name":"magpie","agent_status":"idle","pane_id":"w1:p6"}]}}', 'birds');
