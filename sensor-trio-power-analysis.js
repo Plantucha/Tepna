@@ -1798,6 +1798,17 @@
   //  raw PPG) are handed to a worker lane that parses + beat-detects + solves.
   // ════════════════════════════════════════════════════════════════════════
   const NIGHTS = {};
+  /* ── §∅ · THE VALIDITY COMPANION IS PAIRED BY NAME, NOT NIGHT-KEYED ──────────────────────────────
+     Residue `2026-10-17-sample-parsers-called-without-their-sidecar`. The box writes
+     `<base>RUNS.txt` beside a stream it blanked, and the parsers take those bytes as `opts.runsText`.
+     A companion carries no sample rows, so the first-data-row night key cannot read one; its night is
+     the night of the file it sits beside, which is what pairing by name says and nothing else can.
+     The map is keyed by the companion's OWN filename and read once a corner's file is chosen, so a
+     companion can never be paired with a stream the night did not select. */
+  const COMPANIONS = new Map();
+  const RUNS_NAME = /RUNS\.txt$/i;
+  const companionOf = (file) => (file ? COMPANIONS.get(file.name.replace(/\.txt$/i, 'RUNS.txt')) || null : null);
+
   /* TWO CAPTURE LAYOUTS, ONE RULE EACH. The phone app (Polar Sensor Logger / the O2Ring app) writes
      `Polar_H10_<id>_YYYYMMDD_HHMMSS_<KIND>.txt`, `Polar_Sense_…`, `O2Ring…_<14 digits>.csv`; the capture
      host writes the SAME bytes as `Polar_H10_<id>_YYYYMMDDHHMMSS_<KIND>.txt` (one 14-digit run, no
@@ -1863,12 +1874,19 @@
     nt.verityPPG = vppg ? vppg.file : null;
     nt.verityPPI = vppi ? vppi.file : null;
     nt.verityHR = vhr ? vhr.file : null;
+    nt.o2ppgRuns = companionOf(nt.o2ppg);
+    nt.h10ecgRuns = companionOf(nt.h10ecg);
+    nt.verityPPGRuns = companionOf(nt.verityPPG);
   }
   function ingestFiles(list) {
     for (let i = 0; i < list.length; i++) {
       const f = list[i],
         c = classify(f);
       if (!c) continue;
+      if (RUNS_NAME.test(f.name)) {
+        COMPANIONS.set(f.name, f);
+        continue;
+      }
       const nk = nightKeyOf(c.stamp),
         nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, cand: {} });
       (nt.cand[c.role] || (nt.cand[c.role] = [])).push({ file: f, ms: stampMs(c.stamp), size: f.size });
@@ -1965,7 +1983,16 @@
           timeoutMs: 1200000,
           label: nt.key,
           seed: hashStr(nt.key),
-          files: { o2: nt.o2, h10: nt.h10, verityPPG: nt.verityPPG || null, verityPPI: nt.verityPPI || null, verityHR: nt.verityHR || null }
+          files: {
+            o2: nt.o2,
+            h10: nt.h10,
+            verityPPG: nt.verityPPG || null,
+            verityPPI: nt.verityPPI || null,
+            verityHR: nt.verityHR || null,
+            o2ppgRuns: nt.o2ppgRuns || null,
+            h10ecgRuns: nt.h10ecgRuns || null,
+            verityPPGRuns: nt.verityPPGRuns || null
+          }
         });
         doneN++;
         bytesDone += weight(nt);
