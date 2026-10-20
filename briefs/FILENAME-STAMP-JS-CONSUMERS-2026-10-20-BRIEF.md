@@ -31,7 +31,7 @@ files and looked complete.
 | `tools/ppg-foot-consensus-e1.mjs` | whether an ECG may pair with a PPG at all | **defect, fixed here** |
 | `tools/ppg-fusion-e3.mjs` | the same pre-filter, duplicated | **defect, fixed here** |
 | `dex-ingest.js` | `stampMs` builds an instant from unvalidated components | **defect, owed** |
-| `sensor-trio-night.js` | the NIGHT KEY a file is grouped under | **defect, owed** |
+| `sensor-trio-night.js` | the NIGHT KEY a file is grouped under | **defect, fixed** |
 | `sensor-trio-power-analysis.js` | the same night key | **defect, owed** |
 | `sigma-no-reference-analysis.js` | the same night key | **defect, owed** |
 | `oxydex-dsp.js` | anchor source (2), through `DexClock.fileStamp` | clean |
@@ -63,14 +63,34 @@ the bound. It removes the case the promise could not cover.
   `ReferenceError` at module evaluation (§✅). Shared-module work: four `manifestHash` values move,
   and it owes the corpus lap. 0 of 454 Polar-named files in the corpus violate the ranges today, so
   this is a tripwire rather than a recovered loss.
-- [ ] **The three night-grouping scripts read the first data row for the night key.** A name 18.7 h
-  out puts a file on the wrong night, and these three publish figures, so the fix moves numbers a
-  reader may have quoted. One unit each, with the before and after night counts in the PR.
+- [x] **`sensor-trio-night.js` keys the night on the first data row.** `tools/trio-anchor.mjs` made
+  the same repair for the box-side fold under residue
+  `2026-09-22-capture-filename-stamp-disagrees-with-content`; this is the browser consumer left
+  behind. Measured over the 9853 files the tool's own classifier accepts: 9738 carry a parseable
+  first-row stamp and 115 do not, median error 3.9 s, 74 files over 5 min, worst 18.71 h, and **8
+  files cross the noon fold**. Nights 121 by name and 121 by row, eligible 87 both ways with none
+  gained or lost, and **10 of the 121 nights change at least one chosen file** — 2026-06-19, 07-27,
+  08-05, 08-08, 08-20, 08-21, 08-24, 08-27, 08-28, 09-30. Four of the ten move no bucket at all: they
+  change because the nearest-to-anchor comparison now runs on the row stamp.
+
+  The page carries no
+  `clock.js` and `verify:analysis` requires it to stay self-contained, so the parser is node-local,
+  and it agrees with `DexClock.parseTimestamp` on all 9738 files that carry a row stamp, returns null
+  on exactly the same 115, and reproduces the 8 flips.
+
+  🔴 **A published figure moves, and is NAMED here rather than quietly corrected.**
+  `papers/sensor-trio-nights.html` §3.4 reports a 26-night corpus from 2026-06-10 to 07-05 processed
+  through this tool's folder-ingest arm, and 2026-06-19 sits in that window: one of the paper's 26
+  nights changes its chosen verityHR file. Re-running that section is its own unit, because it decides
+  what a reader who quoted the old figure should be told.
+- [ ] **`sensor-trio-power-analysis.js` and `sigma-no-reference-analysis.js`, the same repair.** Each
+  publishes figures, so each owes its own before-and-after night counts in its PR. Neither carries
+  `clock.js` either; the reader above is the shape to mirror, not to import.
 
 ## 5 · Acceptance
 
 - [x] every one of the ten converters read, with its verdict in §2
 - [x] the pre-filter bound exceeds the measured name error, pinned by a selftest leg
 - [ ] `dex-ingest.js` refuses an out-of-range filename stamp, with the four bundles re-bundled
-- [ ] each night-grouping script keys on content, with the night-count delta measured
+- [ ] each night-grouping script keys on content, with the night-count delta measured — 1 of 3
 - [ ] residue `2026-09-22-filename-stamp-still-wrong-for-other-consumers` closes only when §4 is empty
