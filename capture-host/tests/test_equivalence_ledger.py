@@ -177,6 +177,7 @@ RATCHET = {
     "probe_ring_adv.py": 4,
     "proc_util.py": 3,
     "pulsedex-dsp.js": 43,
+    "qc_child.py": 2,
     "solid_night.py": 2,
     "solid_night_inputs.py": 33,
     "stallsampler.py": 2,

@@ -5785,5 +5785,27 @@
       "probe": "applied each mutant to stallsampler.py by hand and ran the module's own suite (`pytest tests/test_stallsampler.py`, 33 tests) against each: both stayed green. The same pass killed all 17 other survivors #3654 reported, including `[-1]` -> `[+1]` and `[-1]` -> `[-2]` on this very expression, so the suite does observe the segment this line selects. The frames it saw were real `traceback.extract_stack` frames from three shapes of filename: an absolute test path with many separators, the module path of a parked worker thread, and a synthetic `<probe>` name with no separator at all (`test_a_SYNTHETIC_filename_with_NO_directory_still_renders`).",
       "why": "`maxsplit` cannot reach the value. `s.rsplit('/', n)[-1]` is the text after the last separator for every n >= 1 and for the unbounded default, because the index counts from the end and each larger maxsplit only adds elements to the FRONT of the list. A name with no separator returns a one-element list under all three, and the basename is that element. So no filename distinguishes them. The literal 1 stays because one split is the only split this line needs, which is a cost argument and not a behavioural one. The contrast is the index itself: `[+1]` raises on a separator-less name and `[-2]` returns the directory, and the suite kills both."
     }
+  ],
+  "qc_child.py": [
+    {
+      "line": 42,
+      "before": "with open(status_path, encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → None",
+      "class": "untestable-by-design",
+      "function": "peak_kb",
+      "key": "- with open(status_path, encoding=\"utf-8\") as fh: | + with open(status_path, encoding=None) as fh:",
+      "probe": "tests/test_qc_child.py::test_peak_kb_names_its_encoding_under_warn_default_encoding runs peak_kb under -X warn_default_encoding -W error::EncodingWarning. Applied by hand with PYTHONDONTWRITEBYTECODE=1 python -B: encoding=None fails it, the argument removed fails it, the shipped line passes it.",
+      "why": "`/proc/<pid>/status` is ASCII, and the default encoding on this platform IS UTF-8, so no in-process assertion can distinguish the mutant: the reader returns the same figure. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. Recorded as untestable-by-design rather than as a gap because the probe below KILLS each mutant when the mutant is applied by hand, and mutmut still reports it surviving: the test exists and works, and mutmut never routes it to these mutants. Same mechanism and same deduction as the oxy_inventory.py line-139 entries: the probe runs peak_kb in a SUBPROCESS, so the in-process tracer never records it touching this code. The two measurements are the hand-applied kill and the CI survival on #3693 at 428c9abe7; the selection mechanism is the hypothesis."
+    },
+    {
+      "line": 42,
+      "before": "with open(status_path, encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → removed",
+      "class": "untestable-by-design",
+      "function": "peak_kb",
+      "key": "- with open(status_path, encoding=\"utf-8\") as fh: | + with open(status_path, ) as fh:",
+      "probe": "tests/test_qc_child.py::test_peak_kb_names_its_encoding_under_warn_default_encoding runs peak_kb under -X warn_default_encoding -W error::EncodingWarning. Applied by hand with PYTHONDONTWRITEBYTECODE=1 python -B: encoding=None fails it, the argument removed fails it, the shipped line passes it.",
+      "why": "`/proc/<pid>/status` is ASCII, and the default encoding on this platform IS UTF-8, so no in-process assertion can distinguish the mutant: the reader returns the same figure. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. Recorded as untestable-by-design rather than as a gap because the probe below KILLS each mutant when the mutant is applied by hand, and mutmut still reports it surviving: the test exists and works, and mutmut never routes it to these mutants. Same mechanism and same deduction as the oxy_inventory.py line-139 entries: the probe runs peak_kb in a SUBPROCESS, so the in-process tracer never records it touching this code. The two measurements are the hand-applied kill and the CI survival on #3693 at 428c9abe7; the selection mechanism is the hypothesis."
+    }
   ]
 }
