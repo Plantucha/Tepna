@@ -4597,3 +4597,99 @@ def test_run_one_CHECKS_THE_BASELINE_AHEAD_OF_THE_CALLER_SUPPLIED_TIMEOUT():
         f"the baseline guard is at body index {min(_guards)}, the timeout branch at {min(_branches)} — "
         "a caller that supplies a timeout skips the check, which is the #3704 defect verbatim"
     )
+
+
+def test_the_gate_RETRIES_a_timed_out_mutant_at_the_wider_bound_and_REHARVESTS_it():
+    """Wiring, on the AST, for residue `2026-10-19-a-mutant-whose-cost-is-a-wait-spends-its-own-bound`.
+
+    mutmut derives each mutant's bound from the CLEAN baseline, which never pays a wait only the
+    mutant can lengthen. So a mutant whose cost is a `sleep`, a grace or a socket timeout reads
+    `timeout` — UNDECIDED — and this gate refuses, over mutants the suite does catch. The two pure
+    halves live in `mutation_diff` and are tested there; what cannot be tested there is whether the
+    runner CALLS them, and a pure function nobody calls reports nothing.
+
+    Three things are pinned, because dropping any one of them restores a different defect:
+
+      * the retry runs at `mut.WIDE_TIMEOUT_MULTIPLIER` — at the narrow bound it measures nothing new;
+      * the second record REPLACES the first (`r = r2`), so the ordinary harvest below reads the
+        settled outcomes and a mutant that SURVIVES the wider bound still blocks. Reading a kill off
+        the retry counter instead is #3729's defect verbatim;
+      * `retry_outcome` is called, so the verdict can separate "the bound was too tight" from "nothing
+        measured this mutant" — which is the whole point of the row.
+    """
+    import ast as _ast
+    import pathlib as _pl
+
+    src = (_pl.Path(__file__).resolve().parent.parent / "tools" / "mutate_diff.py").read_text()
+    tree = _ast.parse(src)
+    called = {n.func.id for n in _ast.walk(tree) if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)}
+    assert {"timed_out_in_scope", "retry_outcome"} <= called, (
+        "the runner no longer asks which mutants hit the clock, so a wait mutant stays UNDECIDED"
+    )
+    wide = [
+        n
+        for n in _ast.walk(tree)
+        if isinstance(n, _ast.Attribute) and n.attr == "WIDE_TIMEOUT_MULTIPLIER" and isinstance(n.value, _ast.Name)
+    ]
+    assert wide, "the retry no longer passes the wider bound — re-running at 3.0x cannot settle anything"
+    kwargs = {
+        kw.arg
+        for n in _ast.walk(tree)
+        if isinstance(n, _ast.Call)
+        for kw in n.keywords
+        if kw.arg == "timeout_multiplier"
+        and isinstance(kw.value, _ast.Attribute)
+        and kw.value.attr == "WIDE_TIMEOUT_MULTIPLIER"
+    }
+    assert kwargs == {"timeout_multiplier"}, "the wider bound is named but never reaches run_one"
+    # `r = r2` is what makes the retry's verdicts the ones that get harvested.
+    reassigns = [
+        n
+        for n in _ast.walk(tree)
+        if isinstance(n, _ast.Assign)
+        and len(n.targets) == 1
+        and isinstance(n.targets[0], _ast.Name)
+        and n.targets[0].id == "r"
+        and isinstance(n.value, _ast.Name)
+        and n.value.id == "r2"
+    ]
+    assert reassigns, (
+        "the retry's record is discarded, so the harvest still reads the first run's timeouts — "
+        "and a mutant that SURVIVES the wider bound would never block"
+    )
+
+
+def test_the_retry_COUNT_is_published_outside_the_undecided_branch():
+    """A filter that publishes its count only when something survives it is not publishing a
+    denominator — the finding already recorded against the out-of-scope note, which is printed
+    unconditionally for the same reason.
+
+    Here the silent case is the one that matters most. When the wider bound settles EVERY timeout,
+    `undecided` is empty and the run PASSES, so a count printed inside `if undecided:` would say
+    nothing at all about the run where the bound was the whole story — and a settled mutant is the
+    signal that a wait in its covering tests is unsized. Pinned on the AST, so a reformat cannot move
+    it and a re-indent cannot hide it."""
+    import ast as _ast
+    import pathlib as _pl
+
+    src = (_pl.Path(__file__).resolve().parent.parent / "tools" / "mutate_diff.py").read_text()
+    main = next(n for n in _ast.walk(_ast.parse(src)) if isinstance(n, _ast.FunctionDef) and n.name == "main")
+    MARK = "per-mutant bound and were re-run once at"
+
+    def _says_it(node):
+        return any(
+            isinstance(c, _ast.Constant) and isinstance(c.value, str) and MARK in c.value for c in _ast.walk(node)
+        )
+
+    assert _says_it(main), "the retry count is no longer printed at all"
+    undecided_ifs = [
+        n
+        for n in _ast.walk(main)
+        if isinstance(n, _ast.If) and isinstance(n.test, _ast.Name) and n.test.id == "undecided"
+    ]
+    assert undecided_ifs, "the `if undecided:` branch moved; re-read this test before trusting it"
+    for n in undecided_ifs:
+        assert not _says_it(n), (
+            "the retry count moved inside `if undecided:`, so a run whose timeouts all settled "
+            "reports no bound at all — and that run is the one the count is for"
+        )
