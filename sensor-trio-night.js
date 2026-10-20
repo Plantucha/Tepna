@@ -143,6 +143,84 @@
     const d = new Date(ms);
     return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
   }
+  /* THE NIGHT A FILE BELONGS TO COMES FROM ITS FIRST DATA ROW, NOT ITS NAME.
+     Measured 2026-10-20 over 9853 corpus files this classifier accepts: 9738 carry a parseable row
+     stamp, the median name-to-content error is 3.9 s, 74 files exceed 5 min and the worst sits
+     18.71 h out. Eight of them cross the noon fold below, so the name alone indexed them one night
+     early — the name is written when the file is offloaded, the row when the recording started.
+     A file whose rows carry no stamp keeps the filename key and the ingest note says how many did,
+     because a fallback nobody can see is the defect this replaces. */
+  const ROW_SCAN_BYTES = 65536,
+    ROW_SCAN_LINES = 400;
+  // §2.7: Date.UTC rolls bad components onto a wrong instant, so every field is range-checked first
+  /* §2.7 in `_ckMk`'s own order: the DATE round-trip, then the ISO end-of-day escape, then the TIME
+     range. The order is load-bearing twice over. A bare `h > 23` guard rejects ISO-8601 `24:00:00`,
+     which the Clock Contract names as the one legitimate overflow — so the escape must sit above the
+     range check. And the round-trip cannot stand in for the range check: minute 99 rolls the HOUR and
+     leaves the date alone, so `getUTCDate()` still matches and only the explicit bound refuses it. */
+  function _mkTMs(Y, M, D, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    const day0 = Date.UTC(Y, M - 1, D),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== Y || dd.getUTCMonth() !== M - 1 || dd.getUTCDate() !== D) return null;
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000;
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(Y, M - 1, D, h, mi, se, ms);
+  }
+  const _ISO_ROW = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/,
+    _RING_ROW = /(\d{2}):(\d{2}):(\d{2})\s+(\d{2})\/(\d{2})\/(\d{4})/;
+  /* The ring's CSV writes `HH:MM:SS DD/MM/YYYY` and the same vendor also ships MM/DD/YYYY, so §3
+     applies: a scanned row whose first date field exceeds 12 locks the order for the whole head,
+     and an all-ambiguous head takes the contract's DMY default. Never `new Date(str)`. */
+  function _rowTMs(text) {
+    const lines = text.split(/\r?\n/, ROW_SCAN_LINES);
+    let ringFirst = null,
+      dmy = true;
+    for (let i = 0; i < lines.length; i++) {
+      const m = _RING_ROW.exec(lines[i]);
+      if (!m) continue;
+      if (ringFirst == null) ringFirst = m;
+      if (+m[4] > 12) {
+        dmy = true;
+        break;
+      }
+      if (+m[5] > 12) {
+        dmy = false;
+        break;
+      }
+    }
+    for (let i = 0; i < lines.length; i++) {
+      const iso = _ISO_ROW.exec(lines[i]);
+      if (iso) {
+        const t = _mkTMs(+iso[1], +iso[2], +iso[3], +iso[4], +iso[5], +iso[6], +(iso[7] || 0));
+        if (t != null) return t;
+      }
+    }
+    if (ringFirst) {
+      const D = dmy ? +ringFirst[4] : +ringFirst[5],
+        M = dmy ? +ringFirst[5] : +ringFirst[4];
+      return _mkTMs(+ringFirst[6], M, D, +ringFirst[1], +ringFirst[2], +ringFirst[3], 0);
+    }
+    return null;
+  }
+  async function firstRowTMs(file) {
+    try {
+      const blob = file.slice(0, ROW_SCAN_BYTES);
+      const text = typeof blob.text === 'function' ? await blob.text() : null;
+      return text == null ? null : _rowTMs(text);
+    } catch (_e) {
+      return null;
+    }
+  }
+  // the same noon fold as nightKeyOf, over an instant instead of a 14-digit filename stamp
+  function nightKeyOfMs(tMs) {
+    const d = new Date(tMs);
+    let ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    if (d.getUTCHours() < 12) ms -= 86400000;
+    const b = new Date(ms);
+    return b.getUTCFullYear() + '-' + String(b.getUTCMonth() + 1).padStart(2, '0') + '-' + String(b.getUTCDate()).padStart(2, '0');
+  }
   function hashStr(s) {
     let h = 0x811c9dc5;
     for (let i = 0; i < s.length; i++) {
@@ -184,14 +262,22 @@
   const eligible = (nt) => !!((nt.o2ppg || nt.o2) && (nt.h10ecg || nt.h10) && (nt.verityPPG || nt.verityPPI || nt.verityHR));
   const verSrc = (nt) => (nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—');
   let SELECTED = null;
-  function ingestFiles(list) {
+  async function ingestFiles(list) {
+    let keyedByName = 0;
     for (let i = 0; i < list.length; i++) {
       const f = list[i],
         c = classify(f);
       if (!c) continue;
-      const nk = nightKeyOf(c.stamp),
+      const rowMs = await firstRowTMs(f);
+      if (rowMs == null) keyedByName++;
+      const nk = rowMs == null ? nightKeyOf(c.stamp) : nightKeyOfMs(rowMs),
         nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, cand: {} });
-      (nt.cand[c.role] || (nt.cand[c.role] = [])).push({ file: f, ms: stampMs(c.stamp), size: f.size });
+      (nt.cand[c.role] || (nt.cand[c.role] = [])).push({
+        file: f,
+        ms: rowMs == null ? stampMs(c.stamp) : rowMs,
+        stampSource: rowMs == null ? 'filename' : 'first-row',
+        size: f.size
+      });
     }
     Object.keys(NIGHTS).forEach((k) => resolveTriple(NIGHTS[k]));
     const elig = Object.keys(NIGHTS)
@@ -200,7 +286,15 @@
     if (!SELECTED || !NIGHTS[SELECTED] || !eligible(NIGHTS[SELECTED])) SELECTED = elig.length ? elig[elig.length - 1] : null;
     renderNightNav();
     const note = $('ingestNote');
-    if (note) note.textContent = Object.keys(NIGHTS).length + ' night(s) indexed from ' + list.length + ' file(s) · ' + elig.length + ' eligible';
+    if (note)
+      note.textContent =
+        Object.keys(NIGHTS).length +
+        ' night(s) indexed from ' +
+        list.length +
+        ' file(s) · ' +
+        elig.length +
+        ' eligible' +
+        (keyedByName ? ' · ' + keyedByName + ' keyed by filename (no row stamp)' : '');
     // one eligible night is the landing case: solve it without a click
     if (elig.length === 1 && !RUNNING) solve(NIGHTS[elig[0]]);
     else if (elig.length > 1 && !RUNNING) setStatus('idle', 'pick a night in the sidebar, then Solve');
@@ -1056,7 +1150,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const onPick = (e) => {
       const list = e.target.files;
-      if (list && list.length) ingestFiles(list);
+      if (list && list.length) void ingestFiles(list);
       e.target.value = '';
     };
     if ($('folderInput')) $('folderInput').addEventListener('change', onPick);
@@ -1071,7 +1165,7 @@
       drop.addEventListener('drop', (e) => {
         e.preventDefault();
         drop.classList.remove('ts-over');
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) ingestFiles(e.dataTransfer.files);
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) void ingestFiles(e.dataTransfer.files);
       });
     }
     const nav = $('nightNav');
