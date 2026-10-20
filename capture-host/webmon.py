@@ -650,6 +650,16 @@ def make_app(
                 "loop": status.get("loop"),
                 "gates": status.get("gates"),
                 "tasks": status.get("tasks"),
+                # BLE TRANSPORT COUNTERS (BLE-TRANSPORT-REDESIGN §1.5/§1.6, residue
+                # 2026-09-16-ble-counters-not-drawn). `ops` is attempts/successes/failure-classes per
+                # (operation, device) with a §∅ `rate` that is null over zero attempts; `retries` counts
+                # each backoff by cause; `backoff_rate` is the trailing-hour ERROR-backoff rate per
+                # device against the 20/h budget of VIGIL-OVERNIGHT-FINDINGS P2.1, null with its own
+                # reason while the window is not yet covered. Forwarded for the reason the blocks above
+                # record, and this one carried it furthest: `find_unwired.py` allowlisted the key
+                # BECAUSE nothing read it, and the §1.6 done-when — "a rising retry rate is itself the
+                # alert" — needs a reader, not another counter. Null until the first status tick.
+                "ble": status.get("ble"),
                 # THE LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture): the files
                 # the daemon holds open, stat'd each status round against the last look — `findings` is
                 # THIS round, `last`/`last_at` the most recent event. Forwarded on the day it was written

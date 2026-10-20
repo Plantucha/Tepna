@@ -530,6 +530,11 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
         <div class="data-pill idle" id="hlPill"><span class="data-dot"></span> <span id="hlText">Loop —</span></div>
         <div class="sidebar-data-info" id="hlDetail"></div>
       </div>
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="bleCard" hidden
+           title="The BLE transport counters: attempts, successes and failure classes per operation and device — the DENOMINATOR, so &quot;zero failures&quot; can be told from &quot;never tried&quot; — beside the trailing-hour error-backoff rate against the 20/h budget. A rate reads &quot;measuring&quot; until observation covers a full hour, because a partial window extrapolates to an alert on every daemon start. Not the Radio card above: that is a per-device distress verdict, this is the count behind it.">
+        <div class="data-pill idle" id="blePill"><span class="data-dot"></span> <span id="bleText">BLE —</span></div>
+        <div class="sidebar-data-info" id="bleDetail"></div>
+      </div>
       <div class="sidebar-data-card" style="margin-bottom:8px" id="llCard" hidden
            title="The files this daemon currently holds open, checked every status round against the previous look: one that has vanished, lost bytes, or been replaced under its own name. It reports loss only — a file that grew is not a finding — and it watches only since this run started.">
         <div class="data-pill idle" id="llPill"><span class="data-dot"></span> <span id="llText">Files —</span></div>
@@ -2286,6 +2291,50 @@ function renderHostLoad(lp, gates, tasks){
     .concat(crashed.map(([n, t]) => `${n}: ${t.crashes}× — ${t.last_error || ''}`)).join('\n');
 }
 
+// THE BLE TRANSPORT COUNTERS (BLE-TRANSPORT-REDESIGN §1.5/§1.6, residue 2026-09-16-ble-counters-not-drawn).
+// NOT the Radio card above it, and the two are easy to read as one: that card is `link_distress.py`'s
+// per-device STATE verdict, this one is the COUNT behind any such verdict — attempts, successes and
+// failure classes per (operation, device) — plus the trailing-hour error-backoff rate against the 20/h
+// budget of VIGIL-OVERNIGHT-FINDINGS P2.1. Two producers, two questions. The counters reached
+// `status.json` in September and `find_unwired.py` allowlisted the key BECAUSE nothing read it.
+// ∅ A NULL RATE IS NOT A ZERO RATE, and this card must never render them alike. `null` means the
+// trailing hour is not yet covered by observation, so it reads "measuring"; a covered window holding no
+// backoff is a MEASURED 0.0/h and reads ok; and a device that has never backed off at all has nothing to
+// measure, which is a third state. Collapsing the first into the second alerts on every daemon start,
+// which is the fastest way to teach an operator to ignore this card.
+function renderBle(ble){
+  const card = $('#bleCard'), pill = $('#blePill'), txt = $('#bleText'), det = $('#bleDetail');
+  if(!card) return;
+  const ops = (ble && ble.ops) || null;
+  if(!ops || !Object.keys(ops).length){ card.hidden = true; return; }   // null until the first status tick
+  card.hidden = false;
+  const BUDGET = 20, rates = (ble && ble.backoff_rate) || {};
+  let over = null, worst = null, measuring = 0;
+  for(const [dev, r] of Object.entries(rates)){
+    if(!r || r.rate == null){ measuring++; continue; }
+    if(!worst || r.rate > worst.rate) worst = {dev, rate: r.rate};
+    if(r.rate > BUDGET && (!over || r.rate > over.rate)) over = {dev, rate: r.rate};
+  }
+  const fails = Object.values(ops).reduce((n, o) =>
+    n + Object.values(o.failures || {}).reduce((a, b) => a + b, 0), 0);
+  pill.className = 'data-pill ' + (over ? 'bad' : worst ? 'ok' : 'idle');
+  txt.textContent = over ? `BLE ${over.rate.toFixed(1)} backoffs/h · ${over.dev} over the ${BUDGET}/h budget`
+                  : worst ? `BLE ${worst.rate.toFixed(1)} backoffs/h · under the ${BUDGET}/h budget`
+                  : measuring ? 'BLE counters · backoff rate measuring'
+                  : 'BLE counters · no error backoff yet';
+  det.textContent = Object.entries(ops).map(([k, o]) =>
+      `${k} ${o.successes}/${o.attempts}` + (o.rate == null ? ' (no attempts counted)' : ` ${Math.round(o.rate * 100)}%`)
+    ).join(' · ')
+    + (fails ? ` · ${fails} failure${fails === 1 ? '' : 's'}` : '')
+    + (measuring ? ` · ${measuring} device${measuring === 1 ? '' : 's'} measuring` : '');
+  det.title = Object.entries(ops).map(([k, o]) =>
+      `${k}: ${o.successes}/${o.attempts} attempts`
+      + Object.entries(o.failures || {}).map(([c, n]) => ` · ${c}=${n}`).join(''))
+    .concat(Object.entries(rates).map(([d, r]) => !r || r.rate == null
+      ? `${d}: ${(r && r.reason) || 'backoff rate not measured'}`
+      : `${d}: ${r.rate.toFixed(1)}/h over ${Math.round((r.window_sec || 0) / 60)} min`)).join('\n');
+}
+
 // The live loss guard, as one sidebar card. THE RESTING STATE IS THE POINT: a guard that only ever
 // appears when it fires is indistinguishable from one that never runs, so this says how many files are
 // being watched even when nothing is wrong. Three states, and the middle one is why `last` exists — a
@@ -2760,6 +2809,7 @@ async function loadState(){
   renderAutopull(s.autopull);
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
   renderHostLoad(s.loop, s.gates, s.tasks);
+  renderBle(s.ble);
   renderLiveLoss(s.live_loss);
   renderSolidNight(s.solid);
   renderCpap(s.cpap);
