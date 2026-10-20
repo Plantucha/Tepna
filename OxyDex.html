@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="24c1e8190160" data-compute-hash="820231be1566">
+<html lang="en" data-manifest-hash="97aef176fcdc" data-compute-hash="394a51594a7e">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plZN43snnU4ByZexyCQgU2p7lffp7AWSzCuqrtwYOSA=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-T5yO4dLuMTAYoxT8mgEXq6sdlffukbkAFOMuv+qYNPw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.20.0</title>
@@ -28225,6 +28225,20 @@ function handleEcgJson(file) {
    (residue 2026-10-06-no-committed-fixture-pairs-an-ecg). It lives here, beside the computation it
    maps, so the app and the fixture regenerator build the SAME block from ONE source. The mapping is
    byte-for-byte the app's — moving it is not an occasion to change a field. */
+/* ECGDex's `estimatedAHI` and `riskCategory` are RETIRED (ECGDEX-CARDIOPULMONARY-COUPLING §10) and
+   ECGDex REMOVES them rather than nulling them (`ecgdex-dsp.js`), so a CURRENT export carries neither
+   key and reading them here dropped out of `JSON.stringify` by luck. A LEGACY export still carrying
+   `estimatedAHI` folded it straight back into a node export — the resurrection `integrator-dsp.js`
+   refuses by name. Only the CVHR screen travels, and the index's DENOMINATOR travels WITH it:
+   `cvhrIndex` is events per hour of OBSERVED recording, so a reader who sees "N /h" can see which
+   hours. `cvhrHours` is attached only where ECGDex attached it — a refusal carries no basis, and a
+   null key invites someone to fill it. */
+function _ecgApneaScreen(ap) {
+  var out = { cvhrIndex: ap.cvhrIndex, cvhrEvents: ap.cvhrEvents };
+  if (ap.cvhrHours != null) out.cvhrHours = ap.cvhrHours;
+  return out;
+}
+
 function oxyEcgFusionBlock(F) {
   if (!F) return null;
   return {
@@ -28245,7 +28259,7 @@ function oxyEcgFusionBlock(F) {
     crcPLV: { baseline: F.plvB, duringSurges: F.plvS, dropsDuringSurges: F.plvB != null && F.plvS != null ? F.plvS < F.plvB : null, wholeNight: F.cr ? F.cr.crcPLV : null },
     hrCrossCheck: { oxyMeanHr: F.oxyMeanHr, ecgMeanHr: F.ecgMeanHr, deltaBpm: F.hrDelta, oxyFloor: F.oxyFloor, ecgFloor: F.ecgFloor },
     realHRV: { rmssd: F.t.rmssd, sdnn: F.t.sdnn, pnn50: F.t.pnn50, meanHr: F.t.hr },
-    ecgApnea: F.ap ? { estimatedAHI: F.ap.estimatedAHI, cvhrIndex: F.ap.cvhrIndex, cvhrEvents: F.ap.cvhrEvents, riskCategory: F.ap.riskCategory } : null,
+    ecgApnea: F.ap ? _ecgApneaScreen(F.ap) : null,
     respRateInstability: F.rstat
   };
 }

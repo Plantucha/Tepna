@@ -6896,7 +6896,13 @@
     } else {
       var txt = typeof input === 'string' ? input : input && typeof input.text === 'string' ? input.text : input && input.samples && typeof input.samples.text === 'string' ? input.samples.text : null;
       if (txt == null) throw new Error('ECGDex.compute: need a Polar Sensor Logger *_ECG.txt string, {text}, a parsed rec {int16,fs}, or an ecg SignalFrame {samples:Float32Array,fs}.');
-      rec = parseECGText(txt);
+      /* §3.2 — `opts.runsText`, else `input.runsText` beside `input.text`: the `_ECGRUNS.txt` bytes when
+         the caller has them. Absent, the call is the 1-arg parse it always was. */
+      /* `input` is non-null here (a null input has no `txt` and threw above), and a string input reads
+         `.runsText` as undefined, so no `input &&` guard: the guard was dead, and an `&&` that no input can
+         flip is a mutant no test can kill. */
+      var rt = typeof opts.runsText === 'string' ? opts.runsText : typeof input.runsText === 'string' ? input.runsText : null;
+      rec = rt ? parseECGText(txt, { runsText: rt }) : parseECGText(txt);
     }
     if (opts.source) rec.source = opts.source;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;
