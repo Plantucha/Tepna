@@ -3537,7 +3537,37 @@
     if (nums.length < 3) return null;
     return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
   }
-  function parseSensorXYZ(text) {
+  /* §3.2 — the `…_ACCRUNS.txt` validity sidecar as wall-clock spans, one per recorded blanking run.
+     A node-local copy of ECGDex's `parseAccRunsTimed`: nodes never import each other (ARCHITECTURE
+     -PRINCIPLES §2). Column 0 is the run's first-sample stamp, column 5 its duration in ms. A row that
+     does not parse adds no span, so a damaged sidecar can only blank LESS, never invent a run. */
+  function parseAccRunsTimed(text) {
+    if (typeof text !== 'string' || !text) return null;
+    const out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        const mr = /\bstream=/.test(line) ? /\bmin_run=(\d+)/.exec(line) : null;
+        if (out.minRun == null && mr) out.minRun = +mr[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) continue;
+      const c = line.split(';');
+      if (c.length < 8) continue;
+      const st = parseTimestamp((c[0] || '').trim());
+      const dur = +c[5];
+      if (!st || !isFinite(dur) || dur < 0) continue;
+      out.spans.push({ t0Ms: st.tMs, t1Ms: st.tMs + dur });
+      out.emitted++;
+    }
+    out.comparable = out.minRun != null;
+    return out;
+  }
+  /* `opts.runsText` is the matching `…_ACCRUNS.txt` when the caller paired one (SAMPLE-VALIDITY-ENVELOPE
+     §3.2). LAST and OPTIONAL: every 1-arg call keeps its bytes, and the spans ride on the row array as
+     `_blankSpans`, the idiom ECGDex's `parseDeviceACC` and MotionDex's parser of this name already use. */
+  function parseSensorXYZ(text, opts) {
     const lines = text.split(/\r?\n/);
     const out = [];
     let ns0 = null;
@@ -3607,6 +3637,8 @@
       out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
     }
     if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
+    const _accRuns = parseAccRunsTimed(opts && opts.runsText);
+    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     return out;
   }
   /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
@@ -3745,7 +3777,17 @@
       // count/durSec under-states it under packet loss, which shortens this window in real time.
       const w = Math.max(3, Math.round(_accHz != null ? _accHz : accRows.length / durSec)); // ~1s
       const base = movavg(Float32Array.from(mags), w);
-      accMag = accRows.map((r, i) => ({ s: relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
+      /* §∅ — A HELD ACC READS AS STILLNESS. A recorded blanking run repeats one value, so its dynamic
+         magnitude is ~0 and every cell it lands in would score "not moving", which is a reading nobody
+         took. A sample inside a span from the box's `_ACCRUNS.txt` therefore reaches no cell: the cell
+         stays uncovered unless the gyro measured it, and `motionCoveredAtSec` says so. */
+      const _blank = Array.isArray(/** @type {any} */ (accRows)._blankSpans) ? /** @type {any} */ (accRows)._blankSpans : [];
+      const _inBlank = (tMs) => {
+        if (tMs == null) return false;
+        for (const sp of _blank) if (tMs >= sp.t0Ms && tMs < sp.t1Ms) return true;
+        return false;
+      };
+      accMag = accRows.map((r, i) => ({ s: _blank.length && _inBlank(r.tMs) ? null : relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
     }
     /* ── THE GYRO'S ZERO-RATE BIAS IS NOT MOTION ──────────────────────────────────────────────────
        ACC is de-gravitated three lines up — `|mag - movavg(mag, ~1s)|` — because a raw accelerometer
