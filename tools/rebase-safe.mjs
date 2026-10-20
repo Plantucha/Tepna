@@ -533,7 +533,7 @@ function reportVerdictDamage(before) {
   if (!after) return; // the body stopped being readable ⇒ no claim in either direction
   const { staled, pre } = classifyStamps(before, after);
   if (staled.length) {
-    console.log(paint('\n⚠ THIS REBASE DROPPED THE COMMIT ' + staled.length + ' QUOTED VERDICT(S) NAME — pr-compliance check 8 will red the body:', C.red));
+    console.log(paint('\n⚠ THIS REBASE DROPPED THE COMMIT ' + staled.length + ' QUOTED tepna.verdict/1 OBJECT(S) NAME — pr-compliance check 8 will red the body:', C.red));
     staled.forEach((k) => console.log('    ' + k));
     console.log('  Re-run the deciding tool on the NEW head, put the new object in the PR body, and push');
     console.log('  an empty commit — a body edit alone does not re-run the gate, which reads the trigger payload.');
