@@ -9,6 +9,7 @@ timeline must make the discontinuity visible, not fabricate continuity.
 import json
 import os
 import re
+import pytest
 
 
 import stitch_31d
@@ -438,7 +439,8 @@ def test_every_file_the_stitch_opens_is_pinned_to_utf8(tmp_path, monkeypatch):
     stitch_31d.stitch_31d(captures, str(tmp_path / "stitched"))
     names = {name for name, _, _ in calls}
     assert {"SOLID-VERDICT.json", "CLOCKSYNC.csv", "LOSS-AUDIT.json", "MANIFEST.json", "SIDECARS.json"} <= names
-    assert {"Polar_H10_X_HR.txt", "Polar_H10_STITCHED_HR.txt"} <= names
+    # The output is written under a temporary name and renamed when complete.
+    assert {"Polar_H10_X_HR.txt", "Polar_H10_STITCHED_HR.txt.tmp", "STITCH-KEY.json"} <= names
     assert [c for c in calls if c[1] != "utf-8"] == []
     replaced = {name for name, _, err in calls if err == "replace"}
     assert {"CLOCKSYNC.csv", "Polar_H10_X_HR.txt"} <= replaced
@@ -569,3 +571,182 @@ def test_stitch_tool_writes_gap_rows_when_the_header_is_already_known(tmp_path):
         "#GAP:2026-10-17;;",
         "#GAP:2026-10-18;;",
     ], "null markers, never zeros"
+
+
+# ── streamed output and the skip key (vigil 2026-10-19: a 19 GB rewrite per PASS swapped the daemon out) ──
+
+HR = "Polar_H10_*_HR.txt"
+
+
+def _hr_nights(captures):
+    _make_night(captures, "2026-10-16", "PASS", {"Polar_H10_X_HR.txt": HR_HEADER + HR_ROWS_A})
+    _make_night(captures, "2026-10-17", "PASS", {"Polar_H10_X_HR.txt": HR_HEADER + HR_ROWS_B})
+
+
+def _read(path):
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def test_a_night_that_fails_mid_read_is_cut_back_to_a_gap(tmp_path, monkeypatch):
+    captures = str(tmp_path / "c")
+    _hr_nights(captures)
+    _make_night(captures, "2026-10-18", "PASS", {"Polar_H10_X_HR.txt": HR_HEADER + HR_ROWS_A})
+    real_open = open
+
+    class Breaks:
+        def __init__(self, fh):
+            self.fh = fh
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self.fh.close()
+
+        def readline(self):
+            return self.fh.readline()
+
+        def __iter__(self):
+            yield self.fh.readline()
+            raise OSError("disk went away")
+
+    def spy(path, mode="r", *a, **kw):
+        fh = real_open(path, mode, *a, **kw)
+        return Breaks(fh) if "2026-10-17" in str(path) else fh
+
+    monkeypatch.setattr(stitch_31d, "open", spy, raising=False)
+    tool = str(tmp_path / "t")
+    m = stitch_31d.stitch_tool(captures, tool, (HR,), ["2026-10-16", "2026-10-17", "2026-10-18"])
+    assert m["inputs"][HR]["contributing"] == ["2026-10-16", "2026-10-18"]
+    assert m["inputs"][HR]["gaps"] == ["2026-10-17"]
+    body = _read(os.path.join(tool, "Polar_H10_STITCHED_HR.txt"))
+    assert body == HR_HEADER.rstrip("\n") + "\n" + HR_ROWS_A + "#GAP:2026-10-17;;\n" + HR_ROWS_A
+    assert not os.path.exists(os.path.join(tool, "Polar_H10_STITCHED_HR.txt.tmp"))
+
+
+def test_a_first_night_that_fails_takes_its_header_with_it(tmp_path, monkeypatch):
+    captures = str(tmp_path / "c")
+    _make_night(captures, "2026-10-16", "PASS", {"Polar_H10_X_HR.txt": "Other;header;x\n1;2;3\n"})
+    _make_night(captures, "2026-10-17", "PASS", {"Polar_H10_X_HR.txt": HR_HEADER + HR_ROWS_B})
+    real_open = open
+
+    class Breaks:
+        def __init__(self, fh):
+            self.fh = fh
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self.fh.close()
+
+        def readline(self):
+            return self.fh.readline()
+
+        def __iter__(self):
+            raise OSError("disk went away")
+
+    def spy(path, mode="r", *a, **kw):
+        fh = real_open(path, mode, *a, **kw)
+        return Breaks(fh) if "2026-10-16" in str(path) else fh
+
+    monkeypatch.setattr(stitch_31d, "open", spy, raising=False)
+    tool = str(tmp_path / "t")
+    m = stitch_31d.stitch_tool(captures, tool, (HR,), ["2026-10-16", "2026-10-17"])
+    assert m["inputs"][HR]["gaps"] == ["2026-10-16"]
+    # The second night's header leads, and the failed night left no gap row: no header was known yet.
+    assert _read(os.path.join(tool, "Polar_H10_STITCHED_HR.txt")) == HR_HEADER.rstrip("\n") + "\n" + HR_ROWS_B
+
+
+def test_an_unchanged_stitch_is_skipped_without_reading_a_data_file(tmp_path, monkeypatch):
+    captures = str(tmp_path / "c")
+    _hr_nights(captures)
+    tool = str(tmp_path / "t")
+    nights = ["2026-10-16", "2026-10-17"]
+    first = stitch_31d.stitch_tool(captures, tool, (HR,), nights)
+    opened = []
+    real_open = open
+
+    def spy(path, mode="r", *a, **kw):
+        opened.append((os.path.basename(str(path)), mode))
+        return real_open(path, mode, *a, **kw)
+
+    monkeypatch.setattr(stitch_31d, "open", spy, raising=False)
+    assert stitch_31d.stitch_tool(captures, tool, (HR,), nights) == first
+    assert opened == [("STITCH-KEY.json", "r")]
+
+
+def test_a_moved_input_restitches(tmp_path):
+    captures = str(tmp_path / "c")
+    _hr_nights(captures)
+    tool = str(tmp_path / "t")
+    nights = ["2026-10-16", "2026-10-17"]
+    stitch_31d.stitch_tool(captures, tool, (HR,), nights)
+    with open(os.path.join(captures, "2026-10-17", "Polar_H10_X_HR.txt"), "a") as fh:
+        fh.write("2026-10-17T23:10:10.000;92\n")
+    stitch_31d.stitch_tool(captures, tool, (HR,), nights)
+    assert _read(os.path.join(tool, "Polar_H10_STITCHED_HR.txt")).endswith(";92\n")
+
+
+def test_a_missing_output_restitches(tmp_path):
+    captures = str(tmp_path / "c")
+    _hr_nights(captures)
+    tool = str(tmp_path / "t")
+    nights = ["2026-10-16", "2026-10-17"]
+    first = stitch_31d.stitch_tool(captures, tool, (HR,), nights)
+    os.remove(os.path.join(tool, "Polar_H10_STITCHED_HR.txt"))
+    assert stitch_31d.stitch_tool(captures, tool, (HR,), nights) == first
+    assert os.path.exists(os.path.join(tool, "Polar_H10_STITCHED_HR.txt"))
+
+
+def test_a_key_that_cannot_be_trusted_restitches(tmp_path):
+    captures = str(tmp_path / "c")
+    _hr_nights(captures)
+    tool = str(tmp_path / "t")
+    nights = ["2026-10-16", "2026-10-17"]
+    first = stitch_31d.stitch_tool(captures, tool, (HR,), nights)
+    key = os.path.join(tool, "STITCH-KEY.json")
+    good = json.loads(_read(key))
+    out = os.path.join(tool, "Polar_H10_STITCHED_HR.txt")
+    for bad in ("{not json", "[]", json.dumps({"sources": good["sources"], "manifest": []})):
+        with open(key, "w", encoding="utf-8") as fh:
+            fh.write(bad)
+        with open(out, "w", encoding="utf-8") as fh:
+            fh.write("stale")
+        assert stitch_31d.stitch_tool(captures, tool, (HR,), nights) == first
+        assert _read(out) != "stale"
+        assert json.loads(_read(key)) == good
+
+
+def test_the_key_is_gone_while_a_stitch_runs(tmp_path, monkeypatch):
+    """A stitch that dies part-way must not leave a key that vouches for the old outputs."""
+    captures = str(tmp_path / "c")
+    _hr_nights(captures)
+    tool = str(tmp_path / "t")
+    nights = ["2026-10-16", "2026-10-17"]
+    stitch_31d.stitch_tool(captures, tool, (HR,), nights)
+    with open(os.path.join(captures, "2026-10-17", "Polar_H10_X_HR.txt"), "a") as fh:
+        fh.write("x;1\n")
+
+    def boom(*a, **kw):
+        raise RuntimeError("died")
+
+    monkeypatch.setattr(stitch_31d.os, "replace", boom)
+    with pytest.raises(RuntimeError):
+        stitch_31d.stitch_tool(captures, tool, (HR,), nights)
+    assert not os.path.exists(os.path.join(tool, "STITCH-KEY.json"))
+
+
+def test_sources_records_size_and_mtime_and_absence(tmp_path, monkeypatch):
+    captures = str(tmp_path / "c")
+    _make_night(captures, "2026-10-16", "PASS", {"Polar_H10_X_HR.txt": HR_HEADER})
+    _make_night(captures, "2026-10-17", "PASS", {})
+    st = os.stat(os.path.join(captures, "2026-10-16", "Polar_H10_X_HR.txt"))
+    got = stitch_31d._sources(captures, (HR,), ["2026-10-16", "2026-10-17"])
+    assert got == {
+        HR: [["2026-10-16", "Polar_H10_X_HR.txt", st.st_size, st.st_mtime_ns], ["2026-10-17", None, None, None]]
+    }
+    # Listed, then gone before the stat: absent, never a size of 0.
+    monkeypatch.setattr(stitch_31d, "_find_input", lambda d, p: os.path.join(d, "vanished.txt"))
+    assert stitch_31d._sources(captures, (HR,), ["2026-10-16"]) == {HR: [["2026-10-16", None, None, None]]}

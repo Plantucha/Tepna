@@ -3572,7 +3572,7 @@ def test_THE_BAND_A_FOLDER_NAMES_COMES_FROM_NIGHTQC_not_a_second_copy(tmp_path):
     import nightqc
 
     band = si.band_of(str(tmp_path / "2026-10-04"))
-    probe = dt.datetime(2026, 10, 4, 23, 0).timestamp()
+    probe = nightqc.floating_stamp_s("20261004230000")
     assert band == nightqc.night_band(probe), "the single implementation, not a copy"
     assert round(band[1] - band[0]) == (24 - nightqc._NIGHT_BEGIN_H + nightqc._NIGHT_END_H) * 3600
     assert si.band_of(str(tmp_path / "not-a-date")) is None
@@ -3674,7 +3674,7 @@ def test_THE_WORN_INTERVAL_IS_TRUNCATED_AT_THE_BAND_EDGES(tmp_path):
     reappearing one layer in. 9 of the mirror's 111 night recordings have a raw extent leaving their band."""
     nd = str(tmp_path / "2026-10-04")
     (tmp_path / "2026-10-04").mkdir()
-    lo, hi = (dt.datetime.fromtimestamp(t) for t in si.band_of(nd))
+    lo, hi = (si._band_civil(t) for t in si.band_of(nd))
     # a session that starts inside the band and runs eight hours past its end
     s, e, cut = si._truncate_to_band(nd, lo + dt.timedelta(hours=2), hi + dt.timedelta(hours=8))
     assert cut is True
@@ -3883,7 +3883,7 @@ def test_THE_BAND_IS_HALF_OPEN_at_both_edges(tmp_path):
     both comparisons carry a whole night: 18:00:00 exactly opens this band, and 10:00:00 exactly belongs
     to the next one, not to this."""
     band = si.band_of(str(tmp_path / "2026-10-04"))
-    lo, hi = (dt.datetime.fromtimestamp(t) for t in band)
+    lo, hi = (si._band_civil(t) for t in band)
     at = lambda d: f"Polar_H10_02849638_{d:%Y%m%d%H%M%S}_ECG.txt"
     assert si.in_band(at(lo), band) is True, "18:00:00 exactly IS this night"
     assert si.in_band(at(lo - dt.timedelta(seconds=1)), band) is False
@@ -3907,7 +3907,7 @@ def test_TRUNCATION_NEEDS_BOTH_ENDS_and_reports_honestly_when_it_did_nothing(tmp
     the recording's own and not a clipped remnant."""
     nd = str(tmp_path / "2026-10-04")
     (tmp_path / "2026-10-04").mkdir()
-    lo = dt.datetime.fromtimestamp(si.band_of(nd)[0])
+    lo = si._band_civil(si.band_of(nd)[0])
     assert si._truncate_to_band(nd, None, lo + dt.timedelta(hours=2)) == (None, lo + dt.timedelta(hours=2), False)
     assert si._truncate_to_band(nd, lo + dt.timedelta(hours=2), None) == (lo + dt.timedelta(hours=2), None, False)
     assert si._truncate_to_band(str(tmp_path / "stored"), lo, lo) == (lo, lo, False), "no band, no truncation"
@@ -3920,7 +3920,7 @@ def test_AN_INTERVAL_THAT_ENDS_EXACTLY_WHERE_IT_STARTS_IS_NOT_THIS_NIGHT(tmp_pat
     completeness denominator zero and the band would divide by it."""
     nd = str(tmp_path / "2026-10-04")
     (tmp_path / "2026-10-04").mkdir()
-    lo, hi = (dt.datetime.fromtimestamp(t) for t in si.band_of(nd))
+    lo, hi = (si._band_civil(t) for t in si.band_of(nd))
     assert si._truncate_to_band(nd, hi, hi + dt.timedelta(hours=1)) == (None, None, True), "clipped to zero"
     assert si._truncate_to_band(nd, lo - dt.timedelta(hours=2), lo) == (None, None, True)
 
@@ -3929,10 +3929,14 @@ def test_THE_BAND_PROBE_IS_INSIDE_THE_FOLDERS_OWN_NIGHT(tmp_path):
     """`time(23, 0)` — the hour asked of `nightqc.night_band`. It has to be an hour that lies in the
     folder's OWN band under any plausible lower edge, and the minutes must not drift it: 23:00 on date D
     is inside `[D 18:00, D+1 10:00)` and would still be for any begin hour at or before 23:00."""
+    import nightqc
+
     band = si.band_of(str(tmp_path / "2026-10-04"))
-    probe = dt.datetime(2026, 10, 4, 23, 0).timestamp()
+    probe = nightqc.floating_stamp_s("20261004230000")
     assert band[0] <= probe < band[1], "the probe must fall inside the band it is asking about"
-    assert dt.datetime.fromtimestamp(band[0]).date() == dt.date(2026, 10, 4), "and anchor on THIS date"
+    # UTC, because the edge is FLOATING (`nightqc._floating_band`): a naive decode reads it through
+    # the reader's zone and names a different date either side of the offset.
+    assert dt.datetime.fromtimestamp(band[0], dt.timezone.utc).date() == dt.date(2026, 10, 4), "anchor on THIS date"
 
 
 def test_POOLING_NEEDS_A_BASE_AND_A_SECOND_FOLDER_not_either(tmp_path):
@@ -6183,3 +6187,22 @@ def test_a_devices_FIRST_ROW_comes_from_a_STAMPED_span_never_from_an_unstamped_o
     ctx = si._device_context(str(tmp_path), H10, None)
     assert ctx["first"] == T0, "the stamped file's first row, not the unstamped file's None"
     assert len(ctx["spans"]) == 2 and any(v == (None, None) for v in ctx["spans"].values())
+
+
+def test_a_band_edge_arrives_as_the_CIVIL_COMPONENTS_the_capture_wrote(monkeypatch):
+    """`_band_civil` hands `worn_interval` a naive civil datetime, so its components are the capture's.
+
+    A naive `fromtimestamp` gives the READER's rendering instead, and the two agree on a UTC runner —
+    which is why this pins four zones rather than trusting the one it happens to run in. 02:30 is the
+    previous day in New York and late morning in Tokyo, so a naive read is wrong in the date one way
+    and in the hour the other."""
+    import time as _time
+
+    edge = 1792290600.0  # 2026-10-18 02:30 floating
+    want = dt.datetime(2026, 10, 18, 2, 30, 0)
+    for zone in ("UTC", "America/New_York", "Asia/Tokyo", "Australia/Sydney"):
+        monkeypatch.setenv("TZ", zone)
+        _time.tzset()
+        got = si._band_civil(edge)
+        assert got == want, f"the edge was read through {zone}"
+        assert got.tzinfo is None, "worn_interval's ends are naive, so this one has to be too"

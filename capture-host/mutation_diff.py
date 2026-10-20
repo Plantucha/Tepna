@@ -1686,6 +1686,48 @@ def memory_exhaustion_verdict(n_refused, decided):
     )
 
 
+def clean_run_refusal(module: str, clean_sec: float, n_globs: int) -> str:
+    """The refusal reason for a module whose own clean baseline is RED, with every number in it.
+
+    🔴 A RED BASELINE KILLS EVERY MUTANT BY ARITHMETIC. mutmut calls a mutant killed when the
+    covering tests fail with it applied; if those tests already fail WITHOUT it, every mutant is
+    "killed" and the run reports total coverage over a population it never discriminated. Measured
+    2026-10-19 on #3704: `tools/mutate_diff.py` printed `clean run FAILED (exit 1)` for all three
+    modules in scope and still emitted `status: PASS`, exit 0, "every mutant on the changed functions
+    was killed". The print site was `clean_run_seconds`; nothing downstream read the flag beside it.
+
+    ⚠️ THE FLAG EXISTED AND THE DIFF PATH COULD NOT REACH IT. `mutate.run_one` consults
+    `budget_verdict(clean_sec, clean_ok)` only when its `timeout` argument is None, and `mutate_diff`
+    always passes `timeout=max(1, _left)` — so the one consumer of `clean_ok` was switched off on
+    exactly the path the gate runs. A guard behind a parameter the caller always sets is not a
+    guard."""
+    return (
+        f"{module}: its own clean baseline FAILED, so nothing here was measured — {n_globs} "
+        f"function(s) selected, none mutated. A red baseline makes mutmut call every mutant killed, "
+        f"because the covering tests already fail without one: the arithmetic reports total coverage "
+        f"over a population it never discriminated. The clean run took {clean_sec:.1f}s and its "
+        f"FAILED/ERROR lines are printed above. Fix or quarantine THAT test — the failure is the "
+        f"covering set's, not this diff's — then re-run. Raising nothing clears this."
+    )
+
+
+def clean_run_exhaustion_verdict(n_refused: int, decided: int) -> tuple[str, str]:
+    """The status a RED-BASELINE refusal deserves, and the reason. Same shape as
+    `memory_exhaustion_verdict` one cause over, and the same rule: a run that decided no mutant
+    examined nothing, which §🧾 spells NOT_RUN. Never PASS and never FAIL — the refused modules were
+    not measured, so this run can neither vouch for them nor convict the diff."""
+    what = f"{n_refused} module(s) not mutated — their own clean baseline failed first"
+    if decided > 0:
+        return "UNKNOWN", (
+            f"{what}; {decided} mutant(s) were decided elsewhere, so the refused modules are unmeasured, not failed"
+        )
+    return "NOT_RUN", (
+        f"{what}, and NOT ONE mutant was decided — this run examined nothing. A PASS here would be "
+        f"arithmetic: a red baseline fails with every mutant applied, so every mutant reads killed. "
+        f"Not a verdict on the diff."
+    )
+
+
 def kill_process_group(proc, grace_sec=GROUP_GRACE_SEC, reap_sec=REAP_SEC):
     """SIGTERM the child's process GROUP, SIGKILL what survives the grace, then reap. Returns the
     returncode. Never raises: teardown must not become a new failure mode.

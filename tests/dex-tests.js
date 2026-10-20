@@ -12708,7 +12708,7 @@
       if (typeof src === 'string') {
         T.ok(
           'analyze() measures active seconds with the SAME gap cut as ECGDex and passes them',
-          /PPG_CVHR_GAP_S\s*=\s*10/.test(src) && /cvhrFromNN\(corr\.nn,\s*corr\.tt,\s*_cvhrActiveSec\)/.test(src),
+          /PPG_CVHR_GAP_S\s*=\s*10/.test(src) && /cvhrFromNN\(corr\.nn,\s*corr\.tt,\s*_cvhrActiveSec,\s*_spansGap\)/.test(src),
           'the call site does not pass measured seconds'
         );
         T.ok('the result carries cvhrDenomSec only when one was computed', /_cvhr\.denomSec\s*>\s*0\s*\?\s*\{\s*cvhrDenomSec/.test(src));
@@ -12808,6 +12808,123 @@
         } else T.skip('a driven PPG record resolves a CVHR index', 'analyze returned ' + (rr2 && rr2.error ? rr2.error : 'index ' + (rr2 && rr2.cvhrIndex)));
       } else T.skip('PpgDex.buildNodeExport + analyze available', 'not co-loaded in this runner');
     });
+
+    /* ════ THE GAP MASK — the second half of the same port (DEEP-DIVE §4 item 2, treatment (3)) ════
+       F3 above fixed the DENOMINATOR on both sides. The NUMERATOR stayed split: ECGDex's
+       `detectCVHR` takes a `spansGap` mask, builds a per-second `covered` array and skips an event
+       stamped on a second a dropout spans; `cvhrFromNN` took no mask at all, so the same beats could
+       yield different event counts on the two nodes the Integrator corroborates against each other.
+       Both files reason, in a comment, that the mask cannot matter — "the 1 Hz resample holds the
+       last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate stays shut".
+       Measured by `tools/cvhr-gap-edge.mjs` over 51 planted cases: it matters in 3 of them, all with
+       a rate step across a 20-25 s hole, and the planted case below is one of those three.
+       ⚠️ A SECOND FINDING RIDES ALONG AND IS NOT REPAIRED HERE: a hole's EDGE adds events on COVERED
+       seconds, because the band-pass support reaches across the boundary while a per-second mask
+       only covers the seconds the hole itself spans. The last leg pins that it is still happening.
+       If that leg reds because the edge term was repaired, the brief section and residue row
+       `2026-10-19-a-cvhr-hole-edge-adds-events-on-covered-seconds` are what to update — not it. */
+    group('PpgDex cvhrFromNN takes the GAP MASK — one numerator, as ECGDex (DEEP-DIVE item 2)', 'ppgdex-dsp · cvhr · gap · §∅', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.cvhrFromNN === 'function')) {
+        T.skip('PPGDSP.cvhrFromNN available', 'not loaded');
+        return;
+      }
+      /* The planted record `tools/cvhr-gap-edge.mjs` uses: one apnea-band oscillation, a hole of
+         `holeSec` spliced in at a fixed beat, the same oscillation (plus a rate step) after it.
+         `insert: false` is the CONTROL — the same beats with no hole, which is what isolates the
+         hole's own contribution. A ZERO-length hole is NOT the control: it inserts a 0 ms interval
+         and an infinite rate, and suppresses events on its own. */
+      function plant(holeSec, stepBpm, insert) {
+        var nn = [],
+          tt = [],
+          t = 0;
+        var push = function (hrBpm) {
+          var ms = 60000 / hrBpm;
+          t += ms / 1000;
+          nn.push(ms); // nn[k] is the interval ENDING at tt[k] — buildPPI's convention
+          tt.push(t);
+        };
+        var osc = function (sec, b) {
+          return b + 8 * Math.sin((2 * Math.PI * sec) / 30);
+        };
+        while (t < 900) push(osc(t, 60));
+        if (insert) {
+          t += holeSec;
+          nn.push(holeSec * 1000);
+          tt.push(t);
+        }
+        var until = t + 900;
+        while (t < until) push(osc(t, 60 + stepBpm));
+        var active = 0,
+          sg = [];
+        for (var k = 0; k < nn.length; k++) sg.push(false);
+        for (var i = 1; i < tt.length; i++) {
+          var d = tt[i] - tt[i - 1];
+          if (d > 0 && d <= 10) active += d;
+          else if (d > 10) sg[i] = true; // nn-aligned: the interval ENDING at beat i spans the hole
+        }
+        return { nn: nn, tt: tt, activeSec: active, spansGap: sg };
+      }
+      var H = plant(20, 15, true),
+        CTL = plant(20, 15, false);
+      var unmasked = P.cvhrFromNN(H.nn, H.tt, H.activeSec),
+        masked = P.cvhrFromNN(H.nn, H.tt, H.activeSec, H.spansGap),
+        ctl = P.cvhrFromNN(CTL.nn, CTL.tt, CTL.activeSec);
+      T.ok('control · the planted oscillation IS detected, so nothing below is vacuous', ctl.events.length > 50 && ctl.index > 0, 'events ' + ctl.events.length + ' index ' + ctl.index);
+      T.ok(
+        'DEFECT direction · without the mask an event is stamped on a second the hole SPANS',
+        unmasked.events.length === masked.events.length + 1,
+        'unmasked ' + unmasked.events.length + ' masked ' + masked.events.length
+      );
+      T.ok('…and the mask removes exactly that one, nothing else', masked.events.length === unmasked.events.length - 1 && masked.events.length > 50, 'masked ' + masked.events.length);
+      T.eq('the 3-argument call is unchanged — the mask was added LAST (§🧪 back-compat)', unmasked.events.length, P.cvhrFromNN(H.nn, H.tt, H.activeSec).events.length);
+      T.ok(
+        'coveredSec is published, and the hole is NOT in it',
+        masked.coveredSec > 0 && masked.coveredSec <= Math.floor(H.tt[H.tt.length - 1]) - 19,
+        'coveredSec ' + masked.coveredSec + ' span ' + Math.floor(H.tt[H.tt.length - 1])
+      );
+      T.ok(
+        'no event survives on an uncovered second',
+        masked.events.every(function (e) {
+          return e.sec < 900 || e.sec > 920;
+        }),
+        JSON.stringify(
+          masked.events.filter(function (e) {
+            return e.sec >= 900 && e.sec <= 920;
+          })
+        )
+      );
+      /* THE POINT — same beats, same mask, same count. A mask on one node only would make the
+         Integrator's corroboration of the two `apnea.cvhrIndex` values measure the dropouts. */
+      var E = env.ECGDSP;
+      if (E && typeof E.detectCVHR === 'function') {
+        T.eq('CROSS-NODE · the two nodes count the same events with the mask', masked.events.length, E.detectCVHR(H.nn, H.tt, H.activeSec, H.spansGap).events.length);
+        T.eq('CROSS-NODE · …and without it', unmasked.events.length, E.detectCVHR(H.nn, H.tt, H.activeSec).events.length);
+      } else T.skip('ECGDSP.detectCVHR co-loaded for the cross-node leg', 'ECGDSP not in this runner');
+      /* LIMIT, MEASURED AND NAMED: the per-second mask covers the seconds the hole spans, and the
+         band-pass support (a 47 s and a 9 s moving average) plus the dip-to-rebound search (up to
+         48 s) reach ACROSS the boundary, so the edge still manufactures events on covered seconds —
+         in both nodes. The ±2 s limit both files state is about the exported HR series, not this. */
+      var EDGE = plant(900, -20, true),
+        EDGE_CTL = plant(900, -20, false);
+      var edge = P.cvhrFromNN(EDGE.nn, EDGE.tt, EDGE.activeSec, EDGE.spansGap),
+        edgeCtl = P.cvhrFromNN(EDGE_CTL.nn, EDGE_CTL.tt, EDGE_CTL.activeSec);
+      T.ok(
+        'LIMIT · a hole EDGE still adds events the mask cannot reach — unrepaired, in both nodes',
+        edge.events.length > edgeCtl.events.length,
+        'with hole ' + edge.events.length + ' control ' + edgeCtl.events.length
+      );
+      var srcP = env.sources && env.sources['ppgdex-dsp.js'];
+      if (typeof srcP === 'string') {
+        T.ok(
+          'the mask indexes the interval that ENDS at the second — the pre-gap beat would leave it inert',
+          /covered\[s\]\s*=\s*spansGap\s*&&\s*spansGap\[Math\.min\(j \+ 1, N - 1\)\]/.test(srcP),
+          'the covered-mask indexing is not the ECGDex one'
+        );
+        T.ok('…and the event loop skips an uncovered second', /if \(!covered\[s\]\) continue;/.test(srcP));
+      } else T.skip('ppgdex-dsp.js source in env.sources', 'not available in this runner');
+    });
+
     group('OxyDex waveform SpO2 trend — self-calibrated, refuses without its pair, experimental tier', 'oxydex-dsp · oxydex-registry · spo2w', function (T) {
       var P = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.spo2WaveformTrend ? env.OxyDex._bare : null) || env.OxyDex;
       if (!P || typeof P.spo2WaveformTrend !== 'function') {
@@ -20121,8 +20238,19 @@
          physiologically plausible series hides both. */
       var f8b = flat(8);
       var z = P.lombScargle(f8b.tt, f8b.nn);
-      T.eq('a FLAT 8-beat series reports zero power, not null', z && z.totalPower, 0);
-      T.eq('…vlf/lf/hf are each exactly 0', JSON.stringify(z && [z.vlf, z.lf, z.hf]), '[0,0,0]');
+      /* PUNCH LIST #11 — `flat(n)` spaces its beats 1 s apart, so eight of them span 7 s and the
+         lowest frequency that span can resolve is 1/7 = 0.143 Hz. That sits ABOVE the VLF band's
+         0.04 Hz upper edge, so this series holds no resolvable VLF bin at all and the band refuses.
+         LF survives by 0.007 Hz (its upper edge is 0.15) and HF by a wide margin, and both measure a
+         real zero. `totalPower` is DEFINED as the sum of the three bands, so a total over the two
+         that reported would under-report by exactly the refused one — it refuses with them. The
+         zero-power witness itself now sits on `flat(400)` below, which has the support for all
+         three bands, so the mutants this shape was aimed at stay killable on BOTH series. */
+      T.eq('a flat 8-beat series refuses the VLF its 7 s cannot resolve', z && z.vlf, null);
+      T.eq('…vlf/lf/hf read [null,0,0]: one band absent, two measuring a real zero', JSON.stringify(z && [z.vlf, z.lf, z.hf]), '[null,0,0]');
+      T.eq('…totalPower refuses with it, because it is the SUM of the reported bands', z && z.totalPower, null);
+      T.eq('…and the refusal names itself rather than leaving a bare null', z && z.bandReason, 'span-below-band-resolution');
+      T.eq('…the covered span travels with the result, so the support is never inferred', z && z.spanSec, 7);
       T.eq('…respRate is null: no oscillation means no HF peak to report', z && z.respRate, null);
       T.eq('…and no method is claimed for a rate that does not exist', z && z.respRateMethod, null);
       /* ⚠️ DO NOT COMPARE THESE THROUGH `JSON.stringify` — that is how this assertion was written, and
@@ -20139,6 +20267,26 @@
         'lfhf=' + (z && String(z.lfhf)) + ' lfnu=' + (z && String(z.lfnu)) + ' hfnu=' + (z && String(z.hfnu))
       );
       T.ok('…and none of them is NaN (the shape JSON.stringify would have hidden)', z && !Number.isNaN(z.lfhf) && !Number.isNaN(z.lfnu) && !Number.isNaN(z.hfnu), 'lfhf=' + (z && String(z.lfhf)));
+
+      /* #11 — ZERO POWER IS A MEASUREMENT, and this is where that claim now rests: 400 flat beats
+         span 399 s, which resolves down to 0.0025 Hz, under the VLF band's 0.003 Hz lower edge. So
+         every band has the support to report, all three report a true zero, and `totalPower` is 0
+         rather than null. Keeping this witness beside the 7 s one is the point: the first proves a
+         band with no resolvable bin refuses, the second proves a resolvable band does NOT refuse
+         merely because its answer is zero — the failure mode §∅ exists to catch, read the other way
+         round. The `hf > 0` and `lf + hf > 0` mutants are observable on both. */
+      var fLong = flat(400);
+      var zl = P.lombScargle(fLong.tt, fLong.nn);
+      T.eq('400 flat beats span enough for every band, so a flat spectrum reports zero power', zl && zl.totalPower, 0);
+      T.eq('…vlf/lf/hf are each exactly 0, none of them refused', JSON.stringify(zl && [zl.vlf, zl.lf, zl.hf]), '[0,0,0]');
+      T.eq('…and no reason is attached, because nothing refused', zl && zl.bandReason === undefined, true);
+      T.eq('…the span it rests on is reported, not assumed', zl && zl.spanSec, 399);
+      T.ok(
+        '…lfhf/lfnu/hfnu stay STRICTLY null over a measured zero, exactly as on the short series',
+        zl && zl.lfhf === null && zl.lfnu === null && zl.hfnu === null,
+        'lfhf=' + (zl && String(zl.lfhf)) + ' lfnu=' + (zl && String(zl.lfnu)) + ' hfnu=' + (zl && String(zl.hfnu))
+      );
+      T.eq('…and respRate is null on it too: a flat series has no HF peak at any length', zl && zl.respRate, null);
 
       /* THE VLF LOWER BOUND IS INCLUSIVE, and only a component sitting exactly ON it can show that.
          `f >= bands.vlf[0]` mutated to `f >` drops the bin at exactly 0.003 Hz. A first attempt
@@ -21857,7 +22005,10 @@
           pHfAt >= 0 && pPeakAt > pHfAt && !(pVlfAt >= 0 && pPeakAt < pVlfAt),
           'hf@' + pHfAt + ' peak@' + pPeakAt
         );
-        T.ok('…and surfaces it as respRate, so the field is expressible at all (§1.6)', /respRate:\s*hfPeakF/.test(pLsBody));
+        // The regex admits a GUARD ahead of `hfPeakF` (PUNCH LIST #11 put one there: the HF band can
+        // now refuse, and respRate dies with its own input). What it pins is the SOURCE — respRate
+        // reads the HF argmax and nothing else — so a guard is allowed and a different peak is not.
+        T.ok('…and surfaces it as respRate, so the field is expressible at all (§1.6)', /respRate:[^\n]*\bhfPeakF\b/.test(pLsBody));
         // THE DECLINED PORT IS STILL DECLINED — no whole-spectrum peak, no peakBelowHF. This is the
         // assertion SYNTH-TEXTURE-FOLLOWUPS-II §2 actually bought, and it survives the amendment.
         T.ok('ppgdex still has NO global-peak / peakBelowHF path (the sub-HF-blind shape §2 declined)', !/peakBelowHF/.test(pLsBody) && !/globalPeak/.test(pLsBody));
@@ -31821,6 +31972,54 @@
             'integrator-app.js must forward validateNodeExport warnings into WARN'
           );
 
+          /* ── A dropped FUSION export is named, not called "unrecognized" (owner screenshot 2026-10-19) ──
+             The owner dropped OverDex_<night>_summary.json, a ganglior.fusion-export, into the Integrator
+             and read "unrecognized format, no events found; skipped" three times. The file kind is known
+             and its nodes[] names the exports it was built from. Behavioural on the shipped source:
+             ingestJSON is lifted out by brace matching and run against stubs. */
+          var _ijAt = iaSrc.indexOf('function ingestJSON(');
+          var _ijSrc = null;
+          if (_ijAt >= 0) {
+            var _depth = 0;
+            for (var _k = iaSrc.indexOf('{', _ijAt); _k < iaSrc.length; _k++) {
+              if (iaSrc[_k] === '{') _depth++;
+              else if (iaSrc[_k] === '}' && --_depth === 0) {
+                _ijSrc = iaSrc.slice(_ijAt, _k + 1);
+                break;
+              }
+            }
+          }
+          T.ok('fusion-drop · ingestJSON is present in integrator-app.js', !!_ijSrc, _ijSrc ? 'lifted' : 'not found');
+          if (_ijSrc) {
+            var _runIngest = function (json) {
+              var calls = [];
+              var w = [];
+              var D = {
+                normalizeFile: function () {
+                  calls.push(1);
+                  return { recs: [], warnings: [] };
+                }
+              };
+              var fn = new Function('WARN', 'D', 'L', 'RECS', 'window', 'CrossNightEnvelope', _ijSrc + '\nreturn ingestJSON;')(w, D, null, [], {}, undefined);
+              fn(json, 'OverDex_x_summary.json');
+              return { warns: w, normalized: calls.length };
+            };
+            var _fus = _runIngest({
+              schema: { name: 'ganglior.fusion-export' },
+              kind: 'fusion',
+              nodes: [{ label: 'ECGDex · Oct 18' }, { label: 'CPAPDex · Oct 18' }],
+              findings: []
+            });
+            T.ok(
+              'fusion-drop · a fusion export is named as one, with the node exports it was built from',
+              _fus.warns.length === 1 && /is a fusion export/.test(_fus.warns[0]) && /ECGDex · Oct 18, CPAPDex · Oct 18/.test(_fus.warns[0]),
+              JSON.stringify(_fus.warns)
+            );
+            T.ok('fusion-drop · a fusion export never reaches normalizeFile', _fus.normalized === 0, _fus.normalized + ' call(s)');
+            var _nodeEx = _runIngest({ schema: { name: 'ganglior.node-export', node: 'ECGDex' }, ganglior_events: [] });
+            T.ok('fusion-drop · a node export still reaches normalizeFile (control)', _nodeEx.normalized === 1 && _nodeEx.warns.length === 0, JSON.stringify(_nodeEx));
+          }
+
           /* ── CROSS-DEVICE-CLOCK-SKEW §3.1 · a fitted time correction MUST be visible ───────────────
              Mutation-checked 2026-07-29: short-circuiting the banner's guard reds NOTHING, so the
              reference deployment's permanent −39 min correction could go silent and every fused night
@@ -38380,6 +38579,59 @@
       T.eq('…and is not miscounted as green-and-stuck', a.stuck.length, 0);
       T.eq('a healthy queue has nothing to name (non-vacuity)', att([green, advisoryRed]).failing.length, 0);
       T.eq('an advisory red is not a red PR', att([advisoryRed]).failing.length, 0);
+    });
+
+    /* ── queue-doctor: a CANCELLED required check is named, not read as green (residue
+       2026-10-19-queue-doctor-is-silent-on-a-cancelled-required-check). Bucket `cancel` is neither
+       `fail` nor `pending` and the context did report, so #3688 classified `ready` while it waited
+       forever on two cancelled runs. */
+    group('Queue-doctor — a PR with a cancelled REQUIRED check is reported and trips --report', 'tools · queue-doctor-cancel', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention;
+      if (typeof cl !== 'function' || typeof att !== 'function') {
+        T.skip('queue-doctor attention set is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1755000000000;
+      var wrap = function (o, checks) {
+        var pr = { number: 1, title: 't', state: 'OPEN', isDraft: false, mergeState: 'CLEAN', autoMerge: true, updatedAtMs: NOW - 90 * 60000, checks: checks };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test', 'biome'], NOW);
+        r.pr = pr;
+        return r;
+      };
+      var cancelled = wrap({ number: 3 }, [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'cancel' }
+      ]);
+      var green = wrap({ number: 4 }, [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'pass' }
+      ]);
+      var advisoryCancel = wrap({ number: 5 }, [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'pass' },
+        { name: 'mutation', bucket: 'cancel' }
+      ]);
+      var redAndCancelled = wrap({ number: 6 }, [
+        { name: 'test', bucket: 'fail' },
+        { name: 'biome', bucket: 'cancel' }
+      ]);
+      T.eq('a cancelled required check classifies as cancelled, not ready', cancelled.k, 'cancelled');
+      T.ok('…and the reason names the context', /biome/.test(cancelled.why));
+      T.eq('the same PR with the check passed is ready (non-vacuity)', green.k, 'ready');
+      T.eq('an advisory cancellation does not block', advisoryCancel.k, 'ready');
+      T.eq('a red beats a cancellation', redAndCancelled.k, 'failing');
+      var a = att([cancelled, green, advisoryCancel]);
+      T.eq(
+        'the cancelled PR alone is in the attention set',
+        a.cancelled.map(function (c) {
+          return c.pr.number;
+        }),
+        [3]
+      );
+      T.eq('…and is neither stuck nor failing', a.stuck.length + a.failing.length, 0);
+      T.eq('a healthy queue has nothing cancelled to name', att([green, advisoryCancel]).cancelled.length, 0);
     });
 
     /* ── queue-doctor: a red PR is an EVENT once, not a journal line every ten minutes (owner,

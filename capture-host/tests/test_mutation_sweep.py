@@ -529,10 +529,10 @@ def test_a_record_with_NO_MODULE_NAME_still_produces_a_readable_reason():
 
 
 def test_the_TOOLS_printed_prefix_carries_NO_contract_status_word():
-    """`tools/mutate.py`'s `verdict-adoption.json` row is `word-only` on the claim that verdict words
-    appear only in its comments, and `checkWordOnlyClaim` reads the SOURCE rather than that claim. A
-    prefix of `NO VERDICT` redded it. Pinned here because the reason text is the tempting repair and
-    the only honest one is to keep the claim true."""
+    """The row is `decides`/`adopted` since 2026-10-19, so `checkWordOnlyClaim` no longer binds — and
+    the property it forced is worth keeping on its own terms. One surface carries the status now: the
+    object. A `NOTHING DECIDED` prefix that also said `NOT_RUN` would give a reader and a grep two
+    answers of different ages from one run, and the prose is the one that cannot be validated."""
     import ast
 
     src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
@@ -560,4 +560,134 @@ def test_the_TOOLS_printed_prefix_carries_NO_contract_status_word():
     for call in printed:
         for lit in (n.value for n in ast.walk(call) if isinstance(n, ast.Constant) and isinstance(n.value, str)):
             hit = [w for w in words if w in lit]
-            assert not hit, f"main() prints a contract status word {hit} in {lit!r} while its row claims none"
+            assert not hit, f"main() prints a contract status word {hit} in {lit!r}; the object carries the status"
+
+
+# ── the verdict object: which PHASE declined decides the status ─────────────────────────────────
+
+
+def test_a_sweep_that_EXAMINED_NOTHING_is_NOT_RUN_over_checked_zero():
+    """§🧾 separates the two zero-population statuses by what happened: `NOT_RUN` examined
+    nothing. A sweep naming no module is that case, and the reason is the one the exit code prints."""
+    code, reasons = S.sweep_exit_verdict([])
+    f = S.sweep_verdict_fields([], reasons)
+    assert code == 1
+    assert f["status"] == "NOT_RUN"
+    assert f["population"] == {"checked": 0, "eligible": 0, "excluded": 0}
+    assert f["result"] is None
+    assert f["reason"] == "no module was examined — name at least one module, or use --list"
+
+
+def test_the_EMPTY_records_reason_has_a_FALLBACK_so_no_object_is_reasonless():
+    """Every non-PASS carries a reason, and `verdict.make` refuses one that does not. The reasons come
+    from the caller, so the builder cannot assume they are non-empty."""
+    f = S.sweep_verdict_fields([], [])
+    assert f["status"] == "NOT_RUN"
+    assert f["reason"] == "the sweep named no module, so nothing was examined"
+
+
+def test_an_ESTIMATE_ONLY_run_is_NOT_APPLICABLE_because_no_mutant_ever_EXISTED():
+    """`--estimate` prices the sweep and stops before generation, so the kill requirement does not
+    bind — the contract's own definition of NOT_APPLICABLE. The priced modules are EXCLUDED, not
+    unexamined-eligible, and the identity holds."""
+    recs = [{"module": "nightqc.py", "estimate_only": True}, {"module": "capture.py", "estimate_only": True}]
+    f = S.sweep_verdict_fields(recs, [])
+    assert f["status"] == "NOT_APPLICABLE"
+    assert f["population"] == {"checked": 0, "eligible": 2, "excluded": 2}
+    assert f["result"] is None
+    assert "priced 2 module(s)" in f["reason"]
+
+
+def test_an_UNDECIDED_module_is_UNKNOWN_and_NEVER_FAIL():
+    """⚠️ A SURVIVOR IS NOT A FAILURE, and a module whose generation timed out says nothing about
+    that module's tests. FAIL would claim it was measured and found wanting."""
+    recs = [{"module": "writers.py", "generation_timed_out": True}]
+    code, reasons = S.sweep_exit_verdict(recs)
+    f = S.sweep_verdict_fields(recs, reasons)
+    assert code == 1
+    assert f["status"] == "UNKNOWN"
+    assert f["result"] == {"modules": 1, "priced": 0, "examined": 1, "undecided": 1}
+    assert f["reason"] == "writers.py: nothing was examined — mutant generation hit its own cap"
+
+
+def test_UNDECIDED_counts_MODULES_and_the_reasons_ride_the_object_in_order():
+    """One record contributes at most one reason, so the count is a module count. A reader of the
+    object alone must still be able to name every module that declined."""
+    recs = [{"module": "a.py", "rc": 0}, {"module": "b.py", "rc": 2, "only": None}, {"module": "c.py", "skipped": "no"}]
+    code, reasons = S.sweep_exit_verdict(recs)
+    f = S.sweep_verdict_fields(recs, reasons)
+    assert code == 1
+    assert f["result"]["undecided"] == 2
+    assert f["result"]["examined"] == 3
+    assert f["reason"] == "b.py: mutmut exited 2; c.py: skipped — no. A skip is not a pass"
+
+
+def test_a_CLEAN_sweep_is_PASS_and_its_EVIDENCE_names_the_modules_examined():
+    """A PASS with empty evidence is invalid under the contract, and "the tool ran" is not evidence of
+    what it ran over. The module paths are what a reader can go and check."""
+    recs = [{"module": "nightqc.py", "rc": 0}, {"module": "capture.py", "rc": 0}]
+    code, reasons = S.sweep_exit_verdict(recs)
+    f = S.sweep_verdict_fields(recs, reasons)
+    assert (code, reasons) == (0, [])
+    assert f["status"] == "PASS"
+    assert f["reason"] is None
+    assert f["population"] == {"checked": 2, "eligible": 2, "excluded": 0}
+    assert f["evidence"] == [
+        "capture-host/tools/mutate.py",
+        "capture-host/mutation_sweep.py",
+        "capture-host/nightqc.py",
+        "capture-host/capture.py",
+    ]
+
+
+def test_a_record_with_NO_MODULE_NAME_contributes_no_evidence_PATH():
+    """`run_one` can return a record without a module name, and `capture-host/` alone is not a path a
+    reader can open. The reason still names the module as `?`, which is the readable absence."""
+    recs = [{"rc": 0}, {"module": "capture.py", "rc": 0}]
+    f = S.sweep_verdict_fields(recs, [])
+    assert f["evidence"][-1] == "capture-host/capture.py"
+    assert "capture-host/" not in f["evidence"][2:-1]
+    assert f["population"] == {"checked": 2, "eligible": 2, "excluded": 0}
+
+
+def test_a_MIXED_priced_and_examined_sweep_keeps_the_population_IDENTITY():
+    recs = [{"module": "a.py", "estimate_only": True}, {"module": "b.py", "rc": 0}]
+    f = S.sweep_verdict_fields(recs, [])
+    pop = f["population"]
+    assert pop["checked"] + pop["excluded"] == pop["eligible"] == 2
+    assert f["status"] == "PASS"
+    assert f["result"] == {"modules": 2, "priced": 1, "examined": 1, "undecided": 0}
+
+
+def test_EVERY_status_this_builder_can_produce_SURVIVES_verdict_validate():
+    """The builder fills in fields; `verdict.make` validates them. A shape that only the happy path
+    validates is a gate that crashes on the run that matters."""
+    import verdict as VD
+
+    cases = [
+        ([], []),
+        ([{"module": "a.py", "estimate_only": True}], []),
+        ([{"module": "a.py", "rc": 0}], []),
+        ([{"module": "a.py", "rc": 7, "only": None}], ["a.py: mutmut exited 7"]),
+    ]
+    seen = set()
+    for recs, reasons in cases:
+        obj = VD.make(
+            gate=S.SWEEP_GATE,
+            criterion=S.SWEEP_CRITERION,
+            tool="capture-host/tools/mutate.py",
+            **S.sweep_verdict_fields(recs, reasons),
+        )
+        VD.validate(obj)
+        seen.add(obj["status"])
+    assert seen == {"NOT_RUN", "NOT_APPLICABLE", "PASS", "UNKNOWN"}
+
+
+def test_the_CRITERION_is_the_same_sum_the_EXIT_CODE_uses():
+    """A criterion written beside the measurement it judges is a target. This one is pre-stated as a
+    module constant and names the sum `sweep_exit_verdict` already exits non-zero on."""
+    assert S.SWEEP_CRITERION == {"name": "undecided_modules", "threshold": 0, "unit": "modules", "direction": "lte"}
+    recs = [{"module": "a.py", "rc": 1, "only": None}]
+    code, reasons = S.sweep_exit_verdict(recs)
+    f = S.sweep_verdict_fields(recs, reasons)
+    assert (code != 0) == (f["result"]["undecided"] > S.SWEEP_CRITERION["threshold"])

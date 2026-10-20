@@ -27,6 +27,7 @@ def test_a_module_level_scan_runs_in_another_process_and_leaves_no_worker_behind
     first, second = asyncio.run(go())
     assert first["pid"] != os.getpid(), "the scan ran in THIS process — the lock is still shared"
     assert first["night"] == "2026-09-22" and first["devices"] == [{"name": "Ring"}]
+    assert first["nice"] == 19 and os.nice(0) != 19, "the child lowered ITS OWN priority, never this process's"
     assert second["pid"] != os.getpid() and second["pid"] != first["pid"], (
         "one pool per scan: each scan gets a fresh worker and the previous one is gone with its working set"
     )
@@ -68,6 +69,7 @@ def test_a_dead_worker_propagates_its_error_and_the_pool_is_still_shut_down(monk
         asyncio.run(capture._qc_offload(_qc_child_target.pid_stamp, "n", []))
     assert seen["shutdown"] is False, "the pool is released even when the scan failed"
     assert seen["kw"]["max_workers"] == 1 and seen["kw"]["mp_context"].get_start_method() == "spawn"
+    assert seen["kw"]["initializer"] is capture.qc_child.lower_priority
 
 
 def test_the_poller_hands_summarize_to_the_child_and_not_to_a_thread():

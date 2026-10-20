@@ -228,10 +228,11 @@ _NIGHT_END_H = 10
 # did not contain it. `nights_index`' own comment recorded that mismatch as "`nightqc`'s to fix"; this
 # fixes it.
 #
-# ⚠️ AND A TILING BAND MAKES THE DST HOUR VISIBLE, where a 16 h band hid it. The arithmetic is naive
-# local, so consecutive anchors sit 23 or 25 real hours apart on the two changeover days while the width
-# is a computed 24 h. On those two days the keys leave a 1 h gap or share a 1 h overlap at the seam.
-# Bounded, dated, and smaller than the rule it serves; a zone-aware band is its own unit.
+# ⏪ A TILING BAND MADE THE DST HOUR VISIBLE, where a 16 h band hid it: naive local arithmetic put
+# consecutive anchors 23 or 25 real hours apart on the two changeover days against a computed 24 h width,
+# so the keys left a 1 h gap or shared a 1 h overlap at the seam. 2026-10-18 moved both bands into the
+# FLOATING frame, which has no DST, so the tiling is exact on every day of the year. `_floating_band`
+# carries the measurement and what the frame costs in exchange.
 _KEY_BEGIN_H = 12
 
 # ── THE DAYTIME FLAG'S OWN EDGES ────────────────────────────────────────────────────────────────────
@@ -246,6 +247,41 @@ _DAYTIME_BEGIN_H = 10
 _DAYTIME_END_H = 18
 
 
+def _floating_band(ts: float, begin_h: int, width_h: int) -> tuple:
+    """`[begin, end)` as FLOATING seconds for the band of width `width_h` h that opens at `begin_h`.
+
+    THE FRAME IS THE WHOLE POINT, and it changed on 2026-10-18. Both bands used to decompose `ts` with
+    `datetime.fromtimestamp` and rebuild the edge with `.timestamp()`, which resolves civil components
+    THROUGH THE READER'S ZONE. Every stamp a band is given is floating — `_session_of`,
+    `floating_stamp_s` and `nights_index.session_epoch` all say so — so the anchor test
+    `d.hour >= begin_h` compared a reader-shifted hour against a civil constant.
+
+    🔴 THE DAMAGE WAS A WHOLE DAY, not a shifted edge. Measured 2026-10-18 on the floating stamp
+    `20261004130000`: the key band began 2026-10-04 12:00 in UTC, 2026-10-03 16:00 in New York and
+    2026-10-04 03:00 in Tokyo. The night KEY moved by a day, and in two of the three zones the edge was
+    not the noon the function names. Residue
+    `2026-10-12-the-night-band-mixes-a-floating-stamp-with-a-local-epoch`; CLAUDE.md §🔒 requires an
+    identical clock under a changed `TZ`.
+
+    Both sides are civil here — a floating stamp and a civil hour — so the zone cancels and the band
+    needs no writer offset at all. That is `_midnight_of`'s reasoning applied to the edges, and
+    `floating_stamp_s`'s docstring carries the rule: a floating second is comparable to another floating
+    second, and only reaching the `mtime` frame costs an offset.
+
+    ⏪ AND THE DST WARNING THESE FUNCTIONS CARRIED IS GONE RATHER THAN SUPPRESSED. Naive local
+    arithmetic put consecutive anchors 23 or 25 real hours apart on the two changeover days while the
+    width stayed a computed 24 h, so the key bands left a 1 h gap or shared a 1 h overlap at the seam.
+    The floating frame has no DST, so the tiling is now exact on every day of the year. The band stops
+    describing real ELAPSED hours on those two days, which is right for a function whose whole job is
+    attribution by civil hour — and `recover_writer_offset` is still the one place a real duration comes
+    from.
+    """
+    d = datetime.fromtimestamp(ts, timezone.utc)
+    anchor = d.date() if d.hour >= begin_h else (d - timedelta(days=1)).date()
+    begin = float(calendar.timegm(anchor.timetuple())) + begin_h * 3600.0
+    return begin, begin + width_h * 3600.0
+
+
 def night_band(ts: float) -> tuple:
     """The [begin, end) night band containing `ts`, as epochs.
 
@@ -253,17 +289,14 @@ def night_band(ts: float) -> tuple:
     evening, a stamp before it belongs to the previous evening's. So 02:42 and 22:30 either side of one
     midnight land in the SAME band, which is the whole point.
 
-    ⚠️ Naive local arithmetic, matching `_midnight_of` — an hour off on the two DST changeover days a
-    year. Bounded and benign for a band this wide; a 16 h window does not care about one hour.
+    FLOATING on both sides, matching `_midnight_of` — `_floating_band` carries the frame and what the
+    old naive-local arithmetic cost.
 
     ⚠️ THIS IS THE SLEEP WINDOW, NOT THE NIGHT KEY. It decides what counts as a night's signal, and
     `night_key_band` decides which night a session belongs to. `_NIGHT_BEGIN_H`'s comment carries the
     measurement that separated them.
     """
-    d = datetime.fromtimestamp(ts)
-    anchor = d.date() if d.hour >= _NIGHT_BEGIN_H else (d - timedelta(days=1)).date()
-    begin = datetime.combine(anchor, datetime.min.time()).timestamp() + _NIGHT_BEGIN_H * 3600.0
-    return begin, begin + (24 - _NIGHT_BEGIN_H + _NIGHT_END_H) * 3600.0
+    return _floating_band(ts, _NIGHT_BEGIN_H, 24 - _NIGHT_BEGIN_H + _NIGHT_END_H)
 
 
 def night_key_band(ts: float) -> tuple:
@@ -281,15 +314,34 @@ def night_key_band(ts: float) -> tuple:
     stand as the night's clock evidence. Admission is `night_band`'s job, and `_NIGHT_BEGIN_H`'s comment
     carries the 24-test measurement that separated the two.
     """
-    d = datetime.fromtimestamp(ts)
-    anchor = d.date() if d.hour >= _KEY_BEGIN_H else (d - timedelta(days=1)).date()
-    begin = datetime.combine(anchor, datetime.min.time()).timestamp() + _KEY_BEGIN_H * 3600.0
-    return begin, begin + 24 * 3600.0
+    return _floating_band(ts, _KEY_BEGIN_H, 24)
 
 
 def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
     """Seconds two intervals share; 0 when they do not touch."""
     return max(0.0, min(a1, b1) - max(b0, a0))
+
+
+def _band_in_frame(ts: float, offset_sec: float | None) -> tuple:
+    """`night_band(ts)` expressed in the SAME frame `ts` is in — floating when `offset_sec` is None,
+    the `mtime` frame when it is a number.
+
+    🔴 A BAND IS CIVIL AND A SESSION MAY NOT BE. `sessions` and `judged_session` are instants whenever
+    `recover_writer_offset` returned a number and floating civil values when it refused (`summarize`
+    publishes which under `writer_offset.frame`), while a band edge is always civil. Comparing the two
+    without this conversion is correct in exactly one of those two cases and wrong by a whole UTC offset
+    in the other — which is what a local `night_band` used to hide: it matched the recovered case and
+    broke the refusing one, and moving the band into the floating frame on 2026-10-18 traded one for the
+    other until this helper named the conversion.
+
+    The sign is `recover_writer_offset`'s: `offset_sec` RAISES a floating value into the `mtime` frame
+    (EDT = +14400), so the midpoint comes DOWN into the civil frame to choose the band and the edges go
+    back UP to meet the sessions.
+    """
+    if offset_sec is None:
+        return night_band(ts)
+    b0, b1 = night_band(ts - offset_sec)
+    return b0 + offset_sec, b1 + offset_sec
 
 
 def _overlaps_band(s0: float, s1: float, b0: float, b1: float) -> bool:
@@ -353,7 +405,7 @@ def _gap_class(excluded: list, b0: float, b1: float) -> str:
     return "outside-band"
 
 
-def night_view(session, files) -> "dict | None":
+def night_view(session, files, offset_sec: float | None = None) -> "dict | None":
     """What of a session actually fell in the night band — span, and rows APPORTIONED to it.
 
     ⚠️ **Rows are apportioned PRO RATA over each file's own span, not counted.** QC reads filenames and
@@ -374,7 +426,7 @@ def night_view(session, files) -> "dict | None":
     if not files:
         return None
     s0, s1 = session[0], session[1]
-    b0, b1 = night_band((s0 + s1) / 2.0)
+    b0, b1 = _band_in_frame((s0 + s1) / 2.0, offset_sec)
     span = _overlap(s0, s1, b0, b1)
     rows = 0.0
     for f in files:
@@ -2629,17 +2681,21 @@ def ppg2w_contact(ch0, ch1, secs):
     return out
 
 
-def ppg2w_contact_quality(night_dir: str) -> list:
+def ppg2w_contact_quality(night_dir: str, *, only: frozenset[str] | None = None) -> list:
     """One `ppg2w_contact` block per `*_PPG2W.txt` in the night. Empty list when the stream was not
     captured — nothing to report is not the same as everything healthy, and the key stays honest by
     holding sessions, not a verdict.
+
+    `only`, when given, names the files to read and skips every other one. A caller that reads a folder
+    for a few sessions (the next day's folder, for a ring that reconnected after midnight) must not pay
+    for that whole day's PPG2W rows.
 
     Rows that do not parse as numbers are SKIPPED, not fatal: a mid-file repeated header is a real
     rotation artifact (seen 20260815100132) and one bad row must not erase a session's verdict.
     """
     out = []
     for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
-        if not name.endswith("_PPG2W.txt"):
+        if not name.endswith("_PPG2W.txt") or (only is not None and name not in only):
             continue
         # Memory, because this runs inside the daemon over ~4 M rows a night: the channels are machine ints, and
         # every row of one second shares ONE label object (consecutive rows repeat it), so `secs` is pointers
@@ -3547,7 +3603,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         # JOINS ON POSITIVE EVIDENCE ONLY. `_gap_class` fails closed: a night with no usable band reads
         # in-night, which there means KEEP THE GAP, never grant a green. A join is the opposite power, so
         # it tests the band itself first, and an unusable band keeps the old exclusion and its SHORTFALL.
-        b0, b1 = night_band((cur[0] + cur[1]) / 2.0)
+        b0, b1 = _band_in_frame((cur[0] + cur[1]) / 2.0, _off["offset_sec"])
         others = [s for s in sessions if s is not cur]
         # ⚠️ `_overlaps_band`, NOT `_gap_class`: a join acts on measured overlap only. `_gap_class`
         # places a POINT session by containment, which is right for keeping a red and wrong for
@@ -3951,7 +4007,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # WHAT OF THAT SESSION WAS ACTUALLY NIGHT. Published beside the session rather than replacing
             # it: under continuous recording the judged session runs 16-31 h, so `judged_session.rows` is
             # not a claim about a night. Reported, gated by NOTHING — see night_view's docstring.
-            "night_window": night_view(cur, cur[2]) if cur else None,
+            "night_window": night_view(cur, cur[2], _off["offset_sec"]) if cur else None,
             "searched_dirs": [os.path.basename(p.rstrip("/")) for p in searched],
             "data_files": len(data),
             # NINE INDEPENDENT STREAMS ACROSS THREE VENDORS DO NOT FAIL IN THE SAME SECOND. When the scope

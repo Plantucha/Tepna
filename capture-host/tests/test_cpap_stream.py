@@ -712,9 +712,14 @@ def test_controller_start_is_idempotent_while_running():
     async def go():
         connect, events = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
-        await c.op("start")
+        first = await c.op("start")
         again = await c.op("start")
         assert again["already"] is True and events["connected"] == 1, "no second connect while running"
+        # The WHOLE answer, not just `already`. The two answers come from two different return
+        # statements, so reading only one key leaves the other one's `ok` and `streaming` unobserved:
+        # measured 2026-10-19, `_start__mutmut_3` and `_start__mutmut_6` flip each to False here and the
+        # suite stayed green, which would tell the monitor a running stream is not running.
+        assert again == {**first, "already": True}
         await c.op("stop")
 
     _run(go())
@@ -1164,8 +1169,12 @@ class _FakeBleak:
     # real service list is a mypy [assignment] error — and that count may only go DOWN.
     _services: "list | None" = _FULL_TREE  # class-level; a subclass overrides it or grows it per publish
 
-    def __init__(self, addr, timeout=None, bluez=None):
+    def __init__(self, addr, timeout=None, bluez=None, disconnected_callback=None):
         self.addr, self.bluez = addr, bluez
+        # bleak's own ctor keyword (bleak/__init__.py), STORED rather than swallowed: the shim registers
+        # a callback here and reads what it set, so a stub that accepted the kwarg and dropped it would
+        # let the registration pass while the box never called anything — the class docstring's rule.
+        self.disconnected_callback = disconnected_callback
         self.connected = False
         self.notify_cb = None
         self.written = []
@@ -1205,6 +1214,11 @@ class _FakeBleak:
     async def disconnect(self):
         self.connected = False
         self._backend.services = None  # bleak: `_cleanup_all` resets it — see the class docstring
+        # AND BLEAK FIRES THE CALLBACK FOR OUR OWN CLOSE TOO. It has one disconnected path, so the
+        # callback cannot tell who asked; a stub that fired it only for an unsolicited drop would make
+        # the shim's ours-vs-theirs guard untestable here and unfalsifiable on the box.
+        if self.disconnected_callback is not None:
+            self.disconnected_callback(self)
 
 
 def test_cpap_ble_connect_wires_write_recv_and_disconnect(monkeypatch):
@@ -1243,6 +1257,163 @@ def test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg(monkeypatch):
     async def go():
         await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", None)
         assert _FakeBleak.instances[-1].bluez is None, "no hci → no bluez adapter kwarg"
+
+    _run(go())
+
+
+# ── the drop probe: residue 2026-10-19-post-drop-tail-needs-a-drop-instant-this-layer-never-sees ──
+def _connect_with_probe(monkeypatch):
+    """Connect through the stubbed bleak and hand back the client, the probe and the close."""
+    import bleak
+    import capture
+
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+
+    async def go():
+        _write, _recv, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1")
+        probe = getattr(disconnect, "link_down", None)
+        assert probe is not None, "the close carries no drop probe — `cpap_stream._start` reads this"
+        return _FakeBleak.instances[-1], probe, disconnect
+
+    return _run(go())
+
+
+def test_the_connect_shim_registers_the_callback_WITH_BLEAK_and_reads_FALSE_on_a_live_link(monkeypatch):
+    """The registration is asserted on the client, not on the shim: a callback the ctor swallowed would
+    leave the probe permanently falsy and the post-drop tail permanently zero on the box."""
+    client, probe, _disconnect = _connect_with_probe(monkeypatch)
+    assert client.disconnected_callback is not None, "bleak was never asked to report the disconnect"
+    assert not probe(), "a live link must read FALSE, so the tail counter can say `0` and mean it"
+
+
+def test_an_UNSOLICITED_bleak_disconnect_makes_the_drop_probe_truthy(monkeypatch):
+    """🔴 THE UNIT. The peripheral went away and nobody asked it to — every frame read from here on is
+    the buffered tail (audit §7.3 measured one arriving ~230 ms later on real hardware)."""
+    client, probe, _disconnect = _connect_with_probe(monkeypatch)
+    client.disconnected_callback(client)  # bleak's own call signature: the client, positionally
+    assert probe(), "an unsolicited drop was not seen, so no frame after it can be attributed to one"
+
+
+def test_OUR_OWN_CLOSE_IS_NOT_A_DROP_so_the_probe_stays_falsy_through_disconnect(monkeypatch):
+    """🔴 OURS IS NOT THEIRS. bleak has one disconnected path and fires the same callback for the close
+    we asked for, so without the flag every clean stop would publish a post-drop tail — the shape that
+    makes an ordinary night read as a drop on the evidence surface."""
+    client, probe, disconnect = _connect_with_probe(monkeypatch)
+    _run(disconnect())
+    assert client.disconnected_callback is not None and not client.connected
+    assert not probe(), "our own close counted as a drop — the closing flag was not raised before it"
+
+
+def _probe_connector(probe):
+    """A transport whose `disconnect` carries `probe` as its `link_down` attribute, or plain when None."""
+
+    async def connect():
+        async def write(_f):
+            pass
+
+        async def recv_frame():
+            await asyncio.sleep(3600)
+
+        async def disconnect():
+            pass
+
+        if probe is not None:
+            disconnect.link_down = probe
+        return write, recv_frame, disconnect
+
+    return connect
+
+
+def _probe_recording_pump():
+    seen = {}
+
+    async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, link_down=None):
+        seen["link_down"] = link_down
+        seen["called"] = True
+        while should_stop is None or not should_stop.is_set():
+            await asyncio.sleep(0.005)
+        return 0
+
+    return pump, seen
+
+
+def test_the_controller_lifts_the_drop_probe_OFF_the_close_and_hands_it_to_the_pump():
+    """The join the whole unit rests on: the instant is visible only in the connect layer and the frame
+    boundary only in the pull loop, and this is the one hop between them."""
+
+    async def go():
+        def probe():
+            return False
+
+        pump, seen = _probe_recording_pump()
+        c = CS.LiveStreamController(_ControllerBus(), _probe_connector(probe), _creds, _idle_devices, pump=pump)
+        assert (await c.op("start"))["ok"] is True
+        await asyncio.sleep(0.01)
+        assert seen["link_down"] is probe, "the probe never reached the pump — the tail cannot be counted"
+        await c.op("stop")
+
+    _run(go())
+
+
+def test_the_pump_IS_HANDED_THE_TRANSPORTS_OWN_write_AND_recv_frame():
+    """The two positional arguments that ARE the radio. Every other test reaches the pump through them
+    and would notice nothing if one arrived as None: the fake pumps here never call `write`, and
+    `recv_frame` is a sleep that the cooperative stop abandons. Measured 2026-10-19,
+    `_start__mutmut_134` and `_start__mutmut_135` replace one each with None and the suite stayed
+    green — a stream that writes nothing and reads nothing, reported `ok`."""
+
+    async def go():
+        made, seen = {}, {}
+
+        async def connect():
+            async def write(_f):
+                pass
+
+            async def recv_frame():
+                await asyncio.sleep(3600)
+
+            async def disconnect():
+                pass
+
+            made["write"], made["recv_frame"] = write, recv_frame
+            return write, recv_frame, disconnect
+
+        async def pump(bus, write, recv_frame, pk, cid, *, should_stop=None, **kw):
+            seen["write"], seen["recv_frame"] = write, recv_frame
+            while should_stop is None or not should_stop.is_set():
+                await asyncio.sleep(0.005)
+            return 0
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump)
+        assert (await c.op("start"))["ok"] is True
+        await asyncio.sleep(0.01)
+        assert seen["write"] is made["write"], "the pump writes down the link this start opened"
+        assert seen["recv_frame"] is made["recv_frame"], "the pump reads the link this start opened"
+        await c.op("stop")
+
+    _run(go())
+
+
+def test_a_TRANSPORT_WITH_NO_PROBE_makes_the_byte_identical_pump_call_it_always_made():
+    """Additive, not a widened contract: the injected triples in these tests and the fifteen P0 call
+    sites carry no attribute, and for them the kwarg must be ABSENT rather than None — so the counter
+    stays unmeasured and `lost_coverage` keeps saying so."""
+
+    async def go():
+        seen = {}
+
+        async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, **kw):
+            seen["kw"] = kw
+            while should_stop is None or not should_stop.is_set():
+                await asyncio.sleep(0.005)
+            return 0
+
+        c = CS.LiveStreamController(_ControllerBus(), _probe_connector(None), _creds, _idle_devices, pump=pump)
+        assert (await c.op("start"))["ok"] is True
+        await asyncio.sleep(0.01)
+        assert "link_down" not in seen["kw"], f"a probe-less transport forwarded one: {seen['kw']}"
+        await c.op("stop")
 
     _run(go())
 
@@ -2048,12 +2219,14 @@ def test_controller_appends_the_therapy_end_sink_LAST():
             return s
 
         def therapy_factory(stop_ev):
+            seen["stop_arg"] = stop_ev
             s = CS.TherapyEndSink(stop_ev, hold_s=1.0)
             made.append(s)
             return s
 
         async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None, should_stop=None):
             seen["extra_sinks"] = list(extra_sinks or ())
+            seen["should_stop"] = should_stop
             while should_stop is None or not should_stop.is_set():
                 await asyncio.sleep(0.005)
             return 0
@@ -2073,6 +2246,12 @@ def test_controller_appends_the_therapy_end_sink_LAST():
         assert len(sinks) == 2, "both the durable sink and the therapy-end sink reach the pump"
         assert isinstance(sinks[-1], CS.TherapyEndSink), "the therapy-end sink must be LAST"
         assert isinstance(sinks[0], _RecordingSink), "the durable sink runs first"
+        # The sink must hold the SAME event the pump watches, or the auto-stop sets a flag nobody reads
+        # and the session runs until the button. `TherapyEndSink(None)` constructs happily, so the
+        # argument is invisible until it is compared: measured 2026-10-19, `_start__mutmut_112` passes
+        # None and every assertion above still held.
+        assert isinstance(seen["should_stop"], asyncio.Event)
+        assert seen["stop_arg"] is seen["should_stop"], "the acting sink sets the event the pump watches"
         await c.op("stop")
 
     _run(go())
@@ -2576,3 +2755,307 @@ def test_the_missing_char_retry_keeps_the_pairing_options(monkeypatch):
     _run(go())
     assert len(_FakeBleak.instances) == 2
     assert _ReadingBleak.events.count("read:00002a00") == 2  # both connects did the reads
+
+
+def test_a_MID_SESSION_STALL_reaches_the_gap_accounting_line_and_the_envelope(caplog):
+    """🔴 THE DEFECT THIS CLOSES. `stalls` was declared with a spec citation (§30 STREAM_STALL) and no
+    detector, so `lost_coverage_missing` named it on every live session and completeness could never
+    read COMPLETE. The detector is the continuity tracker's own owed-sample comparison, and this is the
+    wire from it to the record: three frames, the middle one 3 s past the sample its predecessor owed.
+
+    The line must be a WARNING too — a measured stall is known loss, like `malformed` and
+    `sink_errors` beside it."""
+    import logging
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    envelopes = []
+    T0 = "2026-08-23T01:30:28.730Z"
+    frames = [
+        _data_at(T0),  # owes T0+400
+        _data_at("2026-08-23T01:30:32.130Z"),  # T0+3400: 3 s past it
+        _data_at("2026-08-23T01:30:32.530Z"),  # contiguous with the frame before
+    ]
+    dev = FakeDev(_handshake() + [_ack()] + frames)
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=3,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                continuity=tracker,
+            )
+        )
+    gc = envelopes[-1].provenance["gap_counters"]
+    assert gc["stalls"] == 1, "the tracker's count reached the gap-accounting record"
+    assert gc["lost_coverage_missing"] == ["post_drop_tail"], (
+        "stalls leaves the unmeasured list once it has a writer; post_drop_tail stays, and this layer "
+        "cannot measure it (audit §7.3 — the drop boundary is ~230 ms wide and lives in the transport)"
+    )
+    lines = [r for r in caplog.records if "gap accounting" in r.getMessage()]
+    assert len(lines) == 1 and "'stalls': 1" in lines[0].getMessage()
+    assert lines[0].levelno == logging.WARNING, "a measured stall is known loss, so the line is loud"
+
+
+def test_a_clean_contiguous_session_reports_a_measured_ZERO_stall_not_a_null(caplog):
+    """The bound on the test above, and §∅ from the other side. Two contiguous frames afford one
+    comparison, so `stalls` is 0 — counted, and none happened — and the line stays at INFO."""
+    import logging
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z"), _data_at("2026-08-23T01:30:29.130Z")])
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                continuity=tracker,
+            )
+        )
+    assert envelopes[-1].provenance["gap_counters"]["stalls"] == 0
+    lines = [r for r in caplog.records if "gap accounting" in r.getMessage()]
+    assert len(lines) == 1 and lines[0].levelno == logging.INFO
+
+
+def test_a_pump_with_NO_tracker_leaves_stalls_UNMEASURED_rather_than_zero():
+    """The writer is the tracker, so a pump without one compared nothing and must say so. A 0 here
+    would be the `int(summary.get(k) or 0)` defect this family already carries a fix for (§∅)."""
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+        )
+    )
+    gc = envelopes[-1].provenance["gap_counters"]
+    assert gc["stalls"] is None
+    assert gc["lost_coverage_missing"] == ["stalls", "post_drop_tail"]
+
+
+# ── `stream_to_bus` lines the stall work put back in mutation scope (the unit is the FUNCTION) ──────
+
+
+def test_a_CLEAN_stop_does_not_arm_the_next_session():
+    """`clean` is the pump's own verdict on how it ended, and it reaches two consumers: the tracker,
+    which arms a resume only on a drop, and the envelope's `stopped_cleanly`. A falsy `clean` after a
+    deliberate stop would arm a resume that never happened and report the session as interrupted."""
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+            continuity=tracker,
+        )
+    )
+    tracker.note_start()
+    assert tracker.status is cpap_continuity.Continuity.CONTINUOUS, "a deliberate stop is not a resume"
+    assert envelopes[-1].provenance["stopped_cleanly"] is True, "and the envelope says so too"
+
+
+def test_the_sink_write_duration_is_recorded_in_MILLISECONDS(monkeypatch):
+    """`sink_max_ms` is read against `SINK_SLOW_MS = 1000.0`, so the unit conversion is load-bearing:
+    seconds here would read every write as fast, and an unsubtracted clock would read every write as
+    slow. Two fixed readings one second apart must land on exactly 1000.0 ms."""
+
+    class _Clock:
+        def __init__(self):
+            # NEITHER reading may be zero. A `_t0` of 0.0 makes `now - _t0` and `now + _t0` the same
+            # number, so a stopwatch that ADDS its start instant passes a 0-to-1 probe unseen.
+            self.t = [2.0, 3.0]
+
+        def monotonic(self):
+            return self.t.pop(0) if self.t else 3.0
+
+    monkeypatch.setattr(CS, "_time", _Clock())
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+        )
+    )
+    gc = envelopes[-1].provenance["gap_counters"]
+    assert gc["sink_max_ms"] == 1000.0, "one second of held loop, in milliseconds, DIFFERENCED"
+    assert gc["sink_slow"] == 1, "and at SINK_SLOW_MS it counts as slow"
+
+
+def test_a_channel_that_is_not_a_LIST_still_advances_the_owed_sample_clock(caplog):
+    """The sample count handed to the tracker is a `max(...)` over the LIST-valued channels, and its
+    `default` covers a frame that has none. That default must be 0: the frame carried no samples, so
+    the next sample owed is this frame's own start. A default that cannot be an int kills the owed
+    clock entirely, and a default of 1 moves it one interval past where the device left it."""
+    import logging
+
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    tracker.note_start()
+    T0 = "2026-08-23T01:30:28.730Z"
+    odd = _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {"data": [{"PatientFlow": "not-a-list"}], "intervalMs": 40, "startTime": T0, "streamId": 1},
+        }
+    )
+    # +41 ms is chosen against the tolerance: one interval is 40 ms, so a frame owed at T0 is 1 ms
+    # late and a frame owed at T0+40 is 1 ms early. Any later start, T0 included, reads the same under
+    # both defaults, which is how a default of 1 survived the first version of this test.
+    late = _data_at("2026-08-23T01:30:28.771Z", n=1)  # T0 + 41 ms
+    dev = FakeDev(_handshake() + [_ack(), odd, late])
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes_sink(),
+                continuity=tracker,
+            )
+        )
+    # frame 1 carried 0 samples, so it owed its OWN start; frame 2 is 41 ms past it.
+    assert tracker.stalls == 1, "the owed clock advanced by zero samples, not by one and not at all"
+
+
+def envelopes_sink():
+    """A throwaway `acq_evidence_out` for tests that assert on the tracker rather than the envelope."""
+    return lambda _ev: None
+
+
+def test_the_observed_interval_WARNING_names_BOTH_intervals(caplog):
+    """The pump trusts the device's interval over the requested one and WARNS on a mismatch. The two
+    numbers are the whole content of that warning: a reader needs to know what was asked and what
+    arrived, so neither may go out as None."""
+    import logging
+
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])  # _data_at sends intervalMs 40
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                sample_interval_ms=25,
+                extra_sinks=[_RawStub()],
+            )
+        )
+    lines = [r.getMessage() for r in caplog.records if "observed interval" in r.getMessage()]
+    assert len(lines) == 1, lines
+    assert "40 ms" in lines[0] and "25 ms" in lines[0], lines[0]
+
+
+def test_a_MID_STREAM_interval_change_names_the_OLD_and_the_NEW(caplog):
+    """A device that changes its sample interval mid-stream is a finding, and the log line is the only
+    place it is recorded. Both numbers must survive: `None -> 40` or `40 -> None` names no change."""
+    import logging
+
+    T0 = "2026-08-23T01:30:28.730Z"
+    second = _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {
+                "data": [{"PatientFlow": [0.1] * 10}],
+                "intervalMs": 80,
+                "startTime": "2026-08-23T01:30:29.130Z",
+                "streamId": 1,
+            },
+        }
+    )
+    dev = FakeDev(_handshake() + [_ack(), _data_at(T0), second])
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[_RawStub()],
+            )
+        )
+    lines = [r.getMessage() for r in caplog.records if "interval changed mid-stream" in r.getMessage()]
+    assert len(lines) == 1, lines
+    assert "40 -> 80" in lines[0], lines[0]
+
+
+def test_the_MEASURED_clock_offset_reaches_the_envelope():
+    """`clock_offset_provider` is read at emit time and carried on the envelope so a reconciliation
+    does not read the device's fast minutes as a real gap. Dropping the provider leaves
+    `ClockOffset.unknown()`, which claims the offset was never measured when it was."""
+    import acq_evidence as ae
+
+    offset = ae.ClockOffset(offset_sec=-1261.0, measured_at_ms=1.0, reference="host-stratum1", method="GetDateTime")
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+    _run(
+        CS.stream_to_bus(
+            FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawStub()],
+            acq_evidence_out=envelopes.append,
+            clock_offset_provider=lambda: offset,
+        )
+    )
+    assert envelopes[-1].clock_offset == offset, "the measurement, not ClockOffset.unknown()"

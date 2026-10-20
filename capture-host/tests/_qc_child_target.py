@@ -8,4 +8,4 @@ import os
 
 
 def pid_stamp(night, devices):
-    return {"night": night, "devices": list(devices), "pid": os.getpid()}
+    return {"night": night, "devices": list(devices), "pid": os.getpid(), "nice": os.nice(0)}

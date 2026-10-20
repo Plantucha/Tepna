@@ -108,9 +108,11 @@ def assemble_live(
     # frame is deliberately NEITHER — it was never ours (GapCounters.total_lost draws the same line). The
     # untruncated summary rides in `provenance`, so nothing is lost to this projection.
     #
-    # ⚠️ `transport_gaps` reports UNKNOWN while `post_drop_tail` has no detector, and that is the point:
-    # it was structurally 0 here — both of its terms were dead — and a reader took that as "no transport
-    # loss occurred". UNKNOWN says the category was not measured, which is the true statement. ──
+    # ⚠️ IT WAS STRUCTURALLY 0 HERE — both of its terms were dead — and a reader took that as "no
+    # transport loss occurred". UNKNOWN said the category was not measured, which was the true
+    # statement. BOTH TERMS NOW HAVE WRITERS on a live BLE stream: `overflow` from the bounded queue
+    # and `post_drop_tail` from the transport's drop probe (`cpap_ingest.note_link_down_frame`). A
+    # number here is now a measurement; UNKNOWN still means a pump that looked for neither. ──
     transport_gaps = _counter(counters, "overflow", "post_drop_tail")
     decode_gaps = _counter(counters, "malformed")
 
@@ -143,13 +145,24 @@ def assemble_live(
         # purpose: a MEASURED loss still makes the acquisition PARTIAL even while another category is
         # unmeasured, because known loss is a finding and should not be downgraded to UNKNOWN by its
         # neighbour's absence. PARTIAL plus a named unmeasured category says more than UNKNOWN does.
-        lost = sum(int(v) for v in (counters.get("total_lost"), counters.get("sink_errors")) if v is not None)
+        # `stalls` JOINS THE SUM for the same reason `sink_errors` did: GapCounters keeps it out of
+        # `total_lost` (it counts stall events on the device clock, not frames), and a measured loss
+        # that no axis reads is a measurement thrown away. Without this line a session with a detected
+        # stall, a clean stop and nothing else wrong would stamp COMPLETE — the `sink_errors` defect
+        # recorded below, reappearing in the field that just gained a writer.
+        lost = sum(
+            int(v)
+            for v in (counters.get("total_lost"), counters.get("sink_errors"), counters.get("stalls"))
+            if v is not None
+        )
     # ∅ COMPLETE IS A CLAIM ABOUT EVERY LOSS CATEGORY (ABSENCE-SURVEY aa1146c0a994; ruled 2026-10-05 for the
     # owner). `lost_coverage_missing` names the categories `total_lost` does not measure, and a category
     # nothing measures is absence — neither a discontinuity to refuse nor reduced coverage to annotate. So
     # COMPLETE needs that list present and EMPTY and `total_lost` present; otherwise the acquisition is
-    # UNKNOWN, with the unmeasured categories named in provenance. Today `stalls` and `post_drop_tail` have
-    # no writer (cpap_ingest.py), so every live session reads UNKNOWN: the stamp was never earned.
+    # UNKNOWN, with the unmeasured categories named in provenance. Both of the categories that had no
+    # writer now have one — `stalls` from the continuity tracker (#3700) and `post_drop_tail` from the
+    # transport's drop probe — so a live session on the production pump can finally reach COMPLETE,
+    # and it reaches it by measuring every category rather than by the list going quiet.
     unmeasured_loss: list[str] = []
     if counters:
         if counters.get("total_lost") is None:
