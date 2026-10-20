@@ -622,6 +622,13 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # `adapter_hci.SNIFF_DECISION` carries that brief's path as a literal. A mention, not a read:
     # nothing opens the brief, and the citation is the whole point of the field (residue
     # 2026-09-25-adapterhci-cannot-express-inert-sniffer).
+    # 2026-10-20: ONE new REAL read, `sigma-no-reference-analysis.js` (0.063 MB, measured; the staged
+    # total goes 8.37 → 8.43 MB, summed over the entries below rather than extrapolated).
+    # `test_webmon_nights.py` now runs the box filenames through the sigma-hat's classifier too. It is a
+    # read, not a mention: the test opens the page and extracts the regex literals out of its `classify`
+    # body. That page kept the phone-app layout for the month after its two siblings were widened and no
+    # gate said so, because the table checks only the pages it lists (residue
+    # 2026-10-20-sigma-classifier-still-phone-only).
     assert got == [
         "Dex-Test-Suite.html",
         "README.md",
@@ -643,6 +650,7 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
         "pulsedex-dsp.js",
         "sensor-trio-night.js",
         "sensor-trio-power-analysis.js",
+        "sigma-no-reference-analysis.js",
         "suite.manifest.json",
         "tests/dex-tests.js",
         "tools/argv-guard.mjs",

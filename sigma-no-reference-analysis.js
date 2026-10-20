@@ -837,16 +837,29 @@
   const RUNS_NAME = /RUNS\.txt$/i;
   const companionOf = (file) => (file ? COMPANIONS.get(file.name.replace(/\.txt$/i, 'RUNS.txt')) || null : null);
 
-  function classifyF(file) {
+  /* TWO CAPTURE LAYOUTS, ONE RULE EACH. The phone app (Polar Sensor Logger / the O2Ring app) writes
+     `Polar_H10_<id>_YYYYMMDD_HHMMSS_<KIND>.txt`, `Polar_Sense_…`, `O2Ring…_<14 digits>.csv`; the capture
+     host writes the SAME bytes as `Polar_H10_<id>_YYYYMMDDHHMMSS_<KIND>.txt` (one 14-digit run, no
+     separator), `Polar_VeritySense_…`, and `Wellue_O2Ring-S_<serial>_YYYYMMDDHHMMSS_SPO2.csv`. The
+     2026-09-20 widening (RESIDUE 2026-09-20-tool-classifiers-phone-names) reached the two siblings and
+     left this page behind, so the σ-hat accepted not one box name until 2026-10-20 (RESIDUE
+     2026-10-20-sigma-classifier-still-phone-only). The stamp is `(\d{8})_?(\d{6})` so each role has ONE
+     pattern rather than a phone copy and a box copy that drift; the O2Ring's box `_SPO2.csv` IS the
+     'o2' role. The H10's `_ECG.txt` is the hat's gold corner here, which is the one role its two
+     siblings do not carry. The name below is `classify`, as on both siblings, because capture-host
+     `test_the_tool_classifiers_accept_box_filenames` indexes each trio page on that declaration and
+     runs the box's real filenames through the literals it finds there — under any other name the page
+     is invisible to the gate, which is how this one stayed behind for a month. The declaration is
+     spelled nowhere above, so the extractor's first hit is the real one. */
+  function classify(file) {
     const n = file.name;
-    if (/^O2Ring.*_(\d{14})\.csv$/i.test(n)) return { role: 'o2', stamp: n.match(/(\d{14})\.csv$/i)[1] };
-    let mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i);
-    if (mo) {
+    let mo;
+    if ((mo = n.match(/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\d{14})(?:_SPO2)?\.csv$/i))) return { role: 'o2', stamp: mo[1] };
+    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
       const hk = mo[3].toUpperCase();
       return hk === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : hk === 'ECG' ? { role: 'h10ecg', stamp: mo[1] + mo[2] } : null;
     }
-    mo = n.match(/^Polar_Sense_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i);
-    if (mo) {
+    if ((mo = n.match(/^Polar_(?:Sense|VeritySense)_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
       const k = mo[3].toUpperCase(),
         role = k === 'PPG' ? 'verityPPG' : k === 'PPI' ? 'verityPPI' : k === 'HR' ? 'verityHR' : null;
       return role ? { role, stamp: mo[1] + mo[2] } : null;
@@ -873,13 +886,16 @@
      2026-10-20. Its 62,706 entries carry 28,958 DISTINCT recordings — 63 % of the tree is a
      symlink to the NAS cold tier, and each file is also staged into several view directories, so
      a walk that neither follows links nor dedupes by recording reads a different corpus.
-     This classifier accepts 337 of them; 274 carry a parseable row
-     stamp and 63 do not. Median name-to-row error 1.6 s, worst 3.3 s, nothing over 5 min and NO
-     noon-fold crossing: 59 nights and 31 eligible either way, with 1 night changing a chosen file
-     (2026-06-19 verityHR). The error lives in the box captures and `classifyF` cannot see them —
-     it still reads only the phone-app layout the 2026-09-20 widening took out of its two siblings
-     (RESIDUE `2026-10-20-sigma-classifier-still-phone-only`), so this repair is pre-emptive and its
-     own population says so.
+     This classifier accepts 7,329 of them; 6,475 carry a parseable row stamp and 854 do not. Median
+     name-to-row error 5.0 s, 55 files over 5 min, worst 18.71 h, and 8 cross the noon fold below, so
+     the name alone indexed them one night early. The night COUNT is identical either way — 155
+     nights, 123 eligible — and 13 of the 155 still change at least one chosen corner file.
+     ⚠ THE FIGURES ABOVE ARE THE SECOND ONES. While this page still read the phone-app layout only
+     (RESIDUE `2026-10-20-sigma-classifier-still-phone-only`, fixed the same day) the same walk gave
+     337 accepted, worst error 3.3 s, ZERO fold crossings and 31 eligible nights of 59 — figures that
+     described a blind classifier, not a sound one. The box captures carry the whole defect, and a
+     classifier that cannot see them reports a reassuring number about the files it did read. A small
+     error figure is the first thing to distrust when the population is the thing in question.
      The reader below is the one `sensor-trio-night.js` carries (#3746), ported verbatim so the three
      trio pages bucket one corpus the same way; `tests/dex-tests.js` slices it out of each page source
      and executes all three copies against the same table.
@@ -993,7 +1009,7 @@
     let keyedByName = 0;
     for (let i = 0; i < list.length; i++) {
       const f = list[i],
-        c = classifyF(f);
+        c = classify(f);
       if (RUNS_NAME.test(f.name)) {
         COMPANIONS.set(f.name, f);
         continue;
