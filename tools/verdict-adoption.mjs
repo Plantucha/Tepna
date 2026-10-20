@@ -643,7 +643,11 @@ export function triage(root, files) {
 
 function selftest() {
   const fails = [];
-  const ok = (c, m) => (c ? null : fails.push(m));
+  let ran = 0;
+  const ok = (c, m) => {
+    ran += 1;
+    if (!c) fails.push(m);
+  };
   const V = createRequire(import.meta.url)(path.join(ROOT, 'verdict.js'));
   const good = V.make({
     gate: 'g',
@@ -1033,13 +1037,12 @@ function selftest() {
     }
   }
 
-  const N = 83;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
-    console.log(`${fails.length} failed of ${N}`);
+    console.log(`${fails.length} failed of ${ran}`);
     process.exit(1);
   }
-  console.log(`all ${N} selftests passed`);
+  console.log(`all ${ran} selftests passed`);
 }
 
 function main() {
