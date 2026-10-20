@@ -4,4 +4,4 @@ type: added
 brief: OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md
 ---
 
-Derive an AHI per recording from the two annotated open mirrors with `tools/derive-open-ahi.mjs`, which reads its own xlsx, defines sleep positively, and refuses a missing scoring by name.
+Derive an AHI per recording from the two annotated open mirrors with `tools/derive-open-ahi.mjs`. It reads its own xlsx, counts only scored sleep stages, and refuses an absent scoring by name.
