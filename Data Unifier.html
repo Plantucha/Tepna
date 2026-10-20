@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5c8518f70c65" data-compute-hash="95413816e42a"><head>
+<html lang="en" data-manifest-hash="dc3f8c59038c" data-compute-hash="8235fecc447e"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TmxmFT1Jk0P6H3wMhFbiHHoXgbsGiTwmNwrYqz5fuE8=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-dOJCQs60dAm5qOBE+3EnKdPWLYhPtThItycDVLJ4tNE=' 'sha256-dz2qb834NCJQ4fo7JU8ZhsGGDA2wyQBPPTHkZnGB/gc=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-dOJCQs60dAm5qOBE+3EnKdPWLYhPtThItycDVLJ4tNE=' 'sha256-dz2qb834NCJQ4fo7JU8ZhsGGDA2wyQBPPTHkZnGB/gc=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sCn18g+fNp0a/OgeJRU/EwWMWSYi0+ArhRgtz+Y2w6E=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -22020,6 +22020,53 @@ __exports.GlucoDex = window.GlucoDex;
      `tools/cvhr-gap-edge.mjs`: 3 of 51 cases disagreed by one event — a 20-25 s hole with a rate
      step across it stamps an event on a second the hole itself spans, which ECGDex dropped and this
      node kept. Absent, nothing is excluded and the function behaves exactly as before. */
+  /* ── §∅ · THE MASK THE DETECTOR RAN ON, PUBLISHED AS RUN LENGTHS ───────────────────────────────
+     Residue `2026-10-19-the-cvhr-gap-mask-does-not-leave-the-node`. `cvhrFromNN` takes `spansGap`
+     and skips an event on a second a gap spans, so a consumer that recomputes the detector needs
+     that exact mask. `analyze` published a COUNT (`quality.nGapSpanIntervals`) and kept the mask
+     internal, so an outside recomputation rebuilt the time-gap half from the BEAT axis with a
+     `> GAP_S` rule and could not recover the bridged half at all. Measured 2026-10-19 by
+     `tools/cvhr-edge-widen.mjs`: 68 of 418 eligible streams refused, because the recomputed event
+     count differed from the published one by 1 to 8 events.
+
+     RUN LENGTHS, as `[first, n]` pairs over the SAME index space as `nn` and `tt` — the kept series,
+     never the input intervals. That is the distinction `quality.nInputIntervals` exists to make:
+     `nGapSpanIntervals` counts over EVERY input interval, this mask describes the kept subset, and
+     dividing one by the other mixes two populations (the measured symptom was a per-file "800 %").
+
+     §∅ — an absent mask is `null`, never `[]`. `[]` says "computed, and no interval spans a gap",
+     which is the common and the informative case. `null` says the node had no kept series to
+     describe. A zero-filled array says neither, which is the failure this rule exists to stop. */
+  function runsFromMask(mask) {
+    if (!mask || mask.length == null) return null;
+    const runs = [];
+    let first = -1;
+    for (let i = 0; i < mask.length; i++) {
+      if (mask[i]) {
+        if (first < 0) first = i;
+      } else if (first >= 0) {
+        runs.push([first, i - first]);
+        first = -1;
+      }
+    }
+    if (first >= 0) runs.push([first, mask.length - first]);
+    return runs;
+  }
+  /* The decoder ships beside the encoder, so a consumer reads the mask instead of reimplementing the
+     encoding. `len` is the length of the series the mask described (`nn.length`): the runs alone
+     cannot say where the series ends, and a consumer that guessed would mask the wrong tail. An
+     absent `runs` decodes to `null` — absence travels through, it does not become an empty mask. */
+  function maskFromRuns(runs, len) {
+    if (runs == null || !(len >= 0)) return null;
+    const mask = new Uint8Array(len);
+    for (const r of runs) {
+      if (!r || !(r[1] > 0)) continue;
+      const a = Math.max(0, r[0] | 0),
+        b = Math.min(len, (r[0] | 0) + (r[1] | 0));
+      for (let i = a; i < b; i++) mask[i] = 1;
+    }
+    return mask;
+  }
   function cvhrFromNN(nn, tt, activeSec, spansGap) {
     const N = nn.length;
     /* ── EVERY REFUSAL NAMES ITSELF, WITH THE QUANTITY AND THE BOUND (§∅, residue
@@ -24420,6 +24467,9 @@ __exports.GlucoDex = window.GlucoDex;
     // …projected onto the kept series: cleanMask[j] / spansGap[j] describe nn[j], not input interval j.
     const kIdx = corr.keptIdx;
     const _spansGap = kIdx.map((i) => spansGapIn[i]);
+    /* §∅ — `null` when there is no kept series at all, because `[]` over an empty series would
+       claim "no interval spans a gap" about a series that does not exist. */
+    const _spansGapRuns = kIdx && kIdx.length ? runsFromMask(_spansGap) : null;
     const _spansPin = kIdx.map((i) => spansPinIn[i]);
     /* ⚠️ BOTH CONSUMERS, because `timeDomain` excludes through TWO separate channels and they feed
        different metrics: `omit` filters the base that SDNN/meanRR/HR are computed over, while
@@ -24954,6 +25004,12 @@ __exports.GlucoDex = window.GlucoDex;
       sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
+      /* The mask `cvhrFromNN` ran on, as `[first, n]` runs over the `nn` index space, so an outside
+         recomputation scores the detector that shipped these numbers rather than one rebuilt from
+         the beat axis. `PPGDSP.maskFromRuns(runs, nn.length)` is the decoder. Published on the
+         refusal paths too: the mask describes the series whether or not the detector consumed it,
+         and `cvhrReason` already names a refusal. */
+      spansGapRuns: _spansGapRuns,
       // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
       // refusal path stays byte-stable and no committed fixture moves for an inert key.
       ...(_cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
@@ -25462,6 +25518,11 @@ __exports.GlucoDex = window.GlucoDex;
        a contract between the nodes, not an internal detail of either. No existing caller reaches it
        through this surface; `analyze` still calls it directly. */
     cvhrFromNN,
+    /* ADDITIVE EXPORT — the published encoding's own pair. A consumer decoding `spansGapRuns` by
+       hand would fork the contract; `analyze` calls the encoder, and the decoder exists so the
+       reader of an export does not have to write one. */
+    runsFromMask,
+    maskFromRuns,
     timeDomain,
     poincare,
     lombScargle,
@@ -26145,7 +26206,24 @@ __exports.GlucoDex = window.GlucoDex;
              this is the per-beat weight `analysis-stats.js tchSigmasFused` multiplies in. Unlike
              ECGDex's twin, NO beat is dropped on this value here — the full spine ships and the
              consumer weights it, so a low-c stretch stays visible rather than becoming a silent gap. */
-          conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() : null
+          conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() : null,
+          /* WHICH INTERVALS STRADDLE A GAP — the mask `cvhrFromNN` ran on, as `[first, n]` runs over
+             THIS series' index space, decoded by `PPGDSP.maskFromRuns(runs, n)`. It travels here, in
+             the block that carries the series it indexes, rather than beside `apnea.cvhrEvents`:
+             the runs are meaningless without `tSec`/`ms`, and two homes for one index space is how
+             an off-by-one gets published.
+             Residue `2026-10-19-the-cvhr-gap-mask-does-not-leave-the-node`. `quality.nGapSpanIntervals`
+             shipped a COUNT and the mask stayed inside `analyze`, so a consumer recomputing CVHR
+             rebuilt the time-gap half from this `tSec` axis with a `> 10 s` rule and could not
+             recover the bridged half at all. That rebuild cannot see a SHORT hole either: the node's
+             rule is two samples (16 ms at 125.7 Hz), so a 95 ms dropout invalidates an interval and
+             leaves `tSec` looking contiguous — measured in the suite as one CVHR event of
+             disagreement on a planted twin, and measured on the corpus as 68 of 418 eligible streams
+             refusing a recomputation by 1 to 8 events.
+             §∅ — `[]` is "computed, and no interval straddles a gap", which is the common case. The
+             key is absent only where this whole block is (no kept series), so an absent key is never
+             a zero. */
+          spansGapRuns: r.spansGapRuns || null
         };
       }
     }
