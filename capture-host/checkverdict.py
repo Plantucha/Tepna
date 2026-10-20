@@ -45,6 +45,7 @@ from __future__ import annotations
 import json
 import sys
 
+import coverage_scope as CS
 import verdict as VD
 
 GATE = "capture-host-check"
@@ -227,12 +228,11 @@ def verdict_sample() -> dict:
         gate=ADOPTED_OURS["covscope"],
         status="PASS",
         population={"checked": 14, "eligible": 14, "excluded": 0},
-        criterion={
-            "name": "tools_absent_from_the_coverage_report_without_a_pin",
-            "threshold": 0,
-            "unit": "files",
-            "direction": "lte",
-        },
+        # SINGLE-SOURCED from the module that states it, not retyped: a sample whose criterion
+        # drifts from the gate's own would hand the adoption gate a green object the gate never
+        # emits. Retyped, the threshold `0` was a literal no test read — one surviving mutant on
+        # 2026-10-20 turned it into `1` and the suite stayed green.
+        criterion=CS.CRITERION,
         result={"findings": 0},
         evidence=["capture-host/tools/covscope.py"],
         reason=None,

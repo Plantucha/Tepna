@@ -116,6 +116,13 @@ def test_a_scope_whose_every_file_is_measured_or_pinned_passes():
     )
     assert CS.finding_count(report) == 0
     assert CS.reason_line(report) is None
+    # MEMBERSHIP, not cardinality. Both lists hold one path here, so a `measured` that reported the
+    # UNmeasured file instead carried the same count and no assertion moved — exactly the mutant
+    # that survived on 2026-10-20. The two lists partition what was declared, and the verdict
+    # publishes their sizes, so the figures are only as good as which file sits in which.
+    assert report["measured"] == ["tools/measured.py"]
+    assert report["unmeasured"] == ["tools/cli.py"]
+    assert sorted(report["measured"] + report["unmeasured"]) == report["declared"]
     obj = _obj(report)
     assert (obj["status"], obj["reason"]) == ("PASS", None)
     assert obj["result"]["measured"] == 1 and obj["result"]["pinned"] == 1
