@@ -47,8 +47,16 @@
  *   node tools/probe-clock-equivalence.mjs --selftest
  *   node tools/probe-clock-equivalence.mjs --sweep /tmp/m.json
  *
- * --sweep takes the NDJSON that `tools/mutate.mjs --file clock.js --json` writes; its `survivors` are
- * probed and every other generated mutant becomes a control.
+ * --sweep takes the NDJSON that `tools/mutate.mjs --file clock.js --json` writes. Its `survivors` are
+ * probed, and its `killedMutants` — the kills the sweep RECORDED BY NAME — are the controls.
+ *
+ * ⚠️ UNTIL 2026-10-20 THE CONTROL POOL WAS A SUBTRACTION: every parse-family mutant absent from the
+ * survivor list. That identity holds only for a sweep that tested every mutant it enumerated. Under
+ * `--only` or `--limit` it is false, and silently — the untested mutants dominate the remainder, and a
+ * control that never ran cannot fail, so the battery reads sound by arithmetic. This tool subtracted
+ * the survivors ALONE, so an INVALID mutant joined the pool as well as an untested one. #3717 made
+ * `mutate.mjs` record `killedMutants`, and this tool now reads that named set. A sweep that named no
+ * kills earns UNDERPOWERED with `kill-list-absent` as the reason: this sweep cannot say.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -56,6 +64,7 @@ import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { controlPool, killedKeySet, sampleEvenly } from './probe-equivalence.mjs';
 import { gitShort, makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,7 +78,7 @@ const opt = (f, d) => {
    built and was evaluated · excluded = controls whose realm failed to build. `blind` is how many of
    the CHECKED ones this battery could not separate. Survivor findings ride in `result` and never in
    the status — see the header for why a survivor cannot be a FAIL. */
-export function probeVerdict({ offered, built, blind, survivors, baseErr = null, commit, at } = {}) {
+export function probeVerdict({ offered, built, blind, survivors, baseErr = null, killListAbsent = false, commit, at } = {}) {
   const excluded = Math.max(0, offered - built);
   const base = {
     gate: 'probe-clock-equivalence',
@@ -91,6 +100,20 @@ export function probeVerdict({ offered, built, blind, survivors, baseErr = null,
       population: { eligible: offered || 0, checked: 0, excluded: offered || 0 },
       result: null,
       reason: `the BASE realm did not build (${String(baseErr).slice(0, 80)}) — nothing was examined, so neither the controls nor the survivors were evaluated`
+    });
+  }
+  /* A sweep that named no kills offers no control, and a run with no control proves nothing about the
+     battery's reach. `kill-list-absent` is NOT `no control realm built`: there the sweep named controls
+     and the realms failed, which is a fact about this machine. Here the sweep cannot say which mutants
+     a test caught, so there is nothing to build. Both read UNDERPOWERED, and the reason separates them. */
+  if (killListAbsent) {
+    return makeVerdict({
+      ...base,
+      status: 'UNDERPOWERED',
+      population: { eligible: 0, checked: 0, excluded: 0 },
+      result: { blind: 0, survivors },
+      reason:
+        'kill-list-absent — the sweep record carries no `killedMutants`, so no mutant is NAMED as one a test killed. The pool was taken by subtraction until 2026-10-20, which let an untested or invalid mutant stand in for a control; refusing is the only honest answer, and re-running the sweep on a build that records its kills is the remedy'
     });
   }
   if (built < 1) {
@@ -127,7 +150,9 @@ if (argv.includes('--verdict-sample')) {
 
 if (argv.includes('--selftest')) {
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     if (!c) fails.push(m);
   };
   const S = { distinguishable: 2, noDistinguishing: 3, realmFail: 0 };
@@ -148,13 +173,23 @@ if (argv.includes('--selftest')) {
   const nr = probeVerdict({ offered: 14, built: 0, blind: 0, survivors: S, baseErr: 'ReferenceError: x', commit: 'abc1234' });
   ok(nr.status === 'NOT_RUN' && nr.result === null && eq(nr), `BASE FAILED ⇒ NOT_RUN with result null: ${nr.status}`);
   ok(/may contain genuine equivalents/.test(clean.criterion.name), 'criterion.name says the survivor plant set may contain equivalents, so nobody later scores it');
-  const N = 8;
+  /* The kill list is the control pool's only honest source — these four hold that line. */
+  const kla = probeVerdict({ offered: 0, built: 0, blind: 0, survivors: S, killListAbsent: true, commit: 'abc1234' });
+  ok(kla.status === 'UNDERPOWERED' && /kill-list-absent/.test(kla.reason) && eq(kla), `a sweep naming no kills ⇒ UNDERPOWERED reading kill-list-absent, got ${kla.status}`);
+  ok(!/realm/.test(kla.reason) && /no control realm built/.test(none.reason), 'the two UNDERPOWERED causes read differently: an absent kill list is not a realm that failed to build');
+  ok(killedKeySet({ killed: 7, survivors: [] }) === null && killedKeySet({ killedMutants: null }) === null, 'a count-only record and a failed canary both answer null, never an empty pool');
+  const _dry = [
+    { line: 10, op: 'rel', after: 'a <= b' },
+    { line: 20, op: 'rel', after: 'c >= d' }
+  ];
+  const _pool = controlPool(_dry, () => true, killedKeySet({ killedMutants: [{ line: 10, op: 'rel', after: 'a <= b' }] }));
+  ok(controlPool(_dry, () => true, null) === null && _pool.length === 1 && _pool[0].line === 10, 'a mutant in no recorded list stays OUT of the pool, and a null kill set yields null');
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
-    console.log(`SELFTEST FAIL (${fails.length} of ${N})`);
+    console.log(`SELFTEST FAIL (${fails.length} of ${ran})`);
     process.exit(1);
   }
-  console.log(`all ${N} selftests passed`);
+  console.log(`all ${ran} selftests passed`);
   process.exit(0);
 }
 
@@ -177,12 +212,16 @@ const key = (m) => m.line + '|' + m.op + '|' + (m.after || '').trim();
 const survKeys = new Set(sweep.survivors.map(key));
 const PARSE = (m) => m.line < 270;
 const survivors = dry.filter((m) => PARSE(m) && survKeys.has(key(m)));
-// controls: parse-family mutants the sweep KILLED — a test caught them, so a sound battery must too
-let killedAll = dry.filter((m) => PARSE(m) && !survKeys.has(key(m)));
+/* CONTROLS ARE THE SWEEP'S NAMED KILLS, NEVER THE REMAINDER. `killedKeySet` answers `null` for a
+   record carrying only a `killed` COUNT and for the `killedMutants: null` a FAILED canary writes —
+   kill detection under doubt is no evidence of reach. `null` is not an empty pool: empty says this
+   sweep killed nothing in the parse family, `null` says this sweep cannot say. See the sibling's
+   rationale block in tools/probe-equivalence.mjs. */
+const killedKeys = killedKeySet(sweep);
+const killedAll = controlPool(dry, PARSE, killedKeys);
 // Sample the controls evenly across the family — enough to prove reach in every function without
 // paying for ~60 realms. Even stride, not head, so late functions are represented.
-const step = Math.max(1, Math.floor(killedAll.length / 14));
-const killed = killedAll.filter((_, i) => i % step === 0).slice(0, 14);
+const killed = killedAll ? sampleEvenly(killedAll, 14) : [];
 
 function realm(src) {
   const ctx = { console, Date, Math, JSON, Number, String, Array, Object, isFinite, isNaN, parseInt, parseFloat, RegExp, Error };
@@ -340,6 +379,19 @@ function fp(dc) {
           }
   } else o.push('_ckDMY:absent');
   return o.join('~');
+}
+
+/* Refuse BEFORE building realms. A survivor verdict read off a battery whose reach is unproven is
+   void — the header's whole argument — so an absent kill list stops the run rather than producing
+   findings nobody may use. */
+if (!killedAll) {
+  console.log(`### CONTROLS — REFUSED: this sweep record names no kills (${dry.filter(PARSE).length} parse-family mutants enumerated, ${survivors.length} of them survivors).`);
+  console.log("  The control pool is the sweep's `killedMutants` list, which `tools/mutate.mjs` has written since #3717.");
+  console.log('  Re-run the sweep on a build that records its kills; a pool taken by subtraction would count an untested or invalid mutant as a control.\n');
+  console.log(
+    'VERDICT ' + JSON.stringify(probeVerdict({ offered: 0, built: 0, blind: 0, survivors: { distinguishable: 0, noDistinguishing: 0, realmFail: 0 }, killListAbsent: true, commit: gitShort() }))
+  );
+  process.exit(0);
 }
 
 const base = realm(SRC);

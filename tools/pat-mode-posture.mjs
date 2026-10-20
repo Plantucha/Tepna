@@ -361,7 +361,9 @@ export async function sampleRun() {
 
 async function selftest() {
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     if (!c) fails.push(m);
   };
   const fns = await oracleFns();
@@ -434,13 +436,12 @@ async function selftest() {
   const sr = await sampleRun();
   const vs = runVerdict(sr.rows, sr.excludedBy, sr.eligible, { commit: 'abc1234', evidence: ['<sample>'] });
   ok(V.validate(vs).ok, `the sample verdict validates under verdict.js: ${JSON.stringify(V.validate(vs).errors)}`);
-  const N = 21;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
-    console.log(`SELFTEST FAIL (${fails.length} of ${N})`);
+    console.log(`SELFTEST FAIL (${fails.length} of ${ran})`);
     process.exit(1);
   }
-  console.log(`SELFTEST PASS (${N}/${N})`);
+  console.log(`SELFTEST PASS (${ran}/${ran})`);
 }
 
 async function main() {

@@ -541,6 +541,20 @@ export function changedLinesFromDiff(diffText) {
    everything else ~10 s of a 658 s run. The loop therefore spends 85 % of the budget, and `mutants ×
    calibration / jobs` — the `est` figure this line prints — read 553 s against those 557 s.
 
+   ⚠️ CORRECTED 2026-10-20: that formula reads "mutants x calibration / jobs", and the 27 above is
+   #3506's DIFF population — but the caller passed `mutantsFor(whole file)`, so every diff run was
+   priced over a population it never tested. Measured over 17 CI file records from the 14 h after
+   #3697 shipped the line: `est` equals `calibration x mutantsInFile / jobs` to within 1 % on all 17,
+   and est/actual ran 4x to 1298x, median 125x. The estimate now prices the touched lines, which is
+   what the paragraph above always claimed it did. Re-priced over the same 17 records it reads 0.59x
+   to 1.42x of the measured pass, median 1.12x.
+
+   ⚠️ SO IT IS NOT AN UPPER BOUND AT SMALL N, AND NOT FOR THE REASON BELOW. `mutantPassMs` includes
+   the worker-pool build, which the estimate omits, so the ratio falls UNDER 1 on 7 of the 17 — all
+   of them 2 to 9 mutants, down to 0.59x on `ecgdex-app.js` with 4. Bail makes it over-read as the
+   population grows and the fixed pool cost makes it under-read when the population is small; quote
+   it as a projection with its mutant count, never as a ceiling, below roughly ten mutants.
+
    ⚠️ IT IS AN UPPER BOUND, NOT A PREDICTION. Bail returns a killed mutant before its selected groups
    finish, so the estimate over-reads whenever few mutants run: measured the same day at `--limit 1`,
    est 22 s against 7.0 s. It tightens as the population grows, and the agreement at 27 mutants is
@@ -548,9 +562,24 @@ export function changedLinesFromDiff(diffText) {
    the per-pass timing residue `2026-10-05-the-js-mutation-job-cannot-finish-on-the-pr-that-makes-its-own-target-fast`
    asked for, and residue `2026-10-12-the-js-mutation-timeout-is-wider-than-the-self-speeding-pr`
    widened to a class. */
-export function phaseNote({ file, baseMs, estMs, jobs }) {
+/* HOW MANY MUTANTS THIS RUN WILL ACTUALLY TEST. Pure, so the selftest pins it without a sweep: the
+   enumeration is the whole file, `lines` is the diff's touched-line set (null outside --diff), and
+   `limit` is --limit. A file in the diff with no entry in the map is an empty set, hence 0 — the same
+   "nothing to do" the run concludes, never the file's own count. */
+export function pricedCount(all, lines, limit) {
+  const n = (lines ? (all || []).filter((m) => lines.has(m.line)) : all || []).length;
+  return Math.min(n, Number.isFinite(limit) ? limit : n);
+}
+
+export function phaseNote({ file, baseMs, estMs, jobs, priced, inFile }) {
   const s = (ms) => (Number(ms) / 1000).toFixed(Number(ms) < 10000 ? 1 : 0);
-  return '  ' + file + '  calibration ' + s(baseMs) + ' s/run → per-mutant pass est ' + s(estMs) + ' s at ' + jobs + ' job(s)';
+  /* THE POPULATION IS PART OF THE PRICE. Until 2026-10-20 this line named seconds and jobs and never
+     said how many mutants it had priced, while the caller handed it the WHOLE FILE's count in diff
+     mode — so the figure described a run that was never going to happen (residue
+     2026-10-20-the-cost-projection-prices-the-whole-file-in-diff-mode). `priced` is optional and last,
+     so a caller that has no count still gets the old line rather than a fabricated one. */
+  const pop = Number.isFinite(priced) ? ' over ' + priced + (Number.isFinite(inFile) && inFile !== priced ? ' of ' + inFile : '') + ' mutant(s)' : '';
+  return '  ' + file + '  calibration ' + s(baseMs) + ' s/run → per-mutant pass est ' + s(estMs) + ' s' + pop + ' at ' + jobs + ' job(s)';
 }
 
 export function verdictFromOutput(out) {
@@ -1401,7 +1430,18 @@ async function runFile(file) {
   const baseMs = Math.max(1, Date.now() - t0);
   process.stderr.write('  calibrated: clean run took ' + (baseMs / 1000).toFixed(0) + 's\n');
   const timeoutMs = Math.max(30000, baseMs * 5);
-  const estMs = (baseMs * Math.min(mutantsFor(readFileSync(abs, 'utf8')).length, LIMIT)) / Math.max(1, JOBS);
+  /* PRICE THE POPULATION THIS RUN WILL TEST, not the file it lives in. `mutantsFor` enumerates the
+     whole file; a diff run tests only the mutants on the changed lines (the `all` filter one screen
+     down), so pricing the file overstated every diff run's mutant pass — measured over 17 CI file
+     records on 2026-10-20 at a median of 125x, up to 1298x on `ecgdex-dsp.js`, where 2 touched
+     mutants were priced as 2141 (residue
+     2026-10-20-the-cost-projection-prices-the-whole-file-in-diff-mode). `--budget` compares against
+     this same number, so the overstatement would have skipped files on a cost no run was going to
+     pay. The diff lines are read once at startup into DIFF_LINES; an absent entry is an empty set,
+     which is the same "nothing to do" the run itself concludes. */
+  const estAll = mutantsFor(readFileSync(abs, 'utf8'));
+  const estPriced = pricedCount(estAll, DIFF ? DIFF_LINES.get(file) || new Set() : null, LIMIT);
+  const estMs = (baseMs * estPriced) / Math.max(1, JOBS);
   if (BUDGET && estMs > BUDGET * 1000)
     return {
       file,
@@ -1411,8 +1451,8 @@ async function runFile(file) {
         '` costs ' +
         (baseMs / 1000).toFixed(1) +
         ' s, so ' +
-        LIMIT +
-        ' mutants ≈ ' +
+        estPriced +
+        ' mutant(s) on the lines this run tests ≈ ' +
         (estMs / 1000).toFixed(0) +
         ' s > --budget ' +
         BUDGET +
@@ -1424,7 +1464,7 @@ async function runFile(file) {
      heartbeat below carries a comment making this same argument for progress; the two lines that
      price the run were left behind. stdout stays pure NDJSON — this is stderr, which the workflow
      tails into the job summary. */
-  process.stderr.write(phaseNote({ file, baseMs, estMs, jobs: JOBS }) + '\n');
+  process.stderr.write(phaseNote({ file, baseMs, estMs, jobs: JOBS, priced: estPriced, inFile: estAll.length }) + '\n');
 
   const original = readFileSync(abs, 'utf8');
   const allGenerated = mutantsFor(original);
@@ -1478,13 +1518,19 @@ async function runFile(file) {
      never mutated, so writing one there left a stray `*.mutate-backup` in the working tree after every
      parallel run for no benefit. Observed after a killed sweep: a lone `ppgdex-dsp.js.mutate-backup`
      beside a perfectly clean source. */
+  /* The degraded serial fallback TOOK OVER: `JOBS > 1` was asked for and no worker tree could be
+     created, so the mutants ran in place. It is a property of the RUN, not of the request, and two
+     readers need it — `restore()` below, whose guard is keyed on JOBS === 1, and the record. */
+  let degradedSerial = false;
   const bak = abs + '.mutate-backup';
   if (JOBS === 1) {
     writeFileSync(bak, original);
     _dirty.set(abs, original);
   }
   const restore = () => {
-    if (JOBS !== 1) return; // nothing was written here
+    // `JOBS > 1` writes only inside the worker trees — except on the degraded serial fallback,
+    // which writes the caller's own copy and so owes the same restore.
+    if (JOBS !== 1 && !degradedSerial) return;
     try {
       writeFileSync(abs, original);
     } catch {}
@@ -1903,6 +1949,21 @@ async function runFile(file) {
     tick();
   };
 
+  /* ONE SITE APPLIES A MUTANT, AND IT JOURNALS THE START. Three loops run mutants — the worker
+     pool, the degraded serial fallback, and the JOBS === 1 serial path — and each wrote the mutated
+     bytes and the START record for itself. The serial path wrote no START record at all (residue
+     2026-10-20-a-jobs-1-sweep-writes-no-start-record), and the degraded path once wrote two (#1178).
+     Both are the same defect: three copies of a two-line sequence, one of which drifts, and neither
+     copy is reached by the other paths' runs. The START record is not bookkeeping — `readJournal`
+     calls a mutant JAMMED only when it has STARTED twice without finishing, so a serial sweep's
+     wedged mutant was invisible to the quarantine and came back on every resume. Measured on a real
+     one-mutant `--jobs 1` sweep of clock.js: 0 started, 1 verdict, `inFlight` −1.
+     This closure is the only way a mutant reaches disk, so no loop can run one unjournalled. */
+  const beginMutant = (mu, target) => {
+    writeFileSync(target, mu.apply());
+    jwrite({ k: jkey(mu) });
+  };
+
   startHeartbeat();
   try {
     if (JOBS > 1) {
@@ -1921,45 +1982,25 @@ async function runFile(file) {
       }
       if (!trees.length) {
         /* No worker could be created — degrade to the serial in-place path rather than doing nothing.
-           The backup/recovery machinery is keyed on JOBS === 1, so mark this file dirty explicitly. */
+           The backup/recovery machinery is keyed on JOBS === 1, so mark this file dirty explicitly and
+           tell `restore()` and the record that this path ran. */
+        degradedSerial = true;
         writeFileSync(bak, original);
         _dirty.set(abs, original);
         for (const mu of picked) {
           _inFlight.set(abs, mu.op + ' at line ' + mu.line + ': ' + String(mu.before).trim().slice(0, 60) + ' → ' + String(mu.after).trim().slice(0, 60));
-          writeFileSync(abs, mu.apply());
-          /* ONE start record per mutant. This line was duplicated (#1178), which only ever fired on
-             this serial fallback — so it survived every pooled run. `readJournalProgress` derives
-             `inFlight = started − done`, so a doubled START inflates it by one per mutant, and that
-             number is what the resume line reports as "will be re-tried or quarantined" and what the
-             inventory publishes. A degraded-mode run therefore reported roughly twice the in-flight
-             work it had. */
-          jwrite({ k: jkey(mu) });
+          beginMutant(mu, abs);
           classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
         }
-        writeFileSync(abs, original);
-        rmSync(bak, { force: true });
-        _dirty.delete(abs);
-        return {
-          file,
-          groupsRun: filter || 'FULL SUITE',
-          groupCount: g ? g.count : null,
-          groupsSelected: g ? g.selected : null,
-          generated: all.length,
-          generatedInFile: touched ? allGenerated.length : undefined,
-          touchedLines: touched ? touched.size : undefined,
-          tested: picked.length + resumedCount,
-          killed,
-          invalid,
-          invalids,
-          quarantined: quarantinedThisRun,
-          quarantinedMu: quarantined,
-          killers: Array.from(killers.entries())
-            .sort((a, b) => b[1] - a[1])
-            .map(([group, n]) => ({ group, n })),
-          survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after })),
-          // the named kill list on the degraded serial path too — a reader cannot tell which path ran
-          killedMutants: canaryState === 'FAILED' ? null : killedMu.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
-        };
+        /* NO SECOND RECORD BUILDER, AND NO EARLY RETURN. `restore()` covers this path now, and control
+           falls through the worker pool — `trees` is empty, so `trees.map(worker)` is a no-op — to the
+           ONE builder at the end of runFile. Until 2026-10-20 this block returned a record of its own,
+           and every field added to the other one missed it: it carried no `equivalence`, so no excuse
+           was applied and no REFUTED claim could fire, and no `canary`/`voided`, so a run whose canary
+           SURVIVED published a kill count and escaped the gate's void filter. It also returned BEFORE
+           the canary post-processing, so a degraded run never learned a canary and never printed the
+           UNTRUSTED warning (residue 2026-10-20-the-degraded-serial-sweep-reports-no-equivalence-split,
+           the second instance after `killedMutants`). */
       }
       let next = 0;
       const worker = async (dir) => {
@@ -1973,8 +2014,7 @@ async function runFile(file) {
              sharing for this one path and leaves the repo untouched. (killcheck.mjs carries the same
              note for the same reason.) */
           rmSync(wAbs, { force: true });
-          writeFileSync(wAbs, picked[i].apply());
-          jwrite({ k: jkey(picked[i]) });
+          beginMutant(picked[i], wAbs);
           classify(await runSuiteAsync(sel(picked[i]), dir, timeoutMs), picked[i]);
         }
       };
@@ -1982,7 +2022,7 @@ async function runFile(file) {
     } else {
       for (const mu of picked) {
         _inFlight.set(abs, mu.op + ' at line ' + mu.line + ': ' + String(mu.before).trim().slice(0, 60) + ' → ' + String(mu.after).trim().slice(0, 60));
-        writeFileSync(abs, mu.apply());
+        beginMutant(mu, abs);
         classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
       }
     }
@@ -2063,7 +2103,11 @@ async function runFile(file) {
        pass which spends the budget. The job summary then states the split with no log tail to read. */
     calibrationMs: baseMs,
     mutantPassMs: Date.now() - _t0,
-    jobs: JOBS,
+    jobs: degradedSerial ? 1 : JOBS,
+    /* …and whether that is what was ASKED for. `--jobs 4` degraded to one in-place worker reads as
+       `jobs: 1, degradedSerial: true`, so two runs of the same command are no longer identical on
+       paper while one of them paid four times the wall clock. */
+    degradedSerial,
     // the canary is scaffolding, not a measurement — it must not enter the denominator it guards
     tested: picked.length - (canaryMu ? 1 : 0) + resumedCount + reusedCount,
     killed: canaryState === 'FAILED' ? null : killed,
@@ -2643,6 +2687,26 @@ function selftest() {
     true
   );
   ck('phases · one job is reported as one, never collapsed to the plural', phaseNote({ file: 'c.js', baseMs: 1000, estMs: 1000, jobs: 1 }).includes('at 1 job(s)'), true);
+  /* THE POPULATION IS PART OF THE PRICE (residue 2026-10-20-the-cost-projection-prices-the-whole-file-in-diff-mode).
+     A diff run's line must say how many of the file's mutants it priced, or a reader cannot tell a
+     27-mutant projection from a 359-mutant one — they differ by 13x and print the same words. */
+  ck(
+    'phases · a diff run names the population it priced, and the file it came out of',
+    phaseNote({ file: 'oxydex-dsp.js', baseMs: 82000, estMs: 553000, jobs: 4, priced: 27, inFile: 359 }),
+    '  oxydex-dsp.js  calibration 82 s/run → per-mutant pass est 553 s over 27 of 359 mutant(s) at 4 job(s)'
+  );
+  ck('phases · a whole-file run says the count once, not "27 of 27"', phaseNote({ file: 'a.js', baseMs: 1000, estMs: 1000, jobs: 1, priced: 27, inFile: 27 }).includes('over 27 mutant(s)'), true);
+  ck('phases · no count ⇒ the old line, never a fabricated population', phaseNote({ file: 'a.js', baseMs: 1000, estMs: 1000, jobs: 1 }).includes('mutant(s)'), false);
+  /* pricedCount · what the run will test. The whole-file count is the DECOY: it is what the caller
+     used to pass, and in diff mode it overstated the mutant pass by a median of 125x in CI. */
+  const PM = [{ line: 5 }, { line: 5 }, { line: 9 }, { line: 40 }];
+  ck('priced · no diff ⇒ the whole enumeration', pricedCount(PM, null, Number.POSITIVE_INFINITY), 4);
+  ck('priced · a diff prices only the touched lines', pricedCount(PM, new Set([5]), Number.POSITIVE_INFINITY), 2);
+  ck('priced · …and both mutants on one touched line count', pricedCount(PM, new Set([5, 40]), Number.POSITIVE_INFINITY), 3);
+  ck('priced · DECOY a file in the diff with no touched line prices 0, never the file', pricedCount(PM, new Set(), Number.POSITIVE_INFINITY), 0);
+  ck('priced · --limit caps it', pricedCount(PM, null, 2), 2);
+  ck('priced · …and never raises it above what exists', pricedCount(PM, new Set([9]), 60), 1);
+  ck('priced · an empty enumeration is 0, not a crash', pricedCount(undefined, null, 60), 0);
   const blk = blockingSurvivors(cls, survived);
   ck('blocking · the excused survivor leaves, the real-gap and the unclassified one stay', blk.map((x) => x.line).join(','), '3,4');
   ck('blocking · no classification excuses nothing', blockingSurvivors({ excused: [] }, survived).length, 3);
@@ -2790,6 +2854,52 @@ function selftest() {
   ck('NULL CONTROL · the complete list selects every mutant', _full.picked.length, _collide.length);
   ck('NULL CONTROL · …and refuses nothing', _full.ok, true);
   ck('E4b · a duplicated entry does not double-count its mutant', selectRecorded(_collide, [_collide[0], _collide[0]]).picked.length, 1);
+
+  console.log('\none record builder — runFile returns through ONE object literal, on every path');
+  {
+    /* `runFile` built its result in TWO places — the main tail and the degraded serial fallback — and
+       a field added to one reached neither the other nor any check. `killedMutants` hit it in #3717,
+       and `equivalence` had been missing from the degraded record the whole time. The record's own
+       signature keys ARE the tripwire: a second object literal carrying them is a second builder,
+       whatever it is called. `groupsRun` and `killedMutants` read 2 on the code this replaced. */
+    const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const sites = (k) => (self.match(new RegExp('^\\s+' + k + ':', 'gm')) || []).length;
+    for (const k of ['groupsRun', 'killedMutants', 'equivalence', 'canary', 'voided', 'jobs', 'calibrationMs']) {
+      ok('the result record builds `' + k + '` in exactly ONE place', sites(k) === 1, 'sites=' + sites(k));
+    }
+    /* WHY one builder is worth a gate, in one assertion: the void filter reads a KEY, so a record
+       built without it is not "void and reported" — it is a run the gate cannot tell from a measured
+       one. The degraded builder also published `killed` raw where the main one nulls it. The other
+       half of this pair is the `voided: true` case in the verdict section below, which reads UNKNOWN. */
+    const degradedShape = { file: 'clock.js', tested: 12, invalid: 0, killed: 12, touchedLines: 4, survivors: [{ line: 7, op: 'num → 0', before: 'a', after: 'b' }] };
+    const blind = diffVerdict([degradedShape], { base: 'origin/main', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' });
+    ok('a record with NO `voided` key escapes the void filter entirely', blind.verdict.status !== 'UNKNOWN', blind.verdict.status);
+  }
+
+  console.log('\none site applies a mutant — and that site journals the START');
+  {
+    /* Three loops run mutants: the worker pool, the degraded serial fallback, and the JOBS === 1
+       serial path. Each used to apply the mutant and journal it for itself, and the serial path
+       journalled nothing (residue 2026-10-20-a-jobs-1-sweep-writes-no-start-record). A missing START
+       is not bookkeeping: `readJournal` calls a mutant JAMMED only after it has STARTED twice
+       without finishing, so a wedged mutant on that path was invisible to the quarantine and came
+       back on every resume. The tripwire is the write itself: ONE statement puts mutated bytes on
+       disk, and it carries the record. That statement read 3 on the code this replaces. Matched in
+       its code form, because an unanchored pattern also matches this very comment — which is how
+       the first version of this block reported 3 against the repaired file. */
+    const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const n = (re) => (self.match(re) || []).length;
+    const writes = n(/writeFileSync\(\w+, \w+(?:\[\w+\])?\.apply\(\)\);/g);
+    ok('a mutant reaches disk through exactly ONE site', writes === 1, 'sites=' + writes);
+    ok('…and that site writes the START record beside the bytes', /writeFileSync\(target, mu\.apply\(\)\);\n\s+jwrite\(\{ k: jkey\(mu\) \}\);/.test(self), 'beginMutant does not journal');
+    ok('…and the START record is written in exactly ONE place', n(/jwrite\(\{ k: jkey\(/g) === 1, 'sites=' + n(/jwrite\(\{ k: jkey\(/g));
+    /* Each of the three loops must go through it, and each must still run a suite — a count that
+       matched while a loop had lost its suite run would be a green pin over a dead path. */
+    const calls = n(/^\s+beginMutant\(/gm);
+    const runs = n(/classify\((?:await runSuiteAsync|runSuite)\(/g);
+    ok('all three mutant loops call it', calls === 3, 'calls=' + calls);
+    ok('…and each still runs a suite', runs === calls, 'runs=' + runs + ' calls=' + calls);
+  }
 
   console.log('\nverdict — tepna.verdict/1 at every diff-gate exit, pinned against verdict.js');
   {

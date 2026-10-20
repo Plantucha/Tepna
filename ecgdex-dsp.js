@@ -6896,7 +6896,13 @@
     } else {
       var txt = typeof input === 'string' ? input : input && typeof input.text === 'string' ? input.text : input && input.samples && typeof input.samples.text === 'string' ? input.samples.text : null;
       if (txt == null) throw new Error('ECGDex.compute: need a Polar Sensor Logger *_ECG.txt string, {text}, a parsed rec {int16,fs}, or an ecg SignalFrame {samples:Float32Array,fs}.');
-      rec = parseECGText(txt);
+      /* §3.2 — `opts.runsText`, else `input.runsText` beside `input.text`: the `_ECGRUNS.txt` bytes when
+         the caller has them. Absent, the call is the 1-arg parse it always was. */
+      /* `input` is non-null here (a null input has no `txt` and threw above), and a string input reads
+         `.runsText` as undefined, so no `input &&` guard: the guard was dead, and an `&&` that no input can
+         flip is a mutant no test can kill. */
+      var rt = typeof opts.runsText === 'string' ? opts.runsText : typeof input.runsText === 'string' ? input.runsText : null;
+      rec = rt ? parseECGText(txt, { runsText: rt }) : parseECGText(txt);
     }
     if (opts.source) rec.source = opts.source;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;
@@ -6907,6 +6913,16 @@
 
   global.ECGDSP.parseECG = parseECGText;
   global.ECGDSP.parseECGLines = parseECGLines; // bounded/streaming callers (Node fold path)
+  /* THE SAMPLE-FRAME OVERLAP RULE, exported beside the parser that produces the spans. It was
+     written with `parseEcgRuns` and then called by nobody: this node's own epoch path converts the
+     spans to the SECONDS frame its windows use (`_blankSec`), so the sample-frame form had no
+     consumer inside the node. It has one outside it — a consumer that derives beats from
+     `_ECG.txt` itself holds RR intervals as SAMPLE index pairs, which is the frame the box wrote
+     the runs in, and converting them to seconds only to compare would introduce a rounding the
+     box's own numbers do not have. Exported rather than copied: a second body would drift, and a
+     half-open predicate is exactly where an off-by-one hides. `analyze` does not call it, so
+     `computeHash` moves without any number moving. */
+  global.ECGDSP.intersectsRun = _intersectsRun;
   /* THE TWO HALVES OF THE TIMING WALK, exported because the APP LANE IS A CONSUMER (DEEP-AUDIT-VI F2)
      — not merely for assertability. `ecgdex-app.js` builds its streaming Worker from
      `ecgTimingScan.toString()` and calls `ecgTimingResolve` on the scan the Worker ships back, so

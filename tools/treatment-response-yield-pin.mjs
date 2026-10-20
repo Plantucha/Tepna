@@ -149,7 +149,45 @@ export const HISTORY = [
   { measured: '2026-09-22', nIntervention: 233, nFlatControl: 239, source: '#2825 analysis/published-numbers/treatment-response-2026-09-22.json' }
 ];
 
-export function buildPin({ nIntervention, nFlatControl, minNights, selection, detector, commit, at }) {
+/* ⚠️ THE PIN ON DISK IS THE RECORD; THIS CONSTANT IS ONLY THE PART THE TOOL CAN DERIVE. `history[]`
+   also carries digest-move notes a session wrote by hand, and each states a REASON only a human knows:
+   whether a moved closure changed the computation. A re-cut that rebuilt the array from the constant
+   alone deleted them. Measured on main: the pin carried 5 entries at `bc84db9f6` and 2 at `f71d741ec`,
+   so #3689's correct re-stamp dropped three notes (residue
+   `2026-10-18-yield-pin-rerun-deletes-hand-appended-history`).
+
+   The merge keeps every on-disk entry the constant cannot reproduce, in its on-disk order, after the
+   derived ones. Reproducible means EXACTLY equal, field for field. An entry that differs by one
+   character is kept rather than dropped, so a hand-edited copy of a derived entry survives as a
+   duplicate. That direction is the conservative one: this tool may add a line to the record and must
+   never remove one. */
+export function mergeHistory(onDisk, derived) {
+  const base = Array.isArray(derived) ? derived : [];
+  const key = (e) => JSON.stringify(e, Object.keys(e || {}).sort());
+  const seen = new Set(base.map(key));
+  const kept = [];
+  for (const e of Array.isArray(onDisk) ? onDisk : []) {
+    if (e == null || typeof e !== 'object') continue;
+    if (seen.has(key(e))) continue;
+    kept.push(e);
+  }
+  return base.concat(kept);
+}
+
+/* Read the `history[]` of the pin this run is about to overwrite. An absent or unparseable file is not
+   an empty record — it is no record — and either way there is nothing to preserve, so the caller gets
+   `[]` and the derived entries stand alone. */
+export function historyOnDisk(path, read) {
+  try {
+    const raw = read(path);
+    const prev = JSON.parse(raw);
+    return Array.isArray(prev && prev.history) ? prev.history : [];
+  } catch {
+    return [];
+  }
+}
+
+export function buildPin({ nIntervention, nFlatControl, minNights, selection, detector, commit, at, history }) {
   return {
     schema: 'tepna.yield-pin/1',
     config: { ...CONFIG, minNightsObserved: minNights },
@@ -161,7 +199,7 @@ export function buildPin({ nIntervention, nFlatControl, minNights, selection, de
       txSkipped: selection.counts.txCandidates - nIntervention,
       flatSkipped: selection.counts.flatCandidates - nFlatControl
     },
-    history: HISTORY,
+    history: Array.isArray(history) ? history : HISTORY,
     measuredAt: at,
     producedBy: { tool: 'tools/treatment-response-yield-pin.mjs', commit }
   };
@@ -248,6 +286,51 @@ function selftest() {
   );
   ok('pin: schema + producedBy present, and it claims no verdict of its own', P.schema === 'tepna.yield-pin/1' && P.producedBy.tool.endsWith('treatment-response-yield-pin.mjs') && !('status' in P));
 
+  /* THE RECORD SURVIVES A RE-CUT. Three real notes are planted here, copied from the pin as `bc84db9f6`
+     held it, because the regression this group exists for is their deletion at `f71d741ec`. */
+  const note17 = { date: '2026-10-17', file: 'oxydex-dsp.js', old: 'a50aa3668d52', new: '67823e8864cb', reason: 'PR #3595: UI-level changes — no DSP computation change' };
+  const note18 = { date: '2026-10-18', file: 'oxydex-dsp.js', old: '67823e8864cb', new: 'cffb6d120b0f', reason: 'OxyDex night traces: additive computeSleepWake. 233 tx / 239 flat, unchanged' };
+  const note18b = { date: '2026-10-18', file: 'oxydex-dsp.js', old: 'cffb6d120b0f', new: 'c7db8721e42f', reason: 'CT seconds from the stamps. 233 tx / 239 flat, unchanged' };
+  const onDisk = HISTORY.concat([note17, note18, note18b]);
+  const merged = mergeHistory(onDisk, HISTORY);
+  ok('history: the three notes main lost at f71d741ec survive a re-cut', merged.length === 5 && merged[2] === note17 && merged[4] === note18b, String(merged.length));
+  ok('history: a derived entry the file already holds is not duplicated', merged.filter((h) => h.nIntervention === 269).length === 1, JSON.stringify(merged.map((h) => h.date || h.measured)));
+  ok('history: a derived entry absent from the file is emitted anyway', mergeHistory([note17], HISTORY).length === 3, JSON.stringify(mergeHistory([note17], HISTORY).map((h) => h.date || h.measured)));
+  ok('history: preserved entries keep their file order, after the derived ones', JSON.stringify(mergeHistory([note18b, note17], HISTORY).slice(2)) === JSON.stringify([note18b, note17]), 'order');
+  /* DECOY · the comparison is EXACT. A hand-edited copy of a derived entry is a line somebody wrote, so
+     it is kept as a duplicate rather than matched loosely and dropped. Losing it is the defect; a
+     duplicate a reader can see is not. */
+  const edited = { ...HISTORY[1], source: HISTORY[1].source + ' (corrected)' };
+  ok('history DECOY · an entry one character from a derived one is KEPT, never silently dropped', mergeHistory([edited], HISTORY).length === 3, 'kept');
+  ok('history DECOY · a non-object member is not carried into the record', mergeHistory([null, 7, 'x', note17], HISTORY).length === 3, 'guarded');
+  /* An absent file is NO record, not an empty one — and either way nothing is preserved, so the two
+     cases agree on the answer and the tool never invents a note. */
+  ok(
+    'history: an absent file preserves nothing rather than throwing',
+    historyOnDisk('/nonexistent/pin.json', () => {
+      throw new Error('ENOENT');
+    }).length === 0,
+    'absent'
+  );
+  ok('history: a file with no history field preserves nothing', historyOnDisk('x', () => '{"schema":"tepna.yield-pin/1"}').length === 0, 'fieldless');
+  ok('history: an unparseable file preserves nothing rather than throwing', historyOnDisk('x', () => 'not json').length === 0, 'unparseable');
+  ok('history: a real pin body is read through its history field', JSON.stringify(historyOnDisk('x', () => JSON.stringify({ history: [note17] }))) === JSON.stringify([note17]), 'read');
+  const PH = buildPin({
+    nIntervention: 233,
+    nFlatControl: 239,
+    minNights: 10,
+    selection: { version: 'cohort-gen/2.0', counts: { txCandidates: 900, flatCandidates: 900, seedsScanned: 18291, filledTarget: true } },
+    detector: a,
+    commit: 'deadbeef',
+    at: '2026-09-28T00:00:00Z',
+    history: merged
+  });
+  ok(
+    'pin: a merged history reaches the written pin, and the constant is only the fallback',
+    PH.history.length === 5 && P.history.length === 2,
+    String(PH.history.length) + '/' + String(P.history.length)
+  );
+
   /* The real generator, at the real configuration — the number the pin is built on. */
   const CG = loadCohortGen();
   ok('the real CohortGen loads outside a browser', !!(CG && typeof CG.sampleProfile === 'function'), CG ? CG.VERSION : 'null');
@@ -304,6 +387,10 @@ function main(argv) {
   const counts = selectionCounts(CG, CONFIG);
   const workerSrc = readFileSync(join(ROOT, 'cohort-worker.js'), 'utf8');
   const detector = realmDigests(workerSrc, ['oxy', 'pulse'], (f) => (existsSync(join(ROOT, f)) ? sha12(readFileSync(join(ROOT, f), 'utf8')) : null));
+  const out = arg('--out', PIN);
+  /* Read the record BEFORE overwriting it: the hand-written notes live only in the file. */
+  const prevHistory = historyOnDisk(out, (p) => readFileSync(p, 'utf8'));
+  const history = mergeHistory(prevHistory, HISTORY);
   const pin = buildPin({
     nIntervention: R.nIntervention,
     nFlatControl: R.nFlatControl,
@@ -311,15 +398,16 @@ function main(argv) {
     selection: { version: CG.VERSION, counts },
     detector,
     commit: gitCommit(),
-    at: new Date().toISOString()
+    at: new Date().toISOString(),
+    history
   });
-  const out = arg('--out', PIN);
   writeFileSync(out, JSON.stringify(pin, null, 2) + '\n');
   console.log('wrote ' + out);
   console.log(
     '  selection  ' + counts.txCandidates + ' tx / ' + counts.flatCandidates + ' flat candidates (' + counts.seedsScanned + ' seeds, target ' + (counts.filledTarget ? 'FILLED' : 'NOT filled') + ')'
   );
   console.log('  yield      ' + pin.yield.nIntervention + ' tx / ' + pin.yield.nFlatControl + ' flat  (skipped ' + pin.yield.txSkipped + ' / ' + pin.yield.flatSkipped + ' by the detectors)');
+  console.log('  history    ' + HISTORY.length + ' derived + ' + (history.length - HISTORY.length) + ' preserved from the file this run overwrote');
   return 0;
 }
 

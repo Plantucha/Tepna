@@ -3,7 +3,9 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED — 2026-10-05 · **Created:** 2026-10-05
+**Status:** PROPOSED (core BUILT, remainder owner-gated — verified 2026-10-20 on a read-only rig
+replay: three items tick, two need restating, one waits on the owner-authorized box run, one waits on
+the RESIDUE-only slot, and one is half met; the Verification section names each) — 2026-10-05 · **Created:** 2026-10-05
 
 # NIGHT-IS-THE-RECORDING — one recording, one night, one verdict; and why the folder boundary is the wrong lever
 
@@ -301,9 +303,9 @@ Dry-run first, on the rig corpus copy; **the box run is owner-authorized** and w
 
 ## Acceptance (pre-stated)
 
-- [ ] The Verity/ring/H10 sessions of 10-04 22:00 and 10-05 04:38 are judged as **one** recording with
+- [x] The Verity/ring/H10 sessions of 10-04 22:00 and 10-05 04:38 are judged as **one** recording with
       **one** verdict.
-- [ ] The `spo2 missing` line of 04:41:48 does not recur: no stream present in the recording is reported
+- [x] The `spo2 missing` line of 04:41:48 does not recur: no stream present in the recording is reported
       missing for it.
 - [ ] Controls: the last three nights' verdicts are **unchanged** — byte-identical where the recording did
       not straddle a boundary.
@@ -314,13 +316,52 @@ Dry-run first, on the rig corpus copy; **the box run is owner-authorized** and w
       was split, #3289 carrying its rows).
 - [ ] The 28-night refit shows every night whose first donning fell in 18:00–20:00 re-banded, and no other
       night's band moved.
-- [ ] ②(a): a judge pass over **zero nights** emits `NOT_RUN`, never `UNKNOWN` — §🧾's own distinction,
+- [x] ②(a): a judge pass over **zero nights** emits `NOT_RUN`, never `UNKNOWN` — §🧾's own distinction,
       planted so a pass that examined nothing cannot publish an undecided verdict.
 - [ ] ②(b): a judge pass that REPLACES a published verdict withdraws it with a reason; the six-UNKNOWNs
       → one-FAIL trail of 2026-10-04 is reconstructible from the artefacts, not only from the journal.
 
 **MINOR** if the folder assignment moves (route (a) — a contract change); **PATCH** under route (b), which
 changes no layout. Nothing here is claimed about a night that has not been re-judged.
+
+## Verification 2026-10-20 — the rig replay, read-only (Heron)
+
+Rule 0: `night is the recording one verdict folder boundary straddle` → this brief, `QC-SCOPE-RESOLUTION-2026-07-28-BRIEF.md`, `SOLID-NIGHT-COWEAR-AND-PROBE-2026-10-13-BRIEF.md`.
+
+The brief asks for a dry run on the rig corpus copy before the box run. This is that run. It called three readers over `uploads/vigil-archive/captures`: `solid_night_inputs.recording_scope`, `nightqc.summarize` and `solid_night.night_verdict`. Each one reads. None of them writes. I snapshotted the archive's file list and mtimes before the run, and nothing moved.
+
+### What the replay measured
+
+| night | scope | replayed verdict | stored verdict | stored by |
+|---|---|---|---|---|
+| 2026-10-03 | `[10-03, 10-04]`, 0 + 34 files | UNKNOWN, no loss audit | none | — |
+| 2026-10-04 | `[10-04, 10-05]`, 30 + 5 files | **PASS**, all three devices | **FAIL**, 46.25 % twice | `12825e90` |
+| 2026-10-05 | `[10-05, 10-06]`, 46 + 5 files | **PASS**, all three devices | UNKNOWN, the loss audit misses the worn interval | `831a67d1` |
+| 2026-10-06 | `[10-06, 10-07]`, 29 + 17 files | **UNKNOWN**, the ring declares no rate | PASS | `a900516a` |
+
+The five files that 10-04 admits from the 10-05 folder are the morning fragment's sidecars. One of them is the file ① names: `Polar_VeritySense_0C301E3F_20261005043815_PMDARRIVAL.csv`. 10-05 admits none of the five. Its own forward reach takes 10-06's morning instead. So the straddle resolves to one scope and one verdict.
+
+Only the sidecars roll forward. The fragment's stream files stay in the 10-04 folder, which is the asymmetry `_current_night`'s comment already records.
+
+### The 20 → 18 band refit, measured over 86 night folders
+
+61 folders carry a parsable filename stamp and 25 carry none. The band begin moves for all 61, because `night_band` opens two hours earlier and ends at the same 10:00. No folder's earliest stamp falls in 18:00–19:59. 41 folders hold at least one file stamped in that window, and 1506 of the archive's 13916 stamped files sit there.
+
+### Item by item
+
+1. **Met on the rig.** One scope spans the 22:00 and 04:38 sessions, and one verdict covers them. The box still stores the FAIL that ②″ describes, and replacing it needs the owner-authorized re-judge.
+2. **Met.** `summarize` reports `missing: []` for 10-04 and for 10-05 under this tree.
+3. **Not met, and the item needs restating.** Three of the four nights replay differently from what the box stored. The tree now carries `solid_night.code_moved`. It re-judges a night when the judge's own source has changed. So byte-identity against an older commit's verdict is no longer this item's control. 10-06 moves the wrong way, PASS to UNKNOWN. Its reason is the ring's absent rate declaration, not anything about the night band.
+4. **Not met.** The mechanism is built. `_withdraw` delegates to `verdict.withdraw`, and `write_night` names the reason. But the box still holds the old 10-04 and 10-05 fragment verdicts. The migration is Heron's, and its box run is owner-authorized.
+5. **Not met.** The RESIDUE-only slot is held by two open PRs. The row waits for the slot, and ⑤'s second case still waits for the owner's ruling.
+6. **Not met, and the item needs restating.** The refit above shows the band begin moving for every night, not only for nights donned 18:00–20:00. No night's earliest stamp sits in that window at all.
+7. **Met.** `consecutive([])` returns `status: NOT_RUN` with null counts. Two tests pin it, at `tests/test_solid_night.py:158` and `:175`. The second one is the control. It asserts that examining nothing reads differently from examining a night and finding no run.
+8. **Half met.** A replacing pass withdraws with a reason, so the forward half holds. The backward half cannot hold. `os.replace` destroyed five of the six 10-04 passes before the mechanism existed, so that trail is gone. The clause asks for a reconstruction nobody can perform. It should be withdrawn rather than carried.
+
+### Two findings this replay turned up
+
+- **`recording_scope` declares `span` and `daytime` instead of computing them.** Both are literals in all three return paths. The function's own comment at `solid_night_inputs.py:433` records this defect for `data_files` and the fix that followed. Its two neighbours still carry it. The replay reads `daytime: []` for 10-04. That night's QC names four later sessions and 17,864,022 rows as outside-band. An empty exclusion list claims that nothing fell outside the band, and nothing took that measurement. Route (b)'s judge scope is Magpie's lane in the split below, so this one is Magpie's. I owe a row once the RESIDUE-only slot frees.
+- **10-06 regresses from PASS to UNKNOWN on the ring's rate.** The reason reads `completeness: no rate declared in the stream's acquisition evidence`. The Verity and ring rate ruling already sits in the owner queue. This is a second night waiting on it. I owe a row for the same slot.
 
 ## Lane split (settled 2026-10-05, after Magpie corrected the seam)
 

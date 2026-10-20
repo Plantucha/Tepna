@@ -208,6 +208,23 @@ export function refinePeaks(bp, peaks) {
   return out;
 }
 
+/* RATE AGREEMENT — how many beats each device reported over the SAME window, as a ratio.
+   WHY THIS CANNOT BE THE MATCH RATE. The jitter and the match rate are both computed over beats that
+   PAIRED, and `ppiJitterMs` below refuses a window in which no two matched pairs are consecutive. A
+   detector that fires twice per beat therefore does not score badly: every other beat goes unmatched,
+   no consecutive pair survives, the jitter refuses, and the caller drops the epoch — so the figures
+   that remain describe the epochs where nothing went wrong. The count ratio is taken before any
+   pairing, so a doubled rate reads 2.0 whatever the matcher does with it afterwards.
+   Absence stays null (CLAUDE.md §∅): a window with no beat on one side has no ratio, not a ratio of 0. */
+export function rateAgreement(fingerMs, ecgMs, t0, t1) {
+  const min = (t1 - t0) / 60000;
+  if (!(min > 0)) return null;
+  const nf = fingerMs.filter((x) => x >= t0 && x < t1).length;
+  const ne = ecgMs.filter((x) => x >= t0 && x < t1).length;
+  if (nf === 0 || ne === 0) return null;
+  return { ratio: nf / ne, fingerBpm: nf / min, ecgBpm: ne / min };
+}
+
 /* PPI jitter: sd of (finger interval − matched ECG interval) over CONSECUTIVE matched pairs.
    Consecutive is load-bearing — an interval spanning a missed beat is not a jitter sample. */
 export function ppiJitterMs(fingerMs, ecgMs, pairs) {

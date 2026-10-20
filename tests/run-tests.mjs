@@ -24,11 +24,31 @@ import {
   classifyStamps as rebaseClassifyStamps,
   duplicateLedgerKeys as rebaseDuplicateLedgerKeys,
   generatedSet as rebaseGeneratedSet,
-  docsOutputFromText as rebaseDocsOutputFromText
+  docsOutputFromText as rebaseDocsOutputFromText,
+  quotedVerdictKeys as rebaseQuotedVerdictKeys,
+  parseOwnedListing as rebaseParseOwnedListing,
+  classifyOwnedFixtures as rebaseClassifyOwnedFixtures,
+  unrestoredFrom as rebaseUnrestoredFrom,
+  heldGoldens as rebaseHeldGoldens
 } from '../tools/rebase-safe.mjs';
+/* AND THIS IMPORT IS ITSELF AN ASSERTION. `tools/pr-compliance.mjs` ended in a bare
+   `process.exit(main())`, so importing it ran the whole gate and exited the importer before the
+   import resolved — measured 2026-10-20. An unguarded entry takes this SUITE down, loudly, which is
+   the right failure for a module whose exported surface other tools now depend on. */
+import { extractVerdicts as prExtractVerdicts } from '../tools/pr-compliance.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
-import { corpusSearch } from '../tools/regen-goldens-core.mjs';
-import { classify as qdClassify, pick as qdPick, attention as qdAttention, redLedger as qdRedLedger, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
+import { corpusSearch, ownedListing as regenOwnedListing } from '../tools/regen-goldens-core.mjs';
+import {
+  classify as qdClassify,
+  pick as qdPick,
+  attention as qdAttention,
+  redLedger as qdRedLedger,
+  dirtyVerdict as qdDirtyVerdict,
+  parseMergeTree as qdParseMergeTree,
+  probeMerge as qdProbeMerge,
+  IDLE_MIN as QD_IDLE_MIN,
+  STARVED_MIN as QD_STARVED_MIN
+} from '../tools/queue-doctor.mjs';
 import {
   classify as pwClassify,
   plan as pwPlan,
@@ -3109,6 +3129,27 @@ async function main() {
        `merge=union` path never conflicts — so the STOP branch cannot fire and the tool reports success
        over a corrupted ledger. Pure, so the suite can hold both controls. */
     rebaseDuplicateLedgerKeys: rebaseDuplicateLedgerKeys,
+    /* Which quoted verdicts a rebase is allowed to speak about. Pure, so the suite drives the two
+       directions that matter by value: a body quoting nothing yields `null` rather than an empty
+       all-clear, and a verdict this guard cannot be right about — no commit, a sha-shaped nothing —
+       is dropped rather than guessed at. */
+    rebaseQuotedVerdictKeys: rebaseQuotedVerdictKeys,
+    /* THE GOLDEN RAILS. `uploads/*.node-export.json` fixtures are owned by
+       `tools/regen-<node>-goldens.mjs`, and a rebase that calls them SOURCE stops on a path no human
+       can resolve (#3765). They are not all restorable here, though: a corpus-backed fixture reads an
+       input this checkout does not ship. So the decision is a two-rail one and both rails are pure,
+       driven by value below — `ownedListing` produces the rows, `parseOwnedListing` reads them back,
+       `classifyOwnedFixtures` splits them, and `unrestoredFrom` is the proof the restore happened. */
+    regenOwnedListing: regenOwnedListing,
+    rebaseParseOwnedListing: rebaseParseOwnedListing,
+    rebaseClassifyOwnedFixtures: rebaseClassifyOwnedFixtures,
+    rebaseUnrestoredFrom: rebaseUnrestoredFrom,
+    /* The REAL two-rail split, a FUNCTION so nothing pays for the nine recipe spawns unless the group
+       runs — the population half of the same pair as rebaseGeneratedSet. */
+    rebaseHeldGoldens: rebaseHeldGoldens,
+    /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
+       parser that judges it, so the two cannot disagree about what a quoted verdict is. */
+    prExtractVerdicts: prExtractVerdicts,
     /* land-pr's PURE decision core. Same shape and same reason as rebaseClassify above: the tool's
        value is a state machine that must not be re-derived by hand in every session, and a state
        machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),
@@ -3118,6 +3159,9 @@ async function main() {
     qdPick: qdPick,
     qdAttention: qdAttention,
     qdRedLedger: qdRedLedger,
+    qdDirtyVerdict: qdDirtyVerdict,
+    qdParseMergeTree: qdParseMergeTree,
+    qdProbeMerge: qdProbeMerge,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
     /* pr-walker's PURE core: classify() and plan() decide every action the timer takes on a PR, and

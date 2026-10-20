@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chunk, listExternalDocs, readDoc, readLines } from './doc-search.mjs';
+import { CHUNKER, cacheHit, chunk, listExternalDocs, readDoc, readLines } from './doc-search.mjs';
 import { resolveStatePath } from './mutation-map.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -285,6 +285,7 @@ export function chunkLines(file, body, raw, chunks) {
  *   'missing'        — the file is gone since the cache was written
  *   'stale-hash'     — the body changed, so the cached vectors describe text that no longer exists
  *   'chunk-mismatch' — the chunk count moved, so vector i no longer pairs with chunk i
+ *   'pre-fix-chunker' — the vectors came from the cutter that split a pair, and this text has one
  *   'no-vectors'     — the entry carries none (doc-search keeps text-only entries when the embedder is down)
  *   'bad-dims'       — a vector is not `dims` long, so the mapping would reject it anyway
  *
@@ -306,6 +307,7 @@ export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk, raw =
   if (entry.h !== h) return { ok: false, reason: 'stale-hash' };
   const chunks = chunkFn(`${file} :: ${body}`);
   if (chunks.length !== vecs.length) return { ok: false, reason: 'chunk-mismatch' };
+  if (!cacheHit(entry, h, chunks, `${file} :: ${body}`)) return { ok: false, reason: 'pre-fix-chunker' };
   if (vecs.some((v) => !Array.isArray(v) || v.length !== dims)) return { ok: false, reason: 'bad-dims' };
   let repaired = 0;
   const lines = raw == null ? null : chunkLines(file, body, raw, chunks);
@@ -343,16 +345,15 @@ export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk, raw =
  * Replace UNPAIRED surrogates with U+FFFD, and say how many were found.
  *
  * ⚠️ MEASURED 2026-10-10, and it is a property of the chunker rather than of any one file.
- * `chunk()` cuts at a fixed CHARACTER count, so a cut can land between the two halves of a
+ * `chunk()` cut at a fixed CHARACTER count until 2026-10-20, so a cut could land between the two halves of a
  * surrogate pair — an emoji split down the middle. doc-search never notices: it embeds the string
  * locally and nothing serialises it. `JSON.stringify` then emits a lone `\udXXX`, which is not valid
  * JSON text, and xerj refuses the whole bulk batch with `lone leading surrogate in hex escape` —
  * one broken chunk aborting 128 good ones.
  *
- * The repair belongs HERE, not in the chunker: re-chunking would invalidate every cached vector's
- * positional pairing, which is the one thing this tool must not do. The vector still describes the
- * original text; the indexed text differs from it by a single replacement character at an edge, and
- * the count is reported so "we altered the text" is never a silent act.
+ * `chunk()` now keeps a pair whole, and `cacheHit` refuses a pre-fix entry over a text the old
+ * cutter split, so doc-search re-embeds exactly those files. This repair stays as the guard for any
+ * other source of a lone half, and the count is reported so "we altered the text" is never silent.
  */
 export function sanitizeText(t) {
   let repaired = 0;
@@ -419,6 +420,15 @@ export function selftest() {
          query time would reveal it. */
   ok(planFile({ file: 'docs/a.md', h: 'deadbeefdeadbeef', vecs: [vec(4), vec(4)] }, body, 4, chunk2).reason === 'stale-hash', 'a changed body is skipped as stale-hash');
   ok(planFile({ file: 'docs/a.md', h, vecs: [vec(4)] }, body, 4, chunk2).reason === 'chunk-mismatch', 'a moved chunk count is skipped');
+  {
+    /* A pre-fix entry over a text the old cutter split pairs vector i with a chunk it never embedded. */
+    const split = `${'a'.repeat(1199 - 'docs/s.md :: '.length)}\u{1F600}${'b'.repeat(2000)}`;
+    const hs = createHash('sha256').update(split).digest('hex').slice(0, 16);
+    const four = [vec(4), vec(4), vec(4), vec(4)];
+    ok(planFile({ file: 'docs/s.md', h: hs, vecs: four }, split, 4).reason === 'pre-fix-chunker', 'a pre-fix entry over a split pair is skipped');
+    const fresh = planFile({ file: 'docs/s.md', h: hs, vecs: four, c: CHUNKER }, split, 4);
+    ok(fresh.ok && fresh.docs.length === 4 && fresh.repaired === 0, 'a re-embedded entry loads with no repair', JSON.stringify({ ok: fresh.ok, r: fresh.reason }));
+  }
   ok(planFile({ file: 'docs/a.md', h, vecs: [vec(3), vec(3)] }, body, 4, chunk2).reason === 'bad-dims', 'a wrong-dimension vector is skipped');
   ok(planFile({ file: 'docs/a.md', h, vecs: [] }, body, 4, chunk2).reason === 'no-vectors', 'a text-only entry is skipped');
   ok(planFile({ file: 'docs/a.md', h, vecs: [vec(4), vec(4)] }, null, 4, chunk2).reason === 'missing', 'a vanished file is skipped');

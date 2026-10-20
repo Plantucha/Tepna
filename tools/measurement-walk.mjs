@@ -406,7 +406,9 @@ function selftest() {
     };
   };
   const fails = [];
+  let ran = 0;
   const check = (name, cond) => {
+    ran += 1;
     if (!cond) fails.push(name);
   };
   const allOk = (r) => r.every((x) => x.ok === true || x.na === true);
@@ -593,13 +595,12 @@ function selftest() {
       .filter((x) => x.hop === 'window' || x.hop === 'inputHash')
       .every((x) => x.ok === false && /absent/.test(x.detail))
   );
-  const N = 34;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
-    console.log(`${fails.length} failed of ${N}`);
+    console.log(`${fails.length} failed of ${ran}`);
     process.exit(1);
   }
-  console.log(`all ${N} selftests passed`);
+  console.log(`all ${ran} selftests passed`);
 }
 
 async function main() {
