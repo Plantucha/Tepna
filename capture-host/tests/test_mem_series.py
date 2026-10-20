@@ -120,7 +120,6 @@ def test_read_defaults_to_now_and_the_real_runner(monkeypatch):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake)
-    monkeypatch.setattr(mem_series.read_mem_series, "__defaults__", (None, subprocess.run))
     assert mem_series.read_mem_series(1)["segments"] == []
     assert seen["kw"]["timeout"] == 60
 

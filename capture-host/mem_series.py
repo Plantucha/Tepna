@@ -109,8 +109,12 @@ def series(lines) -> dict:
     return {"schema": "tepna.mem-series/1", "shapes": SHAPES, "segments": segments}
 
 
-def read_mem_series(hours: float, now: _dt.datetime | None = None, run=subprocess.run) -> dict | None:
+def read_mem_series(hours: float, now: _dt.datetime | None = None, run=None) -> dict | None:
     """The last `hours` of the capture unit's mem lines, or `None` when journalctl cannot be read."""
+    # Resolved at call time, not bound as a default: a default binds at import, so a test cannot swap
+    # it without patching `__defaults__`, and mutmut's trampoline never reads the patched tuple.
+    if run is None:
+        run = subprocess.run
     until = now or _dt.datetime.now()
     since = until - _dt.timedelta(hours=hours)
     try:
