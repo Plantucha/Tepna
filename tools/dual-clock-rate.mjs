@@ -40,6 +40,7 @@ import readline from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { MAX_CRYSTAL_SPREAD_PPM, MS_PER_S_TO_PPM, crystalVerdict } from './device-stability.mjs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 /* σ_y comes from the SPINE's Allan core, not a local reimplementation — `clock.js` owns
    `allanFromPhase`/`allanSlope` and `device-stability.mjs` owns the one-reference-τ picker. This tool
@@ -47,6 +48,13 @@ import { MAX_CRYSTAL_SPREAD_PPM, MS_PER_S_TO_PPM, crystalVerdict } from './devic
 const _require = createRequire(import.meta.url);
 const DexClock = _require(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'clock.js'));
 
+/* Reads no flags, so a mistyped one would be taken as the capture directory and refuse to exist one
+   layer down, naming the wrong cause. Refuse it here by name instead. */
+/* The refusal must fire for the CLI ONLY. `process.argv` belongs to whoever is running, so a
+   module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
+   reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { positional: true }, { tool: 'dual-clock-rate' });
 const DIR = process.argv[2] || '/home/michal/tepna-smoketest/captures/2026-07-26';
 
 /* The host stamp is written to millisecond resolution, so a host column derived from the device time
