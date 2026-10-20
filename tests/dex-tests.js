@@ -44015,6 +44015,38 @@
           );
         });
       });
+      /* Shim parity (RESIDUE `2026-10-12-orchestrator-shims-bypass-signalspec`). The table above
+         reads each `object` expectation off the global the RESOLVER names. The emit shims in
+         `signal-orchestrate.js` read their own global (`_<node>Win = { <Name>: root.<Name> }`). For
+         four types the two globals are one object. For `cgm` they are not: the resolver returns
+         `GLUDSP` and `glucoHost` reads `GlucoDex`, two objects that `glucodex-dsp.js` publishes
+         separately (and `GlucoDex` only when no earlier one exists). These assertions join the two
+         copies: every function name both objects carry must be the SAME function, so a drift on
+         either side reds here instead of on a shipped page. The member types (`rr`, `spo2`, `hrv`)
+         need no row: the table above already reads them off the shim's own namespace. */
+      var SHIM_NS = { ecg: 'ECGDex', ppg: 'PpgDex', cgm: 'GlucoDex', cpap: 'CPAPDex', acc: 'MotionDex' };
+      Object.keys(WANT).forEach(function (t) {
+        if (!WANT[t].object) return;
+        var name = SHIM_NS[t];
+        T.ok('the ' + t + ' emit shim names its namespace here (a new object type cannot land unpinned)', !!name, name || 'add the global its _HOSTS shim reads');
+        if (!name) return;
+        var ns = env[name],
+          got = SS[t] && typeof SS[t].dsp === 'function' ? SS[t].dsp() : undefined;
+        T.ok('env.' + name + ' (the namespace the ' + t + ' shim reads) is co-loaded in this lane', !!ns, ns ? 'present' : 'add it to env in BOTH lanes');
+        if (!(ns && got)) return;
+        var shared = Object.keys(got).filter(function (k) {
+          return typeof got[k] === 'function' && typeof ns[k] === 'function';
+        });
+        T.ok(t + ': the resolver object and root.' + name + ' share at least one function name (the identity below is vacuous otherwise)', shared.length > 0, shared.join(', ') || 'none');
+        var differ = shared.filter(function (k) {
+          return got[k] !== ns[k];
+        });
+        T.ok(
+          'SignalSpec.' + t + '.dsp() and root.' + name + ' hold the SAME function under every shared name (shim/resolver parity)',
+          shared.length > 0 && differ.length === 0,
+          differ.length ? 'a DIFFERENT function under: ' + differ.join(', ') : shared.length + ' shared, all identical'
+        );
+      });
       /* The aux + un-migrated types resolve to `undefined` because no node owns them yet, and that
          is a measured fact rather than a convention: `hr` is an auxiliary channel with no DSP of its
          own, and `eeg`/`flow` name DSPs that do not exist in the repo. A resolver here that starts
