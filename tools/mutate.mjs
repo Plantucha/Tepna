@@ -1478,13 +1478,19 @@ async function runFile(file) {
      never mutated, so writing one there left a stray `*.mutate-backup` in the working tree after every
      parallel run for no benefit. Observed after a killed sweep: a lone `ppgdex-dsp.js.mutate-backup`
      beside a perfectly clean source. */
+  /* The degraded serial fallback TOOK OVER: `JOBS > 1` was asked for and no worker tree could be
+     created, so the mutants ran in place. It is a property of the RUN, not of the request, and two
+     readers need it — `restore()` below, whose guard is keyed on JOBS === 1, and the record. */
+  let degradedSerial = false;
   const bak = abs + '.mutate-backup';
   if (JOBS === 1) {
     writeFileSync(bak, original);
     _dirty.set(abs, original);
   }
   const restore = () => {
-    if (JOBS !== 1) return; // nothing was written here
+    // `JOBS > 1` writes only inside the worker trees — except on the degraded serial fallback,
+    // which writes the caller's own copy and so owes the same restore.
+    if (JOBS !== 1 && !degradedSerial) return;
     try {
       writeFileSync(abs, original);
     } catch {}
@@ -1921,7 +1927,9 @@ async function runFile(file) {
       }
       if (!trees.length) {
         /* No worker could be created — degrade to the serial in-place path rather than doing nothing.
-           The backup/recovery machinery is keyed on JOBS === 1, so mark this file dirty explicitly. */
+           The backup/recovery machinery is keyed on JOBS === 1, so mark this file dirty explicitly and
+           tell `restore()` and the record that this path ran. */
+        degradedSerial = true;
         writeFileSync(bak, original);
         _dirty.set(abs, original);
         for (const mu of picked) {
@@ -1936,30 +1944,15 @@ async function runFile(file) {
           jwrite({ k: jkey(mu) });
           classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
         }
-        writeFileSync(abs, original);
-        rmSync(bak, { force: true });
-        _dirty.delete(abs);
-        return {
-          file,
-          groupsRun: filter || 'FULL SUITE',
-          groupCount: g ? g.count : null,
-          groupsSelected: g ? g.selected : null,
-          generated: all.length,
-          generatedInFile: touched ? allGenerated.length : undefined,
-          touchedLines: touched ? touched.size : undefined,
-          tested: picked.length + resumedCount,
-          killed,
-          invalid,
-          invalids,
-          quarantined: quarantinedThisRun,
-          quarantinedMu: quarantined,
-          killers: Array.from(killers.entries())
-            .sort((a, b) => b[1] - a[1])
-            .map(([group, n]) => ({ group, n })),
-          survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after })),
-          // the named kill list on the degraded serial path too — a reader cannot tell which path ran
-          killedMutants: canaryState === 'FAILED' ? null : killedMu.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
-        };
+        /* NO SECOND RECORD BUILDER, AND NO EARLY RETURN. `restore()` covers this path now, and control
+           falls through the worker pool — `trees` is empty, so `trees.map(worker)` is a no-op — to the
+           ONE builder at the end of runFile. Until 2026-10-20 this block returned a record of its own,
+           and every field added to the other one missed it: it carried no `equivalence`, so no excuse
+           was applied and no REFUTED claim could fire, and no `canary`/`voided`, so a run whose canary
+           SURVIVED published a kill count and escaped the gate's void filter. It also returned BEFORE
+           the canary post-processing, so a degraded run never learned a canary and never printed the
+           UNTRUSTED warning (residue 2026-10-20-the-degraded-serial-sweep-reports-no-equivalence-split,
+           the second instance after `killedMutants`). */
       }
       let next = 0;
       const worker = async (dir) => {
@@ -2063,7 +2056,11 @@ async function runFile(file) {
        pass which spends the budget. The job summary then states the split with no log tail to read. */
     calibrationMs: baseMs,
     mutantPassMs: Date.now() - _t0,
-    jobs: JOBS,
+    jobs: degradedSerial ? 1 : JOBS,
+    /* …and whether that is what was ASKED for. `--jobs 4` degraded to one in-place worker reads as
+       `jobs: 1, degradedSerial: true`, so two runs of the same command are no longer identical on
+       paper while one of them paid four times the wall clock. */
+    degradedSerial,
     // the canary is scaffolding, not a measurement — it must not enter the denominator it guards
     tested: picked.length - (canaryMu ? 1 : 0) + resumedCount + reusedCount,
     killed: canaryState === 'FAILED' ? null : killed,
@@ -2790,6 +2787,27 @@ function selftest() {
   ck('NULL CONTROL · the complete list selects every mutant', _full.picked.length, _collide.length);
   ck('NULL CONTROL · …and refuses nothing', _full.ok, true);
   ck('E4b · a duplicated entry does not double-count its mutant', selectRecorded(_collide, [_collide[0], _collide[0]]).picked.length, 1);
+
+  console.log('\none record builder — runFile returns through ONE object literal, on every path');
+  {
+    /* `runFile` built its result in TWO places — the main tail and the degraded serial fallback — and
+       a field added to one reached neither the other nor any check. `killedMutants` hit it in #3717,
+       and `equivalence` had been missing from the degraded record the whole time. The record's own
+       signature keys ARE the tripwire: a second object literal carrying them is a second builder,
+       whatever it is called. `groupsRun` and `killedMutants` read 2 on the code this replaced. */
+    const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const sites = (k) => (self.match(new RegExp('^\\s+' + k + ':', 'gm')) || []).length;
+    for (const k of ['groupsRun', 'killedMutants', 'equivalence', 'canary', 'voided', 'jobs', 'calibrationMs']) {
+      ok('the result record builds `' + k + '` in exactly ONE place', sites(k) === 1, 'sites=' + sites(k));
+    }
+    /* WHY one builder is worth a gate, in one assertion: the void filter reads a KEY, so a record
+       built without it is not "void and reported" — it is a run the gate cannot tell from a measured
+       one. The degraded builder also published `killed` raw where the main one nulls it. The other
+       half of this pair is the `voided: true` case in the verdict section below, which reads UNKNOWN. */
+    const degradedShape = { file: 'clock.js', tested: 12, invalid: 0, killed: 12, touchedLines: 4, survivors: [{ line: 7, op: 'num → 0', before: 'a', after: 'b' }] };
+    const blind = diffVerdict([degradedShape], { base: 'origin/main', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' });
+    ok('a record with NO `voided` key escapes the void filter entirely', blind.verdict.status !== 'UNKNOWN', blind.verdict.status);
+  }
 
   console.log('\nverdict — tepna.verdict/1 at every diff-gate exit, pinned against verdict.js');
   {
