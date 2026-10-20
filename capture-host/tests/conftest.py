@@ -406,6 +406,33 @@ def _bonding_select_is_the_configured_address(request):
 
 
 @_pytest.fixture(autouse=True)
+def _pymalloc_stats_read_is_pinned(request):
+    """`pymalloc_stats.read` calls into CPython and libc through ctypes on every status tick. Left
+    alone, every status-loop test makes that native call, so a mutant that breaks a ctypes binding
+    crashes the test process in whichever of those tests runs first, and mutmut reads the crash as
+    UNDECIDED (#3733). Pinned to an unmeasured answer here, like `_bonding_select_is_the_configured_address`
+    above; `test_pymalloc_stats.py` checks the bindings before it makes the real call. Guarded: never
+    the importer, and saved/restored by hand for the reason given above."""
+    if request.module.__name__ == "test_pymalloc_stats":
+        yield
+        return
+    mod = sys.modules.get("pymalloc_stats")
+    if mod is None:
+        yield
+        return
+
+    def unmeasured():
+        return {"arenas": None, "held": None, "live": None, "reason": "pymalloc stats: pinned by the test suite"}
+
+    saved = mod.read
+    mod.read = unmeasured
+    try:
+        yield
+    finally:
+        mod.read = saved
+
+
+@_pytest.fixture(autouse=True)
 def _no_fsync_barrier_spans_tests():
     """Drain the off-loop fsync worker between tests. Same discipline as the capture-event reset
     above, for the same reason: a PROCESS-GLOBAL side effect that outlives the test that caused it.
