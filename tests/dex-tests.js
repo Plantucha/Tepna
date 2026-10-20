@@ -19723,6 +19723,17 @@
         )
       );
 
+      /* A FLOOR, NOT A COUNT. `history[]` also carries digest-move notes a session wrote by hand, and a
+         re-cut deleted three of them on main (`bc84db9f6` held 5 entries, `f71d741ec` held 2 — residue
+         `2026-10-18-yield-pin-rerun-deletes-hand-appended-history`). Appending a note keeps this green;
+         only REMOVING one reds it, which is the single direction that loses a record. Raise the floor
+         when a note is added if you want the new one protected too. */
+      T.ok(
+        'the hand-written digest-move notes are still there — the record only ever grows',
+        Array.isArray(pin.history) && pin.history.length >= 6,
+        'history ' + (pin.history || []).length + ' entries, floor 6'
+      );
+
       /* ── STAGE 1 · THE GENERATOR, REPLAYED — this is the assertion that can exonerate it ─────── */
       var sel = YieldPin.selectionCounts(CG, { nSubj: pin.config.nSubj, minN: pin.config.minN, seedCap: pin.config.seedCap });
       T.eq(
