@@ -3591,6 +3591,16 @@ def test_a_loop_stall_line_names_no_device_and_is_still_a_cause_dated_at_the_sta
     assert loss_audit.LOOP_STALL == "daemon:event-loop stall"
 
 
+def test_a_loop_stall_line_does_not_end_the_read_so_a_later_line_still_counts():
+    # a stall line moves on to the NEXT line; it never stops the scan (survivor `continue` -> `break`)
+    later = _STALL_LINE.replace("03:46:14", "04:10:00").replace("15682 ms", "2000 ms")
+    ev = loss_audit.read_journal("Test Ring TR-01", T0, T0 + dt.timedelta(days=2), run=_journal(_STALL_LINE + later))
+    assert ev == [
+        (dt.datetime(2026, 10, 19, 3, 45, 58, 318000), loss_audit.LOOP_STALL),
+        (dt.datetime(2026, 10, 19, 4, 9, 58), loss_audit.LOOP_STALL),
+    ]
+
+
 def test_a_stall_line_without_a_length_is_dropped_not_dated_at_its_log_time():
     line = _STALL_LINE.replace("stalled 15682 ms", "stalled ? ms")
     assert loss_audit.read_journal("Test Ring TR-01", T0, T0, run=_journal(line)) == []

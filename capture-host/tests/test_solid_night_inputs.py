@@ -6218,6 +6218,15 @@ def test_five_stall_gaps_fail_the_band_as_five_unattributed_gaps_did(tmp_path):
     assert out["reason"].startswith("5 unattributed gap(s) (3 under an event-loop stall, daemon:event-loop stall)")
 
 
+def test_five_plain_unattributed_gaps_name_no_event_loop_stall(tmp_path):
+    # with no stall among the gaps, the reason carries no stall clause (survivor `(stalled) or True`)
+    five = [(f"2026-09-20T23:01:{s}0", 1.0, "unattributed") for s in (1, 2, 3, 4, 5)]
+    out = _cont(tmp_path, gaps=five)
+    assert out["status"] == "FAIL"
+    assert out["reason"].startswith("5 unattributed gap(s), 5 s, inside the worn interval")
+    assert "event-loop stall" not in out["reason"]
+
+
 def test_one_stall_gap_passes_the_band_and_names_itself(tmp_path):
     out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 17.0, si.LOOP_STALL)])
     assert out["status"] == "PASS"
