@@ -12708,7 +12708,7 @@
       if (typeof src === 'string') {
         T.ok(
           'analyze() measures active seconds with the SAME gap cut as ECGDex and passes them',
-          /PPG_CVHR_GAP_S\s*=\s*10/.test(src) && /cvhrFromNN\(corr\.nn,\s*corr\.tt,\s*_cvhrActiveSec\)/.test(src),
+          /PPG_CVHR_GAP_S\s*=\s*10/.test(src) && /cvhrFromNN\(corr\.nn,\s*corr\.tt,\s*_cvhrActiveSec,\s*_spansGap\)/.test(src),
           'the call site does not pass measured seconds'
         );
         T.ok('the result carries cvhrDenomSec only when one was computed', /_cvhr\.denomSec\s*>\s*0\s*\?\s*\{\s*cvhrDenomSec/.test(src));
@@ -12808,6 +12808,123 @@
         } else T.skip('a driven PPG record resolves a CVHR index', 'analyze returned ' + (rr2 && rr2.error ? rr2.error : 'index ' + (rr2 && rr2.cvhrIndex)));
       } else T.skip('PpgDex.buildNodeExport + analyze available', 'not co-loaded in this runner');
     });
+
+    /* ════ THE GAP MASK — the second half of the same port (DEEP-DIVE §4 item 2, treatment (3)) ════
+       F3 above fixed the DENOMINATOR on both sides. The NUMERATOR stayed split: ECGDex's
+       `detectCVHR` takes a `spansGap` mask, builds a per-second `covered` array and skips an event
+       stamped on a second a dropout spans; `cvhrFromNN` took no mask at all, so the same beats could
+       yield different event counts on the two nodes the Integrator corroborates against each other.
+       Both files reason, in a comment, that the mask cannot matter — "the 1 Hz resample holds the
+       last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate stays shut".
+       Measured by `tools/cvhr-gap-edge.mjs` over 51 planted cases: it matters in 3 of them, all with
+       a rate step across a 20-25 s hole, and the planted case below is one of those three.
+       ⚠️ A SECOND FINDING RIDES ALONG AND IS NOT REPAIRED HERE: a hole's EDGE adds events on COVERED
+       seconds, because the band-pass support reaches across the boundary while a per-second mask
+       only covers the seconds the hole itself spans. The last leg pins that it is still happening.
+       If that leg reds because the edge term was repaired, the brief section and residue row
+       `2026-10-19-a-cvhr-hole-edge-adds-events-on-covered-seconds` are what to update — not it. */
+    group('PpgDex cvhrFromNN takes the GAP MASK — one numerator, as ECGDex (DEEP-DIVE item 2)', 'ppgdex-dsp · cvhr · gap · §∅', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.cvhrFromNN === 'function')) {
+        T.skip('PPGDSP.cvhrFromNN available', 'not loaded');
+        return;
+      }
+      /* The planted record `tools/cvhr-gap-edge.mjs` uses: one apnea-band oscillation, a hole of
+         `holeSec` spliced in at a fixed beat, the same oscillation (plus a rate step) after it.
+         `insert: false` is the CONTROL — the same beats with no hole, which is what isolates the
+         hole's own contribution. A ZERO-length hole is NOT the control: it inserts a 0 ms interval
+         and an infinite rate, and suppresses events on its own. */
+      function plant(holeSec, stepBpm, insert) {
+        var nn = [],
+          tt = [],
+          t = 0;
+        var push = function (hrBpm) {
+          var ms = 60000 / hrBpm;
+          t += ms / 1000;
+          nn.push(ms); // nn[k] is the interval ENDING at tt[k] — buildPPI's convention
+          tt.push(t);
+        };
+        var osc = function (sec, b) {
+          return b + 8 * Math.sin((2 * Math.PI * sec) / 30);
+        };
+        while (t < 900) push(osc(t, 60));
+        if (insert) {
+          t += holeSec;
+          nn.push(holeSec * 1000);
+          tt.push(t);
+        }
+        var until = t + 900;
+        while (t < until) push(osc(t, 60 + stepBpm));
+        var active = 0,
+          sg = [];
+        for (var k = 0; k < nn.length; k++) sg.push(false);
+        for (var i = 1; i < tt.length; i++) {
+          var d = tt[i] - tt[i - 1];
+          if (d > 0 && d <= 10) active += d;
+          else if (d > 10) sg[i] = true; // nn-aligned: the interval ENDING at beat i spans the hole
+        }
+        return { nn: nn, tt: tt, activeSec: active, spansGap: sg };
+      }
+      var H = plant(20, 15, true),
+        CTL = plant(20, 15, false);
+      var unmasked = P.cvhrFromNN(H.nn, H.tt, H.activeSec),
+        masked = P.cvhrFromNN(H.nn, H.tt, H.activeSec, H.spansGap),
+        ctl = P.cvhrFromNN(CTL.nn, CTL.tt, CTL.activeSec);
+      T.ok('control · the planted oscillation IS detected, so nothing below is vacuous', ctl.events.length > 50 && ctl.index > 0, 'events ' + ctl.events.length + ' index ' + ctl.index);
+      T.ok(
+        'DEFECT direction · without the mask an event is stamped on a second the hole SPANS',
+        unmasked.events.length === masked.events.length + 1,
+        'unmasked ' + unmasked.events.length + ' masked ' + masked.events.length
+      );
+      T.ok('…and the mask removes exactly that one, nothing else', masked.events.length === unmasked.events.length - 1 && masked.events.length > 50, 'masked ' + masked.events.length);
+      T.eq('the 3-argument call is unchanged — the mask was added LAST (§🧪 back-compat)', unmasked.events.length, P.cvhrFromNN(H.nn, H.tt, H.activeSec).events.length);
+      T.ok(
+        'coveredSec is published, and the hole is NOT in it',
+        masked.coveredSec > 0 && masked.coveredSec <= Math.floor(H.tt[H.tt.length - 1]) - 19,
+        'coveredSec ' + masked.coveredSec + ' span ' + Math.floor(H.tt[H.tt.length - 1])
+      );
+      T.ok(
+        'no event survives on an uncovered second',
+        masked.events.every(function (e) {
+          return e.sec < 900 || e.sec > 920;
+        }),
+        JSON.stringify(
+          masked.events.filter(function (e) {
+            return e.sec >= 900 && e.sec <= 920;
+          })
+        )
+      );
+      /* THE POINT — same beats, same mask, same count. A mask on one node only would make the
+         Integrator's corroboration of the two `apnea.cvhrIndex` values measure the dropouts. */
+      var E = env.ECGDSP;
+      if (E && typeof E.detectCVHR === 'function') {
+        T.eq('CROSS-NODE · the two nodes count the same events with the mask', masked.events.length, E.detectCVHR(H.nn, H.tt, H.activeSec, H.spansGap).events.length);
+        T.eq('CROSS-NODE · …and without it', unmasked.events.length, E.detectCVHR(H.nn, H.tt, H.activeSec).events.length);
+      } else T.skip('ECGDSP.detectCVHR co-loaded for the cross-node leg', 'ECGDSP not in this runner');
+      /* LIMIT, MEASURED AND NAMED: the per-second mask covers the seconds the hole spans, and the
+         band-pass support (a 47 s and a 9 s moving average) plus the dip-to-rebound search (up to
+         48 s) reach ACROSS the boundary, so the edge still manufactures events on covered seconds —
+         in both nodes. The ±2 s limit both files state is about the exported HR series, not this. */
+      var EDGE = plant(900, -20, true),
+        EDGE_CTL = plant(900, -20, false);
+      var edge = P.cvhrFromNN(EDGE.nn, EDGE.tt, EDGE.activeSec, EDGE.spansGap),
+        edgeCtl = P.cvhrFromNN(EDGE_CTL.nn, EDGE_CTL.tt, EDGE_CTL.activeSec);
+      T.ok(
+        'LIMIT · a hole EDGE still adds events the mask cannot reach — unrepaired, in both nodes',
+        edge.events.length > edgeCtl.events.length,
+        'with hole ' + edge.events.length + ' control ' + edgeCtl.events.length
+      );
+      var srcP = env.sources && env.sources['ppgdex-dsp.js'];
+      if (typeof srcP === 'string') {
+        T.ok(
+          'the mask indexes the interval that ENDS at the second — the pre-gap beat would leave it inert',
+          /covered\[s\]\s*=\s*spansGap\s*&&\s*spansGap\[Math\.min\(j \+ 1, N - 1\)\]/.test(srcP),
+          'the covered-mask indexing is not the ECGDex one'
+        );
+        T.ok('…and the event loop skips an uncovered second', /if \(!covered\[s\]\) continue;/.test(srcP));
+      } else T.skip('ppgdex-dsp.js source in env.sources', 'not available in this runner');
+    });
+
     group('OxyDex waveform SpO2 trend — self-calibrated, refuses without its pair, experimental tier', 'oxydex-dsp · oxydex-registry · spo2w', function (T) {
       var P = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.spo2WaveformTrend ? env.OxyDex._bare : null) || env.OxyDex;
       if (!P || typeof P.spo2WaveformTrend !== 'function') {
