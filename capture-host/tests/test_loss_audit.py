@@ -3638,3 +3638,159 @@ def test_the_night_absent_UNKNOWN_carries_the_commit_and_yields_only_to_a_loss_O
     assert o2["result"]["worn_but_not_recorded_fraction"] == loss_audit.THRESHOLD, o2["result"]
     assert o2["status"] == "UNKNOWN", o2["status"]
     assert o2["producedBy"]["commit"] == "abc1234"
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE BOX'S OWN JOB AS A SPAN — residue 2026-10-13-the-stall-that-tore-the-ring-is-invisible-to-the-attribution
+#
+# The measurement and its trap live over `loss_audit.JOB_SPANS`. In one line: on 2026-10-12 to 13 five of
+# the ring's six gaps start 33 to 60 s inside a `solid-night ... re-judged` bracket, the `event loop
+# stalled` warning in the same bracket sits 5 to 26 s before each gap, and both reaches that attribution
+# has are 3 s forward and 15 s backward. So the bin is keyed on the JOB the box declares, never on the
+# stall, and it reaches only a gap whose START falls inside the bracket.
+# ---------------------------------------------------------------------------------------------------
+
+_REJUDGE = "daemon:solid-night re-judge"
+
+
+def _jrun(stdout, rc=0):
+    class R:
+        returncode = rc
+
+    R.stdout = stdout
+    return lambda *a, **k: R()
+
+
+def test_a_job_the_box_declares_is_read_as_a_SPAN_not_a_line():
+    """Two lines bracket the job, and the span is what they bracket. The stall warning between them is a
+    SAMPLE of the job's occupancy: it is read as no span of its own and ends nothing."""
+    lines = "\n".join(
+        [
+            "2026-10-13T03:22:57-04:00 vigil python[1]: solid-night: 2026-10-11 — re-judged: the code moved",
+            "2026-10-13T03:23:09-04:00 vigil python[1]: WARNING event loop stalled 1112 ms — host stamps waited",
+            "2026-10-13T03:23:49-04:00 vigil python[1]: solid-night: 2026-10-11 PASS — 6 solid of 6 nights",
+        ]
+    )
+    spans = loss_audit.read_job_spans(T0, T0 + dt.timedelta(hours=8), run=_jrun(lines))
+    assert spans == [(dt.datetime(2026, 10, 13, 3, 22, 57), dt.datetime(2026, 10, 13, 3, 23, 49), _REJUDGE)], spans
+
+
+def test_a_bracket_whose_END_never_arrives_is_DROPPED_not_widened():
+    """Measured without the cap, one bracket read 87,982 s wide, because the next night's verdict line
+    closed a start whose own verdict was never written. An open span would reach every later gap, so the
+    cap drops it — and the verdict line that follows opens nothing."""
+    start = dt.datetime(2026, 10, 13, 3, 22, 57)
+    late = start + dt.timedelta(seconds=loss_audit.JOB_SPAN_CAP_S + 1)
+    lines = "\n".join(
+        [
+            f"{start.isoformat()}-04:00 vigil python[1]: solid-night: 2026-10-11 — re-judged: the code moved",
+            f"{late.isoformat()}-04:00 vigil python[1]: solid-night: 2026-10-11 PASS — 6 solid of 6 nights",
+        ]
+    )
+    assert loss_audit.read_job_spans(T0, T0 + dt.timedelta(hours=8), run=_jrun(lines)) == []
+
+
+def test_an_unreadable_journal_yields_None_job_spans_and_never_an_empty_list():
+    """§∅: `[]` means read, and the window holds no such job — which LICENSES attributing a gap to the
+    radio or to nobody. "could not be read" must leave the gap unattributed, so the two stay distinct."""
+
+    def boom(*a, **k):
+        raise OSError("no journalctl here")
+
+    assert loss_audit.read_job_spans(T0, T0, run=boom) is None
+    assert loss_audit.read_job_spans(T0, T0, run=_jrun("", rc=1)) is None
+    assert loss_audit.read_job_spans(T0, T0, run=_jrun("nothing matched here\n")) == []
+    # a verdict line with no start before it brackets nothing
+    unpaired = "2026-10-13T03:23:49-04:00 vigil python[1]: solid-night: 2026-10-11 PASS — 6 solid of 6\n"
+    assert loss_audit.read_job_spans(T0, T0, run=_jrun(unpaired)) == []
+
+
+def test_a_gap_that_starts_inside_the_box_s_own_job_is_attributed_to_the_job():
+    """The job is the cause the journal states and the old attribution could not reach: 38 s is past the
+    3 s forward window, and the bracket's own first line is what names it."""
+    t0 = T0 + dt.timedelta(seconds=38)
+    spans = [(T0, T0 + dt.timedelta(seconds=52), _REJUDGE)]
+    r = loss_audit.attribute_gaps_detail([(t0, 11.0)], [], spans)[0]
+    assert r["cause"] == _REJUDGE and r["cause_dir"] == "in_job", r
+    assert r["cause_at"] == T0, r  # the job's own first line, not the gap's start
+    assert r["job_cause"] == _REJUDGE, r
+
+
+def test_a_device_named_line_in_the_forward_window_BEATS_the_job_span():
+    """A line naming the device is the stronger evidence and keeps the attribution. The containing job is
+    still published, so learning the box was inside its own job costs nothing."""
+    t0 = T0 + dt.timedelta(seconds=38)
+    spans = [(T0, T0 + dt.timedelta(seconds=52), _REJUDGE)]
+    ev = [(t0 + dt.timedelta(seconds=2), "daemon:pull paused live")]
+    r = loss_audit.attribute_gaps_detail([(t0, 11.0)], ev, spans)[0]
+    assert r["cause"] == "daemon:pull paused live" and r["cause_dir"] == "after", r
+    assert r["job_cause"] == _REJUDGE, r
+
+
+def test_the_job_span_BEATS_a_backward_line_and_a_gap_outside_every_bracket_keeps_its_own_cause():
+    """The backward search is the audit's weaker evidence — an event that merely PRECEDES a gap may have
+    nothing to do with it — while the box was inside its own job for the whole span. And a gap outside
+    every bracket is untouched by this bin, which is the half that keeps it honest."""
+    t0 = T0 + dt.timedelta(seconds=38)
+    spans = [(T0, T0 + dt.timedelta(seconds=52), _REJUDGE)]
+    ev = [(t0 - dt.timedelta(seconds=9), "link:dbus busy")]
+    r = loss_audit.attribute_gaps_detail([(t0, 11.0)], ev, spans)[0]
+    assert r["cause"] == _REJUDGE and r["cause_dir"] == "in_job", r
+    assert r["backward_cause"] == "link:dbus busy", r  # kept, and not the attribution
+    far = T0 + dt.timedelta(seconds=900)
+    r2 = loss_audit.attribute_gaps_detail([(far, 11.0)], [(far - dt.timedelta(seconds=9), "link:dbus busy")], spans)[0]
+    assert r2["cause"] == "link:dbus busy" and r2["job_cause"] is None, r2
+    # and with no spans at all the per-gap record still carries the key
+    r3 = loss_audit.attribute_gaps_detail([(t0, 11.0)], ev)[0]
+    assert r3["cause"] == "link:dbus busy" and r3["job_cause"] is None, r3
+    r4 = loss_audit.attribute_gaps_detail([(t0, 11.0)], None)[0]
+    assert r4["cause"] == "unattributed (no journal)" and r4["job_cause"] is None, r4
+
+
+def test_PLANT_the_ring_gap_the_stall_tore_reads_the_JOB_and_not_nobody(tmp_path):
+    """The night of 2026-10-12 in one gap. The ring produced nothing across the stall (`witness="frozen"`,
+    so the seconds are real loss), the stall line names no device, and before this bin the gap read
+    `unattributed` with `daemon_caused_min: 0` — the figure that would name the program reading zero while
+    the program was inside its own job. The geometry is the measured one: the bracket opens 38 s before
+    the gap and closes 14 s after it."""
+    d = _ring_stall_night(tmp_path, witness="frozen")
+    gap_at = dt.datetime(2026, 9, 22, 22, 39, 24) + dt.timedelta(seconds=99)  # the last row before the stall
+    span = (gap_at - dt.timedelta(seconds=38), gap_at + dt.timedelta(seconds=14), _REJUDGE)
+    blind = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [], job_spans=lambda *a: [])["devices"]["Ring"]
+    assert [g["at"] for g in blind["gaps"]] == [gap_at.isoformat()], blind["gaps"]
+    assert blind["gaps"][0]["cause"] == "unattributed" and blind["daemon_caused_min"] == 0, blind
+    seeing = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [], job_spans=lambda *a: [span])["devices"]["Ring"]
+    assert seeing["gaps"][0]["cause"] == _REJUDGE, seeing["gaps"]
+    assert seeing["daemon_caused_min"] > 0, seeing["daemon_caused_min"]
+    assert seeing["lost_min"] == blind["lost_min"], "attribution moves no seconds, only their name"
+
+
+def test_the_audit_writes_the_job_spans_beside_the_night(tmp_path):
+    """Written beside the night for the reason `clock_events` is: the verdict side has no journal and
+    journald rotates, so after the audit ran "was the box inside its own job at 03:23?" has to be
+    answerable from the night's own files. `None` (unread) stays distinct from `[]` (read, no job ran)."""
+    d = tmp_path / "2026-09-20"
+    d.mkdir()
+    span = (T0, T0 + dt.timedelta(seconds=52), _REJUDGE)
+    out = loss_audit.audit_night(
+        str(d),
+        [{"name": "Polar H10 02849638", "address": "24:AC:AC:02:84:96", "model": "H10"}],
+        journal=lambda *a, **k: [],
+        clock_events=lambda since, until: [],
+        job_spans=lambda since, until: [span],
+    )
+    assert out["job_spans"] == [
+        {
+            "at": T0.isoformat(timespec="seconds"),
+            "until": (T0 + dt.timedelta(seconds=52)).isoformat(timespec="seconds"),
+            "cause": _REJUDGE,
+        }
+    ], out["job_spans"]
+    unread = loss_audit.audit_night(
+        str(d),
+        [{"name": "Polar H10 02849638", "model": "H10"}],
+        journal=lambda *a, **k: [],
+        clock_events=lambda since, until: [],
+        job_spans=lambda since, until: None,
+    )
+    assert unread["job_spans"] is None, unread["job_spans"]

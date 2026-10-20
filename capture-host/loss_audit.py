@@ -317,6 +317,98 @@ def read_clock_events(
     return out
 
 
+# ── A JOB THE BOX DECLARES FOR ITSELF IS A SPAN, NOT A LINE ───────────────────────────────────────────
+#
+# `KINDS` bins ONE line as a gap's cause, and every needle in it names the device in that same line. A
+# job the box starts for ITSELF names no device, logs a START and an END, and what tore the ring sat
+# BETWEEN them. Measured on the night of 2026-10-12→13 (residue
+# `2026-10-13-the-stall-that-tore-the-ring-is-invisible-to-the-attribution`): five of the ring's six gaps
+# start inside a `solid-night … — re-judged` … `solid-night <date> PASS|FAIL|UNKNOWN` bracket, 33–60 s
+# after the bracket's first line, while the `event loop stalled` warning inside the same bracket sits
+# 5–26 s before each gap. The stall line is one SAMPLE of the job's occupancy and never the cause, and no
+# window around it reaches the gap: `ATTRIB_FORWARD_S` is 3 s and `ATTRIB_WINDOW_S` 15 s, each by its own
+# measurement.
+#
+# ⚠️ THE ROW STATES ITS OWN TRAP, AND THE KEY IS WHAT KEEPS THIS OUT OF IT. Eleven stalls fell inside
+# that night's window and five opened a gap, so a bin keyed on the STALL would claim every stall as loss.
+# This bin is keyed on the JOB the box declares, and it reaches only a gap whose START falls inside one.
+# Measured over the captures tree, 117 closed brackets between 2026-08-30 and 10-19: the ring carries 30
+# unattributed gaps and 5 of them start inside a bracket, against 0.097 expected if its gaps fell
+# uniformly over its 222.9 h of coverage, of which the brackets hold 2605 s (0.325 %) — an enrichment of
+# 52x. The Polar streams see the same 2605 s and 0 of their 17 unattributed gaps start inside one. That
+# asymmetry IS the mechanism: the ring is POLLED and carries no buffer, so a second the loop never asked
+# for does not exist, while a PMD stream's device buffer replays it late and #3168's delay test already
+# calls that a delay.
+#
+# The cap is the instrument's own bound. A start whose end line never arrives would otherwise swallow
+# every line until the next verdict, and measuring the same brackets WITHOUT a cap put one at 87,982 s.
+# 117 of 135 brackets close inside it (median 49 s, p90 66 s, max 89 s) and 18 are abandoned.
+JOB_SPAN_CAP_S = 300.0
+JOB_SPANS: tuple[tuple[str, str, str], ...] = (
+    (
+        "daemon:solid-night re-judge",
+        r"solid-night: .* — re-judged",
+        r"solid-night: \d{4}-\d{2}-\d{2} (?:PASS|FAIL|UNKNOWN)",
+    ),
+)
+
+
+def read_job_spans(
+    since: _dt.datetime, until: _dt.datetime, run=subprocess.run
+) -> list[tuple[_dt.datetime, _dt.datetime, str]] | None:
+    """`[(start, end, cause)]` for the box's own declared jobs in the window, or None when journalctl is
+    unavailable.
+
+    ONE PASS FOR THE NIGHT, like `read_clock_events` and for its reason: the lines name no device, so a
+    per-device call would read the same lines again for every device.
+
+    `None`, never `[]`, when the journal cannot be read — "no such job ran" may attribute a gap to the
+    box and "nobody looked" may not (§∅). A bracket whose END never arrives is DROPPED rather than
+    widened: an open span would reach every later gap, and the cap is what the measurement above bounds."""
+    try:
+        r = run(
+            [
+                "journalctl",
+                "-u",
+                "tepna-capture",
+                "--no-pager",
+                "-o",
+                "short-iso",
+                "--since",
+                since.strftime("%Y-%m-%d %H:%M:%S"),
+                "--until",
+                until.strftime("%Y-%m-%d %H:%M:%S"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    pats = [(cause, re.compile(a), re.compile(b)) for cause, a, b in JOB_SPANS]
+    open_at: dict[str, _dt.datetime] = {}
+    out: list[tuple[_dt.datetime, _dt.datetime, str]] = []
+    for ln in r.stdout.split("\n"):
+        m = re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", ln)
+        if not m:
+            continue
+        ts = _dt.datetime.fromisoformat(m.group(1))
+        for cause, start_re, end_re in pats:
+            held = open_at.get(cause)
+            if held is not None and (ts - held).total_seconds() > JOB_SPAN_CAP_S:
+                del open_at[cause]
+                held = None
+            if start_re.search(ln):
+                open_at[cause] = ts
+            elif held is not None and end_re.search(ln):
+                out.append((held, ts, cause))
+                del open_at[cause]
+    out.sort()
+    return out
+
+
 def journal_shape(lines, span_s: float | None) -> dict | None:
     """The night journal's SHAPE, or `None` when the journal could not be read.
 
@@ -894,7 +986,7 @@ def boundary_gap(prev: dict, nxt: dict) -> tuple | None:
     return ("loss", a, g)
 
 
-def attribute_gaps_detail(gaps, events) -> list[dict]:
+def attribute_gaps_detail(gaps, events, spans=None) -> list[dict]:
     """Per gap: the cause, WHEN it was logged, which direction it was found in, and the backward candidate.
 
     THE WINDOW SPANS THE GAP. `[gap_start, gap_start + ATTRIB_FORWARD_S]` is searched first and its
@@ -903,6 +995,13 @@ def attribute_gaps_detail(gaps, events) -> list[dict]:
     search is kept and published as `backward_cause`: it is the weaker evidence — an event that merely
     precedes a gap may have nothing to do with it — but it is what a night with no in-gap line still has,
     so it remains the fallback rather than being dropped.
+
+    A JOB SPAN IS WEAKER THAN A DEVICE-NAMED LINE AND STRONGER THAN A BACKWARD ONE. `spans` is
+    `[(start, end, cause)]` from `read_job_spans` — a job the box declared for itself, naming no device.
+    A gap whose START falls inside one is attributed to that job when no device-named line sits in the
+    forward window, because the box was inside its own job for the whole of the span while a backward
+    line merely PRECEDES the gap. The containing job is published as `job_cause` either way, so an
+    attribution that went to a device line does not lose it.
 
     `events` None ⇒ every gap 'unattributed (no journal)'.
     """
@@ -916,6 +1015,7 @@ def attribute_gaps_detail(gaps, events) -> list[dict]:
                 "cause_dir": None,
                 "backward_cause": None,
                 "in_gap_cause": None,
+                "job_cause": None,
             }
             for t0, g in gaps
         ]
@@ -929,7 +1029,15 @@ def attribute_gaps_detail(gaps, events) -> list[dict]:
         # anything further into the outage: recorded, never the attribution — see ATTRIB_FORWARD_S
         k = bisect.bisect_right(ts, t0 + _dt.timedelta(seconds=ATTRIB_FORWARD_S))
         deep = (ts[k], events[k][1]) if (k < len(ts) and (ts[k] - t0).total_seconds() <= g) else None
-        chosen, direction = (fwd, "after") if fwd else ((back, "before") if back else (None, None))
+        job = next(((a, c) for a, b, c in spans or () if a <= t0 <= b), None)
+        if fwd:
+            chosen, direction = fwd, "after"
+        elif job:
+            chosen, direction = job, "in_job"
+        elif back:
+            chosen, direction = back, "before"
+        else:
+            chosen, direction = None, None
         out.append(
             {
                 "at": t0,
@@ -939,6 +1047,7 @@ def attribute_gaps_detail(gaps, events) -> list[dict]:
                 "cause_dir": direction,
                 "backward_cause": back[1] if back else None,
                 "in_gap_cause": deep[1] if deep else None,
+                "job_cause": job[1] if job else None,
             }
         )
     return out
@@ -1378,6 +1487,7 @@ def audit_night(
     *,
     journal=read_journal,
     clock_events=read_clock_events,
+    job_spans=read_job_spans,
     journal_shape_of=read_journal_shape,
     probe_armed=read_probe_armed,
 ) -> dict:
@@ -1408,6 +1518,17 @@ def audit_night(
         ]
     )
     out["clock_events_source"] = "journalctl -u tepna-capture" if ce is not None else "unavailable"
+    # The box's OWN jobs as spans, read once for the night — see `read_job_spans`. Written beside the
+    # night for the reason `clock_events` is: the verdict side has no journal and journald rotates.
+    js = job_spans(since, until)
+    out["job_spans"] = (
+        None
+        if js is None
+        else [
+            {"at": a.isoformat(timespec="seconds"), "until": b.isoformat(timespec="seconds"), "cause": c}
+            for a, b, c in js
+        ]
+    )
     # The journal's SHAPE over the same window. `None` when it could not be read — see `journal_shape`.
     out["journal_shape"] = journal_shape_of(since, until)
     # THE PROBE DECLARATION'S JOURNAL HALF (SOLID-NIGHT-COWEAR-AND-PROBE §2), written beside the night
@@ -1508,7 +1629,7 @@ def audit_night(
         ev = journal((name, address) if address else name, since, until)
         if ev is None:
             out["journal"] = "unavailable — every gap is unattributed"
-        detail = attribute_gaps_detail(gaps, ev)
+        detail = attribute_gaps_detail(gaps, ev, js)
         per_gap = [(r["at"], r["s"], r["cause"]) for r in detail]
         # ONE LIST STILL. `by_cause` covers every published gap, so `gaps` and `by_cause` cannot disagree
         # — the invariant `test_the_published_gaps_are_exactly_what_by_cause_sums` defends. What changes is
@@ -1737,6 +1858,7 @@ def write_night(
     commit: str | None = None,
     journal=read_journal,
     clock_events=read_clock_events,
+    job_spans=read_job_spans,
     journal_shape_of=read_journal_shape,
     probe_armed=read_probe_armed,
 ) -> dict:
@@ -1749,6 +1871,7 @@ def write_night(
             devices,
             journal=journal,
             clock_events=clock_events,
+            job_spans=job_spans,
             journal_shape_of=journal_shape_of,
             probe_armed=probe_armed,
         )
