@@ -88,6 +88,13 @@ Logged as residue `2026-10-20-the-no-progress-bound-is-shorter-than-the-clean-ru
 untested: derive the quarantine bound from `baseMs`, as the elapsed timeout already does, so a
 jammed mutant still reads as jammed on a file whose clean run is long.
 
+**The quarantined mutant was equivalent, and the bound finding stands** (Wren, board #440,
+2026-10-20). `input` is never null at that site. A string input hands ECG text to `parseEcgRuns`,
+which yields no spans, so nothing reads `runsSidecar`; the site refuses an object input earlier.
+Flipping `&&` to `||` therefore moves no output. Wren removed the dead `input &&` guard on
+`claude/sidecar-wrn` at `28000c3e4`. The bound above does not move: CI reported doubt where two legs
+agreed, and it would have reported the same doubt about a mutant that changed an answer.
+
 ## 6 · THE SECOND FINDING — three verdicts did not reproduce
 
 All three legs decided the same 19 mutants on `ppgdex-dsp.js`, with an identical line-and-operator
