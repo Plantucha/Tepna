@@ -175,3 +175,116 @@ def test_publishing_failures_does_not_disturb_an_op_that_has_a_real_denominator(
     blestats.fail("connect", "EE:FF", "timeout")
     row = blestats.snapshot()["ops"]["connect/EE:FF"]
     assert row == {"attempts": 2, "successes": 1, "rate": 0.5, "failures": {"timeout": 1}}
+
+
+# ── §1.6 THE SERIES · the journal line, its deltas, and the two absences on it ──────────────────────
+# `snapshot()` is a level and `status.json` is rewritten every tick, so the journal line is the only
+# surface here that keeps a shape over time. The line therefore carries INCREMENTS: a cumulative count
+# on a series surface steps back at every deploy (4 stop/starts in 6 h, measured 2026-09-15) and a
+# reader sees the problem go away. Residue 2026-09-16-ble-counters-not-drawn.
+
+
+def _two_lines(**rates):
+    """One device counted twice, with the first snapshot as the second line's baseline."""
+    blestats.attempt("connect", "AA")
+    blestats.ok("connect", "AA")
+    blestats.fail("connect", "AA", "timeout")
+    blestats.retried("AA", "backoff")
+    first = blestats.snapshot()
+    blestats.attempt("connect", "AA")
+    blestats.ok("connect", "AA")
+    blestats.retried("AA", "backoff")
+    second = blestats.snapshot()
+    return first, second, blestats.log_line(second, first, rates or None)
+
+
+def test_PLANT_the_first_line_of_a_process_has_no_baseline_so_every_delta_is_null():
+    """§∅. A 0 on the first line is a measured "nothing happened" over an interval nobody watched —
+    and it is what a plain `cur - prev.get(k, 0)` with no previous line produces. The line says so in
+    words rather than printing a number it cannot justify."""
+    blestats.attempt("connect", "AA")
+    blestats.ok("connect", "AA")
+    blestats.fail("connect", "AA", "timeout")
+    blestats.retried("AA", "backoff")
+    line = blestats.log_line(blestats.snapshot())
+    assert "connect/AA null/null fail timeout=null" in line
+    assert "retries AA backoff=null" in line
+    assert line.endswith(blestats.FIRST_LINE)
+    assert "0" not in line.replace("AA", ""), "a zero anywhere here is the fabrication this plants"
+
+
+def test_an_op_absent_from_the_previous_line_had_a_baseline_of_exactly_zero():
+    """THE ABSENCE THAT IS NOT ONE, and the two look alike in the same `.get`. A key appears in these
+    dicts on its FIRST bump, so an op the previous line does not name started the interval at zero and
+    its whole count is a measured delta. Nulling it would blank out every op that STARTED during the
+    interval, which is every op worth a line."""
+    first = blestats.snapshot()
+    blestats.fail("link", "CC", "disconnect")
+    d = blestats.deltas(blestats.snapshot(), first)
+    assert d["ops"]["link/CC"] == {"attempts": 0, "successes": 0, "failures": {"disconnect": 1}}
+    blestats.retried("CC", "backoff")
+    assert blestats.deltas(blestats.snapshot(), first)["retries"]["CC"] == {"backoff": 1}
+
+
+def test_the_line_carries_increments_and_the_totals_stay_in_the_status_block():
+    """The whole point of the line. Repeating the totals here would put the figure that resets at every
+    deploy back onto the surface that keeps the series."""
+    _first, second, line = _two_lines()
+    assert second["ops"]["connect/AA"]["attempts"] == 2  # the TOTAL, which status.json carries
+    assert "connect/AA 1/1 fail timeout=0" in line  # the INCREMENT, which the line carries
+    assert "retries AA backoff=1" in line
+    assert "2/2" not in line
+
+
+def test_a_null_rate_and_a_measured_zero_rate_read_differently_on_the_line():
+    """∅ The two absences the card and the line must never collapse: an uncovered window has NO rate,
+    while a covered window holding no backoff has a rate of 0.0 that was measured."""
+    _f, _s, line = _two_lines(
+        AA={"rate": 0.0, "window_sec": 3600.0, "observed_s": 7200.0, "reason": None},
+        BB={"rate": None, "window_sec": 3600.0, "observed_s": 60.0, "reason": "backoff rate BB: observed 60 s"},
+    )
+    assert "backoff rate AA 0.0/h over 60 min" in line
+    assert "backoff rate BB null/h over 60 min" in line
+    assert line.endswith("backoff rate BB: observed 60 s"), "an absence carries its own reason"
+
+
+def test_an_over_budget_rate_prints_to_one_decimal_with_its_window():
+    _f, _s, line = _two_lines(AA={"rate": 34.0, "window_sec": 1800.0, "observed_s": 9000.0, "reason": None})
+    assert "backoff rate AA 34.0/h over 30 min" in line
+
+
+def test_a_process_that_has_counted_nothing_says_so_rather_than_printing_an_empty_line():
+    """A line reading `ble: since last line` with nothing after it is indistinguishable from a
+    formatting defect, and this is the ordinary state of the first minute after a restart."""
+    assert blestats.log_line(blestats.snapshot(), blestats.snapshot()) == "ble: since last line nothing counted yet"
+
+
+def test_an_op_with_no_failure_class_yet_prints_no_failure_segment():
+    blestats.attempt("connect", "AA")
+    first = blestats.snapshot()
+    blestats.attempt("connect", "AA")
+    line = blestats.log_line(blestats.snapshot(), first)
+    assert "connect/AA 0/1" in line and "fail" not in line
+
+
+def test_the_snapshot_shape_deltas_INDEXES_is_pinned_here():
+    """`deltas` reads `snap["ops"]`, `snap["retries"]` and a per-op `cur["failures"]` by index.
+
+    That is sound only while `snapshot()` writes all three on every call, and nothing else pinned
+    it: a `{}` default stood in for the key instead, which is a branch no producer can reach, so
+    ten mutants of those five reads survived (measured 2026-10-20 on #3770). Indexing moved the
+    cost here, where a producer that drops a key fails loudly. Both arms are exercised: the op dict
+    below is empty when nothing has been counted, and populated once something has.
+    """
+    bare = blestats.snapshot()
+    assert set(bare) == {"ops", "retries"}, "deltas indexes both of these"
+    assert bare["ops"] == {} and bare["retries"] == {}
+
+    blestats.attempt("connect", "AA")
+    blestats.fail("connect", "AA", "timeout")
+    blestats.retried("AA", "backoff")
+    full = blestats.snapshot()
+    assert set(full) == {"ops", "retries"}
+    assert set(full["ops"]["connect/AA"]) == {"attempts", "successes", "rate", "failures"}
+    assert full["retries"] == {"AA": {"backoff": 1}}
+    assert blestats.deltas(full, bare)["ops"]["connect/AA"]["failures"] == {"timeout": 1}
