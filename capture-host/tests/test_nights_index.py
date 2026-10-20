@@ -2263,3 +2263,188 @@ def test_the_LISTING_hands_the_SAME_DEADLINE_to_the_SPAN_PASS(tmp_path, monkeypa
     monkeypatch.setattr(ni.time, "monotonic", lambda: 1000.0)
     ni.index_nights(str(tmp_path), budget_s=15.0)
     assert seen == [("spans", 1015.0)], seen
+
+
+def test_the_END_CACHE_lands_UNDER_THE_ROOT_and_is_keyed_by_the_CAPTURES_RELPATH(tmp_path):
+    """The cache file belongs to the box root, beside the one `cached_stats` already writes — never in the
+    process' working directory and never inside the captures tree itself. A span pass that wrote into the
+    corpus would be a measurement editing its own input, and the key is what keeps the two payloads of one
+    file apart: `cached_stats` writes a relpath's WHOLE entry, so the end parks under its own prefix."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    name = "Polar_H10_02849638_20261009220000_ECG.txt"
+    _put(c, "2026-10-09", name, _rows_to("2026-10-09T23:00:00"), "20261009230000", stamp_end=False)
+    ni._session_spans(root)
+    with open(os.path.join(root, "run", "nights-index-cache.json"), encoding="utf-8") as fh:
+        keys = set(json.load(fh))
+    assert f"end:2026-10-09/{name}" in keys, sorted(keys)
+
+
+def test_a_file_that_HAS_CHANGED_is_RE_READ_rather_than_answered_from_the_cache(tmp_path):
+    """A captured file never changes, it only grows — and the cache key is what makes that assumption
+    safe to hold. The key is size and mtime, exactly as `cached_stats`' is, so a file still being written
+    reports a new end on the next pass instead of the end it had when the page first asked."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    f = _put(
+        c,
+        "2026-10-09",
+        "Polar_H10_02849638_20261009220000_ECG.txt",
+        _rows_to("2026-10-09T23:00:00"),
+        "20261009230000",
+        stamp_end=False,
+    )
+    assert ni.cached_row_end(c, f) == nightqc.floating_stamp_s("20261009230000")
+    _w(f, _rows_to("2026-10-09T23:30:00", "2026-10-09T22:00:00") + "2026-10-09T23:30:00.000;2;2\n")
+    _mtime(f, "20261009233000")
+    assert ni.cached_row_end(c, f) == nightqc.floating_stamp_s("20261009233000")
+
+
+def test_the_NAMED_HOST_COLUMN_is_preferred_over_the_rows_LEADING_field(tmp_path):
+    """Two readers, and the order between them is the point. `file_last_row_floating_s` addresses the
+    `Phone timestamp` column BY NAME, so it is right about a layout that does not lead with it — a Polar
+    Sensor Logger export whose device column comes first. `_tail_stamp` reads the line's leading stamp and
+    answers None for that same row, which is exactly why it is the fallback and not the primary."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    f = os.path.join(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt")
+    _w(f, "sensor timestamp [ns];Phone timestamp;v\n0;2026-10-09T22:00:00.000;1\n1;2026-10-09T23:00:00.000;2\n")
+    assert ni._tail_stamp(f) is None, "the leading field is a device counter, so the fallback cannot read it"
+    assert ni.cached_row_end(c, f) == nightqc.floating_stamp_s("20261009230000")
+
+
+def test_a_BUDGET_EXHAUSTED_pass_does_NOT_READ_a_file_it_has_not_cached(tmp_path, monkeypatch):
+    """`read=not spent` is the whole of what the deadline buys, so the absence of the read is asserted
+    rather than assumed: both readers are replaced with ones that raise. A pass that still completes
+    cannot have called either, and a cold cache therefore costs one pass of the old answer instead of
+    7025 seeks."""
+
+    def boom(_p):
+        raise AssertionError("the budget is spent, so this pass may not read a file")
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(
+        c,
+        "2026-10-09",
+        "Polar_H10_02849638_20261009220000_ECG.txt",
+        _rows_to("2026-10-09T23:00:00"),
+        "20261009230000",
+        stamp_end=False,
+    )
+    monkeypatch.setattr(ni.nightqc, "file_last_row_floating_s", boom)
+    monkeypatch.setattr(ni, "_tail_stamp", boom)
+    assert ni._session_spans(root, deadline=0.0)
+
+
+def test_a_pass_EXACTLY_AT_its_deadline_still_MEASURES(tmp_path, monkeypatch):
+    """The boundary, pinned with the one input that separates `>` from `>=`: a clock reading exactly the
+    deadline. At the deadline the budget is not yet spent, so the file is measured and the listing is the
+    zone-free one — a pass that treats the boundary as exhausted falls back to the premise for a budget it
+    has not actually used."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    f = _put(
+        c,
+        "2026-10-09",
+        "Polar_H10_02849638_20261009220000_ECG.txt",
+        _rows_to("2026-10-09T23:00:00"),
+        "20261010050000",
+        stamp_end=False,
+    )
+    monkeypatch.setattr(ni.time, "monotonic", lambda: 500.0)
+    spans = ni._session_spans(root, deadline=500.0)
+    t = nightqc.floating_stamp_s("20261009220000")
+    assert spans[t] == nightqc.floating_stamp_s("20261009230000"), (spans[t], ni._floating_mtime(f, None))
+
+
+def test_the_PREMISED_ends_of_one_session_are_MAXED_like_the_measured_ones(tmp_path):
+    """The budget-exhausted branch accumulates too, and the input that proves it is the same shape the
+    measured accumulation uses: one session, two stampless files, the alphabetically FIRST carrying the
+    LATER write. Keeping only the last file scanned shortens the session's reach and breaks a chain that
+    should hold."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    acc = _put(
+        c, "2026-10-09", "Polar_H10_02849638_20261009220000_ACC.txt", "t\n1\n", "20261010070000", stamp_end=False
+    )
+    ecg = _put(
+        c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", "t\n1\n", "20261010050000", stamp_end=False
+    )
+    spans = ni._session_spans(root, deadline=0.0)
+    t = nightqc.floating_stamp_s("20261009220000")
+    assert spans[t] == ni._floating_mtime(acc, None), (spans[t], ni._floating_mtime(ecg, None))
+
+
+def test_a_TRUNCATED_MULTI_BYTE_WRITE_does_not_take_the_READ_DOWN(tmp_path):
+    """A capture is killed mid-write often enough that this is a real last row: the file's tail ends in a
+    partial UTF-8 sequence. The decode replaces it and the row before it is still read. Raising here would
+    cost the night's whole span for one byte, and it would raise inside a pass the page is waiting on."""
+    f = os.path.join(str(tmp_path), "t.txt")
+    with open(f, "wb") as fh:
+        fh.write(b"Phone timestamp;v\n2026-10-09T23:00:00.000;1\n\xff\xfe")
+    assert ni._tail_stamp(f) == _dt.datetime(2026, 10, 9, 23, 0, 0)
+
+
+def test_a_TRUNCATED_MULTI_BYTE_WRITE_in_the_HEAD_does_not_take_the_SPAN_DOWN(tmp_path):
+    """The same byte in the other read. `span_hours` scans the head for the first stamp, and a stream
+    whose first line is a partial write must still report its span from the second."""
+    f = os.path.join(str(tmp_path), "h.txt")
+    with open(f, "wb") as fh:
+        fh.write(b"\xff\xfe\n2026-10-09T22:00:00.000;1\n2026-10-09T23:00:00.000;2\n")
+    assert ni.span_hours(f) == 1.0
+
+
+def test_span_hours_READS_THE_TAIL_WINDOW_IT_IS_GIVEN(tmp_path):
+    """`tail_bytes` reaches `_tail_stamp` rather than being dropped on the way. The caller that passes a
+    small window gets a small window — which is the only reason the parameter exists, and a 400 MB ECG
+    file is why it is not simply the whole file."""
+    f = os.path.join(str(tmp_path), "w.txt")
+    _w(f, "2026-10-09T22:00:00.000;1\n2026-10-09T23:00:00.000;2\n" + "x" * 200 + "\n")
+    assert ni.span_hours(f, tail_bytes=64) is None
+    assert ni.span_hours(f) == 1.0
+
+
+def test_span_hours_DIVIDES_BY_AN_HOUR_and_the_fixture_is_long_enough_to_see_it(tmp_path):
+    """⚠️ A ONE-HOUR FIXTURE CANNOT SEE THE DIVISOR. The error a wrong divisor makes is proportional, so
+    3601 s instead of 3600 moves a 1 h span by 0.3 ms and rounds to the same two decimals. A 20 h span
+    moves by 0.006 h and does not. The fixture's length is therefore part of the assertion."""
+    f = os.path.join(str(tmp_path), "d.txt")
+    _w(f, "2026-10-09T03:00:00.000;1\n2026-10-09T23:00:00.000;2\n")
+    assert ni.span_hours(f) == 20.0
+
+
+def test_the_HEAD_SCAN_READS_TWENTY_LINES(tmp_path):
+    """The bound is a cost, so it is stated as behaviour: a stream whose first stamped row sits on line 21
+    reports no span rather than paying an unbounded scan for it. Every layout the box writes carries its
+    header in a line or two; one that buries the first row deeper is a layout this does not know."""
+    f = os.path.join(str(tmp_path), "n.txt")
+    _w(f, "junk\n" * 20 + "2026-10-09T22:00:00.000;1\n2026-10-09T23:00:00.000;2\n")
+    assert ni.span_hours(f) is None
+    assert ni.span_hours(f, head_lines=21) == 1.0
+
+
+def test_the_TAIL_WINDOW_IS_EXACTLY_ITS_OWN_SIZE(tmp_path):
+    """Two fixtures one byte apart, which is the only input that can see a window off by one. In the
+    first the stamp's own first byte sits exactly `tail_bytes` from the end, so the row parses; in the
+    second it sits one byte further and the window holds a FRAGMENT, which `parse_stamp` refuses because
+    it is anchored at the line start. A window that starts one byte late loses the first; one that starts
+    one byte early finds the second."""
+    stamp = "2026-10-09T23:00:00.000;0;0"
+    head = "2026-10-09T22:00:00.000;0;0\n"
+    exact = os.path.join(str(tmp_path), "exact.txt")
+    short = os.path.join(str(tmp_path), "short.txt")
+    _w(exact, head + stamp + "\n" + "x" * (4096 - len(stamp) - 1))
+    _w(short, head + stamp + "\n" + "x" * (4097 - len(stamp) - 1))
+    assert os.path.getsize(exact) == len(head) + 4096 and os.path.getsize(short) == len(head) + 4097
+    assert ni._tail_stamp(exact) == _dt.datetime(2026, 10, 9, 23, 0, 0), "the last byte of the window is its first"
+    assert ni._tail_stamp(short) is None, "one byte further out and the window holds a fragment"
+    assert ni.span_hours(short) is None, "span_hours reads the same 4096-byte window by default"
