@@ -315,8 +315,17 @@ export function readJournalProgress(text) {
     } catch {
       continue; /* a torn final line is discarded, never fatal */
     }
+    /* A MUTANT RECORD IS KEYED BY `k`, AND NOTHING ELSE IN THE JOURNAL IS. The first line of a
+       fresh journal is the scope header `{h:'scope',v:1,file,limit,…}`, whose `v` is the schema
+       VERSION — so without this guard it counted as a finished mutant, and as one that neither
+       KILLED nor INVALID nor QUARANTINED, which is to say a SURVIVOR. Measured over a real
+       one-mutant sweep that killed its mutant: done 2, survived 1, killed 1. Every journal in
+       the checkout carried that phantom, so every inventory row overstated `done` and `survived`
+       by one. `readJournal` in `mutate.mjs` has always required a string `k`; this reader did not
+       (residue 2026-10-20-the-journal-scope-header-counts-as-a-surviving-mutant). */
+    if (typeof o.k !== 'string') continue;
     const keys = Object.keys(o);
-    if (keys.length === 1 && o.k !== undefined) {
+    if (keys.length === 1) {
       out.started++;
       continue;
     }
@@ -329,7 +338,13 @@ export function readJournalProgress(text) {
     else out.survived++;
     out.records.push(o);
   }
-  out.inFlight = out.started - out.done;
+  /* MORE VERDICTS THAN STARTS IS NOT NEGATIVE WORK — it is a journal missing START records, and
+     the in-flight figure is then unmeasurable. `null` with a named reason, never a number
+     (CLAUDE.md §∅): the resume line reads `> 0` and stays quiet, and the inventory record carries
+     the absence instead of publishing `-1` as a count of mutants. Journals written before the
+     JOBS === 1 path journalled its starts all read this way. */
+  out.inFlight = out.done > out.started ? null : out.started - out.done;
+  out.inFlightReason = out.inFlight === null ? 'start-records-missing' : null;
   return out;
 }
 
@@ -1351,6 +1366,22 @@ function selftest() {
   ck('counts verdicts, not lines', [pr.done, pr.killed, pr.survived], [2, 1, 1]);
   ck('a START with no verdict is IN FLIGHT', pr.inFlight, 1);
   ck('a torn final line is discarded, never fatal', pr.done, 2);
+  /* THE SCOPE HEADER IS NOT A MUTANT. Its `v` is a schema version, so the reader used to count it
+     as a finished mutant with an unrecognised verdict — a SURVIVOR. The real journal of a
+     one-mutant sweep that KILLED its mutant read done 2, survived 1. */
+  const _hdr = '{"h":"scope","v":1,"file":"clock.js","limit":1,"filter":"clock","bail":false,"full":false,"only":null,"diff":null}';
+  const _wh = readJournalProgress(_hdr + '\n' + JSON.stringify({ k: 'a' }) + '\n' + JSON.stringify({ k: 'a', v: 'KILLED', ks: ['G'] }));
+  ck('the scope header is not counted as a mutant', [_wh.done, _wh.killed, _wh.survived], [1, 1, 0]);
+  ck('…and it is not in the records a caller reads', _wh.records.length, 1);
+  const _noHdr = readJournalProgress(JSON.stringify({ k: 'a' }) + '\n' + JSON.stringify({ k: 'a', v: 'KILLED', ks: ['G'] }));
+  ck('NULL CONTROL · the same journal without the header reads identically', [_noHdr.done, _noHdr.survived, _noHdr.inFlight], [_wh.done, _wh.survived, _wh.inFlight]);
+  /* A journal with more verdicts than STARTs is missing START records, so the in-flight figure is
+     unmeasurable — `null` with a reason, never a negative count (CLAUDE.md §∅). Measured over the
+     real journal of a `--jobs 1` sweep: started 0, done 1. */
+  const _noStart = readJournalProgress(JSON.stringify({ k: 'a', v: 'KILLED', ks: ['G'] }));
+  ck('more verdicts than STARTs cannot state in-flight work', _noStart.inFlight, null);
+  ck('…and says why, by name', _noStart.inFlightReason, 'start-records-missing');
+  ck('NULL CONTROL · a well-formed journal still states a number, with no reason', [pr.inFlight, pr.inFlightReason], [1, null]);
   ck('an empty journal is zero, not a crash', readJournalProgress('').done, 0);
   ck(
     'a QUARANTINED mutant is counted apart, never as survived',

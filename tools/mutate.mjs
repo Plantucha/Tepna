@@ -1909,6 +1909,21 @@ async function runFile(file) {
     tick();
   };
 
+  /* ONE SITE APPLIES A MUTANT, AND IT JOURNALS THE START. Three loops run mutants — the worker
+     pool, the degraded serial fallback, and the JOBS === 1 serial path — and each wrote the mutated
+     bytes and the START record for itself. The serial path wrote no START record at all (residue
+     2026-10-20-a-jobs-1-sweep-writes-no-start-record), and the degraded path once wrote two (#1178).
+     Both are the same defect: three copies of a two-line sequence, one of which drifts, and neither
+     copy is reached by the other paths' runs. The START record is not bookkeeping — `readJournal`
+     calls a mutant JAMMED only when it has STARTED twice without finishing, so a serial sweep's
+     wedged mutant was invisible to the quarantine and came back on every resume. Measured on a real
+     one-mutant `--jobs 1` sweep of clock.js: 0 started, 1 verdict, `inFlight` −1.
+     This closure is the only way a mutant reaches disk, so no loop can run one unjournalled. */
+  const beginMutant = (mu, target) => {
+    writeFileSync(target, mu.apply());
+    jwrite({ k: jkey(mu) });
+  };
+
   startHeartbeat();
   try {
     if (JOBS > 1) {
@@ -1934,14 +1949,7 @@ async function runFile(file) {
         _dirty.set(abs, original);
         for (const mu of picked) {
           _inFlight.set(abs, mu.op + ' at line ' + mu.line + ': ' + String(mu.before).trim().slice(0, 60) + ' → ' + String(mu.after).trim().slice(0, 60));
-          writeFileSync(abs, mu.apply());
-          /* ONE start record per mutant. This line was duplicated (#1178), which only ever fired on
-             this serial fallback — so it survived every pooled run. `readJournalProgress` derives
-             `inFlight = started − done`, so a doubled START inflates it by one per mutant, and that
-             number is what the resume line reports as "will be re-tried or quarantined" and what the
-             inventory publishes. A degraded-mode run therefore reported roughly twice the in-flight
-             work it had. */
-          jwrite({ k: jkey(mu) });
+          beginMutant(mu, abs);
           classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
         }
         /* NO SECOND RECORD BUILDER, AND NO EARLY RETURN. `restore()` covers this path now, and control
@@ -1966,8 +1974,7 @@ async function runFile(file) {
              sharing for this one path and leaves the repo untouched. (killcheck.mjs carries the same
              note for the same reason.) */
           rmSync(wAbs, { force: true });
-          writeFileSync(wAbs, picked[i].apply());
-          jwrite({ k: jkey(picked[i]) });
+          beginMutant(picked[i], wAbs);
           classify(await runSuiteAsync(sel(picked[i]), dir, timeoutMs), picked[i]);
         }
       };
@@ -1975,7 +1982,7 @@ async function runFile(file) {
     } else {
       for (const mu of picked) {
         _inFlight.set(abs, mu.op + ' at line ' + mu.line + ': ' + String(mu.before).trim().slice(0, 60) + ' → ' + String(mu.after).trim().slice(0, 60));
-        writeFileSync(abs, mu.apply());
+        beginMutant(mu, abs);
         classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
       }
     }
@@ -2807,6 +2814,31 @@ function selftest() {
     const degradedShape = { file: 'clock.js', tested: 12, invalid: 0, killed: 12, touchedLines: 4, survivors: [{ line: 7, op: 'num → 0', before: 'a', after: 'b' }] };
     const blind = diffVerdict([degradedShape], { base: 'origin/main', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' });
     ok('a record with NO `voided` key escapes the void filter entirely', blind.verdict.status !== 'UNKNOWN', blind.verdict.status);
+  }
+
+  console.log('\none site applies a mutant — and that site journals the START');
+  {
+    /* Three loops run mutants: the worker pool, the degraded serial fallback, and the JOBS === 1
+       serial path. Each used to apply the mutant and journal it for itself, and the serial path
+       journalled nothing (residue 2026-10-20-a-jobs-1-sweep-writes-no-start-record). A missing START
+       is not bookkeeping: `readJournal` calls a mutant JAMMED only after it has STARTED twice
+       without finishing, so a wedged mutant on that path was invisible to the quarantine and came
+       back on every resume. The tripwire is the write itself: ONE statement puts mutated bytes on
+       disk, and it carries the record. That statement read 3 on the code this replaces. Matched in
+       its code form, because an unanchored pattern also matches this very comment — which is how
+       the first version of this block reported 3 against the repaired file. */
+    const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    const n = (re) => (self.match(re) || []).length;
+    const writes = n(/writeFileSync\(\w+, \w+(?:\[\w+\])?\.apply\(\)\);/g);
+    ok('a mutant reaches disk through exactly ONE site', writes === 1, 'sites=' + writes);
+    ok('…and that site writes the START record beside the bytes', /writeFileSync\(target, mu\.apply\(\)\);\n\s+jwrite\(\{ k: jkey\(mu\) \}\);/.test(self), 'beginMutant does not journal');
+    ok('…and the START record is written in exactly ONE place', n(/jwrite\(\{ k: jkey\(/g) === 1, 'sites=' + n(/jwrite\(\{ k: jkey\(/g));
+    /* Each of the three loops must go through it, and each must still run a suite — a count that
+       matched while a loop had lost its suite run would be a green pin over a dead path. */
+    const calls = n(/^\s+beginMutant\(/gm);
+    const runs = n(/classify\((?:await runSuiteAsync|runSuite)\(/g);
+    ok('all three mutant loops call it', calls === 3, 'calls=' + calls);
+    ok('…and each still runs a suite', runs === calls, 'runs=' + runs + ' calls=' + calls);
   }
 
   console.log('\nverdict — tepna.verdict/1 at every diff-gate exit, pinned against verdict.js');
