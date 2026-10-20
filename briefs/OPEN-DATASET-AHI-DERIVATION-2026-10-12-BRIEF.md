@@ -275,6 +275,40 @@ The two sets sit in different severity bands, and between them they populate all
 That spread is the argument for using them. The SHHS fit cohort is large and single-protocol, and
 these two sets come from different labs, different scorers and different event-export software.
 
+### 8a · What the three repeated workbooks do to the pooled figures (measured 2026-10-20)
+
+The row `2026-10-20-three-isruc-workbooks-repeat-another-subgroups-bytes` named the duplication and
+left the cost unmeasured. The tool now reports the distinct-subject population beside the all-files
+one, through one code path, so the two cannot drift apart.
+
+**Every ISRUC pooled figure moves except the extremes.** 128 records, 120 derived, 117 distinct.
+
+| figure | over 120 files | over 117 subjects |
+|---|---|---|
+| p25 | 3.7 | 3.5 |
+| median | 7.9 | 7.7 |
+| p75 | 17.3 | 17.0 |
+| mean | 12.5 | 12.1 |
+| min · max | 0.1 · 67.5 | 0.1 · 67.5 |
+| bands, under 5 · 5–15 · 15–30 · 30+ | 37 · 48 · 25 · 10 | 37 · 47 · 24 · 9 |
+
+The three repeated workbooks derive 48.3, 9.5 and 24.0, one in each of the three upper bands, which
+is why each of those bands loses exactly one record. The extremes cannot move, because no repeated
+copy is the smallest or the largest.
+
+**iSleeps is the corpus-level control.** It holds no duplicate, so its distinct block repeats its
+all-files block figure for figure. A `distinct` block that differed there would be filtering on
+something other than `duplicateOf`.
+
+**The subject rule is stated, not inferred.** `markDuplicates` keeps the first copy in sorted
+record-id order and makes every later copy name it. So `subgroupII/17` is the subject and
+`subgroupIII/2/1` is its repeat, rather than the other way round. Nothing in the mirror ranks the two,
+and a rule that depended on the directory walk would answer differently on another machine.
+
+**What this does not decide.** Which pooled figure a later consumer should quote. Both now exist and
+carry their population, and a cohort that treats the three as independent subjects is making a claim
+the bytes refute.
+
 ## 9 · Out of scope
 
 - A signal-based AHI over the four annotation-free sets, including `boas` and its SpO2 channel.
