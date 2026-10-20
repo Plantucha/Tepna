@@ -453,6 +453,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_scan_signature_only_defaults.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_seal.py": {
    "bin": "test",
    "status": "exempt"
@@ -590,6 +594,19 @@
     ]
    },
    "note": "wave 2: verdict_object() over verdict()'s per-stream record \u2014 criterion = streams outside a band <= 0 with both pre-stated bands and every ratio in result \u00b7 PASS \u00b7 FAIL naming the stream and the band \u00b7 UNDERPOWERED any INCONCLUSIVE stream (the prose overall; minimum and counts as numbers) \u00b7 NOT_RUN no stream; population = streams, INCONCLUSIVE excluded; printed after the matrix"
+  },
+  "capture-host/tools/scan_signature_only_defaults.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-20",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/scan_signature_only_defaults.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "ADOPTED 2026-10-20 (residue 2026-10-19-a-default-whose-only-coverage-reads-the-signature-is-unmeasured): the advisory scan over capture-host production modules emits ONE tepna.verdict/1 over every literal default it classified. criterion = signature_only_defaults <= 0, pre-stated in CRITERION, where a SIGNATURE_ONLY default is one whose only coverage in the suite reads the signature (inspect.signature, __defaults__, getfullargspec) and no call omits it — mutmut keeps the ORIGINAL default on the visible def and dispatches at call time, so such a read passes under every mutant. PASS no such default · FAIL the population is non-empty, naming each row · NOT_RUN no production module was read (result null). population: eligible = literal defaults found, checked = those classified OBSERVABLE, UNCOVERED or SIGNATURE_ONLY, excluded = UNDECIDABLE ones (an ambiguous name across two modules, a splat at a call site, a bare name reference) — the scan's competence bound, stated rather than resolved. The exit code is ALWAYS 0: the bar is the owner's, so this tool measures and never blocks. Sampled with --verdict-sample, which is synthetic and reads no tree."
   },
   "capture-host/tools/seq_suite.py": {
    "bin": "decides",
@@ -2039,7 +2056,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "the corpus fold's per-night gate (VERDICT-CONTRACT \u00a73b #7): every night the plan DECIDES on emits one tepna.verdict/1 \u2014 PASS entered the fold \u00b7 FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) \u00b7 NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) \u2014 plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write"
+   "note": "the corpus fold's per-night gate (VERDICT-CONTRACT \u00a73b #7): every night the plan DECIDES on emits one tepna.verdict/1 \u2014 PASS entered the fold \u00b7 FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) \u00b7 NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) \u2014 plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write; beside it, one fold-outcome object (gate trio-batch-fold) over the admitted nights \u2014 PASS only when each landed all three trio node-exports, SHORTFALL or FAIL naming every short night, NOT_RUN when nothing was admitted"
   },
   "tools/trio-power-headless.mjs": {
    "bin": "decides",
