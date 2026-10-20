@@ -28,9 +28,9 @@ import test_capture_runners as T  # noqa: E402
 _clean_stop = T._clean_stop
 
 
-def _drive(tmp_path, monkeypatch, dev):
+def _drive(tmp_path, monkeypatch, dev, **kw):
     T._polar_common(monkeypatch)
-    c = T.FakePolarClient()
+    c = T.FakePolarClient(**kw)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
     T._run(capture.run_polar(dev, str(tmp_path)))
@@ -97,6 +97,59 @@ def test_a_configured_rate_the_device_DOES_offer_is_actually_USED(tmp_path, monk
         "176 IS offered here — warning about it would be the false-positive that gets warnings muted"
     )
     assert "rate_unmet" not in capture.STATUS["devices"]["H10"]
+
+
+# ── AN UNREAD MENU IS NOT A REFUSAL (2026-10-20) ─────────────────────────────────────────────────
+# Measured on the box: 3086 of these warnings over the retention, and 7 of them (6 acc, 1 mag) carry
+# "device offers: no menu reported". On 2026-10-19 10:59:39 one GET_SETTINGS timed out and the daemon
+# reported the Verity had refused the configured 52 Hz and was capturing at 200. The same unit answered
+# `[52]` 75 s earlier and 61 s later, the START timed out in the same second, and `monitor.html` drew
+# `acc 200/52 Hz` beside the sentence that the device is capturing at a LOWER rate. Three false claims
+# about a device that was only briefly unreachable.
+
+
+def test_an_UNREAD_menu_is_not_reported_as_a_device_refusal(tmp_path, monkeypatch, caplog):
+    """The configured rate differs from `chosen_rate`'s fixed-table answer, exactly as in a refusal —
+    and the only honest statement is that nothing was checked."""
+    with caplog.at_level("WARNING"):
+        _drive(tmp_path, monkeypatch, T._pdev(rates={"ecg": 176}), settings_silent=True)
+    msgs = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert not [m for m in msgs if "was NOT offered" in m], (
+        f"an unread menu must not be reported as a refusal; got {msgs}"
+    )
+    hit = [m for m in msgs if "reported NO rate menu" in m]
+    assert hit, f"the unread menu must be said out loud; got {msgs}"
+    assert "176" in hit[0], "the warning must name the configured rate it could not check"
+
+
+def test_an_UNREAD_menu_publishes_no_rate_unmet(tmp_path, monkeypatch):
+    """`rate_unmet` is drawn by `monitor.html` as a measured want/got pair. A pair whose `got` is the
+    fixed table's own request is a manufactured number on an operator surface."""
+    _drive(tmp_path, monkeypatch, T._pdev(rates={"ecg": 176}), settings_silent=True)
+    assert "rate_unmet" not in capture.STATUS["devices"]["H10"]
+
+
+def test_a_REAL_refusal_still_publishes_its_menu(tmp_path, monkeypatch, caplog):
+    """The positive control, and the half this change must not weaken: with a menu in hand the warning
+    still fires, still carries the menu, and still publishes the pair. 3079 of the box's warnings are
+    this case (`ppg 176` against a menu of `[55]`) and every one of them is true."""
+    with caplog.at_level("WARNING"):
+        _drive(tmp_path, monkeypatch, T._pdev(rates={"ecg": 176}))
+    hit = [r.getMessage() for r in caplog.records if "was NOT offered" in r.getMessage()]
+    assert hit, "a refusal against a read menu must still warn"
+    assert "[130]" in hit[0], "the warning must carry the device's own menu, not a placeholder"
+    assert capture.STATUS["devices"]["H10"]["rate_unmet"]["ecg"] == {"want": 176, "got": 130}
+
+
+def test_an_unread_menu_still_starts_the_stream(tmp_path, monkeypatch):
+    """⚠️ This change is about what is SAID. The fallback START is unchanged, so the stream still runs
+    on the fixed table rather than going idle."""
+    c = _drive(tmp_path, monkeypatch, T._pdev(rates={"ecg": 176}), settings_silent=True)
+    starts = [w for w in c.writes if len(w) >= 2 and w[0] == 0x02 and w[1] == pmd.ECG]
+    assert starts, "the ECG stream must still be started with no menu in hand"
+    assert "pmd_options" not in capture.STATUS["devices"]["H10"], (
+        "and a menu never read must contribute no `pmd_options` key — a menu not read is not an empty menu"
+    )
 
 
 # ── …AND INTO THE ARTIFACT (2026-09-22) ─────────────────────────────────────────────────────────
