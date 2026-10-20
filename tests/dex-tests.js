@@ -13526,6 +13526,21 @@
         'control · the DSP builder still emits the same pair (the sibling being matched)',
         /site:\s*r\.site \|\| 'wrist'/.test(dsp) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(dsp)
       );
+      /* EXPORT-SOURCE-KEY-KINDS — the same sibling divergence, one field earlier in the same block.
+         This builder wrote the upload FILENAME where the DSP's sibling writes a semantic tag, and a
+         consumer cannot tell the two kinds apart: `signal-orchestrate.js` routes on that key holding
+         'welltory'. So the filename was a value no consumer reads, in a key one consumer dispatches
+         on. Source-scanned for the reason the device assertions above are: nothing executes this
+         builder. ⚠️ Keep the fix's own comment free of the offending expression — this group already
+         went RED once against a FIXED source, because the explanation beside it carried the literal. */
+      T.ok('the app export writes the semantic tag', /source:\s*'ppg'/.test(app), "buildV2's recording.source is no longer the tag the DSP sibling writes");
+      T.ok('…and the upload filename no longer rides the tag key', !/source:\s*r\.fname/.test(app), 'the upload filename is back in recording.source');
+      T.ok(
+        '…and the filename rides a key that MEANS a filename',
+        /fname:\s*r\.fname \|\| null/.test(app),
+        'recording.fname is gone, so the filename is dropped rather than carried under an honest key'
+      );
+      T.ok('control · the DSP builder writes that same tag (the sibling being matched)', /source:\s*'ppg'/.test(dsp));
     });
 
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
@@ -37414,6 +37429,108 @@
       else T.skip('adapters/o2ring-ppg.js source not in env.sources');
     });
 
+    /* ── §∅ P5 clause 2 — THE TRIO LANE NOW READS ITS VALIDITY COMPANION ──────────────────────────────
+       `sensor-trio-worker.js` derives H10 HR from `_ECG.txt` with its own Pan–Tompkins walk (CLAUDE.md
+       §🎙️ Honest HR), so it never reaches ECGDex's epoch path — the one place in the node that reads
+       `rec.blankingSpans`. A blanking run the box recorded therefore became an ordinary RR interval,
+       against the §∅ ruling that a DISCONTINUITY refuses. Measured 2026-10-20 over the corpus: the H10
+       `_ECGRUNS.txt` companion exists for 38 of 38 `_ECG.txt` files and records 306 runs, so this is
+       the stream where the omission costs a number; the ring's pleth carries runs for 85 of its 164
+       companions, and Verity's 111 companions record none, so wiring those two moves nothing today and
+       is wired for the night a writer blanks them.
+       `tests/dex-tests.js` already records that the trio inputs are computed in a WORKER and the suite
+       cannot execute worker-local functions. So this splits in two, and the split is the point: the
+       overlap RULE is tested numerically where it now lives — `ECGDSP.intersectsRun`, reachable in both
+       lanes — and the worker's USE of it is pinned structurally, because the un-wired site is the thing
+       under test, never the mechanism. The pin strips comments first: the fix's own comment names the
+       symbol the scan searches for. Residue `2026-10-17-sample-parsers-called-without-their-sidecar`. */
+    group('§∅ the trio HR walk refuses an RR interval that touches a blanking run', 'ecgdex-dsp · sensor-trio · §∅ · source-scan · regression', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E) {
+        T.skip('ECGDSP exposed', 'ecgdex-dsp.js not co-loaded in this runner');
+      } else {
+        /* ASSERTED, never skipped: a missing export would otherwise take the whole truth table out of
+           the run and read as a clean pass — an absence scoring as a verdict. */
+        T.ok('ecgdex-dsp.js exports the sample-frame overlap rule', typeof E.intersectsRun === 'function', 'the worker has no predicate to call');
+      }
+      if (E && typeof E.intersectsRun === 'function') {
+        /* The run is [100, 110) in SAMPLE indices — the frame the box writes `_ECGRUNS.txt` in. Both
+             sides are half-open, so the two boundary rows are the whole content of the rule. */
+        var S = [{ first: 100, n: 10 }];
+        var TWO = [
+          { first: 0, n: 5 },
+          { first: 100, n: 10 }
+        ];
+        [
+          ['an interval ENDING exactly at the run start does not touch it', S, 90, 10, false],
+          ['…one sample longer does', S, 90, 11, true],
+          ['an interval starting on the run’s LAST blanked sample touches it', S, 109, 11, true],
+          ['…one starting exactly at the run end does not', S, 110, 10, false],
+          ['an interval identical to the run touches it', S, 100, 10, true],
+          ['an interval inside the run touches it', S, 101, 4, true],
+          ['an interval containing the run touches it', S, 50, 150, true],
+          ['a zero-length interval touches nothing', S, 100, 0, false],
+          ['a negative length touches nothing', S, 100, -5, false],
+          ['no span list at all', null, 100, 10, false],
+          ['an empty span list', [], 100, 10, false],
+          ['the SECOND run is tested too, not just the first', TWO, 101, 2, true],
+          ['an interval between two runs touches neither', TWO, 50, 10, false]
+        ].forEach(function (r) {
+          T.eq('intersectsRun · ' + r[0], E.intersectsRun(r[1], r[2], r[3]), r[4]);
+        });
+        /* The predicate TRUSTS ITS PRODUCER on the span's own length: a degenerate `n: 0` span reads
+             as touching any interval that strictly contains its index, where this node's seconds-frame
+             path skips such a span by hand (`!(b.n > 0)`). `parseEcgRuns` rejects `n <= 0` at the row,
+             so no span the parser built can reach this arm — stated here so the asymmetry is a known
+             boundary and not a surprise to the next consumer. */
+        T.eq('a degenerate zero-length span is trusted, and the PARSER is what makes that safe', E.intersectsRun([{ first: 100, n: 0 }], 99, 3), true);
+      }
+
+      /* ── the worker's use of it, structurally ── */
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+      }
+      var raw = (env.sources || {})['sensor-trio-worker.js'] || '';
+      var c = code(raw);
+      T.ok('sensor-trio-worker.js is in env.sources (' + raw.length + ' bytes)', raw.length > 20000, 'an unread source reads exactly like a clean one');
+      T.ok(
+        'the comment strip is load-bearing — the fix names `intersectsRun` in prose too',
+        (raw.match(/intersectsRun/g) || []).length > (c.match(/intersectsRun/g) || []).length,
+        'if the counts match, the scan below could be passing on a comment'
+      );
+      T.ok('the worker calls the node’s predicate', /ECGDSP\.intersectsRun\s*\(/.test(c), 'the overlap rule must come from ecgdex-dsp.js');
+      T.ok('…and carries no second body for the half-open rule', !/\.first\s*\+\s*\w+\[\w+\]\.n/.test(c), 'a mirrored predicate is the one line no gate compares');
+      T.ok(
+        '…and drops the interval BEFORE it forms the RR, so a blanked run yields no value',
+        /blanked\(\s*peaks\[i - 1\]\s*,\s*peaks\[i\] \+ 1\s*\)[\s\S]{0,120}?continue;[\s\S]{0,80}?var rr =/.test(c),
+        'the §∅ ruling refuses a DISCONTINUITY; a drop after the formation would still publish it'
+      );
+      T.ok('…and reports what it dropped', /intervalsDropped\s*:/.test(c), 'a silent refusal is unreadable downstream');
+
+      /* ── the three feeders pair the companion BY NAME ── */
+      ['sensor-trio-night.js', 'sensor-trio-power-analysis.js', 'sigma-no-reference-analysis.js'].forEach(function (f) {
+        var fc = code((env.sources || {})[f] || '');
+        T.ok(f + ' is in env.sources', fc.length > 5000, 'an unread feeder reads exactly like a wired one');
+        T.ok(
+          f + ' captures the `…RUNS.txt` companion out of the file list',
+          /RUNS_NAME\.test\(/.test(fc) && /COMPANIONS\.set\(/.test(fc),
+          'a companion carries no sample rows, so the night key cannot read one — it is paired by NAME at selection time'
+        );
+        ['o2ppgRuns', 'h10ecgRuns', 'verityPPGRuns'].forEach(function (k) {
+          T.ok(
+            f + ' pairs `' + k + '` and ships it in the job',
+            new RegExp('\\b' + k + '\\s*=\\s*companionOf\\(').test(fc) && (fc.match(new RegExp('\\b' + k + '\\b', 'g')) || []).length >= 2,
+            'paired but not shipped is the same blindness one hop later'
+          );
+        });
+      });
+    });
+
     /* ── SAMPLE-VALIDITY-ENVELOPE done-when 4 — A RATCHET ON THE CALLERS THAT READ NO VALIDITY ────────────
        Six sample parsers accept the box's `…RUNS.txt` validity sidecar as `opts.runsText`: `parseECG` /
        `parseECGText` (ecgdex-dsp), `parseDeviceACC` (ecgdex-dsp), `parsePPG` (ppgdex-dsp), `parsePPG2W`
@@ -37447,8 +37564,7 @@
           'ppgdex-app.js': [2, 'GYRO, MAGN: no RUNS writer for the stream'],
           'qrs-equiv-worker.js': [1, SYNTH],
           'qrs-yield-worker.js': [1, SYNTH],
-          'resp-acc-analysis-app.js': [1, OPEN],
-          'sensor-trio-worker.js': [3, OPEN]
+          'resp-acc-analysis-app.js': [1, OPEN]
         };
 
         /* `tools/` is pinned as ONE population, never per file. The adoption gate (tools/, verdict manifest) counts a
@@ -37537,7 +37653,15 @@
         T.ok('the scan has a denominator (' + names.length + ' authored sources)', names.length > 200, 'an empty scan reads exactly like a clean one');
         T.ok('…and it read the adapters', names.indexOf('adapters/polar-h10-ecg.js') >= 0, 'adapters/*.js is out of the population');
         T.ok('…and it SEES calls (' + total + ')', total >= 80, 'the call pattern matches nothing — the verdict below would be vacuous');
-        ['ecgdex-app.js parseECG', 'oxydex-dsp.js parsePPG2W', 'ppgdex-app.js parsePPG', 'motiondex-dsp.js parseSensorXYZ', 'adapters/polar-h10-ecg.js parseDeviceACC'].forEach(function (k) {
+        [
+          'ecgdex-app.js parseECG',
+          'oxydex-dsp.js parsePPG2W',
+          'ppgdex-app.js parsePPG',
+          'motiondex-dsp.js parseSensorXYZ',
+          'adapters/polar-h10-ecg.js parseDeviceACC',
+          'sensor-trio-worker.js parseECG',
+          'sensor-trio-worker.js parsePPG'
+        ].forEach(function (k) {
           T.ok('…and it sees the WIRED caller `' + k + '` carry the sidecar', carried.indexOf(k) >= 0, 'carrying: ' + carried.join(' · '));
         });
 
@@ -43999,6 +44123,38 @@
                   : 'a DIFFERENT function than the node exposes'
           );
         });
+      });
+      /* Shim parity (RESIDUE `2026-10-12-orchestrator-shims-bypass-signalspec`). The table above
+         reads each `object` expectation off the global the RESOLVER names. The emit shims in
+         `signal-orchestrate.js` read their own global (`_<node>Win = { <Name>: root.<Name> }`). For
+         four types the two globals are one object. For `cgm` they are not: the resolver returns
+         `GLUDSP` and `glucoHost` reads `GlucoDex`, two objects that `glucodex-dsp.js` publishes
+         separately (and `GlucoDex` only when no earlier one exists). These assertions join the two
+         copies: every function name both objects carry must be the SAME function, so a drift on
+         either side reds here instead of on a shipped page. The member types (`rr`, `spo2`, `hrv`)
+         need no row: the table above already reads them off the shim's own namespace. */
+      var SHIM_NS = { ecg: 'ECGDex', ppg: 'PpgDex', cgm: 'GlucoDex', cpap: 'CPAPDex', acc: 'MotionDex' };
+      Object.keys(WANT).forEach(function (t) {
+        if (!WANT[t].object) return;
+        var name = SHIM_NS[t];
+        T.ok('the ' + t + ' emit shim names its namespace here (a new object type cannot land unpinned)', !!name, name || 'add the global its _HOSTS shim reads');
+        if (!name) return;
+        var ns = env[name],
+          got = SS[t] && typeof SS[t].dsp === 'function' ? SS[t].dsp() : undefined;
+        T.ok('env.' + name + ' (the namespace the ' + t + ' shim reads) is co-loaded in this lane', !!ns, ns ? 'present' : 'add it to env in BOTH lanes');
+        if (!(ns && got)) return;
+        var shared = Object.keys(got).filter(function (k) {
+          return typeof got[k] === 'function' && typeof ns[k] === 'function';
+        });
+        T.ok(t + ': the resolver object and root.' + name + ' share at least one function name (the identity below is vacuous otherwise)', shared.length > 0, shared.join(', ') || 'none');
+        var differ = shared.filter(function (k) {
+          return got[k] !== ns[k];
+        });
+        T.ok(
+          'SignalSpec.' + t + '.dsp() and root.' + name + ' hold the SAME function under every shared name (shim/resolver parity)',
+          shared.length > 0 && differ.length === 0,
+          differ.length ? 'a DIFFERENT function under: ' + differ.join(', ') : shared.length + ' shared, all identical'
+        );
       });
       /* The aux + un-migrated types resolve to `undefined` because no node owns them yet, and that
          is a measured fact rather than a convention: `hr` is an auxiliary channel with no DSP of its
@@ -52995,6 +53151,12 @@
         if (pe) {
           T.ok('  schema.name === ganglior.node-export', pe.schema && pe.schema.name === 'ganglior.node-export', pe.schema && pe.schema.name);
           T.ok('  schema.node === PpgDex', pe.schema && pe.schema.node === 'PpgDex', pe.schema && pe.schema.node);
+          /* EXPORT-SOURCE-KEY-KINDS — the per-node tag assertion this family lacked. PulseDex ('rr'),
+             OxyDex ('spo2'), HRVDex ('welltory') and ECGDex ('ecg') are each pinned in this group, and
+             PpgDex was the one node with none. It is also the one node whose two export builders
+             diverged on the field: the app's wrote the upload filename where this one writes the tag.
+             The unpinned member of a family is where the drift lives. */
+          T.ok('  recording.source === ppg', pe.recording && pe.recording.source === 'ppg', pe.recording && pe.recording.source);
           T.ok('  ganglior_events is an array', Array.isArray(pe.ganglior_events), typeof pe.ganglior_events);
           T.ok('  recording.startEpochMs is finite', pe.recording && isFinite(pe.recording.startEpochMs), pe.recording && pe.recording.startEpochMs);
         }

@@ -108,6 +108,17 @@
   //  test_the_tool_classifiers_accept_box_filenames, which reads this body as text)
   // ═══════════════════════════════════════════════════════════════════════════
   const NIGHTS = {};
+  /* ── §∅ · THE VALIDITY COMPANION IS PAIRED BY NAME, NOT NIGHT-KEYED ──────────────────────────────
+     Residue `2026-10-17-sample-parsers-called-without-their-sidecar`. The box writes
+     `<base>RUNS.txt` beside a stream it blanked, and the parsers take those bytes as `opts.runsText`.
+     A companion carries no sample rows, so the first-data-row night key cannot read one; its night is
+     the night of the file it sits beside, which is what pairing by name says and nothing else can.
+     The map is keyed by the companion's OWN filename and read once a corner's file is chosen, so a
+     companion can never be paired with a stream the night did not select. */
+  const COMPANIONS = new Map();
+  const RUNS_NAME = /RUNS\.txt$/i;
+  const companionOf = (file) => (file ? COMPANIONS.get(file.name.replace(/\.txt$/i, 'RUNS.txt')) || null : null);
+
   /* TWO CAPTURE LAYOUTS, ONE RULE EACH — identical to sensor-trio-power-analysis.js: the phone app
      writes `Polar_H10_<id>_YYYYMMDD_HHMMSS_<KIND>.txt`, the capture host the same bytes with one
      14-digit run and `Wellue_O2Ring-S_<serial>_YYYYMMDDHHMMSS_SPO2.csv`; the stamp is
@@ -258,6 +269,9 @@
     nt.verityPPG = vppg ? vppg.file : null;
     nt.verityPPI = vppi ? vppi.file : null;
     nt.verityHR = vhr ? vhr.file : null;
+    nt.o2ppgRuns = companionOf(nt.o2ppg);
+    nt.h10ecgRuns = companionOf(nt.h10ecg);
+    nt.verityPPGRuns = companionOf(nt.verityPPG);
   }
   const eligible = (nt) => !!((nt.o2ppg || nt.o2) && (nt.h10ecg || nt.h10) && (nt.verityPPG || nt.verityPPI || nt.verityHR));
   const verSrc = (nt) => (nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—');
@@ -268,6 +282,10 @@
       const f = list[i],
         c = classify(f);
       if (!c) continue;
+      if (RUNS_NAME.test(f.name)) {
+        COMPANIONS.set(f.name, f);
+        continue;
+      }
       const rowMs = await firstRowTMs(f);
       if (rowMs == null) keyedByName++;
       const nk = rowMs == null ? nightKeyOf(c.stamp) : nightKeyOfMs(rowMs),
@@ -438,7 +456,11 @@
         h10ecg: nt.h10ecg || null,
         verityPPG: nt.verityPPG || null,
         verityPPI: nt.verityPPG ? null : nt.verityPPI || null,
-        verityHR: nt.verityHR || null
+        verityHR: nt.verityHR || null,
+        /* the validity companions, each paired by name to the file above it */
+        o2ppgRuns: nt.o2ppgRuns || null,
+        h10ecgRuns: nt.h10ecgRuns || null,
+        verityPPGRuns: nt.verityPPGRuns || null
       }
     });
     const real = (r && r.real) || { skip: true, reason: (r && r.error) || 'no result' };
