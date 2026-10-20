@@ -539,9 +539,10 @@ def test_an_unreadable_peak_is_None_not_zero(tmp_path):
     assert capture.hwm_since_last_kb(_status_file(tmp_path, "VmRSS:\t 1 kB\n"), str(clear)) == (None, None)
 
 
-def test_proc_rss_kb_keeps_its_three_keys_when_no_keys_are_named(tmp_path):
+def test_proc_rss_kb_keeps_its_default_keys_when_no_keys_are_named(tmp_path):
+    # Four defaults since #3702 added `VmSwap`; an absent one reads None, never 0 (§∅).
     status = _status_file(tmp_path, "VmHWM:\t 9 kB\nVmRSS:\t 7 kB\nRssAnon:\t 5 kB\nRssFile:\t 2 kB\n")
-    assert capture.proc_rss_kb(status) == {"VmRSS": 7, "RssAnon": 5, "RssFile": 2}
+    assert capture.proc_rss_kb(status) == {"VmRSS": 7, "RssAnon": 5, "RssFile": 2, "VmSwap": None}
     assert capture.proc_rss_kb(status, keys=("VmHWM",)) == {"VmHWM": 9}
 
 
