@@ -143,6 +143,30 @@ def test_a_before_LINE_OF_ONE_CHARACTER_is_read_from_the_right_offset():
     assert M.entry_before_in_source("- ) | + ),", src) is True
 
 
+def test_a_ONE_CHARACTER_line_at_ZERO_INDENT_is_the_corner_the_other_two_tests_miss():
+    """\U0001f534 TWO TESTS EACH PIN ONE AXIS AND THE DEFECT LIVES WHERE THEY CROSS.
+
+    The slice `seg[1:]` drops the diff marker. Off by one it drops the marker and the first
+    character of the code, and `all(seg in normalised ...)` is a SUBSTRING test, so a line missing
+    its first character is still a substring of itself: every multi-character line reads the same
+    either way. The one exception is a line of ONE character, where the wrong slice leaves the empty
+    string, the emptiness filter drops it, and `bool(removed)` reports ORPHANED over a line sitting
+    unchanged in its module.
+
+    The two neighbouring tests cover one axis each and neither reaches this corner: the
+    one-character test writes `- )` with the space an indented diff line carries, which absorbs the
+    wrong slice, and the zero-indent test writes a whole signature, which survives losing a
+    character. Measured 2026-10-20 against `mutation_diff.x_entry_before_in_source__mutmut_30`
+    (`seg[1:]` to `seg[2:]`, line 518): this key reads True against the committed code and False
+    against the mutant, while `- ) | + ),`, `-def f(a): | +def f(b):` and `-x = 1 | +x = 2` all read
+    True against both."""
+    src = "VALUES = (\n    1,\n)\n"
+    key = "-) | +),"
+    assert key.startswith("- ") is False, "zero indent, so no space follows the marker"
+    assert M.entry_before_in_source(key, src) is True
+    assert M.entry_before_in_source("-] | +],", src) is False
+
+
 def test_a_before_line_at_ZERO_INDENTATION_carries_NO_SPACE_after_the_marker():
     """🔴 The marker is structural; the space after it belongs to the INDENTED case alone.
 
