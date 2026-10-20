@@ -60,12 +60,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { launch } from './pw-launch.mjs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+/* `--url` and `--figures` are read by index, so a mistyped third flag becomes neither, and a mistyped
+   FIRST token becomes the staged directory. Both are refused here. */
+/* The refusal must fire for the CLI ONLY. `process.argv` belongs to whoever is running, so a
+   module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
+   reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { valued: ['--url', '--figures'], positional: true }, { tool: 'resp-acc-headless' });
 const DIR = process.argv[2];
 const uArg = process.argv.indexOf('--url');
 const URL_ = uArg > 0 ? process.argv[uArg + 1] : 'http://127.0.0.1:8080';
