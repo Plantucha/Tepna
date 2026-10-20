@@ -366,10 +366,20 @@ self.onmessage = async (e) => {
     };
     fr.readAsText(file);
   }
-  function loadDeviceACC(file) {
+  // `runsFile` is the ACC's `_ACCRUNS.txt` when the pick carried one (§3.2); absent, the parse is unchanged.
+  function loadDeviceACC(file, runsFile) {
     const fr = new FileReader();
-    fr.onload = (e) => {
-      const parsed = DSP.parseDeviceACC(e.target.result); // { acc:[{tsMs,x,y,z}], accFs } | { acc:null }
+    const readRuns = runsFile
+      ? new Promise((res) => {
+          const rr = new FileReader();
+          rr.onload = (e) => res(String(e.target.result || ''));
+          rr.onerror = () => res(null); // an unreadable sidecar is not a reason to lose the ACC
+          rr.readAsText(runsFile);
+        })
+      : Promise.resolve(null);
+    fr.onload = async (e) => {
+      const _rt = await readRuns;
+      const parsed = _rt ? DSP.parseDeviceACC(e.target.result, { runsText: _rt }) : DSP.parseDeviceACC(e.target.result); // { acc:[{tsMs,x,y,z}], accFs } | { acc:null }
       if (!parsed.acc) {
         showErr('Too few ACC samples parsed (need ≥3 numeric columns per row).');
         return;
@@ -3013,8 +3023,11 @@ self.onmessage = async (e) => {
       if (f) loadDeviceHR(f);
     });
     $('accInput').addEventListener('change', (e) => {
-      const f = e.target.files[0];
-      if (f) loadDeviceACC(f);
+      // The ACC and its `_ACCRUNS.txt` may arrive together; the sidecar is told apart by name, never by order.
+      const fs = Array.from(e.target.files || []);
+      const isRuns = (f) => /_ACCRUNS\b|_ACCRUNS\./i.test(f.name);
+      const f = fs.find((x) => !isRuns(x));
+      if (f) loadDeviceACC(f, fs.find(isRuns) || null);
     });
 
     // scope controls

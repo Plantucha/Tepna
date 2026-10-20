@@ -37151,6 +37151,94 @@
         T.ok('polar-h10-ecg · passes comp.accruns into parseDeviceACC', /comp\.accruns \? ecg\.parseDeviceACC\(comp\.acc, \{ runsText: comp\.accruns \}\)/.test(src['adapters/polar-h10-ecg.js']));
     });
 
+    /* done-when 4, the four product-node legs (residue 2026-10-17-sample-parsers-called-without-their-sidecar).
+       Each leg fails when the old 1-arg read comes back. PpgDex's ACC parser took no sidecar at all, so
+       a held ACC stretch reached the motion grid as stillness. ECGDex compute()'s text path dropped the
+       `_ECGRUNS` bytes a headless caller passed. The source-mirrors pin the three ACC ingest routes; the
+       done-when 4 ratchet below counts them too. */
+    group('SAMPLE-VALIDITY-ENVELOPE done-when 4 — the product nodes hand the ACC and ECG sidecars to their parsers', 'ppgdex-dsp · ecgdex-dsp · ppgdex-app · ecgdex-app · adapters · §∅', function (T) {
+      var P = env.PPGDSP || env.PpgDex,
+        E = env.ECGDSP || env.ECGDex;
+      var iso = function (ms) {
+        return new Date(ms).toISOString().replace('Z', '');
+      };
+      // (1) PpgDex — a held ACC stretch, and the `_ACCRUNS` span that keeps it out of the motion grid.
+      if (P && typeof P.parseSensorXYZ === 'function' && typeof P.analyzeMotion === 'function') {
+        var hz = 26,
+          sec = 120,
+          t0 = Date.UTC(2026, 8, 24, 1, 0, 0);
+        var rows = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+        for (var i = 0; i < hz * sec; i++) {
+          var ss = i / hz,
+            held = ss >= 40 && ss < 70;
+          rows.push(
+            iso(t0 + Math.round((i * 1000) / hz)) +
+              ';' +
+              i * Math.round(1e9 / hz) +
+              ';' +
+              (held ? 900 : 900 + Math.round(40 * Math.sin(i / 3))) +
+              ';' +
+              (held ? 0 : Math.round(30 * Math.cos(i / 5))) +
+              ';0'
+          );
+        }
+        var acc = rows.join('\n');
+        var SC = [
+          '# stream=acc rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 examined=3120',
+          'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+          iso(t0 + 40000) + ';X [mg];900;1040;780;30000;1;stuck'
+        ].join('\n');
+        var bare = P.parseSensorXYZ(acc),
+          withSc = P.parseSensorXYZ(acc, { runsText: SC });
+        T.ok('PpgDex parseSensorXYZ · ONE argument carries no `_blankSpans`', bare._blankSpans === undefined);
+        T.eq('PpgDex parseSensorXYZ · the planted span rides on the rows, in floating ms', JSON.stringify(withSc._blankSpans), JSON.stringify([{ t0Ms: t0 + 40000, t1Ms: t0 + 70000 }]));
+        var mA = P.analyzeMotion(bare, [], t0, sec),
+          mB = P.analyzeMotion(withSc, [], t0, sec);
+        T.ok('analyzeMotion · without the sidecar the held stretch reads as COVERED, so it would score as stillness', mA.motionCoveredAtSec(55) === true);
+        T.ok('analyzeMotion · with the sidecar the held stretch is NOT covered — no evidence, never "still"', mB.motionCoveredAtSec(55) === false);
+        T.ok('control · measured seconds outside the span stay covered', mB.motionCoveredAtSec(20) === true && mB.motionCoveredAtSec(90) === true);
+        T.ok('analyzeMotion · the covered fraction drops by about the span (30 of 120 s)', mA.motionCoveredFrac - mB.motionCoveredFrac > 0.2);
+      } else T.skip('PPGDSP.parseSensorXYZ / analyzeMotion unavailable');
+      // (2) ECGDex compute() text path — `opts.runsText` and `input.runsText` both reach the parser.
+      if (E && typeof E.compute === 'function' && typeof E.genSynthetic === 'function') {
+        var syn = E.genSynthetic({ durSec: 720, seed: 20261020 }),
+          fs = syn.fs,
+          e0 = syn.t0Ms != null ? syn.t0Ms : Date.UTC(2026, 9, 20, 1, 0, 0);
+        var lines = ['Phone timestamp;sensor timestamp [ns];ecg [uV]'];
+        for (var k = 0; k < syn.int16.length; k++) lines.push(iso(e0 + Math.round((k * 1000) / fs)) + ';' + Math.round(1e12 + (k * 1e9) / fs) + ';' + syn.int16[k]);
+        var etxt = lines.join('\n') + '\n';
+        var ERUNS = [
+          '# stream=ecg rule=stuck min_run=30 merge_gap_max=4 total_runs=1 examined=' + syn.int16.length,
+          'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+          iso(e0 + 400000) + ';ecg;0;' + 400 * fs + ';' + 30 * fs + ';30000;1;stuck'
+        ].join('\n');
+        var blanked = function (x) {
+          return ((x && x.recording && x.recording.epochsRefused) || []).filter(function (r) {
+            return r.reason === 'blanking-run';
+          }).length;
+        };
+        T.eq('ECGDex compute(text) · no sidecar, no blanking-run refusal', blanked(E.compute(etxt)), 0);
+        T.eq('ECGDex compute(text, { runsText }) · the recorded span REFUSES its epoch', blanked(E.compute(etxt, { runsText: ERUNS })), 1);
+        T.eq('ECGDex compute({ text, runsText }) · the sidecar beside the text reaches the parser too', blanked(E.compute({ text: etxt, runsText: ERUNS })), 1);
+      } else T.skip('ECGDSP.compute / genSynthetic unavailable');
+      // (3) SOURCE-MIRRORS — the ACC ingest routes pass the `_ACCRUNS` text (no multi-file drop runs headless).
+      var src = env.sources || {};
+      var app = src['ppgdex-app.js'],
+        aPS = src['adapters/polar-sense-ppg.js'],
+        eApp = src['ecgdex-app.js'];
+      if (typeof app === 'string')
+        T.ok('source-mirror · ppgdex-app.js pairs `accruns` and passes it into parseSensorXYZ', /nearest\('accruns'\)/.test(app) && /parseSensorXYZ\(accF\.text,\s*\{\s*runsText:/.test(app));
+      else T.skip('ppgdex-app.js source not in env.sources');
+      if (typeof aPS === 'string') T.ok('source-mirror · polar-sense-ppg passes comp.accruns into parseSensorXYZ', /parseSensorXYZ\(comp\.acc,\s*\{\s*runsText:\s*comp\.accruns/.test(aPS));
+      else T.skip('adapters/polar-sense-ppg.js source not in env.sources');
+      if (typeof eApp === 'string')
+        T.ok(
+          'source-mirror · ecgdex-app.js splits `_ACCRUNS` from the pick and passes it into parseDeviceACC',
+          /_ACCRUNS/.test(eApp) && /parseDeviceACC\(e\.target\.result,\s*\{\s*runsText:/.test(eApp)
+        );
+      else T.skip('ecgdex-app.js source not in env.sources');
+    });
+
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,
@@ -37259,12 +37347,10 @@
         var SYNTH = 'synthetic input — SYNTH.renderPPG text has no box sidecar';
         /* [count of sidecar-less calls, reason] per file; the count is an equality, never a ceiling */
         var PIN = {
-          'adapters/polar-sense-ppg.js': [3, 'ACC: ' + OPEN + ', and PPGDSP.parseSensorXYZ cannot take one · GYRO, MAGN: no RUNS writer for the stream'],
+          'adapters/polar-sense-ppg.js': [2, 'GYRO, MAGN: no RUNS writer for the stream'],
           'cohort-worker.js': [1, SYNTH],
-          'ecgdex-app.js': [1, 'parseDeviceACC on the H10 `_ACC.txt`: ' + OPEN],
-          'ecgdex-dsp.js': [1, 'compute() text path parseECGText(txt): ' + OPEN],
           'pat-feasibility-worker.js': [2, OPEN],
-          'ppgdex-app.js': [3, 'ACC: ' + OPEN + ', and PPGDSP.parseSensorXYZ cannot take one · GYRO, MAGN: no RUNS writer for the stream'],
+          'ppgdex-app.js': [2, 'GYRO, MAGN: no RUNS writer for the stream'],
           'qrs-equiv-worker.js': [1, SYNTH],
           'qrs-yield-worker.js': [1, SYNTH],
           'resp-acc-analysis-app.js': [1, OPEN],
@@ -49718,6 +49804,13 @@
       );
       T.eq('real HRV comes from the RR series, not the ring summary', JSON.stringify([shipped.realHRV.rmssd, shipped.realHRV.sdnn]), '[39.1,52.8]');
       T.eq('the ECG apnea screen reports its own CVHR count', JSON.stringify([shipped.ecgApnea.cvhrIndex, shipped.ecgApnea.cvhrEvents]), '[2,4]');
+      /* residue 2026-10-18-oxydex-fusion-rebuilds-a-retired-ahi-field. The screen carries the CVHR
+         index, its event count and the HOURS the index divides by — and neither retired field. The
+         fixture pinned the first two and nothing pinned the absence of the other two, so the block
+         read correct only because a current ECGDex export happens to carry no such key. */
+      T.eq('…with the hours the index divides by, carried from ECGDex', shipped.ecgApnea.cvhrHours, 1.97);
+      T.ok('the retired estimatedAHI is not even a key on the screen (§10)', !('estimatedAHI' in shipped.ecgApnea), 'ecgApnea = ' + JSON.stringify(shipped.ecgApnea));
+      T.ok('…nor is the retired riskCategory', !('riskCategory' in shipped.ecgApnea), 'ecgApnea = ' + JSON.stringify(shipped.ecgApnea));
 
       /* §∅ — what the pair does NOT measure stays null. A synthetic PPG-free night has no coupling to
          read and no ECG HR floor, so those report absence rather than a floor of 0. */
@@ -49744,6 +49837,23 @@
       T.eq('the recomputed block EQUALS the committed one, field for field', JSON.stringify(rebuilt), JSON.stringify(shipped));
       setByDate({});
       T.eq('a null fusion maps to a null block, not an object of nulls', blockOf(null), null);
+      /* THE RESURRECTION LEG. A legacy ECGDex export still carries `apnea.estimatedAHI` and
+         `riskCategory`, and the mapping used to copy both — so a legacy pairing folded a retired
+         number back into a CURRENT node export, which is exactly what integrator-dsp.js refuses to
+         read. Current exports carry no such key, so only a hand-built legacy block can see it. */
+      var legacyAp = {
+        estimatedAHI: { value: 9, band: 'Mild' },
+        riskCategory: 'High',
+        cvhrIndex: 3,
+        cvhrEvents: 6,
+        cvhrHours: 7.5
+      };
+      var legacyBlock = blockOf({ ap: legacyAp, latencies: [], stageAgg: {}, t: {} });
+      T.eq('a LEGACY estimatedAHI is NOT folded into the fusion block (retired §10)', JSON.stringify(legacyBlock.ecgApnea), '{"cvhrIndex":3,"cvhrEvents":6,"cvhrHours":7.5}');
+      /* And an ECGDex refusal carries no denominator, so the key is ABSENT rather than null — the same
+         no-null-key discipline ECGDex applies on its own side. */
+      var noBasis = blockOf({ ap: { cvhrIndex: null, cvhrEvents: null }, latencies: [], stageAgg: {}, t: {} });
+      T.ok('a CVHR refusal carries no cvhrHours key at all, not a null one', !('cvhrHours' in noBasis.ecgApnea), 'ecgApnea = ' + JSON.stringify(noBasis.ecgApnea));
 
       /* The extraction itself: the mapping lives in oxydex-fusion.js, and oxydex-app.js CALLS it. An app
          that rebuilds the mapping inline puts the block back out of a regen's reach, which is what made
