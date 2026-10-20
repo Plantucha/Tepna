@@ -979,6 +979,18 @@
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); event → desat coupling lift per class × window (the UNDERPOWERED/SATURATED flags ride as fields) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
+  "tools/cvhr-gap-edge.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cvhr-gap-edge.mjs",
+     "--json"
+    ]
+   },
+   "note": "the planted-beat battery behind PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21 item 2 treatment (3): does a TIME HOLE in the beat series make the two CVHR detectors disagree? Pre-stated criterion ppg_minus_ecg_event_count_max_abs <= 0 events over 51 planted cases (3 rate steps x 17 hole lengths, each against the SAME leg built with no hole at all). PASS says the two nodes count the same events for the same beats and the same mask, which is what the Integrator's corroboration of their two apnea.cvhrIndex values rests on; it does NOT say either count is right. Measured 2026-10-19: FAIL before the mask was ported into cvhrFromNN (3 of 51 cases disagreed by one event), PASS after. The record is planted, so no figure here is corpus evidence, and the unrepaired edge term is reported in `result` beside the criterion rather than judged by it."
+  },
   "tools/cvhr-fold-rescore.mjs": {
    "bin": "word-only",
    "status": "exempt",

@@ -2920,7 +2920,14 @@
      hour OF OBSERVED RECORDING, so the two `apnea.cvhrIndex` values the Integrator corroborates
      against each other are on the same basis. Divide one by wall span and the other by covered time
      and the corroboration measures the dropouts, not the physiology. */
-  function cvhrFromNN(nn, tt, activeSec) {
+  /* `spansGap` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the nn-aligned mask of
+     intervals that STRADDLE a time discontinuity, and it completes the port: ECGDex's `detectCVHR`
+     has carried it since the F3 work and this side did not, so until now the two nodes could return
+     different event counts for the same beats. Measured on planted records by
+     `tools/cvhr-gap-edge.mjs`: 3 of 51 cases disagreed by one event — a 20-25 s hole with a rate
+     step across it stamps an event on a second the hole itself spans, which ECGDex dropped and this
+     node kept. Absent, nothing is excluded and the function behaves exactly as before. */
+  function cvhrFromNN(nn, tt, activeSec, spansGap) {
     const N = nn.length;
     /* ── EVERY REFUSAL NAMES ITSELF, WITH THE QUANTITY AND THE BOUND (§∅, residue
        2026-09-29-ppgdex-cvhr-nulls-without-naming-which-guard-fired) ─────────────────────────────────
@@ -2946,11 +2953,27 @@
     // < 2 min → no apnea-band train can be RESOLVED, so no index exists
     if (M < 120) return { events: [], index: null, reason: 'span ' + M + ' s < 120 s' };
     const hr = new Float64Array(M);
+    /* `covered[s]` is 0 where the interval serving second `s` straddles a dropout. `hr` KEEPS the
+       held value: the band-pass below is a chain of moving averages and a null there would poison
+       every window it touches, which is a worse answer than a flat stretch that produces no event.
+       The fabrication is CONTAINED instead — excluded from the event count, with `coveredSec`
+       returned so a consumer can see the basis rather than infer it. Same shape and same reasoning
+       as the ECGDex original, because this is its port.
+       `spansGap` is nn-ALIGNED and marks the interval ENDING at beat k: `buildPPI` sets
+       nn[k] = footSec[k+1] − footSec[k] and tt[k] = footSec[k+1], and the caller's mask comes from
+       `intervalsSpanningTimeGap`, which indexes that same interval. Second `s` sits between beats j
+       and j+1, so the entry that describes it is `spansGap[j + 1]`, not `spansGap[j]` — indexing the
+       pre-gap beat would mark the dropout COVERED and leave this port inert, which is the trap the
+       ECGDex comment names. Both indexings were run against the planted battery. */
+    const covered = new Uint8Array(M);
     let j = 0;
     for (let s = 0; s < M; s++) {
       while (j < N - 1 && tt[j + 1] < s) j++;
       hr[s] = 60000 / nn[Math.min(j, N - 1)];
+      covered[s] = spansGap && spansGap[Math.min(j + 1, N - 1)] ? 0 : 1;
     }
+    let coveredSec = 0;
+    for (let s = 0; s < M; s++) coveredSec += covered[s];
     const sm = new Float64Array(M); // 5 s smoothing
     for (let s = 0; s < M; s++) {
       let a = 0,
@@ -3002,6 +3025,7 @@
     const events = [];
     let lastT = -100;
     for (let s = 8; s < M - 8; s++) {
+      if (!covered[s]) continue; // §∅ — a dropout's held HR is not a measurement to detect a surge in
       if (env[s] < ENV_ON) continue;
       if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {
         let pk = -Infinity,
@@ -3030,7 +3054,7 @@
     const denomSec = activeSec > 0 ? activeSec : tEnd;
     const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index, denomSec };
+    return { events, index, denomSec, coveredSec };
   }
   // `omit` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) marks intervals that are NOT
   // MEASUREMENTS AT ALL — currently only those straddling a time discontinuity (O2RING-PPG-GAP §2).
@@ -5173,24 +5197,6 @@
           return Number.isFinite(c) ? +c.toFixed(3) : 1;
         })
       : null;
-    // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
-    // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
-    // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
-    /* OBSERVED seconds for the index's denominator (DEEP-AUDIT-VI F3 port). Measured here with the
-       SAME rule ECGDex applies to its own beat series — inter-beat deltas over the gap cut are dead
-       time, not a long interval — rather than reusing `ppgCoverage`, which answers the neighbouring
-       question about the SAMPLE stream: a hole in the samples and a hole in the accepted beat series
-       are not the same set, and the denominator has to match the series the events came from. */
-    const PPG_CVHR_GAP_S = 10; // ECGDex `GAP_S` — one cut, so the two nodes' indices stay comparable
-    let _cvhrActiveSec = 0;
-    for (let k = 1; k < corr.tt.length; k++) {
-      const _d = corr.tt[k] - corr.tt[k - 1];
-      if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
-    }
-    /* Same seam refusal as F10's above. `cvhrFromNN` takes no record, so it cannot see the seam and
-       the gate belongs at the caller — it counts apnea-band events per hour of observed recording, and
-       an hour that spans a clock discontinuity is not an hour it observed. */
-    const _cvhr = _clockSeam ? { events: [], index: null, reason: 'clock-seam' } : cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -5289,6 +5295,29 @@
        is absent from both. */
     const spansOmit = kIdx.map((i) => spansGapIn[i] || spansPinIn[i]);
     const cleanMask = kIdx.map((i) => cleanIn[i]);
+    /* ⚠️ THE CVHR CALL SITS HERE, after `_spansGap`, and that placement is the point of the move.
+       `cvhrFromNN` now takes the gap mask (§4 item 2 treatment (3)), and the mask is only in scope
+       once `spansGapIn` has been projected onto the kept frame above. Nothing between the old site
+       and this one reads `_cvhr` — its first consumer is the export block — so the move is a
+       reordering and not a change of inputs. */
+    // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
+    // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
+    // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
+    /* OBSERVED seconds for the index's denominator (DEEP-AUDIT-VI F3 port). Measured here with the
+       SAME rule ECGDex applies to its own beat series — inter-beat deltas over the gap cut are dead
+       time, not a long interval — rather than reusing `ppgCoverage`, which answers the neighbouring
+       question about the SAMPLE stream: a hole in the samples and a hole in the accepted beat series
+       are not the same set, and the denominator has to match the series the events came from. */
+    const PPG_CVHR_GAP_S = 10; // ECGDex `GAP_S` — one cut, so the two nodes' indices stay comparable
+    let _cvhrActiveSec = 0;
+    for (let k = 1; k < corr.tt.length; k++) {
+      const _d = corr.tt[k] - corr.tt[k - 1];
+      if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
+    }
+    /* Same seam refusal as F10's above. `cvhrFromNN` takes no record, so it cannot see the seam and
+       the gate belongs at the caller — it counts apnea-band events per hour of observed recording, and
+       an hour that spans a clock discontinuity is not an hour it observed. */
+    const _cvhr = _clockSeam ? { events: [], index: null, reason: 'clock-seam' } : cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec, _spansGap);
     /* Pair adjacency in the kept frame: `adj[j]` is false when nn[j-1] and nn[j] were NOT input
        neighbours, i.e. correctRR dropped ≥1 interval between them. Their successive difference then
        spans an unaccepted beat — the very pair the pre-#2333 in-place fill excluded through its own
