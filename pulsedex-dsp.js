@@ -521,8 +521,7 @@
     // periodic breathing — the corpus plants CSR at ~0.017 Hz) was invisible: respRate reported
     // the tiny residual HF peak and the sub-HF rhythm vanished. Track it globally and expose where
     // the dominant component actually sits (SYNTH-TEXTURE-FOLLOWUPS §1).
-    let tp = 0,
-      vlf = 0,
+    let vlf = 0,
       lf = 0,
       hf = 0,
       peakF = 0,
@@ -560,7 +559,6 @@
          and gPeakF — the GLOBAL peak that surfaces sub-HF CSR/PB — would be free to land above
          0.4 Hz, where no respiratory or Cheyne-Stokes rhythm can live. */
       if (f < fHi) {
-        tp += e;
         if (P > gPeakP) {
           gPeakP = P;
           gPeakF = f;
