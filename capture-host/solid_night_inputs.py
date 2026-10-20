@@ -202,6 +202,11 @@ DAEMON_REGRESSION = (
     "daemon:solid-night re-judge",
 )
 UNATTRIBUTED = "unattributed"
+# AN EVENT-LOOP STALL KEEPS THE BAR IT HAD. Until `loss_audit` read the device-less stall line, a gap a
+# stall opened was `unattributed` and counted toward the two bars below. Naming the cause must not move a
+# verdict on its own: the stall is an OPEN daemon defect, not a fixed mechanism (`DAEMON_REGRESSION`) and
+# not a declared pause, so its gaps still count as unexplained here and the reason names them.
+LOOP_STALL = "daemon:event-loop stall"
 NO_JOURNAL = "unattributed (no journal)"
 UNATTRIBUTED_MAX_S = 60.0  # §3.4: total < 60 s …
 UNATTRIBUTED_MAX_N = 5  # … and count < 5
@@ -718,9 +723,11 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
         return _decision("FAIL", f"daemon regression inside the worn interval: {', '.join(regress)}")
     if any(c == NO_JOURNAL for c, _ in inside):
         return _decision("UNKNOWN", "a gap inside the worn interval is unattributed for want of a journal")
-    un = [s for c, s in inside if c == UNATTRIBUTED]
+    un = [s for c, s in inside if c in (UNATTRIBUTED, LOOP_STALL)]
+    stalled = sum(1 for c, _ in inside if c == LOOP_STALL)
     if sum(un) >= UNATTRIBUTED_MAX_S or len(un) >= UNATTRIBUTED_MAX_N:
-        return _decision("FAIL", f"{len(un)} unattributed gap(s), {sum(un):.0f} s, inside the worn interval")
+        named = f" ({stalled} under an event-loop stall, {LOOP_STALL})" if stalled else ""
+        return _decision("FAIL", f"{len(un)} unattributed gap(s){named}, {sum(un):.0f} s, inside the worn interval")
     link = sum(s for c, s in inside if c.startswith("link:"))
     if worn_s > 0 and link / worn_s >= LINK_MAX_FRACTION:
         return _decision("FAIL", f"link drops {link:.0f} s = {100 * link / worn_s:.1f} % of the worn interval")
@@ -739,6 +746,11 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
         notes.append(
             f"excluded discontinuity: {len(restarts)} daemon restart(s), {sum(restarts):.0f} s "
             f"({RESTART}) inside the worn interval — the box chose to restart, so the band excludes it",
+        )
+    if stalled:
+        notes.append(
+            f"counted discontinuity: {stalled} gap(s) under an event-loop stall ({LOOP_STALL}) inside the "
+            "worn interval — counted toward the unattributed bar, which they stay under",
         )
     paused = [s for c, s in inside if c == DECLARED_PAUSE]
     if paused:

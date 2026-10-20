@@ -883,6 +883,19 @@
    "status": "exempt",
    "reason": "the only verdict word it prints is its OWN --selftest result line (\"SELFTEST FAIL\"); it decides nothing about the lane. It serves the checkout in-process, sets BASE_URL and FORWARDS tests/browser-gates.mjs's exit code unchanged — and that gate is `decides`/adopted with its own --verdict-sample, so the lane's verdict is already an object with a producer behind it. Emitting a second object here would claim an authorship this process does not have: per VERDICT-CONTRACT §3d a runner's status is an aggregation of its children, and this one has exactly one child whose verdict it relays rather than aggregates. It adds an origin and an exit code, not a decision."
   },
+  "tools/build-analysis.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/build-analysis.mjs",
+     "--check",
+     "--json"
+    ]
+   },
+   "note": "the analysis-tool ARTIFACT gate (residue 2026-09-28-generator-compared-to-itself-examines-no-artifact): `--check` re-bundles and byte-compares, which decides only that this generator reproduces the tree — the splice that shipped four pages with an unclosed `var __WSRC` string literal passed exactly that test, because a re-bundle of the same source reproduces the same broken bytes. `--json` now prints ONE tepna.verdict/1 over three pre-stated legs read off the artifact itself: no inlined block carries the page's own first 200 bytes (by the page's own signature, never value membership — a legitimate '<!DOCTYPE html>' literal flags 6 blocks in this tree), every block whose data-inline-src names a file sits inside a 0.5-1.02 size ratio of that file (measured 0.9999-1.0013 over 69 sourced blocks), and the injected worker map parses as JSON with a non-empty entry for every __mkWorker name on the page. Population = pages; a page missing from the tree is excluded. The negative control is in --selftest, and the writer now refuses to write a page that fails its own audit"
+  },
   "tools/build-docs.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -1007,6 +1020,18 @@
     ]
    },
    "note": "the planted-beat battery behind PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21 item 2 treatment (3): does a TIME HOLE in the beat series make the two CVHR detectors disagree? Pre-stated criterion ppg_minus_ecg_event_count_max_abs <= 0 events over 51 planted cases (3 rate steps x 17 hole lengths, each against the SAME leg built with no hole at all). PASS says the two nodes count the same events for the same beats and the same mask, which is what the Integrator's corroboration of their two apnea.cvhrIndex values rests on; it does NOT say either count is right. Measured 2026-10-19: FAIL before the mask was ported into cvhrFromNN (3 of 51 cases disagreed by one event), PASS after. The record is planted, so no figure here is corpus evidence, and the unrepaired edge term is reported in `result` beside the criterion rather than judged by it."
+  },
+  "tools/cvhr-edge-widen.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cvhr-edge-widen.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the cost of widening the CVHR hole exclusion from the hole's own seconds to the DECISION's support window, which reaches 37 s back and 72 s forward. Pre-stated criterion excluded_events_per_hole_mean <= 2 events, the bound the artefact itself carries (a planted hole adds at most 2 events, tools/cvhr-gap-edge.mjs), so a widen removing more real events per hole than that cannot pay for itself. Phase 1 is planted and phase 2 reads every optical stream of the corpus; `--verdict-sample` is what this gate reads, because both phases together outlast its timeout and a real run needs a corpus. The recomputation refuses a night whose event count does not reproduce the node's own, so `population.excluded` is part of the result and not an aside."
   },
   "tools/cvhr-fold-rescore.mjs": {
    "bin": "word-only",

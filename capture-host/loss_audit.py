@@ -232,6 +232,19 @@ WORN_EVIDENCE_BY_MODEL: dict[str, tuple[str, str]] = {
 OPERATOR_TIMESYNC = "operator:time-sync"
 TIMESYNC_NEEDLE = "POST /api/timesync"
 TIMESYNC_TAIL_S = 60.0  # CHOSEN: 2026-09-24's pauses ran to 48 s after the request completed
+# ── AN EVENT-LOOP STALL names no device, and it is the daemon's doing ──────────────────────────────────────
+# The loop monitor's warning (`event loop stalled 15682 ms — every live stream's host stamps waited behind
+# whatever held it`) carries no device name or address, so the per-device key filter dropped every one, and
+# a gap the stall opened read `unattributed` with `daemon_caused_min: 0`. Measured on vigil (residue
+# 2026-10-13-the-stall-that-tore-the-ring-is-invisible-to-the-attribution): five of night 10-12's six ring
+# gaps, and on 10-18 a 17 s ring gap at 03:45:57 under a 15.7 s stall that began 1.3 s after it.
+# ⚠️ The warning is logged when the loop WAKES, i.e. at the stall's END; the line states its own length,
+# so the event is dated at the stall's START, the moment the cause began. A stall with no gap near it adds
+# nothing: a cause bin attributes gaps and never counts a stall as loss (11 stalls on 10-12, 5 gaps).
+# ⚠️ The monitor rate-limits the warning to one per 300 s, so a stall it suppressed stays invisible here.
+LOOP_STALL = "daemon:event-loop stall"
+LOOP_STALL_NEEDLE = "event loop stalled"
+_LOOP_STALL_MS = re.compile(r"event loop stalled (\d+) ms")
 _ACCESS_START = re.compile(r"\[(\d{2})/([A-Z][a-z]{2})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) [+-]\d{4}\]")
 _MONTHS = {
     m: i + 1 for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
@@ -602,6 +615,12 @@ def read_journal(
             if start is not None:
                 out.append((start, OPERATOR_TIMESYNC))
                 syncs.append((start, _dt.datetime.fromisoformat(m.group(1)) + _dt.timedelta(seconds=TIMESYNC_TAIL_S)))
+            continue
+        if LOOP_STALL_NEEDLE in ln:
+            ms = _LOOP_STALL_MS.search(ln)
+            if ms is not None:
+                woke = _dt.datetime.fromisoformat(m.group(1))
+                out.append((woke - _dt.timedelta(milliseconds=int(ms.group(1))), LOOP_STALL))
             continue
         if not any(k in ln for k in keys) and "Starting tepna-capture" not in ln:
             continue

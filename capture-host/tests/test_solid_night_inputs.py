@@ -6235,3 +6235,34 @@ def test_the_box_s_own_re_judge_fails_the_band_the_way_the_unattributed_night_al
     d2 = tmp_path / "lone"
     d2.mkdir()
     assert _cont(d2, gaps=lone)["status"] == "PASS"
+# ── AN EVENT-LOOP STALL KEEPS THE BAR IT HAD (residue 2026-10-13-the-stall-that-tore-the-ring-is-invisible-…) ──
+def test_five_stall_gaps_fail_the_band_as_five_unattributed_gaps_did(tmp_path):
+    five = [(f"2026-09-20T23:01:{s}0", 1.0, si.LOOP_STALL) for s in (1, 2, 3)] + [
+        (f"2026-09-20T23:01:{s}0", 1.0, "unattributed") for s in (4, 5)
+    ]
+    out = _cont(tmp_path, gaps=five)
+    assert out["status"] == "FAIL"
+    assert out["reason"].startswith("5 unattributed gap(s) (3 under an event-loop stall, daemon:event-loop stall)")
+
+
+def test_five_plain_unattributed_gaps_name_no_event_loop_stall(tmp_path):
+    # with no stall among the gaps, the reason carries no stall clause (survivor `(stalled) or True`)
+    five = [(f"2026-09-20T23:01:{s}0", 1.0, "unattributed") for s in (1, 2, 3, 4, 5)]
+    out = _cont(tmp_path, gaps=five)
+    assert out["status"] == "FAIL"
+    assert out["reason"].startswith("5 unattributed gap(s), 5 s, inside the worn interval")
+    assert "event-loop stall" not in out["reason"]
+
+
+def test_one_stall_gap_passes_the_band_and_names_itself(tmp_path):
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 17.0, si.LOOP_STALL)])
+    assert out["status"] == "PASS"
+    assert "1 gap(s) under an event-loop stall (daemon:event-loop stall)" in out["reason"]
+
+
+def test_sixty_seconds_under_stalls_fail_the_band_on_minutes(tmp_path):
+    assert _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 60.0, si.LOOP_STALL)])["status"] == "FAIL"
+
+
+def test_the_judge_and_the_audit_spell_the_stall_cause_alike():
+    assert si.LOOP_STALL == _la.LOOP_STALL

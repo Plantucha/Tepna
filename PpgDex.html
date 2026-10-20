@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="4794a2ac6140" data-compute-hash="1efc6f5aa875">
+<html lang="en" data-manifest-hash="54a3b96c6d3d" data-compute-hash="d40cb3d128e1">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bVG+fOzIqYZ+4gc2Q8jVCzlzwDOWIp3HtPl8H7xlIHg=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-iqObwZuhhCpoqhsYWrIrC8L204h+oYXXMemgvLQZYyk=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7Me7fcE8dEV0x2N6H77YHUya68g+o74cCczNljdoLUA=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-TmxmFT1Jk0P6H3wMhFbiHHoXgbsGiTwmNwrYqz5fuE8=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.20.0</title>
@@ -10626,7 +10626,37 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     if (nums.length < 3) return null;
     return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
   }
-  function parseSensorXYZ(text) {
+  /* §3.2 — the `…_ACCRUNS.txt` validity sidecar as wall-clock spans, one per recorded blanking run.
+     A node-local copy of ECGDex's `parseAccRunsTimed`: nodes never import each other (ARCHITECTURE
+     -PRINCIPLES §2). Column 0 is the run's first-sample stamp, column 5 its duration in ms. A row that
+     does not parse adds no span, so a damaged sidecar can only blank LESS, never invent a run. */
+  function parseAccRunsTimed(text) {
+    if (typeof text !== 'string' || !text) return null;
+    const out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        const mr = /\bstream=/.test(line) ? /\bmin_run=(\d+)/.exec(line) : null;
+        if (out.minRun == null && mr) out.minRun = +mr[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) continue;
+      const c = line.split(';');
+      if (c.length < 8) continue;
+      const st = parseTimestamp((c[0] || '').trim());
+      const dur = +c[5];
+      if (!st || !isFinite(dur) || dur < 0) continue;
+      out.spans.push({ t0Ms: st.tMs, t1Ms: st.tMs + dur });
+      out.emitted++;
+    }
+    out.comparable = out.minRun != null;
+    return out;
+  }
+  /* `opts.runsText` is the matching `…_ACCRUNS.txt` when the caller paired one (SAMPLE-VALIDITY-ENVELOPE
+     §3.2). LAST and OPTIONAL: every 1-arg call keeps its bytes, and the spans ride on the row array as
+     `_blankSpans`, the idiom ECGDex's `parseDeviceACC` and MotionDex's parser of this name already use. */
+  function parseSensorXYZ(text, opts) {
     const lines = text.split(/\r?\n/);
     const out = [];
     let ns0 = null;
@@ -10696,6 +10726,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
     }
     if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
+    const _accRuns = parseAccRunsTimed(opts && opts.runsText);
+    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     return out;
   }
   /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
@@ -10834,7 +10866,17 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       // count/durSec under-states it under packet loss, which shortens this window in real time.
       const w = Math.max(3, Math.round(_accHz != null ? _accHz : accRows.length / durSec)); // ~1s
       const base = movavg(Float32Array.from(mags), w);
-      accMag = accRows.map((r, i) => ({ s: relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
+      /* §∅ — A HELD ACC READS AS STILLNESS. A recorded blanking run repeats one value, so its dynamic
+         magnitude is ~0 and every cell it lands in would score "not moving", which is a reading nobody
+         took. A sample inside a span from the box's `_ACCRUNS.txt` therefore reaches no cell: the cell
+         stays uncovered unless the gyro measured it, and `motionCoveredAtSec` says so. */
+      const _blank = Array.isArray(/** @type {any} */ (accRows)._blankSpans) ? /** @type {any} */ (accRows)._blankSpans : [];
+      const _inBlank = (tMs) => {
+        if (tMs == null) return false;
+        for (const sp of _blank) if (tMs >= sp.t0Ms && tMs < sp.t1Ms) return true;
+        return false;
+      };
+      accMag = accRows.map((r, i) => ({ s: _blank.length && _inBlank(r.tMs) ? null : relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
     }
     /* ── THE GYRO'S ZERO-RATE BIAS IS NOT MOTION ──────────────────────────────────────────────────
        ACC is de-gravitated three lines up — `|mag - movavg(mag, ~1s)|` — because a raw accelerometer
@@ -18329,13 +18371,16 @@ const { PPGUI } = __require('ppgdex-render.js');
             gyroF = nearest('gyro'),
             magF = nearest('magn'),
             ppiF = nearest('ppi'),
-            markF = nearest('marker');
-          rec.acc = accF ? DSP.parseSensorXYZ(accF.text) : null;
+            markF = nearest('marker'),
+            accRunsF = accF ? nearest('accruns') : null;
+          // §3.2 — the ACC's own `_ACCRUNS.txt`, when the drop carried one, so a held run is not read as stillness.
+          rec.acc = accF ? (accRunsF ? DSP.parseSensorXYZ(accF.text, { runsText: accRunsF.text }) : DSP.parseSensorXYZ(accF.text)) : null;
           rec.gyro = gyroF ? DSP.parseSensorXYZ(gyroF.text) : null;
           rec.magn = magF ? DSP.parseSensorXYZ(magF.text) : null;
           rec.devicePPI = ppiF ? DSP.parseDevicePPI(ppiF.text) : null;
           rec.companions = { acc: accF ? accF.name : null, gyro: gyroF ? gyroF.name : null, magn: magF ? magF.name : null, ppi: ppiF ? ppiF.name : null, marker: markF ? markF.name : null };
           rec.companions.runs = runsF ? runsF.name : null; // §3.2 — which validity sidecar fed parsePPG, or none
+          rec.companions.accruns = accRunsF ? accRunsF.name : null; // and which one fed the ACC parse
           if (markF) {
             const rows = markF.text.split(/\r?\n/);
             const mk = [];
