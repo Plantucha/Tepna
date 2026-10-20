@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** DONE — 2026-10-20 · **Created:** 2026-10-20 · **Follows:** `TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md` · **Residue:** 2026-10-18-tch-reference-and-h10-corner-sit-on-two-axes
+**Status:** DONE — 2026-10-20 · **Created:** 2026-10-20 · **Follows:** `TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md`
 
 # Does matching the reference's clock axis remove the H10's host-minus-wall gap?
 
