@@ -117,8 +117,8 @@ def test_the_three_external_children_green_IS_a_PASS_with_no_adopted_child_in_th
 
 
 def test_the_adopted_and_unadopted_sets_partition_the_children_of_ours():
-    assert C.ADOPTED_OURS == {"unwired": "find-unwired"}
-    assert C.UNADOPTED_OURS == frozenset(), "unwired adopted; a name returns here only for a NEW tool of ours"
+    assert C.ADOPTED_OURS == {"unwired": "find-unwired", "covscope": "capture-host-coverage-scope"}
+    assert C.UNADOPTED_OURS == frozenset(), "both tools of ours adopted; a name returns here only for a NEW one"
     assert not (C.UNADOPTED_OURS & set(C.ADOPTED_OURS)) and not (set(C.ADOPTED_OURS) & set(C.CONTRACTS))
 
 
@@ -269,7 +269,7 @@ def test_a_trailing_object_flag_without_a_value_is_an_empty_unreadable_object_no
     assert json.load(open(out))["status"] == "PASS"
 
 
-def test_the_sample_hands_aggregate_a_green_unwired_object_and_the_two_advisory_tokens(monkeypatch):
+def test_the_sample_hands_aggregate_a_green_object_per_adopted_child_and_the_two_advisory_tokens(monkeypatch):
     """`verdict_sample` is the adoption gate's green shape: the synthetic child object must itself state a
     clean run (threshold 0, nothing unexplained) and the advisory tokens must reach the verdict."""
     seen: list[tuple] = []
@@ -282,11 +282,16 @@ def test_the_sample_hands_aggregate_a_green_unwired_object_and_the_two_advisory_
     monkeypatch.setattr(C, "aggregate", spy)
     v = C.verdict_sample()
     ((children, advisory, objects),) = seen
-    assert children == GREEN
+    # EVERY ADOPTED CHILD RIDES THE SAMPLE. A sample that names fewer children than check.sh runs is a
+    # green shape nobody executes, and the adoption gate would validate it anyway.
+    assert children == GREEN | {"covscope": 0}
+    assert set(objects) == set(C.ADOPTED_OURS)
     assert advisory == {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"}
     assert v["result"]["advisory"] == advisory
     u = objects["unwired"]
     assert u["criterion"]["threshold"] == 0 and u["result"] == {"unexplained": 0} and u["status"] == "PASS"
+    c = objects["covscope"]
+    assert c["gate"] == "capture-host-coverage-scope" and c["result"] == {"findings": 0} and c["status"] == "PASS"
 
 
 # ── `--refused`: the preflight stopped before any child ran ──────────────────────────────────────────
