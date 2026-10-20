@@ -189,21 +189,29 @@ def deltas(snap: dict, prev: dict | None) -> dict:
     """PURE: the per-op and per-retry increments between two `snapshot()` results.
 
     Every figure is `None` when `prev` is `None`, and measured otherwise — including for an op the
-    previous snapshot does not name, whose baseline is zero by construction (see the note above)."""
-    pops = (prev or {}).get("ops", {})
-    prets = (prev or {}).get("retries", {})
+    previous snapshot does not name, whose baseline is zero by construction (see the note above).
+
+    THE TOP-LEVEL KEYS ARE INDEXED, NOT `.get`-ed, for the reason `log_line` already states about
+    `rate` and `window_sec`: `snapshot()` writes `ops`, `retries` and a per-op `failures` on every
+    call unconditionally, and `prev` is only ever a `snapshot()` result (`capture.py` seeds it `None`
+    and then assigns the snapshot it just logged). A `{}` default on those five reads was a branch no
+    caller could reach, so no test could observe it — measured 2026-10-20 as 10 surviving mutants
+    under `mutation (diff-scoped)`, every one of them that default turning into `None`. Indexing
+    turns a producer that ever drops a key into a `KeyError` here instead of a silently empty
+    series. The `.get` calls that REMAIN are the reachable ones: an op or device the previous
+    snapshot does not name, whose baseline is zero by construction."""
     ops = {}
-    for key, cur in snap.get("ops", {}).items():
-        base = None if prev is None else pops.get(key, {})
+    for key, cur in snap["ops"].items():
+        base = None if prev is None else prev["ops"].get(key, {})
         fbase = None if base is None else base.get("failures", {})
         ops[key] = {
             "attempts": _delta(cur["attempts"], base, "attempts"),
             "successes": _delta(cur["successes"], base, "successes"),
-            "failures": {c: _delta(n, fbase, c) for c, n in cur.get("failures", {}).items()},
+            "failures": {c: _delta(n, fbase, c) for c, n in cur["failures"].items()},
         }
     retries = {}
-    for dev, whys in snap.get("retries", {}).items():
-        base = None if prev is None else prets.get(dev, {})
+    for dev, whys in snap["retries"].items():
+        base = None if prev is None else prev["retries"].get(dev, {})
         retries[dev] = {w: _delta(n, base, w) for w, n in whys.items()}
     return {"ops": ops, "retries": retries}
 

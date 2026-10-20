@@ -265,3 +265,26 @@ def test_an_op_with_no_failure_class_yet_prints_no_failure_segment():
     blestats.attempt("connect", "AA")
     line = blestats.log_line(blestats.snapshot(), first)
     assert "connect/AA 0/1" in line and "fail" not in line
+
+
+def test_the_snapshot_shape_deltas_INDEXES_is_pinned_here():
+    """`deltas` reads `snap["ops"]`, `snap["retries"]` and a per-op `cur["failures"]` by index.
+
+    That is sound only while `snapshot()` writes all three on every call, and nothing else pinned
+    it: a `{}` default stood in for the key instead, which is a branch no producer can reach, so
+    ten mutants of those five reads survived (measured 2026-10-20 on #3770). Indexing moved the
+    cost here, where a producer that drops a key fails loudly. Both arms are exercised: the op dict
+    below is empty when nothing has been counted, and populated once something has.
+    """
+    bare = blestats.snapshot()
+    assert set(bare) == {"ops", "retries"}, "deltas indexes both of these"
+    assert bare["ops"] == {} and bare["retries"] == {}
+
+    blestats.attempt("connect", "AA")
+    blestats.fail("connect", "AA", "timeout")
+    blestats.retried("AA", "backoff")
+    full = blestats.snapshot()
+    assert set(full) == {"ops", "retries"}
+    assert set(full["ops"]["connect/AA"]) == {"attempts", "successes", "rate", "failures"}
+    assert full["retries"] == {"AA": {"backoff": 1}}
+    assert blestats.deltas(full, bare)["ops"]["connect/AA"]["failures"] == {"timeout": 1}
