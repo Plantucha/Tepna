@@ -66154,6 +66154,40 @@
       // ── the message that turned a dead end into a one-step recovery ───────────────────────────
       T.ok('an absent input names the path that was searched', /looked in \$\{corpusDir\}/.test(core), 'INPUT ABSENT must print the resolved corpus dir');
       T.ok('the summary separates an unreached input from a deliberate skip', /NOT REACHED/.test(core) && /absent\+\+/.test(core), 'a hole must not be counted as `skipped`');
+      /* ── THE THIRD CONSUMER: the test runner (2026-10-19) ─────────────────────────────────────────
+         §3.4 gated the two halves of the fixture workflow — the regen tools that WRITE and the verify
+         tool that STAMPS. The runner that RE-RUNS the inputs was outside that set, and it resolved every
+         input against one directory: `$DEX_UPLOADS` or `<repo>/uploads`, chosen once per run. One
+         directory cannot hold both halves of the input set. A recording is gitignored and lives only in
+         the corpus; a committed input is a repo artifact and lives only in a checkout. Measured with
+         `DEX_UPLOADS` at the canonical corpus root: the CPAPDex measured-window group RED on its own
+         "present in every environment" message. Measured in a worktree with no override: the real-corpus
+         equiv legs read as absent. So the runner searches the same rails, PER FILE, through the same
+         helper — and this leg is what keeps a future edit from collapsing it back to one path.
+         The runner's text comes from `env.hosts` (both lanes load it); the fixture (ANSWER-KEY) side is
+         asserted to stay repo-local, because a redirected corpus must never supply a reference. */
+      var runner = (env.hosts && env.hosts['tests/run-tests.mjs']) || null;
+      if (typeof runner !== 'string' || runner.length < 2000) {
+        T.ok('tests/run-tests.mjs text available (runner input-rail check)', true, 'not in env.hosts — skipped for this lane');
+      } else {
+        T.ok('the Node runner IMPORTS the same helper from the core', reImport.test(runner), 'tests/run-tests.mjs must resolve inputs through regen-goldens-core.mjs, not its own path rule');
+        T.ok('the runner builds its rail list FROM corpusSearch, never hand-rolled', /corpusSearch\(ROOT\)\.candidates/.test(runner), 'a second rail order is a second resolver');
+        T.ok(
+          'an input is a SEARCH over the rails, not one path',
+          /function inputPath\s*\(name\)\s*\{[\s\S]{0,400}?for \(const rail of INPUT_RAILS\)[\s\S]{0,200}?existsSync\(/.test(runner),
+          'inputPath must try each rail and return the first that exists'
+        );
+        T.ok(
+          'the historical rail stays at the HEAD of the list, so no input resolves elsewhere',
+          /INPUT_RAILS\s*=\s*\[UPLOADS,/.test(runner),
+          'prepending UPLOADS is what makes the search a widening rather than a redirect'
+        );
+        T.ok(
+          'the FIXTURE side stays repo-local (a redirected corpus supplies no answer key)',
+          /join\(ROOT, 'uploads'\)/.test(runner) && !/inputPath\((?:fx|fix)/.test(runner),
+          'a fixture is the committed reference this checkout is diffed against'
+        );
+      }
     });
 
     /* REGEN-CORPUS-PATH-FOLLOWUPS §4 — ONE Mode/AMo50, decided option (a).
