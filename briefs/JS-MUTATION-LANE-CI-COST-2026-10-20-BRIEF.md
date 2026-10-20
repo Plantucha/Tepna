@@ -21,6 +21,8 @@ rig both ran, and records the factor beside the capture-host one.
 | CI history, widened | the last 400 runs of the same workflow, 2026-10-18 02:21Z → 2026-10-20 07:32Z (§4b) |
 | the capped run | run `39162011567`, PR #3638, job 2568 s, conclusion `failure` (§7) |
 | the calibration-bound run | run `39132925025`, PR #3629, 1662 s, 38 files calibrated, 2 mutants (§3) |
+| rig leg 3 | the capped run's own bytes, `--diff 599fd7ba`, `--limit 25 --jobs 3`, wall 797 s (§7) |
+| rig legs 4–5 | one 26-mutant population at 3 then 12 jobs, 856 s and 377 s (§7b) |
 
 The population reproduces because `--diff <base>` is three-dot, so it reads the MERGE BASE. Main
 advancing after the run does not move it.
@@ -60,8 +62,8 @@ FILES it touches, never by its mutant count.
 
 **A second CI run makes the FILE the whole bill.** Run `39132925025` on `claude/unused-vars-k9u`,
 2026-10-18, spent 1659 s to test **two** mutants. It calibrated **38 files for 895 s** — 54 % of the
-job — at a mean of 23.6 s and a worst of 397 s, while 17 further files refused before calibrating
-because no suite group is tagged for them. Both mutants survived, so the gate published `FAIL` over
+job — at a mean of 23.6 s and a worst of 397 s, while 17 further files refused before calibrating,
+because the suite tags no group for them. Both mutants survived, so the gate published `FAIL` over
 `checked: 2` having spent more than half its budget on clean runs. By mutant count a lint sweep over
 134 changed lines is the cheapest diff this gate can see, and by file count it is among the dearest.
 
@@ -137,6 +139,11 @@ group; state shared between the three hard-linked worker trees; and the timeout 
 `tools/mutate.mjs:869`, which scores a mutant KILLED when its run dies after emitting assertion
 output. Logged as residue `2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs`.
 
+**A bound on this finding, measured since** (§7b's two legs). On `oxydex-dsp.js` the 3-job and
+12-job legs over one 26-mutant population named the **same 15 survivors**, line for line and operator
+for operator, and killed the same 11. So the set does not move with parallelism, and it did not move
+on this file at all. The §6 legs differ in two ways at once — the file and the CI/rig boundary — and
+this pair holds one of them still. Whatever moves that set, four times the workers is not it.
 ## 7 · THE THIRD FINDING — the gate cannot finish a large-DSP diff at CI's parallelism
 
 Residue `2026-10-12-the-js-mutation-timeout-is-wider-than-the-self-speeding-pr` asks whether an
@@ -162,10 +169,20 @@ a margin. The population is mutants times the covering-suite cost per mutant, an
 large DSP sets both high. PR #3638 merged on the required contexts with this gate never terminal,
 which is the third such merge the row's own history records.
 
-**The sizing rule holds, and it would have refused this diff.** §2 prices CI at 2.4x the rig. The rig
-needs RIGLEG_PER_MUTANT s per mutant on this file at the same 3 jobs, so 82 mutants read
-RIGLEG_FILE_S rig seconds — RIGLEG_RATIO times the 1050-second break-even. A pickup that priced this
-diff before pushing it would have known.
+**The sizing rule holds, and it would have refused this diff.** §2 prices CI at 2.4x the rig. A third
+rig leg re-ran the capped run's own bytes — the same tool, the same commit range, the same 3 jobs, the
+same 25-mutant budget — and needs **26.4 s** per mutant on this file, so 82 mutants plus the 81 s
+calibration read **2246 rig seconds**, **2.1 times** the 1050-second break-even. Adding
+`oxydex-render.js` at its measured 1.6 s per mutant brings the whole diff to about 2450 rig seconds,
+**2.3 times** the break-even. A pickup that priced this diff before pushing it would have known.
+
+**One bound on that comparison: the two 25-mutant sets are not the same 25.** CI ran with no `--limit`
+and reached 25 of 82 only because the cap killed it, so its 25 are the **first** 25. The rig leg passed
+`--limit 25`, and `tools/mutate.mjs:334` `thin` samples evenly across the population
+(`list[Math.floor(i * step)]`), so its 25 are **spread over** the 82. Both legs ran the same file at the
+same parallelism, and their kill mix is close — CI 9 killed of 25, the rig 10 of 25 — so the per-mutant
+rates are comparable. They are not two readings of one subset, and the **3.2x** between 83.2 s and
+26.4 s is a factor over two different samples of one file.
 
 ### 7b · A wall-clock factor is only valid at matched parallelism
 
@@ -176,13 +193,20 @@ which is why that 2.4x is a factor rather than a parallelism artefact.
 
 Measured on one population — 26 mutants of `oxydex-dsp.js` plus one of `oxydex-render.js`, on the rig:
 
-| rig jobs | wall | per mutant |
-|---|---|---|
-| 3, CI's own | RIGLEG_J3_WALL | RIGLEG_J3_PER |
-| 12 | RIGLEG_J12_WALL | RIGLEG_J12_PER |
+| rig jobs | wall | `oxydex-dsp.js` calibration | per mutant |
+|---|---|---|---|
+| 3, CI's own | 856 s | 97 s | **28.5 s** |
+| 12 | 377 s | 94 s | **10.1 s** |
 
-RIGLEG_SPEEDUP_SENTENCE A 16-job local reading therefore predicts no CI wall, and nothing in it
-says the runner is slow.
+Four times the workers bought 2.27x the wall and 2.82x the per-mutant rate, so two readings of ONE
+population at two job counts differ by more than the whole CI:rig factor this brief measures. A 16-job
+local reading therefore predicts no CI wall, and nothing in it says the runner is slow.
+
+**The factor is not one constant, and the loop's is the higher one.** Against CI's 83.2 s per mutant on
+the same file at the same 3 jobs, the rig's 28.5 s is a **2.92x** per-mutant factor, while the
+calibration factor is **1.98x** (192 s against 97 s). §2's whole-gate 2.32x–2.45x is a blend of the two
+over a diff that was calibration-heavy. So 2.4x stays the rule for a mixed diff, and a diff whose cost
+is mostly LOOP is under-priced by it: size that one at 2.9x.
 
 ### 7c · What this leaves open
 
