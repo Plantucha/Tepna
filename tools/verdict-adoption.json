@@ -1253,6 +1253,18 @@
    },
    "note": "every .claude/hooks hook must drain stdin before it can exit (residue 2026-10-12-seven-hooks-exit-before-draining-stdin-and-their-tests-cannot-see-it; #3493, #3759). Three readings per hook: STATIC (only comments, set/shopt and plain assignments may precede the drain), BEHAVIOURAL (a payload past fs.pipe-max-size down a real pipe, 5 trials, the writer's own PIPESTATUS[0] — 141 is SIGPIPE), ENUMERATION (a <name>.test.sh exists and test:hooks names it). Population = hooks found; a hook with no PROBES row is EXCLUDED and FAILs, so a new hook cannot arrive unmeasured. NOT_RUN when the hook directory holds nothing."
   },
+  "tools/h10-session-rate.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/h10-session-rate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "whether the chest strap's per-session ECG rate estimate moves because of the device counter or because `ecgTimingScan` guards its two axes differently \u2014 the counter axis admits every step under 50 ms into the mean it divides, while the host axis keeps anything past 2.5x its own latched step out of its own. Pre-stated criterion tight_fs_spread_ppm <= 100, three times the ~30 ppm a crystal of this class holds, and it needs the shipped spread over 300 ppm first or the run reports NOT_APPLICABLE rather than passing on an absent premise. A real run reads every exported ECG stream of the capture tree, so `--verdict-sample` is what this gate reads: the sample carries the criterion and NOT_RUN, the only status true of a run that examined nothing. A stream with no device-counter column is excluded by name and counted, never folded in on the rounding fallback."
+  },
   "tools/integrator-block-precision.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -2056,7 +2068,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "the corpus fold's per-night gate (VERDICT-CONTRACT \u00a73b #7): every night the plan DECIDES on emits one tepna.verdict/1 \u2014 PASS entered the fold \u00b7 FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) \u00b7 NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) \u2014 plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write"
+   "note": "the corpus fold's per-night gate (VERDICT-CONTRACT \u00a73b #7): every night the plan DECIDES on emits one tepna.verdict/1 \u2014 PASS entered the fold \u00b7 FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) \u00b7 NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) \u2014 plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write; beside it, one fold-outcome object (gate trio-batch-fold) over the admitted nights \u2014 PASS only when each landed all three trio node-exports, SHORTFALL or FAIL naming every short night, NOT_RUN when nothing was admitted"
   },
   "tools/trio-power-headless.mjs": {
    "bin": "decides",
