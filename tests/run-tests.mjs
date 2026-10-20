@@ -25,7 +25,11 @@ import {
   duplicateLedgerKeys as rebaseDuplicateLedgerKeys,
   generatedSet as rebaseGeneratedSet,
   docsOutputFromText as rebaseDocsOutputFromText,
-  quotedVerdictKeys as rebaseQuotedVerdictKeys
+  quotedVerdictKeys as rebaseQuotedVerdictKeys,
+  parseOwnedListing as rebaseParseOwnedListing,
+  classifyOwnedFixtures as rebaseClassifyOwnedFixtures,
+  unrestoredFrom as rebaseUnrestoredFrom,
+  heldGoldens as rebaseHeldGoldens
 } from '../tools/rebase-safe.mjs';
 /* AND THIS IMPORT IS ITSELF AN ASSERTION. `tools/pr-compliance.mjs` ended in a bare
    `process.exit(main())`, so importing it ran the whole gate and exited the importer before the
@@ -33,7 +37,7 @@ import {
    the right failure for a module whose exported surface other tools now depend on. */
 import { extractVerdicts as prExtractVerdicts } from '../tools/pr-compliance.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
-import { corpusSearch } from '../tools/regen-goldens-core.mjs';
+import { corpusSearch, ownedListing as regenOwnedListing } from '../tools/regen-goldens-core.mjs';
 import {
   classify as qdClassify,
   pick as qdPick,
@@ -3130,6 +3134,19 @@ async function main() {
        all-clear, and a verdict this guard cannot be right about — no commit, a sha-shaped nothing —
        is dropped rather than guessed at. */
     rebaseQuotedVerdictKeys: rebaseQuotedVerdictKeys,
+    /* THE GOLDEN RAILS. `uploads/*.node-export.json` fixtures are owned by
+       `tools/regen-<node>-goldens.mjs`, and a rebase that calls them SOURCE stops on a path no human
+       can resolve (#3765). They are not all restorable here, though: a corpus-backed fixture reads an
+       input this checkout does not ship. So the decision is a two-rail one and both rails are pure,
+       driven by value below — `ownedListing` produces the rows, `parseOwnedListing` reads them back,
+       `classifyOwnedFixtures` splits them, and `unrestoredFrom` is the proof the restore happened. */
+    regenOwnedListing: regenOwnedListing,
+    rebaseParseOwnedListing: rebaseParseOwnedListing,
+    rebaseClassifyOwnedFixtures: rebaseClassifyOwnedFixtures,
+    rebaseUnrestoredFrom: rebaseUnrestoredFrom,
+    /* The REAL two-rail split, a FUNCTION so nothing pays for the nine recipe spawns unless the group
+       runs — the population half of the same pair as rebaseGeneratedSet. */
+    rebaseHeldGoldens: rebaseHeldGoldens,
     /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
        parser that judges it, so the two cannot disagree about what a quoted verdict is. */
     prExtractVerdicts: prExtractVerdicts,

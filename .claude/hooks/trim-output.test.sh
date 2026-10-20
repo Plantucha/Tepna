@@ -17,6 +17,19 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/trim-output.sh"
+# ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
+# four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be
+# absorbed into a pipe. The 70 KB this file used to stage looked like more than the 64 KB pipe buffer,
+# but `cat` moves a file in with `copy_file_range`, which may push pages past the 16-slot limit up to
+# `fs.pipe-max-size` (1048576 here). Measured 2026-10-20 against a planted non-draining hook, 12 trials
+# a size: 100 KB stranded the writer 7 times, 4000 KB 12 of 12; re-measured the same day under load
+# average 20, 100 KB stranded it 35 times of 36. The RATE is the box's scheduling at that moment, so
+# the pre-fix 5-of-5 reading below is a run the derived payload makes certain rather than likely.
+# A size that cannot be derived refuses (exit 2) — it is a leg that would examine nothing.
+_PROBE_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-contract.mjs"
+_PROBE_BYTES="$(node "$_PROBE_TOOL" --probe-bytes 2>/dev/null)"
+case "$_PROBE_BYTES" in ''|*[!0-9]*) printf '  REFUSE  the writer-fate payload size could not be derived (%s --probe-bytes)\n' "$_PROBE_TOOL" >&2; exit 2 ;; esac
+
 fail=0
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -38,13 +51,17 @@ hook() { # hook <json> — runs the hook, echoes WRAP, PASS or EXITn
 # writer_rc keeps the pipe ON PURPOSE, and reports the WRITER's fate rather than the
 # hook's verdict. It is the only way to observe whether the hook drained stdin: a hook
 # that exits first leaves the writer on a closed pipe, and the writer dies on SIGPIPE
-# once the payload no longer fits the 64 KB buffer. The harness is that writer in
+# once the kernel can no longer absorb the payload. The harness is that writer in
 # production.
-# ⚠ IT REPEATS, BECAUSE THE DEFECT IS A RACE AND ONE TRIAL IS NOT A MEASUREMENT.
-# Whether the writer has already filled the 64 KB pipe buffer when the hook exits depends
-# on scheduling: against the pre-fix hook a 100 KB payload died 8 times out of 8 in a
-# tight loop but survived 1 run in 3 inside this script, and a bigger payload was no more
-# certain (300 KB: 6 of 8; 1 MB: 6 of 8). Five trials put a miss near 1 in 3000. The leg
+# ⚠ IT REPEATS, BECAUSE A RACE WAS ONCE THE ONLY THING ON OFFER AND ONE TRIAL IS NOT A
+# MEASUREMENT. Under a payload the kernel may absorb, the writer's fate turns on
+# scheduling: against the pre-fix hook a 100 KB payload died 8 times out of 8 in a tight
+# loop but survived 1 run in 3 inside this script, and the sizes tried next were no more
+# certain (300 KB: 6 of 8; 1 MB: 6 of 8). Both sit at or under `fs.pipe-max-size`
+# (1048576 here), which is the ceiling `cat` can splice past the 16-slot pipe, so each one
+# was still absorbable and no number of trials makes it otherwise. The payload is now
+# derived at four times that ceiling, which no setting absorbs. Five trials put a miss near
+# 1 in 3000 when the race was real; they are kept as a tripwire. The leg
 # stays honest about what it watches: the WRITER's fate, never the hook's verdict.
 # The hatch goes on the call inline, like every other leg here. Checked before relying on
 # it: bash does NOT keep `VAR=1 some_function` set after the function returns (POSIX
@@ -120,14 +137,14 @@ else echo "  FAIL  the environment hatch did not release the hook: $got"; fail=$
 # ⚠ THE HOOK MUST DRAIN STDIN BEFORE IT EXITS, AND THE HATCH IS THE PATH THAT DID NOT.
 # The hatch sat above the read, so it exited on a payload it had never consumed and left
 # the writer — the harness, in production — holding a closed pipe. At ~70 bytes the write
-# fits the 64 KB pipe buffer and completes, so the leg above passes either way; 70 KB does
-# not fit, so the writer blocks and takes SIGPIPE. Pre-fix this read 141 in 5 runs out of
-# 5; post-fix 0. The blob is never executed, only measured for size.
-head -c 70000 /dev/zero | tr '\0' x > "$TMP/big"
-[ "$(wc -c < "$TMP/big")" = 70000 ] || { echo "  FAIL  the 70 KB payload was not built"; fail=$((fail+1)); }
+# fits the 64 KB pipe buffer and completes, so the leg above passes either way; a payload past
+# `fs.pipe-max-size` cannot be absorbed, so the writer blocks and takes SIGPIPE. Pre-fix this read
+# 141 in 5 runs out of 5 at 70 KB; post-fix 0. The blob is never executed, only measured for size.
+head -c "$_PROBE_BYTES" /dev/zero | tr '\0' x > "$TMP/big"
+[ "$(wc -c < "$TMP/big")" = "$_PROBE_BYTES" ] || { echo "  FAIL  the derived payload was not built"; fail=$((fail+1)); }
 payloadf "$TMP/big" > "$TMP/big.json"
 got="$(CLAUDE_ALLOW_UNTRIMMED=1 writer_rc "$TMP/big.json" 5)"
-if [ "$got" = 0 ]; then echo "  ok    the hatch drains 70 KB of stdin, 5 writers live    rc=0"
+if [ "$got" = 0 ]; then echo "  ok    the hatch drains a payload past pipe-max   rc=0"
 else echo "  FAIL  the writer into the hatched hook exited $got (141 = SIGPIPE, the hook never read it)"; fail=$((fail+1)); fi
 # The pair: the fix must not have moved the stall onto the path that does the work. One
 # trial, not five — that path always reads to the end, so there is no race to repeat, and
@@ -138,7 +155,7 @@ else echo "  FAIL  the writer into the rewriting hook exited $got"; fail=$((fail
 # The same payload by redirect asks the other question: what the hook DECIDED.
 got="$(CLAUDE_ALLOW_UNTRIMMED=1 hook "$(cat "$TMP/big.json")")"
 if [ "$got" = PASS ]; then echo "  ok    …and the hatch still releases it                PASS"
-else echo "  FAIL  the hatch over a 70 KB payload: $got, want PASS"; fail=$((fail+1)); fi
+else echo "  FAIL  the hatch over the derived payload: $got, want PASS"; fail=$((fail+1)); fi
 
 # ⚠ A COMMAND TOO LONG FOR ONE ARGV SLOT PASSES THROUGH, QUIETLY AND ON PURPOSE. The final
 # `jq --arg c "$wrapped"` cannot take a string over MAX_ARG_STRLEN (128 KB on Linux): jq

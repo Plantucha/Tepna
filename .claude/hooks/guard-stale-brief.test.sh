@@ -13,6 +13,21 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/guard-stale-brief.sh"
+# ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
+# four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be
+# absorbed into a pipe. The literal 100 KB these legs used to stage looked like twice the 64 KB pipe
+# buffer, but `cat` moves a file in with `copy_file_range`, which may push pages past the 16-slot
+# limit up to `fs.pipe-max-size` (1048576 here). Measured 2026-10-20 against a planted non-draining
+# hook, 12 trials a size: 100 KB stranded the writer 7 times, 4000 KB 12 of 12. Re-measured the same
+# day under load average 20: 100 KB stranded it 35 times of 36, one batch reading 11 of 12 — so the
+# RATE is the box's scheduling at that moment, not a property of the size, and a sample cannot bound
+# it. The derived size needs no rate: nothing past `fs.pipe-max-size` can be absorbed at all. A leg
+# that is a coin flip on a broken hook is SILENT rather than flaky, because the hook it guards drains.
+# A size that cannot be derived refuses (exit 2) — it is a leg that would examine nothing.
+_PROBE_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-contract.mjs"
+_PROBE_BYTES="$(node "$_PROBE_TOOL" --probe-bytes 2>/dev/null)"
+case "$_PROBE_BYTES" in ''|*[!0-9]*) printf '  REFUSE  the writer-fate payload size could not be derived (%s --probe-bytes)\n' "$_PROBE_TOOL" >&2; exit 2 ;; esac
+
 fail=0
 
 TMP="$(mktemp -d)"
@@ -508,16 +523,16 @@ else echo "  ok    an existing subdirectory hop is NOT reported as a missing tre
 # release that left the writer on a closed pipe — the harness, in production — scored as
 # the ALLOW it wanted: the writer's 141 (SIGPIPE) is "not 2". This leg watches the WRITER's
 # fate instead. The pipe stays ON PURPOSE (a redirect has no writer to lose), the payload is
-# 100 KB so it cannot fit the 64 KB pipe buffer, and it repeats because the defect is a race.
+# sized from `fs.pipe-max-size` so the kernel cannot absorb it, and it repeats because the defect is a race.
 # Same contract trim-output.test.sh pins (#3493).
-head -c 100000 /dev/zero | tr '\0' x > "$TMP/stdin-big"
+head -c "$_PROBE_BYTES" /dev/zero | tr '\0' x > "$TMP/stdin-big"
 jq -nc --rawfile c "$TMP/stdin-big" '{tool_input:{command:$c}}' > "$TMP/stdin-big.json"
 _worst=0
 for _i in 1 2 3 4 5; do
   cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_STALE_BRIEF=1 bash "$H" >/dev/null 2>&1
   _rc="${PIPESTATUS[0]}"; [ "$_rc" != 0 ] && _worst="$_rc"
 done
-if [ "$_worst" = 0 ]; then echo "  ok    the hatch drains 100 KB of stdin, 5 writers live   rc=0"
+if [ "$_worst" = 0 ]; then echo "  ok    the hatch drains a payload past pipe-max, 5 writers live   rc=0"
 else echo "  FAIL  the writer into the hatched hook exited $_worst (141 = SIGPIPE, the hook never read it)"; fail=$((fail+1)); fi
 
 echo
