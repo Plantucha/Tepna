@@ -11784,6 +11784,100 @@
         'only ' + checkedPairs + ' of 3 pairs collapsed upward — the loop passed by skipping the rest'
       );
     });
+    /* ════ THE NIGHT KEY COMES FROM THE FIRST DATA ROW, NOT THE FILENAME ═══════════════════════════════
+       FILENAME-STAMP-JS-CONSUMERS §4: the trio hat grouped files into nights on the 14-digit stamp in
+       their NAME, which the capture host writes when the file is OFFLOADED. Measured 2026-10-20 over the
+       9853 corpus files this classifier accepts: 9738 carry a parseable row stamp, median name-to-content
+       error 3.9 s, 74 files over 5 min, worst 18.71 h — and 8 files cross the noon fold, so the name
+       indexed them one night EARLY. The pure half of the reader is sliced out of the page source and
+       EXECUTED here, because a source scan would pass on a re-indented copy whose arithmetic drifted.
+       The fallback is the other half of the row: a file whose rows carry no stamp keeps the filename key,
+       and the ingest note must SAY how many did — a fallback nobody can see is the defect this replaces
+       (§∅). ════════════════════════════════════════════════════════════════════════════════════════════ */
+    group('the trio night key reads the first data row, and says when it could not', 'sensor-trio · night-key · §🔒', function (T) {
+      var page = env.sources && env.sources['sensor-trio-night.js'];
+      T.ok('the page source is readable in this lane', !!page, 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
+      if (!page) return;
+
+      /* ── the ingest keys on the row, and the fallback is visible ──────────────────────────────────── */
+      T.ok('the ingest awaits a first-row stamp per file', /const rowMs = await firstRowTMs\(f\)/.test(page), 'ingestFiles must read the row before it chooses a bucket');
+      T.ok(
+        'the bucket is the row key when a row stamp exists, the filename key only when it does not',
+        /rowMs == null \? nightKeyOf\(c\.stamp\) : nightKeyOfMs\(rowMs\)/.test(page),
+        'keying on the name while a row stamp is in hand is the defect'
+      );
+      T.ok(
+        'the contemporaneity comparison uses the same instant',
+        /ms: rowMs == null \? stampMs\(c\.stamp\) : rowMs/.test(page),
+        'resolveTriple picks the file nearest the anchor, so a name-derived ms mis-picks even inside one bucket'
+      );
+      T.ok(
+        'each candidate records WHICH clock keyed it',
+        /stampSource: rowMs == null \? 'filename' : 'first-row'/.test(page),
+        'a consumer cannot distinguish a row-keyed night from a name-keyed one without the field'
+      );
+      T.ok(
+        'the ingest note states how many files fell back to the filename',
+        /keyed by filename \(no row stamp\)/.test(page) && /keyedByName \?/.test(page),
+        '§∅ — an invisible fallback is what this row replaces'
+      );
+      T.ok('the classifier body is untouched by this change', /the hat's classifier, VERBATIM/.test(page), 'capture-host test_the_tool_classifiers_accept_box_filenames reads that body as text');
+
+      /* ── the reader itself, executed ──────────────────────────────────────────────────────────────── */
+      var a = page.indexOf('  const ROW_SCAN_BYTES'),
+        b = page.indexOf('  function hashStr(s) {');
+      T.ok('the pure reader is sliceable out of the page', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+      if (!(a >= 0 && b > a)) return;
+      var pure = page.slice(a, b).replace(/async function firstRowTMs[\s\S]*?\n  }\n/, '');
+      var M = null,
+        mErr = '';
+      try {
+        M = new Function(pure + '\nreturn { _rowTMs: _rowTMs, nightKeyOfMs: nightKeyOfMs, _mkTMs: _mkTMs };')();
+      } catch (e) {
+        mErr = String((e && e.message) || e);
+      }
+      T.ok('the sliced reader evaluates on its own', !!(M && M._rowTMs), 'the reader now depends on page state — keep it pure or this leg cannot run' + (mErr ? ': ' + mErr : ''));
+      if (!(M && M._rowTMs)) return;
+
+      var psl = 'Phone timestamp;sensor timestamp [ns];channel 0\n2026-08-20T23:59:54.260;840599993105734761;-43485\n';
+      T.eq(
+        'a sensor-logger head yields its first row instant',
+        M._rowTMs(psl),
+        Date.UTC(2026, 7, 20, 23, 59, 54, 260),
+        'the ISO row is the recording start — the name on that measured file said 2026-08-20 05:17'
+      );
+      T.eq(
+        'the measured flip: the name folds one night early, the row does not',
+        M.nightKeyOfMs(M._rowTMs(psl)),
+        '2026-08-20',
+        'a 05:17 filename stamp folds to 2026-08-19 under the noon rule, which is the defect'
+      );
+      T.eq(
+        "the ring's CSV row locks DMY on a day over 12",
+        M._rowTMs('Time,Oxygen Level,Pulse Rate,Motion\n21:43:24 30/09/2026,96,67,0\n'),
+        Date.UTC(2026, 8, 30, 21, 43, 24, 0),
+        '§3 — a row whose first date field exceeds 12 fixes the order for the head'
+      );
+      T.eq(
+        'an MDY head locks the other way when its SECOND field exceeds 12',
+        M._rowTMs('Time,SpO2\n21:43:24 09/30/2026,96\n'),
+        Date.UTC(2026, 8, 30, 21, 43, 24, 0),
+        '§3 — the same lock, read from whichever field cannot be a month'
+      );
+      T.eq('a head with no stamp at all is null, never a date', M._rowTMs('channel 0;channel 1\n-43485;-70877\n'), null, '§∅ — absence is null');
+      T.eq('an out-of-range component is null rather than a rolled instant', M._mkTMs(2026, 13, 32, 25, 61, 61, 0), null, '§2.7 — Date.UTC rolls bad components onto a wrong instant');
+      T.eq('a real leap day survives the range check', M._mkTMs(2024, 2, 29, 1, 2, 3, 0), Date.UTC(2024, 1, 29, 1, 2, 3, 0), 'the check must reject only impossible days');
+      T.eq('a non-leap 29 February is null', M._mkTMs(2026, 2, 29, 1, 2, 3, 0), null, 'Date.UTC would roll it to 1 March');
+      T.eq('minute 99 is null, and only the explicit bound can say so', M._mkTMs(2026, 6, 15, 10, 99, 3, 0), null, 'it rolls the HOUR and leaves the date, so the round-trip passes it');
+      T.eq(
+        'ISO end-of-day 24:00:00 is the next midnight, not null',
+        M._mkTMs(2026, 6, 15, 24, 0, 0, 0),
+        Date.UTC(2026, 5, 16, 0, 0, 0, 0),
+        "§2.7 — the contract's one legitimate overflow, and no bare h > 23 guard"
+      );
+      T.eq('the noon fold puts a pre-noon start on the previous evening', M.nightKeyOfMs(Date.UTC(2026, 7, 20, 5, 17, 13, 0)), '2026-08-19', "the fold is the tool's own rule, unchanged");
+      T.eq('a 23:59 start stays on its own evening', M.nightKeyOfMs(Date.UTC(2026, 7, 20, 23, 59, 54, 0)), '2026-08-20', 'the fold must not move an evening start');
+    });
     /* ════ THE CARD'S POOLED NOTE IS COMPOSED FROM THE PUBLISHED RECORD ══════════════════════════════
        TCH-REFERENCE-POPULATIONS §2 defect 1: `sensor-trio-night.js` hard-coded "37 nights" and three
        pooled σ, and kept printing them for three weeks after the reference population had grown to 54 —
@@ -75219,11 +75313,13 @@
       T.ok('the serial-scrub note does not say ALL tracked files while those filenames are tracked', !(o2.length > 0 && /scrubbed from ALL tracked files/i.test(src)));
     });
 
-    group('§∅ — ecgdex-dsp std/median/quant return null for an input too short to measure, never 0', 'ecgdex-dsp · absence-as-value · empty-helpers', function (T) {
-      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, ECGDex HALF. Six helpers answered `0` for an input too
-         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed here) and pulsedex-dsp `std`/`sdsd`/
-         `medianOf` (NOT fixed: editing pulsedex-dsp.js moves the `treatment-response · pinned yield` pin,
-         whose re-stamp needs a paper-scale re-cut budgeted in hours). A 0 is a LEGAL
+    group('§∅ — ecgdex-dsp and pulsedex-dsp return null for an input too short to measure, never 0', 'ecgdex-dsp · pulsedex-dsp · absence-as-value · empty-helpers', function (T) {
+      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, BOTH HALVES. Six helpers answered `0` for an input too
+         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed in #3567) and pulsedex-dsp `std`/`sdsd`/
+         `medianOf` (fixed here). The PulseDex half waited because editing `pulsedex-dsp.js` moves the
+         `treatment-response · pinned yield` pin, and the deferral priced that re-stamp in hours. The pin
+         gate's own failure text prices the re-cut at ~1005 s, and it allows a re-stamp on the SAME counts
+         for a provably inert edit. A 0 is a LEGAL
          dispersion and a LEGAL median, so the next caller cannot tell "measured flat" from "nothing to
          measure" — the shape #3346 fixed one function away in `rmssd`, where it reached Math.log(0). The
          one call site that was NOT guarded is pinned end to end: `validateRR` exported `devSDNN: 0` for a
@@ -75263,6 +75359,41 @@
       T.eq('CONTROL · ecgdex std([-1, 1]) is the sample SD', E.std([-1, 1]), 1.4142135623730951);
       var ok2 = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }, { rr: 810 }, { rr: 795 }, { rr: 805 }, { rr: 820 }, { rr: 790 }]);
       T.ok('CONTROL · a measurable device record keeps a finite devSDNN', typeof ok2.devSDNN === 'number' && isFinite(ok2.devSDNN), 'got ' + show(ok2.devSDNN));
+
+      // ── PulseDex ── the other half of the same row ────────────────────────────────────
+      var P0 = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P0 || typeof P0.std !== 'function' || typeof P0.medianOf !== 'function') {
+        T.skip('pulsedex-dsp reachable through PulseDex._bare', 'PulseDex is not co-loaded namespaced in this runner');
+      } else {
+        T.ok('pulsedex std([]) is null, not 0', P0.std([]) === null, 'got ' + show(P0.std([])));
+        T.ok('pulsedex std([5]) is null — one value has no sample SD', P0.std([5]) === null, 'got ' + show(P0.std([5])));
+        T.ok('pulsedex medianOf([]) is null, not 0', P0.medianOf([]) === null, 'got ' + show(P0.medianOf([])));
+        /* THE GUARD THAT MAKES THE EDIT INERT, asserted rather than asserted ABOUT: the record itself
+           refuses under ten beats, which is why no exported path can reach one of the three helpers with
+           a short input, and why the pinned yield re-stamps on the same counts. */
+        T.eq('pdComputeResult refuses a 9-beat record, so no exported path reaches a short helper input', P0.pdComputeResult([800, 810, 795, 805, 820, 790, 800, 815, 805]), null);
+        var many = [];
+        for (var qi = 0; qi < 40; qi++) many.push(800 + (qi % 5) * 4);
+        var pr = P0.pdComputeResult(many);
+        T.ok('CONTROL · a 40-beat record still computes a finite SDNN', !!pr && typeof pr.sdnn === 'number' && isFinite(pr.sdnn), 'got ' + show(pr && pr.sdnn));
+        T.eq('CONTROL · pulsedex std([5, 5]) is a MEASURED 0', P0.std([5, 5]), 0);
+        T.eq('CONTROL · pulsedex std([-1, 1]) is the sample SD', P0.std([-1, 1]), 1.4142135623730951);
+        T.eq('CONTROL · pulsedex medianOf([0]) is a MEASURED 0', P0.medianOf([0]), 0);
+        T.eq('CONTROL · pulsedex medianOf([1, 2, 3, 4]) is 2.5', P0.medianOf([1, 2, 3, 4]), 2.5);
+      }
+      /* `sdsd` is NOT on the `_bare` surface, so no leg can CALL it. Its guard is read as text instead, and
+         this leg says so — a source read is weaker than a value and is only honest when it is named. */
+      var psrc2 = (env.sources && env.sources['pulsedex-dsp.js']) || '';
+      if (!psrc2) {
+        T.skip('pulsedex-dsp.js source readable', 'pulsedex-dsp.js is not in this lane’s source list, so the sdsd guard cannot be read');
+      } else {
+        T.ok(
+          'SOURCE · sdsd answers null under three values (not exported, so this reads the guard)',
+          /const sdsd = \(a\) => \{\s*\n\s*if \(a\.length < 3\) return null;/.test(psrc2),
+          'the sdsd guard no longer reads `return null`'
+        );
+        T.eq('SOURCE · no length-guarded helper in pulsedex-dsp still answers a 0', (psrc2.match(/if \((?:!a\.length|a\.length < [23])\) return 0;/g) || []).length, 0);
+      }
     });
 
     /* ════ trio-batch PRINTS THE DIGEST OF THE CURRENT TREE (residue 2026-10-12-trio-batch-prints-no-current-tree-digest) ══
