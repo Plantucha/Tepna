@@ -67,6 +67,39 @@ because the suite tags no group for them. Both mutants survived, so the gate pub
 `checked: 2` having spent more than half its budget on clean runs. By mutant count a lint sweep over
 134 changed lines is the cheapest diff this gate can see, and by file count it is among the dearest.
 
+### 3b · The split over a population, not one run — and the debt it pays
+
+§3 prices one job. Row `2026-10-12-the-js-mutation-timeout-is-wider-than-the-self-speeding-pr` asks a
+narrower question and names it NOT CLAIMED: **which pass consumes the budget.** CI history answers it
+without a new sweep. Over the **27 file-records** in the **15 runs** that mutated JS since #3697, the
+`mutation-diff-js` artifacts carry `calibrationMs` and `mutantPassMs` per file:
+
+| pass | seconds | share |
+|---|---|---|
+| the per-mutant loops | **3121 s** | **63.7 %** |
+| the per-file clean run | **1780 s** | **36.3 %** |
+| both | 4901 s | |
+
+So the mutant pass is the larger half of the measured bill, and §3's 37 % calibration figure holds
+across the population rather than only on run `39375213486`. Two qualifications travel with it.
+
+- **The split inverts on the most expensive file.** `ecgdex-dsp.js` bills 407 s of calibration against
+  a mutant pass the 300 s no-progress quarantine bounds, so there the clean run holds the majority and
+  the quarantine truncates the loops. A per-file share is not the job's share.
+- **Calibration bought nothing on 10 of the 27 records** — 158 s spent on files that generated no
+  mutant at all, because the clean run precedes the scope check. That is the same ordering §3 names,
+  priced over the population: 3.2 % of the measured bill buys no verdict.
+
+⚠️ NOT claimed: that these two passes are the whole job. They are the whole MEASURED job. The records
+account for the time the gate attributes to a file, and the harness, checkout and suite discovery
+around them appear only in the job duration §2 reads.
+
+**The projection the gate printed beside these numbers was wrong, and the records are how it showed.**
+In diff mode the estimate priced every mutant in the FILE while the run tests the changed lines alone,
+which reproduces as `calibration x mutantsInFile / jobs` to within 1 % on all 17 records that printed
+one. Against the measured mutant pass it overstated by 4x to 1298x, median 125x. Repaired in #3769 and
+logged as `2026-10-20-the-cost-projection-prices-the-whole-file-in-diff-mode`.
+
 ## 4 · The margin, measured
 
 62 of the 63 runs finish at or under 83 s, median 42 s, because most PRs change no mutable JS and the
