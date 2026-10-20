@@ -121,6 +121,18 @@ export const PRODUCED_BY = COMMIT ? { tool: 'tools/h10-session-rate.mjs', commit
    branches' `Math.round` can carry: **up to 873.6 ppm** would quantise away if a stream arrived
    without its counter column. The counter is what keeps the estimate; the fallbacks cannot.
 
+   🔴 THE BOUND COSTS FAR MORE THAN A 17-STREAM SAMPLE SAID, AND IT NARROWS THE SPREAD. A whole-file
+   pass over the 115 LARGEST sessions, every one of them truncated by the bound, puts the
+   prefix-against-whole disagreement at median **55.5 ppm** and worst **1278.8 ppm**, with **30 of
+   115 over this tool's own 100 ppm ceiling**. The 17-stream stride control below priced the same
+   bound at 166.4 ppm, eight times smaller, because an unbiased 17-stream sample held only three
+   sessions long enough to truncate — so the stride control under-prices a cost that falls ONLY on
+   long sessions, and the lesson is that the sample must be drawn on the quantity at issue.
+   The direction matters as much as the size: read whole, those 115 span 129.822430–130.041730 Hz,
+   **1686.9 ppm**, and their minimum sits BELOW the bounded pass's global minimum of 129.886432. The
+   bound understates the movement. Every figure above is therefore a FLOOR, and the mechanism
+   refutation is untouched, because the band is empty by count on both passes.
+
    WITHIN A SESSION, and the bound's own cost. Over the prefix the within-session spread reads
    median 8.8 ppm, max 257.8 ppm — so a session is nearly one rate and the movement is between them.
    But the bound costs precision exactly there: on an unbiased 17-stream stride sample, read whole and
