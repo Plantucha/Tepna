@@ -240,7 +240,18 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
        base        — the commit is on the base branch: evidence about main, not a claim about
                      this PR. It is excluded and passes.
      WHY, measured 2026-10-12: CI re-runs every check on each push, but a local run quoted in the body
-     does not. #3506 quoted a local mutation verdict while its author still had commits to push. */
+     does not. #3506 quoted a local mutation verdict while its author still had commits to push.
+
+     ⚠ THE TWO WAYS OF TAKING MAIN IN ARE NOT SYMMETRIC, measured 2026-10-20 on two branches off one
+     base each carrying one non-Markdown file commit (residue
+     `2026-10-12-a-quoted-verdict-costs-a-re-measure-on-every-rebase`). A REBASE rewrites the branch,
+     so the quoted commit leaves the history UNCONDITIONALLY — `foreign` in a checkout that still
+     holds the old object, `unresolved` in CI's clone, which never fetched it, and that second form is
+     what #3506 actually read. A MERGE keeps the commit an ancestor, so it stays `fresh` unless a
+     non-Markdown file this PR ALSO changes moved in the merged range. The conflict that forces most
+     of these rebases is `briefs/RESIDUE.md`, which is Markdown and excluded two lines below — so a
+     residue PR can take main in by merge at no re-run cost at all. `tools/rebase-safe.mjs` reports
+     the damage when a rebase is the right call anyway. */
   if (freshness) {
     checked.push('quoted-verdict-is-fresh');
     for (const f of freshness) {
@@ -248,7 +259,8 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
       if (f.state === 'stale')
         failures.push(`${who} is stale — ${f.moved.length} file(s) this PR changes moved after it ran: ${f.moved.slice(0, 5).join(', ')}. Re-run it on the head and quote the new object.`);
       else if (f.state === 'foreign') failures.push(`${who} is not in this PR's history — a rebase or a squash dropped that commit. Re-run it on the head.`);
-      else if (f.state === 'unresolved') failures.push(`${who} does not resolve to a commit in this repository.`);
+      else if (f.state === 'unresolved')
+        failures.push(`${who} does not resolve to a commit in this repository — either a mistyped sha, or a commit a rebase or force-push dropped before CI cloned the branch. Re-run it on the head.`);
       else if (f.state === 'no-commit') failures.push(`${who} names no producedBy.commit, so this gate cannot tell which code it examined.`);
     }
   }
@@ -794,4 +806,10 @@ function main() {
   return status === 'FAIL' ? 1 : 0;
 }
 
-process.exit(main());
+/* ENTRY GUARD. Without it this line runs on IMPORT: the whole gate executes against the importer's
+   environment and `process.exit` kills the importing process before its `await import()` resolves, so
+   every `export` in this file is unreachable from code. Measured 2026-10-20 — importing this module
+   printed the gate's own PASS line and exited 0, and the importer's `.then` never ran. It was the one
+   tool under `tools/` calling `process.exit(main())` unguarded; `tools/rebase-safe.mjs` now imports
+   `extractVerdicts` from here, which is what the guard buys. Direct invocation is unchanged. */
+if (process.argv[1] && process.argv[1].endsWith('pr-compliance.mjs')) process.exit(main());
