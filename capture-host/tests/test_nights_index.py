@@ -3,6 +3,7 @@
 Built on a synthetic captures tree with the box's real file layouts: ISO-stamped Polar streams, the
 O2Ring's DMY `_SPO2.csv`, an EDF whose header states its span, and the two CPAP trees keyed by date."""
 
+import datetime as _dt
 import json
 import os
 
@@ -14,6 +15,20 @@ ISO_ROWS = (
     + "\n".join(f"2026-09-19T22:00:{s:02d}.000;{s};{s}" for s in range(0, 40))
     + "\n"
 )
+
+
+def _iso_rows(night="2026-09-19"):
+    """`ISO_ROWS` on the night's OWN date, which is what a real capture writes.
+
+    The rows used to be hard-coded to 2026-09-19 while `_night`'s session stamp followed the folder, so a
+    fixture night of 2026-09-20 held files whose last row sat a day BEFORE their own session start. The
+    `mtime` span end hid it; the measured end does not, and a span whose end precedes its start is not a
+    fixture a listing test can reason about."""
+    return (
+        "Phone timestamp;sensor timestamp [ns];v\n"
+        + "\n".join(f"{night}T22:00:{s:02d}.000;{s};{s}" for s in range(0, 40))
+        + "\n"
+    )
 
 
 def _w(path, text):
@@ -41,18 +56,21 @@ def _night(root, night="2026-09-19", *, h10=True, verity=True, ring=True, cpap=T
     d = os.path.join(root, "captures", night)
     os.makedirs(d, exist_ok=True)
     stamp = f"{night.replace('-', '')}220000"
+    rows = _iso_rows(night)
+    y, mo, dy = night.split("-")
+    nxt = (_dt.date(int(y), int(mo), int(dy)) + _dt.timedelta(days=1)).strftime("%d/%m/%Y")
     if h10:
         for s in ("ECG", "ACC", "HR", "RR"):
-            _w(os.path.join(d, f"Polar_H10_02849638_{stamp}_{s}.txt"), ISO_ROWS)
+            _w(os.path.join(d, f"Polar_H10_02849638_{stamp}_{s}.txt"), rows)
     if verity:
         for s in ("PPG", "PPI", "ACC"):
-            _w(os.path.join(d, f"Polar_VeritySense_0C301E3F_{stamp}_{s}.txt"), ISO_ROWS)
+            _w(os.path.join(d, f"Polar_VeritySense_0C301E3F_{stamp}_{s}.txt"), rows)
     if ring:
         _w(
             os.path.join(d, f"Wellue_O2Ring-S_S8AW2100_{stamp}_SPO2.csv"),
-            "Time,Oxygen Level,Pulse Rate,Motion\n22:45:27 19/09/2026,91,65,0\n05:45:27 20/09/2026,97,58,0\n",
+            f"Time,Oxygen Level,Pulse Rate,Motion\n22:45:27 {dy}/{mo}/{y},91,65,0\n05:45:27 {nxt},97,58,0\n",
         )
-        _w(os.path.join(d, f"Wellue_O2Ring-S_S8AW2100_{stamp}_PPG.txt"), ISO_ROWS)
+        _w(os.path.join(d, f"Wellue_O2Ring-S_S8AW2100_{stamp}_PPG.txt"), rows)
     if cpap:
         _edf(os.path.join(root, "captures", "cpap-ble", "DATALOG", night.replace("-", ""), "20260919_220000_BRP.edf"))
     return d
@@ -823,7 +841,12 @@ def test_the_listing_defaults_to_SIXTY_nights_and_a_FIFTEEN_second_budget(tmp_pa
     # the test saw 0 rows — the "a double that no longer doubles anything" failure, which is worse than a
     # break because a differently-shaped suite could have gone green on it.
     monkeypatch.setattr(
-        ni, "_recordings", lambda captures: [(f"2026-07-{d:02d}", frozenset({float(d)})) for d in range(1, 10)] * 7
+        ni,
+        "_recordings",
+        # The second parameter is the span pass's own deadline: `index_nights` hands it the SAME one it
+        # hands `night_entry`, so a stub that takes only `captures` breaks on arity rather than silently
+        # intercepting nothing — which is the failure the comment above records.
+        lambda captures, deadline=None: [(f"2026-07-{d:02d}", frozenset({float(d)})) for d in range(1, 10)] * 7,
     )
     seen: list = []
 
@@ -1116,15 +1139,22 @@ def test_ONE_BAND_CARRIES_TWO_ROWS_when_a_doff_gap_splits_it(tmp_path):
     ep = lambda s: _t.mktime(_t.strptime(s, "%Y%m%d%H%M%S"))  # noqa: E731
 
     def put(day, name, size, end):
+        """`end` ON BOTH RAILS. These files are `x`-fill for their SIZE, so they carried no stamp at all
+        — which stated their end to the mtime premise and to nobody else once the end became a
+        measurement. The stamped last row is what `_session_spans` reads now; the mtime is what the
+        budget-exhausted pass falls back to."""
         d = os.path.join(c, day)
         os.makedirs(d, exist_ok=True)
         p = os.path.join(d, name)
-        open(p, "w").write("x" * size)
-        os.utime(p, (end, end))
+        iso = _dt.datetime.strptime(end, "%Y%m%d%H%M%S").strftime("%Y-%m-%dT%H:%M:%S.000")
+        with open(p, "w") as fh:
+            fh.write("x" * size + f"\n{iso};0;0\n")
+        e = ep(end)
+        os.utime(p, (e, e))
 
-    put("2026-10-09", "Wellue_O2Ring-S_A_20261009212546_SPO2.csv", 587000, ep("20261010031500"))
-    put("2026-10-10", "Polar_H10_02849638_20261010015024_ECG.txt", 5000, ep("20261010064500"))
-    put("2026-10-10", "Wellue_O2Ring-S_A_20261010091801_SPO2.csv", 100, ep("20261010101500"))
+    put("2026-10-09", "Wellue_O2Ring-S_A_20261009212546_SPO2.csv", 587000, "20261010031500")
+    put("2026-10-10", "Polar_H10_02849638_20261010015024_ECG.txt", 5000, "20261010064500")
+    put("2026-10-10", "Wellue_O2Ring-S_A_20261010091801_SPO2.csv", 100, "20261010101500")
     rows = ni.index_nights(root, budget_s=None)
     assert [r["night"] for r in rows] == ["2026-10-09", "2026-10-09"], [r["night"] for r in rows]
     starts = [r["recording_start"] for r in rows]
@@ -1294,11 +1324,16 @@ def test_the_span_END_comes_from_the_nights_RECORDED_writer_offset(tmp_path):
     ⚠️ THE FIXTURE'S ZONE IS DELIBERATELY NOT THE RUNNER'S. `utc_offset_sec` is UTC+12 here, so the
     recorded conversion lands 12 h from the mtime whatever zone the suite runs in — while the host-zone
     fallback lands 0 h away under `TZ=UTC` and 4 h away under EDT. A fixture recording the runner's own
-    offset would agree with the fallback on one machine and hide the difference."""
+    offset would agree with the fallback on one machine and hide the difference.
+
+    🔴 THIS IS NOW THE BUDGET-EXHAUSTED PASS, which is the only place a span still crosses a frame at all.
+    A stamped file states its own end and needs no offset; this fixture is therefore a file with NO stamp
+    and a deadline already past, so the recorded conversion is the one thing left that can answer. The
+    frame question did not go away — it moved to the branch that converges as the cache fills."""
     root = str(tmp_path)
     d = os.path.join(root, "captures", "2026-10-09")
     f = os.path.join(d, "Polar_H10_02849638_20261009220000_ECG.txt")
-    _w(f, ISO_ROWS)
+    _w(f, "t\n1\n")
     # The HEADER names the column; `recorded_writer_offset` addresses it by name, and a five-column
     # pre-2026-10-05 file must read as "nothing recorded" instead of a parse error.
     _w(
@@ -1308,7 +1343,7 @@ def test_the_span_END_comes_from_the_nights_RECORDED_writer_offset(tmp_path):
     import nightqc
 
     t = nightqc.floating_stamp_s("20261009220000")
-    spans = ni._session_spans(root)
+    spans = ni._session_spans(root, deadline=0.0)
     # 43200 EAST of UTC is a raise of -43200, so the floating end sits 12 h AFTER the mtime. The sign is
     # the half of this that a `+` for a `-` would survive without.
     want = os.path.getmtime(f) + 43200.0
@@ -1389,13 +1424,24 @@ def test_the_STAMP_FILTER_is_what_keeps_one_recording_out_of_the_others_arrival(
         assert r["arrival"] and all(stamp in a for a in r["arrival"]), (r["recording_start"], r["arrival"])
 
 
-def _put(c, day, name, body, end):
-    """A capture file with an explicit mtime — the session END the chaining reads."""
+def _put(c, day, name, body, end, *, stamp_end=True):
+    """A capture file that ENDS at `end` — the session end the chaining reads.
+
+    🔴 `end` IS WRITTEN ON BOTH RAILS, because the end is now MEASURED. It is the file's mtime, as it
+    always was, and also its last stamped ROW, which is what `_session_spans` reads: the mtime is an
+    absolute instant and reaches a span only through a premise about the writer's zone, so it is the
+    budget-exhausted fallback and no longer the steady state. A fixture that stated `end` only as an
+    mtime therefore stated it to nobody. Pass `stamp_end=False` for a file that deliberately carries no
+    stamp — the input that proves a stampless session reaches only its own start."""
     import time as _t
 
     d = os.path.join(c, day)
     os.makedirs(d, exist_ok=True)
     p = os.path.join(d, name)
+    if stamp_end:
+        iso = _dt.datetime.strptime(end, "%Y%m%d%H%M%S").strftime("%Y-%m-%dT%H:%M:%S.000")
+        body = body if body.endswith("\n") else body + "\n"
+        body += f"{iso};0;0\n"
     _w(p, body)
     ep = _t.mktime(_t.strptime(end, "%Y%m%d%H%M%S"))
     os.utime(p, (ep, ep))
@@ -1464,11 +1510,20 @@ def test_a_FILE_THAT_VANISHES_does_not_abandon_the_files_after_it(tmp_path, monk
     read, so one racing unlink must cost one file — not every file the sorted scan had not reached yet.
 
     ⚠️ The raising file must sort BEFORE the one that matters, which is what the now-sorted scan makes
-    possible to guarantee: `AAA` precedes `Polar_…`, so a `break` loses the session entirely."""
+    possible to guarantee: `AAA` precedes `Polar_…`, so a `break` loses the session entirely.
+
+    🔴 THE ARM MOVED TO THE BUDGET-EXHAUSTED BRANCH, because the steady state never stats a capture file:
+    the end is the last stamped ROW, and a file that has vanished simply carries none. So the input is
+    the one that still reaches `_floating_mtime` — a deadline already past, over two files that carry no
+    stamp — and the mutant shows in the SPANS: under `continue` the 22:00 session keeps the premised
+    23:00 end of its OWN file, under `break` the scan abandons it and it reaches only its own start."""
+    import nightqc
+
     root = str(tmp_path)
     c = os.path.join(root, "captures")
-    _put(c, "2026-10-09", "AAA_Polar_H10_02849638_20261009200000_ECG.txt", ISO_ROWS, "20261009210000")
-    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", ISO_ROWS, "20261009230000")
+    a = "AAA_Polar_H10_02849638_20261009200000_ECG.txt"
+    _put(c, "2026-10-09", a, "t\n1\n", "20261009210000", stamp_end=False)
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", "t\n1\n", "20261009230000", stamp_end=False)
     real = ni.os.path.getmtime
 
     def vanishing(p):
@@ -1477,8 +1532,11 @@ def test_a_FILE_THAT_VANISHES_does_not_abandon_the_files_after_it(tmp_path, monk
         return real(p)
 
     monkeypatch.setattr(ni.os.path, "getmtime", vanishing)
-    rows = ni.index_nights(root, budget_s=None)
-    assert [r.get("recording_start") for r in rows] == ["2026-10-09 22:00"], rows
+    spans = ni._session_spans(root, deadline=0.0)
+    t20 = nightqc.floating_stamp_s("20261009200000")
+    t22 = nightqc.floating_stamp_s("20261009220000")
+    assert spans[t20] == t20, ("the vanished file carries no end, so its session reaches its own start", spans[t20])
+    assert spans[t22] > t22, ("the files AFTER the vanished one still get their premised end", spans[t22], t22)
 
 
 def test_a_LATER_write_scanned_SECOND_still_extends_the_session(tmp_path):
@@ -1649,7 +1707,9 @@ def test_an_AFTER_MIDNIGHT_device_s_cell_is_MEASURED_not_just_listed(tmp_path):
         ("Polar_VeritySense_SYNTH02", "20261010014748", "2026-10-10T01:47", 90, "20261010031748"),
     ):
         for suf in ("ECG", "RR") if "H10" in dev else ("PPG", "PPI"):
-            _put(c, "2026-10-10", f"{dev}_{stamp}_{suf}.txt", _span_rows(start, minutes), end)
+            # `stamp_end=False`: the ROWS already run to `end`, so appending one more would stretch the
+            # measured span past the hours this test pins.
+            _put(c, "2026-10-10", f"{dev}_{stamp}_{suf}.txt", _span_rows(start, minutes), end, stamp_end=False)
     rows = ni.index_nights(str(tmp_path), budget_s=None)
     night = [r for r in rows if r["night"] == "2026-10-09"]
     assert len(night) == 1, [(r["night"], r.get("recording_start")) for r in rows]
@@ -1669,7 +1729,7 @@ def test_the_PRIMARY_is_THIS_row_s_recording_when_a_band_holds_two(tmp_path):
         ("20261009220000", "2026-10-09T22:00", 60, "20261009230000"),
         ("20261010083000", "2026-10-10T08:30", 90, "20261010100000"),
     ):
-        _put(c, "2026-10-09", f"Polar_H10_SYNTH01_{stamp}_ECG.txt", _span_rows(start, minutes), end)
+        _put(c, "2026-10-09", f"Polar_H10_SYNTH01_{stamp}_ECG.txt", _span_rows(start, minutes), end, stamp_end=False)
     rows = ni.index_nights(str(tmp_path), budget_s=None)
     assert len(rows) == 2, [r.get("recording_start") for r in rows]
     by_start = {r["recording_start"][-5:]: r["ECGDex"]["hours"] for r in rows}
@@ -1688,6 +1748,7 @@ def test_a_node_with_files_and_NO_PRIMARY_lists_them_unmeasured(tmp_path, monkey
         "Polar_H10_SYNTH01_20261009220000_ECG.txt",
         _span_rows("2026-10-09T22:00", 60),
         "20261009230000",
+        stamp_end=False,
     )
     monkeypatch.setattr(ni, "NODES", {"ECGDex": (("Polar_H10_*_ECG.txt",), None)})
     cell = ni.night_entry(c, os.path.join(c, "2026-10-09"))["ECGDex"]
@@ -1937,3 +1998,268 @@ def test_a_FLOATING_MTIME_keeps_its_microseconds_to_the_full_SECOND(tmp_path, mo
     assert ni._floating_mtime(p, None) == 1792276200.999999
     # And the recorded-offset path, which never reaches the divisor, still answers in the same frame.
     assert ni._floating_mtime(p, {"offset_sec": 14400.0}) == 1792276200.999999
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────
+# THE SPAN END AS A MEASUREMENT (residue `2026-10-18-nights-index-spans-assume-the-writers-host-zone`)
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+def _rows_to(last, first=None):
+    """Polar rows whose LAST stamp is `last` — an ISO `YYYY-MM-DDTHH:MM:SS` string."""
+    first = first or last
+    return f"Phone timestamp;sensor timestamp [ns];v\n{first}.000;0;0\n{last}.000;1;1\n"
+
+
+def _mtime(path, stamp):
+    import time as _t
+
+    ep = _t.mktime(_t.strptime(stamp, "%Y%m%d%H%M%S"))
+    os.utime(path, (ep, ep))
+
+
+def test_the_span_END_is_the_LAST_ROW_not_the_mtime(tmp_path):
+    """🔴 THE DEFECT, AND THE ONE INPUT THAT SEPARATES THE TWO ANSWERS: a file whose last row and whose
+    mtime disagree. The row says the capture stopped at 23:00; the mtime says the bytes were last written
+    at 05:00 the next morning, which is what a copy, a sync or a trailing flush leaves behind.
+
+    The row is a stamp the WRITER wrote in its own civil frame, so reading it needs no premise about any
+    zone. The mtime is an absolute instant and reaches a floating span only through one — which is the
+    whole of residue `2026-10-18-nights-index-spans-assume-the-writers-host-zone`. So the end is the row,
+    and the assertion also states what the old answer WAS, because a span that happened to agree with
+    both would prove nothing."""
+    import nightqc
+
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-09")
+    f = os.path.join(d, "Polar_H10_02849638_20261009220000_ECG.txt")
+    _w(f, _rows_to("2026-10-09T23:00:00", "2026-10-09T22:00:00"))
+    _mtime(f, "20261010050000")
+    t = nightqc.floating_stamp_s("20261009220000")
+    spans = ni._session_spans(root)
+    assert spans[t] == nightqc.floating_stamp_s("20261009230000"), spans[t]
+    assert abs(spans[t] - ni._floating_mtime(f, None)) > 3600.0, "the mtime answer must be visibly different"
+
+
+def test_the_LISTING_DOES_NOT_MOVE_when_the_READERS_zone_changes(tmp_path, monkeypatch):
+    """∅ THE SYMPTOM THE ROW REPORTS, as the page sees it. The same captures tree listed 32 recordings in
+    America/New_York and 26 in Asia/Tokyo on 2026-10-19: the premised end grew or shrank by the reader's
+    offset, which swallowed doff gaps in one zone and manufactured them in another.
+
+    ⚠️ TWO TREES, NOT ONE READ TWICE. The measured end is cached by size and mtime, so a second read of
+    the same tree would be answered from the first zone's cache and would agree for the wrong reason.
+    Each zone gets its own identical tree and its own cache."""
+    import time as _time
+
+    def build(root):
+        c = os.path.join(root, "captures")
+        # a ring session at 21:25 ending 03:15, a Polar set starting INSIDE it, and a morning session
+        # whose start sits 6 h after the chain's furthest end — the owner-reported three-row input
+        _put(c, "2026-10-09", "Wellue_O2Ring-S_A_20261009212546_SPO2.csv", "Time,SpO2,PR\n", "20261010031500")
+        _put(c, "2026-10-10", "Polar_H10_02849638_20261010015024_ECG.txt", "t\n1\n", "20261010064500")
+        _put(c, "2026-10-10", "Wellue_O2Ring-S_A_20261010124500_SPO2.csv", "Time,SpO2,PR\n", "20261010131500")
+
+    seen = {}
+    for zone in ("America/New_York", "Asia/Tokyo", "UTC"):
+        root = os.path.join(str(tmp_path), zone.replace("/", "_"))
+        build(root)
+        monkeypatch.setenv("TZ", zone)
+        _time.tzset()
+        rows = ni.index_nights(root, budget_s=None)
+        seen[zone] = [(r["night"], r["recording_start"]) for r in rows]
+    assert len(seen["UTC"]) == 2, seen["UTC"]
+    assert len(set(map(tuple, seen.values()))) == 1, seen
+
+
+def test_a_MEASURED_end_is_NOT_RAISED_by_a_STAMPLESS_SIBLINGS_mtime(tmp_path):
+    """🔴 A MEASURED END NEVER MIXES WITH A PREMISED ONE. One session, two files: the stamped one says the
+    capture ended 23:00, the stampless one was last written at 07:00. Taking the max over both rails puts
+    the session back on the reader's zone through the back door — and on a tree read WEST of the writer
+    the premised value is the later one, so it would win every max it was offered.
+
+    The stampless sibling therefore contributes nothing to the end while any file in the session carries a
+    stamp. It is not a dropped file: it still names the session, and `night_entry` still measures it."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _w(os.path.join(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt"), _rows_to("2026-10-09T23:00:00"))
+    _mtime(os.path.join(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt"), "20261009230000")
+    sib = _put(
+        c, "2026-10-09", "Polar_H10_02849638_20261009220000_ACC.txt", "t\n1\n", "20261010070000", stamp_end=False
+    )
+    assert os.path.exists(sib)
+    t = nightqc.floating_stamp_s("20261009220000")
+    spans = ni._session_spans(root)
+    assert spans[t] == nightqc.floating_stamp_s("20261009230000"), spans[t]
+
+
+def test_a_session_with_NO_STAMP_IN_ANY_FILE_reaches_only_its_OWN_START(tmp_path):
+    """∅ ABSENCE IS NOT A ZERO AND NOT A GUESS. 11 of this corpus' 1794 sessions carry no stamp in any
+    file — a header-only CSV, an EDF, a `PMDARRIVAL` log. There is nothing to measure, so the session
+    reaches its own start and no further: it is still LISTED, which is the part that matters, and it
+    chains with whatever begins within the gap of that start.
+
+    The alternative is the row this unit removes: inventing an end from the mtime and a premise about the
+    writer's zone. A listed session with a zero-length span is honest; a listed session with a fabricated
+    one is the defect."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009220000_PMDARRIVAL.csv", "t\n1\n", "20261010070000", stamp_end=False)
+    t = nightqc.floating_stamp_s("20261009220000")
+    spans = ni._session_spans(root)
+    assert spans[t] == t, (spans[t], t, "no stamp anywhere, so the span is the start itself")
+
+
+def test_a_file_with_NO_HOST_COLUMN_votes_with_its_OWN_LEADING_STAMP(tmp_path):
+    """The ring's `_SPO2.csv` has no `Phone timestamp` column at all — its rows lead with the O2Ring's own
+    `HH:MM:SS DD/MM/YYYY`. 224 files of the Aug-2026 tree are that shape, and the first version of this
+    change voted on none of them: 172 of 1794 sessions fell back to the premise, and all 172 were files
+    with no host column. Reading the row's own leading stamp took that to 11.
+
+    ⚠️ THE ROW'S OWN CLOCK IS NOT THE HOST'S. For a stream that carries both, `file_last_row_floating_s`
+    reads the host column and this path is never reached; for one that carries neither, the device clock
+    is the only clock there is, and an end is what it is being asked for."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    f = os.path.join(c, "2026-10-09", "Wellue_O2Ring-S_S8AW_20261009212546_SPO2.csv")
+    _w(f, "Time,Oxygen Level,Pulse Rate,Motion\n21:25:46 09/10/2026,91,65,0\n05:45:27 10/10/2026,97,58,0\n")
+    _mtime(f, "20261010120000")
+    t = nightqc.floating_stamp_s("20261009212546")
+    spans = ni._session_spans(root)
+    assert spans[t] == nightqc.floating_stamp_s("20261010054527"), spans[t]
+
+
+def test_the_END_CACHE_answers_a_SECOND_PASS_with_NO_READ(tmp_path, monkeypatch):
+    """The read is 12.2 ms per file cold and 0.62 ms warm over this corpus' 7025 stamped files — 85.9 s
+    against 4.4 s — so the cache is what keeps the span pass inside the budget `index_nights` states. It
+    is keyed on size and mtime, exactly as `cached_stats` is, and lives in the same file under its own
+    prefix because `cached_stats` writes a relpath's WHOLE entry.
+
+    The read is proven absent rather than assumed: the reader is replaced with one that raises, so a
+    second pass that still answers cannot have called it."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    f = _put(
+        c,
+        "2026-10-09",
+        "Polar_H10_02849638_20261009220000_ECG.txt",
+        _rows_to("2026-10-09T23:00:00"),
+        "20261009230000",
+        stamp_end=False,
+    )
+    first = ni.cached_row_end(c, f)
+    assert first is not None
+
+    def boom(_p):
+        raise AssertionError("the cache must answer without reading the file")
+
+    monkeypatch.setattr(ni.nightqc, "file_last_row_floating_s", boom)
+    monkeypatch.setattr(ni, "_tail_stamp", boom)
+    assert ni.cached_row_end(c, f) == first
+
+
+def test_the_END_CACHE_remembers_a_file_that_has_NO_STAMP(tmp_path, monkeypatch):
+    """⚠️ A `None` IS CACHED TOO, and that is the half a `if end is not None` guard around the write would
+    drop. A stampless file is the EXPENSIVE case — the reader scans a bounded header and then an 8 kB
+    tail and finds nothing — so re-reading it on every pass would pay the full cost for an answer that
+    cannot change until the file does."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    f = _put(
+        c, "2026-10-09", "Polar_H10_0284_20261009220000_PMDARRIVAL.csv", "t\n1\n", "20261009230000", stamp_end=False
+    )
+    assert ni.cached_row_end(c, f) is None
+
+    def boom(_p):
+        raise AssertionError("an absent stamp is remembered, not re-measured")
+
+    monkeypatch.setattr(ni.nightqc, "file_last_row_floating_s", boom)
+    monkeypatch.setattr(ni, "_tail_stamp", boom)
+    assert ni.cached_row_end(c, f) is None
+
+
+def test_a_BUDGET_EXHAUSTED_pass_answers_from_the_CACHE_ALONE(tmp_path):
+    """`read=False` is what the deadline buys: a cold cache gets exactly ONE pass of the old answer
+    instead of a listing that blocks on 7025 seeks. An uncached file reads as having no end, so its
+    session keeps the premised fallback for that pass and converges to the measurement on the next."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    f = _put(
+        c,
+        "2026-10-09",
+        "Polar_H10_02849638_20261009220000_ECG.txt",
+        _rows_to("2026-10-09T23:00:00"),
+        "20261009230000",
+        stamp_end=False,
+    )
+    assert ni.cached_row_end(c, f, read=False) is None, "nothing cached yet, and this pass may not read"
+    assert ni.cached_row_end(c, f) is not None
+    assert ni.cached_row_end(c, f, read=False) is not None, "once cached, the bounded pass answers"
+
+
+def test_a_VANISHED_file_carries_NO_END_rather_than_raising(tmp_path):
+    """The stat that keys the cache races the capture tree exactly as the rest of this module does. A file
+    that is gone carries no end — the caller's fallback then names what it used — and it does not take
+    the pass down with it."""
+    c = os.path.join(str(tmp_path), "captures")
+    os.makedirs(c, exist_ok=True)
+    assert ni.cached_row_end(c, os.path.join(c, "2026-10-09", "gone_20261009220000_ECG.txt")) is None
+
+
+def test_a_STAMP_FLOATS_whatever_zone_READS_it(tmp_path, monkeypatch):
+    """`_floating_of` is the conversion `floating_stamp_s` warns about, done the one safe way: `timegm`
+    over the components as written. `.timestamp()` would resolve them through the READER's zone, which is
+    the defect this whole unit removes — and it is invisible on a machine whose zone happens to be the
+    writer's, so the assertion runs the same stamp under two zones."""
+    import datetime as _d
+    import time as _time
+
+    d = _d.datetime(2026, 10, 9, 23, 0, 0, 500000)
+    got = []
+    for zone in ("America/New_York", "Asia/Tokyo"):
+        monkeypatch.setenv("TZ", zone)
+        _time.tzset()
+        got.append(ni._floating_of(d))
+    assert got[0] == got[1] == 1791586800.5, got
+
+
+def test_a_TAIL_WITH_NO_STAMP_and_an_UNREADABLE_PATH_both_decline(tmp_path):
+    """Two `None`s that a single `except` would blur. A tail that parses no stamp is a measurement that
+    found nothing; a path that cannot be opened was never measured at all. Both leave the end absent,
+    which is the only answer either one supports — and `span_hours` reads the same walk, so a stampless
+    tail must not be reported as a span of zero."""
+    f = os.path.join(str(tmp_path), "x.txt")
+    _w(f, "t\n1\n2\n")
+    assert ni._tail_stamp(f) is None
+    assert ni._tail_stamp(os.path.join(str(tmp_path), "absent.txt")) is None
+
+
+def test_the_TAIL_READ_IS_BOUNDED_so_a_far_EARLIER_stamp_is_not_the_end(tmp_path):
+    """The read is one `tail_bytes` window, not the file. That is what makes it O(1) on a 587 kB ring CSV,
+    and the cost is stated rather than hidden: a stamp that sits outside the window is not found. A real
+    capture's last row is its last bytes, so the window holds it."""
+    f = os.path.join(str(tmp_path), "y.txt")
+    _w(f, "2026-10-09T23:00:00.000;0;0\n" + "x" * 200 + "\n")
+    assert ni._tail_stamp(f, tail_bytes=64) is None
+    assert ni._tail_stamp(f, tail_bytes=4096) is not None
+
+
+def test_the_LISTING_hands_the_SAME_DEADLINE_to_the_SPAN_PASS(tmp_path, monkeypatch):
+    """The span pass is the expensive one on a cold cache, so the budget has to reach it — and a default
+    of `None` there would read as "unbounded" and block the page instead of degrading it. The deadline is
+    asserted by VALUE — `monotonic() + budget_s`, computed before the pass — because a `None` handed to a
+    parameter that defaults to `None` is a call this test could not tell from a correct one.
+
+    The stub returns no recordings, so `night_entry` is never reached: this test is about the one call
+    that happens before any night is opened."""
+    seen: list = []
+    monkeypatch.setattr(ni, "_session_spans", lambda root, deadline=None: seen.append(("spans", deadline)) or {})
+    monkeypatch.setattr(ni, "night_entry", lambda c, d, deadline, stamps=None: seen.append(("entry", deadline)) or {})
+    monkeypatch.setattr(ni.time, "monotonic", lambda: 1000.0)
+    ni.index_nights(str(tmp_path), budget_s=15.0)
+    assert seen == [("spans", 1015.0)], seen
