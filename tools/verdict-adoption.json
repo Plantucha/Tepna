@@ -1415,6 +1415,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/secret-scan.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/secret-scan.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the DIFF-SCOPED SECRET GATE (owner, 2026-10-20): criterion secret_findings lte 0 over the commits a PR adds, scanned by the pinned scanner with .gitleaks.toml. The private literals arrive at run time from TEPNA_PRIVATE_TERMS and never enter the repo; a finding prints rule, file and line, never the text. An absent scanner, a shallow clone or an unparseable report is NOT_RUN and exits 2."
+  },
   "tools/no-third-party-names.mjs": {
    "bin": "decides",
    "status": "adopted",
