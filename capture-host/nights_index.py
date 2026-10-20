@@ -867,7 +867,7 @@ def list_nights(root: str) -> list[str]:
     )
 
 
-def _session_spans(root: str, deadline: float | None = None) -> dict[float, float]:
+def _session_spans(root: str, deadline: float | None = None, unread: set[float] | None = None) -> dict[float, float]:
     """`{session_start_epoch: session_end_epoch}` over EVERY date folder, as one pass.
 
     🔴 THE END IS WHY THIS EXISTS, and getting it from the START was my first version's defect. A
@@ -897,16 +897,20 @@ def _session_spans(root: str, deadline: float | None = None) -> dict[float, floa
     1794 is what takes the three zones from 32 / 31 / 32 rows to 32 / 32 / 32, IDENTICAL rows — and on the
     writer's own zone the listing does not move at all, 32 rows with the same sessions in each.
 
-    ⏳ THE DEADLINE BUYS A COLD CACHE ONE SWEEP OF THE OLD ANSWER. Cold, the vote costs 12.2 ms per file
+    ⏳ THE DEADLINE BUYS A COLD CACHE ONE SWEEP WITHOUT SOME ENDS. Cold, the vote costs 12.2 ms per file
     (85.9 s over that tree, seek-bound), which is five budgets; warm it is 0.62 ms and the whole pass is
-    0.09 s. So past the deadline a file answers from the cache or takes `_floating_mtime`, which is
-    exactly what this function returned before — never a new answer under pressure, and the next call
-    measures what this one skipped. A session still being written reads as ending at its last row, which
+    0.09 s. So past the deadline a file answers from the cache, or from its mtime on the offset its night
+    RECORDED. A night that recorded none gets NO end on this pass, and its session lands in `unread`:
+    the mtime would need the reader's zone to stand in for the writer's, which is the premise this
+    function exists to remove (row `2026-10-20-a-span-pass-past-its-budget-ends-on-the-reader-zone`).
+    `index_nights` marks a row that holds such a session `pending`, so the page asks again, and the next
+    call measures what this one skipped. A session still being written reads as ending at its last row, which
     merges it with the night in progress — the right answer for a live row."""
     captures = os.path.join(root, "captures")
     starts: set[float] = set()
     measured: dict[float, float] = {}
     premised: dict[float, float] = {}
+    waiting: set[float] = set()
     # `list_nights`, NOT a raw `????-??-??` glob: it already filters by the night regex AND `isdir`, so a
     # stray `status.json`, the `stored/` tree and a name like `2026-09-99` are excluded by the one
     # enumeration this module already vetted. My first version globbed, which orphaned this function and
@@ -934,6 +938,9 @@ def _session_spans(root: str, deadline: float | None = None) -> dict[float, floa
                 continue
             if not spent:
                 continue  # no stamp anywhere in this file, so it names no end and its session keeps its own
+            if rec is None:
+                waiting.add(t)  # no recorded offset: the mtime has no frame to land in, so no end yet
+                continue
             try:
                 end = _floating_mtime(f, rec)
             except OSError:
@@ -948,11 +955,15 @@ def _session_spans(root: str, deadline: float | None = None) -> dict[float, floa
         spans[t] = max(e, t)
     for t, e in measured.items():
         spans[t] = max(e, t)
+    # A session keeps waiting even when a sibling file gave it an end: the unread file may reach later.
+    # The next call reads that file before its deadline, so the set empties as the cache fills.
+    if unread is not None:
+        unread.update(waiting)
     _cache_save(captures)
     return spans
 
 
-def _floating_mtime(path: str, recorded: "dict | None") -> float:
+def _floating_mtime(path: str, recorded: dict) -> float:
     """A file's last write as a FLOATING second — the frame `session_epoch` returns.
 
     🔴 A SPAN NEEDS ONE FRAME AND THIS FUNCTION HAS TWO SOURCES. The start comes from the NAME and is
@@ -968,29 +979,22 @@ def _floating_mtime(path: str, recorded: "dict | None") -> float:
     same seam in the other direction. So a night that recorded its offset takes an exact subtraction and
     assumes nothing — every night from 2026-10-05, and every night from here on.
 
-    ∅ THE FALLBACK IS A PREMISE, AND NAMING IT IS THE WHOLE OF ITS DEFENCE. An older night recorded no
-    offset, so this reads the HOST's own zone at that instant instead. That premise holds while the index
-    runs on the box that wrote the files, which is where it runs today, and it is wrong by a whole UTC
-    offset anywhere else. The brief's answer to an unrecoverable offset is UNKNOWN with a named reason,
-    and this return value has nowhere to carry one: `_recordings` consumes the end as a chain bound and
-    publishes no field for it (`begin` and `end` on a row are BAND edges, not this). 🔴 So the ONE caller
-    reaches this function only PAST ITS OWN DEADLINE, which is a cold cache's first pass — a file whose
-    last row cannot answer inside the budget adds no end at all, and keeps its own start. The premise is
-    confined to that one pass (row `2026-10-20-a-span-pass-past-its-budget-ends-on-the-reader-zone`).
-
-    ⏪ A REFUSED RECOVERY LANDS HERE TOO, and that direction is the safe one. `recorded_writer_offset`
-    hands back None when a night's sessions disagree, which is a DST seam — and one offset is wrong for
-    half of such a night, while the host zone resolved AT each file's own instant is right across it."""
+    ∅ A NIGHT THAT RECORDED NO OFFSET NEVER REACHES THIS FUNCTION. Its only frame would be the reader's
+    zone standing in for the writer's, which is right on the box that wrote the files and wrong by a
+    whole UTC offset anywhere else. The one caller reaches this function only past its own deadline, and
+    there a night with no recorded offset adds no end at all and names the session `unread` instead
+    (row `2026-10-20-a-span-pass-past-its-budget-ends-on-the-reader-zone`). A DST seam, where
+    `recorded_writer_offset` refuses, takes that same path."""
     m = os.path.getmtime(path)
-    if recorded is not None:
-        # MINUS, because `offset_sec` RAISES a floating stamp into the `mtime` frame (`nightqc`'s sign,
-        # EDT = +14400). This brings an mtime DOWN into the floating frame, which is the way every other
-        # value in this module already points.
-        return m - float(recorded["offset_sec"])
-    return _floating_of(_dt.datetime.fromtimestamp(m))
+    # MINUS, because `offset_sec` RAISES a floating stamp into the `mtime` frame (`nightqc`'s sign,
+    # EDT = +14400). This brings an mtime DOWN into the floating frame, which is the way every other
+    # value in this module already points.
+    return m - float(recorded["offset_sec"])
 
 
-def _recordings(root: str, deadline: float | None = None) -> list[tuple[str, frozenset[float]]]:
+def _recordings(
+    root: str, deadline: float | None = None, unread: set[float] | None = None
+) -> list[tuple[str, frozenset[float]]]:
     """`[(band_evening_date, stamps)]` — one entry per RECORDING, newest first. PURE given the tree.
 
     ROW IDENTITY IS `(night band, recording start)` (owner ruling 2026-10-10), so this enumerates BANDS
@@ -1005,7 +1009,7 @@ def _recordings(root: str, deadline: float | None = None) -> list[tuple[str, fro
     captures = os.path.join(root, "captures")
     # `deadline` bounds the span pass alone and is `index_nights`' own budget: the spans come first, so a
     # tree whose ends are already cached leaves the whole budget to the per-night stats.
-    spans = _session_spans(root, deadline)
+    spans = _session_spans(root, deadline, unread)
     by_band: dict[str, list[float]] = {}
     # 🔴 A NIGHT WITH NO SESSION STAMP ANYWHERE STILL GETS A ROW, and leaving this out LOST one. The CPAP
     # trees are DATE-KEYED and carry no stamp (`session_epoch` returns None and says why), so a night
@@ -1088,8 +1092,15 @@ def index_nights(root: str, limit: int = 60, budget_s: float | None = 15.0) -> l
     first); nodes left uncomputed carry `pending: True` and a later call finishes them from the cache."""
     captures = os.path.join(root, "captures")
     deadline = None if budget_s is None else time.monotonic() + budget_s
-    recs = _recordings(root, deadline)[: max(1, limit)]
+    unread: set[float] = set()
+    recs = _recordings(root, deadline, unread)[: max(1, limit)]
     rows = [_night_row(captures, os.path.join(captures, band), deadline, stamps) for band, stamps in recs]
+    # A recording whose chain rests on a session the budget left without an end is not settled: its row
+    # may split or merge on the next call. `span` is a node-shaped `pending`, so `pending_count` counts it
+    # and the page asks again instead of keeping a cold pass's chain.
+    for row, (_band, stamps) in zip(rows, recs):
+        if stamps & unread:
+            row["span"] = {"pending": True}
     return list(reversed(rows))
 
 

@@ -845,8 +845,11 @@ def test_the_listing_defaults_to_SIXTY_nights_and_a_FIFTEEN_second_budget(tmp_pa
         "_recordings",
         # The second parameter is the span pass's own deadline: `index_nights` hands it the SAME one it
         # hands `night_entry`, so a stub that takes only `captures` breaks on arity rather than silently
-        # intercepting nothing — which is the failure the comment above records.
-        lambda captures, deadline=None: [(f"2026-07-{d:02d}", frozenset({float(d)})) for d in range(1, 10)] * 7,
+        # intercepting nothing — which is the failure the comment above records. The third is the set the
+        # pass fills with sessions it left without an end; this stub leaves it empty.
+        lambda captures, deadline=None, unread=None: (
+            [(f"2026-07-{d:02d}", frozenset({float(d)})) for d in range(1, 10)] * 7
+        ),
     )
     seen: list = []
 
@@ -1350,26 +1353,85 @@ def test_the_span_END_comes_from_the_nights_RECORDED_writer_offset(tmp_path):
     assert abs(spans[t] - want) < 1e-6, (spans[t], want, "the end must cross on the RECORDED offset")
 
 
-def test_a_night_that_recorded_NO_offset_falls_back_to_the_HOSTS_zone(tmp_path):
-    """The other branch, and the one every night before 2026-10-05 takes. `_floating_mtime` reads the
-    host's zone at the file's own instant, which is a PREMISE: it holds while the index runs on the box
-    that wrote the files. The assertion states the premise rather than restating the conversion — the
-    fallback must equal what a night would get had it recorded the host's own offset for that instant."""
-    p = os.path.join(str(tmp_path), "f.txt")
-    _w(p, "x")
-    import datetime as _dt
+def _starts(d, east_sec):
+    """A `STARTS.csv` that RECORDED the writer's offset, `east_sec` east of UTC, as every night from
+    2026-10-05 carries. A fixture that needs a past-deadline end needs this file: without it the night
+    has no frame for an mtime, and the pass gives the session no end at all."""
+    _w(
+        os.path.join(d, "STARTS.csv"),
+        f"Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\n2026-10-09T22:00:00;1;abc0000;0;hci0;{east_sec}\n",
+    )
+
+
+def test_a_night_that_recorded_NO_offset_gets_NO_end_past_the_budget_and_WAITS(tmp_path, monkeypatch):
+    """∅ ROW `2026-10-20-a-span-pass-past-its-budget-ends-on-the-reader-zone`. Past the deadline, a file
+    with no cached end used to take its mtime through the READER's zone, which is right on the box that
+    wrote it and wrong by a whole offset anywhere else. A night that recorded no offset now gets no end
+    on that pass: its session reaches only its own start, and it lands in `unread` so the listing can say
+    the chain is not settled.
+
+    🔴 THE READER'S ZONE IS SET FAR FROM UTC, so the old answer would have moved the end by 12 h. Under
+    the fix nothing about this result depends on `TZ`, which is the claim."""
+    import time as _time
 
     import nightqc
 
-    m = os.path.getmtime(p)
-    # EAST of UTC from the host's own rules AT THAT INSTANT, negated into the raise convention. Reading
-    # the zone at the instant rather than at import time is what carries a span across a DST seam.
-    east = _dt.datetime.fromtimestamp(m).astimezone().utcoffset()
-    assert east is not None
-    declared = nightqc.declared_offset(-east.total_seconds())
-    assert abs(ni._floating_mtime(p, None) - ni._floating_mtime(p, declared)) < 1e-6, (
-        "the fallback is the host's own zone at the file's instant, stated as a premise"
+    monkeypatch.setenv("TZ", "Pacific/Auckland")
+    _time.tzset()
+    try:
+        root = str(tmp_path)
+        c = os.path.join(root, "captures")
+        _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", "t\n1\n", "20261010050000", stamp_end=False)
+        t = nightqc.floating_stamp_s("20261009220000")
+        unread: set = set()
+        spans = ni._session_spans(root, deadline=0.0, unread=unread)
+        assert spans[t] == t, ("no recorded offset: no frame for the mtime, so no end", spans[t])
+        assert unread == {t}, unread
+        # The default caller passes no set and gets the same spans: the out-parameter is optional.
+        assert ni._session_spans(root, deadline=0.0) == spans
+    finally:
+        monkeypatch.delenv("TZ")
+        _time.tzset()
+
+
+def test_a_session_WAITS_even_when_a_SIBLING_file_gave_it_an_end(tmp_path):
+    """One session, two files: the first is measured and cached, the second arrives later with no stamp
+    and no recorded offset. The cached end stands, and the session still waits, because the unread file
+    may reach later than its sibling. The next pass reads it inside its budget, so the wait is one pass."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    d = os.path.join(c, "2026-10-09")
+    os.makedirs(d)
+    _w(
+        os.path.join(d, "Polar_H10_02849638_20261009220000_ECG.txt"),
+        _rows_to("2026-10-09T23:00:00", "2026-10-09T22:00:00"),
     )
+    t = nightqc.floating_stamp_s("20261009220000")
+    assert ni._session_spans(root) == {t: nightqc.floating_stamp_s("20261009230000")}  # fills the cache
+    _w(os.path.join(d, "Polar_H10_02849638_20261009220000_ACC.txt"), "t\n1\n")
+    unread: set = set()
+    spans = ni._session_spans(root, deadline=0.0, unread=unread)
+    assert spans[t] == nightqc.floating_stamp_s("20261009230000"), spans[t]
+    assert unread == {t}, unread
+
+
+def test_the_LISTING_marks_a_row_PENDING_while_its_chain_rests_on_an_UNREAD_session(tmp_path):
+    """The row is where the page reads `pending`. `pending_count` counts node-shaped `{"pending": True}`
+    values, and the page asks again only while that count is above zero, so the span pass's wait has to
+    reach a row in that shape. The two controls are the cases that must NOT wait: a night that recorded
+    its offset, and a pass with no budget at all."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    d = os.path.join(c, "2026-10-09")
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", "t\n1\n", "20261010050000", stamp_end=False)
+    rows = ni.index_nights(root, budget_s=-1.0)
+    assert len(rows) == 1 and rows[0]["span"] == {"pending": True}, rows
+    assert ni.pending_count(rows) >= 1
+    assert "span" not in ni.index_nights(root, budget_s=None)[0], "an unbounded pass waits for nothing"
+    _starts(d, -14400)
+    assert "span" not in ni.index_nights(root, budget_s=-1.0)[0], "a recorded offset gives the end a frame"
 
 
 def test_the_PRIMARY_re_read_takes_the_scope_too(tmp_path):
@@ -1515,8 +1577,8 @@ def test_a_FILE_THAT_VANISHES_does_not_abandon_the_files_after_it(tmp_path, monk
     🔴 THE ARM MOVED TO THE BUDGET-EXHAUSTED BRANCH, because the steady state never stats a capture file:
     the end is the last stamped ROW, and a file that has vanished simply carries none. So the input is
     the one that still reaches `_floating_mtime` — a deadline already past, over two files that carry no
-    stamp — and the mutant shows in the SPANS: under `continue` the 22:00 session keeps the premised
-    23:00 end of its OWN file, under `break` the scan abandons it and it reaches only its own start."""
+    stamp, in a night that recorded its offset — and the mutant shows in the SPANS: under `continue` the
+    22:00 session keeps the converted end of its OWN file, under `break` the scan abandons it and it reaches only its own start."""
     import nightqc
 
     root = str(tmp_path)
@@ -1524,6 +1586,8 @@ def test_a_FILE_THAT_VANISHES_does_not_abandon_the_files_after_it(tmp_path, monk
     a = "AAA_Polar_H10_02849638_20261009200000_ECG.txt"
     _put(c, "2026-10-09", a, "t\n1\n", "20261009210000", stamp_end=False)
     _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", "t\n1\n", "20261009230000", stamp_end=False)
+    # The night RECORDED its offset: without it no stampless file reaches `getmtime` past the deadline.
+    _starts(os.path.join(c, "2026-10-09"), 43200)
     real = ni.os.path.getmtime
 
     def vanishing(p):
@@ -1995,7 +2059,7 @@ def test_a_FLOATING_MTIME_keeps_its_microseconds_to_the_full_SECOND(tmp_path, mo
     with open(p, "w"):
         pass
     os.utime(p, ns=(1792290600_999999000, 1792290600_999999000))
-    assert ni._floating_mtime(p, None) == 1792276200.999999
+    assert ni._floating_of(_dt.datetime.fromtimestamp(os.path.getmtime(p))) == 1792276200.999999
     # And the recorded-offset path, which never reaches the divisor, still answers in the same frame.
     assert ni._floating_mtime(p, {"offset_sec": 14400.0}) == 1792276200.999999
 
@@ -2038,7 +2102,8 @@ def test_the_span_END_is_the_LAST_ROW_not_the_mtime(tmp_path):
     t = nightqc.floating_stamp_s("20261009220000")
     spans = ni._session_spans(root)
     assert spans[t] == nightqc.floating_stamp_s("20261009230000"), spans[t]
-    assert abs(spans[t] - ni._floating_mtime(f, None)) > 3600.0, "the mtime answer must be visibly different"
+    old = ni._floating_of(_dt.datetime.fromtimestamp(os.path.getmtime(f)))  # the reader-zone answer
+    assert abs(spans[t] - old) > 3600.0, "the mtime answer must be visibly different"
 
 
 def test_the_LISTING_DOES_NOT_MOVE_when_the_READERS_zone_changes(tmp_path, monkeypatch):
@@ -2258,7 +2323,9 @@ def test_the_LISTING_hands_the_SAME_DEADLINE_to_the_SPAN_PASS(tmp_path, monkeypa
     The stub returns no recordings, so `night_entry` is never reached: this test is about the one call
     that happens before any night is opened."""
     seen: list = []
-    monkeypatch.setattr(ni, "_session_spans", lambda root, deadline=None: seen.append(("spans", deadline)) or {})
+    monkeypatch.setattr(
+        ni, "_session_spans", lambda root, deadline=None, unread=None: seen.append(("spans", deadline)) or {}
+    )
     monkeypatch.setattr(ni, "night_entry", lambda c, d, deadline, stamps=None: seen.append(("entry", deadline)) or {})
     monkeypatch.setattr(ni.time, "monotonic", lambda: 1000.0)
     ni.index_nights(str(tmp_path), budget_s=15.0)
@@ -2379,9 +2446,12 @@ def test_the_PREMISED_ends_of_one_session_are_MAXED_like_the_measured_ones(tmp_p
     ecg = _put(
         c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", "t\n1\n", "20261010050000", stamp_end=False
     )
+    d = os.path.join(c, "2026-10-09")
+    _starts(d, 43200)
+    rec = nightqc.recorded_writer_offset(d)
     spans = ni._session_spans(root, deadline=0.0)
     t = nightqc.floating_stamp_s("20261009220000")
-    assert spans[t] == ni._floating_mtime(acc, None), (spans[t], ni._floating_mtime(ecg, None))
+    assert spans[t] == ni._floating_mtime(acc, rec), (spans[t], ni._floating_mtime(ecg, rec))
 
 
 def test_a_TRUNCATED_MULTI_BYTE_WRITE_does_not_take_the_READ_DOWN(tmp_path):
