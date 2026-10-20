@@ -358,6 +358,7 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
         "archive": {"verified": True},
         "cpap": {"state": "ok", "files": 5},
         "live_loss": {"open_files": 4},
+        "ble": {"ops": {"connect/H10": {"attempts": 4}}, "retries": {}, "backoff_rate": {}},
         "solid": {
             "night": "2026-09-23",
             "status": "FAIL",
@@ -382,6 +383,7 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
     assert body["archive"] == {"verified": True}
     assert body["cpap"] == {"state": "ok", "files": 5}
     assert body["live_loss"] == {"open_files": 4}
+    assert body["ble"] == st["ble"], "counters, retries and the windowed backoff rate, all three"
     assert body["solid"] == st["solid"], "the whole verdict, not a re-derived summary"
     assert set(body) == {
         "adapter",
@@ -442,6 +444,11 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
         # this block the rule is the whole point: a loss guard nobody can see is the
         # defect it was written to close, one layer up.
         "live_loss",
+        # The BLE op counters, per-device retry reasons and the trailing-hour backoff RATE
+        # (row 2026-09-16-ble-counters-not-drawn). Declared here rather than by relaxing the
+        # assertion, per the rule above. `find_unwired` had an allowlist entry excusing this key
+        # precisely BECAUSE nothing read it; the entry is deleted in the same change that wires it.
+        "ble",
         # Tonight's SOLID-NIGHT verdict. Declared here rather than by relaxing the
         # assertion, per the rule above — and this set IS the guard the rule names: a
         # STATUS field this projection omits is not published, whatever the daemon
