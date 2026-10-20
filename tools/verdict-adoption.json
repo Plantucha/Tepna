@@ -883,6 +883,19 @@
    "status": "exempt",
    "reason": "the only verdict word it prints is its OWN --selftest result line (\"SELFTEST FAIL\"); it decides nothing about the lane. It serves the checkout in-process, sets BASE_URL and FORWARDS tests/browser-gates.mjs's exit code unchanged — and that gate is `decides`/adopted with its own --verdict-sample, so the lane's verdict is already an object with a producer behind it. Emitting a second object here would claim an authorship this process does not have: per VERDICT-CONTRACT §3d a runner's status is an aggregation of its children, and this one has exactly one child whose verdict it relays rather than aggregates. It adds an origin and an exit code, not a decision."
   },
+  "tools/build-analysis.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/build-analysis.mjs",
+     "--check",
+     "--json"
+    ]
+   },
+   "note": "the analysis-tool ARTIFACT gate (residue 2026-09-28-generator-compared-to-itself-examines-no-artifact): `--check` re-bundles and byte-compares, which decides only that this generator reproduces the tree — the splice that shipped four pages with an unclosed `var __WSRC` string literal passed exactly that test, because a re-bundle of the same source reproduces the same broken bytes. `--json` now prints ONE tepna.verdict/1 over three pre-stated legs read off the artifact itself: no inlined block carries the page's own first 200 bytes (by the page's own signature, never value membership — a legitimate '<!DOCTYPE html>' literal flags 6 blocks in this tree), every block whose data-inline-src names a file sits inside a 0.5-1.02 size ratio of that file (measured 0.9999-1.0013 over 69 sourced blocks), and the injected worker map parses as JSON with a non-empty entry for every __mkWorker name on the page. Population = pages; a page missing from the tree is excluded. The negative control is in --selftest, and the writer now refuses to write a page that fails its own audit"
+  },
   "tools/build-docs.mjs": {
    "bin": "word-only",
    "status": "exempt",
