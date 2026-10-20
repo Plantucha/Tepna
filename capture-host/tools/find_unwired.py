@@ -122,21 +122,14 @@ ALLOW_KEYS = {
     "the exact defect devcaps.get refuses. Converting a branch needs a capability whose "
     "absence can be PROBED on demand, which `is_polar`-gated clock-sync would be once a "
     "clock-sync probe exists. Residue 2026-09-16-devcaps-has-no-branch-consumer",
-    "ble": "BLE-TRANSPORT-REDESIGN §1.5/§1.6 counters (blestats.snapshot). status.json IS the report "
-    "the done-when requires — 'no rate in a report or alert is derived from a log line count' — "
-    "and an operator reads it directly, as for `storage`. The MONITOR DRAW is a tracked "
-    "follow-up (residue 2026-09-16-ble-counters-not-drawn): a rising retry rate is only an "
-    "alert once something renders the series, and until then this entry is the honest state "
-    "rather than a claim that §1.6 is finished",
     "mem": "daemon-RSS part A (RSS, glibc's main-arena accounting, the across-arena totals and the gc "
     "counters). The SERIES is the journal line `mem: VmRSS …`, written by mem_log_line at "
     "the mem.log_sec cadence, and the series is what the question needs — status.json is rewritten "
     "tick, so it answers 'what is it now' and never 'how did it get there'. This STATUS copy is "
     "the live snapshot an operator and the heap-probe sampler read on the box, as for `ble`. The "
-    "MONITOR DRAW is a tracked follow-up (residue "
-    "2026-10-13-daemon-mem-block-not-drawn): a 300 MB climb over 6 h is only visible as a curve, "
-    "and until something renders it this entry is the honest state rather than a claim that the "
-    "split is finished",
+    "MONITOR DRAWS THE SERIES from the journal, not from this key: mem_series reads the lines "
+    "per daemon PID, /api/memory serves them and monitor.html's Storage view plots the levels "
+    "(residue 2026-10-13-daemon-mem-block-not-drawn)",
     "cpap_wedge": "the DURABLE record is the on-disk WEDGEFIRE journal (_wedge_fire_record), written "
     "at the same site — this STATUS copy is the live snapshot for a monitor draw that "
     "is a tracked follow-up (bluez_wedge.py's own comment names the journal as the "
