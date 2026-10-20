@@ -75313,11 +75313,13 @@
       T.ok('the serial-scrub note does not say ALL tracked files while those filenames are tracked', !(o2.length > 0 && /scrubbed from ALL tracked files/i.test(src)));
     });
 
-    group('§∅ — ecgdex-dsp std/median/quant return null for an input too short to measure, never 0', 'ecgdex-dsp · absence-as-value · empty-helpers', function (T) {
-      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, ECGDex HALF. Six helpers answered `0` for an input too
-         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed here) and pulsedex-dsp `std`/`sdsd`/
-         `medianOf` (NOT fixed: editing pulsedex-dsp.js moves the `treatment-response · pinned yield` pin,
-         whose re-stamp needs a paper-scale re-cut budgeted in hours). A 0 is a LEGAL
+    group('§∅ — ecgdex-dsp and pulsedex-dsp return null for an input too short to measure, never 0', 'ecgdex-dsp · pulsedex-dsp · absence-as-value · empty-helpers', function (T) {
+      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, BOTH HALVES. Six helpers answered `0` for an input too
+         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed in #3567) and pulsedex-dsp `std`/`sdsd`/
+         `medianOf` (fixed here). The PulseDex half waited because editing `pulsedex-dsp.js` moves the
+         `treatment-response · pinned yield` pin, and the deferral priced that re-stamp in hours. The pin
+         gate's own failure text prices the re-cut at ~1005 s, and it allows a re-stamp on the SAME counts
+         for a provably inert edit. A 0 is a LEGAL
          dispersion and a LEGAL median, so the next caller cannot tell "measured flat" from "nothing to
          measure" — the shape #3346 fixed one function away in `rmssd`, where it reached Math.log(0). The
          one call site that was NOT guarded is pinned end to end: `validateRR` exported `devSDNN: 0` for a
@@ -75357,6 +75359,41 @@
       T.eq('CONTROL · ecgdex std([-1, 1]) is the sample SD', E.std([-1, 1]), 1.4142135623730951);
       var ok2 = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }, { rr: 810 }, { rr: 795 }, { rr: 805 }, { rr: 820 }, { rr: 790 }]);
       T.ok('CONTROL · a measurable device record keeps a finite devSDNN', typeof ok2.devSDNN === 'number' && isFinite(ok2.devSDNN), 'got ' + show(ok2.devSDNN));
+
+      // ── PulseDex ── the other half of the same row ────────────────────────────────────
+      var P0 = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P0 || typeof P0.std !== 'function' || typeof P0.medianOf !== 'function') {
+        T.skip('pulsedex-dsp reachable through PulseDex._bare', 'PulseDex is not co-loaded namespaced in this runner');
+      } else {
+        T.ok('pulsedex std([]) is null, not 0', P0.std([]) === null, 'got ' + show(P0.std([])));
+        T.ok('pulsedex std([5]) is null — one value has no sample SD', P0.std([5]) === null, 'got ' + show(P0.std([5])));
+        T.ok('pulsedex medianOf([]) is null, not 0', P0.medianOf([]) === null, 'got ' + show(P0.medianOf([])));
+        /* THE GUARD THAT MAKES THE EDIT INERT, asserted rather than asserted ABOUT: the record itself
+           refuses under ten beats, which is why no exported path can reach one of the three helpers with
+           a short input, and why the pinned yield re-stamps on the same counts. */
+        T.eq('pdComputeResult refuses a 9-beat record, so no exported path reaches a short helper input', P0.pdComputeResult([800, 810, 795, 805, 820, 790, 800, 815, 805]), null);
+        var many = [];
+        for (var qi = 0; qi < 40; qi++) many.push(800 + (qi % 5) * 4);
+        var pr = P0.pdComputeResult(many);
+        T.ok('CONTROL · a 40-beat record still computes a finite SDNN', !!pr && typeof pr.sdnn === 'number' && isFinite(pr.sdnn), 'got ' + show(pr && pr.sdnn));
+        T.eq('CONTROL · pulsedex std([5, 5]) is a MEASURED 0', P0.std([5, 5]), 0);
+        T.eq('CONTROL · pulsedex std([-1, 1]) is the sample SD', P0.std([-1, 1]), 1.4142135623730951);
+        T.eq('CONTROL · pulsedex medianOf([0]) is a MEASURED 0', P0.medianOf([0]), 0);
+        T.eq('CONTROL · pulsedex medianOf([1, 2, 3, 4]) is 2.5', P0.medianOf([1, 2, 3, 4]), 2.5);
+      }
+      /* `sdsd` is NOT on the `_bare` surface, so no leg can CALL it. Its guard is read as text instead, and
+         this leg says so — a source read is weaker than a value and is only honest when it is named. */
+      var psrc2 = (env.sources && env.sources['pulsedex-dsp.js']) || '';
+      if (!psrc2) {
+        T.skip('pulsedex-dsp.js source readable', 'pulsedex-dsp.js is not in this lane’s source list, so the sdsd guard cannot be read');
+      } else {
+        T.ok(
+          'SOURCE · sdsd answers null under three values (not exported, so this reads the guard)',
+          /const sdsd = \(a\) => \{\s*\n\s*if \(a\.length < 3\) return null;/.test(psrc2),
+          'the sdsd guard no longer reads `return null`'
+        );
+        T.eq('SOURCE · no length-guarded helper in pulsedex-dsp still answers a 0', (psrc2.match(/if \((?:!a\.length|a\.length < [23])\) return 0;/g) || []).length, 0);
+      }
     });
 
     /* ════ trio-batch PRINTS THE DIGEST OF THE CURRENT TREE (residue 2026-10-12-trio-batch-prints-no-current-tree-digest) ══
