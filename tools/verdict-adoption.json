@@ -1805,9 +1805,17 @@
    "reason": "verdict words appear only in comments"
   },
   "tools/residue-ids.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/residue-ids.mjs",
+     "--open",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the residue-pickup verdict (row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale). --open reads the ledger from origin/main rather than from the working tree, and compares every row's state against the copy on disk. Pre-stated rule: a row whose state differs, or a row the disk copy does not carry at all, is a stale read and FAILs. Population = the rows on the ref, a row only on the ref excluded as unreadable. An unresolvable base refuses with exit 2, and NOT_RUN appears only under --verdict-sample, where there is no ref to resolve"
   },
   "tools/resp-acc-headless.mjs": {
    "bin": "word-only",
