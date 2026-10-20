@@ -2448,3 +2448,13 @@ def test_the_TAIL_WINDOW_IS_EXACTLY_ITS_OWN_SIZE(tmp_path):
     assert ni._tail_stamp(exact) == _dt.datetime(2026, 10, 9, 23, 0, 0), "the last byte of the window is its first"
     assert ni._tail_stamp(short) is None, "one byte further out and the window holds a fragment"
     assert ni.span_hours(short) is None, "span_hours reads the same 4096-byte window by default"
+
+
+def test_a_HEAD_SCAN_OF_ZERO_LINES_reports_no_span_rather_than_raising(tmp_path):
+    """`head_lines` is a caller's parameter, so zero is an input this function has to survive. Nothing is
+    read, so nothing is known, and the guard that says so has to test for None: a falsy initial value of
+    the wrong TYPE passes it and then reaches the subtraction, where a str meets a datetime."""
+    f = os.path.join(str(tmp_path), "z.txt")
+    _w(f, "2026-10-09T22:00:00.000;1\n2026-10-09T23:00:00.000;2\n")
+    assert ni.span_hours(f, head_lines=0) is None
+    assert ni.span_hours(f) == 1.0

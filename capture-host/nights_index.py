@@ -264,7 +264,11 @@ def span_hours(path: str, head_lines: int = 20, tail_bytes: int = 4096) -> float
         with open(path, "rb") as fh:
             first = None
             for ln in (fh.readline() for _ in range(head_lines)):
-                first = parse_stamp(ln.decode("utf-8", "replace")) if ln else None
+                # NO `if ln` GUARD. At EOF `readline` gives b"", which decodes to "" and parses to None —
+                # the same answer the guard produced, so the guard was a branch no input could separate
+                # and the mutation gate named it as one (`x_span_hours__mutmut_13`, 2026-10-20). The EOF
+                # exit is the `not ln` below, which is reachable and tested.
+                first = parse_stamp(ln.decode("utf-8", "replace"))
                 if first or not ln:
                     break
             if first is None:
