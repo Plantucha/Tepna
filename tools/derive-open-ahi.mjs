@@ -76,6 +76,19 @@ export const ISRUC_APNEA = ['OA', 'CA', 'MA'];
 export const ISRUC_HYPOPNEA = ['OH', 'CH', 'MH'];
 export const ISRUC_RESP = [...ISRUC_APNEA, ...ISRUC_HYPOPNEA];
 export const ISRUC_SLEEP = new Set(['N1', 'N2', 'N3', 'N', 'R']);
+/* RESPIRATORY CONTEXT the numerator declines BY NAME. Measured over all 126 scorer-1 workbooks on
+   2026-10-20: `CSBr` (Cheyne-Stokes breathing) 9 cells in 4 records, `Desat` 169 cells in 25, `SN`
+   (snore) 132 cells in 10. An AHI counts apneas and hypopneas, so a breathing PATTERN, a
+   desaturation and a snore are not numerator events — AASM counts the apneas and hypopneas inside a
+   Cheyne-Stokes run one by one, and each of those carries its own OA/CA/MA/OH/CH/MH token. The list
+   exists so the refusal is NAMED rather than silent: a record scored in this vocabulary alone has
+   respiratory scoring, and calling it `no-respiratory-scoring` would be a borrowed reason. */
+export const ISRUC_RESP_CONTEXT = ['CSBr', 'Desat', 'SN'];
+/* Names this tool KNOWS and IGNORES: scoring that is not respiratory at all. They stay out of the
+   unnamed tally because a blind-spot report drowned in arousals is a report nobody reads. Measured
+   over the same 126 workbooks: AR 11706 cells, PLM 4220, Awake 2072, LM 822, MChg 763, REM Aw 146,
+   L Out 104, Per Slp 77, L On 72. */
+export const ISRUC_NON_RESP = new Set(['AR', 'PLM', 'LM', 'MChg', 'Awake', 'REM Aw', 'Per Slp', 'L On', 'L Out']);
 
 /* iSleeps names its events in full, and `RERA` is NOT an apnea or a hypopnea (§5.5). */
 export const ISLEEPS_APNEA = ['Obstructive Apnea', 'Central Apnea', 'Mixed Apnea'];
@@ -84,7 +97,7 @@ export const ISLEEPS_AHI_EVENTS = [...ISLEEPS_APNEA, ...ISLEEPS_HYPOPNEA];
 export const ISLEEPS_RERA = 'RERA';
 export const ISLEEPS_SLEEP = new Set(['N1', 'N2', 'N3', 'N4', 'REM']);
 
-export const NULL_REASONS = ['no-scorer-1-workbook', 'no-respiratory-scoring', 'no-event-stage-column', 'no-sleep-epoch'];
+export const NULL_REASONS = ['no-scorer-1-workbook', 'no-respiratory-scoring', 'respiratory-context-only', 'no-event-stage-column', 'no-sleep-epoch'];
 
 /* ── THE COMMITTED EXPECTATION — COUNTS ONLY ───────────────────────────────────────────────────
    §6 pre-stated the criterion on 2026-10-12, before this tool existed: the derivation must land on
@@ -318,24 +331,52 @@ export function isLockFile(name) {
 
 /* ── ISRUC ────────────────────────────────────────────────────────────────────────────────────── */
 
+/* 65 of the 126 scorer-1 workbooks open on a HEADER row — `Stage` in the stage column beside
+   `Events` in the event column — and the other 61 open on epoch 1. The literal word is not a stage,
+   so `epochsWithStage` counted that header as an epoch in exactly half the population. TST and the
+   AHI never saw it, because `Stage` is not in `ISRUC_SLEEP`. Measured 2026-10-20. */
+export function isIsrucHeaderStage(cell) {
+  return (
+    String(cell ?? '')
+      .trim()
+      .toLowerCase() === 'stage'
+  );
+}
+
 export function deriveIsrucWorkbook(wb, recordId) {
   const rows = wb.rows(0) || [];
   const counts = Object.fromEntries(ISRUC_RESP.map((t) => [t, 0]));
+  const context = Object.fromEntries(ISRUC_RESP_CONTEXT.map((t) => [t, 0]));
+  /* EVERY TOKEN THE VOCABULARY CANNOT NAME, kept rather than dropped. The old loop ran `continue` on
+     an unknown token, so the tool could not tell a record scored in an unknown vocabulary from a
+     record nobody scored — and it was the second of those two that it reported. */
+  const other = new Map();
   let epochsWithStage = 0;
   let sleepEpochs = 0;
   let respAnywhere = 0;
   let respInSleep = 0;
+  let contextCells = 0;
+  let nonRespCells = 0;
   for (const r of rows) {
     const stage = String(r.B ?? '').trim();
+    if (isIsrucHeaderStage(stage)) continue;
     const inSleep = ISRUC_SLEEP.has(stage);
     if (stage) epochsWithStage++;
     if (inSleep) sleepEpochs++;
     for (const tok of splitEventCell(r.E)) {
-      if (!(tok in counts)) continue;
-      respAnywhere++;
-      if (inSleep) {
-        counts[tok]++;
-        respInSleep++;
+      if (tok in counts) {
+        respAnywhere++;
+        if (inSleep) {
+          counts[tok]++;
+          respInSleep++;
+        }
+      } else if (tok in context) {
+        context[tok]++;
+        contextCells++;
+      } else if (ISRUC_NON_RESP.has(tok)) {
+        nonRespCells++;
+      } else {
+        other.set(tok, (other.get(tok) || 0) + 1);
       }
     }
   }
@@ -352,10 +393,15 @@ export function deriveIsrucWorkbook(wb, recordId) {
     hypopneas: ISRUC_HYPOPNEA.reduce((a, t) => a + counts[t], 0),
     rera: null,
     respAnywhere,
+    context,
+    contextCells,
+    nonRespCells,
+    otherTokens: Object.fromEntries([...other.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))),
     ahi: null,
     nullReason: null
   };
-  if (respAnywhere === 0) row.nullReason = 'no-respiratory-scoring';
+  if (respAnywhere === 0 && contextCells > 0) row.nullReason = 'respiratory-context-only';
+  else if (respAnywhere === 0) row.nullReason = 'no-respiratory-scoring';
   else if (epochsWithStage === 0) row.nullReason = 'no-event-stage-column';
   else if (sleepEpochs === 0) row.nullReason = 'no-sleep-epoch';
   else row.ahi = ahiOf(respInSleep, sleepEpochs, EPOCH_SEC);
@@ -571,6 +617,31 @@ export function pooled(derived) {
   };
 }
 
+/* THE INSTRUMENT'S OWN BLIND-SPOT REPORT. Every event token the vocabulary could not name, pooled
+   over the set, beside the respiratory context the numerator declines by name. A tool that meets a
+   token it cannot read must say so, because otherwise its silence reads as the corpus's silence. */
+export function vocabularyOf(rows) {
+  /* ∅ THE REPORT ITSELF MUST NOT READ ABSENCE AS ZERO. Only the ISRUC path collects the tokens it
+     cannot name, so over iSleeps rows every tally here would be an honest-looking 0 for a question
+     nothing asked. An uninstrumented set says `measured: false` and carries nulls instead. */
+  const instrumented = rows.some((r) => r.otherTokens && typeof r.otherTokens === 'object');
+  if (!instrumented) return { measured: false, context: null, unnamed: null, unnamedTokens: null, unnamedCells: null };
+  const context = {};
+  const unnamed = {};
+  for (const r of rows) {
+    for (const [t, n] of Object.entries(r.context || {})) if (n) context[t] = (context[t] || 0) + n;
+    for (const [t, n] of Object.entries(r.otherTokens || {})) unnamed[t] = (unnamed[t] || 0) + n;
+  }
+  const byCell = (o) => Object.fromEntries(Object.entries(o).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)));
+  return {
+    measured: true,
+    context: byCell(context),
+    unnamed: byCell(unnamed),
+    unnamedTokens: Object.keys(unnamed).length,
+    unnamedCells: Object.values(unnamed).reduce((a, b) => a + b, 0)
+  };
+}
+
 export function summarize(rows) {
   const derived = rows.filter((r) => r.ahi !== null);
   const byReason = {};
@@ -592,7 +663,8 @@ export function summarize(rows) {
     byReason,
     distribution: all.distribution,
     bands: all.bands,
-    distinct: pooled(distinctRows)
+    distinct: pooled(distinctRows),
+    vocabulary: vocabularyOf(rows)
   };
 }
 
@@ -907,6 +979,45 @@ function selftest() {
   ok('…with the reason named', r6.nullReason, 'no-sleep-epoch');
   ok('…and the denominator reports itself as zero hours', r6.tstHours, 0);
 
+  /* THE VOCABULARY THE LIST CANNOT NAME, and the context it declines on purpose. A record scored in
+     context alone cannot yield an index: an AHI of 0 beside a Cheyne-Stokes run would assert that the
+     scorer looked and found no event, and the pattern says otherwise. So the row is null under its
+     OWN reason, never the one that says nobody scored respiration. */
+  const v1 = deriveIsrucWorkbook(openWorkbook(isrucSheet(sleepEpochs(3, 'CSBr'))), 'sub/7');
+  ok('a record scored in respiratory context alone is null', v1.ahi, null);
+  ok('…under its own reason, not the unscored one', v1.nullReason, 'respiratory-context-only');
+  ok('…with the context token counted', v1.context.CSBr, 3);
+  ok('…and nothing in the unnamed set', v1.otherTokens, {});
+  const v2 = deriveIsrucWorkbook(openWorkbook(isrucSheet(sleepEpochs(6, 'OH, Zzz'))), 'sub/8');
+  ok('an unknown token beside a hypopnea leaves the index alone', v2.ahi, 6);
+  ok('…and the unknown token is recorded by name', v2.otherTokens, { Zzz: 6 });
+  /* DECOY: an arousal is not respiratory context, so an arousal-only record stays unscored. */
+  const v3 = deriveIsrucWorkbook(openWorkbook(isrucSheet(sleepEpochs(9, 'AR'))), 'sub/9');
+  ok('an arousal-only record keeps the unscored reason', v3.nullReason, 'no-respiratory-scoring');
+  ok('…and the arousal counts as known and ignored', v3.nonRespCells, 9);
+  ok('…so it never reaches the unnamed tally', v3.otherTokens, {});
+  const v3b = deriveIsrucWorkbook(openWorkbook(isrucSheet(sleepEpochs(9, 'Zzz'))), 'sub/9b');
+  ok('a token in no list at all is unnamed', v3b.otherTokens, { Zzz: 9 });
+  ok('…and does not pass for non-respiratory scoring', v3b.nonRespCells, 0);
+  /* CONTROL: context beside a scored event changes no figure. */
+  const v4 = deriveIsrucWorkbook(openWorkbook(isrucSheet(sleepEpochs(6, 'OH, Desat'))), 'sub/10');
+  ok('context beside a scored event reads the same index', v4.ahi, r1.ahi);
+  ok('…and the desaturation is declined by name', v4.context.Desat, 6);
+  /* the header row half the population carries */
+  const v5 = deriveIsrucWorkbook(openWorkbook(isrucSheet([{ A: 'Epoch', B: 'Stage', E: 'Events' }, ...sleepEpochs(6, 'OH')])), 'sub/11');
+  ok('a header row is not an epoch', v5.epochsWithStage, 120);
+  ok('…and the header cell is not an unnamed token', v5.otherTokens, {});
+  ok('…and the index equals the same workbook without a header', v5.ahi, r1.ahi);
+  /* ∅ CONTROL: a set the ISRUC path never instrumented reports that, never a tally of zero. */
+  const blind = vocabularyOf([{ set: 'isleeps', ahi: 7 }]);
+  ok('an uninstrumented set says so', blind.measured, false);
+  ok('…and its tallies are null, never 0', [blind.unnamedTokens, blind.unnamedCells, blind.unnamed], [null, null, null]);
+  const vocab = vocabularyOf([v2, v3, v4]);
+  ok('an instrumented set says so', vocab.measured, true);
+  ok('the pooled report names every unnamed token', vocab.unnamed, { Zzz: 6 });
+  ok('…counts their cells', vocab.unnamedCells, 6);
+  ok('…and pools the declined context', vocab.context, { Desat: 6 });
+
   /* iSleeps */
   const profile = (k, stage = 'N2') => {
     const rows = [
@@ -1137,6 +1248,9 @@ if (DIRECT) {
           );
         if (s.duplicates) console.log(`  duplicates: ${s.duplicates} record(s) repeat an earlier workbook byte for byte — ${s.distinctDerived} distinct derived`);
         console.log(`  bands: ${s.bands.under5} under 5 · ${s.bands.from5to15} from 5 to 15 · ${s.bands.from15to30} from 15 to 30 · ${s.bands.over30} at 30 or above`);
+        const ctx = s.vocabulary.measured ? Object.entries(s.vocabulary.context) : [];
+        if (ctx.length) console.log(`  respiratory context declined by name: ${ctx.map(([t, n]) => `${t} ${n}`).join(' · ')}`);
+        if (s.vocabulary.measured && s.vocabulary.unnamedTokens) console.log(`  vocabulary: ${s.vocabulary.unnamedCells} cell(s) in ${s.vocabulary.unnamedTokens} token(s) this tool cannot name`);
         if (s.duplicates && s.distinct.distribution) {
           const d = s.distinct.distribution;
           console.log(`  distinct subjects: ${s.distinct.derived} derived · median ${d.median} · p25 ${d.p25} · p75 ${d.p75} · mean ${d.mean}`);

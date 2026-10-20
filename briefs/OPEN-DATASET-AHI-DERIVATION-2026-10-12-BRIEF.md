@@ -70,8 +70,10 @@ Three corrections to §5 of the sizing brief:
 
 ## 2 · ISRUC carries a full AASM respiratory vocabulary
 
-The `.xlsx` beside each `.rec` has no header row, and its columns run positionally: A epoch number,
-B sleep stage, E event, F body position. Column E holds the respiratory tokens.
+The `.xlsx` beside each `.rec` runs positionally: A epoch number, B sleep stage, E event, F body
+position. Column E holds the respiratory tokens. **61 of the 126 workbooks open on epoch 1 and the
+other 65 open on a header row** — `Stage` beside `Events` — which §2c measured on 2026-10-20 after
+this section first read "no header row".
 
 Scorer-1 token totals over 126 workbooks: `OH` 3805 · `MH` 2700 · `OA` 1469 · `CA` 354 · `CH` 77 ·
 `MA` 63. That is **8468 events**, spanning obstructive, central and mixed, apnea and hypopnea alike.
@@ -114,6 +116,43 @@ hypopnea tokens from column E, with the integer prefix stripped.
 Those 12 nulls refuse the record. They do not round it to zero. An unscored recording must never reach the refit as an
 AHI of 0. The suffix-less one holds 6 respiratory tokens, so its null says "no named scorer", not
 "no events".
+
+### 2c · The vocabulary the derivation declines, and the one it cannot name
+
+Measured 2026-10-20 over all 126 scorer-1 workbooks, closing residue row
+`2026-10-12-isruc-second-scorer-zero-reads-as-an-ahi-of-zero`.
+
+**No consumer in the tree pools the two scorings.** `tools/derive-open-ahi.mjs` enumerates the
+scorer-1 workbook alone and names `scorer: 1` in every row it emits. `tools/stage-lab.mjs:394` reads
+the second scorer into `labels2`, and no other line of that file reads the field. Neither tool
+derives an index from scorer 2, so §2a's defect has no instance in the code today.
+
+**The six null records are not empty records.** Each carries 116 to 587 event cells, and not one
+respiratory token among them. Their cells hold arousals, limb movements, lights and stage changes. So
+`no-respiratory-scoring` names the real cause rather than a borrowed one, which is what the row asked.
+
+| token group | records | cells | what the derivation does |
+|---|---|---|---|
+| `OA` `CA` `MA` `OH` `CH` `MH` | 120 | 8468 | the numerator |
+| `Desat` 169 · `SN` 132 · `CSBr` 9 | 34 | 310 | declines **by name** |
+| `AR` 11706 · `PLM` 4220 · `Awake` 2072 · `LM` 822 · `MChg` 763 · `REM Aw` 146 · `L Out` 104 · `Per Slp` 77 · `L On` 72 | 126 | 19982 | knows and ignores |
+| 40 bare numbers · `PAC` · `B` · `L` · `R` · `N` · `PVC` · `UD1` | 47 names | 218 | reports by name as unnamed |
+
+**`CSBr` is the one respiratory token outside the numerator list, and it stays outside.** An AHI
+counts apneas and hypopneas, and AASM counts the events inside a Cheyne-Stokes run one by one. Each
+of those carries its own numerator token. What changes is that the tool now declines `CSBr` by name
+instead of dropping it, because a record scored in that vocabulary alone has respiratory scoring.
+Such a record reads `null` under the new reason `respiratory-context-only`. **No record in this
+corpus reads that reason today**, so the guard protects a future scoring rather than a present one.
+
+**The control is a paired run over all 168 records**, this branch against `origin/main`'s copy of the
+tool, on the same mount within one hour. Not one record moves an AHI, a null reason or a TST. Every
+quartile, every severity band and every distinct-subject figure reads identical. `epochsWithStage`
+falls by exactly one in exactly 65 records, which is the header row and nothing else.
+
+The iSleeps path keeps no such tally, so its vocabulary report reads `measured: false` rather than a
+tally of zero. Logged as residue `2026-10-20-the-isleeps-event-vocabulary-is-uninstrumented`, beside
+`2026-10-20-forty-seven-isruc-event-names-stay-unplaced` for the 47 names above.
 
 ## 3 · iSleeps carries AASM event names outright
 
@@ -300,7 +339,7 @@ copy is the smallest or the largest.
 all-files block figure for figure. A `distinct` block that differed there would be filtering on
 something other than `duplicateOf`.
 
-**The subject rule is stated, not inferred.** `markDuplicates` keeps the first copy in sorted
+**The subject rule is explicit, not inferred.** `markDuplicates` keeps the first copy in sorted
 record-id order and makes every later copy name it. So `subgroupII/17` is the subject and
 `subgroupIII/2/1` is its repeat, rather than the other way round. Nothing in the mirror ranks the two,
 and a rule that depended on the directory walk would answer differently on another machine.
