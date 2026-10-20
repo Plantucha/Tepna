@@ -395,6 +395,22 @@ export function parseOwnerDecisions(txt) {
   return { header: lines[start].trim(), items };
 }
 
+/* The reader runs on vigil from stdin. It lived in vigil's /tmp until the box rebooted on 2026-10-18,
+   which wiped it, and every board pass after that read "solid-night read failed". Birds may not write
+   to vigil, so the script travels with each read and nothing on the box can go stale. */
+export const VIGIL_VERDICTS_PY = `import json, os, glob
+rows = []
+for d in sorted(glob.glob("/srv/tepna/captures/2026-*/")):
+    f = os.path.join(d, "SOLID-VERDICT.json")
+    if os.path.isfile(f):
+        try:
+            s = json.load(open(f))["status"]
+        except Exception:
+            s = "READ_FAIL"
+        rows.append(os.path.basename(d.rstrip("/")) + " " + s)
+print("\\n".join(rows))
+`;
+
 /* The fleet message board (agent-board) is live on this machine and needs no tokens:
    its SQLite DB is readable any time. This section stays fresh even when Kestrel is
    out of tokens — it reports the last post with its date/time, plus the entry count. */
@@ -403,21 +419,11 @@ export function parseOwnerDecisions(txt) {
    Streak = consecutive PASS nights counting back from the most recent verdict. */
 function solidNights() {
   try {
-    const out = sh('ssh', [
-      '-o',
-      'BatchMode=yes',
-      '-o',
-      'ConnectTimeout=8',
-      '-o',
-      'StrictHostKeyChecking=no',
-      '-F',
-      process.env.HOME + '/.ssh/config',
-      '-o',
-      'UserKnownHostsFile=/dev/null',
-      'vigil',
-      'python3',
-      '/tmp/vigil_verdicts.py'
-    ]);
+    const out = sh(
+      'ssh',
+      ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-o', 'StrictHostKeyChecking=no', '-F', process.env.HOME + '/.ssh/config', '-o', 'UserKnownHostsFile=/dev/null', 'vigil', 'python3', '-'],
+      { input: VIGIL_VERDICTS_PY, stdio: ['pipe', 'pipe', 'pipe'] }
+    );
     const rows = out
       .split('\n')
       .map((l) => l.trim())
