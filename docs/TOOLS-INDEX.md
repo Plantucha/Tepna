@@ -60,6 +60,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
 | [`cpap-sa2-agreement.mjs`](../tools/cpap-sa2-agreement.mjs) | the CPAP's wired SpO₂ against the ring's WHY — CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF. |
+| [`cvhr-edge-widen.mjs`](../tools/cvhr-edge-widen.mjs) | what widening the CVHR dropout exclusion by the detector's own support costs |
 | [`cvhr-fold-rescore.mjs`](../tools/cvhr-fold-rescore.mjs) | THE CROSS-NODE CVHR ρ ON THE FOLD'S NIGHT SELECTION — a re-score, not a sweep. |
 | [`cvhr-gap-edge.mjs`](../tools/cvhr-gap-edge.mjs) | what a TIME HOLE does to the two CVHR detectors, measured on planted beats |
 | [`deep-desat-falsifier.mjs`](../tools/deep-desat-falsifier.mjs) | THE STANDING CROSS-SIGNAL FALSIFIER for called sleep stages (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §6 item 4 / REM-STAGING-REDESIGN §5): "REM/Deep should carry a stage-appropriate… |
