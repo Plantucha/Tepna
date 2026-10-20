@@ -327,10 +327,20 @@ jobs:
           path: capture-host/mutation-diff.json
           if-no-files-found: ignore
 
-  # ── mypy RATCHET (advisory) ─────────────────────────────────────────────────────────────────────
-  # PYTHON-TYPES-AND-FORMAT §P1/§P3. Advisory today: it FAILS only if the count EXCEEDS the recorded
-  # baseline, so the number can only go DOWN. §P3 flips this job to REQUIRED and the threshold to 0,
-  # in the same PR as check.sh's flip.
+  # ── mypy RATCHET ────────────────────────────────────────────────────────────────────────────────
+  # PYTHON-TYPES-AND-FORMAT §P1/§P3. It FAILS if the count EXCEEDS the recorded baseline, so the
+  # number can only go DOWN — and the baseline has been 0 since 2026-10-09, so any type error reds
+  # this job. §P3's own flip (check.sh's `mypy-ratchet` leg) landed 2026-10-20.
+  #
+  # ⚠️ THIS JOB IS NOT A REQUIRED CONTEXT, AND MAKING IT ONE IS NOT A FILE IN THIS REPO. The
+  # `protect-main` ruleset lists its required checks, which only the repository owner can edit, so a
+  # red here informs a reviewer and does not hold Kodiak. The name below still says "advisory" for
+  # that reason: it is the context string the ruleset will have to name, and renaming it before the
+  # owner adds it would hand them a string that matches nothing. Both change together or neither.
+  #
+  # ⚠️ AND BLOCKING LOCALLY IS NOT BLOCKING IN CI: `check.sh` is not run by any job here (see the
+  # pytest step's note) — each of its legs is replicated as its own step. So the mypy ratchet's only
+  # CI home is this job, and this job's own correctness is the whole of the CI half.
   #
   # ⚠️ THIS JOB IS THE CANONICAL MEASUREMENT, AND THE DEVELOPER'S ROOT CHECKOUT IS THE CONVENIENCE ONE.
   # A whole-tree error count is a property of the tree it ran in: measured 2026-08-28, root reported
@@ -348,6 +358,16 @@ jobs:
   # THE BASELINE IS READ FROM check.sh, NOT COPIED HERE. One number, one home; a second hardcoded copy
   # is a second thing to forget. If it cannot be parsed the job REFUSES rather than assuming a value —
   # an unreadable baseline is not a permissive one.
+  #
+  # 🔴 AND FOR SIX WEEKS IT READ THE WRONG NUMBER OUT OF THE RIGHT FILE. The extraction below used to
+  # be `grep -oE 'baseline [0-9]+.*'`, which matches PROSE as readily as a constant — and the first
+  # match in the file is a COMMENT quoting the historical `"baseline 99, 2026-09-13"`. Measured on
+  # #3715's own job log: `mypy errors: 1   baseline here: 99   on origin/main: 99   delta: -98` →
+  # `ratchet ok (1 <= 99)`, conclusion SUCCESS, over a tree whose real baseline was 0. The job
+  # permitted 99 errors while reporting that the ratchet held, and the same hole let #3728 land.
+  # One number with one home is worth nothing if the reader can find a second copy of its WORDS; the
+  # parse is now anchored on the assignment, which the tests already read that way
+  # (`^MYPY_BASELINE=(\d+)$` in tests/test_check_script.py `_baseline`).
   mypy:
     # measured 2026-10-11 over 25 job run(s): p95 0.7 min, max 0.8 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
     timeout-minutes: 2
@@ -426,19 +446,23 @@ jobs:
         # rule. The legitimate case is an upstream mypy release reporting more on unchanged code.
         run: |
           set -uo pipefail
-          # `.*` not `[^\n]*`: inside a bracket expression `\n` is the two literal characters, so
-          # `[^\n]*` would stop the match at the first 'n' — truncating the line before a
-          # `baseline-raised:` marker placed after it, and reading a DECLARED raise as undeclared.
-          # `grep -o` already matches within one line, so `.*` cannot run past the newline.
-          LINE=$(grep -oE 'baseline [0-9]+.*' check.sh | head -1)
-          BASE=$(printf '%s' "$LINE" | grep -oE '[0-9]+' | head -1)
-          # main's copy of the same line. checkout is shallow, so fetch the blob explicitly; if it
+          # ANCHORED ON THE ASSIGNMENT, never on the word "baseline": the file says that word in prose
+          # too, and one such sentence quotes an old value (see the 🔴 note on this job). `^…=[0-9]+$`
+          # can only match the constant `check.sh` itself enforces, and the suite reads it the same
+          # way, so a trailing comment appended to the line reds the suite instead of drifting here.
+          BASE=$(sed -n 's/^MYPY_BASELINE=\([0-9]\+\)$/\1/p' check.sh | head -1)
+          # THE DECLARATION WINDOW for a raise: the constant's own line and ONE line either side. A
+          # `baseline-raised:<reason>` marker goes in a comment beside the constant, where the next
+          # reader of the number meets it — not anywhere in a 400-line file, which is how the old
+          # whole-file `case` could have read someone else's sentence as this PR's declaration.
+          LINE=$(grep -B1 -A1 -E '^MYPY_BASELINE=[0-9]+$' check.sh | head -3)
+          # main's copy of the same constant. checkout is shallow, so fetch the blob explicitly; if it
           # cannot be read the step REFUSES rather than assuming the baseline is fine — an unreadable
           # comparison is not a passing one (CLAUDE.md §4b: a check that reports success about
           # something it never examined).
           git fetch --depth=1 origin main >/dev/null 2>&1 || true
           PREV=$(git show FETCH_HEAD:capture-host/check.sh 2>/dev/null \
-                 | grep -oE 'baseline [0-9]+' | head -1 | grep -oE '[0-9]+')
+                 | sed -n 's/^MYPY_BASELINE=\([0-9]\+\)$/\1/p' | head -1)
           if [ -z "${BASE:-}" ] || [ -z "${PREV:-}" ]; then
             echo "REFUSING: could not read this branch's baseline (${BASE:-unreadable}) or main's (${PREV:-unreadable})."
             echo "A comparison that could not be made is not a comparison that passed."
@@ -479,8 +503,9 @@ jobs:
             if [ "$BASE" -gt "$PREV" ]; then
               case "$LINE" in
                 *baseline-raised:*)
-                  echo "baseline RAISED $PREV -> $BASE, reproduced, and declared:"
-                  echo "  $LINE"
+                  echo "baseline RAISED $PREV -> $BASE, reproduced, and declared beside the constant:"
+                  printf '%s\n' "$LINE" | sed 's/^/  /'
+
                   echo "Allowed. A declared raise is a decision; an undeclared one is an accident." ;;
                 *)
                   echo "RATCHET MAY ONLY TIGHTEN: baseline went UP, $PREV -> $BASE, with no declared reason."
@@ -501,7 +526,10 @@ jobs:
             echo "ratchet ok ($N <= $BASE). Lowering it is optional; if you do, this job will require"
             echo "the new number to equal what it measures."
           fi
-          echo "Advisory until §P3 flips this job to required with a threshold of 0."
+          echo "The baseline is $BASE, read from MYPY_BASELINE in check.sh — the number that script enforces."
+          echo "This job is not a REQUIRED context, so a red here informs a reviewer and does not hold"
+          echo "the merge. check.sh's own mypy-ratchet leg blocks a local run, and no job here runs"
+          echo "check.sh. Adding this context to the protect-main ruleset is the owner's to make."
 
   # ── SUPPLY-CHAIN GATES (advisory) ───────────────────────────────────────────────────────────────
   # Two questions with different failure modes, deliberately not merged into one job:
