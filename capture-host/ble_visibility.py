@@ -113,7 +113,16 @@ def visibility(records: list[dict], target: str) -> dict:
     for rec in records:
         # `adapters: null` is a record whose key EXISTS with no value — `.get(k, {})` returns the None, not the
         # default. Hypothesis found it 2026-10-10 (VIGIL-GPS-STRATUM1 gate run); an absent map is an empty one.
-        for adapter, info in (rec.get("adapters") or {}).items():
+        # An `or {}` guard admits any TRUTHY non-map, so `adapters: true` crashed `.items()` (Hypothesis again,
+        # 2026-10-20). A persisted record carries whatever its writer wrote: test the type, never the truth.
+        adapters = rec.get("adapters")
+        if not isinstance(adapters, dict):
+            adapters = {}
+        for adapter, info in adapters.items():
+            # A per-adapter entry that is not a map carries no scan verdict, neither success nor failure,
+            # so it counts toward neither: counting it as `scans_ok` would fabricate a completed scan.
+            if not isinstance(info, dict):
+                continue
             st = stats.setdefault(
                 adapter, {"scans_ok": 0, "scans_failed": 0, "seen": 0, "rssi": [], "devices_seen": []}
             )
@@ -134,7 +143,8 @@ def visibility(records: list[dict], target: str) -> dict:
             # line, carries whatever that code wrote. A single-writer guarantee holds in memory and
             # expires at the storage boundary.
             st["devices_seen"].append(info.get("devices_seen"))
-            rssi = info.get("targets", {}).get(want)
+            targets = info.get("targets")
+            rssi = targets.get(want) if isinstance(targets, dict) else None
             if rssi is not None:
                 st["seen"] += 1
                 st["rssi"].append(rssi)
