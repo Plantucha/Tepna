@@ -26,6 +26,25 @@ from writers import (
 WHEN = dt.datetime(2026, 7, 19, 3, 4, 5, 678000)
 
 
+def _open_spy(monkeypatch):
+    """Record every `open()` that `writers` makes, and still open the file.
+
+    On Linux a text write with `newline=None` translates `\\n` to `os.linesep`, which is `\\n`, so the
+    written bytes are the same with and without the keyword. The keyword itself is the only witness."""
+    import builtins
+
+    import writers
+
+    calls = []
+
+    def spy(file, *args, **kwargs):
+        calls.append((str(file), args, kwargs))
+        return builtins.open(file, *args, **kwargs)
+
+    monkeypatch.setattr(writers, "open", spy, raising=False)
+    return calls
+
+
 def _lines(path):
     with open(path, encoding="utf-8") as fh:
         return fh.read().splitlines()
@@ -284,6 +303,42 @@ def test_link_log_layout_and_connected_flag(tmp_path):
     assert up[7] == "1", "the reconnect count is recorded"
     assert down[2] == "0" and down[3] == "" and down[4] == "", "absent RSSI/battery must be blank"
     assert down[7] == "", "absent link_epoch must be blank, never a fabricated 0"
+
+
+def test_the_link_log_declares_its_line_ending(tmp_path, monkeypatch):
+    """The link log is read on whatever machine analyses the night, so its line ending is declared, not
+    taken from the platform. On Linux the bytes cannot show the difference (see `_open_spy`)."""
+    calls = _open_spy(monkeypatch)
+    p = str(tmp_path / "Tepna_20260920223636_LINK.csv")
+    LinkLogWriter(p, fsync=False).close()
+    (kwargs,) = [k for f, _a, k in calls if f == p]
+    assert kwargs.get("newline") == "\n"
+
+
+def test_the_link_log_holds_64_KiB_before_the_disk_sees_a_row(tmp_path):
+    """The link log buffers 64 KiB, so a 25 s row costs no write call, and a crash loses at most that.
+
+    Measured 2026-10-20: a 71-byte row reaches the disk first at row 925, the row that takes the text
+    past 65536 bytes. The default buffer (the block size, 4096 here) puts bytes on disk within the first
+    8 KiB of text. A 128 KiB buffer holds them past 128 KiB. Each is a different crash-loss bound."""
+    import os
+
+    p = str(tmp_path / "Tepna_20260920223636_LINK.csv")
+    w = LinkLogWriter(p, flush_interval=1e9, fsync=False)
+    first = None
+    for i in range(1900):
+        w.write(WHEN, "Synthetic H10", True, -50, 90, 0, 0, 1, "00:11:22:33:44:55")
+        if os.path.getsize(p) > 0:
+            first = i
+            break
+    w.close()
+    assert first is not None, "135 KiB of rows never reached the disk"
+    with open(p, encoding="utf-8") as fh:
+        header, row = fh.readline(), fh.readline()
+    text = len(header) + (first + 1) * len(row)
+    # The text layer passes its rows on in chunks of up to 8 KiB, so the first write lands within one
+    # chunk after the binary buffer fills.
+    assert 1 << 16 < text <= (1 << 16) + 8192 + len(row), (first, text)
 
 
 def test_link_log_zero_rssi_is_not_confused_with_absent(tmp_path):
@@ -1123,22 +1178,25 @@ def test_the_note_lands_beside_a_sidecar_opened_by_a_BARE_filename(tmp_path, mon
     )
 
 
-def test_the_note_declares_its_line_ending_rather_than_taking_the_platform_s(tmp_path):
+def test_the_note_declares_its_line_ending_rather_than_taking_the_platform_s(tmp_path, monkeypatch):
     r"""The note's explicit `newline` → `None` cannot be killed by reading the bytes ON LINUX, where the
-    translation `None` asks for is the identity — so it is held at the source, the way `nightqc`'s tag
-    list is.
+    translation `None` asks for is the identity — so the test reads the keyword the call passes.
 
     It is not decoration: the note is a provenance artifact read beside the capture, and a night written
     on one platform and read on another must be the same bytes. The written file is checked too, so this
-    does not drift into a test that only reads code."""
+    does not drift into a test that only reads code.
+
+    Until 2026-10-20 this held the keyword with a scan for `newline="\\n"` in the module source. Twenty
+    other `open()` calls in `writers.py` carry that text, so the scan passed with the keyword dropped
+    here, and `newline` → `None` and the dropped keyword both survived."""
     import writers
 
-    from tests._srcscan import module_source
-
-    assert 'newline="\\n"' in module_source("writers.py"), "the note's line ending is declared, not inherited"
+    calls = _open_spy(monkeypatch)
     night = tmp_path / "2026-09-20"
     night.mkdir()
     writers.write_sidecar_note(str(night))
+    note = str(night / writers.SIDECAR_NOTE_NAME)
+    assert [(a, k) for f, a, k in calls if f == note] == [(("w",), {"encoding": "utf-8", "newline": "\n"})]
     assert b"\r" not in (night / writers.SIDECAR_NOTE_NAME).read_bytes()
 
 
