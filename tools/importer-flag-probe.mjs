@@ -125,6 +125,9 @@ export function moduleScopeFlagReads(src) {
    names that file the only writer of `verifiedUnder`, and an importer is not it. Nothing was written
    here (the tree was diffed and did not move), and the row for it is
    `2026-10-21-importing-the-fixture-verifier-runs-its-whole-verification`.
+   That row is now FIXED: the verifier holds its program in `main()` behind its entry guard, so it is
+   no longer excluded and the probe imports it. The exclusion stays, on its own legs — it is a rule
+   about a SHAPE, and the tool that bought it is only the first thing that wore the shape.
    So candidacy and the gate's sanction are not enough: a tool whose OWN file can write, exec or fetch
    and whose module scope holds an action line naming no entry guard is never imported. The selftest
    plants both directions, because an exclusion nothing excludes would be a silent change of
@@ -351,13 +354,23 @@ function selftest() {
     'CONTROL · an argv read is the question above, not module work',
     unguardedModuleWork("import { writeFileSync } from 'node:fs';\nif (process.argv.includes('--selftest')) writeFileSync('x', '');\n").length === 0
   );
+  /* THE REAL SHAPE, REPAIRED. This leg read `w.length > 0` until the row
+     `2026-10-21-importing-the-fixture-verifier-runs-its-whole-verification` was fixed: that file now
+     holds its program in `main()` behind `IS_CLI`, so the exclusion no longer binds on it and the
+     probe imports it like any other tool. The planted twin below keeps the detector's POSITIVE
+     direction covered, because an assertion that only reads zero also passes on a detector that has
+     stopped looking. */
   ok(
-    'the real shape that bought this exclusion is caught',
-    (() => {
-      const w = unguardedModuleWork(readFileSync(join(HERE, 'verify-fixtures.mjs'), 'utf8'));
-      return w.length > 0;
-    })(),
-    'tools/verify-fixtures.mjs acts at module scope'
+    'the real verifier now holds its whole program behind the entry guard',
+    unguardedModuleWork(readFileSync(join(HERE, 'verify-fixtures.mjs'), 'utf8')).length === 0,
+    'tools/verify-fixtures.mjs: no module-scope action line'
+  );
+  ok(
+    'CONTROL · the shape that bought this exclusion is still caught',
+    unguardedModuleWork(
+      "import fs from 'node:fs';\nconst IS_CLI = isCliEntry(import.meta.url);\nif (IS_CLI) refuseUnknownArgvOrExit(process.argv);\nconst fixtures = JSON.parse(fs.readFileSync('p', 'utf8'));\nfs.writeFileSync('p', '{}');\n"
+    ).length > 0,
+    'one entry-guarded line does not guard the lines below it'
   );
 
   /* (5) the verdict's arithmetic and its refusals. */
