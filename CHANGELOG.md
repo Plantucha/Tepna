@@ -30,6 +30,112 @@ changesets.)
 
 ---
 
+## [2.22.0] — 2026-10-21
+
+### Added
+- - Add `tools/argv-reads.mjs`. It reads every line of a tool that touches `process.argv` and says whether an unknown token could reach the work. It proves 142 of 258 tools blind to a token nobody named. It names 7 that could consume one into a path, and abstains on 82 with a reason.
+- Publish the BLE op counters as a journal series and a monitor card, with the
+- Red the capture-host gate when a `tools/*.py` sits outside the coverage report with no pinned reason. An unmeasured file no longer reads as 100 %.
+- Draw the daemon memory series on the monitor Storage view, one line per daemon process, from the daemon journal lines.
+- A new PROPOSED brief measures the cost of generated trees in PR diffs and states the sequence for a batching merge queue. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Measure what moves the chest strap's per-session ECG rate. A new tool reads every exported stream. The two axes' guard asymmetry accounts for none of it.
+- Add `verify:hook-contract`. The gate reads every Claude Code hook three ways.
+- Derive an AHI per recording from the two annotated open mirrors with `tools/derive-open-ahi.mjs`. It reads its own xlsx, counts only scored sleep stages, and refuses an absent scoring by name. (`OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md`)
+- Add CPython arena counts, held bytes and live bytes to the daemon memory journal line.
+- Give `tools/residue-ids.mjs` an `--open` mode that reads the ledger from `origin/main` and names every row whose state on disk disagrees. A read it cannot resolve refuses by name.
+- Enumerate every literal default whose only coverage reads a signature. Such a read passes under every mutant, so the default is unmeasured.
+- `tools/secret-scan.mjs` scans the commits a PR adds for credentials, private and shared addresses, home-directory paths and the private literals in the `TEPNA_PRIVATE_TERMS` secret. The `secret-scan` workflow runs it with a pinned scanner, verified by checksum. The check is not required yet.
+- Add a `--reference-axis` flag that places the firmware-reference beat clock on the corner's own corrected axis. Carry that axis through the ledger key, every row and every verdict. Decide the published H10 gap with a pre-stated axis-match verdict. (`TCH-REFERENCE-AXIS-MATCH-2026-10-20-BRIEF.md`)
+- Observe two worn-verdict properties the suite could not see: the level detector's rate, and an abstention beside a verdict.
+- Draw the per-device BLE error-backoff rate as a curve on the monitor Devices view, one line per
+- Classify every tool that reads the capture corpus. Wire `pat-dip-index.mjs` to report the night population it covered. Pin the 41 enumerators that still report none by name, never by count.
+- Measure the night population a corpus-backed run covers, and say so when it moves mid-run. `tools/corpus-scope.mjs` gains a snapshot of the night set, an intersection and a `corpus-population` verdict. The firmware-reference tool takes one snapshot before it enumerates and one after it scores, and reports its figure over the intersection.
+- Count the string-literal mutants the mutation gate excuses, over the verdicts CI already uploaded. Name the share that reach an interface.
+- Mark each OPEN residue row that a later code commit names in the `--open` pickup listing, as a lead and never a close.
+- Give every live Polar stream artifact an acquisition-evidence envelope, with the clock word derived from the artifact's own header. (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- Carry an acquisition-evidence envelope in the sidecar of a Polar onboard recording pulled over PS-FTP. The stored half now states what the pull verified about the bytes, whether the device's listing answered, and which clock stamped the samples. (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- Deny a read of the residue ledger in a checkout whose row states disagree with `origin/main`.
+
+### Changed
+- Show the owner decisions only in their own board card, and cut them from the daily evaluation card.
+- Report the distinct-subject pooled figures beside the all-files ones, so nobody quotes three repeated ISRUC workbooks as three subjects. (`OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md`)
+- Report every ISRUC event token the AHI derivation cannot name, and decline Cheyne-Stokes breathing by name. (`OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md`)
+- Record what the JS diff-mutation job costs on CI, so a diff sizes against a measured factor. Name the run its step cap already stopped.
+- Tally every iSleeps `Event name` the AHI derivation cannot place, and separate a measured zero from an unexamined set.
+- Document one pickup path for a residue row: read the ledger from `origin/main`, never from the working copy. `CLAUDE.md` §📌 gains the rule, and the rationale records the four wrong reads behind it.
+- Re-measure the sigma paper's folder-ingest population under the widened classifier, and record the result beside the figure it supersedes.
+
+### Removed
+- OxyDex's legacy profile form path is gone: the shell carries none of the eleven `prof*` ids it read or wrote. The `noUnusedVariables` downgrade that hid it now covers one file instead of four.
+
+### Fixed
+- Record the 0x03 reply's `[0:4]` header word per reply in `probe_oxyii_0x03.py`, and correct the three source claims that still called the field unexamined. (`RING-POLL-SPLIT-2026-10-04-BRIEF.md`)
+- Every tool's unknown-argv refusal now runs behind `IS_CLI`. Importing one of the eleven module-scope adopters no longer refuses the IMPORTER's flags. A suite tripwire reds the next call written at module scope.
+- Refuse an unknown argv token in the seven tools that took one as data.
+- `ble_visibility.visibility` now tests the type of each persisted map, not its truth. A record whose `adapters`, adapter entry or `targets` is not a map no longer crashes the digest.
+- The gap mask PpgDex's CVHR detector runs on now leaves the node. `analyze` published (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- Refuse an absent, empty or mis-aimed capture directory by name, instead of a stack trace or an empty table.
+- - `tools/edge-settle.mjs` reads each night's `.trio-stamp` and measures the nights the fold folded. It walked every directory under `uploads/trio` before. A night the fold REJECTS keeps the exports of whenever it last passed, so the walk pooled two code eras. (`EDGE-SETTLE-FLOOR-2026-10-18-BRIEF.md`)
+- Read an equivalence key the way a diff writes one, so a module-level line stops reporting ORPHANED. A committed check now names any entry whose before text has left its module. The diff-scoped mutation gate can reach a verdict on this module again. The leg that needs a git base version now skips inside mutmut's scratch copy. Failing there took the whole run's stats with it.
+- Deny a depth-limited `git fetch` or `git pull` in the shared-tree guard, because it writes `.git/shallow` for every worktree and stops each session's `npm run check`.
+- Drain a hook's stdin with a builtin before its early exits, so a hatch release no longer leaves the harness holding a closed pipe. Two self-tests gain the leg that watches the writer.
+- Attribute a capture gap that opens inside a job the box declared for itself to that job. A ring gap the daemon's own re-judge tore now names the program, not nobody.
+- Bind `mutate_diff.py`'s retry counter beside the other names `emit` reads, so the three early returns emit their verdict instead of raising `NameError`.
+- Price the mutation gate's cost projection over the mutants a diff run will actually test, not every mutant in the file.
+- Re-run a mutant that hit the per-mutant clock once at mutmut's own wider bound. A mutant whose cost is a wait then reads killed or surviving, never UNDECIDED.
+- Fail the capture-host gate when the mypy count rises above its baseline, which has been zero since 2026-10-09. The CI ratchet now reads that baseline from the constant, not from a comment quoting an old value. The gate's verdict object also carries a contract for the blocking format leg. (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- Write the semantic tag in PpgDex's app export and route the upload filename to a key that means a filename. (`EXPORT-SOURCE-KEY-KINDS-2026-10-20-BRIEF.md`)
+- The three PulseDex dispersion helpers answer `null` for an input too short to measure, not `0`.
+- Name each DIRTY PR in `queue-doctor` as a display artifact or a real conflict, from a local merge probe.
+- Ask each regenerator which fixtures it owns, so `rebase-safe` rebuilds a reproducible `uploads/` fixture and holds the rest with the reason named.
+- The seal scratch fixture copies `verify-seals.mjs`'s import closure instead of a hand list, so a tool
+- Drain the SessionStart payload in `session-tailnet.sh` before its two early exits, so that a payload over the pipe buffer cannot kill the writer.
+- Pin each SignalSpec resolver object to the namespace its emit shim reads, so that a drift between `GLUDSP` and `GlucoDex` reds the suite.
+- The sigma-no-reference hat now reads the capture-host filenames. Its classifier took the phone-app layout only, so it indexed 337 of the corpus's 28,958 recordings and 31 nights. It now takes both layouts under one rule per role, which reaches 7,329 recordings and 123 eligible nights. That eligible count matches the sibling hat exactly. The function now carries the name `classify`, so the capture-host test table indexes this page too.
+- Give the trio fold a verdict over its outcome, so a night with a failed node reads FAIL, not PASS.
+- The tri-device HR walk now reads the capture-host’s validity companion at all three of its sample
+- - Two pages now group a dropped folder into nights on each file's FIRST DATA ROW. The 14-digit stamp in its name no longer decides. The capture-host writes that name when it OPENS the session, before the connect. A stream that starts hours later still carries the earlier name. (`RESIDUE.md`)
+- Say that a PMD settings read returned no rate menu. The old line called it a device refusal of the configured rate.
+- Size every hook self-test's writer-fate payload from the kernel's own `fs.pipe-max-size`, so the pipe cannot absorb it and the leg decides.
+- Make the seven `open()` keywords of the link log and the sidecar note visible to the capture-host tests.
+- Accept the bare `-` that names stdin from a tool whose spec declares `stdin: true`. The documented `ste-lint - < body.md` form reads its input again.
+- Read six further spellings of an argv flag read in `tools/argv-reads.mjs`. Of the 23 tools that
+- Refuse an unknown flag in the 21 tools that silently ignored one. A mistyped flag now exits 2 with the nearest accepted name, and a positional argument still passes.
+- Decide the shape-selected spelling of a positional argv read. The scan took a filter over argv for an undecidable traversal. Twenty-one tools that keep every non-flag token now read as consuming.
+- The board hook reads a heredoc body as data rather than as a command. Its self-test now watches the writer's fate at all three exits above the drain.
+- Decide the capture-host CI relevance filter over the measured set of repo-root files its Python suite reads, rather than over the `capture-host/` prefix alone.
+- A tool decides it is the CLI entry by its module identity, so a renamed copy runs.
+- Decide CLI-vs-import through one shared predicate. It answers on both the path as written and its resolved target, so a tool reached through a symlink still runs its main.
+- Decide a corpus enumeration at its call site, so no walk clears on a name.
+- The shared ingest classifier refuses a filename stamp whose components fall out of range, instead of rolling it onto a wrong instant.
+- Seven filename and night-key readers now range-check a stamp before building an instant, so an
+- Five filename and date readers now take the instant from `clock.js` instead of a bare `Date.UTC`,
+- Declare the source files that build a fixture input in code, so a rebase regenerates the fixture and does not stop on it.
+- Gate a `decides` producer on a test that names it in code, not on a test that names it in a comment, and
+- Each guard self-test now unsets its own escape hatch, so a hatch a session exports no longer scores the guard's DENY legs as ALLOW.
+- Read the respiratory events that an ISRUC workbook glues into the heart-rate cell, so they reach the
+- Name the body-position column where it leaks into the ISRUC event column, rather than reporting its codes as event names the derivation cannot place.
+- Count epoch rows beside occurrences in the open-dataset AHI tool's unplaced event tally, and rename (`OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md`)
+- The residue ledger reader splits on unescaped pipes only. An edit behind an escaped pipe now counts
+- Open a regex literal in the shared lexer when the slash follows a keyword.
+- Test 15 literal defaults in capture-host through a call that omits the parameter, so a mutant on each default fails a test.
+- Size the mutation no-progress bound from the longest group of the clean run, and let the watchdog hear the per-group stderr line.
+- A tool's positional argument no longer swallows a valued flag's value. Eleven tools picked the positional with a dash test, so `--every 60 <dir>` handed them `60`. The guard module owns arity, so it owns the skip.
+- The two tools whose positions are their interface now declare an argv spec, so a mistyped flag refuses instead of becoming a path.
+- Refuse an unknown flag in the four abstaining tools the probe harness can safely run.
+- Two source-scanning gate groups now decide a match by its enclosure. A tool source planted in a string literal no longer reads as the host tool's own code.
+- Give `tools/verdict-adoption.json` one byte form, the Python `json.dump(indent=1)` form, and refuse any other in `--check`.
+- Tell a branch's own merged row apart from a key another branch minted. The residue id check no longer fails minutes after your own pull request merges.
+- The sweep and the adoption gate now read one selftest predicate by import, and an import of either tool runs no CLI.
+- Deny a residue ledger read only for a row OPEN on disk and closed on the ref. The session that closes a row can read its own ledger.
+- Six TCH tools now report the night population each run covered, and each takes its night list from
+- Give `tools/acc-acc-control.mjs`, `tools/cpap-oxy-couple.mjs` and `tools/tch-multinight.mjs` a `--selftest` on synthetic inputs. Remove the three from `UNGATED_RATCHET`.
+- Read a tool's licence header whether it is a block comment or `//` lines. A statement is no longer taken for a purpose, so no index row publishes a tool's import list.
+- A trio stamp now carries a content hash, so a touched input with unchanged bodies no longer reads as an input change.
+- Read the flags the usage lines promise. `--boot` now sets the bootstrap replicates and `--json` prints the verdict alone for two gates. Five usage lines that advertised an unread flag now state what the tool does.
+
+---
+
 ## [2.21.0] — 2026-10-20
 
 ### Added
@@ -3304,7 +3410,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.21.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.22.0...HEAD
+[2.22.0]: https://github.com/Plantucha/Tepna/compare/v2.21.0...v2.22.0
 [2.21.0]: https://github.com/Plantucha/Tepna/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/Plantucha/Tepna/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/Plantucha/Tepna/compare/v2.18.0...v2.19.0
