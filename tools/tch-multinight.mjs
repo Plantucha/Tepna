@@ -44,7 +44,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, snapshotNights, ruleLine } from './corpus-scope.mjs';
+import { populationVerdict, snapshotNights, ruleLine, digestNights, NIGHT_RE } from './corpus-scope.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -138,11 +138,13 @@ function runNight(night, labels) {
   };
   /* BEFORE the overlap verdict — an incomplete night has no overlap to report, and saying so in
      overlap's words sends the reader to the wrong place (see classifyCompleteness). */
-  const incomplete = classifyCompleteness(
-    labels.filter((l) => Array.isArray(night.series[l]) && night.series[l].length > 0),
-    labels,
-    night.hasStamp !== false
-  );
+  const cornersPresent = labels.filter((l) => Array.isArray(night.series[l]) && night.series[l].length > 0);
+  /* BEFORE completeness: was this ever a night? An incomplete night is a night this fold failed; a
+     `logs/` directory is not, and saying either in the other's words sends the reader to a fold that
+     never existed (see classifyNightShape). */
+  const notANight = classifyNightShape(night.label, cornersPresent);
+  if (notANight) return { ...base, ok: false, notANight: true, reason: notANight };
+  const incomplete = classifyCompleteness(cornersPresent, labels, night.hasStamp !== false);
   if (incomplete) return { ...base, ok: false, incomplete: true, reason: incomplete };
   if (al.keys.length < 12) return { ...base, ok: false, reason: 'overlap ' + al.keys.length + ' < 12' };
 
@@ -311,6 +313,55 @@ function classifyCompleteness(cornersPresent, labels, hasStamp) {
   );
 }
 
+/* ⚠️ A DIRECTORY UNDER THE ROOT IS NOT A NIGHT BECAUSE IT SITS THERE. This tool's walk declares
+   `{ re: /./ }` — ANY subdirectory — so a `logs/`, a `.cache/` or a half-copied folder reaches
+   `runNight` beside the real nights. Measured 2026-10-21 on a planted root: `.cache` and `logs` each
+   printed `incomplete night — no corner(s) present … no .trio-stamp in this directory, so the fold
+   did not complete`, the heading named all three EXCLUDED nights in one list, and the verdict object
+   published `eligible: 5` over a root holding three nights. Every one of those sentences blames a
+   fold that never ran, and the one directory that really WAS an aborted fold hid among them —
+   `classifyCompleteness`'s own one-name-two-causes defect, one level up.
+   Residue `2026-10-21-the-multinight-tool-counts-any-directory-as-a-night`.
+
+   🔴 IT REFUSES NOTHING BY NAME ALONE. The wide walk is deliberate: a hand-made or planted root
+   labels its nights `PV-1`, `QO-2`, and this tool's own known-answer corpus is exactly that. With the
+   name test alone the six synthetic nights all read as non-nights, and the selftest did not go red so
+   much as go QUIET: 7 checks failed and the count fell from 57 to 33, because the per-night loop
+   `continue`s past an unsolved row and 24 assertions simply stopped being evaluated (measured
+   2026-10-21, `26/33 passed` — the §4b family, a pass reported about something never examined). So the two pieces of evidence bind together — a name that is not
+   night-shaped AND not one corner on disk. A night-shaped name with no corner stays an INCOMPLETE
+   night, because a fold that aborted before its first write is a night this tool failed to estimate,
+   and the stamp sentence is true of it.
+
+   PURE, like its sibling, so `--selftest` pins it with no filesystem. */
+function classifyNightShape(label, cornersPresent) {
+  if (NIGHT_RE.test(label)) return null;
+  if (cornersPresent.length) return null;
+  return 'not a night — the name is not YYYY-MM-DD and no node export is here, so no fold ever ran in this directory';
+}
+
+/* THE SCORED SET IS THE POPULATION THE VERDICT REPORTS. The walk cannot know that a directory holds
+   no night — only the read can — so the snapshot comes back wide and the content narrows it here,
+   by NAME, with the dropped names kept rather than counted. `rule` stays the walk's own account of
+   its rule, and `admittedNonNight` keeps the non-night names this run really did score. What came
+   out is printed by `distributionHeading`, on the same line as the number it changes. */
+/* ⚠️ NARROWING THE SNAPSHOT NARROWS ITS OWN ACCOUNT OF ITS RULE. `ruleLine` renders
+   `admittedNonNight` as `non-night names it counted as nights`, and once the read has removed them
+   that list is empty — true of the scored set, and indistinguishable from a root that held no stray
+   directory at all. That is the very reading `ruleLine` exists to prevent, pointing the other way,
+   so the tool states the gap between the listing and the scored set in its own words. */
+function notNightLine(notNights) {
+  const names = [...notNights].sort();
+  if (!names.length) return null;
+  return '  not nights: ' + names.join(', ') + ' — the walk admitted each as a night and the read removed it: no night-shaped name and no node export';
+}
+
+function scoredSnapshot(snap, notNights) {
+  if (!snap.ok || !notNights.size) return snap;
+  const nights = (snap.nights || []).filter((x) => !notNights.has(x));
+  return { ...snap, n: nights.length, nights, digest: digestNights(nights), admittedNonNight: (snap.admittedNonNight || []).filter((x) => !notNights.has(x)) };
+}
+
 function readNightDir(dir) {
   const files = readdirSync(dir).filter((f) => /\.json$/i.test(f));
   const series = {},
@@ -409,8 +460,14 @@ function median(xs) {
    number they change, because a filter the reader cannot see is not an improvement over a wrong
    denominator. */
 function distributionHeading(nSolved, rows) {
-  const incomplete = rows.filter((x) => x.incomplete);
-  const foldable = rows.length - incomplete.length;
+  /* A DIRECTORY THAT WAS NEVER A NIGHT LEAVES BOTH COUNTS AND ITS OWN CLAUSE. Before this it joined
+     the incomplete nights, so `logs` and `.cache` read as folds that never finished and the one
+     genuine aborted fold stood in the same list as two directories no fold had touched. The two
+     exclusions are different facts about the root, so they are two clauses with two reasons. */
+  const notNights = rows.filter((x) => x.notANight);
+  const nights = rows.filter((x) => !x.notANight);
+  const incomplete = nights.filter((x) => x.incomplete);
+  const foldable = nights.length - incomplete.length;
   return (
     'distribution (' +
     nSolved +
@@ -419,6 +476,9 @@ function distributionHeading(nSolved, rows) {
     ' foldable night(s)' +
     (incomplete.length
       ? ' · ' + incomplete.length + ' incomplete night(s) EXCLUDED from both counts — the fold never finished, so this is not an estimation failure: ' + incomplete.map((x) => x.label).join(', ')
+      : '') +
+    (notNights.length
+      ? ' · ' + notNights.length + ' directory(ies) EXCLUDED as NOT NIGHTS — no night-shaped name and no node export, so no fold ever ran there: ' + notNights.map((x) => x.label).join(', ')
       : '') +
     '):'
   );
@@ -436,11 +496,17 @@ function summarize(rows) {
   };
   const per = {};
   for (const L of LABELS) per[L] = { classic: medOf((x) => x.sigmaClassic && x.sigmaClassic[L]), rhoOn: medOf((x) => x.sigmaRho && x.sigmaRho[L]) };
+  /* NIGHTS, not directories. A non-night directory published as `eligible` over-states the corpus a
+     figure was cut from, and the names travel so a reader can chase the subtraction (a count cannot
+     be chased). */
+  const nights = rows.filter((x) => !x.notANight);
+  const notNights = rows.filter((x) => x.notANight).map((x) => x.label);
   return {
-    nights: rows.length,
+    nights: nights.length,
+    notNights,
     solved: solved.length,
     degenerate: solvedAll.length - solved.length,
-    unsolved: rows.length - solvedAll.length,
+    unsolved: nights.length - solvedAll.length,
     medianCulpritSigmaRhoOnBpm: culpritSig.length ? +median(culpritSig).toFixed(3) : null,
     medianSigmaBpm: per
   };
@@ -533,7 +599,7 @@ function report(rows, { json } = {}) {
      Treated exactly like the degenerate-boundary nights above: reported, EXCLUDED, and the count
      and reason printed on the same line as the number they change. Removing them silently would be
      the mirror-image defect — a filter the reader cannot see. */
-  const foldable = rows.filter((x) => !x.incomplete);
+  const foldable = rows.filter((x) => !x.incomplete && !x.notANight);
   const split = TchCorpus.cohortSplit(foldable.map((x) => ({ night: x.label, marker: x.marker, solved: solvedSet.has(x.label) })));
   const corpusVerdict = TchCorpus.corpusVerdict(split);
   const corpusLine = TchCorpus.corpusLine(split);
@@ -635,6 +701,77 @@ function verify(rows, corpus) {
   );
   ok('denominator · CONTROL · …and with nothing incomplete the line carries no exclusion clause at all', !/EXCLUDED/.test(distributionHeading(1, _tried)), distributionHeading(1, _tried));
 
+  /* ── A DIRECTORY IS NOT A NIGHT BECAUSE IT SITS UNDER THE ROOT (residue
+     `2026-10-21-the-multinight-tool-counts-any-directory-as-a-night`). Pinned on the pure classifier
+     and on the heading, because the `--dir` path these reach needs the gitignored corpus.
+
+     ⚠️ THE TWO CONTROLS CARRY THE DESIGN. The first says a name test alone would refuse this
+     tool's own known-answer corpus, whose nights are called `PV-1` and `QO-2`; the second says a
+     content test alone would call an aborted fold a non-night and let a real failure leave the
+     denominator. Only the conjunction names what happened in both directions. */
+  const _NS = classifyNightShape('logs', []);
+  ok('nightshape · a directory with no night-shaped name and no corner is NOT a night', /not a night/.test(_NS || ''), String(_NS));
+  ok('nightshape · …and it is never blamed on a fold, because no fold ever ran there', !/trio-stamp|incomplete/.test(_NS || '') && /no fold ever ran/.test(_NS || ''), String(_NS));
+  ok(
+    'nightshape · CONTROL · a planted label WITH a corner is still scored — `PV-1` is how this tool names its own nights',
+    classifyNightShape('PV-1', ['ECGDex']) === null,
+    String(classifyNightShape('PV-1', ['ECGDex']))
+  );
+  ok(
+    'nightshape · CONTROL · a night-shaped name with no corner stays an INCOMPLETE night — a fold that aborted before its first write still failed',
+    classifyNightShape('2026-06-12', []) === null && /missing ECGDex\+PpgDex\+OxyDex/.test(classifyCompleteness([], _L, false) || ''),
+    String(classifyNightShape('2026-06-12', []))
+  );
+  const _mixed2 = _rows(_n('2026-06-10'), _n('2026-06-12', { incomplete: true }), _n('logs', { notANight: true }));
+  ok(
+    'denominator · a non-night leaves both counts, so one real night is one foldable night',
+    /1 estimated \/ 1 foldable night\(s\)/.test(distributionHeading(1, _mixed2)),
+    distributionHeading(1, _mixed2)
+  );
+  ok(
+    'denominator · …in its OWN clause, with its own reason and its name',
+    /1 directory\(ies\) EXCLUDED as NOT NIGHTS[^:]*: logs/.test(distributionHeading(1, _mixed2)),
+    distributionHeading(1, _mixed2)
+  );
+  ok(
+    'denominator · …and the genuine aborted fold keeps the incomplete clause to itself',
+    /1 incomplete night\(s\) EXCLUDED[^:]*: 2026-06-12 ·/.test(distributionHeading(1, _mixed2)),
+    distributionHeading(1, _mixed2)
+  );
+  const _sum = summarize(_rows(_n('2026-06-10', { ok: false }), _n('logs', { notANight: true, ok: false })));
+  ok('verdict · the published night population counts nights, not directories', _sum.nights === 1 && _sum.unsolved === 1, JSON.stringify({ nights: _sum.nights, unsolved: _sum.unsolved }));
+  ok('verdict · …and the subtraction travels as NAMES, because a count cannot be chased', String(_sum.notNights) === 'logs', JSON.stringify(_sum.notNights));
+  const _snap = {
+    ok: true,
+    root: '/x',
+    n: 2,
+    nights: ['2026-06-10', 'logs'],
+    digest: digestNights(['2026-06-10', 'logs']),
+    rule: '/./',
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: ['logs']
+  };
+  const _scored = scoredSnapshot(_snap, new Set(['logs']));
+  ok(
+    'population · the scored snapshot drops the named non-night and re-digests the set it kept',
+    _scored.n === 1 && _scored.digest === digestNights(['2026-06-10']),
+    JSON.stringify({ n: _scored.n, digest: _scored.digest })
+  );
+  ok(
+    'population · …and the rule it declared stays on the record, minus the directories it never scored',
+    _scored.rule === '/./' && String(_scored.admittedNonNight) === '',
+    JSON.stringify(_scored.admittedNonNight)
+  );
+  ok('population · CONTROL · a root with no non-night comes back untouched, never re-derived', scoredSnapshot(_snap, new Set()) === _snap);
+  ok('population · CONTROL · ∅ an unreadable root is never narrowed into a zero', scoredSnapshot({ ok: false, nights: [], n: 0 }, new Set(['logs'])).ok === false);
+  ok(
+    'population · the gap between the listing and the scored set is STATED, since the narrowed rule line can no longer show it',
+    /not nights: \.cache, logs — .*no night-shaped name and no node export/.test(notNightLine(new Set(['logs', '.cache'])) || ''),
+    String(notNightLine(new Set(['logs', '.cache'])))
+  );
+  ok('population · CONTROL · a root with no such directory says nothing at all', notNightLine(new Set()) === null);
+
   for (const row of rows) {
     const spec = byLabel[row.label];
     ok(row.label + ': A/B solved', row.ok && row.classic && row.withRho, row.reason || '');
@@ -716,12 +853,15 @@ function main() {
       process.exit(2);
     }
     const rows = subs.map((d) => runNight(readNightDir(d), LABELS));
-    const population = populationVerdict(popBefore, snapshotNights(base, { re: /./ }), { tool: TOOL, evidence: [TOOL] });
+    const notNights = new Set(rows.filter((r) => r.notANight).map((r) => r.label));
+    const population = populationVerdict(scoredSnapshot(popBefore, notNights), scoredSnapshot(snapshotNights(base, { re: /./ }), notNights), { tool: TOOL, evidence: [TOOL] });
     report(rows, { json });
     console.log(`  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
     {
       const rl = ruleLine(population);
       if (rl) console.log(rl);
+      const nn = notNightLine(notNights);
+      if (nn) console.log(nn);
     }
     console.log('\n  (real nights: no planted truth → distribution is the verdict; compare median σ to the corpus reference.)');
     emitVerdict(rows, [base]);

@@ -11039,6 +11039,28 @@
           .join(', '),
         ''
       );
+      /* ── A RULE WIDER THAN NIGHT-SHAPED OWES THE OTHER HALF ─────────────────────────
+         Row 2026-10-21-the-multinight-tool-counts-any-directory-as-a-night. `ruleLine` above is the
+         WALK's account of its rule, and for a rule of `/./` it can only say which non-night names the
+         walk let through. It cannot say which of them held no night, because only the read knows
+         that. Measured on a planted root: `logs` and `.cache` each reported `incomplete night … no
+         .trio-stamp in this directory, so the fold did not complete`, the heading listed them beside
+         the one genuine aborted fold, and the verdict object published `eligible: 5` over three
+         nights. So a tool whose rule admits ANY directory owes a second statement — the directories
+         its read then removed, by name. */
+      var wide = ruled.filter(function (t) {
+        return /snapshotNights\([^)]*\{[^}]*\bre:\s*\/\.\//.test(TT['tools/' + t] || '');
+      });
+      T.ok('ANTI-VACUITY · at least one tool declares a rule wider than night-shaped', wide.length >= 1, wide.length + ' wide-rule tool(s): ' + wide.join(', '));
+      T.eq(
+        'every tool whose rule admits any directory also names the directories its read removed',
+        wide
+          .filter(function (t) {
+            return !/notNightLine\(|notANight\b/.test(TT['tools/' + t] || '');
+          })
+          .join(', '),
+        ''
+      );
     });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool
