@@ -124,6 +124,7 @@ export const PROBES = {
   'guard-ruff.sh': { env: { CLAUDE_ALLOW_UNFORMATTED_RUFF: '1' }, exit: 'the hatch' },
   'guard-shared-tree.sh': { env: { CLAUDE_ALLOW_BLANKET_GIT: '1' }, exit: 'the hatch' },
   'guard-stale-brief.sh': { env: { CLAUDE_ALLOW_STALE_BRIEF: '1' }, exit: 'the hatch' },
+  'guard-stale-ledger.sh': { env: { CLAUDE_ALLOW_STALE_LEDGER: '1' }, exit: 'the hatch' },
   'guard-syntax.sh': { env: { CLAUDE_ALLOW_SYNTAX_ERROR: '1' }, exit: 'the hatch' },
   'guard-trailer.sh': { env: { CLAUDE_ALLOW_NO_TRAILER: '1' }, exit: 'the hatch' },
   'session-tailnet.sh': { env: {}, exit: 'no TS_AUTHKEY — the exit every local session takes' },
