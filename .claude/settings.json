@@ -23,6 +23,12 @@
           },
           {
             "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-stale-ledger.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking the residue ledger agrees with origin/main"
+          },
+          {
+            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-format.sh\"",
             "timeout": 15,
             "statusMessage": "checking staged JS is Biome-clean"
@@ -98,9 +104,26 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-stale-ledger.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking the residue ledger agrees with origin/main"
+          },
+          {
+            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" pre",
             "timeout": 10,
             "statusMessage": "recording the memory file's mtime for this session"
+          }
+        ]
+      },
+      {
+        "matcher": "Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-stale-ledger.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking the residue ledger agrees with origin/main"
           }
         ]
       }
