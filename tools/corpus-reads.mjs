@@ -85,6 +85,22 @@ const CAPTURE_VOCAB = [
   /captures? root|night(?:s)? root|per-night/i
 ];
 
+/** The NAMES of the population rules, in the order `CAPTURE_VOCAB` declares them. */
+export const VOCAB_NAMES = ['night-regex', 'capture-suffix', 'corpus-root', 'night-primitive', 'usage-line'];
+
+/** Which population rule(s) admitted this file, and the text each one matched. PURE.
+ *
+ * A POPULATION CLAIM OWES ITS EVIDENCE for the same reason an abstention does: `build-docs.mjs`
+ * reads no capture, and it sat in the population unexamined while its origin was undecidable. */
+export function vocabHits(text) {
+  const hits = [];
+  CAPTURE_VOCAB.forEach((re, i) => {
+    const m = re.exec(String(text));
+    if (m) hits.push({ rule: VOCAB_NAMES[i], match: m[0] });
+  });
+  return hits;
+}
+
 /** Is this file a CORPUS consumer at all? The gate's population rule. PURE. */
 export function isCorpusConsumer(text) {
   /* READ OVER THE RAW TEXT, NOT THE MASKED CODE. A capture suffix almost always sits inside a
@@ -95,18 +111,116 @@ export function isCorpusConsumer(text) {
   return CAPTURE_VOCAB.some((re) => re.test(String(text)));
 }
 
-/** Every identifier the file declares, mapped to the text of its initialiser. PURE. */
+/** Every DECLARATION SITE of every identifier, in source order, with its offset. PURE.
+ *
+ * TWO SPELLINGS THE FIRST VERSION COULD NOT SEE, AND EACH ONE COST AN ABSTENTION:
+ *  · A name declared twice had ONE entry, the first in the file, so a one-letter name resolved to
+ *    an unrelated variable. `ppg-bridge-hrv-validate.mjs` walks `readdirSync(d)` where `d` is the
+ *    parameter of `walk`, and its abstention quoted `ivMs[i] - ivMs[i - 1]` — the `d` declared 177
+ *    lines earlier, which is not a path and never reaches that call.
+ *  · A `for … of` binding carries no `=`, so `for (const d of dirs)` declared nothing at all. The
+ *    ITERATED expression is the origin to read: a loop over paths from `argv` is a run-time read
+ *    whichever element the body opens.
+ * A destructuring binding (`const { a } = obj`) is still invisible, and deliberately: the origin of
+ * one field is not the origin of the object. */
+export function declarationSites(masked) {
+  const out = new Map();
+  const re = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?:(=)|\b(of|in)\b)\s*([^;\n]*)/g;
+  for (const m of masked.matchAll(re)) {
+    /* A `for … of` head ends at its own close paren; an `=` initialiser runs to the line end. */
+    const expr = m[2] ? m[4] : m[4].replace(/\).*$/, '');
+    if (!out.has(m[1])) out.set(m[1], []);
+    out.get(m[1]).push({ at: m.index, expr });
+  }
+  return out;
+}
+
+/** Name → the FIRST initialiser in the file, which is what the scope-blind rule read. PURE. */
 export function declarations(masked) {
   const out = new Map();
-  const re = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([^;\n]*)/g;
-  for (const m of masked.matchAll(re)) if (!out.has(m[1])) out.set(m[1], m[2]);
+  for (const [k, v] of declarationSites(masked)) out.set(k, v[0].expr);
   return out;
+}
+
+/** The end offset of the body a function header at `from` opens. PURE. */
+function bodyEnd(masked, from) {
+  let i = from;
+  while (i < masked.length && /\s/.test(masked[i])) i++;
+  if (masked[i] === '{') {
+    let depth = 0;
+    for (let j = i; j < masked.length; j++) {
+      if (masked[j] === '{') depth++;
+      else if (masked[j] === '}' && --depth === 0) return j;
+    }
+    return masked.length;
+  }
+  /* A concise arrow body: to the first `;`, newline or unmatched closer. */
+  let depth = 0;
+  for (let j = i; j < masked.length; j++) {
+    const c = masked[j];
+    if ('([{'.includes(c)) depth++;
+    else if (')]}'.includes(c)) {
+      if (depth === 0) return j;
+      depth--;
+    } else if ((c === ';' || c === '\n') && depth === 0) return j;
+  }
+  return masked.length;
+}
+
+/** Keywords that wear a method's shape — `if (x) {` is not a function. */
+const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'do', 'else', 'return', 'function', 'with']);
+
+/** Every function in the file: its name, its parameters, and the span of its body. PURE.
+ *
+ * A GENERATOR'S PARAMETERS WERE INVISIBLE. The old `parameters()` reads `function` and then a name,
+ * and `async function* walk(dir, base = dir)` puts a star between the two, so `corpus-tier.mjs`
+ * abstained on a plain parameter. The spans carry SCOPE as well, which is what tells one `d` from
+ * another: a parameter of the function the call sits INSIDE is the binding in force. */
+export function functionSpans(masked) {
+  const spans = [];
+  const add = (name, raw, from) => {
+    const params = new Set();
+    for (const p of String(raw).split(',')) {
+      const n = p
+        .trim()
+        .replace(/[={].*$/, '')
+        .trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(n)) params.add(n);
+    }
+    spans.push({ name, params, at: from, end: bodyEnd(masked, from) });
+  };
+  for (const m of masked.matchAll(/(?:\basync\s+)?\bfunction\b\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) add(m[1] || null, m[2], m.index + m[0].length);
+  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|([A-Za-z_$][\w$]*))\s*=>/g)) add(m[1], m[2] ?? m[3] ?? '', m.index + m[0].length);
+  for (const m of masked.matchAll(/\(([^)]*)\)\s*=>/g)) add(null, m[1], m.index + m[0].length);
+  for (const m of masked.matchAll(/(?:^|[^\w$)])([A-Za-z_$][\w$]*)\s*=>/gm)) add(null, m[1], m.index + m[0].length);
+  /* Method shorthand, which an object of walkers is written as. The keyword guard is what keeps
+     `if (dir) {` from declaring a parameter called `dir`. */
+  for (const m of masked.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{/g)) if (!NOT_A_FUNCTION.has(m[1])) add(m[1], m[2], m.index + m[0].length - 1);
+  return spans;
+}
+
+/** Name → the body text of a function this file declares. PURE. */
+export function localFunctions(masked) {
+  const out = new Map();
+  for (const s of functionSpans(masked)) if (s.name && !out.has(s.name)) out.set(s.name, masked.slice(s.at, s.end + 1));
+  return out;
+}
+
+/** Does this text read a value from outside the process, directly or through one binding? PURE. */
+function readsRuntime(text, sites, depth) {
+  if (RUNTIME_SUPPLIED.test(String(text))) return true;
+  if (depth <= 0) return false;
+  for (const m of String(text).matchAll(/\b([A-Za-z_$][\w$]*)\b/g)) {
+    const d = sites.get(m[1]);
+    if (d?.some((x) => readsRuntime(x.expr, sites, depth - 1))) return true;
+  }
+  return false;
 }
 
 /** Every identifier that is a function parameter somewhere in the file. PURE. */
 export function parameters(masked) {
   const out = new Set();
-  const re = /(?:function\s*[A-Za-z_$\w]*\s*\(([^)]*)\)|\(([^)]*)\)\s*=>|\b([A-Za-z_$][\w$]*)\s*=>)/g;
+  const re = /(?:function\s*\*?\s*[A-Za-z_$\w]*\s*\(([^)]*)\)|\(([^)]*)\)\s*=>|\b([A-Za-z_$][\w$]*)\s*=>)/g;
   for (const m of masked.matchAll(re)) {
     const raw = m[1] ?? m[2] ?? m[3] ?? '';
     for (const p of raw.split(',')) {
@@ -120,23 +234,89 @@ export function parameters(masked) {
   return out;
 }
 
-/** Trace one argument expression to an origin. PURE, and it abstains rather than guessing. */
-export function originOf(expr, decls, params, seen = new Set()) {
+/** Trace one argument expression to an origin. PURE, and it abstains rather than guessing.
+ *
+ * `ctx` is optional and carries SCOPE: `{ at, sites, spans, fns }`. Without it the function keeps
+ * its first, scope-blind behaviour, which resolved a name to the first declaration anywhere in the
+ * file. With it a name resolves in the scope of the call. */
+/** The arms of a top-level ternary, or a single-element list when there is no ternary. */
+export function splitTopTernary(expr) {
+  const s = String(expr);
+  let depth = 0;
+  const cuts = [];
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if ('([{'.includes(ch)) depth++;
+    else if (')]}'.includes(ch)) depth--;
+    /* `?.` and `??` are not conditionals, and an arrow's `=>` never reaches here as a cut. */ else if (depth === 0 && ch === '?' && s[i + 1] !== '.' && s[i + 1] !== '?' && s[i - 1] !== '?')
+      cuts.push(i);
+    else if (depth === 0 && ch === ':' && cuts.length > 0) cuts.push(i);
+  }
+  if (cuts.length < 2) return [s.trim()];
+  return [s.slice(cuts[0] + 1, cuts[1]).trim(), s.slice(cuts[1] + 1).trim()].filter(Boolean);
+}
+
+export function originOf(expr, decls, params, seen = new Set(), ctx = null) {
   const e = String(expr || '').trim();
   if (!e) return { origin: 'undecidable', why: 'the enumeration call has no readable argument' };
-  if (REPO_DERIVED.test(e)) return { origin: 'repo', why: null };
-  if (RUNTIME_SUPPLIED.test(e)) return { origin: 'runtime', why: null };
-  /* A bare string literal is a repo-relative path: the mask has already removed real strings, so a
-     surviving quote is impossible — an unquoted bare word is an identifier, resolved below. */
+  /* THE ORDER IS THE WHOLE RULE, AND BOTH REWRITES BELOW CAME OUT OF ONE MEASUREMENT.
+     (a) A RUN-TIME READ BEATS A REPO JOIN in the same expression. The repo's flag idiom is
+     `opt('--dir', join(ROOT, 'uploads', 'trio'))`: under the old order `REPO_DERIVED` matched
+     `ROOT` and cleared the site, while every real run passes `--dir`. A default is the fallback;
+     the flag is what a run supplies.
+     (b) A BARE IDENTIFIER IS RESOLVED BEFORE EITHER REGEX SEES IT. `REPO_DERIVED` matches the bare
+     words `ROOT`, `REPO` and `HERE`, so `readdirSync(ROOT)` was cleared by the NAME of its
+     variable and never by what the variable holds — and in `pat-dip-validate.mjs` that name holds
+     a positional command-line argument (`positionalArgs(argv, ARGV_SPEC).find(…)`). A naming
+     convention is not a value. The name heuristic survives only as the LAST resort, for an
+     identifier this file neither declares nor takes as a parameter. */
   const id = /^([A-Za-z_$][\w$]*)$/.exec(e);
+  if (!id && RUNTIME_SUPPLIED.test(e)) return { origin: 'runtime', why: null };
   if (id) {
     const name = id[1];
     if (seen.has(name)) return { origin: 'undecidable', why: `\`${name}\` resolves to itself` };
     seen.add(name);
+    if (ctx) {
+      /* SCOPE FIRST, INNERMOST FIRST. A parameter of an enclosing function is the binding in
+         force, whatever else the file declares under that name. */
+      const enclosing = ctx.spans.filter((s) => s.at <= ctx.at && ctx.at <= s.end).sort((a, b) => b.at - a.at);
+      if (enclosing.some((s) => s.params.has(name))) return { origin: 'runtime', why: null };
+      /* Then the NEAREST PRECEDING declaration, not the first in the file. */
+      const before = (ctx.sites.get(name) || []).filter((d) => d.at < ctx.at);
+      const pick = before.length > 0 ? before[before.length - 1] : (ctx.sites.get(name) || [])[0];
+      if (pick) return originOf(pick.expr, decls, params, seen, { ...ctx, at: pick.at });
+    }
     if (params.has(name) && !decls.has(name)) return { origin: 'runtime', why: null };
-    if (decls.has(name)) return originOf(decls.get(name), decls, params, seen);
+    if (decls.has(name)) return originOf(decls.get(name), decls, params, seen, ctx);
+    /* Last resort, and only here: an identifier with no binding in this file. `HERE` imported from
+       a shared module is still the repo root; `argv` is still the command line. */
+    if (RUNTIME_SUPPLIED.test(name)) return { origin: 'runtime', why: null };
+    if (REPO_DERIVED.test(name)) return { origin: 'repo', why: null };
     return { origin: 'undecidable', why: `\`${name}\` is neither declared nor a parameter in this file` };
   }
+  /* A CALL TO A FUNCTION THIS FILE DECLARES. The repo's own argv helper wears this shape —
+     `arg('--dir', null)` reads a module-level `argv` bound to `process.argv.slice(2)` — so the
+     path arrived from outside the process although the call site names neither. Twelve of the 28
+     abstentions were this one spelling. */
+  const call = /^([A-Za-z_$][\w$]*)\s*\(/.exec(e);
+  if (ctx && call && ctx.fns.has(call[1]) && readsRuntime(ctx.fns.get(call[1]), ctx.sites, 2)) return { origin: 'runtime', why: null };
+  /* A TERNARY HAS TWO ARMS AND A RUN IS FREE TO TAKE EITHER. `nsrr-stage-validate.mjs` guards an
+     absolute path with `DIR.startsWith('/') ? DIR : join(ROOT, DIR)`, where `DIR` is `arg('--dir',
+     null)`: the repo arm is the fallback, the flag arm is the path a run supplies. Decide on the
+     arms, hazard first — the same ladder, applied to a shape that spells both origins at once. */
+  const arms = splitTopTernary(e);
+  if (arms.length > 1) {
+    const got = arms.map((a) => originOf(a, decls, params, new Set(seen), ctx).origin);
+    if (got.includes('runtime')) return { origin: 'runtime', why: null };
+    if (got.includes('undecidable')) {
+      return { origin: 'undecidable', why: `one arm of \`${e.slice(0, 40)}\` traces to no declaration` };
+    }
+    if (got.includes('repo')) return { origin: 'repo', why: null };
+  }
+  /* AND ONLY NOW the name heuristic. `arg('--dir', join(ROOT, 'uploads', 'trio'))` names `ROOT`
+     and reads the command line; the repo rule is the last thing tried, not the first, so every
+     resolution path gets its turn before a convention decides. */
+  if (REPO_DERIVED.test(e)) return { origin: 'repo', why: null };
   /* A call or a join of several parts: decide on the parts. */
   const inner = e.replace(/^[A-Za-z_$][\w$]*\s*\(/, '').replace(/\)\s*$/, '');
   if (inner !== e) {
@@ -144,7 +324,7 @@ export function originOf(expr, decls, params, seen = new Set()) {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    const seenOrigins = parts.map((p) => originOf(p, decls, params, new Set(seen)).origin);
+    const seenOrigins = parts.map((p) => originOf(p, decls, params, new Set(seen), ctx).origin);
     if (seenOrigins.includes('runtime')) return { origin: 'runtime', why: null };
     if (seenOrigins.includes('repo')) return { origin: 'repo', why: null };
   }
@@ -156,6 +336,10 @@ export function enumerationSites(text) {
   const masked = maskNonCode(text);
   const decls = declarations(masked);
   const params = parameters(masked);
+  /* SCOPE, built once per file: where every name is declared, where every function body runs, and
+     the body of every function this file declares. The offset of the call is what selects among
+     them, so it is the only member that moves per site. */
+  const ctx = { at: 0, sites: declarationSites(masked), spans: functionSpans(masked), fns: localFunctions(masked) };
   const sites = [];
   for (const m of masked.matchAll(ENUM_CALL)) {
     const open = masked.indexOf('(', m.index + (m[0].endsWith('(') ? m[0].length - 1 : 0));
@@ -177,7 +361,7 @@ export function enumerationSites(text) {
     const first = splitTop(args)[0] || '';
     const call = m[0].replace(/\s*\($/, '').replace(/\($/, '');
     const arg = /find/.test(call) ? splitTop(args)[1] || '' : first;
-    sites.push({ call: call.trim(), arg: arg.trim(), ...originOf(arg, decls, params) });
+    sites.push({ call: call.trim(), arg: arg.trim(), ...originOf(arg, decls, params, new Set(), { ...ctx, at: open }) });
   }
   return sites;
 }
@@ -213,9 +397,15 @@ export function classifyTool(text) {
   if (runtime.length > 0) {
     return { cls: 'enumerates', why: `${runtime.length} enumeration(s) over a path supplied at run time, with no population verdict`, sites };
   }
+  /* THE LADDER IS runtime > undecidable > repo, AND THE MIDDLE RUNG WAS MISSING. The first
+     version abstained only when EVERY site abstained, so a file holding one repo-derived walk and
+     one unresolved walk read as a clean `repo-tree` — a clearance stated over a site nobody had
+     examined, which is the §4b family one layer down. Seven corpus consumers sat in that bin, and
+     each one of them turns out to enumerate a run-time path. An abstention anywhere now blocks the
+     clearance, because a tree built from the repo root cannot be claimed for a path nothing read. */
   const undec = sites.filter((s) => s.origin === 'undecidable');
-  if (undec.length > 0 && undec.length === sites.length) {
-    return { cls: 'undecidable', why: undec[0].why, sites };
+  if (undec.length > 0) {
+    return { cls: 'undecidable', why: `${undec.length} of ${sites.length} enumeration(s) unresolved — ${undec[0].why}`, sites };
   }
   return { cls: 'repo-tree', why: null, sites };
 }
@@ -226,7 +416,53 @@ export function classifyTool(text) {
    text is its pattern reports about itself. Named here rather than filtered silently. */
 export const SELF = 'tools/corpus-reads.mjs';
 
-/** Classify every tool under one directory. Returns rows sorted by name. */
+/* ── THE POPULATION RULE'S OTHER DIRECTION ─────────────────────────────────────────────────────
+   `isCorpusConsumer` is deliberately generous and reads capture vocabulary out of the RAW text,
+   so it admits four tools that enumerate no capture at all. Each is named here with the text that
+   admitted it, because a generous rule plus a silent filter is a population nobody can audit:
+
+     argv-survey.mjs        `DEX_UPLOADS`, inside `delete env.DEX_UPLOADS;` — the mention is the
+                            SCRUB that keeps a probe away from the corpus. Presence is
+                            ANTI-evidence here, and no rule keyed on presence can tell.
+     build-docs.mjs         the night regex `\d{4}-\d{2}-\d{2}`, which validates a release date
+                            in the docs builder. It enumerates `docs/`.
+     nsrr-effort-typing.mjs `.edf`, under `/srv/data/shhs/` — the public NSRR mount, a different
+     nsrr-score-pool.mjs    filesystem from the capture corpus, which the daily re-tier never
+                            touches (`corpus-tier.mjs` is scoped to `/srv/data/tepna-corpus/`).
+
+   A row excluded here keeps its CLASS — the scan still reports what it enumerates — and only
+   leaves the corpus population, so nothing is hidden. */
+export const POPULATION_EXCLUSIONS = {
+  'argv-survey.mjs': 'names DEX_UPLOADS only to delete it from a probe environment',
+  'build-docs.mjs': 'the night-shaped regex validates a release date; it enumerates docs/',
+  'nsrr-effort-typing.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
+  'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus'
+};
+
+/* ── THE FIVE THE TRACER STILL WILL NOT DECIDE ─────────────────────────────────────────────────
+   Named, with the shape that defeats the tracer, so a SIXTH is a red rather than a shrug. The
+   abstention is the honest answer in each: none of the three shapes can be decided from the
+   masked expression alone, and a guess in either direction would be a verdict over an unexamined
+   path. They group into three kinds, not five special cases:
+
+     board.mjs            a HOME-DIRECTORY store (`path.join(homedir(), '.npm', '_npx')`,
+     fleet-turns.mjs      `join(homedir(), …)` for the transcripts) — neither the repo tree nor a
+                          path any flag supplies, and the ladder has no rung for it.
+     release.mjs          a LOCAL HELPER the tracer follows only far enough to look for a run-time
+                          read: `p('changes')` is `join(ROOT, …)`, so abstaining costs a true
+                          repo clearance and claims nothing.
+     sigma-corpus-headless.mjs  a WORKLIST walk — `readdirSync(stack.pop())`, whose origin is
+     r5-hr-reference.mjs        whatever was pushed; and a TEMPLATE literal root, whose body the
+                                mask blanks (`${REPO}/uploads/trio` reads as an empty backtick
+                                pair). Both are real corpus reads that the scan cannot prove. */
+export const UNDECIDED_CORPUS = {
+  'board.mjs': 'a home-directory store under homedir(), neither repo tree nor a flag-supplied path',
+  'fleet-turns.mjs': 'a home-directory transcript store under homedir()',
+  'release.mjs': 'the local helper p() joins the repo ROOT; the tracer follows a helper only to find a run-time read',
+  'sigma-corpus-headless.mjs': 'a worklist walk over stack.pop(), whose origin is whatever was pushed',
+  'r5-hr-reference.mjs': 'a template-literal root; the mask blanks the body, so the expression reads empty'
+};
+
 /* ── THE NAMED SET: corpus enumerators that report no population ───────────────────────────────
    DEBT, NOT APPROVAL. Each value is the number of run-time enumerations the scan found in that
    tool. A ratchet on the COUNT would pass a new consumer arriving as another one left, so the
@@ -237,43 +473,76 @@ export const SELF = 'tools/corpus-reads.mjs';
    under `tests/` as evidence that a test covers it. A hazard list is not that, and the mention
    alone reded its ratchet. */
 export const UNWIRED_BACKLOG = {
-  'acc-select-compare.mjs': 1,
-  'acc-shared-movement.mjs': 1,
+  'acc-acc-control.mjs': 1,
+  'acc-select-compare.mjs': 2,
+  'acc-shared-movement.mjs': 2,
+  'beat-comb-analysis.mjs': 1,
   'beat-correspondence.mjs': 1,
   'beat-error-recovery.mjs': 2,
   'codex-export.mjs': 1,
+  'corpus-census.mjs': 2,
+  'corpus-tier.mjs': 1,
+  'cpap-corpus.mjs': 2,
+  'cpap-oxy-couple.mjs': 1,
+  'cpap-sa2-agreement.mjs': 1,
+  'cvhr-edge-widen.mjs': 3,
   'cvhr-fold-rescore.mjs': 1,
+  'deep-desat-falsifier.mjs': 1,
+  'deep-flow-join.mjs': 2,
   'device-stability.mjs': 1,
   'dual-clock-rate.mjs': 1,
-  'eqc-run.mjs': 2,
+  'ecg-rate-transfer.mjs': 1,
+  'edge-settle.mjs': 1,
+  'eqc-run.mjs': 3,
   'geometry-scan.mjs': 1,
   'h10-session-rate.mjs': 1,
   'hostaxis-estimator-bakeoff.mjs': 1,
   'nsrr-criterion-sweep.mjs': 1,
   'nsrr-oxydex-odi.mjs': 2,
-  'oracle-ecg-firmware-rr.mjs': 3,
+  'nsrr-stage-validate.mjs': 1,
+  'o2ring-finger-validate-batch.mjs': 1,
+  'oracle-ecg-firmware-rr.mjs': 4,
+  'oracle-ppg-device-beats.mjs': 2,
+  'oxy-hr-bias.mjs': 2,
+  'pat-connection-stability.mjs': 2,
+  'pat-dip-validate.mjs': 1,
   'pat-drift-attribution.mjs': 2,
   'pat-ecg-axis-residual.mjs': 1,
-  'pat-finger-coupler.mjs': 1,
-  'pat-matchrate-strict.mjs': 2,
+  'pat-fiducial-compare.mjs': 1,
+  'pat-finger-coupler.mjs': 2,
+  'pat-host-offset.mjs': 2,
+  'pat-hrv-windows.mjs': 1,
+  'pat-literature-spec.mjs': 1,
+  'pat-matchrate-strict.mjs': 3,
   'pat-mode-posture.mjs': 2,
-  'pat-ppg-ppg-control.mjs': 1,
+  'pat-per-led.mjs': 1,
+  'pat-ppg-ppg-control.mjs': 2,
   'pat-residual-structure.mjs': 2,
+  'pat-three-corner.mjs': 1,
   'pat-window-oracle.mjs': 1,
+  'pat-window-scaling.mjs': 1,
   'pin-coverage.mjs': 2,
   'pletha-marker-oracle.mjs': 1,
+  'ppg-autogain-e2.mjs': 1,
+  'ppg-bridge-hrv-validate.mjs': 1,
+  'ppg-foot-consensus-e1.mjs': 1,
+  'ppg-foot-residual-sweep.mjs': 1,
   'ppg-fusion-e3.mjs': 1,
   'ppg-gap-bridge-scan.mjs': 1,
   'ppg2w-spo2-fit.mjs': 1,
   'ppi-jitter-vs-ecg.mjs': 1,
   'resp-acc-headless.mjs': 2,
-  'stage-lab.mjs': 11,
+  'resp-cardiac-suppression-e8.mjs': 1,
+  'seqnet-eval.mjs': 1,
+  'stage-lab.mjs': 12,
   'stitch-31d-run.mjs': 3,
   'stuck-run-lengths.mjs': 1,
-  'trio-batch.mjs': 1,
+  'tch-pooled-hat.mjs': 1,
+  'trio-batch.mjs': 6,
   'wearable-sync.mjs': 1
 };
 
+/** Classify every tool under one directory. Returns rows sorted by name. */
 export function scanDir(dir) {
   const rows = [];
   for (const f of readdirSync(dir)
@@ -282,7 +551,18 @@ export function scanDir(dir) {
     const text = readFileSync(join(dir, f), 'utf8');
     const r = classifyTool(text);
     const runtime = r.sites.filter((x) => x.origin === 'runtime').length;
-    rows.push({ tool: `tools/${f}`, cls: r.cls, why: r.why, sites: r.sites.length, runtime, corpus: isCorpusConsumer(text) && `tools/${f}` !== SELF });
+    const excluded = POPULATION_EXCLUSIONS[f] || null;
+    rows.push({
+      tool: `tools/${f}`,
+      cls: r.cls,
+      why: r.why,
+      sites: r.sites.length,
+      runtime,
+      /* The EXCLUSION carries its reason on the row, so a narrowed population can be read back
+         from the scan itself rather than taken on trust. */
+      corpus: isCorpusConsumer(text) && `tools/${f}` !== SELF && !excluded,
+      excluded
+    });
   }
   return rows;
 }
@@ -297,7 +577,25 @@ function selftest() {
     ['a wired consumer reports', 'const dir = process.argv[2];\nconst b = snapshotNights(dir);\nreaddirSync(dir);\npopulationVerdict(b, a);', 'reports'],
     ['no enumeration at all', "const p = '/srv/data/tepna-corpus';\nconsole.log(p);", 'no-enumeration'],
     ['a root named in a COMMENT does not enumerate', '// walks /srv/data/tepna-corpus nightly\nconst x = 1;', 'no-enumeration'],
-    ['an unresolvable argument abstains, it does not clear', 'readdirSync(someGlobal);', 'undecidable']
+    ['an unresolvable argument abstains, it does not clear', 'readdirSync(someGlobal);', 'undecidable'],
+    /* THE FOUR RULES THIS UNIT ADDED, each with the shape that defeated the old one. */
+    [
+      'a flag whose DEFAULT is a repo path is still a flag read',
+      "const argv = process.argv.slice(2);\nconst arg = (k, d) => {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst DIR = arg('--dir', join(ROOT, 'uploads', 'trio'));\nreaddirSync(DIR);",
+      'enumerates'
+    ],
+    ['a variable NAMED ROOT is resolved, never assumed', 'const ROOT = positionalArgs(argv, SPEC).find(existsSync);\nreaddirSync(ROOT);', 'enumerates'],
+    ['ONE abstention blocks a repo clearance for the whole file', "const ROOT = join(HERE, '..');\nreaddirSync(join(ROOT, 'tools'));\nreaddirSync(mystery);", 'undecidable'],
+    ['the helper hop is followed through one binding', "const argv = process.argv.slice(2);\nconst flag = (k) => argv.indexOf(k);\nconst d = flag('--dir');\nreaddirSync(d);", 'enumerates'],
+    [
+      'a ternary is decided on its arms, hazard first',
+      "const argv = process.argv.slice(2);\nconst arg = (k, d) => {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst DIR = arg('--dir', null);\nconst base = DIR.startsWith('/') ? DIR : join(ROOT, DIR);\nreaddirSync(base);",
+      'enumerates'
+    ],
+    /* KNOWN GAP, PINNED SO IT CANNOT BE FORGOTTEN: the same flag idiom with an IMPORTED helper
+       still clears, because the mask blanks the dashed literal that would give it away. Six corpus
+       rows read `repo-tree` for this reason; the row that records it is dated 2026-10-21. */
+    ['KNOWN GAP: an imported flag helper beside a repo join still clears', "const DIR = opt('--dir', join(ROOT, 'uploads', 'trio'));\nreaddirSync(DIR);", 'repo-tree']
   ];
   let bad = 0;
   for (const [name, src, want] of cases) {
@@ -315,9 +613,24 @@ function selftest() {
   const every = TOOL_CLASSES.every((c) => typeof c === 'string');
   if (!every) bad++;
   console.log(`  ${every ? '✓' : '✗'} the class vocabulary is ${TOOL_CLASSES.length} closed names`);
+  /* THE TWO NARROWING SETS CARRY A REASON EACH, or the narrowing is unauditable. */
+  const reasoned = [POPULATION_EXCLUSIONS, UNDECIDED_CORPUS].every((set) => Object.values(set).every((r) => typeof r === 'string' && r.length > 20));
+  if (!reasoned) bad++;
+  console.log(`  ${reasoned ? '✓' : '✗'} every exclusion (${Object.keys(POPULATION_EXCLUSIONS).length}) and abstention (${Object.keys(UNDECIDED_CORPUS).length}) names a reason`);
+  /* AND THE ABSTENTION SET IS MEASURED, not declared: a sixth abstaining corpus consumer reds
+     here, and a listed one the tracer has learned to decide reds too. */
+  const scanned = scanDir(HERE).filter((r) => r.corpus && r.cls === 'undecidable');
+  const listed = Object.keys(UNDECIDED_CORPUS).sort().join(' ');
+  const measured = scanned
+    .map((r) => r.tool.replace('tools/', ''))
+    .sort()
+    .join(' ');
+  const same = listed === measured;
+  if (!same) bad++;
+  console.log(`  ${same ? '✓' : '✗'} the abstaining corpus consumers are the ${scanned.length} named${same ? '' : ` (measured: ${measured})`}`);
   /* The count is the point: `tools/selftest-all.mjs` reads PASS either way, and a suite quietly
      shrinking from nine legs to three is visible only in this number. */
-  const total = cases.length + 2;
+  const total = cases.length + 4;
   console.log(bad === 0 ? `all ${total} selftests passed` : `corpus-reads selftest: FAIL (${bad} of ${total})`);
   return bad === 0 ? 0 : 1;
 }

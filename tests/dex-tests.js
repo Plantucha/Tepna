@@ -10765,12 +10765,30 @@
        The question that works is neither: does the tool ENUMERATE A PATH THAT ARRIVED AT RUN TIME?
        A tree built from the repo root cannot be re-tiered under the run.
 
-       MEASURED 2026-10-21 over the 286 files in `tools/`: 129 of them read the capture corpus.
-       The suite sees the 126 written as `.mjs`, because `env.toolTexts` carries that extension
-       alone. The three it cannot see are `drift-report.js`, `realm-manifest.js` and
-       `tch-corpus.js`, and all three enumerate nothing, so the hazard set loses no member to that
-       gap. Of the 126: reports 9 · enumerates 35 · repo-tree 16 · undecidable 28 ·
-       no-enumeration 38.
+       MEASURED 2026-10-21 over the 286 files in `tools/`, AND THE INSTRUMENT MOVED MORE THAN THE
+       POPULATION DID. 129 files read the capture corpus; 4 of those leave the population by name
+       (below) and the 3 written as `.js` are invisible to `env.toolTexts`, so this gate decides
+       122: reports 9 · enumerates 67 · repo-tree 3 · undecidable 5 · no-enumeration 38. The three
+       `.js` consumers (`drift-report.js`, `realm-manifest.js`, `tch-corpus.js`) enumerate nothing,
+       so the hazard set loses no member to that gap.
+
+       THE CONTROL IS BOTH ENGINES OVER ONE TREE, because a census taken before a rebase measures
+       two things at once. Run side by side on this checkout, the previous classifier reads
+       `enumerates 35 · repo-tree 16 · undecidable 28` and this one reads `enumerates 67 ·
+       repo-tree 3 · undecidable 5`, with `reports 9` and `no-enumeration 41` unmoved and no tool
+       travelling the other way. That is 23 abstentions and 13 CLEARANCES becoming run-time
+       enumerations, without a new tool arriving: an origin tracer now resolves a path through the
+       declaration in force at the call site, an enclosing function's parameters, the repo's own
+       argv helpers, and a ternary's arms.
+
+       WHAT CLEARED THEM WAS FOUR SPELLINGS OF ONE DEFECT — a verdict stated over a path nobody
+       read: a file-global declaration map resolving a short name to an unrelated variable 177 lines
+       away; `repo-tree` returned unless EVERY site abstained, so one unexamined walk was cleared by
+       its neighbour; `REPO_DERIVED` matching the bare words `ROOT`, `REPO` and `HERE`, which clears
+       a walk by the NAME of its variable rather than by what the variable holds (in
+       `pat-dip-validate.mjs` that name holds a positional command-line argument); and the same
+       regex firing on `arg('--dir', join(ROOT, 'uploads', 'trio'))` before the flag read was
+       looked for, although a default is the fallback and the flag is what a run supplies.
 
        🔴 A WIRED TOOL STOPS CALLING `readdirSync`, AND THE FIRST VERSION OF THIS SCAN READ THAT AS
        "ENUMERATES NO DIRECTORY". Measured 2026-10-21 while wiring the TCH family: the walk moves
@@ -10781,6 +10799,14 @@
        `ENUM_CALL` therefore counts the helper call itself, and the capture vocabulary counts a
        `corpus-scope.mjs` import, so delegation moves a tool from `enumerates` to `reports` and
        never out of the population.
+
+       TWO NARROWING SETS, BOTH NAMED AND BOTH IN THE TOOL. `POPULATION_EXCLUSIONS` holds the 4
+       files the generous vocabulary rule admits that read no capture — `argv-survey.mjs` names
+       `DEX_UPLOADS` only to DELETE it from a probe environment, `build-docs.mjs` matches the
+       night regex on a release date, and the two NSRR tools read `.edf` under the public
+       `/srv/data/shhs` mount, which the daily re-tier never touches. `UNDECIDED_CORPUS` holds the
+       5 the tracer still refuses to decide, each with the shape that defeats it, so a sixth reds
+       rather than passing as a shrug.
 
        The NAMED SET below is what makes this a gate rather than a ratchet: a count would pass a new
        consumer arriving as another one is wired. Every entry carries the number of run-time
@@ -10810,7 +10836,9 @@
         hazard = [],
         wired = [],
         offVocab = [],
-        silent = [];
+        silent = [],
+        abstaining = [],
+        deadExclusions = [];
       Object.keys(TT)
         .sort()
         .forEach(function (k) {
@@ -10819,13 +10847,24 @@
           var self = k.replace(/^.*\//, '');
           /* The scan's own population rule, and the scanner is not its own subject (§4). */
           if (!CR.isCorpusConsumer(text) || k === CR.SELF) return;
+          /* A NAMED EXCLUSION LEAVES THE POPULATION, AND ITS NAME IS CHECKED AGAINST THE RULE THAT
+             ADMITTED IT. An exclusion for a file the vocabulary no longer admits is dead text that
+             would silently cover a future consumer of the same name. */
+          if (CR.POPULATION_EXCLUSIONS[self] !== undefined) return;
           var r = CR.classifyTool(text);
           population.push(self);
           if (CR.TOOL_CLASSES.indexOf(r.cls) < 0) offVocab.push(self + ' → ' + r.cls);
           if (r.cls === 'reports') wired.push(self);
           if (r.cls === 'enumerates') hazard.push(self);
-          if (r.cls === 'undecidable' && !(r.why && r.why.length > 8)) silent.push(self);
+          if (r.cls === 'undecidable') {
+            abstaining.push(self);
+            if (!(r.why && r.why.length > 8)) silent.push(self);
+          }
         });
+      Object.keys(CR.POPULATION_EXCLUSIONS).forEach(function (f) {
+        var text = TT['tools/' + f];
+        if (!text || !CR.isCorpusConsumer(text)) deadExclusions.push(f);
+      });
       T.ok('ANTI-VACUITY · the population is the corpus consumers in the tools tree, not a sample', population.length > 100, population.length + ' corpus consumer(s)');
       T.ok('ANTI-VACUITY · at least one tool already reports its population', wired.length >= 1, wired.join(', ') || 'none');
       T.eq(
@@ -10848,6 +10887,20 @@
       );
       T.eq('the class vocabulary is closed', offVocab.join(', '), '');
       T.eq('every abstention names a reason', silent.join(', '), '');
+      /* THE ABSTENTIONS ARE A NAMED SET TOO, measured both ways: a sixth is a red, and a listed
+         tool the tracer has learned to decide is a red. An abstention is the one verdict that
+         states nothing, so leaving it uncounted is how 28 of them sat unread for a cycle. */
+      T.eq('the abstaining corpus consumers are exactly the ones named in the tool', abstaining.sort().join(', '), Object.keys(CR.UNDECIDED_CORPUS).sort().join(', '));
+      T.eq('and no exclusion names a file the population rule no longer admits', deadExclusions.join(', '), '');
+      T.ok(
+        'every exclusion and every abstention carries a reason a reader can check',
+        [CR.POPULATION_EXCLUSIONS, CR.UNDECIDED_CORPUS].every(function (set) {
+          return Object.keys(set).every(function (f) {
+            return typeof set[f] === 'string' && set[f].length > 20;
+          });
+        }),
+        Object.keys(CR.POPULATION_EXCLUSIONS).length + ' exclusion(s), ' + Object.keys(CR.UNDECIDED_CORPUS).length + ' abstention(s)'
+      );
       /* ONE WALK PER POPULATION. A tool can call `populationVerdict` and still enumerate the root a
          second time by hand, and then the verdict describes one walk while the run scores another —
          measured 2026-10-21 on `tch-firmware-reference.mjs`, where a night arriving between the two
