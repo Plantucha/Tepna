@@ -51,6 +51,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 /* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/mutate.mjs` uses. */
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -70,12 +71,52 @@ export const LEDGER_PATH = 'briefs/RESIDUE.md';
  *
  * @returns {Array<{id: string, key: string, state: string}>}
  */
+/**
+ * ⚠️ SPLIT ON UNESCAPED PIPES ONLY. A bare `line.split('|')` is escape-BLIND, and the residue-row
+ * contract MANDATES the escape — a literal `|` breaks the table, so a cell quoting a regex, a shell
+ * alternation or any prose with a pipe writes `\|`. Under the blind split that escape read as a cell
+ * boundary, which slid the row's real evidence past field 6 and OUT of the frozen identity. An edit
+ * to that evidence then changed nothing this tool compares, so it answered `none mutated` about a row
+ * it had just mutated: 44 of the ledger's 698 rows on 2026-10-20, row
+ * `2026-10-20-append-and-close-is-blind-to-an-escaped-pipe`.
+ *
+ * Scanning, never a lookbehind. `\X` is consumed as a unit, so `\|` stays inside its cell while a
+ * doubled backslash is a literal backslash followed by a LIVE separator; `(?<!\\)\|` gets that second
+ * case wrong. The suite reads the same ledger the same way (`splitLedgerCells` in `residueRows`,
+ * `tests/dex-tests.js`), where row `2026-09-03-escape-blind-pipe-split` proved the reader under #2165.
+ * This widens no check: shape stays `docs-ledger` check8b's job. It only stops counting a character
+ * the row escaped on purpose.
+ *
+ * @param {string} line
+ * @returns {string[]} cells, including the empty leading and trailing ones of a table row
+ */
+export function splitRowCells(line) {
+  const out = [];
+  let cur = '';
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '\\' && i + 1 < line.length) {
+      cur += ch + line[i + 1];
+      i++;
+      continue;
+    }
+    if (ch === '|') {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
 export function parseRows(text) {
   const rows = [];
   for (const line of String(text ?? '').split('\n')) {
     const m = line.match(/^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)\s*\|/);
     if (!m) continue;
-    const cells = line.split('|');
+    const cells = splitRowCells(line);
     // leading '' + 6 cells + trailing '' — a malformed row is check8b's finding, not ours;
     // take what identity we can and let the other gate speak to its shape.
     const key = cells.slice(1, 6).join('|').trim();
@@ -550,7 +591,15 @@ function main() {
 /* self-test: node tools/residue-ids.mjs --selftest (pure core only — no git, no refs).
    Every assertion below is a PLANT: the collision this tool was written for went green on a full
    docs-ledger run, so a selftest that only checks the happy path would reproduce that blindness. */
-if (process.argv.includes('--selftest')) {
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING (row 2026-10-20-sixty-nine-argv-tools-stay-undecided,
+   #3804). This block used to read a bare `--selftest` at module scope, and it ends in `process.exit(0)`.
+   Measured 2026-10-20: `node tools/rebase-safe.mjs --selftest` — rebase-safe imports `parseRows` from
+   here and has no selftest of its own — printed THIS file's selftest line and exited 0 from the import,
+   so rebase-safe's own run never happened and the pass it reported was ours. The guard makes importing
+   this module safe, which is what lets a second ledger reader single-source the scanner above. */
+const IS_CLI = process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (IS_CLI && process.argv.includes('--selftest')) {
   let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
   const assert = (c, m) => {
     ran++;
@@ -588,6 +637,21 @@ if (process.argv.includes('--selftest')) {
   /* …and the anti-vacuity half: an UNduplicated close must stay silent, or the check is just noise. */
   v = verdict([row(A)].join('\n'), [row(A, 'd', 'fixed #2498')].join('\n'));
   assert(v.collisions.length === 0 && v.mutated.length === 0, 'a plain close is not a duplicate');
+
+  /* 2d — THE ESCAPE-BLIND SPLIT (row 2026-10-20-append-and-close-is-blind-to-an-escaped-pipe,
+     measured over 44 of the ledger's 698 rows). The reader used to split on EVERY pipe, so a cell
+     carrying the escape the row contract mandates read as a cell boundary and the row's real evidence
+     sat outside the frozen identity. Editing that evidence then moved nothing this tool compares.
+     Three plants, two of them edges: the hidden edit must FIRE, a plain close of such a row must stay
+     silent, and a DOUBLED backslash must leave the next pipe live (the case a lookbehind gets wrong). */
+  const esc = (ev, state = 'OPEN') => `| ${A} | 2026-09-02 | \`X-BRIEF.md\` | d | ${ev} | ${state} |`;
+  v = verdict(esc('quotes a \\| b'), esc('quotes a \\| c'));
+  assert(v.mutated.length === 1, 'an edit BEHIND an escaped pipe is a mutation');
+  v = verdict(esc('quotes a \\| b'), esc('quotes a \\| b', 'fixed #3804'));
+  assert(v.mutated.length === 0 && v.collisions.length === 0, 'closing a row that carries an escaped pipe is not a mutation');
+  assert(splitRowCells('|a|b|').length === 4, 'a live pipe separates cells');
+  assert(splitRowCells('|a \\| b|').length === 3, 'an escaped pipe stays inside its cell');
+  assert(splitRowCells('|a \\\\|b|').length === 4, 'a doubled backslash leaves the next pipe LIVE');
 
   // 2b — BEHIND IS NOT DELETED. The branch predates a row that landed on the tip: no removal, and the
   //      tip's row is a collision only if the branch also minted that key itself.
@@ -704,4 +768,4 @@ if (process.argv.includes('--selftest')) {
   process.exit(0);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (IS_CLI) main();

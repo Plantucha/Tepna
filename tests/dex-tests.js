@@ -10032,6 +10032,52 @@
       T.ok('the adopter population is non-empty', ADOPTERS.length >= 20, 'ADOPTERS=' + ADOPTERS.length + ' — 28 measured 2026-10-20; the guard scan matched almost nothing');
       T.eq('every adopter calls the guard behind IS_CLI — none at module scope', UNGUARDED.join(', '), '');
     });
+    /* ════ EVERY LEDGER READER SPLITS ON UNESCAPED PIPES ONLY ════════════════════════════════════
+       Row 2026-10-20-append-and-close-is-blind-to-an-escaped-pipe. The residue row contract MANDATES
+       the escape, because a literal pipe breaks the table — so a cell quoting a regex or a shell
+       alternation writes it escaped. A reader that splits on EVERY pipe treats that escape as a cell
+       boundary, which pushes the row's real evidence past field 6 and out of the frozen identity, and
+       an edit to that evidence then moves nothing the mutation check compares. Measured 2026-10-20:
+       44 of the ledger's 698 rows carried the escape, so the tool answered `none mutated` about any of
+       them it had just mutated. The suite's own `residueRows` scanner solved this class on 2026-09-03
+       (row 2026-09-03-escape-blind-pipe-split, #2165); this group holds the TOOLS side, because the
+       repair is one function and the next reader written is the risk. ════ */
+    group('every ledger reader splits on unescaped pipes only', 'tools · residue-ledger · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane can. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the ledger-reader scan examined nothing');
+        else T.skip('the ledger-reader scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var stripC = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      var READERS = [],
+        BLIND = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var code = stripC(TT[k]);
+          /* The population is the tools that READ the ledger, named by its path. A tool splitting some
+             other table on a pipe is none of this group's business. */
+          if (code.indexOf('briefs/RESIDUE.md') < 0) return;
+          READERS.push(k);
+          if (/\.split\(\s*['"]\|['"]\s*\)/.test(code)) BLIND.push(k);
+        });
+      /* ANTI-VACUITY: an empty population satisfies the equality below. */
+      /* Each detail below is a MEASURED fact, not the failure wording — a passing assertion whose
+         detail reads like an absence is its own defect (row 2026-09-03-pass-detail-reads-as-absence). */
+      T.ok('the ledger-reader population is non-empty', READERS.length >= 1, 'READERS=' + READERS.length + ': ' + READERS.join(', '));
+      T.eq('no ledger reader splits on a bare pipe', BLIND.join(', '), '');
+      /* …and the positive half, so the group cannot pass by the reader losing its cells entirely. */
+      var rid = stripC(String(TT['tools/residue-ids.mjs'] || ''));
+      var routed = /cells = splitRowCells\(line\)/.test(rid);
+      var escapeBranch = /ch === '\\\\' && i \+ 1 < line\.length/.test(rid);
+      T.ok('residue-ids reads its cells through the scanner', routed, 'parseRows → splitRowCells: ' + (routed ? 'wired' : 'ABSENT'));
+      T.ok('…and the scanner consumes a backslash pair as one unit', escapeBranch, 'escape branch: ' + (escapeBranch ? 'present' : 'ABSENT'));
+    });
     /* ════ THE HAT ROWS RENDER THE PER-CORNER STATUS (PAT-HAT-DRIFT-DIFFERENCED, 2026-09-27) ═════════
        A negative solved variance has TWO different meanings and the page used to print one word for both.
        `patHatCornerStatus` separates them: a CI that spans 0 means the data are consistent with
