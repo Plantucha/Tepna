@@ -89,6 +89,28 @@ export const ISRUC_RESP_CONTEXT = ['CSBr', 'Desat', 'SN'];
    over the same 126 workbooks: AR 11706 cells, PLM 4220, Awake 2072, LM 822, MChg 763, REM Aw 146,
    L Out 104, Per Slp 77, L On 72. */
 export const ISRUC_NON_RESP = new Set(['AR', 'PLM', 'LM', 'MChg', 'Awake', 'REM Aw', 'Per Slp', 'L On', 'L Out']);
+/* THE BODY-POSITION COLUMN, AND THE ONE SHAPE IN WHICH IT LEAKS INTO THE EVENT COLUMN. Column F of
+   an ISRUC scorer-1 workbook is `BPOS`, and its whole vocabulary over the 126 workbooks is `B` 46458
+   cells, `L` 30135, `R` 26662, `N` 6954, `P` 2494, plus `0` in 108 cells. Those 108 are the leak:
+   row `2026-10-20-forty-seven-isruc-event-names-stay-unplaced` reported `B` 46 cells, `L` 42, `R` 12
+   and `N` 8 as event names the tool could not place, and all 108 of them sit in a row whose own
+   position column reads `0` — the two counts are equal in both directions, which is the
+   discriminator. Measured 2026-10-21: the shifted rows are the TRAILING rows of 8 records
+   (10, 11, 12, 8, 2, 27, 16 and 22 of them, each run reaching the last staged row), and in those
+   rows column H is empty too. The row shifted ONE CELL LEFT from column E, so the position landed in
+   the event column, `Txln` in the position column, and the EVENT CELL IS GONE: those epochs have no
+   event column at all. `P` has never been seen leaking, and it is here because the list is column
+   F's own vocabulary rather than the four names that happened to leak. */
+export const ISRUC_POSITION = new Set(['B', 'L', 'R', 'N', 'P']);
+
+/* BOTH HALVES OR NOTHING. A position code in the event column is only the measured shift when the
+   position column reads `0` AND every token in the cell is a position code. A cell holding `B, OH`
+   would be a shape nobody has measured, so it stays an ordinary event cell and the hypopnea is still
+   counted — the alternative drops a scored event on the strength of a neighbouring token. */
+export function isPositionShiftRow(positionCell, eventTokens) {
+  if (String(positionCell ?? '').trim() !== '0') return false;
+  return eventTokens.length > 0 && eventTokens.every((t) => ISRUC_POSITION.has(t));
+}
 
 /* iSleeps names its events in full, and `RERA` is NOT an apnea or a hypopnea (§5.5).
    THE UNPLACED NAMES, MEASURED OVER ALL 40 WORKBOOKS ON 2026-10-21: `Body event`, 1 cell in 1
@@ -306,8 +328,14 @@ export function openWorkbook(buf) {
 
 /* ── the two traps (§2 of the brief) ──────────────────────────────────────────────────────────── */
 
-/* `66 AR` is one event carrying its own epoch number. Strip the prefix, never the digits inside a
-   token, and never a bare number — a cell that is only a number carries no event name. */
+/* `66 AR` is one event carrying a leading number. Strip the prefix, never the digits inside a token,
+   and never a bare number — a cell that is only a number carries no event name.
+   WHAT THAT NUMBER IS, measured over the 126 scorer-1 workbooks on 2026-10-21: of the 641 event
+   cells carrying one, 557 sit beside an EMPTY HR cell, 76 beside an HR cell holding the identical
+   text, 8 beside the bare number — and 3 beside an epoch number equal to it. So the prefix is the
+   HEART RATE glued into the event cell in 638 of 641 cells, not the epoch number this function is
+   named for. The behaviour is right either way, which is why the name stays: a rename is invisible to
+   every index that keys on it, and nothing here reads the number. */
 export function stripEpochPrefix(cell) {
   return String(cell ?? '').replace(/^\s*\d+\s+/, '');
 }
@@ -363,13 +391,28 @@ export function deriveIsrucWorkbook(wb, recordId) {
   let respInSleep = 0;
   let contextCells = 0;
   let nonRespCells = 0;
+  let positionShiftRows = 0;
+  let positionCodeUnexplained = 0;
   for (const r of rows) {
     const stage = String(r.B ?? '').trim();
     if (isIsrucHeaderStage(stage)) continue;
     const inSleep = ISRUC_SLEEP.has(stage);
     if (stage) epochsWithStage++;
     if (inSleep) sleepEpochs++;
-    for (const tok of splitEventCell(r.E)) {
+    const eventToks = splitEventCell(r.E);
+    /* ∅ A SHIFTED ROW HAS NO EVENT CELL, so its tokens are not events and must not be reported as
+       event names the vocabulary cannot place. The epoch keeps its place in the denominator and the
+       count rides beside the index: this is reduced COVERAGE, not a discontinuity, and the owner's
+       2026-09-17 ruling annotates coverage rather than refusing. 108 epochs of 113729. */
+    if (isPositionShiftRow(r.F, eventToks)) {
+      positionShiftRows++;
+      continue;
+    }
+    /* THE TRIPWIRE FOR THE SHAPE THAT WAS NOT MEASURED: a position code in the event column while
+       the position column holds a real position. Zero rows over the 126 workbooks on 2026-10-21, and
+       the token stays in `otherTokens` so a first one surfaces by name rather than by this count. */
+    if (eventToks.some((t) => ISRUC_POSITION.has(t))) positionCodeUnexplained++;
+    for (const tok of eventToks) {
       if (tok in counts) {
         respAnywhere++;
         if (inSleep) {
@@ -403,6 +446,8 @@ export function deriveIsrucWorkbook(wb, recordId) {
     contextCells,
     nonRespCells,
     otherTokens: Object.fromEntries([...other.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))),
+    positionShiftRows,
+    positionCodeUnexplained,
     ahi: null,
     nullReason: null
   };
@@ -484,6 +529,10 @@ export function deriveIsleepsWorkbook(wb, recordId) {
        class this set does not have. */
     otherTokens: {},
     context: null,
+    /* iSleeps has NO body-position column, so the shift class does not exist here. `null`, never 0:
+       a zero would read as a measured absence of a leak in a set that cannot leak. */
+    positionShiftRows: null,
+    positionCodeUnexplained: null,
     ahi: null,
     nullReason: null
   };
@@ -658,12 +707,38 @@ export function vocabularyOf(rows) {
   const hasTally = (r) => r.otherTokens && typeof r.otherTokens === 'object';
   const unmeasuredRecords = rows.filter((r) => !hasTally(r)).length;
   const instrumented = rows.some(hasTally);
-  if (!instrumented) return { measured: false, context: null, contextMeasured: false, unnamed: null, unnamedTokens: null, unnamedCells: null, unmeasuredRecords };
+  if (!instrumented)
+    return {
+      measured: false,
+      context: null,
+      contextMeasured: false,
+      unnamed: null,
+      unnamedTokens: null,
+      unnamedCells: null,
+      unmeasuredRecords,
+      positionShiftMeasured: false,
+      positionShiftRows: null,
+      positionShiftRecords: null,
+      positionCodeUnexplained: null
+    };
   const context = {};
   const unnamed = {};
   let contextMeasured = false;
+  /* A FOURTH FLAG, for the same reason there are three: the position-column shift is an ISRUC class,
+     and iSleeps carries no position column at all. A pooled 0 over a set that cannot leak would read
+     as a measured absence. */
+  let positionShiftMeasured = false;
+  let positionShiftRows = 0;
+  let positionShiftRecords = 0;
+  let positionCodeUnexplained = 0;
   for (const r of rows) {
     if (r.context && typeof r.context === 'object') contextMeasured = true;
+    if (typeof r.positionShiftRows === 'number') {
+      positionShiftMeasured = true;
+      positionShiftRows += r.positionShiftRows;
+      if (r.positionShiftRows > 0) positionShiftRecords++;
+      positionCodeUnexplained += r.positionCodeUnexplained || 0;
+    }
     for (const [t, n] of Object.entries(r.context || {})) if (n) context[t] = (context[t] || 0) + n;
     for (const [t, n] of Object.entries(r.otherTokens || {})) unnamed[t] = (unnamed[t] || 0) + n;
   }
@@ -675,7 +750,11 @@ export function vocabularyOf(rows) {
     unnamed: byCell(unnamed),
     unnamedTokens: Object.keys(unnamed).length,
     unnamedCells: Object.values(unnamed).reduce((a, b) => a + b, 0),
-    unmeasuredRecords
+    unmeasuredRecords,
+    positionShiftMeasured,
+    positionShiftRows: positionShiftMeasured ? positionShiftRows : null,
+    positionShiftRecords: positionShiftMeasured ? positionShiftRecords : null,
+    positionCodeUnexplained: positionShiftMeasured ? positionCodeUnexplained : null
   };
 }
 
@@ -962,6 +1041,9 @@ function selftest() {
   ok('a bare token keeps its text', stripEpochPrefix('AR'), 'AR');
   ok('a numeric-only cell is not emptied', stripEpochPrefix('66'), '66');
   ok('an interior digit survives', stripEpochPrefix('12 N3 OH'), 'N3 OH');
+  /* THE REAL SHAPE BEHIND THAT PREFIX: a heart rate glued to the event list, 557 of 641 such cells
+     sitting beside an empty HR cell. The events still come out whole. */
+  ok('a heart rate glued to an event list yields the events', splitEventCell('82 MChg,AR'), ['MChg', 'AR']);
   ok('a comma splits a cell', splitEventCell('OH, AR'), ['OH', 'AR']);
   ok('a semicolon splits it too', splitEventCell('OA; MChg'), ['OA', 'MChg']);
   ok('both separators in one cell', splitEventCell('7 OH, AR; MChg'), ['OH', 'AR', 'MChg']);
@@ -1045,6 +1127,51 @@ function selftest() {
   ok('a header row is not an epoch', v5.epochsWithStage, 120);
   ok('…and the header cell is not an unnamed token', v5.otherTokens, {});
   ok('…and the index equals the same workbook without a header', v5.ahi, r1.ahi);
+  /* THE BODY-POSITION COLUMN LEAKING ONE CELL LEFT. The predicate first, because both halves of the
+     discriminator carry weight and a fixture can only show them together. */
+  ok('a position code beside a position column reading 0 is the shift', isPositionShiftRow('0', ['L']), true);
+  ok('…and a real position in that column is not', isPositionShiftRow('L', ['L']), false);
+  ok('…and a scored event in the same cell is not, whatever the position column reads', isPositionShiftRow('0', ['B', 'OH']), false);
+  ok('…and an empty event cell is not a shift either', isPositionShiftRow('0', []), false);
+  const shiftTail = (k, tail) => {
+    const rows = [];
+    for (let i = 0; i < 120; i++) rows.push({ A: String(i + 1), B: 'N2', C: '95', D: '60', E: i < 6 ? 'OH' : '', F: 'L', G: '0', H: '0' });
+    for (let i = 0; i < k; i++) rows.push({ A: String(121 + i), B: 'N2', C: '95', D: '60', E: tail, F: '0', G: '0' });
+    return rows;
+  };
+  const w1 = deriveIsrucWorkbook(openWorkbook(isrucSheet(shiftTail(3, 'L'))), 'sub/12');
+  ok('a shifted trailing row is counted as a shift', w1.positionShiftRows, 3);
+  ok('…and the position code is NOT reported as an event name the tool cannot place', w1.otherTokens, {});
+  ok('…and no scored event is lost', w1.respAnywhere, 6);
+  /* CONTROL: the shifted epoch behaves EXACTLY like an epoch whose event cell is empty — it stays in
+     the denominator, which is what makes this reduced coverage rather than a refusal. */
+  const w1ctl = deriveIsrucWorkbook(openWorkbook(isrucSheet(shiftTail(3, ''))), 'sub/12b');
+  ok('…and the index equals the same workbook with three blank event cells instead', w1.ahi, w1ctl.ahi);
+  ok('…which is below the 120-epoch index, because the denominator grew', w1.ahi < r1.ahi, true);
+  /* ANTI-VACUITY: a record with no shifted row reports a measured zero, not silence. */
+  const w2 = deriveIsrucWorkbook(openWorkbook(isrucSheet(shiftTail(0, ''))), 'sub/13');
+  ok('a record with no shifted row reports zero of them', w2.positionShiftRows, 0);
+  /* DECOY: a scored event in the shifted cell. The hypopnea survives and the row surfaces instead. */
+  const w3 = deriveIsrucWorkbook(openWorkbook(isrucSheet(shiftTail(2, 'B, OH'))), 'sub/14');
+  ok('a hypopnea beside a position code is still counted', w3.counts.OH, 8);
+  ok('…the row is not taken for the measured shift', w3.positionShiftRows, 0);
+  ok('…the unmeasured shape is counted', w3.positionCodeUnexplained, 2);
+  ok('…and the position code still surfaces by name', w3.otherTokens, { B: 2 });
+  /* THE TRIPWIRE'S OTHER SHAPE: a position code while the position column holds a real position. */
+  const w4 = deriveIsrucWorkbook(openWorkbook(isrucSheet([{ A: '1', B: 'N2', E: 'OH', F: 'L' }, { A: '2', B: 'N2', E: 'B', F: 'L' }, ...shiftTail(0, '').slice(2)])), 'sub/15');
+  ok('a position code beside a real position is not a shift', w4.positionShiftRows, 0);
+  ok('…it is counted as the shape nobody measured', w4.positionCodeUnexplained, 1);
+  ok('…and it stays in the unplaced tally', w4.otherTokens, { B: 1 });
+  const wPool = vocabularyOf([w1, w2, w3]);
+  ok('the pooled report says the shift class was measured', wPool.positionShiftMeasured, true);
+  ok('…sums the shifted epochs', wPool.positionShiftRows, 3);
+  ok('…counts only the records that carry one', wPool.positionShiftRecords, 1);
+  ok('…and pools the unmeasured shape separately', wPool.positionCodeUnexplained, 2);
+  /* ∅ CONTROL: iSleeps has no position column, so the class is ABSENT there, never a measured zero. */
+  const wIsleeps = vocabularyOf([deriveIsleepsWorkbook(openWorkbook(xlsxOf([{ name: 'Sleep profile', rows: [{ A: 'x' }] }])), 'S1')]);
+  ok('a set with no position column reports the shift class unmeasured', wIsleeps.positionShiftMeasured, false);
+  ok('…with nulls rather than zeros', [wIsleeps.positionShiftRows, wIsleeps.positionShiftRecords], [null, null]);
+
   /* ∅ CONTROL: a set the ISRUC path never instrumented reports that, never a tally of zero. */
   const blind = vocabularyOf([{ set: 'isleeps', ahi: 7 }]);
   ok('an uninstrumented set says so', blind.measured, false);
@@ -1342,6 +1469,11 @@ if (DIRECT) {
           const un = s.vocabulary.unnamedTokens ? `${s.vocabulary.unnamedCells} cell(s) in ${s.vocabulary.unnamedTokens} token(s) this tool cannot name` : 'every event name placed';
           console.log(`  vocabulary: ${un}${s.vocabulary.unmeasuredRecords ? ` · ${s.vocabulary.unmeasuredRecords} record(s) carry no tally` : ''}`);
         } else console.log(`  vocabulary: not measured over ${s.vocabulary.unmeasuredRecords} record(s)`);
+        if (s.vocabulary.positionShiftMeasured && s.vocabulary.positionShiftRows)
+          console.log(
+            `  position column shifted into the event column: ${s.vocabulary.positionShiftRows} epoch(s) in ${s.vocabulary.positionShiftRecords} record(s) have no event cell — in the denominator, unscorable`
+          );
+        if (s.vocabulary.positionCodeUnexplained) console.log(`  position code beside a real position: ${s.vocabulary.positionCodeUnexplained} row(s) — a shape this tool has not measured`);
         if (s.duplicates && s.distinct.distribution) {
           const d = s.distinct.distribution;
           console.log(`  distinct subjects: ${s.distinct.derived} derived · median ${d.median} · p25 ${d.p25} · p75 ${d.p75} · mean ${d.mean}`);
