@@ -10523,6 +10523,70 @@
       );
       T.eq('no tool combines a bare dash-test picker with a valued flag', VIOLATORS.join(', '), '');
     });
+    /* ════ EVERY TOOL THAT TAKES A POSITIONAL OFF ARGV IS NAMED, OR IT REFUSES ═══════════════════
+       Row 2026-10-20-sixty-nine-argv-tools-stay-undecided-after-the-seven-are-wired. `argv-reads.mjs`
+       decides each tool from its SOURCE, and this group runs that same classifier over
+       `env.toolTexts`, so the gate and the tool cannot drift: a tool that takes a bare token as data
+       either calls the guard or is named below with the reason it is allowed to. The NAMED SET is
+       what makes this a gate — a ratchet on the count would pass a new consumer arriving as another
+       left. Two legs ride along, both about the abstention: the class vocabulary is closed, and every
+       `undecidable` row names a reason, because an abstention with an empty reason reads as a
+       clearance. MEASURED 2026-10-21 over 259 tool files: refuses 49 · consumes 2 ·
+       ignores-by-construction 165 · undecidable 40 · no-read 3. ════ */
+    group('every tool that takes a positional off argv is named or refuses', 'tools · argv-reads · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var AR = env.argvReads;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane can. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !AR) {
+        if (nodeLane) T.ok('env.toolTexts and env.argvReads are wired in the node lane', false, 'absent — the argv-reads population examined nothing');
+        else T.skip('the argv-reads population', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      /* Each entry is a tool whose POSITIONS are its interface, with the reason stated beside it. */
+      var NAMED_POSITIONAL = {
+        'mutation-summary.mjs': 'takes <ndjson> <exit-code>; the two positions are its usage line',
+        'residue-merge.mjs': 'a git merge driver, invoked as %O %A %B — the positions ARE the interface'
+      };
+      var scanned = [],
+        consumers = [],
+        silent = [],
+        offVocab = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          if (!/^tools\/[^/]+\.m?js$/.test(k)) return;
+          var text = TT[k];
+          if (text.indexOf('process.argv') < 0) return; // the scan's own population rule
+          var self = k.replace(/^.*\//, '');
+          var r = AR.classifyTool(text);
+          scanned.push(self);
+          if (AR.TOOL_CLASSES.indexOf(r.cls) < 0) offVocab.push(self + ' → ' + r.cls);
+          if (r.cls === 'consumes') consumers.push(self);
+          if (r.cls === 'undecidable' && !(r.why && r.why.length > 8)) silent.push(self);
+        });
+      T.ok('the population is the tools tree, not a sample', scanned.length > 200, scanned.length + ' tool file(s) name process.argv');
+      T.eq(
+        'no tool takes a bare token as data without being named here',
+        consumers
+          .filter(function (t) {
+            return !NAMED_POSITIONAL[t];
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and the named set holds no tool the scan has stopped reading as a consumer',
+        Object.keys(NAMED_POSITIONAL)
+          .filter(function (t) {
+            return consumers.indexOf(t) < 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq('the class vocabulary is closed', offVocab.join(', '), '');
+      T.eq('every abstention names a reason', silent.join(', '), '');
+    });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool
        has a selftest: `selftest-all.mjs` (which tools the sweep RUNS) and `verdict-adoption.mjs`
@@ -67044,15 +67108,48 @@
          an apostrophe in prose can end the scan early: both errors can only leave MORE text standing,
          which demands more declarations, never fewer. Measured 2026-10-20 across all 20 adopters: the
          mask changes `argv-reads.mjs` alone and leaves every other read set identical. */
+      /* 🔴 A QUOTE INSIDE A REGEX LITERAL DESYNCHRONISES THIS MASK, AND PARITY DECIDES WHETHER IT
+         SHOWS. In `/^\s*(['"`])\s*\1?/` the single-quote branch runs from the `'` to the next one far
+         below, leaving the `"` to open a span of its own — so an EVEN number of such literals hides the
+         fault and an odd number exposes it. Measured 2026-10-21: four more of them in `argv-reads.mjs`
+         moved that span's close onto a plant's opening backtick, which left the plant's own
+         `arg('--mode')` standing as code and reded this group for a flag the tool does not read. Skip a
+         regex literal the way `maskNonCode` does: after an operator, an open bracket, a comma or a
+         keyword a `/` begins one, after a value it is division. Re-measured 2026-10-21 over all 49 adopters:
+         the skip changes `argv-reads.mjs` alone and leaves every other read set identical. */
+      function isRegexHead(text, i) {
+        if (text[i + 1] === '/' || text[i + 1] === '*') return false;
+        var k = i - 1;
+        while (k >= 0 && /\s/.test(text[k])) k--;
+        if (k < 0) return true;
+        if ('([{,;:=!&|?+-*%~^<>'.indexOf(text[k]) >= 0) return true;
+        var word = /([A-Za-z_$][\w$]*)$/.exec(text.slice(Math.max(0, k - 12), k + 1));
+        var heads = ['return', 'typeof', 'case', 'in', 'of', 'new', 'delete', 'void', 'do', 'else', 'yield', 'await'];
+        return !!word && heads.indexOf(word[1]) >= 0;
+      }
       function maskEmbedded(text) {
         var out = text.split(''),
           i = 0,
           j,
           k,
-          q;
+          q,
+          inClass;
         while (i < text.length) {
           if (text[i] === '\\') {
             i += 2;
+            continue;
+          }
+          if (text[i] === '/' && isRegexHead(text, i)) {
+            j = i + 1;
+            inClass = false;
+            for (; j < text.length; j++) {
+              if (text[j] === '\\') j++;
+              else if (text[j] === '[') inClass = true;
+              else if (text[j] === ']') inClass = false;
+              else if ((text[j] === '/' && !inClass) || text[j] === '\n') break;
+            }
+            for (k = i + 1; k < Math.min(j, text.length); k++) if (out[k] !== '\n') out[k] = ' ';
+            i = j + 1;
             continue;
           }
           if (text[i] === '`' || text[i] === '"') {
@@ -67089,6 +67186,13 @@
       );
       T.ok('DECOY · a real single-quoted call survives the mask', /opt\(\s*'--real'/.test(decoyMask), decoyMask);
       T.ok('DECOY · …and the identical call inside an embedded plant does not', !/opt\(\s*'--planted'/.test(decoyMask), decoyMask);
+      /* DECOY: TWO quote-bearing character classes on ONE line — the shape that flips the parity,
+         because a single class ends its mis-scan at the newline and leaves nothing standing. Under the
+         pre-2026-10-21 mask the stray `"` opened a span that ran to the end of the text and swallowed
+         the real call below. */
+      var regexMask = maskEmbedded("const ok = /^\\s*(['\"`])\\s*\\1?/.test(x) && /^\\s*['\"`]/.test(x);\nconst plant = `const q = opt('--planted2');`;\nconst b = opt('--real2');\n");
+      T.ok('DECOY · a call below a regex literal holding both quote kinds survives', /opt\(\s*'--real2'/.test(regexMask), regexMask);
+      T.ok('DECOY · …and the plant between them is still masked', !/opt\(\s*'--planted2'/.test(regexMask), regexMask);
 
       adopters.forEach(function (name) {
         var src = maskEmbedded(TSg[name]);

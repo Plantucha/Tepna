@@ -135,27 +135,46 @@ export function aliasDecls(masked) {
   return aliasScan(masked).decls;
 }
 
+/** The LOCAL function names this scan followed argv into. Handing an alias to one of them is not a
+ *  pass-through it cannot see: the callee's own reads are in this same file and were scanned. */
+export function trackedCallees(masked) {
+  return aliasScan(masked).trackedFns;
+}
+
 function aliasScan(masked) {
   const names = new Set();
   const decls = new Set();
+  const trackedFns = new Set();
   const bind = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*process\.argv(?:\.slice\(\s*\d*\s*\))?\s*[;,)]/g;
   for (const m of masked.matchAll(bind)) {
     names.add(m[1]);
     decls.add(m.index + m[0].indexOf(m[1]));
   }
-  /* a local function invoked on argv: its first parameter carries the tokens */
-  const call = /\b([A-Za-z_$][\w$]*)\s*\(\s*process\.argv(?:\.slice\(\s*\d*\s*\))?\s*\)/g;
-  for (const m of masked.matchAll(call)) {
-    const fn = m[1];
-    if (fn === 'require' || fn === 'exit') continue;
-    const decl = new RegExp(`(?:function\\s+${fn}\\s*\\(\\s*([A-Za-z_$][\\w$]*)|\\b(?:const|let|var)\\s+${fn}\\s*=\\s*(?:async\\s*)?\\(?\\s*([A-Za-z_$][\\w$]*))`).exec(masked);
-    const param = decl && (decl[1] || decl[2]);
-    if (param) {
+  /* A local function invoked on argv — OR on a name this scan already tracks: its first parameter
+     carries the tokens either way, so the parameter is an alias too. The sweep REPEATS, because the
+     chain can be longer than one hop: `nsrr-oxydex-odi.mjs` calls `main(process.argv.slice(2))` and
+     `main` then calls `discover(argv)`, so a single pass saw the first hop and read the second as an
+     undecidable pass-through — one site, and the whole tool abstained with every real read in it a
+     literal flag. Bound, stated: ONE argument only, and a keyword is never a callee.
+     Row 2026-10-20-sixty-nine-argv-tools-stay-undecided-after-the-seven-are-wired. */
+  const NOT_A_CALLEE = new Set(['require', 'exit', 'if', 'while', 'for', 'switch', 'return', 'typeof', 'catch', 'await', 'function', 'new', 'delete', 'void', 'in', 'of']);
+  for (let pass = 0; pass < 8; pass++) {
+    const before = names.size;
+    const args = ['process\\.argv(?:\\.slice\\(\\s*\\d*\\s*\\))?', ...[...names].map((n) => `\\b${n}\\b`)];
+    const call = new RegExp(`\\b([A-Za-z_$][\\w$]*)\\s*\\(\\s*(?:${args.join('|')})\\s*\\)`, 'g');
+    for (const m of masked.matchAll(call)) {
+      const fn = m[1];
+      if (NOT_A_CALLEE.has(fn)) continue;
+      const decl = new RegExp(`(?:function\\s+${fn}\\s*\\(\\s*([A-Za-z_$][\\w$]*)|\\b(?:const|let|var)\\s+${fn}\\s*=\\s*(?:async\\s*)?\\(?\\s*([A-Za-z_$][\\w$]*))`).exec(masked);
+      const param = decl && (decl[1] || decl[2]);
+      if (!param) continue;
+      trackedFns.add(fn);
       names.add(param);
       decls.add(decl.index + decl[0].lastIndexOf(param));
     }
+    if (names.size === before) break;
   }
-  return { names, decls };
+  return { names, decls, trackedFns };
 }
 
 /** Identifiers bound from a LITERAL lookup in argv — `const i = argv.indexOf('--only')`. The valued-flag
@@ -163,7 +182,12 @@ function aliasScan(masked) {
  *  positional read: a token nobody named still lands nowhere. */
 export function flagIndexVars(masked, aliases) {
   const names = new Set();
-  for (const a of aliases) {
+  /* ONE BINDING, TWO SPELLINGS. The index may be bound off an ALIAS (`const i = argv.indexOf('--base')`)
+     or off `process.argv` itself, and only the first was read here — so `absence-regression.mjs`, which
+     writes `const baseIdx = process.argv.indexOf('--base')` and then `process.argv[baseIdx + 1]`, kept
+     an `indexed-by-variable` abstention for a read that names its flag. Row
+     2026-10-20-sixty-nine-argv-tools-stay-undecided-after-the-seven-are-wired. */
+  for (const a of ['process\\.argv', ...aliases]) {
     const re = new RegExp(`\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*${a}\\.(?:indexOf|lastIndexOf|findIndex)\\(\\s*['"\`]`, 'g');
     for (const m of masked.matchAll(re)) names.add(m[1]);
   }
@@ -187,6 +211,9 @@ const GUARD = /refuseUnknownArgvOrExit|refuseUnknownArgv\b/;
    against the RAW text: the mask blanks a string body, so `'--'` reads as `'  '` on the mask. */
 const SHAPE_POSITIONAL =
   /^\s*(?:\.slice\(\s*\d*\s*\)\s*)?\.(?:filter|find|findLast)\s*\(\s*\(?\s*([A-Za-z_$][\w$]*)\s*(?:,\s*[A-Za-z_$][\w$]*\s*)?\)?\s*=>\s*\(?\s*!\s*\1\s*\.\s*startsWith\s*\(\s*['"`]-/;
+const NESTED_LOOKUP = /^\s*\[\s*[A-Za-z_$][\w$.]*\s*\.\s*(?:indexOf|lastIndexOf|findIndex)\s*\(\s*(['"`]|[A-Za-z_$][\w$]*)/;
+const DESTRUCTURE = /\b(?:const|let|var)\s*\[[^\]]*\]\s*=\s*$/;
+const ALIAS_RHS = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*$/;
 const UNKNOWN_WORD = /\b(unknown|unrecognis|unrecogniz|unexpected|not a (?:known )?(?:flag|option)|refus|invalid (?:flag|option|argument))/i;
 
 /** The statement a site sits in: back to the previous `;`, `{`, `}` or blank line, forward to the
@@ -202,6 +229,38 @@ function statementAt(masked, idx) {
 
 const lineOf = (text, idx) => text.slice(0, idx).split('\n').length;
 
+/** The dominant subcommand idiom, and the one shape a destructure does NOT turn into data:
+ *  `const [cmd, ...rest] = process.argv.slice(2)` followed by `cmd === 'add'` … and a usage line on
+ *  everything else. An unknown token fails every comparison and lands nowhere, which is the same
+ *  argument the `argv[0] === '--classify'` rule above rests on — `findings-ledger.mjs` read as a
+ *  consumer on exactly this line once the destructure was decided, and that is a false positive in
+ *  the expensive direction. The bound is stated and asserted: EVERY use of the bound name outside
+ *  the pattern must be a comparison against a string literal (or the head of a `switch` whose file
+ *  has literal `case` labels), and one data use anywhere puts the tool back in `consumes`. */
+export function dispatchOnly(masked, pattern) {
+  const first = /\[\s*([A-Za-z_$][\w$]*)/.exec(pattern);
+  if (!first) return false;
+  const name = first[1];
+  const uses = [...masked.matchAll(new RegExp(`\\b${name}\\b`, 'g'))];
+  const patternAt = masked.indexOf(pattern);
+  let compared = 0;
+  for (const u of uses) {
+    if (patternAt >= 0 && u.index >= patternAt && u.index < patternAt + pattern.length) continue;
+    const after = masked.slice(u.index + name.length, u.index + name.length + 12);
+    const before = masked.slice(Math.max(0, u.index - 12), u.index);
+    if (/^\s*(?:===|!==|==|!=)\s*['"`]/.test(after) || /(?:===|!==|==|!=)\s*$/.test(before)) {
+      compared++;
+      continue;
+    }
+    if (/switch\s*\(\s*$/.test(before) && /\bcase\s+['"`]/.test(masked)) {
+      compared++;
+      continue;
+    }
+    return false;
+  }
+  return compared > 0;
+}
+
 /** Every read of argv in one file, each with its class and the reason behind it. */
 export function argvSites(text) {
   const masked = maskNonCode(text);
@@ -209,6 +268,7 @@ export function argvSites(text) {
   const flagIdx = flagIndexVars(masked, aliases);
   const decls = aliasDecls(masked);
   const helpers = literalHelperRegions(masked, aliases);
+  const tracked = trackedCallees(masked);
   const inHelper = (i) => helpers.some((h) => i >= h.from && i < h.to);
   const tokens = ['process\\.argv', ...[...aliases].map((a) => `\\b${a}\\b`)];
   const re = new RegExp(`(${tokens.join('|')})`, 'g');
@@ -242,14 +302,47 @@ export function argvSites(text) {
        the binding rule below claimed that site, so a tool that refuses read as one that cannot. Found
        on `verify-fixtures.mjs`, whose refusal an independent measurement had already recorded. */
     if (GUARD.test(stmtMask)) sites.push({ ...site, cls: 'guarded' });
+    /* THE DESTRUCTURED POSITIONAL, read before the binding branch below. `const [file, code] = argv;`
+       IS `argv[0]` and `argv[1]` one spelling over, and it read as a pass-through — so
+       `mutation-summary.mjs` and `residue-merge.mjs` each took a positional with nothing refusing an
+       unknown token, and this scan reported an abstention over both. It sits ABOVE the slice branch
+       because `const [a, b] = process.argv.slice(2)` ends in a slice too, and that branch would have
+       called the same read a binding. The class is the expensive one on purpose: the token is data.
+       Row 2026-10-20-sixty-nine-argv-tools-stay-undecided-after-the-seven-are-wired. */ else if (DESTRUCTURE.test(masked.slice(from, idx))) {
+      const pat = /(\[[^\]]*\])\s*=\s*$/.exec(masked.slice(from, idx));
+      sites.push({ ...site, cls: pat && dispatchOnly(masked, pat[1]) ? 'literal-flag' : 'positional' });
+    } else if (isProcess && /^\s*\.slice\(\s*\d*\s*\)\s*[,;)\]}]?\s*$|^\s*\.slice\(\s*\d*\s*\)\s*[,;)]/.test(after)) sites.push({ ...site, cls: 'alias-binding' });
     /* `process.argv.slice(n)` as a whole expression reads no particular token: the reads happen on the
        array it yields, which this scan follows through the alias or the parameter it is handed to. The
        slice is only a binding when it ENDS there — `…slice(2)[0]` is a positional read, and
-       `…slice(2).filter(f)` is a traversal, both caught by the branches below. */ else if (isProcess && /^\s*\.slice\(\s*\d*\s*\)\s*[,;)\]}]?\s*$|^\s*\.slice\(\s*\d*\s*\)\s*[,;)]/.test(after))
+       `…slice(2).filter(f)` is a traversal, both caught by the branches below. */
+    /* THE BARE ALIAS BINDING, one spelling over. `const argv = process.argv;` with no slice is the same
+       binding, and `aliasDecls` records the offset of the NAME rather than of the `process.argv` on the
+       right of it — so the right-hand side fell through to `passed-on`, and that single site held
+       `tch-third-corner.mjs` undecidable while every read in the file names a flag. The alias set is
+       what makes it safe to skip: the name must already be tracked, or this is some other expression.
+       Row 2026-10-20-sixty-nine-argv-tools-stay-undecided-after-the-seven-are-wired. */ else if (
+      isProcess &&
+      /^\s*[;,)]/.test(after) &&
+      aliases.has((ALIAS_RHS.exec(masked.slice(from, idx)) || [])[1])
+    )
       sites.push({ ...site, cls: 'alias-binding' });
     else if (/^\s*\[\s*1\s*\]/.test(after) && /import\.meta\.url|fileURLToPath|pathToFileURL|realpathSync/.test(stmtMask)) sites.push({ ...site, cls: 'main-guard' });
     else if (/^\s*\.(?:includes|indexOf|lastIndexOf)\(\s*['"]/.test(text.slice(idx + m[1].length, idx + m[1].length + 24))) sites.push({ ...site, cls: 'literal-flag' });
-    else if (/^\s*\.(?:includes|indexOf|lastIndexOf)\(\s*([A-Za-z_$][\w$]*)\s*\)/.test(after))
+    /* THE FLAG NAME WRITTEN AS A TEMPLATE. `process.argv.indexOf(\`--${name}\`)` is the same read as
+       `indexOf('--' + name)`, which this scan has always called a literal lookup — the quote class
+       simply never listed the backtick, so `box-sample.mjs` and three others abstained on a read that
+       names its flag the way the tool's own helper is called. A template with NO interpolation is a
+       plain literal; one WITH `${}` composes the name, so it takes the same route as `indexOf(k)` —
+       decided only inside a helper every caller passes a literal to.
+       Row 2026-10-20-sixty-nine-argv-tools-stay-undecided-after-the-seven-are-wired. */ else if (
+      /^\s*\.(?:includes|indexOf|lastIndexOf)\(\s*`/.test(text.slice(idx + m[1].length, idx + m[1].length + 24))
+    ) {
+      const tpl = /`([^`]*)`/.exec(text.slice(idx + m[1].length, Math.min(text.length, idx + m[1].length + 120)));
+      const composed = !tpl || tpl[1].includes('${');
+      if (!composed) sites.push({ ...site, cls: 'literal-flag' });
+      else sites.push({ ...site, cls: inHelper(idx) ? 'literal-flag' : 'name-variable', name: 'a name composed in a template' });
+    } else if (/^\s*\.(?:includes|indexOf|lastIndexOf)\(\s*([A-Za-z_$][\w$]*)\s*\)/.test(after))
       sites.push({ ...site, cls: inHelper(idx) ? 'literal-flag' : 'name-variable', name: /\(\s*([A-Za-z_$][\w$]*)\s*\)/.exec(after)[1] });
     else if (/^\s*\[\s*(\d+|[A-Za-z_$][\w$]*\s*(?:\+|-)\s*\d+)\s*\]/.test(after)) {
       const num = /^\s*\[\s*(\d+)\s*\]/.exec(after);
@@ -272,8 +365,23 @@ export function argvSites(text) {
          this site sits in — a 24-character window cuts `!a.startsWith('-` in half. */
       const rawWin = text.slice(idx + m[1].length, Math.min(to, idx + m[1].length + 200));
       sites.push({ ...site, cls: SHAPE_POSITIONAL.test(rawWin) ? 'positional-by-shape' : 'traversal' });
-    } else if (/^\s*[),;\]}]/.test(after) || /^\s*\.\.\./.test(masked.slice(Math.max(0, idx - 3), idx))) sites.push({ ...site, cls: 'passed-on' });
-    else if (/^\s*\.length\b/.test(after)) sites.push({ ...site, cls: 'length-only' });
+    } else if (/^\s*[),;\]}]/.test(after) || /^\s*\.\.\./.test(masked.slice(Math.max(0, idx - 3), idx))) {
+      /* A pass INTO a local function whose parameter this scan tracked is not a pass it cannot see:
+         the callee is in this file and its reads were classified. An unknown callee still abstains. */
+      const callee = /([A-Za-z_$][\w$]*)\s*\(\s*$/.exec(masked.slice(from, idx));
+      sites.push({ ...site, cls: callee && tracked.has(callee[1]) ? 'passed-to-helper' : 'passed-on' });
+    } else if (NESTED_LOOKUP.test(masked.slice(idx + m[1].length, to))) {
+      /* THE LOOKUP NESTED IN THE INDEX. `argv[argv.indexOf('--threshold') + 1]` is the valued-flag idiom
+       written as one expression instead of two, and the indexed branch above reads only an identifier
+       ± a number, so this fell through to `no rule matched` — four tools abstained on a read whose
+       flag name is spelled inside the brackets. The inner lookup is what decides: a literal names the
+       flag, and a variable takes the helper route, exactly as the two-statement spelling does.
+       Row 2026-10-20-sixty-nine-argv-tools-stay-undecided-after-the-seven-are-wired. */
+      const inner = NESTED_LOOKUP.exec(text.slice(idx + m[1].length, Math.min(text.length, idx + m[1].length + 200)));
+      const literal = inner && /['"`]/.test(inner[1] || '');
+      if (literal) sites.push({ ...site, cls: 'literal-flag' });
+      else sites.push({ ...site, cls: inHelper(idx) ? 'literal-flag' : 'name-variable', name: inner && inner[1] ? inner[1].trim() : 'a nested lookup' });
+    } else if (/^\s*\.length\b/.test(after)) sites.push({ ...site, cls: 'length-only' });
     else sites.push({ ...site, cls: 'undecidable', why: `no rule matched the context \`${after.trim().slice(0, 20)}\`` });
   }
   return sites;
@@ -547,6 +655,23 @@ const PLANT = {
   'undecidable.mjs': `const argv = process.argv.slice(2);\nconst known = new Set(load());\nconst rest = argv.filter((a) => known.has(a));\nwork(rest);\n`,
   'noread.mjs': `import { pathToFileURL } from 'node:url';\nconst IS_MAIN = import.meta.url === pathToFileURL(process.argv[1]).href;\nconst argv = process.argv.slice(2);\n`,
   'commented.mjs': `// const argv = process.argv.slice(2); argv[0] would be a path\nconst s = 'process.argv[2]';\nconsole.log(s);\n`,
+  /* THE SAME IDIOM WITH NO ALIAS. `absence-regression.mjs` binds its index off `process.argv`
+     itself, and this is the shape that abstained until `flagIndexVars` read both spellings. */
+  /* THE DESTRUCTURED POSITIONAL and the dispatch it must be separated from: `mutation-summary.mjs`
+     reads its two tokens as data, `findings-ledger.mjs` compares its one against a closed set. */
+  'destructured.mjs': `function main(argv) {\n  if (argv.includes('--selftest')) return selftest();\n  const [file, code] = argv;\n  readFileSync(file);\n}\nmain(process.argv.slice(2));\n`,
+  'dispatch.mjs': `const [cmd, ...rest] = process.argv.slice(2);\nif (process.argv.includes('--selftest')) selftest();\nif (cmd === 'add') add(rest);\nif (cmd === 'stats') stats();\n`,
+  'dispatch-and-data.mjs': `const [cmd, ...rest] = process.argv.slice(2);\nif (cmd === 'add') add(rest);\nreadFileSync(cmd);\n`,
+  /* THE TWO SPELLINGS THAT NAME THE FLAG SOMEWHERE THIS SCAN WAS NOT READING: inside the brackets,
+     and inside a template. `brief-gaps.mjs` is the first, `box-sample.mjs` the second. */
+  'nested-lookup.mjs': `const argv = process.argv.slice(2);\nconst t = argv.includes('--threshold') ? Number(argv[argv.indexOf('--threshold') + 1]) : 0;\n`,
+  'template-flag.mjs': `const argv = process.argv.slice(2);\nconst i = argv.indexOf(\`--out\`);\nconst out = i >= 0 ? argv[i + 1] : null;\n`,
+  /* TWO HOPS. `nsrr-oxydex-odi.mjs` hands argv to `main`, which hands it to `discover`; one pass of
+     the alias sweep saw the first hop only, and the second read as a pass this scan cannot follow. */
+  'two-hop.mjs': `function discover(argv) {\n  const i = argv.indexOf('--rec');\n  return i >= 0 ? argv[i + 1] : null;\n}\nfunction main(argv) {\n  if (argv.includes('--json')) go();\n  return discover(argv);\n}\nmain(process.argv.slice(2));\n`,
+  /* THE BARE BINDING, no slice: `tch-third-corner.mjs`'s own shape. */
+  'bare-alias.mjs': `const argv = process.argv;\nconst arg = (k) => {\n  const i = argv.indexOf(k);\n  return i > 0 ? argv[i + 1] : null;\n};\nconst mode = arg('--mode');\n`,
+  'valued-flag-raw.mjs': `const k = process.argv.indexOf('--mode');\nconst mode = k >= 0 ? process.argv[k + 1] : 'd';\nif (process.argv.includes('--json')) go();\n`,
   'valued-flag.mjs': `const argv = process.argv.slice(2);\nconst k = argv.indexOf('--out');\nconst out = k >= 0 ? argv[k + 1] : 'default';\n`,
   'main-via-helper.mjs': `function main(args) {\n  if (args.includes('--json')) go();\n}\nmain(process.argv.slice(2));\n`
 };
@@ -596,6 +721,39 @@ function selftest() {
   );
   ok(cls('noread.mjs') === 'no-read', 'a main guard and a bare binding are not input reads');
   ok(cls('valued-flag.mjs') === 'ignores-by-construction', 'the valued-flag idiom indexes by a variable the literal lookup set');
+  ok(cls('nested-lookup.mjs') === 'ignores-by-construction', 'the lookup nested in the index names its flag inside the brackets, which is where this scan was not reading');
+  ok(
+    classifyTool('const argv = process.argv.slice(2);\nconst v = argv[argv.indexOf(k) + 1];\n').cls === 'undecidable',
+    'the same nesting around a VARIABLE name, with no literal call site in the file, stays an abstention'
+  );
+  ok(cls('template-flag.mjs') === 'ignores-by-construction', 'a template with no interpolation is a string literal, and the quote class simply never listed the backtick');
+  ok(
+    classifyTool('const argv = process.argv.slice(2);\nconst i = argv.indexOf(`--${name}`);\nconst v = argv[i + 1];\n').cls === 'undecidable',
+    'a template that COMPOSES the name takes the helper route, so outside one with no literal caller it abstains'
+  );
+  ok(cls('destructured.mjs') === 'consumes', 'a destructure off argv is `argv[0]` and `argv[1]` one spelling over, so the token is data');
+  ok(cls('dispatch.mjs') === 'ignores-by-construction', 'a destructured name compared only against a closed set of literals lands an unknown token nowhere');
+  ok(cls('dispatch-and-data.mjs') === 'consumes', 'one data use of the same name puts the tool back in the expensive class — the comparison does not clear it');
+  ok(
+    classifyTool('const [a, b] = process.argv.slice(2);\nreadFileSync(a, b);\n').cls === 'consumes',
+    'the destructure is read BEFORE the slice-binding branch, which had called this same read a binding'
+  );
+  ok(cls('two-hop.mjs') === 'ignores-by-construction', 'the alias sweep follows argv through a second local hop, because one hop left the second as an abstention');
+  ok(
+    classifyTool("import { runIt } from './other.mjs';\nfunction main(argv) {\n  runIt(argv);\n}\nmain(process.argv.slice(2));\n").cls === 'undecidable',
+    'a pass into an IMPORTED function is a pass this scan cannot follow, and it still abstains'
+  );
+  ok(dispatchOnly("const [cmd] = argv;\nswitch (cmd) {\n  case 'add':\n    add();\n}\n", '[cmd]'), 'a switch over the name with literal case labels is the same comparison in another spelling');
+  ok(cls('bare-alias.mjs') === 'ignores-by-construction', "a bare `= process.argv` binding is a binding, and the reads that follow it are the file's real reads");
+  ok(
+    classifyTool('const cfg = {};\ncfg.raw = process.argv;\nwork(cfg);\n').cls === 'undecidable',
+    'the same right-hand side assigned to a PROPERTY binds no tracked name, so it stays a pass-through this scan declines'
+  );
+  ok(cls('valued-flag-raw.mjs') === 'ignores-by-construction', 'the same idiom with the index bound off `process.argv` itself is the same decision');
+  ok(
+    classifyTool('const k = process.argv.indexOf(name);\nconst v = process.argv[k + 1];\n').cls === 'undecidable',
+    'an index bound off a flag name computed at runtime names no flag, so the abstention is the honest answer'
+  );
   ok(cls('main-via-helper.mjs') === 'ignores-by-construction', 'the reads inside a helper called on argv are tracked through its parameter');
 
   /* the decoys: text that LOOKS like a read and is not one */
