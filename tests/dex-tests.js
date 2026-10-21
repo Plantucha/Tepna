@@ -10690,11 +10690,36 @@
       var em = JL.codeMask(esc);
       T.eq('the character a regex escape consumes stays outside code', em[esc.indexOf('\\') + 1], 0);
       T.eq('the backslash itself is code', em[esc.indexOf('\\')], 1);
+      /* ════ THE KEYWORD HEAD, row 2026-10-21-the-shared-lexer-reads-a-regex-after-a-keyword-as-division
+         `regexCanStart` read the last significant CHARACTER, and a keyword ends in a word character, so
+         `return /re/` was division and the first quote inside the regex opened a string that ran to the
+         end of the file. Measured over 463 shipped files: 16 carried that desync, 171,251 characters
+         deep, and `mutate.mjs` lost 618 real sites to it while gaining 57 inside literals. ════ */
+      var kw = "function f(s) {\n  return /['\"]/.test(s);\n}\nvar tail = 'tools/zzz.mjs';\n";
+      var kc = JL.classify(kw);
+      /* BOTH OFFSETS DISCRIMINATE, measured against the pre-fix lexer: it read `var tail` as the tail
+         of a string (class 2) and the literal's own body as code, because the phantom string opened at
+         the regex's first quote and CLOSED at the next one. The quote characters themselves classify
+         the same way under both, so asserting one of those would have passed either way. */
+      T.eq('the body of the literal after the regex is a string', kc[kw.indexOf('zzz.mjs')], JL.CLS_STRING);
+      T.eq('and the declaration before it is still code', kc[kw.indexOf('var tail')], JL.CLS_CODE);
+      var dv = 'var of2 = 4;\nvar q = of2 / 2;\nvar s = "a / b";\n';
+      var dc = JL.classify(dv);
+      T.eq('CONTROL · a word that merely ENDS in a keyword is not one', dc[dv.indexOf('"a / b"')], JL.CLS_STRING);
+      T.ok('CONTROL · the keyword list is single-sourced for the second walker', JL.KEYWORD_HEADS.indexOf('return') >= 0 && JL.KEYWORD_HEADS.length >= 13, 'heads=' + JL.KEYWORD_HEADS.length);
       var TT = env.toolTexts;
       if (!TT) {
         T.skip('the real-tree partition', 'env.toolTexts absent in this lane');
         return;
       }
+      /* THE REAL FILE THE DESYNC HIT: `tools/selftest-all.mjs:88` returns a regex holding both quote
+         characters, and every line after it read as string — the tool's own CLI entry among them. */
+      var SA = TT['tools/selftest-all.mjs'];
+      if (SA) {
+        var at = SA.lastIndexOf('isCliEntry(import.meta.url)');
+        T.ok('ANTI-VACUITY · the CLI entry line was found in the real file', at >= 0, 'at=' + at);
+        T.eq('the line after the quoted regex is code, not the tail of a string', JL.classify(SA)[at], JL.CLS_CODE);
+      } else T.skip('the selftest-all desync leg', 'tools/selftest-all.mjs absent from env.toolTexts');
       var keys = Object.keys(TT).filter(function (k) {
         return /^tools\/[^/]+\.mjs$/.test(k);
       });
