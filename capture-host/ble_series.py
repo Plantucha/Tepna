@@ -56,7 +56,10 @@ def parse_ble_line(line: str) -> dict | None:
     head = journal_line.stamp_of(line)
     if head is None:
         return None
-    body = line[line.index(BLE_NEEDLE) + len(BLE_NEEDLE) :]
+    # The FIRST needle starts the body, so a line that somehow carries the marker twice keeps every
+    # report rather than the last one. `split` states that decision where index arithmetic only
+    # implied it, and two surviving mutants over that arithmetic were equivalent on every real line.
+    body = line.split(BLE_NEEDLE, 1)[1]
     # The reasons are appended at the END of the line rather than beside their segment, so they are
     # read first and matched back by the device each one names. A device with a measured rate carries
     # no reason, and `None` there is the absence of a reason, not an unread one.

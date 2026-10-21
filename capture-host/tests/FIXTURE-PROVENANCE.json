@@ -332,6 +332,12 @@
       "source": "stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
+    "test_journal_line.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "journal prefixes built in the test; no provenance claim in the file",
+      "sha256": null
+    },
     "test_link_baselines.py": {
       "class": "captured",
       "kind": "device-address",

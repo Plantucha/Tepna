@@ -384,3 +384,28 @@ def test_api_ble_rate_says_unreadable_with_503_and_null_segments(tmp_path, monke
     monkeypatch.setattr(webmon._ble, "read_ble_series", lambda h: None)
     status, body = _get(tmp_path, "/api/ble-rate")
     assert status == 503 and body["segments"] is None
+
+
+def test_the_body_starts_at_the_FIRST_needle_and_keeps_every_later_report():
+    """The body boundary is a DECISION, and this is the line that reads it.
+
+    `parse_ble_line` cuts at the first needle, so a line carrying the marker twice keeps both reports.
+    Cutting at the last one would drop the earlier devices, and cutting between the two would drop the
+    later ones. Two mutants over the old index arithmetic survived because no real line distinguishes
+    them; this one does.
+
+    The decoy before the needle is the other half of the boundary. A cut that splits on whitespace
+    instead of the needle reads the whole message as the body, so ZZ would join the devices this line
+    reported. Only a rate-shaped string OUTSIDE the body separates those two cuts."""
+    n = ble_series.BLE_NEEDLE
+    line = (
+        "2026-01-02T01:00:00Z synthbox python[7]: WARN backoff rate ZZ 9/h over 9 min "
+        + n
+        + "backoff rate AA 1/h over 60 min "
+        + n
+        + "backoff rate BB 2/h over 30 min"
+    )
+    got = ble_series.parse_ble_line(line)
+    assert sorted(got["rates"]) == ["AA", "BB"]
+    assert got["rates"]["AA"]["window_min"] == 60
+    assert got["rates"]["BB"]["window_min"] == 30
