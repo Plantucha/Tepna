@@ -23,6 +23,9 @@
  *      ten merged, clean trees included one where a peer had said 40 minutes earlier that a ~16-minute
  *      gate was running. It had finished, so nothing was lost — but every guard the tool had read
  *      green, and removing a tree out from under a live run destroys the run silently.
+ *   4. NO UNIT CLAIMS IT — no installed systemd user unit names the tree. A periodic consumer checks
+ *      its tree out at every firing and holds no process in between, so fact 3 reads idle for all but
+ *      a few minutes a day (row 2026-10-21-the-idle-check-cannot-see-a-periodic-consumer).
  * Removal is `git worktree remove` WITHOUT --force, so git's own guard stays the last line: if git
  * refuses after both checks passed, something raced us — stop, do not escalate to --force.
  *
@@ -32,6 +35,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readlinkSync, readFileSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
@@ -173,11 +177,124 @@ function cmdlineOf(pid, procRoot = '/proc') {
   }
 }
 
-export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, landless, landedElsewhere }) {
+/* ── A DECLARED CONSUMER IS NOT A LIVE PROCESS ───────────────────────────────────────────────────
+   Row 2026-10-21-the-idle-check-cannot-see-a-periodic-consumer. `usersOfPath` answers "is anything
+   running in here THIS SECOND", and a periodic consumer answers that with "no" for all but a few
+   minutes a day. Four installed user units check a tree out at every firing (`WorkingDirectory=%h/…`
+   plus a `git checkout --detach origin/main` in ExecStartPre), which leaves the tree detached, clean,
+   0 commits ahead and empty of processes — the exact shape the `landless.kind === 'empty'` clause
+   removes with NO flag. Measured 2026-10-21 against main's own copy of this tool: a detached probe
+   worktree of that shape was removed at exit 0, while `--list` printed `keep` for the same shape, so
+   the dashboard a session would consult sits on the safe side of a run that removes.
+   The removal therefore needs a second piece of evidence, and the unit text carries it: a tree a unit
+   NAMES is claimed whatever the process table says this second.
+   ⚠️ THE UNITS DO NOT WRITE THE PATH. They write systemd's `%h` specifier, so a literal-path search
+   over the unit text matches nothing and reports every timer tree as unclaimed. Expanding `%h` is
+   what makes the scan see the four. `%%h` is systemd's escape for a literal `%h` and expands here
+   too, which can only over-claim a tree — the refusing direction.
+   UNKNOWN IS NEVER UNCLAIMED: a unit source that exists and cannot be read makes the scan
+   indeterminate (`ok:false`) and the verdict refuses, the same discipline as the idle scan. An ABSENT
+   path names nothing, so a machine with no user units scans clean and nothing changes.
+   The scanned set is the two USER unit directories a unit of ours installs into, plus one level of
+   `*.d` drop-ins; the distro tree (`/usr/lib/systemd/user`) is deliberately out, and a scan reports
+   which directories it read, so the refusal and the clean answer are both about a named population. */
+const UNIT_DIRS = [path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'systemd', 'user'), '/etc/systemd/user'];
+const UNIT_FILE = /\.(service|timer|path|socket|target|mount|slice)$/;
+
+/* A path token ends at a character that cannot continue a file name, so a unit naming a SIBLING whose
+   name merely starts with this tree's name does not declare this tree. A unit naming a path INSIDE
+   the tree does declare it — an output file or a log under the tree is a claim on the tree. */
+export function unitDeclaresPath(unitText, dir, { home = os.homedir() } = {}) {
+  const root = path.resolve(dir).replace(/\/+$/, '');
+  if (!root || root === '/') return false;
+  const text = String(unitText).split('%h').join(home);
+  for (let from = 0; ; ) {
+    const i = text.indexOf(root, from);
+    if (i < 0) return false;
+    const next = text[i + root.length];
+    if (next === undefined || !/[A-Za-z0-9._-]/.test(next)) return true;
+    from = i + 1;
+  }
+}
+
+let unitSourceCache = null;
+/* Read once per process: `--list` asks this question for every registered worktree, and the unit
+   directories do not change mid-run. */
+export function readUnitSources({ unitDirs = UNIT_DIRS } = {}) {
+  const key = unitDirs.join('\n');
+  if (unitSourceCache && unitSourceCache.key === key) return unitSourceCache.val;
+  const sources = [];
+  const unreadable = [];
+  const readOne = (file, name) => {
+    try {
+      sources.push({ name, text: readFileSync(file, 'utf8') });
+    } catch (e) {
+      /* ENOENT is an ABSENT file — a dangling enable symlink names nothing. Any other failure is a
+         unit source that exists and may name the tree, which is not an empty answer. */
+      if (e.code !== 'ENOENT') unreadable.push(`${name} (${e.code || e.message})`);
+    }
+  };
+  for (const d of unitDirs) {
+    let ents;
+    try {
+      ents = readdirSync(d, { withFileTypes: true });
+    } catch (e) {
+      if (e.code !== 'ENOENT') unreadable.push(`${d} (${e.code || e.message})`);
+      continue;
+    }
+    for (const ent of ents) {
+      const full = path.join(d, ent.name);
+      let isDir = ent.isDirectory();
+      if (ent.isSymbolicLink()) {
+        try {
+          isDir = statSync(full).isDirectory();
+        } catch {
+          isDir = false; /* dangling: readOne decides, and its ENOENT names nothing */
+        }
+      }
+      if (isDir) {
+        if (!ent.name.endsWith('.d')) continue; // `.wants`/`.requires` hold symlinks to units already read
+        let confs;
+        try {
+          confs = readdirSync(full);
+        } catch (e) {
+          unreadable.push(`${ent.name} (${e.code || e.message})`);
+          continue;
+        }
+        for (const c of confs) if (c.endsWith('.conf')) readOne(path.join(full, c), `${ent.name}/${c}`);
+        continue;
+      }
+      if (UNIT_FILE.test(ent.name)) readOne(full, ent.name);
+    }
+  }
+  const val = unreadable.length
+    ? { ok: false, why: `${unreadable.length} unit source(s) exist and could not be read: ${unreadable.slice(0, 3).join('; ')} — one of them may name this tree`, scanned: unitDirs }
+    : { ok: true, sources, scanned: unitDirs };
+  unitSourceCache = { key, val };
+  return val;
+}
+
+export function declaredConsumers(dir, { unitDirs = UNIT_DIRS, home = os.homedir() } = {}) {
+  const src = readUnitSources({ unitDirs });
+  if (!src.ok) return { ok: false, why: src.why, scanned: src.scanned };
+  const units = src.sources.filter((u) => unitDeclaresPath(u.text, dir, { home })).map((u) => u.name);
+  return { ok: true, units: units.sort(), scanned: src.scanned };
+}
+
+export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, landless, landedElsewhere, declared }) {
   /* Pure decision core, so the refusals are testable without a repo. `inUse` is the result of
      `usersOfPath`: omitted entirely means the caller did not scan (older callers keep working);
      `{ok:false}` means the scan FAILED, which refuses — unknown is not idle. */
   if (isMain) return { ok: false, why: 'holds main/master — never remove the primary checkout' };
+  /* READ BEFORE THE TRANSIENT FACTS, because a declared consumer is the durable one: dirt washes out
+     at the next commit and a process exits, while a unit claims the tree at every firing. `declared`
+     omitted entirely means the caller did not scan, so older callers keep their verdict text. */
+  if (declared && declared.ok === false) return { ok: false, why: `cannot prove no unit claims this tree: ${declared.why}` };
+  if (declared && declared.units && declared.units.length)
+    return {
+      ok: false,
+      why: `DECLARED by ${declared.units.join(', ')} — that unit names this tree and checks it out at its next firing, so holding no process right now is not idle; disable the unit or edit its path before removing the tree`
+    };
   if (dirtyCount > 0) return { ok: false, why: `${dirtyCount} dirty/untracked path(s) — may be someone's only copy` };
   /* --pushed (2026-09-26): a tree whose branch has NO PR but whose every local commit is CONTAINED in
      origin/<branch> loses nothing on removal — the branch is the copy. This is the state measurement
@@ -530,7 +647,7 @@ function main(argv) {
          `emptyOnly` keeps it to one rev-list per tree; `contained` stays behind --pushed, which a list
          never passes. */
       const lnd = existsSync(w.path) && !isMainWt(w) && pr.state !== 'OPEN' ? pushedFor(w.path, w.branch, { emptyOnly: true }) : undefined;
-      const v = verdict({ prState: pr.state, dirtyCount: Math.max(0, dirty), isMain: isMainWt(w), inUse: use, unlanded: unl, landless: lnd });
+      const v = verdict({ prState: pr.state, dirtyCount: Math.max(0, dirty), isMain: isMainWt(w), inUse: use, unlanded: unl, landless: lnd, declared: declaredConsumers(w.path) });
       console.log(`${v.ok ? 'REMOVABLE ' : 'keep      '} ${w.path}  [${w.branch ?? 'detached'}]  pr=${pr.state ?? '-'} dirty=${dirty} — ${v.why}`);
     }
     return 0;
@@ -583,6 +700,8 @@ function main(argv) {
       dirtyCount: dirtyCountFor(w.path),
       isMain: isMainWt(w),
       inUse: usersOfPath(w.path),
+      /* The same question the dashboard asks, from the same function, so the two cannot disagree. */
+      declared: declaredConsumers(w.path),
       unlanded: pr.state === 'MERGED' ? unlandedFor(w.path, pr.mergedAt) : undefined,
       /* ONE computation, two roles: `landless` decides the empty case with no flag, `pushed` carries the
          opt-in containment case. Same function, so the two can never disagree about what it measured. */
@@ -773,6 +892,62 @@ if (process.argv.includes('--selftest')) {
   assert(!namesRelated('claude/x', 'claude/xy'), 'a short prefix below the floor is NOT related');
   assert(!namesRelated('claude/some-branch-name', null), 'an unreadable PR head is NOT related');
   assert(!namesRelated(null, 'claude/some-branch-name'), 'a detached worktree is NOT related');
+  /* ── THE DECLARED CONSUMER (row 2026-10-21-the-idle-check-cannot-see-a-periodic-consumer) ───────
+     The idle scan is a measurement of this second, and the trees three timers own sit in the removable
+     shape for all but a few minutes a day: measured 2026-10-21 against main's own copy, `--list`
+     printed REMOVABLE for all three, and a detached probe worktree of the same shape was removed at
+     exit 0. The claim is read from the unit text, so the legs assert the two halves separately — the
+     verdict's precedence, and the matcher that has to expand `%h` to see a path at all. */
+  const CLAIMED = { ok: true, units: ['tepna-example.timer'], scanned: ['/dev/null'] };
+  assert(!verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, inUse: { ok: true, users: [] }, declared: CLAIMED }).ok, 'merged + clean + proven idle, but a unit names the tree ⇒ refuse');
+  assert(
+    /DECLARED by tepna-example\.timer/.test(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, declared: CLAIMED }).why),
+    'the refusal NAMES the unit — "declared" alone sends the next session hunting, the cmdline lesson one level up'
+  );
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, landless: EMPTY, declared: CLAIMED }).ok, 'the claim outranks the EMPTY clause — the exact shape a timer tree holds between its runs');
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, landless: CONTAINED, pushed: CONTAINED, declared: CLAIMED }).ok, '…and outranks --pushed');
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, landedElsewhere: { ok: true, why: 'every identifier is on origin/main' }, declared: CLAIMED }).ok, '…and outranks --landed');
+  assert(
+    !verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, declared: { ok: false, why: 'one unit source could not be read' } }).ok,
+    '∅ an INDETERMINATE unit scan refuses — unknown is not unclaimed'
+  );
+  assert(
+    /cannot prove no unit claims this tree/.test(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, declared: { ok: false, why: 'x' } }).why),
+    '…and says which question it could not answer'
+  );
+  assert(
+    verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, inUse: { ok: true, users: [] }, declared: { ok: true, units: [] } }).ok,
+    'CONTROL · a scan that finds no unit takes nothing away from the old answer'
+  );
+  assert(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false }).why === 'PR merged + tree clean', 'CONTROL · a caller that does not scan for units keeps the old verdict text byte-for-byte');
+  /* THE MATCHER. The specifier is the whole defect in the obvious implementation: every one of these
+     units writes `%h`, so a literal-path search over the text matches nothing and reports every timer
+     tree as unclaimed. */
+  const UNIT_TEXT = 'WorkingDirectory=%h/timers/one\nExecStartPre=/usr/bin/git fetch -q origin main\n';
+  assert(unitDeclaresPath(UNIT_TEXT, '/h/timers/one', { home: '/h' }), 'the %h specifier expands — a literal search over this text finds nothing');
+  assert(unitDeclaresPath('WorkingDirectory=/h/timers/one\n', '/h/timers/one', { home: '/other' }), 'a unit that writes the path literally declares it too');
+  assert(unitDeclaresPath('ExecStart=/bin/x --out %h/timers/one/out.json\n', '/h/timers/one', { home: '/h' }), 'a path INSIDE the tree is a claim on the tree');
+  assert(unitDeclaresPath(UNIT_TEXT, '/h/timers/one/', { home: '/h' }), 'a trailing slash on the tree path reads the same');
+  assert(!unitDeclaresPath(UNIT_TEXT, '/h/timers/on', { home: '/h' }), 'CONTROL · a tree whose name is a PREFIX of the declared one is NOT declared');
+  assert(!unitDeclaresPath('WorkingDirectory=%h/timers/one-extra\n', '/h/timers/one', { home: '/h' }), 'CONTROL · a SIBLING whose name extends this one does NOT declare it');
+  assert(!unitDeclaresPath(UNIT_TEXT, '/h/other', { home: '/h' }), 'CONTROL · a tree no line names is not declared');
+  assert(!unitDeclaresPath('WorkingDirectory=/\n', '/', { home: '/h' }), 'the filesystem root is never a declared tree');
+  /* THE READER, over the 23 unit sources this repository carries — a real walk over real files, so the
+     clean answer below is about a population and not about an empty directory. */
+  {
+    const dir = path.join(REPO_ROOT, 'capture-host', 'systemd');
+    const src = readUnitSources({ unitDirs: [dir] });
+    assert(src.ok && src.sources.length >= 10, "ANTI-VACUITY · the walk reads the repository's own unit files");
+    const claimed = declaredConsumers('/opt/tepna/capture-host', { unitDirs: [dir] });
+    assert(claimed.ok && claimed.units.length >= 1, 'a path a committed unit names reads as DECLARED');
+    const sibling = declaredConsumers('/opt/tepna/capture-host-x', { unitDirs: [dir] });
+    assert(sibling.ok && sibling.units.length === 0, 'CONTROL · the sibling of that path reads as unclaimed over the SAME sources');
+    const absent = declaredConsumers('/opt/tepna/capture-host', { unitDirs: [path.join(dir, 'no-such-unit-dir')] });
+    assert(absent.ok && absent.units.length === 0, 'an ABSENT unit directory names nothing — a machine with no user units scans clean');
+    const broken = declaredConsumers('/opt/tepna/capture-host', { unitDirs: [fileURLToPath(import.meta.url)] });
+    assert(broken.ok === false, '∅ a unit directory that exists and cannot be read is never an empty unit list');
+    assert(/could not be read/.test(broken.why), '…and the refusal says what it failed to read');
+  }
   console.log(`selftest: ${ran}/${ran} ok`);
   process.exit(0);
 }
