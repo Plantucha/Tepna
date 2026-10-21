@@ -456,13 +456,19 @@ function selftest() {
 
   /* And the tree itself: every self-test that stages a payload must derive its size. This is the
      population half — the two plants above would pass while no real leg was ever read. */
-  const legFiles = existsSync(HOOK_DIR)
+  const legScans = existsSync(HOOK_DIR)
     ? readdirSync(HOOK_DIR)
         .filter((f) => f.endsWith('.test.sh'))
         .map((f) => scanWriterFateLeg(readFileSync(join(HOOK_DIR, f), 'utf-8'), f))
-        .filter((r) => r.hasLeg)
     : [];
-  ok('the writer-fate legs are found in the real tree (non-vacuous)', legFiles.length >= 10, `found ${legFiles.length} leg(s)`);
+  const legFiles = legScans.filter((r) => r.hasLeg);
+  ok('the writer-fate legs are found in the real tree (non-vacuous)', legFiles.length >= 11, `found ${legFiles.length} leg(s)`);
+  /* THE POPULATION IS CLOSED, so a count is no longer the assertion. `board-hook.test.sh` was the
+     one self-test with no leg, and its hook drains before an absent binary, the hatch and
+     `stop_hook_active` alike — a drain moving below any of the three would have cost the harness a
+     SIGPIPE with no red leg anywhere (row 2026-10-20-board-hook-self-test-has-no-writer-fate-leg).
+     A NEW self-test with no leg now names itself here rather than hiding under a floor. */
+  ok('…and every hook self-test carries one', legScans.length > 0 && legScans.every((r) => r.hasLeg), JSON.stringify(legScans.filter((r) => !r.hasLeg).map((r) => r.name)));
   ok(
     '…and every one of them derives its payload size',
     legFiles.every((r) => r.derives),
