@@ -6208,6 +6208,35 @@ def test_a_band_edge_arrives_as_the_CIVIL_COMPONENTS_the_capture_wrote(monkeypat
         assert got.tzinfo is None, "worn_interval's ends are naive, so this one has to be too"
 
 
+# ── THE BOX'S OWN RE-JUDGE, AS A CAUSE THIS BAND HAS TO CLASSIFY ────────────────────────────────────
+# `loss_audit.JOB_SPANS` gives a gap that starts inside the box's `solid-night ... re-judged` bracket a
+# name. This band had no entry for that name, and the absence was not neutral: the five gaps it reaches
+# would have left `un` and the night would have turned PASS because the audit learned the cause.
+
+
+def test_the_box_s_own_re_judge_fails_the_band_the_way_the_unattributed_night_already_did(tmp_path):
+    """The night of 2026-10-12 in both vocabularies. Six ring gaps inside the worn interval: five start
+    inside a re-judge bracket and one does not. Before the attribution all six read `unattributed` and the
+    band FAILed on the count; after it, five carry the program's own name and the band still FAILs, now
+    naming it. The status is what must not move on an attribution change."""
+    five = [(f"2026-09-20T23:0{i // 2}:{10 + 30 * (i % 2)}", 13.0, "unattributed") for i in range(5)]
+    lone = [("2026-09-20T23:02:40", 23.0, "unattributed")]
+    before = _cont(tmp_path, gaps=five + lone)
+    assert before["status"] == "FAIL" and before["reason"].startswith("6 unattributed gap(s)"), before
+    d = tmp_path / "attributed"
+    d.mkdir()
+    after = _cont(d, gaps=[(t, s, "daemon:solid-night re-judge") for t, s, _c in five] + lone)
+    assert after == {
+        "status": "FAIL",
+        "reason": "daemon regression inside the worn interval: daemon:solid-night re-judge",
+    }, after
+    # and the lone gap alone — 23 s, under both bars — is the leg that proves the holding position is
+    # load-bearing: drop the cause from the tuple and this same night PASSes.
+    d2 = tmp_path / "lone"
+    d2.mkdir()
+    assert _cont(d2, gaps=lone)["status"] == "PASS"
+
+
 # ── AN EVENT-LOOP STALL KEEPS THE BAR IT HAD (residue 2026-10-13-the-stall-that-tore-the-ring-is-invisible-…) ──
 def test_five_stall_gaps_fail_the_band_as_five_unattributed_gaps_did(tmp_path):
     five = [(f"2026-09-20T23:01:{s}0", 1.0, si.LOOP_STALL) for s in (1, 2, 3)] + [
