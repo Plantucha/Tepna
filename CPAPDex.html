@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="64fbb961a76c" data-compute-hash="e51fbe115e5e">
+<html lang="en" data-manifest-hash="3a76f9d0a932" data-compute-hash="2b4f52499bc6">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-20UbNxR2CecdtQ/MfDRmG/FU71IV8QPB6XS/m5m/xe8=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bb0EtTN0ZQs5elsWn/gEtTxlDHg4/Pvvkn2RTNrWinQ=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fuqfXDlL9ySa8bCSpMfxfV4q8o2qAxXNDQrQvWnR2q0=' 'sha256-g2VyDocP9GBDpeLXDFYrWCbpD8Bx0LDm8bXjU5CPR/U=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-20UbNxR2CecdtQ/MfDRmG/FU71IV8QPB6XS/m5m/xe8=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bb0EtTN0ZQs5elsWn/gEtTxlDHg4/Pvvkn2RTNrWinQ=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-aHJ7qk6r4X4mnAs4vD/yN4fkJeBOT7rPBvBRgC06xlA=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fuqfXDlL9ySa8bCSpMfxfV4q8o2qAxXNDQrQvWnR2q0=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.21.0</title>
@@ -6045,6 +6045,25 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
      The `!byType[type]` clause is the load-bearing one: a second EVE/CSL inside the same minute is a
      SEPARATE therapy session, and overwriting it makes its scored apneas vanish with no error.
      Pure: names in, clusters out — no filesystem, no I/O, so it is unit-testable anywhere. */
+  /* §2.7 — `Date.UTC` SILENTLY ROLLS an out-of-range component onto a real instant, so every field is
+     range-checked before it is used. CPAPDex carries no `clock.js`, so `DexClock` is undefined in
+     this bundle and a delegation would throw at evaluation (CLAUDE.md §👥.3): the rules live here a
+     second time and `tests/dex-tests.js` pins this copy against its siblings so they cannot drift.
+     `parseEdfClock` above keeps its own inline form on purpose — it reads the EDF HEADER clock with
+     the vendor's two-digit clipping rule, which is a different contract from a filename stamp.
+     The order is load-bearing twice over. A bare `h > 23` guard rejects ISO-8601 `24:00:00`, the one
+     legitimate overflow, so the escape sits above the range check; and the round-trip cannot stand in
+     for the range check, because minute 99 rolls the HOUR and leaves the date alone. */
+  function _mkTMs(Y, M, D, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(Y, M - 1, D),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== Y || dd.getUTCMonth() !== M - 1 || dd.getUTCDate() !== D) return null;
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000;
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(Y, M - 1, D, h, mi, se, ms);
+  }
   var _F4_RE = /^(\d{8})_(\d{6})_([A-Z0-9]+)\.edf$/i;
   function sessionStampOf(name) {
     var base =
@@ -6055,9 +6074,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     if (!m) return null;
     var d = m[1],
       t = m[2];
-    // Clock Contract: components as written → Date.UTC (floating wall-clock). Never Date.parse.
-    var sec = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)) / 1000;
-    if (!isFinite(sec)) return null;
+    // Clock Contract: components as written → `_mkTMs` (floating wall-clock). Never Date.parse, and
+    // never a bare `Date.UTC` — §2.7. `_F4_RE` stays the ACCEPT TEST, so this still claims exactly
+    // the names it claimed, and only the instant changes. The old form rolled `20261332_999999` onto
+    // 2027-02-05 and `20260230` onto 2026-03-02. `groupSessionSets` clusters within ±60 s of this
+    // value, so a fabricated second fuses two therapy sessions or splits one.
+    var tMs = _mkTMs(+d.slice(0, 4), +d.slice(4, 6), +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6), 0);
+    if (tMs == null) return null;
+    var sec = tMs / 1000;
     return { sec: sec, type: m[3].toUpperCase(), file: name };
   }
   function groupSessionSets(names) {
@@ -6092,6 +6116,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     readEDF: readEDF,
     groupSessionSets: groupSessionSets,
     sessionStampOf: sessionStampOf,
+    // §2.7 — exposed so `cpapdex-app.js`, which this bundle inlines after this file, validates its
+    // own filename stamp through THIS copy instead of opening a second one inside the same bundle.
+    stampMk: _mkTMs,
     parseEdfClock: parseEdfClock,
     sampleTMs: sampleTMs,
     parseTAL: parseTAL,
@@ -11979,12 +12006,18 @@ const { CpapRender } = __require('cpapdex-render.js');
     el.className = 'status' + (kind ? ' ' + kind : '');
   }
 
-  /* filename → { prefixMs, type } (type from the _XXX suffix before .edf) */
+  /* filename → { prefixMs, type } (type from the _XXX suffix before .edf).
+     The pattern stays the ACCEPT TEST, so this reader claims exactly the names it claimed, and only
+     the INSTANT changes. A bare `Date.UTC` rolls an out-of-range component onto a real instant
+     (Clock Contract §2.7): `20261332_999999` reached 2027-02-05 and `20260230` reached 2026-03-02.
+     `prefixMs` orders the files handed to `CpapEdf.groupSessionSets`, so a fabricated instant
+     reorders a night's sessions. CPAPDex carries no `clock.js` (CLAUDE.md §👥.3), so the validator
+     comes from `cpapdex-edf.js`, which this bundle inlines ahead of this module. */
   function parseEdfName(name) {
     var base = name.replace(/^.*[\\/]/, '');
     var m = base.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
     var prefixMs = null;
-    if (m) prefixMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]); // floating wall-clock
+    if (m) prefixMs = CpapEdf.stampMk(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6], 0); // floating wall-clock
     var type = null;
     for (var i = 0; i < FILE_TYPES.length; i++)
       if (new RegExp('_' + FILE_TYPES[i] + '\\.edf$', 'i').test(base)) {

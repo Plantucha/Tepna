@@ -113,8 +113,30 @@
             : null;
     return null;
   }
+  /* §2.7 — `Date.UTC` SILENTLY ROLLS an out-of-range component onto a real instant, so every field is
+     range-checked first. The copy is deliberate. This page carries no `clock.js`, so `DexClock` is
+     undefined here and a delegation would throw at evaluation (CLAUDE.md §👥.3). The rules read in
+     `_ckMk`'s own order — the DATE round-trip, the ISO end-of-day escape, then the TIME range — and
+     the order is load-bearing twice over. A bare `h > 23` guard rejects ISO-8601 `24:00:00`, which the
+     Clock Contract names as the one legitimate overflow, so the escape sits above the range check.
+     And the round-trip cannot stand in for the range check: minute 99 rolls the HOUR and leaves the
+     date alone, so `getUTCDate()` still matches and only the explicit bound refuses it.
+     `tests/dex-tests.js` pins this copy against the three trio pages, so the mirrors cannot drift. */
+  function _mkTMs(Y, M, D, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(Y, M - 1, D),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== Y || dd.getUTCMonth() !== M - 1 || dd.getUTCDate() !== D) return null;
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000;
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(Y, M - 1, D, h, mi, se, ms);
+  }
   // sessions starting before noon fold into the PREVIOUS evening (floating civil time)
   function nightKeyOf(stamp) {
+    /* §2.7 — one refusal for the WHOLE stamp, before any field is read, so the night key and the
+       instant `stampMs` returns can never disagree about whether the stamp was real. */
+    if (stampMs(stamp) == null) return null;
     var Y = +stamp.slice(0, 4),
       M = +stamp.slice(4, 6),
       D = +stamp.slice(6, 8),
@@ -134,9 +156,15 @@
         })
       : null;
   }
-  /* stamp (YYYYMMDDHHMMSS, floating civil time) → ms, for ordering sessions within a night */
+  /* stamp (YYYYMMDDHHMMSS, floating civil time) → ms, for ordering sessions within a night. The
+     bare `Date.UTC` that stood here rolled an impossible stamp onto a real instant, and `nearestTo`
+     picks a companion by this value, so a fabricated instant mis-pairs a session instead of
+     declining to pair one. The length test is the §∅ leg: a short stamp reads its missing fields
+     as zero, which is a value standing in for an absence. */
   function stampMs(st) {
-    return Date.UTC(+st.slice(0, 4), +st.slice(4, 6) - 1, +st.slice(6, 8), +st.slice(8, 10), +st.slice(10, 12), +st.slice(12, 14));
+    var t = String(st == null ? '' : st);
+    if (!/^\d{14}$/.test(t)) return null;
+    return _mkTMs(+t.slice(0, 4), +t.slice(4, 6), +t.slice(6, 8), +t.slice(8, 10), +t.slice(10, 12), +t.slice(12, 14), 0);
   }
   /* the candidate whose session START is nearest to an anchor's — the hat's own rule (sensor-trio-power-analysis.js
      `nearest`), applied here for the same reason */
@@ -184,12 +212,20 @@
   function ingestFiles(list) {
     NIGHTS = {};
     RESULTS = {};
+    var impossibleStamp = 0;
     for (var i = 0; i < list.length; i++) {
       var f = list[i],
         c = classify(f);
       if (!c) continue;
-      var nk = nightKeyOf(c.stamp),
-        nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [], ringarr: [] } });
+      /* §∅ — a file whose name carries an impossible stamp is not indexed, and the status line says
+         how many were dropped. Bucketing it under a rolled date files a real capture on a night it
+         never happened, which is worse than leaving it out loudly. */
+      var nk = nightKeyOf(c.stamp);
+      if (nk == null) {
+        impossibleStamp++;
+        continue;
+      }
+      var nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [], ringarr: [] } });
       nt.cand[c.role].push({ file: f, stamp: c.stamp });
     }
     Object.keys(NIGHTS).forEach(function (k) {
@@ -200,7 +236,10 @@
       elig = keys.filter(function (k) {
         return eligible(NIGHTS[k]);
       }).length;
-    setStatus(keys.length + ' nights · ' + elig + ' eligible (from ' + list.length + ' files)', keys.length ? 'idle' : 'idle');
+    setStatus(
+      keys.length + ' nights · ' + elig + ' eligible (from ' + list.length + ' files)' + (impossibleStamp ? ' · ' + impossibleStamp + ' not indexed (impossible filename stamp)' : ''),
+      keys.length ? 'idle' : 'idle'
+    );
     var pb = el('run');
     if (pb) pb.disabled = elig === 0;
     var tag = el('nightTag');

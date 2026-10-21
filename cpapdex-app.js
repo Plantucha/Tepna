@@ -34,12 +34,18 @@ import { CpapRender } from './cpapdex-render.js';
     el.className = 'status' + (kind ? ' ' + kind : '');
   }
 
-  /* filename → { prefixMs, type } (type from the _XXX suffix before .edf) */
+  /* filename → { prefixMs, type } (type from the _XXX suffix before .edf).
+     The pattern stays the ACCEPT TEST, so this reader claims exactly the names it claimed, and only
+     the INSTANT changes. A bare `Date.UTC` rolls an out-of-range component onto a real instant
+     (Clock Contract §2.7): `20261332_999999` reached 2027-02-05 and `20260230` reached 2026-03-02.
+     `prefixMs` orders the files handed to `CpapEdf.groupSessionSets`, so a fabricated instant
+     reorders a night's sessions. CPAPDex carries no `clock.js` (CLAUDE.md §👥.3), so the validator
+     comes from `cpapdex-edf.js`, which this bundle inlines ahead of this module. */
   function parseEdfName(name) {
     var base = name.replace(/^.*[\\/]/, '');
     var m = base.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
     var prefixMs = null;
-    if (m) prefixMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]); // floating wall-clock
+    if (m) prefixMs = CpapEdf.stampMk(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6], 0); // floating wall-clock
     var type = null;
     for (var i = 0; i < FILE_TYPES.length; i++)
       if (new RegExp('_' + FILE_TYPES[i] + '\\.edf$', 'i').test(base)) {
