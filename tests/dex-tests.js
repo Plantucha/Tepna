@@ -67108,15 +67108,48 @@
          an apostrophe in prose can end the scan early: both errors can only leave MORE text standing,
          which demands more declarations, never fewer. Measured 2026-10-20 across all 20 adopters: the
          mask changes `argv-reads.mjs` alone and leaves every other read set identical. */
+      /* 🔴 A QUOTE INSIDE A REGEX LITERAL DESYNCHRONISES THIS MASK, AND PARITY DECIDES WHETHER IT
+         SHOWS. In `/^\s*(['"`])\s*\1?/` the single-quote branch runs from the `'` to the next one far
+         below, leaving the `"` to open a span of its own — so an EVEN number of such literals hides the
+         fault and an odd number exposes it. Measured 2026-10-21: four more of them in `argv-reads.mjs`
+         moved that span's close onto a plant's opening backtick, which left the plant's own
+         `arg('--mode')` standing as code and reded this group for a flag the tool does not read. Skip a
+         regex literal the way `maskNonCode` does: after an operator, an open bracket, a comma or a
+         keyword a `/` begins one, after a value it is division. Re-measured 2026-10-21 over all 49 adopters:
+         the skip changes `argv-reads.mjs` alone and leaves every other read set identical. */
+      function isRegexHead(text, i) {
+        if (text[i + 1] === '/' || text[i + 1] === '*') return false;
+        var k = i - 1;
+        while (k >= 0 && /\s/.test(text[k])) k--;
+        if (k < 0) return true;
+        if ('([{,;:=!&|?+-*%~^<>'.indexOf(text[k]) >= 0) return true;
+        var word = /([A-Za-z_$][\w$]*)$/.exec(text.slice(Math.max(0, k - 12), k + 1));
+        var heads = ['return', 'typeof', 'case', 'in', 'of', 'new', 'delete', 'void', 'do', 'else', 'yield', 'await'];
+        return !!word && heads.indexOf(word[1]) >= 0;
+      }
       function maskEmbedded(text) {
         var out = text.split(''),
           i = 0,
           j,
           k,
-          q;
+          q,
+          inClass;
         while (i < text.length) {
           if (text[i] === '\\') {
             i += 2;
+            continue;
+          }
+          if (text[i] === '/' && isRegexHead(text, i)) {
+            j = i + 1;
+            inClass = false;
+            for (; j < text.length; j++) {
+              if (text[j] === '\\') j++;
+              else if (text[j] === '[') inClass = true;
+              else if (text[j] === ']') inClass = false;
+              else if ((text[j] === '/' && !inClass) || text[j] === '\n') break;
+            }
+            for (k = i + 1; k < Math.min(j, text.length); k++) if (out[k] !== '\n') out[k] = ' ';
+            i = j + 1;
             continue;
           }
           if (text[i] === '`' || text[i] === '"') {
@@ -67153,6 +67186,13 @@
       );
       T.ok('DECOY · a real single-quoted call survives the mask', /opt\(\s*'--real'/.test(decoyMask), decoyMask);
       T.ok('DECOY · …and the identical call inside an embedded plant does not', !/opt\(\s*'--planted'/.test(decoyMask), decoyMask);
+      /* DECOY: TWO quote-bearing character classes on ONE line — the shape that flips the parity,
+         because a single class ends its mis-scan at the newline and leaves nothing standing. Under the
+         pre-2026-10-21 mask the stray `"` opened a span that ran to the end of the text and swallowed
+         the real call below. */
+      var regexMask = maskEmbedded("const ok = /^\\s*(['\"`])\\s*\\1?/.test(x) && /^\\s*['\"`]/.test(x);\nconst plant = `const q = opt('--planted2');`;\nconst b = opt('--real2');\n");
+      T.ok('DECOY · a call below a regex literal holding both quote kinds survives', /opt\(\s*'--real2'/.test(regexMask), regexMask);
+      T.ok('DECOY · …and the plant between them is still masked', !/opt\(\s*'--planted2'/.test(regexMask), regexMask);
 
       adopters.forEach(function (name) {
         var src = maskEmbedded(TSg[name]);
