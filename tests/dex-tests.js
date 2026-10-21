@@ -18583,6 +18583,105 @@
       }
     });
 
+    /* ── A PUBLISHED NUMBER NAMES THE FILES IT READ AND NOT THE FOLD THAT PRODUCED THEM.
+       Residue 2026-09-22-corpus-consumers-have-no-staleness-stamp: the 2026-09-22 whole-corpus
+       re-fold changed 288 of 288 comparable exports under `uploads/trio` while every input PATH
+       stayed the same, so a record that records only paths and a byte digest cannot say which
+       pipeline folded them. `tools/fold-generation.mjs` re-resolves two separate identifiers —
+       the EXPORT digest (did the measurement inputs move?) and the FOLD GENERATION (which pipeline
+       folded them, and which nights cannot say?) — against the committed corpus.
+
+       🔴 THE DIGEST THE LIVE RECORDS CARRY MIXES THE TWO. It covers every git-tracked file under
+       the root, `.trio-stamp` included, so writing provenance invalidates the number: measured
+       2026-10-21, `tch-pooled-hat-2026-10-12.json` records `5390791458eb` and the same formula now
+       reads `660ca80e6ab3`, with ONE added stamp file accounting for the whole difference while the
+       569 export files stay byte-identical. This group therefore compares BLOB OIDS at the record's
+       own `producerCommit`, which separates an export change from a provenance write exactly. */
+    group('A published number re-resolves to the corpus fold it was cut from', 'analysis · published-numbers · fold-generation', function (T) {
+      var PC = env.publishedCorpus;
+      if (!PC) {
+        T.skip('env.publishedCorpus provided to the runner', 'Node-lane only (git + fs) — the browser lane cannot read the committed corpus');
+        return;
+      }
+      T.eq('the reader built the audit without throwing', PC.error || '', '');
+      if (PC.error) return;
+      var id = PC.identity;
+      /* A corpus this clone cannot read must RED here, not skip: CI checks out full depth and
+         `uploads/trio` is committed, so an unresolvable root is a defect, never an environment. */
+      T.ok('the committed corpus resolves', !!id && id.ok === true, id ? String(id.reason) : 'no identity');
+      if (!id || !id.ok) return;
+
+      /* ANTI-VACUITY. A re-resolver with no live record passes over nothing. */
+      var judged = PC.rows.filter(function (r) {
+        return r.judged;
+      });
+      T.ok('at least one LIVE record names the committed corpus', judged.length > 0, judged.length + ' judged of ' + PC.rows.length);
+      T.ok('the corpus holds nights to attribute', id.nights > 0 && id.dataFiles > 0, id.nights + ' night(s), ' + id.dataFiles + ' export file(s)');
+
+      /* THE LOAD-BEARING LEG. */
+      var unresolved = judged.filter(function (r) {
+        return r.state !== 'resolves';
+      });
+      T.eq(
+        'every live record still re-resolves to the corpus under it',
+        unresolved
+          .map(function (r) {
+            return r.name + ' (' + r.state + ': ' + r.detail + ')';
+          })
+          .join(' · '),
+        ''
+      );
+
+      /* A SUPERSEDED RECORD IS EXCLUDED BY NAME, NEVER DROPPED QUIETLY. The field holds a path
+         FOLLOWED BY PROSE, so a bare basename split returns the name with the whole sentence
+         attached and every lookup misses — measured here, it judged four superseded records live. */
+      PC.rows
+        .filter(function (r) {
+          return !r.judged;
+        })
+        .forEach(function (r) {
+          T.ok(r.name + ' · excluded for a stated reason', typeof r.why === 'string' && r.why.length > 0, 'why=' + r.why);
+        });
+      T.eq(
+        'CONTROL · a `supersedes` path followed by prose still yields the bare record name',
+        PC.supersededName('analysis/published-numbers/tch-pooled-hat-2026-09-21.json (inputs 19c31a194ec7, 441 files, 63 nights — the re-fold moved the tree under it)'),
+        'tch-pooled-hat-2026-09-21.json'
+      );
+
+      /* ∅ AN UNSTAMPED NIGHT IS NAMED, NEVER COUNTED AWAY. */
+      T.eq('every unstamped night is named, not merely counted', id.unstampedNights.length, id.unstamped);
+      T.ok(
+        'the stamped nights carry at least one code digest, or the generation says nothing',
+        id.stamped === 0 || id.codeDigests.length > 0,
+        id.stamped + ' stamped under ' + id.codeDigests.length + ' digest(s)'
+      );
+
+      /* CONTROLS — the instrument must FIRE, or every leg above is decoration. */
+      var probe = judged[0];
+      if (probe) {
+        var moved = PC.compare({ inputs: { path: id.root, digest: 'deadbeef0000' } }, null);
+        T.ok('CONTROL · a record whose digest no longer resolves and names no cut reads MOVED', moved.state === 'moved', JSON.stringify(moved));
+        var gone = PC.compare({ inputs: { path: id.root, digest: 'deadbeef0000' }, producerCommit: 'deadbee' }, { commit: 'deadbee', delta: null });
+        T.eq('CONTROL · a record whose cut commit is gone reads UNRESOLVABLE, never a pass', gone.state, 'unresolvable');
+        T.eq('CONTROL · a record carrying no corpus identity at all reads UNSTAMPED', PC.compare({ inputs: { path: id.root } }, null).state, 'unstamped');
+      }
+      var oneNight = PC.scoped([id.unstampedNights[0] || id.nightNames[0]]);
+      T.ok(
+        'CONTROL · scoping to one night changes the generation',
+        !!oneNight && oneNight.ok === true && oneNight.generation !== id.generation,
+        'scoped generation ' + (oneNight && oneNight.generation)
+      );
+      T.ok('CONTROL · ∅ scoping to a night that is not there refuses, rather than reporting an empty corpus', PC.scoped(['1999-01-01']).ok === false);
+
+      /* The verdict is the API (§🧾). */
+      var v = PC.verdict;
+      T.eq('the verdict validates under verdict.js', (PC.verdictErrors || []).join(' | '), '');
+      T.eq('checked + excluded = eligible', v.population.checked + v.population.excluded, v.population.eligible);
+      T.eq('the gate name is stable', v.gate, 'published-number-corpus');
+      T.ok('a non-PASS verdict carries a reason', v.status === 'PASS' ? v.reason === null : typeof v.reason === 'string' && v.reason.length > 0, v.status + ' · ' + v.reason);
+      T.eq('the verdict passes over the live records', v.status, 'PASS');
+    });
+
     group('CLAUDE.md claims match the tree (CLAIM markers)', 'docs · claude-md · claims', function (T) {
       var C = env.claudeMdClaims;
       if (!C) {
