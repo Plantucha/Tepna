@@ -41610,7 +41610,7 @@
         'THIRD-PARTY.md'
       ];
       var ROOT_NAMED_OSS = ['CITATION.cff', 'LICENSE', 'NOTICE'];
-      var ROOT_NAMED_CONFIG = ['.c8rc.json', '.gitattributes', '.gitignore', '.kodiak.toml', '.secrets-exclude', '.secrets.baseline', '.zenodo.json'];
+      var ROOT_NAMED_CONFIG = ['.c8rc.json', '.gitattributes', '.gitignore', '.gitleaks.toml', '.kodiak.toml', '.secrets-exclude', '.secrets.baseline', '.zenodo.json'];
       var ROOT_RUNTIME_EXT = ['css', 'html', 'js', 'json', 'jsx', 'ts'];
       function rootClassOf(name) {
         if (ROOT_NAMED_DOCS.indexOf(name) >= 0) return 'doc';
