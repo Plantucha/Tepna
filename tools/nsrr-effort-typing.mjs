@@ -49,11 +49,12 @@
  *   node tools/nsrr-effort-typing.mjs --limit 200 [--edfs <dir>] [--xml <dir>]
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'tools', 'x.js'));
@@ -321,8 +322,8 @@ function selftest() {
   return bad ? 1 : 0;
 }
 
-if (process.argv.includes('--selftest') && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exit(selftest());
-if (process.argv.includes('--verdict-sample') && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) process.exit(selftest());
+if (process.argv.includes('--verdict-sample') && isCliEntry(import.meta.url)) {
   console.log(JSON.stringify(verdictSample()));
   process.exit(0);
 }
@@ -415,5 +416,5 @@ function main(argv) {
    a sibling script imported it to reuse `windowAmp`/`parseTypedApneas` and got a 150-record cohort
    run instead, twice, before printing anything of its own. A tool that cannot be imported without
    executing is not reusable, and the reuse is the whole reason these helpers are exported. */
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI && !process.argv.includes('--selftest') && !process.argv.includes('--verdict-sample')) process.exit(main(process.argv.slice(2)));

@@ -28,7 +28,7 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 export const SYSCTL_PATH = '/proc/sys/kernel/apparmor_restrict_unprivileged_userns';
 
@@ -239,4 +239,4 @@ async function selftest() {
   return fails.length ? 1 : 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1] && process.argv.includes('--selftest')) selftest().then((c) => process.exit(c));
+if (isCliEntry(import.meta.url) && process.argv.includes('--selftest')) selftest().then((c) => process.exit(c));

@@ -41,8 +41,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { probeAll, saturation, sawtooth, censoring, drawnAxis, stepiness } from './geometry-probe.mjs';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { pathToFileURL } from 'node:url';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const PHYS_LO = 200,
@@ -337,7 +336,7 @@ if (argv.includes('--help') || argv.includes('-h')) {
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
    arguments, so an import of anything in this file judged flags it never passed (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--verdict-sample', '--json', '--help', '-h'], positional: true }, { tool: 'tools/geometry-scan.mjs' });
 if (argv.includes('--selftest')) runSelftest();
 /* `--verdict-sample` exists for the adoption gate, which needs one valid object without a corpus.

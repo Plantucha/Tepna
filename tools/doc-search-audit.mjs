@@ -25,6 +25,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name, dflt) => {
@@ -71,7 +72,7 @@ export function summarise(dir, names, sinceMs, now = Date.now()) {
   return rows;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   const common = commonDir();
   const dir = common ? join(common, 'tepna-mutation', 'doc-search-sessions') : null;
   if (!dir || !existsSync(dir)) {

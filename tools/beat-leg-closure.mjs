@@ -33,8 +33,9 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -465,12 +466,13 @@ function selftest() {
   process.exit(fail ? 1 : 0);
 }
 
-/* ⚠️ `process.argv[1] &&` IS LOAD-BEARING — `pathToFileURL(undefined)` throws ERR_INVALID_ARG_TYPE,
-   so without it this module cannot be IMPORTED at all (node -e, --eval, a REPL, any embedding host).
+/* ⚠️ THE ABSENT-argv GUARD IS LOAD-BEARING, and it now lives in `isCliEntry` (`tools/argv-guard.mjs`):
+   `pathToFileURL(undefined)` throws ERR_INVALID_ARG_TYPE, so a predicate without the guard leaves this
+   module unimportable (node -e, --eval, a REPL, any embedding host).
    `tools/tch-third-corner.mjs:246` imports it dynamically, and `tests/run-tests.mjs` wraps tool
    imports in `try { … } catch { return null }` — so the throw would surface as a SILENT SKIP rather
    than a red. Same defect and same consequence as `device-stability.mjs` (#1530). */
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   const arg = (k) => {
     const i = argv.indexOf(k);

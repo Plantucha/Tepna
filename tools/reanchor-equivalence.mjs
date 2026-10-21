@@ -48,8 +48,9 @@
 import { execFileSync } from 'node:child_process';
 import { closeSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -58,7 +59,7 @@ const opt = (f, d) => {
   const i = argv.indexOf(f);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
-const IS_MAIN = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const IS_MAIN = isCliEntry(import.meta.url);
 
 const norm = (s) => String(s == null ? '' : s).trim();
 export const codeKey = (e) => norm(e.op) + '\0' + norm(e.before);

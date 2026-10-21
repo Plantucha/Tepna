@@ -51,7 +51,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/mutate.mjs` uses. */
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -597,7 +597,7 @@ function main() {
    here and has no selftest of its own — printed THIS file's selftest line and exited 0 from the import,
    so rebase-safe's own run never happened and the pass it reported was ours. The guard makes importing
    this module safe, which is what lets a second ledger reader single-source the scanner above. */
-const IS_CLI = process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 
 if (IS_CLI && process.argv.includes('--selftest')) {
   let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
@@ -768,4 +768,4 @@ if (IS_CLI && process.argv.includes('--selftest')) {
   process.exit(0);
 }
 
-if (IS_CLI) main();
+if (isCliEntry(import.meta.url)) main();

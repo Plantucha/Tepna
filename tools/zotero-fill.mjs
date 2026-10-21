@@ -41,13 +41,14 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 const IS_MAIN = (() => {
   try {
-    return process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+    return isCliEntry(import.meta.url);
   } catch {
     return false;
   }

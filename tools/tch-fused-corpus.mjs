@@ -52,7 +52,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const AS = createRequire(import.meta.url)(join(ROOT, 'analysis-stats.js'));
@@ -316,4 +316,4 @@ function main() {
    SILENT SKIP or a killed parent, never as a red. No importer exists for this file today (verified:
    0 real `import` statements repo-wide, the apparent hits being prose that names it), so this is
    PREVENTIVE — the guard costs one line and the absence costs a debugging session. */
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isCliEntry(import.meta.url)) main();

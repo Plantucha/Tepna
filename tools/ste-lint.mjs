@@ -40,6 +40,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -349,7 +350,7 @@ function main() {
   process.exit(!advisory && f.length ? 1 : 0);
 }
 
-const DIRECT = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const DIRECT = isCliEntry(import.meta.url);
 
 if (DIRECT && process.argv.includes('--verdict-sample')) {
   const v = verdictFor('<sample>', [], 0);

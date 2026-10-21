@@ -37,9 +37,9 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { bestPairOver, fragmentBounds } from './acc-select-compare.mjs';
 import { getDsps, loadDsps, median, quantile } from './pat-matchrate-strict.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
 const av = (k, d) => {
@@ -177,7 +177,7 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   if (argv.includes('--selftest')) process.exit(selftest());
   const DIR = av('--dir');

@@ -67,7 +67,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { resolveStatePath, sharedStatePath } from './mutation-map.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -742,7 +742,7 @@ function selftest() {
 
 /* ── CLI ─────────────────────────────────────────────────────────────────────────────────────── */
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   refuseUnknownArgvOrExit(argv, { valued: ['--only', '--symbol'], boolean: ['--json', '--summary', '--write', '--selftest'] }, { tool: 'tools/repo-map.mjs' });
   if (argv.includes('--selftest')) process.exit(selftest());

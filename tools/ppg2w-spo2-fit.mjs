@@ -27,6 +27,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
 const opt = (k, d) => {
@@ -234,7 +235,7 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   const root = argv.find((a) => !a.startsWith('--') && fs.existsSync(a));
   if (!root) {

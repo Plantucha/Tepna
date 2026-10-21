@@ -67,10 +67,11 @@
  *   node tools/nsrr-stage-validate.mjs --dir <psg-dir> --json
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join, basename } from 'node:path';
 import vm from 'node:vm';
+import { isCliEntry } from './argv-guard.mjs';
 
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -609,7 +610,7 @@ export function scoreRecord(ctx, edfBuffer, xmlText) {
 }
 
 /* ── CLI ────────────────────────────────────────────────────────────────────────────────────────*/
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   const argv = process.argv.slice(2);
   const arg = (k, d) => {

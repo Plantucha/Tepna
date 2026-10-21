@@ -53,7 +53,7 @@
  * §2.11 — nothing GPU-accelerated; per-record arrays are far too small for dispatch to pay.
  */
 import { readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ODI = await import('./nsrr-oxydex-odi.mjs');
 
@@ -201,5 +201,5 @@ function selftest() {
   return bad ? 1 : 0;
 }
 
-const IS_CLI = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) process.exit(selftest());

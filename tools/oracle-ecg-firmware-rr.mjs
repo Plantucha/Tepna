@@ -128,6 +128,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOTS = ['/srv/data/tepna-corpus/smoketest-captures', join(HERE, '..', 'uploads', 'captures')];
@@ -1051,4 +1052,4 @@ async function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main(process.argv.slice(2)).then((c) => process.exit(c));
+if (isCliEntry(import.meta.url)) main(process.argv.slice(2)).then((c) => process.exit(c));

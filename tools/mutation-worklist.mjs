@@ -48,6 +48,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executedLines, findRecord, partitionSurvivors } from './mutation-reach.mjs';
 import { resolveStateDir, resolveStatePath, stateDirs } from './mutation-map.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -56,7 +57,7 @@ const opt = (f, d) => {
   const i = argv.indexOf(f);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
-const IS_MAIN = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const IS_MAIN = isCliEntry(import.meta.url);
 
 /* Where each file's newest sweep lives. A sweep is a large JSON that is NOT committed (it is a
    measurement, not a source), so this resolves the agreed scratch paths. A missing sweep is

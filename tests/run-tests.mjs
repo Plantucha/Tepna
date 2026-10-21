@@ -16,7 +16,7 @@
    browser modules are loaded into a `vm` sandbox with minimal window/
    document/localStorage shims.
    ════════════════════════════════════════════════════════════════════════ */
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
   classify as rebaseClassify,
@@ -70,7 +70,7 @@ import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
 import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { spawn, spawnSync, execSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
@@ -3394,15 +3394,28 @@ async function main() {
        written. Runs in a fresh temp cwd and reports what appeared there, so a tool that writes on its
        way to an error leaves the evidence where the assertion can see it — `--help` became a DIRECTORY
        once, and that is the shape this catches. */
-    probeToolArgv: (rel, args, { timeoutMs = 25000 } = {}) => {
+    /* `viaSymlink` launches node on a SYMLINK to the tool, which is how `~/.local/bin` and
+       `node_modules/.bin` reach one. Node resolves the entry through the link, so `import.meta.url` is
+       the real path while `process.argv[1]` stays as written: a CLI predicate that compares them raw
+       decides it was imported, runs no main and exits 0 (Heron, 2026-10-21, board #685). The link lives
+       in the probe cwd and is filtered out of `wrote`, so a tool that writes nothing still reads []. */
+    probeToolArgv: (rel, args, { timeoutMs = 25000, viaSymlink = false } = {}) => {
       const cwd = mkdtempSync(join(tmpdir(), 'argv-probe-'));
+      const linkName = `link-${basename(rel)}`;
       try {
-        const r = spawnSync(process.execPath, [join(ROOT, rel), ...args], { cwd, encoding: 'utf8', timeout: timeoutMs });
+        let entry = join(ROOT, rel);
+        if (viaSymlink) {
+          entry = join(cwd, linkName);
+          symlinkSync(join(ROOT, rel), entry);
+        }
+        const r = spawnSync(process.execPath, [entry, ...args], { cwd, encoding: 'utf8', timeout: timeoutMs });
         return {
           status: r.status,
           signal: r.signal,
           out: `${r.stdout || ''}${r.stderr || ''}`,
-          wrote: readdirSync(cwd).sort()
+          wrote: readdirSync(cwd)
+            .filter((n) => !(viaSymlink && n === linkName))
+            .sort()
         };
       } finally {
         rmSync(cwd, { recursive: true, force: true });

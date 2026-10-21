@@ -27,6 +27,7 @@ import { stateDirs, stateJsonFiles } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { checkWitness, probesFrom } from './survivor-witness.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* MUTATION-SUITE-FOLLOWUPS §1: union-read both state dirs, shared git-common location first. */
@@ -141,7 +142,7 @@ export function enumerate(a, b, cap = 3000) {
 
 const IS_MAIN = (() => {
   try {
-    return process.argv[1] && join(process.argv[1]) === fileURLToPath(import.meta.url);
+    return isCliEntry(import.meta.url);
   } catch {
     return false;
   }

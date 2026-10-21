@@ -50,7 +50,7 @@
  * If either hash has moved, the cache and the journal are refused and the sweep runs cold, saying
  * which input changed. The per-file ceiling is whatever remains of `--max-hours`, not a constant.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, realpathSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -58,6 +58,7 @@ import { dirname, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { recoverStale, pendingBackups } from './mutate-recover.mjs';
 import vm from 'node:vm';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -1468,13 +1469,9 @@ function selftest() {
    check them, and the import had to be killed. The functions above are exported precisely so they
    can be exercised without side effects; a module that acts on import cannot be. `mutate.mjs` has
    the same defect and deserves the same fix. */
-const INVOKED_DIRECTLY = (() => {
-  try {
-    return !!process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1]);
-  } catch {
-    return false;
-  }
-})();
+/* `isCliEntry` compares the entry AS WRITTEN and its realpath, so neither a symlinked invocation nor
+   `--preserve-symlinks-main` can flip this answer. Getting it wrong in either direction is silent. */
+const INVOKED_DIRECTLY = isCliEntry(import.meta.url);
 if (INVOKED_DIRECTLY) await main();
 
 /* ── THE TWO STATES THAT MAKE A CRAWL MEANINGLESS, REFUSED BEFORE ANY WORK ───────────────────────

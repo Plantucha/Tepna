@@ -41,10 +41,11 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
@@ -552,4 +553,4 @@ async function main() {
   console.log(`residual |Δt|: mean ${r.meanAbsDtMs.toFixed(1)} ms   max ${r.maxAbsDtMs.toFixed(1)} ms   VP distance ${r.distance.toFixed(1)}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isCliEntry(import.meta.url)) main();

@@ -46,6 +46,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import * as Core from './stage-lab-core.mjs';
 import { makeRealm } from './nsrr-stage-validate.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 import { makeRealm as makeEcgRealm } from './ecg-physionet-differential.mjs'; // v16: the suite's own Pan–Tompkins for ECG-derived pulse
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -1473,7 +1474,7 @@ function args(argv) {
   return a;
 }
 
-const IS_CLI = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   const a = args(process.argv.slice(2));
   /* --verdict-sample: the SHAPE of the verdict on a synthetic result, for tools/verdict-adoption.mjs (never a real rate) */

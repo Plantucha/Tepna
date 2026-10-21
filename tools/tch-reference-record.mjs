@@ -63,6 +63,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { BAND_ABS, BAND_REL, MIN_NIGHTS, PASS_FRAC, median, withinBand } from './tch-firmware-reference.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
@@ -825,4 +826,4 @@ async function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main(process.argv.slice(2)).then((c) => process.exit(c));
+if (isCliEntry(import.meta.url)) main(process.argv.slice(2)).then((c) => process.exit(c));

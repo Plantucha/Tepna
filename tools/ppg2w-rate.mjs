@@ -28,6 +28,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import fs from 'node:fs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const arg = (k) => {
   const i = process.argv.indexOf(k);
@@ -244,7 +245,7 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   /* `--fill <_PPG2W.txt>...` — the FILL rate, which the calibrated rate below cannot see because the
      stream is drain-limited (residue `2026-09-06-ppg2w-fill-rate-unmeasured`). */

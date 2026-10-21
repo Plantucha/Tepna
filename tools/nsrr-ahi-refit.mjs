@@ -45,7 +45,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -876,7 +877,7 @@ function selftest() {
 // The literal `argv.includes('--selftest')` form is load-bearing: tools/selftest-all.mjs and
 // tools/verdict-adoption.mjs discover a tool's selftest by that call form, not by behaviour.
 // Guarded so a reader can `import` the pure functions without the CLI running and exiting.
-const RAN_DIRECTLY = process.argv[1] != null && pathToFileURL(process.argv[1]).href === import.meta.url;
+const RAN_DIRECTLY = isCliEntry(import.meta.url);
 if (RAN_DIRECTLY) {
   if (argv.includes('--selftest')) {
     process.exit(selftest());

@@ -16,9 +16,10 @@
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
    absolute path to the author's throwaway worktree (`…/wt-fingerval`, `…/wt-fingerrt`) baked in. Those
@@ -259,4 +260,4 @@ function main() {
   run(ppgPath, ecgPath, spo2Path, { json });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isCliEntry(import.meta.url)) main();

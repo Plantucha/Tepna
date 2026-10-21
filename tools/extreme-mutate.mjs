@@ -51,11 +51,12 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { ResumeLedger, etaSeconds, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { resolveStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { stripNonCode } from './probe-equivalence.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -127,7 +128,7 @@ const opt = (f, d) => {
   const i = argv.indexOf(f);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
-const IS_MAIN = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const IS_MAIN = isCliEntry(import.meta.url);
 
 /* Every `function NAME(...) { … }` with the exact character offsets of its body braces. Offsets, not
    line numbers, because the body is replaced textually and a line-based splice would corrupt a

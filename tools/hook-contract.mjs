@@ -55,7 +55,8 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } fro
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -499,8 +500,7 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
-const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
-if (entry === import.meta.url) {
+if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   if (process.argv.includes('--probe-bytes')) {
     /* The one number the nine shell legs cannot derive for themselves without repeating the formula

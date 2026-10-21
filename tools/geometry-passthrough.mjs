@@ -35,6 +35,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { probeAll } from './geometry-probe.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 export const ECG_HZ = 130;
@@ -226,7 +227,7 @@ export function passthrough(dsp, durSec, ecgOpts, ppgOpts) {
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   const dsp = loadDsp();
   const DUR = 1800;
   const cases = [
