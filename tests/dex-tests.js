@@ -10523,6 +10523,124 @@
       );
       T.eq('no tool combines a bare dash-test picker with a valued flag', VIOLATORS.join(', '), '');
     });
+    /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
+       Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool
+       has a selftest: `selftest-all.mjs` (which tools the sweep RUNS) and `verdict-adoption.mjs`
+       (which `decides` producers count as gated). Each carries its own copy of the pattern, because
+       importing the predicate would start a sweep — `selftest-all.mjs` runs its CLI at module scope.
+       A copy drifts, and the drift is silent in the worst direction: the sweep runs a tool the gate
+       calls ungated, or the gate passes a tool nothing runs.
+
+       The pattern itself was keyed on the DASHED literal in a call. `tools/null-fuzz.mjs` COMPOSES the
+       dashes — `const has = (name) => args.includes('--' + name)`, asked as `has('selftest')` — so the
+       string `'--selftest'` is nowhere in its code, and its real selftest (four targets, a control and
+       a plant, green in 2.9 s) had never been run by anything. Measured 2026-10-21: making the dashes
+       optional gained exactly that one tool and lost none, 191 → 192 over the 280 in `tools/`. ════ */
+    group('the selftest predicate is one pattern in both files that read it', 'tools · selftest · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane can. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the derived population silently examined nothing');
+        else T.skip('the selftest predicate parity', 'no directory enumeration in this lane (browser); the node lane carries the equality');
+        return;
+      }
+      var sa = TT['tools/selftest-all.mjs'] || '';
+      var va = TT['tools/verdict-adoption.mjs'] || '';
+      var mSa = /return \/([^\n]+?)\/\.test\(s\);/.exec(sa);
+      var mVa = /const SELFTEST_CALL = \/([^\n]+?)\/;/.exec(va);
+      T.ok(
+        'CONTROL · both predicates were located in their files',
+        !!(mSa && mVa),
+        'selftest-all=' + (mSa ? 'found' : 'ABSENT') + ' verdict-adoption=' + (mVa ? 'found' : 'ABSENT') + ' — an absent anchor is a renamed predicate, not a pass'
+      );
+      if (!mSa || !mVa) return;
+      T.eq('the two files carry the same pattern', mSa[1], mVa[1]);
+      var RE = new RegExp(mSa[1]);
+      /* THE SHIPPED PATTERN, not a copy of it: built from the text the gate will use. */
+      T.ok('it reads the dashed literal in a call', RE.test("argv.includes('--selftest')"), 'includes · the three spellings the predicate already met');
+      T.ok('it reads the dashed literal through indexOf', RE.test("argv.indexOf('--selftest')") && RE.test('has("--selftest")'), 'indexOf and has');
+      T.ok('it reads the composed spelling', RE.test("has('selftest')"), "has('selftest') — null-fuzz.mjs builds the dashes in the helper; this is the fourth spelling");
+      T.ok(
+        'a usage COMMENT that merely names the flag does not count',
+        !RE.test(' *   node tools/x.mjs --selftest        # known-answer corpus'),
+        'no parentheses around the literal — the call position is what keeps documentation out'
+      );
+      var keys = Object.keys(TT).filter(function (k) {
+        return /^tools\/[^/]+\.mjs$/.test(k);
+      });
+      var declaring = keys.filter(function (k) {
+        return RE.test(TT[k]);
+      });
+      T.ok(
+        'CONTROL · the pattern finds the selftest population',
+        declaring.length >= 150,
+        'declaring=' + declaring.length + ' of ' + keys.length + ' — 192 of 280 measured 2026-10-21; a collapsed column means the pattern stopped matching, not that the tools stopped declaring'
+      );
+      T.ok('tools/null-fuzz.mjs is inside it', declaring.indexOf('tools/null-fuzz.mjs') >= 0, 'the tool the dashed pattern could not see');
+    });
+    /* ════ A STRING IS NOT A COMMENT — the distinction `codeMask` cannot express ══════════════════
+       `js-lex.mjs` is the one regex-aware JS lexer, and it answered a two-value question: code, or
+       not-code. `verdict-adoption.mjs` needs a third answer — does a test file NAME a tool outside its
+       prose — and a test names a tool in a path literal or an import specifier, which are strings. Read
+       off `codeMask`, every such reference reads as prose; written as a second scanner, it is the one
+       thing that file's header forbids. So the walker classifies and the masks project.
+
+       `codeMask` had NO assertion in this suite before this group, while the mutation program generates
+       every site from it. The projection was verified byte-identical over 401 files and 12.5 MB before
+       it shipped; these legs are what hold it, including the historical wart the equality preserved:
+       the character an escape consumes inside a REGEX literal is excluded from code, so a corrected
+       projection would quietly add mutation sites inside regex escapes. ════ */
+    group('js-lex classifies code, comments and strings as one partition', 'tools · js-lex · source-scan', function (T) {
+      var JL = env.jsLex;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!JL) {
+        if (nodeLane) T.ok('env.jsLex is wired in the node lane', false, 'absent — the partition silently examined nothing');
+        else T.skip('the js-lex partition', 'no module loading in this lane (browser); the node lane carries it');
+        return;
+      }
+      var src = "var a = 1; // tools/aaa.mjs\nvar s = 'tools/bbb.mjs';\n/* tools/ccc.mjs */\nvar r = /'/;\n";
+      var bare = JL.blankComments(src);
+      T.ok('a string survives comment blanking', bare.indexOf('tools/bbb.mjs') >= 0, 'the reference shape a test actually writes');
+      T.eq('a line comment does not', bare.indexOf('tools/aaa.mjs'), -1);
+      T.eq('a block comment does not', bare.indexOf('tools/ccc.mjs'), -1);
+      T.eq('blanking preserves every offset', bare.length, src.length);
+      var code = JL.codeMask(src);
+      var cmt = JL.commentMask(src);
+      var both = 0;
+      var i;
+      for (i = 0; i < src.length; i++) if (code[i] && cmt[i]) both++;
+      T.eq('no character is both code and comment', both, 0);
+      var cls = JL.classify(src);
+      var seen = { 0: 0, 1: 0, 2: 0 };
+      for (i = 0; i < cls.length; i++) seen[cls[i]] = (seen[cls[i]] || 0) + 1;
+      T.eq('the three classes partition the file', seen[0] + seen[1] + seen[2], src.length);
+      T.ok('CONTROL · each class is non-empty on this sample', seen[0] > 0 && seen[1] > 0 && seen[2] > 0, 'code=' + seen[0] + ' comment=' + seen[1] + ' string=' + seen[2]);
+      /* THE PINNED WART: `/\\//` — the `/` the backslash escapes is NOT code, exactly as the
+         single-mask version had it, because `mutate.mjs`'s site population is pinned to the exclusion. */
+      var esc = 'var r = /\\//;';
+      var em = JL.codeMask(esc);
+      T.eq('the character a regex escape consumes stays outside code', em[esc.indexOf('\\') + 1], 0);
+      T.eq('the backslash itself is code', em[esc.indexOf('\\')], 1);
+      var TT = env.toolTexts;
+      if (!TT) {
+        T.skip('the real-tree partition', 'env.toolTexts absent in this lane');
+        return;
+      }
+      var keys = Object.keys(TT).filter(function (k) {
+        return /^tools\/[^/]+\.mjs$/.test(k);
+      });
+      var bad = [];
+      var totalChars = 0;
+      for (i = 0; i < keys.length; i++) {
+        var t = TT[keys[i]];
+        var c = JL.classify(t);
+        totalChars += t.length;
+        if (c.length !== t.length) bad.push(keys[i] + ' (length ' + c.length + ' != ' + t.length + ')');
+      }
+      T.ok('CONTROL · the real tools tree was classified', keys.length >= 200 && totalChars > 1000000, 'files=' + keys.length + ' chars=' + totalChars);
+      T.eq('every file is classified character for character', bad.join(' · '), '');
+    });
     /* ════ A DOCUMENTED FLAG IS READ BY THE TOOL THAT DOCUMENTS IT ══════════════════════════════
        Row 2026-10-21-eight-usage-lines-promised-a-flag-no-code-reads. `argv-guard.mjs` refuses a flag
        nobody READS; this is the mirror and nothing looked for it: a flag a usage line ADVERTISES and

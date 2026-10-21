@@ -815,6 +815,12 @@ const TARGETS = {
  * PLANT (machinery only, where there is no dropout geometry): reinstate the classic `null + x === x` bug and demand a red. */
 if (has('selftest')) {
   let bad = 0;
+  /* THE COUNT IS THE RUNNER'S ONLY READABLE RESULT. `selftest-all.mjs` parses one of its
+     `SUMMARY_FORMATS` out of this stdout; `selftest PASS` carries no number, so the sweep would have
+     read this tool as green-but-UNPARSEABLE and asked for a ratchet entry. The number is the
+     assertions actually made — one control per target, plus one plant where a target has one — taken
+     from the run, never written as a literal. */
+  let ran = 0;
   for (const [name, def] of Object.entries(TARGETS)) {
     const r = def.setup(loadDsp(def.files));
     NO_NULLS = true;
@@ -824,6 +830,7 @@ if (has('selftest')) {
     NO_NULLS = false;
     let plantMsg = '';
     if (typeof r.plant === 'function') {
+      ran += 1;
       const restore = r.plant();
       reseed(1);
       let hit = 0;
@@ -832,10 +839,11 @@ if (has('selftest')) {
       plantMsg = ` · plant red ${hit}${hit > 0 ? '' : ' ✗ VACUOUS'}`;
       if (hit === 0) bad++;
     }
+    ran += 1;
     if (ctl !== 0) bad++;
     console.log(`selftest ${name}: control (no nulls) ${ctl} failures${ctl === 0 ? ' ✓' : ' ✗ NOISY'}${plantMsg}`);
   }
-  console.log(bad === 0 ? 'selftest PASS' : `selftest FAIL (${bad})`);
+  console.log(bad === 0 ? `selftest PASS — ${ran} assertions passed` : `selftest FAIL (${bad} of ${ran})`);
   process.exit(bad === 0 ? 0 : 1);
 }
 
