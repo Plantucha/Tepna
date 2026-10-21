@@ -1198,6 +1198,37 @@ function selftest() {
     ok(checkWordOnlyClaim(stale, readSource).ok, 'the word-printing judge alone stays GREEN on the stale geometry-scan row (the original defect)');
   }
 
+  /* THE SCRATCH CHECKOUT IS A REAL IMPORT GRAPH: without the modules this tool imports beside it, the
+     CLI dies at module evaluation — which a black-box leg would report as a gate verdict. The graph is
+     WALKED from the import lines, never listed: a hand list went stale the day this file began to import
+     `selftest-all.mjs` (row 2026-10-21-selftest-all-runs-its-cli-at-module-scope). */
+  const copyToolImports = (scratch) => {
+    const seen = new Set();
+    const walk = (name) => {
+      for (const m of fs.readFileSync(path.join(ROOT, 'tools', name), 'utf8').matchAll(/^import [^;]*? from '\.\/([\w.-]+\.mjs)';/gm)) {
+        if (seen.has(m[1])) continue;
+        seen.add(m[1]);
+        fs.copyFileSync(path.join(ROOT, 'tools', m[1]), path.join(scratch, 'tools', m[1]));
+        walk(m[1]);
+      }
+    };
+    walk('verdict-adoption.mjs');
+    return seen;
+  };
+  ok(
+    'CONTROL · the import walk reaches the lexer and the shared predicate',
+    (() => {
+      const t = fs.mkdtempSync(path.join(os.tmpdir(), 'verdict-adoption-graph-'));
+      try {
+        fs.mkdirSync(path.join(t, 'tools'));
+        const g = copyToolImports(t);
+        return g.has('js-lex.mjs') && g.has('selftest-all.mjs') && g.has('argv-guard.mjs');
+      } finally {
+        fs.rmSync(t, { recursive: true, force: true });
+      }
+    })(),
+    'the walk found no import line — a renamed import form, not an empty graph'
+  );
   /* BLACK BOX, same measured case: run THIS script, as the CLI, in a scratch checkout holding the real
      geometry-scan source and a manifest that bins it word-only/exempt. The gate must name it. */
   {
@@ -1206,10 +1237,7 @@ function selftest() {
     try {
       fs.mkdirSync(path.join(scratch, 'tools'));
       fs.copyFileSync(fileURLToPath(import.meta.url), path.join(scratch, 'tools', 'verdict-adoption.mjs'));
-      /* THE SCRATCH CHECKOUT IS A REAL IMPORT GRAPH: this tool reads comments through `js-lex.mjs`, so
-         the black box needs the lexer beside it or the CLI dies at module evaluation — which the leg
-         below would report as a gate verdict. */
-      fs.copyFileSync(path.join(ROOT, 'tools', 'js-lex.mjs'), path.join(scratch, 'tools', 'js-lex.mjs'));
+      copyToolImports(scratch);
       fs.copyFileSync(real, path.join(scratch, 'tools', 'geometry-scan.mjs'));
       fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
       fs.writeFileSync(
@@ -1256,10 +1284,7 @@ function selftest() {
     try {
       fs.mkdirSync(path.join(scratch, 'tools'));
       fs.copyFileSync(fileURLToPath(import.meta.url), path.join(scratch, 'tools', 'verdict-adoption.mjs'));
-      /* THE SCRATCH CHECKOUT IS A REAL IMPORT GRAPH: this tool reads comments through `js-lex.mjs`, so
-         the black box needs the lexer beside it or the CLI dies at module evaluation — which the leg
-         below would report as a gate verdict. */
-      fs.copyFileSync(path.join(ROOT, 'tools', 'js-lex.mjs'), path.join(scratch, 'tools', 'js-lex.mjs'));
+      copyToolImports(scratch);
       fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
       const m = { schema: 'tepna.verdict-adoption/1', producers: {}, note: 'a \u2014 b' };
       const file = path.join(scratch, 'tools', 'verdict-adoption.json');
