@@ -286,7 +286,7 @@ export function verdict(baseText, headText, tipText) {
          the obvious test would have changed neither. What does hold is that the tip's row and ours are
          the same row: identical in every non-state cell, which is the frozen identity this tool already
          compares for an edit. Two authors contending for one key write DIFFERENT defects and evidence,
-         and that stays a collision (the control below, and the 704-row population measurement in #3815).
+         and that stays a collision (the control below, and the 704-row population measurement in #3814).
          A landed row is reported, never counted as a problem — the branch has nothing to rename. */
       if (tipById.has(r.id)) {
         if (tipById.get(r.id).key === r.key) {
