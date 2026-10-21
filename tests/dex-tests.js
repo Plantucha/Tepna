@@ -10523,6 +10523,70 @@
       );
       T.eq('no tool combines a bare dash-test picker with a valued flag', VIOLATORS.join(', '), '');
     });
+    /* ════ EVERY TOOL THAT TAKES A POSITIONAL OFF ARGV IS NAMED, OR IT REFUSES ═══════════════════
+       Row 2026-10-20-sixty-nine-argv-tools-stay-undecided-after-the-seven-are-wired. `argv-reads.mjs`
+       decides each tool from its SOURCE, and this group runs that same classifier over
+       `env.toolTexts`, so the gate and the tool cannot drift: a tool that takes a bare token as data
+       either calls the guard or is named below with the reason it is allowed to. The NAMED SET is
+       what makes this a gate — a ratchet on the count would pass a new consumer arriving as another
+       left. Two legs ride along, both about the abstention: the class vocabulary is closed, and every
+       `undecidable` row names a reason, because an abstention with an empty reason reads as a
+       clearance. MEASURED 2026-10-21 over 259 tool files: refuses 49 · consumes 2 ·
+       ignores-by-construction 165 · undecidable 40 · no-read 3. ════ */
+    group('every tool that takes a positional off argv is named or refuses', 'tools · argv-reads · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var AR = env.argvReads;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane can. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !AR) {
+        if (nodeLane) T.ok('env.toolTexts and env.argvReads are wired in the node lane', false, 'absent — the argv-reads population examined nothing');
+        else T.skip('the argv-reads population', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      /* Each entry is a tool whose POSITIONS are its interface, with the reason stated beside it. */
+      var NAMED_POSITIONAL = {
+        'mutation-summary.mjs': 'takes <ndjson> <exit-code>; the two positions are its usage line',
+        'residue-merge.mjs': 'a git merge driver, invoked as %O %A %B — the positions ARE the interface'
+      };
+      var scanned = [],
+        consumers = [],
+        silent = [],
+        offVocab = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          if (!/^tools\/[^/]+\.m?js$/.test(k)) return;
+          var text = TT[k];
+          if (text.indexOf('process.argv') < 0) return; // the scan's own population rule
+          var self = k.replace(/^.*\//, '');
+          var r = AR.classifyTool(text);
+          scanned.push(self);
+          if (AR.TOOL_CLASSES.indexOf(r.cls) < 0) offVocab.push(self + ' → ' + r.cls);
+          if (r.cls === 'consumes') consumers.push(self);
+          if (r.cls === 'undecidable' && !(r.why && r.why.length > 8)) silent.push(self);
+        });
+      T.ok('the population is the tools tree, not a sample', scanned.length > 200, scanned.length + ' tool file(s) name process.argv');
+      T.eq(
+        'no tool takes a bare token as data without being named here',
+        consumers
+          .filter(function (t) {
+            return !NAMED_POSITIONAL[t];
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and the named set holds no tool the scan has stopped reading as a consumer',
+        Object.keys(NAMED_POSITIONAL)
+          .filter(function (t) {
+            return consumers.indexOf(t) < 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq('the class vocabulary is closed', offVocab.join(', '), '');
+      T.eq('every abstention names a reason', silent.join(', '), '');
+    });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool
        has a selftest: `selftest-all.mjs` (which tools the sweep RUNS) and `verdict-adoption.mjs`

@@ -62,6 +62,7 @@ import {
 } from '../tools/pr-walker.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
 import { elementBlocks } from '../tools/strip-markup.mjs';
+import * as argvReads from '../tools/argv-reads.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
@@ -3450,6 +3451,7 @@ async function main() {
       }
       return { status: r.status, signal: r.signal, out, read, ms: Date.now() - t0 };
     },
+    argvReads,
     sources: readSources(),
     // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
     get toolTexts() {
