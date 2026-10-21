@@ -135,7 +135,7 @@ function arg(name) {
   return i > 0 ? process.argv[i + 1] : undefined;
 }
 
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let ran = 0;
   const assert = (c, m) => {
     ran++;

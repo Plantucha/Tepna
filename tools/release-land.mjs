@@ -539,7 +539,7 @@ function main(argv) {
 }
 
 /* ── selftest ─────────────────────────────────────────────────────────────────────────────────── */
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let ran = 0;
   const ok = (c, m) => {
     ran++;

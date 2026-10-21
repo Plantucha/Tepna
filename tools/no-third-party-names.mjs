@@ -35,6 +35,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -133,7 +134,7 @@ if (process.argv.includes('--verdict-sample')) {
   process.exit(0);
 }
 
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let bad = 0,
     ran = 0;
   const ck = (n, got, want) => {

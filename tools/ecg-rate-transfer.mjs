@@ -48,6 +48,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* The pre-stated acceptance bands. Constants, so the report cannot quietly use different ones. */
 export const BAND_MEDIAN_ABS_MS = 4;
@@ -278,7 +279,7 @@ async function selftest() {
   return bad ? 1 : 0;
 }
 
-if (process.argv.includes('--selftest')) process.exit(await selftest());
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) process.exit(await selftest());
 if (process.argv.includes('--verdict-sample')) {
   console.log(JSON.stringify(verdictSample()));
   process.exit(0);

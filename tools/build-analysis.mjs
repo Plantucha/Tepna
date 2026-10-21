@@ -42,6 +42,7 @@ import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { elementBlocks } from './strip-markup.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 // ESM-MIGRATION Phase 2: a co-loaded DSP may be a dual-mode ES module (top-level export) — a classic
@@ -485,7 +486,7 @@ function verdictOf({ status, audited, eligible, missing, stale, findings, totals
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────────────────
-if (SELFTEST) selftest();
+if (SELFTEST && isCliEntry(import.meta.url)) selftest();
 
 const targets = ONE ? [ONE] : TOOLS;
 const stale = [];
