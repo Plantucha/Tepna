@@ -10928,6 +10928,25 @@
           CR.classifyTool("const ROOT = join(HERE, '..');\nconst dir = join(ROOT, 'tools');\nreaddirSync(dir);").cls === 'repo-tree',
         'bound uploads/trio → repo-corpus · bound tools → repo-tree'
       );
+      /* THE FLAG READ THE MASK HIDES, AND BOTH DIRECTIONS OF IT. A helper the file does not
+         declare leaves the dashed literal as the only evidence that a run supplies the path, and
+         the mask blanks every string body, so the rung reads the RAW slice of the expression. The
+         negative half is the same call with no dashed literal, which must stay a repo walk: a rung
+         that cleared every unresolved call would pass the positive half and clear the tree. */
+      T.ok(
+        'CONTROL \u00b7 a dashed flag given to a helper this file does not declare is a run-time read, and the same call without one is not',
+        CR.classifyTool("const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);").cls === 'enumerates' &&
+          CR.classifyTool("const DIR = opt(cfg, join(ROOT, 'docs'));\nreaddirSync(DIR);").cls === 'repo-tree',
+        "opt('--dir', \u2026) \u2192 enumerates \u00b7 opt(cfg, \u2026) \u2192 repo-tree"
+      );
+      /* AND THE PURE HELPER THE RUNG CONSULTS, on the two texts it needs. The SHAPE comes off the
+         masked expression, because a call's shape must not be read out of a string body, and the
+         FLAG off the raw one, where the dashed literal still stands. */
+      T.ok(
+        'the rung reads its flag from the raw text and never from the masked expression',
+        CR.dashedFlagRead("opt('      ', x)", "opt('--dir', x)") !== null && CR.dashedFlagRead("opt('      ', x)", "opt('      ', x)") === null,
+        'raw carries the flag \u00b7 the masked text alone decides nothing'
+      );
       T.eq('every abstention names a reason', silent.join(', '), '');
       /* THE ABSTENTIONS ARE A NAMED SET TOO, measured both ways: a sixth is a red, and a listed
          tool the tracer has learned to decide is a red. An abstention is the one verdict that

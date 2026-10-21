@@ -130,6 +130,28 @@ export function corpusShapedVia(arg, text, ctx, depth = 2) {
   return null;
 }
 
+/** The dashed flag an unresolved call reads, or `null`. PURE.
+ *
+ * THE FLAG LIVES IN THE ONE TEXT THE ORIGIN AXIS NEVER READS. `opt('--dir', join(ROOT, 'docs'))`
+ * reads the command line in its first argument and the repo in its second, and the mask blanks
+ * every string body — so on the masked text the dashed literal is four spaces and the only word
+ * left standing is `ROOT`. The shape question is answered on the MASKED expression, because a
+ * call's shape must not be read out of a string body, and the flag question on the RAW slice of
+ * that same expression. Two texts, one pair of offsets, for the same reason the corpus axis needs
+ * both.
+ *
+ * It decides nothing on its own: the caller owns the rule that the callee is a helper this file
+ * does not declare, which is what makes the dashed literal evidence about a run rather than about
+ * a local function the scope already resolves.
+ */
+export function dashedFlagRead(expr, raw) {
+  const e = String(expr || '').trim();
+  const call = /^([A-Za-z_$][\w$]*)\s*\(/.exec(e);
+  if (!call) return null;
+  const flag = /(['"`])(--[A-Za-z0-9][\w-]*)\1/.exec(String(raw || ''));
+  return flag ? { callee: call[1], flag: flag[2] } : null;
+}
+
 /* THE SCAN'S OWN POPULATION RULE. A tool that enumerates a run-time path is not yet a corpus
    consumer: `wt-done.mjs` walks a worktree, `repo-map.mjs` walks the checkout, and this file walks
    `tools/`. What makes a read a CORPUS read is capture vocabulary — a night-shaped directory name,
@@ -370,7 +392,12 @@ export function originOf(expr, decls, params, seen = new Set(), ctx = null) {
       /* Then the NEAREST PRECEDING declaration, not the first in the file. */
       const before = (ctx.sites.get(name) || []).filter((d) => d.at < ctx.at);
       const pick = before.length > 0 ? before[before.length - 1] : (ctx.sites.get(name) || [])[0];
-      if (pick) return originOf(pick.expr, decls, params, seen, { ...ctx, at: pick.at });
+      if (pick) {
+        /* THE RAW INITIALISER TRAVELS WITH THE MASKED ONE. `pick.expr` is masked, so a flag read
+           inside it is blank; the span the declaration carries indexes the raw text exactly. */
+        const raw = typeof pick.from === 'number' && ctx.text ? String(ctx.text).slice(pick.from, pick.to) : '';
+        return originOf(pick.expr, decls, params, seen, { ...ctx, at: pick.at, raw });
+      }
     }
     if (params.has(name) && !decls.has(name)) return { origin: 'runtime', why: null };
     if (decls.has(name)) return originOf(decls.get(name), decls, params, seen, ctx);
@@ -386,13 +413,25 @@ export function originOf(expr, decls, params, seen = new Set(), ctx = null) {
      abstentions were this one spelling. */
   const call = /^([A-Za-z_$][\w$]*)\s*\(/.exec(e);
   if (ctx && call && ctx.fns.has(call[1]) && readsRuntime(ctx.fns.get(call[1]), ctx.sites, 2)) return { origin: 'runtime', why: null };
+  /* A HELPER THIS FILE DOES NOT DECLARE, WITH A DASHED FLAG IN ITS ARGUMENTS. The branch above
+     resolves a LOCAL helper, and the tree is moving the other way: 58 files import
+     `refuseUnknownArgvOrExit` and 13 `positionalArgs`, so an argv read that used to be declared
+     beside its call site now arrives from a shared module and the branch above cannot see it. Under
+     the old ladder such a call fell through to the name heuristic and `opt('--dir', join(ROOT,
+     'docs'))` cleared as a repo walk on the word `ROOT`. A flag read beats a repo default here for
+     the same reason it does for a local helper: the default is the fallback, the flag is what a run
+     supplies. The evidence is `ctx.raw`, because the dashed literal exists in no other text. */
+  if (ctx && call && !ctx.fns.has(call[1]) && dashedFlagRead(e, ctx.raw)) return { origin: 'runtime', why: null };
   /* A TERNARY HAS TWO ARMS AND A RUN IS FREE TO TAKE EITHER. `nsrr-stage-validate.mjs` guards an
      absolute path with `DIR.startsWith('/') ? DIR : join(ROOT, DIR)`, where `DIR` is `arg('--dir',
      null)`: the repo arm is the fallback, the flag arm is the path a run supplies. Decide on the
      arms, hazard first — the same ladder, applied to a shape that spells both origins at once. */
   const arms = splitTopTernary(e);
   if (arms.length > 1) {
-    const got = arms.map((a) => originOf(a, decls, params, new Set(seen), ctx).origin);
+    /* THE ARMS DROP THE RAW SLICE, DELIBERATELY. `ctx.raw` spans the WHOLE expression, so keeping
+       it would let a flag in one arm decide the other — the one thing an arm-by-arm ladder exists
+       to prevent. An arm that reads a flag of its own still says so on the masked text. */
+    const got = arms.map((a) => originOf(a, decls, params, new Set(seen), ctx ? { ...ctx, raw: '' } : ctx).origin);
     if (got.includes('runtime')) return { origin: 'runtime', why: null };
     if (got.includes('undecidable')) {
       return { origin: 'undecidable', why: `one arm of \`${e.slice(0, 40)}\` traces to no declaration` };
@@ -410,7 +449,7 @@ export function originOf(expr, decls, params, seen = new Set(), ctx = null) {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    const seenOrigins = parts.map((p) => originOf(p, decls, params, new Set(seen), ctx).origin);
+    const seenOrigins = parts.map((p) => originOf(p, decls, params, new Set(seen), ctx ? { ...ctx, raw: '' } : ctx).origin);
     if (seenOrigins.includes('runtime')) return { origin: 'runtime', why: null };
     if (seenOrigins.includes('repo')) return { origin: 'repo', why: null };
   }
@@ -425,7 +464,7 @@ export function enumerationSites(text) {
   /* SCOPE, built once per file: where every name is declared, where every function body runs, and
      the body of every function this file declares. The offset of the call is what selects among
      them, so it is the only member that moves per site. */
-  const ctx = { at: 0, sites: declarationSites(masked), spans: functionSpans(masked), fns: localFunctions(masked) };
+  const ctx = { at: 0, text, sites: declarationSites(masked), spans: functionSpans(masked), fns: localFunctions(masked) };
   const sites = [];
   for (const m of masked.matchAll(ENUM_CALL)) {
     const open = masked.indexOf('(', m.index + (m[0].endsWith('(') ? m[0].length - 1 : 0));
@@ -465,7 +504,7 @@ export function enumerationSites(text) {
       /* THE EVIDENCE NAMES WHICH TEXT DECIDED. A site resolved through a binding quotes that
          binding, because `raw` there is a bare identifier and an identifier names no path. */
       corpusEvidence: atSite ? raw.slice(0, 60) : via ? `${via.name} = ${via.raw.slice(0, 48)}` : null,
-      ...originOf(arg, decls, params, new Set(), { ...ctx, at: open })
+      ...originOf(arg, decls, params, new Set(), { ...ctx, at: open, raw })
     });
   }
   return sites;
@@ -753,14 +792,23 @@ function selftest() {
     ['one segment per literal reads the same', "const ROOT = join(HERE, '..');\nreaddirSync(join(ROOT, 'uploads', 'trio'));", 'repo-corpus'],
     ['a run-time read still outranks the corpus rung', "const DIR = process.argv[2];\nreaddirSync(join(DIR, 'uploads'));", 'enumerates'],
     ['and so does an abstention', "readdirSync(join(ROOT, 'uploads/trio'));\nreaddirSync(mystery);", 'undecidable'],
-    /* KNOWN GAP, PINNED SO IT CANNOT BE FORGOTTEN: the same flag idiom with an IMPORTED helper
-       still clears, because the mask blanks the dashed literal that would give it away. Six corpus
-       rows read `repo-tree` for this reason; the row that records it is dated 2026-10-21.
-       ⚠️ THIS LEG'S PATH MOVED, AND THAT IS THE POINT. It used to join `uploads/trio`, which the
-       corpus rung now answers `repo-corpus` — so the leg would have gone green while pinning
-       nothing about the helper. A gap leg has to fail for exactly one reason, so the path is now a
-       directory no corpus vocabulary matches and the flag read is the only thing left to miss. */
-    ['KNOWN GAP: an imported flag helper beside a repo join still clears', "const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);", 'repo-tree'],
+    /* THE GAP PINNED HERE IS CLOSED, AND THIS LEG NOW ASSERTS THE RIGHT ANSWER. It read `repo-tree`
+       until 2026-10-21: the callee is declared in a shared module, so the local-helper branch could
+       not see it, and the dashed literal that gives the run away is blank on the masked text. The
+       leg keeps the path it was moved to — a directory no corpus vocabulary matches — so a flag read
+       is still the only thing it can be measuring. Row
+       2026-10-21-an-imported-flag-helper-beside-a-repo-join-still-clears. */
+    ['an imported flag helper beside a repo join is a run-time read', "const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);", 'enumerates'],
+    /* THE SECOND SPELLING, AND IT REACHES THE RUNG BY A DIFFERENT ROUTE. Here the call IS the
+       enumeration argument, so the raw slice comes from the site; above it comes from the
+       declaration in force. Both had to be measured, because the two routes carry the raw text
+       through different code. */
+    ['the same helper called inside the walk reads the same', "readdirSync(opt('--dir', join(ROOT, 'docs')));", 'enumerates'],
+    /* THE NEGATIVE HALF, in the two shapes that would make the rung clear everything. A call with
+       no dashed literal anywhere is not a flag read, and a dashed STRING is not a flag: a date
+       literal wears the dash and reads the repo. */
+    ['a helper with no dashed literal stays a repo walk', "const DIR = opt(cfg, join(ROOT, 'docs'));\nreaddirSync(DIR);", 'repo-tree'],
+    ['a dash inside a date literal is not a flag', "const DIR = opt('2026-10-21', join(ROOT, 'docs'));\nreaddirSync(DIR);", 'repo-tree'],
     /* THE GAP THAT WAS PINNED HERE IS CLOSED, AND THE LEG NOW ASSERTS THE RIGHT ANSWER. The corpus
        axis resolves the argument through the declaration in force and reads that initialiser's RAW
        text, so the path one line earlier is evidence. Measured 2026-10-21 over the 291 files in
