@@ -16,7 +16,9 @@
 #   board-hook.sh finish  Stop. Blocks the stop ONCE when this session ran a finishing
 #                         command (`gh pr create`, `gh pr ready`, `tools/wt-done.mjs`) after its
 #                         last board post, and names the post to write. `stop_hook_active`
-#                         lets the second stop through, so it can never loop.
+#                         lets the second stop through, so it can never loop. It reads the
+#                         command TEXT, so heredoc bodies come out first: a note that quotes a
+#                         retirement path is not a retirement.
 #
 # THE NAME. A board identity is the bird's name (`--as kestrel`); the CLI's own guess is
 # `claude:<job>`, which nobody addresses. Resolution: $AGENT_BOARD_NAME, else the herdr
@@ -91,6 +93,30 @@ case "$mode" in
 import json, re, sys
 FINISH = re.compile(r"\bgh\s+pr\s+(create|ready)\b|tools/wt-done\.mjs")
 POST = re.compile(r"agent-board\b.*\s(post|new)\s")
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+
+def strip_heredocs(cmd):
+    """A heredoc body is DATA the command writes, never a command it runs.
+
+    A finish note that QUOTES `tools/wt-done.mjs` is not a retirement, and a note that
+    quotes an `agent-board post` line is not a post. Both directions bite: the first asks
+    for a note already written (measured twice on 2026-10-20, after board #654 and #679),
+    the second would silence a note that is owed.
+    """
+    kept, term = [], None
+    for line in cmd.split("\n"):
+        if term is not None:
+            if line.strip() == term:
+                term = None
+            continue
+        m = HEREDOC.search(line)
+        if m is None:
+            kept.append(line)
+            continue
+        kept.append(line[: m.start()])
+        term = m.group(2)
+    return "\n".join(kept)
 last_finish = last_post = -1
 what = ""
 with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
@@ -107,7 +133,7 @@ with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
         for item in content:
             if not isinstance(item, dict) or item.get("type") != "tool_use" or item.get("name") != "Bash":
                 continue
-            cmd = str((item.get("input") or {}).get("command", ""))
+            cmd = strip_heredocs(str((item.get("input") or {}).get("command", "")))
             if POST.search(cmd):
                 last_post = i
             m = FINISH.search(cmd)
