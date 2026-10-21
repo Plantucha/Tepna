@@ -13028,6 +13028,135 @@
         'only ' + executed + ' of ' + PAGES.length + ' pages ran — a page whose reader will not slice or evaluate must RED, never pass by being skipped'
       );
     });
+    /* ════ THE CORPUS DRIVER SLICES THE PAGE'S OWN CLASSIFIER ════════════════════════════════════════
+       `tools/sigma-corpus-headless.mjs` drives `sigma-no-reference-analysis.html` over the canonical
+       corpus. It cannot hand the page a directory — 63 % of the corpus is a symlink into the NAS cold
+       tier and the tree stages one recording into several view directories — so it builds the file list
+       itself and feeds `#fileInput`. A SECOND copy of the classifier would make the driver's population
+       its own rather than the page's, which is the defect this row records in the paper. The driver
+       therefore SLICES the page's `classify` out of the page source and executes it.
+
+       A slice anchored on source text is only as good as its anchors, and nothing in the page knows the
+       driver exists. So this group reads both anchors OUT of the driver, applies them to the page, and
+       runs the result over real filenames. Re-indent the declaration, rename it, or move its closing
+       brace, and the group REDS here rather than in a 40-minute corpus walk that silently accepts
+       nothing. ══════════════════════════════════════════════════════════════════════════════════════ */
+    group('the sigma corpus driver classifies with the page, not with a copy', 'sensor-trio · sigma-corpus · §📌', function (T) {
+      var TT = env.toolTexts;
+      var tool = TT && TT['tools/sigma-corpus-headless.mjs'];
+      var page = env.sources && env.sources['sigma-no-reference-analysis.js'];
+      var nodeLane = typeof process !== 'undefined' && !!(process.versions && process.versions.node);
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — this group would examine nothing');
+        return;
+      }
+      T.ok('the driver source is readable', !!tool, tool ? tool.length + ' bytes' : 'tools/sigma-corpus-headless.mjs absent');
+      T.ok('the page source is readable in this lane', !!page, page ? page.length + ' bytes' : 'sigma-no-reference-analysis.js not in env.sources — list it in BOTH lanes');
+      if (!tool || !page) return;
+
+      /* ── the driver holds no classifier of its own ──────────────────────────────────────────────── */
+      /* Anchored at line start on purpose: the driver's OWN anchor is the string literal
+         `'  function classify(file) {'`, so a bare `/function classify\(/` matches the very tool that
+         holds no classifier, and the leg reds about itself. The check must see a DECLARATION — and the role vocabulary belongs to the
+         page, so a driver naming a role is carrying a copy of the classifier whatever it calls it. */
+      T.ok(
+        'the driver declares no classify of its own',
+        !/^\s*(?:export\s+)?(?:async\s+)?function classify\b/m.test(tool) && !/'(?:o2|h10ecg|verityPPG|verityPPI|verityHR)'/.test(tool),
+        'a second copy drifts from the page and reports a population the page would never read'
+      );
+
+      /* ── the two anchors come OUT of the driver, so the test cannot drift from the tool ─────────── */
+      var openM = tool.match(/const open = '([^']*)';/);
+      var endM = tool.match(/src\.indexOf\('(\\n[^']*)', i\)/);
+      T.ok('the driver states its opening anchor as one literal', !!openM, openM ? JSON.stringify(openM[1]) : "const open = '…' not found");
+      T.ok('the driver states its closing anchor as one literal', !!endM, endM ? JSON.stringify(endM[1]) : "src.indexOf('\\n  }\\n', i) not found");
+      if (!openM || !endM) return;
+      var openLit = openM[1];
+      var endLit = endM[1].replace(/\\n/g, '\n');
+
+      var at = page.indexOf(openLit);
+      T.ok('the page still carries the declaration the driver anchors on', at >= 0, JSON.stringify(openLit) + ' in sigma-no-reference-analysis.js');
+      if (at < 0) return;
+      T.eq('the anchor is unambiguous — exactly one declaration matches it', page.split(openLit).length - 1, 1, 'two matches and the slice takes the first, which may not be the ingest classifier');
+      var end = page.indexOf(endLit, at);
+      T.ok('the declaration closes at the indent the driver expects', end >= 0, 'closing brace ' + JSON.stringify(endLit) + ' after the declaration');
+      if (end < 0) return;
+
+      var classify = null,
+        sliceErr = null;
+      try {
+        classify = new Function('return (' + page.slice(at, end + endLit.length).trim() + ');')();
+      } catch (e) {
+        sliceErr = String(e && e.message);
+      }
+      T.ok('the slice evaluates to a function', typeof classify === 'function', sliceErr || typeof classify);
+      if (typeof classify !== 'function') return;
+
+      /* ── it must classify the REAL names, box layout included (the #3805 widening) ──────────────── */
+      var CASES = [
+        { name: 'Wellue_O2Ring-S_2201123_20260614213001_SPO2.csv', role: 'o2' },
+        { name: 'O2Ring_20260614213001.csv', role: 'o2' },
+        { name: 'Polar_H10_A1B2C3_20260614_213001_ECG.txt', role: 'h10ecg' },
+        { name: 'Polar_H10_A1B2C3_20260614_213001_HR.txt', role: 'h10' },
+        { name: 'Polar_VeritySense_D4E5F6_20260614_213001_PPG.txt', role: 'verityPPG' },
+        { name: 'Polar_Sense_D4E5F6_20260614_213001_PPI.txt', role: 'verityPPI' },
+        { name: 'README.md', role: null },
+        { name: 'Polar_H10_A1B2C3_20260614_213001_ACC.txt', role: null }
+      ];
+      var classified = 0;
+      CASES.forEach(function (C) {
+        var got = classify({ name: C.name });
+        T.eq('classify(' + C.name + ')', got ? got.role : null, C.role, C.role === null ? 'must be rejected' : 'the driver buckets this file as ' + C.role);
+        classified++;
+      });
+      T.eq('ANTI-VACUITY · every case was classified by the sliced function', classified, CASES.length, 'a case that never ran proves nothing about the slice');
+      T.eq(
+        'the slice carries the stamp the driver reuses',
+        classify({ name: 'Polar_H10_A1B2C3_20260614_213001_ECG.txt' }).stamp,
+        '20260614213001',
+        'the driver reads `.stamp` to re-classify a reused file list'
+      );
+
+      /* ── the two launch lessons this driver inherits, each measured elsewhere ───────────────────── */
+      T.ok(
+        'the driver launches through the house launcher',
+        /from '\.\/pw-launch\.mjs'/.test(tool) && !/chromium\.launch\(/.test(tool),
+        'residue 2026-09-05-playwright-blocked-by-apparmor-userns — a direct launch resolves and the first newPage fails'
+      );
+      T.ok(
+        'the driver polls with evaluate, never with a string-evaluating wait',
+        !/page\.waitForFunction\(/.test(tool),
+        "the page ships a CSP with no 'unsafe-eval', so a string-evaluating poll is refused outright"
+      );
+      T.ok('a reused file list is re-classified rather than trusted', /--list-in is stale/.test(tool), 'a stale list would measure a corpus that has moved, and report it as this run');
+
+      /* ── the committed record: counts only, and the superseded figure kept rather than deleted ── */
+      T.ok(
+        'the record declares the published-number schema',
+        /'tepna\.published-number-record\/1'/.test(tool),
+        'the paper reads its population from this record, so it must be the shape every other record has'
+      );
+      T.ok(
+        'the record states its corpus is uncommitted and says what its digest does NOT pin',
+        /committed: false/.test(tool) && /does NOT pin the bytes inside a capture/.test(tool),
+        'a digest over names that reads as a content digest is the §4b family — success reported about something never examined'
+      );
+      T.ok(
+        'the record carries the figure it supersedes rather than dropping it',
+        /supersededFigure/.test(tool) && /indexedNights: 58/.test(tool) && /simultaneousSeconds: 291561/.test(tool),
+        "the paper's published population is correct as of its date; a record that deletes it loses why the number moved"
+      );
+      T.ok(
+        'a record refuses to be built over a run with no solve behind it',
+        /carries no hat/.test(tool) && /--record needs a solved run/.test(tool),
+        'an index-only artifact would publish a night count the hat never produced'
+      );
+      T.ok(
+        'the record holds no per-night key',
+        !/index\.nights|perNight|nightKeys/.test(tool.slice(tool.indexOf('export function buildRecord'), tool.indexOf('export function gitShort'))),
+        'owner ruling 2026-09-24 — dated per-night rows stay off the public repo'
+      );
+    });
     /* ════ THE CARD'S POOLED NOTE IS COMPOSED FROM THE PUBLISHED RECORD ══════════════════════════════
        TCH-REFERENCE-POPULATIONS §2 defect 1: `sensor-trio-night.js` hard-coded "37 nights" and three
        pooled σ, and kept printing them for three weeks after the reference population had grown to 54 —
