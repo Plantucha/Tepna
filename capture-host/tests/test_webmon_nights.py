@@ -291,7 +291,13 @@ def _classifier_regexes(path):
     import re
 
     text = open(path, encoding="utf-8").read()
-    start = text.index("function classify(")
+    marker = "function classify("
+    assert marker in text, (
+        f"{path}: no `function classify(` declaration. This table indexes a page on that name, so a page "
+        "that renames its classifier leaves the gate with no failure at all — which is how "
+        "sigma-no-reference-analysis.js kept the phone-app layout for the month after its siblings were widened"
+    )
+    start = text.index(marker)
     body = text[start : text.index("\n  }\n", start)]
     out = []
     for m in re.finditer(r"/((?:\\/|[^/\n])+)/([a-z]*)", body):
@@ -334,6 +340,20 @@ def test_the_tool_classifiers_accept_box_filenames():
             # since 2026-09-26 the night page reads the ring's RAW pleth first (156 markers, then PPGDSP feet)
             "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": True,
         },
+        # joined the table 2026-10-20: the sigma-hat kept the phone-app layout for a month after its two
+        # siblings were widened, and nothing failed, because no page outside this table is checked
+        # (RESIDUE 2026-10-20-sigma-classifier-still-phone-only). The H10's raw ECG is its gold corner,
+        # which is the one role the other trio pages have no regex for.
+        "sigma-no-reference-analysis.js": {
+            "Polar_H10_02849638_20260919183658_ECG.txt": True,
+            "Polar_H10_02849638_20260919183658_HR.txt": True,
+            "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": True,
+            # the hat reads the ring's PULSE from its CSV, so the ring's raw PPG has no regex here
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": False,
+            # and the widened o2 rule is not a wildcard over `.csv`
+            "Polar_VeritySense_0C301E3F_20260919183724_PMDARRIVAL.csv": False,
+        },
         "pat-feasibility.js": {
             "Polar_H10_02849638_20260919183658_ECG.txt": True,
             "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
@@ -357,6 +377,8 @@ def test_the_tool_classifiers_accept_box_filenames():
         ("sensor-trio-power-analysis.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
         ("sensor-trio-power-analysis.js", "O2Ring S 2100_20260503210952.csv"),
         ("sensor-trio-night.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
+        ("sigma-no-reference-analysis.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt"),
+        ("sigma-no-reference-analysis.js", "O2Ring S 2100_20260503210952.csv"),
         ("pat-feasibility.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt"),
     ):
         assert any(r.search(name) for r in _classifier_regexes(os.path.join(root, tool))), (tool, name)
