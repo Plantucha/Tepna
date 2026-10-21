@@ -42,7 +42,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { createRequire } from 'node:module';
-import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
+   skips each valued flag's VALUE with it, so a flag written before the positional cannot be
+   mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
+const ARGV_SPEC = { valued: ['--every', '--json'], boolean: ['--selftest'], positional: true };
 
 const require = createRequire(import.meta.url);
 const DexClock = require(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'clock.js'));
@@ -296,9 +301,9 @@ function median(a) {
 
 async function main() {
   const args = process.argv.slice(2);
-  refuseUnknownArgvOrExit(args, { valued: ['--every', '--json'], boolean: ['--selftest'], positional: true }, { tool: 'device-stability' });
+  refuseUnknownArgvOrExit(args, ARGV_SPEC, { tool: 'device-stability' });
   if (args.includes('--selftest')) return selftest();
-  const dir = args.find((a) => !a.startsWith('--'));
+  const dir = positionalArgs(args, ARGV_SPEC)[0];
   if (!dir) {
     console.error('usage: node tools/device-stability.mjs <corpus-dir> [--json out.json] [--every N]');
     process.exit(2);

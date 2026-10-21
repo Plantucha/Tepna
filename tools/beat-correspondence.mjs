@@ -45,7 +45,12 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
-import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
+   skips each valued flag's VALUE with it, so a flag written before the positional cannot be
+   mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
+const ARGV_SPEC = { valued: ['--q', '--band'], boolean: ['--selftest', '--verdict-sample'], positional: true };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
@@ -477,7 +482,7 @@ const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 async function main() {
   const args = process.argv.slice(2);
-  refuseUnknownArgvOrExit(args, { valued: ['--q', '--band'], boolean: ['--selftest', '--verdict-sample'], positional: true }, { tool: 'beat-correspondence' });
+  refuseUnknownArgvOrExit(args, ARGV_SPEC, { tool: 'beat-correspondence' });
   if (args.includes('--selftest')) return selftest();
   if (args.includes('--verdict-sample')) {
     /* What `tools/verdict-adoption.mjs --check` RUNS — above the night-directory check, so it answers
@@ -485,7 +490,7 @@ async function main() {
     console.log(JSON.stringify(gateVerdict({ nA: 30000, nB: 29800, indelRate: 0.021, meanAbsDtMs: 18.4, commit: gitShort() })));
     process.exit(0);
   }
-  const dir = args.find((a) => !a.startsWith('--'));
+  const dir = positionalArgs(args, ARGV_SPEC)[0];
   if (!dir) {
     console.error('usage: node tools/beat-correspondence.mjs <night-dir> [--q 1/150] [--band 48] | --selftest');
     process.exit(2);

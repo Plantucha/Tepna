@@ -36,7 +36,12 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
+   skips each valued flag's VALUE with it, so a flag written before the positional cannot be
+   mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
+const ARGV_SPEC = { valued: ['--write'], boolean: ['--selftest', '--json'], positional: true };
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(import.meta.url);
@@ -44,7 +49,7 @@ const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
    IMPORTER's arguments, so it runs for the CLI only (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
-if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, { valued: ['--write'], boolean: ['--selftest', '--json'], positional: true }, { tool: 'name-lease' });
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'name-lease' });
 const has = (f) => argv.includes(f);
 const arg = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : null);
 const MAIN = 'refs/remotes/origin/main';
@@ -136,7 +141,7 @@ function measure(paths) {
 
 function main() {
   if (has('--selftest')) return selftest();
-  const paths = argv.filter((a) => !a.startsWith('--') && argv[argv.indexOf(a) - 1] !== '--write').map((p) => p.replace(/^\.\//, ''));
+  const paths = positionalArgs(argv, ARGV_SPEC).map((p) => p.replace(/^\.\//, ''));
   const Verdict = req('../verdict.js');
   let commit = null;
   try {

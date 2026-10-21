@@ -34,7 +34,12 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readlinkSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
+   skips each valued flag's VALUE with it, so a flag written before the positional cannot be
+   mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
+const ARGV_SPEC = { valued: ['--pr'], boolean: ['--list', '--pushed', '--landed', '--selftest'], positional: true };
 
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 
@@ -477,7 +482,7 @@ function dirtyCountFor(wtPath) {
 }
 
 function main(argv) {
-  refuseUnknownArgvOrExit(argv, { valued: ['--pr'], boolean: ['--list', '--pushed', '--landed', '--selftest'], positional: true }, { tool: 'wt-done' });
+  refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'wt-done' });
   let wts;
   try {
     wts = parseWorktrees(run('git', ['-C', REPO_ROOT, 'worktree', 'list', '--porcelain']));
@@ -512,7 +517,7 @@ function main(argv) {
   }
   const pushedFlag = argv.includes('--pushed');
   const landedFlag = argv.includes('--landed');
-  const targets = argv.filter((a) => !a.startsWith('--') && a !== prArg);
+  const targets = positionalArgs(argv, ARGV_SPEC);
   if (prArg && targets.length !== 1) {
     console.error(`✕ --pr names ONE PR, so it applies to ONE worktree (got ${targets.length})`);
     return 2;

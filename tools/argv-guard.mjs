@@ -125,6 +125,43 @@ export function refuseUnknownArgvOrExit(argv, spec, { tool = 'this tool' } = {})
 }
 
 /**
+ * THE POSITIONAL ARGUMENTS, with each valued flag's value left out.
+ *
+ * `argv.find((a) => !a.startsWith('--'))` is the tree's idiom for "my one positional", and it is
+ * ORDER-DEPENDENT in a way the flags are not: `--every 60 <corpus>` hands it `60`, because a flag's
+ * value is not a flag. The usage lines all document the positional FIRST, so the failure needs only a
+ * caller who types the flags first — and nothing refuses it, since every token is legal.
+ *
+ * MEASURED 2026-10-21 over the tools that had both a dash-test picker and a valued flag:
+ *   • `device-stability.mjs --every 60 <dir>` → `ENOENT … path: '60'`
+ *   • `beat-correspondence.mjs --q 1/150 <dir>` → `ENOENT … path: '1/150'`
+ *   • `oxydex-export-staleness.mjs --raw <other> <exports>` → `0 night(s) checked`, exit 0, where the
+ *     documented order reads the same files and reports `1 skipped`. Same exit code, same disk, a
+ *     population of zero: `CLAUDE.md` §4b's examined-nothing, reported as a clean run.
+ *
+ * Arity is already this module's property (`checkArgv` consumes a valued flag's value), so the skip
+ * belongs here rather than in each tool, where it appeared as three different hand-rolled mitigations:
+ * an `indexOf` on the token before (wrong for a repeated value), an index comparison against one flag,
+ * and an equality test against one flag's value.
+ *
+ * A single-dash token is a FLAG here, as it is in `checkArgv` — so `-x` and a bare `-` never reach a
+ * caller as data, and the guard refuses them first. `--flag=value` consumes nothing, because this
+ * codebase reads a value as the next token and `checkArgv` refuses the joined form outright.
+ */
+export function positionalArgs(argv, { valued = [] } = {}) {
+  const out = [];
+  for (let i = 0; i < argv.length; i++) {
+    const tok = argv[i];
+    if (!tok.startsWith('-')) {
+      out.push(tok);
+      continue;
+    }
+    if (valued.includes(tok)) i++; // skip its value: it is the flag's, not the tool's data
+  }
+  return out;
+}
+
+/**
  * IS THIS MODULE THE PROGRAM? The house predicate was
  * `process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href`, and that spelling alone
  * held 88 sites across 86 files. Six more spellings held 47 sites across 45 more: `resolve()`d strings,
