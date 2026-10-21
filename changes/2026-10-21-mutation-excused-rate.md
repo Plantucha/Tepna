@@ -4,4 +4,4 @@ type: added
 brief: none
 ---
 
-Count the string-literal mutants the diff-scoped mutation gate excuses, over the verdict artifacts CI has already uploaded, and name the share of them that reach an interface a consumer reads.
+Count the string-literal mutants the mutation gate excuses, over the verdicts CI already uploaded. Name the share that reach an interface.
