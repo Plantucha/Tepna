@@ -503,8 +503,16 @@
      largest, the most R-peaks); every other file is the session of its device whose START is nearest — a sidecar or
      an ACC to ITS OWN device's waveform, which is an exact stamp match whenever that session's file set is present. */
   function stampOf(n) {
-    var mo = String(n || '').match(/_(\d{8})_?(\d{6})_[A-Za-z0-9]+\.(txt|csv)$/i);
-    return mo ? Date.UTC(+mo[1].slice(0, 4), +mo[1].slice(4, 6) - 1, +mo[1].slice(6, 8), +mo[2].slice(0, 2), +mo[2].slice(2, 4), +mo[2].slice(4, 6)) : null;
+    // The pattern stays the ACCEPT TEST — it encodes that the stamp sits before the stream suffix
+    // and the extension, which is what makes a session match exact. The INSTANT comes from
+    // clock.js, which range-validates the components (Clock Contract §2.7); the bare `Date.UTC`
+    // that stood here rolled an impossible stamp onto a real instant, and this value is the key
+    // `nearest()` picks a session by, so a fabricated instant picks the WRONG session rather than
+    // declining to pick one.
+    var s = String(n || '');
+    if (!/_(\d{8})_?(\d{6})_[A-Za-z0-9]+\.(txt|csv)$/i.test(s)) return null;
+    var p = DexClock.fileStamp(s);
+    return p ? p.tMs : null;
   }
   function nearest(c, anchor) {
     if (!c || !c.length) return null;
