@@ -867,6 +867,10 @@
     return null;
   }
   function nightKeyOf(st) {
+    /* §2.7 — one refusal for the WHOLE stamp, before any field is read. `stampMs` range-checks all
+       six components, so a key this function returns and the instant `stampMs` returns can never
+       disagree about whether the stamp was real. §∅: an impossible stamp is null, never a date. */
+    if (stampMs(st) == null) return null;
     const Y = +st.slice(0, 4),
       M = +st.slice(4, 6),
       D = +st.slice(6, 8),
@@ -876,8 +880,17 @@
     const d = new Date(ms);
     return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
   }
+  /* §2.7 — THE FILENAME STAMP GOES THROUGH THE SAME `_mkTMs` THE ROW PARSER ALREADY USES. The bare
+     `Date.UTC` that stood here rolled an impossible stamp onto a real instant: measured on this
+     shape, `20261332999999` reached 2027-02-05, `20260230000000` reached 2026-03-02 and
+     `99999999999999` reached year 10007. This value is the key `resolveTriple` picks a companion by,
+     so a fabricated instant mis-picks a file rather than declining to pick one. The validator sat in
+     this file already and the parser beside it never called it, which is the whole defect.
+     The length test is the §∅ leg: a short stamp would read its missing fields as zero. */
   function stampMs(s) {
-    return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
+    const t = String(s == null ? '' : s);
+    if (!/^\d{14}$/.test(t)) return null;
+    return _mkTMs(+t.slice(0, 4), +t.slice(4, 6), +t.slice(6, 8), +t.slice(8, 10), +t.slice(10, 12), +t.slice(12, 14), 0);
   }
   /* THE NIGHT A FILE BELONGS TO COMES FROM ITS FIRST DATA ROW, NOT ITS NAME.
      The 14-digit stamp in the name is written when the capture host OPENS the session, before the
@@ -1006,7 +1019,8 @@
     nt.verityPPGRuns = companionOf(nt.verityPPG);
   }
   async function ingestFiles(list) {
-    let keyedByName = 0;
+    let keyedByName = 0,
+      impossibleStamp = 0;
     for (let i = 0; i < list.length; i++) {
       const f = list[i],
         c = classify(f);
@@ -1017,8 +1031,15 @@
       if (!c) continue;
       const rowMs = await firstRowTMs(f);
       if (rowMs == null) keyedByName++;
-      const nk = rowMs == null ? nightKeyOf(c.stamp) : nightKeyOfMs(rowMs),
-        nt = NIGHTS_IDX[nk] || (NIGHTS_IDX[nk] = { key: nk, cand: {} });
+      /* §∅ — a file whose NAME carries an impossible stamp and whose ROWS carry none is not indexed,
+         and the note below says how many were dropped. Bucketing it under a rolled date would file a
+         real capture on a night it never happened, which is worse than leaving it out loudly. */
+      const nk = rowMs == null ? nightKeyOf(c.stamp) : nightKeyOfMs(rowMs);
+      if (nk == null) {
+        impossibleStamp++;
+        continue;
+      }
+      const nt = NIGHTS_IDX[nk] || (NIGHTS_IDX[nk] = { key: nk, cand: {} });
       (nt.cand[c.role] || (nt.cand[c.role] = [])).push({
         file: f,
         ms: rowMs == null ? stampMs(c.stamp) : rowMs,
@@ -1028,7 +1049,12 @@
     }
     Object.keys(NIGHTS_IDX).forEach((k) => resolveTriple(NIGHTS_IDX[k]));
     renderNightTable2();
-    setRealStatus(Object.keys(NIGHTS_IDX).length + ' nights indexed' + (keyedByName ? ' · ' + keyedByName + ' keyed by filename (no row stamp)' : ''));
+    setRealStatus(
+      Object.keys(NIGHTS_IDX).length +
+        ' nights indexed' +
+        (keyedByName ? ' · ' + keyedByName + ' keyed by filename (no row stamp)' : '') +
+        (impossibleStamp ? ' · ' + impossibleStamp + ' not indexed (impossible filename stamp)' : '')
+    );
   }
   const eligibleN = (nt) => !!(nt.o2 && (nt.h10 || nt.h10ecg) && (nt.verityPPG || nt.verityPPI || nt.verityHR));
   const verSrcN = (nt) => (nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—');

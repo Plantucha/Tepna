@@ -548,6 +548,9 @@
   root.DexIngest = {
     deviceKey: deviceKey,
     stampMs: stampMs,
+    // §2.7 — exposed so a node riding this bundle validates a stamp through THIS copy instead of
+    // starting a second one. `ppgdex-app.js` reads its own two filename patterns and calls this.
+    stampMk: _stampMk,
     foreignVendor: foreignVendor,
     ecgKind: ecgKind,
     ppgKind: ppgKind,
