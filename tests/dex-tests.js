@@ -11892,12 +11892,17 @@
          page                            accepted  row stamp  >5 min   worst  fold  chosen-file moves
          sensor-trio-night.js               9,569      8,501      75  18.71 h    10         13 of 155
          sensor-trio-power-analysis.js      6,698      5,900      51  18.71 h     8         11 of 155
-         sigma-no-reference-analysis.js       337        274       0   3.25 s     0           1 of 59
+         sigma-no-reference-analysis.js     7,329      6,475      55  18.71 h     8         13 of 155
 
-       THE NIGHT COUNT DOES NOT MOVE on any of the three — 155/155 nights and 123/123 eligible for the
-       first two, 59/59 and 31/31 for the third — while a chosen corner file does, because
-       `resolveTriple` takes the file NEAREST the anchor. A population delta would have called the whole
-       change a no-op; count what the tool CHOOSES.
+       THE NIGHT COUNT DOES NOT MOVE on any of the three — 155/155 nights and 123/123 eligible on each
+       — while a chosen corner file does, because `resolveTriple` takes the file NEAREST the anchor. A
+       population delta would have called the whole change a no-op; count what the tool CHOOSES.
+
+       The hat's row read 337 accepted and a 3.25 s worst error until 2026-10-20, because its
+       classifier took the phone-app layout only and never saw a box capture (RESIDUE
+       2026-10-20-sigma-classifier-still-phone-only). Widening it to the siblings' rule moved every
+       figure in its row and left the other two alone, and the three pages now agree on 123 eligible
+       nights. A reassuring error figure over a population nobody checked is the shape to distrust.
 
        The pure half of the reader is sliced out of EACH page source and EXECUTED here against ONE
        table: a source scan would pass on a re-indented copy whose arithmetic drifted, and three copies
@@ -11913,7 +11918,7 @@
       var PAGES = [
         { file: 'sensor-trio-night.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
         { file: 'sensor-trio-power-analysis.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
-        { file: 'sigma-no-reference-analysis.js', bucket: 'NIGHTS_IDX', classify: 'classifyF', classifierPin: '/^O2Ring.*_(\\d{14})\\.csv$/i' }
+        { file: 'sigma-no-reference-analysis.js', bucket: 'NIGHTS_IDX', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' }
       ];
       var executed = 0;
       PAGES.forEach(function (P) {
