@@ -1,7 +1,9 @@
 {
  "schema": "tepna.published-number-record/1",
  "producer": "tools/sigma-corpus-headless.mjs",
- "producerCommit": "8e472749",
+ "producerCommit": "47c694e7",
+ "producerDigest": "5610b2166985",
+ "producerDigestNote": "sha256[0:12] over the producer bytes that ran. The producer is NEW in the pull request that publishes this record, and the repo squash-merges, so producerCommit names a commit that the merge replaces. The digest is the durable pin: it stops matching the committed tool as soon as anyone edits it, which is the honest signal that older code produced these counts.",
  "invocation": "node tools/sigma-corpus-headless.mjs --corpus /srv/data/tepna-corpus --list-in <file list> --concurrency 2 --out <run.json> · node tools/sigma-corpus-headless.mjs --record-from <run.json> --list-in <file list> --record <this file>",
  "generated": "2026-10-21",
  "inputs": {
