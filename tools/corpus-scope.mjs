@@ -34,11 +34,13 @@
 //   node tools/corpus-scope.mjs '*Verity*_PPG.txt' --json
 //   node tools/corpus-scope.mjs --selftest
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -160,6 +162,122 @@ export function censusVerdict(pattern, rows, { commit = null } = {}) {
   return v;
 }
 
+/* ── POPULATION STABILITY — a night can ARRIVE while a measurement runs ─────────────────────────
+   A daily job re-syncs the box captures root with mtimes PRESERVED, so an arriving night moves
+   `ctime` alone and the directory's own mtime does not move at all. Residue
+   `2026-10-20-a-daily-corpus-resync-moves-the-population-mid-measurement`: two legs of one tool
+   60 seconds apart read 93 night directories and 97, one night that the first pair refused for
+   absent H10 inputs scored for the second, and the added directories carried mtimes preserved from
+   weeks earlier. A reader that trusts a listing from minutes ago sees nothing.
+
+   ⚠️ SO THE TEST IS THE NAME SET, NEVER A TIMESTAMP. A time-keyed detector is precisely the one a
+   preserving copy defeats, and `maxCtimeMs` below is carried as a DIAGNOSTIC that no branch reads.
+   The remedy a measurement owes is the INTERSECTION of the set it started with and the set it ended
+   with: one continuous population, with the arrivals named rather than averaged in. */
+
+export const NIGHT_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A stable digest of a night set — the stamp a published number can carry so a later reader can ask
+ *  whether it was cut over this population. The sort is inside, so the digest names the SET and two
+ *  runs that enumerated the same nights in a different order agree. Without it the stamp answers
+ *  "did these names arrive in this order", which is not a question anyone is asking: a caller
+ *  holding an unsorted list would get a digest that differs from a stored one over the same set. */
+export function digestNights(nights) {
+  return createHash('sha256')
+    .update([...nights].sort().join('\n'))
+    .digest('hex')
+    .slice(0, 12);
+}
+
+/** Enumerate the night directories under `root`. An unreadable root returns `ok: false` and NEVER an
+ *  empty population — an absent root is not a zero (§∅), and a zero here would read as "the corpus
+ *  emptied mid-run". */
+export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
+  const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  let names;
+  try {
+    names = readdirSync(root, { withFileTypes: true })
+      .filter((d) => (d.isDirectory() || d.isSymbolicLink()) && re.test(d.name))
+      .map((d) => d.name);
+  } catch (e) {
+    return { ok: false, root, reason: `root not enumerable: ${e.code || e.message}`, n: 0, nights: [], digest: null, maxCtimeMs: null, at: stamp };
+  }
+  const nights = names.sort();
+  let maxCtimeMs = null;
+  for (const n of nights) {
+    try {
+      const ms = statSync(join(root, n)).ctimeMs;
+      if (maxCtimeMs === null || ms > maxCtimeMs) maxCtimeMs = ms;
+    } catch {
+      /* A night that vanishes between the listing and the stat IS a population change, and the name
+         set above already carries it. The stat is the diagnostic, so it stays silent. */
+    }
+  }
+  return { ok: true, root, reason: null, n: nights.length, nights, digest: digestNights(nights), maxCtimeMs, at: stamp };
+}
+
+/** The intersection of two snapshots, with what arrived and what left named. */
+export function intersectSnapshots(before, after) {
+  const b = new Set(before.nights || []);
+  const a = new Set(after.nights || []);
+  const added = (after.nights || []).filter((n) => !b.has(n));
+  const removed = (before.nights || []).filter((n) => !a.has(n));
+  const nights = (before.nights || []).filter((n) => a.has(n));
+  return { nights, n: nights.length, added, removed, stable: added.length === 0 && removed.length === 0, digest: digestNights(nights) };
+}
+
+/** The stability of one measurement's population as ONE tepna.verdict/1 object.
+ *
+ *  `population` is NIGHTS: `eligible` is the UNION the run saw, `checked` the intersection it can
+ *  honestly report over, `excluded` what arrived or left. The equality is what makes a moved
+ *  population visible instead of invisible.
+ *
+ *  A move is SHORTFALL rather than FAIL deliberately: the run still describes one continuous
+ *  population, the intersection, so this annotates reduced coverage instead of refusing a figure
+ *  (owner ruling 2026-09-17, `CLAUDE.md` §∅ — a discontinuity refuses, reduced coverage annotates).
+ *  A caller that must not narrow treats SHORTFALL as its own refusal. */
+export function populationVerdict(before, after, { commit = null, at = null, tool = 'tools/corpus-scope.mjs', evidence = [] } = {}) {
+  const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+  const ev = ['tools/corpus-scope.mjs', DOC, ...evidence].filter((e, i, a) => a.indexOf(e) === i);
+  const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  let v;
+  if (!before.ok || !after.ok) {
+    const which = !before.ok && !after.ok ? 'neither snapshot' : !before.ok ? 'the opening snapshot' : 'the closing snapshot';
+    v = Verdict.make({
+      gate: 'corpus-population',
+      status: 'NOT_RUN',
+      scope: 'internal',
+      population: { checked: 0, eligible: 0, excluded: 0 },
+      criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
+      result: null,
+      evidence: ev,
+      reason: `${which} could not enumerate the root (${(before.ok ? after : before).reason}), so this run cannot tell a stable population from a moved one`,
+      producedBy: { tool, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) },
+      at: stamp
+    });
+  } else {
+    const d = intersectSnapshots(before, after);
+    const names = (xs) => (xs.length > 4 ? `${xs.slice(0, 4).join(', ')} and ${xs.length - 4} more` : xs.join(', '));
+    v = Verdict.make({
+      gate: 'corpus-population',
+      status: d.stable ? 'PASS' : 'SHORTFALL',
+      scope: 'internal',
+      population: { checked: d.n, eligible: d.n + d.added.length + d.removed.length, excluded: d.added.length + d.removed.length },
+      criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
+      result: { root: before.root, n: d.n, digest: d.digest, added: d.added, removed: d.removed, openedAt: before.at, closedAt: after.at, maxCtimeMs: after.maxCtimeMs },
+      evidence: ev,
+      reason: d.stable
+        ? null
+        : `the night population moved during the run: ${d.added.length} arrived (${names(d.added)}), ${d.removed.length} left (${names(d.removed)}) — only the ${d.n}-night intersection is one population`,
+      producedBy: { tool, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) },
+      at: stamp
+    });
+  }
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`corpus-scope: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  return v;
+}
+
 function gitCommitShort() {
   try {
     return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
@@ -237,6 +355,75 @@ function selftest() {
   ]);
   ok('no countable root → UNDERPOWERED, never a zero-file PASS', none.status === 'UNDERPOWERED' && /cannot distinguish absence from unreachability/.test(none.reason), none.status);
   ok('an empty doc → NOT_RUN with result null', censusVerdict('*', []).status === 'NOT_RUN' && censusVerdict('*', []).result === null);
+
+  /* ── POPULATION STABILITY ──────────────────────────────────────────────────────────────────────
+     Over REAL directories, because the whole defect lives in what a listing shows and a timestamp
+     does not. An old mtime is set on every fixture night and on the root itself: that is the shape
+     the preserving resync produces, and a detector that reads a timestamp passes these legs while
+     missing the arrival. */
+  const tmp = mkdtempSync(join(tmpdir(), 'corpus-pop-'));
+  const OLD = new Date('2026-09-23T04:43:00Z');
+  const night = (base, n) => {
+    const d = join(base, n);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, 'x_ECG.txt'), 'x');
+    utimesSync(join(d, 'x_ECG.txt'), OLD, OLD);
+    utimesSync(d, OLD, OLD);
+  };
+  try {
+    const root = join(tmp, 'captures');
+    mkdirSync(root, { recursive: true });
+    for (const n of ['2026-06-20', '2026-06-21', '2026-06-22']) night(root, n);
+    writeFileSync(join(root, 'README.md'), 'not a night');
+    utimesSync(root, OLD, OLD);
+    const before = snapshotNights(root);
+    ok('a night set is enumerated, and a non-dated entry is NOT in the population', before.ok && before.n === 3 && !before.nights.includes('README.md'), JSON.stringify(before.nights));
+    const stable = populationVerdict(before, snapshotNights(root));
+    ok(
+      'an unmoved population → PASS with the equality holding',
+      stable.status === 'PASS' && stable.result.n === 3 && stable.population.checked + stable.population.excluded === stable.population.eligible,
+      stable.status
+    );
+    ok('a PASS carries no reason and a stable digest', stable.reason === null && stable.result.digest === before.digest);
+
+    /* PLANT — the arrival, with EVERY timestamp preserved. This is the measured case: a night
+       appearing with an mtime weeks old under a root whose own mtime never moves. */
+    const rootMtimeBefore = statSync(root).mtimeMs;
+    night(root, '2026-06-19');
+    utimesSync(root, OLD, OLD);
+    const after = snapshotNights(root);
+    ok('the root mtime is UNCHANGED across the arrival — a time-keyed detector sees nothing here', statSync(root).mtimeMs === rootMtimeBefore, `${rootMtimeBefore} vs ${statSync(root).mtimeMs}`);
+    const moved = populationVerdict(before, after);
+    ok('an arrival → SHORTFALL, never a PASS over the bigger set', moved.status === 'SHORTFALL', moved.status);
+    ok('the arrival is NAMED in the reason', /2026-06-19/.test(moved.reason) && /1 arrived/.test(moved.reason), moved.reason);
+    ok(
+      'the figure is scoped to the INTERSECTION, and the union is the eligible',
+      moved.population.checked === 3 && moved.population.eligible === 4 && moved.population.excluded === 1,
+      JSON.stringify(moved.population)
+    );
+    ok('the moved verdict validates', V.validate(moved).ok, V.validate(moved).errors.join(' | '));
+
+    /* A departure is the same defect with the sign flipped — a night that leaves also breaks the
+       population, and a run that only checked for arrivals would report it as stable. */
+    rmSync(join(root, '2026-06-20'), { recursive: true, force: true });
+    const gone = populationVerdict(before, snapshotNights(root));
+    ok('a departure → SHORTFALL naming it', gone.status === 'SHORTFALL' && /2026-06-20/.test(gone.reason) && /1 left/.test(gone.reason), gone.reason);
+
+    /* An absent root is NOT an empty population (§∅) — a zero here would read as "the corpus
+       emptied mid-run", which is the kind of in-band number the rule exists to forbid. */
+    const nope = snapshotNights(join(tmp, 'no-such-root'));
+    ok('an unreadable root → ok:false with a named reason, never n:0 as a fact', nope.ok === false && nope.n === 0 && /not enumerable/.test(nope.reason));
+    const notrun = populationVerdict(nope, nope);
+    ok(
+      'a verdict over an unreadable root → NOT_RUN with result null',
+      notrun.status === 'NOT_RUN' && notrun.result === null && /cannot tell a stable population from a moved one/.test(notrun.reason),
+      notrun.status
+    );
+    ok('the NOT_RUN verdict validates', V.validate(notrun).ok, V.validate(notrun).errors.join(' | '));
+    ok('the digest is order-free', digestNights(['b', 'a']) === digestNights(['a', 'b']) && digestNights(['2026-06-20', '2026-06-21']) !== digestNights(['2026-06-20']));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 
   console.log(fail ? `\n${fail} FAILURE(S)` : `\nall ${pass} selftests passed`);
   return fail ? 1 : 0;
