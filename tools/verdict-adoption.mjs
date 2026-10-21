@@ -66,6 +66,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { blankComments } from './js-lex.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = path.join(ROOT, 'tools', 'verdict-adoption.json');
@@ -203,16 +204,93 @@ export function check(enumerated, manifest, validator, runner) {
    ⚠️ The population is the manifest's decides set, not every tool: the row's own instance
    (`tools/wt-done.mjs`, a queue action, `word-only`) sits outside it by design. Widening to every
    tools/*.mjs that declares a check is the owner's call, with a measured count (see the PR body). */
-export const UNGATED_RATCHET = new Set(['tools/pat-ppg-ppg-control.mjs', 'tools/pulse-agreement.mjs', 'tools/tch-estimator-bakeoff.mjs', 'tools/tch-per-epoch-rho.mjs']);
-const SELFTEST_CALL = /\(\s*['"]--selftest['"]\s*\)/;
+export const UNGATED_RATCHET = new Set([
+  'tools/pat-ppg-ppg-control.mjs',
+  'tools/pulse-agreement.mjs',
+  'tools/tch-estimator-bakeoff.mjs',
+  'tools/tch-per-epoch-rho.mjs',
+  /* ── ARRIVED 2026-10-21 WITH A CORRECTED INSTRUMENT, NOT AS NEW DEBT ──────────────────────────
+     These three were never tested. `gatedBy` read a test ref out of `git grep`, so a test file that
+     named the tool IN A COMMENT gated it, and the three sat in the `gated` column while nothing ran
+     them: `tests/dex-tests.js` mentions the first two in prose about a different subject, and the
+     third in two paragraphs about its denominator. The ratchet still may only SHRINK — entries are
+     not added to excuse a new producer. These are the hidden debt the fix made visible, and the row
+     `2026-10-21-three-decides-producers-were-gated-by-a-comment` carries them out. */
+  'tools/acc-acc-control.mjs',
+  'tools/cpap-oxy-couple.mjs',
+  'tools/tch-multinight.mjs'
+]);
 
-/* What gates a producer, or null. `readSource(p)` returns the file text; `testRefs(stem)` the list of
-   test files naming it — injected so the invariant is testable without a tree. */
+/* ⚠️ A FOURTH SPELLING — and the comment in `selftest-all.mjs` predicted it. That predicate matched
+   `has('--selftest')` / `includes('--selftest')` / `indexOf('--selftest')` by CALL POSITION, which is
+   right, and keyed on the DASHED literal, which is not: `tools/null-fuzz.mjs` reads
+   `const has = (name) => args.includes(`--${name}`)` and asks `has('selftest')`, so the string
+   `'--selftest'` appears nowhere in its code. Measured 2026-10-21: it was the only tool in the 280 to
+   compose the dashes, its selftest runs green in 2.9 s over four targets with a control and a plant,
+   and no runner had ever run it — `selftest-all --list` named 190 tools and not that one. Accepting the
+   bare literal recovers it with zero tools lost (190 → 191). `selftest-all.mjs` carries the same
+   widened pattern; a suite leg asserts the two files still agree, because the predicate cannot be
+   imported from there — that module runs its CLI at module scope (row
+   `2026-10-21-selftest-all-runs-its-cli-at-module-scope`). */
+const SELFTEST_CALL = /\(\s*['"](?:--)?selftest['"]\s*\)/;
+
+/* Does `text` name `stem` OUTSIDE its comments? PURE. `isPy` picks the comment syntax.
+   A MENTION IS NOT A TEST: this is the discriminator `gatedBy` was asked for and did not have. */
+export function namesOutsideComments(stem, text, isPy) {
+  if (text == null) return false;
+  const bare = isPy ? blankPyComments(text) : blankComments(text);
+  return bare.includes(stem);
+}
+
+/* Python comments, blanked. A SEPARATE LANGUAGE GETS A SEPARATE SCANNER rather than a second JS lexer
+   (`js-lex.mjs`'s standing rule). `#` only opens a comment outside a string, and a triple-quoted block
+   stays a STRING here — a docstring that names a tool is prose a reader would call a comment, and the
+   honest answer is that nothing in the measured population turns on it: classing docstrings either way
+   gives the same verdict for all 123 `decides` producers (measured 2026-10-21). */
+export function blankPyComments(src) {
+  let out = '';
+  let i = 0;
+  let q = null; // the open quote: "'", '"', "'''" or '"""'
+  while (i < src.length) {
+    if (q) {
+      if (src.startsWith(q, i)) {
+        out += q;
+        i += q.length;
+        q = null;
+      } else if (src[i] === '\\' && q.length === 1) {
+        out += src.slice(i, i + 2);
+        i += 2;
+      } else {
+        out += src[i++];
+      }
+      continue;
+    }
+    const three = src.slice(i, i + 3);
+    if (three === "'''" || three === '"""') {
+      q = three;
+      out += three;
+      i += 3;
+    } else if (src[i] === "'" || src[i] === '"') {
+      q = src[i];
+      out += src[i++];
+    } else if (src[i] === '#') {
+      while (i < src.length && src[i] !== '\n') (out += ' '), i++;
+    } else {
+      out += src[i++];
+    }
+  }
+  return out;
+}
+
+/* What gates a producer, or null. `readSource(p)` returns the file text — for the producer AND for each
+   candidate test file; `testRefs(stem)` the list of test files naming it. Both injected, so the
+   invariant is testable without a tree. A ref counts only when the test file names the tool outside its
+   comments (see `namesOutsideComments`). */
 export function gatedBy(p, readSource, testRefs) {
   const src = readSource(p);
   if (src != null && SELFTEST_CALL.test(src)) return 'selftest';
   const stem = path.basename(p).replace(/\.(mjs|py)$/, '');
-  const refs = (testRefs(stem) || []).filter((f) => f !== p);
+  const refs = (testRefs(stem) || []).filter((f) => f !== p && namesOutsideComments(stem, readSource(f), f.endsWith('.py')));
   return refs.length ? 'tests:' + refs.slice(0, 2).join(',') : null;
 }
 
@@ -740,7 +818,23 @@ function selftest() {
   // every check is gated — a static population equality over the decides set, ratcheted
   {
     const M2 = M({ 'tools/a.mjs': { bin: 'decides', status: 'pending' }, 'tools/b.mjs': { bin: 'decides', status: 'pending' }, 'tools/c.mjs': { bin: 'word-only', status: 'exempt', reason: 'x' } });
-    const src = { 'tools/a.mjs': "if (argv.includes('--selftest')) selftest();", 'tools/b.mjs': '// a check with no test at all' };
+    /* The test files are in this map too, because `gatedBy` now READS them: a ref counts only when the
+       test names the tool outside its comments. `tests/real.js` exercises `b`, `tests/prose.js` only
+       talks about it, and `capture-host/tests/test_p.py` does the same in the other comment syntax. */
+    const src = {
+      'tools/a.mjs': "if (argv.includes('--selftest')) selftest();",
+      'tools/b.mjs': '// a check with no test at all',
+      /* THE COMPOSED READ IS ASSEMBLED FROM FRAGMENTS, and the join is the point. The measured set in
+         `tests/dex-tests.js` ("a documented flag is read by the tool that documents it") reads STRING
+         literals as code, because a flag read IS a string — so a fixture that spelled the composed
+         form verbatim made THIS tool look like a tool that reads a dynamic flag name, and that gate's
+         excluded set grew from 9 to 10. Same self-match as CLAUDE.md §4's `pgrep -f`, one layer down. */
+      'tools/d.mjs': 'const has = (n) => argv.includes(' + '`--${n}`' + ");\nif (has('selftest')) selftest();",
+      'tests/real.js': "spawnSync('node', ['tools/b.mjs', '--check']);",
+      'tests/prose.js': '/* the prototype in tools/b.mjs did this; see also b.mjs */\nvar unrelated = 1;',
+      'capture-host/tests/test_p.py': '# the python counterpart of tools/b.mjs\nassert True\n',
+      'capture-host/tests/test_q.py': "run(['tools/b.mjs'])\n"
+    };
     const refs = () => [];
     let g = checkGated(M2, (p) => src[p], refs, new Set());
     ok(!g.ok && g.errors.length === 1 && /tools\/b.mjs: a `decides` producer with NO test/.test(g.errors[0]), 'a decides producer with no selftest and no test reference is a red WITH ITS NAME');
@@ -750,17 +844,66 @@ function selftest() {
     g = checkGated(
       M2,
       (p) => src[p],
-      (stem) => (stem === 'b' ? ['tests/dex-tests.js'] : []),
+      (stem) => (stem === 'b' ? ['tests/real.js'] : []),
       new Set(['tools/b.mjs'])
     );
-    ok(!g.ok && /now GATED \(tests:tests\/dex-tests.js\) — REMOVE it from UNGATED_RATCHET/.test(g.errors[0]), 'a ratchet entry that gains a test reds until removed — the ratchet only goes down');
+    ok(!g.ok && /now GATED \(tests:tests\/real.js\) — REMOVE it from UNGATED_RATCHET/.test(g.errors[0]), 'a ratchet entry that gains a test reds until removed — the ratchet only goes down');
+    /* ── A MENTION IS NOT A TEST (row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested) ──
+       `git grep -l` gates on the FILE, and a test file that names a tool in a comment is prose about
+       it. Measured 2026-10-21 over the 123 decides producers: 4 were gated by a mention alone. One of
+       them (`null-fuzz.mjs`) had a real selftest the dashed pattern could not see; the other three had
+       nothing, and they are the three provenance-stamped entries in UNGATED_RATCHET above. */
     g = checkGated(
       M2,
       (p) => src[p],
-      (stem) => (stem === 'b' ? ['tests/dex-tests.js'] : []),
+      (stem) => (stem === 'b' ? ['tests/prose.js'] : []),
       new Set()
     );
-    ok(g.ok && g.gated['tools/b.mjs'] === 'tests:tests/dex-tests.js', 'a test file naming the producer gates it');
+    ok(!g.ok && /tools\/b.mjs: a `decides` producer with NO test/.test(g.errors[0]), 'a test file that names the producer only in a COMMENT does not gate it');
+    g = checkGated(
+      M2,
+      (p) => src[p],
+      (stem) => (stem === 'b' ? ['tests/prose.js', 'tests/real.js'] : []),
+      new Set()
+    );
+    ok(g.ok && g.gated['tools/b.mjs'] === 'tests:tests/real.js', 'the prose ref drops out and the real one still gates — the filter is per FILE, not per producer');
+    g = checkGated(
+      M2,
+      (p) => src[p],
+      (stem) => (stem === 'b' ? ['capture-host/tests/test_p.py'] : []),
+      new Set()
+    );
+    ok(!g.ok && /tools\/b.mjs: a `decides` producer with NO test/.test(g.errors[0]), 'a `#` comment in a python test does not gate either');
+    g = checkGated(
+      M2,
+      (p) => src[p],
+      (stem) => (stem === 'b' ? ['capture-host/tests/test_q.py'] : []),
+      new Set()
+    );
+    ok(g.ok && g.gated['tools/b.mjs'] === 'tests:capture-host/tests/test_q.py', 'a python test that RUNS it gates it — a string is not a comment');
+    /* THE FOURTH SPELLING: the dashes composed in a helper. `null-fuzz.mjs` is the measured instance. */
+    const M3 = M({ 'tools/d.mjs': { bin: 'decides', status: 'pending' } });
+    ok(
+      checkGated(
+        M3,
+        (p) => src[p],
+        () => [],
+        new Set()
+      ).gated['tools/d.mjs'] === 'selftest',
+      "a selftest read as has('selftest') gates — the predicate does not key on the dashes"
+    );
+    ok(
+      namesOutsideComments('b.mjs', src['tests/prose.js'], false) === false && namesOutsideComments('b.mjs', src['tests/real.js'], false) === true,
+      'namesOutsideComments is the discriminator, and it is pure'
+    );
+    ok(blankPyComments("a = '# not a comment'  # a comment\n").trim() === "a = '# not a comment'", 'the python blanker keeps a hash inside a string and drops the real comment');
+    g = checkGated(
+      M2,
+      (p) => src[p],
+      (stem) => (stem === 'b' ? ['tests/real.js'] : []),
+      new Set()
+    );
+    ok(g.ok && g.gated['tools/b.mjs'] === 'tests:tests/real.js', 'a test file naming the producer gates it');
     g = checkGated(M2, (p) => (p === 'tools/a.mjs' ? '/* usage: node tools/a.mjs --selftest */' : src[p]), refs, new Set(['tools/b.mjs']));
     ok(
       !g.ok && /tools\/a.mjs: a `decides` producer with NO test/.test(g.errors[0]),
@@ -1063,6 +1206,10 @@ function selftest() {
     try {
       fs.mkdirSync(path.join(scratch, 'tools'));
       fs.copyFileSync(fileURLToPath(import.meta.url), path.join(scratch, 'tools', 'verdict-adoption.mjs'));
+      /* THE SCRATCH CHECKOUT IS A REAL IMPORT GRAPH: this tool reads comments through `js-lex.mjs`, so
+         the black box needs the lexer beside it or the CLI dies at module evaluation — which the leg
+         below would report as a gate verdict. */
+      fs.copyFileSync(path.join(ROOT, 'tools', 'js-lex.mjs'), path.join(scratch, 'tools', 'js-lex.mjs'));
       fs.copyFileSync(real, path.join(scratch, 'tools', 'geometry-scan.mjs'));
       fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
       fs.writeFileSync(
@@ -1109,6 +1256,10 @@ function selftest() {
     try {
       fs.mkdirSync(path.join(scratch, 'tools'));
       fs.copyFileSync(fileURLToPath(import.meta.url), path.join(scratch, 'tools', 'verdict-adoption.mjs'));
+      /* THE SCRATCH CHECKOUT IS A REAL IMPORT GRAPH: this tool reads comments through `js-lex.mjs`, so
+         the black box needs the lexer beside it or the CLI dies at module evaluation — which the leg
+         below would report as a gate verdict. */
+      fs.copyFileSync(path.join(ROOT, 'tools', 'js-lex.mjs'), path.join(scratch, 'tools', 'js-lex.mjs'));
       fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
       const m = { schema: 'tepna.verdict-adoption/1', producers: {}, note: 'a \u2014 b' };
       const file = path.join(scratch, 'tools', 'verdict-adoption.json');

@@ -73,8 +73,18 @@ export function declaresSelftest(src) {
      tools lost — 100 -> 104, verified per-file before the change.
 
      The literal must sit inside a call, which is what keeps a header comment that merely MENTIONS the
-     flag out: `* node tools/x.mjs --selftest` in a usage block has no parentheses around it. */
-  return /\(\s*['"]--selftest['"]\s*\)/.test(s);
+     flag out: `* node tools/x.mjs --selftest` in a usage block has no parentheses around it.
+
+     ⚠️ THE FOURTH SPELLING ARRIVED, exactly as the paragraph above warned. It COMPOSES the dashes:
+     `tools/null-fuzz.mjs` defines `const has = (name) => args.includes(`--${name}`)` and asks
+     `has('selftest')`, so the literal `'--selftest'` is nowhere in its code and the dashed pattern
+     could not see it. That tool declares a real selftest — four targets, a control and a plant, green
+     in 2.9 s — and no runner had ever run it: this list named 190 tools on 2026-10-21 and not that
+     one. The dashes are now optional, which recovers it with ZERO tools lost (190 → 191, verified
+     per file). `verdict-adoption.mjs` keys its own gating on the same pattern and a suite leg holds
+     the two spellings equal, because importing this module to share the predicate would start a
+     sweep — the CLI below runs at module scope. */
+  return /\(\s*['"](?:--)?selftest['"]\s*\)/.test(s);
 }
 
 /* ✅ CLOSED 2026-08-18, RE-VERIFIED 2026-08-27 — the incident below is HISTORY, not an open hazard.

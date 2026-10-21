@@ -84,6 +84,10 @@ import * as _nodePath from 'node:path';
 import * as _wtDone from '../tools/wt-done.mjs';
 import { rootTrackedFiles, walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
+/* THE ONE LEXER, handed to the suite rather than re-implemented in it. `tests/dex-tests.js` asserts
+   the three-class partition and the comment projection `verdict-adoption.mjs` gates on; the browser lane
+   cannot load a module path, so the group there skips by name. */
+import * as jsLex from '../tools/js-lex.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -3451,6 +3455,7 @@ async function main() {
     get toolTexts() {
       return TOOL_TEXTS;
     },
+    jsLex,
     // §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs
     tchGoldenInputs: (() => {
       try {
