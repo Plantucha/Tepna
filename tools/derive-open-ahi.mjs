@@ -90,7 +90,13 @@ export const ISRUC_RESP_CONTEXT = ['CSBr', 'Desat', 'SN'];
    L Out 104, Per Slp 77, L On 72. */
 export const ISRUC_NON_RESP = new Set(['AR', 'PLM', 'LM', 'MChg', 'Awake', 'REM Aw', 'Per Slp', 'L On', 'L Out']);
 
-/* iSleeps names its events in full, and `RERA` is NOT an apnea or a hypopnea (§5.5). */
+/* iSleeps names its events in full, and `RERA` is NOT an apnea or a hypopnea (§5.5).
+   THE UNPLACED NAMES, MEASURED OVER ALL 40 WORKBOOKS ON 2026-10-21: `Body event`, 1 cell in 1
+   record, and nothing else. Row `2026-10-20-the-isleeps-event-vocabulary-is-uninstrumented` asked
+   whether any name sits outside this list plus `RERA`, and the tool could not answer while it dropped
+   such a name silently. A body-position event is not an apnea or a hypopnea, so the numerator is
+   unchanged and the tally stays OPEN rather than gaining a declining list — one cell drowns no
+   report, and a list would hide the next name the way the `continue` hid this one. */
 export const ISLEEPS_APNEA = ['Obstructive Apnea', 'Central Apnea', 'Mixed Apnea'];
 export const ISLEEPS_HYPOPNEA = ['Hypopnea'];
 export const ISLEEPS_AHI_EVENTS = [...ISLEEPS_APNEA, ...ISLEEPS_HYPOPNEA];
@@ -469,6 +475,15 @@ export function deriveIsleepsWorkbook(wb, recordId) {
     hypopneas: 0,
     rera: 0,
     respAnywhere: 0,
+    /* ∅ THE BLIND-SPOT FIELDS THIS SET USED TO OMIT. `otherTokens` starts as a measured EMPTY tally,
+       because a workbook with no `Flow Events` sheet carries no event name to miss — that record is
+       zero rather than unexamined, and `nullReason` already states why the sheet is absent. The one
+       unexamined shape sets it to null below: a sheet whose header row carries no `Event name` cell.
+       `context` is null and stays null, because iSleeps declines nothing BY NAME — ISRUC's three
+       context tokens have no iSleeps counterpart, so an empty object here would report a tally for a
+       class this set does not have. */
+    otherTokens: {},
+    context: null,
     ahi: null,
     nullReason: null
   };
@@ -500,11 +515,19 @@ export function deriveIsleepsWorkbook(wb, recordId) {
   const stageHdr = headerIndex(flow, 'Sleep stage');
   let respAnywhere = 0;
   let respInSleep = 0;
+  /* EVERY `Event name` THE VOCABULARY CANNOT PLACE, kept rather than dropped — the ISRUC leg's
+     `other` Map, one set over. The old loop ran `continue` on an unplaced name, so a scoring in a
+     name outside `ISLEEPS_AHI_EVENTS` plus `RERA` left no trace on this half of the corpus and
+     `vocabularyOf` reported the whole set as unmeasured. An empty name cell is not a token. */
+  const other = new Map();
   if (nameHdr) {
     for (const r of flow) {
       if (r.__row <= nameHdr.row) continue;
       const name = String(r[nameHdr.col] ?? '').trim();
-      if (!(name in counts)) continue;
+      if (!(name in counts)) {
+        if (name) other.set(name, (other.get(name) || 0) + 1);
+        continue;
+      }
       if (name === ISLEEPS_RERA) {
         counts[name]++;
         continue;
@@ -518,6 +541,9 @@ export function deriveIsleepsWorkbook(wb, recordId) {
     }
   }
   row.respAnywhere = respAnywhere;
+  /* ∅ A SHEET WITH NO `Event name` HEADER IS UNEXAMINED, NOT CLEAN. The loop above never ran, so no
+     name was read and a `{}` here would claim this record carries no unplaced name. */
+  row.otherTokens = nameHdr ? Object.fromEntries([...other.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) : null;
   row.apneas = ISLEEPS_APNEA.reduce((a, t) => a + counts[t], 0);
   row.hypopneas = ISLEEPS_HYPOPNEA.reduce((a, t) => a + counts[t], 0);
   row.rera = counts[ISLEEPS_RERA];
@@ -621,24 +647,35 @@ export function pooled(derived) {
    over the set, beside the respiratory context the numerator declines by name. A tool that meets a
    token it cannot read must say so, because otherwise its silence reads as the corpus's silence. */
 export function vocabularyOf(rows) {
-  /* ∅ THE REPORT ITSELF MUST NOT READ ABSENCE AS ZERO. Only the ISRUC path collects the tokens it
-     cannot name, so over iSleeps rows every tally here would be an honest-looking 0 for a question
-     nothing asked. An uninstrumented set says `measured: false` and carries nulls instead. */
-  const instrumented = rows.some((r) => r.otherTokens && typeof r.otherTokens === 'object');
-  if (!instrumented) return { measured: false, context: null, unnamed: null, unnamedTokens: null, unnamedCells: null };
+  /* ∅ THE REPORT ITSELF MUST NOT READ ABSENCE AS ZERO. A path that collects no unplaced token makes
+     every tally here an honest-looking 0 for a question nothing asked, so a set with no collecting
+     record says `measured: false` and carries nulls instead. Both paths collect since 2026-10-21.
+     THREE FLAGS, NOT ONE, because the set can be measured on one class and silent on another:
+     `measured` is the unplaced-name tally, `contextMeasured` the declined-context tally (ISRUC alone
+     has that class), and `unmeasuredRecords` counts the records inside a measured set that carry no
+     tally of their own. A zero there is the anti-vacuity leg: it separates a measured zero from a
+     pooled report standing on one record. */
+  const hasTally = (r) => r.otherTokens && typeof r.otherTokens === 'object';
+  const unmeasuredRecords = rows.filter((r) => !hasTally(r)).length;
+  const instrumented = rows.some(hasTally);
+  if (!instrumented) return { measured: false, context: null, contextMeasured: false, unnamed: null, unnamedTokens: null, unnamedCells: null, unmeasuredRecords };
   const context = {};
   const unnamed = {};
+  let contextMeasured = false;
   for (const r of rows) {
+    if (r.context && typeof r.context === 'object') contextMeasured = true;
     for (const [t, n] of Object.entries(r.context || {})) if (n) context[t] = (context[t] || 0) + n;
     for (const [t, n] of Object.entries(r.otherTokens || {})) unnamed[t] = (unnamed[t] || 0) + n;
   }
   const byCell = (o) => Object.fromEntries(Object.entries(o).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)));
   return {
     measured: true,
-    context: byCell(context),
+    context: contextMeasured ? byCell(context) : null,
+    contextMeasured,
     unnamed: byCell(unnamed),
     unnamedTokens: Object.keys(unnamed).length,
-    unnamedCells: Object.values(unnamed).reduce((a, b) => a + b, 0)
+    unnamedCells: Object.values(unnamed).reduce((a, b) => a + b, 0),
+    unmeasuredRecords
   };
 }
 
@@ -1092,6 +1129,57 @@ function selftest() {
   ok('the hypnogram rate is read, never assumed', s6.epochSec, 20);
   ok('…so the denominator follows it', s6.tstHours, 1);
 
+  /* ── THE UNPLACED `Event name`, WHICH THIS LEG HAD NO WAY TO SEE BEFORE 2026-10-21 ───────────
+     Row `2026-10-20-the-isleeps-event-vocabulary-is-uninstrumented`: the loop dropped a name outside
+     `ISLEEPS_AHI_EVENTS` plus `RERA` and kept no record, so a scoring in an unknown name was
+     invisible on this half of the corpus. DECOY: the empty cell, which is no token. */
+  const s7 = deriveIsleepsWorkbook(
+    mk(
+      profile(240),
+      flow([
+        ['Hypopnea', 'N2'],
+        ['Desaturation', 'N2'],
+        ['Desaturation', 'N1'],
+        ['Arousal', 'N2'],
+        ['', 'N2']
+      ])
+    ),
+    'SN6'
+  );
+  ok('an event name outside the vocabulary is tallied', s7.otherTokens, { Arousal: 1, Desaturation: 2 });
+  ok('…and reaches no numerator', s7.ahi, 0.5);
+  ok('an empty name cell is no token', Object.keys(s7.otherTokens).includes(''), false);
+  /* CONTROL: a record scored in known names alone reports a MEASURED ZERO rather than silence. That
+     leg is what separates an instrumented set from the one this row found. */
+  ok('a record scored in known names alone reports an empty tally', s1.otherTokens, {});
+  const isv = vocabularyOf([s1, s7]);
+  ok('the iSleeps set reads as measured', isv.measured, true);
+  ok('…pools every unplaced name', isv.unnamed, { Desaturation: 2, Arousal: 1 });
+  ok('…counts their cells', isv.unnamedCells, 3);
+  ok('…declines no context class this set does not have', [isv.context, isv.contextMeasured], [null, false]);
+  ok('…and every record carries its own tally', isv.unmeasuredRecords, 0);
+  /* ∅ A `Flow Events` sheet whose header row carries no `Event name` cell READ NO NAME AT ALL. */
+  const s8 = deriveIsleepsWorkbook(
+    mk(profile(240), [
+      { A: 'Signal ID', B: 'FlowD' },
+      { A: 'Time start', B: 'Time end' }
+    ]),
+    'SN7'
+  );
+  ok('a sheet with no event-name header leaves the tally unmeasured', s8.otherTokens, null);
+  ok('…so one such record alone reads as an unmeasured set', vocabularyOf([s8]).measured, false);
+  ok('…and it is counted inside a measured set', vocabularyOf([s1, s8]).unmeasuredRecords, 1);
+  /* THE REASON A RECORD SCORED ONLY IN UNPLACED NAMES CARRIES. `no-respiratory-scoring` says nobody
+     scored respiration, and an unplaced name could be a desaturation or an arousal — so the reason is
+     borrowed the moment such a record exists. This leg pins today's behaviour, and the 2026-10-21
+     corpus run measured that population at 0 of 40 records: every unplaced name sits beside a placed
+     one. So the reason is reachable in theory and unreached on this corpus, and a repair with no
+     record behind it would be a guess. */
+  const s9 = deriveIsleepsWorkbook(mk(profile(240), flow([['Desaturation', 'N2']])), 'SN8');
+  ok('a record scored only in unplaced names is null', s9.ahi, null);
+  ok('…under the unscored reason', s9.nullReason, 'no-respiratory-scoring');
+  ok('…and its name is visible rather than dropped', s9.otherTokens, { Desaturation: 1 });
+
   /* the unsuffixed ISRUC workbook — a named refusal, and no basename leaves the process */
   const u = deriveRecord({ kind: 'unsuffixed', recordId: 'subgroupII/65#unsuffixed' });
   ok('an unsuffixed workbook names no scorer', u.scorer, null);
@@ -1248,9 +1336,12 @@ if (DIRECT) {
           );
         if (s.duplicates) console.log(`  duplicates: ${s.duplicates} record(s) repeat an earlier workbook byte for byte — ${s.distinctDerived} distinct derived`);
         console.log(`  bands: ${s.bands.under5} under 5 · ${s.bands.from5to15} from 5 to 15 · ${s.bands.from15to30} from 15 to 30 · ${s.bands.over30} at 30 or above`);
-        const ctx = s.vocabulary.measured ? Object.entries(s.vocabulary.context) : [];
+        const ctx = Object.entries(s.vocabulary.context || {});
         if (ctx.length) console.log(`  respiratory context declined by name: ${ctx.map(([t, n]) => `${t} ${n}`).join(' · ')}`);
-        if (s.vocabulary.measured && s.vocabulary.unnamedTokens) console.log(`  vocabulary: ${s.vocabulary.unnamedCells} cell(s) in ${s.vocabulary.unnamedTokens} token(s) this tool cannot name`);
+        if (s.vocabulary.measured) {
+          const un = s.vocabulary.unnamedTokens ? `${s.vocabulary.unnamedCells} cell(s) in ${s.vocabulary.unnamedTokens} token(s) this tool cannot name` : 'every event name placed';
+          console.log(`  vocabulary: ${un}${s.vocabulary.unmeasuredRecords ? ` · ${s.vocabulary.unmeasuredRecords} record(s) carry no tally` : ''}`);
+        } else console.log(`  vocabulary: not measured over ${s.vocabulary.unmeasuredRecords} record(s)`);
         if (s.duplicates && s.distinct.distribution) {
           const d = s.distinct.distribution;
           console.log(`  distinct subjects: ${s.distinct.derived} derived · median ${d.median} · p25 ${d.p25} · p75 ${d.p75} · mean ${d.mean}`);
