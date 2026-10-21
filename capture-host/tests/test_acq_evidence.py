@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import json
 
+import pytest
+
 import acq_evidence as ae
 import acq_evidence_o2ring as o2
 
@@ -290,3 +292,169 @@ def test_run_oxyii_CALLS_the_emit_helper_on_its_close_path():
     # and it must be reached only for a KEPT file: an envelope describing a discarded header-only
     # capture would be evidence about a file that no longer exists
     assert "_spo2_kept" in src
+
+
+# ── THE DECLARED VOCABULARIES: a word no reader knows refuses at CONSTRUCTION ─────────────────────
+# Measured 2026-10-21: the module declared five vocabularies as bare constants and validated none of
+# them, so a producer could write `host_only` and every consumer would read it as unknown.
+_VOCABULARIES = (
+    ("source", ae.SOURCE_WORDS),
+    ("clock_status", ae.CLOCK_WORDS),
+    ("validation", ae.VALIDATION_WORDS),
+    ("completeness", ae.COMPLETENESS_WORDS),
+)
+_COUNT_FIELDS = ("expected_sample_count", "transport_gaps", "decode_gaps")
+
+
+def _envelope(**kw):
+    """A minimal legal envelope, so a leg below states exactly the one word it is about."""
+    base = {
+        "session_id": "s1",
+        "device_id": "d1",
+        "source": ae.SOURCE_LIVE,
+        "signal": "spo2",
+        "start_time_ms": None,
+        "end_time_ms": None,
+        "clock_status": ae.UNKNOWN,
+        "sample_count": None,
+        "expected_sample_count": ae.UNKNOWN,
+        "duration_check": ae.DurationCheck.build(None, None),
+        "transport_gaps": ae.UNKNOWN,
+        "decode_gaps": ae.UNKNOWN,
+        "device_state": ae.UNKNOWN,
+        "artifact_path": None,
+        "artifact_size": None,
+        "artifact_sha256": None,
+        "validation": ae.UNKNOWN,
+        "validation_depth": None,
+        "completeness": ae.UNKNOWN,
+    }
+    base.update(kw)
+    return ae.AcquisitionEvidence(**base)
+
+
+@pytest.mark.parametrize("field_name,vocabulary", _VOCABULARIES)
+def test_every_word_the_module_DECLARES_is_accepted(field_name, vocabulary):
+    """THE ANTI-VACUITY LEG. A refusal that also rejected the module's own words would fail every
+    producer beneath it, so the acceptance direction is measured over the DERIVED tuple rather than
+    over a list retyped here — a retyped list tests the typist's memory."""
+    assert vocabulary, "an empty vocabulary accepts nothing, which is not a pass"
+    for word in vocabulary:
+        assert getattr(_envelope(**{field_name: word}), field_name) == word
+
+
+@pytest.mark.parametrize("field_name,vocabulary", _VOCABULARIES)
+def test_UNKNOWN_stays_legal_in_every_vocabulary(field_name, vocabulary):
+    """§5. Closing a vocabulary must never close the door on missing information."""
+    assert ae.UNKNOWN in vocabulary
+    assert getattr(_envelope(**{field_name: ae.UNKNOWN}), field_name) == ae.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    "field_name,bad",
+    [
+        ("source", "stored-files"),
+        ("clock_status", "host_only"),
+        ("validation", "ok"),
+        ("completeness", "full"),
+    ],
+)
+def test_each_vocabulary_field_refuses_its_OWN_undeclared_word(field_name, bad):
+    """One leg per field, because a check that covers four fields can lose one and still look green.
+    Each `bad` word is a PLAUSIBLE near-miss of the real one, which is the shape a producer writes."""
+    with pytest.raises(ValueError) as caught:
+        _envelope(**{field_name: bad})
+    message = str(caught.value)
+    assert field_name in message and bad in message, "the message must name the field AND the word"
+
+
+@pytest.mark.parametrize("field_name", _COUNT_FIELDS)
+@pytest.mark.parametrize("bad", ["0", "none", "n/a"])
+def test_a_count_field_refuses_a_word_that_is_not_UNKNOWN(field_name, bad):
+    """§∅ at the envelope's edge. These three strings are the ones that read downstream as a measured
+    zero or an absence, and `"0"` is the worst of them: it survives every `int()` a consumer runs."""
+    with pytest.raises(ValueError) as caught:
+        _envelope(**{field_name: bad})
+    assert field_name in str(caught.value)
+
+
+@pytest.mark.parametrize("field_name", _COUNT_FIELDS)
+def test_a_count_field_still_takes_a_real_count_including_zero(field_name):
+    """A MEASURED zero is a legitimate count — no transport gaps is the common night — so the refusal
+    above must key on the TYPE and never on falsiness."""
+    assert getattr(_envelope(**{field_name: 0}), field_name) == 0
+    assert getattr(_envelope(**{field_name: 7}), field_name) == 7
+    assert getattr(_envelope(**{field_name: ae.UNKNOWN}), field_name) == ae.UNKNOWN
+
+
+def test_every_STRING_CONSTANT_the_module_declares_sits_in_exactly_one_vocabulary():
+    """THE STALENESS TRIPWIRE, and the reason the tuples are derived rather than written out. A sixth
+    word added above with no vocabulary beneath it reds here instead of shipping as a word no reader
+    knows, and a vocabulary holding a word the module no longer declares reds too. `SCHEMA` and
+    `SCHEMA_VERSION` are the envelope's identity rather than a vocabulary, so they are excluded by
+    name — the only two exclusions, stated here rather than hidden in a prefix."""
+    declared = {
+        k: v
+        for k, v in vars(ae).items()
+        if k.isupper() and isinstance(v, str) and k not in ("SCHEMA", "SCHEMA_VERSION")
+    }
+    assert len(declared) >= 2, "the scan found almost nothing, which is not a pass"
+    union = set()
+    for vocabulary in (*(v for _, v in _VOCABULARIES), ae.DURATION_SOURCE_WORDS):
+        union |= set(vocabulary)
+    assert set(declared.values()) == union, f"constants {sorted(declared.values())} against words {sorted(union)}"
+
+
+def test_a_direct_DurationCheck_refuses_a_source_the_module_never_declared():
+    """The builder is not the only producer: the dataclass is public and `asdict` round-trips through
+    it, so the refusal lives on the type rather than in `build`."""
+    with pytest.raises(ValueError) as caught:
+        ae.DurationCheck(300, 300, "measured", 0, True)
+    assert "duration_check.source" in str(caught.value)
+
+
+def test_the_builder_never_produces_an_undeclared_duration_source():
+    """All four input shapes, because each one takes a different arm to its word."""
+    for stored, observed in ((None, None), (300, None), (None, 300), (300, 301)):
+        assert ae.DurationCheck.build(stored, observed).source in ae.DURATION_SOURCE_WORDS
+
+
+def test_no_production_producer_passes_a_word_outside_the_vocabularies():
+    """THE CONTROL THAT SAYS THIS CHANGES NO SIDECAR THE BOX WRITES TODAY. Each adapter is driven
+    here through its real assembler, and every word it chose is one the module declares."""
+    built = [
+        o2.assemble_dat(_row(), trailer=_TRAILER_18311, verify_result=_verify()),
+        o2.assemble_dat(_row(state="FAILED"), trailer=None, verify_result=None),
+        _live(),
+        _live(stopped_cleanly=True),
+    ]
+    for ev in built:
+        for field_name, vocabulary in _VOCABULARIES:
+            assert getattr(ev, field_name) in vocabulary, f"{field_name} left its vocabulary"
+
+
+def test_the_vocabulary_READER_takes_only_its_PREFIX_and_only_strings():
+    """`_declared` is the mechanism, and a test that reads only its OUTPUT cannot see it fail.
+
+    Every vocabulary is computed once at module import, so the mutation gate's trampoline is not live
+    when that call happens: measured 2026-10-21, four mutants of this one line survived the whole
+    suite, including the one that turns `and` into `or` and admits every string constant the module
+    has. A test that asserts on `SOURCE_WORDS` reads a tuple built before any mutant existed, so the
+    call below is direct and the expected words are written out rather than derived."""
+    assert ae._declared("CLOCK_") == ("device", "device+host", "host", "none")
+    assert ae._declared("DURATION_SOURCE_") == ("observed", "stored")
+    assert ae.UNKNOWN not in ae._declared("CLOCK_"), "a prefix reader must not admit an unprefixed word"
+    assert ae._declared("NO_SUCH_PREFIX_") == (), "an undeclared prefix declares nothing"
+    assert ae._declared("") == tuple(sorted(ae._declared(""))), "the reader returns its words sorted"
+
+
+def test_a_one_sided_duration_keeps_the_side_it_HAS():
+    """Mutant-measured 2026-10-21: dropping `observed_s` from the one-sided return survived the suite.
+
+    Every earlier leg reads `source`, and none reads the value that named it. A record whose source
+    says `observed` while the observed slot is null is absence as a value, in miniature (§∅)."""
+    got = ae.DurationCheck.build(None, 7200)
+    assert (got.stored_s, got.observed_s, got.source) == (None, 7200, ae.DURATION_SOURCE_OBSERVED)
+    assert (got.delta_s, got.agrees) == (None, None), "one side present leaves no comparison to make"
+    got = ae.DurationCheck.build(7200, None)
+    assert (got.stored_s, got.observed_s, got.source) == (7200, None, ae.DURATION_SOURCE_STORED)

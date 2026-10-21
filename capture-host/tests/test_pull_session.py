@@ -267,6 +267,30 @@ def test_a_finalized_recording_carries_the_devices_own_session_summary(tmp_path,
     assert acq["session_id"] == "20260720020000"
 
 
+def test_a_failing_envelope_never_costs_the_ring_pull_its_sidecar(tmp_path, monkeypatch, capsys):
+    """An undeclared vocabulary word now refuses at construction, and THIS is the path that refusal
+    would have landed in: the four other production producers assemble inside a guard and this one
+    did not. The bytes are committed before the envelope is built, so a fault must cost the ENVELOPE
+    and nothing else — the sidecar that explains the pull is what an operator reads next."""
+    blob = bytes([0x01, 0x03, 0, 0, 0, 0, 0, 0, 0x04, 0x00]) + bytes([96, 50, 0]) * 300 + bytes(48)
+    ring = FakeRing(["20260721030000"], blob)
+    _install(monkeypatch, ring)
+
+    def boom(*a, **kw):
+        raise ValueError("acq_evidence: clock_status='host_only' is not a declared word")
+
+    monkeypatch.setattr(pull_session.acq_evidence_o2ring, "assemble_dat", boom)
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+
+    assert open(got[0], "rb").read() == blob, "the pulled bytes are untouched"
+    meta = json.load(open(got[0] + ".meta.json"))
+    assert "acquisition_evidence" not in meta, "the envelope is the whole of what the fault costs"
+    assert meta["session"] == "20260721030000", "the rest of the sidecar is still written"
+    printed = capsys.readouterr().out
+    assert "20260721030000" in printed, "the line must name WHICH session lost its envelope"
+    assert "host_only" in printed, "and WHICH word the assembler refused"
+
+
 def test_the_transfer_survives_frames_split_across_notifications(tmp_path, monkeypatch):
     """BLE delivers whatever fits the MTU; a reply can straddle two notifications. The real Reassembler
     is in this path, so splitting every frame must change nothing."""

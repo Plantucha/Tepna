@@ -545,11 +545,18 @@ async def _pull_once(
                 "path": final,
                 "attempt": None,
             }
-            meta_j["acquisition_evidence"] = acq_evidence_o2ring.assemble_dat(
-                _acq_row,
-                trailer=summary,
-                clock_status=acq_evidence.UNKNOWN,
-            ).to_dict()
+            # THE ENVELOPE MUST NEVER COST THE PULL ITS SIDECAR. The bytes are already committed and
+            # `meta_j` above already explains them, so an assembler fault — an undeclared word now
+            # refuses at construction — logs and leaves the rest of the sidecar intact. The four other
+            # production producers each carry this guard; this one was the exception.
+            try:
+                meta_j["acquisition_evidence"] = acq_evidence_o2ring.assemble_dat(
+                    _acq_row,
+                    trailer=summary,
+                    clock_status=acq_evidence.UNKNOWN,
+                ).to_dict()
+            except Exception as e:  # noqa: BLE001 — the report never damages the pull it describes
+                print(f"  ⚠ acquisition-evidence envelope failed for {ts} ({e!r}) — bytes unaffected", flush=True)
             with open(final + ".meta.json", "w") as f:
                 json.dump(meta_j, f, indent=2)
             # REPORT IT EITHER WAY — under the name that says which it is. Returning nothing for a

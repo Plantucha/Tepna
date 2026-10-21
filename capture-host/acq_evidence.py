@@ -76,6 +76,59 @@ CLOCK_NONE = "none"  # neither clock reached the artifact
 # there. Whether that device clock AGREES with a host's is `clock_offset`'s question, never this one.
 CLOCK_DEVICE_ONLY = "device"
 
+# ── the `duration_check.source` vocabulary (§16 of the auto-harvest owner spec, verbatim) ──────────
+# These two words are the owner spec's own, shared with the #1742 runner, so they are named here
+# rather than renamed. `DurationCheck.build` is their only production producer today, but the
+# dataclass is public and a direct construction bypasses the builder entirely.
+DURATION_SOURCE_OBSERVED = "observed"  # the live path saw the close, so the expectation is independent
+DURATION_SOURCE_STORED = "stored"  # only the artifact's own declaration was available
+
+
+# ── THE DECLARED VOCABULARIES, and the refusal that makes them more than a comment ────────────────
+# Measured 2026-10-21: this module declared five vocabularies as bare constants, ran no
+# `__post_init__`, and raised nowhere. A producer passing `host_only` or `stored-files` therefore
+# wrote a sidecar every consumer reads as unknown, and no gate reded. OPEN, in the source note above,
+# means EXTENSIBLE and never UNENUMERATED: a word joins by declaring a constant. So a tuple per
+# vocabulary and a refusal on an unlisted word hold both halves of that note, and UNKNOWN stays legal
+# in every one of them (§5 — missing information must always have somewhere to go).
+#
+# WHAT IS NOT VALIDATED, on purpose. `device_state` carries a normalized OXYLIFE/FGState observation
+# and `validation_depth` describes what a checker actually checked; both are open OBSERVATION spaces
+# this module does not declare, so a tuple would refuse a true word. The rule binds exactly the
+# vocabularies declared HERE (§9: the generic envelope holds no protocol logic, and a device's own
+# state words are protocol).
+def _declared(prefix: str) -> tuple[str, ...]:
+    """The words a prefix declares, read from the constants above rather than retyped beneath them.
+
+    DERIVED, so declaring `SOURCE_X` extends the vocabulary with no second edit and no stale list —
+    a hand-written list names only the words whoever wrote it remembered. The `isinstance` test is
+    what keeps a TUPLE sharing the prefix (`SOURCE_WORDS` itself) out of its own vocabulary."""
+    return tuple(sorted(v for k, v in globals().items() if k.startswith(prefix) and isinstance(v, str)))
+
+
+SOURCE_WORDS: tuple[str, ...] = _declared("SOURCE_") + (UNKNOWN,)
+CLOCK_WORDS: tuple[str, ...] = _declared("CLOCK_") + (UNKNOWN,)
+DURATION_SOURCE_WORDS: tuple[str, ...] = _declared("DURATION_SOURCE_") + (UNKNOWN,)
+# The two axes of §6 share no prefix, so they are named. The suite holds every upper-case string
+# constant in this module to membership in exactly one vocabulary, which is what catches a word
+# declared here and forgotten there — the staleness a literal tuple cannot see by itself.
+VALIDATION_WORDS: tuple[str, ...] = (VALID, INVALID, UNKNOWN)
+COMPLETENESS_WORDS: tuple[str, ...] = (COMPLETE, PARTIAL, UNKNOWN)
+
+
+def _refuse_unlisted(field_name: str, word: object, vocabulary: tuple[str, ...]) -> None:
+    """Refuse a word no reader knows. The message names the FIELD, the word and the vocabulary,
+    because "invalid value" sends the operator back to the source to learn which of five it was."""
+    if word not in vocabulary:
+        raise ValueError(f"acq_evidence: {field_name}={word!r} is not a declared word; expected one of {vocabulary}")
+
+
+def _refuse_unlisted_count(field_name: str, value: int | str | None) -> None:
+    """A count field is an int, or UNKNOWN, or None — never another word (§8). `"0"`, `"none"` and
+    `"n/a"` are exactly the strings that read as a measured zero downstream, so they stop here."""
+    if isinstance(value, str) and value != UNKNOWN:
+        raise ValueError(f"acq_evidence: {field_name}={value!r} is a count or {UNKNOWN}, never another word")
+
 
 @dataclass(frozen=True)
 class DurationCheck:
@@ -95,6 +148,9 @@ class DurationCheck:
     #                      bare equality (o2ring-duration-is-quantized: the counter is ±1 s quantized,
     #                      NOT a frame index). None when either side is unknown.
 
+    def __post_init__(self) -> None:
+        _refuse_unlisted("duration_check.source", self.source, DURATION_SOURCE_WORDS)
+
     @staticmethod
     def build(stored_s: int | None, observed_s: int | None) -> "DurationCheck":
         if stored_s is None and observed_s is None:
@@ -102,10 +158,10 @@ class DurationCheck:
         if stored_s is None or observed_s is None:
             # one side present: prefer the independently-observed value for the expected slot when we
             # have it, else the stored declaration — but there is no comparison to make.
-            src = "observed" if observed_s is not None else "stored"
+            src = DURATION_SOURCE_OBSERVED if observed_s is not None else DURATION_SOURCE_STORED
             return DurationCheck(stored_s, observed_s, src, None, None)
         delta = stored_s - observed_s
-        return DurationCheck(stored_s, observed_s, "observed", delta, abs(delta) <= 1)
+        return DurationCheck(stored_s, observed_s, DURATION_SOURCE_OBSERVED, delta, abs(delta) <= 1)
 
 
 @dataclass(frozen=True)
@@ -186,6 +242,22 @@ class AcquisitionEvidence:
 
     schema: str = SCHEMA
     version: str = SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        """Construction is where an undeclared word stops.
+
+        WHY HERE AND NOT IN EACH ADAPTER: three adapters pass these words through from their own
+        callers untouched, so a rule each adapter must remember is not a mechanism. Every envelope
+        this box writes is built by constructing this dataclass, so this is the one place no producer
+        can route around. A refusal costs the ENVELOPE and never the artifact: all five production
+        producers assemble inside a guard that logs and writes the sidecar without it."""
+        _refuse_unlisted("source", self.source, SOURCE_WORDS)
+        _refuse_unlisted("clock_status", self.clock_status, CLOCK_WORDS)
+        _refuse_unlisted("validation", self.validation, VALIDATION_WORDS)
+        _refuse_unlisted("completeness", self.completeness, COMPLETENESS_WORDS)
+        _refuse_unlisted_count("expected_sample_count", self.expected_sample_count)
+        _refuse_unlisted_count("transport_gaps", self.transport_gaps)
+        _refuse_unlisted_count("decode_gaps", self.decode_gaps)
 
     def to_dict(self) -> dict:
         return asdict(self)
