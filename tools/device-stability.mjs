@@ -42,7 +42,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { createRequire } from 'node:module';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const DexClock = require(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'clock.js'));
@@ -296,6 +296,7 @@ function median(a) {
 
 async function main() {
   const args = process.argv.slice(2);
+  refuseUnknownArgvOrExit(args, { valued: ['--every', '--json'], boolean: ['--selftest'], positional: true }, { tool: 'device-stability' });
   if (args.includes('--selftest')) return selftest();
   const dir = args.find((a) => !a.startsWith('--'));
   if (!dir) {

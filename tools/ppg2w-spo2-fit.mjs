@@ -22,14 +22,21 @@
  * ratio falls). Functional evidence, NOT spectral proof — the sunlight experiment remains the
  * assignment's confirmation, and the per-device fit is not a calibration curve.
  *
- * Usage: node tools/ppg2w-spo2-fit.mjs <captures-root> [--bin 15] [--min-bins 20]
+ * Usage: node tools/ppg2w-spo2-fit.mjs <captures-root> [--bin 15]
+ *        `--min-bins` was documented here and never read; the guard refuses it rather than
+ *        letting a caller write a form this tool ignores (residue
+ *        `2026-10-21-a-usage-line-promised-a-flag-the-tool-never-read`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
+   IMPORTER's arguments, so it runs for the CLI only (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, { valued: ['--bin'], boolean: ['--selftest'], positional: true }, { tool: 'ppg2w-spo2-fit' });
 const opt = (k, d) => {
   const i = argv.indexOf(k);
   return i >= 0 ? +argv[i + 1] : d;

@@ -38,6 +38,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -243,6 +244,7 @@ function selftest() {
 
 function main() {
   const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--verdict-sample', '--json'], positional: true }, { tool: 'corpus-scope' });
   if (argv.includes('--selftest')) process.exit(selftest());
   /* The corpus-free sample the adoption gate runs: the measured 2026-09-22 shape — one countable
      tree, one alias of it, one remote root — which is the case the residue is about. */

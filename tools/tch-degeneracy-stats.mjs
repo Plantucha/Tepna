@@ -29,8 +29,13 @@
  *     --selftest   known-answer check on a synthetic fixture of that output (no corpus, no I/O)
  */
 import { readFileSync, existsSync } from 'node:fs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
+   IMPORTER's arguments, so it runs for the CLI only (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, { boolean: ['--selftest'], positional: true }, { tool: 'tch-degeneracy-stats' });
 const SELFTEST = argv.includes('--selftest');
 
 /* Column order in tch-multinight's magnitude table and its median lines: ECGDex / PpgDex / OxyDex. */

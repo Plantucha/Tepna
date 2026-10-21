@@ -46,9 +46,14 @@
 import { readdirSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDsps, ecgRpeakTimes, ppgFootTimes, median } from './pat-matchrate-strict.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
+   IMPORTER's arguments, so it runs for the CLI only (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
+if (isCliEntry(import.meta.url))
+  refuseUnknownArgvOrExit(argv, { valued: ['--min-span-sec', '--min-beats', '--device', '--ecg-device'], boolean: ['--json'], positional: true }, { tool: 'pat-connection-stability' });
 const opt = (k, d) => {
   const i = argv.indexOf(k);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;

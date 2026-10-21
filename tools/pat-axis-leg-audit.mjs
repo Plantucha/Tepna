@@ -46,6 +46,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const NOMINAL_MAX_MS = 2; // hostAxis `independent` threshold — see header
@@ -155,6 +156,7 @@ function selftest() {
 
 async function main() {
   const args = process.argv.slice(2);
+  refuseUnknownArgvOrExit(args, { boolean: ['--selftest'], positional: true }, { tool: 'pat-axis-leg-audit' });
   if (args.includes('--selftest')) {
     process.exit(selftest() ? 0 : 1);
   }

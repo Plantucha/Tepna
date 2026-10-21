@@ -20,7 +20,7 @@
  * cached (`xerj-load.mjs` wrote them); nothing is re-embedded except the one-line query.
  */
 
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 export const DEFAULT_URL = 'http://127.0.0.1:9200';
 export const DEFAULT_INDEX = 'tepna-hybrid';
 export const OLLAMA = process.env.DEX_OLLAMA || 'http://127.0.0.1:11434';
@@ -401,6 +401,7 @@ export function render(out, query, { brief = false } = {}) {
 
 if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--rerank', '--brief'], positional: true }, { tool: 'xerj-query' });
   if (argv.includes('--selftest')) {
     const r = await selftest();
     process.stdout.write(`${r.line}\n`);

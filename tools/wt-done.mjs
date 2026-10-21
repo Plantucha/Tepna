@@ -34,7 +34,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readlinkSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 
@@ -477,6 +477,7 @@ function dirtyCountFor(wtPath) {
 }
 
 function main(argv) {
+  refuseUnknownArgvOrExit(argv, { valued: ['--pr'], boolean: ['--list', '--pushed', '--landed', '--selftest'], positional: true }, { tool: 'wt-done' });
   let wts;
   try {
     wts = parseWorktrees(run('git', ['-C', REPO_ROOT, 'worktree', 'list', '--porcelain']));

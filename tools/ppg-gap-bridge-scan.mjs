@@ -43,11 +43,16 @@ import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const argv = process.argv.slice(2);
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
+   IMPORTER's arguments, so it runs for the CLI only (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, { valued: ['--dir', '--top'], boolean: ['--json', '--selftest'], positional: true }, { tool: 'ppg-gap-bridge-scan' });
 const opt = (f, d) => {
   const i = argv.indexOf(f);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
