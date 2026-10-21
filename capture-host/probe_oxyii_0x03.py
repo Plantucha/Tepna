@@ -67,6 +67,15 @@ HDR = 6  # 6-byte header before the 8-bit sample body
 #: occurrences, "100 % isolated"). It is a MARKER, not a sample: counting it as one inflates the rate,
 #: which is precisely how 0x05's row rate read 126.06 against a 125.000 ADC.
 BEAT_MARKER = 156
+HDR_WORD_LEN = 4  # the four bytes BEFORE the declared count, read as one u32 LE
+#: Pre-stated in RING-POLL-SPLIT §P1, before the header run, as the reading for `[0:4]`: POSITION if it
+#: steps by exactly the previous reply's declared count on >= 95 % of consecutive pairs. It did not.
+#: Worn, 2026-10-06, 180 s: `[0:4]` read 0 on all 887 replies, every one of the 886 steps was 0, and 11
+#: pairs (1.2 %) matched — the replies that had declared 0. The read was sound, because `[4:6]` lives in
+#: the same six bytes and varied reply to reply (250, 0, 40, 13, ...).
+#: That run used a SCRATCH copy of this probe, which was never committed, so the next firmware would
+#: have cost the same patch again. The header is recorded here instead.
+HEADER_POSITION_SHARE = 0.95
 
 
 def parse_counts(payload: bytes) -> tuple[int | None, int]:
@@ -77,6 +86,68 @@ def parse_counts(payload: bytes) -> tuple[int | None, int]:
     if len(payload) < HDR:
         return None, max(0, len(payload) - HDR)
     return struct.unpack_from("<H", payload, 4)[0], len(payload) - HDR
+
+
+def parse_header_word(payload: bytes) -> int | None:
+    """The u32 LE at `[0:4]` of one 0x03 reply, or `None` when the payload cannot carry the header.
+
+    ∅ `None` is the ABSENCE of a read; 0 is a value the device sent. The two must not render alike
+    here of all places, because the measured value IS 0: a reader that returned 0 for a reply it was
+    too short to read would report the measured constant for a reply it never examined, and a later
+    firmware that fills the field would be told apart from a truncated link by nothing at all.
+
+    The field carries no documented meaning. `oxyii.ppg_stream_offset` is the sibling 0x04 field that
+    would hold a position, and it reads dead on this ring too, so a consumer has no device position on
+    either opcode — see `header_word_stats` for the reading and the constant above for its criterion."""
+    if len(payload) < HDR:
+        return None
+    return int.from_bytes(payload[:HDR_WORD_LEN], "little")
+
+
+def header_word_stats(samples: list[dict]) -> dict:
+    """PURE: what `[0:4]` did over one run, judged against the share pre-stated above.
+
+    A pair is examinable only when BOTH replies were read AND the earlier one declared a count — the
+    step is compared against that count, so a truncated reply excludes its pair rather than scoring as
+    a mismatch. Excluded pairs are published beside the examined ones, never folded into them.
+
+    ∅ Every derived field is `None` over zero reads or zero pairs. `header_read` and `header_absent`
+    are counts of examined things, so 0 is a real answer for those two alone.
+
+    A reply declaring 0 records matches a step of 0, which is why P1's 11 of 886 is not evidence of a
+    position: the artifact is kept rather than filtered, because the criterion was stated with it in."""
+    read = [s for s in samples if s.get("hdr0") is not None]
+    vals = {s["hdr0"] for s in read}
+    out: dict = {
+        "header_read": len(read),
+        "header_absent": len(samples) - len(read),
+        "header_values_distinct": len(vals) if read else None,
+        "header_min": min(vals) if read else None,
+        "header_max": max(vals) if read else None,
+        "header_constant": (len(vals) == 1) if read else None,
+        "header_pairs": None,
+        "header_pairs_excluded": 0,
+        "header_steps_matching_count": None,
+        "header_position_share": None,
+        "header_nondecreasing": None,
+        "header_reading": None,
+    }
+    pairs = []
+    for a, b in zip(samples, samples[1:]):
+        if a.get("hdr0") is None or b.get("hdr0") is None or a.get("count") is None:
+            out["header_pairs_excluded"] += 1
+            continue
+        pairs.append((a, b))
+    if not pairs:
+        return out
+    match = sum(1 for a, b in pairs if b["hdr0"] - a["hdr0"] == a["count"])
+    share = match / len(pairs)
+    out["header_pairs"] = len(pairs)
+    out["header_steps_matching_count"] = match
+    out["header_position_share"] = round(share, 4)
+    out["header_nondecreasing"] = all(b["hdr0"] >= a["hdr0"] for a, b in pairs)
+    out["header_reading"] = "position" if share >= HEADER_POSITION_SHARE else "not-a-position"
+    return out
 
 
 def marker_stats(body: bytes, marker: int = BEAT_MARKER) -> tuple[int, int]:
@@ -100,6 +171,11 @@ def marker_stats(body: bytes, marker: int = BEAT_MARKER) -> tuple[int, int]:
 def summarise(samples: list[dict], cap: int = REC_CAP) -> dict:
     """PURE: turn the per-reply log into the two rates §7.4 asks for, plus the saturation evidence.
 
+    The header word `[0:4]` rides along as a DIAGNOSTIC — `header_word_stats` judges it against its own
+    pre-stated share, and that reading is not what this gate's status decides. One tool emits one
+    verdict object, and the status answers §7.4's rate question only; a second question wearing the
+    same status word would claim this run had been designed to decide it.
+
     `rate_all` uses every reply with records; `rate_unsat` excludes any reply that pinned at the cap
     AND the interval that follows it, because a saturated reply tells you the buffer was full at some
     unknown earlier moment — its records did not all arrive in that interval. Both are reported: if
@@ -122,6 +198,7 @@ def summarise(samples: list[dict], cap: int = REC_CAP) -> dict:
         "rate_unsaturated_hz": None,
         "span_s": None,
     }
+    out.update(header_word_stats(samples))
     span = 0.0
     if len(with_recs) >= 2:
         span = with_recs[-1]["t"] - with_recs[0]["t"]
@@ -196,6 +273,18 @@ def verdict_object(s: dict) -> dict:
         "rate_unsaturated_hz",
         "span_s",
         "unsaturated_span_s",
+        # The header diagnostic travels in the object, because a reader of the object must not have to
+        # open the log to learn whether `[0:4]` moved. The status above it stays the rate's.
+        "header_read",
+        "header_absent",
+        "header_values_distinct",
+        "header_constant",
+        "header_pairs",
+        "header_pairs_excluded",
+        "header_steps_matching_count",
+        "header_position_share",
+        "header_nondecreasing",
+        "header_reading",
     )
     result = {k: s.get(k) for k in keep}
     if s["replies_with_records"] == 0:
@@ -280,6 +369,18 @@ def verdict(s: dict) -> list[str]:
             lines.append(f"  → consistent with {name} Hz (within 2 %)")
     if all(abs(r - hz) / hz > 0.02 for hz in (112.9, 125.0)):
         lines.append("  → consistent with NEITHER candidate — a third answer, not a tie-break")
+    if s.get("header_reading") is None:
+        lines.append(
+            f"  [0:4]: no examinable pair ({s['header_read']} read, {s['header_absent']} absent) — "
+            "the header word has no reading from this run"
+        )
+    else:
+        lines.append(
+            f"  [0:4] reads {s['header_reading']}: {s['header_steps_matching_count']}/{s['header_pairs']} "
+            f"steps match the previous declared count ({s['header_position_share']:.1%}), against the "
+            f"{HEADER_POSITION_SHARE:.0%} pre-stated in §P1; values "
+            f"{s['header_min']}..{s['header_max']}"
+        )
     return lines
 
 
@@ -351,8 +452,12 @@ async def run(address: str, seconds: float, hz: float, arg_hex: str | None) -> d
                             "markers": mk,
                             "isolated": iso,
                             # Kept so the LAYOUT itself stays checkable after the fact rather
-                            # than only the numbers derived from it.
+                            # than only the numbers derived from it. `hdr_hex` is the whole 6-byte
+                            # header, the declared count included, because the count is what proves
+                            # the header was read when `hdr0` reads a constant.
                             "body_hex": body.hex(),
+                            "hdr0": parse_header_word(payload),
+                            "hdr_hex": payload[:HDR].hex(),
                         }
                     )
                 elif op == oxyii.OP_LIVE:
