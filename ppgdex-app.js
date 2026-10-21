@@ -54,10 +54,17 @@ import { PPGUI } from './ppgdex-render.js';
   //   (2) Year-restricted general fallback — keeps NON-Polar vendors (Wellue/O2Ring capture-host
   //       names) stamping exactly as before, but requires a plausible `20xx` year so a numeric id can
   //       no longer masquerade as one.
+  // Both patterns stay as the ACCEPT TEST, so the two-pattern rule above still binds and this reader
+  // still claims exactly the names it claimed. Only the INSTANT changes. `Date.UTC` rolls an
+  // out-of-range component onto a real instant (Clock Contract §2.7) — measured on this shape,
+  // `20261332_999999` reached 2027-02-05 and `20260230` reached 2026-03-02. The stamp feeds
+  // `ING.pickNearestByStamp`, so a fabricated instant mis-picks a companion. PpgDex carries no
+  // `clock.js` (CLAUDE.md §👥.3), so the validator comes from `dex-ingest.js`, which this bundle
+  // already inlines ahead of this module — NOT from a fourth copy written here.
   function fnameStampMs(name) {
     const s = String(name == null ? '' : name);
     const m = s.match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/i) || s.match(/(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/);
-    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+    if (m) return ING.stampMk(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]);
     return null;
   }
 
