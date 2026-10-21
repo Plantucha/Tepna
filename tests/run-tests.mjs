@@ -1808,6 +1808,10 @@ async function readPublishedCorpus() {
       verdict,
       verdictErrors: Verdict.validate(verdict).errors || [],
       supersededName: M.supersededName,
+      trio: M.TRIO,
+      recordIndent: M.recordIndent,
+      /* The record FILES, text and all. The cut-tree legs read strings only — no corpus walk. */
+      records: M.readRecords(M.RECORD_DIR, { cwd: ROOT }).map((r) => ({ ...r, text: readFileSync(join(ROOT, M.RECORD_DIR, r.name), 'utf8') })),
       compare: (record, cut) => M.compareRecord(record, identity, cut),
       scoped: (nights) => M.corpusIdentity(identity.root || M.TRIO, { cwd: ROOT, nights })
     };

@@ -76,5 +76,34 @@
       "verity": 1.1420498849262137,
       "o2": 3.3850715834878726
     }
+  },
+  "corpus": {
+    "root": "uploads/trio",
+    "resolvable": true,
+    "dataDigest": "0980c931c963",
+    "dataFiles": 385,
+    "foldGeneration": null,
+    "scopedToNightsRead": null,
+    "nights": 116,
+    "stamped": 56,
+    "unstamped": 60,
+    "codeDigests": [
+      "734d2105c2ec7c2c",
+      "7e8b4b9b20a88960",
+      "d23c11a697e36e3f",
+      "e83acf0bffaa5097"
+    ],
+    "note": "dataDigest = sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under uploads/trio that is not a .trio-stamp; foldGeneration covers the night set and each night's .trio-stamp codeDigest, so an unstamped night contributes its name and no generation. Re-resolve both with tools/fold-generation.mjs",
+    "foldGenerationAtCut": "2620e4e7ee4d",
+    "foldGenerationReason": "the record names no nights, so no generation describes the population it read; foldGenerationAtCut covers all 116 night(s) under uploads/trio at the cut",
+    "recovered": {
+      "commit": "2e9584e5",
+      "namedCommit": "2e9584e5",
+      "matchedNamedCommit": true,
+      "verifiedBy": "the record's own inputs.digest reproduces over this tree: sha256[0:12] over path\\0sha12(bytes) of all 441 tracked file(s) under uploads/trio reads 19c31a194ec7",
+      "note": "the identity above comes from the commit the record names",
+      "by": "tools/fold-generation.mjs",
+      "at": "2026-10-21"
+    }
   }
 }

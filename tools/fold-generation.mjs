@@ -254,6 +254,17 @@ export function compareRecord(record, identity, cut = null) {
   const block = record?.corpus ?? null;
   const legacy = record?.inputs?.digest ?? null;
   if (!identity.ok) return { state: 'unresolvable', detail: identity.reason };
+  /* A RECOVERED block carries the tree identity and no comparable generation (see
+     `recoveredBlock`). The data half is the durable one: it survives any merge policy, and it is
+     the half a published number rests on. Check it, and say plainly what went unchecked. */
+  if (block?.dataDigest && !block.foldGeneration) {
+    if (block.dataDigest === identity.dataDigest)
+      return {
+        state: 'resolves',
+        detail: `the exports re-resolve to the recovered cut tree ${block.dataDigest}; the fold generation is not comparable, because ${block.foldGenerationReason ?? 'the record names no nights'}`
+      };
+    return { state: 'moved', detail: `the exports moved: the recovered cut tree reads ${block.dataDigest} and the corpus now reads ${identity.dataDigest}`, dataMoved: true, genMoved: null };
+  }
   if (block?.foldGeneration) {
     const dataMoved = block.dataDigest !== identity.dataDigest;
     const genMoved = block.foldGeneration !== identity.generation;
@@ -359,6 +370,145 @@ export function auditRecords({ cwd = ROOT, commit = null, root = TRIO } = {}) {
     return { name, judged: true, why: null, state: cmp.state, detail: cmp.detail };
   });
   return { identity, rows };
+}
+
+/* ── RECOVERY ────────────────────────────────────────────────────────────────────────────────
+   🔴 A `producerCommit` IS A WEAK POINTER TWO WAYS. Kodiak squash-merges, so the commit a record
+   names survives in the clone that wrote it and nowhere else (measured 2026-10-21: 5 of 13 cut
+   commits are not ancestors of `origin/main`). And a record can simply name the WRONG commit —
+   `tch-pooled-hat-2026-09-29.json` names `f131fe57`, a residue-docs commit whose tree holds 609
+   tracked files, while the record documents 658. A TREE identity has neither failure mode: it is
+   computed from content, so it survives any merge policy and cannot point at the wrong tree.
+
+   Recovery reads the objects this checkout still holds and writes that identity into the record.
+   It is self-verifying: a record gets a block only when ITS OWN documented `inputs.digest`
+   reproduces over the candidate tree. ∅ No reproduction, no block — the reason is recorded and
+   nothing is guessed. */
+
+/** Commits that touched `root`, newest first, cheaply prefiltered by tracked-file COUNT.
+    `git ls-tree | wc -l` answers the count without reading one byte of the 430 MB corpus. */
+export function cutCandidates(root = TRIO, { cwd = ROOT, files = null, limit = 40 } = {}) {
+  let log;
+  try {
+    log = execFileSync('git', ['log', '--format=%H', `-${limit}`, '--', root], { cwd, maxBuffer: 1 << 26 });
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const sha of log.toString().split('\n').filter(Boolean)) {
+    if (files != null) {
+      const listed = trackedFiles(root, { cwd, commit: sha });
+      if (listed == null || listed.all.length !== files) continue;
+    }
+    out.push(sha.slice(0, 10));
+  }
+  return out;
+}
+
+/** The tree a record's own digest identifies, found and PROVEN rather than assumed. */
+export function recoverCut(record, { cwd = ROOT, root = TRIO, limit = 40 } = {}) {
+  const want = record?.inputs?.digest ?? null;
+  const named = typeof record?.producerCommit === 'string' ? record.producerCommit.split(/[\s+]/)[0] : null;
+  const path = String(record?.inputs?.path ?? '');
+  if (path !== root) return { ok: false, reason: `the record names ${path || 'no corpus'}, not ${root}`, named, commit: null, matchedNamed: null, tried: [] };
+  if (!want) return { ok: false, reason: 'the record carries no inputs.digest, so no tree can prove itself the cut', named, commit: null, matchedNamed: null, tried: [] };
+  const tried = [];
+  const attempt = (commit) => {
+    tried.push(commit);
+    const identity = corpusIdentity(root, { cwd, commit });
+    return identity.ok && identity.allFilesDigest === want ? identity : null;
+  };
+  if (named) {
+    const hit = attempt(named);
+    if (hit) return { ok: true, reason: null, named, commit: named, matchedNamed: true, identity: hit, tried };
+  }
+  /* The named commit did not hold the tree. Search the commits that touched the corpus, with the
+     file count as the prefilter, so a wrong name costs one cheap listing per candidate. */
+  for (const sha of cutCandidates(root, { cwd, files: record?.inputs?.files ?? null, limit })) {
+    if (sha === named) continue;
+    const hit = attempt(sha);
+    if (hit) return { ok: true, reason: null, named, commit: sha, matchedNamed: false, identity: hit, tried };
+  }
+  return {
+    ok: false,
+    reason: named
+      ? `the record's digest ${want} reproduces at no commit this clone holds, including the ${named} it names (${tried.length} tried)`
+      : `the record's digest ${want} reproduces at no commit this clone holds (${tried.length} tried)`,
+    named,
+    commit: null,
+    matchedNamed: named ? false : null,
+    tried
+  };
+}
+
+/** The block a recovery writes into a record: the cut's tree identity, plus how it proved itself. */
+export function recoveredBlock(rec, { at = null, by = SELF } = {}) {
+  if (!rec.ok) return null;
+  const block = corpusBlock(rec.identity);
+  /* ∅ THE GENERATION HALF CANNOT BE RECOVERED, AND A NUMBER IS NOT A REASON TO INVENT IT. A
+     producer writes `foldGeneration` scoped to the nights it READ. A legacy record states a night
+     COUNT and no names, so the only generation recoverable here covers the whole root — which
+     describes a population the number never opened, and would read MOVED the moment any other
+     night gains a stamp. The whole-root value is kept as a fact under its own name, and the
+     comparable field is null with the reason beside it. */
+  return {
+    ...block,
+    foldGeneration: null,
+    foldGenerationAtCut: block.foldGeneration,
+    foldGenerationReason: `the record names no nights, so no generation describes the population it read; foldGenerationAtCut covers all ${rec.identity.nights} night(s) under ${rec.identity.root} at the cut`,
+    recovered: {
+      commit: rec.commit,
+      namedCommit: rec.named,
+      matchedNamedCommit: rec.matchedNamed,
+      verifiedBy: `the record's own inputs.digest reproduces over this tree: sha256[0:12] over path\\0sha12(bytes) of all ${rec.identity.allFiles} tracked file(s) under ${rec.identity.root} reads ${rec.identity.allFilesDigest}`,
+      note:
+        rec.matchedNamed === false
+          ? `the record names ${rec.named}, whose tree does NOT carry this digest; the identity above comes from the commit that does. Nothing in the record was edited`
+          : 'the identity above comes from the commit the record names',
+      by,
+      at
+    }
+  };
+}
+
+/** Every record under `dir`, with the block recovery would write and the reason when it writes none. */
+export function recoverRecords({ cwd = ROOT, root = TRIO, dir = RECORD_DIR, at = null } = {}) {
+  return readRecords(dir, { cwd }).map(({ name, record }) => {
+    const already = record?.corpus?.dataDigest ? record.corpus : null;
+    const rec = already ? null : recoverCut(record, { cwd, root });
+    return {
+      name,
+      record,
+      already: Boolean(already),
+      recovery: rec,
+      block: rec ? recoveredBlock(rec, { at }) : null,
+      reason: already ? 'the record already carries a corpus block' : rec.ok ? null : rec.reason
+    };
+  });
+}
+
+/** The verdict over a recovery sweep: every in-root record either carries a block or states why. */
+export function recoverVerdict(rows, { commit = null, root = TRIO } = {}) {
+  const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+  const inRoot = rows.filter((r) => String(r.record?.inputs?.path ?? '') === root);
+  const covered = inRoot.filter((r) => r.already || r.block);
+  const bare = inRoot.filter((r) => !r.already && !r.block);
+  return Verdict.make({
+    gate: 'published-number-cut-tree',
+    status: inRoot.length === 0 ? 'NOT_RUN' : bare.length === 0 ? 'PASS' : 'SHORTFALL',
+    population: { checked: inRoot.length, eligible: rows.length, excluded: rows.length - inRoot.length },
+    criterion: { name: 'records_without_a_tree_identity', threshold: 0, unit: 'records', direction: 'lte' },
+    result: inRoot.length === 0 ? null : { covered: covered.length, bare: bare.length, renamedCut: inRoot.filter((r) => r.recovery?.matchedNamed === false && r.recovery?.ok).length },
+    evidence: [SELF, RECORD_DIR],
+    reason:
+      inRoot.length === 0
+        ? `no record under ${RECORD_DIR} names ${root}`
+        : bare.length
+          ? `${bare.length} record(s) carry no tree identity: ${bare.map((r) => `${r.name} (${r.reason})`).join('; ')}`
+          : null,
+    producedBy: { tool: SELF, commit },
+    at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  });
 }
 
 function gitCommitShort(cwd = ROOT) {
@@ -500,6 +650,82 @@ function selftest() {
     ok('repoRelative returns the relative root', repoRelative(join(cwd, TRIO), { cwd }) === TRIO);
     ok('∅ repoRelative refuses a path outside the checkout', repoRelative('/etc', { cwd }) === null);
 
+    /* ══ CUT-TREE RECOVERY ══ a record cut before the block existed, proven against its own digest.
+       The planted truth is the same four-commit history above: commit 1 carries 3 tracked files
+       under the root, the later ones carry 4, 4 and 5. */
+    {
+      const shaOf = (rev) => execFileSync('git', ['rev-parse', '--short=10', rev], { cwd }).toString().trim();
+      const cut = corpusIdentity(TRIO, { cwd, commit: 'HEAD~3' });
+      const head = corpusIdentity(TRIO, { cwd });
+      const mkRec = (over = {}) => ({ inputs: { path: TRIO, digest: cut.allFilesDigest, files: cut.allFiles }, producerCommit: shaOf('HEAD~3'), ...over });
+
+      const named = recoverCut(mkRec(), { cwd });
+      ok('the cut tree is found at the commit the record names', named.ok && named.matchedNamed === true && named.commit === shaOf('HEAD~3'), named.reason ?? named.commit);
+      ok('the recovery PROVES itself: the identity it returns carries the record’s own digest', named.identity?.allFilesDigest === cut.allFilesDigest);
+
+      /* THE MEASURED DEFECT · a producerCommit can name a tree it never held. */
+      const wrong = recoverCut(mkRec({ producerCommit: shaOf('HEAD') }), { cwd });
+      ok(
+        'A RECORD CAN NAME THE WRONG COMMIT · the digest still finds the tree that holds it',
+        wrong.ok && wrong.matchedNamed === false && wrong.commit === shaOf('HEAD~3'),
+        wrong.reason ?? wrong.commit
+      );
+      ok('the wrong name is kept beside the proven one, never overwritten', wrong.named === shaOf('HEAD'));
+
+      ok(
+        '∅ a digest that reproduces nowhere yields NO commit and a reason',
+        (() => {
+          const r = recoverCut(mkRec({ inputs: { path: TRIO, digest: 'deadbeef0000' } }), { cwd });
+          return r.ok === false && r.commit === null && typeof r.reason === 'string';
+        })()
+      );
+      ok('∅ a record with no digest cannot be proven, and is refused rather than guessed', recoverCut({ inputs: { path: TRIO }, producerCommit: shaOf('HEAD') }, { cwd }).ok === false);
+      ok('∅ a record naming another corpus is refused by the recovery too', recoverCut(mkRec({ inputs: { path: 'uploads/other', digest: cut.allFilesDigest } }), { cwd }).ok === false);
+
+      ok(
+        'the file COUNT prefilters the candidates, so a wrong name costs one listing each',
+        cutCandidates(TRIO, { cwd, files: cut.allFiles }).length === 1 && cutCandidates(TRIO, { cwd }).length === 4
+      );
+      ok('∅ a file count no commit carries leaves no candidate, rather than falling back to HEAD', cutCandidates(TRIO, { cwd, files: 999 }).length === 0);
+
+      const block = recoveredBlock(named, { at: '2026-10-21' });
+      ok('the recovered block carries the cut’s DATA identity', block.dataDigest === cut.dataDigest && block.dataFiles === cut.dataFiles);
+      ok('∅ THE GENERATION HALF IS NULL, because the record names no nights', block.foldGeneration === null && typeof block.foldGenerationReason === 'string');
+      ok('the whole-root generation is kept under its OWN name, never as the comparable one', block.foldGenerationAtCut === cut.generation);
+      ok('the block says how it proved itself, by quoting the digest it reproduced', block.recovered.verifiedBy.includes(cut.allFilesDigest));
+      ok('∅ a refused recovery yields no block at all', recoveredBlock({ ok: false }) === null);
+
+      /* A record carrying a recovered block is judged on the data half ALONE. */
+      const atCutRec = { inputs: { path: TRIO }, corpus: block };
+      const cmp = compareRecord(atCutRec, cut);
+      ok('a recovered record re-resolves against the tree it was cut from', cmp.state === 'resolves' && cmp.detail.includes(cut.dataDigest), cmp.detail ?? cmp.state);
+      const movedCmp = compareRecord(atCutRec, head);
+      ok('the data half still reads MOVED when the exports move under it', movedCmp.state === 'moved' && movedCmp.dataMoved === true && movedCmp.genMoved === null, movedCmp.detail ?? movedCmp.state);
+
+      const rowOk = { name: 'a.json', record: { inputs: { path: TRIO } }, already: false, recovery: named, block, reason: null };
+      const rowBare = { name: 'b.json', record: { inputs: { path: TRIO } }, already: false, recovery: { ok: false }, block: null, reason: 'the record carries no inputs.digest' };
+      const rowOut = { name: 'c.json', record: { inputs: { path: 'uploads/other' } }, already: false, recovery: null, block: null, reason: null };
+      const vOk = recoverVerdict([rowOk, rowOut], { commit: 'abcd1234' });
+      ok('a sweep where every in-root record carries an identity is PASS', vOk.status === 'PASS' && vOk.population.checked === 1 && vOk.population.excluded === 1);
+      ok(
+        'the recovery verdict validates',
+        createRequire(import.meta.url)(join(ROOT, 'verdict.js')).validate(vOk).ok,
+        createRequire(import.meta.url)(join(ROOT, 'verdict.js'))
+          .validate(vOk)
+          .errors.join(' | ')
+      );
+      const vBare = recoverVerdict([rowOk, rowBare], { commit: 'abcd1234' });
+      ok('∅ a record with no identity reads SHORTFALL and is NAMED', vBare.status === 'SHORTFALL' && vBare.reason.includes('b.json'), vBare.status);
+      ok('checked + excluded = eligible in the recovery verdict', vBare.population.checked + vBare.population.excluded === vBare.population.eligible);
+      ok('∅ a sweep with no in-root record is NOT_RUN, never a PASS over nothing', recoverVerdict([rowOut], { commit: 'abcd1234' }).status === 'NOT_RUN');
+      ok('a cut recovered at an unnamed commit is COUNTED, not hidden', vOk.result.renamedCut === 0 && recoverVerdict([{ ...rowOk, recovery: wrong }], { commit: 'abcd1234' }).result.renamedCut === 1);
+
+      /* THE WRITER · a record is rewritten in its OWN layout, or the added block is buried. */
+      ok('a one-space record keeps one space', recordIndent('{\n "a": 1\n}\n') === 1);
+      ok('a two-space record keeps two', recordIndent('{\n  "a": 1\n}\n') === 2);
+      ok('an unrecognised layout falls back to two, the JSON default', recordIndent('{}') === 2 && recordIndent(null) === 2);
+    }
+
     const missing = corpusIdentity('uploads/absent', { cwd });
     ok('∅ an absent root is NOT_RUN with a reason, never a clean zero', missing.ok === false && typeof missing.reason === 'string' && missing.dataDigest === null);
     ok('an absent root makes the run NOT_RUN', allVerdict([{ name: 'a.json', judged: true, state: 'resolves', detail: null }], missing, { commit: 'abcd1234' }).status === 'NOT_RUN');
@@ -522,11 +748,85 @@ function withPopulation(root, fn) {
   return { value, population: populationVerdict(before, after, { commit: gitCommitShort(), tool: SELF, evidence: [SELF] }) };
 }
 
+/** A record's own indent width, so a rewrite adds a key without reformatting the file. */
+export function recordIndent(text) {
+  const m = /^\{\r?\n( +)"/.exec(String(text));
+  return m ? m[1].length : 2;
+}
+
+/* `--recover` reports what a tree identity would be, and `--write` puts it in the record. The two
+   are separate because the recovery reads a past tree per record and a reader deserves to see the
+   evidence before a file changes. */
+function recoverMain(argv, commit) {
+  const at = new Date().toISOString().slice(0, 10);
+  const rows = recoverRecords({ at });
+  const v = recoverVerdict(rows, { commit });
+  const written = [];
+  if (argv.includes('--write')) {
+    for (const r of rows) {
+      if (!r.block) continue;
+      const file = join(ROOT, RECORD_DIR, r.name);
+      const text = readFileSync(file, 'utf8');
+      const doc = JSON.parse(text);
+      /* ADDITIVE ONLY. No claim, result, digest, commit or note in the record is touched: the
+         block sits beside them and says how it proved itself. 🔴 And the file is rewritten in ITS
+         OWN layout — these records are hand-cut and three of the five indent with ONE space, so a
+         fixed `JSON.stringify(doc, null, 2)` reformats 174 lines to add 29 and buries the change
+         a reviewer is meant to read. */
+      doc.corpus = r.block;
+      writeFileSync(file, JSON.stringify(doc, null, recordIndent(text)) + (text.endsWith('\n') ? '\n' : ''));
+      written.push(r.name);
+    }
+  }
+  if (argv.includes('--json')) {
+    console.log(
+      JSON.stringify(
+        {
+          verdict: v,
+          written,
+          rows: rows.map((r) => ({
+            name: r.name,
+            already: r.already,
+            commit: r.recovery?.commit ?? null,
+            named: r.recovery?.named ?? null,
+            matchedNamed: r.recovery?.matchedNamed ?? null,
+            reason: r.reason
+          }))
+        },
+        null,
+        2
+      )
+    );
+    return v.status === 'PASS' || v.status === 'NOT_RUN' ? 0 : 1;
+  }
+  console.log(`cut-tree recovery · ${RECORD_DIR}\n`);
+  for (const r of rows) {
+    if (String(r.record?.inputs?.path ?? '') !== TRIO) continue;
+    if (r.already) {
+      console.log(`  carries     ${r.name}`);
+      continue;
+    }
+    if (!r.block) {
+      console.log(`  ∅ none      ${r.name}   (${r.reason})`);
+      continue;
+    }
+    const tag = r.recovery.matchedNamed ? `at the named ${r.recovery.commit}` : `at ${r.recovery.commit}, NOT the named ${r.recovery.named}`;
+    console.log(`  recovered   ${r.name}   data ${r.block.dataDigest} over ${r.block.dataFiles} file(s) · fold-at-cut ${r.block.foldGenerationAtCut} · ${tag}`);
+  }
+  console.log(
+    `\n  ${v.status} — ${v.result?.covered ?? 0} of ${v.population.checked} record(s) carry a tree identity${v.result?.renamedCut ? `; ${v.result.renamedCut} record(s) prove themselves at a commit they do not name` : ''}.`
+  );
+  if (v.reason) console.log(`  ${v.reason}`);
+  console.log(written.length ? `  wrote ${written.length} record(s): ${written.join(', ')}` : '  nothing written (pass --write to apply)');
+  return v.status === 'PASS' || v.status === 'NOT_RUN' ? 0 : 1;
+}
+
 function main() {
   const argv = process.argv.slice(2);
-  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--json', '--all'], string: ['--record'], positional: false }, { tool: 'fold-generation' });
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--json', '--all', '--recover', '--write'], string: ['--record'], positional: false }, { tool: 'fold-generation' });
   if (argv.includes('--selftest')) process.exit(selftest());
   const commit = gitCommitShort();
+  if (argv.includes('--recover')) process.exit(recoverMain(argv, commit));
   if (argv.includes('--all') || argv.includes('--record')) {
     const run = withPopulation(TRIO, () => auditRecords({ commit: null }));
     const { identity, rows } = run.value;
