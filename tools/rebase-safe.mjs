@@ -388,21 +388,33 @@ export function heldGoldens() {
   return _heldGoldens.slice();
 }
 
+/* WHAT SHIPS HERE, from one `git ls-files` listing. A `src:<path>` input is a repo-relative SOURCE
+   file that builds the input in code (a recipe's `builtFrom`), and it must be listed at exactly that
+   path. Any other input is an `uploads/` basename, the rule every older declaration uses. Pure and
+   exported so the suite drives it by value. Returns null on an unreadable listing. */
+export function trackedOracle(lsFilesText) {
+  if (typeof lsFilesText !== 'string') return null;
+  const paths = new Set(
+    lsFilesText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+  );
+  const uploads = new Set();
+  for (const p of paths) if (p.startsWith('uploads/')) uploads.add(p.slice(p.lastIndexOf('/') + 1));
+  return (n) => (typeof n === 'string' && n.startsWith('src:') ? paths.has(n.slice(4)) : uploads.has(n));
+}
+
 function askRegenGoldens() {
   const files = regenRecipeFiles();
   if (!files || !files.length) return null; // FAIL CLOSED — the recipes could not be listed
   let tracked = null;
   try {
-    tracked = new Set(
-      execFileSync('git', ['ls-files', '--', 'uploads'], { cwd: ROOT, encoding: 'utf8' })
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((p) => p.slice(p.lastIndexOf('/') + 1))
-    );
+    tracked = trackedOracle(execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
   } catch {
     return null; // no answer about what ships here ⇒ no classification
   }
+  if (!tracked) return null;
   const led = ledgerInputsByFixture();
   const generated = [];
   const held = [];
@@ -415,7 +427,7 @@ function askRegenGoldens() {
     }
     const rows = parseOwnedListing(out);
     if (!rows) return null;
-    const d = classifyOwnedFixtures(rows, (n) => tracked.has(n), led);
+    const d = classifyOwnedFixtures(rows, tracked, led);
     if (!d) return null;
     d.generated.forEach((p) => generated.push({ path: p, recipe: f }));
     d.held.forEach((h) => held.push({ ...h, recipe: f }));

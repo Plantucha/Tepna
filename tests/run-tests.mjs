@@ -29,7 +29,8 @@ import {
   parseOwnedListing as rebaseParseOwnedListing,
   classifyOwnedFixtures as rebaseClassifyOwnedFixtures,
   unrestoredFrom as rebaseUnrestoredFrom,
-  heldGoldens as rebaseHeldGoldens
+  heldGoldens as rebaseHeldGoldens,
+  trackedOracle as rebaseTrackedOracle
 } from '../tools/rebase-safe.mjs';
 /* AND THIS IMPORT IS ITSELF AN ASSERTION. `tools/pr-compliance.mjs` ended in a bare
    `process.exit(main())`, so importing it ran the whole gate and exited the importer before the
@@ -3150,6 +3151,7 @@ async function main() {
     /* The REAL two-rail split, a FUNCTION so nothing pays for the nine recipe spawns unless the group
        runs — the population half of the same pair as rebaseGeneratedSet. */
     rebaseHeldGoldens: rebaseHeldGoldens,
+    rebaseTrackedOracle: rebaseTrackedOracle,
     /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
        parser that judges it, so the two cannot disagree about what a quoted verdict is. */
     prExtractVerdicts: prExtractVerdicts,

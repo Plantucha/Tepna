@@ -40506,6 +40506,38 @@
       T.eq('the fixture ledger supplies an input the recipe did not declare', split(parse('uploads/x.json\tcommitted\t'), isTracked, led).generated.join(','), 'uploads/x.json');
       T.eq('and a ledger naming an absent input still holds it', split(parse('uploads/x.json\tcommitted\t'), isTracked, { 'x.json': ['absent.txt'] }).held.length, 1);
 
+      /* THE THIRD SOURCE: AN INPUT BUILT IN CODE. Seven fixtures build their input with a function, so
+         no `uploads/` name exists to declare, and every rebase held them (residue
+         2026-10-20-seven-reproducible-fixtures-name-no-input). A recipe's `builtFrom` names the source
+         files; the listing prints each as `src:<path>`, and the oracle checks that exact repo path. */
+      var CODE = { name: 'synthetic_twins.node-export.json', real: false, builtFrom: ['tests/x-twins.js', 'cpapdex-dsp.js'] };
+      T.eq(
+        'a builtFrom source is listed as src:<path>',
+        (mkRows([CODE], '/repo/uploads', '/repo') || [])[0],
+        'uploads/synthetic_twins.node-export.json\tcommitted\tsrc:tests/x-twins.js,src:cpapdex-dsp.js'
+      );
+      T.eq('a builtFrom path that climbs out of the repo ⇒ null', mkRows([{ name: 'a.json', builtFrom: ['../x.js'] }], '/repo/uploads', '/repo'), null);
+      T.eq('an absolute builtFrom path ⇒ null', mkRows([{ name: 'a.json', builtFrom: ['/etc/x.js'] }], '/repo/uploads', '/repo'), null);
+      T.eq('an EMPTY builtFrom ⇒ null — a declaration that names nothing is not a declaration', mkRows([{ name: 'a.json', builtFrom: [] }], '/repo/uploads', '/repo'), null);
+      T.eq('a comma in a builtFrom path ⇒ null — it would split into two inputs', mkRows([{ name: 'a.json', builtFrom: ['a,b.js'] }], '/repo/uploads', '/repo'), null);
+      var oracle = env.rebaseTrackedOracle;
+      if (typeof oracle !== 'function') {
+        T.skip('the tracked-file oracle is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs)');
+      } else {
+        var o = oracle('uploads/sub/synthetic_verity_ppg.txt\ntests/x-twins.js\ncpapdex-dsp.js\n');
+        T.eq('the oracle: an uploads basename · a src: repo path · a src: root file', [o('synthetic_verity_ppg.txt'), o('src:tests/x-twins.js'), o('src:cpapdex-dsp.js')].join(','), 'true,true,true');
+        T.eq(
+          'the oracle: a src: basename is not the path · a bare repo path is not an uploads name · an unlisted source',
+          [o('src:x-twins.js'), o('tests/x-twins.js'), o('src:tests/absent.js'), o('cpapdex-dsp.js')].join(','),
+          'false,false,false,false'
+        );
+        T.eq('an unreadable ls-files listing ⇒ null, never "nothing ships"', oracle(null), null);
+        var dc = split(parse((mkRows([CODE], '/repo/uploads', '/repo') || []).join('\n')), o, {});
+        T.eq('a fixture built in code from tracked sources is GENERATED', dc && dc.generated.join(','), 'uploads/synthetic_twins.node-export.json');
+        var dm = split(parse('uploads/x.json\tcommitted\tsrc:tests/absent.js'), o, {});
+        T.eq('an untracked source holds it, with the missing name', dm && dm.held[0] && dm.held[0].why, 'input not tracked in this checkout: src:tests/absent.js');
+      }
+
       T.eq('an unreadable listing ⇒ null', split(null, isTracked, {}), null);
       T.eq('no tracked-set oracle ⇒ null — not "nothing ships here"', split(parse(rows.join('\n')), 'not a function', {}), null);
       T.eq('a row with no path ⇒ null, never skipped', split([{ kind: 'committed', inputs: [] }], isTracked, {}), null);
@@ -40544,6 +40576,36 @@
           T.ok('ANTI-VACUITY · and the held list is not empty — no corpus ships here', Array.isArray(HELD) && HELD.length > 0, Array.isArray(HELD) ? HELD.length + ' held' : String(HELD));
           T.eq('the PpgDex synthetic golden is GENERATED — its input is committed', cls('uploads/synthetic_ppgdex_golden.node-export.json', GEN), 'generated');
           T.eq('a corpus-backed equivalence golden stays SOURCE, so the rebase STOPS on it', cls('uploads/PpgDex_2026-06-27_equiv.node-export.json', GEN), 'source');
+          /* The seven that the residue row named: each builds its input in code, and each recipe now
+             declares the source. If one loses its `builtFrom`, it falls back to held and this reds. */
+          var SEVEN = [
+            'uploads/integrator_tch_golden.node-export.json',
+            'uploads/integrator_fusion_night_twins.node-export.json',
+            'uploads/integrator_respiration_fusion_twins.node-export.json',
+            'uploads/integrator_hrstat_class_twins.node-export.json',
+            'uploads/integrator_apnea_null_twins.node-export.json',
+            'uploads/cpapdex_synthetic_golden.node-export.json',
+            'uploads/cpapdex_synthetic_multinight_golden.node-export.json'
+          ];
+          T.eq(
+            'the seven fixtures that build their input in code are GENERATED',
+            SEVEN.filter(function (p) {
+              return cls(p, GEN) !== 'generated';
+            }).join(', ') || 'all 7',
+            'all 7'
+          );
+          T.eq(
+            'and no held fixture reads "neither the recipe nor the fixture ledger names an input"',
+            (HELD || [])
+              .filter(function (h) {
+                return h && /^neither the recipe/.test(h.why);
+              })
+              .map(function (h) {
+                return h.path;
+              })
+              .join(', ') || 'none',
+            'none'
+          );
           T.ok(
             'every held fixture carries a reason and the recipe that owns it',
             (HELD || []).every(function (h) {
