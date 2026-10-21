@@ -10947,6 +10947,32 @@
         CR.dashedFlagRead("opt('      ', x)", "opt('--dir', x)") !== null && CR.dashedFlagRead("opt('      ', x)", "opt('      ', x)") === null,
         'raw carries the flag \u00b7 the masked text alone decides nothing'
       );
+      /* THE LADDER, AND IT IS A DIFFERENT DEFECT FROM THE RUNG ABOVE. The rung reads a flag out of
+         a call the file does not declare; this leg asks WHEN the name heuristic gets to decide at
+         all. It used to run before the parts recursion, so `path.resolve(ROOT, arg('--trio',
+         'uploads/trio'))` — the spelling four trio tools write — cleared on the word `ROOT` and
+         never reached `arg`, which is the file's own argv helper. The flag rung cannot cover it:
+         its call regex needs a bare `name(`, and a dotted callee is not one. Both directions,
+         because a move that let the parts clear everything would pass the positive half: a dotted
+         call with no run-time part stays a repo walk. Row
+         2026-10-21-the-repo-name-heuristic-decides-before-the-parts-recursion. */
+      T.ok(
+        'CONTROL \u00b7 a dotted callee is decided on its parts, and one with no run-time part stays a repo walk',
+        CR.classifyTool(
+          "const argv = process.argv.slice(2);\nconst arg = (k, d) => {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));\nreaddirSync(TRIO);"
+        ).cls === 'enumerates' && CR.classifyTool("const DIR = path.resolve(ROOT, 'docs');\nreaddirSync(DIR);").cls === 'repo-tree',
+        "path.resolve(ROOT, arg('--trio', \u2026)) \u2192 enumerates \u00b7 path.resolve(ROOT, 'docs') \u2192 repo-tree"
+      );
+      /* AND THE HEURISTIC STILL DECIDES FROM THE BOTTOM OF THE LADDER. Moving a rule down is only
+         safe if it still fires where nothing else can: `process.cwd()` has no parts to decide, and
+         a parameter inside a join is supplied by whoever calls — the bare form already read that
+         way, and only the wrapped form was cleared by the repo's own naming convention. */
+      T.ok(
+        'CONTROL \u00b7 the name heuristic still decides what nothing else can, and a parameter inside a join does not reach it',
+        CR.classifyTool('readdirSync(process.cwd());').cls === 'repo-tree' &&
+          CR.classifyTool("const ROOT = join(HERE, '..');\nfunction scan(sub) {\n  return readdirSync(join(ROOT, sub));\n}").cls === 'enumerates',
+        'process.cwd() \u2192 repo-tree \u00b7 join(ROOT, parameter) \u2192 enumerates'
+      );
       T.eq('every abstention names a reason', silent.join(', '), '');
       /* THE ABSTENTIONS ARE A NAMED SET TOO, measured both ways: a sixth is a red, and a listed
          tool the tracer has learned to decide is a red. An abstention is the one verdict that

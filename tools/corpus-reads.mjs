@@ -438,10 +438,6 @@ export function originOf(expr, decls, params, seen = new Set(), ctx = null) {
     }
     if (got.includes('repo')) return { origin: 'repo', why: null };
   }
-  /* AND ONLY NOW the name heuristic. `arg('--dir', join(ROOT, 'uploads', 'trio'))` names `ROOT`
-     and reads the command line; the repo rule is the last thing tried, not the first, so every
-     resolution path gets its turn before a convention decides. */
-  if (REPO_DERIVED.test(e)) return { origin: 'repo', why: null };
   /* A call or a join of several parts: decide on the parts. */
   const inner = e.replace(/^[A-Za-z_$][\w$]*\s*\(/, '').replace(/\)\s*$/, '');
   if (inner !== e) {
@@ -453,6 +449,10 @@ export function originOf(expr, decls, params, seen = new Set(), ctx = null) {
     if (seenOrigins.includes('runtime')) return { origin: 'runtime', why: null };
     if (seenOrigins.includes('repo')) return { origin: 'repo', why: null };
   }
+  /* AND ONLY NOW the name heuristic. `arg('--dir', join(ROOT, 'uploads', 'trio'))` names `ROOT`
+     and reads the command line; the repo rule is the last thing tried, not the first, so every
+     resolution path gets its turn before a convention decides. */
+  if (REPO_DERIVED.test(e)) return { origin: 'repo', why: null };
   return { origin: 'undecidable', why: `the argument \`${e.slice(0, 48)}\` traces to no declaration` };
 }
 
@@ -632,7 +632,6 @@ export const POPULATION_EXCLUSIONS = {
                                 mask blanks (`${REPO}/uploads/trio` reads as an empty backtick
                                 pair). Both are real corpus reads that the scan cannot prove. */
 export const UNDECIDED_CORPUS = {
-  'closure-tol-hac.mjs': 'the second walk is path.join(TRIO, night) and the tracer resolves neither part, so it abstains',
   'board.mjs': 'a home-directory store under homedir(), neither repo tree nor a flag-supplied path',
   'fleet-turns.mjs': 'a home-directory transcript store under homedir()',
   'release.mjs': 'the local helper p() joins the repo ROOT; the tracer follows a helper only to find a run-time read',
@@ -656,14 +655,22 @@ export const UNWIRED_BACKLOG = {
   /* THE SEVEN THE BINDING HOP ADMITTED, 2026-10-21, row
      2026-10-21-the-corpus-axis-reads-the-site-only. Each one binds the trio root to a variable and
      walks the variable, so the population rule read no corpus path at the site and the tool sat
-     outside this list. Six are unwired enumerators; the seventh, `closure-tol-hac.mjs`, abstains
-     and is named in `UNDECIDED_CORPUS` instead. The debt is not new — only visible. */
+     outside this list. The debt is not new — only visible.
+     `closure-tol-hac.mjs` was the seventh and abstained, so it was named in `UNDECIDED_CORPUS`
+     instead. Its walk is `path.resolve(ROOT, arg('--trio', 'uploads/trio'))`, which the name
+     heuristic used to clear on the word `ROOT` before the parts were decided, and the ladder
+     below it now resolves to the flag. Row
+     2026-10-21-the-repo-name-heuristic-decides-before-the-parts-recursion.
+     THE COUNTS WERE RE-MEASURED in that row, because four of them moved with the ladder and two
+     had drifted under the rung that landed in #3862. Nothing reads the number; a wrong one is
+     still a wrong statement. */
+  'closure-tol-hac.mjs': 1,
   'deep-vlf-probe.mjs': 1,
   'ecg-apnea-correlate.mjs': 1,
-  'motion-rho-vs-minrho.mjs': 1,
+  'motion-rho-vs-minrho.mjs': 2,
   'pb-agreement.mjs': 1,
   'pb-fusion-blast.mjs': 1,
-  'tch-minrho-corpus.mjs': 1,
+  'tch-minrho-corpus.mjs': 2,
   'acc-select-compare.mjs': 2,
   'acc-shared-movement.mjs': 2,
   'beat-comb-analysis.mjs': 1,
@@ -694,8 +701,8 @@ export const UNWIRED_BACKLOG = {
   'oracle-ecg-firmware-rr.mjs': 4,
   'oracle-ppg-device-beats.mjs': 2,
   'oxy-hr-bias.mjs': 2,
-  'pat-connection-stability.mjs': 2,
-  'pat-dip-validate.mjs': 1,
+  'pat-connection-stability.mjs': 3,
+  'pat-dip-validate.mjs': 2,
   'pat-drift-attribution.mjs': 2,
   'pat-ecg-axis-residual.mjs': 1,
   'pat-fiducial-compare.mjs': 1,
@@ -726,14 +733,14 @@ export const UNWIRED_BACKLOG = {
      `uploads/trio` inside the checkout, which no flag can re-point, and its own usage line says
      "reads the committed uploads/trio corpus" — so the walk was never in doubt, only invisible.
      Wiring it means deleting this line, and the reverse leg reds if the line outlives the debt. */
-  'rho-overlap-power.mjs': 1,
+  'rho-overlap-power.mjs': 2,
   'resp-cardiac-suppression-e8.mjs': 1,
   'seqnet-eval.mjs': 1,
   'stage-lab.mjs': 12,
   'stitch-31d-run.mjs': 3,
   'stuck-run-lengths.mjs': 1,
   'tch-pooled-hat.mjs': 1,
-  'trio-batch.mjs': 6,
+  'trio-batch.mjs': 7,
   'wearable-sync.mjs': 1
 };
 
@@ -809,6 +816,42 @@ function selftest() {
        literal wears the dash and reads the repo. */
     ['a helper with no dashed literal stays a repo walk', "const DIR = opt(cfg, join(ROOT, 'docs'));\nreaddirSync(DIR);", 'repo-tree'],
     ['a dash inside a date literal is not a flag', "const DIR = opt('2026-10-21', join(ROOT, 'docs'));\nreaddirSync(DIR);", 'repo-tree'],
+    /* THE LADDER THIS UNIT FIXED: the name heuristic used to run BEFORE the parts recursion, so an
+       expression whose CALLEE carries a dot never reached its own arguments. `path.resolve(ROOT,
+       arg('--trio', 'uploads/trio'))` is the trio family's spelling — four tools write that exact
+       line — and `REPO_DERIVED` matched the word `ROOT` and cleared it, although `arg` is the
+       file's own argv helper and every run is free to pass `--trio`. The flag rung above cannot
+       reach it: its call regex needs a bare `name(`, which `path.resolve(` is not. Measured
+       2026-10-21, both engines over the 287 files in `tools/`: NINE tools move, two across classes.
+       Row 2026-10-21-the-repo-name-heuristic-decides-before-the-parts-recursion. */
+    [
+      'a dotted callee is decided on its parts, not on a word in them',
+      "const argv = process.argv.slice(2);\nconst arg = (k, d) => {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));\nreaddirSync(TRIO);",
+      'enumerates'
+    ],
+    /* THE SAME DEFECT ONE LEVEL DEEPER, and it is the other half of the nine. A PARAMETER inside
+       the join is supplied by whoever calls, and `mutate-recover.mjs` exports `recoverStale(ROOT)`
+       and walks `join(ROOT, '..')` — the parameter wearing the repo's own conventional name. The
+       bare form (`readdirSync(param)`) already read run-time; only the wrapped form was cleared. */
+    ['a parameter inside a join is supplied by the caller', "const ROOT = join(HERE, '..');\nfunction scan(sub) {\n  return readdirSync(join(ROOT, sub));\n}", 'enumerates'],
+    /* THE NEGATIVE HALF, in the two shapes that would make the move clear or condemn everything. A
+       dotted call whose parts decide nothing run-time stays a repo walk, and the heuristic still
+       fires from its new position at the bottom of the ladder — `process.cwd()` has no parts to
+       decide, and it is the whole reason the rule exists. */
+    ['a dotted callee with no run-time part stays a repo walk', "const DIR = path.resolve(ROOT, 'docs');\nreaddirSync(DIR);", 'repo-tree'],
+    ['the name heuristic still decides what nothing else can', 'readdirSync(process.cwd());', 'repo-tree'],
+    /* KNOWN GAP, PINNED AT TODAY'S WRONG ANSWER, found by the control for the leg above. The
+       local-helper rung reads `localFunctions`, which registers `function arg(…)` and `const arg =
+       (…) =>` and NOT `const arg = function (…)`, so the parts recursion cannot see that the helper
+       reads argv and the expression falls to the corpus rung. Latent today: the form appears once
+       in `tools/` (`tch-firmware-reference.mjs:376`, not a path helper), so no live site moves —
+       it is 43 files in the root `.js` tree this scan does not read. Row
+       2026-10-21-a-helper-declared-as-a-function-expression-is-invisible-to-the-local-rung. */
+    [
+      'KNOWN GAP \u00b7 a helper declared as a function expression is not seen as local',
+      "const argv = process.argv.slice(2);\nconst arg = function (k, d) {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));\nreaddirSync(TRIO);",
+      'repo-corpus'
+    ],
     /* THE GAP THAT WAS PINNED HERE IS CLOSED, AND THE LEG NOW ASSERTS THE RIGHT ANSWER. The corpus
        axis resolves the argument through the declaration in force and reads that initialiser's RAW
        text, so the path one line earlier is evidence. Measured 2026-10-21 over the 291 files in
