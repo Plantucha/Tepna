@@ -370,7 +370,16 @@
   };
   function nightTms(n) {
     if (n.stats && n.stats.startTs != null) return n.stats.startTs;
-    if (n.date && /^\d{4}-\d{2}-\d{2}/.test(n.date)) return Date.UTC(+n.date.slice(0, 4), +n.date.slice(5, 7) - 1, +n.date.slice(8, 10));
+    // The shape test stays here, so this still accepts exactly the nights it accepted. The INSTANT
+    // comes from clock.js, which range-validates the components (Clock Contract §2.7) — the bare
+    // `Date.UTC` that stood here turned a `2026-02-30` night into 2026-03-02. `parseTimestamp`
+    // REQUIRES a time component, so a date-only field is anchored at midnight explicitly, which is
+    // what `Date.UTC(y, m, d)` already meant. Called INSIDE the body: `OxyDex.src.html` loads this
+    // file BEFORE clock.js, so a module-scope alias would throw at evaluation (CLAUDE.md §👥.3).
+    if (n.date && /^\d{4}-\d{2}-\d{2}/.test(n.date)) {
+      var p = DexClock.parseTimestamp(String(n.date).slice(0, 10) + ' 00:00:00');
+      return p ? p.tMs : null;
+    }
     return null;
   }
   function nightWeight(n) {

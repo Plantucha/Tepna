@@ -375,8 +375,16 @@
     // footgun waits, and the house lint could not see this file at all until the scan was widened.
     // Parse the shape explicitly instead.
     if (r.t0Ms != null) return r.t0Ms;
-    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(r.date || ''));
-    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : 0;
+    // The shape test stays here, so this key still accepts exactly the rows it accepted. The
+    // INSTANT comes from clock.js, which range-validates the components (Clock Contract §2.7) —
+    // the bare `Date.UTC` that stood here turned `2026-13-45` into 2027-02-14 and `2026-02-30`
+    // into 2026-03-02, sorting a row by a date no capture ever had. `parseTimestamp` REQUIRES a
+    // time component (a bare `YYYY-MM-DD` returns null), so a date-only field is anchored at
+    // midnight explicitly, which is what the `Date.UTC(y, m, d)` here already meant.
+    var d = String(r.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return 0;
+    var p = DexClock.parseTimestamp(d + ' 00:00:00');
+    return p ? p.tMs : 0;
   }
   function seriesFor(node, mid, includeSynthetic) {
     return _allRows(includeSynthetic)
@@ -860,6 +868,7 @@
 
   global.IntegratorLong = {
     _spanLabel: _spanLabel, // §8.4 — pure, exposed so the span/count distinction is gateable
+    _sortKey: _sortKey, // §2.7 — pure, exposed so the out-of-range refusal is gateable
     open: open,
     ingest: ingest,
     render: render,
