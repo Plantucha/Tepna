@@ -10463,6 +10463,128 @@
       T.ok('the adopter population is non-empty', ADOPTERS.length >= 20, 'ADOPTERS=' + ADOPTERS.length + ' — 28 measured 2026-10-20; the guard scan matched almost nothing');
       T.eq('every adopter calls the guard behind IS_CLI — none at module scope', UNGUARDED.join(', '), '');
     });
+    /* ════ A GUARD'S HATCH MUST NOT DISARM THE GUARD'S OWN SELF-TEST ═══════════════════════════════
+       Row 2026-10-21-the-guard-hatch-disarms-the-guards-own-selftest. Every hatch in this tree is
+       documented in COMMAND POSITION, and that is also the position which EXPORTS it to every child
+       process. `npm run check` is a child, so the hatch a session sets for ONE Bash call stays set for
+       the suite that measures the guard, and every leg expecting a DENY scores ALLOW.
+       MEASURED 2026-10-21 over all ELEVEN hooks that dereference a hatch, each self-test run twice —
+       once clean, once with that hatch exported. NINE moved from PASS to RED: board-hook (23 legs),
+       guard-doc-search (53), guard-format (38), guard-memory-stale (59), guard-shared-tree (13),
+       guard-stale-brief (77), guard-stale-ledger (30), guard-syntax (34), trim-output (54). ONE was
+       immune: `guard-trailer.test.sh` already carried the `unset`, which is exactly why the population
+       here is DERIVED from `.claude/hooks/` — a hand-written list would have been written from the nine
+       that did not. The eleventh, `guard-ruff.test.sh`, is UNMEASURED rather than measured clean: `ruff`
+       is absent on the rig that took these figures, so it skipped in BOTH arms and certified nothing
+       either way, and its `unset` is asserted statically and has never been watched to work.
+       THE DIRECTION IS PART OF THE FINDING. All nine went PASS → RED, so this defect costs a
+       misattributed red and the gate steps after it that never run — never a false green.
+       WHY NOT A GREP FOR `unset`. The first instrument was that grep, and it was wrong in BOTH
+       directions. It called `guard-doc-search` and `guard-memory-stale` neutralized, because both use
+       `env -u` on their verdict HELPERS while legs outside those helpers still inherit; and it called
+       `guard-ruff` immune off two runs that had each printed a SKIP. So the rule below is the one
+       STRUCTURE that was watched to produce immunity: a TOP-LEVEL `unset`, before the first line that
+       touches the hook. A per-leg `env -u` does not satisfy it, because it was measured not to work.
+       THE BOUNDARY IS DELIBERATELY CONSERVATIVE — the first MENTION of the hook-path variable, not the
+       first invocation. `guard-shared-tree.test.sh` reaches its hook through a helper, and
+       `cp "$H" "$BASE"` precedes any leg. A rule that bites earlier than the hazard cannot miss it. ════ */
+    group('every hatch-reading hook has a self-test its own hatch cannot disarm', 'hooks · hatch · source-scan', function (T) {
+      /* One pair, scanned as TEXT so the plants below need no files on disk. */
+      var scanPair = function (base, hookText, testText) {
+        /* A DEREFERENCE, NEVER A MENTION. Every hook prints its own hatch in its denial text, and
+           `guard-shared-tree.sh` prints ANOTHER guard's hatch in a prose paragraph — counting mentions
+           put two hatches on three hooks that each read one. */
+        var hatches = [];
+        String(hookText).replace(/\$\{?(CLAUDE_ALLOW_[A-Z_]+)/g, function (m, v) {
+          if (hatches.indexOf(v) < 0) hatches.push(v);
+          return m;
+        });
+        if (!hatches.length) return null;
+        if (testText == null) return { hatches: hatches, noTest: true, missing: [], late: [] };
+        var lines = String(testText).split('\n');
+        /* The hook-path variable is the assignment whose VALUE names this hook's file. */
+        var v = null,
+          vLine = -1;
+        for (var i = 0; i < lines.length && v === null; i++) {
+          if (/^\s*#/.test(lines[i]) || lines[i].indexOf(base) < 0) continue;
+          var m = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(lines[i]);
+          if (m) {
+            v = m[1];
+            vLine = i;
+          }
+        }
+        if (v === null) return { hatches: hatches, noVar: true, missing: [], late: [] };
+        var bound = lines.length;
+        for (var j = vLine + 1; j < lines.length; j++) {
+          if (/^\s*#/.test(lines[j]) || !lines[j].trim()) continue;
+          if (lines[j].indexOf('$' + v) >= 0 || lines[j].indexOf('${' + v + '}') >= 0) {
+            bound = j;
+            break;
+          }
+        }
+        var missing = [],
+          late = [];
+        hatches.forEach(function (h) {
+          var at = -1;
+          for (var n = 0; n < lines.length && at < 0; n++) {
+            if (new RegExp('^unset(\\s+[A-Za-z_][A-Za-z0-9_]*)*\\s+' + h + '\\s*$').test(lines[n])) at = n;
+          }
+          if (at < 0) missing.push(base + ' → ' + h);
+          else if (at > bound) late.push(base + ' → ' + h + ' (unset at line ' + (at + 1) + ', hook first touched at line ' + (bound + 1) + ')');
+        });
+        return { hatches: hatches, missing: missing, late: late, boundary: bound + 1, variable: v };
+      };
+
+      /* ── KNOWN ANSWERS FIRST: the rule is watched to FIRE before it is trusted to pass. ───────── */
+      var HOOK = '#!/usr/bin/env bash\n[ "${CLAUDE_ALLOW_PLANT:-}" = "1" ] && exit 0\necho hi\n';
+      var pre = '#!/usr/bin/env bash\nset -uo pipefail\nunset CLAUDE_ALLOW_PLANT\nH="$(dirname "$0")/p.sh"\nbash "$H"\n';
+      var post = '#!/usr/bin/env bash\nset -uo pipefail\nH="$(dirname "$0")/p.sh"\nbash "$H"\nunset CLAUDE_ALLOW_PLANT\n';
+      var none = '#!/usr/bin/env bash\nset -uo pipefail\nH="$(dirname "$0")/p.sh"\nbash "$H"\n';
+      var perLeg = '#!/usr/bin/env bash\nset -uo pipefail\nH="$(dirname "$0")/p.sh"\nenv -u CLAUDE_ALLOW_PLANT bash "$H"\n';
+      T.eq('a plant that unsets its hatch before the hook is clean', JSON.stringify(scanPair('p.sh', HOOK, pre).missing.concat(scanPair('p.sh', HOOK, pre).late)), '[]');
+      T.eq('…and the SAME unset placed after the hook is LATE', scanPair('p.sh', HOOK, post).late.length, 1);
+      T.eq('…and a self-test with no unset at all is MISSING', scanPair('p.sh', HOOK, none).missing.length, 1);
+      T.eq('…and a per-leg `env -u` does NOT satisfy it (measured not to work)', scanPair('p.sh', HOOK, perLeg).missing.length, 1);
+      T.eq('a hook that dereferences no hatch is outside the population', scanPair('p.sh', '#!/usr/bin/env bash\necho CLAUDE_ALLOW_PLANT=1\n', none), null);
+
+      var HT = env.hookTexts;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane cannot
+         claim that excuse, so an absent population is a FAILURE there. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!HT) {
+        if (nodeLane) T.ok('env.hookTexts is wired in the node lane', false, 'absent — the hatch scan examined nothing');
+        else T.skip('the hook hatch scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var names = Object.keys(HT).sort();
+      var READERS = [],
+        NOTEST = [],
+        NOVAR = [],
+        MISSING = [],
+        LATE = [];
+      names
+        .filter(function (k) {
+          return !/\.test\.sh$/.test(k);
+        })
+        .forEach(function (k) {
+          var base = k.replace(/^\.claude\/hooks\//, '');
+          var tk = '.claude/hooks/' + base.replace(/\.sh$/, '.test.sh');
+          var r = scanPair(base, HT[k], Object.hasOwn(HT, tk) ? HT[tk] : null);
+          if (!r) return;
+          READERS.push(base);
+          if (r.noTest) NOTEST.push(base);
+          else if (r.noVar) NOVAR.push(base + ' (no assignment in its self-test names the hook, so the boundary is underivable)');
+          MISSING = MISSING.concat(r.missing);
+          LATE = LATE.concat(r.late);
+        });
+      /* ANTI-VACUITY: a scan that matched nothing satisfies every equality below. */
+      T.ok('the hooks tree was actually read', names.length >= 20, 'only ' + names.length + ' .claude/hooks/*.sh visible');
+      T.ok('the hatch-reading population is non-empty', READERS.length >= 10, 'READERS=' + READERS.length + ' — 11 measured 2026-10-21; the dereference scan matched almost nothing');
+      T.eq('every hatch-reading hook has a self-test', NOTEST.join(', '), '');
+      T.eq('…whose hook-path assignment is derivable', NOVAR.join(', '), '');
+      T.eq('every self-test unsets every hatch its hook dereferences', MISSING.join(', '), '');
+      T.eq('…and unsets it before the first line that touches the hook', LATE.join(', '), '');
+    });
     /* ════ A FLAG'S VALUE IS NOT THE TOOL'S POSITIONAL ══════════════════════════════════════════
        Row 2026-10-21-a-dash-test-picker-takes-a-valued-flags-value. `argv.find((a) =>
        !a.startsWith('--'))` reads "my one positional", and it is ORDER-DEPENDENT where the flags are
