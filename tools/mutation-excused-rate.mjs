@@ -38,12 +38,24 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RECORD = 'analysis/mutation-excused-rate.json';
-const REPO = 'Plantucha/Tepna';
+/* The slug is DERIVED from the origin remote. A written-down `<owner>/<repo>` would be a second
+   source of truth, and it reads as a hardcoded checkout root to the suite's own detector. An
+   unreadable remote REFUSES — ∅ absence is null, so nothing here guesses a repository. */
+function repoSlug() {
+  const r = spawnSync('git', ['-C', ROOT, 'remote', 'get-url', 'origin'], { encoding: 'utf8' });
+  const m = r.status === 0 ? /[:/]([^/:]+\/[^/]+?)(?:\.git)?\s*$/.exec(r.stdout) : null;
+  if (!m) {
+    console.error('the origin remote is unreadable, so the artifact repository is unknown — nothing was read');
+    process.exit(2);
+  }
+  return m[1];
+}
 const ARTIFACT_NAME = 'mutation-diff';
 const DEFAULT_LIMIT = 250;
 const EXAMPLE_CAP = 12;
@@ -360,11 +372,11 @@ function gh(args) {
   return execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
 }
 
-function listArtifacts(limit) {
+function listArtifacts(limit, slug) {
   const out = [];
   let total = null;
   for (let page = 1; out.length < limit && page <= 40; page += 1) {
-    const j = JSON.parse(gh(['api', `repos/${REPO}/actions/artifacts?per_page=100&name=${ARTIFACT_NAME}&page=${page}`]));
+    const j = JSON.parse(gh(['api', `repos/${slug}/actions/artifacts?per_page=100&name=${ARTIFACT_NAME}&page=${page}`]));
     if (total === null && Number.isInteger(j.total_count)) total = j.total_count;
     const arts = j.artifacts || [];
     if (arts.length === 0) break;
@@ -376,10 +388,10 @@ function listArtifacts(limit) {
   return { arts: out, total: total === null ? out.length : total };
 }
 
-function mergedPrsSince(oldestIso) {
+function mergedPrsSince(oldestIso, slug) {
   try {
     const day = String(oldestIso).slice(0, 10);
-    const j = JSON.parse(gh(['api', `search/issues?q=${encodeURIComponent(`repo:${REPO} is:pr is:merged merged:>=${day}`)}&per_page=1`]));
+    const j = JSON.parse(gh(['api', `search/issues?q=${encodeURIComponent(`repo:${slug} is:pr is:merged merged:>=${day}`)}&per_page=1`]));
     return Number.isInteger(j.total_count) ? j.total_count : null;
   } catch {
     return null;
@@ -388,9 +400,11 @@ function mergedPrsSince(oldestIso) {
 
 function collect(opts) {
   const { limit, outPath, cacheDir, fromCache } = opts;
+  const slug = fromCache ? null : repoSlug();
   const t = newTally();
   const excludedReasons = Object.create(null);
   let listedByGitHub = null;
+  let cachedMergedPrs = null;
   let arts = [];
   if (fromCache) {
     /* OFFLINE RE-MEASUREMENT. The rules are the moving part of this tool, so a rule change must not
@@ -398,6 +412,10 @@ function collect(opts) {
     const meta = JSON.parse(fs.readFileSync(path.join(fromCache, 'index.json'), 'utf8'));
     arts = meta.arts;
     listedByGitHub = meta.listedByGitHub;
+    /* The merged-PR denominator is a property of the WINDOW, so it is cached with the artifact list
+       rather than re-queried: an offline re-fold that dropped it would publish a rate with one
+       denominator missing, which is the reading Osprey's caveat exists to prevent. */
+    cachedMergedPrs = meta.mergedPrsInWindow ?? null;
     for (const a of arts) {
       if (a.expired) {
         bump(excludedReasons, 'artifact expired');
@@ -415,7 +433,7 @@ function collect(opts) {
       console.error('unzip is absent — an absent tool, not a measurement. Install it and re-run.');
       process.exit(2);
     }
-    const listed = listArtifacts(limit);
+    const listed = listArtifacts(limit, slug);
     arts = listed.arts;
     listedByGitHub = listed.total;
     if (cacheDir) fs.mkdirSync(cacheDir, { recursive: true });
@@ -427,7 +445,7 @@ function collect(opts) {
         continue;
       }
       try {
-        fs.writeFileSync(zip, execFileSync('gh', ['api', `repos/${REPO}/actions/artifacts/${a.id}/zip`], { maxBuffer: 64 << 20 }));
+        fs.writeFileSync(zip, execFileSync('gh', ['api', `repos/${slug}/actions/artifacts/${a.id}/zip`], { maxBuffer: 64 << 20 }));
         const text = execFileSync('unzip', ['-p', zip, 'mutation-diff.json'], { encoding: 'utf8', maxBuffer: 64 << 20 });
         if (cacheDir) fs.writeFileSync(path.join(cacheDir, `${a.id}.json`), text);
         foldDiff(t, JSON.parse(text), a.sha);
@@ -436,7 +454,12 @@ function collect(opts) {
       }
     }
     fs.rmSync(tmp, { recursive: true, force: true });
-    if (cacheDir) fs.writeFileSync(path.join(cacheDir, 'index.json'), `${JSON.stringify({ arts, listedByGitHub }, null, 1)}\n`);
+    const isoNow = arts
+      .filter((a) => !a.expired)
+      .map((a) => a.created_at)
+      .sort();
+    cachedMergedPrs = isoNow.length ? mergedPrsSince(isoNow[0], slug) : null;
+    if (cacheDir) fs.writeFileSync(path.join(cacheDir, 'index.json'), `${JSON.stringify({ arts, listedByGitHub, mergedPrsInWindow: cachedMergedPrs }, null, 1)}\n`);
   }
   /* population: checked = the diffs that COULD have reported an exclusion (the counter was in the
      verdict), and every other listed artifact is excluded under its own named reason. The equality
@@ -452,7 +475,7 @@ function collect(opts) {
     window: { oldest: checkedIso[0] || null, newest: checkedIso[checkedIso.length - 1] || null, limit: fromCache ? 'from cache' : limit },
     population: { checked: t.diffsWithCounter, eligible: arts.length, excluded: arts.length - t.diffsWithCounter },
     excludedReasons: { ...excludedReasons },
-    mergedPrsInWindow: checkedIso.length ? mergedPrsSince(checkedIso[0]) : null,
+    mergedPrsInWindow: cachedMergedPrs,
     producedBy: { tool: 'tools/mutation-excused-rate.mjs', commit: headSha() }
   });
   const dest = path.isAbsolute(outPath) ? outPath : path.join(ROOT, outPath);
@@ -573,13 +596,15 @@ if (process.argv.includes('--selftest')) {
   process.exit(0);
 }
 
-/* The CLI predicate resolves `process.argv[1]` through a symlink: Node resolves `import.meta.url` to
-   the real path while argv keeps the link as written, so a linked tool takes itself for an import,
-   prints nothing and exits 0 (Osprey, #3811). */
-const IS_CLI = process.argv[1] != null && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
-
-if (IS_CLI) {
+/* One place in the tree decides CLI-vs-import, because every hand-rolled spelling goes silent through
+   a symlink to the tool (`tools/argv-guard.mjs`, #3811). */
+if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(
+    argv,
+    { valued: ['--limit', '--out', '--cache', '--from-cache'], boolean: ['--collect', '--verdict', '--strict', '--selftest'] },
+    { tool: 'tools/mutation-excused-rate.mjs' }
+  );
   if (argv.includes('--collect')) {
     const val = (flag) => {
       const i = argv.indexOf(flag);

@@ -1,6 +1,6 @@
 {
   "schema": "tepna.mutation-excused-rate/1",
-  "collectedAt": "2026-10-21T03:01:16Z",
+  "collectedAt": "2026-10-21T03:15:44Z",
   "listedByGitHub": 1380,
   "window": {
     "oldest": "2026-08-02T18:44:28Z",
@@ -23,7 +23,7 @@
   "mergedPrsInWindow": 3109,
   "producedBy": {
     "tool": "tools/mutation-excused-rate.mjs",
-    "commit": "847579168f6b3da768bc35f07d8a69636940cd3d"
+    "commit": "f7c39085eebd8f50b6f7f4f76ee4cdd9a211afe0"
   },
   "diffs": {
     "artifactsParsed": 1380,
