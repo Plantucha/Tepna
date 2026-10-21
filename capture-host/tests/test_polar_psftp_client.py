@@ -2189,6 +2189,7 @@ def test_a_failing_envelope_never_costs_the_pull_its_manifest_or_its_sidecar(mon
     meta = json.loads((tmp_path / "recording.meta.json").read_text())
     assert "acquisition_evidence" not in meta  # the sidecar is still written, minus the envelope
     assert meta["total_bytes"] == 12 + 34
-    assert "acquisition-evidence envelope failed" in caplog.text
+    failed = next(r.getMessage() for r in caplog.records if "envelope failed" in r.getMessage())
+    assert "/U/0/20260719/E/034500/" in failed, "the line must name WHICH session lost its envelope"
     written = {p.name for p in tmp_path.rglob("*") if p.is_file()}
     assert "BPM.GZ" in written and "PLETH.GZ" in written

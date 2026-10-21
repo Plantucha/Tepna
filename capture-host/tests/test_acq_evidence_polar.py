@@ -504,6 +504,30 @@ def test_an_impossible_or_foreign_stamp_REFUSES_instead_of_rolling(date, hhmmss)
     assert polar._device_start_ms(date, hhmmss) is None
 
 
+def test_every_FIELD_of_the_stamp_reaches_the_component_it_names():
+    """A slice that drops one digit is invisible to a fixture whose fields all read `0X`, because
+    `int("8")` and `int("08")` agree. So this leg reads a stamp whose month, day and seconds each need
+    BOTH of their digits: month 11, day 15, second 37."""
+    import calendar
+    import datetime
+
+    want = calendar.timegm(datetime.datetime(2026, 11, 15, 22, 15, 37).timetuple()) * 1000.0
+    assert polar._device_start_ms("20261115", "221537") == want
+    # the anti-vacuity leg: each neighbouring component is a DIFFERENT instant, so the equality above
+    # is what pins the slices rather than an arithmetic coincidence.
+    for y, mo, d, h, mi, se in ((2026, 1, 15, 22, 15, 37), (2026, 11, 5, 22, 15, 37), (2026, 11, 15, 22, 15, 7)):
+        other = calendar.timegm(datetime.datetime(y, mo, d, h, mi, se).timetuple()) * 1000.0
+        assert other != want
+
+
+@pytest.mark.parametrize("date,hhmmss", [("2026 802", "224700"), ("20260802", "2247 0")])
+def test_a_stamp_the_CONSTRUCTOR_would_accept_is_still_refused(date, hhmmss):
+    """`int(" 8")` is 8 and `int("+8")` is 8, so a stamp carrying whitespace or a sign reaches a REAL
+    calendar day through the constructor and raises nothing. The digit check is the only thing that
+    refuses it, and it must hold for each half alone: one clean side never excuses the other."""
+    assert polar._device_start_ms(date, hhmmss) is None
+
+
 def test_a_rolled_stamp_would_have_been_a_plausible_looking_instant():
     """The anti-vacuity leg for the test above: the refusal matters because the rolled value is not
     absurd on its face. Without the range check `20261332` dates the recording to 1933."""
