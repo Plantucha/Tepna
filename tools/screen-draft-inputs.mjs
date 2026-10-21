@@ -34,6 +34,7 @@
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { parseDrafts } from './verify-drafts.mjs';
 
 /** Split an argument list on top-level commas, respecting nesting and string literals. */
@@ -214,10 +215,19 @@ export function selftest() {
   return fail === 0 ? 0 : 1;
 }
 
+/* `--dir <path>`, NOT `--dir=<path>`. The equals form was this tool's own spelling, and
+   `tools/argv-guard.mjs` refuses it by construction, because a caller who writes a form the tool then
+   ignores is the failure the guard exists to catch. Nothing in the tree invoked either spelling
+   (measured 2026-10-21: `git grep '--dir='` named only this tool, its sibling and the scanner), so the
+   conversion costs no caller and the tool now reads the idiom every other tool reads. */
+const valueOf = (argv, k) => {
+  const i = argv.indexOf(k);
+  return i >= 0 ? argv[i + 1] : null;
+};
+
 export function main(argv = []) {
   if (argv.includes('--selftest')) return selftest();
-  const dirArg = argv.find((a) => a.startsWith('--dir='));
-  const dir = dirArg ? dirArg.slice(6) : join(process.cwd(), '.git', 'tepna-mutation');
+  const dir = valueOf(argv, '--dir') || join(process.cwd(), '.git', 'tepna-mutation');
   const drafts = collect(dir);
   const flags = screen(drafts);
   console.log(`screened ${drafts.length} drafted calls from ${dir}`);
@@ -227,4 +237,11 @@ export function main(argv = []) {
   return argv.includes('--strict') && flags.length ? 1 : 0;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('screen-draft-inputs.mjs')) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) {
+  /* EVERY FLAG THIS TOOL READS, DECLARED, and only at the CLI entry: `main` stays callable from the
+     suite with any array, because a guard inside it would exit the test runner. `tools/argv-survey.mjs`
+     probed this tool and it IGNORED an unknown token, so `--dirr x` screened the default journal
+     directory and printed a count for a set the caller never named. */
+  refuseUnknownArgvOrExit(process.argv.slice(2), { valued: ['--dir'], boolean: ['--selftest', '--strict'] }, { tool: 'screen-draft-inputs' });
+  process.exit(main(process.argv.slice(2)));
+}

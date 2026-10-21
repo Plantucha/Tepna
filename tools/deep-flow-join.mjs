@@ -37,6 +37,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 /* Realm builder lifted verbatim from tools/cpap-corpus.mjs — imported there it would run that
    file's CLI main, so it is duplicated rather than imported. Keep the two in step. */
@@ -101,6 +102,23 @@ function cpapRealm() {
   ];
   for (const f of CO_LOAD) vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
+}
+
+/* EVERY FLAG THIS TOOL READS, DECLARED. The reads below are `indexOf` calls at module scope, which
+   a source scan cannot decide, and the probe in `tools/argv-survey.mjs` proved the tool IGNORED an
+   unknown token. The exposure is a MISTYPED OPTION beside a correct `--eve`: `--trioo x` leaves
+   `--trio` at its default, and the join then reports a figure over a corpus the caller did not name.
+   An absent `--eve` already exits 2, so the usage line was never the gap. The guard sits behind
+   `isCliEntry` because `process.argv` belongs to whoever launched node, not to this module. */
+if (isCliEntry(import.meta.url)) {
+  refuseUnknownArgvOrExit(
+    process.argv.slice(2),
+    {
+      valued: ['--trio', '--eve', '--step', '--anchors', '--anchor-r-min', '--pre-min', '--post-min'],
+      boolean: ['--sweep']
+    },
+    { tool: 'deep-flow-join' }
+  );
 }
 
 const arg = (k, d) => {
