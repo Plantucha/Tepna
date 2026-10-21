@@ -626,7 +626,23 @@ export function crossCheck(controlJson, scanRows, { verifyBytes = true } = {}) {
        five SWALLOWS rows changed, because the survey's own PR adopted the guard in five tools — so
        excluding a changed tool threw away the entire positive class and left 29 IGNORES rows to agree
        with. The historical text is in git; read it and classify that. */
-    const then = verifyBytes && treeCommit ? gitShow(treeCommit, `tools/${name}`) : null;
+    /* THE PROBED BYTES ARE THE JOIN, SO A CLONE THAT CANNOT READ THEM EXCLUDES THE ROW. `gitShow`
+       returns null for every failure alike — an absent commit, an absent path, no git at all — and
+       the fallback below then classified TODAY's bytes while the row still counted as comparable.
+       MEASURED 2026-10-21: run over a copy of `tools/` with no git objects beside it, this cross-check
+       reported `FAIL — 8 static class(es) contradict a recorded run`, naming the eight tools repaired
+       since the probe. Nothing had contradicted anything; the join had silently changed subject. The
+       honest verdict over unreadable bytes is an exclusion, and 45 of 45 excluded is already NOT_RUN. */
+    const probedBytes = verifyBytes && treeCommit ? gitShow(treeCommit, `tools/${name}`) : null;
+    if (verifyBytes && treeCommit && probedBytes === null) {
+      rec.excluded =
+        gitShow(treeCommit, 'package.json') === null
+          ? `the probe tree ${treeCommit} is unreadable here, so the probed bytes cannot be classified`
+          : 'the probe tree does not carry this tool, so there are no probed bytes to classify';
+      out.push(rec);
+      continue;
+    }
+    const then = probedBytes;
     const text = then !== null ? then : live ? readFileSync(join(ROOT, 'tools', name), 'utf8') : null;
     if (text === null) {
       rec.excluded = treeCommit ? 'neither the probe tree nor the working tree carries this tool' : 'the control names no tree to read the probed bytes from';
@@ -836,6 +852,20 @@ function selftest() {
   ok(cc[0].excluded && !cc[0].contradicts, 'a control naming a tool outside the population is excluded by name');
   const cc2 = crossCheck({ treeCommit: null, rows: [{ tool: 'a.mjs', verdict: 'UNDECIDED-timeout' }] }, [{ tool: 'a.mjs', cls: 'ignores-by-construction' }], { verifyBytes: false });
   ok(cc2[0].excluded === 'the probe itself reached no verdict (timeout)', 'a timed-out probe row decides nothing and is excluded');
+
+  /* AN UNREADABLE PROBE TREE EXCLUDES, IT DOES NOT RECLASSIFY TODAY'S BYTES. The probe row below says
+     IGNORES and this tool's live class is `refuses`, which is a pre-stated contradiction — so a fallback
+     to today's bytes shows up as a contradiction and the exclusion shows up as silence. */
+  const live = [{ tool: 'argv-reads.mjs', cls: 'refuses' }];
+  const ccGone = crossCheck({ treeCommit: '0000000000000000000000000000000000000000', rows: [{ tool: 'tools/argv-reads.mjs', verdict: 'IGNORES' }] }, live);
+  ok(!!ccGone[0].excluded && !ccGone[0].contradicts, 'a probe tree this clone cannot read excludes the row instead of contradicting on other bytes');
+  ok(/unreadable here/.test(ccGone[0].excluded || ''), 'and the exclusion names the tree it could not read');
+  const ccNoPath = crossCheck({ treeCommit: 'HEAD', rows: [{ tool: 'tools/no-such-tool-9f3.mjs', verdict: 'IGNORES' }] }, live);
+  ok(!!ccNoPath[0].excluded && !ccNoPath[0].contradicts, 'a tool the probe tree never carried is excluded, not classified from the working tree');
+  /* CONTROL · the join still reaches a verdict where the bytes ARE readable, so the two legs above are
+     not an instrument that excludes everything. */
+  const ccLive = crossCheck({ treeCommit: 'HEAD', rows: [{ tool: 'tools/argv-reads.mjs', verdict: 'REFUSES' }] }, live);
+  ok(!ccLive[0].excluded && ccLive[0].cls === 'refuses' && !ccLive[0].contradicts, 'CONTROL · readable probed bytes still classify and agree');
 
   console.log(`selftest: all ${ran} selftests passed`);
 }

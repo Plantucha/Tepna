@@ -39,7 +39,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const V = createRequire(import.meta.url)(join(HERE, '..', 'verdict.js'));
@@ -236,4 +236,14 @@ function main(argv) {
   return 0;
 }
 
-if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) {
+  /* THE TWO POSITIONS ARE THE INTERFACE, AND AN UNKNOWN FLAG IS STILL A TYPO. Row
+     2026-10-21-two-tools-take-a-bare-argv-token-as-data-with-no-guard: `const [file, code] = argv`
+     takes whatever sits in position 0, so `--jsonl out.ndjson` (for the documented bare `<ndjson>`)
+     became the path `--jsonl`, the read failed, and the tool rendered UNKNOWN over an absent file —
+     a report, not a refusal. `positional: true` keeps both bare tokens and refuses the dashed one.
+     The refusal sits INSIDE the entry guard: `process.argv` belongs to whoever is running, so a
+     module-scope call would judge an importer's arguments. */
+  refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--selftest'], positional: true }, { tool: 'mutation-summary' });
+  process.exit(main(process.argv.slice(2)));
+}

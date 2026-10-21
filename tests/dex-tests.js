@@ -10661,8 +10661,19 @@
        what makes this a gate — a ratchet on the count would pass a new consumer arriving as another
        left. Two legs ride along, both about the abstention: the class vocabulary is closed, and every
        `undecidable` row names a reason, because an abstention with an empty reason reads as a
-       clearance. MEASURED 2026-10-21 over 259 tool files: refuses 49 · consumes 2 ·
-       ignores-by-construction 165 · undecidable 40 · no-read 3. ════ */
+       clearance. MEASURED 2026-10-21 over 260 tool files, after both consumers were wired: refuses 56 ·
+       consumes 0 · ignores-by-construction 165 · undecidable 36 · no-read 3 (the same scan read
+       refuses 54 · consumes 2 at the parent commit).
+
+       THE NAMED SET IS EMPTY NOW, AND THE EMPTY SET IS THE MEASUREMENT. Row
+       2026-10-21-two-tools-take-a-bare-argv-token-as-data-with-no-guard asked whether a positional-taking
+       tool can refuse an unknown DASHED token while keeping its positions, and `checkArgv`'s
+       `positional: true` already does exactly that. So `mutation-summary.mjs` and `residue-merge.mjs`
+       both declared a spec and both moved to `refuses`; the two legs over that set then compare empty
+       to empty, and the leg that still binds is the one over the WHOLE population. Two legs replace
+       what the named set was carrying: each former consumer is asserted to refuse by name, and a
+       control holds the refusing column non-empty, because a classifier that stopped matching would
+       also empty the consumer column. ════ */
     group('every tool that takes a positional off argv is named or refuses', 'tools · argv-reads · source-scan', function (T) {
       var TT = env.toolTexts;
       var AR = env.argvReads;
@@ -10674,12 +10685,18 @@
         return;
       }
       /* Each entry is a tool whose POSITIONS are its interface, with the reason stated beside it. */
-      var NAMED_POSITIONAL = {
-        'mutation-summary.mjs': 'takes <ndjson> <exit-code>; the two positions are its usage line',
-        'residue-merge.mjs': 'a git merge driver, invoked as %O %A %B — the positions ARE the interface'
+      /* Empty by measurement, not by omission: both former entries declared `positional: true` and
+         now refuse. A THIRD consumer arriving still reds by name on the leg below. */
+      var NAMED_POSITIONAL = {};
+      /* The two that were named here, and the class each must now read. A position is still its
+         interface — the spec keeps every bare token and refuses only an unknown dashed one. */
+      var CONVERTED = {
+        'tools/mutation-summary.mjs': 'takes <ndjson> <exit-code>, and a mistyped flag became the path',
+        'tools/residue-merge.mjs': 'a git merge driver invoked as %O %A %B, and a mistyped flag threw an ENOENT'
       };
       var scanned = [],
         consumers = [],
+        refusers = [],
         silent = [],
         offVocab = [];
       Object.keys(TT)
@@ -10693,6 +10710,7 @@
           scanned.push(self);
           if (AR.TOOL_CLASSES.indexOf(r.cls) < 0) offVocab.push(self + ' → ' + r.cls);
           if (r.cls === 'consumes') consumers.push(self);
+          if (r.cls === 'refuses') refusers.push(self);
           if (r.cls === 'undecidable' && !(r.why && r.why.length > 8)) silent.push(self);
         });
       T.ok('the population is the tools tree, not a sample', scanned.length > 200, scanned.length + ' tool file(s) name process.argv');
@@ -10716,6 +10734,20 @@
       );
       T.eq('the class vocabulary is closed', offVocab.join(', '), '');
       T.eq('every abstention names a reason', silent.join(', '), '');
+      /* THE TWO FORMER CONSUMERS, BY NAME. The named set above is empty, so without this leg the
+         conversion could be undone and both legs would still read empty-to-empty. */
+      var notRefusing = Object.keys(CONVERTED).filter(function (k) {
+        var txt = TT[k];
+        return !txt || AR.classifyTool(txt).cls !== 'refuses';
+      });
+      T.eq('each tool that used to take a bare token as data now refuses an unknown flag', notRefusing.join(', '), '');
+      /* CONTROL · a classifier that stopped matching would empty the consumer column too, and read as
+         a pass. The refusing column is what tells a clean population from a silent one. */
+      T.ok(
+        'CONTROL · the refusing column is populated',
+        refusers.length >= 50,
+        refusers.length + ' tool(s) read as refusers — 56 measured 2026-10-21; a near-empty column means the classifier stopped matching'
+      );
     });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool

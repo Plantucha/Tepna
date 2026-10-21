@@ -41,6 +41,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 /* A residue row is `| <id> | ... | <state> |` on ONE line. The id is the key; everything else is the
    row's content. Non-row lines (the header, the contract table, prose) are carried verbatim and are
@@ -219,4 +220,17 @@ function main(argv) {
   return 0;
 }
 
-process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) {
+  /* A DRIVER'S THREE POSITIONS ARE ITS INTERFACE, AND A REFUSAL IS THE SAFE DIRECTION HERE. Row
+     2026-10-21-two-tools-take-a-bare-argv-token-as-data-with-no-guard: `const [O, Aa, B] = argv`
+     takes git's `%O %A %B` verbatim, so a mistyped `--selftests` became the path `--selftests` and
+     `readFileSync` threw over it. `positional: true` keeps the three paths git passes and refuses an
+     unknown flag with exit 2. Git reads any nonzero driver exit as a conflict, which is the state
+     this file's own fallback table calls safe — never a silent merge.
+
+     THE ENTRY GUARD IS THE OTHER HALF. This line ran at MODULE SCOPE, so importing the exported
+     `parse` or `merge3` ran the driver over the importer's arguments and exited its process. Nothing
+     imports them today, which is why no gate saw it. */
+  refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--selftest', '--install'], positional: true }, { tool: 'residue-merge' });
+  process.exit(main(process.argv.slice(2)));
+}
