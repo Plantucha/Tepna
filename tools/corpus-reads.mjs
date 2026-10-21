@@ -537,13 +537,7 @@ export const UNWIRED_BACKLOG = {
   'stage-lab.mjs': 12,
   'stitch-31d-run.mjs': 3,
   'stuck-run-lengths.mjs': 1,
-  'tch-bootstrap-ci.mjs': 1,
-  'tch-degeneracy-d7.mjs': 1,
-  'tch-fused-corpus.mjs': 1,
-  'tch-multinight.mjs': 2,
   'tch-pooled-hat.mjs': 1,
-  'tch-reference-validation.mjs': 2,
-  'tch-window-sensitivity.mjs': 1,
   'trio-batch.mjs': 6,
   'wearable-sync.mjs': 1
 };

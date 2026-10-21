@@ -10768,13 +10768,18 @@
        MEASURED 2026-10-21 over the 286 files in `tools/`, AND THE INSTRUMENT MOVED MORE THAN THE
        POPULATION DID. 129 files read the capture corpus; 4 of those leave the population by name
        (below) and the 3 written as `.js` are invisible to `env.toolTexts`, so this gate decides
-       122: reports 3 · enumerates 73 · repo-tree 3 · undecidable 5 · no-enumeration 38. The three
+       122: reports 9 · enumerates 67 · repo-tree 3 · undecidable 5 · no-enumeration 38. The three
        `.js` consumers (`drift-report.js`, `realm-manifest.js`, `tch-corpus.js`) enumerate nothing,
-       so the hazard set loses no member to that gap. The first census of the same tree read
-       `enumerates 41 · repo-tree 16 · undecidable 28`: the hazard set nearly doubled WITHOUT a new
-       tool arriving, because an origin tracer now resolves a path through declarations, parameters,
-       the repo's own argv helpers and a ternary's arms. Every one of those 32 moves is a run-time
-       enumeration the first pass either abstained on or CLEARED.
+       so the hazard set loses no member to that gap.
+
+       THE CONTROL IS BOTH ENGINES OVER ONE TREE, because a census taken before a rebase measures
+       two things at once. Run side by side on this checkout, the previous classifier reads
+       `enumerates 35 · repo-tree 16 · undecidable 28` and this one reads `enumerates 67 ·
+       repo-tree 3 · undecidable 5`, with `reports 9` and `no-enumeration 41` unmoved and no tool
+       travelling the other way. That is 23 abstentions and 13 CLEARANCES becoming run-time
+       enumerations, without a new tool arriving: an origin tracer now resolves a path through the
+       declaration in force at the call site, an enclosing function's parameters, the repo's own
+       argv helpers, and a ternary's arms.
 
        WHAT CLEARED THEM WAS FOUR SPELLINGS OF ONE DEFECT — a verdict stated over a path nobody
        read: a file-global declaration map resolving a short name to an unrelated variable 177 lines
