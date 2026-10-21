@@ -36,10 +36,15 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const req = createRequire(import.meta.url);
 const argv = process.argv.slice(2);
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
+   IMPORTER's arguments, so it runs for the CLI only (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, { valued: ['--write'], boolean: ['--selftest', '--json'], positional: true }, { tool: 'name-lease' });
 const has = (f) => argv.includes(f);
 const arg = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : null);
 const MAIN = 'refs/remotes/origin/main';

@@ -58,6 +58,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_MATERIAL_MS = 20;
@@ -320,6 +321,7 @@ export function pfjVerdict({ filesGiven, filesQualified, beats, strata, tch, at,
 
 async function main() {
   const args = process.argv.slice(2);
+  refuseUnknownArgvOrExit(args, { boolean: ['--selftest', '--verdict-sample'], positional: true }, { tool: 'pat-fiducial-jitter' });
   if (args.includes('--selftest')) process.exit(selftest() ? 0 : 1);
   if (args.includes('--verdict-sample')) {
     /* The PASS shape from an illustrative single stratum. No file is read and no number is claimed. */

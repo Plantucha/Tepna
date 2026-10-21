@@ -19,7 +19,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 /* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
    absolute path to the author's throwaway worktree (`…/wt-fingerval`, `…/wt-fingerrt`) baked in. Those
@@ -249,6 +249,7 @@ function run(ppgPath, ecgPath, spo2Path, { json = false } = {}) {
 
 function main() {
   const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--verdict-sample', '--json'], positional: true }, { tool: 'o2ring-finger-roundtrip' });
   if (argv.includes('--selftest')) return selftest();
   if (argv.includes('--verdict-sample')) return console.log(JSON.stringify(verdictSample()));
   const json = argv.includes('--json');

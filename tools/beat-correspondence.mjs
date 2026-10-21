@@ -45,7 +45,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
@@ -477,6 +477,7 @@ const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 async function main() {
   const args = process.argv.slice(2);
+  refuseUnknownArgvOrExit(args, { valued: ['--q', '--band'], boolean: ['--selftest', '--verdict-sample'], positional: true }, { tool: 'beat-correspondence' });
   if (args.includes('--selftest')) return selftest();
   if (args.includes('--verdict-sample')) {
     /* What `tools/verdict-adoption.mjs --check` RUNS — above the night-directory check, so it answers

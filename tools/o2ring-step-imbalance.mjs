@@ -26,7 +26,12 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
 import path from 'node:path';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
+   IMPORTER's arguments, so it runs for the CLI only (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(process.argv.slice(2), { positional: true }, { tool: 'o2ring-step-imbalance' });
 const DIRS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 if (!DIRS.length) {
   console.error('usage: node tools/o2ring-step-imbalance.mjs <capture-dir> [<capture-dir> ...]');

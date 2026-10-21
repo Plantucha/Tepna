@@ -33,12 +33,16 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { anklePair } from './pat-dip-index.mjs';
 import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const PATAlign = require('../pat-align.js');
 
 const argv = process.argv.slice(2);
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
+   IMPORTER's arguments, so it runs for the CLI only (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, { valued: ['--cpap', '--trio'], boolean: ['--json'], positional: true }, { tool: 'pat-dip-validate' });
 const opt = (k, d) => {
   const i = argv.indexOf(k);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
