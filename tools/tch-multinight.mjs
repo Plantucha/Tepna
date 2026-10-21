@@ -682,6 +682,9 @@ function verify(rows, corpus) {
 function main() {
   const argv = process.argv.slice(2);
   const json = argv.includes('--json');
+  /* `--selftest` runs the synthetic known-answer corpus and ignores `--dir`, so the self-test can
+     never reach a corpus. `tools/selftest-all.mjs` finds the tool by this call and reads the summary. */
+  const selftest = argv.includes('--selftest');
   if (argv.includes('--verdict-sample')) {
     console.log(JSON.stringify(verdictSample('tools/tch-multinight.mjs'), null, 1));
     process.exit(0);
@@ -690,7 +693,7 @@ function main() {
 
   console.log('IntegratorTCH multi-night A/B — kernel v' + TCH.VERSION + '  (classic vs per-night motion-ρ)');
 
-  if (dirIx >= 0) {
+  if (dirIx >= 0 && !selftest) {
     const base = argv[dirIx + 1];
     if (!base || !existsSync(base)) {
       console.error('  --dir: path not found: ' + base);
@@ -724,7 +727,8 @@ function main() {
     console.error('\n  SELF-TEST RED — ' + fail + ' known-answer check(s) failed');
     process.exit(1);
   }
-  console.log('  ✓ multi-night mechanism + rescue + magnitude reproduced on the known-answer corpus\n');
+  console.log('  ✓ multi-night mechanism + rescue + magnitude reproduced on the known-answer corpus');
+  console.log('  all ' + checks.length + ' selftests passed\n');
 }
 
 /* ⚠️ ENTRY GUARD — without it this file runs its CLI the moment anything imports it, and calls `process.exit` (3 sites) — including
