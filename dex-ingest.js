@@ -51,9 +51,34 @@
   // unanchored variant in signal-orchestrate.js did exactly that — §1.1). The separator is
   // OPTIONAL so both the PSL and capture-host shapes resolve; anchoring is what keeps a 14-digit
   // device id from being eaten as a stamp, so it must survive the widening. null = none.
+  // Clock Contract §2.7 — the components are DIGITS, never a calendar, so `Date.UTC` over them
+  // SILENTLY ROLLS an out-of-range one onto a plausible wrong instant instead of refusing. Measured
+  // here before the guard: `…_20261332_999999_…` landed on 2027-02-05, `…_20260230_…` on 2026-03-02,
+  // `…_99999999_999999_…` on year 10007 — a fabricated capture date, read off a filename, with nothing
+  // flagged. `stampMs` feeds the device-session dedupe key and `pickNearestByStamp`, so a rolled
+  // instant mis-plans an ingest rather than dropping one file.
+  //
+  // `clock.js` already owns this: `_ckMk` round-trips the date and bounds the time, and `fileStamp`
+  // adds the plausible-year window. THIS FILE CANNOT CALL EITHER — `dex-ingest.js` rides PpgDex, which
+  // carries no `clock.js`, so `DexClock` is undefined there and a delegation would throw at module
+  // evaluation (CLAUDE.md §👥.3). So the rules live here a second time, and the suite pins the two
+  // copies against each other over the names this regex accepts, which is what stops the copy drifting.
+  // The ONE legitimate overflow is ISO end-of-day `240000` → next-day 00:00; no bare `h > 23` guard.
+  var STAMP_MIN_YEAR = 1990, // below this a "stamp" is a serial or an id, not a capture date
+    STAMP_MAX_YEAR = 2099;
+  function _stampMk(y, mo1, d, h, mi, se) {
+    if (y < STAMP_MIN_YEAR || y > STAMP_MAX_YEAR) return null;
+    var day0 = Date.UTC(y, mo1 - 1, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo1 - 1 || dd.getUTCDate() !== d) return null; // rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h > 23 || mi > 59 || se > 59) return null;
+    return Date.UTC(y, mo1 - 1, d, h, mi, se);
+  }
+
   function stampMs(name) {
     var m = String(name == null ? '' : name).match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})_?(\d{2})(\d{2})(\d{2})/i);
-    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
+    return m ? _stampMk(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]) : null;
   }
 
   // Foreign DEVICE/vendor signal — a different instrument entirely, never an ECG/PPG companion:
