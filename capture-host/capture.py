@@ -10137,7 +10137,10 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
                 continue
             stamp = (sess.get("date") or "") + (sess.get("time") or "")
             out_dir = os.path.join(out_base, f"Polar_Offline_{did}_{stamp}")
-            m = await polar_psftp.pull_recording(address, path, out_dir, adapter=hci)
+            # `device_id` is the LOGICAL identity the acquisition envelope joins on, and `did` above is
+            # not it: `did` falls back to the de-colonised address so the directory name is always
+            # unique, which is the right answer for a PATH and the wrong one for an identity field.
+            m = await polar_psftp.pull_recording(address, path, out_dir, adapter=hci, device_id=dev.get("device_id"))
             pulled += 1
             new_files.extend((m or {}).get("new_files") or [])
             short.extend((m or {}).get("short") or [])

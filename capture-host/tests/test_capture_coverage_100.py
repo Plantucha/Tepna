@@ -1015,7 +1015,7 @@ class _FakePsFtp:
     async def list_recordings(self, address, adapter=None):
         return self._sessions
 
-    async def pull_recording(self, address, path, out_dir, adapter=None):
+    async def pull_recording(self, address, path, out_dir, adapter=None, device_id=None):
         self.pulled.append((path, out_dir))
         # Mirrors the real manifest shape: a truncated file is reported under `short` and is NOT in
         # `new_files` (audit F3) — a short read is not a valid file, so it was never pulled.

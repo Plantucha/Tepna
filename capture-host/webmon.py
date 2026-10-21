@@ -2162,7 +2162,16 @@ def make_app(
 
             try:
                 manifest = await _polar_run(
-                    address, lambda: polar_psftp.pull_recording(address, session, out_dir, on_progress=_prog)
+                    address,
+                    lambda: polar_psftp.pull_recording(
+                        # the LOGICAL identity, never `dev_id` above — that one falls back to the last
+                        # eight hex digits of the address, which names a directory and not a device
+                        address,
+                        session,
+                        out_dir,
+                        on_progress=_prog,
+                        device_id=dev.get("device_id"),
+                    ),
                 )
             finally:
                 status.get("devices", {}).get((dev or {}).get("name") or address, {}).pop("pull_progress", None)

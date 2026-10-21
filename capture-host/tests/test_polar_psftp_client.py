@@ -1812,6 +1812,12 @@ def test_the_sidecar_is_written_into_the_output_directory_and_describes_the_pull
     sidecar = tmp_path / "recording.meta.json"
     assert sidecar.is_file(), "written beside the recording, not into the working directory"
     meta = json.loads(sidecar.read_text())
+    # The ACQUISITION ENVELOPE is asserted on its own below and in its own tests; it is lifted out here
+    # so this comparison keeps saying what it was written to say — that NO OTHER field of the sidecar
+    # was added, dropped or renamed. An exact-equality check is the only kind that catches a drop.
+    envelope = meta.pop("acquisition_evidence", None)
+    assert envelope is not None, "the pull sidecar carries the acquisition envelope (ACQ-EVIDENCE-CONTRACT)"
+    assert envelope["source"] == "stored_files"
     assert meta == {
         "kind": "exercise",
         "date": "20260719",
@@ -1826,7 +1832,10 @@ def test_the_sidecar_is_written_into_the_output_directory_and_describes_the_pull
     # Mutant 241 widens `indent=2` to `indent=3` and the line above cannot see it: a newline is there
     # at every indent, so the check passed over the property it was written for. Pin the exact bytes
     # the writer produces instead of a stand-in for them.
-    assert sidecar.read_text() == json.dumps(meta, indent=2), "two-space indent, as `json.dump` wrote it"
+    # the envelope lifted out above goes back on the END, which is where the writer puts it, so this
+    # still compares the WHOLE file byte for byte rather than a subset of it
+    whole = {**meta, "acquisition_evidence": envelope}
+    assert sidecar.read_text() == json.dumps(whole, indent=2), "two-space indent, as `json.dump` wrote it"
 
 
 def test_a_zero_byte_file_is_still_downloaded(monkeypatch, tmp_path):
@@ -2124,3 +2133,63 @@ def test_pull_recording_waits_the_named_backoff_between_attempts_and_ships_2_sec
     m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
     assert m["ok"] is True and attempts["n"] == 2
     assert slept == [0.7]
+
+
+# ── the acquisition envelope the sidecar carries (ACQ-EVIDENCE-CONTRACT) ────────────────────────────
+def test_the_pull_sidecar_carries_an_acquisition_envelope(monkeypatch, tmp_path):
+    """Through the REAL `pull_recording` over the fake link, not a direct call to the assembler: the
+    defect this closes was an assembler that existed for the live streams and a stored path that wired
+    none, so what has to be pinned is the WIRING. Both pulled files match their declared sizes and the
+    listing answered, so the envelope reads VALID + COMPLETE, and the clock word is the device's own —
+    there was no host present when the device wrote those bytes to its flash."""
+    import acq_evidence as ae
+
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path), device_id="VERITY-01"))
+    meta = json.loads((tmp_path / "recording.meta.json").read_text())
+    ev = meta["acquisition_evidence"]
+    assert ev["schema"] == ae.SCHEMA
+    assert ev["source"] == ae.SOURCE_STORED_FILES
+    assert ev["clock_status"] == ae.CLOCK_DEVICE_ONLY
+    assert ev["validation"] == ae.VALID and ev["completeness"] == ae.COMPLETE
+    assert ev["artifact_size"] == 12 + 34 == meta["total_bytes"]
+    assert ev["session_id"] == "20260719034500"
+    # the identity the CALLER holds — the puller has only the BLE address, which is another namespace
+    assert ev["device_id"] == "VERITY-01"
+    assert meta["device"] == "AA:BB"
+    assert ev["provenance"]["n_files"] == 2 and ev["provenance"]["unenumerated"] == 0
+
+
+def test_a_pull_told_no_identity_reports_the_absence_rather_than_the_address(monkeypatch, tmp_path):
+    """§5: substituting the BLE address for the logical id would publish a device identity nobody
+    stated, in a field other envelopes join on. The address still travels under its own key."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    meta = json.loads((tmp_path / "recording.meta.json").read_text())
+    assert meta["acquisition_evidence"]["device_id"] is None
+    assert meta["device"] == "AA:BB"
+
+
+def test_a_failing_envelope_never_costs_the_pull_its_manifest_or_its_sidecar(monkeypatch, tmp_path, caplog):
+    """The envelope is a REPORT ABOUT the transfer. The bytes are already on disk by the time it is
+    assembled, so an assembler that raises must not throw away the manifest that tells the caller which
+    files landed — the posture `capture._emit_polar_live_evidence` keeps for the live half."""
+
+    def boom(*a, **kw):
+        raise RuntimeError("assembler exploded")
+
+    monkeypatch.setattr(ps.acq_evidence_polar, "assemble_pull", boom)
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    with caplog.at_level("ERROR"):
+        m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert m["total_bytes"] == 12 + 34 and m["ok"] is True
+    meta = json.loads((tmp_path / "recording.meta.json").read_text())
+    assert "acquisition_evidence" not in meta  # the sidecar is still written, minus the envelope
+    assert meta["total_bytes"] == 12 + 34
+    failed = next(r.getMessage() for r in caplog.records if "envelope failed" in r.getMessage())
+    assert "/U/0/20260719/E/034500/" in failed, "the line must name WHICH session lost its envelope"
+    written = {p.name for p in tmp_path.rglob("*") if p.is_file()}
+    assert "BPM.GZ" in written and "PLETH.GZ" in written

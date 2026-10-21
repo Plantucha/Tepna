@@ -46,6 +46,13 @@ SOURCE_LIVE = "live"  # a real-time device stream (O2Ring OXYFRAME, CPAP BLE)
 SOURCE_STORED_DAT = "stored_dat"  # the device's onboard recording artifact (.dat)
 SOURCE_SD_EDF = "sd_edf"  # a device SD-card EDF export
 SOURCE_STORED_SPOOL = "stored_spool"  # the device's own spooled data, pulled over its link (AS11 CPAP)
+# the device's own onboard recording FILES, pulled off its filesystem over its link (Polar PS-FTP).
+# Neither word above describes it: `stored_dat` is ONE artifact the device finalises with a trailer, and
+# `stored_spool` is a cursor the device serves bytes from. A PS-FTP pull mirrors a directory the device
+# wrote by itself, so the acquisition is a SET of files whose own count is part of what is known about
+# it. §10 is why it gets its own word rather than borrowing one: a consumer that cannot tell a file-set
+# pull from a finalised single artifact cannot tell which absences are expected.
+SOURCE_STORED_FILES = "stored_files"
 # NOTE: a new SOURCE VALUE is not a new FIELD — the envelope shape is unchanged, so SCHEMA_VERSION does
 # not move. `source` was an open vocabulary from the start (§10 requires that live and stored never
 # collapse into one word); adding the CPAP spool to it is what that vocabulary is for.
@@ -61,6 +68,13 @@ SOURCE_STORED_SPOOL = "stored_spool"  # the device's own spooled data, pulled ov
 CLOCK_DEVICE_AND_HOST = "device+host"  # the stream carries the device's own clock beside the host's
 CLOCK_HOST_ONLY = "host"  # only the host stamped it — there is no second clock to compare against
 CLOCK_NONE = "none"  # neither clock reached the artifact
+# Only the device's own clock stamped it, because no host was there to stamp anything. This is the
+# FOURTH combination of the two clocks, and it was missing because no producer had ever met it: a live
+# stream always has a host, so the three words above cover every live case. An onboard recording made
+# with no phone connected is the case that needs it, and `device+host` would promise a cross-check that
+# cannot exist for those bytes while `host` and `none` would both deny a clock that is demonstrably
+# there. Whether that device clock AGREES with a host's is `clock_offset`'s question, never this one.
+CLOCK_DEVICE_ONLY = "device"
 
 
 @dataclass(frozen=True)
@@ -139,7 +153,9 @@ class AcquisitionEvidence:
 
     start_time_ms: float | None  # Clock Contract floating tMs; None (not 0) when unknown
     end_time_ms: float | None
-    clock_status: str  # a timingSource-derived word (device+host / host / none) or UNKNOWN
+    clock_status: str  # WHICH clocks stamped it: device+host / host / device / none, or UNKNOWN.
+    # A live stream's word is derived from `quality.timingSource`; a stored artifact's is read from
+    # its own header or path stamp, because no host was there to publish a timingSource at all.
     # (its NUMERIC companion is `clock_offset`, in the defaulted tail below — a dataclass cannot carry
     #  a defaulted field ahead of non-defaulted ones, so it sits there rather than here)
 

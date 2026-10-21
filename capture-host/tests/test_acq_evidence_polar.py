@@ -410,3 +410,252 @@ def test_run_polar_CALLS_the_emit_helper_on_its_KEPT_arm():
     emit = src.index("_emit_polar_live_evidence(")
     assert src.index("wr.discard()") < emit, "the emit must sit after the discard arm, on the kept side"
     assert "wr.close()" in src[:emit], "the counters are only final after close"
+
+
+# ── the STORED half: assemble_pull over a PS-FTP manifest ───────────────────────────────────────────
+_SESS = "/U/0/20260802/R/224700/"
+_META = {"kind": "offline", "date": "20260802", "time": "224700", "start_local": "2026-08-02T22:47:00"}
+
+
+def _manifest(**kw):
+    """A clean one-file pull, in the shape `polar_psftp.pull_recording` really returns."""
+    m = {
+        "session": _SESS,
+        "out_dir": "/srv/tepna/captures/stored/Polar_Offline_VERITY-01_20260802224700",
+        "files": [{"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True, "dst": "…/ACC.REC"}],
+        "new_files": ["ACC.REC"],
+        "short": [],
+        "unreadable_dirs": [],
+        "truncated_dirs": [],
+        "unenumerated": 0,
+        "ok": True,
+        "total_bytes": 1763,
+    }
+    m.update(kw)
+    return m
+
+
+def _pull(manifest=None, **kw):
+    kw.setdefault("device_id", "VERITY-01")
+    kw.setdefault("session_meta", _META)
+    return polar.assemble_pull(_manifest() if manifest is None else manifest, **kw)
+
+
+def test_the_stored_pull_is_never_the_live_source():
+    """§10: live and stored never collapse into one indistinguishable word, and neither of the two
+    stored words that already existed describes a file-set pull — `stored_dat` is one trailer-finalised
+    artifact and `stored_spool` is a cursor the device serves bytes from."""
+    ev = _pull()
+    assert ev.source == ae.SOURCE_STORED_FILES == "stored_files"
+    assert ev.source != ae.SOURCE_LIVE
+    assert ev.source not in (ae.SOURCE_STORED_DAT, ae.SOURCE_STORED_SPOOL, ae.SOURCE_SD_EDF)
+
+
+def test_an_offline_recording_names_the_DEVICE_clock_and_not_a_cross_check():
+    """No host was connected while the device wrote those samples, so no second clock exists for them.
+    `device+host` would promise a cross-check that cannot be made and `host` would name the one clock
+    that is definitely absent. The device's own RTC named the session directory, which is where the
+    stamp comes from, and `provenance` says exactly that so the word cannot be read as per-sample."""
+    ev = _pull()
+    assert ev.clock_status == ae.CLOCK_DEVICE_ONLY == "device"
+    assert ev.clock_status not in (ae.CLOCK_DEVICE_AND_HOST, ae.CLOCK_HOST_ONLY, ae.CLOCK_NONE)
+    assert ev.provenance["device_clock_read_from"] == polar.PULL_CLOCK_SOURCE
+    assert "not per-sample" in polar.PULL_CLOCK_SOURCE
+
+
+def test_an_unreadable_device_stamp_is_UNKNOWN_and_never_none():
+    """`none` is a measured conclusion about BOTH clocks; having read no stamp at all is an absence of
+    measurement (§5). The device clock may well be inside the container nobody here decodes."""
+    ev = _pull(session_meta={"kind": "other", "date": None, "time": None, "start_local": None})
+    assert ev.clock_status == ae.UNKNOWN
+    assert ev.start_time_ms is None
+    assert ev.provenance["device_clock_read_from"] is None
+
+
+def test_the_device_stamp_becomes_a_floating_wall_clock_ms():
+    """Clock Contract §1: the device wrote local civil time with no zone, so the canonical form is
+    floating `tMs` — the same encoding the live path stamps with `calendar.timegm`."""
+    import calendar
+    import datetime
+
+    want = calendar.timegm(datetime.datetime(2026, 8, 2, 22, 47, 0).timetuple()) * 1000.0
+    assert _pull().start_time_ms == want
+    assert polar._device_start_ms("20260802", "224700") == want
+
+
+@pytest.mark.parametrize(
+    "date,hhmmss",
+    [
+        (None, "224700"),
+        ("20260802", None),
+        ("", ""),
+        ("2026080", "224700"),  # seven digits — not the device's shape
+        ("20260802", "22470"),  # five digits
+        ("2026080x", "224700"),  # not all digits
+        ("20260802", "2247x0"),
+        ("20261332", "224700"),  # month 13, day 32 — an impossible calendar day
+        ("20260802", "254700"),  # hour 25
+    ],
+)
+def test_an_impossible_or_foreign_stamp_REFUSES_instead_of_rolling(date, hhmmss):
+    """Clock Contract §7: `timegm` over a hand-built tuple rolls impossible components onto a WRONG
+    instant exactly as `Date.UTC` does, and `_session_meta` validates only digit-ness and length. A
+    date of `20261332` must therefore be refused here, not become January 1932's problem."""
+    assert polar._device_start_ms(date, hhmmss) is None
+
+
+def test_every_FIELD_of_the_stamp_reaches_the_component_it_names():
+    """A slice that drops one digit is invisible to a fixture whose fields all read `0X`, because
+    `int("8")` and `int("08")` agree. So this leg reads a stamp whose month, day and seconds each need
+    BOTH of their digits: month 11, day 15, second 37."""
+    import calendar
+    import datetime
+
+    want = calendar.timegm(datetime.datetime(2026, 11, 15, 22, 15, 37).timetuple()) * 1000.0
+    assert polar._device_start_ms("20261115", "221537") == want
+    # the anti-vacuity leg: each neighbouring component is a DIFFERENT instant, so the equality above
+    # is what pins the slices rather than an arithmetic coincidence.
+    for y, mo, d, h, mi, se in ((2026, 1, 15, 22, 15, 37), (2026, 11, 5, 22, 15, 37), (2026, 11, 15, 22, 15, 7)):
+        other = calendar.timegm(datetime.datetime(y, mo, d, h, mi, se).timetuple()) * 1000.0
+        assert other != want
+
+
+@pytest.mark.parametrize("date,hhmmss", [("2026 802", "224700"), ("20260802", "2247 0")])
+def test_a_stamp_the_CONSTRUCTOR_would_accept_is_still_refused(date, hhmmss):
+    """`int(" 8")` is 8 and `int("+8")` is 8, so a stamp carrying whitespace or a sign reaches a REAL
+    calendar day through the constructor and raises nothing. The digit check is the only thing that
+    refuses it, and it must hold for each half alone: one clean side never excuses the other."""
+    assert polar._device_start_ms(date, hhmmss) is None
+
+
+def test_a_rolled_stamp_would_have_been_a_plausible_looking_instant():
+    """The anti-vacuity leg for the test above: the refusal matters because the rolled value is not
+    absurd on its face. Without the range check `20261332` dates the recording to 1933."""
+    import calendar
+    import datetime
+
+    rolled = datetime.datetime(2026, 1, 1) + datetime.timedelta(days=12 * 31 + 31)
+    assert rolled.year == 2027  # a readable date, and the wrong one
+    assert polar._device_start_ms("20261332", "224700") != calendar.timegm(rolled.timetuple()) * 1000.0
+
+
+def test_the_declared_size_check_is_what_VALID_means_here():
+    """§6: the pull compares each transferred length against the size the device DECLARED in its own
+    directory listing. That check really ran, so the depth names it — and names only it: no hash was
+    computed and nothing decoded the container."""
+    ev = _pull()
+    assert ev.validation == ae.VALID
+    assert ev.validation_depth == polar.PULL_VALIDATION_DEPTH == "declared-size-per-file"
+    assert ev.artifact_sha256 is None
+
+
+def test_a_short_file_is_INVALID_and_PARTIAL_at_once():
+    """A length that failed its declaration says both things: the bytes do not match what the device
+    declared, and the set is missing some of them. The axes stay separate but may agree."""
+    ev = _pull(_manifest(short=["ACC.REC: declared 1763, got 900 bytes — left as ACC.REC.part"], ok=False))
+    assert ev.validation == ae.INVALID
+    assert ev.validation_depth == polar.PULL_VALIDATION_DEPTH  # the check RAN; it refused
+    assert ev.completeness == ae.PARTIAL
+    assert len(ev.provenance["short"]) == 1
+
+
+def test_an_unenumerated_directory_leaves_completeness_UNKNOWN_while_the_bytes_stay_VALID():
+    """The contract's cleanest §6 pair, and `pull_recording` already draws this line for its own `ok`:
+    every byte we hold checked out, and a listing that came back truncated means we cannot tell whether
+    we hold the whole set. UNKNOWN, never PARTIAL — nobody measured that something is missing."""
+    ev = _pull(_manifest(truncated_dirs=["/U/0/20260802/R/224700/"], unenumerated=1, ok=False))
+    assert ev.validation == ae.VALID
+    assert ev.completeness == ae.UNKNOWN
+    assert ev.provenance["unenumerated"] == 1
+    assert ev.provenance["pull_ok"] is False
+
+
+def test_an_ABSENT_unenumerated_count_is_not_a_count_of_zero():
+    """§∅ at the fold. `capture.pull_polar_offline_all` records that `polar_psftp` writes this count
+    unconditionally, so a `None` cannot arise from TODAY's one caller — which is exactly the premise an
+    assembler must not depend on. Reading an absent count as 0 would publish COMPLETE over a set nobody
+    enumerated, and that is the failure this whole contract exists to prevent."""
+    m = _manifest()
+    del m["unenumerated"]
+    ev = _pull(m)
+    assert ev.completeness == ae.UNKNOWN
+    assert ev.provenance["unenumerated"] is None
+    # the control: the same manifest with the count PRESENT and zero does reach COMPLETE
+    assert _pull(_manifest()).completeness == ae.COMPLETE
+
+
+def test_a_pull_that_moved_no_files_decides_nothing():
+    """A verdict over zero files is not a verdict. Validation ran no check and completeness has no set
+    to describe, so both are UNKNOWN and the depth is absent rather than naming a check nobody ran."""
+    ev = _pull(_manifest(files=[], new_files=[], total_bytes=0))
+    assert ev.validation == ae.UNKNOWN
+    assert ev.validation_depth is None
+    assert ev.completeness == ae.UNKNOWN
+    assert ev.provenance["n_files"] == 0
+
+
+def test_the_artifact_is_the_SET_and_no_single_signal_names_it():
+    """A pull mirrors a directory, so one envelope covers every stream the device recorded. Naming one
+    file as the signal would describe a fraction of what the envelope covers."""
+    ev = _pull()
+    assert ev.signal is None
+    assert ev.artifact_path == _manifest()["out_dir"]
+    assert ev.artifact_size == 1763
+
+
+def test_no_sample_or_gap_number_is_invented_from_a_byte_transfer():
+    """§8: nothing here decodes the device's container, so there is no sample count, nothing declares an
+    expected one, and a truncated FILE is not a packet that never arrived."""
+    ev = _pull(_manifest(short=["ACC.REC: declared 1763, got 900 bytes"]))
+    assert ev.sample_count is None
+    assert ev.expected_sample_count == ae.UNKNOWN
+    assert ev.end_time_ms is None
+    assert ev.transport_gaps == ae.UNKNOWN
+    assert ev.decode_gaps == ae.UNKNOWN
+    assert ev.duration_check.stored_s is None and ev.duration_check.observed_s is None
+
+
+def test_the_session_id_is_the_14_digit_stamp_a_reader_already_joins_on():
+    """The token the pulled DIRECTORY is named after (`Polar_Offline_<serial>_<14 digits>`) and the one
+    the live envelope uses, so an envelope joins to a night by the same filename substring rule."""
+    assert _pull().session_id == "20260802224700"
+    assert _pull().session_id in _manifest()["out_dir"]
+    # a caller that holds its own id keeps it
+    assert _pull(session_id="20260802224700-retry").session_id == "20260802224700-retry"
+    # and a path with no stamp yields no id rather than a fragment
+    assert polar._pull_session_id({"date": "20260802", "time": None}) is None
+    assert polar._pull_session_id({"date": None, "time": "224700"}) is None
+
+
+def test_the_identity_and_the_caller_s_observations_are_CARRIED_not_derived():
+    """§13: the puller holds only a BLE address, which is a different namespace from the identity every
+    other envelope joins on. Both are asserted against two different values so a constant cannot pass."""
+    assert _pull().device_id == "VERITY-01"
+    assert _pull(device_id="H10-01").device_id == "H10-01"
+    assert _pull(device_id=None).device_id is None
+    off = ae.ClockOffset(offset_sec=1.25, measured_at_ms=1.0e12, reference="host-stratum1", method="GetDateTime")
+    ev = _pull(device_state="CHARGING", clock_offset=off)
+    assert ev.device_state == "CHARGING" and ev.clock_offset is off
+    assert _pull().device_state == ae.UNKNOWN and _pull().clock_offset.offset_sec is None
+
+
+def test_the_pull_s_own_accounting_travels_under_names_that_say_what_it_is():
+    """What was new, what was already on disk, what the device path said — each under its own name, so
+    none of it can be read as a sample count or a gap."""
+    m = _manifest(
+        files=[
+            {"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True},
+            {"name": "BPM.GZ", "bytes": 12, "declared": 12, "ok": True, "skipped": True},
+        ],
+        new_files=["ACC.REC"],
+        total_bytes=1775,
+    )
+    p = _pull(m).provenance
+    assert p["n_files"] == 2 and p["n_new"] == 1 and p["n_skipped"] == 1
+    assert p["session_path"] == _SESS and p["kind"] == "offline"
+    assert p["device_stamp_local"] == "2026-08-02T22:47:00"
+    assert p["unreadable_dirs"] == [] and p["truncated_dirs"] == []
+    # a manifest with no `new_files` key reports an absent count, not zero new files
+    m2 = _manifest()
+    del m2["new_files"]
+    assert _pull(m2).provenance["n_new"] is None

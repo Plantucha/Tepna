@@ -38,9 +38,9 @@ def _no_bonding(monkeypatch):
 
 
 def _pull(tmp_path, body, manifest=None, devices=None, capture=None, status=None):
-    async def fake_pull(address, session, out_dir, on_progress=None):
+    async def fake_pull(address, session, out_dir, on_progress=None, device_id=None):
         if capture is not None:
-            capture.update(address=address, session=session, out_dir=out_dir, prog=on_progress)
+            capture.update(address=address, session=session, out_dir=out_dir, prog=on_progress, device_id=device_id)
         return manifest if manifest is not None else {"ok": True, "files": 3}
 
     webmon.polar_psftp.pull_recording = fake_pull
@@ -91,6 +91,27 @@ def test_a_device_without_a_model_still_produces_a_usable_name(tmp_path):
     assert "Polar_Device_12345678_offline_" in cap["out_dir"], cap["out_dir"]
 
 
+# ── the identity the envelope records ───────────────────────────────────────────────────────────────
+def test_the_pull_is_told_the_configured_device_id_not_the_name_in_the_path(tmp_path):
+    """The sidecar's acquisition-evidence envelope records `device_id`, and the only layer that knows
+    it is this one. Reading it back off the directory name would recover the MODEL and the fallback
+    together, so the pull is told the configured id directly."""
+    cap = {}
+    _pull(tmp_path, {"address": ADDR, "session": SESSION}, capture=cap)
+    assert cap["device_id"] == H10["device_id"] == "12345678"
+
+
+def test_an_unidentified_device_reports_NO_id_rather_than_the_mac_tail(tmp_path):
+    """§∅. The directory needs *a* name or two unnamed devices collide, so the path takes the MAC
+    tail — but that tail is a filename, not an identity the host was configured with. Passing it on
+    would make the envelope state a device_id nobody set."""
+    dev = {k: v for k, v in H10.items() if k != "device_id"}
+    cap = {}
+    _pull(tmp_path, {"address": ADDR, "session": SESSION}, devices=[dev], capture=cap)
+    assert cap["device_id"] is None
+    assert "CCDDEEFF" in cap["out_dir"], "the path still carries the tail it has always used"
+
+
 # ── the verdict ─────────────────────────────────────────────────────────────────────────────────────
 def test_ok_mirrors_the_manifests_verdict_not_merely_that_the_request_finished(tmp_path):
     """Audit F3. `polar_psftp` marks a manifest `ok: False` when a file came back short — a truncated
@@ -117,7 +138,7 @@ def test_progress_is_published_against_the_device_the_monitor_shows(tmp_path):
     the wrong arithmetic — the bar belongs to another device or sits at 0 % all the way through."""
     seen = {}
 
-    async def fake_pull(address, session, out_dir, on_progress=None):
+    async def fake_pull(address, session, out_dir, on_progress=None, device_id=None):
         on_progress(2500, 10000)
         seen["mid"] = dict(st["devices"]["H10"]["pull_progress"])
         return {"ok": True}
@@ -136,7 +157,7 @@ def test_progress_is_published_against_the_device_the_monitor_shows(tmp_path):
 def test_progress_with_an_unknown_total_reports_zero_rather_than_dividing_by_it(tmp_path):
     seen = {}
 
-    async def fake_pull(address, session, out_dir, on_progress=None):
+    async def fake_pull(address, session, out_dir, on_progress=None, device_id=None):
         on_progress(500, 0)
         seen["mid"] = dict(st["devices"]["H10"]["pull_progress"])
         return {"ok": True}
@@ -158,7 +179,7 @@ def test_progress_is_cleared_when_the_pull_ends(tmp_path):
 
 
 def test_progress_is_cleared_even_when_the_pull_fails(tmp_path):
-    async def boom(address, session, out_dir, on_progress=None):
+    async def boom(address, session, out_dir, on_progress=None, device_id=None):
         on_progress(10, 100)
         raise RuntimeError("link dropped")
 
