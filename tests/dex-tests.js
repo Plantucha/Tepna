@@ -41175,6 +41175,185 @@
       T.eq('a healthy queue has nothing cancelled to name', att([green, advisoryCancel]).cancelled.length, 0);
     });
 
+    /* ── queue-doctor: ONE required context can hold TWO check runs, and every rollup shows the later
+       one. Measured on #3871, 2026-10-21: the `tests` workflow fired twice on one sha at 21:04:22Z
+       because the push and the PR creation arrived seconds apart; concurrency cancelled one run, its
+       six shards went `cancelled` and its aggregator job `test` ended `failure`. So the head carried
+       a `test` failure (run 39675743047) AND a `test` success (run 39675741664). `gh pr checks` read
+       26 pass / 2 skipping / 0 fail / 0 cancel while GitHub refused the merge, and the only field
+       that named the cause was the merge bot's own sentence on its check run:
+       `🛑 cannot merge (failing required status checks: {'test'})`. Five more required contexts were
+       wedged the same way on that head — biome, browser-gates, no-network, stale-file, typecheck —
+       and `gh run rerun <the stale run>` cleared all seven. The rung reads the per-commit check-run
+       list, which is the only view where the disagreement is visible. */
+    group('Queue-doctor — one required context holding two runs is a wedge the rollup hides', 'tools · queue-doctor-wedge', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention,
+        stale = env.qdStaleRuns,
+        runId = env.qdRunIdFromUrl;
+      if (typeof cl !== 'function' || typeof att !== 'function' || typeof stale !== 'function' || typeof runId !== 'function') {
+        T.skip('queue-doctor wedge rung is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1755000000000;
+      var GREEN = [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'pass' }
+      ];
+      var wrap = function (o) {
+        var pr = {
+          number: 1,
+          title: 't',
+          state: 'OPEN',
+          isDraft: false,
+          mergeState: 'CLEAN',
+          autoMerge: true,
+          updatedAtMs: NOW - 90 * 60000,
+          checks: GREEN,
+          checkRuns: [],
+          botSays: null
+        };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test', 'biome'], NOW);
+        r.pr = pr;
+        return r;
+      };
+
+      /* #3871's real shape: one name, two runs, the failure first by id. */
+      var wedged = wrap({
+        number: 3871,
+        checkRuns: [
+          { name: 'test', conclusion: 'failure', runId: '39675743047' },
+          { name: 'test', conclusion: 'success', runId: '39675741664' },
+          { name: 'biome', conclusion: 'success', runId: '39675741657' }
+        ],
+        botSays: "🛑 cannot merge (failing required status checks: {'test'})"
+      });
+      T.eq('a required context holding a failure beside a success is wedged, not ready', wedged.k, 'wedged');
+      T.ok('…and the reason names the context', /\btest\b/.test(wedged.why));
+      T.ok('…and the STALE run id, not the passing one', /39675743047/.test(wedged.why) && !/39675741664/.test(wedged.why));
+      T.ok('…and the verb that clears it', /gh run rerun 39675743047/.test(wedged.why));
+      T.ok('…and quotes the merge bot, the only field that named the cause', /cannot merge \(failing required status checks/.test(wedged.why));
+
+      /* CONTROL: the same PR with one run per name is the state the rollup already describes. */
+      var oneEach = wrap({
+        number: 3872,
+        checkRuns: [
+          { name: 'test', conclusion: 'success', runId: '39675741664' },
+          { name: 'biome', conclusion: 'success', runId: '39675741657' }
+        ]
+      });
+      T.eq('one run per required name is ready (non-vacuity)', oneEach.k, 'ready');
+      T.eq('a PR whose check runs were unreadable is ready, not wedged', wrap({ number: 3873, checkRuns: [] }).k, 'ready');
+
+      /* The rung must not reach past the rollup's own business. */
+      var advisoryDup = wrap({
+        number: 3874,
+        checkRuns: [
+          { name: 'mutation', conclusion: 'failure', runId: '1' },
+          { name: 'mutation', conclusion: 'success', runId: '2' }
+        ]
+      });
+      T.eq('a duplicate under a NON-required name does not fire', advisoryDup.k, 'ready');
+      var redToo = wrap({
+        number: 3875,
+        checks: [
+          { name: 'test', bucket: 'fail' },
+          { name: 'biome', bucket: 'pass' }
+        ],
+        checkRuns: [
+          { name: 'test', conclusion: 'failure', runId: '1' },
+          { name: 'test', conclusion: 'success', runId: '2' }
+        ]
+      });
+      T.eq('a rollup red is still failing — the wedge rung sits below it', redToo.k, 'failing');
+      var behindWedge = wrap({
+        number: 3876,
+        mergeState: 'BEHIND',
+        checkRuns: [
+          { name: 'test', conclusion: 'cancelled', runId: '7' },
+          { name: 'test', conclusion: 'success', runId: '8' }
+        ]
+      });
+      T.eq('a BEHIND wedge is wedged, not stuck-behind — an update cannot clear it', behindWedge.k, 'wedged');
+
+      /* staleRequiredRuns, pure, at its three edges. */
+      T.eq(
+        'a run still in flight (null conclusion) is not stale — the pending rung owns it',
+        stale(
+          ['test'],
+          [
+            { name: 'test', conclusion: null, runId: '1' },
+            { name: 'test', conclusion: 'success', runId: '2' }
+          ]
+        ).length,
+        0
+      );
+      T.eq(
+        'two failures with NO success is a plain red the rollup shows',
+        stale(
+          ['test'],
+          [
+            { name: 'test', conclusion: 'failure', runId: '1' },
+            { name: 'test', conclusion: 'failure', runId: '2' }
+          ]
+        ).length,
+        0
+      );
+      T.eq(
+        'a skipped run satisfies a required context',
+        stale(
+          ['test'],
+          [
+            { name: 'test', conclusion: 'skipped', runId: '1' },
+            { name: 'test', conclusion: 'success', runId: '2' }
+          ]
+        ).length,
+        0
+      );
+      T.eq('an unreadable run list examines nothing', stale(['test'], null), []);
+      T.eq(
+        'two wedged names come out sorted, so the rerun line is stable',
+        stale(
+          ['typecheck', 'biome'],
+          [
+            { name: 'typecheck', conclusion: 'cancelled', runId: '39675741694' },
+            { name: 'typecheck', conclusion: 'success', runId: '9' },
+            { name: 'biome', conclusion: 'cancelled', runId: '39675741657' },
+            { name: 'biome', conclusion: 'success', runId: '8' }
+          ]
+        ).map(function (r) {
+          return r.name + ':' + r.runId;
+        }),
+        ['biome:39675741657', 'typecheck:39675741694']
+      );
+      var noId = wrap({
+        number: 3877,
+        checkRuns: [
+          { name: 'test', conclusion: 'cancelled', runId: null },
+          { name: 'test', conclusion: 'success', runId: '2' }
+        ]
+      });
+      T.ok('a wedge whose run id is unreadable says so instead of printing a bare verb', /nothing names a run to re-run/.test(noId.why));
+
+      /* The URL is the only place the RUN id appears; the rerun verb refuses a job id. */
+      T.eq('a run URL yields the run id', runId('https://github.com/o/r/actions/runs/39675743047'), '39675743047');
+      T.eq('a job URL yields the RUN, not the job', runId('https://github.com/o/r/actions/runs/39675743047/job/111222333'), '39675743047');
+      T.eq('a check-run URL with no run segment refuses', runId('https://github.com/o/r/runs/41234567'), null);
+      T.eq('an absent URL refuses', runId(null), null);
+
+      var a = att([wedged, oneEach, advisoryDup]);
+      T.eq(
+        'the wedged PR alone is in the wedged set',
+        a.wedged.map(function (c) {
+          return c.pr.number;
+        }),
+        [3871]
+      );
+      T.eq('…and it is in no other attention set', a.stuck.length + a.failing.length + a.cancelled.length + a.dirty.length, 0);
+      T.eq('a healthy queue has nothing wedged to name', att([oneEach, advisoryDup]).wedged.length, 0);
+    });
+
     /* ── queue-doctor: DIRTY is two states, and the local merge probe tells them apart (residue
        2026-09-22-residue-dirty-carries-no-signal). GitHub merges without the `merge=residue` driver,
        so a RESIDUE-only append reads DIRTY there and merges clean here, and a real conflict reads the
