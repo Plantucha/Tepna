@@ -1379,6 +1379,18 @@
    "status": "exempt",
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
+  "tools/mutation-excused-rate.mjs": {
+    "bin": "decides",
+    "status": "adopted",
+    "emits": {
+      "cmd": [
+        "node",
+        "tools/mutation-excused-rate.mjs",
+        "--verdict"
+      ]
+    },
+    "note": "the excused-mutant rate (residue 2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured): mutate_diff excuses every string-literal mutant, because mutmut wraps EVERY literal in XX sentinels, so a dict key, a join separator, a strftime format and a subprocess argv word are all put aside as prose. The pre-stated criterion is the row's own claim, zero interface-reaching excused mutants, read over the mutation-diff artifacts CI has already uploaded (mutmut runs zero times) \u2014 PASS none matched a would-require rule without also matching a prose rule \u00b7 FAIL any did, reason naming the rate and both denominators \u00b7 NOT_RUN the record is absent or examined nothing \u00b7 UNKNOWN the record carries no integer count; population = diffs whose mutation job RAN, expired and unreadable artifacts excluded; the merged-PR count rides in the result so the rate is not read as a property of every PR. The verdict path reads the committed record offline and exits 0, because a measured defect is not this tool failing; --strict exits 1 on non-PASS."
+  },
   "tools/mutation-reach.mjs": {
    "bin": "word-only",
    "status": "exempt",
