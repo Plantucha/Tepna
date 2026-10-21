@@ -217,6 +217,59 @@ export function classifyTool(text) {
 export const SELF = 'tools/corpus-reads.mjs';
 
 /** Classify every tool under one directory. Returns rows sorted by name. */
+/* ── THE NAMED SET: corpus enumerators that report no population ───────────────────────────────
+   DEBT, NOT APPROVAL. Each value is the number of run-time enumerations the scan found in that
+   tool. A ratchet on the COUNT would pass a new consumer arriving as another one left, so the
+   suite group pins the NAMES and reds in both directions: an unlisted enumerator, and a listed
+   tool the scan has stopped reading as one.
+
+   It lives here rather than in the suite because `verdict-adoption.mjs` reads a tool stem named
+   under `tests/` as evidence that a test covers it. A hazard list is not that, and the mention
+   alone reded its ratchet. */
+export const UNWIRED_BACKLOG = {
+  'acc-select-compare.mjs': 1,
+  'acc-shared-movement.mjs': 1,
+  'beat-correspondence.mjs': 1,
+  'beat-error-recovery.mjs': 2,
+  'codex-export.mjs': 1,
+  'cvhr-fold-rescore.mjs': 1,
+  'device-stability.mjs': 1,
+  'dual-clock-rate.mjs': 1,
+  'eqc-run.mjs': 2,
+  'geometry-scan.mjs': 1,
+  'h10-session-rate.mjs': 1,
+  'hostaxis-estimator-bakeoff.mjs': 1,
+  'nsrr-criterion-sweep.mjs': 1,
+  'nsrr-oxydex-odi.mjs': 2,
+  'oracle-ecg-firmware-rr.mjs': 3,
+  'pat-drift-attribution.mjs': 2,
+  'pat-ecg-axis-residual.mjs': 1,
+  'pat-finger-coupler.mjs': 1,
+  'pat-matchrate-strict.mjs': 2,
+  'pat-mode-posture.mjs': 2,
+  'pat-ppg-ppg-control.mjs': 1,
+  'pat-residual-structure.mjs': 2,
+  'pat-window-oracle.mjs': 1,
+  'pin-coverage.mjs': 2,
+  'pletha-marker-oracle.mjs': 1,
+  'ppg-fusion-e3.mjs': 1,
+  'ppg-gap-bridge-scan.mjs': 1,
+  'ppg2w-spo2-fit.mjs': 1,
+  'ppi-jitter-vs-ecg.mjs': 1,
+  'resp-acc-headless.mjs': 2,
+  'stage-lab.mjs': 11,
+  'stitch-31d-run.mjs': 3,
+  'stuck-run-lengths.mjs': 1,
+  'tch-bootstrap-ci.mjs': 1,
+  'tch-degeneracy-d7.mjs': 1,
+  'tch-fused-corpus.mjs': 1,
+  'tch-multinight.mjs': 1,
+  'tch-reference-validation.mjs': 2,
+  'tch-window-sensitivity.mjs': 1,
+  'trio-batch.mjs': 1,
+  'wearable-sync.mjs': 1
+};
+
 export function scanDir(dir) {
   const rows = [];
   for (const f of readdirSync(dir)
@@ -256,8 +309,12 @@ function selftest() {
   if (!ctlOk) bad++;
   console.log(`  ${ctlOk ? '✓' : '✗'} CONTROL tools/tch-firmware-reference.mjs → ${ctl.cls} (names no corpus root)`);
   const every = TOOL_CLASSES.every((c) => typeof c === 'string');
+  if (!every) bad++;
   console.log(`  ${every ? '✓' : '✗'} the class vocabulary is ${TOOL_CLASSES.length} closed names`);
-  console.log(bad === 0 ? 'corpus-reads selftest: PASS' : `corpus-reads selftest: FAIL (${bad})`);
+  /* The count is the point: `tools/selftest-all.mjs` reads PASS either way, and a suite quietly
+     shrinking from nine legs to three is visible only in this number. */
+  const total = cases.length + 2;
+  console.log(bad === 0 ? `all ${total} selftests passed` : `corpus-reads selftest: FAIL (${bad} of ${total})`);
   return bad === 0 ? 0 : 1;
 }
 

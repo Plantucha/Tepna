@@ -36,7 +36,7 @@ import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guar
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--theta', '--beats', '--leg'], boolean: ['--json'], positional: true };
+const ARGV_SPEC = { valued: ['--theta', '--beats', '--leg'], boolean: ['--json', '--verdict-sample'], positional: true };
 
 const require = createRequire(import.meta.url);
 const PATAlign = require('../pat-align.js');
@@ -167,6 +167,20 @@ function main() {
   console.log(`\npopulation: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}` + (population.reason ? `\n  ${population.reason}` : ''));
 }
 
+/* The corpus-free sample the adoption gate runs: the measured shape this tool reports, which is a
+   population that did NOT move across the run. Synthetic snapshots, so the sample costs no corpus
+   read and stays runnable where the captures are absent. */
+function verdictSample() {
+  const at = '2026-10-21T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = { ok: true, root: ROOT_SAMPLE, reason: null, n: nights.length, nights, digest: null, maxCtimeMs: null, at };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-dip-index.mjs', at });
+}
+
+const ROOT_SAMPLE = '/srv/data/tepna-corpus/smoketest-captures';
+
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) main();
+if (IS_CLI && argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+} else if (IS_CLI) main();
 export { main, anklePair };

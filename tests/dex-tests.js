@@ -10751,49 +10751,14 @@
         return;
       }
       /* tool → run-time enumerations pinned 2026-10-21. One shared reason, stated above. */
-      var KNOWN_BACKLOG = {
-        'acc-select-compare.mjs': 1,
-        'acc-shared-movement.mjs': 1,
-        'beat-correspondence.mjs': 1,
-        'beat-error-recovery.mjs': 2,
-        'codex-export.mjs': 1,
-        'cvhr-fold-rescore.mjs': 1,
-        'device-stability.mjs': 1,
-        'dual-clock-rate.mjs': 1,
-        'eqc-run.mjs': 2,
-        'geometry-scan.mjs': 1,
-        'h10-session-rate.mjs': 1,
-        'hostaxis-estimator-bakeoff.mjs': 1,
-        'nsrr-criterion-sweep.mjs': 1,
-        'nsrr-oxydex-odi.mjs': 2,
-        'oracle-ecg-firmware-rr.mjs': 3,
-        'pat-drift-attribution.mjs': 2,
-        'pat-ecg-axis-residual.mjs': 1,
-        'pat-finger-coupler.mjs': 1,
-        'pat-matchrate-strict.mjs': 2,
-        'pat-mode-posture.mjs': 2,
-        'pat-ppg-ppg-control.mjs': 1,
-        'pat-residual-structure.mjs': 2,
-        'pat-window-oracle.mjs': 1,
-        'pin-coverage.mjs': 2,
-        'pletha-marker-oracle.mjs': 1,
-        'ppg-fusion-e3.mjs': 1,
-        'ppg-gap-bridge-scan.mjs': 1,
-        'ppg2w-spo2-fit.mjs': 1,
-        'ppi-jitter-vs-ecg.mjs': 1,
-        'resp-acc-headless.mjs': 2,
-        'stage-lab.mjs': 11,
-        'stitch-31d-run.mjs': 3,
-        'stuck-run-lengths.mjs': 1,
-        'tch-bootstrap-ci.mjs': 1,
-        'tch-degeneracy-d7.mjs': 1,
-        'tch-fused-corpus.mjs': 1,
-        'tch-multinight.mjs': 1,
-        'tch-reference-validation.mjs': 2,
-        'tch-window-sensitivity.mjs': 1,
-        'trio-batch.mjs': 1,
-        'wearable-sync.mjs': 1
-      };
+      /* THE NAMED SET LIVES IN THE TOOL, NOT HERE. `verdict-adoption.mjs` reads any tool stem
+         named under `tests/` outside a comment as proof that a test covers that tool, so pinning
+         41 names in this file flipped `pat-ppg-ppg-control.mjs` to GATED and reded the adoption
+         ratchet, which may only go down. The pin is a hazard list and not a test of those tools,
+         so the claim would have been false. Keeping it in `tools/corpus-reads.mjs` also matches
+         both sibling ratchets (`UNPARSEABLE_RATCHET`, `UNGATED_RATCHET`), which live beside the
+         gate that reads them. Sibling row: 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. */
+      var KNOWN_BACKLOG = CR.UNWIRED_BACKLOG;
       var population = [],
         hazard = [],
         wired = [],

@@ -227,6 +227,19 @@
    "status": "exempt",
    "reason": "verdict words appear only in comments"
   },
+  "capture-host/qc_child.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-17",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/qc_child.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the qc_child PASS-verdict hook triggers the 31-day stitch; verdict word appears in the stitch status field"
+  },
   "capture-host/sealbox.py": {
    "bin": "decides",
    "status": "adopted",
@@ -257,6 +270,19 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "the band SUPPLIERS: per-term PASS/FAIL/UNKNOWN decisions handed to solid_night.compose, never emitted on their own; the emitting producer is capture-host/solid_night.py (adopted)"
+  },
+  "capture-host/stitch_31d.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-17",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/stitch_31d.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "stitches 31 solid nights per tool; verdict word appears in MANIFEST.json status"
   },
   "capture-host/telemetry.py": {
    "bin": "word-only",
@@ -446,6 +472,11 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_qc_child_stitch.py": {
+   "bin": "test",
+   "status": "exempt",
+   "since": "2026-10-17"
+  },
   "capture-host/tests/test_qc_poller_verdicts.py": {
    "bin": "test",
    "status": "exempt"
@@ -493,6 +524,11 @@
   "capture-host/tests/test_status_union.py": {
    "bin": "test",
    "status": "exempt"
+  },
+  "capture-host/tests/test_stitch_31d.py": {
+   "bin": "test",
+   "status": "exempt",
+   "since": "2026-10-17"
   },
   "capture-host/tests/test_storage_targets.py": {
    "bin": "test",
@@ -1022,6 +1058,11 @@
    },
    "note": "a census commits its file list (residue 2026-09-20-census-file-list-not-retained): --write records one row per file (name, bytes, sha256 of the first 8 MB \u2014 the digest the ECG census itself used) into analysis/census/<id>.json; --diff NAMES every added/removed/CHANGED file against that manifest instead of reconstructing by elimination. Criterion: no unexplained population change. A moved population is SHORTFALL \u2014 a corpus grows, and the finding is that numbers computed over the recorded set need re-running or re-stating; an EMPTY census is NOT_RUN, never a clean bill. Both dedupe keys are published with their definitions (604 by basename, 549 by content on the real ECG corpus \u2014 a 10 % gap, and the published 597/602 used the basename key). 27 plants incl. the row's own 597\u2192602 case with all five additions named; the cmd is three scratch rows, corpus-free."
   },
+  "tools/corpus-reads.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
   "tools/corpus-scope.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1059,18 +1100,6 @@
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); event \u2192 desat coupling lift per class \u00d7 window (the UNDERPOWERED/SATURATED flags ride as fields) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
-  "tools/cvhr-gap-edge.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/cvhr-gap-edge.mjs",
-     "--json"
-    ]
-   },
-   "note": "the planted-beat battery behind PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21 item 2 treatment (3): does a TIME HOLE in the beat series make the two CVHR detectors disagree? Pre-stated criterion ppg_minus_ecg_event_count_max_abs <= 0 events over 51 planted cases (3 rate steps x 17 hole lengths, each against the SAME leg built with no hole at all). PASS says the two nodes count the same events for the same beats and the same mask, which is what the Integrator's corroboration of their two apnea.cvhrIndex values rests on; it does NOT say either count is right. Measured 2026-10-19: FAIL before the mask was ported into cvhrFromNN (3 of 51 cases disagreed by one event), PASS after. The record is planted, so no figure here is corpus evidence, and the unrepaired edge term is reported in `result` beside the criterion rather than judged by it."
-  },
   "tools/cvhr-edge-widen.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1087,6 +1116,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "a MEASUREMENT re-score, not a gate: it recomputes the cross-node CVHR rho on the FOLD's night selection (every concurrent fragment, not the largest file per stream) and reports rho with n, proposing no band and moving no threshold \u2014 the same exemption its two siblings carry (gap-s-sweep.mjs, treatment-response-recut.mjs). Its verdict words are the selftest printer's and the REFUSAL it prints when the 23-night control does not reproduce the committed merged view; both are about whether the instrument may run, never about the number."
+  },
+  "tools/cvhr-gap-edge.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cvhr-gap-edge.mjs",
+     "--json"
+    ]
+   },
+   "note": "the planted-beat battery behind PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21 item 2 treatment (3): does a TIME HOLE in the beat series make the two CVHR detectors disagree? Pre-stated criterion ppg_minus_ecg_event_count_max_abs <= 0 events over 51 planted cases (3 rate steps x 17 hole lengths, each against the SAME leg built with no hole at all). PASS says the two nodes count the same events for the same beats and the same mask, which is what the Integrator's corroboration of their two apnea.cvhrIndex values rests on; it does NOT say either count is right. Measured 2026-10-19: FAIL before the mask was ported into cvhrFromNN (3 of 51 cases disagreed by one event), PASS after. The record is planted, so no figure here is corpus evidence, and the unrepaired edge term is reported in `result` beside the criterion rather than judged by it."
   },
   "tools/deep-desat-falsifier.mjs": {
    "bin": "already-json",
@@ -1141,6 +1182,18 @@
    },
    "note": "the enumeration gate for residue 2026-09-23-tests-that-assert-the-defect-they-were-written-for: every in-tree annotation of a re-aimed test carries an entry in tests/defect-pin-inventory.json with its mechanism and one line of why, and a stale entry reds in the other direction. It reads the ANNOTATIONS rather than the tests, so the criterion is enumeration (zero unenumerated annotations) and a PASS is never evidence that no test pins a defect. --verdict-sample prints the object alone for this check."
   },
+  "tools/derive-open-ahi.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/derive-open-ahi.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "derives an AHI per recording over the two annotated open mirrors (ISRUC scorer 1, iSleeps Flow Events) and judges the derivation against the count survey the brief pre-stated on 2026-10-12. Refuses with a named reason instead of defaulting: no-scorer-1-workbook, no-respiratory-scoring, no-event-stage-column, no-sleep-epoch. Corpus-dependent, so it is an operator instrument and not a step of npm run check; without the mount it emits NOT_RUN. Brief: briefs/OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md"
+  },
   "tools/device-stability.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -1191,6 +1244,18 @@
     ]
    },
    "note": "wave-2 adopter (Magpie): E3's two pre-stated bands (median |delta| <= 4 ms AND correspondence >= 99 %) as a conjunction counted in bands missed \u2014 PASS 0 \u00b7 FAIL names which band (and a non-zero same-rate control) \u00b7 UNKNOWN no matched beats \u00b7 NOT_RUN no record found. --json prints the object after the report."
+  },
+  "tools/edge-settle.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/edge-settle.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the edge-settle verdict (owner 2026-10-17, start/end session jitter): per sensor and edge, the settle time is the first or last 60 s run of clean 10 s bins in the trio node exports; pre-stated rule: p90 settle <= 300 s (one 5-min window) at both edges of ECG, PPG and O2Ring, n >= 20 per leg; late wear > 600 s is excluded and counted; no export found NOT_RUN"
   },
   "tools/extreme-mutate.mjs": {
    "bin": "already-json",
@@ -1262,18 +1327,6 @@
    },
    "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): FAIL iff \u2265 1 lower-tier band issues a clinical directive with no declared disclaimer (the same `undeclared` list the exit code keys on) \u00b7 the two REFUSE paths (< 7 guides; 0 lower cards or 0 bands) are the examined-nothing shape \u2192 UNDERPOWERED with the counts, still exit 2. Population = lower-tier cards, checked = those carrying a band, band-less cards excluded. --json prints { \u2026verdict, census, hits } \u2014 a superset of the old shape; the cmd is the real run over the seven reference guides in the tree."
   },
-  "tools/hook-contract.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/hook-contract.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "every .claude/hooks hook must drain stdin before it can exit (residue 2026-10-12-seven-hooks-exit-before-draining-stdin-and-their-tests-cannot-see-it; #3493, #3759). Three readings per hook: STATIC (only comments, set/shopt and plain assignments may precede the drain), BEHAVIOURAL (a payload past fs.pipe-max-size down a real pipe, 5 trials, the writer's own PIPESTATUS[0] \u2014 141 is SIGPIPE), ENUMERATION (a <name>.test.sh exists and test:hooks names it). Population = hooks found; a hook with no PROBES row is EXCLUDED and FAILs, so a new hook cannot arrive unmeasured. NOT_RUN when the hook directory holds nothing."
-  },
   "tools/h10-session-rate.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1285,6 +1338,18 @@
     ]
    },
    "note": "whether the chest strap's per-session ECG rate estimate moves because of the device counter or because `ecgTimingScan` guards its two axes differently \u2014 the counter axis admits every step under 50 ms into the mean it divides, while the host axis keeps anything past 2.5x its own latched step out of its own. Pre-stated criterion tight_fs_spread_ppm <= 100, three times the ~30 ppm a crystal of this class holds, and it needs the shipped spread over 300 ppm first or the run reports NOT_APPLICABLE rather than passing on an absent premise. A real run reads every exported ECG stream of the capture tree, so `--verdict-sample` is what this gate reads: the sample carries the criterion and NOT_RUN, the only status true of a run that examined nothing. A stream with no device-counter column is excluded by name and counted, never folded in on the rounding fallback."
+  },
+  "tools/hook-contract.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/hook-contract.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "every .claude/hooks hook must drain stdin before it can exit (residue 2026-10-12-seven-hooks-exit-before-draining-stdin-and-their-tests-cannot-see-it; #3493, #3759). Three readings per hook: STATIC (only comments, set/shopt and plain assignments may precede the drain), BEHAVIOURAL (a payload past fs.pipe-max-size down a real pipe, 5 trials, the writer's own PIPESTATUS[0] \u2014 141 is SIGPIPE), ENUMERATION (a <name>.test.sh exists and test:hooks names it). Population = hooks found; a hook with no PROBES row is EXCLUDED and FAILs, so a new hook cannot arrive unmeasured. NOT_RUN when the hook directory holds nothing."
   },
   "tools/integrator-block-precision.mjs": {
    "bin": "word-only",
@@ -1448,18 +1513,6 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
-  "tools/secret-scan.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/secret-scan.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the DIFF-SCOPED SECRET GATE (owner, 2026-10-20): criterion secret_findings lte 0 over the commits a PR adds, scanned by the pinned scanner with .gitleaks.toml. The private literals arrive at run time from TEPNA_PRIVATE_TERMS and never enter the repo; a finding prints rule, file and line, never the text. An absent scanner, a shallow clone or an unparseable report is NOT_RUN and exits 2."
-  },
   "tools/no-third-party-names.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1604,6 +1657,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-dip-index.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-dip-index.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the \u0394PAT dip index reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier that moves the set mid-run reads as SHORTFALL rather than as a table nobody re-read. The sample is corpus-free and synthetic, because the captures are absent wherever the gate runs"
   },
   "tools/pat-drift-attribution.mjs": {
    "bin": "word-only",
@@ -1937,6 +2002,18 @@
    },
    "note": "the THIRD RUNNER adopter and the largest (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d) \u2014 the test runner's object, built here (pure) and called by tests/run-tests.mjs, which sits outside this gate's enumeration (tests/). A group is a child, an assertion is not (provenance 'assertions': a failing assertion \u21d2 FAIL, passes \u21d2 PASS, declared skips only \u21d2 NOT_APPLICABLE, none \u21d2 UNKNOWN); --group= and --shard= are declared exclusions \u21d2 filtered with the consumer rule; the skip budget is the runner's one own criterion (undeclared skip \u21d2 FAIL by name); the --jobs union aggregates the SHARD OBJECTS, a dead shard is an undeclared NOT_RUN \u21d2 UNKNOWN (\u00a74c made structural). --json payload carries `verdict` (a superset verify-shard-union still reads); the exit code stays. 32 plants; the cmd is three scratch shards, one dead."
   },
+  "tools/secret-scan.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/secret-scan.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the DIFF-SCOPED SECRET GATE (owner, 2026-10-20): criterion secret_findings lte 0 over the commits a PR adds, scanned by the pinned scanner with .gitleaks.toml. The private literals arrive at run time from TEPNA_PRIVATE_TERMS and never enter the repo; a finding prints rule, file and line, never the text. An absent scanner, a shallow clone or an unparseable report is NOT_RUN and exits 2."
+  },
   "tools/selftest-all.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1984,6 +2061,19 @@
     ]
    },
    "note": "the WRITING RULES checker (ASD-STE100 Issue 8, 2021 - rules adopted, dictionary NOT copied). Reports a long sentence (20 words in a procedure, 25 elsewhere; an imperative counts as a procedure), passive voice, a verb-noun in -ing, two imperatives in one sentence, a retired term from docs/GLOSSARY.md, and a paragraph over six sentences. ARMED by owner ruling 2026-10-12 (\"make it bite\"): a finding is FAIL and exit 1, none over prose is PASS, no prose line is NOT_RUN; --advisory keeps NOT_APPLICABLE with the count, never PASS over findings nor FAIL on a backlog nobody was asked to clear. tools/pr-compliance.mjs runs the strict form over every PR body. It skips fenced code, tables, quoted log lines, citations, URLs and inline code, because a checker that flags the wrong span teaches people to ignore it. Measured 2026-10-11: CLAUDE.md 32, ORIENTATION.md 5, docs/GLOSSARY.md 0."
+  },
+  "tools/stitch-31d-run.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-17",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/stitch-31d-run.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "runs per-night TCH then aggregates; verdict word appears in RESULT.json status"
   },
   "tools/stmt-delete.mjs": {
    "bin": "already-json",
@@ -2050,18 +2140,6 @@
    },
    "note": "classic hat vs the two-detector (ECGDex + H10 firmware) reference; PASS/FAIL on the fraction of optical night-corners within band, UNDERPOWERED below 10 nights \u2192 verdictObject(); --json emits the ALL-population object at the top level (unchanged shape for tepna-tchref-nightly.service) with the rolling-30 and solid-stratum objects beside it in `verdicts`, --verdict-sample the synthetic-shape object the gate reads; --axis host|wall selects whether DexClock.hostAxis disciplines the corners, and a non-PASS reason names the axis because a \u03c3 is not comparable across axes"
   },
-  "tools/tch-reference-record.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/tch-reference-record.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the PUBLIC record of the sibling tool's reference check \u2014 pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS \u00a74's owed comparison \u2014 is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI \u2014 and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
-  },
   "tools/tch-multinight.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2085,6 +2163,18 @@
     ]
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); pooled and per-night residual rho(ECG,PPG) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+  },
+  "tools/tch-reference-record.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-reference-record.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the PUBLIC record of the sibling tool's reference check \u2014 pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS \u00a74's owed comparison \u2014 is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI \u2014 and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
   },
   "tools/tch-third-corner.mjs": {
    "bin": "decides",
@@ -2281,79 +2371,6 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
-  },
-  "tools/edge-settle.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/edge-settle.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the edge-settle verdict (owner 2026-10-17, start/end session jitter): per sensor and edge, the settle time is the first or last 60 s run of clean 10 s bins in the trio node exports; pre-stated rule: p90 settle <= 300 s (one 5-min window) at both edges of ECG, PPG and O2Ring, n >= 20 per leg; late wear > 600 s is excluded and counted; no export found NOT_RUN"
-  },
-  "capture-host/stitch_31d.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "since": "2026-10-17",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/stitch_31d.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "stitches 31 solid nights per tool; verdict word appears in MANIFEST.json status"
-  },
-  "capture-host/qc_child.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "since": "2026-10-17",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/qc_child.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the qc_child PASS-verdict hook triggers the 31-day stitch; verdict word appears in the stitch status field"
-  },
-  "tools/stitch-31d-run.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "since": "2026-10-17",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/stitch-31d-run.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "runs per-night TCH then aggregates; verdict word appears in RESULT.json status"
-  },
-  "capture-host/tests/test_stitch_31d.py": {
-   "bin": "test",
-   "status": "exempt",
-   "since": "2026-10-17"
-  },
-  "capture-host/tests/test_qc_child_stitch.py": {
-   "bin": "test",
-   "status": "exempt",
-   "since": "2026-10-17"
-  },
-  "tools/derive-open-ahi.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/derive-open-ahi.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "derives an AHI per recording over the two annotated open mirrors (ISRUC scorer 1, iSleeps Flow Events) and judges the derivation against the count survey the brief pre-stated on 2026-10-12. Refuses with a named reason instead of defaulting: no-scorer-1-workbook, no-respiratory-scoring, no-event-stage-column, no-sleep-epoch. Corpus-dependent, so it is an operator instrument and not a step of npm run check; without the mount it emits NOT_RUN. Brief: briefs/OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md"
   }
  }
 }
