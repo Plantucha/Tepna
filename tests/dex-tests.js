@@ -10729,12 +10729,21 @@
            apostrophe open a fake literal that blanked six real reads in `pat-mode-posture.mjs`.
        A tool that builds the flag name at run time (`'--' + n`) or slices it out of the token is
        EXCLUDED with a reason, never counted as agreeing: a literal scan cannot decide it. The
-       excluded set is capped, so widening those two shapes cannot quietly empty the judged set. ════ */
+       excluded set is capped, so widening those two shapes cannot quietly empty the judged set.
+       THE FIFTH OVER-REPORT, row 2026-10-21-a-quoted-flag-read-reads-as-a-flag-read: both exclusion
+       shapes were tested with a plain `.test` over text that still carried its string literals, so a
+       tool PLANTING a composed read as classifier input read as a tool that composes one, and left the
+       judged set for a reason that was never true of it. The repair is ENCLOSURE, not content — the
+       match start is code in a read and literal content in a plant — and it took the excluded set
+       9 → 8 and the judged set 223 → 224 over 280 tools, with the remaining eight re-read by hand as
+       real compositions. The two masks come from `js-lex.mjs` because a quote inside a regex literal
+       desynchronises a hand-rolled scanner, which is the defect that file exists to hold. ════ */
     group('a documented flag is read by the tool that documents it', 'tools · usage-line · source-scan', function (T) {
       var TT = env.toolTexts;
+      var JL = env.jsLex;
       var nodeLane = typeof process !== 'undefined' && process && process.env != null;
-      if (!TT) {
-        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the usage-line scan examined nothing');
+      if (!TT || !JL) {
+        if (nodeLane) T.ok('env.toolTexts and env.jsLex are wired in the node lane', false, 'absent — the usage-line scan examined nothing');
         else T.skip('the usage-line scan', 'no directory enumeration in this lane (browser); the node lane carries it');
         return;
       }
@@ -10742,17 +10751,20 @@
       var blankOut = function (s) {
         return new Array(s.length + 1).join(' ');
       };
-      var stripComments = function (t) {
-        return t
-          .replace(/\/\*[\s\S]*?\*\//g, function (s) {
-            return s.replace(/[^\n]/g, ' ');
-          })
-          .replace(/(^|[^:\\])\/\/[^\n]*/g, function (s, p) {
-            return p + blankOut(s.slice(p.length));
-          });
-      };
       var DYNAMIC = /(?:indexOf|includes|startsWith)\(\s*(?:`--\$\{|'--'\s*\+|"--"\s*\+|`--`\s*\+)/;
       var GENERIC = /startsWith\(\s*(['"`])--\1\s*\)[\s\S]{0,120}?slice\(\s*2\s*\)/;
+      /* ENCLOSURE DECIDES, NOT CONTENT: the two shapes above are read off the COMMENT-BLANKED text, and
+         a tool that carries a planted tool source in a string literal spells both of them inside it. The
+         match START is the `indexOf`/`startsWith` token, which is code in a real read and literal content
+         in a plant — so the position of that one character answers it, with no guess about what the
+         literal holds. `js-lex.mjs` is the one regex-aware lexer in the repo and its header forbids a
+         second copy, so both masks come from there: a quote inside a regex literal is what desynchronises
+         a hand-rolled scanner, and that is the defect this group HAD. */
+      var firstInCode = function (re, blanked, code) {
+        var g = new RegExp(re.source, 'g');
+        for (var mm = g.exec(blanked); mm; mm = g.exec(blanked)) if (code[mm.index] === 1) return mm;
+        return null;
+      };
       var candidates = [],
         excluded = [],
         agreeing = 0;
@@ -10762,7 +10774,8 @@
           var self = k.replace(/^.*\//, '');
           if (self === 'argv-guard.mjs') return; // the guard's own doc comment quotes other tools' flags
           var text = TT[k];
-          var stripped = stripComments(text);
+          var stripped = JL.blankComments(text);
+          var codeChars = JL.codeMask(text);
           var rawLines = text.split('\n');
           var strLines = stripped.split('\n');
           var esc = self.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -10790,11 +10803,11 @@
             codeLines.push(''); // a usage line is never also a read site
           }
           if (docN === 0) return;
-          if (DYNAMIC.test(stripped)) {
+          if (firstInCode(DYNAMIC, stripped, codeChars)) {
             excluded.push(k + ' [dynamic-flag-name]');
             return;
           }
-          if (GENERIC.test(stripped)) {
+          if (firstInCode(GENERIC, stripped, codeChars)) {
             excluded.push(k + ' [generic-parser]');
             return;
           }
@@ -10814,14 +10827,36 @@
       T.ok(
         'CONTROL · the judged set is the bulk of the documented tools',
         agreeing >= 200,
-        'agreeing=' + agreeing + ' — 223 measured 2026-10-21; a collapse here means the usage line or the read stopped being visible to the scan'
+        'agreeing=' + agreeing + ' — 224 measured 2026-10-21, 223 before the enclosure test; a collapse here means the usage line or the read stopped being visible to the scan'
       );
       T.ok(
         'the undecidable set has not grown',
-        excluded.length <= 9,
-        'excluded=' + excluded.length + ' (' + excluded.join(', ') + ') — 9 measured 2026-10-21; a tool that leaves the judged set owes a named reason, not a wider regex'
+        excluded.length <= 8,
+        'excluded=' + excluded.length + ' (' + excluded.join(', ') + ') — 8 measured 2026-10-21; a tool that leaves the judged set owes a named reason, not a wider regex'
       );
       T.eq('no usage line promises a flag the tool never reads', candidates.join(' · '), '');
+      T.ok(
+        'the tool whose composed read is only ever QUOTED is judged, not excluded',
+        excluded.join(' ').indexOf('argv-reads.mjs') < 0,
+        'excluded=' + excluded.join(', ') + ' — its DYNAMIC and GENERIC matches both sit inside selftest fixtures, and an exclusion there is the instrument reading a plant as a read'
+      );
+      /* DECOY · THE SHAPE THAT BREAKS THE INSTRUMENT, NOT THE ONE THAT NAMES IT. The first probe
+         carries a composed read inside a literal and a real literal-name read beside it: the old plain
+         `.test` excludes it, the enclosure test judges it. The second is the same text unquoted and must
+         still be excluded, or the discriminator would have emptied the class rather than narrowed it. */
+      var decoyQuoted = "const plant = 'const i = argv.indexOf(`--${n}`);';\nconst v = argv.indexOf('--real');\n";
+      var decoyReal = 'const i = argv.indexOf(`--${n}`);\n';
+      T.ok('ANTI-VACUITY · the plain test the old form used matches the quoted decoy', DYNAMIC.test(decoyQuoted), 'the decoy does not carry the shape that breaks the instrument');
+      T.ok(
+        'DECOY · a composed read inside a string literal is not a read',
+        !firstInCode(DYNAMIC, JL.blankComments(decoyQuoted), JL.codeMask(decoyQuoted)),
+        'a planted tool source still excludes its host from the judged set'
+      );
+      T.ok(
+        'CONTROL · the same text in code position still is one',
+        !!firstInCode(DYNAMIC, JL.blankComments(decoyReal), JL.codeMask(decoyReal)),
+        'the enclosure test lost the real composition too — that is a hole, not a repair'
+      );
     });
     /* ════ A TOOL THAT READS STDIN DECLARES THE BARE DASH ═══════════════════════════════
        Row 2026-10-21-the-argv-guard-refused-the-bare-dash-that-names-stdin. #3818 taught the adopters
@@ -10928,30 +10963,44 @@
        examined-nothing in an idiom 86 files carried, beside six further spellings in 45 more.
        `isCliEntry` answers on BOTH forms, because realpath alone is wrong under
        `--preserve-symlinks-main`, where node keeps the link in `import.meta.url`.
-       ONE NAMED EXEMPTION: `tools/argv-reads.mjs` plants the old idiom as a STRING, as input to its own
-       classifier, and the leg below reds if that fixture ever leaves — an exemption that stops
-       describing what it exempts is a hole. */
+       THE NAMED EXEMPTION IS RETIRED, row 2026-10-21-a-quoted-flag-read-reads-as-a-flag-read.
+       `tools/argv-reads.mjs` plants the old idiom as a STRING, as input to its own classifier, and the
+       scan skipped the WHOLE FILE for it — so a real raw comparison anywhere in that file was invisible
+       to the group that exists to find one. Enclosure decides per SITE instead: the tokens are matched
+       on the comment-blanked text and each hit must stand in code, which is what tells a plant from a
+       read. Measured over 280 tools: the raw set stayed empty with the file scanned, and the planted
+       line in it is now a LIVE DECOY rather than a reason to look away. */
     group('the CLI predicate survives a symlink to the tool', 'tools · argv-guard · source-scan · execution', function (T) {
       var TT = env.toolTexts;
+      var JL = env.jsLex;
       var nodeLane = typeof process !== 'undefined' && process && process.env != null;
-      if (!TT) {
-        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the symlink-predicate scan examined nothing');
+      if (!TT || !JL) {
+        if (nodeLane) T.ok('env.toolTexts and env.jsLex are wired in the node lane', false, 'absent — the symlink-predicate scan examined nothing');
         else T.skip('the CLI-predicate scan', 'no directory enumeration in this lane (browser); the node lane carries it');
         return;
       }
-      var stripC = function (t) {
-        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
-      };
       var FIXTURE = 'tools/argv-reads.mjs'; // plants the idiom as classifier INPUT, never as its own guard
       var HELPER = 'tools/argv-guard.mjs'; // where the comparison is allowed to live, once
+      /* A hit must stand in CODE, not inside a string literal. `blankComments` keeps every offset, so
+         the mask indexes the blanked text, and both come from the one regex-aware lexer. */
+      var inCodeOn = function (line, codeChars, at, tok) {
+        var q = line.indexOf(tok);
+        while (q >= 0) {
+          if (codeChars[at + q] === 1) return true;
+          q = line.indexOf(tok, q + 1);
+        }
+        return false;
+      };
       var DECIDERS = [],
-        RAW = [];
+        RAW = [],
+        PLANTED = [];
       Object.keys(TT)
         .sort()
         .forEach(function (k) {
-          var t = stripC(TT[k]);
+          var t = JL.blankComments(TT[k]);
+          var codeChars = JL.codeMask(TT[k]);
           if (/isCliEntry\(import\.meta\.url\)/.test(t)) DECIDERS.push(k);
-          if (k === FIXTURE || k === HELPER) return;
+          if (k === HELPER) return;
           /* ANY spelling that decides by comparing the ENTRY with this module, not just the one this
              unit removed: `mutation-map`, `mutation-crawl` and `mutation-suite` carried
              `fileURLToPath(import.meta.url) === realpathSync(process.argv[1])`, which is RIGHT through
@@ -10959,20 +11008,38 @@
              anchored on `import.meta.url` missed all three. The match is per LINE, so a predicate split
              across two statements would still evade it; every spelling in the tree on 2026-10-21 wrote
              it on one line. */
-          var raw = t.split('\n').filter(function (l) {
-            return l.indexOf('process.argv[1]') >= 0 && l.indexOf('import.meta.url') >= 0;
-          });
-          if (raw.length) RAW.push(k);
+          var lines = t.split('\n');
+          var at = 0;
+          for (var li = 0; li < lines.length; li++) {
+            var line = lines[li];
+            if (line.indexOf('process.argv[1]') >= 0 && line.indexOf('import.meta.url') >= 0) {
+              if (inCodeOn(line, codeChars, at, 'process.argv[1]') && inCodeOn(line, codeChars, at, 'import.meta.url')) RAW.push(k + ':' + (li + 1));
+              else PLANTED.push(k + ':' + (li + 1));
+            }
+            at += line.length + 1;
+          }
         });
       T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
-      T.ok('the helper population is non-empty', DECIDERS.length >= 120, 'DECIDERS=' + DECIDERS.length + ' — 135 files, 140 sites, measured 2026-10-21');
-      T.eq('no tool decides CLI-vs-import by comparing argv[1] raw', RAW.join(', '), '');
       T.ok(
-        'the one exemption still carries the fixture it names',
-        /noread\.mjs/.test(String(TT[FIXTURE] || '')),
-        'argv-reads no longer plants that string — drop the exemption instead of keeping a hole'
+        'the helper population is non-empty',
+        DECIDERS.length >= 120,
+        'DECIDERS=' + DECIDERS.length + ' — 143 files measured 2026-10-21, the count the hand-rolled stripper this leg carried gave too'
       );
-      var g = stripC(String(TT[HELPER] || ''));
+      T.eq('no tool decides CLI-vs-import by comparing argv[1] raw', RAW.join(', '), '');
+      /* LIVE DECOY · the file the exemption used to skip wholesale. Its planted idiom carries the exact
+         shape the scan looks for, so a scan that cannot tell a plant from a read reports it as a read —
+         and an empty column here means the plant left, not that the discriminator works. */
+      T.ok(
+        'DECOY · the fixture still plants the idiom as a quoted string',
+        PLANTED.join(' ').indexOf(FIXTURE) >= 0,
+        'planted=' + (PLANTED.join(', ') || 'none') + ' — with no plant in the tree this group proves nothing about enclosure'
+      );
+      T.ok(
+        'CONTROL · and the scan reads it as a plant, not a comparison',
+        RAW.join(' ').indexOf(FIXTURE) < 0,
+        'raw=' + RAW.join(', ') + ' — the quoted line read as a real predicate, which is what the retired exemption hid'
+      );
+      var g = JL.blankComments(String(TT[HELPER] || ''));
       T.ok('the helper answers on the path AS WRITTEN', /moduleUrl === asWritten/.test(g), 'absent — a realpath-only predicate breaks under --preserve-symlinks-main');
       T.ok('…and on the RESOLVED path', /realpathSync\(entry\)/.test(g), 'absent — the symlink case is unrepaired');
       var probe = env.probeToolArgv;
