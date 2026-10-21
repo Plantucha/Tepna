@@ -314,7 +314,7 @@ The two sets sit in different severity bands, and between them they populate all
 That spread is the argument for using them. The SHHS fit cohort is large and single-protocol, and
 these two sets come from different labs, different scorers and different event-export software.
 
-### 8a · What the three repeated workbooks do to the pooled figures (measured 2026-10-20)
+### 8a · What the three repeated workbooks do to the pooled figures (measured 2026-10-20, re-measured 2026-10-21)
 
 The row `2026-10-20-three-isruc-workbooks-repeat-another-subgroups-bytes` named the duplication and
 left the cost unmeasured. The tool now reports the distinct-subject population beside the all-files
@@ -324,14 +324,19 @@ one, through one code path, so the two cannot drift apart.
 
 | figure | over 120 files | over 117 subjects |
 |---|---|---|
-| p25 | 3.7 | 3.5 |
-| median | 7.9 | 7.7 |
-| p75 | 17.3 | 17.0 |
-| mean | 12.5 | 12.1 |
-| min · max | 0.1 · 67.5 | 0.1 · 67.5 |
-| bands, under 5 · 5–15 · 15–30 · 30+ | 37 · 48 · 25 · 10 | 37 · 47 · 24 · 9 |
+| p25 | 4.7 | 4.7 |
+| median | 10 | 9.8 |
+| p75 | 19.5 | 19.5 |
+| mean | 13.8 | 13.5 |
+| min · max | 0.1 · 92 | 0.1 · 92 |
+| bands, under 5 · 5–15 · 15–30 · 30+ | 32 · 45 · 33 · 10 | 32 · 44 · 32 · 9 |
 
-The three repeated workbooks derive 48.3, 9.5 and 24.0, one in each of the three upper bands, which
+**Every figure here is a re-run, not a re-type.** The 2026-10-20 table read median 7.9 and mean 12.5
+over 120 files. The row `2026-10-21-a-respiratory-event-glued-into-the-hr-cell-never-reaches-the-ahi`
+then found 2,814 events glued into the heart-rate cell, and the tool now reads them. So the table
+above comes from the tool on 2026-10-21, and the duplication story it tells is unchanged.
+
+The three repeated workbooks derive 48.3, 24.0 and 9.8, one in each of the three upper bands, which
 is why each of those bands loses exactly one record. The extremes cannot move, because no repeated
 copy is the smallest or the largest.
 

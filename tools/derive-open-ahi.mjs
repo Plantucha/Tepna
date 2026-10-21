@@ -377,6 +377,18 @@ export function isIsrucHeaderStage(cell) {
   );
 }
 
+/* THE EVENT VOCABULARY AS A PREDICATE, because one column is not the only place an event lands.
+   The HR column (D) of an ISRUC scorer-1 workbook carries events glued behind the rate: measured
+   2026-10-21 over the 126 workbooks, 961 respiratory tokens in 50 records, 1920 non-respiratory in
+   93, and 40 respiratory-context in 6. Only a KNOWN token may be taken from a cell that is not the
+   event column: columns G through X hold technician free text (`02:41:08 - Respira pela boca.`) and
+   the sheet preamble (`ID:`, `DATE:`, `HEIGHT:`), so the vocabulary is what separates an event from
+   a note. Over the corpus column D holds nothing but numbers and these names, and 0 preamble rows
+   contribute one — the filter is the guard, the counts beside the index are the tripwire. */
+export function isIsrucEventToken(tok) {
+  return ISRUC_RESP.includes(tok) || ISRUC_RESP_CONTEXT.includes(tok) || ISRUC_NON_RESP.has(tok);
+}
+
 export function deriveIsrucWorkbook(wb, recordId) {
   const rows = wb.rows(0) || [];
   const counts = Object.fromEntries(ISRUC_RESP.map((t) => [t, 0]));
@@ -393,6 +405,10 @@ export function deriveIsrucWorkbook(wb, recordId) {
   let nonRespCells = 0;
   let positionShiftRows = 0;
   let positionCodeUnexplained = 0;
+  let hrGlueRows = 0;
+  let hrGlueTokens = 0;
+  let hrGlueDuplicates = 0;
+  let hrGlueShiftRows = 0;
   for (const r of rows) {
     const stage = String(r.B ?? '').trim();
     if (isIsrucHeaderStage(stage)) continue;
@@ -400,19 +416,37 @@ export function deriveIsrucWorkbook(wb, recordId) {
     if (stage) epochsWithStage++;
     if (inSleep) sleepEpochs++;
     const eventToks = splitEventCell(r.E);
+    /* ∅ AN EVENT GLUED INTO THE HR CELL IS PRESENT DATA THIS TOOL USED TO DROP. The epoch is not in
+       doubt — the glue sits in the same ROW — so reading it recovers an event rather than inferring
+       one. A token the event cell already holds is a DUPLICATE, not a second event: 6 respiratory
+       and 101 non-respiratory tokens over the corpus, and no glued token ever disagrees with what
+       the event cell holds. */
+    const eSeen = new Set(eventToks);
+    const hrToks = splitEventCell(r.D).filter(isIsrucEventToken);
+    const glued = hrToks.filter((t) => !eSeen.has(t));
+    hrGlueDuplicates += hrToks.length - glued.length;
+    if (glued.length > 0) {
+      hrGlueRows++;
+      hrGlueTokens += glued.length;
+    }
     /* ∅ A SHIFTED ROW HAS NO EVENT CELL, so its tokens are not events and must not be reported as
        event names the vocabulary cannot place. The epoch keeps its place in the denominator and the
        count rides beside the index: this is reduced COVERAGE, not a discontinuity, and the owner's
-       2026-09-17 ruling annotates coverage rather than refusing. 108 epochs of 113729. */
-    if (isPositionShiftRow(r.F, eventToks)) {
+       2026-09-17 ruling annotates coverage rather than refusing. 108 epochs of 113729.
+       THE SHIFT STARTS AT COLUMN E, so columns A through D are intact and the HR cell of a shifted
+       row may still carry a glued event — 11 of the 108 do, 13 tokens. Dropping the row wholesale,
+       as this loop did until 2026-10-21, dropped those with it. */
+    const shifted = isPositionShiftRow(r.F, eventToks);
+    if (shifted) {
       positionShiftRows++;
-      continue;
+      if (glued.length > 0) hrGlueShiftRows++;
+    } else if (eventToks.some((t) => ISRUC_POSITION.has(t))) {
+      /* THE TRIPWIRE FOR THE SHAPE THAT WAS NOT MEASURED: a position code in the event column while
+         the position column holds a real position. Zero rows over the 126 workbooks on 2026-10-21,
+         and the token stays in `otherTokens` so a first one surfaces by name, not by this count. */
+      positionCodeUnexplained++;
     }
-    /* THE TRIPWIRE FOR THE SHAPE THAT WAS NOT MEASURED: a position code in the event column while
-       the position column holds a real position. Zero rows over the 126 workbooks on 2026-10-21, and
-       the token stays in `otherTokens` so a first one surfaces by name rather than by this count. */
-    if (eventToks.some((t) => ISRUC_POSITION.has(t))) positionCodeUnexplained++;
-    for (const tok of eventToks) {
+    for (const tok of shifted ? glued : [...eventToks, ...glued]) {
       if (tok in counts) {
         respAnywhere++;
         if (inSleep) {
@@ -448,6 +482,10 @@ export function deriveIsrucWorkbook(wb, recordId) {
     otherTokens: Object.fromEntries([...other.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))),
     positionShiftRows,
     positionCodeUnexplained,
+    hrGlueRows,
+    hrGlueTokens,
+    hrGlueDuplicates,
+    hrGlueShiftRows,
     ahi: null,
     nullReason: null
   };
@@ -533,6 +571,11 @@ export function deriveIsleepsWorkbook(wb, recordId) {
        a zero would read as a measured absence of a leak in a set that cannot leak. */
     positionShiftRows: null,
     positionCodeUnexplained: null,
+    /* nor an HR column beside the event name, so the glue class does not exist here either */
+    hrGlueRows: null,
+    hrGlueTokens: null,
+    hrGlueDuplicates: null,
+    hrGlueShiftRows: null,
     ahi: null,
     nullReason: null
   };
@@ -719,7 +762,13 @@ export function vocabularyOf(rows) {
       positionShiftMeasured: false,
       positionShiftRows: null,
       positionShiftRecords: null,
-      positionCodeUnexplained: null
+      positionCodeUnexplained: null,
+      hrGlueMeasured: false,
+      hrGlueRows: null,
+      hrGlueRecords: null,
+      hrGlueTokens: null,
+      hrGlueDuplicates: null,
+      hrGlueShiftRows: null
     };
   const context = {};
   const unnamed = {};
@@ -731,6 +780,14 @@ export function vocabularyOf(rows) {
   let positionShiftRows = 0;
   let positionShiftRecords = 0;
   let positionCodeUnexplained = 0;
+  /* A FIFTH FLAG, on the same reasoning: the HR cell beside an event name is an ISRUC layout, and a
+     pooled 0 over a set with no such column would read as a measured absence of glue. */
+  let hrGlueMeasured = false;
+  let hrGlueRows = 0;
+  let hrGlueRecords = 0;
+  let hrGlueTokens = 0;
+  let hrGlueDuplicates = 0;
+  let hrGlueShiftRows = 0;
   for (const r of rows) {
     if (r.context && typeof r.context === 'object') contextMeasured = true;
     if (typeof r.positionShiftRows === 'number') {
@@ -738,6 +795,14 @@ export function vocabularyOf(rows) {
       positionShiftRows += r.positionShiftRows;
       if (r.positionShiftRows > 0) positionShiftRecords++;
       positionCodeUnexplained += r.positionCodeUnexplained || 0;
+    }
+    if (typeof r.hrGlueTokens === 'number') {
+      hrGlueMeasured = true;
+      hrGlueRows += r.hrGlueRows;
+      hrGlueTokens += r.hrGlueTokens;
+      hrGlueDuplicates += r.hrGlueDuplicates || 0;
+      hrGlueShiftRows += r.hrGlueShiftRows || 0;
+      if (r.hrGlueTokens > 0) hrGlueRecords++;
     }
     for (const [t, n] of Object.entries(r.context || {})) if (n) context[t] = (context[t] || 0) + n;
     for (const [t, n] of Object.entries(r.otherTokens || {})) unnamed[t] = (unnamed[t] || 0) + n;
@@ -754,7 +819,13 @@ export function vocabularyOf(rows) {
     positionShiftMeasured,
     positionShiftRows: positionShiftMeasured ? positionShiftRows : null,
     positionShiftRecords: positionShiftMeasured ? positionShiftRecords : null,
-    positionCodeUnexplained: positionShiftMeasured ? positionCodeUnexplained : null
+    positionCodeUnexplained: positionShiftMeasured ? positionCodeUnexplained : null,
+    hrGlueMeasured,
+    hrGlueRows: hrGlueMeasured ? hrGlueRows : null,
+    hrGlueRecords: hrGlueMeasured ? hrGlueRecords : null,
+    hrGlueTokens: hrGlueMeasured ? hrGlueTokens : null,
+    hrGlueDuplicates: hrGlueMeasured ? hrGlueDuplicates : null,
+    hrGlueShiftRows: hrGlueMeasured ? hrGlueShiftRows : null
   };
 }
 
@@ -1172,6 +1243,68 @@ function selftest() {
   ok('a set with no position column reports the shift class unmeasured', wIsleeps.positionShiftMeasured, false);
   ok('…with nulls rather than zeros', [wIsleeps.positionShiftRows, wIsleeps.positionShiftRecords], [null, null]);
 
+  /* AN EVENT GLUED INTO THE HR CELL. The predicate first: it is what keeps a technician's note out
+     of the event stream, so a fixture that only showed the recovery would prove half of it. */
+  ok('a respiratory name is an event token', isIsrucEventToken('OH'), true);
+  ok('…so is an arousal', isIsrucEventToken('AR'), true);
+  ok('…so is a respiratory-context token', isIsrucEventToken('CSBr'), true);
+  ok('a body-position code is NOT an event token', isIsrucEventToken('B'), false);
+  ok('a heart rate is not an event token', isIsrucEventToken('72'), false);
+  ok('a technician note is not an event token', isIsrucEventToken('02:41:08 - Respira pela boca.'), false);
+  ok('a sheet preamble label is not an event token', isIsrucEventToken('HEIGHT:'), false);
+  /* 120 sleep epochs again, so a recovered count IS the index it moves. */
+  const glueRows = (k, d, e = '') => {
+    const rows = [];
+    for (let i = 0; i < 120; i++) rows.push({ A: String(i + 1), B: 'N2', C: '95', D: i < k ? d : '60', E: i < k ? e : '', F: 'L' });
+    return rows;
+  };
+  const g1 = deriveIsrucWorkbook(openWorkbook(isrucSheet(glueRows(6, '60 OH'))), 'sub/16');
+  ok('a hypopnea glued into the HR cell reaches the index', g1.ahi, 6);
+  ok('…and is counted as recovered', [g1.hrGlueTokens, g1.hrGlueRows], [6, 6]);
+  /* CONTROL: the same six events scored in the event column give the identical index. */
+  ok('…the same index as the same events in the event column', g1.ahi, r1.ahi);
+  ok('…and none of it lands in the unplaced tally', g1.otherTokens, {});
+  /* THE DUPLICATE: the glue repeats what the event cell already holds, in 107 cells over the corpus. */
+  const g2 = deriveIsrucWorkbook(openWorkbook(isrucSheet(glueRows(6, '88 CH', 'CH'))), 'sub/17');
+  ok('a glued token the event cell already holds is counted once', g2.counts.CH, 6);
+  ok('…and reported as a duplicate, not as a recovery', [g2.hrGlueDuplicates, g2.hrGlueTokens], [6, 0]);
+  /* DECOYS: three shapes the HR cell really carries over the corpus, none of them an event. */
+  const g3 = deriveIsrucWorkbook(openWorkbook(isrucSheet(glueRows(6, '02:41:08 - Respira pela boca.'))), 'sub/18');
+  ok('a technician note in the HR cell is never an event', [g3.hrGlueTokens, g3.otherTokens], [0, {}]);
+  const g4 = deriveIsrucWorkbook(openWorkbook(isrucSheet(glueRows(6, '72'))), 'sub/19');
+  ok('a bare heart rate is not an event', g4.hrGlueTokens, 0);
+  const g5 = deriveIsrucWorkbook(openWorkbook(isrucSheet(glueRows(6, 'Zzz'))), 'sub/20');
+  ok('an unknown token in the HR cell stays out of the unplaced tally', [g5.hrGlueTokens, g5.otherTokens], [0, {}]);
+  /* …and the same unknown token in the EVENT cell still surfaces by name: the discriminator is the
+     COLUMN, and without this pair the leg above could pass on a broken splitter. */
+  ok('…while the same token in the event column still surfaces', v3b.otherTokens, { Zzz: 9 });
+  /* THE SHIFTED ROW'S HR CELL. The shift starts at column E, so A through D are intact: 11 of the
+     108 shifted rows carry a glued event, and the old loop dropped the row before reading it. */
+  const shiftGlue = (k, d) => {
+    const rows = [];
+    for (let i = 0; i < 120; i++) rows.push({ A: String(i + 1), B: 'N2', C: '95', D: '60', E: i < 6 ? 'OH' : '', F: 'L', G: '0', H: '0' });
+    for (let i = 0; i < k; i++) rows.push({ A: String(121 + i), B: 'N2', C: '95', D: d, E: 'L', F: '0', G: '0' });
+    return rows;
+  };
+  const g6 = deriveIsrucWorkbook(openWorkbook(isrucSheet(shiftGlue(2, '52 LM'))), 'sub/21');
+  ok('a shifted row is still counted as a shift when its HR cell carries an event', g6.positionShiftRows, 2);
+  ok('…the glued limb movement is read', g6.hrGlueTokens, 2);
+  ok('…and reported as recovered from a shifted row', g6.hrGlueShiftRows, 2);
+  ok('…while the position code stays out of the unplaced tally', g6.otherTokens, {});
+  const g7 = deriveIsrucWorkbook(openWorkbook(isrucSheet(shiftGlue(2, '60 OA'))), 'sub/22');
+  ok("an apnea glued into a shifted row's HR cell reaches the numerator", g7.counts.OA, 2);
+  ok('…and the row is still a shift', g7.positionShiftRows, 2);
+  /* ANTI-VACUITY: a record with no glue reports a measured zero. */
+  ok('a record with no glued event reports zero of them', w1.hrGlueTokens, 0);
+  const gPool = vocabularyOf([g1, g2, w1]);
+  ok('the pooled report says the glue class was measured', gPool.hrGlueMeasured, true);
+  ok('…sums the recovered tokens', gPool.hrGlueTokens, 6);
+  ok('…counts only the records carrying one', gPool.hrGlueRecords, 1);
+  ok('…and pools the duplicates separately', gPool.hrGlueDuplicates, 6);
+  /* ∅ CONTROL: iSleeps has no HR cell beside an event name, so the class is ABSENT, never zero. */
+  ok('a set with no HR column reports the glue class unmeasured', wIsleeps.hrGlueMeasured, false);
+  ok('…with nulls rather than zeros', [wIsleeps.hrGlueTokens, wIsleeps.hrGlueRecords], [null, null]);
+
   /* ∅ CONTROL: a set the ISRUC path never instrumented reports that, never a tally of zero. */
   const blind = vocabularyOf([{ set: 'isleeps', ahi: 7 }]);
   ok('an uninstrumented set says so', blind.measured, false);
@@ -1474,6 +1607,10 @@ if (DIRECT) {
             `  position column shifted into the event column: ${s.vocabulary.positionShiftRows} epoch(s) in ${s.vocabulary.positionShiftRecords} record(s) have no event cell — in the denominator, unscorable`
           );
         if (s.vocabulary.positionCodeUnexplained) console.log(`  position code beside a real position: ${s.vocabulary.positionCodeUnexplained} row(s) — a shape this tool has not measured`);
+        if (s.vocabulary.hrGlueMeasured && s.vocabulary.hrGlueTokens)
+          console.log(
+            `  event glued into the HR cell: ${s.vocabulary.hrGlueTokens} token(s) recovered from ${s.vocabulary.hrGlueRows} row(s) in ${s.vocabulary.hrGlueRecords} record(s); ${s.vocabulary.hrGlueDuplicates} dropped as duplicates of the event cell, ${s.vocabulary.hrGlueShiftRows} recovered from a shifted row`
+          );
         if (s.duplicates && s.distinct.distribution) {
           const d = s.distinct.distribution;
           console.log(`  distinct subjects: ${s.distinct.derived} derived · median ${d.median} · p25 ${d.p25} · p75 ${d.p75} · mean ${d.mean}`);
