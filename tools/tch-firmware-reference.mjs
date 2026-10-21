@@ -79,6 +79,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { coincidenceLag, firmwareHostTimes, pairByTime } from './oracle-ecg-firmware-rr.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
@@ -823,6 +824,52 @@ function selftest() {
   const noSolid = selectPopulations(dated, parseSolidSpec(null, {}))[2];
   const nv = verdictObject(pool(noSolid.rows), noSolid.rows, { roots: ['<synthetic>'], commit: null, gate: noSolid.gate, population: 'solid', notRun: noSolid.notRun, at: '2026-10-18T00:00:00Z' });
   ok(nv.status === 'NOT_RUN' && nv.result === null && V.validate(nv).ok, 'no --solid list ⇒ the solid verdict reads NOT_RUN with result null — never a PASS, a FAIL or an UNDERPOWERED over nothing');
+  /* ── the population a run measures is one continuous set ───────────────────────────────────────
+     Residue `2026-10-20-a-daily-corpus-resync-moves-the-population-mid-measurement`: the daily
+     re-sync preserves mtimes, so a night arriving mid-run moves ctime alone and two legs 60 s apart
+     read 93 night directories and 97. The arrival and departure arithmetic is proven in
+     `tools/corpus-scope.mjs --selftest` over real temp directories, including the leg that shows the
+     root's own mtime does not move. What is proven HERE is the wiring: that this tool reaches the
+     primitive, reports the real night set, and takes its two snapshots around the scoring loop
+     rather than beside each other. ⚠️ No leg drives an end-to-end SHORTFALL, because an arrival
+     cannot be timed into another process's run without blocking that process on a FIFO, and a gate
+     leg that can hang is worse than a named limit. The ordering legs below are what a later edit
+     would break. */
+  const popTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tch-pop-'));
+  try {
+    for (const n of ['2026-09-01', '2026-09-02']) fs.mkdirSync(path.join(popTmp, n));
+    fs.writeFileSync(path.join(popTmp, 'README.md'), 'not a night\n');
+    fs.mkdirSync(path.join(popTmp, '2026-09-0'));
+    const out = execFileSync(process.execPath, [path.join(HERE, 'tch-firmware-reference.mjs'), '--dir', popTmp, '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const ps = JSON.parse(out.slice(out.indexOf('{'))).detail.populationStability;
+    ok(ps && ps.gate === 'corpus-population' && V.validate(ps).ok, 'a run carries a validating `corpus-population` verdict beside its own');
+    ok(ps.status === 'PASS' && ps.reason === null, 'a root that does not move during the run reads PASS with no reason');
+    ok(ps.population.checked === 2 && ps.population.eligible === 2 && ps.population.excluded === 0, 'the figure is the real night count, and nothing is excluded from a set that did not move');
+    ok(ps.result.n === 2 && ps.result.digest && ps.result.root === popTmp, 'the verdict names the root it enumerated and digests the set, so two runs are comparable');
+    ok(ps.producedBy.commit !== null, 'the commit is read before the verdict is built, never left null in a checkout');
+  } finally {
+    fs.rmSync(popTmp, { recursive: true, force: true });
+  }
+  /* ⚠️ Every anchor below is ASSEMBLED FROM FRAGMENTS. Written as a literal, each one's first
+     occurrence in this file is the leg's own text, which sits above `main` — so `indexOf` would
+     compare two selftest-internal positions and the ordering would read as satisfied whatever
+     `main` does. That is §👥.4's `pgrep -f` self-match two layers down, and it scored one of these
+     three legs green before the fragments went in. */
+  const src = fs.readFileSync(path.join(HERE, 'tch-firmware-reference.mjs'), 'utf8');
+  const at = (...frag) => src.indexOf(frag.join(''));
+  const iOpen = at('const popBe', 'fore = snapshotNights(dir)');
+  const iEnum = at('/^\\d{4}-\\d{2}-\\d{2}$/.test(n)', ' && (!only.len', 'gth');
+  const iRows = at('let rows = [...seen', '.values()]');
+  const iClose = at('const popAf', 'ter = snapshotNights(dir)');
+  const iCut = at('intersectSnapshots(popBefore,', ' popAfter)');
+  const iSelect = at('parseSolidSpec(solid', 'Spec');
+  ok(
+    [iOpen, iEnum, iRows, iClose, iCut, iSelect].every((n) => n > 0),
+    'ANTI-VACUITY · every ordering anchor is found, so no leg below passes on a pair of −1s'
+  );
+  ok(iOpen < iEnum, 'ORDERING · the opening snapshot is taken before the nights are enumerated');
+  ok(iClose > iRows, 'ORDERING · the closing snapshot is taken after the scoring loop, not beside the opening one');
+  ok(iCut < iSelect, 'ORDERING · the intersection narrows the rows before any population is selected from them');
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${ran})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length ? 1 : 0;
 }
@@ -990,6 +1037,13 @@ async function main(argv) {
     if (REFERENCE_AXES.indexOf(refAxis) < 0) console.error('  --reference-axis must be one of ' + REFERENCE_AXES.join('|') + ', got ' + JSON.stringify(refAxis));
     return 2;
   }
+  /* THE OPENING POPULATION, taken before anything is scored. A daily job re-syncs this root with
+     mtimes preserved, so a night can arrive mid-run and no timestamp on the root shows it (residue
+     `2026-10-20-a-daily-corpus-resync-moves-the-population-mid-measurement`: two legs 60 s apart
+     read 93 night directories and 97). The closing snapshot is taken after the scoring loop and the
+     figure is reported over the INTERSECTION, so every population below describes one continuous
+     set rather than whichever set the enumeration happened to catch. */
+  const popBefore = snapshotNights(dir);
   const only = argv.flatMap((a, i) => (a === '--night' && argv[i + 1] ? [argv[i + 1]] : []));
   const ledger = arg('--ledger');
   const seen = new Map();
@@ -1015,20 +1069,33 @@ async function main(argv) {
   /* A row from the OTHER axis — EITHER axis — is a different measurement of the same night, never a
      substitute. The reference axis filters here as well as keying the ledger, because a legacy ledger
      holds device-axis rows under both `--axis` values. */
-  const rows = [...seen.values()]
+  let rows = [...seen.values()]
     .filter((r) => (r.axis || 'host') === axis && (r.referenceAxis || REF_AXIS_DEFAULT) === refAxis && (!only.length || only.includes(r.night)))
     .sort((a, b) => (a.night < b.night ? -1 : 1));
-  const solidSpec = arg('--solid');
-  const solid = parseSolidSpec(solidSpec, { dir, nights: rows.map((r) => r.night) });
-  if (solidSpec && !solid.parsed) {
-    console.error('--solid: ' + solid.reason);
-    return 2;
-  }
   let commit = null;
   try {
     commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: HERE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch {
     /* not a checkout → commit null with commitReason */
+  }
+  const popAfter = snapshotNights(dir);
+  const popStability = populationVerdict(popBefore, popAfter, { commit, tool: 'tools/tch-firmware-reference.mjs', evidence: ['tools/tch-firmware-reference.mjs'] });
+  /* The intersection narrows the FIGURE. A night that arrived mid-run is not scored into a
+     population it was absent from at the start, and one that left is not counted as present. The
+     ledger may hold rows for either, which is why the filter is by name against the intersection
+     rather than by what `seen` contains. */
+  if (popStability.status !== 'PASS') console.error(`population: ${popStability.reason}`);
+  if (popStability.status === 'SHORTFALL') {
+    const keep = new Set(intersectSnapshots(popBefore, popAfter).nights);
+    const dropped = rows.filter((r) => !keep.has(r.night)).map((r) => r.night);
+    rows = rows.filter((r) => keep.has(r.night));
+    if (dropped.length) console.error(`population: ${dropped.length} row(s) left out of every figure: ${dropped.join(', ')}`);
+  }
+  const solidSpec = arg('--solid');
+  const solid = parseSolidSpec(solidSpec, { dir, nights: rows.map((r) => r.night) });
+  if (solidSpec && !solid.parsed) {
+    console.error('--solid: ' + solid.reason);
+    return 2;
   }
   const P = pool(rows);
   const pops = selectPopulations(rows, solid);
@@ -1043,7 +1110,15 @@ async function main(argv) {
         {
           ...verdict,
           verdicts,
-          detail: { axis, referenceAxis: refAxis, solid, populations: pops.map((p) => ({ name: p.name, label: p.label, nights: p.rows.length, listed: p.listed })), pooled: P, nights: rows }
+          detail: {
+            axis,
+            referenceAxis: refAxis,
+            solid,
+            populationStability: popStability,
+            populations: pops.map((p) => ({ name: p.name, label: p.label, nights: p.rows.length, listed: p.listed })),
+            pooled: P,
+            nights: rows
+          }
         },
         null,
         1
