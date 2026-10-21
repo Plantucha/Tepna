@@ -7510,8 +7510,12 @@ def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    async def _no_sync(name, addr, root=None):
-        return None  # the real one runs a ~30 s BLE discovery — not in a unit test
+    async def _no_sync(name, addr, root=None, live=True):
+        # The real one runs a ~30 s BLE discovery — not in a unit test. `live` mirrors the real
+        # signature, and True is the real return type: `run_polar` now reads this verdict and records a
+        # `start-without-sync` row on a falsy one, so a stub returning None would make these
+        # fileset-resume tests assert about the clock evidence channel instead.
+        return True
 
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
 
@@ -7558,8 +7562,12 @@ def test_run_polar_resume_logs_and_adopts_the_previous_folder(tmp_path, monkeypa
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    async def _no_sync(name, addr, root=None):
-        return None
+    async def _no_sync(name, addr, root=None, live=True):
+        # The real one runs a ~30 s BLE discovery — not in a unit test. `live` mirrors the real
+        # signature, and True is the real return type: `run_polar` now reads this verdict and records a
+        # `start-without-sync` row on a falsy one, so a stub returning None would make these
+        # fileset-resume tests assert about the clock evidence channel instead.
+        return True
 
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
 
@@ -7596,8 +7604,12 @@ def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    async def _no_sync(name, addr, root=None):
-        return None  # the real one runs a ~30 s BLE discovery — not in a unit test
+    async def _no_sync(name, addr, root=None, live=True):
+        # The real one runs a ~30 s BLE discovery — not in a unit test. `live` mirrors the real
+        # signature, and True is the real return type: `run_polar` now reads this verdict and records a
+        # `start-without-sync` row on a falsy one, so a stub returning None would make these
+        # fileset-resume tests assert about the clock evidence channel instead.
+        return True
 
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
 

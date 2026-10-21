@@ -468,9 +468,15 @@ def test_the_first_sync_still_happens_before_the_loop():
     src = _src()
     fn = src.index("async def run_polar")
     loop = src.index("    while not _STOP.is_set():", fn)
-    assert "await auto_sync_clock(name, addr, root)" in src[fn:loop], (
+    pre = src[fn:loop]
+    assert "await auto_sync_clock(name, addr, root, live=False)" in pre, (
         "the pre-loop first sync must survive (root rides along for the CLOCKSYNC.csv evidence channel)"
     )
+    # `live=False` is load-bearing and invisible from either side: the ladder's two pause-priced bounds
+    # — the after-pause deferral and the cross-ladder backoff — both price a pause of LIVE capture, and
+    # before PMD START there is none to pause. On 2026-10-20 one TimeoutError stopped this ladder and
+    # the cooldown it earned then skipped the next reconnect's sync, on a clock that was settable.
+    assert "live=True" not in pre, "the pre-start sync must not pay bounds denominated in lost signal"
 
 
 # ── the GIVE-UP verdict is per-device, and is said ONCE ──────────────────────────────────────────────
