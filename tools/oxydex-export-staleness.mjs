@@ -36,7 +36,12 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
+   skips each valued flag's VALUE with it, so a flag written before the positional cannot be
+   mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
+const ARGV_SPEC = { valued: ['--raw'], boolean: ['--selftest'], positional: true };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -168,9 +173,9 @@ const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
    IMPORTER's arguments, so it runs for the CLI only (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
-if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, { valued: ['--raw'], boolean: ['--selftest'], positional: true }, { tool: 'oxydex-export-staleness' });
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'oxydex-export-staleness' });
 if (argv.includes('--selftest')) selftest();
-const dir = argv.find((a) => !a.startsWith('--'));
+const dir = positionalArgs(argv, ARGV_SPEC)[0];
 if (!dir) {
   console.error('usage: node tools/oxydex-export-staleness.mjs <export-dir> [--raw <dir>]');
   process.exit(2);

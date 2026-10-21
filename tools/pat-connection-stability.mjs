@@ -46,19 +46,23 @@
 import { readdirSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDsps, ecgRpeakTimes, ppgFootTimes, median } from './pat-matchrate-strict.mjs';
-import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
+   skips each valued flag's VALUE with it, so a flag written before the positional cannot be
+   mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
+const ARGV_SPEC = { valued: ['--min-span-sec', '--min-beats', '--device', '--ecg-device'], boolean: ['--json'], positional: true };
 
 const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
    IMPORTER's arguments, so it runs for the CLI only (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
-if (isCliEntry(import.meta.url))
-  refuseUnknownArgvOrExit(argv, { valued: ['--min-span-sec', '--min-beats', '--device', '--ecg-device'], boolean: ['--json'], positional: true }, { tool: 'pat-connection-stability' });
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'pat-connection-stability' });
 const opt = (k, d) => {
   const i = argv.indexOf(k);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
-const ROOT = argv.find((a) => !a.startsWith('--') && existsSync(a));
+const ROOT = positionalArgs(argv, ARGV_SPEC).find((a) => existsSync(a));
 const MIN_SPAN = +opt('--min-span-sec', 300) * 1000;
 const MIN_BEATS = +opt('--min-beats', 60);
 const AS_JSON = argv.includes('--json');

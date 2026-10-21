@@ -25,7 +25,12 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
+   skips each valued flag's VALUE with it, so a flag written before the positional cannot be
+   mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
+const ARGV_SPEC = { valued: ['--max-rounds'], boolean: ['--selftest'], positional: true };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(join(HERE, '..'));
@@ -158,11 +163,11 @@ function trimHistory(messages) {
 
 async function main() {
   const argv = process.argv.slice(2);
-  refuseUnknownArgvOrExit(argv, { valued: ['--max-rounds'], boolean: ['--selftest'], positional: true }, { tool: 'qwen-agent' });
+  refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'qwen-agent' });
   if (argv.includes('--selftest')) return selftest();
   const mi = argv.indexOf('--max-rounds');
   const maxRounds = mi >= 0 ? Math.min(20, +argv[mi + 1] || 10) : 10;
-  const task = argv.filter((a, i) => !a.startsWith('--') && (mi < 0 || i !== mi + 1)).join(' ');
+  const task = positionalArgs(argv, ARGV_SPEC).join(' ');
   if (!task) {
     console.error('usage: qwen-agent.mjs "task"');
     process.exit(2);

@@ -10132,6 +10132,66 @@
       T.ok('the adopter population is non-empty', ADOPTERS.length >= 20, 'ADOPTERS=' + ADOPTERS.length + ' — 28 measured 2026-10-20; the guard scan matched almost nothing');
       T.eq('every adopter calls the guard behind IS_CLI — none at module scope', UNGUARDED.join(', '), '');
     });
+    /* ════ A FLAG'S VALUE IS NOT THE TOOL'S POSITIONAL ══════════════════════════════════════════
+       Row 2026-10-21-a-dash-test-picker-takes-a-valued-flags-value. `argv.find((a) =>
+       !a.startsWith('--'))` reads "my one positional", and it is ORDER-DEPENDENT where the flags are
+       not: the token after `--every` is a value, not a flag, so `--every 60 <corpus>` hands the picker
+       `60`. Every usage line in the tree documents the positional FIRST, which is why this survived —
+       and nothing refuses it, because each token is legal. MEASURED 2026-10-21 over the twelve tools
+       that had both a dash-test picker and a valued flag: `device-stability.mjs --every 60 <dir>` died
+       with `ENOENT … path: '60'`, `beat-correspondence.mjs --q 1/150 <dir>` with `path: '1/150'`, and
+       `oxydex-export-staleness.mjs --raw <other> <exports>` printed `0 night(s) checked` at exit 0
+       where the documented order reads the same disk and prints `1 skipped`. Three tools had hand-rolled
+       mitigations instead, each different and each partial: an `indexOf` on the preceding token (wrong
+       for a repeated value), an index test against one flag, and an equality test against one flag's
+       value. Arity already belongs to `argv-guard.mjs`, so `positionalArgs` owns the skip and this group
+       is the tripwire. The twelve tools with a picker and NO valued flag cannot hit it and are the
+       control column. The scan masks double-quoted and backtick literals, because `argv-reads.mjs`
+       carries this exact source shape as test PLANTS. ════ */
+    group('no tool picks its positional with a bare dash test', 'tools · argv-guard · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane can. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the positional-picker scan examined nothing');
+        else T.skip('the positional-picker scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var clean = function (t) {
+        return t
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/(^|[^:\\])\/\/[^\n]*/g, '$1')
+          .replace(/`(?:\\[\s\S]|[^`\\])*`/g, '``')
+          .replace(/"(?:\\.|[^"\\])*"/g, '""');
+      };
+      var PICK = /\.(?:find|filter|findLast)\(\s*\(?\s*([A-Za-z_$][\w$]*)\s*(?:,\s*[A-Za-z_$][\w$]*\s*)?\)?\s*=>\s*\(?\s*!\s*\1\s*\.\s*startsWith\(\s*'--/;
+      var VALUED = /valued:\s*\[\s*'/;
+      var PICKERS = [],
+        USERS = [],
+        VIOLATORS = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var src = clean(TT[k]);
+          if (src.indexOf('positionalArgs(') >= 0 && k !== 'tools/argv-guard.mjs') USERS.push(k);
+          if (!PICK.test(src)) return;
+          PICKERS.push(k);
+          if (VALUED.test(src)) VIOLATORS.push(k);
+        });
+      /* ANTI-VACUITY: a masker that blanked the tree would satisfy the equality below. */
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.ok(
+        'the helper has its measured population of callers',
+        USERS.length >= 11,
+        'USERS=' + USERS.length + ' (' + USERS.join(' ') + ') — 11 pickers were converted 2026-10-21, and the guard itself is excluded; a scan reading fewer is masking real code'
+      );
+      T.ok(
+        'CONTROL · bare dash-test pickers still exist where no valued flag can collide',
+        PICKERS.length >= 10,
+        'PICKERS=' + PICKERS.length + ' (' + PICKERS.join(' ') + ') — 10 measured 2026-10-21 under this mask; an empty control column means the regex stopped matching'
+      );
+      T.eq('no tool combines a bare dash-test picker with a valued flag', VIOLATORS.join(', '), '');
+    });
     /* ════ EVERY LEDGER READER SPLITS ON UNESCAPED PIPES ONLY ════════════════════════════════════
        Row 2026-10-20-append-and-close-is-blind-to-an-escaped-pipe. The residue row contract MANDATES
        the escape, because a literal pipe breaks the table — so a cell quoting a regex or a shell
@@ -66211,9 +66271,13 @@
       var realm = { module: { exports: {} } };
       realm.exports = realm.module.exports;
       vmG.createContext(realm);
-      vmG.runInContext(srcText.replace(/^export /gm, '').replace(/^import .*$/gm, '') + '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag;', realm);
+      vmG.runInContext(
+        srcText.replace(/^export /gm, '').replace(/^import .*$/gm, '') + '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag; exports.positionalArgs = positionalArgs;',
+        realm
+      );
       var checkArgv = realm.exports.checkArgv,
-        nearestFlag = realm.exports.nearestFlag;
+        nearestFlag = realm.exports.nearestFlag,
+        positionalArgs = realm.exports.positionalArgs;
       var SPEC = { valued: ['--src', '--out', '--night'], boolean: ['--dry-run', '--force'] };
 
       /* ── THE PLANT: the measured slip ──────────────────────────────────────────────────────── */
@@ -66245,6 +66309,23 @@
       var eq = checkArgv(['--out=uploads/trio'], SPEC);
       T.ok('`--flag=value` is REFUSED, because `opt` reads the NEXT token', eq.ok === false, 'accepting a form the tool then ignores is the same defect one layer along');
       T.ok('…and the refusal says where the value goes', /NEXT argument/.test(eq.reason || ''), eq.reason);
+
+      /* ── a flag's VALUE is not the tool's positional ─────────────────────────────────────────
+         `argv.find((a) => !a.startsWith('--'))` was the tree's idiom for "my one positional", and it
+         is order-dependent where the flags are not. MEASURED 2026-10-21 before the repair:
+         `device-stability.mjs --every 60 <dir>` died with `ENOENT … path: '60'`, and
+         `oxydex-export-staleness.mjs --raw <other> <exports>` reported `0 night(s) checked` at exit 0
+         where the documented order reads the same disk and reports `1 skipped` — §4b's
+         examined-nothing wearing a clean exit. Row
+         `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`. */
+      T.ok('positionalArgs is exported', typeof positionalArgs === 'function', 'the helper the eleven pickers now call is absent');
+      T.eq('a valued flag BEFORE the positional still yields the positional', positionalArgs(['--night', '2026-06-20', '/corpus'], SPEC).join(','), '/corpus');
+      T.eq('CONTROL · the documented order yields the same', positionalArgs(['/corpus', '--night', '2026-06-20'], SPEC).join(','), '/corpus');
+      T.eq('two positionals around two flags keep their order', positionalArgs(['--out', 'o', 'a', '--force', 'b'], SPEC).join(','), 'a,b');
+      T.eq('a boolean consumes nothing', positionalArgs(['--force', 'a'], SPEC).join(','), 'a');
+      T.eq('a repeated valued flag skips BOTH values', positionalArgs(['--night', 'a', '--night', 'b', 'root'], SPEC).join(','), 'root');
+      T.eq('nothing positional reads as empty, never as a flag value', positionalArgs(['--night', '2026-06-20'], SPEC).join(','), '');
+      T.eq('CONTROL · an empty argv is empty', positionalArgs([], SPEC).join(','), '');
 
       /* ── and EVERY adopter declares what it reads, by the tool's OWN helper names ───────────── */
       /* Derived from tools/ on disk, never a curated list: a tool that adopts the guard is enrolled the
