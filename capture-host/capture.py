@@ -61,6 +61,7 @@ import clock_offset
 import nightqc
 import nightarchive
 import stallsampler
+import pymalloc_stats  # CPython's own arena figures for the mem line; see its docstring
 import qc_child  # the night-QC work that runs in the spawned child, never in this process
 import loss_audit
 import solid_night
@@ -6027,8 +6028,14 @@ async def run_oxyii(dev: dict, root: str):
                                 # differ in what they can anchor and a consumer must not have to guess:
                                 # `PPG_FRAME` is 0x04 and carries `ppg_stream_offset`; `PPG_FRAME_A` is
                                 # 0x03 (LIVE_SAMPLES_A) and carries NO cumulative position — its reply
-                                # header is 6 bytes with only the declared count at [4:6], and [0:4] is
-                                # unexamined (brief §③, probe P1).
+                                # header is 6 bytes with only the declared count at [4:6]. `[0:4]` was
+                                # EXAMINED and is not a position: worn, 2026-10-06, it read 0 on all 887
+                                # replies, and 11 of the 886 steps matched the previous declared count
+                                # because those replies had declared 0 (RING-POLL-SPLIT §P1, criterion
+                                # (b) FAIL). The same session's 0x04 `[20:24]` read 0 on all 177 frames,
+                                # so NEITHER opcode carries a moving device position on this unit.
+                                # `probe_oxyii_0x03.py` records the word per reply, so a firmware that
+                                # starts filling it is visible without patching the probe again.
                                 # ∅ So the position column is written BLANK, never as a host-maintained
                                 # running sum: a sum would advance across a dropout the device sat out,
                                 # which is precisely the event the arrival floor exists to see, and it
@@ -7398,7 +7405,9 @@ async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: flo
         # DAEMON-RSS PART A. The climb Wren measured from OUTSIDE the process (94 → 549 MB, VmHWM 847 MB
         # over the 10-11 night, smooth at ~+300 MB/6 h while streams record) cannot be attributed from
         # outside: `/proc/<pid>/status` does not split live Python objects from memory Python freed and
-        # glibc kept, and `smaps`, which would, is root-only on the box. This publishes the split from
+        # glibc kept, and `smaps` is refused to every other reader on the box (the process is
+        # non-dumpable). The daemon can read its OWN smaps, but the kernel merges anonymous mappings, so
+        # that view cannot isolate CPython's arenas either (`pymalloc_stats`). This publishes the split from
         # inside — RSS beside `mallinfo2`'s in-use and free-inside-the-arena bytes, beside the gc
         # counters that say whether collection is happening at all. Measured cost: 0.6 us per call with
         # the GIL held, which is why `_resolve_mallinfo2` binds through PyDLL (see its docstring).
@@ -7409,7 +7418,9 @@ async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: flo
         if mem_log_sec > 0 and _time.monotonic() >= next_mem_log:
             next_mem_log = _time.monotonic() + mem_log_sec
             _hwm, _hwm_why = hwm_since_last_kb()
-            log.info("%s", mem_log_line(STATUS["mem"], _hwm, _hwm_why))
+            # CPython's arenas ride the LINE, not the 10 s publish: the walk costs about 0.5 ms with the
+            # GIL held, which is cheap once a minute and pointless every tick that nothing reads.
+            log.info("%s", mem_log_line(STATUS["mem"], _hwm, _hwm_why, pymalloc_stats.read()))
         # §1.6's done-when asks for a SERIES, and `status.json` is rewritten every tick. The journal is
         # the only surface here that keeps one, which is why `mem` writes a line too. The totals stay in
         # the status block: a cumulative count on a line steps back at every deploy and reads as the
@@ -12093,7 +12104,7 @@ def mem_snapshot() -> dict:
     }
 
 
-def mem_log_line(snap: dict, hwm: Any = _UNSET_HWM, hwm_reason: str | None = None) -> str:
+def mem_log_line(snap: dict, hwm: Any = _UNSET_HWM, hwm_reason: str | None = None, pymalloc: dict | None = None) -> str:
     """One journal line from a snapshot, as kB throughout, with `null` for an absent figure.
 
     A line rather than only the status file: `status.json` is REWRITTEN every tick, so it answers "what
@@ -12106,7 +12117,11 @@ def mem_log_line(snap: dict, hwm: Any = _UNSET_HWM, hwm_reason: str | None = Non
     §∅: `null`, never 0, for anything unmeasured, and each absent instrument appends its own reason.
 
     `hwm` is `hwm_since_last_kb()`'s figure. A caller that passes none gets the line without the segment,
-    and `None` prints `null`."""
+    and `None` prints `null`.
+
+    `pymalloc` is `pymalloc_stats.read()`: CPython's arena count, the bytes those arenas hold and the
+    bytes live in them. Neither glibc view can see that population. A caller that passes none gets the
+    line without the segment, the same rule as `hwm`."""
     rss, mi, ar, g = snap["rss_kb"], snap["mallinfo2"], snap["arenas"], snap["gc"]
 
     def _kb(v, scale=1):
@@ -12133,7 +12148,14 @@ def mem_log_line(snap: dict, hwm: Any = _UNSET_HWM, hwm_reason: str | None = Non
     )
     if hwm is not _UNSET_HWM:
         line += " · VmHWM since last line %s kB" % _kb(hwm)
-    for reason in (mi.get("reason"), ar.get("reason"), hwm_reason):
+    pm = pymalloc or {}
+    if pymalloc is not None:
+        line += " · pymalloc arenas %s held %s kB live %s kB" % (
+            _kb(pm.get("arenas")),
+            _kb(pm.get("held"), 1024),
+            _kb(pm.get("live"), 1024),
+        )
+    for reason in (mi.get("reason"), ar.get("reason"), hwm_reason, pm.get("reason")):
         if reason is not None:
             line += f" · {reason}"
     return line

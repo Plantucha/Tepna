@@ -95,6 +95,11 @@
    "status": "exempt",
    "reason": "one occurrence, in the prose of `CLOCK_IMPLAUSIBLE_S`'s note explaining why a 7.74-year offset published as a green is a fabricated one (\u00a7\u2205, \u00a7\ud83e\uddfe). The module DECIDES by refusing: `estimate` returns {ok: False, reason: 'implausible-offset'|'implausible-skew'|'too-few'|'no-span'} in its own long-standing shape, and that shape is consumed and republished by `nightqc.arrival_quality`, which is the enumerated producer for this path. No verdict word is emitted here."
   },
+  "capture-host/coverage_scope.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the PURE builder (verdict_object, refusal_object, VERDICT_STATUSES) and the pin ledger behind the covscope gate; the emitting producer is capture-host/tools/covscope.py (adopted) \u2014 same split as mutation_diff.py beside tools/mutate_diff.py"
+  },
   "capture-host/loss_audit.py": {
    "bin": "decides",
    "status": "adopted",
@@ -322,6 +327,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_coverage_scope.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_failover_planted_wedge.py": {
    "bin": "test",
    "status": "exempt"
@@ -536,6 +545,18 @@
     ]
    },
    "note": "wave 2: verdict_object() over assess() \u2014 PASS every check OK \u00b7 FAIL any check FAILED (named) \u00b7 UNKNOWN no failure but a check could not be read (never folded into a pass); population = checks, UNKNOWN excluded; the module gained a __main__ for the sample only, the decisions stay library calls"
+  },
+  "capture-host/tools/covscope.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/covscope.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "ADOPTED on arrival 2026-10-20: is every capture-host/tools/*.py either MEASURED by the 100 % coverage floor or PINNED with a reason? pyproject.toml has source = [\".\", \"deploy\"] and coverage does not descend into a non-package directory, so a tools/*.py nothing imports is measured nowhere and its absence from the report reads exactly like 100 % (\u00a7\u2205). Measured 2026-10-20 at origin/main 63f6ac951: nine of fourteen print a row, five print none. criterion = tools_absent_from_the_coverage_report_without_a_pin == 0, pre-stated in coverage_scope.CRITERION and the same sum --check exits 1 on; the four disagreements it counts are an unpinned absent file, a pin whose file is now measured (spent), a pin whose file is gone, and a pin with no reason. PASS every declared tool measured or pinned \u00b7 FAIL any disagreement \u00b7 NOT_RUN the scope glob was empty, which examined nothing \u00b7 UNKNOWN refused at exit 2 because no readable coverage data exists (it reads the pytest gate's .coverage and cannot produce it, and data older than the scope is a refusal, never a pass). population: every declared file is checked and excluded is 0, because a pin is a recorded answer and not an exclusion. capture-host/check.sh reads THIS object for its covscope child (checkverdict.ADOPTED_OURS). Sampled with --verdict-sample, which is synthetic and needs no tree."
   },
   "capture-host/tools/find_blindspots.py": {
    "bin": "word-only",

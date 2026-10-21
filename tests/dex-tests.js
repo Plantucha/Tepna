@@ -9985,6 +9985,53 @@
       }
     });
 
+    /* AN ARGV REFUSAL AT MODULE SCOPE JUDGES THE IMPORTER, NOT THE TOOL — residue
+       `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`. `process.argv` belongs to
+       whoever is RUNNING, so a tool that calls the guard at module scope reads the flags of whatever
+       imported it. #3797's own first draft proved it: the suite runs `node tests/run-tests.mjs
+       --jobs=auto`, `run-tests.mjs` does `await import()` of a guarded tool, and the guard refused the
+       RUNNER's flag and reded step 14 of 40.
+       THE DEFECT WAS NEVER CONFINED TO THE FOUR THAT EXPORT. Measured 2026-10-20 over all eleven
+       module-scope adopters on main: importing each from a script run with `--jobs=auto` produced the
+       refusal 11 times out of 11, while the same eleven as a CLI still exit 2 on an unknown flag. The
+       remedy is one line, `if (IS_CLI)`, and this group is its tripwire — the next adopter written at
+       column 0 reds HERE under its own name, rather than inside whichever importer pays for it first.
+       The scan strips comments, because a guard documented in prose and absent from the code is
+       CLAUDE.md §4b's examined-nothing. The adopter set is the same population the known-answer group
+       `argv-guard — a token nobody reads REFUSES` derives for its per-flag declarations; this group
+       asks a different question of it, where the call SITS rather than what it accepts. The `tools/` tree is outside `astgrep-gate.mjs`'s js scope
+       (root `*.js` + `tests/` + `codegen/`), so the shape cannot be gated there without widening that
+       scope over 260 files; `env.toolTexts` already carries the population this needs. */
+    group('no tool refuses an unknown argv token at module scope', 'tools · argv-guard · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane has no such
+         excuse, so an absent population is a FAILURE there (the sibling drawn-axis group's lesson). */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the module-scope scan examined nothing');
+        else T.skip('the module-scope argv scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var stripC = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      var ADOPTERS = [],
+        UNGUARDED = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var t = stripC(TT[k]);
+          if (t.indexOf('refuseUnknownArgvOrExit(') < 0) return;
+          ADOPTERS.push(k);
+          /* Column 0 IS module scope: `if (IS_CLI) refuse…` and a call inside a function are both
+             indented, and the guard's own definition in `argv-guard.mjs` reads `export function`. */
+          if (/^refuseUnknownArgvOrExit\(/m.test(t)) UNGUARDED.push(k);
+        });
+      /* ANTI-VACUITY: a scan that matched nothing would satisfy the equality below. */
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.ok('the adopter population is non-empty', ADOPTERS.length >= 20, 'ADOPTERS=' + ADOPTERS.length + ' — 28 measured 2026-10-20; the guard scan matched almost nothing');
+      T.eq('every adopter calls the guard behind IS_CLI — none at module scope', UNGUARDED.join(', '), '');
+    });
     /* ════ THE HAT ROWS RENDER THE PER-CORNER STATUS (PAT-HAT-DRIFT-DIFFERENCED, 2026-09-27) ═════════
        A negative solved variance has TWO different meanings and the page used to print one word for both.
        `patHatCornerStatus` separates them: a CI that spans 0 means the data are consistent with
@@ -11784,99 +11831,144 @@
         'only ' + checkedPairs + ' of 3 pairs collapsed upward — the loop passed by skipping the rest'
       );
     });
-    /* ════ THE NIGHT KEY COMES FROM THE FIRST DATA ROW, NOT THE FILENAME ═══════════════════════════════
-       FILENAME-STAMP-JS-CONSUMERS §4: the trio hat grouped files into nights on the 14-digit stamp in
-       their NAME, which the capture host writes when the file is OFFLOADED. Measured 2026-10-20 over the
-       9853 corpus files this classifier accepts: 9738 carry a parseable row stamp, median name-to-content
-       error 3.9 s, 74 files over 5 min, worst 18.71 h — and 8 files cross the noon fold, so the name
-       indexed them one night EARLY. The pure half of the reader is sliced out of the page source and
-       EXECUTED here, because a source scan would pass on a re-indented copy whose arithmetic drifted.
-       The fallback is the other half of the row: a file whose rows carry no stamp keeps the filename key,
-       and the ingest note must SAY how many did — a fallback nobody can see is the defect this replaces
-       (§∅). ════════════════════════════════════════════════════════════════════════════════════════════ */
+    /* ════ THE NIGHT KEY COMES FROM THE FIRST DATA ROW, NOT THE FILENAME — ON ALL THREE TRIO PAGES ══
+       FILENAME-STAMP-JS-CONSUMERS §4. The trio pages grouped files into nights on the 14-digit stamp in
+       their NAME, which the capture host writes when it OPENS the session, before the connect; the first
+       data row is written when the recording actually started. #3746 repaired `sensor-trio-night.js`,
+       and its two siblings carried the same code VERBATIM — so one corpus now buckets the same way
+       whichever of the three pages reads it.
+
+       Measured 2026-10-20 over the canonical corpus `/srv/data/tepna-corpus`: 62,706 entries carrying
+       28,958 DISTINCT recordings, once the NAS cold-tier symlinks are followed and the staging views
+       deduped by recording (63 % of the tree is a symlink, and each file is staged into several views —
+       a walk that does neither reads a different corpus and a different number).
+
+         page                            accepted  row stamp  >5 min   worst  fold  chosen-file moves
+         sensor-trio-night.js               9,569      8,501      75  18.71 h    10         13 of 155
+         sensor-trio-power-analysis.js      6,698      5,900      51  18.71 h     8         11 of 155
+         sigma-no-reference-analysis.js       337        274       0   3.25 s     0           1 of 59
+
+       THE NIGHT COUNT DOES NOT MOVE on any of the three — 155/155 nights and 123/123 eligible for the
+       first two, 59/59 and 31/31 for the third — while a chosen corner file does, because
+       `resolveTriple` takes the file NEAREST the anchor. A population delta would have called the whole
+       change a no-op; count what the tool CHOOSES.
+
+       The pure half of the reader is sliced out of EACH page source and EXECUTED here against ONE
+       table: a source scan would pass on a re-indented copy whose arithmetic drifted, and three copies
+       of one reader are three chances for one of them to drift alone.
+
+       The fallback is the other half of the row: a file whose rows carry no stamp keeps the filename
+       key, and the ingest note must SAY how many did — a fallback nobody can see is the defect this
+       replaces (§∅). ═══════════════════════════════════════════════════════════════════════════════ */
     group('the trio night key reads the first data row, and says when it could not', 'sensor-trio · night-key · §🔒', function (T) {
-      var page = env.sources && env.sources['sensor-trio-night.js'];
-      T.ok('the page source is readable in this lane', !!page, 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
-      if (!page) return;
+      /* `classifierPin` is the one literal the repair must NOT have touched: for the first two pages
+         capture-host `test_the_tool_classifiers_accept_box_filenames` extracts exactly this regex from
+         the `classify` body and runs the box's real filenames through it. */
+      var PAGES = [
+        { file: 'sensor-trio-night.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
+        { file: 'sensor-trio-power-analysis.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
+        { file: 'sigma-no-reference-analysis.js', bucket: 'NIGHTS_IDX', classify: 'classifyF', classifierPin: '/^O2Ring.*_(\\d{14})\\.csv$/i' }
+      ];
+      var executed = 0;
+      PAGES.forEach(function (P) {
+        var tag = ' · ' + P.file;
+        var page = env.sources && env.sources[P.file];
+        T.ok('the page source is readable in this lane' + tag, !!page, P.file + ' not in env.sources — list it in BOTH lanes');
+        if (!page) return;
 
-      /* ── the ingest keys on the row, and the fallback is visible ──────────────────────────────────── */
-      T.ok('the ingest awaits a first-row stamp per file', /const rowMs = await firstRowTMs\(f\)/.test(page), 'ingestFiles must read the row before it chooses a bucket');
-      T.ok(
-        'the bucket is the row key when a row stamp exists, the filename key only when it does not',
-        /rowMs == null \? nightKeyOf\(c\.stamp\) : nightKeyOfMs\(rowMs\)/.test(page),
-        'keying on the name while a row stamp is in hand is the defect'
-      );
-      T.ok(
-        'the contemporaneity comparison uses the same instant',
-        /ms: rowMs == null \? stampMs\(c\.stamp\) : rowMs/.test(page),
-        'resolveTriple picks the file nearest the anchor, so a name-derived ms mis-picks even inside one bucket'
-      );
-      T.ok(
-        'each candidate records WHICH clock keyed it',
-        /stampSource: rowMs == null \? 'filename' : 'first-row'/.test(page),
-        'a consumer cannot distinguish a row-keyed night from a name-keyed one without the field'
-      );
-      T.ok(
-        'the ingest note states how many files fell back to the filename',
-        /keyed by filename \(no row stamp\)/.test(page) && /keyedByName \?/.test(page),
-        '§∅ — an invisible fallback is what this row replaces'
-      );
-      T.ok('the classifier body is untouched by this change', /the hat's classifier, VERBATIM/.test(page), 'capture-host test_the_tool_classifiers_accept_box_filenames reads that body as text');
+        /* ── the ingest keys on the row, and the fallback is visible ────────────────────────────────── */
+        T.ok('the ingest awaits a first-row stamp per file' + tag, /const rowMs = await firstRowTMs\(f\)/.test(page), 'ingestFiles must read the row before it chooses a bucket');
+        T.ok(
+          'the bucket is the row key when a row stamp exists, the filename key only when it does not' + tag,
+          /rowMs == null \? nightKeyOf\(c\.stamp\) : nightKeyOfMs\(rowMs\)/.test(page),
+          'keying on the name while a row stamp is in hand is the defect'
+        );
+        T.ok(
+          'the contemporaneity comparison uses the same instant' + tag,
+          /ms: rowMs == null \? stampMs\(c\.stamp\) : rowMs/.test(page),
+          'resolveTriple picks the file nearest the anchor, so a name-derived ms mis-picks even inside one bucket'
+        );
+        T.ok(
+          'each candidate records WHICH clock keyed it' + tag,
+          /stampSource: rowMs == null \? 'filename' : 'first-row'/.test(page),
+          'a consumer cannot distinguish a row-keyed night from a name-keyed one without the field'
+        );
+        T.ok(
+          'the ingest note states how many files fell back to the filename' + tag,
+          /keyed by filename \(no row stamp\)/.test(page) && /keyedByName \?/.test(page),
+          '§∅ — an invisible fallback is what this row replaces'
+        );
+        /* Every mention of the ingest must DRIVE its promise: the `async function` declaration,
+           `void ingestFiles(x)` in a listener, or `.then(ingestFiles)` on a collected folder. A bare
+           `ingestFiles(x)` is the real risk — the handler returns before one night is bucketed. Every
+           occurrence is classified, so a NEW call site cannot slip in undriven. */
+        var sites = [],
+          at = page.indexOf('ingestFiles');
+        while (at >= 0) {
+          var pre = page.slice(Math.max(0, at - 15), at);
+          sites.push(/function $/.test(pre) ? 'function' : /void $/.test(pre) ? 'void' : /\.then\($/.test(pre) ? 'then' : 'BARE «' + pre.slice(-14) + 'ingestFiles»');
+          at = page.indexOf('ingestFiles', at + 1);
+        }
+        var undriven = sites.filter(function (c) {
+          return c !== 'function' && c !== 'void' && c !== 'then';
+        });
+        T.ok('the ingest is declared async' + tag, /async function ingestFiles\(list\) \{/.test(page), 'the row read makes it async; a sync ingest cannot await it');
+        T.ok('the page names the ingest at all' + tag, sites.length >= 2, 'a declaration with no call site means this leg examined nothing');
+        T.eq('every ingest call site drives the promise' + tag, undriven.length, 0, 'an un-driven ingestFiles() returns before a single night is bucketed: ' + JSON.stringify(undriven));
+        T.ok('the classifier body is untouched by this change' + tag, page.indexOf(P.classifierPin) >= 0, 'capture-host test_the_tool_classifiers_accept_box_filenames reads that body as text');
+        T.ok('the page still buckets into its own index' + tag, page.indexOf(P.bucket + '[nk]') >= 0, 'the bucket map name moved — this group names it per page');
 
-      /* ── the reader itself, executed ──────────────────────────────────────────────────────────────── */
-      var a = page.indexOf('  const ROW_SCAN_BYTES'),
-        b = page.indexOf('  function hashStr(s) {');
-      T.ok('the pure reader is sliceable out of the page', a >= 0 && b > a, 'the slice markers moved — update this group with them');
-      if (!(a >= 0 && b > a)) return;
-      var pure = page.slice(a, b).replace(/async function firstRowTMs[\s\S]*?\n  }\n/, '');
-      var M = null,
-        mErr = '';
-      try {
-        M = new Function(pure + '\nreturn { _rowTMs: _rowTMs, nightKeyOfMs: nightKeyOfMs, _mkTMs: _mkTMs };')();
-      } catch (e) {
-        mErr = String((e && e.message) || e);
-      }
-      T.ok('the sliced reader evaluates on its own', !!(M && M._rowTMs), 'the reader now depends on page state — keep it pure or this leg cannot run' + (mErr ? ': ' + mErr : ''));
-      if (!(M && M._rowTMs)) return;
+        /* ── the reader itself, executed ──────────────────────────────────────────────────────────── */
+        var a = page.indexOf('  const ROW_SCAN_BYTES'),
+          b = page.indexOf('  function hashStr(s) {');
+        T.ok('the pure reader is sliceable out of the page' + tag, a >= 0 && b > a, 'the slice markers moved — update this group with them');
+        if (!(a >= 0 && b > a)) return;
+        var pure = page.slice(a, b).replace(/async function firstRowTMs[\s\S]*?\n  }\n/, '');
+        var M = null,
+          mErr = '';
+        try {
+          M = new Function(pure + '\nreturn { _rowTMs: _rowTMs, nightKeyOfMs: nightKeyOfMs, _mkTMs: _mkTMs };')();
+        } catch (e) {
+          mErr = String((e && e.message) || e);
+        }
+        T.ok('the sliced reader evaluates on its own' + tag, !!(M && M._rowTMs), 'the reader now depends on page state — keep it pure or this leg cannot run' + (mErr ? ': ' + mErr : ''));
+        if (!(M && M._rowTMs)) return;
 
-      var psl = 'Phone timestamp;sensor timestamp [ns];channel 0\n2026-08-20T23:59:54.260;840599993105734761;-43485\n';
-      T.eq(
-        'a sensor-logger head yields its first row instant',
-        M._rowTMs(psl),
-        Date.UTC(2026, 7, 20, 23, 59, 54, 260),
-        'the ISO row is the recording start — the name on that measured file said 2026-08-20 05:17'
+        var psl = 'Phone timestamp;sensor timestamp [ns];channel 0\n2026-08-20T23:59:54.260;840599993105734761;-43485\n';
+        T.eq('a sensor-logger head yields its first row instant' + tag, M._rowTMs(psl), Date.UTC(2026, 7, 20, 23, 59, 54, 260), 'the ISO row is the one the Clock Contract reads verbatim');
+        T.eq('the same head buckets onto its own evening' + tag, M.nightKeyOfMs(M._rowTMs(psl)), '2026-08-20', 'a 23:59 start belongs to the evening it started in');
+        T.eq(
+          "the ring's DMY head is read day-first" + tag,
+          M._rowTMs('Time,Oxygen Level,Pulse Rate,Motion\n21:43:24 30/09/2026,96,67,0\n'),
+          Date.UTC(2026, 8, 30, 21, 43, 24, 0),
+          '§3 — a field over 12 locks the order for the whole head'
+        );
+        T.eq(
+          "the same vendor's MDY head is read month-first" + tag,
+          M._rowTMs('Time,SpO2\n21:43:24 09/30/2026,96\n'),
+          Date.UTC(2026, 8, 30, 21, 43, 24, 0),
+          '§3 — the lock reads whichever field exceeds 12'
+        );
+        T.eq('a head with no stamp at all is null, never a date' + tag, M._rowTMs('channel 0;channel 1\n-43485;-70877\n'), null, '§∅ — absence is null');
+        T.eq('an out-of-range component is null rather than a rolled instant' + tag, M._mkTMs(2026, 13, 32, 25, 61, 61, 0), null, '§2.7 — Date.UTC rolls bad components onto a wrong instant');
+        T.eq('a real leap day survives the range check' + tag, M._mkTMs(2024, 2, 29, 1, 2, 3, 0), Date.UTC(2024, 1, 29, 1, 2, 3, 0), 'the check must reject only impossible days');
+        T.eq('a non-leap 29 February is null' + tag, M._mkTMs(2026, 2, 29, 1, 2, 3, 0), null, 'Date.UTC would roll it to 1 March');
+        T.eq('minute 99 is null, and only the explicit bound can say so' + tag, M._mkTMs(2026, 6, 15, 10, 99, 3, 0), null, 'it rolls the HOUR and leaves the date, so the round-trip passes it');
+        T.eq(
+          'ISO 24:00:00 rolls to the next midnight rather than being refused' + tag,
+          M._mkTMs(2026, 6, 15, 24, 0, 0, 0),
+          Date.UTC(2026, 5, 16, 0, 0, 0, 0),
+          "§2.7 — the contract's one legitimate overflow, and no bare h > 23 guard"
+        );
+        T.eq('the noon fold puts a pre-noon start on the previous evening' + tag, M.nightKeyOfMs(Date.UTC(2026, 7, 20, 5, 17, 13, 0)), '2026-08-19', "the fold is the tool's own rule, unchanged");
+        T.eq('a 23:59 start stays on its own evening' + tag, M.nightKeyOfMs(Date.UTC(2026, 7, 20, 23, 59, 54, 0)), '2026-08-20', 'the fold must not move an evening start');
+        executed++;
+      });
+      T.ok(
+        'ANTI-VACUITY · all three trio pages were sliced and executed',
+        executed === PAGES.length,
+        'only ' + executed + ' of ' + PAGES.length + ' pages ran — a page whose reader will not slice or evaluate must RED, never pass by being skipped'
       );
-      T.eq(
-        'the measured flip: the name folds one night early, the row does not',
-        M.nightKeyOfMs(M._rowTMs(psl)),
-        '2026-08-20',
-        'a 05:17 filename stamp folds to 2026-08-19 under the noon rule, which is the defect'
-      );
-      T.eq(
-        "the ring's CSV row locks DMY on a day over 12",
-        M._rowTMs('Time,Oxygen Level,Pulse Rate,Motion\n21:43:24 30/09/2026,96,67,0\n'),
-        Date.UTC(2026, 8, 30, 21, 43, 24, 0),
-        '§3 — a row whose first date field exceeds 12 fixes the order for the head'
-      );
-      T.eq(
-        'an MDY head locks the other way when its SECOND field exceeds 12',
-        M._rowTMs('Time,SpO2\n21:43:24 09/30/2026,96\n'),
-        Date.UTC(2026, 8, 30, 21, 43, 24, 0),
-        '§3 — the same lock, read from whichever field cannot be a month'
-      );
-      T.eq('a head with no stamp at all is null, never a date', M._rowTMs('channel 0;channel 1\n-43485;-70877\n'), null, '§∅ — absence is null');
-      T.eq('an out-of-range component is null rather than a rolled instant', M._mkTMs(2026, 13, 32, 25, 61, 61, 0), null, '§2.7 — Date.UTC rolls bad components onto a wrong instant');
-      T.eq('a real leap day survives the range check', M._mkTMs(2024, 2, 29, 1, 2, 3, 0), Date.UTC(2024, 1, 29, 1, 2, 3, 0), 'the check must reject only impossible days');
-      T.eq('a non-leap 29 February is null', M._mkTMs(2026, 2, 29, 1, 2, 3, 0), null, 'Date.UTC would roll it to 1 March');
-      T.eq('minute 99 is null, and only the explicit bound can say so', M._mkTMs(2026, 6, 15, 10, 99, 3, 0), null, 'it rolls the HOUR and leaves the date, so the round-trip passes it');
-      T.eq(
-        'ISO end-of-day 24:00:00 is the next midnight, not null',
-        M._mkTMs(2026, 6, 15, 24, 0, 0, 0),
-        Date.UTC(2026, 5, 16, 0, 0, 0, 0),
-        "§2.7 — the contract's one legitimate overflow, and no bare h > 23 guard"
-      );
-      T.eq('the noon fold puts a pre-noon start on the previous evening', M.nightKeyOfMs(Date.UTC(2026, 7, 20, 5, 17, 13, 0)), '2026-08-19', "the fold is the tool's own rule, unchanged");
-      T.eq('a 23:59 start stays on its own evening', M.nightKeyOfMs(Date.UTC(2026, 7, 20, 23, 59, 54, 0)), '2026-08-20', 'the fold must not move an evening start');
     });
     /* ════ THE CARD'S POOLED NOTE IS COMPOSED FROM THE PUBLISHED RECORD ══════════════════════════════
        TCH-REFERENCE-POPULATIONS §2 defect 1: `sensor-trio-night.js` hard-coded "37 nights" and three
