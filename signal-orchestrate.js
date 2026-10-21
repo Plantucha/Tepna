@@ -531,8 +531,16 @@
   // Do NOT collapse these back into one loose pattern.
   function fnameStampMs(name) {
     var s = String(name == null ? '' : name);
-    var m = s.match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/i) || s.match(/(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/);
-    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null; // floating wall-clock (Clock Contract)
+    // Both patterns stay as the ACCEPT TEST, so the two-pattern rule above still binds and this
+    // function still claims exactly the names it claimed. The INSTANT comes from clock.js, which
+    // range-validates the components (Clock Contract §2.7); the bare `Date.UTC` that stood here
+    // rolled an impossible stamp onto a real instant and fed it to pairCompanions' nearest-stamp
+    // tiebreak. clock.js reads MAXIMAL digit runs from the RIGHT, so it also refuses the id-eating
+    // case (1) describes by construction rather than by an anchor.
+    var m = /^POLAR_[A-Z0-9]+_[A-Z0-9]+_\d{4}\d{2}\d{2}[_-]?\d{2}\d{2}\d{2}/i.test(s) || /(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/.test(s);
+    if (!m) return null;
+    var p = DexClock.fileStamp(s);
+    return p ? p.tMs : null; // floating wall-clock (Clock Contract)
   }
   // §1 (ECG-INGEST-FOLLOWUPS-II) — device identity + foreign-vendor classification are NO LONGER
   // declared here. pairCompanions now consults the ONE shared registry (dex-ingest.js / DexIngest) —

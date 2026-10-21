@@ -4940,6 +4940,135 @@
           T.eq('DexIngest · no parity disagreement', parityFirstDiff, '');
         }
       }
+      /* ══ THE DELEGATING SITES — five filename/date readers that now take the INSTANT from clock.js ══
+         Residue 2026-10-21-filename-stamp-parsers-sit-outside-the-guarded-set. Each kept its own
+         pattern as the ACCEPT TEST and handed the arithmetic to `DexClock`, so the pair to assert per
+         site is: the name it always accepted still resolves to the SAME instant, and the impossible
+         twin now refuses instead of rolling onto a real one. A one-sided assertion cannot tell a
+         delegation from a deletion. */
+      var DC = env.DexClock;
+      T.ok('DexClock reachable for the delegating-site legs', !!(DC && typeof DC.fileStamp === 'function'), 'clock.js must load in this runner');
+      /* The midnight anchor is LOAD-BEARING and counter-intuitive, so it is pinned here rather than
+         left to a comment: `parseTimestamp` REQUIRES a time component. Two of the five sites read a
+         date-only field, and handing it over bare would have turned every key into the fallback —
+         a silent regression that no out-of-range probe below could see. */
+      if (DC && typeof DC.parseTimestamp === 'function') {
+        T.eq('clock.js · a BARE date returns null — the explicit midnight anchor is required', DC.parseTimestamp('2026-09-19'), null);
+        T.eq('clock.js · the same date anchored at midnight resolves', (DC.parseTimestamp('2026-09-19 00:00:00') || {}).tMs, U(2026, 8, 19));
+      }
+
+      // ── 1 · `adapters/resmed-edf.js` stampOf — the ResMed SD-card session key ──
+      var RA = env.SignalAdapters && typeof env.SignalAdapters.byId === 'function' ? env.SignalAdapters.byId('resmed-edf') : null;
+      T.ok('the resmed-edf adapter is registered in this lane', !!(RA && typeof RA.stampOf === 'function'), 'load adapters/resmed-edf.js before this group');
+      if (RA && typeof RA.stampOf === 'function') {
+        var RS = function (n) {
+          var r = RA.stampOf(n);
+          return r ? r.sec : null;
+        };
+        T.eq('ResMedEdf · a valid session name keeps its instant', RS('20260919_183658_BRP.edf'), U(2026, 8, 19, 18, 36, 58) / 1000);
+        T.eq('ResMedEdf · the stream type still rides the record', (RA.stampOf('20260919_183658_brp.edf') || {}).type, 'BRP');
+        T.eq('ResMedEdf · month 13 → null (was 2027-02-05, keying a session at a date no capture had)', RS('20261332_999999_BRP.edf'), null);
+        T.eq('ResMedEdf · Feb 30 → null (was 2026-03-02)', RS('20260230_120000_BRP.edf'), null);
+        T.eq('ResMedEdf · §2.7 hour 23 ACCEPTED — band closed at 23', RS('20260919_230000_BRP.edf'), U(2026, 8, 19, 23, 0, 0) / 1000);
+        T.eq('ResMedEdf · §2.7 hour 25 → null', RS('20260919_250000_BRP.edf'), null);
+        T.eq('ResMedEdf · §2.7 minute 59 ACCEPTED — kills `mi >= 59`', RS('20260919_185900_BRP.edf'), U(2026, 8, 19, 18, 59, 0) / 1000);
+        T.eq('ResMedEdf · §2.7 minute 60 → null', RS('20260919_186000_BRP.edf'), null);
+        T.eq('ResMedEdf · §2.7 second 59 ACCEPTED — kills `se >= 59`', RS('20260919_183659_BRP.edf'), U(2026, 8, 19, 18, 36, 59) / 1000);
+        T.eq('ResMedEdf · §2.7 second 60 → null', RS('20260919_183660_BRP.edf'), null);
+        T.eq('ResMedEdf · the ACCEPT TEST is unchanged — a non-ResMed name is still refused', RA.stampOf('20260919_183658_BRP.txt'), null);
+        T.eq('ResMedEdf · a name the pattern never claimed is still refused', RA.stampOf('nightly.edf'), null);
+      }
+
+      // ── 2 · `oxydex-cross.js` nightTms — the cross-night x-axis ──
+      var OC = env.OXYCross;
+      T.ok('OXYCross.nightTms exposed', !!(OC && typeof OC.nightTms === 'function'), 'load oxydex-cross.js before this group');
+      if (OC && typeof OC.nightTms === 'function') {
+        T.eq('OxyCross · a measured startTs still WINS over the date field', OC.nightTms({ stats: { startTs: 12345 }, date: '2026-02-30' }), 12345);
+        T.eq('OxyCross · a valid date keeps its midnight instant', OC.nightTms({ date: '2026-09-19' }), U(2026, 8, 19));
+        T.eq('OxyCross · a date with a trailing time is still read by its date part', OC.nightTms({ date: '2026-09-19T22:10' }), U(2026, 8, 19));
+        T.eq('OxyCross · Feb 30 → null (was 2026-03-02)', OC.nightTms({ date: '2026-02-30' }), null);
+        T.eq('OxyCross · month 13 → null', OC.nightTms({ date: '2026-13-01' }), null);
+        T.eq('OxyCross · §2.7 month 12 ACCEPTED — band closed at 12', OC.nightTms({ date: '2026-12-01' }), U(2026, 11, 1));
+        T.eq('OxyCross · §2.7 day 31 ACCEPTED in a 31-day month', OC.nightTms({ date: '2026-07-31' }), U(2026, 6, 31));
+        T.eq('OxyCross · §2.7 day 0 → null', OC.nightTms({ date: '2026-09-00' }), null);
+        T.eq('OxyCross · §∅ a night with no date at all is null, never 0', OC.nightTms({}), null);
+      }
+
+      // ── 3 · `integrator-longitudinal.js` _sortKey — the longitudinal row order ──
+      var IL = env.IntegratorLong;
+      T.ok('IntegratorLong._sortKey exposed', !!(IL && typeof IL._sortKey === 'function'), 'export _sortKey from integrator-longitudinal.js');
+      if (IL && typeof IL._sortKey === 'function') {
+        T.eq('IntegratorLong · a measured t0Ms still WINS over the date field', IL._sortKey({ t0Ms: 7, date: '2026-02-30' }), 7);
+        T.eq('IntegratorLong · t0Ms 0 is a real instant, not an absence', IL._sortKey({ t0Ms: 0, date: '2026-09-19' }), 0);
+        T.eq('IntegratorLong · a valid date keeps its midnight instant', IL._sortKey({ date: '2026-09-19' }), U(2026, 8, 19));
+        T.eq('IntegratorLong · Feb 30 → the undated anchor (was 2026-03-02)', IL._sortKey({ date: '2026-02-30' }), 0);
+        T.eq('IntegratorLong · 2026-13-45 → the undated anchor (was 2027-02-14)', IL._sortKey({ date: '2026-13-45' }), 0);
+        T.eq('IntegratorLong · §2.7 month 12 ACCEPTED', IL._sortKey({ date: '2026-12-01' }), U(2026, 11, 1));
+        T.eq('IntegratorLong · §2.7 day 31 ACCEPTED in a 31-day month', IL._sortKey({ date: '2026-07-31' }), U(2026, 6, 31));
+        T.eq('IntegratorLong · an undated row anchors at 0, as it always did', IL._sortKey({}), 0);
+      }
+
+      // ── 4 · `signal-orchestrate.js` fnameStampMs — the companion-pairing tiebreak ──
+      var SOx = env.SignalOrchestrate;
+      T.ok('SignalOrchestrate.fnameStampMs exposed', !!(SOx && typeof SOx.fnameStampMs === 'function'), 'load signal-orchestrate.js before this group');
+      if (SOx && typeof SOx.fnameStampMs === 'function') {
+        var FS = SOx.fnameStampMs;
+        T.eq('SignalOrchestrate · a PSL split name keeps its instant', FS('Polar_H10_AAAAAAAA_20260919_183658_ECG.txt'), U(2026, 8, 19, 18, 36, 58));
+        T.eq('SignalOrchestrate · the contiguous capture-host form gives the SAME instant', FS('Polar_H10_AAAAAAAA_20260919183658_ECG.txt'), U(2026, 8, 19, 18, 36, 58));
+        T.eq('SignalOrchestrate · month 13 → null (was 2027-02-05, fed to the nearest-stamp tiebreak)', FS('Polar_H10_AAAAAAAA_20261332_999999_ECG.txt'), null);
+        T.eq('SignalOrchestrate · Feb 30 → null (was 2026-03-02)', FS('Polar_H10_AAAAAAAA_20260230_120000_ECG.txt'), null);
+        T.eq('SignalOrchestrate · §2.7 hour 23 ACCEPTED — band closed at 23', FS('Polar_H10_AAAAAAAA_20260919_230000_ECG.txt'), U(2026, 8, 19, 23, 0, 0));
+        T.eq('SignalOrchestrate · §2.7 hour 25 → null', FS('Polar_H10_AAAAAAAA_20260919_250000_ECG.txt'), null);
+        T.eq('SignalOrchestrate · §2.7 minute 59 ACCEPTED — kills `mi >= 59`', FS('Polar_H10_AAAAAAAA_20260919_185900_ECG.txt'), U(2026, 8, 19, 18, 59, 0));
+        T.eq('SignalOrchestrate · §2.7 minute 60 → null', FS('Polar_H10_AAAAAAAA_20260919_186000_ECG.txt'), null);
+        T.eq('SignalOrchestrate · §2.7 second 59 ACCEPTED — kills `se >= 59`', FS('Polar_H10_AAAAAAAA_20260919_183659_ECG.txt'), U(2026, 8, 19, 18, 36, 59));
+        T.eq('SignalOrchestrate · §2.7 second 60 → null', FS('Polar_H10_AAAAAAAA_20260919_183660_ECG.txt'), null);
+        /* The two-pattern rule above `fnameStampMs` is load-bearing: it was measured pairing 147 of
+           153 files to the wrong night when it was one loose pattern. The ACCEPT TEST keeps both
+           arms, so a name carrying no stamp at all must still be refused by the PATTERN, before the
+           clock is ever consulted. */
+        T.eq('SignalOrchestrate · a stamp-less name is still refused by the pattern', FS('Polar_H10_AAAAAAAA_ECG.txt'), null);
+        T.eq('SignalOrchestrate · §∅ an empty name is null, never 0', FS(''), null);
+        T.eq('SignalOrchestrate · §∅ a null name is null, never 0', FS(null), null);
+        /* clock.js reads MAXIMAL digit runs from the RIGHT, so a 14-digit DEVICE ID ahead of the
+           stamp cannot eat it. The old anchor-based arithmetic had to be told; this is by
+           construction, and the assertion is what proves the construction holds here too. */
+        T.eq('SignalOrchestrate · a 14-digit device id does not become the stamp', FS('Polar_H10_20250101000000_20260725225058_ECG.txt'), U(2026, 6, 25, 22, 50, 58));
+      }
+
+      // ── 5 · `pat-classic-vs-fused.js` stampOf — an analysis page, sliced out and EXECUTED ──
+      /* This page attaches nothing to a global, so the reader is cut from its source and run. A
+         source scan would pass on a re-indented copy whose arithmetic drifted, which is the whole
+         reason the other four are called for real. */
+      var patSrc = env.sources && env.sources['pat-classic-vs-fused.js'];
+      T.ok('the PAT page source is readable in this lane', !!patSrc, 'pat-classic-vs-fused.js not in env.sources — list it in BOTH lanes');
+      if (patSrc && DC) {
+        var pa = patSrc.indexOf('  function stampOf(n) {');
+        var pb = pa >= 0 ? patSrc.indexOf('\n  }\n', pa) : -1;
+        T.ok('the PAT reader is sliceable out of the page', pa >= 0 && pb > pa, 'the slice markers moved — update this group with them');
+        if (pa >= 0 && pb > pa) {
+          var patFn = null,
+            patErr = '';
+          try {
+            patFn = new Function('DexClock', patSrc.slice(pa, pb + 4) + '\nreturn stampOf;')(DC);
+          } catch (e) {
+            patErr = String((e && e.message) || e);
+          }
+          T.ok('the sliced PAT reader evaluates on its own', typeof patFn === 'function', 'the reader now depends on page state — keep it pure' + (patErr ? ': ' + patErr : ''));
+          if (typeof patFn === 'function') {
+            T.eq('PatClassic · a valid session name keeps its instant', patFn('Polar_H10_AAAAAAAA_20260919_183658_ECG.txt'), U(2026, 8, 19, 18, 36, 58));
+            T.eq('PatClassic · the contiguous form gives the SAME instant', patFn('Polar_H10_AAAAAAAA_20260919183658_ECG.txt'), U(2026, 8, 19, 18, 36, 58));
+            T.eq('PatClassic · month 13 → null (was a real instant `nearest()` picked a session by)', patFn('Polar_H10_AAAAAAAA_20261332_999999_ECG.txt'), null);
+            T.eq('PatClassic · Feb 30 → null (was 2026-03-02)', patFn('Polar_H10_AAAAAAAA_20260230_120000_ECG.txt'), null);
+            T.eq('PatClassic · §2.7 hour 23 ACCEPTED — band closed at 23', patFn('Polar_H10_AAAAAAAA_20260919_230000_ECG.txt'), U(2026, 8, 19, 23, 0, 0));
+            T.eq('PatClassic · §2.7 hour 25 → null', patFn('Polar_H10_AAAAAAAA_20260919_250000_ECG.txt'), null);
+            T.eq('PatClassic · §2.7 second 59 ACCEPTED — kills `se >= 59`', patFn('Polar_H10_AAAAAAAA_20260919_183659_ECG.txt'), U(2026, 8, 19, 18, 36, 59));
+            T.eq('PatClassic · §2.7 second 60 → null', patFn('Polar_H10_AAAAAAAA_20260919_183660_ECG.txt'), null);
+            T.eq('PatClassic · the ACCEPT TEST is unchanged — the stamp must precede the stream suffix', patFn('20260919_183658.txt'), null);
+            T.eq('PatClassic · §∅ a stamp-less name is null, never 0', patFn('Polar_H10_AAAAAAAA_ECG.txt'), null);
+          }
+        }
+      }
     });
 
     /* ════ 2 · CROSS-NIGHT SIGNIFICANCE (#1 boundary fix) ════ */
