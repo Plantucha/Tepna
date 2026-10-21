@@ -50,6 +50,66 @@ if (process.argv.includes('--verdict-sample')) {
   console.log(JSON.stringify(verdictSample('tools/cpap-oxy-couple.mjs'), null, 1));
   process.exit(0);
 }
+/* `--selftest`: `couplingPerNight` over synthetic nights with a known answer. It reads no file and
+   builds no OxyDex realm, so it runs before the `--exports` / `--oxy` check. */
+if (process.argv.includes('--selftest')) {
+  let pass = 0;
+  let fail = 0;
+  const ok = (cond, name) => {
+    if (cond) pass++;
+    else {
+      fail++;
+      console.log('  ✗ ' + name);
+    }
+  };
+  const T0 = Date.UTC(2026, 5, 10, 23, 0, 0);
+  const H = 3600e3;
+  const cov = [T0, T0 + 8 * H];
+  // night 1: a desat about every 10 min, each one 20 s after an apnea — every observed event is a hit
+  // at 0–30 s. The jitter keeps the grid aperiodic: a periodic B resonates with the shifted null.
+  const d1 = [];
+  for (let k = 1; k <= 40; k++) d1.push({ tMs: T0 + k * 600e3 + ((k * k * 53) % 240) * 1e3 + 20e3 });
+  const ev1 = d1.map((d) => ({ tMs: d.tMs - 20e3, durSec: 15, _d: d1, _cov: cov }));
+  // five events after the oximeter stopped: unobserved, so EXCLUDED, never misses
+  for (let k = 1; k <= 5; k++) ev1.push({ tMs: cov[1] + k * 60e3, durSec: 15, _d: d1, _cov: cov });
+  // night 2: the oximeter saw no desat at all — 4 events, 0 hits, still counted
+  const d2 = [];
+  const ev2 = [1, 2, 3, 4].map((k) => ({ tMs: T0 + 24 * H + k * H, durSec: 15, _d: d2, _cov: [T0 + 24 * H, T0 + 32 * H] }));
+
+  const r = couplingPerNight(ev1.concat(ev2), [0, 30e3]);
+  ok(r.n === 44, `n counts observed events of both nights (got ${r.n}, want 44)`);
+  ok(r.excluded === 5, `events outside the oximeter span are excluded (got ${r.excluded}, want 5)`);
+  // pooled by summing hits: 40/44, never the mean of the per-night 100 % and 0 %
+  ok(Math.abs(r.observedPct - (40 / 44) * 100) < 1e-9, `hits pool across nights (got ${r.observedPct}, want ${(40 / 44) * 100})`);
+  ok(r.chancePct > 0 && r.chancePct < 15, `a 30 s window over a 10 min desat grid has a small, nonzero chance rate (got ${r.chancePct})`);
+  ok(r.lift > 5 && !r.saturated, `a planted coupling reads as a high, unsaturated lift (got ×${r.lift})`);
+  // 44 events at a few % chance expect about one hit from chance alone: the flag says so
+  ok(r.underpowered === r.expectedHits < 3, `underpowered follows expectedHits < 3 (expectedHits ${r.expectedHits})`);
+  ok(Math.abs(r.expectedHits - (r.n * r.chancePct) / 100) < 1e-9, 'expectedHits = n × chance');
+
+  // a window wider than the desat spacing cannot resolve a coupling: saturated, not a negative
+  const wide = couplingPerNight(ev1, [0, 900e3]);
+  ok(wide.saturated && wide.maxLift < 1.5, `a 15 min window over a 6–14 min grid is saturated (maxLift ${wide.maxLift})`);
+
+  // the same events displaced 5 min from every desat: no hit, and the lift says so
+  const off = d1.map((d) => ({ tMs: d.tMs - 320e3, durSec: 15, _d: d1, _cov: cov }));
+  const r0 = couplingPerNight(off, [0, 30e3]);
+  ok(r0.n === 40 && r0.observedPct === 0 && r0.lift === 0, `a planted anti-alignment reads lift ×0 (got ×${r0.lift})`);
+
+  // night 2 alone: no desat, no primitive call — n carries, the rates stay finite
+  const r2 = couplingPerNight(ev2, [0, 30e3]);
+  ok(r2.n === 4 && r2.observedPct === 0, `a desat-free night counts its events as misses (got n=${r2.n}, ${r2.observedPct} %)`);
+
+  const empty = couplingPerNight([], [0, 30e3]);
+  ok(empty.n === 0 && Number.isNaN(empty.lift), 'no events: n 0 and lift NaN, never 0');
+
+  if (fail) {
+    console.log(`cpap-oxy-couple selftest: ${pass} passed, ${fail} failed`);
+    process.exit(1);
+  }
+  console.log(`all ${pass} selftests passed`);
+  process.exit(0);
+}
 const EXPORTS = arg('--exports', null);
 const OXYDIR = arg('--oxy', null);
 if (!EXPORTS || !OXYDIR) {

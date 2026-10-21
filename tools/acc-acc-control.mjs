@@ -39,6 +39,7 @@
  * Read-only: parses recordings, writes nothing.
  * ════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -63,7 +64,7 @@ const SELF_REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
    module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
    reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--verdict-sample', '--help', '-h'], positional: true }, { tool: 'acc-acc-control' });
+if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--verdict-sample', '--selftest', '--help', '-h'], positional: true }, { tool: 'acc-acc-control' });
 const argRepo = process.argv[2] && !process.argv[2].startsWith('-') ? process.argv[2] : null;
 const REPO = argRepo || SELF_REPO;
 const argRoot = process.argv[3] && !process.argv[3].startsWith('-') ? process.argv[3] : null;
@@ -237,6 +238,114 @@ const med = (a) => {
   const b = a.slice().sort((x, y) => x - y);
   return b.length ? b[b.length >> 1] : NaN;
 };
+
+/* --- `--selftest`: the parser, the stitch and the FINE leg against synthetic ACC with a known answer.
+   It writes two layouts of one stream into a scratch dir, so it needs no corpus. */
+if (process.argv.includes('--selftest')) {
+  let pass = 0;
+  let fail = 0;
+  const ok = (cond, name) => {
+    if (cond) pass++;
+    else {
+      fail++;
+      console.log('  ✗ ' + name);
+    }
+  };
+  // a seeded LCG, so the known answer is the same on every machine
+  let seed = 12345;
+  const rnd = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  const HZ = 50;
+  const N = 30 * 60 * HZ; // 30 min
+  const move = new Float64Array(N);
+  for (let s = 0; s < N; ) {
+    s += Math.floor((8 + rnd() * 20) * HZ); // a movement every 8–28 s
+    const len = Math.floor((1 + rnd() * 2) * HZ);
+    const amp = 100 + rnd() * 400;
+    for (let i = 0; i < len && s + i < N; i++) move[s + i] = amp * Math.sin((Math.PI * i) / len);
+  }
+  const T0 = Date.UTC(2026, 6, 16, 23, 0, 0);
+  const NS0 = 599000000000000000;
+  const stream = (gain, noise) => {
+    const z = new Float64Array(N);
+    for (let i = 0; i < N; i++) z[i] = 1000 + gain * move[i] + noise * (rnd() - 0.5);
+    return z;
+  };
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 23).replace('T', ' ');
+  const write = (file, z, i0, i1, layout) => {
+    const head = layout === 'old' ? 'Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]' : 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]';
+    const rows = [head];
+    for (let i = i0; i < i1; i++) {
+      const ms = (i * 1000) / HZ;
+      const cells = [iso(T0 + ms), String(NS0 + Math.round(ms * 1e6))];
+      if (layout === 'old') cells.push(ms.toFixed(3));
+      cells.push('0', '0', z[i].toFixed(3));
+      rows.push(cells.join(';'));
+    }
+    fs.writeFileSync(file, rows.join('\n') + '\n');
+  };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'acc-acc-selftest-'));
+  try {
+    const zA = stream(1, 20);
+    const zB = stream(0.6, 20);
+    const f = (n) => path.join(dir, n);
+    write(f('a-old.txt'), zA, 0, N, 'old');
+    write(f('a-new.txt'), zA, 0, N, 'new');
+    // device B in two fragments; the stitch must order them by time, not by argument order
+    write(f('b-2.txt'), zB, N / 2, N, 'new');
+    write(f('b-1.txt'), zB, 0, N / 2, 'new');
+    fs.writeFileSync(f('no-z.txt'), 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg]\n2026-07-16 23:00:00.000;1;0;0\n');
+    fs.writeFileSync(f('bad-stamp.txt'), 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n16/07/2026 23:00:00;1;0;0;1000\n');
+
+    const pOld = parseACC(f('a-old.txt'));
+    const pNew = parseACC(f('a-new.txt'));
+    ok(pOld && pOld.t.length === N, `the six-column layout parses every row (got ${pOld && pOld.t.length}, want ${N})`);
+    ok(pNew && pNew.t.length === N, `the five-column layout parses every row (got ${pNew && pNew.t.length}, want ${N})`);
+    let same = pOld && pNew;
+    for (let i = 0; same && i < N; i += 997) same = pOld.t[i] === pNew.t[i] && pOld.v[i] === pNew.v[i];
+    ok(same, 'both layouts give the same samples');
+    ok(pNew && pNew.t[0] === T0, `the first phone stamp anchors the file (got ${pNew && pNew.t[0]}, want ${T0})`);
+    ok(pNew && Math.abs(pNew.t[N - 1] - T0 - ((N - 1) * 1000) / HZ) < 0.001, 'the sensor ns delta carries the timebase');
+    ok(pNew && Math.abs(pNew.v[7] - Math.abs(zA[7])) < 0.01, 'v is the |xyz| magnitude');
+    ok(parseACC(f('no-z.txt')) === null, 'a header without a Z column parses to null');
+    ok(parseACC(f('bad-stamp.txt')) === null, 'a first row with no ISO stamp parses to null');
+    ok(isoMs('2026-07-16 23:00:00.5') === T0 + 500, 'isoMs reads a fraction as milliseconds');
+
+    const A = stitch([f('a-new.txt')]);
+    const B = stitch([f('b-2.txt'), f('b-1.txt')]);
+    let mono = B && B.t.length === N;
+    for (let i = 1; mono && i < N; i++) mono = B.t[i] > B.t[i - 1];
+    ok(mono, 'stitch orders two fragments by time');
+    ok(stitch([f('no-z.txt')]) === null, 'stitch over no parseable fragment is null');
+
+    // the FINE leg: true offset 0 recovers ~0; a planted +800 ms recovers |Δ| ≈ 800 ms
+    const ov0 = Math.max(A.t[0], B.t[0]);
+    const ov1 = Math.min(A.t[N - 1], B.t[N - 1]);
+    const envA = envOf(A, ov0, ov1, 0, FINE);
+    const r0 = PA.alignByAnchors(envA, envOf(B, ov0, ov1, 0, FINE), ov0, FINE);
+    const m0 = r0.ok ? med(r0.anchors.map((a) => a.offsetMs)) : NaN;
+    ok(r0.ok && Math.abs(m0) <= 100, `FINE recovers the true offset 0 (got ${r0.ok ? m0 + ' ms' : r0.reason})`);
+    const r8 = PA.alignByAnchors(envA, envOf(B, ov0, ov1, 800, FINE), ov0, FINE);
+    const m8 = r8.ok ? med(r8.anchors.map((a) => a.offsetMs)) : NaN;
+    ok(r8.ok && Math.abs(Math.abs(m8 - m0) - 800) <= 100, `FINE recovers a planted 800 ms (got ${r8.ok ? m8 - m0 + ' ms' : r8.reason})`);
+    // an unrelated movement stream: no clean shared movement, so no alignment
+    const zC = new Float64Array(N);
+    for (let i = 0; i < N; i++) zC[i] = 1000 + 20 * (rnd() - 0.5);
+    write(f('c.txt'), zC, 0, N, 'new');
+    const rc = PA.alignByAnchors(envA, envOf(stitch([f('c.txt')]), ov0, ov1, 0, FINE), ov0, FINE);
+    ok(!rc.ok, `a stream with no movement does not align (got ${rc.ok ? 'ok' : rc.reason})`);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  if (fail) {
+    console.log(`acc-acc-control selftest: ${pass} passed, ${fail} failed`);
+    process.exit(1);
+  }
+  console.log(`all ${pass} selftests passed`);
+  process.exit(0);
+}
 
 /* --- inventory: night -> device -> fragment list --- */
 const walk = (d) => {
