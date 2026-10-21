@@ -4840,6 +4840,106 @@
            assertion chasing them. The guard arms stay because they reject earlier and cheaper than
            the round-trip does. */
       }
+      /* ── DexIngest `stampMs` — the FILENAME stamp on the app AND host ingest path ──────────
+         Everything above is a node-local CLOCK parser. `dex-ingest.js stampMs` reads a stamp out of
+         a FILENAME, so it sits outside that set and no leg of this group ever looked at it. It kept
+         a bare `Date.UTC` over six digit slices until 2026-10-21. Measured on the unguarded code:
+         `…_20261332_999999_…` landed on 2027-02-05, `…_20260230_…` on 2026-03-02, and
+         `…_99999999_999999_…` on year 10007. That matters more than a dropped file, because
+         `stampMs` keys the device-session dedupe and feeds `pickNearestByStamp`, so a fabricated
+         instant mis-plans an ingest instead of refusing one name.
+
+         `clock.js` already owns these rules — `_ckMk` for the ranges, `fileStamp` for the plausible
+         year — and `dex-ingest.js` CANNOT call either: it rides PpgDex, which carries no `clock.js`,
+         so `DexClock` is undefined there and a delegation would throw at module evaluation
+         (CLAUDE.md §👥.3). The PARITY leg is what earns the second copy: it pins `stampMs` against
+         `DexClock.fileStamp` over the names `stampMs`'s own anchored regex accepts. */
+      var DIx = env.DexIngest,
+        DCx = env.DexClock;
+      T.ok('DexIngest.stampMs exposed', !!(DIx && typeof DIx.stampMs === 'function'), 'export stampMs from dex-ingest.js');
+      if (DIx && typeof DIx.stampMs === 'function') {
+        var SM = function (stamp) {
+          return DIx.stampMs('Polar_H10_AAAAAAAA_' + stamp + '_ECG.txt');
+        };
+        T.eq('DexIngest · valid PSL split 20260919_183658 → tMs unchanged', SM('20260919_183658'), U(2026, 8, 19, 18, 36, 58));
+        T.eq('DexIngest · valid capture-host contiguous 20260919183658 → the SAME tMs', SM('20260919183658'), U(2026, 8, 19, 18, 36, 58));
+        T.eq('DexIngest · month 13 → null (was 2027-02-05)', SM('20261332_999999'), null);
+        T.eq('DexIngest · Feb 30 → null (was 2026-03-02)', SM('20260230_120000'), null);
+        T.eq('DexIngest · Apr 31 → null (was 2026-05-01)', SM('20260431_120000'), null);
+        T.eq('DexIngest · all nines → null (was year 10007)', SM('99999999_999999'), null);
+        T.eq('DexIngest · ISO end-of-day 240000 → next-day 00:00 (KEPT, no bare h>23 guard)', SM('20260919_240000'), U(2026, 8, 20, 0, 0, 0));
+        T.eq('DexIngest · 240001 → null (the end-of-day arm is exact, not an hour-24 pass)', SM('20260919_240001'), null);
+        /* §2.7 boundary pairs — accept at the edge, reject just outside. A far-out value alone
+           cannot see a bound that moved by one: see the GlucoDex block above for the five mutants
+           that survived on exactly that gap. */
+        T.eq('DexIngest · §2.7 hour 23 ACCEPTED — band closed at 23', SM('20260919_230000'), U(2026, 8, 19, 23, 0, 0));
+        T.eq('DexIngest · §2.7 hour 25 → null', SM('20260919_250000'), null);
+        T.eq('DexIngest · §2.7 minute 59 ACCEPTED — kills `mi >= 59`', SM('20260919_185900'), U(2026, 8, 19, 18, 59, 0));
+        T.eq('DexIngest · §2.7 minute 60 → null', SM('20260919_186000'), null);
+        T.eq('DexIngest · §2.7 second 59 ACCEPTED — kills `se >= 59`', SM('20260919_183659'), U(2026, 8, 19, 18, 36, 59));
+        T.eq('DexIngest · §2.7 second 60 → null', SM('20260919_183660'), null);
+        T.eq('DexIngest · §2.7 a NON-ZERO second is legal — kills `se > 0`', SM('20260919_183630'), U(2026, 8, 19, 18, 36, 30));
+        T.eq('DexIngest · §2.7 month 1 ACCEPTED — band closed at 1', SM('20260119_183658'), U(2026, 0, 19, 18, 36, 58));
+        T.eq('DexIngest · §2.7 month 12 ACCEPTED — band closed at 12', SM('20261219_183658'), U(2026, 11, 19, 18, 36, 58));
+        T.eq('DexIngest · §2.7 day 31 ACCEPTED in a 31-day month', SM('20260731_183658'), U(2026, 6, 31, 18, 36, 58));
+        T.eq('DexIngest · §2.7 month 0 → null', SM('20260019_183658'), null);
+        T.eq('DexIngest · §2.7 day 0 → null', SM('20260900_183658'), null);
+        /* The plausible-year window is `fileStamp`'s third rule, and `_ckMk` alone does not supply
+           it — year 0292 round-trips perfectly well. Both edges are pinned, because a window that
+           only rejects the absurd cannot see an edge that moved. */
+        T.eq('DexIngest · year 1990 ACCEPTED — the window is closed at its low edge', SM('19900919_183658'), U(1990, 8, 19, 18, 36, 58));
+        T.eq('DexIngest · year 2099 ACCEPTED — closed at its high edge', SM('20990919_183658'), U(2099, 8, 19, 18, 36, 58));
+        T.eq('DexIngest · year 1989 → null (a serial, not a capture date)', SM('19890919_183658'), null);
+        T.eq('DexIngest · year 2100 → null', SM('21000919_183658'), null);
+        // The anchor itself must survive the guard: a 14-digit DEVICE ID is not the stamp (audit F5).
+        T.eq('DexIngest · a 14-digit device id does not become the stamp', DIx.stampMs('Polar_H10_20250101000000_20260725225058_ECG.txt'), U(2026, 6, 25, 22, 50, 58));
+        /* ── PARITY WITH THE OWNER. This is the leg that earns a second copy of the rules. ──── */
+        T.ok('DexClock reachable for the parity leg', !!(DCx && typeof DCx.fileStamp === 'function'), 'clock.js must load in this runner');
+        if (DCx && typeof DCx.fileStamp === 'function') {
+          var parityNames = [
+            '20260919_183658',
+            '20260919183658',
+            '20261332_999999',
+            '20260230_120000',
+            '20260431_120000',
+            '99999999_999999',
+            '20260919_240000',
+            '20260919_240001',
+            '20260919_230000',
+            '20260919_250000',
+            '20260919_185900',
+            '20260919_186000',
+            '20260919_183659',
+            '20260919_183660',
+            '20260119_183658',
+            '20261219_183658',
+            '20260731_183658',
+            '20260019_183658',
+            '20260900_183658',
+            '19900919_183658',
+            '20990919_183658',
+            '19890919_183658',
+            '21000919_183658'
+          ];
+          var parityChecked = 0,
+            paritySame = 0,
+            parityResolved = 0,
+            parityFirstDiff = '';
+          for (var pi = 0; pi < parityNames.length; pi++) {
+            var pname = 'Polar_H10_AAAAAAAA_' + parityNames[pi] + '_ECG.txt';
+            var mine = DIx.stampMs(pname),
+              owner = DCx.fileStamp(pname);
+            owner = owner ? owner.tMs : null;
+            parityChecked++;
+            if (mine !== null) parityResolved++;
+            if (mine === owner) paritySame++;
+            else if (!parityFirstDiff) parityFirstDiff = parityNames[pi] + ' ingest=' + mine + ' fileStamp=' + owner;
+          }
+          T.eq('DexIngest · stampMs agrees with DexClock.fileStamp on every probe', paritySame, parityChecked);
+          T.ok('DexIngest · the parity probe is not vacuous — some names RESOLVE', parityResolved >= 8, 'resolved ' + parityResolved + ' of ' + parityChecked);
+          T.eq('DexIngest · no parity disagreement', parityFirstDiff, '');
+        }
+      }
     });
 
     /* ════ 2 · CROSS-NIGHT SIGNIFICANCE (#1 boundary fix) ════ */
