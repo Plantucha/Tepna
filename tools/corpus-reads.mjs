@@ -299,6 +299,13 @@ export function functionSpans(masked) {
   };
   for (const m of masked.matchAll(/(?:\basync\s+)?\bfunction\b\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) add(m[1] || null, m[2], m.index + m[0].length);
   for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|([A-Za-z_$][\w$]*))\s*=>/g)) add(m[1], m[2] ?? m[3] ?? '', m.index + m[0].length);
+  /* THE DECLARATOR FORM OF A FUNCTION EXPRESSION, which the `function` pattern above sees as
+     ANONYMOUS because its name is optional there. Without this line `const f = function (…) {}`
+     produces a span with a null name, so `localFunctions` drops it and the local-helper rung
+     cannot follow argv into the body. The keyword is what makes the name safe to register: `=
+     function` binds nothing else. A named expression (`const f = function g(…) {}`) binds BOTH,
+     and the pattern above already registers the inner `g`. */
+  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?function\b\s*\*?\s*(?:[A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) add(m[1], m[2], m.index + m[0].length);
   for (const m of masked.matchAll(/\(([^)]*)\)\s*=>/g)) add(null, m[1], m.index + m[0].length);
   for (const m of masked.matchAll(/(?:^|[^\w$)])([A-Za-z_$][\w$]*)\s*=>/gm)) add(null, m[1], m.index + m[0].length);
   /* Method shorthand, which an object of walkers is written as. The keyword guard is what keeps
@@ -844,17 +851,27 @@ function selftest() {
        decide, and it is the whole reason the rule exists. */
     ['a dotted callee with no run-time part stays a repo walk', "const DIR = path.resolve(ROOT, 'docs');\nreaddirSync(DIR);", 'repo-tree'],
     ['the name heuristic still decides what nothing else can', 'readdirSync(process.cwd());', 'repo-tree'],
-    /* KNOWN GAP, PINNED AT TODAY'S WRONG ANSWER, found by the control for the leg above. The
-       local-helper rung reads `localFunctions`, which registers `function arg(…)` and `const arg =
-       (…) =>` and NOT `const arg = function (…)`, so the parts recursion cannot see that the helper
-       reads argv and the expression falls to the corpus rung. Latent today: the form appears once
-       in `tools/` (`tch-firmware-reference.mjs:376`, not a path helper), so no live site moves —
-       it is 43 files in the root `.js` tree this scan does not read. Row
-       2026-10-21-a-helper-declared-as-a-function-expression-is-invisible-to-the-local-rung. */
+    /* THE GAP THIS LEG PINNED IS CLOSED, AND THE THREE SPELLINGS OF ONE HELPER NOW AGREE. The
+       `function` pattern in `functionSpans` takes its name as OPTIONAL, so a declarator form
+       produced a span with a null name and `localFunctions` dropped it — the name was lost there
+       and not in the rung that reads the map. A fourth pattern registers the declarator, and these
+       three legs are the same helper written as a declaration, an arrow and an expression: all
+       three must read `enumerates`, because the flag-supplied path is what the call resolves to.
+       Row 2026-10-21-a-helper-declared-as-a-function-expression-is-invisible-to-the-local-rung. */
     [
-      'KNOWN GAP \u00b7 a helper declared as a function expression is not seen as local',
+      'a helper declared as a function expression is seen as local',
       "const argv = process.argv.slice(2);\nconst arg = function (k, d) {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));\nreaddirSync(TRIO);",
-      'repo-corpus'
+      'enumerates'
+    ],
+    [
+      '…a NAMED function expression too, whose inner name binds as well',
+      "const argv = process.argv.slice(2);\nconst arg = function pick(k, d) {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));\nreaddirSync(TRIO);",
+      'enumerates'
+    ],
+    [
+      '…and an async one, where the keyword sits between the `=` and the `function`',
+      "const argv = process.argv.slice(2);\nconst arg = async function (k, d) {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));\nreaddirSync(TRIO);",
+      'enumerates'
     ],
     /* THE GAP THAT WAS PINNED HERE IS CLOSED, AND THE LEG NOW ASSERTS THE RIGHT ANSWER. The corpus
        axis resolves the argument through the declaration in force and reads that initialiser's RAW
@@ -880,6 +897,19 @@ function selftest() {
     if (!ok) bad++;
     console.log(`  ${ok ? '✓' : '✗'} ${name} → ${got}${ok ? '' : ` (wanted ${want})`}`);
   }
+  /* THE REGISTRY, ASSERTED DIRECTLY, because the classification legs above cannot discriminate
+     here: an unknown callee already reads run-time-supplied, so `const a = helper(1)` reads
+     `enumerates` on either side of this change and says nothing about what was registered. The
+     risk the row named is exactly that — a declarator the file assigns a NON-function must stay
+     out of the map, or the rung follows argv into a body that does not exist. */
+  const reg = localFunctions(
+    'const a = helper(1);\nconst b = function (x) {\n  return x;\n};\nconst c = function inner(x) {\n  return x;\n};\nconst d = async function (x) {\n  return x;\n};\nconst e = (x) => x;\nfunction f(x) {\n  return x;\n}\n'
+  );
+  const wanted = ['b', 'c', 'd', 'e', 'f'];
+  const regOk = wanted.every((n) => reg.has(n)) && !reg.has('a') && reg.has('inner');
+  if (!regOk) bad++;
+  console.log(`  ${regOk ? '✓' : '✗'} the local registry holds every function form and no plain call (${wanted.filter((n) => reg.has(n)).join(' ')}${reg.has('a') ? ' + a' : ''})`);
+
   /* THE CONTROL THE NAIVE PREDICATE FAILS. It names no corpus root and it is the one wired
      consumer, so a scan that does not read it as `reports` is measuring the wrong thing. */
   const ctl = classifyTool(readFileSync(join(HERE, 'tch-firmware-reference.mjs'), 'utf8'));
