@@ -49,15 +49,27 @@ const OUT = join(ROOT, 'docs', 'TOOLS-INDEX.md');
 const NOISE = /Licensed under|apache\.org\/licenses|WITHOUT WARRANTIES|Copyright \d{4}|SPDX-License|See LICENSE|You may obtain|except in compliance|limitations under/i;
 const RULE = /^[\s─━═=*#·\-—_]+$/;
 
+/* 🔴 A STATEMENT IS NOT A PURPOSE. 39 of 279 tool headers carry the licence on `//` lines, and a
+   line comment carries no closing delimiter, so the scan reads on into the file's own code. Two
+   published cells were `import` statements: the index named a tool's import list as what the tool is
+   FOR, and the cell moved whenever an import did — which is how `verify:tools-index` reded on #3811
+   after a dead import came out of `strip-markup.mjs`. A statement-shaped line therefore CLOSES a
+   paragraph and never joins one. Measured over all 279 tools: only the intended 17 purposes move. */
+const CODE = /^(?:#!|'use strict';?$|import\s|export\s(?:default|function|const|class|\{|\*)|const\s[\w{[]|let\s[\w{[]|var\s[\w{[]|function\s|class\s\w|process\.(?:argv|env|exit)|await\s)/;
+
 function paragraphsOf(src) {
   const lines = String(src).split('\n').slice(0, 60);
   const i = lines.findIndex((l) => /SPDX-License-Identifier/.test(l));
   if (i < 0) return [];
   const close = lines.slice(i + 1).findIndex((l) => /\*\//.test(l));
   const bodyLines = close >= 0 ? lines.slice(i + 1, i + 1 + close) : lines.slice(i + 1);
+  /* `//` is stripped exactly as a block comment's `*` is. Without it 17 published cells opened with
+     the markers themselves — `// // box-sample.mjs — periodic resource sampler…` — and the filename
+     prefix below never matched, so those rows also repeated the tool's own name back at the reader. */
   const body = bodyLines.map((l) =>
     l
       .replace(/^\s*\*\s?/, '')
+      .replace(/^\s*\/\/+\s?/, '')
       .replace(/^\s*\/\*+/, '')
       .trimEnd()
   );
@@ -65,7 +77,7 @@ function paragraphsOf(src) {
   let cur = [];
   for (const l of body) {
     const t = l.trim();
-    if (!t || RULE.test(t)) {
+    if (!t || RULE.test(t) || CODE.test(t)) {
       if (cur.length) {
         paras.push(cur);
         cur = [];
@@ -95,57 +107,12 @@ function remainingParagraphs(src) {
 }
 
 export function purposeFromSource(src) {
-  const lines = String(src).split('\n').slice(0, 60);
-  const i = lines.findIndex((l) => /SPDX-License-Identifier/.test(l));
-  if (i < 0) return null;
-  /* Stop at the comment terminator. Without this the closing delimiter strips to a bare `/` and JOINS
-     the last paragraph — "…long enough. /" — which real files usually hide because another paragraph
-     follows, and which would silently corrupt any header whose purpose IS its final paragraph.
-     (Writing that delimiter literally here would have closed THIS comment — which is exactly how the
-     first version of this note broke the file.) */
-  const close = lines.slice(i + 1).findIndex((l) => /\*\//.test(l));
-  const bodyLines = close >= 0 ? lines.slice(i + 1, i + 1 + close) : lines.slice(i + 1);
-  const body = bodyLines.map((l) =>
-    l
-      .replace(/^\s*\*\s?/, '')
-      .replace(/^\s*\/\*+/, '')
-      .trimEnd()
-  );
-  const paras = [];
-  let cur = [];
-  for (const l of body) {
-    const t = l.trim();
-    if (!t || RULE.test(t)) {
-      if (cur.length) {
-        paras.push(cur);
-        cur = [];
-      }
-    } else cur.push(t);
-  }
-  if (cur.length) paras.push(cur);
-  for (const p of paras) {
-    const joined = p.join(' ');
-    if (NOISE.test(joined)) continue;
-    let t = joined.replace(/^[─━═=*·\-—\s]+/, '').trim();
-    if (/^[\w./-]+\.(mjs|js)\b\s*[—-]?\s*Tepna\s*$/.test(t)) continue;
-    t = t.replace(/^[\w./-]+\.(mjs|js)\s+—\s+/, '');
-    t = t.replace(/[─━═=]{3,}.*$/, '').trim(); // a trailing box-drawing rule on the same line
-    /* 🔴 STRIP DOIs. A tool header may cite a paper properly — author, year, journal, DOI — but this
-       index reproduces only ONE LINE of it, and a DOI severed from its attribution is exactly the
-       "fabricated authority" CLAUDE.md §📚 forbids: the link still resolves and still lands on the
-       right paper, which is what makes a wrong or context-free citation undetectable to a reader.
-       `citation-ledger` gates every DOI on a `docs/**.md` surface and caught this on the first full
-       run — the generated index inherited Victor & Purpura's DOI from `beat-correspondence.mjs`.
-       Strip rather than exempt the file: the citation belongs in the tool, not in a pointer to it. */
-    t = t
-      .replace(/\(?\s*(?:doi:\s*)?10\.\d{4,}\/[^\s,;)\]]+\s*\)?/gi, '')
-      .replace(/\s{2,}/g, ' ')
-      .replace(/\s+([.,;])/g, '$1')
-      .trim();
-    if (t.length < 12) continue;
-    return t.replace(/\s+/g, ' ');
-  }
-  return null;
+  /* ONE window, ONE paragraph cleaner. This function carried its own copy of both for months, so the
+     wide-box fix (residue `2026-10-12-the-tools-index-cannot-read-a-wide-box-rule`) had to be written
+     twice, and the line-comment fix above would have had to be written twice again. `cleanParagraph`
+     already refuses a paragraph by returning null, so the first survivor IS the purpose. */
+  const [first] = remainingParagraphs(src);
+  return first === undefined ? null : first;
 }
 
 /* A first paragraph is often just a POINTER — "EXTERNAL-METHODS-SURVEY §2's measurement." — which
@@ -279,6 +246,26 @@ function selfTest() {
   }
   eq(purposeFromSource('/*\n * no spdx here\n */') === null, 'no SPDX ⇒ no purpose (refuse, do not guess)');
   eq(purposeFromSource(hdr(' * short')) === null, 'a too-short fragment is not a purpose');
+  /* 🔴 THE LINE-COMMENT HEADER. 39 of 279 tools carry the licence on `//` lines instead of in a
+     block, and the window under such a header closes on nothing, so the scan published the markers
+     and then the file's own code. One cell read `// // box-sample.mjs — periodic resource sampler…`
+     and two read an `import` statement. The two legs here assert the repaired text; the population
+     leg below them is what makes this a measurement rather than two examples. */
+  {
+    const lc =
+      '#!/usr/bin/env node\n// Copyright 2026 Michal Planicka\n// SPDX-License-Identifier: Apache-2.0\n//\n// foo.mjs — counts the nights a device actually recorded.\n//\n// A later paragraph says something else.\n';
+    eq(purposeFromSource(lc) === 'counts the nights a device actually recorded.', 'a line-comment header yields prose — the markers and the filename prefix are both stripped');
+    const walksIntoCode = "// SPDX-License-Identifier: Apache-2.0\nimport { readFileSync } from 'node:fs';\nconst ROOT = resolve('..');\n\n/* Says which ledger rows a gate examined.\n */";
+    eq(purposeFromSource(walksIntoCode) === 'Says which ledger rows a gate examined.', 'an import or a const after the header is not the purpose');
+  }
+  /* THE POPULATION, measured over the tree rather than over two fixtures. A scan that examined nothing
+     would pass an emptiness check in silence, so the tool count is asserted beside it. */
+  {
+    const all = collect();
+    const shaped = all.filter((e) => e.purpose && (/^\/\//.test(e.purpose) || CODE.test(e.purpose)));
+    eq(all.length > 250, `the scan examined the tree — ${all.length} tools`);
+    eq(shaped.length === 0, `no published purpose is a comment marker or a statement — ${shaped.map((e) => e.name).join(', ') || 'none'}`);
+  }
   /* 🔴 THE LOUD-FAILURE CONTRACT. A tool with no purpose must be EMITTED, never skipped — otherwise
      the generator hides exactly the tools this index exists to surface. */
   /* The two functions FOUGHT: purposeWithContext appended substance, then a first-sentence cut threw
