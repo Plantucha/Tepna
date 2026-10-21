@@ -27,7 +27,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 // ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
 // vm-loading (else "Unexpected token 'export'"). build-core.js is required relative to THIS tool (not
@@ -234,9 +234,16 @@ function night(dateISO) {
 
 /* ── run ── */
 /* ONE walk, and the walk is the population. The `^2026-` rule is this tool's own and it stays:
-   a wider rule here would report a population the run never scored. The rule's own narrowness is
-   logged as RESIDUE 2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year.
-   (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population) */
+   a wider rule here would report a population the run never scored, and re-scoring the published
+   figures is not a side effect a rename of a constant gets to have.
+   (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population)
+
+   🔴 WHAT CHANGED IS THAT THE RULE NOW SAYS WHAT IT COST, every run, on its own line — residue
+   `2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year`. Before this the rule
+   ran inside the walk, so the verdict's `eligible` WAS the narrowed set and a refused night left
+   no trace anywhere. Measured 2026-10-21 over `uploads/trio`: 147 directories, 147 night-shaped,
+   147 under 2026, so the rule refuses nothing today. That is a measurement and not a reason to
+   drop it — the line reads `none` until the day it does not. */
 const popBefore = snapshotNights(TRIO, { re: /^2026-/ });
 const DATES = popBefore.nights;
 const ONLY = process.env.ONLY ? [process.env.ONLY] : DATES;
@@ -260,6 +267,10 @@ for (const d of ONLY) {
 }
 const population = populationVerdict(popBefore, snapshotNights(TRIO, { re: /^2026-/ }), { tool: TOOL, evidence: [TOOL] });
 console.log(`\n  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
+{
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+}
 if (process.env.ONLY) console.log(`  ONLY=${process.env.ONLY} narrowed this run to 1 of ${popBefore.n} night(s) in the root.`);
 
 if (!all.length) {
