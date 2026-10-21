@@ -10548,14 +10548,18 @@
       var sa = TT['tools/selftest-all.mjs'] || '';
       var va = TT['tools/verdict-adoption.mjs'] || '';
       var mSa = /return \/([^\n]+?)\/\.test\(s\);/.exec(sa);
-      var mVa = /const SELFTEST_CALL = \/([^\n]+?)\/;/.exec(va);
+      T.ok('CONTROL · the predicate was located in selftest-all.mjs', !!mSa, mSa ? 'found' : 'ABSENT — an absent anchor is a renamed predicate, not a pass');
+      if (!mSa) return;
+      /* ONE PATTERN BY IMPORT (row 2026-10-21-selftest-all-runs-its-cli-at-module-scope): the gate imports
+         the sweep's predicate, which an import can do only while both files guard their CLI. */
       T.ok(
-        'CONTROL · both predicates were located in their files',
-        !!(mSa && mVa),
-        'selftest-all=' + (mSa ? 'found' : 'ABSENT') + ' verdict-adoption=' + (mVa ? 'found' : 'ABSENT') + ' — an absent anchor is a renamed predicate, not a pass'
+        'verdict-adoption.mjs imports declaresSelftest from selftest-all.mjs',
+        /import \{[^}]*\bdeclaresSelftest\b[^}]*\} from '\.\/selftest-all\.mjs'/.test(va),
+        'no import — a second copy can drift'
       );
-      if (!mSa || !mVa) return;
-      T.eq('the two files carry the same pattern', mSa[1], mVa[1]);
+      T.ok('verdict-adoption.mjs carries no copy of the pattern', va.indexOf(mSa[1]) < 0, 'a copy of the regex source sits in the gate');
+      T.ok('selftest-all.mjs runs its CLI only as the entry', /\nif \(isCliEntry\(import\.meta\.url\)\) await main\(\);/.test(sa), 'an import would start a sweep');
+      T.ok('verdict-adoption.mjs runs its CLI only as the entry', /\nif \(isCliEntry\(import\.meta\.url\)\) main\(\);/.test(va), 'an import would run the gate');
       var RE = new RegExp(mSa[1]);
       /* THE SHIPPED PATTERN, not a copy of it: built from the text the gate will use. */
       T.ok('it reads the dashed literal in a call', RE.test("argv.includes('--selftest')"), 'includes · the three spellings the predicate already met');

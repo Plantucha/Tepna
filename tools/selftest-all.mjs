@@ -49,12 +49,13 @@
  * own: an unratcheted unparseable tool, or a paid debt left in the map, is FAIL by name. The EXIT CODE
  * STAYS for the shell and CI.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codeMask } from './js-lex.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -81,9 +82,9 @@ export function declaresSelftest(src) {
      could not see it. That tool declares a real selftest — four targets, a control and a plant, green
      in 2.9 s — and no runner had ever run it: this list named 190 tools on 2026-10-21 and not that
      one. The dashes are now optional, which recovers it with ZERO tools lost (190 → 191, verified
-     per file). `verdict-adoption.mjs` keys its own gating on the same pattern and a suite leg holds
-     the two spellings equal, because importing this module to share the predicate would start a
-     sweep — the CLI below runs at module scope. */
+     per file). `verdict-adoption.mjs` IMPORTS this function for its own gating, so the two readers
+     cannot drift: the CLI below runs only under `isCliEntry` (row
+     `2026-10-21-selftest-all-runs-its-cli-at-module-scope`, where the import used to start a sweep). */
   return /\(\s*['"](?:--)?selftest['"]\s*\)/.test(s);
 }
 
@@ -374,17 +375,6 @@ export const UNPARSEABLE_RATCHET = new Set([
   'wt-done.mjs'
 ]);
 
-const files = readdirSync(TOOLS)
-  .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
-  .filter((f) => {
-    try {
-      return declaresSelftest(readFileSync(join(TOOLS, f), 'utf8'));
-    } catch (_) {
-      return false;
-    }
-  })
-  .sort();
-
 /* This script is excluded from its own DISCOVERY list, which would leave its predicates ungated — the
    exact shape it exists to catch. `--selftest` therefore runs them; the CI loop finds this file by that
    same literal and runs it, so the detector is gated by the mechanism it guards. */
@@ -494,210 +484,247 @@ export function verdictSample() {
   });
 }
 
-if (argv.includes('--verdict-sample')) {
-  console.log(JSON.stringify(verdictSample()));
-  process.exit(0);
-}
+/* THE CLI. Everything below runs only when this file is the entry, so an import shares the predicates
+   above without starting a sweep. */
+async function main() {
+  const files = readdirSync(TOOLS)
+    .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
+    .filter((f) => {
+      try {
+        return declaresSelftest(readFileSync(join(TOOLS, f), 'utf8'));
+      } catch (_) {
+        return false;
+      }
+    })
+    .sort();
 
-if (argv.includes('--selftest')) {
-  let n = 0;
-  const eq = (c, m) => {
-    n++;
-    if (!c) {
-      console.error(`  \u2717 FAILED: ${m}`);
-      process.exit(1);
-    }
-  };
-  eq(declaresSelftest("if (argv.includes('--selftest')) {"), 'includes() form is recognised');
-  eq(declaresSelftest("if (has('--selftest')) {"), 'has() form is recognised');
-  eq(declaresSelftest("if (argv.indexOf('--selftest') >= 0) {"), 'indexOf() form is recognised');
-  eq(!declaresSelftest(' * usage: node tools/x.mjs --selftest'), 'a usage COMMENT alone does not enrol a tool');
-  eq(!declaresSelftest("if (process.argv[2] === '--self-test') {"), 'the hyphenated === form is NOT recognised (this is the bug)');
-  eq(declaresNearMissSelftest("if (process.argv[2] === '--self-test') { selfTest(); }"), 'the hyphenated flag is reported as a near miss');
-  eq(declaresNearMissSelftest('export function selfTest() { return 3; }'), 'selftest machinery with no reachable flag is a near miss');
-  eq(!declaresNearMissSelftest("if (argv.includes('--selftest')) { selfTest(); }"), 'a correctly-enrolled tool is NOT a near miss');
-  eq(!declaresNearMissSelftest('export function main() { return 0; }'), 'a tool with no selftest at all is not a near miss');
-  /* THE FAILURE REPORT ITSELF (2026-09-02). This filtered a failing tool's output to lines containing
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    process.exit(0);
+  }
+
+  if (argv.includes('--selftest')) {
+    let n = 0;
+    const eq = (c, m) => {
+      n++;
+      if (!c) {
+        console.error(`  \u2717 FAILED: ${m}`);
+        process.exit(1);
+      }
+    };
+    eq(declaresSelftest("if (argv.includes('--selftest')) {"), 'includes() form is recognised');
+    eq(declaresSelftest("if (has('--selftest')) {"), 'has() form is recognised');
+    eq(declaresSelftest("if (argv.indexOf('--selftest') >= 0) {"), 'indexOf() form is recognised');
+    eq(!declaresSelftest(' * usage: node tools/x.mjs --selftest'), 'a usage COMMENT alone does not enrol a tool');
+    eq(!declaresSelftest("if (process.argv[2] === '--self-test') {"), 'the hyphenated === form is NOT recognised (this is the bug)');
+    eq(declaresNearMissSelftest("if (process.argv[2] === '--self-test') { selfTest(); }"), 'the hyphenated flag is reported as a near miss');
+    eq(declaresNearMissSelftest('export function selfTest() { return 3; }'), 'selftest machinery with no reachable flag is a near miss');
+    eq(!declaresNearMissSelftest("if (argv.includes('--selftest')) { selfTest(); }"), 'a correctly-enrolled tool is NOT a near miss');
+    eq(!declaresNearMissSelftest('export function main() { return 0; }'), 'a tool with no selftest at all is not a near miss');
+    /* THE FAILURE REPORT ITSELF (2026-09-02). This filtered a failing tool's output to lines containing
      the assertion marker or FAILED — the shape of an ASSERTION failure — and dropped `err`, so a
      timeout or a crash printed a bare "FAILED" and a BLANK line. Measured: two independent
      `dsp-review-qwen` failures printed exactly that while the tool passes standalone, so the cause
      could not be diagnosed — the runner had thrown the evidence away. Verified against a planted
      hanging tool, which now reports `TIMED OUT after 120s (killed, SIGTERM)`. */
-  eq(whyFailed(null, 120000) === null, 'a successful run has no failure reason');
-  eq(whyFailed({ killed: true, signal: 'SIGTERM' }, 120000).startsWith('TIMED OUT after 120s'), 'a killed process is reported as a TIMEOUT, in seconds');
-  eq(whyFailed({ killed: true, signal: 'SIGTERM', code: 1 }, 120000).includes('TIMED OUT'), 'timeout wins over an exit code — a killed process also carries one');
-  eq(whyFailed({ code: 7 }, 120000) === 'exited 7', 'a non-zero exit reports its code');
-  eq(whyFailed({ signal: 'SIGKILL' }, 120000) === 'killed by SIGKILL', 'a signal kill (OOM) is named, not swallowed');
-  eq(whyFailed({ message: 'spawn ENOENT\nstack' }, 120000) === 'spawn ENOENT', 'a spawn failure reports its first line only');
-  eq(failureLines('ok\n  \u2717 parse: junk\nmore').length === 1, 'assertion lines lead when the tool printed any');
-  eq(failureLines('a\nb\nc\nd\ne\nf\ng\nh').length === 6, 'otherwise the TAIL is shown, capped at 6 lines');
-  eq(failureLines('').length === 0, 'no output at all returns nothing — the caller says so in words');
-  eq(failureLines('  \n\n  ').length === 0, 'whitespace-only output is no output');
-  /* ── the bounded pool ────────────────────────────────────────────────────────────────────────
+    eq(whyFailed(null, 120000) === null, 'a successful run has no failure reason');
+    eq(whyFailed({ killed: true, signal: 'SIGTERM' }, 120000).startsWith('TIMED OUT after 120s'), 'a killed process is reported as a TIMEOUT, in seconds');
+    eq(whyFailed({ killed: true, signal: 'SIGTERM', code: 1 }, 120000).includes('TIMED OUT'), 'timeout wins over an exit code — a killed process also carries one');
+    eq(whyFailed({ code: 7 }, 120000) === 'exited 7', 'a non-zero exit reports its code');
+    eq(whyFailed({ signal: 'SIGKILL' }, 120000) === 'killed by SIGKILL', 'a signal kill (OOM) is named, not swallowed');
+    eq(whyFailed({ message: 'spawn ENOENT\nstack' }, 120000) === 'spawn ENOENT', 'a spawn failure reports its first line only');
+    eq(failureLines('ok\n  \u2717 parse: junk\nmore').length === 1, 'assertion lines lead when the tool printed any');
+    eq(failureLines('a\nb\nc\nd\ne\nf\ng\nh').length === 6, 'otherwise the TAIL is shown, capped at 6 lines');
+    eq(failureLines('').length === 0, 'no output at all returns nothing — the caller says so in words');
+    eq(failureLines('  \n\n  ').length === 0, 'whitespace-only output is no output');
+    /* ── the bounded pool ────────────────────────────────────────────────────────────────────────
      Two contracts, and BOTH matter. Concurrency, because the whole defect was unbounded fan-out —
      84 subprocesses on 24 cores starving a tool into its own 120 s timeout. And ORDER, because the
      reporting below indexes results by position: a pool that returns completion-ordered results
      would silently attribute every failure to the wrong tool, which is a worse bug than the one
      being fixed and would not show up as a crash. */
-  {
-    let live = 0;
-    let peak = 0;
-    const seen = await runPooled(
-      [5, 4, 3, 2, 1, 0, 6, 7],
-      async (v) => {
-        live++;
-        peak = Math.max(peak, live);
-        await new Promise((r) => setTimeout(r, v));
-        live--;
-        return v * 10;
-      },
-      3
-    );
-    eq(peak <= 3, `the pool never exceeds its limit (peak ${peak}, limit 3)`);
-    eq(peak > 1, `…and it is actually CONCURRENT, not serialised (peak ${peak})`);
-    eq(seen.join(',') === '50,40,30,20,10,0,60,70', 'results stay in INPUT order, not completion order');
-  }
-  /* ── §3d PLANTS, one per table row, each object built through makeVerdict (an invalid one THROWS) */
-  {
-    const AT = { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' };
-    const ok = (f, cnt) => ({ f, ok: true, readable: true, n: cnt });
-    const R3 = [ok('a.mjs', 3), ok('b.mjs', 4), ok('c.mjs', 5)];
-    const green = sweepVerdict(R3, [], new Set(), AT);
-    eq(green.status === 'PASS' && green.result.assertions === 12 && green.population.checked === 3, '§3d · every tool parsed ⇒ PASS, assertions summed');
-    eq(
-      green.result.children.every((c) => c.provenance === 'summary' && c.n),
-      '§3d · children carry provenance summary and their count'
-    );
-    const fail = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: false, readable: false, why: 'exited 1' }, ok('c.mjs', 5)], [], new Set(), AT);
-    eq(fail.status === 'FAIL' && fail.result.firstFailure === 'tools/b.mjs', '§3d plant · a failing selftest ⇒ FAIL, named');
-    const to = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: false, readable: false, why: 'TIMED OUT after 120s (killed, SIGTERM)' }], [], new Set(), AT);
-    eq(to.status === 'UNKNOWN' && /b\.mjs/.test(to.reason), '§3d plant · a TIMEOUT ⇒ UNKNOWN, never a tool failure');
-    const unp = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: true, readable: false, n: null }], [], new Set(['b.mjs']), AT);
-    eq(unp.status === 'UNKNOWN' && unp.population.checked === 2, '§3d plant · green but unparseable (ratcheted) ⇒ UNKNOWN, still checked');
-    const unr = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: true, readable: false, n: null }], [], new Set(), AT);
-    eq(unr.status === 'FAIL' && /NOT in UNPARSEABLE_RATCHET \(b\.mjs\)/.test(unr.reason), '§3d plant · unparseable and NOT ratcheted ⇒ FAIL by the ratchet, named');
-    const paid = sweepVerdict(R3, [], new Set(['a.mjs']), AT);
-    eq(paid.status === 'FAIL' && /paid debt\(s\) still in the map \(a\.mjs\)/.test(paid.reason), '§3d plant · a paid debt left in the map ⇒ FAIL (the ratchet only goes down)');
-    const nm = sweepVerdict(R3, ['z.mjs'], new Set(), AT);
-    eq(
-      nm.status === 'UNKNOWN' && JSON.stringify(nm.population) === JSON.stringify({ checked: 3, eligible: 4, excluded: 1 }),
-      '§3d plant · a near-miss tool is NOT_RUN, excluded, and the run is UNKNOWN'
-    );
-    const none = sweepVerdict([], ['z.mjs'], new Set(), AT);
-    eq(none.status === 'NOT_RUN' && none.result === null, '§3d plant · nothing ran ⇒ NOT_RUN with result null');
-    const sample = verdictSample();
-    eq(sample.status === 'UNKNOWN' && sample.population.eligible === 5 && sample.producedBy.commit === null, '§3d · --verdict-sample is the honest shape: UNKNOWN over 4 checked of 5, no commit');
-  }
-  /* ── a COUNT IS COMPUTED, NEVER TYPED (residue 2026-10-11-ten-tools-hardcode-a-selftest-count) ──
-     Plants first — the detector's own sensitivity — then the real tree: no tool types its count. */
-  {
-    eq(literalCountLines("console.log(fail ? fail + ' failed of 14' : 'all 14 selftests passed');").length === 1, 'literal · the `all N selftests passed` spelling is a typed count');
-    eq(literalCountLines("console.log(fails.length ? 'selftest FAILED (' + fails.length + ' of 13)' : 'x');").length === 1, 'literal · a `FAILED … of N` denominator is a typed count');
-    eq(literalCountLines("console.log('selftest: all 20 selftests passed');").length === 1, 'literal · a prefixed spelling is still caught');
-    eq(literalCountLines('console.log(`all ${ran} selftests passed`);').length === 0, 'literal · an interpolated count is NOT flagged');
-    eq(literalCountLines('console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);').length === 0, 'literal · an interpolated denominator is NOT flagged');
-    eq(literalCountLines("// console.log('all 14 selftests passed')\n * 'all 14 selftests passed'").length === 0, 'literal · a comment is not a print');
-    eq(literalCountLines("ok(suiteReported('✓ all 7 assertions passed') === true);").length === 0, 'literal · a quoted plant that is not itself a print is not flagged');
-
-    /* ── THE SPELLING HALF ── the `PASS (n/m)` form `SUMMARY_FORMATS` parses, which the two original
-       regexes could not see. Four tools printed a flat one (measured 2026-10-20). */
-    eq(literalCountLines("console.log('SELFTEST PASS (7/7)');").length === 1, 'spelling · a flat `SELFTEST PASS (7/7)` is a typed count');
-    eq(literalCountLines("console.log(fail ? `FAIL (${fail})` : 'SELFTEST PASS (22/22)');").length === 1, 'spelling · a typed PASS beside an interpolated FAIL is still caught');
-    eq(literalCountLines("console.log('SELFTEST PASS (12 passed, 0 failed)');").length === 1, 'spelling · the `N passed, M failed` form counts too');
-    eq(literalCountLines('console.log(`SELFTEST PASS (${ran}/${ran})`);').length === 0, 'spelling · an interpolated PASS ratio is NOT flagged');
-    /* DECOY: the marker word is the false-positive guard this file's own ratchet comment asks for. A
-       RESULT ratio is not an assertion count, and a reader matching `n/m` anywhere would say it is. */
-    eq(literalCountLines("console.log('GATE PASS (12/12)');").length === 0, 'spelling DECOY · a PASS ratio with no selftest marker is a RESULT, never an assertion count');
-    eq(literalCountLines("console.log('coupling PASS (31/52) nights');").length === 0, 'spelling DECOY · a measured ratio in a tool report is not a summary');
-
-    /* ── THE HOP HALF ── residue `2026-10-19-selftest-count-static-check-misses-a-one-hop-literal`. */
-    eq(typedNumericConsts('const N = 83;\nconst NAME = 4;\n').get('N') === '83', 'hop · a numeric const is collected');
-    eq(typedNumericConsts('const ROWS = items.length;\nconst R = /\\d+/;\n').size === 0, 'hop · a computed or non-numeric const is not a typed number');
-    eq(typedNumericConsts('// const N = 9;\n   * const M = 9;\n').size === 0, 'hop · a const inside a comment is not collected');
-    eq(typedNumericConsts('let ran = 0;\nvar seen = 0;\n').size === 0, 'hop DECOY · a `let`/`var` counter is NOT a hop — taking them flagged 56 of 104 tools, nearly all correct');
-    eq(literalCountLines('const N = 83;\nconsole.log(`all ${N} selftests passed`);').length === 1, 'hop · a count one hop away in a const IS a typed count');
-    eq(literalCountLines('const TOTAL = 45;\nconsole.log(`SELFTEST PASS (${TOTAL}/${TOTAL})`);').length === 1, 'hop · the `pat-window-oracle` shape the row reported (#3675)');
-    eq(/typed one hop away: TOTAL = 45/.test(literalCountLines('const TOTAL = 45;\nconsole.log(`SELFTEST PASS (${TOTAL}/${TOTAL})`);')[0]), 'hop · the reported line NAMES the constant and its value');
-    eq(
-      literalCountLines('let ran = 0;\nconst ok = () => { ran += 1; };\nconsole.log(`all ${ran} selftests passed`);').length === 0,
-      'hop DECOY · a counter the helper increments is NOT flagged — it is what the rule asks for'
-    );
-    eq(literalCountLines('let N = 83;\nconsole.log(`all ${N} selftests passed`);').length === 1, 'hop · a `let` nothing ever reassigns is a typed count, exactly as a const is');
-    eq(literalCountLines('let N = 83;\nN = xs.length;\nconsole.log(`all ${N} selftests passed`);').length === 0, 'hop DECOY · a binding reassigned anywhere in the file is no hop');
-    eq(
-      literalCountLines('let n = 0;\nfor (const x of xs) n++;\nconsole.log(`all ${n} selftests passed`);').length === 0,
-      'hop DECOY · an inc-only counter is disqualified by the `n++`, with no assignment to find'
-    );
-    eq(neverReassignedNumerics("let N = 7;\nconst s = 'N = 1; N += 1';\n").get('N') === '7', 'hop · a reassignment QUOTED in a string is not a reassignment — the mask reads code only');
-    eq(
-      neverReassignedNumerics('let ran = 0;\nran += 1;\n').size === 0 && neverReassignedNumerics('var N = 5;\n').get('N') === '5',
-      'hop · a compound assign disqualifies, a lone `var` numeric does not'
-    );
-    eq(
-      literalCountLines("if (argv.includes('--selftest')) {\n  console.log(fail ? `FAIL (${fail})` : 'PASS (12/12)');\n}").length === 1,
-      'region · a typed ratio INSIDE the selftest block needs no marker word'
-    );
-    eq(
-      literalCountLines("if (argv.includes('--selftest')) {\n  console.log('PASS (12/12)');\n}\nconsole.log('GATE PASS (9/9)');").length === 1,
-      'region DECOY · the same spelling outside the block is still a RESULT, so only one line is reported'
-    );
-    eq(selftestRegions("// argv.includes('--selftest') {\nconsole.log('PASS (3/3)');").length === 0, 'region · a comment naming the flag opens no block');
-    eq(
-      literalCountLines("if (argv.includes('--selftest')) {\n  eq(f(\"console.log('coupling PASS (31/52)')\").length === 0, 'decoy');\n}").length === 0,
-      'region · a print QUOTED inside the block is not a print — the mask decides it, never the wording'
-    );
-    eq(literalCountLines('const FS = 100;\nconsole.log(`resampled at ${FS} Hz`);').length === 0, 'hop DECOY · a const in a print that is not a summary is not a count');
-    eq(literalCountLines('const N = 8;\nconsole.log(`all ${N} selftests passed`);\nconsole.log(`${f} failed of ${N}`);').length === 2, 'hop · both summary lines of one tool are reported');
-    const typed = readdirSync(TOOLS)
-      .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
-      .filter((f) => literalCountLines(readFileSync(join(TOOLS, f), 'utf8')).length > 0)
-      .sort();
-    eq(typed.length === 0, `no tool prints a typed assertion count — it must be incremented by the assertion helper (${typed.length}: ${typed.join(' · ')})`);
-  }
-  console.log(`all ${n} selftests passed`);
-  process.exit(0);
-}
-
-if (argv.includes('--list')) {
-  console.log(files.map((f) => '  tools/' + f).join('\n'));
-  process.exit(0);
-}
-
-const run = (f) =>
-  new Promise((res) => {
-    const t0 = Date.now();
-    execFile(process.execPath, [join(TOOLS, f), '--selftest'], { cwd: ROOT, timeout: TOOL_TIMEOUT_MS, maxBuffer: 1 << 24 }, (err, stdout, stderr) => {
-      const ms = Date.now() - t0;
-      const out = String(stdout || '') + String(stderr || '');
-      const m = SUMMARY_FORMATS.map((re) => out.match(re)).find(Boolean);
-      /* Load is sampled AT THE KILL, not at the end: by the time the sweep finishes the spike that
-         killed the tool is gone, and an average taken then would describe a different machine. */
-      res({ f, ms, load: err ? os.loadavg()[0] : null, ok: !err, n: m && m[1] ? Number(m[1]) : null, readable: !!m, out, why: whyFailed(err, TOOL_TIMEOUT_MS) });
-    });
-  });
-
-const unratcheted = [];
-const nearMiss = readdirSync(TOOLS)
-  .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
-  .filter((f) => {
-    try {
-      return declaresNearMissSelftest(readFileSync(join(TOOLS, f), 'utf8'));
-    } catch (_) {
-      return false;
+    {
+      let live = 0;
+      let peak = 0;
+      const seen = await runPooled(
+        [5, 4, 3, 2, 1, 0, 6, 7],
+        async (v) => {
+          live++;
+          peak = Math.max(peak, live);
+          await new Promise((r) => setTimeout(r, v));
+          live--;
+          return v * 10;
+        },
+        3
+      );
+      eq(peak <= 3, `the pool never exceeds its limit (peak ${peak}, limit 3)`);
+      eq(peak > 1, `…and it is actually CONCURRENT, not serialised (peak ${peak})`);
+      eq(seen.join(',') === '50,40,30,20,10,0,60,70', 'results stay in INPUT order, not completion order');
     }
-  })
-  .sort();
+    /* ── §3d PLANTS, one per table row, each object built through makeVerdict (an invalid one THROWS) */
+    {
+      const AT = { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' };
+      const ok = (f, cnt) => ({ f, ok: true, readable: true, n: cnt });
+      const R3 = [ok('a.mjs', 3), ok('b.mjs', 4), ok('c.mjs', 5)];
+      const green = sweepVerdict(R3, [], new Set(), AT);
+      eq(green.status === 'PASS' && green.result.assertions === 12 && green.population.checked === 3, '§3d · every tool parsed ⇒ PASS, assertions summed');
+      eq(
+        green.result.children.every((c) => c.provenance === 'summary' && c.n),
+        '§3d · children carry provenance summary and their count'
+      );
+      const fail = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: false, readable: false, why: 'exited 1' }, ok('c.mjs', 5)], [], new Set(), AT);
+      eq(fail.status === 'FAIL' && fail.result.firstFailure === 'tools/b.mjs', '§3d plant · a failing selftest ⇒ FAIL, named');
+      const to = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: false, readable: false, why: 'TIMED OUT after 120s (killed, SIGTERM)' }], [], new Set(), AT);
+      eq(to.status === 'UNKNOWN' && /b\.mjs/.test(to.reason), '§3d plant · a TIMEOUT ⇒ UNKNOWN, never a tool failure');
+      const unp = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: true, readable: false, n: null }], [], new Set(['b.mjs']), AT);
+      eq(unp.status === 'UNKNOWN' && unp.population.checked === 2, '§3d plant · green but unparseable (ratcheted) ⇒ UNKNOWN, still checked');
+      const unr = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: true, readable: false, n: null }], [], new Set(), AT);
+      eq(unr.status === 'FAIL' && /NOT in UNPARSEABLE_RATCHET \(b\.mjs\)/.test(unr.reason), '§3d plant · unparseable and NOT ratcheted ⇒ FAIL by the ratchet, named');
+      const paid = sweepVerdict(R3, [], new Set(['a.mjs']), AT);
+      eq(paid.status === 'FAIL' && /paid debt\(s\) still in the map \(a\.mjs\)/.test(paid.reason), '§3d plant · a paid debt left in the map ⇒ FAIL (the ratchet only goes down)');
+      const nm = sweepVerdict(R3, ['z.mjs'], new Set(), AT);
+      eq(
+        nm.status === 'UNKNOWN' && JSON.stringify(nm.population) === JSON.stringify({ checked: 3, eligible: 4, excluded: 1 }),
+        '§3d plant · a near-miss tool is NOT_RUN, excluded, and the run is UNKNOWN'
+      );
+      const none = sweepVerdict([], ['z.mjs'], new Set(), AT);
+      eq(none.status === 'NOT_RUN' && none.result === null, '§3d plant · nothing ran ⇒ NOT_RUN with result null');
+      const sample = verdictSample();
+      eq(sample.status === 'UNKNOWN' && sample.population.eligible === 5 && sample.producedBy.commit === null, '§3d · --verdict-sample is the honest shape: UNKNOWN over 4 checked of 5, no commit');
+    }
+    /* ── a COUNT IS COMPUTED, NEVER TYPED (residue 2026-10-11-ten-tools-hardcode-a-selftest-count) ──
+     Plants first — the detector's own sensitivity — then the real tree: no tool types its count. */
+    {
+      eq(literalCountLines("console.log(fail ? fail + ' failed of 14' : 'all 14 selftests passed');").length === 1, 'literal · the `all N selftests passed` spelling is a typed count');
+      eq(literalCountLines("console.log(fails.length ? 'selftest FAILED (' + fails.length + ' of 13)' : 'x');").length === 1, 'literal · a `FAILED … of N` denominator is a typed count');
+      eq(literalCountLines("console.log('selftest: all 20 selftests passed');").length === 1, 'literal · a prefixed spelling is still caught');
+      eq(literalCountLines('console.log(`all ${ran} selftests passed`);').length === 0, 'literal · an interpolated count is NOT flagged');
+      eq(literalCountLines('console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);').length === 0, 'literal · an interpolated denominator is NOT flagged');
+      eq(literalCountLines("// console.log('all 14 selftests passed')\n * 'all 14 selftests passed'").length === 0, 'literal · a comment is not a print');
+      eq(literalCountLines("ok(suiteReported('✓ all 7 assertions passed') === true);").length === 0, 'literal · a quoted plant that is not itself a print is not flagged');
 
-/* LOAD AT SWEEP START, and again at every kill (below). §3.4's surviving hypothesis is that the kills
+      /* ── THE SPELLING HALF ── the `PASS (n/m)` form `SUMMARY_FORMATS` parses, which the two original
+       regexes could not see. Four tools printed a flat one (measured 2026-10-20). */
+      eq(literalCountLines("console.log('SELFTEST PASS (7/7)');").length === 1, 'spelling · a flat `SELFTEST PASS (7/7)` is a typed count');
+      eq(literalCountLines("console.log(fail ? `FAIL (${fail})` : 'SELFTEST PASS (22/22)');").length === 1, 'spelling · a typed PASS beside an interpolated FAIL is still caught');
+      eq(literalCountLines("console.log('SELFTEST PASS (12 passed, 0 failed)');").length === 1, 'spelling · the `N passed, M failed` form counts too');
+      eq(literalCountLines('console.log(`SELFTEST PASS (${ran}/${ran})`);').length === 0, 'spelling · an interpolated PASS ratio is NOT flagged');
+      /* DECOY: the marker word is the false-positive guard this file's own ratchet comment asks for. A
+       RESULT ratio is not an assertion count, and a reader matching `n/m` anywhere would say it is. */
+      eq(literalCountLines("console.log('GATE PASS (12/12)');").length === 0, 'spelling DECOY · a PASS ratio with no selftest marker is a RESULT, never an assertion count');
+      eq(literalCountLines("console.log('coupling PASS (31/52) nights');").length === 0, 'spelling DECOY · a measured ratio in a tool report is not a summary');
+
+      /* ── THE HOP HALF ── residue `2026-10-19-selftest-count-static-check-misses-a-one-hop-literal`. */
+      eq(typedNumericConsts('const N = 83;\nconst NAME = 4;\n').get('N') === '83', 'hop · a numeric const is collected');
+      eq(typedNumericConsts('const ROWS = items.length;\nconst R = /\\d+/;\n').size === 0, 'hop · a computed or non-numeric const is not a typed number');
+      eq(typedNumericConsts('// const N = 9;\n   * const M = 9;\n').size === 0, 'hop · a const inside a comment is not collected');
+      eq(typedNumericConsts('let ran = 0;\nvar seen = 0;\n').size === 0, 'hop DECOY · a `let`/`var` counter is NOT a hop — taking them flagged 56 of 104 tools, nearly all correct');
+      eq(literalCountLines('const N = 83;\nconsole.log(`all ${N} selftests passed`);').length === 1, 'hop · a count one hop away in a const IS a typed count');
+      eq(literalCountLines('const TOTAL = 45;\nconsole.log(`SELFTEST PASS (${TOTAL}/${TOTAL})`);').length === 1, 'hop · the `pat-window-oracle` shape the row reported (#3675)');
+      eq(
+        /typed one hop away: TOTAL = 45/.test(literalCountLines('const TOTAL = 45;\nconsole.log(`SELFTEST PASS (${TOTAL}/${TOTAL})`);')[0]),
+        'hop · the reported line NAMES the constant and its value'
+      );
+      eq(
+        literalCountLines('let ran = 0;\nconst ok = () => { ran += 1; };\nconsole.log(`all ${ran} selftests passed`);').length === 0,
+        'hop DECOY · a counter the helper increments is NOT flagged — it is what the rule asks for'
+      );
+      eq(literalCountLines('let N = 83;\nconsole.log(`all ${N} selftests passed`);').length === 1, 'hop · a `let` nothing ever reassigns is a typed count, exactly as a const is');
+      eq(literalCountLines('let N = 83;\nN = xs.length;\nconsole.log(`all ${N} selftests passed`);').length === 0, 'hop DECOY · a binding reassigned anywhere in the file is no hop');
+      eq(
+        literalCountLines('let n = 0;\nfor (const x of xs) n++;\nconsole.log(`all ${n} selftests passed`);').length === 0,
+        'hop DECOY · an inc-only counter is disqualified by the `n++`, with no assignment to find'
+      );
+      eq(neverReassignedNumerics("let N = 7;\nconst s = 'N = 1; N += 1';\n").get('N') === '7', 'hop · a reassignment QUOTED in a string is not a reassignment — the mask reads code only');
+      eq(
+        neverReassignedNumerics('let ran = 0;\nran += 1;\n').size === 0 && neverReassignedNumerics('var N = 5;\n').get('N') === '5',
+        'hop · a compound assign disqualifies, a lone `var` numeric does not'
+      );
+      eq(
+        literalCountLines("if (argv.includes('--selftest')) {\n  console.log(fail ? `FAIL (${fail})` : 'PASS (12/12)');\n}").length === 1,
+        'region · a typed ratio INSIDE the selftest block needs no marker word'
+      );
+      eq(
+        literalCountLines("if (argv.includes('--selftest')) {\n  console.log('PASS (12/12)');\n}\nconsole.log('GATE PASS (9/9)');").length === 1,
+        'region DECOY · the same spelling outside the block is still a RESULT, so only one line is reported'
+      );
+      eq(selftestRegions("// argv.includes('--selftest') {\nconsole.log('PASS (3/3)');").length === 0, 'region · a comment naming the flag opens no block');
+      eq(
+        literalCountLines("if (argv.includes('--selftest')) {\n  eq(f(\"console.log('coupling PASS (31/52)')\").length === 0, 'decoy');\n}").length === 0,
+        'region · a print QUOTED inside the block is not a print — the mask decides it, never the wording'
+      );
+      eq(literalCountLines('const FS = 100;\nconsole.log(`resampled at ${FS} Hz`);').length === 0, 'hop DECOY · a const in a print that is not a summary is not a count');
+      eq(literalCountLines('const N = 8;\nconsole.log(`all ${N} selftests passed`);\nconsole.log(`${f} failed of ${N}`);').length === 2, 'hop · both summary lines of one tool are reported');
+      const typed = readdirSync(TOOLS)
+        .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
+        .filter((f) => literalCountLines(readFileSync(join(TOOLS, f), 'utf8')).length > 0)
+        .sort();
+      eq(typed.length === 0, `no tool prints a typed assertion count — it must be incremented by the assertion helper (${typed.length}: ${typed.join(' · ')})`);
+    }
+    {
+      /* AN IMPORT RUNS NO CLI. A child imports both modules that share `declaresSelftest` and prints the
+       type of one export from each; a module that started its CLI at import prints its own output, or
+       exits, before the child's line. The URLs travel by env, because an argv[1] naming this file
+       would make it the entry and run the sweep for real. */
+      const r = spawnSync(
+        process.execPath,
+        ['--input-type=module', '-e', 'const a = await import(process.env.ST_A); const b = await import(process.env.ST_B); console.log(typeof a.declaresSelftest, typeof b.gatedBy);'],
+        {
+          cwd: ROOT,
+          timeout: 60000,
+          encoding: 'utf8',
+          env: { ...process.env, ST_A: new URL('./selftest-all.mjs', import.meta.url).href, ST_B: new URL('./verdict-adoption.mjs', import.meta.url).href }
+        }
+      );
+      eq(
+        r.status === 0 && r.stdout === 'function function\n',
+        `importing selftest-all.mjs and verdict-adoption.mjs runs neither CLI (status ${r.status}, stdout ${JSON.stringify(String(r.stdout).slice(0, 120))})`
+      );
+    }
+    console.log(`all ${n} selftests passed`);
+    process.exit(0);
+  }
+
+  if (argv.includes('--list')) {
+    console.log(files.map((f) => '  tools/' + f).join('\n'));
+    process.exit(0);
+  }
+
+  const run = (f) =>
+    new Promise((res) => {
+      const t0 = Date.now();
+      execFile(process.execPath, [join(TOOLS, f), '--selftest'], { cwd: ROOT, timeout: TOOL_TIMEOUT_MS, maxBuffer: 1 << 24 }, (err, stdout, stderr) => {
+        const ms = Date.now() - t0;
+        const out = String(stdout || '') + String(stderr || '');
+        const m = SUMMARY_FORMATS.map((re) => out.match(re)).find(Boolean);
+        /* Load is sampled AT THE KILL, not at the end: by the time the sweep finishes the spike that
+         killed the tool is gone, and an average taken then would describe a different machine. */
+        res({ f, ms, load: err ? os.loadavg()[0] : null, ok: !err, n: m && m[1] ? Number(m[1]) : null, readable: !!m, out, why: whyFailed(err, TOOL_TIMEOUT_MS) });
+      });
+    });
+
+  const unratcheted = [];
+  const nearMiss = readdirSync(TOOLS)
+    .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
+    .filter((f) => {
+      try {
+        return declaresNearMissSelftest(readFileSync(join(TOOLS, f), 'utf8'));
+      } catch (_) {
+        return false;
+      }
+    })
+    .sort();
+
+  /* LOAD AT SWEEP START, and again at every kill (below). §3.4's surviving hypothesis is that the kills
    come from CROSS-SESSION load — several fleet sessions running full gates on one box — which is
    invisible from inside any single session. Printing the 1-minute load average is what turns that from a
    narrative into something falsifiable: a kill at LOW load refutes it outright, and a kill at high load
    with no other gate running refutes it differently. Costs one syscall. */
-const JSON_OUT = argv.includes('--json');
-const out = JSON_OUT ? (...a) => console.error(...a) : (...a) => console.log(...a);
-const load0 = os.loadavg()[0];
-out(`  load average at sweep start: ${load0.toFixed(2)} (${os.cpus().length} cores)`);
-/* 🔴 BOUNDED, NOT `Promise.all(files.map(run))` — which spawned EVERY tool at once: measured 84 node
+  const JSON_OUT = argv.includes('--json');
+  const out = JSON_OUT ? (...a) => console.error(...a) : (...a) => console.log(...a);
+  const load0 = os.loadavg()[0];
+  out(`  load average at sweep start: ${load0.toFixed(2)} (${os.cpus().length} cores)`);
+  /* 🔴 BOUNDED, NOT `Promise.all(files.map(run))` — which spawned EVERY tool at once: measured 84 node
    subprocesses on 24 cores, against a fixed 120 s per-tool timeout. A tool that needs real CPU is then
    starved by its 83 siblings and killed at the cap, so `test:tools` reds the LOCAL `npm run check` for
    reasons unrelated to the change under test. That happened three times on 2026-09-03, on three
@@ -708,33 +735,33 @@ out(`  load average at sweep start: ${load0.toFixed(2)} (${os.cpus().length} cor
    same selftests in a SEQUENTIAL bash loop, one at a time. The defect lived entirely on the local gate.
    ⚠️ NOT a bigger timeout — raising 120 s hides the fan-out and the next slow tool re-finds it.
    Order is preserved (results[i] belongs to files[i]) because the reporting below indexes by position. */
-const CONCURRENCY = Math.max(2, Math.min(os.cpus().length, 8));
-async function runPooled(list, worker, limit) {
-  const out = new Array(list.length);
-  let next = 0;
-  async function pump() {
-    while (true) {
-      const i = next++;
-      if (i >= list.length) return;
-      out[i] = await worker(list[i]);
+  const CONCURRENCY = Math.max(2, Math.min(os.cpus().length, 8));
+  async function runPooled(list, worker, limit) {
+    const out = new Array(list.length);
+    let next = 0;
+    async function pump() {
+      while (true) {
+        const i = next++;
+        if (i >= list.length) return;
+        out[i] = await worker(list[i]);
+      }
     }
+    await Promise.all(Array.from({ length: Math.min(limit, list.length) }, pump));
+    return out;
   }
-  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, pump));
-  return out;
-}
-const results = await runPooled(files, run, CONCURRENCY);
-/* Wall time is printed for the tools that can actually approach the timeout, so the §3.4 account stays
+  const results = await runPooled(files, run, CONCURRENCY);
+  /* Wall time is printed for the tools that can actually approach the timeout, so the §3.4 account stays
    testable on every run rather than only when something dies: if a ≤0.3 s tool ever times out, the
    CPU-demand explanation is refuted, and these numbers are how anyone would notice. */
-const slow = (r) => (r && r.ms >= 1000 ? `  [${(r.ms / 1000).toFixed(1)} s]` : '');
-let failed = 0,
-  warned = 0,
-  total = 0;
-for (const r of results) {
-  if (!r.ok) {
-    failed++;
-    out(`  ✗ tools/${r.f}  FAILED${r.why ? '  — ' + r.why : ''}${slow(r)}${r.load != null ? `  [load ${r.load.toFixed(2)} at the kill, ${load0.toFixed(2)} at start]` : ''}`);
-    /* PRINT THE EVIDENCE THAT EXISTS, not only the evidence of one failure shape. This filtered the
+  const slow = (r) => (r && r.ms >= 1000 ? `  [${(r.ms / 1000).toFixed(1)} s]` : '');
+  let failed = 0,
+    warned = 0,
+    total = 0;
+  for (const r of results) {
+    if (!r.ok) {
+      failed++;
+      out(`  ✗ tools/${r.f}  FAILED${r.why ? '  — ' + r.why : ''}${slow(r)}${r.load != null ? `  [load ${r.load.toFixed(2)} at the kill, ${load0.toFixed(2)} at start]` : ''}`);
+      /* PRINT THE EVIDENCE THAT EXISTS, not only the evidence of one failure shape. This filtered the
        tool's output to lines containing `✗` or `FAILED` — the signature of an ASSERTION failure — so a
        timeout, a crash or any non-zero exit whose output carries neither token printed a BLANK LINE and
        the run said only that something failed. Measured 2026-09-02: two independent `dsp-review-qwen`
@@ -743,45 +770,48 @@ for (const r of results) {
        that shows the part matching its expectations and silently drops the rest. Assertion lines still
        lead when present; otherwise the tail of whatever the tool did say, and `(no output at all)` when
        it said nothing, which is itself the tell for a timeout. */
-    const shown = failureLines(r.out);
-    out(shown.length ? shown.map((l) => '      ' + l.trim()).join('\n') : '      (no output at all — consistent with a timeout or a kill before the tool printed)');
-  } else if (!r.readable) {
-    /* Exited 0 but printed nothing this script recognises. WARN, do not fail.
+      const shown = failureLines(r.out);
+      out(shown.length ? shown.map((l) => '      ' + l.trim()).join('\n') : '      (no output at all — consistent with a timeout or a kill before the tool printed)');
+    } else if (!r.readable) {
+      /* Exited 0 but printed nothing this script recognises. WARN, do not fail.
        The EXIT CODE is the contract a tool actually declares; "must also print a summary I can parse"
        is this script's preference, and enforcing it flagged NINE pre-existing analysis tools that are
        working correctly. A gate that lands red on day one over a formatting opinion gets switched
        off, and then the real failures it would have caught go with it — the same argument that kept a
        coverage threshold out of #1163. */
-    warned++;
-    if (UNPARSEABLE_RATCHET.has(r.f)) {
-      out(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count${slow(r)}`);
-    } else {
-      /* NOT grandfathered. The warn-don't-fail argument above is about the 48 tools that predate the
+      warned++;
+      if (UNPARSEABLE_RATCHET.has(r.f)) {
+        out(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count${slow(r)}`);
+      } else {
+        /* NOT grandfathered. The warn-don't-fail argument above is about the 48 tools that predate the
          rule; it is not a licence for the next one. A tool nobody can count assertions for is a tool
          whose suite can shrink to nothing unnoticed, and that is the only thing this script adds. */
-      unratcheted.push(r.f);
-      out(`  ✗ tools/${r.f}  green, but prints NO PARSEABLE ASSERTION COUNT and is not in UNPARSEABLE_RATCHET${slow(r)}`);
+        unratcheted.push(r.f);
+        out(`  ✗ tools/${r.f}  green, but prints NO PARSEABLE ASSERTION COUNT and is not in UNPARSEABLE_RATCHET${slow(r)}`);
+      }
+    } else {
+      total += r.n || 0;
+      out(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}${slow(r)}`);
     }
-  } else {
-    total += r.n || 0;
-    out(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}${slow(r)}`);
   }
-}
-for (const f of nearMiss) {
-  out(`  ✗ tools/${f}  HAS a selftest that discovery cannot reach — spell the flag \`--selftest\` and read it from a CALL, e.g. \`flag('--selftest')\` or \`argv.includes('--selftest')\``);
-}
-/* A tool that has PAID its debt must leave the map, or the ratchet stops being one: a stale entry is
+  for (const f of nearMiss) {
+    out(`  ✗ tools/${f}  HAS a selftest that discovery cannot reach — spell the flag \`--selftest\` and read it from a CALL, e.g. \`flag('--selftest')\` or \`argv.includes('--selftest')\``);
+  }
+  /* A tool that has PAID its debt must leave the map, or the ratchet stops being one: a stale entry is
    a standing permission nobody re-earned, and the count would drift up again behind it. */
-const paid = [...UNPARSEABLE_RATCHET].filter((f) => results.some((r) => r.f === f && r.readable));
-for (const f of paid) {
-  out(`  ✗ tools/${f}  now reports a count — REMOVE it from UNPARSEABLE_RATCHET (the ratchet may only go down)`);
+  const paid = [...UNPARSEABLE_RATCHET].filter((f) => results.some((r) => r.f === f && r.readable));
+  for (const f of paid) {
+    out(`  ✗ tools/${f}  now reports a count — REMOVE it from UNPARSEABLE_RATCHET (the ratchet may only go down)`);
+  }
+  for (const f of unratcheted) {
+    out(`  → tools/${f}: end its selftest with \`all <N> selftests passed\` (see box-sample.mjs)`);
+  }
+  out(
+    `\n${failed || nearMiss.length ? `✗ ${failed} tool selftest(s) FAILED${nearMiss.length ? `, ${nearMiss.length} unreachable` : ''}` : `✓ ${results.length} tools, ${total}+ assertions — all green`}${warned ? `  (${warned} green but unparseable)` : ''}`
+  );
+  if (JSON_OUT) console.log(JSON.stringify(sweepVerdict(results, nearMiss, UNPARSEABLE_RATCHET)));
+  /* THE EXIT CODE STAYS — the shell and CI read it until the consumer reads the object (§3d). */
+  process.exit(failed || nearMiss.length || unratcheted.length || paid.length ? 1 : 0);
 }
-for (const f of unratcheted) {
-  out(`  → tools/${f}: end its selftest with \`all <N> selftests passed\` (see box-sample.mjs)`);
-}
-out(
-  `\n${failed || nearMiss.length ? `✗ ${failed} tool selftest(s) FAILED${nearMiss.length ? `, ${nearMiss.length} unreachable` : ''}` : `✓ ${results.length} tools, ${total}+ assertions — all green`}${warned ? `  (${warned} green but unparseable)` : ''}`
-);
-if (JSON_OUT) console.log(JSON.stringify(sweepVerdict(results, nearMiss, UNPARSEABLE_RATCHET)));
-/* THE EXIT CODE STAYS — the shell and CI read it until the consumer reads the object (§3d). */
-process.exit(failed || nearMiss.length || unratcheted.length || paid.length ? 1 : 0);
+
+if (isCliEntry(import.meta.url)) await main();

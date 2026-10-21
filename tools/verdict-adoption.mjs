@@ -66,7 +66,9 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 import { blankComments } from './js-lex.mjs';
+import { declaresSelftest } from './selftest-all.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = path.join(ROOT, 'tools', 'verdict-adoption.json');
@@ -228,11 +230,9 @@ export const UNGATED_RATCHET = new Set([
    `'--selftest'` appears nowhere in its code. Measured 2026-10-21: it was the only tool in the 280 to
    compose the dashes, its selftest runs green in 2.9 s over four targets with a control and a plant,
    and no runner had ever run it — `selftest-all --list` named 190 tools and not that one. Accepting the
-   bare literal recovers it with zero tools lost (190 → 191). `selftest-all.mjs` carries the same
-   widened pattern; a suite leg asserts the two files still agree, because the predicate cannot be
-   imported from there — that module runs its CLI at module scope (row
-   `2026-10-21-selftest-all-runs-its-cli-at-module-scope`). */
-const SELFTEST_CALL = /\(\s*['"](?:--)?selftest['"]\s*\)/;
+   bare literal recovers it with zero tools lost (190 → 191). The predicate is `declaresSelftest`, IMPORTED
+   from `selftest-all.mjs`, so the sweep and this gate read one pattern; the two copies this replaced
+   could drift (row `2026-10-21-selftest-all-runs-its-cli-at-module-scope`). */
 
 /* Does `text` name `stem` OUTSIDE its comments? PURE. `isPy` picks the comment syntax.
    A MENTION IS NOT A TEST: this is the discriminator `gatedBy` was asked for and did not have. */
@@ -288,7 +288,7 @@ export function blankPyComments(src) {
    comments (see `namesOutsideComments`). */
 export function gatedBy(p, readSource, testRefs) {
   const src = readSource(p);
-  if (src != null && SELFTEST_CALL.test(src)) return 'selftest';
+  if (src != null && declaresSelftest(src)) return 'selftest';
   const stem = path.basename(p).replace(/\.(mjs|py)$/, '');
   const refs = (testRefs(stem) || []).filter((f) => f !== p && namesOutsideComments(stem, readSource(f), f.endsWith('.py')));
   return refs.length ? 'tests:' + refs.slice(0, 2).join(',') : null;
@@ -1370,4 +1370,4 @@ function main() {
       `the contributions rows equal the ${cc.table ?? 0} figures of the named set`
   );
 }
-main();
+if (isCliEntry(import.meta.url)) main();
