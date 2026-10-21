@@ -10972,6 +10972,28 @@
           .join(', '),
         ''
       );
+      /* ── A DECLARED NIGHT RULE SAYS WHAT IT COST ──────────────────────────────────────────────
+         Row 2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year. A caller may
+         pass its own `re` to `snapshotNights`, and the rule then runs INSIDE the walk, so the
+         snapshot that comes back is already the narrowed set. Two live callers do it, in opposite
+         directions: `tch-reference-validation.mjs` passes `/^2026-/`, which refuses a night outside
+         that year, and `tch-multinight.mjs` passes `/./`, which counts a plain directory as a
+         night. Neither narrowing reached the verdict, so a reader could not tell either root from a
+         root scored in full. `ruleLine` is the one rendering of the rule's effect, and a caller that
+         declares a rule and never prints it is back where the row started. */
+      var ruled = importers.filter(function (t) {
+        return /snapshotNights\([^)]*\{[^}]*\bre:/.test(TT['tools/' + t] || '');
+      });
+      T.ok('ANTI-VACUITY · at least two tools declare a night rule of their own', ruled.length >= 2, ruled.length + ' rule-declaring tool(s): ' + ruled.join(', '));
+      T.eq(
+        'every tool that declares its own night rule also prints what that rule refused or swallowed',
+        ruled
+          .filter(function (t) {
+            return !/\bruleLine\(/.test(TT['tools/' + t] || '');
+          })
+          .join(', '),
+        ''
+      );
     });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool

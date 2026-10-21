@@ -44,7 +44,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, snapshotNights, ruleLine } from './corpus-scope.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -704,7 +704,11 @@ function main() {
     /* ONE walk, and the walk is the population. This tool takes ANY subdirectory as a night, so
        the snapshot takes the same rule rather than the default night-shaped one — a name filter
        the tool does not apply would report a population it never scored
-       (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+       (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population).
+
+       🔴 THAT RULE IS WIDER THAN NIGHT-SHAPED, so it counts a plain directory as a night, and the
+       `ruleLine` below names every such directory. The hazard runs the opposite way from a filter
+       that drops nights, and before this neither direction reached the verdict. */
     const popBefore = snapshotNights(base, { re: /./ });
     const subs = popBefore.nights.map((d) => join(base, d));
     if (!subs.length) {
@@ -715,6 +719,10 @@ function main() {
     const population = populationVerdict(popBefore, snapshotNights(base, { re: /./ }), { tool: TOOL, evidence: [TOOL] });
     report(rows, { json });
     console.log(`  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
+    {
+      const rl = ruleLine(population);
+      if (rl) console.log(rl);
+    }
     console.log('\n  (real nights: no planted truth → distribution is the verdict; compare median σ to the corpus reference.)');
     emitVerdict(rows, [base]);
     return;

@@ -191,18 +191,53 @@ export function digestNights(nights) {
 
 /** Enumerate the night directories under `root`. An unreadable root returns `ok: false` and NEVER an
  *  empty population — an absent root is not a zero (§∅), and a zero here would read as "the corpus
- *  emptied mid-run". */
+ *  emptied mid-run".
+ *
+ *  🔴 A CALLER'S OWN RULE IS APPLIED INSIDE THIS WALK, SO THE SNAPSHOT IT RETURNS IS ALREADY THE
+ *  NARROWED SET. That is the whole hazard of residue
+ *  `2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year`: a reader of the verdict
+ *  downstream cannot tell a root scored in full from a root where the rule rejected six nights, and
+ *  cannot tell either from a root where a rule wider than `NIGHT_RE` counted a non-night directory
+ *  IN. The rule is a decision, so the snapshot records it and records what it did, against the one
+ *  fixed yardstick both directions need — `NIGHT_RE` over the same listing:
+ *
+ *    rejectedNightShaped  night-shaped names the rule REFUSED  (a narrower rule; invisible before)
+ *    admittedNonNight     non-night names the rule ADMITTED    (a wider rule; counted as nights)
+ *
+ *  Both are NAMES, not counts, because a count cannot be chased. `ruleIsDefault` says whether either
+ *  question binds at all. None of this changes `nights`, so no caller's scored set moves. */
 export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   let names;
+  let dirNames;
   try {
-    names = readdirSync(root, { withFileTypes: true })
-      .filter((d) => (d.isDirectory() || d.isSymbolicLink()) && re.test(d.name))
+    dirNames = readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory() || d.isSymbolicLink())
       .map((d) => d.name);
+    names = dirNames.filter((n) => re.test(n));
   } catch (e) {
-    return { ok: false, root, reason: `root not enumerable: ${e.code || e.message}`, n: 0, nights: [], digest: null, maxCtimeMs: null, at: stamp };
+    return {
+      ok: false,
+      root,
+      reason: `root not enumerable: ${e.code || e.message}`,
+      n: 0,
+      nights: [],
+      digest: null,
+      maxCtimeMs: null,
+      at: stamp,
+      rule: String(re),
+      ruleIsDefault: String(re) === String(NIGHT_RE),
+      /* ∅: the walk failed, so the rule's effect was never measured. An empty list here would read
+         as "the rule rejected nothing", which is a different statement from "nobody looked". */
+      rejectedNightShaped: null,
+      admittedNonNight: null
+    };
   }
   const nights = names.sort();
+  const ruleIsDefault = String(re) === String(NIGHT_RE);
+  const admitted = new Set(nights);
+  const rejectedNightShaped = ruleIsDefault ? [] : dirNames.filter((n) => NIGHT_RE.test(n) && !admitted.has(n)).sort();
+  const admittedNonNight = ruleIsDefault ? [] : nights.filter((n) => !NIGHT_RE.test(n));
   let maxCtimeMs = null;
   for (const n of nights) {
     try {
@@ -213,7 +248,20 @@ export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
          set above already carries it. The stat is the diagnostic, so it stays silent. */
     }
   }
-  return { ok: true, root, reason: null, n: nights.length, nights, digest: digestNights(nights), maxCtimeMs, at: stamp };
+  return {
+    ok: true,
+    root,
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: digestNights(nights),
+    maxCtimeMs,
+    at: stamp,
+    rule: String(re),
+    ruleIsDefault,
+    rejectedNightShaped,
+    admittedNonNight
+  };
 }
 
 /** The intersection of two snapshots, with what arrived and what left named. */
@@ -262,9 +310,13 @@ export function populationVerdict(before, after, { commit = null, at = null, too
       gate: 'corpus-population',
       status: d.stable ? 'PASS' : 'SHORTFALL',
       scope: 'internal',
+      /* The triple stays about THIS criterion, which is movement: `excluded` is what arrived or left
+         during the run, and nothing else. A caller's own night rule is a different kind of exclusion
+         and it rides `result.rule` below — folding the two into one integer would make a narrowed
+         root and a moved root read the same, which is the defect one level up. */
       population: { checked: d.n, eligible: d.n + d.added.length + d.removed.length, excluded: d.added.length + d.removed.length },
       criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
-      result: { root: before.root, n: d.n, digest: d.digest, added: d.added, removed: d.removed, openedAt: before.at, closedAt: after.at, maxCtimeMs: after.maxCtimeMs },
+      result: { root: before.root, n: d.n, digest: d.digest, added: d.added, removed: d.removed, openedAt: before.at, closedAt: after.at, maxCtimeMs: after.maxCtimeMs, ...ruleBlock(before, after) },
       evidence: ev,
       reason: d.stable
         ? null
@@ -276,6 +328,40 @@ export function populationVerdict(before, after, { commit = null, at = null, too
   const chk = Verdict.validate(v);
   if (!chk.ok) throw new Error(`corpus-scope: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);
   return v;
+}
+
+/** What the caller's own night rule did to this population, or nothing at all when it is the
+ *  default. A declared rule is a DECISION about the population, so the verdict that publishes the
+ *  population publishes the decision beside it — residue
+ *  `2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year`.
+ *
+ *  🔴 `rejected: []` IS A MEASUREMENT AND `rejected: null` IS NOT. A rule that bites nothing today
+ *  still has to say so, because the reader's question is "what did this rule cost me", and an absent
+ *  key answers it with silence. The two snapshots are the same root a few seconds apart, so a name
+ *  either side rejected counts; the union is what the run actually passed over. */
+function ruleBlock(before, after) {
+  if (before.ruleIsDefault !== false && after.ruleIsDefault !== false) return {};
+  const union = (a, b) => (a === null || b === null ? null : [...new Set([...a, ...b])].sort());
+  const rejected = union(before.rejectedNightShaped ?? null, after.rejectedNightShaped ?? null);
+  const nonNight = union(before.admittedNonNight ?? null, after.admittedNonNight ?? null);
+  return {
+    rule: before.rule === after.rule ? before.rule : `${before.rule} then ${after.rule}`,
+    ruleRejectedNightShaped: rejected,
+    ruleAdmittedNonNight: nonNight,
+    ruleNote:
+      rejected === null || nonNight === null
+        ? 'a snapshot could not enumerate the root, so the rule\u2019s effect on the population was never measured'
+        : `the caller's own rule, measured against NIGHT_RE over the same listing: ${rejected.length} night-shaped name(s) refused, ${nonNight.length} non-night name(s) counted as nights`
+  };
+}
+
+/** The one-line human form of the rule block, for a tool's own console. Empty string when the
+ *  caller used the default rule, so a caller prints it unconditionally. */
+export function ruleLine(population) {
+  const r = population && population.result;
+  if (!r || r.rule === undefined) return '';
+  const say = (xs, what) => (xs === null ? `${what}: NOT MEASURED` : xs.length === 0 ? `${what}: none` : `${what}: ${xs.join(', ')}`);
+  return `  rule ${r.rule} — ${say(r.ruleRejectedNightShaped, 'night-shaped names it refused')} · ${say(r.ruleAdmittedNonNight, 'non-night names it counted as nights')}`;
 }
 
 function gitCommitShort() {
@@ -421,6 +507,84 @@ function selftest() {
     );
     ok('the NOT_RUN verdict validates', V.validate(notrun).ok, V.validate(notrun).errors.join(' | '));
     ok('the digest is order-free', digestNights(['b', 'a']) === digestNights(['a', 'b']) && digestNights(['2026-06-20', '2026-06-21']) !== digestNights(['2026-06-20']));
+
+    /* ── WHAT THE CALLER'S OWN RULE DID ────────────────────────────────────────────────────────
+       Residue `2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year`. A rule is
+       applied inside the walk, so before this the snapshot was the narrowed set and the narrowing
+       left no trace. The root below holds both hazards at once: a 2027 night a `^2026-` rule
+       refuses, and a plain directory a `/./` rule swallows. */
+    const ruled = join(tmp, 'ruled');
+    mkdirSync(ruled, { recursive: true });
+    for (const n of ['2026-06-20', '2026-06-21', '2027-01-04']) night(ruled, n);
+    mkdirSync(join(ruled, 'scratch'), { recursive: true });
+
+    const dflt = snapshotNights(ruled);
+    ok(
+      'the DEFAULT rule says so, and asks neither question',
+      dflt.ruleIsDefault === true && dflt.n === 3 && dflt.rejectedNightShaped.length === 0 && dflt.admittedNonNight.length === 0,
+      JSON.stringify(dflt.rule)
+    );
+    ok('a default-rule verdict carries NO rule block — nothing was decided to report', populationVerdict(dflt, snapshotNights(ruled)).result.rule === undefined);
+
+    const narrow = snapshotNights(ruled, { re: /^2026-/ });
+    ok('a NARROWER rule still scores its own set', narrow.n === 2 && !narrow.nights.includes('2027-01-04'), JSON.stringify(narrow.nights));
+    ok(
+      '…and the night it refused is NAMED, not absent',
+      narrow.ruleIsDefault === false && narrow.rejectedNightShaped.join() === '2027-01-04' && narrow.admittedNonNight.length === 0,
+      JSON.stringify(narrow.rejectedNightShaped)
+    );
+    const vNarrow = populationVerdict(narrow, snapshotNights(ruled, { re: /^2026-/ }), { tool: 'selftest' });
+    ok(
+      'the verdict publishes the rule beside the population',
+      vNarrow.result.rule === '/^2026-/' && vNarrow.result.ruleRejectedNightShaped.join() === '2027-01-04',
+      JSON.stringify(vNarrow.result.rule)
+    );
+    ok(
+      '…and the scored set did NOT move: a declared rule is not a population movement',
+      vNarrow.status === 'PASS' && vNarrow.population.checked === 2 && vNarrow.population.excluded === 0,
+      `${vNarrow.status} ${JSON.stringify(vNarrow.population)}`
+    );
+    ok('the narrowed verdict validates', V.validate(vNarrow).ok, V.validate(vNarrow).errors.join(' | '));
+
+    const wide = snapshotNights(ruled, { re: /./ });
+    ok(
+      'a WIDER rule counts a plain directory as a night, and says which one',
+      wide.n === 4 && wide.admittedNonNight.join() === 'scratch' && wide.rejectedNightShaped.length === 0,
+      JSON.stringify(wide.admittedNonNight)
+    );
+    const vWide = populationVerdict(wide, snapshotNights(ruled, { re: /./ }), { tool: 'selftest' });
+    ok(
+      'the verdict names the non-night it swallowed',
+      vWide.result.ruleAdmittedNonNight.join() === 'scratch' && /1 non-night name\(s\) counted as nights/.test(vWide.result.ruleNote),
+      vWide.result.ruleNote
+    );
+
+    /* ∅ — a rule whose effect nobody could measure is `null`, never an empty list. An empty list
+       here would read as "the rule rejected nothing", which the failed walk never established. */
+    const nopeRuled = snapshotNights(join(tmp, 'no-such-root'), { re: /^2026-/ });
+    ok('an unreadable root leaves the rule effect NULL, never []', nopeRuled.ok === false && nopeRuled.rejectedNightShaped === null && nopeRuled.admittedNonNight === null);
+
+    /* CONTROL — the real root this residue row was written about. The rule is a no-op here today,
+       and that is a MEASUREMENT: the row claimed the corpus already held nights outside 2026. */
+    const trio = join(ROOT, 'uploads', 'trio');
+    if (existsSync(trio)) {
+      const real = snapshotNights(trio, { re: /^2026-/ });
+      ok(
+        'CONTROL · the ^2026- rule refuses no night under uploads/trio today, over a non-empty root',
+        real.ok && real.n > 100 && real.rejectedNightShaped.length === 0 && real.admittedNonNight.length === 0,
+        `n=${real.n} rejected=${JSON.stringify(real.rejectedNightShaped)}`
+      );
+      /* The exact line `tools/tch-reference-validation.mjs` prints. That tool refuses before its
+         own walk on any box without the Polar nightly corpus (residue
+         `2026-10-21-the-reference-validation-population-path-runs-on-no-box-here`), so this is
+         where the rendered string gets pinned. */
+      const line = ruleLine(populationVerdict(real, snapshotNights(trio, { re: /^2026-/ }), { tool: 'selftest' }));
+      ok(
+        'CONTROL · and the printed line says `none` rather than staying silent',
+        /^ {2}rule \/\^2026-\/ — night-shaped names it refused: none · non-night names it counted as nights: none$/.test(line),
+        JSON.stringify(line)
+      );
+    }
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
