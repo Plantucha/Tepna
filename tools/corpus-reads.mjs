@@ -98,6 +98,38 @@ export function corpusShapedPath(raw) {
   return false;
 }
 
+/** The binding through which an enumeration argument reaches a corpus-shaped path, or `null`. PURE.
+ *
+ * THE LITERAL AT THE SITE IS NOT THE WHOLE EVIDENCE. `const dir = join(ROOT, 'uploads', 'trio')`
+ * followed by `readdirSync(dir)` spells the corpus one line earlier, and the argument at the site
+ * is a bare identifier. The origin axis has resolved a name through the declaration in force since
+ * the scope rewrite; the corpus axis could not, because the declaration map holds MASKED text and
+ * the mask blanks every string body — the same reason the site's own argument has to be taken
+ * twice. `declarationSites` now carries each initialiser's span, so the raw initialiser is one
+ * slice away and the two axes read the same scope.
+ *
+ * Two hops, and a name is visited once. A corpus path is SPELLED in a literal rather than
+ * accumulated over a chain, and an unbounded walk re-enters a self-referential binding.
+ */
+export function corpusShapedVia(arg, text, ctx, depth = 2) {
+  if (!ctx || !ctx.sites || depth <= 0) return null;
+  const seen = ctx.seen || new Set();
+  for (const m of String(arg || '').matchAll(/\b([A-Za-z_$][\w$]*)\b/g)) {
+    const name = m[1];
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const all = ctx.sites.get(name) || [];
+    const before = all.filter((d) => d.at < ctx.at);
+    const pick = before.length > 0 ? before[before.length - 1] : all[0];
+    if (!pick || typeof pick.from !== 'number') continue;
+    const raw = String(text).slice(pick.from, pick.to);
+    if (corpusShapedPath(raw)) return { name, raw: raw.trim() };
+    const next = corpusShapedVia(pick.expr, text, { ...ctx, at: pick.at, seen }, depth - 1);
+    if (next) return next;
+  }
+  return null;
+}
+
 /* THE SCAN'S OWN POPULATION RULE. A tool that enumerates a run-time path is not yet a corpus
    consumer: `wt-done.mjs` walks a worktree, `repo-map.mjs` walks the checkout, and this file walks
    `tools/`. What makes a read a CORPUS read is capture vocabulary — a night-shaped directory name,
@@ -138,7 +170,7 @@ export function vocabHits(text) {
   });
   /* THE SIXTH RULE OWES ITS EVIDENCE TOO, and here the evidence is the argument of the walk. */
   const walked = enumerationSites(text).find((site) => site.corpusPath);
-  if (walked) hits.push({ rule: 'walked-path', match: walked.raw.slice(0, 60) });
+  if (walked) hits.push({ rule: 'walked-path', match: walked.corpusEvidence || walked.raw.slice(0, 60) });
   return hits;
 }
 
@@ -179,8 +211,12 @@ export function declarationSites(masked) {
   for (const m of masked.matchAll(re)) {
     /* A `for … of` head ends at its own close paren; an `=` initialiser runs to the line end. */
     const expr = m[2] ? m[4] : m[4].replace(/\).*$/, '');
+    /* THE INITIALISER'S SPAN, FOR THE SAME REASON THE SITE'S ARGUMENT CARRIES ONE. The mask is
+       length-preserving, so `[from, to)` measured here indexes the raw text exactly, and the
+       corpus axis needs the RAW initialiser: a path lives in a string body, which the mask blanks. */
+    const from = m.index + (m[0].length - m[4].length);
     if (!out.has(m[1])) out.set(m[1], []);
-    out.get(m[1]).push({ at: m.index, expr });
+    out.get(m[1]).push({ at: m.index, expr, from, to: from + expr.length });
   }
   return out;
 }
@@ -419,11 +455,16 @@ export function enumerationSites(text) {
        string body). Reading one of those two questions off the wrong text is how the hazard was
        invisible: the masked argument carries the shape 0 times across `tools/`. */
     const raw = span ? text.slice(open + 1 + span[0], open + 1 + span[1]).trim() : '';
+    const atSite = corpusShapedPath(raw);
+    const via = atSite ? null : corpusShapedVia(arg, text, { ...ctx, at: open });
     sites.push({
       call: call.trim(),
       arg,
       raw,
-      corpusPath: corpusShapedPath(raw),
+      corpusPath: atSite || via !== null,
+      /* THE EVIDENCE NAMES WHICH TEXT DECIDED. A site resolved through a binding quotes that
+         binding, because `raw` there is a bare identifier and an identifier names no path. */
+      corpusEvidence: atSite ? raw.slice(0, 60) : via ? `${via.name} = ${via.raw.slice(0, 48)}` : null,
       ...originOf(arg, decls, params, new Set(), { ...ctx, at: open })
     });
   }
@@ -499,7 +540,7 @@ export function classifyTool(text) {
   if (inCorpus.length > 0) {
     return {
       cls: 'repo-corpus',
-      why: `${inCorpus.length} repo-rooted enumeration(s) under a corpus-shaped path — \`${inCorpus[0].raw.slice(0, 48)}\``,
+      why: `${inCorpus.length} repo-rooted enumeration(s) under a corpus-shaped path — \`${inCorpus[0].corpusEvidence || inCorpus[0].raw.slice(0, 48)}\``,
       sites
     };
   }
@@ -552,6 +593,7 @@ export const POPULATION_EXCLUSIONS = {
                                 mask blanks (`${REPO}/uploads/trio` reads as an empty backtick
                                 pair). Both are real corpus reads that the scan cannot prove. */
 export const UNDECIDED_CORPUS = {
+  'closure-tol-hac.mjs': 'the second walk is path.join(TRIO, night) and the tracer resolves neither part, so it abstains',
   'board.mjs': 'a home-directory store under homedir(), neither repo tree nor a flag-supplied path',
   'fleet-turns.mjs': 'a home-directory transcript store under homedir()',
   'release.mjs': 'the local helper p() joins the repo ROOT; the tracer follows a helper only to find a run-time read',
@@ -572,6 +614,17 @@ export const UNDECIDED_CORPUS = {
    alone reded its ratchet. */
 export const UNWIRED_BACKLOG = {
   'acc-acc-control.mjs': 1,
+  /* THE SEVEN THE BINDING HOP ADMITTED, 2026-10-21, row
+     2026-10-21-the-corpus-axis-reads-the-site-only. Each one binds the trio root to a variable and
+     walks the variable, so the population rule read no corpus path at the site and the tool sat
+     outside this list. Six are unwired enumerators; the seventh, `closure-tol-hac.mjs`, abstains
+     and is named in `UNDECIDED_CORPUS` instead. The debt is not new — only visible. */
+  'deep-vlf-probe.mjs': 1,
+  'ecg-apnea-correlate.mjs': 1,
+  'motion-rho-vs-minrho.mjs': 1,
+  'pb-agreement.mjs': 1,
+  'pb-fusion-blast.mjs': 1,
+  'tch-minrho-corpus.mjs': 1,
   'acc-select-compare.mjs': 2,
   'acc-shared-movement.mjs': 2,
   'beat-comb-analysis.mjs': 1,
@@ -708,12 +761,22 @@ function selftest() {
        nothing about the helper. A gap leg has to fail for exactly one reason, so the path is now a
        directory no corpus vocabulary matches and the flag read is the only thing left to miss. */
     ['KNOWN GAP: an imported flag helper beside a repo join still clears', "const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);", 'repo-tree'],
-    /* KNOWN GAP, MEASURED RATHER THAN GUESSED: the corpus axis reads the literal AT THE SITE, so a
-       corpus path bound to a variable one line earlier reads as a bare identifier and clears. The
-       identifier hop was built as a probe and run over all 286 files in `tools/` on 2026-10-21: it
-       moves ZERO tools into `repo-corpus` today, so the gap is latent and the hop would be an
-       unvalidatable change. Pinned here instead; row 2026-10-21-the-corpus-axis-reads-the-site-only. */
-    ['KNOWN GAP: a corpus path bound to a variable is invisible to the corpus axis', "const ROOT = join(HERE, '..');\nconst dir = join(ROOT, 'uploads', 'trio');\nreaddirSync(dir);", 'repo-tree']
+    /* THE GAP THAT WAS PINNED HERE IS CLOSED, AND THE LEG NOW ASSERTS THE RIGHT ANSWER. The corpus
+       axis resolves the argument through the declaration in force and reads that initialiser's RAW
+       text, so the path one line earlier is evidence. Measured 2026-10-21 over the 291 files in
+       `tools/`, base engine against patched: SEVEN tools enter the corpus population and NOT ONE
+       class changes — the earlier probe read zero because it tested the MASKED initialiser, where
+       every path literal is blank. Row 2026-10-21-the-corpus-axis-reads-the-site-only. */
+    ['a corpus path bound to a variable is a corpus read', "const ROOT = join(HERE, '..');\nconst dir = join(ROOT, 'uploads', 'trio');\nreaddirSync(dir);", 'repo-corpus'],
+    /* THE NEGATIVE HALF, because a hop that answers `repo-corpus` for every binding would pass the
+       leg above while destroying the distinction. A repo path bound the same way stays a clearance. */
+    ['a repo path bound to a variable is still a repo walk', "const ROOT = join(HERE, '..');\nconst dir = join(ROOT, 'tools');\nreaddirSync(dir);", 'repo-tree'],
+    /* AND THE SCOPE HALF: the binding in force at the call decides, not the first in the file. */
+    [
+      'the nearest preceding binding decides, not the first in the file',
+      "const ROOT = join(HERE, '..');\nconst dir = join(ROOT, 'uploads', 'trio');\nfunction later() {\n  const dir = join(ROOT, 'tools');\n  return readdirSync(dir);\n}",
+      'repo-tree'
+    ]
   ];
   let bad = 0;
   for (const [name, src, want] of cases) {

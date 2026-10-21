@@ -10917,6 +10917,17 @@
         CR.corpusShapedPath("join(ROOT, 'uploads/trio')") === true && CR.corpusShapedPath("join(ROOT, 'tools')") === false && CR.corpusShapedPath('uploadsDir') === false,
         'uploads/trio true · tools false · identifier false'
       );
+      /* THE SECOND HALF OF THAT CONTROL, AND IT IS WHERE THE INSTRUMENT USED TO STOP. A corpus
+         path bound to a variable one line above the walk is the ordinary spelling in this tree —
+         seven tools write it — and reading the literal AT THE SITE answered `repo-tree` for all of
+         them. The leg asserts both directions, because a hop that admitted every binding would
+         pass the positive half while erasing the distinction it exists to draw. */
+      T.ok(
+        'CONTROL · a corpus path reached through the binding in force is a corpus read, and a repo path through the same binding is not',
+        CR.classifyTool("const ROOT = join(HERE, '..');\nconst dir = join(ROOT, 'uploads', 'trio');\nreaddirSync(dir);").cls === 'repo-corpus' &&
+          CR.classifyTool("const ROOT = join(HERE, '..');\nconst dir = join(ROOT, 'tools');\nreaddirSync(dir);").cls === 'repo-tree',
+        'bound uploads/trio → repo-corpus · bound tools → repo-tree'
+      );
       T.eq('every abstention names a reason', silent.join(', '), '');
       /* THE ABSTENTIONS ARE A NAMED SET TOO, measured both ways: a sixth is a red, and a listed
          tool the tracer has learned to decide is a red. An abstention is the one verdict that
