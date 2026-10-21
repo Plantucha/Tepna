@@ -49820,6 +49820,41 @@
       T.ok("an OPEN PR's tree is never removed by the flag — its fixes may still be made here", openPr.ok === false, openPr.why);
       var dirty = V({ prState: 'MERGED', dirtyCount: 2, isMain: false, unlanded: { ok: true, count: 3 }, landedElsewhere: proof });
       T.ok("nor a dirty tree — it may be someone's only copy", dirty.ok === false, dirty.why);
+
+      /* ── CONTAINMENT IS THE RUNG ABOVE BOTH PROOFS ────────────────────────────────────────────
+         Row 2026-10-21-the-landed-hatch-of-wt-done-cannot-be-met-by-an-emptied-branch. The identifier
+         proof scores a branch by what it ADDS, so a branch whose commits landed as a squash and then
+         rebased to nothing adds zero and scores LOWEST — while being the strongest possible evidence
+         that a removal loses nothing. The floor is right and must stay (an empty list is not a pass);
+         what was missing is a rung above it. The numbers below are the ones measured on 2026-10-21 on
+         the branch `claude/lexkw-osp`: 7 commits dated after the merge, 0 identifiers added, 0 commits
+         ahead of a freshly fetched origin/main. The 7 were MAIN's commits, carried in by the rebase
+         that emptied the branch, which is why a DATE cannot answer this. */
+      var EMPTY = { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: true };
+      var seven = { prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 7 } };
+      T.ok(
+        'CONTROL · the identifier proof refuses the emptied branch — the strongest evidence scores lowest',
+        landedByIdentifiers(addedIdentifiers(''), yes).ok === false,
+        'an empty diff must refuse'
+      );
+      var contained = V(Object.assign({}, seven, { landless: EMPTY }));
+      T.ok('merged + 7 commits dated after it + 0 commits ahead of main ⇒ remove', contained.ok === true, contained.why);
+      T.ok('and the success names the measurement it acted on', /0 commits ahead of origin\/main/.test(contained.why), contained.why);
+      T.ok('and the PR state it read', /PR merged and nothing to land/.test(contained.why), contained.why);
+      var noStamp = V({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: false, why: 'no merge timestamp from gh' }, landless: EMPTY });
+      T.ok('containment outranks an INCONCLUSIVE date scan — the branch holds no commit to judge', noStamp.ok === true, noStamp.why);
+      T.ok('containment never overrides a dirty tree', V(Object.assign({}, seven, { dirtyCount: 1, landless: EMPTY })).ok === false, 'dirty must still refuse');
+      T.ok('nor a tree in use', V(Object.assign({}, seven, { landless: EMPTY, inUse: { ok: true, users: [{ pid: 9, cmd: 'npm run check' }] } })).ok === false, 'in use must still refuse');
+      T.ok('nor a failed idle scan — unknown is not idle', V(Object.assign({}, seven, { landless: EMPTY, inUse: { ok: false, why: '/proc unreadable' } })).ok === false, 'unknown must refuse');
+      T.ok('an OPEN PR keeps its tree even when the branch is empty', V({ prState: 'OPEN', dirtyCount: 0, isMain: false, landless: EMPTY }).ok === false, 'open must refuse');
+      T.ok('a CLOSED PR over an empty branch loses nothing either', V({ prState: 'CLOSED', dirtyCount: 0, isMain: false, landless: EMPTY }).ok === true, 'closed + empty must pass');
+      var ahead = V(Object.assign({}, seven, { landless: { ok: false, why: '3 commit(s) ahead of origin/main', commitsAhead: 3 } }));
+      T.ok('CONTROL · a branch with commits of its own still refuses — the rung fires on a MEASURED emptiness', ahead.ok === false, ahead.why);
+      T.eq(
+        'the PR-less wording is unchanged byte-for-byte',
+        V({ prState: null, dirtyCount: 0, isMain: false, landless: { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: false } }).why,
+        'no PR and nothing to land — 0 commits ahead of origin/main, tree clean, no branch on origin'
+      );
     });
 
     /* Row 2026-10-12-wt-done-resolves-the-repo-from-the-shell-cwd: invoked by ABSOLUTE path from a
