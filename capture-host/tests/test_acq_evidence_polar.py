@@ -73,6 +73,25 @@ def test_ppi_is_pmd_transported_and_still_host_only():
     assert polar.clock_status_for("ecg") == ae.CLOCK_DEVICE_AND_HOST
 
 
+def test_the_header_rule_agrees_with_the_capture_path_s_OWN_by_design_list():
+    """AN INDEPENDENT WITNESS for the one stream where transport and artifact disagree.
+
+    The header rule reads `writers`' column set. `capture._NO_SAMPLE_TIME_BY_DESIGN` is a different
+    source entirely — the VENDOR's rule, which the PMD handler states in a log line of its own ("PPI/HR
+    sample time is either zero or missing ... and that is not a refusal"). Two sources derived from
+    nothing in common must agree on which PMD stream has no device clock, and they do."""
+    import capture
+    import polar_pmd as pmd
+
+    for meas, stream in pmd.MEAS_NAME.items():
+        by_design = meas in capture._NO_SAMPLE_TIME_BY_DESIGN
+        host_only = polar.clock_status_for(stream) == ae.CLOCK_HOST_ONLY
+        assert by_design == host_only, f"{stream}: vendor rule says {by_design}, the header says {host_only}"
+    # not a vacuous agreement: the vendor list names exactly one stream, so one row of the loop above
+    # distinguishes the two answers and five confirm the other
+    assert {pmd.MEAS_NAME[m] for m in capture._NO_SAMPLE_TIME_BY_DESIGN} == {"ppi"}
+
+
 def test_the_stream_set_matches_what_the_live_polar_path_opens():
     """The set is declared in the adapter because `capture` imports it, so the parity is asserted
     here instead. Both directions — a stream added to the capture path and not to the adapter is as
