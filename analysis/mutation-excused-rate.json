@@ -1,0 +1,485 @@
+{
+  "schema": "tepna.mutation-excused-rate/1",
+  "collectedAt": "2026-10-21T03:01:16Z",
+  "listedByGitHub": 1380,
+  "window": {
+    "oldest": "2026-08-02T18:44:28Z",
+    "newest": "2026-10-21T02:13:59Z",
+    "limit": "from cache"
+  },
+  "population": {
+    "checked": 157,
+    "eligible": 1380,
+    "excluded": 1223
+  },
+  "excludedReasons": {
+    "no Python module changed, so no mutant was generated": 271,
+    "no notRequired counter in the verdict result (status NOT_RUN) — the artifact predates the counter": 18,
+    "no notRequired counter in the verdict result (status FAIL) — the artifact predates the counter": 139,
+    "no notRequired counter in the verdict result (status PASS) — the artifact predates the counter": 242,
+    "no notRequired counter in the verdict result (status UNKNOWN) — the artifact predates the counter": 51,
+    "no notRequired counter in the verdict result (status no verdict) — the artifact predates the counter": 502
+  },
+  "mergedPrsInWindow": 3109,
+  "producedBy": {
+    "tool": "tools/mutation-excused-rate.mjs",
+    "commit": "847579168f6b3da768bc35f07d8a69636940cd3d"
+  },
+  "diffs": {
+    "artifactsParsed": 1380,
+    "examined": 157,
+    "noCounter": {
+      "no Python module changed, so no mutant was generated": 271,
+      "no notRequired counter in the verdict result (status NOT_RUN) — the artifact predates the counter": 18,
+      "no notRequired counter in the verdict result (status FAIL) — the artifact predates the counter": 139,
+      "no notRequired counter in the verdict result (status PASS) — the artifact predates the counter": 242,
+      "no notRequired counter in the verdict result (status UNKNOWN) — the artifact predates the counter": 51,
+      "no notRequired counter in the verdict result (status no verdict) — the artifact predates the counter": 502
+    },
+    "withMutants": 157,
+    "withExcused": 134,
+    "withInterfaceReaching": 99,
+    "distinctHeadShas": 1332
+  },
+  "mutants": {
+    "excusedOccurrences": 1558,
+    "counterSum": 1558,
+    "counterAgrees": true,
+    "distinctKeys": 206,
+    "unparseableKeys": 4,
+    "byReason": {
+      "mutmut XX sentinel": 886,
+      "every changed token lies inside a string literal": 672
+    }
+  },
+  "rules": {
+    "requireOccurrences": {
+      "vector-element": 300,
+      "strftime-format": 107,
+      "join-or-split-separator": 203,
+      "dict-key": 618
+    },
+    "proseOccurrences": {
+      "returned-reason": 125,
+      "print-or-log": 44
+    },
+    "distinctKeysByRule": {
+      "vector-element": 18,
+      "strftime-format": 8,
+      "join-or-split-separator": 31,
+      "dict-key": 77
+    },
+    "distinctKeysByProse": {
+      "returned-reason": 14,
+      "print-or-log": 8
+    },
+    "definitions": [
+      {
+        "name": "dict-key",
+        "kind": "would-require",
+        "why": "a literal that keys a dict a function returns, writes or reads is behaviour the consumer sees"
+      },
+      {
+        "name": "join-or-split-separator",
+        "kind": "would-require",
+        "why": "a separator decides the shape of a string a consumer parses"
+      },
+      {
+        "name": "strftime-format",
+        "kind": "would-require",
+        "why": "a stamp format is an interface: the Clock Contract parses it by regex"
+      },
+      {
+        "name": "vector-element",
+        "kind": "would-require",
+        "why": "a bare space-less literal element of a sequence is an argv word, a unit name or a flag — read by a process, not by a human"
+      },
+      {
+        "name": "print-or-log",
+        "kind": "prose",
+        "why": "the literal reaches a human through stdout or a logger"
+      },
+      {
+        "name": "returned-reason",
+        "kind": "prose",
+        "why": "a reason or detail string is the gate explaining itself"
+      }
+    ]
+  },
+  "interfaceReaching": {
+    "occurrences": 1036,
+    "distinctKeys": 112,
+    "perDiffWithCounter": 6.5987,
+    "perDiffWithExcused": 7.7313,
+    "shareOfExcused": 0.665
+  },
+  "undecidable": {
+    "occurrences": 349,
+    "distinctKeys": 72
+  },
+  "mostRepeatedKeys": [
+    {
+      "key": "- \"primary\": pat, | + \"XXprimaryXX\": pat,",
+      "n": 39,
+      "module": "loss_audit.py",
+      "rules": [
+        "dict-key"
+      ],
+      "interfaceReaching": true
+    },
+    {
+      "key": "- \"primary\": pat, | + \"PRIMARY\": pat,",
+      "n": 39,
+      "module": "loss_audit.py",
+      "rules": [
+        "dict-key"
+      ],
+      "interfaceReaching": true
+    },
+    {
+      "key": "- \"journalctl\", | + \"XXjournalctlXX\",",
+      "n": 19,
+      "module": "ble_series.py",
+      "rules": [
+        "vector-element"
+      ],
+      "interfaceReaching": true
+    },
+    {
+      "key": "- \"journalctl\", | + \"JOURNALCTL\",",
+      "n": 19,
+      "module": "ble_series.py",
+      "rules": [
+        "vector-element"
+      ],
+      "interfaceReaching": true
+    },
+    {
+      "key": "- \"-u\", | + \"XX-uXX\",",
+      "n": 19,
+      "module": "ble_series.py",
+      "rules": [
+        "vector-element"
+      ],
+      "interfaceReaching": true
+    }
+  ],
+  "examples": [
+    {
+      "key": "- \"journalctl\", | + \"XXjournalctlXX\",",
+      "module": "ble_series.py",
+      "reason": "mutmut XX sentinel",
+      "rules": [
+        "vector-element"
+      ]
+    },
+    {
+      "key": "- \"journalctl\", | + \"JOURNALCTL\",",
+      "module": "ble_series.py",
+      "reason": "every changed token lies inside a string literal",
+      "rules": [
+        "vector-element"
+      ]
+    },
+    {
+      "key": "- naive = _dt.datetime.fromisoformat(stamp.replace(\",\", \".\")) | + naive = _dt.datetime.fromisoformat(stamp.replace(\"XX,XX\", \".\"))",
+      "module": "journal_line.py",
+      "reason": "mutmut XX sentinel",
+      "rules": [
+        "strftime-format"
+      ]
+    },
+    {
+      "key": "- naive = _dt.datetime.fromisoformat(stamp.replace(\",\", \".\")) | + naive = _dt.datetime.fromisoformat(stamp.replace(\",\", \"XX.XX\"))",
+      "module": "journal_line.py",
+      "reason": "mutmut XX sentinel",
+      "rules": [
+        "strftime-format"
+      ]
+    },
+    {
+      "key": "- \"cause_at\": None, | + \"XXcause_atXX\": None,",
+      "module": "loss_audit.py",
+      "reason": "mutmut XX sentinel",
+      "rules": [
+        "dict-key"
+      ]
+    },
+    {
+      "key": "- \"cause_at\": None, | + \"CAUSE_AT\": None,",
+      "module": "loss_audit.py",
+      "reason": "every changed token lies inside a string literal",
+      "rules": [
+        "dict-key"
+      ]
+    },
+    {
+      "key": "- \"name\": \"unexplained_findings_plus_spent_suppressions\", | + \"name\": \"XXunexplained_findings_plus_spent_suppressionsXX\",",
+      "module": "checkverdict.py",
+      "reason": "mutmut XX sentinel",
+      "rules": [
+        "dict-key"
+      ]
+    },
+    {
+      "key": "- \"name\": \"unexplained_findings_plus_spent_suppressions\", | + \"name\": \"UNEXPLAINED_FINDINGS_PLUS_SPENT_SUPPRESSIONS\",",
+      "module": "checkverdict.py",
+      "reason": "every changed token lies inside a string literal",
+      "rules": [
+        "dict-key"
+      ]
+    },
+    {
+      "key": "- f\"({', '.join(report['unpinned'])}) — unmeasured reads as 100 %\" | + f\"({'XX, XX'.join(report['unpinned'])}) — unmeasured reads as 100 %\"",
+      "module": "coverage_scope.py",
+      "reason": "mutmut XX sentinel",
+      "rules": [
+        "dict-key",
+        "join-or-split-separator"
+      ]
+    },
+    {
+      "key": "- f\"({', '.join(report['pinnedButMeasured'])})\" | + f\"({'XX, XX'.join(report['pinnedButMeasured'])})\"",
+      "module": "coverage_scope.py",
+      "reason": "mutmut XX sentinel",
+      "rules": [
+        "dict-key",
+        "join-or-split-separator"
+      ]
+    },
+    {
+      "key": "- \"--grep\", | + \"XX--grepXX\",",
+      "module": "mem_series.py",
+      "reason": "mutmut XX sentinel",
+      "rules": [
+        "vector-element"
+      ]
+    },
+    {
+      "key": "- \"--grep\", | + \"--GREP\",",
+      "module": "mem_series.py",
+      "reason": "every changed token lies inside a string literal",
+      "rules": [
+        "vector-element"
+      ]
+    }
+  ],
+  "samplesByRule": {
+    "vector-element": [
+      {
+        "key": "- \"journalctl\", | + \"XXjournalctlXX\",",
+        "module": "ble_series.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- \"journalctl\", | + \"JOURNALCTL\",",
+        "module": "ble_series.py",
+        "reason": "every changed token lies inside a string literal"
+      },
+      {
+        "key": "- \"--since\", | + \"XX--sinceXX\",",
+        "module": "loss_audit.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- \"--since\", | + \"--SINCE\",",
+        "module": "loss_audit.py",
+        "reason": "every changed token lies inside a string literal"
+      },
+      {
+        "key": "- \"--grep\", | + \"XX--grepXX\",",
+        "module": "mem_series.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- \"--grep\", | + \"--GREP\",",
+        "module": "mem_series.py",
+        "reason": "every changed token lies inside a string literal"
+      }
+    ],
+    "strftime-format": [
+      {
+        "key": "- until.strftime(\"%Y-%m-%d %H:%M:%S\"), | + until.strftime(\"XX%Y-%m-%d %H:%M:%SXX\"),",
+        "module": "ble_series.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- until.strftime(\"%Y-%m-%d %H:%M:%S\"), | + until.strftime(\"%y-%m-%d %h:%m:%s\"),",
+        "module": "ble_series.py",
+        "reason": "every changed token lies inside a string literal"
+      },
+      {
+        "key": "- naive = _dt.datetime.fromisoformat(stamp.replace(\",\", \".\")) | + naive = _dt.datetime.fromisoformat(stamp.replace(\"XX,XX\", \".\"))",
+        "module": "journal_line.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- naive = _dt.datetime.fromisoformat(stamp.replace(\",\", \".\")) | + naive = _dt.datetime.fromisoformat(stamp.replace(\",\", \"XX.XX\"))",
+        "module": "journal_line.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- since.strftime(\"%Y-%m-%d %H:%M:%S\"), | + since.strftime(\"XX%Y-%m-%d %H:%M:%SXX\"),",
+        "module": "loss_audit.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- since.strftime(\"%Y-%m-%d %H:%M:%S\"), | + since.strftime(\"%y-%m-%d %h:%m:%s\"),",
+        "module": "loss_audit.py",
+        "reason": "every changed token lies inside a string literal"
+      }
+    ],
+    "join-or-split-separator": [
+      {
+        "key": "- lines = r.stdout.split(\"\\n\") | + lines = r.stdout.split(\"XX\\nXX\")",
+        "module": "ble_series.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- night = os.path.basename(night_dir.rstrip(\"/\")) | + night = os.path.basename(night_dir.rstrip(\"XX/XX\"))",
+        "module": "loss_audit.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- f\"({', '.join(report['unpinned'])}) — unmeasured reads as 100 %\" | + f\"({'XX, XX'.join(report['unpinned'])}) — unmeasured reads as 100 %\"",
+        "module": "coverage_scope.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- f\"({', '.join(report['pinnedButMeasured'])})\" | + f\"({'XX, XX'.join(report['pinnedButMeasured'])})\"",
+        "module": "coverage_scope.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- fails = \",\".join(f\"{c}={_n(n)}\" for c, n in sorted(inc[\"failures\"].items())) | + fails = \"XX,XX\".join(f\"{c}={_n(n)}\" for c, n in sorted(inc[\"failures\"].items()))",
+        "module": "blestats.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- segs.append(f\"retries {dev} \" + \",\".join(f\"{w}={_n(n)}\" for w, n in sorted(whys.items()))) | + segs.append(f\"retries {dev} \" + \"XX,XX\".join(f\"{w}={_n(n)}\" for w, n in sorted(whys.items())))",
+        "module": "blestats.py",
+        "reason": "mutmut XX sentinel"
+      }
+    ],
+    "no-rule": [
+      {
+        "key": "- raise SystemExit(\"ring not advertising — wear it (finger in), app closed, daemon stopped.\") | + raise SystemExit(\"XXring not advertising — wear it (finger in), app closed, daemon stopped.XX\")",
+        "module": "probe_oxyii_0x03.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- raise SystemExit(\"ring GATT does not expose the OxyII write/notify pair\") | + raise SystemExit(\"XXring GATT does not expose the OxyII write/notify pairXX\")",
+        "module": "probe_oxyii_0x03.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- with open(tmp, \"w\", encoding=\"utf-8\") as fh: | + with open(tmp, \"w\", encoding=\"UTF-8\") as fh:",
+        "module": "loss_audit.py",
+        "reason": "every changed token lies inside a string literal"
+      },
+      {
+        "key": "- out.update(parse(ctypes.string_at(buf, size.value).decode(\"ascii\", \"replace\") if buf else \"\")) | + out.update(parse(ctypes.string_at(buf, size.value).decode(\"ASCII\", \"replace\") if buf else \"\"))",
+        "module": "pymalloc_stats.py",
+        "reason": "every changed token lies inside a string literal"
+      },
+      {
+        "key": "- out.update(parse(ctypes.string_at(buf, size.value).decode(\"ascii\", \"replace\") if buf else \"\")) | + out.update(parse(ctypes.string_at(buf, size.value).decode(\"ascii\", \"XXreplaceXX\") if buf else \"\"))",
+        "module": "pymalloc_stats.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- tool=\"capture-host/tools/find_unwired.py\", | + tool=\"XXcapture-host/tools/find_unwired.pyXX\",",
+        "module": "checkverdict.py",
+        "reason": "mutmut XX sentinel"
+      }
+    ],
+    "dict-key": [
+      {
+        "key": "- \"cause_at\": None, | + \"XXcause_atXX\": None,",
+        "module": "loss_audit.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- \"cause_at\": None, | + \"CAUSE_AT\": None,",
+        "module": "loss_audit.py",
+        "reason": "every changed token lies inside a string literal"
+      },
+      {
+        "key": "- out[\"reason\"] = \"pymalloc stats: the small-object allocator is not in use\" | + out[\"reason\"] = \"XXpymalloc stats: the small-object allocator is not in useXX\"",
+        "module": "pymalloc_stats.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- \"name\": \"unexplained_findings_plus_spent_suppressions\", | + \"name\": \"XXunexplained_findings_plus_spent_suppressionsXX\",",
+        "module": "checkverdict.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- \"name\": \"unexplained_findings_plus_spent_suppressions\", | + \"name\": \"UNEXPLAINED_FINDINGS_PLUS_SPENT_SUPPRESSIONS\",",
+        "module": "checkverdict.py",
+        "reason": "every changed token lies inside a string literal"
+      },
+      {
+        "key": "- f\"({', '.join(report['unpinned'])}) — unmeasured reads as 100 %\" | + f\"({'XX, XX'.join(report['unpinned'])}) — unmeasured reads as 100 %\"",
+        "module": "coverage_scope.py",
+        "reason": "mutmut XX sentinel"
+      }
+    ],
+    "returned-reason": [
+      {
+        "key": "- out[\"devices\"][name] = {\"primary\": None, \"reason\": f\"no primary stream known for model {model!r}\"} | + out[\"devices\"][name] = {\"primary\": None, \"XXreasonXX\": f\"no primary stream known for model {model!r}\"}",
+        "module": "loss_audit.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- out[\"devices\"][name] = {\"primary\": None, \"reason\": f\"no primary stream known for model {model!r}\"} | + out[\"devices\"][name] = {\"primary\": None, \"REASON\": f\"no primary stream known for model {model!r}\"}",
+        "module": "loss_audit.py",
+        "reason": "every changed token lies inside a string literal"
+      },
+      {
+        "key": "- out[\"reason\"] = \"pymalloc stats: the small-object allocator is not in use\" | + out[\"reason\"] = \"XXpymalloc stats: the small-object allocator is not in useXX\"",
+        "module": "pymalloc_stats.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- f\"{len(report['pinnedWithoutReason'])} pin(s) carry no reason ({', '.join(report['pinnedWithoutReason'])})\" | + f\"{len(report['pinnedWithoutReason'])} pin(s) carry no reason ({'XX, XX'.join(report['pinnedWithoutReason'])})\"",
+        "module": "coverage_scope.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- reason=\"; \".join( | + reason=\"XX; XX\".join(",
+        "module": "adapter_hci.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- \" [--refused <reason> name ...]\" | + \"XX [--refused <reason> name ...]XX\"",
+        "module": "checkverdict.py",
+        "reason": "mutmut XX sentinel"
+      }
+    ],
+    "print-or-log": [
+      {
+        "key": "- _log.info(\"CPAP stream: requesting %s UNPUBLISHED — raw record only, no bus channel (unit unpinned)\", extra_ids) | + _log.info(\"XXCPAP stream: requesting %s UNPUBLISHED — raw record only, no bus channel (unit unpinned)XX\", extra_ids)",
+        "module": "cpap_stream.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- _log.warning(\"CPAP stream interval changed mid-stream: %s -> %s ms\", observed_ms, iv) | + _log.warning(\"XXCPAP stream interval changed mid-stream: %s -> %s msXX\", observed_ms, iv)",
+        "module": "cpap_stream.py",
+        "reason": "mutmut XX sentinel"
+      },
+      {
+        "key": "- print(f\" devfloors.py takes no arguments; ignored: {' '.join(argv)}\") | + print(f\" devfloors.py takes no arguments; ignored: {'XX XX'.join(argv)}\")",
+        "module": "devfloors.py",
+        "reason": "mutmut XX sentinel"
+      }
+    ]
+  },
+  "caveats": [
+    "the denominator is diffs whose `mutation (diff-scoped)` job RAN; a relevance filter can skip that job on a change that would have reded it (residue 2026-10-20-capture-host-relevance-filter-skips-the-tools-change-that-reds-it), so `mergedPrsInWindow` rides beside it and is the denominator for \"lands on every open PR\"",
+    "a rule fires on the mutant key's OLD LINE, so a line holding two literals can match a role the MUTATED literal does not occupy — the rules are named and counted separately for that reason, and a reader may accept one and refuse another",
+    "a key whose changed line carries a literal `|` is unparseable, because `diff_key` joins the sides with the same character: counted as `mutants.unparseableKeys`, never classified",
+    "occurrences repeat across diffs and re-runs; `distinctKeys` is the figure to quote for how many distinct mutants a moved bar would require",
+    "the count errs in BOTH directions, and neither direction is a bound. It over-counts a separator mutated inside a message string, which joins prose (`coverage_scope.py`, a `\", \".join` inside an f-string the gate prints). It under-counts every interface string no rule names: the `no-rule` samples hold `encoding=\"utf-8\"`, `decode(\"ascii\", \"replace\")` and a tool path passed as a keyword argument, each read by a consumer and each excused as prose. A rule set is a proposal, so the record carries the samples that argue against it"
+  ]
+}
