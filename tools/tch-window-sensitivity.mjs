@@ -49,7 +49,7 @@
  * ════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -118,7 +118,11 @@ if (argv.includes('--help') || argv.includes('-h')) {
 }
 /* `process.argv[2]` was the corpus directory whatever it looked like, so an unknown flag died on an
    uncaught ENOENT at exit 1 (residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path). */
-refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h'], positional: true }, { tool: 'tools/tch-window-sensitivity.mjs' });
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
+   arguments, so an import of anything in this file judged flags it never passed (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h'], positional: true }, { tool: 'tools/tch-window-sensitivity.mjs' });
 const DIR = argv[0] || '/tmp/trio-box';
 /* The DEFAULT corpus dir is absent on any box that has not built it, so the no-argument run — the
    documented one — died on an uncaught ENOENT with a stack trace. Refuse by name instead. */

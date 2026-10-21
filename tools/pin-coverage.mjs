@@ -51,7 +51,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
@@ -62,7 +62,11 @@ const argv = process.argv.slice(2);
    tool is why the survey's extractor had to learn that arity is the HELPER's property: `many('--dir')`
    is a bare call that nevertheless consumes the next token, so a table built from call shape put the
    tool's one required argument in the boolean bucket and would have refused its path. */
-refuseUnknownArgvOrExit(argv, { valued: ['--dir', '--limit'], boolean: ['--resume', '--selftest'] }, { tool: 'pin-coverage' });
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
+   arguments, so an import of anything in this file judged flags it never passed (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) refuseUnknownArgvOrExit(argv, { valued: ['--dir', '--limit'], boolean: ['--resume', '--selftest'] }, { tool: 'pin-coverage' });
 const flag = (n) => argv.includes(n);
 const many = (n) => argv.reduce((a, v, i) => (v === n && argv[i + 1] ? a.concat(argv[i + 1]) : a), []);
 const one = (n, d) => {
