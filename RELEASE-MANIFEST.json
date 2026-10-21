@@ -1604,6 +1604,36 @@
         "SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.22.0",
+      "date": "2026-10-21",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "1217a21d671e",
+        "OxyDex": "d2080b4c0e07",
+        "PulseDex": "f21c67e3a3b0",
+        "GlucoDex": "88bfa298a1ae",
+        "PpgDex": "e77f9bedc8d9",
+        "HRVDex": "ece5f6b32622",
+        "CPAPDex": "3a76f9d0a932",
+        "Integrator": "4710b4eddea0",
+        "MotionDex": "628c53a97933"
+      },
+      "briefs": [
+        "RING-POLL-SPLIT-2026-10-04-BRIEF.md",
+        "PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md",
+        "EDGE-SETTLE-FLOOR-2026-10-18-BRIEF.md",
+        "GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md",
+        "OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md",
+        "PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md",
+        "EXPORT-SOURCE-KEY-KINDS-2026-10-20-BRIEF.md",
+        "TCH-REFERENCE-AXIS-MATCH-2026-10-20-BRIEF.md",
+        "RESIDUE.md",
+        "ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
