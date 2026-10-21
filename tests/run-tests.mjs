@@ -296,7 +296,10 @@ function progressReporter() {
   };
 }
 
-const PROGRESS = !process.env.CI && !process.argv.slice(2).some((a) => /^--?no-progress$/i.test(a));
+/* `DEX_PROGRESS=1` keeps the per-group stderr line under CI. tools/mutate.mjs sets it: its no-progress
+   watchdog hears a mutant run only through these lines, because the results reach stdout in one
+   write at the end (residue 2026-10-20-the-no-progress-bound-is-shorter-than-the-clean-run-it-guards). */
+const PROGRESS = (process.env.DEX_PROGRESS === '1' || !process.env.CI) && !process.argv.slice(2).some((a) => /^--?no-progress$/i.test(a));
 
 const SHOW_TIMINGS = process.argv.slice(2).some((s) => /^--?timings?$/i.test(s)) || !!process.env.DEX_TIMINGS;
 
