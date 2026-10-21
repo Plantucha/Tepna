@@ -627,7 +627,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "ADOPTED 2026-10-20 (residue 2026-10-19-a-default-whose-only-coverage-reads-the-signature-is-unmeasured): the advisory scan over capture-host production modules emits ONE tepna.verdict/1 over every literal default it classified. criterion = signature_only_defaults <= 0, pre-stated in CRITERION, where a SIGNATURE_ONLY default is one whose only coverage in the suite reads the signature (inspect.signature, __defaults__, getfullargspec) and no call omits it — mutmut keeps the ORIGINAL default on the visible def and dispatches at call time, so such a read passes under every mutant. PASS no such default · FAIL the population is non-empty, naming each row · NOT_RUN no production module was read (result null). population: eligible = literal defaults found, checked = those classified OBSERVABLE, UNCOVERED or SIGNATURE_ONLY, excluded = UNDECIDABLE ones (an ambiguous name across two modules, a splat at a call site, a bare name reference) — the scan's competence bound, stated rather than resolved. The exit code is ALWAYS 0: the bar is the owner's, so this tool measures and never blocks. Sampled with --verdict-sample, which is synthetic and reads no tree."
+   "note": "ADOPTED 2026-10-20 (residue 2026-10-19-a-default-whose-only-coverage-reads-the-signature-is-unmeasured): the advisory scan over capture-host production modules emits ONE tepna.verdict/1 over every literal default it classified. criterion = signature_only_defaults <= 0, pre-stated in CRITERION, where a SIGNATURE_ONLY default is one whose only coverage in the suite reads the signature (inspect.signature, __defaults__, getfullargspec) and no call omits it \u2014 mutmut keeps the ORIGINAL default on the visible def and dispatches at call time, so such a read passes under every mutant. PASS no such default \u00b7 FAIL the population is non-empty, naming each row \u00b7 NOT_RUN no production module was read (result null). population: eligible = literal defaults found, checked = those classified OBSERVABLE, UNCOVERED or SIGNATURE_ONLY, excluded = UNDECIDABLE ones (an ambiguous name across two modules, a splat at a call site, a bare name reference) \u2014 the scan's competence bound, stated rather than resolved. The exit code is ALWAYS 0: the bar is the owner's, so this tool measures and never blocks. Sampled with --verdict-sample, which is synthetic and reads no tree."
   },
   "capture-host/tools/seq_suite.py": {
    "bin": "decides",
@@ -1272,7 +1272,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "every .claude/hooks hook must drain stdin before it can exit (residue 2026-10-12-seven-hooks-exit-before-draining-stdin-and-their-tests-cannot-see-it; #3493, #3759). Three readings per hook: STATIC (only comments, set/shopt and plain assignments may precede the drain), BEHAVIOURAL (a payload past fs.pipe-max-size down a real pipe, 5 trials, the writer's own PIPESTATUS[0] — 141 is SIGPIPE), ENUMERATION (a <name>.test.sh exists and test:hooks names it). Population = hooks found; a hook with no PROBES row is EXCLUDED and FAILs, so a new hook cannot arrive unmeasured. NOT_RUN when the hook directory holds nothing."
+   "note": "every .claude/hooks hook must drain stdin before it can exit (residue 2026-10-12-seven-hooks-exit-before-draining-stdin-and-their-tests-cannot-see-it; #3493, #3759). Three readings per hook: STATIC (only comments, set/shopt and plain assignments may precede the drain), BEHAVIOURAL (a payload past fs.pipe-max-size down a real pipe, 5 trials, the writer's own PIPESTATUS[0] \u2014 141 is SIGPIPE), ENUMERATION (a <name>.test.sh exists and test:hooks names it). Population = hooks found; a hook with no PROBES row is EXCLUDED and FAILs, so a new hook cannot arrive unmeasured. NOT_RUN when the hook directory holds nothing."
   },
   "tools/h10-session-rate.mjs": {
    "bin": "decides",
@@ -1380,16 +1380,16 @@
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
   "tools/mutation-excused-rate.mjs": {
-    "bin": "decides",
-    "status": "adopted",
-    "emits": {
-      "cmd": [
-        "node",
-        "tools/mutation-excused-rate.mjs",
-        "--verdict"
-      ]
-    },
-    "note": "the excused-mutant rate (residue 2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured): mutate_diff excuses every string-literal mutant, because mutmut wraps EVERY literal in XX sentinels, so a dict key, a join separator, a strftime format and a subprocess argv word are all put aside as prose. The pre-stated criterion is the row's own claim, zero interface-reaching excused mutants, read over the mutation-diff artifacts CI has already uploaded (mutmut runs zero times) \u2014 PASS none matched a would-require rule without also matching a prose rule \u00b7 FAIL any did, reason naming the rate and both denominators \u00b7 NOT_RUN the record is absent or examined nothing \u00b7 UNKNOWN the record carries no integer count; population = diffs whose mutation job RAN, expired and unreadable artifacts excluded; the merged-PR count rides in the result so the rate is not read as a property of every PR. The verdict path reads the committed record offline and exits 0, because a measured defect is not this tool failing; --strict exits 1 on non-PASS."
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/mutation-excused-rate.mjs",
+     "--verdict"
+    ]
+   },
+   "note": "the excused-mutant rate (residue 2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured): mutate_diff excuses every string-literal mutant, because mutmut wraps EVERY literal in XX sentinels, so a dict key, a join separator, a strftime format and a subprocess argv word are all put aside as prose. The pre-stated criterion is the row's own claim, zero interface-reaching excused mutants, read over the mutation-diff artifacts CI has already uploaded (mutmut runs zero times) \u2014 PASS none matched a would-require rule without also matching a prose rule \u00b7 FAIL any did, reason naming the rate and both denominators \u00b7 NOT_RUN the record is absent or examined nothing \u00b7 UNKNOWN the record carries no integer count; population = diffs whose mutation job RAN, expired and unreadable artifacts excluded; the merged-PR count rides in the result so the rate is not read as a property of every PR. The verdict path reads the committed record offline and exits 0, because a measured defect is not this tool failing; --strict exits 1 on non-PASS."
   },
   "tools/mutation-reach.mjs": {
    "bin": "word-only",
