@@ -612,6 +612,7 @@ function loadInto(ctx, file) {
 const SHIPPED_INLINED = new Set(); // every .js the owned bundles inline — the lint's scope floor
 /* Populated by readSources(); read by the drawn-axis consumer-population gate. See the block there. */
 let TOOL_TEXTS = null;
+let HOOK_TEXTS = null;
 
 function readSources() {
   const wanted = [
@@ -844,6 +845,27 @@ function readSources() {
     if (names.length < 100) throw new Error('readSources: only ' + names.length + ' tools/*.mjs found — refusing a population that short');
     const t = {};
     for (const f of names) t['tools/' + f] = readFileSync(join(dir, f), 'utf8');
+    return t;
+  })();
+  /* ── EVERY `.claude/hooks/*.sh`, SO THE HATCH GATE CAN HAVE A REAL DENOMINATOR (2026-10-21) ─────
+     Residue `2026-10-21-the-guard-hatch-disarms-the-guards-own-selftest`: a hook's escape hatch is an
+     EXPORTED environment variable, so a gate launched from the same command runs the hook's OWN
+     self-test with the hatch set, and every leg that expects a DENY scores ALLOW. Measured over all
+     eleven hatch-reading hooks: NINE self-tests moved from PASS to RED that way, each reporting a
+     disarmed instrument as broken legs rather than as a disarmed instrument.
+     THE POPULATION MUST BE DERIVED. `guard-trailer.test.sh` already carried the `unset`, and a
+     hand-written list would have been written from the nine that did not — the same shape as the
+     drawn-axis gate that named two tools by hand while claiming "every". Kept SEPARATE from `out` for
+     the reason `TOOL_TEXTS` is: adding these files to `env.sources` would silently move the population
+     of every other source-scanning gate. FAILS CLOSED — an unreadable or implausibly small hooks
+     directory throws, because walking nothing reads exactly like a clean tree (CLAUDE.md §4b). */
+  HOOK_TEXTS = (() => {
+    const dir = join(ROOT, '.claude', 'hooks');
+    if (!existsSync(dir)) throw new Error('readSources: .claude/hooks/ is unreadable — refusing to derive a hook population from nothing');
+    const names = readdirSync(dir).filter((f) => f.endsWith('.sh'));
+    if (names.length < 20) throw new Error('readSources: only ' + names.length + ' .claude/hooks/*.sh found — refusing a population that short');
+    const t = {};
+    for (const f of names) t['.claude/hooks/' + f] = readFileSync(join(dir, f), 'utf8');
     return t;
   })();
   /* DEEP-AUDIT-III §1.4 — the scope must be DERIVED, not hand-maintained. The list above is curated,
@@ -3456,6 +3478,10 @@ async function main() {
     // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
     get toolTexts() {
       return TOOL_TEXTS;
+    },
+    // Must come AFTER `sources:` too — readSources() is what fills HOOK_TEXTS.
+    get hookTexts() {
+      return HOOK_TEXTS;
     },
     jsLex,
     // §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs

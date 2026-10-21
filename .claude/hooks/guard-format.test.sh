@@ -11,6 +11,16 @@
 # fires on everything scores as loudly as one that fires on nothing.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
+
+# THE HOOK MUST NOT INHERIT THE RUNNING SESSION'S HATCH. `CLAUDE_ALLOW_UNFORMATTED_FORMAT=1` is documented in
+# command position, and that is also the position which EXPORTS it to every child — `npm run
+# check` is a child, so every DENY leg below would score ALLOW and the gate would report a
+# disarmed instrument as broken legs. Measured 2026-10-21: 9 of the 11 hatch-reading
+# self-tests moved from PASS to RED with their own hatch exported. Gated by
+# the suite group `every hatch-reading hook has a self-test its own hatch cannot disarm`, whose
+# population is `.claude/hooks/` itself. A leg that WANTS the hatch sets it inline, per leg,
+# which an `unset` at the top of the file does not touch.
+unset CLAUDE_ALLOW_UNFORMATTED_FORMAT
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/guard-format.sh"
 # ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
 # four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be

@@ -16,6 +16,19 @@
 # the failure this repo keeps paying for. Skipping says so out loud.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
+
+# THE HOOK MUST NOT INHERIT THE RUNNING SESSION'S HATCH. `CLAUDE_ALLOW_UNFORMATTED_RUFF=1` is documented in
+# command position, and that is also the position which EXPORTS it to every child — `npm run
+# check` is a child, so every DENY leg below would score ALLOW and the gate would report a
+# disarmed instrument as broken legs. Measured 2026-10-21: 9 of the 11 hatch-reading
+# self-tests moved from PASS to RED with their own hatch exported. Gated by
+# the suite group `every hatch-reading hook has a self-test its own hatch cannot disarm`, whose
+# population is `.claude/hooks/` itself. A leg that WANTS the hatch sets it inline, per leg,
+# which an `unset` at the top of the file does not touch.
+# ⚠ THIS ONE IS UNMEASURED HERE, NOT MEASURED CLEAN: `ruff` is absent on the rig that took the
+# figure above, so this self-test SKIPPED in both arms and certified nothing either way. The line
+# below is the same structure the other ten carry, asserted statically and never watched to work.
+unset CLAUDE_ALLOW_UNFORMATTED_RUFF
 H="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/guard-ruff.sh"
 # ⚠ THE WRITER-FATE PAYLOAD IS SIZED FROM THE KERNEL, NOT FROM A ROUND NUMBER. `--probe-bytes` returns
 # four times this box's `fs.pipe-max-size` with a 4 MiB floor, and nothing past that ceiling can be
