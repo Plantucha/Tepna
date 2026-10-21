@@ -25,6 +25,7 @@
  *   node tools/pat-dip-index.mjs <captures-root> [--theta 10] [--beats 4] [--json]
  */
 import { readdirSync, existsSync } from 'node:fs';
+import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { pairsIn } from './pat-finger-coupler.mjs';
@@ -100,9 +101,12 @@ function main() {
     console.error('usage: node tools/pat-dip-index.mjs <captures-root> [--theta 10] [--beats 4] [--json]');
     process.exit(2);
   }
-  const nights = readdirSync(ROOT)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort();
+  /* THE POPULATION IS MEASURED, NOT ASSUMED. `tepna-corpus-tier.service` re-tiers the corpus daily,
+     so a run can open over one night set and close over another and report a figure that describes
+     neither. `snapshotNights` is the same enumeration this loop used to do by hand, and the closing
+     snapshot turns a moved population into a SHORTFALL verdict instead of a silent narrowing. */
+  const popBefore = snapshotNights(ROOT);
+  const nights = popBefore.nights;
   const rows = [];
   for (const night of nights) {
     const pair = (LEG === 'ankle' ? anklePair(join(ROOT, night)) : pairsIn(join(ROOT, night)))[0];
@@ -141,8 +145,9 @@ function main() {
       noiseFloorMs: +r.medianAbsDevMs.toFixed(1)
     });
   }
+  const population = populationVerdict(popBefore, snapshotNights(ROOT), { tool: 'tools/pat-dip-index.mjs' });
   if (AS_JSON) {
-    console.log(JSON.stringify({ theta: THETA, minBeats: NBEATS, rows }, null, 1));
+    console.log(JSON.stringify({ theta: THETA, minBeats: NBEATS, rows, population }, null, 1));
     return;
   }
   console.log(`ΔPAT dip index — Θ=${THETA} ms, ≥${NBEATS} core beats (descriptive; no chance floor yet)\n`);
@@ -158,6 +163,8 @@ function main() {
         `${String(r.medianDepthMs == null ? '—' : r.medianDepthMs + 'ms').padStart(8)}  ${String(r.artifactPct).padStart(8)}  ${String(r.noiseFloorMs + 'ms').padStart(9)}`
     );
   }
+  /* The text run says it too. A population that moved under a table nobody re-read is the defect. */
+  console.log(`\npopulation: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}` + (population.reason ? `\n  ${population.reason}` : ''));
 }
 
 const IS_CLI = isCliEntry(import.meta.url);
