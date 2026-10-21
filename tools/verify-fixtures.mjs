@@ -142,45 +142,6 @@ function needsVerification(rec, tracked) {
   return !(ins.length > 0 && ins.every((f) => tracked.has(f)));
 }
 
-const _apps = JSON.parse(fs.readFileSync(path.join(PROV_DIR, 'index.json'), 'utf8')).apps;
-const _frags = {}; // app -> fragment object (the write target)
-const _fixtureApp = {}; // fixture name -> owning app (for targeted write-back)
-const fixtures = {}; // fixture name -> record (a live reference into _frags[app].fixtures)
-for (const app of _apps) {
-  const fr = JSON.parse(fs.readFileSync(path.join(PROV_DIR, app + '.json'), 'utf8'));
-  _frags[app] = fr;
-  for (const name of Object.keys(fr.fixtures || {})) {
-    fixtures[name] = fr.fixtures[name];
-    _fixtureApp[name] = app;
-  }
-}
-const tracked = trackedUploads();
-const owing = Object.keys(fixtures).filter((k) => k[0] !== '_' && needsVerification(fixtures[k], tracked));
-
-/* ── computeHash per bundle (the code identity a verification is pinned to) ── */
-const computeHashes = {};
-for (const k of owing) {
-  const b = fixtures[k].bundle;
-  if (b && !(b in computeHashes)) {
-    const p = path.join(REPO, b);
-    computeHashes[b] = fs.existsSync(p) ? await ManifestGate.computeHashFromText(fs.readFileSync(p, 'utf8')) : null;
-  }
-}
-
-/* ── FIRST-GENERATION SET (the bootstrap exemption's ONLY input) ──────────────────────────────
-   A brand-new code-gated fixture is unstamped by definition, and dex-tests' §3.1 fails closed on
-   exactly that. But this tool refuses to stamp anything while the suite is red — so the stamp needs
-   a green suite and the suite needs the stamp. Measured 2026-09-02 standing up the apnea-null twins
-   (DEEP-AUDIT-VI-FOLLOWUPS §4.3): 8995 assertions, ONE failing, and it named the very fixture the
-   run existed to stamp. No new `inputs: []` fixture had been added since §3.1 landed 2026-07-14, so
-   the path had never been walked. Same class as the gap `newRecord` closed for the ledger RECORD.
-
-   WHY NOT A `--bootstrap <fixture>` FLAG (considered and rejected): a flag is an OPERATOR CLAIM —
-   it asserts "this one is new, trust me" — and the failure mode of this whole tool is exactly a
-   claim nobody checked. The run already holds the evidence: which fixtures owe a stamp and have
-   none is derivable here, before the suite runs. So the exemption is DERIVED, never asserted, and
-   it cannot be pointed at a fixture that already had a stamp. */
-const firstStamp = owing.filter((k) => !fixtures[k].verifiedUnder);
 /* The §3.1 assertion label this tool matches on. It is asserted EQUAL to dex-tests.js's own label by
    the `fixture-verification` gate: a rename there would otherwise silently widen this exemption (or,
    worse, quietly re-close the deadlock) with nobody seeing why. */
@@ -325,134 +286,189 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   process.exit(bad ? 1 : 0);
 }
 
-const stale = owing.filter((k) => {
-  const ch = computeHashes[fixtures[k].bundle];
-  return !ch || fixtures[k].verifiedUnder !== ch;
-});
 
-if (CHECK) {
-  out(`▸ fixture verification — ${owing.length} corpus-backed fixture(s) owe a verifiedUnder`);
+/* ── THE PROGRAM, HELD BEHIND THE ENTRY GUARD ───────────────────────────────────────────────
+   Everything above is a declaration, an export or the `--selftest` block, which names the entry
+   itself. Everything below RUNS: it reads every provenance fragment, re-runs the full suite
+   against the real corpus, and writes `provenance/<App>.json`. At module scope that is what a
+   bare `import` of this file does — and `IS_CLI` guarded only the argv refusal, so an importer
+   paid a >10-minute corpus lap and could have its ledger stamped by a tool it only meant to read
+   a helper from. Measured by `tools/importer-flag-probe.mjs`, which binned this tool
+   UNDECIDED-timeout: the probe imports each tool and requires silence, and this one never
+   returned. No importer exists today, which is why the hazard was latent rather than a defect
+   anybody had been bitten by; `release.mjs` and `selftest-all.mjs` both SPAWN it as a CLI. */
+async function main() {
+  const _apps = JSON.parse(fs.readFileSync(path.join(PROV_DIR, 'index.json'), 'utf8')).apps;
+  const _frags = {}; // app -> fragment object (the write target)
+  const _fixtureApp = {}; // fixture name -> owning app (for targeted write-back)
+  const fixtures = {}; // fixture name -> record (a live reference into _frags[app].fixtures)
+  for (const app of _apps) {
+    const fr = JSON.parse(fs.readFileSync(path.join(PROV_DIR, app + '.json'), 'utf8'));
+    _frags[app] = fr;
+    for (const name of Object.keys(fr.fixtures || {})) {
+      fixtures[name] = fr.fixtures[name];
+      _fixtureApp[name] = app;
+    }
+  }
+  const tracked = trackedUploads();
+  const owing = Object.keys(fixtures).filter((k) => k[0] !== '_' && needsVerification(fixtures[k], tracked));
+
+  /* ── computeHash per bundle (the code identity a verification is pinned to) ── */
+  const computeHashes = {};
+  for (const k of owing) {
+    const b = fixtures[k].bundle;
+    if (b && !(b in computeHashes)) {
+      const p = path.join(REPO, b);
+      computeHashes[b] = fs.existsSync(p) ? await ManifestGate.computeHashFromText(fs.readFileSync(p, 'utf8')) : null;
+    }
+  }
+
+  /* ── FIRST-GENERATION SET (the bootstrap exemption's ONLY input) ──────────────────────────────
+     A brand-new code-gated fixture is unstamped by definition, and dex-tests' §3.1 fails closed on
+     exactly that. But this tool refuses to stamp anything while the suite is red — so the stamp needs
+     a green suite and the suite needs the stamp. Measured 2026-09-02 standing up the apnea-null twins
+     (DEEP-AUDIT-VI-FOLLOWUPS §4.3): 8995 assertions, ONE failing, and it named the very fixture the
+     run existed to stamp. No new `inputs: []` fixture had been added since §3.1 landed 2026-07-14, so
+     the path had never been walked. Same class as the gap `newRecord` closed for the ledger RECORD.
+
+     WHY NOT A `--bootstrap <fixture>` FLAG (considered and rejected): a flag is an OPERATOR CLAIM —
+     it asserts "this one is new, trust me" — and the failure mode of this whole tool is exactly a
+     claim nobody checked. The run already holds the evidence: which fixtures owe a stamp and have
+     none is derivable here, before the suite runs. So the exemption is DERIVED, never asserted, and
+     it cannot be pointed at a fixture that already had a stamp. */
+  const firstStamp = owing.filter((k) => !fixtures[k].verifiedUnder);
+
+  const stale = owing.filter((k) => {
+    const ch = computeHashes[fixtures[k].bundle];
+    return !ch || fixtures[k].verifiedUnder !== ch;
+  });
+
+  if (CHECK) {
+    out(`▸ fixture verification — ${owing.length} corpus-backed fixture(s) owe a verifiedUnder`);
+    for (const k of owing) {
+      const ch = computeHashes[fixtures[k].bundle];
+      const ok = ch && fixtures[k].verifiedUnder === ch;
+      out(
+        ok
+          ? paint('  ✓', C.green) + ' ' + k + paint('  verified under ' + ch, C.dim)
+          : paint('  ✕', C.red) + ' ' + k + paint('  UNVERIFIED — verifiedUnder=' + (fixtures[k].verifiedUnder || '(none)') + ' but the compute closure is now ' + ch, C.yellow)
+      );
+    }
+    if (stale.length) {
+      console.error(
+        paint(`\n✕ ${stale.length} fixture(s) UNVERIFIED under the current compute closure.`, C.red) +
+          '\n  Their producing code changed and NOTHING has re-run them since. Fix:\n' +
+          '    node tools/verify-fixtures.mjs\n' +
+          '  (it searches for the corpus itself, including the primary checkout when you are in a worktree;\n' +
+          '   DEX_UPLOADS=<corpus> overrides — see docs/CORPUS-LOCATIONS.md)\n' +
+          '  (or, if the change genuinely moved an export, regenerate first: tools/regen-<node>-goldens.mjs)'
+      );
+      if (JSON_OUT) emitVerdict({ status: 'FAIL', owing, unverified: stale, reason: `${stale.length} fixture(s) UNVERIFIED under the current compute closure: ${stale.join(', ')}` });
+      process.exit(1);
+    }
+    out(paint('✓ every corpus-backed fixture is verified under the current compute closure', C.green));
+    if (JSON_OUT) emitVerdict({ status: 'PASS', owing, unverified: [] });
+    process.exit(0);
+  }
+
+  /* ── STAMP MODE — verify for real, then record ────────────────────────────────────────────── */
+
+  // 0 · say WHERE the corpus was found before reading a byte of it — an unstated path is how a
+  //     worktree run's "absent" got read as a fact about the machine (FIXTURE-CORPUS-REACHABILITY §2).
+  console.log('▸ corpus: ' + UPLOADS + paint(' (' + (SEARCH.candidates.find((c) => c.chosen) || {}).label + ')', C.dim));
+
+  // 1 · every named corpus input must be PRESENT. Absent ⇒ we cannot verify ⇒ we do not stamp.
+  const missing = [];
+  for (const k of owing) for (const f of fixtures[k].inputs || []) if (!fs.existsSync(path.join(UPLOADS, f))) missing.push(f);
+  if (missing.length) {
+    console.error(
+      paint('✕ cannot verify — ' + [...new Set(missing)].length + ' corpus input(s) absent:', C.red) +
+        '\n  ' + [...new Set(missing)].slice(0, 6).join('\n  ') +
+        '\n\n  These are gitignored personal recordings, so they are NOT in a fresh worktree: a worktree off\n' +
+        '  origin/main gets only the tracked fifth of uploads/, and the corpus lives in the PRIMARY checkout.\n' +
+        '  Searched, in order:\n' +
+        formatCorpusSearch(SEARCH) +
+        '\n\n  If none of those is your corpus, name it (docs/CORPUS-LOCATIONS.md lists the four it may be in):\n' +
+        '    DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs\n' +
+        '  Refusing to stamp: a verification you did not run is exactly the false claim this gate exists to abolish.'
+    );
+    if (JSON_OUT) emitVerdict({ status: 'NOT_RUN', owing, reason: `${[...new Set(missing)].length} corpus input(s) absent — nothing was verified` });
+    process.exit(2);
+  }
+
+  // 2 · run the REAL suite. It re-runs every code-gated fixture through its own dynamic leg (the
+  //     `fixture-reproducibility` group gates that fact), so a green run IS the verification.
+  console.log('▸ re-running every fixture through the real suite (this is the verification) …');
+  try {
+    execFileSync(process.execPath, [path.join(REPO, 'tests', 'run-tests.mjs')], {
+      cwd: REPO,
+      env: { ...process.env, DEX_UPLOADS: UPLOADS },
+      /* stderr is INHERITED so the suite's progress reaches the operator. This tool runs the FULL
+         suite — >10 min — against the real corpus, and it is what `release.mjs` refuses to cut
+         without; capturing both streams meant it printed one line and then went silent for the whole
+         run, which is precisely the blind wait the progress line exists to end. Only stdout is piped,
+         and that is where the `✕` lines the failure parse reads are written. */
+      stdio: ['ignore', 'pipe', 'inherit'],
+      /* 64 MiB. The suite's stdout crossed Node's 1 MiB default in October 2026 and will keep growing;
+         a capture limit that the thing being captured outgrows is a timer, not a safeguard. */
+      maxBuffer: SUITE_MAX_BUFFER
+    });
+  } catch (e) {
+    const out = String((e.stdout || '') + (e.stderr || ''));
+    /* EVERY failing line, not a printed sample. The old code sliced to 8 for display and would have
+       decided on that slice — the §4b family: a verdict read off a truncated view. Display is capped
+       below; the DECISION reads all of them. */
+    if (suiteFailureKind(e) === 'buffer') {
+      console.error(paint(captureOverflowMessage(e.stdout ? e.stdout.length : null, SUITE_MAX_BUFFER), C.red));
+      emit('FAIL', 'the suite output exceeded the capture buffer — its verdict was never read');
+      process.exit(1);
+    }
+    const failLines = out.split('\n').filter((l) => /^\s*✕/.test(l));
+    /* The bootstrap exemption, derived. It applies ONLY when both hold:
+         (a) every failing assertion is §3.1 itself, and
+         (b) the fixtures §3.1 names are a SUBSET of the first-generation set computed above.
+       A second failing assertion, a moved fixture, or a name that already carried a stamp all fail
+       one of these and refuse exactly as before. */
+    const { exempt, named } = bootstrapExempt(failLines, firstStamp);
+    if (exempt) {
+      /* LOUD, because an exemption invisible in the log is indistinguishable from a gate that did not
+         run. The operator must be able to see what was excused and why, without reading this file. */
+      console.log(
+        paint('\n▸ BOOTSTRAP EXEMPTION APPLIED — §3.1 named exactly ' + named.length + ' first-generation fixture(s) this run stamps;', C.yellow) +
+          paint('\n  every other assertion in the suite is GREEN. Excused: ' + named.join(', '), C.yellow) +
+          paint('\n  (a first stamp cannot exist before the stamp — the exemption is derived from the ledger, never claimed by a flag.)', C.dim)
+      );
+    } else {
+      console.error(paint('✕ the suite is RED — stamping NOTHING.', C.red));
+      for (const l of failLines.slice(0, 8)) console.error('  ' + l.trim());
+      if (failLines.length > 8) console.error(paint('  … and ' + (failLines.length - 8) + ' more (all were read; only the first 8 are shown)', C.dim));
+      console.error(
+        '\n  A fixture that does not reproduce is a live stale-fixture finding, not a stamping problem:\n' +
+          '  regenerate it (tools/regen-<node>-goldens.mjs) and re-run this. Partial credit is how false claims are born.'
+      );
+      if (JSON_OUT) emitVerdict({ status: 'FAIL', owing, unverified: owing, reason: 'the suite is RED under the current compute closure — nothing stamped' });
+      process.exit(1);
+    }
+  }
+
+  // 3 · green ⇒ every leg reproduced its fixture under this exact code ⇒ record it.
+  let stamped = 0;
+  const _touchedApps = new Set();
   for (const k of owing) {
     const ch = computeHashes[fixtures[k].bundle];
-    const ok = ch && fixtures[k].verifiedUnder === ch;
-    out(
-      ok
-        ? paint('  ✓', C.green) + ' ' + k + paint('  verified under ' + ch, C.dim)
-        : paint('  ✕', C.red) + ' ' + k + paint('  UNVERIFIED — verifiedUnder=' + (fixtures[k].verifiedUnder || '(none)') + ' but the compute closure is now ' + ch, C.yellow)
-    );
+    if (!ch) {
+      console.log(paint('  ⚠ ', C.yellow) + k + ' — bundle has no computeHash (not plain-inline?); NOT stamped');
+      continue;
+    }
+    if (fixtures[k].verifiedUnder === ch) continue;
+    fixtures[k].verifiedUnder = ch; // mutates the live fragment record
+    _touchedApps.add(_fixtureApp[k]);
+    stamped++;
+    console.log(paint('  ↻ ', C.green) + k + paint('  verifiedUnder → ' + ch, C.dim));
   }
-  if (stale.length) {
-    console.error(
-      paint(`\n✕ ${stale.length} fixture(s) UNVERIFIED under the current compute closure.`, C.red) +
-        '\n  Their producing code changed and NOTHING has re-run them since. Fix:\n' +
-        '    node tools/verify-fixtures.mjs\n' +
-        '  (it searches for the corpus itself, including the primary checkout when you are in a worktree;\n' +
-        '   DEX_UPLOADS=<corpus> overrides — see docs/CORPUS-LOCATIONS.md)\n' +
-        '  (or, if the change genuinely moved an export, regenerate first: tools/regen-<node>-goldens.mjs)'
-    );
-    if (JSON_OUT) emitVerdict({ status: 'FAIL', owing, unverified: stale, reason: `${stale.length} fixture(s) UNVERIFIED under the current compute closure: ${stale.join(', ')}` });
-    process.exit(1);
-  }
-  out(paint('✓ every corpus-backed fixture is verified under the current compute closure', C.green));
-  if (JSON_OUT) emitVerdict({ status: 'PASS', owing, unverified: [] });
-  process.exit(0);
+  if (stamped) for (const app of _touchedApps) fs.writeFileSync(path.join(PROV_DIR, app + '.json'), JSON.stringify(_frags[app], null, 2) + '\n');
+  out(paint(`\n✓ suite green — ${stamped} fixture(s) stamped, ${owing.length - stamped} already current`, C.green));
+  if (JSON_OUT) emitVerdict({ status: 'PASS', owing, unverified: [], stamped });
 }
 
-/* ── STAMP MODE — verify for real, then record ────────────────────────────────────────────── */
-
-// 0 · say WHERE the corpus was found before reading a byte of it — an unstated path is how a
-//     worktree run's "absent" got read as a fact about the machine (FIXTURE-CORPUS-REACHABILITY §2).
-console.log('▸ corpus: ' + UPLOADS + paint(' (' + (SEARCH.candidates.find((c) => c.chosen) || {}).label + ')', C.dim));
-
-// 1 · every named corpus input must be PRESENT. Absent ⇒ we cannot verify ⇒ we do not stamp.
-const missing = [];
-for (const k of owing) for (const f of fixtures[k].inputs || []) if (!fs.existsSync(path.join(UPLOADS, f))) missing.push(f);
-if (missing.length) {
-  console.error(
-    paint('✕ cannot verify — ' + [...new Set(missing)].length + ' corpus input(s) absent:', C.red) +
-      '\n  ' + [...new Set(missing)].slice(0, 6).join('\n  ') +
-      '\n\n  These are gitignored personal recordings, so they are NOT in a fresh worktree: a worktree off\n' +
-      '  origin/main gets only the tracked fifth of uploads/, and the corpus lives in the PRIMARY checkout.\n' +
-      '  Searched, in order:\n' +
-      formatCorpusSearch(SEARCH) +
-      '\n\n  If none of those is your corpus, name it (docs/CORPUS-LOCATIONS.md lists the four it may be in):\n' +
-      '    DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs\n' +
-      '  Refusing to stamp: a verification you did not run is exactly the false claim this gate exists to abolish.'
-  );
-  if (JSON_OUT) emitVerdict({ status: 'NOT_RUN', owing, reason: `${[...new Set(missing)].length} corpus input(s) absent — nothing was verified` });
-  process.exit(2);
-}
-
-// 2 · run the REAL suite. It re-runs every code-gated fixture through its own dynamic leg (the
-//     `fixture-reproducibility` group gates that fact), so a green run IS the verification.
-console.log('▸ re-running every fixture through the real suite (this is the verification) …');
-try {
-  execFileSync(process.execPath, [path.join(REPO, 'tests', 'run-tests.mjs')], {
-    cwd: REPO,
-    env: { ...process.env, DEX_UPLOADS: UPLOADS },
-    /* stderr is INHERITED so the suite's progress reaches the operator. This tool runs the FULL
-       suite — >10 min — against the real corpus, and it is what `release.mjs` refuses to cut
-       without; capturing both streams meant it printed one line and then went silent for the whole
-       run, which is precisely the blind wait the progress line exists to end. Only stdout is piped,
-       and that is where the `✕` lines the failure parse reads are written. */
-    stdio: ['ignore', 'pipe', 'inherit'],
-    /* 64 MiB. The suite's stdout crossed Node's 1 MiB default in October 2026 and will keep growing;
-       a capture limit that the thing being captured outgrows is a timer, not a safeguard. */
-    maxBuffer: SUITE_MAX_BUFFER
-  });
-} catch (e) {
-  const out = String((e.stdout || '') + (e.stderr || ''));
-  /* EVERY failing line, not a printed sample. The old code sliced to 8 for display and would have
-     decided on that slice — the §4b family: a verdict read off a truncated view. Display is capped
-     below; the DECISION reads all of them. */
-  if (suiteFailureKind(e) === 'buffer') {
-    console.error(paint(captureOverflowMessage(e.stdout ? e.stdout.length : null, SUITE_MAX_BUFFER), C.red));
-    emit('FAIL', 'the suite output exceeded the capture buffer — its verdict was never read');
-    process.exit(1);
-  }
-  const failLines = out.split('\n').filter((l) => /^\s*✕/.test(l));
-  /* The bootstrap exemption, derived. It applies ONLY when both hold:
-       (a) every failing assertion is §3.1 itself, and
-       (b) the fixtures §3.1 names are a SUBSET of the first-generation set computed above.
-     A second failing assertion, a moved fixture, or a name that already carried a stamp all fail
-     one of these and refuse exactly as before. */
-  const { exempt, named } = bootstrapExempt(failLines, firstStamp);
-  if (exempt) {
-    /* LOUD, because an exemption invisible in the log is indistinguishable from a gate that did not
-       run. The operator must be able to see what was excused and why, without reading this file. */
-    console.log(
-      paint('\n▸ BOOTSTRAP EXEMPTION APPLIED — §3.1 named exactly ' + named.length + ' first-generation fixture(s) this run stamps;', C.yellow) +
-        paint('\n  every other assertion in the suite is GREEN. Excused: ' + named.join(', '), C.yellow) +
-        paint('\n  (a first stamp cannot exist before the stamp — the exemption is derived from the ledger, never claimed by a flag.)', C.dim)
-    );
-  } else {
-    console.error(paint('✕ the suite is RED — stamping NOTHING.', C.red));
-    for (const l of failLines.slice(0, 8)) console.error('  ' + l.trim());
-    if (failLines.length > 8) console.error(paint('  … and ' + (failLines.length - 8) + ' more (all were read; only the first 8 are shown)', C.dim));
-    console.error(
-      '\n  A fixture that does not reproduce is a live stale-fixture finding, not a stamping problem:\n' +
-        '  regenerate it (tools/regen-<node>-goldens.mjs) and re-run this. Partial credit is how false claims are born.'
-    );
-    if (JSON_OUT) emitVerdict({ status: 'FAIL', owing, unverified: owing, reason: 'the suite is RED under the current compute closure — nothing stamped' });
-    process.exit(1);
-  }
-}
-
-// 3 · green ⇒ every leg reproduced its fixture under this exact code ⇒ record it.
-let stamped = 0;
-const _touchedApps = new Set();
-for (const k of owing) {
-  const ch = computeHashes[fixtures[k].bundle];
-  if (!ch) {
-    console.log(paint('  ⚠ ', C.yellow) + k + ' — bundle has no computeHash (not plain-inline?); NOT stamped');
-    continue;
-  }
-  if (fixtures[k].verifiedUnder === ch) continue;
-  fixtures[k].verifiedUnder = ch; // mutates the live fragment record
-  _touchedApps.add(_fixtureApp[k]);
-  stamped++;
-  console.log(paint('  ↻ ', C.green) + k + paint('  verifiedUnder → ' + ch, C.dim));
-}
-if (stamped) for (const app of _touchedApps) fs.writeFileSync(path.join(PROV_DIR, app + '.json'), JSON.stringify(_frags[app], null, 2) + '\n');
-out(paint(`\n✓ suite green — ${stamped} fixture(s) stamped, ${owing.length - stamped} already current`, C.green));
-if (JSON_OUT) emitVerdict({ status: 'PASS', owing, unverified: [], stamped });
+if (IS_CLI) await main();
