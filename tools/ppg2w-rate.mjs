@@ -28,7 +28,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import fs from 'node:fs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const arg = (k) => {
   const i = process.argv.indexOf(k);
@@ -246,6 +246,12 @@ function selftest() {
 }
 
 if (isCliEntry(import.meta.url)) {
+  /* EVERY FLAG THIS TOOL READS, DECLARED. `tools/argv-survey.mjs` probed this tool and it IGNORED an
+     unknown token, so `--pleh f.txt` read as no `--pleth` at all and the tool printed its usage line
+     over a path the caller did get right. `positional: true` is load-bearing and not laxity: `--fill`
+     takes a BARE list of capture files, so a guard that refused every non-flag token would refuse the
+     tool's own documented form. */
+  refuseUnknownArgvOrExit(process.argv.slice(2), { valued: ['--pleth', '--ppg2w'], boolean: ['--selftest', '--fill'], positional: true }, { tool: 'ppg2w-rate' });
   if (process.argv.includes('--selftest')) process.exit(selftest());
   /* `--fill <_PPG2W.txt>...` — the FILL rate, which the calibrated rate below cannot see because the
      stream is drain-limited (residue `2026-09-06-ppg2w-fill-rate-unmeasured`). */

@@ -24,6 +24,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import vm from 'node:vm';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { buildRealm, parseDrafts } from './verify-drafts.mjs';
 
 /* The journal packs `line | op | before | after` into one string with a NUL separator. Written as a
@@ -218,14 +219,21 @@ export function selftest() {
   return f === 0 ? 0 : 1;
 }
 
+/* `--dir <path>` and `--file <fragment>`, NOT the equals form. See the note in
+   `tools/screen-draft-inputs.mjs`: `tools/argv-guard.mjs` refuses `--flag=value` by construction, and
+   no caller in the tree wrote either spelling. */
+const valueOf = (argv, k) => {
+  const i = argv.indexOf(k);
+  return i >= 0 ? argv[i + 1] : null;
+};
+
 export function main(argv = []) {
   if (argv.includes('--selftest')) return selftest();
   const root = process.cwd();
-  const dirArg = argv.find((a) => a.startsWith('--dir='));
-  const dir = dirArg ? dirArg.slice(6) : join(root, '.git', 'tepna-mutation');
-  const only = argv.find((a) => a.startsWith('--file='));
+  const dir = valueOf(argv, '--dir') || join(root, '.git', 'tepna-mutation');
+  const only = valueOf(argv, '--file');
   let files = readdirSync(dir).filter((x) => x.endsWith('.drafts.js'));
-  if (only) files = files.filter((x) => x.includes(only.slice(7)));
+  if (only) files = files.filter((x) => x.includes(only));
   let k = 0;
   let s = 0;
   let u = 0;
@@ -243,4 +251,10 @@ export function main(argv = []) {
   return argv.includes('--strict') && s > 0 ? 1 : 0;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('verify-draft-kills.mjs')) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) {
+  /* EVERY FLAG THIS TOOL READS, DECLARED, and only at the CLI entry so `main` stays callable from the
+     suite. The probe in `tools/argv-survey.mjs` read this tool as IGNORES: `--filee x` verified every
+     draft in the journal and reported a TOTAL line for a population the caller did not ask for. */
+  refuseUnknownArgvOrExit(process.argv.slice(2), { valued: ['--dir', '--file'], boolean: ['--selftest', '--strict'] }, { tool: 'verify-draft-kills' });
+  process.exit(main(process.argv.slice(2)));
+}
