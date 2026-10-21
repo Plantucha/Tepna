@@ -594,12 +594,15 @@ export const SELF = 'tools/corpus-reads.mjs';
 
 /* ── THE POPULATION RULE'S OTHER DIRECTION ─────────────────────────────────────────────────────
    `isCorpusConsumer` is deliberately generous and reads capture vocabulary out of the RAW text,
-   so it admits four tools that enumerate no capture at all. Each is named here with the text that
+   so it admits five tools that enumerate no capture at all. Each is named here with the text that
    admitted it, because a generous rule plus a silent filter is a population nobody can audit:
 
      argv-survey.mjs        `DEX_UPLOADS`, inside `delete env.DEX_UPLOADS;` — the mention is the
                             SCRUB that keeps a probe away from the corpus. Presence is
                             ANTI-evidence here, and no rule keyed on presence can tell.
+     importer-flag-probe.mjs  the same scrub, one word of prose away from it: the probe strips
+                            `DEX_UPLOADS` from every child it imports a tool into, and the only
+                            directory it enumerates is the `tools/` tree its `--tools-dir` names.
      build-docs.mjs         the night regex `\d{4}-\d{2}-\d{2}`, which validates a release date
                             in the docs builder. It enumerates `docs/`.
      nsrr-effort-typing.mjs `.edf`, under `/srv/data/shhs/` — the public NSRR mount, a different
@@ -610,6 +613,7 @@ export const SELF = 'tools/corpus-reads.mjs';
    leaves the corpus population, so nothing is hidden. */
 export const POPULATION_EXCLUSIONS = {
   'argv-survey.mjs': 'names DEX_UPLOADS only to delete it from a probe environment',
+  'importer-flag-probe.mjs': 'names DEX_UPLOADS only to scrub it from each probe child; it enumerates the tools/ tree',
   'build-docs.mjs': 'the night-shaped regex validates a release date; it enumerates docs/',
   'nsrr-effort-typing.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
   'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus'

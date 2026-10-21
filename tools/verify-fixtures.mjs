@@ -237,7 +237,7 @@ export function bootstrapExempt(failLines, firstStamp) {
 /* SELFTEST — runs under `npm run check` via tools/selftest-all.mjs, so the refusal is exercised on
    every gate rather than on the rare day someone adds a fixture. Placed before any corpus work so it
    needs neither the corpus nor the ledger. */
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   const L = (names) => `  ✕ ${S31_LABEL} (a claim nothing in CI can re-run must record what DID)  — got [${names.map((n) => '"' + n + '"').join(',')}] · want []`;
   const OTHER = '  ✕ [GlucoDex equiv] compute() ≡ committed export  — 3 fields differ';
   const NEW = ['integrator_apnea_null_twins.node-export.json'];

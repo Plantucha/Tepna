@@ -11122,6 +11122,78 @@
       );
       T.ok('tools/null-fuzz.mjs is inside it', declaring.indexOf('tools/null-fuzz.mjs') >= 0, 'the tool the dashed pattern could not see');
     });
+    /* ════ WHOSE FLAGS DECIDE — a module-scope read answers to the RUNNER, not to the tool ════════
+       Residue `2026-10-21-a-module-scope-selftest-reads-the-importers-flags`. A read at column 0 runs
+       when the module is EVALUATED, which is also when an importer evaluates it, so the flags of
+       whoever started the process decide. #3853 swapped every `main` guard to `isCliEntry`, and this
+       read sits ABOVE that guard, so the swap left it alone.
+
+       MEASURED, PAIRED, by `tools/importer-flag-probe.mjs` — a harness that imports one tool with
+       `--selftest` in ITS OWN argv, so the tool is never the entry: at bfe372987, 9 of the 13 probable
+       candidates ran their selftest on the importer's flag (`wt-done.mjs` printed `61/61 ok`); with
+       the guard paired, 13 of 13 are silent and the probe's verdict moves FAIL → PASS.
+
+       AND THE RENAME CONTROL CANNOT SEE ANY OF IT (row
+       `2026-10-21-the-rename-probe-cannot-witness-a-module-scope-selftest`): that control copies a tool
+       under a second filename and accepts OUTPUT as proof the entry guard works, while a module-scope
+       print happens before the guard runs and arrives under either name. The accept test has to be
+       silence while the flag is set and the entry is somebody else.
+
+       THE POPULATION IS WIDER THAN THE ROW'S OWN ANCHOR. The row counts 20 tools from a grep for
+       `^if (process.argv.includes('--selftest')`. Three more module-scope reads fire the same way and
+       that anchor sees none: `slice(2).includes(…)`, the second arm of a column-0 `else if` chain whose
+       LAST arm carries the guard, and a module-scope `const` fired on 85 lines later. A population
+       taken from one spelling of a defect is a population of that spelling. ════ */
+    group('a module-scope selftest read is paired with the entry guard', 'tools · selftest · source-scan', function (T) {
+      var IFP = env.importerFlagProbe;
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!IFP || !TT) {
+        if (nodeLane) T.ok('env.importerFlagProbe and env.toolTexts are wired in the node lane', false, 'absent — the derived population silently examined nothing');
+        else T.skip('the module-scope selftest read', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var keys = Object.keys(TT).filter(function (k) {
+        return /^tools\/[^/]+\.mjs$/.test(k);
+      });
+      var cands = [];
+      var unguarded = [];
+      keys.forEach(function (k) {
+        var reads = IFP.moduleScopeFlagReads(TT[k]);
+        if (!reads.length) return;
+        cands.push(k);
+        reads.forEach(function (r) {
+          if (!r.guarded) unguarded.push(k + ':' + r.line + ' (' + r.spelling + ')');
+        });
+      });
+      /* ANTI-VACUITY FIRST: an empty population passes every leg below it, and a predicate that
+         stopped matching is exactly how that happens. */
+      T.ok(
+        'CONTROL · the population is not empty',
+        cands.length >= 20,
+        'candidates=' + cands.length + ' of ' + keys.length + ' — 24 measured 2026-10-21; a collapsed column is a predicate that stopped matching, not tools that stopped reading the flag'
+      );
+      T.ok(
+        'every module-scope selftest read names the entry it belongs to',
+        unguarded.length === 0,
+        unguarded.length ? unguarded.slice(0, 6).join('; ') + ' — pair the read with isCliEntry(import.meta.url)' : 'all ' + cands.length + ' read under the entry guard'
+      );
+      /* PLANTS — the fleet is clean after the repair, so without these the leg above has not been
+         shown to fire at all. */
+      T.ok('self-test · the predicate FIRES on a bare read', IFP.moduleScopeFlagReads("if (process.argv.includes('--selftest')) go();\n").length === 1);
+      T.ok('self-test · …and reads the guarded form as guarded', IFP.moduleScopeFlagReads("if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) go();\n")[0].guarded === true);
+      T.ok(
+        'self-test · the const-bound spelling is read at its firing site',
+        (function () {
+          var r = IFP.moduleScopeFlagReads("const SELFTEST = process.argv.includes('--selftest');\nif (SELFTEST) go();\n");
+          return r.length === 1 && r[0].spelling === 'const-bound' && r[0].line === 2;
+        })()
+      );
+      T.ok(
+        'CONTROL · an indented read is inside a function, so no importer flag reaches it',
+        IFP.moduleScopeFlagReads("function m() {\n  if (process.argv.includes('--selftest')) go();\n}\n").length === 0
+      );
+    });
     /* ════ A STRING IS NOT A COMMENT — the distinction `codeMask` cannot express ══════════════════
        `js-lex.mjs` is the one regex-aware JS lexer, and it answered a two-value question: code, or
        not-code. `verdict-adoption.mjs` needs a third answer — does a test file NAME a tool outside its

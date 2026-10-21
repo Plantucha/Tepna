@@ -538,7 +538,7 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv.includes('--selftest')) process.exit(selfTest());
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) process.exit(selfTest());
 if (process.argv.includes('--control-only')) {
   const tree = process.env.DEX_UPLOADS ? join(process.env.DEX_UPLOADS, 'vigil-archive', 'captures') : TREE_DEFAULT;
   const committed = JSON.parse(readFileSync(CONTROL_DEFAULT, 'utf8')).overlapTest.mergedSessionsView.rows;
