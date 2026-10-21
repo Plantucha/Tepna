@@ -465,12 +465,28 @@ def test_THE_DRAIN_IS_A_NO_OP_WHEN_NOTHING_EVER_STARTED():
 
 def test_THE_RUNNERS_PUBLISH_THE_TWO_NEW_COUNTERS_BESIDE_FLUSH_FAILURES():
     """The counters are only evidence if they reach status.json — and both row-count publish sites (the
-    Polar PMD handler and the Viatom packet handler) must carry them, not just the one I tested."""
+    Polar PMD handler and the Viatom packet handler) must carry them, not just the one I tested.
+
+    ⚠️ MEASURES ADJACENCY, NOT A MODULE-WIDE COUNT, and the difference is a measured defect rather than
+    a preference. This asserted `src.count("rows_lost=wr.rows_lost") == 2` over the whole of
+    `capture.py`, so the claim it actually tested was "this expression appears exactly twice in the
+    module" — which an honest third reader of the same counter breaks. On 2026-10-21
+    `_emit_polar_live_evidence` became that third reader (the acquisition envelope carries the
+    write-side counters in `provenance`) and this test reded on a change that satisfied every word of
+    its docstring. The docstring says BESIDE `flush_failures`, so the scan now measures that: the trio
+    must appear adjacent, twice, in either the dict-literal or the keyword spelling. A fourth publish
+    site still reds it; an unrelated use of one counter no longer does."""
+    import re
+
     src = module_source("capture.py")
-    assert src.count('"rows_lost": wr.rows_lost') + src.count("rows_lost=wr.rows_lost") == 2, (
-        "rows_lost must ride beside flush_failures at BOTH publish sites"
+    trio = re.compile(
+        r"""["']?flush_failures["']?[=:]\s*wr\.flush_failures,\s*"""
+        r"""["']?rows_lost["']?[=:]\s*wr\.rows_lost,\s*"""
+        r"""["']?fsync_max_ms["']?[=:]\s*wr\.fsync_max_ms""",
     )
-    assert src.count('"fsync_max_ms": wr.fsync_max_ms') + src.count("fsync_max_ms=wr.fsync_max_ms") == 2
+    assert len(trio.findall(src)) == 2, (
+        "rows_lost and fsync_max_ms must ride BESIDE flush_failures at BOTH publish sites"
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════

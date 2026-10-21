@@ -40,6 +40,7 @@ import polar_pmd as pmd
 import viatom
 import oxyii
 import acq_evidence_o2ring
+import acq_evidence_polar
 import blestats
 import bonding
 import devcaps
@@ -4921,6 +4922,13 @@ async def run_polar(dev: dict, root: str):
             # `wr.resumed` already existed (`getsize(path) > 0`, and it is what picks "a" over "w") —
             # the pruner just never asked. A writer that created its own file has resumed=False, so the
             # charge-retry junk this exists to stop (2026-07-19) is unaffected.
+            # The negotiated rate per STREAM, built here rather than read off the loop variable.
+            # `stream_fs` is keyed by meas id, so the obvious form is `writers.items()` — and three
+            # existing source scans `split("for wr in ", 1)` on the line below, so widening it to
+            # `for meas, wr in` made all three raise IndexError instead of reporting anything. A map
+            # keyed by `wr.stream` needs no loop change, and `hr` is absent from it for the honest
+            # reason: it is the SIG characteristic, which negotiates nothing.
+            hz_by_stream: dict[str, float | None] = {w.stream: stream_fs.get(m) for m, w in writers.items()}
             for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
                 if not wr.rows and not wr.resumed:
                     discarded_names = ", ".join(os.path.basename(p) for p in wr.paths)
@@ -4938,6 +4946,11 @@ async def run_polar(dev: dict, root: str):
                             ", ".join(os.path.basename(p) for p in wr.paths),
                         )
                     wr.close()
+                    # ACQUISITION EVIDENCE beside a KEPT file only. An envelope describing a
+                    # discarded header-only capture would be evidence about a file that no longer
+                    # exists, so it is emitted on this arm — the same placement `run_oxyii` uses via
+                    # `_spo2_kept`. After `close`, so `rows_lost` and the seam count are final.
+                    _emit_polar_live_evidence(name, dev, started, wr, hz_by_stream.get(wr.stream))
         if not _STOP.is_set():
             if charging_hold:
                 # Not a fault, so it must not ride the error backoff: recheck on a steady cadence so the
@@ -5379,6 +5392,44 @@ def _emit_oxy_live_evidence(name, dev, started, spo2_kept, grid, ledger):
             ppg_ledger=_oxy_ledger_facts(ledger),
         )
         with open(path + ".meta.json", "w") as fh:
+            json.dump({"acquisition_evidence": ev.to_dict()}, fh, indent=2)
+    except Exception:  # noqa: BLE001 — see the docstring: the report must not damage the capture
+        log.exception("%s: acquisition-evidence sidecar failed — the capture itself is unaffected", name)
+
+
+def _emit_polar_live_evidence(name, dev, started, wr, negotiated_hz):
+    """Write the LIVE Polar acquisition envelope beside the ONE stream artifact it describes.
+
+    Separated from `run_polar` for the reason `_emit_oxy_live_evidence` is separated from `run_oxyii`:
+    the assembly is then testable without driving a BLE session, which the pump closure is not. Never
+    raises into the capture path — the envelope is a REPORT ABOUT the session, so failing to write it
+    must not also damage the session it reports on.
+
+    ONE ENVELOPE PER WRITER, describing that writer's PRIMARY file. A Polar session writes one file per
+    stream, so unlike the ring there is no stream-mixing question — but two writers own siblings: the
+    `hr` writer also writes the `_RR.txt` PSL splits into, and any stream with a seam sidecar owns that
+    too. The sidecar lands beside `wr.path`, so the RR file and the seam file carry no envelope of
+    their own. That is stated rather than silently true, and it is logged as residue.
+
+    `session_id` is the 14-digit start stamp — the token the FILENAME already carries, so a reader joins
+    an envelope to a night by the same filename substring the O2Ring live envelope uses (#1752) rather
+    than needing a second matching rule."""
+    try:
+        ev = acq_evidence_polar.assemble_live(
+            device_id=dev.get("device_id"),
+            session_id=started.strftime("%Y%m%d%H%M%S"),
+            stream=wr.stream,
+            artifact_path=wr.path,
+            artifact_rows=wr.rows,
+            resumed=wr.resumed,
+            start_time_ms=calendar.timegm(started.timetuple()) * 1000.0,
+            negotiated_hz=negotiated_hz,
+            stopped_cleanly=not _STOP.is_set(),
+            seam_count=wr.seams,
+            rows_lost=wr.rows_lost,
+            flush_failures=wr.flush_failures,
+        )
+        with open(wr.path + ".meta.json", "w") as fh:
             json.dump({"acquisition_evidence": ev.to_dict()}, fh, indent=2)
     except Exception:  # noqa: BLE001 — see the docstring: the report must not damage the capture
         log.exception("%s: acquisition-evidence sidecar failed — the capture itself is unaffected", name)
