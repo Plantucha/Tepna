@@ -10749,6 +10749,99 @@
         refusers.length + ' tool(s) read as refusers — 56 measured 2026-10-21; a near-empty column means the classifier stopped matching'
       );
     });
+    /* ════ EVERY CORPUS ENUMERATOR REPORTS ITS POPULATION, OR IT IS NAMED HERE ══════════════════
+       Row 2026-10-21-sixty-eight-corpus-enumerators-still-measure-whatever-set-they-caught.
+       `tepna-corpus-tier.service` re-tiers the corpus daily, so a run can open over one night set
+       and close over another. `tools/corpus-scope.mjs` holds the primitive and `populationVerdict`
+       is the report. Nothing MADE a second tool call it, so a new corpus consumer inherited the
+       defect by default. This group is that mechanism: `corpus-reads.mjs` decides each tool from
+       its SOURCE and the group runs the same classifier over `env.toolTexts`, so the gate and the
+       tool cannot drift.
+
+       THE ROW'S OWN CENSUS IS WRONG IN BOTH DIRECTIONS AND THIS FIXES IT. Its 68 counts a root
+       MENTION: 65 files name a corpus root and most name it in a usage line. The obvious repair,
+       "names a root AND enumerates", under-counts and fails on the one known-good case — the wired
+       consumer `tch-firmware-reference.mjs` takes `--dir <captures root>` and names no root at all.
+       The question that works is neither: does the tool ENUMERATE A PATH THAT ARRIVED AT RUN TIME?
+       A tree built from the repo root cannot be re-tiered under the run.
+
+       MEASURED 2026-10-21 over the 286 files in `tools/`: 129 of them read the capture corpus.
+       The suite sees the 126 written as `.mjs`, because `env.toolTexts` carries that extension
+       alone, and the 3 `.js` consumers enumerate nothing, so the hazard set is the same either
+       way. Of the 126: reports 3 · enumerates 41 · repo-tree 16 · undecidable 28 ·
+       no-enumeration 38. `pat-dip-index.mjs` is the third `reports`: this PR wires it, and the
+       reverse leg is what forced its line out of the backlog below. The gate below reads 121
+       of those 124, because `env.toolTexts` carries `tools/*.mjs` alone. The three it cannot see
+       are `drift-report.js`, `realm-manifest.js` and `tch-corpus.js`, and all three enumerate
+       nothing, so the hazard set loses no member to that gap.
+
+       The NAMED SET below is what makes this a gate rather than a ratchet: a count would pass a new
+       consumer arriving as another one is wired. Every entry carries the number of run-time
+       enumerations it held when it was pinned, and every entry shares one reason — it predates the
+       primitive and nobody has wired it yet. Wiring one means DELETING its line, and the reverse
+       leg reds if a line outlives the backlog it describes. ════ */
+    group('every corpus enumerator reports its population or is named here', 'tools · corpus-reads · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane can. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the corpus-reads population examined nothing');
+        else T.skip('the corpus-reads population', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      /* tool → run-time enumerations pinned 2026-10-21. One shared reason, stated above. */
+      /* THE NAMED SET LIVES IN THE TOOL, NOT HERE. `verdict-adoption.mjs` reads any tool stem
+         named under `tests/` outside a comment as proof that a test covers that tool, so pinning
+         41 names in this file flipped `pat-ppg-ppg-control.mjs` to GATED and reded the adoption
+         ratchet, which may only go down. The pin is a hazard list and not a test of those tools,
+         so the claim would have been false. Keeping it in `tools/corpus-reads.mjs` also matches
+         both sibling ratchets (`UNPARSEABLE_RATCHET`, `UNGATED_RATCHET`), which live beside the
+         gate that reads them. Sibling row: 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. */
+      var KNOWN_BACKLOG = CR.UNWIRED_BACKLOG;
+      var population = [],
+        hazard = [],
+        wired = [],
+        offVocab = [],
+        silent = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          if (!/^tools\/[^/]+\.m?js$/.test(k)) return;
+          var text = TT[k];
+          var self = k.replace(/^.*\//, '');
+          /* The scan's own population rule, and the scanner is not its own subject (§4). */
+          if (!CR.isCorpusConsumer(text) || k === CR.SELF) return;
+          var r = CR.classifyTool(text);
+          population.push(self);
+          if (CR.TOOL_CLASSES.indexOf(r.cls) < 0) offVocab.push(self + ' → ' + r.cls);
+          if (r.cls === 'reports') wired.push(self);
+          if (r.cls === 'enumerates') hazard.push(self);
+          if (r.cls === 'undecidable' && !(r.why && r.why.length > 8)) silent.push(self);
+        });
+      T.ok('ANTI-VACUITY · the population is the corpus consumers in the tools tree, not a sample', population.length > 100, population.length + ' corpus consumer(s)');
+      T.ok('ANTI-VACUITY · at least one tool already reports its population', wired.length >= 1, wired.join(', ') || 'none');
+      T.eq(
+        'no corpus enumerator skips the population verdict without being named here',
+        hazard
+          .filter(function (t) {
+            return KNOWN_BACKLOG[t] === undefined;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and the named backlog holds no tool the scan has stopped reading as an unwired enumerator',
+        Object.keys(KNOWN_BACKLOG)
+          .filter(function (t) {
+            return hazard.indexOf(t) < 0;
+          })
+          .join(', '),
+        ''
+      );
+      T.eq('the class vocabulary is closed', offVocab.join(', '), '');
+      T.eq('every abstention names a reason', silent.join(', '), '');
+    });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool
        has a selftest: `selftest-all.mjs` (which tools the sweep RUNS) and `verdict-adoption.mjs`
