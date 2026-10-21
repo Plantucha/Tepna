@@ -76,8 +76,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { pathToFileURL } from 'node:url';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 /* The closure identity + the four-state verdict, from the module `trio-batch` already routes its
    clock lines through. Imported rather than reimplemented: a second copy of "when is a ppm a
@@ -92,7 +91,7 @@ const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
    arguments, so an import of anything in this file judged flags it never passed (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) refuseUnknownArgvOrExit(argv, { valued: ['--dir', '--pair', '--span', '--tol'], boolean: ['--control', '--local', '--selftest'] }, { tool: 'beat-comb-analysis' });
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {

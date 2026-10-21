@@ -46,8 +46,9 @@
  * inflates the denominator by whatever the subject spent awake, which on this cohort is substantial.
  */
 import { readFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ODI = await import('./nsrr-oxydex-odi.mjs');
 
@@ -183,4 +184,4 @@ function selftest() {
 
 /* §2.9/entry-point guard: importing this module must NOT run anything — the pool imports it in every
    worker, and a module with side effects on import would run its selftest N times. */
-if (process.argv.includes('--selftest') && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exit(selftest());
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) process.exit(selftest());

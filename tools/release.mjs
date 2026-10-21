@@ -32,9 +32,9 @@ import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, openS
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -368,4 +368,4 @@ function main() {
    `doc-search.mjs`'s `isEntryPoint` resolves rather than string-compares). Swept 2026-08-19 after
    `device-stability.mjs` was found unimportable for the sibling reason: of 143 `tools/*.mjs`, 48
    guarded, 90 have no entry point at all, and a handful executed on import. */
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) FULL ? launchFull() : main();
+if (isCliEntry(import.meta.url)) FULL ? launchFull() : main();

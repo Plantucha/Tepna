@@ -39,8 +39,9 @@
  * ============================================================================================== */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LOWER = ['emerging', 'experimental', 'heuristic'];
@@ -234,4 +235,4 @@ function main(argv) {
 
 /* Entry guard - this tool must not run on import. #1530 found five tools that executed on import,
    one of them release.mjs, whose main() would have proceeded toward cutting a release. */
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

@@ -50,6 +50,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -58,7 +59,7 @@ const opt = (f, d) => {
   const i = argv.indexOf(f);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
-const IS_MAIN = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const IS_MAIN = isCliEntry(import.meta.url);
 
 /* The verdict vocabulary. `REACHED` is also the refusal value — see the fail-closed note above. */
 export const REACHED = 'REACHED';

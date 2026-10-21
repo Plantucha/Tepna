@@ -36,6 +36,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 export const DEFAULT_OUT = process.env.TEPNA_BOARD_CORPUS || join(homedir(), '.local/share/tepna/board-corpus');
 const BOARD_CLI = process.env.AGENT_BOARD || join(homedir(), '.local/bin/agent-board');
@@ -215,7 +216,7 @@ if (process.argv.includes('--selftest')) {
   process.exit(0);
 }
 
-const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop());
+const isMain = isCliEntry(import.meta.url);
 if (isMain) {
   const out = arg('--out') || DEFAULT_OUT;
   const from = arg('--from');

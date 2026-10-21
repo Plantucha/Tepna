@@ -4840,6 +4840,106 @@
            assertion chasing them. The guard arms stay because they reject earlier and cheaper than
            the round-trip does. */
       }
+      /* ── DexIngest `stampMs` — the FILENAME stamp on the app AND host ingest path ──────────
+         Everything above is a node-local CLOCK parser. `dex-ingest.js stampMs` reads a stamp out of
+         a FILENAME, so it sits outside that set and no leg of this group ever looked at it. It kept
+         a bare `Date.UTC` over six digit slices until 2026-10-21. Measured on the unguarded code:
+         `…_20261332_999999_…` landed on 2027-02-05, `…_20260230_…` on 2026-03-02, and
+         `…_99999999_999999_…` on year 10007. That matters more than a dropped file, because
+         `stampMs` keys the device-session dedupe and feeds `pickNearestByStamp`, so a fabricated
+         instant mis-plans an ingest instead of refusing one name.
+
+         `clock.js` already owns these rules — `_ckMk` for the ranges, `fileStamp` for the plausible
+         year — and `dex-ingest.js` CANNOT call either: it rides PpgDex, which carries no `clock.js`,
+         so `DexClock` is undefined there and a delegation would throw at module evaluation
+         (CLAUDE.md §👥.3). The PARITY leg is what earns the second copy: it pins `stampMs` against
+         `DexClock.fileStamp` over the names `stampMs`'s own anchored regex accepts. */
+      var DIx = env.DexIngest,
+        DCx = env.DexClock;
+      T.ok('DexIngest.stampMs exposed', !!(DIx && typeof DIx.stampMs === 'function'), 'export stampMs from dex-ingest.js');
+      if (DIx && typeof DIx.stampMs === 'function') {
+        var SM = function (stamp) {
+          return DIx.stampMs('Polar_H10_AAAAAAAA_' + stamp + '_ECG.txt');
+        };
+        T.eq('DexIngest · valid PSL split 20260919_183658 → tMs unchanged', SM('20260919_183658'), U(2026, 8, 19, 18, 36, 58));
+        T.eq('DexIngest · valid capture-host contiguous 20260919183658 → the SAME tMs', SM('20260919183658'), U(2026, 8, 19, 18, 36, 58));
+        T.eq('DexIngest · month 13 → null (was 2027-02-05)', SM('20261332_999999'), null);
+        T.eq('DexIngest · Feb 30 → null (was 2026-03-02)', SM('20260230_120000'), null);
+        T.eq('DexIngest · Apr 31 → null (was 2026-05-01)', SM('20260431_120000'), null);
+        T.eq('DexIngest · all nines → null (was year 10007)', SM('99999999_999999'), null);
+        T.eq('DexIngest · ISO end-of-day 240000 → next-day 00:00 (KEPT, no bare h>23 guard)', SM('20260919_240000'), U(2026, 8, 20, 0, 0, 0));
+        T.eq('DexIngest · 240001 → null (the end-of-day arm is exact, not an hour-24 pass)', SM('20260919_240001'), null);
+        /* §2.7 boundary pairs — accept at the edge, reject just outside. A far-out value alone
+           cannot see a bound that moved by one: see the GlucoDex block above for the five mutants
+           that survived on exactly that gap. */
+        T.eq('DexIngest · §2.7 hour 23 ACCEPTED — band closed at 23', SM('20260919_230000'), U(2026, 8, 19, 23, 0, 0));
+        T.eq('DexIngest · §2.7 hour 25 → null', SM('20260919_250000'), null);
+        T.eq('DexIngest · §2.7 minute 59 ACCEPTED — kills `mi >= 59`', SM('20260919_185900'), U(2026, 8, 19, 18, 59, 0));
+        T.eq('DexIngest · §2.7 minute 60 → null', SM('20260919_186000'), null);
+        T.eq('DexIngest · §2.7 second 59 ACCEPTED — kills `se >= 59`', SM('20260919_183659'), U(2026, 8, 19, 18, 36, 59));
+        T.eq('DexIngest · §2.7 second 60 → null', SM('20260919_183660'), null);
+        T.eq('DexIngest · §2.7 a NON-ZERO second is legal — kills `se > 0`', SM('20260919_183630'), U(2026, 8, 19, 18, 36, 30));
+        T.eq('DexIngest · §2.7 month 1 ACCEPTED — band closed at 1', SM('20260119_183658'), U(2026, 0, 19, 18, 36, 58));
+        T.eq('DexIngest · §2.7 month 12 ACCEPTED — band closed at 12', SM('20261219_183658'), U(2026, 11, 19, 18, 36, 58));
+        T.eq('DexIngest · §2.7 day 31 ACCEPTED in a 31-day month', SM('20260731_183658'), U(2026, 6, 31, 18, 36, 58));
+        T.eq('DexIngest · §2.7 month 0 → null', SM('20260019_183658'), null);
+        T.eq('DexIngest · §2.7 day 0 → null', SM('20260900_183658'), null);
+        /* The plausible-year window is `fileStamp`'s third rule, and `_ckMk` alone does not supply
+           it — year 0292 round-trips perfectly well. Both edges are pinned, because a window that
+           only rejects the absurd cannot see an edge that moved. */
+        T.eq('DexIngest · year 1990 ACCEPTED — the window is closed at its low edge', SM('19900919_183658'), U(1990, 8, 19, 18, 36, 58));
+        T.eq('DexIngest · year 2099 ACCEPTED — closed at its high edge', SM('20990919_183658'), U(2099, 8, 19, 18, 36, 58));
+        T.eq('DexIngest · year 1989 → null (a serial, not a capture date)', SM('19890919_183658'), null);
+        T.eq('DexIngest · year 2100 → null', SM('21000919_183658'), null);
+        // The anchor itself must survive the guard: a 14-digit DEVICE ID is not the stamp (audit F5).
+        T.eq('DexIngest · a 14-digit device id does not become the stamp', DIx.stampMs('Polar_H10_20250101000000_20260725225058_ECG.txt'), U(2026, 6, 25, 22, 50, 58));
+        /* ── PARITY WITH THE OWNER. This is the leg that earns a second copy of the rules. ──── */
+        T.ok('DexClock reachable for the parity leg', !!(DCx && typeof DCx.fileStamp === 'function'), 'clock.js must load in this runner');
+        if (DCx && typeof DCx.fileStamp === 'function') {
+          var parityNames = [
+            '20260919_183658',
+            '20260919183658',
+            '20261332_999999',
+            '20260230_120000',
+            '20260431_120000',
+            '99999999_999999',
+            '20260919_240000',
+            '20260919_240001',
+            '20260919_230000',
+            '20260919_250000',
+            '20260919_185900',
+            '20260919_186000',
+            '20260919_183659',
+            '20260919_183660',
+            '20260119_183658',
+            '20261219_183658',
+            '20260731_183658',
+            '20260019_183658',
+            '20260900_183658',
+            '19900919_183658',
+            '20990919_183658',
+            '19890919_183658',
+            '21000919_183658'
+          ];
+          var parityChecked = 0,
+            paritySame = 0,
+            parityResolved = 0,
+            parityFirstDiff = '';
+          for (var pi = 0; pi < parityNames.length; pi++) {
+            var pname = 'Polar_H10_AAAAAAAA_' + parityNames[pi] + '_ECG.txt';
+            var mine = DIx.stampMs(pname),
+              owner = DCx.fileStamp(pname);
+            owner = owner ? owner.tMs : null;
+            parityChecked++;
+            if (mine !== null) parityResolved++;
+            if (mine === owner) paritySame++;
+            else if (!parityFirstDiff) parityFirstDiff = parityNames[pi] + ' ingest=' + mine + ' fileStamp=' + owner;
+          }
+          T.eq('DexIngest · stampMs agrees with DexClock.fileStamp on every probe', paritySame, parityChecked);
+          T.ok('DexIngest · the parity probe is not vacuous — some names RESOLVE', parityResolved >= 8, 'resolved ' + parityResolved + ' of ' + parityChecked);
+          T.eq('DexIngest · no parity disagreement', parityFirstDiff, '');
+        }
+      }
     });
 
     /* ════ 2 · CROSS-NIGHT SIGNIFICANCE (#1 boundary fix) ════ */
@@ -10077,6 +10177,83 @@
       var escapeBranch = /ch === '\\\\' && i \+ 1 < line\.length/.test(rid);
       T.ok('residue-ids reads its cells through the scanner', routed, 'parseRows → splitRowCells: ' + (routed ? 'wired' : 'ABSENT'));
       T.ok('…and the scanner consumes a backslash pair as one unit', escapeBranch, 'escape branch: ' + (escapeBranch ? 'present' : 'ABSENT'));
+    });
+    /* ════ AND THE PREDICATE ITSELF MUST SURVIVE A SYMLINK TO THE TOOL (board #685, 2026-10-21) ══════
+       The house predicate compared `import.meta.url` with `pathToFileURL(process.argv[1]).href`. Node
+       resolves the ENTRY through a symlink and leaves `process.argv[1]` as written, so the two disagree
+       and the tool decides it was imported: no main, no output, EXIT 0.
+       MEASURED (Heron): `node <dir>/tools/hook-contract.mjs --probe-bytes` printed nothing and exited 0
+       where `<dir>/tools` was a link; the real path prints 4194304. Re-measured here over the primary
+       checkout before the repair: `geometry-probe` through a link wrote 0 bytes at exit 0, where the
+       direct call refuses at exit 2. That direction is what earns a tripwire — a tool reached through
+       `~/.local/bin` or `node_modules/.bin` reads as a pass while doing nothing, CLAUDE.md §4b's
+       examined-nothing in an idiom 86 files carried, beside six further spellings in 45 more.
+       `isCliEntry` answers on BOTH forms, because realpath alone is wrong under
+       `--preserve-symlinks-main`, where node keeps the link in `import.meta.url`.
+       ONE NAMED EXEMPTION: `tools/argv-reads.mjs` plants the old idiom as a STRING, as input to its own
+       classifier, and the leg below reds if that fixture ever leaves — an exemption that stops
+       describing what it exempts is a hole. */
+    group('the CLI predicate survives a symlink to the tool', 'tools · argv-guard · source-scan · execution', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the symlink-predicate scan examined nothing');
+        else T.skip('the CLI-predicate scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var stripC = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      var FIXTURE = 'tools/argv-reads.mjs'; // plants the idiom as classifier INPUT, never as its own guard
+      var HELPER = 'tools/argv-guard.mjs'; // where the comparison is allowed to live, once
+      var DECIDERS = [],
+        RAW = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var t = stripC(TT[k]);
+          if (/isCliEntry\(import\.meta\.url\)/.test(t)) DECIDERS.push(k);
+          if (k === FIXTURE || k === HELPER) return;
+          /* ANY spelling that decides by comparing the ENTRY with this module, not just the one this
+             unit removed: `mutation-map`, `mutation-crawl` and `mutation-suite` carried
+             `fileURLToPath(import.meta.url) === realpathSync(process.argv[1])`, which is RIGHT through
+             a symlink and wrong under `--preserve-symlinks-main` — the mirror image, and a `===` regex
+             anchored on `import.meta.url` missed all three. The match is per LINE, so a predicate split
+             across two statements would still evade it; every spelling in the tree on 2026-10-21 wrote
+             it on one line. */
+          var raw = t.split('\n').filter(function (l) {
+            return l.indexOf('process.argv[1]') >= 0 && l.indexOf('import.meta.url') >= 0;
+          });
+          if (raw.length) RAW.push(k);
+        });
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.ok('the helper population is non-empty', DECIDERS.length >= 120, 'DECIDERS=' + DECIDERS.length + ' — 135 files, 140 sites, measured 2026-10-21');
+      T.eq('no tool decides CLI-vs-import by comparing argv[1] raw', RAW.join(', '), '');
+      T.ok(
+        'the one exemption still carries the fixture it names',
+        /noread\.mjs/.test(String(TT[FIXTURE] || '')),
+        'argv-reads no longer plants that string — drop the exemption instead of keeping a hole'
+      );
+      var g = stripC(String(TT[HELPER] || ''));
+      T.ok('the helper answers on the path AS WRITTEN', /moduleUrl === asWritten/.test(g), 'absent — a realpath-only predicate breaks under --preserve-symlinks-main');
+      T.ok('…and on the RESOLVED path', /realpathSync\(entry\)/.test(g), 'absent — the symlink case is unrepaired');
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns a tool through a symlink in a temp cwd)');
+        return;
+      }
+      var TOKEN = '--no-such-flag-9f3'; // the same probe tools/argv-survey.mjs uses
+      var link = probe('tools/geometry-probe.mjs', [TOKEN], { viaSymlink: true });
+      T.eq('through a SYMLINK an unknown flag exits 2, not 0', link.status, 2);
+      T.ok('…and the refusal names the token', String(link.out).indexOf(TOKEN) >= 0, String(link.out).slice(0, 200));
+      T.eq('…and nothing was written beside the link', link.wrote, []);
+      var direct = probe('tools/geometry-probe.mjs', [TOKEN]);
+      T.eq('CONTROL · the direct call gives the same exit', direct.status, link.status);
+      T.ok('CONTROL · and the same refusal text', String(direct.out).indexOf(TOKEN) >= 0, String(direct.out).slice(0, 120));
+      /* Heron's own measurement, as an assertion: a main that PRINTS A NUMBER went mute through a link. */
+      var hc = probe('tools/hook-contract.mjs', ['--probe-bytes'], { viaSymlink: true });
+      T.eq('hook-contract --probe-bytes still runs through a symlink', hc.status, 0);
+      T.ok('…and prints the size rather than nothing', /\d{4,}/.test(String(hc.out)), JSON.stringify(String(hc.out).slice(0, 80)));
     });
     /* ════ THE HAT ROWS RENDER THE PER-CORNER STATUS (PAT-HAT-DRIFT-DIFFERENCED, 2026-09-27) ═════════
        A negative solved variance has TWO different meanings and the page used to print one word for both.
@@ -66017,11 +66194,24 @@
         return;
       }
       /* `export ` stripped because this suite is CJS (run-tests.mjs loads it through createRequire) and
-         cannot await an ESM import. The functions are pure, so the realm needs nothing else. */
+         cannot await an ESM import. The functions are pure, so the realm needs nothing else.
+         Since 2026-10-21 the module also imports two node builtins for `isCliEntry`, so the import
+         lines are stripped as well — and the strip is ASSERTED to be builtins only, because dropping a
+         future dependency on repo code would leave this realm evaluating a different module than the
+         one the tools load. `isCliEntry` reads `process.argv`, so it is exercised by execution in the
+         `the CLI predicate survives a symlink to the tool` group, never here. */
+      var IMPORTSg = String(srcText).match(/^import .*$/gm) || [];
+      T.eq(
+        'every import argv-guard.mjs carries is a node builtin, so stripping them keeps the realm faithful',
+        IMPORTSg.filter(function (l) {
+          return !/from 'node:[a-z]+';\s*$/.test(l);
+        }).join(' | '),
+        ''
+      );
       var realm = { module: { exports: {} } };
       realm.exports = realm.module.exports;
       vmG.createContext(realm);
-      vmG.runInContext(srcText.replace(/^export /gm, '') + '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag;', realm);
+      vmG.runInContext(srcText.replace(/^export /gm, '').replace(/^import .*$/gm, '') + '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag;', realm);
       var checkArgv = realm.exports.checkArgv,
         nearestFlag = realm.exports.nearestFlag;
       var SPEC = { valued: ['--src', '--out', '--night'], boolean: ['--dry-run', '--force'] };

@@ -34,6 +34,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -511,4 +512,7 @@ async function main() {
   }
   console.log(report(dir) + ' total proposal(s) → REVIEW-REPORT.md');
 }
-if (fileURLToPath(import.meta.url) === process.argv[1] || (process.argv[1] && basename(process.argv[1]) === basename(fileURLToPath(import.meta.url)))) main();
+/* The basename fallback that used to sit beside this is GONE: it answered "any program with my name",
+   which makes an import act whenever the importer shares the basename. It existed for the symlink case,
+   and `isCliEntry` answers that case properly. */
+if (isCliEntry(import.meta.url)) main();

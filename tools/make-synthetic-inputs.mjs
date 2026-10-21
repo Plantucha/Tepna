@@ -33,8 +33,7 @@
  * ════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 /* Residue `2026-10-20-seven-tools-take-an-unknown-argv-token-as-a-path-and-sixty-nine-stay-undecided`:
    this tool reads NO flags, so a mistyped one lands in argv[2] and `mkdirSync` below makes a directory
@@ -42,7 +41,7 @@ import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 /* The refusal must fire for the CLI ONLY. `process.argv` belongs to whoever is running, so a
    module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
    reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { positional: true }, { tool: 'make-synthetic-inputs' });
 const OUT = process.argv[2] || 'uploads';
 fs.mkdirSync(OUT, { recursive: true });

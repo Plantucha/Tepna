@@ -15,9 +15,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { foldOf, loadWeights, seqnetForward, viterbi } from './seqnet-infer.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const args = Object.fromEntries(
   process.argv
@@ -313,7 +313,7 @@ function selftest() {
 }
 
 // Dispatch only when run as the entry point, so tests can import parityVerdict without starting a run.
-const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isCliEntry(import.meta.url);
 if (isMain) {
   if (process.argv.includes('--selftest')) selftest();
   else if (process.argv.includes('--verdict-sample')) console.log(JSON.stringify(verdictSample(), null, 2));

@@ -89,6 +89,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIOME = join(ROOT, 'node_modules', '.bin', 'biome');
@@ -226,7 +227,7 @@ function selfTest() {
   return fail ? 1 : 0;
 }
 
-const IS_MAIN = resolve(process.argv[1] || '') === resolve(fileURLToPath(import.meta.url));
+const IS_MAIN = isCliEntry(import.meta.url);
 const argv = process.argv.slice(2);
 if (IS_MAIN && (argv.includes('--selftest') || argv.includes('--self-test'))) process.exit(selfTest());
 

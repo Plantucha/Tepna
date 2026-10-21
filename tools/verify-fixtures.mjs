@@ -46,8 +46,8 @@ import { corpusSearch, formatCorpusSearch } from './regen-goldens-core.mjs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { fileURLToPath } from 'node:url';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 /* REFUSE AN UNREAD TOKEN BEFORE THE EIGHT-MINUTE RUN, not after it. The whole argv surface below is
    three `process.argv.includes` lookups, so a token nobody looks up was indistinguishable from an
@@ -63,7 +63,7 @@ import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
    arguments, so an import of anything in this file judged flags it never passed (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--check', '--json', '--selftest'] }, { tool: 'tools/verify-fixtures.mjs' });
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

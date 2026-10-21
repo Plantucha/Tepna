@@ -38,6 +38,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -271,4 +272,4 @@ if (process.argv.includes('--verdict-sample')) {
   } else console.log('  · end-to-end cases skipped: no scanner binary');
   console.log(bad ? '  ✗ ' + bad + ' of ' + ran + ' selftests failed' : '  all ' + ran + ' selftests passed');
   process.exit(bad ? 1 : 0);
-} else if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();
+} else if (isCliEntry(import.meta.url)) main();

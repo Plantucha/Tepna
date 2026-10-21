@@ -53,8 +53,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, openSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -281,6 +282,6 @@ if (process.argv.includes('--verdict-sample')) {
   process.exit(0);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && !process.argv.includes('--selftest')) {
+if (isCliEntry(import.meta.url) && !process.argv.includes('--selftest')) {
   process.exit(main(process.argv.slice(2)));
 }

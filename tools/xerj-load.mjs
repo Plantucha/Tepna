@@ -41,6 +41,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHUNKER, cacheHit, chunk, listExternalDocs, readDoc, readLines } from './doc-search.mjs';
 import { resolveStatePath } from './mutation-map.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -874,7 +875,7 @@ export async function promote(url, alias, next) {
   return { replaced, retired };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   main().catch((e) => {
     process.stderr.write(`xerj-load: ${e.message}\n`);
     process.exit(2);

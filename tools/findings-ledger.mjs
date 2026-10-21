@@ -37,6 +37,7 @@ import { readFileSync, appendFileSync, writeFileSync, mkdirSync, existsSync, sta
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -337,4 +338,6 @@ function main() {
   console.error('usage: findings-ledger.mjs add|status|stats|report|open|--selftest');
   process.exit(2);
 }
-if (fileURLToPath(import.meta.url) === process.argv[1] || (process.argv[1] && process.argv[1].endsWith('findings-ledger.mjs'))) main();
+/* The `endsWith('findings-ledger.mjs')` fallback is GONE: it answered "any path ending in my name", so
+   a same-named program elsewhere read as this one. `isCliEntry` covers the symlink case it was for. */
+if (isCliEntry(import.meta.url)) main();

@@ -39,8 +39,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { accessSync, constants, statSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 const GATE = 'probe-child-death-codes';
@@ -257,7 +256,7 @@ const opt = (n, d) => {
   const i = argv.indexOf(n);
   return i >= 0 && argv[i + 1] !== undefined ? argv[i + 1] : d;
 };
-const IS_MAIN = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_MAIN = isCliEntry(import.meta.url);
 
 if (IS_MAIN) {
   refuseUnknownArgvOrExit(argv, { valued: ['--timeout-ms'], boolean: ['--json', '--selftest', '--verdict-sample'] }, { tool: 'probe-child-death-codes' });

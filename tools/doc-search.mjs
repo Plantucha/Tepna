@@ -122,6 +122,7 @@ import { dirname, join, resolve } from 'node:path';
 import { resolveStatePath, sharedStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { stripCode } from './strip-markup.mjs';
+import { isCliEntry, isEntryUrl } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* §1: shared-first through the git common dir — one index serves every worktree. */
@@ -414,12 +415,11 @@ export function readDoc(path, raw) {
    `endsWith('doc-search.mjs')` and matched the COMMENT that quotes it, which is exactly the
    substring-satisfiable assertion class `tools/gate-tightness.mjs` exists to find. */
 export function isEntryPoint(argv1, moduleUrl) {
-  if (!argv1 || !moduleUrl) return false;
-  try {
-    return resolve(argv1) === resolve(fileURLToPath(moduleUrl));
-  } catch {
-    return false;
-  }
+  /* Delegates to `isEntryUrl`, which compares the entry AS WRITTEN and its realpath. The body here used
+     to compare `resolve()`d strings, which normalises but never follows a link, so a tool reached
+     through a symlink read as imported and its main never ran (board #685, 2026-10-21). The signature
+     and the selftests below stay, because a caller holding an entry should still be able to ask. */
+  return isEntryUrl(argv1, moduleUrl);
 }
 /* ── 🔴 THE CORPUS MUST PROVE ITSELF, NOT MERELY BE NON-EMPTY ────────────────────────────────────
  * Measured: pointed at a directory with no documents, this printed its header, no hits, its footer,
@@ -786,7 +786,7 @@ async function buildIndex(quiet, scope = 'all') {
    impossible to mistake for a result. The rename was the peer's slip; the silent success was mine. */
 let IS_MAIN = false;
 try {
-  IS_MAIN = isEntryPoint(process.argv[1], import.meta.url);
+  IS_MAIN = isCliEntry(import.meta.url);
 } catch {
   IS_MAIN = false;
 }

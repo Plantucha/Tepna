@@ -28,6 +28,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -172,7 +173,7 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
-const IS_CLI = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   if (process.argv.includes('--verdict-sample')) {
