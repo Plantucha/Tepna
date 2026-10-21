@@ -212,15 +212,26 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, 
      case". The capability was complete and its description was wrong. A hint that excludes the case it
      solves is worse than no hint, so the refusal now NAMES WHAT IT MEASURED and offers the flag only to
      a tree the flag can actually help. */
-  if (prState === null && landless && landless.ok === true && landless.kind === 'empty') {
+  /* ⚠️ AND IT OUTRANKS BOTH LANDED PROOFS, not only the missing-PR refusal (row
+     2026-10-21-the-landed-hatch-of-wt-done-cannot-be-met-by-an-emptied-branch). `--landed` scores the
+     proof by the identifiers a branch ADDS, and a branch contained in origin/main adds none — so the
+     strongest evidence that nothing can be lost scored LOWEST and the floor refused it. The floor is
+     right (a zero must never read as a pass, §4b); the ladder was missing the rung above it. 0 commits
+     ahead of a freshly fetched origin/main means every commit in HEAD is reachable from main, which is
+     the question the post-merge DATE count only approximates: measured 2026-10-21 on `claude/lexkw-osp`,
+     the 7 commits it counted were MAIN's, carried in by the rebase that emptied the branch. OPEN stays
+     out, because an open PR's tree may still be used for its fixes. */
+  if (prState !== 'OPEN' && landless && landless.ok === true && landless.kind === 'empty') {
     if (inUse && inUse.ok === false) return { ok: false, why: `cannot prove idle: ${inUse.why}` };
     if (inUse && inUse.users && inUse.users.length) {
       const who = inUse.users.map((u) => `PID ${u.pid} (${u.cmd})`).join('; ');
       return { ok: false, why: `IN USE by ${who} — removing it would destroy that run` };
     }
+    /* The PR-less wording is kept byte-for-byte; a PR state only replaces its first clause. */
+    const head = prState === null ? 'no PR and nothing to land' : `PR ${String(prState).toLowerCase()} and nothing to land`;
     return {
       ok: true,
-      why: `no PR and nothing to land — 0 commits ahead of origin/main, tree clean, ${landless.remoteRef ? 'branch on origin' : 'no branch on origin'}` + (inUse ? ' + idle' : '')
+      why: `${head} — 0 commits ahead of origin/main, tree clean, ${landless.remoteRef ? 'branch on origin' : 'no branch on origin'}` + (inUse ? ' + idle' : '')
     };
   }
   /* ── THE WORK IS ON MAIN UNDER ANOTHER NAME (--landed) ───────────────────────────────────────
@@ -349,7 +360,7 @@ function unlandedFor(wtPath, mergedAt) {
 /* --pushed proof: every local commit of the worktree's branch is contained in origin/<branch>, read
    from a FRESH fetch of that one branch (never from a stale remote-tracking ref). Detached ⇒ cannot
    prove; a fetch failure ⇒ cannot prove; the tip not an ancestor ⇒ commits exist only here. */
-function pushedFor(wtPath, branch) {
+function pushedFor(wtPath, branch, { emptyOnly = false } = {}) {
   /* Strongest case first (Heron, 2026-09-26, wt-qcstall-hrn): a branch with NO commits of its own —
      HEAD contained in a freshly fetched origin/main — has nothing to land and nothing to prove; the
      tree was a measurement bench. Checked before the branch fetch so it holds for a branch that was
@@ -381,6 +392,11 @@ function pushedFor(wtPath, branch) {
     commitsAhead = null; // cannot reach origin/main — the refusal says so rather than guessing 0
   }
   if (commitsAhead === 0) return { ok: true, kind: 'empty', remote: 'origin/main (no commits of its own)', commitsAhead, remoteRef };
+  /* `emptyOnly` stops here instead of proving containment in origin/<branch>: the caller that asks for
+     it honours the `empty` kind alone, and the branch fetch below would cost a round trip (a failing one
+     for a merged branch Kodiak has deleted) to answer a question nobody reads. ONE function still takes
+     the measurement, so the two call sites can never disagree about what was measured. */
+  if (emptyOnly) return { ok: false, why: `${commitsAhead === null ? 'unknown' : commitsAhead} commit(s) ahead of origin/main`, remoteRef, commitsAhead };
   if (!branch) return { ok: false, why: 'detached HEAD not on origin/main — no branch to compare with origin', remoteRef, commitsAhead };
   try {
     run('git', ['-C', wtPath, 'fetch', '-q', 'origin', branch]);
@@ -477,6 +493,10 @@ function landedElsewhereFor(wtPath, base = 'origin/main') {
     { base }
   );
 }
+/* One spelling of "this is the primary checkout", read by the list and by the removal path. */
+function isMainWt(w) {
+  return w.branch === 'main' || w.branch === 'master';
+}
 function dirtyCountFor(wtPath) {
   return run('git', ['-C', wtPath, 'status', '--porcelain']).split('\n').filter(Boolean).length;
 }
@@ -504,7 +524,13 @@ function main(argv) {
       const pr = prFor(w.branch);
       const use = existsSync(w.path) ? usersOfPath(w.path) : { ok: true, users: [] };
       const unl = existsSync(w.path) && pr.state === 'MERGED' ? unlandedFor(w.path, pr.mergedAt) : undefined;
-      const v = verdict({ prState: pr.state, dirtyCount: Math.max(0, dirty), isMain: w.branch === 'main' || w.branch === 'master', inUse: use, unlanded: unl });
+      /* THE DASHBOARD MUST DECIDE WHAT THE RUN DECIDES. Emptiness needs no flag, so a list that omits
+         the measurement prints `keep` for a tree the no-flag run removes — and a session reading that
+         goes and does it by hand, which is the failure the flag-naming note above already records once.
+         `emptyOnly` keeps it to one rev-list per tree; `contained` stays behind --pushed, which a list
+         never passes. */
+      const lnd = existsSync(w.path) && !isMainWt(w) && pr.state !== 'OPEN' ? pushedFor(w.path, w.branch, { emptyOnly: true }) : undefined;
+      const v = verdict({ prState: pr.state, dirtyCount: Math.max(0, dirty), isMain: isMainWt(w), inUse: use, unlanded: unl, landless: lnd });
       console.log(`${v.ok ? 'REMOVABLE ' : 'keep      '} ${w.path}  [${w.branch ?? 'detached'}]  pr=${pr.state ?? '-'} dirty=${dirty} — ${v.why}`);
     }
     return 0;
@@ -548,12 +574,14 @@ function main(argv) {
     } else {
       pr = prFor(w.branch);
     }
-    /* Computed ONCE for both roles below, and only where it can apply: a PR-less or CLOSED-PR tree. */
-    const land = pr.state === null || pr.state === 'CLOSED' ? pushedFor(w.path, w.branch) : undefined;
+    /* Computed ONCE for both roles below. A MERGED tree is measured too, and that is the repair: the
+       emptiness rung could never fire on the path that needed it, because the measurement was not taken
+       there at all. `emptyOnly` on that path, since `--pushed` applies to a PR-less or CLOSED-PR tree. */
+    const land = pr.state === 'OPEN' ? undefined : pushedFor(w.path, w.branch, { emptyOnly: pr.state === 'MERGED' });
     const v = verdict({
       prState: pr.state,
       dirtyCount: dirtyCountFor(w.path),
-      isMain: w.branch === 'main' || w.branch === 'master',
+      isMain: isMainWt(w),
       inUse: usersOfPath(w.path),
       unlanded: pr.state === 'MERGED' ? unlandedFor(w.path, pr.mergedAt) : undefined,
       /* ONE computation, two roles: `landless` decides the empty case with no flag, `pushed` carries the
@@ -693,6 +721,42 @@ if (process.argv.includes('--selftest')) {
   );
   assert(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false }).why === 'PR merged + tree clean', 'a caller that does NOT scan for unlanded commits keeps the old text byte-for-byte');
   assert(!verdict({ prState: 'MERGED', dirtyCount: 1, isMain: false, unlanded: { ok: true, count: 0 } }).ok, 'dirty still outranks a clean landed-scan');
+  /* The caller's `landless` for a branch contained in a freshly fetched origin/main. */
+  const EMPTY_LANDLESS = { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: true };
+  /* ── CONTAINMENT, the rung above both landed proofs (row
+     2026-10-21-the-landed-hatch-of-wt-done-cannot-be-met-by-an-emptied-branch) ───────────────────
+     The numbers are the ones measured on `claude/lexkw-osp`: 7 commits dated after the merge, 0
+     identifiers added, 0 commits ahead of origin/main. */
+  assert(
+    verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 7 }, landless: EMPTY_LANDLESS }).ok,
+    "an emptied branch passes although 7 commits are dated after the merge — those commits are main's"
+  );
+  assert(
+    /PR merged and nothing to land — 0 commits ahead of origin\/main/.test(
+      verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 7 }, landless: EMPTY_LANDLESS }).why
+    ),
+    'the success names the measurement it acted on, and which PR state it read'
+  );
+  assert(
+    verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: false, why: 'no merge timestamp from gh' }, landless: EMPTY_LANDLESS }).ok,
+    'containment outranks an INCONCLUSIVE date scan — the branch holds no commit for the scan to judge'
+  );
+  assert(!verdict({ prState: 'MERGED', dirtyCount: 1, isMain: false, unlanded: { ok: true, count: 7 }, landless: EMPTY_LANDLESS }).ok, 'containment never overrides a dirty tree');
+  assert(
+    !verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, inUse: { ok: true, users: [{ pid: 7, cmd: 'npm run check' }] }, landless: EMPTY_LANDLESS }).ok,
+    'containment never overrides a tree in use'
+  );
+  assert(!verdict({ prState: 'OPEN', dirtyCount: 0, isMain: false, landless: EMPTY_LANDLESS }).ok, 'an OPEN PR keeps its tree even when the branch is empty — its fixes may still be made here');
+  assert(verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false, landless: EMPTY_LANDLESS }).ok, 'a CLOSED PR over an empty branch loses nothing either');
+  assert(
+    !verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 7 }, landless: { ok: false, why: '3 commit(s) ahead of origin/main', commitsAhead: 3 } }).ok,
+    'a branch with commits of its own still refuses — the rung fires on a MEASURED emptiness, never on its absence'
+  );
+  assert(
+    verdict({ prState: null, dirtyCount: 0, isMain: false, landless: { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: false } }).why ===
+      'no PR and nothing to land — 0 commits ahead of origin/main, tree clean, no branch on origin',
+    'the PR-less wording is unchanged byte-for-byte'
+  );
   /* ── the RETRY-RENAME relation (row 2026-09-23-wt-done-cannot-be-told-the-pr-landed) ──────────
      `--pr` is proof, not an override, and this relation is the part that makes it so. The measured
      case is asserted by name, and the floor is asserted against the shared `claude/` stem that every
