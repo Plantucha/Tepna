@@ -55,13 +55,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { pathToFileURL } from 'node:url';
 
 const argv = process.argv.slice(2);
 /* Refuse a token nobody reads BEFORE anything is read. Measured on THIS tool (argv survey,
    2026-09-28): `--no-such-flag-9f3` produced output byte-identical to no arguments at all, because
    `flag`/`opt` look up only the names they know. `--coverage-only` is the flag that makes it matter —
    mistype it and the tool silently demands a ring dir it was told not to need. */
-refuseUnknownArgvOrExit(argv, { valued: ['--cpap', '--max-lag', '--night', '--ring'], boolean: ['--coverage-only', '--selftest'] }, { tool: 'cpap-sa2-agreement' });
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
+   arguments, so an import of anything in this file judged flags it never passed (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) refuseUnknownArgvOrExit(argv, { valued: ['--cpap', '--max-lag', '--night', '--ring'], boolean: ['--coverage-only', '--selftest'] }, { tool: 'cpap-sa2-agreement' });
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);

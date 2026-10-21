@@ -1,0 +1,63 @@
+# Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# The secret-scan rule set, read by tools/secret-scan.mjs (CI: .github/workflows/secret-scan.yml).
+# It extends the scanner's default credential rules with the repo's private-network family.
+#
+# This file holds PATTERNS, never the literals they protect. The repo is public, so a list of the
+# exact device addresses, serials and host names would itself be the leak. Those literals reach the
+# scan at run time from the TEPNA_PRIVATE_TERMS secret (one term per line), and a failure prints the
+# rule, file and line, never the matched text.
+#
+# Calibration, 2026-10-20, over the last 400 commits on main (generic rules only):
+#   default rules alone      181 findings, 104 of them hardware addresses in capture-host tests
+#                            and 72 generic-key hits on lowercase slugs in one audits JSON
+#   this file                5 findings, each a real private or shared address in tracked text
+# The generic hardware-address rule is therefore NOT here: test fixtures carry addresses by design.
+# The two real device addresses travel in TEPNA_PRIVATE_TERMS instead.
+
+title = "tepna"
+
+[extend]
+useDefault = true
+
+# A residue key, a changeset name or a mutant id sits beside the word "key" all over this repo.
+# All three are lowercase identifiers joined by '-', '_' or '.'; a credential carries mixed case.
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "lowercase repo identifiers: residue keys, changeset names, mutant ids"
+regexTarget = "secret"
+regexes = [
+  '''^[a-z0-9]+(?:[-_.][a-z0-9]+)+$''',
+  '''^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*__\w+$''',
+]
+
+[[rules]]
+id = "private-ipv4"
+description = "an RFC 1918 private address"
+regex = '''\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b'''
+keywords = ["10.", "192.168.", "172."]
+
+[[rules]]
+id = "shared-ipv4"
+description = "an RFC 6598 shared address (the overlay-network range)"
+regex = '''\b100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}\b'''
+keywords = ["100."]
+
+[[rules]]
+id = "home-path"
+description = "an absolute path under one user's home directory"
+# The secret is the USER NAME (group 1), not the path. The default rules' global allowlist drops a
+# secret that looks like a file path, so a whole-path match never reports (measured 2026-10-20).
+regex = '''/home/([a-z_][a-z0-9_-]{0,31})/'''
+secretGroup = 1
+keywords = ["/home/"]
+
+[[allowlists]]
+description = "the owner's convention files, and this rule set"
+paths = [
+  '''^CLAUDE\.md$''',
+  '''^\.claude/''',
+  '''^\.gitleaks\.toml$''',
+]
