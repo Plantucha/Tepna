@@ -141,6 +141,7 @@ const nightOf = (sets) => CpapDsp.buildNight(sets.map((s) => CpapDsp.buildSessio
 const FIXTURES = [
   {
     name: 'cpapdex_synthetic_golden.node-export.json',
+    builtFrom: ['cpapdex-dsp.js'],
     build: () => CpapFusion.cpapBuildExport(nightOf([CpapDsp._synthEdfSet({ oxi: true, cs: true })]))
   },
   {
@@ -155,6 +156,7 @@ const FIXTURES = [
   },
   {
     name: 'cpapdex_synthetic_multinight_golden.node-export.json',
+    builtFrom: ['cpapdex-dsp.js'],
     build: () => {
       const mk = (delta) => {
         const set = CpapDsp._synthEdfSet({ oxi: true, cs: true });

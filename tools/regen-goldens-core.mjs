@@ -45,6 +45,11 @@ const CORE_REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
      · the inputs a recipe DECLARES, which is only the ones carrying a `newRecord`. An older fixture
        declares none here, and the caller reads them from the fixture ledger instead. Printing an
        empty field rather than guessing is what lets the caller fail closed on it.
+     · `builtFrom` — the repo-relative SOURCE files that build a fixture's input IN CODE. A fixture
+       whose input is a function, not a file in `uploads/`, has no input name to declare, so seven
+       fixtures listed an empty field and every rebase held them (residue
+       2026-10-20-seven-reproducible-fixtures-name-no-input). Each is printed as `src:<path>`, and the
+       prefix is how the caller tells it from an `uploads/` basename.
 
    Returns `null` on anything it cannot state exactly — no fixtures, a nameless fixture, a path that
    lands outside the repo. The caller treats `null` as "this builder could not be asked", which is
@@ -58,6 +63,15 @@ export function ownedListing(fixtures, fixturesDir, repo) {
     const rel = path.relative(repo, path.join(fixturesDir, F.name)).split(path.sep).join('/');
     if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
     const declared = F.newRecord && Array.isArray(F.newRecord.inputs) ? F.newRecord.inputs.filter((s) => typeof s === 'string' && s && !s.includes(',') && !s.includes('\t')) : [];
+    if (F.builtFrom != null) {
+      /* A malformed source path is not dropped: dropping it could leave a fixture that LOOKS declared
+         with one of its builders missing, so the whole listing becomes unreadable instead. */
+      if (!Array.isArray(F.builtFrom) || !F.builtFrom.length) return null;
+      for (const p of F.builtFrom) {
+        if (typeof p !== 'string' || !p || p.startsWith('/') || p.split('/').includes('..') || /[,\t\n]/.test(p)) return null;
+        declared.push('src:' + p);
+      }
+    }
     rows.push(rel + '\t' + (F.real ? 'corpus' : 'committed') + '\t' + declared.join(','));
   }
   return rows;

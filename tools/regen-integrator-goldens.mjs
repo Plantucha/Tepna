@@ -294,12 +294,22 @@ const buildNightFusion = () => {
 };
 
 const FIXTURES = [
-  { name: 'integrator_tch_golden.node-export.json', real: false, build: buildTch },
-  { name: 'integrator_fusion_night_twins.node-export.json', real: false, build: buildNightFusion, newRecord: true },
+  /* `builtFrom` names the source that builds each input IN CODE (regen-goldens-core.mjs ownedListing),
+     read from the builder each `build*` calls. A fixture whose input is a function has no `uploads/`
+     name, and without this every rebase held all five as undeclared. */
+  { name: 'integrator_tch_golden.node-export.json', real: false, build: buildTch, builtFrom: ['tests/tch-golden-inputs.js'] },
+  {
+    name: 'integrator_fusion_night_twins.node-export.json',
+    real: false,
+    build: buildNightFusion,
+    newRecord: true,
+    builtFrom: ['tests/fusion-night-twins.js', 'tests/apnea-null-twins.js', 'tests/tch-golden-inputs.js', 'tests/respiration-fusion-twins.js']
+  },
   {
     name: 'integrator_respiration_fusion_twins.node-export.json',
     real: false,
     build: buildRespTwins,
+    builtFrom: ['tests/respiration-fusion-twins.js'],
     newRecord: {
       added: '2026-09-03',
       inputs: [],
@@ -310,6 +320,7 @@ const FIXTURES = [
     name: 'integrator_hrstat_class_twins.node-export.json',
     real: false,
     build: buildHrStatTwins,
+    builtFrom: ['tests/hrstat-class-twins.js', 'tests/tch-golden-inputs.js'],
     newRecord: {
       added: '2026-09-18',
       inputs: [],
@@ -320,6 +331,7 @@ const FIXTURES = [
     name: 'integrator_apnea_null_twins.node-export.json',
     real: false,
     build: buildApneaTwins,
+    builtFrom: ['tests/apnea-null-twins.js'],
     // `newRecord` = MINT this fixture's ledger entry if absent, rather than skip. Without it,
     // standing up a new fixture means hand-writing an export AND a ledger record — the two things
     // §🔏 forbids outright. With it the bytes come from the real modules and the hashes from the gates.
