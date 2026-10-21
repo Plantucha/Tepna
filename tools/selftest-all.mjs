@@ -84,8 +84,36 @@ export function declaresSelftest(src) {
      one. The dashes are now optional, which recovers it with ZERO tools lost (190 → 191, verified
      per file). `verdict-adoption.mjs` IMPORTS this function for its own gating, so the two readers
      cannot drift: the CLI below runs only under `isCliEntry` (row
-     `2026-10-21-selftest-all-runs-its-cli-at-module-scope`, where the import used to start a sweep). */
-  return /\(\s*['"](?:--)?selftest['"]\s*\)/.test(s);
+     `2026-10-21-selftest-all-runs-its-cli-at-module-scope`, where the import used to start a sweep).
+
+     🔴 THE FIFTH SPELLING, AND IT IS NOT A SPELLING OF THE FLAG READ AT ALL (2026-10-21). Every
+     widening above asks the same question — how does this tool spell its flag read — when the
+     question is whether the tool HAS a reachable selftest. Four tools answer the second yes and the
+     first no, so all four read identical to a tool with no selftest: `nsrr-ahiest-validate`,
+     `nsrr-oxstat-validate` and `nsrr-resprate-validate` run their selftest UNCONDITIONALLY at CLI
+     (`if (IS_CLI) process.exit(selftest())`, no flag anywhere), and `stage-lab` dispatches on a
+     parsed `a.selftest` off its own `--k v` parser. Measured green under this script's own spawn
+     args: 11, 12 and 16 assertions and six `ok` lines, exit 0 each.
+
+     ⚠️ THREE OF THE FOUR WERE UNGATED EVERYWHERE, not merely here. The CI loop discovers by
+     `grep -rln -- '--selftest' tools/*.mjs`, and those three contain the literal ZERO times, so 39
+     green assertions ran in neither gate. `stage-lab` carries the literal in its header, which CI's
+     grep accepts and this predicate rejects, so it ran in CI and never locally — the two readers of
+     one question disagreeing, which is this file's own defect class a third time.
+
+     So the second alternative below keys on the MACHINERY: a declared top-level `selftest`. Measured
+     before the change, per file: 197 → 201, with zero tools lost. A header comment still cannot enrol
+     anything, because a mention has no `function` in front of it.
+
+     ⚠️ ONE PATTERN, NO FLAGS, AND BOTH HALVES ARE LOAD-BEARING. The suite group `the selftest
+     predicate is one pattern in both files that read it` locates this predicate by matching the
+     RETURN LINE below in this file's own source, so it can build the SHIPPED regex instead of a copy.
+     (Its locator is in the suite; do not quote the shape here, or this comment becomes the first
+     match.) Written as two regexes, or as one carrying `/m`, that anchor stops matching and the search
+     runs on to `declaresNearMissSelftest` below — which still matches the shape, so the group
+     silently tests the WRONG predicate and reports a usage comment as enrolled. Hence `(?:^|\n)`
+     rather than `^` with the `m` flag. */
+  return /\(\s*['"](?:--)?selftest['"]\s*\)|(?:^|\n)\s*(?:export\s+)?(?:async\s+)?function\s+selftest\s*\(/.test(s);
 }
 
 /* ✅ CLOSED 2026-08-18, RE-VERIFIED 2026-08-27 — the incident below is HISTORY, not an open hazard.
@@ -517,6 +545,11 @@ async function main() {
     eq(declaresSelftest("if (argv.indexOf('--selftest') >= 0) {"), 'indexOf() form is recognised');
     eq(!declaresSelftest(' * usage: node tools/x.mjs --selftest'), 'a usage COMMENT alone does not enrol a tool');
     eq(!declaresSelftest("if (process.argv[2] === '--self-test') {"), 'the hyphenated === form is NOT recognised (this is the bug)');
+    eq(declaresSelftest('function selftest() {\n  return 0;\n}'), 'a DECLARED selftest enrols without any flag read (the nsrr-*-validate form)');
+    eq(declaresSelftest('async function selftest() {\n  return 0;\n}'), 'the async declaration enrols too (the stage-lab form)');
+    eq(declaresSelftest('export function selftest() {}'), 'an exported declaration enrols');
+    eq(!declaresSelftest(' * the selftest(…) it documents is only prose'), 'a prose mention of the function is still not a declaration');
+    eq(!declaresSelftest('function selftestHelper() {}'), 'a longer name that merely starts with selftest does not enrol');
     eq(declaresNearMissSelftest("if (process.argv[2] === '--self-test') { selfTest(); }"), 'the hyphenated flag is reported as a near miss');
     eq(declaresNearMissSelftest('export function selfTest() { return 3; }'), 'selftest machinery with no reachable flag is a near miss');
     eq(!declaresNearMissSelftest("if (argv.includes('--selftest')) { selfTest(); }"), 'a correctly-enrolled tool is NOT a near miss');

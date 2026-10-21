@@ -11109,6 +11109,26 @@
         !RE.test(' *   node tools/x.mjs --selftest        # known-answer corpus'),
         'no parentheses around the literal — the call position is what keeps documentation out'
       );
+      /* THE FIFTH CASE (2026-10-21), and it is not a spelling of the flag read: three nsrr-*-validate
+         tools run their selftest unconditionally at CLI with no flag anywhere, and stage-lab dispatches
+         on a parsed `a.selftest`. All four read identical to a tool with no selftest at all. */
+      T.ok(
+        'it reads a DECLARED selftest with no flag read at all',
+        RE.test('function selftest() {'),
+        'the nsrr-*-validate form — a declaration is the machinery, where a flag read is one route to it'
+      );
+      T.ok('…the async declaration too', RE.test('async function selftest() {') && RE.test('export function selftest() {}'), 'the stage-lab form, and the exported one');
+      T.ok('…and a longer name that merely starts with it does not enrol', !RE.test('function selftestHelper() {}'), 'selftestHelper is a different function');
+      /* CONTROL ON THE LOCATOR ITSELF, not on the predicate: the anchor above takes the FIRST return
+         of this shape in the file, and `declaresNearMissSelftest` sits below with the same shape. A
+         predicate written as two regexes, or with a flag, stops matching and the search runs on to
+         that one — which then reports a usage comment as enrolled. The hyphenated flag is the tell,
+         because only the near-miss predicate matches it. */
+      T.ok(
+        'CONTROL · the anchor found the predicate, not the near-miss reader below it',
+        !RE.test("if (process.argv[2] === '--self-test') {"),
+        'the hyphenated flag belongs to declaresNearMissSelftest — matching it here means the locator ran past its target'
+      );
       var keys = Object.keys(TT).filter(function (k) {
         return /^tools\/[^/]+\.mjs$/.test(k);
       });
@@ -11118,7 +11138,11 @@
       T.ok(
         'CONTROL · the pattern finds the selftest population',
         declaring.length >= 150,
-        'declaring=' + declaring.length + ' of ' + keys.length + ' — 192 of 280 measured 2026-10-21; a collapsed column means the pattern stopped matching, not that the tools stopped declaring'
+        'declaring=' +
+          declaring.length +
+          ' of ' +
+          keys.length +
+          ' — 202 of 284 measured 2026-10-21, up from 192 of 280 when the declaration case joined the pattern; a collapsed column means the pattern stopped matching, not that the tools stopped declaring'
       );
       T.ok('tools/null-fuzz.mjs is inside it', declaring.indexOf('tools/null-fuzz.mjs') >= 0, 'the tool the dashed pattern could not see');
     });
