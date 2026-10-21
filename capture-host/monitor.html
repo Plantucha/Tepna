@@ -737,6 +737,20 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
           “Remember” adds it to auto-connect on boot.</p>
       </div>
 
+      <!-- The BLE error-backoff RATE over time (row 2026-10-20-ble-backoff-rate-is-drawn-as-a-level-
+           not-a-curve). The sidebar pill says what the rate is NOW and judges it against the budget;
+           this says what it HAS BEEN, which is the whole difference between 4/h last night and 14/h
+           tonight — two readings the pill draws identically because both are under one 20/h budget. -->
+      <div class="card" id="bleRateCard">
+        <h3>BLE error backoff <span style="font-weight:400;color:var(--text3);font-size:11px">· per device, last 12 h, from the daemon's own journal line</span></h3>
+        <canvas id="bleRateCv" style="width:100%;height:170px;display:block;margin-top:8px"></canvas>
+        <div id="bleRateLegend" class="hint">—</div>
+        <p class="hint">Each daemon process draws its own line: a restart starts a new process and the
+          rate's observation window restarts with it, so the lines never join across one (dashed mark).
+          A break in a line is a window not yet covered — the legend names the reason — and never a
+          quiet device, which is a measured 0/h and sits on the floor.</p>
+      </div>
+
       <!-- CPAP gets its OWN card and is deliberately NOT in the device roster above: it arrives as
            FILES on a daily timer with no BLE link, so it has no connected/RSSI/worn state and would
            render as a permanently-dead sensor in that list. Hidden until `cpap.enabled` puts a block
@@ -1364,6 +1378,7 @@ function showView(v){
   else if(v==='storage'){ ovStop(); scopeStop(); clkStop(); loadStorage(); }
   else {
     ovStop(); scopeStop(); clkStart();   // devices view owns the clock/NTP panel
+    loadBleRate();
     // The per-device controls live on the device cards now, and their capability data (supported
     // streams, rate menus, sdk_capable) comes from /api/settings — which /api/state does not carry.
     // Re-render after it lands so a cold view fills in rather than staying bare.
@@ -1939,6 +1954,76 @@ async function loadMem(){
   ).join(' · ') + ` · ${segs.length} process${segs.length === 1 ? '' : 'es'} in the window`;
 }
 
+// The BLE error-backoff RATE over time (row 2026-10-20-ble-backoff-rate-is-drawn-as-a-level-not-a-curve).
+// /api/ble-rate returns one SEGMENT per daemon PID, for the reason the memory block states and one of
+// its own: the rate's observation window restarts with the process, so a line joined across a restart
+// would draw a fall out of a window that merely began again. A point is a WINDOWED RATE carrying its
+// own window (ble_series.SHAPES), never a level, so the legend quotes the window with the figure. A
+// null point BREAKS the line (§∅) and the legend names its reason — a window not yet covered, which a
+// measured 0/h on the floor must never look like.
+const BLE_RATE_COLS = ['--blue', '--teal', '--amber', '--purple'];
+async function loadBleRate(){
+  const lg = $('#bleRateLegend'), cv = $('#bleRateCv');
+  if(!lg || !cv) return;
+  let d;
+  try { d = await api('/api/ble-rate?hours=12'); } catch(e){ d = null; }
+  if(!d || !Array.isArray(d.segments)){ lg.textContent = 'The journal could not be read, so no series is drawn.'; return; }
+  const segs = d.segments.filter(s => s.points && s.points.length), devs = d.devices || [];
+  if(!segs.length || !devs.length){ lg.textContent = 'No backoff rate on the journal in the last 12 h.'; return; }
+  const css = getComputedStyle(document.documentElement);
+  const dpr = window.devicePixelRatio||1, W = cv.clientWidth||600, H = cv.clientHeight||170;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const BUDGET = bleBudgetPerHour();
+  let t0 = Infinity, t1 = -Infinity, vmax = 0;
+  for(const s of segs) for(const p of s.points) {
+    t0 = Math.min(t0, p.tMs); t1 = Math.max(t1, p.tMs);
+    for(const dv of devs){ const r = p.rates[dv]; if(r && r.rate != null) vmax = Math.max(vmax, r.rate); }
+  }
+  if(t1 <= t0) t1 = t0 + 60000;
+  // The budget stays on the axis whatever the data does: a night that never approached it must still
+  // show how far away it was, and a night that passed it must not rescale the line out of view.
+  const top = Math.max(BUDGET*1.25, Math.ceil(vmax/5)*5) || 5;
+  const L = 44, R = 8, T = 8, B = 18;
+  const x = t => L + (t - t0)/(t1 - t0)*(W - L - R), y = v => T + (1 - v/top)*(H - T - B);
+  g.font = '10px ui-monospace,monospace'; g.fillStyle = css.getPropertyValue('--text4');
+  g.strokeStyle = css.getPropertyValue('--surface3'); g.lineWidth = 1;
+  for(let i = 0; i <= 4; i++){
+    const v = top*i/4, yy = y(v);
+    g.beginPath(); g.moveTo(L, yy); g.lineTo(W - R, yy); g.stroke();
+    g.fillText(`${Math.round(v)}/h`, 2, yy + 3);
+  }
+  const hhmm = t => new Date(t).toISOString().slice(11,16);   // floating tMs: read as UTC (Clock Contract §5)
+  g.fillText(hhmm(t0), L, H - 4); g.fillText(hhmm(t1), W - R - 30, H - 4);
+  g.setLineDash([3,3]);
+  for(const s of segs.slice(1)){ const xx = x(s.points[0].tMs); g.beginPath(); g.moveTo(xx, T); g.lineTo(xx, H - B); g.stroke(); }
+  g.strokeStyle = css.getPropertyValue('--red');
+  g.beginPath(); g.moveTo(L, y(BUDGET)); g.lineTo(W - R, y(BUDGET)); g.stroke();
+  g.setLineDash([]);
+  g.fillStyle = css.getPropertyValue('--red'); g.fillText(`${BUDGET}/h budget`, L + 4, y(BUDGET) - 3);
+  devs.forEach((dv, i) => {
+    g.strokeStyle = css.getPropertyValue(BLE_RATE_COLS[i % BLE_RATE_COLS.length]); g.lineWidth = 1.5;
+    for(const s of segs){
+      g.beginPath(); let pen = false;
+      for(const p of s.points){
+        const r = p.rates[dv];
+        if(!r || r.rate == null){ pen = false; continue; }
+        if(pen) g.lineTo(x(p.tMs), y(r.rate)); else g.moveTo(x(p.tMs), y(r.rate));
+        pen = true;
+      }
+      g.stroke();
+    }
+  });
+  const last = segs[segs.length-1].points.slice(-1)[0];
+  lg.innerHTML = devs.map((dv, i) => {
+    const r = last.rates[dv], col = BLE_RATE_COLS[i % BLE_RATE_COLS.length];
+    const say = !r ? 'not reported on the newest line'
+              : r.rate == null ? esc(r.reason || 'no rate on the newest line')
+              : `${r.rate.toFixed(1)}/h over ${r.window_min} min`;
+    return `<span style="color:var(${col})">\u25a0</span> ${esc(dv)} ${say}`;
+  }).join(' · ') + ` · ${segs.length} process${segs.length === 1 ? '' : 'es'} in the window`;
+}
+
 // The ring's RTC-reset alarm. STATUS.ring_rtc_reset_suspect is set by capture.py the moment a clock
 // read-back sees a battery-event jump; until the next verified push the ring's free-running clock — and
 // every .dat it stamps — is suspect, so this is a standing alarm, not a transient hint. Extracted BY NAME
@@ -2371,13 +2456,18 @@ function renderHostLoad(lp, gates, tasks){
 // backoff is a MEASURED 0.0/h and reads ok; and a device that has never backed off at all has nothing to
 // measure, which is a third state. Collapsing the first into the second alerts on every daemon start,
 // which is the fastest way to teach an operator to ignore this card.
+// The 20/h error-backoff budget of VIGIL-OVERNIGHT-FINDINGS P2.1, as a function rather than a literal
+// in each reader: the pill judges against it and the curve draws it, and two copies drift apart in
+// silence. A function, not a top-level const, because the render tests extract functions by name.
+function bleBudgetPerHour(){ return 20; }
+
 function renderBle(ble){
   const card = $('#bleCard'), pill = $('#blePill'), txt = $('#bleText'), det = $('#bleDetail');
   if(!card) return;
   const ops = (ble && ble.ops) || null;
   if(!ops || !Object.keys(ops).length){ card.hidden = true; return; }   // null until the first status tick
   card.hidden = false;
-  const BUDGET = 20, rates = (ble && ble.backoff_rate) || {};
+  const BUDGET = bleBudgetPerHour(), rates = (ble && ble.backoff_rate) || {};
   let over = null, worst = null, measuring = 0;
   for(const [dev, r] of Object.entries(rates)){
     if(!r || r.rate == null){ measuring++; continue; }

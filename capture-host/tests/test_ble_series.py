@@ -158,3 +158,254 @@ def test_the_second_line_measures_against_the_first_and_drops_the_no_baseline_re
     assert lines[0].endswith(blestats.FIRST_LINE)
     assert blestats.FIRST_LINE not in lines[1]
     assert "connect/AA 0/0" in lines[1], "nothing was counted between the two lines"
+
+
+# ── the RATE as a SERIES, read back from the journal ────────────────────────────────────────────────
+# Row 2026-10-20-ble-backoff-rate-is-drawn-as-a-level-not-a-curve: gap 2 above left the line written and
+# unread, so the card could say what the rate IS and never what it HAS BEEN. Every line here is
+# SYNTHETIC and its shape copies `log_line`'s output; the shapes are asserted against the real producer
+# in `test_the_journal_line_this_module_parses_is_the_one_log_line_writes` below, which is the only
+# assertion that fails if the line's grammar moves.
+import asyncio  # noqa: E402
+import datetime as dt  # noqa: E402
+import subprocess  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from aiohttp.test_utils import TestClient, TestServer  # noqa: E402
+
+import ble_series  # noqa: E402
+import telemetry  # noqa: E402
+import webmon  # noqa: E402
+
+PREFIX = "2026-01-02T{hhmmss}{zone} synthbox python[{pid}]: 2026-01-02 {hhmmss},000 INFO ble: since last line "
+MEASURED = "backoff rate H10 {rate}/h over 60 min"
+NULL_RATE = "backoff rate VeritySense null/h over 18 min"
+NULL_WHY = "backoff rate VeritySense: observed 1080 s of the 3600 s window"
+
+
+def _bline(pid, hhmmss, segs, zone="-04:00"):
+    return PREFIX.format(hhmmss=hhmmss, zone=zone, pid=pid) + segs
+
+
+def test_a_measured_rate_and_a_null_one_parse_as_different_facts():
+    """The pair the row keeps distinct: a figure with its window, and an absence with its own reason."""
+    r = ble_series.parse_ble_line(
+        _bline(
+            111,
+            "23:28:22",
+            f"connect/H10 3/4 fail timeout=1 · {MEASURED.format(rate='12.3')} · {NULL_RATE} · {NULL_WHY}",
+        )
+    )
+    assert r["pid"] == 111 and r["offsetMin"] == -240
+    assert r["tMs"] == int(dt.datetime(2026, 1, 2, 23, 28, 22, tzinfo=dt.timezone.utc).timestamp() * 1000)
+    assert r["rates"]["H10"] == {"rate": 12.3, "window_min": 60, "reason": None}
+    assert r["rates"]["VeritySense"] == {
+        "rate": None,
+        "window_min": 18,
+        "reason": "observed 1080 s of the 3600 s window",
+    }
+
+
+def test_a_measured_zero_is_a_figure_and_never_the_null():
+    """§∅ at the series layer: 0.0 is the morning-after figure, and `null` is no measurement at all."""
+    zero = ble_series.parse_ble_line(_bline(1, "01:00:00", MEASURED.format(rate="0.0")))["rates"]["H10"]
+    assert zero["rate"] == 0.0 and zero["reason"] is None
+    assert ble_series.parse_ble_line(_bline(1, "01:00:00", NULL_RATE))["rates"]["VeritySense"]["rate"] is None
+
+
+def test_a_line_before_any_backoff_is_a_point_with_no_rate_not_a_skipped_line():
+    """`log_line` writes every tick. A tick that reported no device is the daemon's presence, not a gap."""
+    r = ble_series.parse_ble_line(_bline(1, "01:00:00", "nothing counted yet · " + blestats.FIRST_LINE))
+    assert r["rates"] == {} and r["pid"] == 1
+
+
+def test_a_line_that_is_not_a_ble_line_is_skipped():
+    assert ble_series.parse_ble_line("2026-01-02T01:00:00Z synthbox python[5]: INFO connected") is None
+    assert ble_series.parse_ble_line("no stamp here INFO ble: since last line " + NULL_RATE) is None
+
+
+def test_only_the_text_after_the_needle_is_the_body():
+    """A rate segment quoted in the logger prefix belongs to the prefix, not to this line's body."""
+    r = ble_series.parse_ble_line(
+        "2026-01-02T01:00:00Z synthbox python[5]: "
+        + MEASURED.format(rate="99.0")
+        + " INFO ble: since last line "
+        + MEASURED.format(rate="1.0")
+    )
+    assert r["rates"]["H10"]["rate"] == 1.0 and r["offsetMin"] == 0
+
+
+def test_PLANT_a_restart_opens_a_new_segment_and_no_point_crosses_it():
+    """The rate's own observation window restarts with the process, so a joined line draws a fall
+    out of a window that merely began again."""
+    lines = [
+        _bline(10, "01:00:00", MEASURED.format(rate="4.0")),
+        _bline(10, "01:01:00", MEASURED.format(rate="5.0")),
+        "noise",
+        _bline(20, "01:02:00", f"{NULL_RATE} · {NULL_WHY}"),
+    ]
+    s = ble_series.series(lines)
+    assert [(g["pid"], len(g["points"])) for g in s["segments"]] == [(10, 2), (20, 1)]
+    assert s["segments"][1]["points"][0]["rates"]["VeritySense"]["rate"] is None
+    assert s["shapes"]["backoff_rate"] == "windowed-rate-per-pid"
+    assert s["shapes"]["window_min"] == "window-of-the-point"
+    assert s["schema"] == "tepna.ble-series/1"
+
+
+def test_devices_is_the_union_over_the_window_not_the_newest_line():
+    """A device that stops being reported mid-window still has a curve to draw."""
+    lines = [
+        _bline(10, "01:00:00", f"{MEASURED.format(rate='4.0')} · {NULL_RATE} · {NULL_WHY}"),
+        _bline(10, "01:01:00", MEASURED.format(rate="5.0")),
+    ]
+    assert ble_series.series(lines)["devices"] == ["H10", "VeritySense"]
+    assert ble_series.series([])["devices"] == []
+
+
+def test_points_are_sorted_by_time_within_a_segment():
+    lines = [_bline(10, "01:02:00", MEASURED.format(rate="1.0")), _bline(10, "01:00:00", MEASURED.format(rate="2.0"))]
+    pts = ble_series.series(lines)["segments"][0]["points"]
+    assert [p["rates"]["H10"]["rate"] for p in pts] == [2.0, 1.0]
+
+
+def test_a_pid_that_returns_after_another_is_a_third_segment():
+    lines = [
+        _bline(10, "01:00:00", MEASURED.format(rate="1.0")),
+        _bline(20, "01:01:00", MEASURED.format(rate="2.0")),
+        _bline(10, "01:02:00", MEASURED.format(rate="3.0")),
+    ]
+    assert [g["pid"] for g in ble_series.series(lines)["segments"]] == [10, 20, 10]
+
+
+def test_the_journal_line_this_module_parses_is_the_one_log_line_writes():
+    """THE CONTRACT, against the real producer: `log_line`'s text, read back by this module.
+
+    Every other test here plants a synthetic line, so this is the one that fails when the segment's
+    grammar moves — a reader keyed to a format nobody writes any more reports a quiet night."""
+    now = _realtime.monotonic()
+    rates = capture.retry_rate_report({"AA": [now - 60.0, now - 30.0]}, {"AA": now - 7200.0}, now)
+    rates.update(capture.retry_rate_report({"BB": []}, {"BB": now - 600.0}, now))
+    produced = blestats.log_line(blestats.snapshot(), blestats.snapshot(), rates)
+    parsed = ble_series.parse_ble_line(
+        f"2026-01-02T01:00:00Z synthbox python[7]: 2026-01-02 01:00:00,000 INFO {produced}"
+    )
+    assert parsed["rates"]["AA"]["rate"] == round(rates["AA"]["rate"], 1)
+    assert parsed["rates"]["AA"]["window_min"] == 60 and parsed["rates"]["AA"]["reason"] is None
+    assert parsed["rates"]["BB"]["rate"] is None and parsed["rates"]["BB"]["window_min"] == 60
+    assert parsed["rates"]["BB"]["reason"] == "observed 600 s of the 3600 s window"
+
+
+NOW = dt.datetime(2026, 1, 2, 12, 0, 0)
+
+
+def _runner(rc, out="", err=""):
+    calls = []
+
+    def run(argv, **kw):
+        calls.append(argv)
+        return SimpleNamespace(returncode=rc, stdout=out, stderr=err)
+
+    return run, calls
+
+
+def test_read_passes_the_window_and_returns_the_series():
+    run, calls = _runner(0, _bline(10, "11:00:00", MEASURED.format(rate="9.0")) + "\n")
+    out = ble_series.read_ble_series(2, now=NOW, run=run)
+    assert out["segments"][0]["pid"] == 10 and out["devices"] == ["H10"]
+    assert out["window"] == {"hours": 2, "since": "2026-01-02T10:00:00", "until": "2026-01-02T12:00:00"}
+    assert calls[0][calls[0].index("--since") + 1] == "2026-01-02 10:00:00"
+    assert calls[0][calls[0].index("--grep") + 1] == "since last line"
+
+
+def test_an_empty_window_is_an_empty_series_not_unreadable():
+    run, _ = _runner(1, "-- No entries --\n")
+    assert ble_series.read_ble_series(1, now=NOW, run=run)["segments"] == []
+
+
+def test_an_unreadable_journal_is_None_never_an_empty_series():
+    assert ble_series.read_ble_series(1, now=NOW, run=_runner(1, "", "Failed to open")[0]) is None
+    assert ble_series.read_ble_series(1, now=NOW, run=_runner(2, "")[0]) is None
+
+    def boom(argv, **kw):
+        raise OSError("no journalctl")
+
+    assert ble_series.read_ble_series(1, now=NOW, run=boom) is None
+
+    def slow(argv, **kw):
+        raise subprocess.TimeoutExpired(argv, 60)
+
+    assert ble_series.read_ble_series(1, now=NOW, run=slow) is None
+
+
+def test_read_defaults_to_now_and_the_real_runner(monkeypatch):
+    seen = {}
+
+    def fake(argv, **kw):
+        seen["kw"] = kw
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake)
+    assert ble_series.read_ble_series(1)["segments"] == []
+    assert seen["kw"]["timeout"] == 60
+    # The parser reads `stdout` as str lines: bytes, or an uncaptured stream, would parse to nothing.
+    assert seen["kw"]["capture_output"] is True and seen["kw"]["text"] is True
+
+
+# ── /api/ble-rate ───────────────────────────────────────────────────────────────────────────────────
+def _get(tmp_path, path):
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": []}
+    app = webmon.make_app(
+        telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"), "AA:AA:AA:AA:AA:AA", {"devices": {}}, None
+    )
+
+    async def go():
+        c = TestClient(TestServer(app))
+        await c.start_server()
+        try:
+            r = await c.get(path)
+            return r.status, await r.json()
+        finally:
+            await c.close()
+
+    return asyncio.run(go())
+
+
+def test_api_ble_rate_clamps_the_window_and_serves_the_series(tmp_path, monkeypatch):
+    asked = []
+    monkeypatch.setattr(webmon._ble, "read_ble_series", lambda h: asked.append(h) or {"segments": []})
+    assert _get(tmp_path, "/api/ble-rate") == (200, {"segments": []})
+    _get(tmp_path, "/api/ble-rate?hours=500")
+    _get(tmp_path, "/api/ble-rate?hours=0")
+    _get(tmp_path, "/api/ble-rate?hours=abc")
+    assert asked == [12.0, 72.0, 1.0, 12.0]
+
+
+def test_api_ble_rate_says_unreadable_with_503_and_null_segments(tmp_path, monkeypatch):
+    monkeypatch.setattr(webmon._ble, "read_ble_series", lambda h: None)
+    status, body = _get(tmp_path, "/api/ble-rate")
+    assert status == 503 and body["segments"] is None
+
+
+def test_the_body_starts_at_the_FIRST_needle_and_keeps_every_later_report():
+    """The body boundary is a DECISION, and this is the line that reads it.
+
+    `parse_ble_line` cuts at the first needle, so a line carrying the marker twice keeps both reports.
+    Cutting at the last one would drop the earlier devices, and cutting between the two would drop the
+    later ones. Two mutants over the old index arithmetic survived because no real line distinguishes
+    them; this one does.
+
+    The decoy before the needle is the other half of the boundary. A cut that splits on whitespace
+    instead of the needle reads the whole message as the body, so ZZ would join the devices this line
+    reported. Only a rate-shaped string OUTSIDE the body separates those two cuts."""
+    n = ble_series.BLE_NEEDLE
+    line = (
+        "2026-01-02T01:00:00Z synthbox python[7]: WARN backoff rate ZZ 9/h over 9 min "
+        + n
+        + "backoff rate AA 1/h over 60 min "
+        + n
+        + "backoff rate BB 2/h over 30 min"
+    )
+    got = ble_series.parse_ble_line(line)
+    assert sorted(got["rates"]) == ["AA", "BB"]
+    assert got["rates"]["AA"]["window_min"] == 60
+    assert got["rates"]["BB"]["window_min"] == 30

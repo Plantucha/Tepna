@@ -18,14 +18,17 @@ So the series is split into one SEGMENT PER DAEMON PID, and no point carries a v
 windowed VmHWM), is `None` — never 0. `read_mem_series` returns `None`, never an empty series, when the
 journal cannot be read: an empty series says "the daemon logged nothing", which is a different fact.
 
-Clock Contract §1: `tMs` is floating wall-clock ms from the journal stamp's components as written;
-`offsetMin` carries the zone the stamp declared."""
+Clock Contract §1: `tMs` is floating wall-clock ms from the journal stamp's components as written and
+`offsetMin` carries the zone the stamp declared — both read by `journal_line.stamp_of`, which owns the
+journal line's grammar for every series here."""
 
 from __future__ import annotations
 
 import datetime as _dt
 import re
 import subprocess
+
+import journal_line
 
 #: `(output key, the label mem_log_line prints)`. Order is the line's own order.
 KB_FIELDS = (
@@ -45,7 +48,6 @@ KB_FIELDS = (
 #: The row's decision, published with the series so a reader never has to infer it.
 SHAPES = {k: "level" for k, _ in KB_FIELDS} | {"heaps": "level", "gc_collections": "cumulative-per-pid"}
 
-_STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)([+-]\d{2}:?\d{2}|Z)? \S+ \S+?\[(\d+)\]: ")
 _FIELD = {label: re.compile(r"(?:^|[ ·])" + re.escape(label) + r" (null|\d+)(?: kB)?") for _, label in KB_FIELDS}
 _HEAPS = re.compile(r"all arenas heaps (null|\d+)")
 _COLLECTIONS = re.compile(r"collections ((?:null|\d+)(?:,(?:null|\d+))*)")
@@ -56,29 +58,15 @@ def _num(s: str) -> int | None:
     return None if s == "null" else int(s)
 
 
-def _floating(stamp: str, zone: str | None) -> tuple[int, int | None]:
-    """`(tMs, offsetMin)`: the stamp's components verbatim as if UTC, and the zone it declared."""
-    naive = _dt.datetime.fromisoformat(stamp.replace(",", "."))
-    t_ms = int((naive - _dt.datetime(1970, 1, 1)).total_seconds() * 1000)
-    if zone is None:
-        return t_ms, None
-    if zone == "Z":
-        return t_ms, 0
-    sign = -1 if zone[0] == "-" else 1
-    hh, mm = zone[1:3], zone[-2:]
-    return t_ms, sign * (int(hh) * 60 + int(mm))
-
-
 def parse_mem_line(line: str) -> dict | None:
     """One journal line → `{pid, tMs, offsetMin, <fields>}`, or `None` when it is not a mem line."""
     if MEM_NEEDLE not in line:
         return None
-    m = _STAMP.match(line)
-    if m is None:
+    head = journal_line.stamp_of(line)
+    if head is None:
         return None
     body = line[line.index(MEM_NEEDLE) + len("INFO mem: ") :]
-    t_ms, off = _floating(m.group(1), m.group(2))
-    row: dict = {"pid": int(m.group(3)), "tMs": t_ms, "offsetMin": off}
+    row: dict = dict(head)
     for key, label in KB_FIELDS:
         f = _FIELD[label].search(body)
         row[key] = _num(f.group(1)) if f else None
