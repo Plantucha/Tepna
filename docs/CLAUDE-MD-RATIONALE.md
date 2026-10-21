@@ -677,6 +677,22 @@ Status lives in a one-line header block on the first content line (just after an
   an owner — a file created at execution time is written by the session that is leaving, so it belongs to
   nobody by construction; a row promoted at pickup time belongs to the session that promoted it. The 27
   existing files are not retro-converted. If nothing surfaced, say so in the executed brief's header.
+  ⚠️ **A ROW IS PICKED UP FROM THE REF, BECAUSE A WORKING COPY OF THE LEDGER IS STALE MOST OF
+  THE TIME.** Every landing PR appends to it, and `tepna-sync-main.timer` refuses to fast-forward the
+  shared root while that root holds uncommitted paths — its normal state. A stale copy still answers a
+  grep with a well-formed table and no line saying it is old. The failure recurred FOUR times in two
+  days: 2026-10-20 05:05Z at 11 commits behind; the same day at 20:00Z at 13, in the very session that
+  had written the previous remedy; and 2026-10-21 04:40Z at 14, which reached the fleet board as a
+  posted claim on work another session had already finished and cost two peers a turn each to correct.
+  The first remedy was `residue-ids.mjs --open`, which a picker must CHOOSE to run, and instances
+  three and four both happened with it available.
+  ⚠️ **The criterion is the FILE, not the commit count.** The same root measured 14 commits behind at
+  04:40Z and 1 commit behind at 04:50Z with the identical single row-state disagreement, so
+  `behindCommits` over-reports on every commit that leaves the ledger alone while saying nothing about
+  the window that matters. That transience is also why sampling the opt-in tool once can return a
+  clean answer ten minutes before a read goes wrong. `guard-stale-ledger.sh` (#3825) compares
+  extracted `key \t state` pairs against `origin/main` instead and names the first disagreement; its
+  own first behavioural run named a fifth instance that no session had yet read.
 - **Non-executable docs** (deploy manifests, backlog checkpoints) use `Status: REFERENCE (living …)`
   or `Status: CHECKPOINT (living …)` with a `last-verified` date instead of DONE.
 - **No `DEFERRED` (or any other) top-level status** (DOCS-LEDGER-GATE-FOLLOWUPS §F1, decided 2026-07-05 =
