@@ -10435,6 +10435,53 @@
       );
       T.eq('no usage line promises a flag the tool never reads', candidates.join(' · '), '');
     });
+    /* ════ A TOOL THAT READS STDIN DECLARES THE BARE DASH ═══════════════════════════════
+       Row 2026-10-21-the-argv-guard-refused-the-bare-dash-that-names-stdin. #3818 taught the adopters
+       to refuse an unknown flag, and `checkArgv` tested a token with `startsWith('-')`, so a BARE `-`
+       read as a flag. POSIX names stdin with it, the writing skill documents `ste-lint - < body.md`,
+       and every board post in the fleet lints that way — so the guard refused the documented form,
+       read nothing and exited 2 (reported by Kestrel on board #752).
+       THE FIX IS A DECLARATION, NOT A BLANKET ACCEPT. One of 49 adopters reads stdin, and accepting
+       `-` in the other 49 would turn a clean refusal into an `ENOENT` on a path named `-`. So the
+       spec carries `stdin: true`, and this group derives who owes that declaration FROM THE SOURCE
+       rather than from a list — both ways round, because a declaration nothing reads rots exactly the
+       way a usage line does. ════ */
+    group('a tool that reads stdin declares the bare dash', 'tools · argv-guard · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the stdin-dash scan examined nothing');
+        else T.skip('the stdin-dash scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var READS_STDIN = /readFileSync\(\s*0\s*[,)]|\/dev\/stdin/;
+      var NAMES_DASH = /===\s*'-'|includes\('-'\)/;
+      var adopters = [],
+        readers = [],
+        undeclared = [],
+        overdeclared = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var text = TT[k];
+          if (k.replace(/^.*\//, '') === 'argv-guard.mjs') return; // the guard itself is the subject
+          if (text.indexOf('refuseUnknownArgvOrExit(') < 0) return;
+          adopters.push(k);
+          var says = /stdin:\s*true/.test(text);
+          var reads = READS_STDIN.test(text) || NAMES_DASH.test(text);
+          if (reads) readers.push(k);
+          if (reads && !says) undeclared.push(k);
+          if (says && !reads) overdeclared.push(k);
+        });
+      T.ok('CONTROL · the adopters were found', adopters.length >= 40, 'adopters=' + adopters.length + ' — 49 measured 2026-10-21, the guard itself excluded');
+      T.ok(
+        'CONTROL · at least one adopter reads stdin',
+        readers.length >= 1,
+        'readers=' + readers.join(' ') + ' — an empty column means the stdin shapes stopped matching, not that nobody reads stdin'
+      );
+      T.eq('every adopter that reads stdin declares `stdin: true`', undeclared.join(' · '), '');
+      T.eq('no adopter declares `stdin: true` without reading stdin', overdeclared.join(' · '), '');
+    });
     /* ════ EVERY LEDGER READER SPLITS ON UNESCAPED PIPES ONLY ════════════════════════════════════
        Row 2026-10-20-append-and-close-is-blind-to-an-escaped-pipe. The residue row contract MANDATES
        the escape, because a literal pipe breaks the table — so a cell quoting a regex or a shell
