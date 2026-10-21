@@ -145,6 +145,10 @@
   }
   // sessions starting before noon fold into the PREVIOUS evening's night (floating civil time)
   function nightKeyOf(stamp) {
+    /* §2.7 — one refusal for the WHOLE stamp, before any field is read. `stampMs` range-checks all
+       six components, so a key this function returns and the instant `stampMs` returns can never
+       disagree about whether the stamp was real. §∅: an impossible stamp is null, never a date. */
+    if (stampMs(stamp) == null) return null;
     const Y = +stamp.slice(0, 4),
       M = +stamp.slice(4, 6),
       D = +stamp.slice(6, 8),
@@ -240,8 +244,17 @@
     }
     return h >>> 0;
   }
+  /* §2.7 — THE FILENAME STAMP GOES THROUGH THE SAME `_mkTMs` THE ROW PARSER ALREADY USES. The bare
+     `Date.UTC` that stood here rolled an impossible stamp onto a real instant: measured on this
+     shape, `20261332999999` reached 2027-02-05, `20260230000000` reached 2026-03-02 and
+     `99999999999999` reached year 10007. This value is the key `resolveTriple` picks a companion by,
+     so a fabricated instant mis-picks a file rather than declining to pick one. The validator sat in
+     this file already and the parser beside it never called it, which is the whole defect.
+     The length test is the §∅ leg: a short stamp would read its missing fields as zero. */
   function stampMs(s) {
-    return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
+    const t = String(s == null ? '' : s);
+    if (!/^\d{14}$/.test(t)) return null;
+    return _mkTMs(+t.slice(0, 4), +t.slice(4, 6), +t.slice(6, 8), +t.slice(8, 10), +t.slice(10, 12), +t.slice(12, 14), 0);
   }
   // the trio sessions that are CONTEMPORANEOUS, anchored on the O2Ring start (as the power tool)
   function resolveTriple(nt) {
@@ -277,7 +290,8 @@
   const verSrc = (nt) => (nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—');
   let SELECTED = null;
   async function ingestFiles(list) {
-    let keyedByName = 0;
+    let keyedByName = 0,
+      impossibleStamp = 0;
     for (let i = 0; i < list.length; i++) {
       const f = list[i],
         c = classify(f);
@@ -288,8 +302,15 @@
       }
       const rowMs = await firstRowTMs(f);
       if (rowMs == null) keyedByName++;
-      const nk = rowMs == null ? nightKeyOf(c.stamp) : nightKeyOfMs(rowMs),
-        nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, cand: {} });
+      /* §∅ — a file whose NAME carries an impossible stamp and whose ROWS carry none is not indexed,
+         and the note below says how many were dropped. Bucketing it under a rolled date would file a
+         real capture on a night it never happened, which is worse than leaving it out loudly. */
+      const nk = rowMs == null ? nightKeyOf(c.stamp) : nightKeyOfMs(rowMs);
+      if (nk == null) {
+        impossibleStamp++;
+        continue;
+      }
+      const nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, cand: {} });
       (nt.cand[c.role] || (nt.cand[c.role] = [])).push({
         file: f,
         ms: rowMs == null ? stampMs(c.stamp) : rowMs,
@@ -312,7 +333,8 @@
         ' file(s) · ' +
         elig.length +
         ' eligible' +
-        (keyedByName ? ' · ' + keyedByName + ' keyed by filename (no row stamp)' : '');
+        (keyedByName ? ' · ' + keyedByName + ' keyed by filename (no row stamp)' : '') +
+        (impossibleStamp ? ' · ' + impossibleStamp + ' not indexed (impossible filename stamp)' : '');
     // one eligible night is the landing case: solve it without a click
     if (elig.length === 1 && !RUNNING) solve(NIGHTS[elig[0]]);
     else if (elig.length > 1 && !RUNNING) setStatus('idle', 'pick a night in the sidebar, then Solve');

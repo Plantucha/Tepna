@@ -5069,6 +5069,208 @@
           }
         }
       }
+
+      /* ════ §2.7 · THE FILENAME-STAMP PARSERS IN THE SAME FILES ════════════════════════════════
+         RESIDUE 2026-10-21-filename-stamp-parsers-sit-outside-the-guarded-set, must-copy half.
+         The three legs above pin the deliberate node-local CLOCK parsers. A FILENAME-stamp parser
+         sitting in the same bundle was never in that set, so a stamp whose components fall out of
+         range still rolled onto a real instant: measured on these shapes, `20261332999999` reached
+         2027-02-05, `20260230000000` reached 2026-03-02 and `99999999999999` reached year 10007.
+         Each of these values is a KEY — a night bucket, a nearest-companion pick, a session cluster
+         — so a fabricated instant MIS-PICKS rather than dropping a file where someone would see it.
+         These seven files COPY the validator rather than delegate: at least one bundle carrying each
+         has no `clock.js`, so `DexClock` is undefined there and a delegation throws at evaluation
+         (CLAUDE.md §👥.3). The copies are what this group pins, because a mirror drifts in silence.
+         The readers are SLICED OUT OF THE PAGE SOURCE AND EXECUTED — a source scan would pass on a
+         re-indented copy whose arithmetic had drifted. ════════════════════════════════════════ */
+      var _END = '\n  }\n';
+      function _slice(src, head, who, T2) {
+        var i = src.indexOf(head);
+        if (i < 0) {
+          T2.ok('the slice marker is present' + who, false, 'marker moved: ' + head);
+          return null;
+        }
+        var j = src.indexOf(_END, i + head.length);
+        if (j < 0) {
+          T2.ok('the sliced function terminates' + who, false, 'no closing brace after ' + head);
+          return null;
+        }
+        return src.slice(i, j) + _END;
+      }
+      var _SRC = env.sources || {};
+      var _MKHEAD = '  function _mkTMs(';
+      /* The four pages that key a NIGHT off a 14-digit filename stamp. Each carries its own `_mkTMs`
+         because none of their bundles carries `clock.js`; `_parity` is where the copies are compared. */
+      var _NIGHT_PAGES = ['sensor-trio-night.js', 'sensor-trio-power-analysis.js', 'sigma-no-reference-analysis.js', 'pat-feasibility.js'];
+      var _mkBodies = {},
+        _nightRan = 0;
+      _NIGHT_PAGES.forEach(function (file) {
+        var tag = ' · ' + file;
+        var src = _SRC[file];
+        T.ok('the page source is readable in this lane' + tag, !!src, file + ' not in env.sources — list it in BOTH lanes');
+        if (!src) return;
+        var mk = _slice(src, _MKHEAD, tag, T),
+          sm = _slice(src, '  function stampMs(', tag, T),
+          nk = _slice(src, '  function nightKeyOf(', tag, T);
+        if (!mk || !sm || !nk) return;
+        _mkBodies[file] = mk;
+        var M = null,
+          err = '';
+        try {
+          M = new Function(mk + sm + nk + '\nreturn { stampMs: stampMs, nightKeyOf: nightKeyOf, _mkTMs: _mkTMs };')();
+        } catch (e) {
+          err = String((e && e.message) || e);
+        }
+        T.ok('the three readers evaluate together, with no page state' + tag, !!(M && M.stampMs && M.nightKeyOf), 'keep them pure or this leg cannot run' + (err ? ': ' + err : ''));
+        if (!(M && M.stampMs && M.nightKeyOf)) return;
+
+        T.eq('a real stamp gives the instant its components spell' + tag, M.stampMs('20260919183658'), U(2026, 8, 19, 18, 36, 58), 'the repair must not move a stamp any capture produced');
+        T.eq('month 13 → null, where it used to reach 2027-02-05' + tag, M.stampMs('20261332999999'), null, '§2.7 — Date.UTC rolls bad components onto a wrong instant');
+        T.eq('Feb 30 → null, where it used to reach 2026-03-02' + tag, M.stampMs('20260230120000'), null, 'the round-trip is what catches a calendar-invalid day');
+        T.eq('an all-nines stamp → null, where it used to reach year 10007' + tag, M.stampMs('99999999999999'), null, 'a serial read as a date is the worst case of this bug');
+        /* BOUNDARY PAIRS — a far-out component cannot see a bound that moved by one. Each accept sits
+           ON the edge, so weakening the guard to `>=` turns the pair red rather than leaving it green. */
+        T.eq('§2.7 hour 23 ACCEPTED — the band is closed at 23' + tag, M.stampMs('20260919230000'), U(2026, 8, 19, 23, 0, 0), 'kills a `h >= 23` guard');
+        T.eq('§2.7 hour 25 → null' + tag, M.stampMs('20260919250000'), null, 'the explicit bound is the only thing that refuses it');
+        T.eq('§2.7 minute 59 ACCEPTED' + tag, M.stampMs('20260919125900'), U(2026, 8, 19, 12, 59, 0), 'kills a `mi >= 59` guard');
+        T.eq('§2.7 minute 60 → null, and only the bound can say so' + tag, M.stampMs('20260919126000'), null, 'minute 60 rolls the HOUR and leaves the date, so the round-trip passes it');
+        T.eq('§2.7 second 59 ACCEPTED' + tag, M.stampMs('20260919123659'), U(2026, 8, 19, 12, 36, 59), 'kills a `se >= 59` guard');
+        T.eq('§2.7 second 60 → null' + tag, M.stampMs('20260919123660'), null, 'the second bound is checked, not inferred');
+        T.eq('a real leap day survives' + tag, M.stampMs('20240229010203'), U(2024, 1, 29, 1, 2, 3), 'the check must refuse only impossible days');
+        T.eq('a non-leap 29 February → null' + tag, M.stampMs('20260229010203'), null, 'Date.UTC would roll it to 1 March');
+        T.eq(
+          'ISO end-of-day 24:00:00 rolls to the next midnight' + tag,
+          M.stampMs('20260919240000'),
+          U(2026, 8, 20, 0, 0, 0),
+          "§2.7 — the contract's one legitimate overflow, and no bare h > 23 guard"
+        );
+        T.eq(
+          '§∅ a 13-digit stamp is null, not a stamp with a zero field' + tag,
+          M.stampMs('2026091918365'),
+          null,
+          'a short stamp would read its missing fields as 0, a value standing in for an absence'
+        );
+        T.eq('§∅ an absent stamp is null, never 0' + tag, M.stampMs(null), null, 'absence is null at every layer');
+
+        T.eq('the night key of a real evening stamp is that evening' + tag, M.nightKeyOf('20260919223000'), '2026-09-19', "the noon fold is the page's own rule and must not move");
+        T.eq('the night key of a pre-noon start is the previous evening' + tag, M.nightKeyOf('20260920051713'), '2026-09-19', 'the fold is unchanged by this repair');
+        T.eq('the night key of an impossible stamp is null, never a rolled date' + tag, M.nightKeyOf('20261332999999'), null, 'a rolled key files a real capture on a night it never happened');
+        T.eq(
+          'the night key refuses a stamp whose TIME is impossible, not only its date' + tag,
+          M.nightKeyOf('20260919126000'),
+          null,
+          'the key and the instant must agree about whether the stamp was real'
+        );
+        T.ok(
+          'the ingest drops a file whose key is null, and counts it' + tag,
+          /if \(nk == null\) \{/.test(src) && /impossibleStamp\+\+;/.test(src),
+          '§∅ — an invisible drop is the defect this replaces'
+        );
+        T.ok('the surface SAYS how many were dropped' + tag, src.indexOf('not indexed (impossible filename stamp)') >= 0, 'a count nobody can see is not a report');
+        _nightRan++;
+      });
+      T.eq('ANTI-VACUITY · every night-keying page was sliced and executed', _nightRan, _NIGHT_PAGES.length, 'a page whose readers will not slice or evaluate must RED, never pass by being skipped');
+
+      /* ── the three readers that take their validator from a module their own bundle inlines ──── */
+      var _ingSrc = _SRC['dex-ingest.js'] || '';
+      T.ok(
+        'dex-ingest.js EXPORTS its validator',
+        /stampMk: _stampMk,/.test(_ingSrc) && !!(env.DexIngest && typeof env.DexIngest.stampMk === 'function'),
+        'ppgdex-app.js borrows it rather than opening a fourth copy'
+      );
+      var _ppgSrc = _SRC['ppgdex-app.js'] || '';
+      T.ok('ppgdex-app.js is readable in this lane', !!_ppgSrc, 'not in env.sources — list it in BOTH lanes');
+      var _ppgFn = _slice(_ppgSrc, '  function fnameStampMs(', ' · ppgdex-app.js', T);
+      T.ok('ppgdex-app.js takes the instant from the shared validator', !!_ppgFn && _ppgFn.indexOf('ING.stampMk(') >= 0, 'a bare Date.UTC here rolls a stamp that feeds ING.pickNearestByStamp');
+      if (_ppgFn && env.DexIngest && typeof env.DexIngest.stampMk === 'function') {
+        var _pf = null;
+        try {
+          _pf = new Function('ING', _ppgFn + '\nreturn fnameStampMs;')(env.DexIngest);
+        } catch (_e) {
+          _pf = null;
+        }
+        T.ok('the sliced PpgDex reader evaluates', typeof _pf === 'function', 'keep it pure or this leg cannot run');
+        if (typeof _pf === 'function') {
+          T.eq(
+            'PpgDex · the anchored Polar name gives its own instant',
+            _pf('POLAR_SENSE_02849638_20260617_010616_PPG.txt'),
+            U(2026, 5, 17, 1, 6, 16),
+            'the two ACCEPT patterns are unchanged — only the instant moved'
+          );
+          T.eq('PpgDex · the unanchored vendor fallback still resolves', _pf('Wellue_O2Ring_20260617_010616_PPG.txt'), U(2026, 5, 17, 1, 6, 16), 'a non-Polar capture must stamp exactly as before');
+          T.eq('PpgDex · month 13 → null', _pf('POLAR_SENSE_ABC_20261332_999999_PPG.txt'), null, '§2.7');
+          T.eq('PpgDex · Feb 30 → null', _pf('POLAR_SENSE_ABC_20260230_120000_PPG.txt'), null, '§2.7 — the round-trip leg');
+          T.eq('PpgDex · §2.7 second 59 ACCEPTED', _pf('POLAR_SENSE_ABC_20260617_010659_PPG.txt'), U(2026, 5, 17, 1, 6, 59), 'kills a `se >= 59` guard');
+          T.eq('PpgDex · §2.7 second 60 → null', _pf('POLAR_SENSE_ABC_20260617_010660_PPG.txt'), null, '§2.7');
+          T.eq('PpgDex · §∅ a stamp-less name is null, never 0', _pf('POLAR_SENSE_ABC_PPG.txt'), null, 'absence is null');
+        }
+      }
+
+      var _edfSrc = _SRC['cpapdex-edf.js'] || '';
+      T.ok(
+        'cpapdex-edf.js EXPORTS its validator for the app beside it',
+        /stampMk: _mkTMs,/.test(_edfSrc) && !!(env.CpapEdf && typeof env.CpapEdf.stampMk === 'function'),
+        'one copy per BUNDLE, not one per file'
+      );
+      if (env.CpapEdf && typeof env.CpapEdf.sessionStampOf === 'function') {
+        var _ss = function (n) {
+          var r = env.CpapEdf.sessionStampOf(n);
+          return r ? r.sec * 1000 : null;
+        };
+        T.eq('CPAPDex · a real session name gives its own instant', _ss('20260617_010616_BRP.edf'), U(2026, 5, 17, 1, 6, 16), 'the repair must not move a name the SD card produced');
+        T.eq('CPAPDex · month 13 → null, where it used to reach 2027-02-05', _ss('20261332_999999_BRP.edf'), null, 'groupSessionSets clusters within ±60 s of this value');
+        T.eq('CPAPDex · Feb 30 → null', _ss('20260230_120000_BRP.edf'), null, '§2.7 — the round-trip leg');
+        T.eq('CPAPDex · §2.7 hour 23 ACCEPTED', _ss('20260617_230000_BRP.edf'), U(2026, 5, 17, 23, 0, 0), 'kills a `h >= 23` guard');
+        T.eq('CPAPDex · §2.7 hour 25 → null', _ss('20260617_250000_BRP.edf'), null, '§2.7');
+        T.eq('CPAPDex · the ACCEPT TEST is unchanged — a name without the type suffix is refused', _ss('20260617_010616.edf'), null, '_F4_RE still decides WHICH names this adapter claims');
+      }
+      var _capSrc = _SRC['cpapdex-app.js'] || '';
+      T.ok(
+        'cpapdex-app.js takes the instant from the validator its bundle already inlines',
+        _capSrc.indexOf('CpapEdf.stampMk(') >= 0,
+        'CPAPDex carries no clock.js, and a second copy inside one bundle is a mirror that drifts'
+      );
+
+      /* ── THE COPIES ARE COMPARED, because a mirror is only safe while it is still a mirror ───── */
+      if (_edfSrc) {
+        var _em = _slice(_edfSrc, _MKHEAD, ' · cpapdex-edf.js', T);
+        if (_em) _mkBodies['cpapdex-edf.js'] = _em;
+      }
+      var _norm = function (s) {
+        return String(s)
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/\/\/[^\n]*/g, '')
+          .replace(/\bvar\b/g, 'const')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      var _names = Object.keys(_mkBodies),
+        _ref = _names.length ? _norm(_mkBodies[_names[0]]) : '';
+      T.eq('PARITY · every copy of the validator was found', _names.length, 5, 'five files carry `_mkTMs` — a missing one means this leg compared fewer copies than exist: ' + _names.join(','));
+      _names.forEach(function (f) {
+        T.eq('PARITY · the copy in ' + f + ' is the same validator', _norm(_mkBodies[f]), _ref, 'the mirrors have drifted apart, which is the standing risk of copying rather than delegating');
+      });
+      /* And the copy must agree with the ONE owner, `clock.js`, over the stamps it is given. A copy
+         that is identical to its four siblings and wrong in all five is still wrong. */
+      if (env.DexClock && typeof env.DexClock.fileStamp === 'function' && _names.length) {
+        var _one = new Function(_mkBodies[_names[0]] + '\nreturn _mkTMs;')(),
+          _agree = 0,
+          _disagree = [];
+        ['20260919183658', '20240229010203', '20260229010203', '20261332999999', '20260230120000', '20260919250000', '20260919126000', '20260919123660', '99999999999999'].forEach(function (st) {
+          var mine = _one(+st.slice(0, 4), +st.slice(4, 6), +st.slice(6, 8), +st.slice(8, 10), +st.slice(10, 12), +st.slice(12, 14), 0);
+          var owner = env.DexClock.fileStamp('Polar_H10_AAAAAAAA_' + st.slice(0, 8) + '_' + st.slice(8) + '_ECG.txt');
+          var ownerMs = owner ? owner.tMs : null;
+          if (mine === ownerMs) _agree++;
+          else _disagree.push(st + ' copy=' + mine + ' clock.js=' + ownerMs);
+        });
+        T.eq(
+          'PARITY · the copy answers exactly as clock.js over the same stamps',
+          _disagree.length,
+          0,
+          'the copy exists because the bundle has no clock.js, not because it may differ: ' + _disagree.join(' | ')
+        );
+        T.ok('PARITY · the comparison examined every stamp', _agree === 9, 'only ' + _agree + ' of 9 compared — a vacuous parity leg proves nothing');
+      }
     });
 
     /* ════ 2 · CROSS-NIGHT SIGNIFICANCE (#1 boundary fix) ════ */
@@ -10320,6 +10522,167 @@
         'PICKERS=' + PICKERS.length + ' (' + PICKERS.join(' ') + ') — 10 measured 2026-10-21 under this mask; an empty control column means the regex stopped matching'
       );
       T.eq('no tool combines a bare dash-test picker with a valued flag', VIOLATORS.join(', '), '');
+    });
+    /* ════ A DOCUMENTED FLAG IS READ BY THE TOOL THAT DOCUMENTS IT ══════════════════════════════
+       Row 2026-10-21-eight-usage-lines-promised-a-flag-no-code-reads. `argv-guard.mjs` refuses a flag
+       nobody READS; this is the mirror and nothing looked for it: a flag a usage line ADVERTISES and
+       no branch reads is accepted in silence, and the caller gets whatever the tool does when the
+       flag is absent. Measured 2026-10-21 over the tools tree: 8 such flags in 8 tools, among them
+       `release-land --foreground` (promised "run attached" and read by nothing) and a per-epoch
+       bootstrap tool's `--boot N`, whose replicate count lived in an environment variable alone.
+       THE SECOND TOOL IS NOT NAMED HERE ON PURPOSE: `verdict-adoption.mjs` decides that a `decides`
+       producer is tested by `git grep`-ing its stem under `tests/`, so this comment naming it read
+       as a test and demanded its UNGATED_RATCHET debt be retired — row
+       2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. The PR body names it.
+       FOUR OVER-REPORTS ARE RULED OUT BY CONSTRUCTION, each measured as a false positive first:
+         · a usage line must INVOKE this tool — `--scorer ./nsrr-aai-validate.mjs --limit 200`
+           documents the POOL runner's flags, which read four validators as candidates;
+         · `<…>` placeholders quote another tool's whole invocation (`--axis`, `--solid`);
+         · a trailing `#` comment names a second program's flag in prose (`gemini-review --out`);
+         · comments are stripped BEFORE string literals are found — searching the raw text let an
+           apostrophe open a fake literal that blanked six real reads in `pat-mode-posture.mjs`.
+       A tool that builds the flag name at run time (`'--' + n`) or slices it out of the token is
+       EXCLUDED with a reason, never counted as agreeing: a literal scan cannot decide it. The
+       excluded set is capped, so widening those two shapes cannot quietly empty the judged set. ════ */
+    group('a documented flag is read by the tool that documents it', 'tools · usage-line · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the usage-line scan examined nothing');
+        else T.skip('the usage-line scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var FLAG = /--[a-z][\w-]*/g;
+      var blankOut = function (s) {
+        return new Array(s.length + 1).join(' ');
+      };
+      var stripComments = function (t) {
+        return t
+          .replace(/\/\*[\s\S]*?\*\//g, function (s) {
+            return s.replace(/[^\n]/g, ' ');
+          })
+          .replace(/(^|[^:\\])\/\/[^\n]*/g, function (s, p) {
+            return p + blankOut(s.slice(p.length));
+          });
+      };
+      var DYNAMIC = /(?:indexOf|includes|startsWith)\(\s*(?:`--\$\{|'--'\s*\+|"--"\s*\+|`--`\s*\+)/;
+      var GENERIC = /startsWith\(\s*(['"`])--\1\s*\)[\s\S]{0,120}?slice\(\s*2\s*\)/;
+      var candidates = [],
+        excluded = [],
+        agreeing = 0;
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var self = k.replace(/^.*\//, '');
+          if (self === 'argv-guard.mjs') return; // the guard's own doc comment quotes other tools' flags
+          var text = TT[k];
+          var stripped = stripComments(text);
+          var rawLines = text.split('\n');
+          var strLines = stripped.split('\n');
+          var esc = self.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          var INVOKED = new RegExp('\\bnode\\s+(?:\\S*\\/)?' + esc + '\\b|^(?:\\s*(?:\\*|\\/\\/|#)?\\s*)(?:\\.\\/)?(?:tools\\/)?' + esc + '\\b');
+          var doc = {},
+            docN = 0,
+            codeLines = [];
+          for (var i = 0; i < rawLines.length; i++) {
+            var m = INVOKED.exec(rawLines[i]);
+            if (!m) {
+              codeLines.push(strLines[i]);
+              continue;
+            }
+            var after = rawLines[i]
+              .slice(m.index + m[0].length)
+              .replace(/`[^`]*`/g, blankOut)
+              .replace(/<[^>]*>/g, blankOut)
+              .split(/\s#/)[0];
+            var hits = after.match(FLAG) || [];
+            for (var j = 0; j < hits.length; j++)
+              if (!doc[hits[j]]) {
+                doc[hits[j]] = 1;
+                docN++;
+              }
+            codeLines.push(''); // a usage line is never also a read site
+          }
+          if (docN === 0) return;
+          if (DYNAMIC.test(stripped)) {
+            excluded.push(k + ' [dynamic-flag-name]');
+            return;
+          }
+          if (GENERIC.test(stripped)) {
+            excluded.push(k + ' [generic-parser]');
+            return;
+          }
+          var read = {};
+          var rhits = codeLines.join('\n').match(FLAG) || [];
+          for (var r = 0; r < rhits.length; r++) read[rhits[r]] = 1;
+          var missing = Object.keys(doc)
+            .filter(function (f) {
+              return !read[f];
+            })
+            .sort();
+          if (missing.length) candidates.push(k + ': ' + missing.join(' '));
+          else agreeing++;
+        });
+      /* ANTI-VACUITY: a masker that blanked the tree would satisfy the equality below. */
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.ok(
+        'CONTROL · the judged set is the bulk of the documented tools',
+        agreeing >= 200,
+        'agreeing=' + agreeing + ' — 223 measured 2026-10-21; a collapse here means the usage line or the read stopped being visible to the scan'
+      );
+      T.ok(
+        'the undecidable set has not grown',
+        excluded.length <= 9,
+        'excluded=' + excluded.length + ' (' + excluded.join(', ') + ') — 9 measured 2026-10-21; a tool that leaves the judged set owes a named reason, not a wider regex'
+      );
+      T.eq('no usage line promises a flag the tool never reads', candidates.join(' · '), '');
+    });
+    /* ════ A TOOL THAT READS STDIN DECLARES THE BARE DASH ═══════════════════════════════
+       Row 2026-10-21-the-argv-guard-refused-the-bare-dash-that-names-stdin. #3818 taught the adopters
+       to refuse an unknown flag, and `checkArgv` tested a token with `startsWith('-')`, so a BARE `-`
+       read as a flag. POSIX names stdin with it, the writing skill documents `ste-lint - < body.md`,
+       and every board post in the fleet lints that way — so the guard refused the documented form,
+       read nothing and exited 2 (reported by Kestrel on board #752).
+       THE FIX IS A DECLARATION, NOT A BLANKET ACCEPT. One of 49 adopters reads stdin, and accepting
+       `-` in the other 49 would turn a clean refusal into an `ENOENT` on a path named `-`. So the
+       spec carries `stdin: true`, and this group derives who owes that declaration FROM THE SOURCE
+       rather than from a list — both ways round, because a declaration nothing reads rots exactly the
+       way a usage line does. ════ */
+    group('a tool that reads stdin declares the bare dash', 'tools · argv-guard · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the stdin-dash scan examined nothing');
+        else T.skip('the stdin-dash scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var READS_STDIN = /readFileSync\(\s*0\s*[,)]|\/dev\/stdin/;
+      var NAMES_DASH = /===\s*'-'|includes\('-'\)/;
+      var adopters = [],
+        readers = [],
+        undeclared = [],
+        overdeclared = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var text = TT[k];
+          if (k.replace(/^.*\//, '') === 'argv-guard.mjs') return; // the guard itself is the subject
+          if (text.indexOf('refuseUnknownArgvOrExit(') < 0) return;
+          adopters.push(k);
+          var says = /stdin:\s*true/.test(text);
+          var reads = READS_STDIN.test(text) || NAMES_DASH.test(text);
+          if (reads) readers.push(k);
+          if (reads && !says) undeclared.push(k);
+          if (says && !reads) overdeclared.push(k);
+        });
+      T.ok('CONTROL · the adopters were found', adopters.length >= 40, 'adopters=' + adopters.length + ' — 49 measured 2026-10-21, the guard itself excluded');
+      T.ok(
+        'CONTROL · at least one adopter reads stdin',
+        readers.length >= 1,
+        'readers=' + readers.join(' ') + ' — an empty column means the stdin shapes stopped matching, not that nobody reads stdin'
+      );
+      T.eq('every adopter that reads stdin declares `stdin: true`', undeclared.join(' · '), '');
+      T.eq('no adopter declares `stdin: true` without reading stdin', overdeclared.join(' · '), '');
     });
     /* ════ EVERY LEDGER READER SPLITS ON UNESCAPED PIPES ONLY ════════════════════════════════════
        Row 2026-10-20-append-and-close-is-blind-to-an-escaped-pipe. The residue row contract MANDATES
@@ -37281,10 +37644,16 @@
       // never sit at a `\n  }` so the lazy match ends at the real close brace) and exercise it directly.
       var m = appSrc.match(/function fnameStampMs\(name\)\s*\{[\s\S]*?\n  \}/);
       T.ok('K · ppgdex-app.js exposes a fnameStampMs to mirror', !!m, m ? 'ok' : 'function not found in source');
+      /* The reader now takes its INSTANT from `DexIngest.stampMk` — one validator per BUNDLE (§2.7), and
+         PpgDex carries no `clock.js`, so the app cannot delegate to `DexClock`. A mirror lifted out of the
+         module no longer closes over the module's `ING`, so it must be handed the same object; without it
+         the group throws on a free variable and measures nothing about the reader. */
+      var _ING = env.DexIngest;
+      T.ok('K · the validator the mirror delegates to is reachable (without it the legs below examine nothing)', !!(_ING && typeof _ING.stampMk === 'function'), 'env.DexIngest.stampMk');
       var fnameStampMs = null;
       if (m) {
         try {
-          fnameStampMs = new Function('return (' + m[0] + ');')();
+          fnameStampMs = new Function('ING', 'return (' + m[0] + ');')(_ING);
         } catch (_e) {
           /* stays null → reds below */
         }

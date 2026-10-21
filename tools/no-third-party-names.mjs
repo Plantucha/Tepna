@@ -93,13 +93,16 @@ function main() {
     reason: ok ? null : hits.length + ' line(s) in ' + new Set(hits.map((h) => h.file)).size + ' file(s) carry a forbidden third-party project name — name the behaviour or the measurement instead',
     producedBy: { tool: 'tools/no-third-party-names.mjs', commit: gitCommit() }
   });
+  /* `--json` is the documented "verdict alone": without it stdout carries the object AND the check
+     line, which reads well and does not parse. Nothing read the flag until 2026-10-21. */
+  const JSON_ONLY = process.argv.includes('--json');
   console.log(JSON.stringify(v));
   if (!ok) {
     console.error(v.reason);
     for (const h of hits.slice(0, 40)) console.error('   · ' + h.file + ':' + h.line);
     if (hits.length > 40) console.error('   … and ' + (hits.length - 40) + ' more');
   } else {
-    console.log('\u2713 no forbidden third-party project name in ' + files.length + ' tracked files');
+    if (!JSON_ONLY) console.log('\u2713 no forbidden third-party project name in ' + files.length + ' tracked files');
   }
   process.exit(ok ? 0 : 1);
 }

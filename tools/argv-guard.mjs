@@ -78,10 +78,19 @@ export function nearestFlag(tok, known) {
  * Pure: it neither prints nor exits, so a test can assert the REASON rather than a process code, and the
  * caller decides the exit. `refuseUnknownArgvOrExit` is the two-line adoption for a tool's main path.
  */
-export function checkArgv(argv, { valued = [], boolean: bools = [], positional = false } = {}) {
+export function checkArgv(argv, { valued = [], boolean: bools = [], positional = false, stdin = false } = {}) {
   const known = [...valued, ...bools];
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i];
+    /* A BARE `-` IS THE POSIX NAME FOR STDIN, NOT A FLAG — and only the tool knows whether it reads
+       stdin, so the spec says. Accepting it everywhere would turn a clean refusal into an `ENOENT` on
+       a path called `-` in the 49 adopters that read no stdin; refusing it everywhere is what #3818
+       did, and it broke `ste-lint - < body.md`, the form the writing skill documents and every board
+       post in the fleet uses. The suite derives the population that must declare it. */
+    if (tok === '-') {
+      if (stdin) continue;
+      return { ok: false, reason: '`-` names stdin, and this tool reads none — pass a path instead' };
+    }
     if (!tok.startsWith('-')) {
       if (positional) continue;
       return { ok: false, reason: `unexpected argument ${JSON.stringify(tok)} — this tool takes flags only` };
@@ -144,15 +153,16 @@ export function refuseUnknownArgvOrExit(argv, spec, { tool = 'this tool' } = {})
  * an `indexOf` on the token before (wrong for a repeated value), an index comparison against one flag,
  * and an equality test against one flag's value.
  *
- * A single-dash token is a FLAG here, as it is in `checkArgv` — so `-x` and a bare `-` never reach a
- * caller as data, and the guard refuses them first. `--flag=value` consumes nothing, because this
+ * A single-dash token `-x` is a FLAG here, as it is in `checkArgv`, so it never reaches a caller as
+ * data. A BARE `-` is the exception: it names stdin, and it is a positional for a tool that declares
+ * `stdin: true` (measured 2026-10-21: one of 50 adopters reads stdin, and #3818 refused it). `--flag=value` consumes nothing, because this
  * codebase reads a value as the next token and `checkArgv` refuses the joined form outright.
  */
-export function positionalArgs(argv, { valued = [] } = {}) {
+export function positionalArgs(argv, { valued = [], stdin = false } = {}) {
   const out = [];
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i];
-    if (!tok.startsWith('-')) {
+    if (!tok.startsWith('-') || (stdin && tok === '-')) {
       out.push(tok);
       continue;
     }

@@ -540,6 +540,25 @@
      The `!byType[type]` clause is the load-bearing one: a second EVE/CSL inside the same minute is a
      SEPARATE therapy session, and overwriting it makes its scored apneas vanish with no error.
      Pure: names in, clusters out — no filesystem, no I/O, so it is unit-testable anywhere. */
+  /* §2.7 — `Date.UTC` SILENTLY ROLLS an out-of-range component onto a real instant, so every field is
+     range-checked before it is used. CPAPDex carries no `clock.js`, so `DexClock` is undefined in
+     this bundle and a delegation would throw at evaluation (CLAUDE.md §👥.3): the rules live here a
+     second time and `tests/dex-tests.js` pins this copy against its siblings so they cannot drift.
+     `parseEdfClock` above keeps its own inline form on purpose — it reads the EDF HEADER clock with
+     the vendor's two-digit clipping rule, which is a different contract from a filename stamp.
+     The order is load-bearing twice over. A bare `h > 23` guard rejects ISO-8601 `24:00:00`, the one
+     legitimate overflow, so the escape sits above the range check; and the round-trip cannot stand in
+     for the range check, because minute 99 rolls the HOUR and leaves the date alone. */
+  function _mkTMs(Y, M, D, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(Y, M - 1, D),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== Y || dd.getUTCMonth() !== M - 1 || dd.getUTCDate() !== D) return null;
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000;
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(Y, M - 1, D, h, mi, se, ms);
+  }
   var _F4_RE = /^(\d{8})_(\d{6})_([A-Z0-9]+)\.edf$/i;
   function sessionStampOf(name) {
     var base =
@@ -550,9 +569,14 @@
     if (!m) return null;
     var d = m[1],
       t = m[2];
-    // Clock Contract: components as written → Date.UTC (floating wall-clock). Never Date.parse.
-    var sec = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)) / 1000;
-    if (!isFinite(sec)) return null;
+    // Clock Contract: components as written → `_mkTMs` (floating wall-clock). Never Date.parse, and
+    // never a bare `Date.UTC` — §2.7. `_F4_RE` stays the ACCEPT TEST, so this still claims exactly
+    // the names it claimed, and only the instant changes. The old form rolled `20261332_999999` onto
+    // 2027-02-05 and `20260230` onto 2026-03-02. `groupSessionSets` clusters within ±60 s of this
+    // value, so a fabricated second fuses two therapy sessions or splits one.
+    var tMs = _mkTMs(+d.slice(0, 4), +d.slice(4, 6), +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6), 0);
+    if (tMs == null) return null;
+    var sec = tMs / 1000;
     return { sec: sec, type: m[3].toUpperCase(), file: name };
   }
   function groupSessionSets(names) {
@@ -587,6 +611,9 @@
     readEDF: readEDF,
     groupSessionSets: groupSessionSets,
     sessionStampOf: sessionStampOf,
+    // §2.7 — exposed so `cpapdex-app.js`, which this bundle inlines after this file, validates its
+    // own filename stamp through THIS copy instead of opening a second one inside the same bundle.
+    stampMk: _mkTMs,
     parseEdfClock: parseEdfClock,
     sampleTMs: sampleTMs,
     parseTAL: parseTAL,

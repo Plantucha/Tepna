@@ -23,7 +23,9 @@
  *     node tools/release-land.mjs --status      # what step the running/last release is on
  *     node tools/release-land.mjs --dry-run     # plan only: version, branch, worktree; writes nothing
  *     node tools/release-land.mjs --resume      # continue the last run from its first unfinished step
- *     node tools/release-land.mjs --foreground  # run attached (CI / a terminal you will keep open)
+ *     (`release.mjs` sends this tool a `--foreground` token and NOTHING here reads it. This tool is
+ *      always attached; the detaching is the launcher's. A refusal spec added here must still declare
+ *      the token, or the launcher's own invocation becomes the first thing it refuses.)
  *
  * IT DETACHES BY DEFAULT, and the reason is measured, not stylistic. The chain is ~45–90 minutes
  * (stamp gate ~2 min · build+docs · `npm run check` 10+ min · CI + Kodiak's serial queue 10–60 min),
