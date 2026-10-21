@@ -39,13 +39,25 @@
  *
  * The companion procedure for resolving that conflict, so the gate is the backstop and not the plan:
  * compute BOTH deltas from the merge base (`changed by me` · `changed by main` · `by both`, and a
- * key both changed is resolved by hand), rebuild from main's dict plus your own keys, and round-trip
- * main's bytes through `JSON.stringify(obj, null, 2) + '\n'` FIRST so the rewrite cannot smuggle a
- * reformat. Then `git diff --stat <base> -- tools/verdict-adoption.json` must show only your rows.
+ * key both changed is resolved by hand), rebuild from main's dict plus your own keys, and write the
+ * result with `--format` so the rewrite cannot smuggle a reformat. Then `git diff --stat <base> --
+ * tools/verdict-adoption.json` must show only your rows.
+ *
+ * THE BYTE FORM (residue 2026-10-20-a-json-round-trip-rewrites-a-shared-registry-nobody-touched). A
+ * writer that re-encodes this file turns a five-line record into a whole-file diff, and that diff
+ * conflicts with every other open record: #3777 landed 173+/161- for a five-line record, because a
+ * Python `json.dump` escaped every non-ASCII character. Every gate stayed green, since the parsed
+ * object was identical. So the file has ONE byte form, `canonicalText`: the bytes Python's
+ * `json.dump(obj, f, indent=1)` writes plus a final newline — a one-space indent, every character
+ * outside printable ASCII as a lowercase `\uXXXX` escape. A Python round-trip and `--format` give the
+ * same bytes, so neither can rewrite a record it did not touch. `--check` refuses any other form and
+ * names the first line that differs. On 2026-10-21 three hand-inserted records stood in two other
+ * forms (raw `\u2014`/`\u00b7` in two notes, a two-space indent on one record).
  *
  *   node tools/verdict-adoption.mjs --check          # the gate (npm run check step; exit 1 on any red)
  *   node tools/verdict-adoption.mjs --check --base <ref>   # ratchet base (default origin/main; merge-base with HEAD)
  *   node tools/verdict-adoption.mjs --triage         # first-pass suggestions for UNBINNED files; writes nothing
+ *   node tools/verdict-adoption.mjs --format         # rewrite the manifest in its one byte form (THE BYTE FORM)
  *   node tools/verdict-adoption.mjs --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -59,6 +71,38 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = path.join(ROOT, 'tools', 'verdict-adoption.json');
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
+
+/* The one byte form of the manifest (see THE BYTE FORM above). JSON.stringify and Python's json.dump
+   escape control characters alike (\b \f \n \r \t, else lowercase \u00xx); Python's ensure_ascii also
+   escapes U+007F and everything above it, one UTF-16 unit at a time, which this replace reproduces. */
+export function canonicalText(obj) {
+  return `${JSON.stringify(obj, null, 1).replace(/[\u007f-\uffff]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`)}\n`;
+}
+
+/* The bytes against their canonical form. A file that does not parse is a red here too, so the
+   caller never reads a form verdict over text it could not examine. */
+export function checkByteForm(text, name = 'tools/verdict-adoption.json') {
+  let obj;
+  try {
+    obj = JSON.parse(text);
+  } catch (e) {
+    return { ok: false, line: null, errors: [`byte form: ${name} does not parse (${e.message})`] };
+  }
+  const want = canonicalText(obj);
+  if (want === text) return { ok: true, line: null, errors: [] };
+  const a = text.split('\n');
+  const b = want.split('\n');
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i += 1;
+  return {
+    ok: false,
+    line: i + 1,
+    errors: [
+      `byte form: ${name} line ${i + 1} is not in the canonical form (Python json.dump indent=1, non-ASCII as \\uXXXX). ` +
+        'Run `node tools/verdict-adoption.mjs --format` and commit the result: a record in another form is rewritten by the next writer, and that diff conflicts with every open record'
+    ]
+  };
+}
 
 export const WORDS = /\b(PASS|FAIL|VERDICT|UNDERPOWERED|SHORTFALL|CONSISTENT|INCONCLUSIVE)\b/;
 export const BINS = ['decides', 'already-json', 'word-only', 'test'];
@@ -1023,7 +1067,7 @@ function selftest() {
       fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
       fs.writeFileSync(
         path.join(scratch, 'tools', 'verdict-adoption.json'),
-        JSON.stringify({ schema: 'tepna.verdict-adoption/1', producers: { 'tools/geometry-scan.mjs': { bin: 'word-only', status: 'exempt', reason: 'verdict words appear only in comments' } } })
+        canonicalText({ schema: 'tepna.verdict-adoption/1', producers: { 'tools/geometry-scan.mjs': { bin: 'word-only', status: 'exempt', reason: 'verdict words appear only in comments' } } })
       );
       const git = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, stdio: 'ignore' });
       git('init', '-q');
@@ -1032,6 +1076,56 @@ function selftest() {
       const run = spawnSync(process.execPath, [path.join(scratch, 'tools', 'verdict-adoption.mjs'), '--check', '--base', 'HEAD'], { cwd: scratch, encoding: 'utf8' });
       const out = `${run.stdout}${run.stderr}`;
       ok(run.status === 1 && /✗ tools\/geometry-scan\.mjs: binned word-only/.test(out), `BLACK BOX: the CLI gate names a word-only geometry-scan that builds a verdict object (exit ${run.status})`);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
+  /* THE BYTE FORM. The expected text is what Python 3 `json.dumps(obj, indent=1) + "\\n"` printed for
+     this object (2026-10-21), so the oracle is the other writer, not this function. */
+  {
+    const obj = { a: 'x \u2014 y \u00b7 \u03c3', b: [1, 2.5, true, null, [], {}], c: { d: 'tab\there\u007f', e: '\ud83d\ude00' } };
+    const py = '{\n "a": "x \\u2014 y \\u00b7 \\u03c3",\n "b": [\n  1,\n  2.5,\n  true,\n  null,\n  [],\n  {}\n ],\n "c": {\n  "d": "tab\\there\\u007f",\n  "e": "\\ud83d\\ude00"\n }\n}\n';
+    ok(canonicalText(obj) === py, 'BYTE FORM: canonicalText writes the bytes Python json.dumps(indent=1) writes, escapes and all');
+    ok(checkByteForm(py).ok, 'BYTE FORM: the Python form passes');
+    const raw = py.replace('x \\u2014 y', 'x \u2014 y');
+    let f = checkByteForm(raw);
+    ok(!f.ok && f.line === 2 && /line 2 is not in the canonical form/.test(f.errors[0]), 'BYTE FORM: a raw non-ASCII character in one record is a red that names its line');
+    const two = py.replace(' "c": {\n  "d"', ' "c": {\n    "d"');
+    f = checkByteForm(two);
+    ok(!f.ok && f.line === 12, 'BYTE FORM: a record at another indent is a red that names its line');
+    f = checkByteForm(JSON.stringify(obj, null, 2) + '\n');
+    ok(!f.ok && f.line === 2, 'BYTE FORM: the JSON.stringify(obj, null, 2) form is a red');
+    ok(!checkByteForm(py.slice(0, -1)).ok, 'BYTE FORM: a missing final newline is a red');
+    f = checkByteForm('{"a": ');
+    ok(!f.ok && f.line === null && /does not parse/.test(f.errors[0]), 'BYTE FORM: unparseable text is a red, never a pass');
+    ok(checkByteForm(fs.readFileSync(MANIFEST, 'utf8')).ok, 'BYTE FORM: the committed manifest is in the canonical form');
+  }
+
+  /* BLACK BOX, the byte form: --format rewrites a hand-edited manifest to the canonical bytes, and --check
+     then names no byte-form red; before the rewrite it names one. */
+  {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verdict-adoption-form-'));
+    try {
+      fs.mkdirSync(path.join(scratch, 'tools'));
+      fs.copyFileSync(fileURLToPath(import.meta.url), path.join(scratch, 'tools', 'verdict-adoption.mjs'));
+      fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
+      const m = { schema: 'tepna.verdict-adoption/1', producers: {}, note: 'a \u2014 b' };
+      const file = path.join(scratch, 'tools', 'verdict-adoption.json');
+      fs.writeFileSync(file, JSON.stringify(m, null, 2));
+      const git = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, stdio: 'ignore' });
+      git('init', '-q');
+      git('add', '-A');
+      git('commit', '-qm', 'scratch');
+      const cli = (...a) => spawnSync(process.execPath, [path.join(scratch, 'tools', 'verdict-adoption.mjs'), ...a], { cwd: scratch, encoding: 'utf8' });
+      let run = cli('--check', '--base', 'HEAD');
+      ok(run.status === 1 && /✗ byte form: tools\/verdict-adoption\.json line 2/.test(run.stdout), `BLACK BOX: --check names the hand-edited form (exit ${run.status})`);
+      run = cli('--format');
+      ok(run.status === 0 && fs.readFileSync(file, 'utf8') === canonicalText(m) && /rewrote/.test(run.stdout), 'BLACK BOX: --format writes the canonical bytes');
+      run = cli('--format');
+      ok(run.status === 0 && /already canonical/.test(run.stdout), 'BLACK BOX: a second --format changes nothing');
+      run = cli('--check', '--base', 'HEAD');
+      ok(/byte form — canonical/.test(run.stdout) && !/✗ byte form/.test(run.stdout), 'BLACK BOX: after --format, --check names no byte-form red');
     } finally {
       fs.rmSync(scratch, { recursive: true, force: true });
     }
@@ -1047,8 +1141,23 @@ function selftest() {
 
 function main() {
   if (has('--selftest')) return selftest();
+  const text = fs.existsSync(MANIFEST) ? fs.readFileSync(MANIFEST, 'utf8') : null;
+  if (has('--format')) {
+    if (text === null) {
+      console.log('verdict-adoption: --format found no tools/verdict-adoption.json to rewrite');
+      process.exit(1);
+    }
+    const want = canonicalText(JSON.parse(text));
+    if (want === text) console.log('verdict-adoption: tools/verdict-adoption.json is already canonical');
+    else {
+      fs.writeFileSync(MANIFEST, want);
+      console.log('verdict-adoption: rewrote tools/verdict-adoption.json in the canonical form; review `git diff` before you commit');
+    }
+    return;
+  }
   const en = enumerate(ROOT);
-  const manifest = fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) : { schema: 'tepna.verdict-adoption/1', producers: {} };
+  const manifest = text !== null ? JSON.parse(text) : { schema: 'tepna.verdict-adoption/1', producers: {} };
+  const bf = text !== null ? checkByteForm(text) : { ok: true, errors: [] };
   if (has('--triage')) {
     const unbinned = en.filter((p) => !manifest.producers[p]);
     for (const t of triage(ROOT, unbinned)) console.log(`${t.path}  code:${t.code} comment:${t.comment} json:${t.json}  → ${t.suggest}\n${t.samples.map((s) => '      ' + s).join('\n')}`);
@@ -1098,7 +1207,8 @@ function main() {
   );
   if (Array.isArray(V.CONTRIBUTION_METHODS) && V.CONTRIBUTION_METHODS.slice().sort().join('|') !== CONTRIBUTION_METHODS.slice().sort().join('|'))
     cr.errors.push(`contributions: the method set here (${CONTRIBUTION_METHODS.join('|')}) differs from verdict.js (${V.CONTRIBUTION_METHODS.join('|')}) — verdict.js owns it, so follow it here`);
-  const errors = [...r.errors, ...g.errors, ...w.errors, ...wo.errors, ...rt.errors, ...cr.errors];
+  console.log(`verdict-adoption: byte form — ${text === null ? 'no manifest file' : bf.ok ? 'canonical' : `NOT canonical from line ${bf.line}`}`);
+  const errors = [...bf.errors, ...r.errors, ...g.errors, ...w.errors, ...wo.errors, ...rt.errors, ...cr.errors];
   if (errors.length) {
     console.log(errors.map((e) => '  ✗ ' + e).join('\n'));
     console.log(`\n✗ ${errors.length} red(s) — the population and the manifest are not equal, an adoption does not hold, or a check has no test`);
