@@ -283,11 +283,20 @@ export function compareRecord(record, identity, cut = null) {
   return { state: 'unstamped', detail: 'the record carries no corpus identity at all' };
 }
 
+/* 🔴 A `producerCommit` IS NOT A DURABLE REFERENCE HERE. Kodiak squash-merges, so the commit a
+   record names is an ancestor of `main` only when it happens to be the squash itself. Measured
+   2026-10-21 over the five trio records: three of the five cut commits are NOT ancestors of
+   `origin/main`, and they exist in the primary checkout only as unreferenced objects left by the
+   branch that wrote them. A fresh clone — CI — has none of the three. So "the exports at the cut"
+   is a question this gate can ask here and cannot ask there, and the two answers are not the same
+   verdict: a record it CANNOT read is `UNKNOWN`, never a PASS and never a FAIL. */
 export function allVerdict(rows, identity, { commit = null } = {}) {
   const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
   const judged = rows.filter((r) => r.judged);
   const resolving = judged.filter((r) => r.state === 'resolves');
-  const failing = judged.filter((r) => r.state !== 'resolves');
+  const undecidable = judged.filter((r) => r.state === 'unresolvable');
+  const failing = judged.filter((r) => r.state !== 'resolves' && r.state !== 'unresolvable');
+  const nameList = (xs) => xs.map((r) => `${r.name} (${r.detail})`).join('; ');
   let status;
   let reason = null;
   if (!identity.ok) {
@@ -296,11 +305,14 @@ export function allVerdict(rows, identity, { commit = null } = {}) {
   } else if (judged.length === 0) {
     status = 'NOT_RUN';
     reason = `no live record names ${identity.root}, so nothing was re-resolved`;
-  } else if (failing.length === 0) {
-    status = 'PASS';
-  } else {
+  } else if (failing.length > 0) {
     status = 'SHORTFALL';
-    reason = `${failing.length} live record(s) no longer re-resolve: ${failing.map((r) => `${r.name} (${r.detail})`).join('; ')}`;
+    reason = `${failing.length} live record(s) no longer re-resolve: ${nameList(failing)}`;
+  } else if (undecidable.length > 0) {
+    status = 'UNKNOWN';
+    reason = `${undecidable.length} live record(s) cannot be decided in this clone: ${nameList(undecidable)}`;
+  } else {
+    status = 'PASS';
   }
   const v = Verdict.make({
     gate: 'published-number-corpus',
@@ -308,7 +320,7 @@ export function allVerdict(rows, identity, { commit = null } = {}) {
     scope: 'internal',
     population: { checked: judged.length, eligible: rows.length, excluded: rows.length - judged.length },
     criterion: { name: 'records_reresolving', threshold: 0, unit: 'records', direction: 'lte' },
-    result: status === 'NOT_RUN' ? null : { resolving: resolving.length, failing: failing.length, rows, identity },
+    result: status === 'NOT_RUN' ? null : { resolving: resolving.length, undecidable: undecidable.length, failing: failing.length, rows, identity },
     evidence: [SELF, RECORD_DIR],
     reason,
     producedBy: { tool: SELF, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
@@ -455,6 +467,19 @@ function selftest() {
     ok('a moved record reads SHORTFALL with a reason', bad.status === 'SHORTFALL' && typeof bad.reason === 'string' && bad.reason.includes('a.json'));
     ok('checked + excluded = eligible', bad.population.checked + bad.population.excluded === bad.population.eligible);
     ok('the SHORTFALL verdict validates', V.validate(bad).ok, V.validate(bad).errors.join(' | '));
+    const unk = allVerdict([{ name: 'a.json', judged: true, state: 'unresolvable', detail: "the record's producerCommit deadbee is not in this clone" }], stamped, { commit: 'abcd1234' });
+    ok('a record this clone cannot decide reads UNKNOWN, never PASS and never FAIL', unk.status === 'UNKNOWN' && unk.reason.includes('a.json'), unk.status);
+    ok('the UNKNOWN verdict validates and still counts the record as checked', V.validate(unk).ok && unk.population.checked === 1);
+    const mixed = allVerdict(
+      [
+        { name: 'a.json', judged: true, state: 'unresolvable', detail: 'gone' },
+        { name: 'b.json', judged: true, state: 'moved', detail: 'the exports moved' }
+      ],
+      stamped,
+      { commit: 'abcd1234' }
+    );
+    ok('a real movement outranks an undecidable one', mixed.status === 'SHORTFALL' && mixed.reason.includes('b.json') && !mixed.reason.includes('a.json'));
+
     const none = allVerdict([{ name: 'b.json', judged: false, why: 'names another corpus', state: null, detail: null }], stamped, { commit: 'abcd1234' });
     ok('NOT_RUN when no live record names the corpus', none.status === 'NOT_RUN' && none.result === null);
     /* THE DEFECT MY OWN FIRST SPELLING CARRIED: a file beside the night folders is not a night. */

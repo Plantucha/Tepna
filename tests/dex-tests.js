@@ -18618,19 +18618,35 @@
       T.ok('at least one LIVE record names the committed corpus', judged.length > 0, judged.length + ' judged of ' + PC.rows.length);
       T.ok('the corpus holds nights to attribute', id.nights > 0 && id.dataFiles > 0, id.nights + ' night(s), ' + id.dataFiles + ' export file(s)');
 
-      /* THE LOAD-BEARING LEG. */
-      var unresolved = judged.filter(function (r) {
-        return r.state !== 'resolves';
+      /* THE LOAD-BEARING LEG — a record whose exports MOVED. 🔴 It is not the same leg as "every
+         record resolves", because a record this clone cannot decide is a third answer. Kodiak
+         squash-merges, so a record's `producerCommit` is an ancestor of `main` only when it IS the
+         squash: three of the five trio cut commits are not, and a fresh clone has none of them.
+         CI therefore reads UNKNOWN where the primary checkout reads PASS, and calling that a
+         failure would make the gate a test of which clone ran it. */
+      var moved = judged.filter(function (r) {
+        return r.state !== 'resolves' && r.state !== 'unresolvable';
       });
       T.eq(
-        'every live record still re-resolves to the corpus under it',
-        unresolved
+        'no live record has moved away from the corpus under it',
+        moved
           .map(function (r) {
             return r.name + ' (' + r.state + ': ' + r.detail + ')';
           })
           .join(' · '),
         ''
       );
+      /* An undecidable record is NAMED, in the verdict, every time. */
+      var undecidable = judged.filter(function (r) {
+        return r.state === 'unresolvable';
+      });
+      undecidable.forEach(function (r) {
+        T.ok(
+          r.name + ' · undecidable here, and the verdict says which record and why',
+          (PC.verdict.reason || '').indexOf(r.name) >= 0 && /producerCommit/.test(String(r.detail)),
+          'detail=' + r.detail
+        );
+      });
 
       /* A SUPERSEDED RECORD IS EXCLUDED BY NAME, NEVER DROPPED QUIETLY. The field holds a path
          FOLLOWED BY PROSE, so a bare basename split returns the name with the whole sentence
@@ -18659,8 +18675,8 @@
       /* CONTROLS — the instrument must FIRE, or every leg above is decoration. */
       var probe = judged[0];
       if (probe) {
-        var moved = PC.compare({ inputs: { path: id.root, digest: 'deadbeef0000' } }, null);
-        T.ok('CONTROL · a record whose digest no longer resolves and names no cut reads MOVED', moved.state === 'moved', JSON.stringify(moved));
+        var probeMoved = PC.compare({ inputs: { path: id.root, digest: 'deadbeef0000' } }, null);
+        T.ok('CONTROL · a record whose digest no longer resolves and names no cut reads MOVED', probeMoved.state === 'moved', JSON.stringify(probeMoved));
         var gone = PC.compare({ inputs: { path: id.root, digest: 'deadbeef0000' }, producerCommit: 'deadbee' }, { commit: 'deadbee', delta: null });
         T.eq('CONTROL · a record whose cut commit is gone reads UNRESOLVABLE, never a pass', gone.state, 'unresolvable');
         T.eq('CONTROL · a record carrying no corpus identity at all reads UNSTAMPED', PC.compare({ inputs: { path: id.root } }, null).state, 'unstamped');
@@ -18679,7 +18695,8 @@
       T.eq('checked + excluded = eligible', v.population.checked + v.population.excluded, v.population.eligible);
       T.eq('the gate name is stable', v.gate, 'published-number-corpus');
       T.ok('a non-PASS verdict carries a reason', v.status === 'PASS' ? v.reason === null : typeof v.reason === 'string' && v.reason.length > 0, v.status + ' · ' + v.reason);
-      T.eq('the verdict passes over the live records', v.status, 'PASS');
+      T.ok('no live record reds the verdict', v.status === 'PASS' || v.status === 'UNKNOWN', v.status + ' · ' + v.reason);
+      T.eq('UNKNOWN is reached only by an undecidable record, never by a silent one', v.status === 'UNKNOWN' ? undecidable.length > 0 : undecidable.length === 0, true);
     });
 
     group('CLAUDE.md claims match the tree (CLAIM markers)', 'docs · claude-md · claims', function (T) {
