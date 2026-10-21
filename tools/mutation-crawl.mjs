@@ -752,10 +752,13 @@ function runDeadlineMs() {
 
    ⚠️ Heron is building the same shape for mutmut's workers in `capture-host/mutate.py` — one tool per
    lane, the same lesson: a pool outlives the handle you kept. */
+/* `opts.cwd` defaults to the repo root, because a sweep must run where the sources are. The selftest's
+   plant overrides it with a scratch directory, so a process that escapes the group kill holds no
+   worktree open (2026-10-21: one leaked pair pinned a worktree git had already removed). */
 export const CRAWL_GRACE_MS = 30000;
-function runMutateBounded(args, budgetMs, onLog) {
+function runMutateBounded(args, budgetMs, onLog, opts = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', args, { cwd: ROOT, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('node', args, { cwd: opts.cwd || ROOT, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const group = -child.pid;
     let out = '',
       err = '',
@@ -1437,16 +1440,60 @@ function selftest() {
   /* THE PLANT, and it is the 2026-09-28 mechanism exactly: a child that exits while a GRANDCHILD
      keeps the stdout pipe open. `execFileSync`'s timeout signals the child only, so the read never
      ends and the budget cannot act — measured as a 5 h budget running 8 h 1 min. Detaching the child
-     into its own process group and killing the GROUP is what makes the ceiling real. */
+     into its own process group and killing the GROUP is what makes the ceiling real.
+
+     ⚠️ 2026-10-21: this leg asserted only that the CALLER returned, so a plant that survived the
+     group kill stayed invisible to it. Four processes in two pairs were found alive, 12 h 02 m and
+     1 h 18 m after a 60 s intended lifetime, and one pair held a worktree git had already removed.
+     Three changes answer three different halves of that:
+       · the plant ANNOUNCES both pids to a file and the leg asserts both are gone. An absence check
+         with nothing to look for passes on a detector that stopped looking, so the announcement
+         count is asserted first.
+       · the plant SELF-DESTRUCTS at 300 s. Whoever kills the group can itself be reaped — the
+         harness watchdog does exactly that under box memory pressure — and an orphan nobody signals
+         must still die. 300 s sits ABOVE the 120 s bound below, so an implementation that waits the
+         plant out still fails this leg.
+       · the plant runs in a SCRATCH CWD removed here, so an escapee pins nothing. */
   return (async () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'crawl-bounded-'));
+    const pidFile = join(scratch, 'plant.pids');
+    /* `/proc/<pid>/cmdline`, not `kill(pid, 0)`, because a pid is reusable and a recycled pid reads
+       ALIVE. The Python lane's twin (`test_PLANT_the_deadline_leaves_NO_DESCENDANT_alive` in
+       `capture-host/tests/test_mutation_diff.py`) identifies its plant the same way, and it had the
+       assertion this leg lacked. One tool per lane, one lesson, and this is the half that was missing.
+       An empty sample means no answer, which is why the sample is asserted rather than assumed. */
+    const cmdlineOf = (pid) => {
+      try {
+        return readFileSync('/proc/' + pid + '/cmdline', 'utf8');
+      } catch {
+        return '';
+      }
+    };
+    const PLANT =
+      'const fs=require("node:fs"),{spawn}=require("node:child_process");' +
+      'const g=spawn(process.execPath,["-e","setTimeout(()=>process.exit(0),300000)"],{stdio:["ignore","inherit","inherit"]});' +
+      'fs.writeFileSync(' +
+      JSON.stringify(pidFile) +
+      ',process.pid+" "+g.pid);' +
+      'setTimeout(()=>{},60000);';
     const t0 = Date.now();
+    /* Sample the plant WHILE it runs: afterwards there is nothing to record, and a recording taken
+       after the fact cannot tell a dead plant from a plant that never started. */
+    const call = runMutateBounded(['-e', PLANT], 1000, () => {}, { cwd: scratch });
+    let plantPids = [];
+    for (let i = 0; i < 100 && plantPids.length < 2; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      try {
+        plantPids = readFileSync(pidFile, 'utf8').trim().split(/\s+/).map(Number).filter(Number.isFinite);
+      } catch {
+        /* not written yet */
+      }
+    }
+    const sampled = {};
+    for (const pid of plantPids) sampled[pid] = cmdlineOf(pid);
     let threw = null;
     try {
-      await runMutateBounded(
-        ['-e', "const {spawn}=require('node:child_process'); spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']}); setTimeout(()=>{},60000);"],
-        1000,
-        () => {}
-      );
+      await call;
     } catch (e) {
       threw = String(e.message);
     }
@@ -1456,6 +1503,35 @@ function selftest() {
     /* 60 s is `runMutateBounded`'s own floor on the soft timer, + the 30 s grace, + slack. Before the
        fix this call does not return at all, so the bound is the assertion. */
     ck("…within the floor + grace, not at the unit's deadline hours later", took < 120000, true);
+    /* THE PLANT'S OWN ABSENCE, which is the only thing that would have caught the leak. Both halves
+       are asserted: the plant reported two pids, and both were running when sampled. Either one
+       missing leaves an absence check with nothing to look for, which passes on a detector that
+       stopped looking. */
+    ck('the plant announced both pids — the absence check has something to look for', plantPids.length, 2);
+    ck('…and both were running when sampled, so an absence below is a change of state', plantPids.filter((pid) => sampled[pid]).length, 2);
+    const stillAlive = (pid) => !!sampled[pid] && cmdlineOf(pid) === sampled[pid];
+    let survivors = plantPids.filter(stillAlive);
+    for (let i = 0; survivors.length && i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      survivors = plantPids.filter(stillAlive);
+    }
+    /* Reap before reporting: a leg that finds a leak must not also leave one. Each survivor is killed
+       by its own pid, and the GROUP only when the parent is itself an identified survivor — a group
+       id is a pid too, and signalling a recycled one reaches a stranger. */
+    if (survivors.length) {
+      if (survivors[0] === plantPids[0]) {
+        try {
+          process.kill(-plantPids[0], 'SIGKILL');
+        } catch {}
+      }
+      for (const pid of survivors) {
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch {}
+      }
+    }
+    ck('…and no plant process outlives the bounded call', survivors, []);
+    rmSync(scratch, { recursive: true, force: true });
 
     console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
     return fail ? 1 : 0;
