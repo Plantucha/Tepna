@@ -9,9 +9,10 @@
  * "the rule fired" from "the night happened to be mostly N2".
  */
 import { readFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctx = { Math, console, isFinite, Float64Array, Object, Array, Number };
@@ -154,4 +155,4 @@ A(
 );
 
 console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exit(bad ? 1 : 0);
+if (isCliEntry(import.meta.url)) process.exit(bad ? 1 : 0);

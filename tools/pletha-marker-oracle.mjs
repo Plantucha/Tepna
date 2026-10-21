@@ -29,9 +29,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { pathToFileURL } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 export function scoreRows(vals, beats) {
   const t = { rows: vals.length, loneB1: 0, loneB0: 0, runB1: 0, runB0: 0, beatOff156: 0, runs: 0, longest: 0 };
@@ -181,7 +180,7 @@ function selftest() {
 /* The refusal must fire for the CLI ONLY. `process.argv` belongs to whoever is running, so a
    module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
    reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--json', '--selftest', '--verdict-sample'], positional: true }, { tool: 'pletha-marker-oracle' });
 const arg = process.argv[2];
 const JSON_OUT = process.argv.includes('--json');

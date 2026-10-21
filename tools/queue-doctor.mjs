@@ -45,6 +45,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* Minutes a PR must have been BEHIND-and-green before the doctor touches it. Not noise tolerance —
    it is the window in which the PR's OWNER might be mid-rebase locally. Acting sooner would race a
@@ -474,7 +475,7 @@ function main() {
 
 /* Compare the resolved path, not a suffix: a suffix guard makes the module a SILENT NO-OP under any
    other filename, which is how a renamed copy once exited 0 having done nothing. */
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+if (isCliEntry(import.meta.url)) {
   try {
     main();
   } catch (e) {

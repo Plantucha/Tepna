@@ -40,10 +40,11 @@
  *   node tools/pulse-template-toa.mjs --ppg <file> [--beats 4000] [--compare]
  */
 import { readFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { isCliEntry } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -194,7 +195,7 @@ export function templateToa(sig, feet, fsHz, opts = {}) {
 
 /* ════ CLI ════════════════════════════════════════════════════════════════════════════════════ */
 
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   const arg = (n, d) => {
     const i = process.argv.indexOf('--' + n);

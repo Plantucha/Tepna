@@ -66,9 +66,10 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { GAP_S, HOLES_S, PERIOD_S, STEPS_BPM, activeSecOf, plant, realms, spansGapOf } from './cvhr-gap-edge.mjs';
 import { corpusSearch } from './regen-goldens-core.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -648,7 +649,7 @@ async function main() {
 /* Importing this file must not run the battery: a tool with no main-module guard consumes the
    importer’s argv and prints its own report instead. Measured here — a probe that imported
    `survivors` ran the whole real-night pass. */
-const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+const isMain = isCliEntry(import.meta.url);
 
 if (isMain)
   main().then(

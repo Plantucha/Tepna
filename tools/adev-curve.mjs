@@ -27,8 +27,8 @@
  *   node tools/adev-curve.mjs --selftest | --verdict-sample
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import { readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* Log-log OLS with the SE, mirroring clock.js `_ckAllanSlope` / ppgdex `allanSlopeFit`: only points
    with adev > 0 and tau > 0 are fitted (an exactly-flat τ has no log), and three is the minimum —
@@ -259,4 +259,4 @@ function main() {
 }
 const readCurveRaw = (st) => (Array.isArray(st && st.curve) ? st.curve : []);
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isCliEntry(import.meta.url)) main();

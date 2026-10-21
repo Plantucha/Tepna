@@ -32,7 +32,7 @@
  * Pure functions, no I/O, no clock. Guards its own main so importing fires nothing.
  */
 
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 const asc = (a) =>
   Array.from(a)
     .filter(Number.isFinite)
@@ -265,7 +265,7 @@ export function plant(kind, n) {
   return out;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   const KINDS = ['clean', 'ramp', 'walk', ...PROBES];
   if (argv.includes('--help') || argv.includes('-h')) {

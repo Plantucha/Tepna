@@ -51,6 +51,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/mutate.mjs` uses. */
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -704,4 +705,4 @@ if (process.argv.includes('--selftest')) {
   process.exit(0);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isCliEntry(import.meta.url)) main();

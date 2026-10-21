@@ -85,9 +85,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -527,7 +528,7 @@ function main(argv) {
    importer. Measured 2026-09-15: a 1.9-vs-2.0 comparison that imported `loadCohortGen` died with
    the tool's own usage text and no other sign, which reads as the CALLER being wrong. A library
    function is not importable if reaching it runs a CLI. */
-const IS_CLI = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   else if (process.argv.includes('--verdict-sample')) {

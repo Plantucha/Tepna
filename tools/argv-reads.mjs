@@ -39,8 +39,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { fileURLToPath } from 'node:url';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -55,7 +55,7 @@ const opt = (n, d) => {
   const i = argv.indexOf(n);
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
-const IS_MAIN = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_MAIN = isCliEntry(import.meta.url);
 
 /* ── masking ───────────────────────────────────────────────────────────────────────────────────── */
 /** Comment and string CONTENTS replaced by spaces, length and newlines preserved so offsets still

@@ -25,8 +25,8 @@
  *   node tools/run-tests-verdict.mjs --selftest
  *   node tools/run-tests-verdict.mjs --verdict-sample     the union over three scratch shards, one dead
  */
-import { pathToFileURL } from 'node:url';
 import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const CRITERION = {
   name: 'children_failing (a group with a failing assertion ⇒ FAIL; an undeclared skip ⇒ FAIL by the skip budget; a group of declared skips only is NOT_APPLICABLE; a filtered run (--group=, --shard=) is never the gate; a dead shard is an undeclared NOT_RUN ⇒ UNKNOWN)',
@@ -266,7 +266,7 @@ function selftest() {
   console.log(`all ${n} selftests passed`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) selftest();
   else if (process.argv.includes('--verdict-sample')) console.log(JSON.stringify(verdictSample()));
   else {

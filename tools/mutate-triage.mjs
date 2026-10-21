@@ -47,8 +47,9 @@
  */
 import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BACKUP_SUFFIX = '.mutate-triage-backup';
@@ -111,7 +112,7 @@ function gitDirty(file) {
   }
 }
 
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   const argv = process.argv.slice(2);
   const opt = (k, d) => {

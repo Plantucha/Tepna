@@ -26,9 +26,10 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -224,8 +225,7 @@ function selftest() {
    a reader and unparseable for the adoption check — the two audiences need two modes, not one mode and
    a parser that tolerates prose. The sample is a REAL scan of the real tree, never a canned object:
    a sample that could not go stale would prove nothing about the producer. */
-const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
-if (entry === import.meta.url) {
+if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   if (process.argv.includes('--verdict-sample')) {
     const files = existsSync(WF_DIR)

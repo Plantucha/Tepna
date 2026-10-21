@@ -25,6 +25,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import fs from 'node:fs';
+import { isCliEntry } from './argv-guard.mjs';
 
 /** 'HH:MM:SS.mmm' (or a plain number) → seconds-of-day. PURE. Exact-field arithmetic — the first run
  *  of this analysis extracted ZERO events everywhere because a hand conversion used the wrong hour;
@@ -375,7 +376,7 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   const args = process.argv.slice(2);
   const cmds = (args[args.indexOf('--cmds') + 1] || '').split(',').map(secOfDay);

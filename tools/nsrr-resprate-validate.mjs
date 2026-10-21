@@ -59,6 +59,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ODI = await import('./nsrr-oxydex-odi.mjs');
@@ -271,5 +272,5 @@ function selftest() {
     });
 }
 
-const IS_CLI = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) await selftest();

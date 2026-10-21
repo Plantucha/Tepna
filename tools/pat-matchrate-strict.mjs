@@ -48,11 +48,12 @@
  *   node tools/pat-matchrate-strict.mjs --dir uploads/trio --surrogates 200 --json
  */
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 // the repo's own ESM→classic shim, so a DSP's `export const` tail does not break the vm realm
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
@@ -601,7 +602,7 @@ export { loadDsps, getDsps, ecgRpeakTimes, ecgCounterTimeMs, ppgFootTimes, media
    the whole failure `pat-finger-coupler.mjs`'s note above was written to avoid. Additive. */
 export { bestPair, alignFeet, MIN_OVERLAP_MIN };
 
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   // the raw corpus lives OUTSIDE the repo volume (it is gitignored), so an absolute --dir must work
   const base = DIR.startsWith('/') ? DIR : join(ROOT, DIR);
