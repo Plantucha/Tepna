@@ -397,6 +397,15 @@ export function deriveIsrucWorkbook(wb, recordId) {
      an unknown token, so the tool could not tell a record scored in an unknown vocabulary from a
      record nobody scored — and it was the second of those two that it reported. */
   const other = new Map();
+  /* ∅ OCCURRENCES AND ROWS ARE TWO MEASUREMENTS AND THE REPORT USED TO CARRY ONE UNDER THE OTHER'S
+     NAME. `other` counts TOKENS: a cell reading `PAC,PAC,PAC` adds three, which is right for a
+     numerator because a scorer who writes a name twice scored two events. The blind-spot report then
+     called that total `unnamedCells`, and a reader cannot tell one epoch scored three times from
+     three epochs. Measured over the 126 scorer-1 workbooks on 2026-10-21: `PAC` 46 occurrences over
+     36 rows, `SN` 132 over 91, `PLM` 4220 over 3440 — so the two differ wherever a scorer repeats a
+     name inside one epoch, which 13 of the 25 named tokens do. Both numbers ride now. */
+  const otherRows = new Map();
+  let otherRowCount = 0;
   let epochsWithStage = 0;
   let sleepEpochs = 0;
   let respAnywhere = 0;
@@ -446,6 +455,7 @@ export function deriveIsrucWorkbook(wb, recordId) {
          and the token stays in `otherTokens` so a first one surfaces by name, not by this count. */
       positionCodeUnexplained++;
     }
+    const unplacedHere = new Set();
     for (const tok of shifted ? glued : [...eventToks, ...glued]) {
       if (tok in counts) {
         respAnywhere++;
@@ -460,8 +470,11 @@ export function deriveIsrucWorkbook(wb, recordId) {
         nonRespCells++;
       } else {
         other.set(tok, (other.get(tok) || 0) + 1);
+        unplacedHere.add(tok);
       }
     }
+    if (unplacedHere.size > 0) otherRowCount++;
+    for (const tok of unplacedHere) otherRows.set(tok, (otherRows.get(tok) || 0) + 1);
   }
   const row = {
     set: 'isruc',
@@ -480,6 +493,8 @@ export function deriveIsrucWorkbook(wb, recordId) {
     contextCells,
     nonRespCells,
     otherTokens: Object.fromEntries([...other.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))),
+    otherRowTokens: Object.fromEntries([...otherRows.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))),
+    otherRowCount,
     positionShiftRows,
     positionCodeUnexplained,
     hrGlueRows,
@@ -636,6 +651,13 @@ export function deriveIsleepsWorkbook(wb, recordId) {
   /* ∅ A SHEET WITH NO `Event name` HEADER IS UNEXAMINED, NOT CLEAN. The loop above never ran, so no
      name was read and a `{}` here would claim this record carries no unplaced name. */
   row.otherTokens = nameHdr ? Object.fromEntries([...other.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) : null;
+  /* THE PARITY IS THE CONTROL. An iSleeps `Flow Events` row carries ONE `Event name`, so an unplaced
+     name occurs once per row and the two tallies must agree on this half of the corpus. They do, over
+     all 40 workbooks on 2026-10-21: 1 occurrence of `Body event` over 1 row. A divergence here would
+     mean the row-counting loop had miscounted, since nothing in this sheet can repeat a name inside
+     one row the way an ISRUC event cell can. */
+  row.otherRowTokens = row.otherTokens;
+  row.otherRowCount = nameHdr ? [...other.values()].reduce((a, n) => a + n, 0) : null;
   row.apneas = ISLEEPS_APNEA.reduce((a, t) => a + counts[t], 0);
   row.hypopneas = ISLEEPS_HYPOPNEA.reduce((a, t) => a + counts[t], 0);
   row.rera = counts[ISLEEPS_RERA];
@@ -757,7 +779,9 @@ export function vocabularyOf(rows) {
       contextMeasured: false,
       unnamed: null,
       unnamedTokens: null,
-      unnamedCells: null,
+      unnamedOccurrences: null,
+      unnamedRows: null,
+      unnamedRowsByName: null,
       unmeasuredRecords,
       positionShiftMeasured: false,
       positionShiftRows: null,
@@ -772,6 +796,8 @@ export function vocabularyOf(rows) {
     };
   const context = {};
   const unnamed = {};
+  const unnamedRowsByName = {};
+  let unnamedRows = 0;
   let contextMeasured = false;
   /* A FOURTH FLAG, for the same reason there are three: the position-column shift is an ISRUC class,
      and iSleeps carries no position column at all. A pooled 0 over a set that cannot leak would read
@@ -806,6 +832,11 @@ export function vocabularyOf(rows) {
     }
     for (const [t, n] of Object.entries(r.context || {})) if (n) context[t] = (context[t] || 0) + n;
     for (const [t, n] of Object.entries(r.otherTokens || {})) unnamed[t] = (unnamed[t] || 0) + n;
+    /* THE PER-NAME ROW COUNTS POOL, THE TOTAL DOES NOT. Two names in one row each count that row, so
+       a sum over names would exceed the rows. The record's own `otherRowCount` is the distinct count,
+       and records are disjoint, so summing THAT is exact. */
+    for (const [t, n] of Object.entries(r.otherRowTokens || {})) unnamedRowsByName[t] = (unnamedRowsByName[t] || 0) + n;
+    if (typeof r.otherRowCount === 'number') unnamedRows += r.otherRowCount;
   }
   const byCell = (o) => Object.fromEntries(Object.entries(o).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)));
   return {
@@ -814,7 +845,14 @@ export function vocabularyOf(rows) {
     contextMeasured,
     unnamed: byCell(unnamed),
     unnamedTokens: Object.keys(unnamed).length,
-    unnamedCells: Object.values(unnamed).reduce((a, b) => a + b, 0),
+    /* `unnamedOccurrences` CARRIED THE NAME `unnamedCells` UNTIL 2026-10-21 and counted neither
+       cells nor rows: it summed TOKENS. Row
+       `2026-10-21-three-ecg-looking-names-in-the-isruc-event-column-have-no-source` quoted `PAC` as
+       46 cells from this field, and the name sits in 36 rows. The field keeps the measurement and
+       loses the wrong noun; `unnamedRows` is the epoch count beside it. */
+    unnamedOccurrences: Object.values(unnamed).reduce((a, b) => a + b, 0),
+    unnamedRows,
+    unnamedRowsByName: byCell(unnamedRowsByName),
     unmeasuredRecords,
     positionShiftMeasured,
     positionShiftRows: positionShiftMeasured ? positionShiftRows : null,
@@ -1308,12 +1346,40 @@ function selftest() {
   /* ∅ CONTROL: a set the ISRUC path never instrumented reports that, never a tally of zero. */
   const blind = vocabularyOf([{ set: 'isleeps', ahi: 7 }]);
   ok('an uninstrumented set says so', blind.measured, false);
-  ok('…and its tallies are null, never 0', [blind.unnamedTokens, blind.unnamedCells, blind.unnamed], [null, null, null]);
+  ok('…and its tallies are null, never 0', [blind.unnamedTokens, blind.unnamedOccurrences, blind.unnamed], [null, null, null]);
+  ok('…including the row tallies', [blind.unnamedRows, blind.unnamedRowsByName], [null, null]);
   const vocab = vocabularyOf([v2, v3, v4]);
   ok('an instrumented set says so', vocab.measured, true);
   ok('the pooled report names every unnamed token', vocab.unnamed, { Zzz: 6 });
-  ok('…counts their cells', vocab.unnamedCells, 6);
+  ok('…counts their occurrences', vocab.unnamedOccurrences, 6);
   ok('…and pools the declined context', vocab.context, { Desat: 6 });
+
+  /* ── OCCURRENCES ARE NOT ROWS, AND THE CORPUS IS WHERE THEY PART ─────────────────────────────
+     `PAC` reads 46 occurrences over 36 rows in `subgroupII/8`, because the scorer writes the name
+     once per instance and an epoch cell can hold `PAC,PAC,PAC`. The fixtures below carry that exact
+     shape, so the two tallies cannot be derived from one another and a reader is told which is
+     which. The old field summed tokens and called them cells. */
+  const vRep = deriveIsrucWorkbook(openWorkbook(isrucSheet(sleepEpochs(4, 'OH, PAC, PAC'))), 'sub/8r');
+  ok('a name repeated inside one cell counts twice', vRep.otherTokens, { PAC: 8 });
+  ok('…while the row it sits in counts once', vRep.otherRowTokens, { PAC: 4 });
+  ok('…and the record counts its unplaced rows once each', vRep.otherRowCount, 4);
+  /* CONTROL · the paired twin carries the same hypopneas and no repeated name, so the index it
+     reads is what the repeats must not move. */
+  const vRepTwin = deriveIsrucWorkbook(openWorkbook(isrucSheet(sleepEpochs(4, 'OH'))), 'sub/8w');
+  ok('…leaving the hypopnea index untouched', vRep.ahi, vRepTwin.ahi);
+  ok('…and the twin carries no unplaced name at all', [vRepTwin.otherTokens, vRepTwin.otherRowCount], [{}, 0]);
+  /* THE TRAP THE POOLING COMMENT NAMES: two unplaced names in one row each count that row, so a sum
+     over names exceeds the rows. The record's own count is the distinct one. */
+  const vTwo = deriveIsrucWorkbook(openWorkbook(isrucSheet(sleepEpochs(3, 'OH, Zzz, Qqq'))), 'sub/8t');
+  ok('two unplaced names in one row each count the row', vTwo.otherRowTokens, { Qqq: 3, Zzz: 3 });
+  ok('…and the row count stays at the rows', vTwo.otherRowCount, 3);
+  const vocab2 = vocabularyOf([v2, vRep, vTwo]);
+  ok('the pooled occurrences add the repeats', vocab2.unnamedOccurrences, 20);
+  ok('…the pooled rows do not', vocab2.unnamedRows, 13);
+  ok('…and the per-name rows are reported separately', vocab2.unnamedRowsByName, { Zzz: 9, PAC: 4, Qqq: 3 });
+  /* ANTI-VACUITY: a set with no unplaced name reports measured zeros, not nulls. */
+  const vocabClean = vocabularyOf([v3, v4]);
+  ok('a measured set with every name placed reports zeros', [vocabClean.unnamedOccurrences, vocabClean.unnamedRows], [0, 0]);
 
   /* iSleeps */
   const profile = (k, stage = 'N2') => {
@@ -1415,7 +1481,11 @@ function selftest() {
   const isv = vocabularyOf([s1, s7]);
   ok('the iSleeps set reads as measured', isv.measured, true);
   ok('…pools every unplaced name', isv.unnamed, { Desaturation: 2, Arousal: 1 });
-  ok('…counts their cells', isv.unnamedCells, 3);
+  ok('…counts their occurrences', isv.unnamedOccurrences, 3);
+  /* THE PARITY CONTROL. One `Event name` per row means occurrences and rows must agree on this half
+     of the corpus, and they do over all 40 workbooks: 1 and 1. A divergence would be a miscount. */
+  ok('…reads the same number of rows, because a row carries one name', isv.unnamedRows, 3);
+  ok('…and the per-name row counts mirror the occurrences', isv.unnamedRowsByName, isv.unnamed);
   ok('…declines no context class this set does not have', [isv.context, isv.contextMeasured], [null, false]);
   ok('…and every record carries its own tally', isv.unmeasuredRecords, 0);
   /* ∅ A `Flow Events` sheet whose header row carries no `Event name` cell READ NO NAME AT ALL. */
@@ -1599,7 +1669,9 @@ if (DIRECT) {
         const ctx = Object.entries(s.vocabulary.context || {});
         if (ctx.length) console.log(`  respiratory context declined by name: ${ctx.map(([t, n]) => `${t} ${n}`).join(' · ')}`);
         if (s.vocabulary.measured) {
-          const un = s.vocabulary.unnamedTokens ? `${s.vocabulary.unnamedCells} cell(s) in ${s.vocabulary.unnamedTokens} token(s) this tool cannot name` : 'every event name placed';
+          const un = s.vocabulary.unnamedTokens
+            ? `${s.vocabulary.unnamedOccurrences} occurrence(s) of ${s.vocabulary.unnamedTokens} token(s) this tool cannot name, over ${s.vocabulary.unnamedRows} epoch row(s)`
+            : 'every event name placed';
           console.log(`  vocabulary: ${un}${s.vocabulary.unmeasuredRecords ? ` · ${s.vocabulary.unmeasuredRecords} record(s) carry no tally` : ''}`);
         } else console.log(`  vocabulary: not measured over ${s.vocabulary.unmeasuredRecords} record(s)`);
         if (s.vocabulary.positionShiftMeasured && s.vocabulary.positionShiftRows)

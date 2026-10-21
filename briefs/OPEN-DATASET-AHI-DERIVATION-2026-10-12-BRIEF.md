@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-20 · **Created:** 2026-10-12 · **Relates:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` (PROPOSED, §5 and §8), `docs/SHHS-COHORT-REFERENCE.md`, `docs/CORPUS-LOCATIONS.md`
+**Status:** IN-PROGRESS — 2026-10-21 · **Created:** 2026-10-12 · **Relates:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` (PROPOSED, §5 and §8), `docs/SHHS-COHORT-REFERENCE.md`, `docs/CORPUS-LOCATIONS.md`
 
 # Deriving an AHI from open-dataset annotations — 156 distinct of 579 recordings, and the four sets that carry no respiratory event at all
 
@@ -77,6 +77,18 @@ this section first read "no header row".
 
 Scorer-1 token totals over 126 workbooks: `OH` 3805 · `MH` 2700 · `OA` 1469 · `CA` 354 · `CH` 77 ·
 `MA` 63. That is **8468 events**, spanning obstructive, central and mixed, apnea and hypopnea alike.
+The tool reads the same six tokens higher on 2026-10-21: **9478 occurrences anywhere in the
+workbook**, of which **9356 sit in a scored sleep epoch** and reach the numerator. The survey counted
+occurrences under no sleep restriction, so 9478 is the figure that stands beside its 8468. Per token,
+in sleep: `OH` 4052 · `MH` 3015 · `OA` 1521 · `CA` 373 · `CH` 215 · `MA` 180. The tool's JSON carries
+no per-token breakdown outside sleep, so that line reports the in-sleep population and does not
+replace the survey's six numbers.
+
+Two parser repairs landed between the two measurements: #3847 placed the event column on the 65
+workbooks whose rows shift, and #3848 glued the tokens an HR cell had absorbed. The count rose, which
+is the direction those two repairs predict, and I did not split the gap between them. The survey
+figure above stays as the survey measured it, because §6 pre-stated its criterion against it, and a
+criterion that moves to meet its own data decides nothing.
 
 **Two parsing traps, both of which silently shrink the count:**
 
@@ -131,12 +143,31 @@ derives an index from scorer 2, so §2a's defect has no instance in the code tod
 respiratory token among them. Their cells hold arousals, limb movements, lights and stage changes. So
 `no-respiratory-scoring` names the real cause rather than a borrowed one, which is what the row asked.
 
-| token group | records | cells | what the derivation does |
-|---|---|---|---|
-| `OA` `CA` `MA` `OH` `CH` `MH` | 120 | 8468 | the numerator |
-| `Desat` 169 · `SN` 132 · `CSBr` 9 | 34 | 310 | declines **by name** |
-| `AR` 11706 · `PLM` 4220 · `Awake` 2072 · `LM` 822 · `MChg` 763 · `REM Aw` 146 · `L Out` 104 · `Per Slp` 77 · `L On` 72 | 126 | 19982 | knows and ignores |
-| 40 bare numbers · `PAC` · `B` · `L` · `R` · `N` · `PVC` · `UD1` | 47 names | 218 | reports by name as unnamed |
+**Occurrences and epoch rows are two measurements, and this table carried one under the other's
+name.** The field was `unnamedCells` and the printer said "N cell(s)", while the loop incremented once
+per token. The two part wherever a scorer repeats a name inside one epoch, which `PAC` does: 46
+occurrences over 36 rows. The field is now `unnamedOccurrences`, the row tally `unnamedRows` and
+`unnamedRowsByName` are new, and the figures below are re-read from the tool on 2026-10-21. Rows
+`2026-10-20-forty-seven-isruc-event-names-stay-unplaced` and
+`2026-10-21-three-ecg-looking-names-in-the-isruc-event-column-have-no-source` each say "46 cells", and
+`2026-10-21-the-unplaced-tally-counted-occurrences-and-named-them-cells` states the correction.
+
+| token group | records | occurrences | epoch rows | what the derivation does |
+|---|---|---|---|---|
+| `OA` 1521 · `CA` 373 · `MA` 180 · `OH` 4052 · `CH` 215 · `MH` 3015 | 120 | 9356 | not tallied | the numerator |
+| `Desat` 191 · `SN` 148 · `CSBr` 11 | 34 | 350 | not tallied | declines **by name** |
+| `AR` · `PLM` · `Awake` · `LM` · `MChg` · `REM Aw` · `L Out` · `Per Slp` · `L On` | 126 | 21801 | not tallied | knows and ignores |
+| 40 bare numbers · `PAC` · `PVC` · `UD1` | 13 | 110 | 100 | reports by name as unnamed |
+
+The numerator row counts the in-sleep population; the same six tokens occur 9478 times anywhere in
+the workbooks. `not tallied` is not a zero — the tool counts rows for the unnamed group alone, so the
+other three rows have no row figure to report, and the per-token breakdown of the ignored group stays
+at the 2026-10-20 reading (`AR` 11706 · `PLM` 4220 · `Awake` 2072 · `LM` 822 · `MChg` 763 · `REM Aw`
+146 · `L Out` 104 · `Per Slp` 77 · `L On` 72) because the JSON reports that group as one count. **Four
+names left the unnamed tally** between the two runs, so it reads 43 names over 13 records where it
+read 47. The four are `B`, `L`, `R` and `N`, which §2 names as column F's body-position codes. A
+selftest leg still places `B` in the tally for a shape that reaches it, so the corpus no longer
+carries that shape rather than the tool no longer being able to report it.
 
 **`CSBr` is the one respiratory token outside the numerator list, and it stays outside.** An AHI
 counts apneas and hypopneas, and AASM counts the events inside a Cheyne-Stokes run one by one. Each
@@ -150,9 +181,45 @@ tool, on the same mount within one hour. Not one record moves an AHI, a null rea
 quartile, every severity band and every distinct-subject figure reads identical. `epochsWithStage`
 falls by exactly one in exactly 65 records, which is the header row and nothing else.
 
-The iSleeps path keeps no such tally, so its vocabulary report reads `measured: false` rather than a
-tally of zero. Logged as residue `2026-10-20-the-isleeps-event-vocabulary-is-uninstrumented`, beside
-`2026-10-20-forty-seven-isruc-event-names-stay-unplaced` for the 47 names above.
+The iSleeps path carries the same tally since 2026-10-21 and reports 1 occurrence of 1 token over 1
+epoch row. One `Event name` cell holds one event there, so its two figures must agree, and a selftest
+leg pins that equality as a control on the ISRUC half.
+
+### 2d · The three names that look like ECG annotations, and what the corpus says about them
+
+Residue `2026-10-21-three-ecg-looking-names-in-the-isruc-event-column-have-no-source` asked where
+`PAC`, `PVC` and `UD1` come from, because all three read as cardiac annotations in a respiratory
+column. Measured from the tool on 2026-10-21:
+
+| name | occurrences | epoch rows | records |
+|---|---|---|---|
+| `PAC` | 46 | 36 | `subgroupII/8` |
+| `PVC` | 2 | 2 | `subgroupII/8` |
+| `UD1` | 2 | 2 | `subgroupII/13`, `subgroupII/21` |
+| 40 bare numbers | 60 | 60 | 11 others |
+
+**No document on the mirror defines any of them.** §0 measured the ISRUC directory as carrying no
+terms, no checksum record and no description, so there is no key to read a vocabulary out of. The
+names are therefore unsourced in the strict sense: not "undocumented by a file I have not found", but
+"the set ships nothing that documents any token at all".
+
+**One structural hypothesis, tested and refuted.** If a name repeated inside one epoch marked a
+beat-level annotation — several ectopic beats in a 30 s window — then multiplicity would separate
+beat-scored names from epoch-scored ones, and `PAC` is the only unnamed token where occurrences
+exceed rows. The corpus refutes it: repetition inside one cell is ordinary across the whole
+vocabulary. A separate probe over column E alone put the highest multiplicity in one cell at `SN` 6,
+`PLM` 4, `LM` 4, `AR` 2, `OH` 2 and `MH` 2, against `PAC` 6 — and the two instruments agree on `PAC`
+to the token, 46 over 36 cells. Multiplicity therefore discriminates nothing, and no structural
+route runs from these counts to a source. **A name reaches a class only with a citation a reader can
+check**, so these three stay in the unnamed tally, reported by name.
+
+**No index and no null reason in this corpus depends on them.** The classification is four disjoint
+branches over one token, and the last one increments the unnamed tally alone — it never touches
+`counts`, the context tally or the ignored count. The null decision reads the respiratory counter,
+which an unnamed token cannot reach. A later reading could put all three in any class, or drop
+them, and every derived figure in §2b would read the same. The records carrying them all derive an
+index with no null reason, from numerator tokens the tool already counts; the index values stay in
+§0's private note.
 
 ## 3 · iSleeps carries AASM event names outright
 
