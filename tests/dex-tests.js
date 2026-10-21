@@ -10321,6 +10321,120 @@
       );
       T.eq('no tool combines a bare dash-test picker with a valued flag', VIOLATORS.join(', '), '');
     });
+    /* ════ A DOCUMENTED FLAG IS READ BY THE TOOL THAT DOCUMENTS IT ══════════════════════════════
+       Row 2026-10-21-eight-usage-lines-promised-a-flag-no-code-reads. `argv-guard.mjs` refuses a flag
+       nobody READS; this is the mirror and nothing looked for it: a flag a usage line ADVERTISES and
+       no branch reads is accepted in silence, and the caller gets whatever the tool does when the
+       flag is absent. Measured 2026-10-21 over the tools tree: 8 such flags in 8 tools, among them
+       `release-land --foreground` (promised "run attached" and read by nothing) and a per-epoch
+       bootstrap tool's `--boot N`, whose replicate count lived in an environment variable alone.
+       THE SECOND TOOL IS NOT NAMED HERE ON PURPOSE: `verdict-adoption.mjs` decides that a `decides`
+       producer is tested by `git grep`-ing its stem under `tests/`, so this comment naming it read
+       as a test and demanded its UNGATED_RATCHET debt be retired — row
+       2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. The PR body names it.
+       FOUR OVER-REPORTS ARE RULED OUT BY CONSTRUCTION, each measured as a false positive first:
+         · a usage line must INVOKE this tool — `--scorer ./nsrr-aai-validate.mjs --limit 200`
+           documents the POOL runner's flags, which read four validators as candidates;
+         · `<…>` placeholders quote another tool's whole invocation (`--axis`, `--solid`);
+         · a trailing `#` comment names a second program's flag in prose (`gemini-review --out`);
+         · comments are stripped BEFORE string literals are found — searching the raw text let an
+           apostrophe open a fake literal that blanked six real reads in `pat-mode-posture.mjs`.
+       A tool that builds the flag name at run time (`'--' + n`) or slices it out of the token is
+       EXCLUDED with a reason, never counted as agreeing: a literal scan cannot decide it. The
+       excluded set is capped, so widening those two shapes cannot quietly empty the judged set. ════ */
+    group('a documented flag is read by the tool that documents it', 'tools · usage-line · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the usage-line scan examined nothing');
+        else T.skip('the usage-line scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var FLAG = /--[a-z][\w-]*/g;
+      var blankOut = function (s) {
+        return new Array(s.length + 1).join(' ');
+      };
+      var stripComments = function (t) {
+        return t
+          .replace(/\/\*[\s\S]*?\*\//g, function (s) {
+            return s.replace(/[^\n]/g, ' ');
+          })
+          .replace(/(^|[^:\\])\/\/[^\n]*/g, function (s, p) {
+            return p + blankOut(s.slice(p.length));
+          });
+      };
+      var DYNAMIC = /(?:indexOf|includes|startsWith)\(\s*(?:`--\$\{|'--'\s*\+|"--"\s*\+|`--`\s*\+)/;
+      var GENERIC = /startsWith\(\s*(['"`])--\1\s*\)[\s\S]{0,120}?slice\(\s*2\s*\)/;
+      var candidates = [],
+        excluded = [],
+        agreeing = 0;
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var self = k.replace(/^.*\//, '');
+          if (self === 'argv-guard.mjs') return; // the guard's own doc comment quotes other tools' flags
+          var text = TT[k];
+          var stripped = stripComments(text);
+          var rawLines = text.split('\n');
+          var strLines = stripped.split('\n');
+          var esc = self.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          var INVOKED = new RegExp('\\bnode\\s+(?:\\S*\\/)?' + esc + '\\b|^(?:\\s*(?:\\*|\\/\\/|#)?\\s*)(?:\\.\\/)?(?:tools\\/)?' + esc + '\\b');
+          var doc = {},
+            docN = 0,
+            codeLines = [];
+          for (var i = 0; i < rawLines.length; i++) {
+            var m = INVOKED.exec(rawLines[i]);
+            if (!m) {
+              codeLines.push(strLines[i]);
+              continue;
+            }
+            var after = rawLines[i]
+              .slice(m.index + m[0].length)
+              .replace(/`[^`]*`/g, blankOut)
+              .replace(/<[^>]*>/g, blankOut)
+              .split(/\s#/)[0];
+            var hits = after.match(FLAG) || [];
+            for (var j = 0; j < hits.length; j++)
+              if (!doc[hits[j]]) {
+                doc[hits[j]] = 1;
+                docN++;
+              }
+            codeLines.push(''); // a usage line is never also a read site
+          }
+          if (docN === 0) return;
+          if (DYNAMIC.test(stripped)) {
+            excluded.push(k + ' [dynamic-flag-name]');
+            return;
+          }
+          if (GENERIC.test(stripped)) {
+            excluded.push(k + ' [generic-parser]');
+            return;
+          }
+          var read = {};
+          var rhits = codeLines.join('\n').match(FLAG) || [];
+          for (var r = 0; r < rhits.length; r++) read[rhits[r]] = 1;
+          var missing = Object.keys(doc)
+            .filter(function (f) {
+              return !read[f];
+            })
+            .sort();
+          if (missing.length) candidates.push(k + ': ' + missing.join(' '));
+          else agreeing++;
+        });
+      /* ANTI-VACUITY: a masker that blanked the tree would satisfy the equality below. */
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.ok(
+        'CONTROL · the judged set is the bulk of the documented tools',
+        agreeing >= 200,
+        'agreeing=' + agreeing + ' — 223 measured 2026-10-21; a collapse here means the usage line or the read stopped being visible to the scan'
+      );
+      T.ok(
+        'the undecidable set has not grown',
+        excluded.length <= 9,
+        'excluded=' + excluded.length + ' (' + excluded.join(', ') + ') — 9 measured 2026-10-21; a tool that leaves the judged set owes a named reason, not a wider regex'
+      );
+      T.eq('no usage line promises a flag the tool never reads', candidates.join(' · '), '');
+    });
     /* ════ EVERY LEDGER READER SPLITS ON UNESCAPED PIPES ONLY ════════════════════════════════════
        Row 2026-10-20-append-and-close-is-blind-to-an-escaped-pipe. The residue row contract MANDATES
        the escape, because a literal pipe breaks the table — so a cell quoting a regex or a shell

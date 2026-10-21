@@ -13,7 +13,7 @@
  * user-provided files that never entered the repo (privacy posture). This turns
  * that ad-hoc run into a REPEATABLE, COMMITTED artifact:
  *
- *   1. `--selftest` — a deterministic SYNTHETIC multi-night corpus with KNOWN
+ *   1. The default run (no `--dir`) — a deterministic SYNTHETIC multi-night corpus with KNOWN
  *      planted per-device σ and a known co-motion structure, spanning the
  *      positive-variance and quiet-order regimes. Because truth is known this is a
  *      STRONGER magnitude check than one real night: it asserts the estimator
@@ -33,9 +33,9 @@
  * so the self-test known-answers are stable across runs and machines.
  *
  * USAGE
- *   node tools/tch-multinight.mjs --selftest        # known-answer corpus (CI-safe)
+ *   node tools/tch-multinight.mjs                   # known-answer synthetic corpus: no `--dir` (CI-safe)
  *   node tools/tch-multinight.mjs --dir uploads/trio # real nights, one subdir/night
- *   node tools/tch-multinight.mjs --selftest --json  # machine-readable rows
+ *   node tools/tch-multinight.mjs --json             # machine-readable rows
  * ════════════════════════════════════════════════════════════════════════ */
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';

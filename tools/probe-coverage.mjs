@@ -32,7 +32,6 @@
  *
  * USAGE
  *   node tools/probe-coverage.mjs --sweep <file.json> [--file <dsp.js>]
- *   node tools/probe-coverage.mjs --all          # every battery with a sweep named on the CLI
  *   node tools/probe-coverage.mjs --selftest
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import { readFileSync } from 'node:fs';
