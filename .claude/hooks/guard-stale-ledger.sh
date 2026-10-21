@@ -197,6 +197,11 @@ ref="$(git -C "$root" show "origin/main:$LEDGER" 2>/dev/null | states)" || exit 
 # A row whose KEY is on both sides and whose STATE differs. A key present on only one side is not
 # a stale state: on disk only it is this session's own new row, and on the ref only it is a row
 # this tree has not pulled, which no read of it can get wrong.
+#
+# The hazard runs one way. A row OPEN here and closed on the ref is a claim on finished work. A row
+# closed here and OPEN on the ref is this tree's own closure, not yet landed: the session closing a
+# row disagrees with the ref by construction. Two closures with different text claim nothing. Only
+# the first direction denies; the count of the rest is printed beside it.
 both_keys="$(LC_ALL=C comm -12 <(printf '%s\n' "$disk" | cut -f1 | LC_ALL=C sort -u) \
                                <(printf '%s\n' "$ref"  | cut -f1 | LC_ALL=C sort -u))"
 [ -z "$both_keys" ] && exit 0
@@ -208,21 +213,22 @@ while IFS= read -r k; do
   r="$(printf '%s\n' "$ref"  | awk -F'\t' -v k="$k" '$1 == k { print $2; exit }')"
   [ "$d" = "$r" ] && continue
   differ=$((differ + 1))
-  [ "$d" = "OPEN" ] && stale_open=$((stale_open + 1))
+  [ "$d" = "OPEN" ] || continue
+  stale_open=$((stale_open + 1))
   if [ -z "$first_row" ]; then first_row="$k"; first_disk="$d"; first_ref="$r"; fi
 done <<KEYS
 $both_keys
 KEYS
 
-[ "$differ" -eq 0 ] && exit 0
+[ "$stale_open" -eq 0 ] && exit 0
 
 behind="$(git -C "$root" rev-list --count HEAD..origin/main 2>/dev/null)"
 branch="$(git -C "$root" branch --show-current 2>/dev/null)"
 
 cat >&2 <<EOF
-BLOCKED: this checkout's $LEDGER disagrees with origin/main on $differ row state(s) — $stale_open of them read OPEN here and are CLOSED on the ref.
+BLOCKED: this checkout's $LEDGER reads $stale_open row(s) OPEN that are CLOSED on origin/main ($differ row state(s) differ in all; the other $((differ - stale_open)) read closed here, which this guard allows).
 
-  first disagreement: $first_row
+  first stale row: $first_row
     on disk        : $first_disk
     on origin/main : $first_ref
 

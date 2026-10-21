@@ -150,9 +150,16 @@ printf '%s\n' "$REF_LEDGER" | grep -v charlie > "$STALE/briefs/RESIDUE.md"
 expect ALLOW "a row on the ref this checkout has not pulled"   "$STALE" "$(cmdj "$READ_CMD")"
 
 echo
-echo "### a state that differs the OTHER way is still a wrong read"
+echo "### the hazard runs one way: a row closed HERE is this tree's own closure"
+# Measured 2026-10-21: a session committing `fixed #3833` on its own row was denied, and the guard
+# printed `0 of them read OPEN here and are CLOSED on the ref` as it blocked.
 printf '%s\n' "$REF_LEDGER" | sed 's/| 2026-10-03-charlie \(.*\)| OPEN |/| 2026-10-03-charlie \1| fixed #9003 |/' > "$STALE/briefs/RESIDUE.md"
-expect DENY  "a row closed here and OPEN on the ref"           "$STALE" "$(cmdj "$READ_CMD")"
+expect ALLOW "a row closed here and OPEN on the ref"           "$STALE" "$(cmdj "$READ_CMD")"
+printf '%s\n' "$REF_LEDGER" | sed 's/| fixed #9001 |/| → `ALPHA-BRIEF.md` |/' > "$STALE/briefs/RESIDUE.md"
+expect ALLOW "a row closed on both sides, with different text"  "$STALE" "$(cmdj "$READ_CMD")"
+write_ledger OPEN 'fixed #9002' 'fixed #9003' 'key'
+cp briefs/RESIDUE.md "$STALE/briefs/RESIDUE.md"
+expect DENY  "a stale OPEN row beside this tree's own closure"   "$STALE" "$(cmdj "$READ_CMD")"
 
 echo
 echo "### it fails OPEN where it cannot measure"
