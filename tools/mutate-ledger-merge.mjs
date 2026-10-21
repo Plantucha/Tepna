@@ -52,6 +52,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NUL = '\u0000';
@@ -377,6 +378,7 @@ function selftest() {
 }
 
 function main(argv) {
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--install', '--verify'], positional: true }, { tool: 'mutate-ledger-merge' });
   if (argv.includes('--selftest')) return selftest();
   if (argv.includes('--install')) return install();
   if (argv.includes('--verify')) {

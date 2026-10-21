@@ -40,7 +40,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -323,6 +323,7 @@ export function verdictFor(label, f, lineCount, { advisory = false, excluded = 0
 
 function main() {
   const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(argv, { boolean: ['--advisory', '--json', '--verdict-sample', '--selftest', '--strict'], positional: true }, { tool: 'ste-lint' });
   const target = argv.find((a) => !a.startsWith('-')) || (argv.includes('-') ? '-' : null);
   if (!target) {
     console.error('usage: node tools/ste-lint.mjs <file.md|-> [--json] [--advisory]');

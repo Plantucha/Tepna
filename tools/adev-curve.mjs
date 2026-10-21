@@ -28,7 +28,7 @@
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import { readFileSync } from 'node:fs';
 import { makeVerdict } from './verdict-emit.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 /* Log-log OLS with the SE, mirroring clock.js `_ckAllanSlope` / ppgdex `allanSlopeFit`: only points
    with adev > 0 and tau > 0 are fitted (an exactly-flat τ has no log), and three is the minimum —
@@ -216,6 +216,7 @@ function selftest() {
 
 function main() {
   const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--verdict-sample', '--json'], positional: true }, { tool: 'adev-curve' });
   if (argv.includes('--selftest')) return selftest();
   if (argv.includes('--verdict-sample')) return console.log(JSON.stringify(verdictSample()));
   const json = argv.includes('--json');

@@ -25,6 +25,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(join(HERE, '..'));
@@ -157,6 +158,7 @@ function trimHistory(messages) {
 
 async function main() {
   const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(argv, { valued: ['--max-rounds'], boolean: ['--selftest'], positional: true }, { tool: 'qwen-agent' });
   if (argv.includes('--selftest')) return selftest();
   const mi = argv.indexOf('--max-rounds');
   const maxRounds = mi >= 0 ? Math.min(20, +argv[mi + 1] || 10) : 10;
