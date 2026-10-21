@@ -95,6 +95,7 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import vm from 'node:vm';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const require_ = createRequire(import.meta.url);
 const DexBuild = require_('./build-core.js');
@@ -1048,4 +1049,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('ecg-physionet-differential.mjs')) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

@@ -24,6 +24,8 @@
  * quantisation floor on the very quantity the experiment measures.
  * ════════════════════════════════════════════════════════════════════════════ */
 
+import { isCliEntry } from './argv-guard.mjs';
+
 /* 🔴 THE FOOT INDEX IS FRACTIONAL. `refineFeet` — the producer in `ppgdex-dsp.js` — already
    returns sub-sample foot positions (93.3275…, not 93), so `bp[footI]` on a typed array is
    `undefined`, `undefined > lo` is false, and EVERY beat is refused. The first version of this
@@ -187,7 +189,7 @@ function selftest() {
   return fail > 0 ? 1 : 0;
 }
 
-const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('pat-fiducial.mjs');
+const IS_MAIN = isCliEntry(import.meta.url);
 if (IS_MAIN && process.argv.includes('--selftest')) process.exit(selftest());
 if (IS_MAIN) {
   console.error('usage: node tools/pat-fiducial.mjs --selftest   (library; the §1 comparison drives it)');

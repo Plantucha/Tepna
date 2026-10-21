@@ -86,6 +86,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join, basename } from 'node:path';
 import vm from 'node:vm';
+import { isCliEntry } from './argv-guard.mjs';
 
 const require_ = createRequire(import.meta.url);
 const DexBuild = require_('./build-core.js');
@@ -1156,4 +1157,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('nsrr-criterion-sweep.mjs')) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

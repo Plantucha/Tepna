@@ -73,6 +73,7 @@ import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PHYS_LO = 200;
@@ -1052,4 +1053,4 @@ async function main() {
   if (JSON_OUT) console.log('JSONROWS ' + JSON.stringify({ searchMax: SMAX, rows: jsonRows }));
 }
 
-if (process.argv[1]?.endsWith('pat-window-oracle.mjs')) await main();
+if (isCliEntry(import.meta.url)) await main();

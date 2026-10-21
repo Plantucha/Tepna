@@ -39,6 +39,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { overlapSplit } from './pat-window-oracle.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -204,4 +205,4 @@ async function main() {
   }
 }
 
-if (process.argv[1]?.endsWith('pat-ecg-axis-residual.mjs')) await main();
+if (isCliEntry(import.meta.url)) await main();

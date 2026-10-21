@@ -25,7 +25,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { positionalArgs, refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -251,5 +251,4 @@ function selftest() {
   console.log(`selftest: ${ok} ok, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
-const self = fileURLToPath(import.meta.url);
-if (process.argv[1] && (process.argv[1] === self || process.argv[1].endsWith('qwen-agent.mjs'))) main();
+if (isCliEntry(import.meta.url)) main();

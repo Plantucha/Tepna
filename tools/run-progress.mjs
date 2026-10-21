@@ -25,6 +25,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* Remaining work is ROUNDS, not items: with `jobs` workers, `left` items take ceil(left/jobs)
    rounds. Dividing items by jobs is the same arithmetic only when left is a multiple of jobs. */
@@ -173,7 +174,7 @@ export class ResumeLedger {
 }
 
 // ── selftest ────────────────────────────────────────────────────────────────────────────────────
-const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('run-progress.mjs');
+const IS_MAIN = isCliEntry(import.meta.url);
 if (IS_MAIN && process.argv.includes('--selftest')) {
   const { mkdtempSync, rmSync, writeFileSync: wf, readFileSync: rf } = await import('node:fs');
   const { join } = await import('node:path');

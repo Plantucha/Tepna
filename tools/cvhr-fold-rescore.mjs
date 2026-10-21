@@ -45,6 +45,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ECG_FILES, PPG_FILES, hostWindowMs, realm } from './gap-s-sweep.mjs';
 import { ivIntersect, ivSpan, mergeIv } from './trio-anchor.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -554,4 +555,4 @@ if (process.argv.includes('--control-only')) {
   console.log(`\n${ctl.length - bad.length} of ${ctl.length} nights reproduce the committed merged view`);
   process.exit(bad.length ? 1 : 0);
 }
-if (process.argv[1] && process.argv[1].endsWith('cvhr-fold-rescore.mjs')) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

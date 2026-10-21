@@ -39,6 +39,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 // The one-inflation-robust floor + diagnostic — see the note in estimate().
 import { chao, modifiedChao } from './capture-recapture.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -497,4 +498,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('beat-capture-recapture.mjs')) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

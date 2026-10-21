@@ -40,6 +40,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { stripNonCode } from './probe-equivalence.mjs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -145,7 +146,7 @@ export function codeSources(root) {
 }
 
 // ── selftest ────────────────────────────────────────────────────────────────────────────────────
-const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('gate-tightness.mjs');
+const IS_MAIN = isCliEntry(import.meta.url);
 if (IS_MAIN && process.argv.includes('--selftest')) {
   let pass = 0;
   let fail = 0;

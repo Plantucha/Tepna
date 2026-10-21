@@ -66,6 +66,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -1004,7 +1005,7 @@ async function main() {
   console.log('    git show HEAD:<file> | grep -c <an identifier your change adds>');
 }
 
-if (process.argv[1] && process.argv[1].endsWith('rebase-safe.mjs'))
+if (isCliEntry(import.meta.url))
   main().catch((e) => {
     console.error(String((e && e.stack) || e));
     process.exit(2);

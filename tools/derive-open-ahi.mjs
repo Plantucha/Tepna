@@ -65,6 +65,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { basename, join } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
+import { isCliEntry } from './argv-guard.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 
@@ -1634,7 +1635,7 @@ function selftest() {
 
 /* ── entry ────────────────────────────────────────────────────────────────────────────────────── */
 
-const DIRECT = process.argv[1] && process.argv[1].endsWith('derive-open-ahi.mjs');
+const DIRECT = isCliEntry(import.meta.url);
 if (DIRECT) {
   let opt;
   try {

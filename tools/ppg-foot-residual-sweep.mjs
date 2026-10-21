@@ -41,6 +41,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -531,4 +532,4 @@ async function main() {
   if (JSON_OUT) fs.writeFileSync(JSON_OUT, rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
 }
 
-if (process.argv[1]?.endsWith('ppg-foot-residual-sweep.mjs')) await main();
+if (isCliEntry(import.meta.url)) await main();

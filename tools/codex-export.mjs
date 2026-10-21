@@ -27,7 +27,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -205,6 +205,6 @@ function main(argv) {
   return r.bad.length ? 1 : 0;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('codex-export.mjs')) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

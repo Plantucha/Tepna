@@ -44,6 +44,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { isCliEntry } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -509,4 +510,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('beat-injection-recovery.mjs')) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

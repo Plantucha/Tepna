@@ -35,6 +35,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BUMPS = ['patch', 'minor', 'major'];
@@ -113,7 +114,7 @@ function main() {
   console.log('verify in ~4 s:  node tests/run-tests.mjs --group=release-ledger');
 }
 
-const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('new-changeset.mjs');
+const IS_MAIN = isCliEntry(import.meta.url);
 
 if (IS_MAIN && process.argv.includes('--selftest')) {
   let pass = 0,
