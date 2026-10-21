@@ -47,12 +47,14 @@
  *   node tools/trio-batch.mjs --src <captures> --out <dir>     # build ms;hr;c corpus
  *   node tools/tch-window-sensitivity.mjs <dir>
  * ════════════════════════════════════════════════════════════════════════ */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const TOOL = 'tools/tch-window-sensitivity.mjs';
 const AS = createRequire(import.meta.url)(join(ROOT, 'analysis-stats.js'));
 
 const HR_MIN = 30,
@@ -131,9 +133,10 @@ if (!existsSync(DIR) || !statSync(DIR).isDirectory()) {
   console.error('  build one with `node tools/trio-batch.mjs --src <captures> --out <dir>`, or name an existing dir.');
   process.exit(2);
 }
-const nights = readdirSync(DIR)
-  .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && statSync(join(DIR, d)).isDirectory())
-  .sort();
+/* ONE walk, and the walk is the population. A hand-rolled filter beside the snapshot would
+   measure a set this tool never scored (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+const popBefore = snapshotNights(DIR);
+const nights = popBefore.nights;
 
 const rows = [];
 for (const n of nights) {
@@ -180,6 +183,16 @@ const f = (x) => (x == null ? ' — ' : x.toFixed(2));
 // ── baseline: full window, every night ───────────────────────────────────
 const base = rows.map((r) => ({ n: r.n, len: r.ks.length, s: solve(r.ks, r) }));
 console.log(`\ncorpus: ${rows.length} nights · total simultaneous s = ${base.reduce((a, b) => a + b.len, 0).toLocaleString()}`);
+/* A ROOT WITH NIGHT FOLDERS AND NO USABLE EXPORT IS ABSENCE, AND IT USED TO CRASH HERE: the median
+   of an empty list is `null` and the next line called `toLocaleString` on it, so the run died with
+   a stack trace on the line AFTER the population. The directory check above refuses a missing root
+   by name, and this is its sibling — the root exists and carries nothing this tool can read. */
+if (!base.length) {
+  const empty = populationVerdict(popBefore, snapshotNights(DIR), { tool: TOOL, evidence: [TOOL] });
+  console.log(`population: ${empty.status} — ${empty.population.checked} night(s) covered of ${empty.population.eligible}`);
+  console.error(`✗ tools/tch-window-sensitivity.mjs: ${popBefore.n} night folder(s) under ${DIR} and none carries the three node-export JSONs this tool reads.`);
+  process.exit(2);
+}
 console.log(`per-night window: median ${med(base.map((b) => b.len)).toLocaleString()} s  (paper: 291,561 s / 26 nights ≈ 11,214 s)\n`);
 console.log('A · FULL WINDOW, all nights (the shipped figure)');
 for (const k of ['o2', 'h10', 'verity'])
@@ -303,3 +316,8 @@ for (const [lab, pred] of [
   };
   console.log(`    ${lab.padEnd(24)} n=${String(sub.length).padStart(2)}   σ_O2 ${g('o2')}   σ_H10 ${g('h10')}   σ_Ver ${g('verity')}`);
 }
+
+/* The population closes where the work ends, never where it opened: a night that arrived or left
+   while sections A through H ran is the difference between one corpus and two. */
+const population = populationVerdict(popBefore, snapshotNights(DIR), { tool: TOOL, evidence: [TOOL] });
+console.log(`\npopulation: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);

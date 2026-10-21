@@ -48,13 +48,15 @@
  *   node tools/tch-fused-corpus.mjs --dir <dir> --json
  * ════════════════════════════════════════════════════════════════════════ */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
+import { intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const TOOL = 'tools/tch-fused-corpus.mjs';
 const AS = createRequire(import.meta.url)(join(ROOT, 'analysis-stats.js'));
 
 /* ── worker-mirrored constants + helpers ─────────────────────────────────── */
@@ -243,20 +245,29 @@ function main() {
   }
   const dir = argv[dirI + 1],
     asJson = argv.includes('--json');
-  const nights = readdirSync(dir)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && statSync(join(dir, d)).isDirectory())
-    .sort();
+  /* ONE walk, and the walk is the population. A second hand-rolled `readdirSync` here would
+     measure a set this tool never scored, so the night list comes out of the snapshot itself
+     (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+  const popBefore = snapshotNights(dir);
+  const nights = popBefore.nights;
   if (!nights.length) {
     console.error(`no YYYY-MM-DD night folders under ${dir}`);
     process.exit(2);
   }
 
   const rows = nights.map((n) => solveNight(dir, n));
-  const solved = rows.filter((r) => !r.skip);
-  const skipped = rows.filter((r) => r.skip);
+  const popAfter = snapshotNights(dir);
+  const population = populationVerdict(popBefore, popAfter, { tool: TOOL, evidence: [TOOL] });
+  /* A night that left mid-run was scored over bytes that are no longer there, so the corpus
+     figures below describe the INTERSECTION. The per-night rows stay whole and the verdict
+     names what moved. */
+  const keep = new Set(intersectSnapshots(popBefore, popAfter).nights);
+  const scored = rows.filter((r) => keep.has(r.night));
+  const solved = scored.filter((r) => !r.skip);
+  const skipped = scored.filter((r) => r.skip);
 
   if (asJson) {
-    console.log(JSON.stringify({ dir, nights: rows }, null, 2));
+    console.log(JSON.stringify({ dir, nights: rows, population }, null, 2));
     return;
   }
 
@@ -280,6 +291,7 @@ function main() {
   const pick = (k, which) => solved.map((r) => r[which][k]).filter((x) => x != null && x > 0);
   console.log('\n  ' + '─'.repeat(94));
   console.log(`  solved ${solved.length} / ${rows.length} night(s)${skipped.length ? ` · ${skipped.length} skipped` : ''}`);
+  console.log(`  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
   if (!solved.length) return;
   const noConf = solved.filter((r) => !r.hasConf).length;
   if (noConf)

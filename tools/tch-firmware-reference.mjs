@@ -858,7 +858,9 @@ function selftest() {
   const src = fs.readFileSync(path.join(HERE, 'tch-firmware-reference.mjs'), 'utf8');
   const at = (...frag) => src.indexOf(frag.join(''));
   const iOpen = at('const popBe', 'fore = snapshotNights(dir)');
-  const iEnum = at('/^\\d{4}-\\d{2}-\\d{2}$/.test(n)', ' && (!only.len', 'gth');
+  /* The anchor moved with the code it describes: the scored list is now DERIVED from the opening
+     snapshot, so the thing to pin is that derivation and not a second night regex. */
+  const iEnum = at('const nights = popBe', 'fore.nights.filter(');
   const iRows = at('let rows = [...seen', '.values()]');
   const iClose = at('const popAf', 'ter = snapshotNights(dir)');
   const iCut = at('intersectSnapshots(popBefore,', ' popAfter)');
@@ -868,6 +870,7 @@ function selftest() {
     'ANTI-VACUITY · every ordering anchor is found, so no leg below passes on a pair of −1s'
   );
   ok(iOpen < iEnum, 'ORDERING · the opening snapshot is taken before the nights are enumerated');
+  ok(at('fs\n    .readdir', 'Sync(dir)') < 0, 'ONE WALK · the scored nights come out of the snapshot, so no second enumeration of the root can disagree with the verdict');
   ok(iClose > iRows, 'ORDERING · the closing snapshot is taken after the scoring loop, not beside the opening one');
   ok(iCut < iSelect, 'ORDERING · the intersection narrows the rows before any population is selected from them');
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${ran})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
@@ -1053,10 +1056,12 @@ async function main(argv) {
         const r = JSON.parse(l);
         seen.set(ledgerKey(r.night, r.axis, r.referenceAxis), r);
       }
-  const nights = fs
-    .readdirSync(dir)
-    .filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n) && (!only.length || only.includes(n)))
-    .sort();
+  /* THE SCORED SET IS THE SNAPSHOT, NEVER A THIRD WALK. This used to re-enumerate `dir` here, so
+     the verdict below described one walk and the loop scored another, and a night arriving between
+     the two was scored into a figure whose population never saw it. The intersection repaired the
+     symptom after the fact; taking the list from `popBefore` removes the second population
+     (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+  const nights = popBefore.nights.filter((n) => !only.length || only.includes(n));
   let ctx = null;
   for (const n of nights) {
     if (seen.has(ledgerKey(n, axis, refAxis))) continue;

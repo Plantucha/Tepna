@@ -48,7 +48,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const TOOL_CLASSES = ['reports', 'enumerates', 'repo-tree', 'undecidable', 'no-enumeration'];
 
 /* A directory read. `execFileSync('find', …)` counts: it enumerates, whatever walks it. */
-const ENUM_CALL = /\b(readdirSync|opendirSync|globSync)\s*\(|\breaddir\s*\(|execFileSync\(\s*['"]find['"]/g;
+/* ⚠️ `snapshotNights` IS AN ENUMERATION, and leaving it out inverted this scan. A tool that moves
+   its walk behind `corpus-scope.mjs` stops calling `readdirSync` itself, so the first version of
+   this list read the wired tool as "enumerates no directory" — the same bin as a tool that never
+   touches a capture. Measured 2026-10-21 on `tch-fused-corpus.mjs`: wiring the population verdict
+   moved it from `enumerates` to `no-enumeration`, which is a hazard set that shrinks because the
+   hazard became invisible. The helper call is the enumeration, and its first argument is the root. */
+const ENUM_CALL = /\b(readdirSync|opendirSync|globSync|snapshotNights)\s*\(|\breaddir\s*\(|execFileSync\(\s*['"]find['"]/g;
 
 /* An expression that can only name a tree inside this checkout. `process.cwd()` is included on
    purpose: a tool run from the repo reads the repo, and a tool run elsewhere is already outside
@@ -72,6 +78,10 @@ const CAPTURE_VOCAB = [
   //   only the plain-string form. `pat-dip-index.mjs` carries both suffixes in regex form alone, so
   //   the strict pattern dropped it out of the population the moment its night regex was wired away.
   /\/srv\/data\/tepna-corpus|DEX_UPLOADS|CORPUS-LOCATIONS|corpusSearch/,
+  /corpus-scope\.mjs|snapshotNights\s*\(/, // the night primitive itself: a tool that calls it
+  //                                  reads nights, and delegating the walk must not delete the
+  //                                  evidence that it does.
+
   /captures? root|night(?:s)? root|per-night/i
 ];
 
@@ -260,12 +270,6 @@ export const UNWIRED_BACKLOG = {
   'stage-lab.mjs': 11,
   'stitch-31d-run.mjs': 3,
   'stuck-run-lengths.mjs': 1,
-  'tch-bootstrap-ci.mjs': 1,
-  'tch-degeneracy-d7.mjs': 1,
-  'tch-fused-corpus.mjs': 1,
-  'tch-multinight.mjs': 1,
-  'tch-reference-validation.mjs': 2,
-  'tch-window-sensitivity.mjs': 1,
   'trio-batch.mjs': 1,
   'wearable-sync.mjs': 1
 };

@@ -38,12 +38,13 @@
  *   node tools/tch-multinight.mjs --json             # machine-readable rows
  * ════════════════════════════════════════════════════════════════════════ */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -194,6 +195,7 @@ function sigmaMap(r) {
  * SYNTHETIC multi-night corpus (known-answer)
  * ──────────────────────────────────────────────────────────────────────── */
 const LABELS = ['ECGDex', 'PpgDex', 'OxyDex']; // H10-ECG · Verity-PPG · O2Ring/Oxy
+const TOOL = 'tools/tch-multinight.mjs';
 
 /* One night — a PLANTED-CORRELATION FACTOR MODEL (bpm, per 30-s epoch).
  * Each device's deviation from the latent truth L is
@@ -699,15 +701,20 @@ function main() {
       console.error('  --dir: path not found: ' + base);
       process.exit(2);
     }
-    const subs = readdirSync(base)
-      .map((d) => join(base, d))
-      .filter((p) => statSync(p).isDirectory());
+    /* ONE walk, and the walk is the population. This tool takes ANY subdirectory as a night, so
+       the snapshot takes the same rule rather than the default night-shaped one — a name filter
+       the tool does not apply would report a population it never scored
+       (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+    const popBefore = snapshotNights(base, { re: /./ });
+    const subs = popBefore.nights.map((d) => join(base, d));
     if (!subs.length) {
       console.error('  --dir: expected one subdirectory per night (each with 3 node-export JSONs) under ' + base);
       process.exit(2);
     }
     const rows = subs.map((d) => runNight(readNightDir(d), LABELS));
+    const population = populationVerdict(popBefore, snapshotNights(base, { re: /./ }), { tool: TOOL, evidence: [TOOL] });
     report(rows, { json });
+    console.log(`  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
     console.log('\n  (real nights: no planted truth → distribution is the verdict; compare median σ to the corpus reference.)');
     emitVerdict(rows, [base]);
     return;
