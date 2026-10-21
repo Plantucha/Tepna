@@ -206,22 +206,7 @@ export function check(enumerated, manifest, validator, runner) {
    ⚠️ The population is the manifest's decides set, not every tool: the row's own instance
    (`tools/wt-done.mjs`, a queue action, `word-only`) sits outside it by design. Widening to every
    tools/*.mjs that declares a check is the owner's call, with a measured count (see the PR body). */
-export const UNGATED_RATCHET = new Set([
-  'tools/pat-ppg-ppg-control.mjs',
-  'tools/pulse-agreement.mjs',
-  'tools/tch-estimator-bakeoff.mjs',
-  'tools/tch-per-epoch-rho.mjs',
-  /* ── ARRIVED 2026-10-21 WITH A CORRECTED INSTRUMENT, NOT AS NEW DEBT ──────────────────────────
-     These three were never tested. `gatedBy` read a test ref out of `git grep`, so a test file that
-     named the tool IN A COMMENT gated it, and the three sat in the `gated` column while nothing ran
-     them: `tests/dex-tests.js` mentions the first two in prose about a different subject, and the
-     third in two paragraphs about its denominator. The ratchet still may only SHRINK — entries are
-     not added to excuse a new producer. These are the hidden debt the fix made visible, and the row
-     `2026-10-21-three-decides-producers-were-gated-by-a-comment` carries them out. */
-  'tools/acc-acc-control.mjs',
-  'tools/cpap-oxy-couple.mjs',
-  'tools/tch-multinight.mjs'
-]);
+export const UNGATED_RATCHET = new Set(['tools/pat-ppg-ppg-control.mjs', 'tools/pulse-agreement.mjs', 'tools/tch-estimator-bakeoff.mjs', 'tools/tch-per-epoch-rho.mjs']);
 
 /* ⚠️ A FOURTH SPELLING — and the comment in `selftest-all.mjs` predicted it. That predicate matched
    `has('--selftest')` / `includes('--selftest')` / `indexOf('--selftest')` by CALL POSITION, which is
@@ -852,7 +837,8 @@ function selftest() {
        `git grep -l` gates on the FILE, and a test file that names a tool in a comment is prose about
        it. Measured 2026-10-21 over the 123 decides producers: 4 were gated by a mention alone. One of
        them (`null-fuzz.mjs`) had a real selftest the dashed pattern could not see; the other three had
-       nothing, and they are the three provenance-stamped entries in UNGATED_RATCHET above. */
+       nothing. They entered UNGATED_RATCHET as arrived debt, and each left it with a `--selftest`
+       (row 2026-10-21-three-decides-producers-rest-on-a-comment). */
     g = checkGated(
       M2,
       (p) => src[p],
