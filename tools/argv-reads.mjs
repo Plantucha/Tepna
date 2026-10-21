@@ -41,6 +41,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { KEYWORD_HEADS } from './js-lex.mjs'; // the keywords a value may not follow — one list, two walkers
 import { makeVerdict } from './verdict-emit.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -70,7 +71,13 @@ function isRegexStart(text, i) {
   if (k < 0) return true;
   if ('([{,;:=!&|?+-*%~^<>'.includes(text[k])) return true;
   const word = /([A-Za-z_$][\w$]*)$/.exec(text.slice(Math.max(0, k - 12), k + 1));
-  return !!word && ['return', 'typeof', 'case', 'in', 'of', 'new', 'delete', 'void', 'do', 'else', 'yield', 'await'].includes(word[1]);
+  /* THE KEYWORD LIST IS SINGLE-SOURCED in `js-lex.mjs`, the one regex-aware lexer, because this file
+     and that one answered the same question from two lists and only one of them was right: the lexer
+     had no list at all until 2026-10-21. The WALK still differs — this one reads backwards from the
+     slash and the lexer tracks forwards — and the character rules differ on `}`, which the lexer calls
+     expression position and this file calls division. Those are the two scanners' own business; the
+     keywords are not. */
+  return !!word && KEYWORD_HEADS.includes(word[1]);
 }
 
 export function maskNonCode(text) {
