@@ -19,6 +19,11 @@ Four states, each a different claim, so each is planted:
 * **over budget** — some device passed the 20/h of VIGIL-OVERNIGHT-FINDINGS P2.1 and the card is loud,
   naming the device and the rate.
 
+`bleBudgetPerHour` is extracted for REAL rather than stubbed: it is the ONE source of the 20/h budget
+in the page — the rate CURVE draws the same line (row
+`2026-10-20-ble-backoff-rate-is-drawn-as-a-level-not-a-curve`) — so a stub here would let the
+over-budget case below pass against a page whose two readers had drifted apart.
+
 Runs the SHIPPED function, extracted from monitor.html, under node with `$` stubbed — the same recipe as
 the live-loss and device-card tests next door, and for the same reason: the whole page cannot be
 evaluated here without hitting its own `const` dead zones.
@@ -92,7 +97,7 @@ def _render():
     prog = (
         "const CASES = " + json.dumps(CASES) + ";\n"
         "let EL = {};\n"
-        "const $ = id => EL[id];\n" + _extract("renderBle") + "\n"
+        "const $ = id => EL[id];\n" + _extract("renderBle", "bleBudgetPerHour") + "\n"
         "const out = {};\n"
         "for (const k in CASES) {\n"
         "  EL = {}; for (const id of " + json.dumps(IDS) + ")\n"

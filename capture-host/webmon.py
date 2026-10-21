@@ -31,6 +31,7 @@ import storage_targets
 import alerts
 import timeline as _timeline
 import nights_index as _nights
+import ble_series as _ble
 import mem_series as _mem
 import build_id
 import seal
@@ -1967,6 +1968,24 @@ def make_app(
             return web.json_response({"error": "the journal could not be read", "segments": None}, status=503)
         return web.json_response(out)
 
+    # Residue row 2026-10-20-ble-backoff-rate-is-drawn-as-a-level-not-a-curve. Same mechanism as
+    # /api/memory above, and off the status round for the same reason: a journal read on every 5 s poll
+    # of every tab is the stall #292 moved off the loop.
+    async def ble_rate_get(req):
+        """GET /api/ble-rate[?hours=N] — the per-device error-backoff rate series from the journal.
+
+        The status block carries the NEWEST rate only, so a climb that stays under the 20/h budget is
+        visible nowhere else. 503 with `segments: null` when the journal cannot be read — never an
+        empty series, which would say the daemon logged nothing (∅)."""
+        try:
+            hours = max(1.0, min(72.0, float(req.query.get("hours", 12))))
+        except (TypeError, ValueError):
+            hours = 12.0
+        out = await asyncio.to_thread(_ble.read_ble_series, hours)
+        if out is None:
+            return web.json_response({"error": "the journal could not be read", "segments": None}, status=503)
+        return web.json_response(out)
+
     async def probe_night_get(req):
         """GET /api/probe-night[?night=YYYY-MM-DD] — is this night declared a probe night, and by what.
 
@@ -2249,6 +2268,7 @@ def make_app(
             web.get("/api/state", state),
             web.get("/api/version", version_get),
             web.get("/api/memory", memory_get),
+            web.get("/api/ble-rate", ble_rate_get),
             web.get("/api/wifi", wifi_get),
             web.post("/api/wifi/scan", wifi_scan_h),
             web.post("/api/wifi/connect", wifi_connect_h),
