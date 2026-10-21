@@ -93,6 +93,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { cpus } from 'node:os';
 import { createHash } from 'node:crypto';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'nsrr-score-checkpoint.json');
@@ -417,7 +418,7 @@ function selftest() {
 
 /* Keyed on argv[1], like the main guard below: a scorer may `import()` this module for `poolVerdict`
    while running its OWN --selftest / --verdict-sample, and a bare argv check would hijack that run. */
-const POOL_IS_CLI = !!(process.argv[1] && process.argv[1].endsWith('nsrr-score-pool.mjs'));
+const POOL_IS_CLI = isCliEntry(import.meta.url);
 if (POOL_IS_CLI && process.argv.includes('--selftest')) process.exit(selftest());
 if (POOL_IS_CLI && process.argv.includes('--verdict-sample')) {
   console.log(JSON.stringify(verdictSample(), null, 1));
@@ -693,5 +694,4 @@ async function main(argv) {
 }
 
 if (process.argv.includes('--worker-child')) workerMain();
-else if (process.argv[1] && process.argv[1].endsWith('nsrr-score-pool.mjs') && !process.argv.includes('--selftest') && !process.argv.includes('--verdict-sample'))
-  main(process.argv.slice(2)).then((c) => process.exit(c));
+else if (isCliEntry(import.meta.url) && !process.argv.includes('--selftest') && !process.argv.includes('--verdict-sample')) main(process.argv.slice(2)).then((c) => process.exit(c));

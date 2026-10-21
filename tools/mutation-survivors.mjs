@@ -31,7 +31,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const LEDGER_PATH = path.join(HERE, '..', 'mutation-survivors.json');
@@ -898,7 +898,7 @@ function selftest() {
 
 const CMDS = { ingest: cmdIngest, list: cmdList, close: cmdClose, ratchet: cmdRatchet, migrate: cmdMigrate };
 
-if (process.argv[1] && process.argv[1].endsWith('mutation-survivors.mjs')) {
+if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   /* The subcommand table below refuses an unknown POSITIONAL; an unknown flag reached the defaults.
      `ingest` without a readable `--pr` is the attribution the header refuses, so a typo there must

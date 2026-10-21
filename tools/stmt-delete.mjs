@@ -80,6 +80,7 @@ import { stripNonCode } from './probe-equivalence.mjs';
 import { ResumeLedger, etaSeconds, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
 import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 /* Files Level B may run against. An allowlist, not a glob: SDL is experimental here and its cost is
@@ -689,7 +690,7 @@ async function runLevelB(file, group, jobs, covPath, resumePath) {
 }
 
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
-const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('stmt-delete.mjs');
+const IS_MAIN = isCliEntry(import.meta.url);
 if (IS_MAIN && process.argv.includes('--verdict-sample')) {
   /* What `tools/verdict-adoption.mjs --check` RUNS to read this tool's object. Representative, not a
      measurement: a real Level B shape (126 eligible, 12 pseudo-tested — the counts this file's header

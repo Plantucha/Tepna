@@ -41,6 +41,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findings as steFindings, readGlossary, scan as steScan } from './ste-lint.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -812,4 +813,4 @@ function main() {
    printed the gate's own PASS line and exited 0, and the importer's `.then` never ran. It was the one
    tool under `tools/` calling `process.exit(main())` unguarded; `tools/rebase-safe.mjs` now imports
    `extractVerdicts` from here, which is what the guard buys. Direct invocation is unchanged. */
-if (process.argv[1] && process.argv[1].endsWith('pr-compliance.mjs')) process.exit(main());
+if (isCliEntry(import.meta.url)) process.exit(main());

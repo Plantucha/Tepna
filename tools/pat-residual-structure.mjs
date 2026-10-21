@@ -64,6 +64,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_STRUCTURED = 0.3;
@@ -431,4 +432,4 @@ async function main() {
   console.log('VERDICT ' + JSON.stringify(runVerdict(tally, excludedBy, eligible, { commit: gitCommitShort(), evidence: [DIR] })));
 }
 
-if (process.argv[1]?.endsWith('pat-residual-structure.mjs')) await main();
+if (isCliEntry(import.meta.url)) await main();

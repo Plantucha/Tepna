@@ -38,6 +38,7 @@
  *     (each file: one event time in SECONDS per line)
  * ════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* Mean distance from every event in `a` to its nearest "advocate" in `b+shift`.
    Distances are clipped at `dilation` so a single unmatched event contributes a
@@ -188,7 +189,7 @@ function selftest() {
    with `--selftest` gets THIS tool's selftest instead of its own — and sees a PASS for tests it
    never ran. Caught 2026-08-23 the first time it was imported (`aperiodic-method-compare.mjs`).
    `aperiodic-offset.mjs:245` already guards the same way; this one shipped without it in #1644. */
-const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('nearest-advocate.mjs');
+const IS_MAIN = isCliEntry(import.meta.url);
 const argv = process.argv.slice(2);
 if (IS_MAIN && argv.includes('--selftest')) process.exit(selftest());
 const readEvents = (p) =>

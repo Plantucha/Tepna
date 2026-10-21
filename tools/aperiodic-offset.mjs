@@ -36,6 +36,7 @@
  *   node tools/aperiodic-offset.mjs --a <ACC.txt> --b <ACC.txt> [--inject-ms N] [--max-lag-s 10]
  */
 import { readFileSync } from 'node:fs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/;
 export function hostMs(s) {
@@ -242,4 +243,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('aperiodic-offset.mjs')) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

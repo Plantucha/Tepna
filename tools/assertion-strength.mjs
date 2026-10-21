@@ -74,6 +74,7 @@ import { dirname, join } from 'node:path';
 import { resolveStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { ResumeLedger, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
@@ -136,7 +137,7 @@ async function ask(batch) {
   return parseVerdicts(j.response || '', batch.length);
 }
 
-const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('assertion-strength.mjs');
+const IS_MAIN = isCliEntry(import.meta.url);
 if (IS_MAIN && process.argv.includes('--selftest')) {
   let pass = 0,
     fail = 0;

@@ -50,6 +50,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 export const CAP = 4;
 export const KODIAK_IDLE_MIN = 20;
@@ -366,7 +367,7 @@ function selftest() {
   console.log(`all ${ran} selftests passed`);
 }
 
-if (process.argv[1] && process.argv[1].endsWith('pr-walker.mjs')) {
+if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   const flag = (n) => argv.includes(n);
   const val = (n, d) => (argv.includes(n) ? argv[argv.indexOf(n) + 1] : d);

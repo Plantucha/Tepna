@@ -62,6 +62,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -532,4 +533,4 @@ async function main() {
   console.log('VERDICT ' + JSON.stringify(JSON_OUT ? v : { ...v, result: v.result && { ...v.result, nights: v.result.nights.map((r) => ({ night: r.night, ratio: r.ratio, p: r.p })) } }));
 }
 
-if (process.argv[1]?.endsWith('pat-mode-posture.mjs')) await main();
+if (isCliEntry(import.meta.url)) await main();

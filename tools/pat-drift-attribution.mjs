@@ -90,6 +90,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_EXPLAINS = 0.3;
@@ -353,4 +354,4 @@ async function main() {
   console.log('\n(ppm columns and predicted/observed slopes are in ppm, i.e. ms of lag per 1e6 ms elapsed)');
 }
 
-if (process.argv[1]?.endsWith('pat-drift-attribution.mjs')) await main();
+if (isCliEntry(import.meta.url)) await main();

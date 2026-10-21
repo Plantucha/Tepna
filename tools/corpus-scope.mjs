@@ -40,7 +40,7 @@ import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { positionalArgs, refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -473,4 +473,4 @@ function main() {
   console.log('  A count that does not name its roots is not a count — quote this scope with the number.');
 }
 
-if (process.argv[1]?.endsWith('corpus-scope.mjs')) main();
+if (isCliEntry(import.meta.url)) main();

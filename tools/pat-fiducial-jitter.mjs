@@ -58,7 +58,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_MATERIAL_MS = 20;
@@ -479,4 +479,4 @@ async function main() {
   );
 }
 
-if (process.argv[1]?.endsWith('pat-fiducial-jitter.mjs')) await main();
+if (isCliEntry(import.meta.url)) await main();
