@@ -106,8 +106,10 @@ def assemble_live(
     clock_status = clock_status_for(stream)  # refuses a non-Polar stream before anything else is built
 
     # ── validation (§6): the live path verifies no bytes, it writes them. No hash, no re-read, no
-    # trailer. Claiming VALID would assert a check nobody ran. ──
-    validation, validation_depth = ae.UNKNOWN, None
+    # trailer. Claiming VALID would assert a check nobody ran. The DEPTH goes below as a literal
+    # rather than as a second local: a name that is always `None` is an indirection no test can tell
+    # from the literal, and the mutation gate reads such a line as unobservable rather than as code.
+    validation = ae.UNKNOWN
 
     # ── completeness (§6), INDEPENDENT of validation. Three facts can each deny COMPLETE and they are
     # checked in order of how certain they are: a row the writer LOST is a hole in this artifact
@@ -151,7 +153,7 @@ def assemble_live(
         artifact_size=None,  # the caller has not stat'ed it; None, never 0 (§5)
         artifact_sha256=None,  # the live path computes no hash (§12 — never invent a second one)
         validation=validation,
-        validation_depth=validation_depth,
+        validation_depth=None,  # a depth describes a check that RAN, and none ran (§6)
         completeness=completeness,
         provenance={
             "stream": stream,

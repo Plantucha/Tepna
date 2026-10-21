@@ -189,6 +189,20 @@ def test_a_resumed_artifact_is_never_called_COMPLETE():
 # ── §6 · the two axes move independently ──────────────────────────────────────
 
 
+def test_the_envelope_carries_the_IDENTITY_it_was_GIVEN():
+    """§13: joining an artifact back to a session and a device is what the envelope is for, and
+    `assemble_live` derives neither field — it carries what the caller measured. The mutation gate
+    found that NO test observed `device_id`: replacing it with `None` left the whole suite green
+    (`x_assemble_live__mutmut_20`, measured 2026-10-21). Both identities are asserted against two
+    different pairs, so a hardcoded constant cannot satisfy them."""
+    ev = _ev(device_id="H10-01", session_id="20261021041500")
+    assert ev.device_id == "H10-01"
+    assert ev.session_id == "20261021041500"
+    other = _ev()
+    assert other.device_id == "VERITY-01"
+    assert other.session_id == "20261021031500"
+
+
 def test_completeness_moves_while_validation_does_not():
     """The live path verifies no bytes — it writes them — so validation is UNKNOWN by construction and
     saying otherwise would assert a check nobody ran. The axes are independent, which here means
@@ -343,6 +357,9 @@ def test_the_sidecar_is_actually_WRITTEN_beside_the_artifact(tmp_path):
     # implements works with no new matching rule
     assert ev["session_id"] == "20261021031500"
     assert ev["session_id"] in wr.path
+    # the device identity comes off the dev MAP the runner holds, not off the path, so this is the
+    # one leg that proves the helper reads `dev["device_id"]` rather than re-parsing the filename
+    assert ev["device_id"] == "H10-01"
     assert ev["provenance"]["stream"] == "ecg"
     assert ev["provenance"]["negotiated_hz"] == 130.0
 
