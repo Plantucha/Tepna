@@ -33,7 +33,12 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { anklePair } from './pat-dip-index.mjs';
 import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
-import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
+   skips each valued flag's VALUE with it, so a flag written before the positional cannot be
+   mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
+const ARGV_SPEC = { valued: ['--cpap', '--trio'], boolean: ['--json'], positional: true };
 
 const require = createRequire(import.meta.url);
 const PATAlign = require('../pat-align.js');
@@ -42,12 +47,12 @@ const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
    IMPORTER's arguments, so it runs for the CLI only (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
-if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, { valued: ['--cpap', '--trio'], boolean: ['--json'], positional: true }, { tool: 'pat-dip-validate' });
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'pat-dip-validate' });
 const opt = (k, d) => {
   const i = argv.indexOf(k);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
-const ROOT = argv.find((a) => !a.startsWith('--') && existsSync(a));
+const ROOT = positionalArgs(argv, ARGV_SPEC).find((a) => existsSync(a));
 const CPAP = opt('--cpap', null);
 const TRIO = opt('--trio', null);
 const AS_JSON = argv.includes('--json');
