@@ -81,7 +81,7 @@ import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, concurrentWith, ivIntersect, ivSpan, mergeIv, startOf } from './trio-anchor.mjs';
 import { join, dirname, resolve, basename, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import os from 'node:os';
 import { spawn, execSync } from 'node:child_process';
@@ -108,14 +108,20 @@ const argv = process.argv.slice(2);
    are what the code actually reads (`flag(`/`opt(`/`optAll(` below), not what the header documents: four of
    them — `--cpap`, `--only-node`, `--allow-partial`, `--child` — are undocumented, and `--child` is passed
    by this file's own dispatcher, so a guard built from the help would refuse its own children. */
-refuseUnknownArgvOrExit(
-  argv,
-  {
-    valued: ['--src', '--out', '--night', '--limit', '--min-hours', '--min-overlap', '--night-band', '--jobs', '--cpap', '--only-node'],
-    boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child', '--code-digest']
-  },
-  { tool: 'trio-batch' }
-);
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
+   arguments, so an import of anything in this file judged flags it never passed (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) {
+  refuseUnknownArgvOrExit(
+    argv,
+    {
+      valued: ['--src', '--out', '--night', '--limit', '--min-hours', '--min-overlap', '--night-band', '--jobs', '--cpap', '--only-node'],
+      boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child', '--code-digest']
+    },
+    { tool: 'trio-batch' }
+  );
+}
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);

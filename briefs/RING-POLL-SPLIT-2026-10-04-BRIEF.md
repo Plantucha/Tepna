@@ -65,11 +65,15 @@ the properties that remain: per-sample placement, frame accounting, stalls, reco
 ## ③ 🔴 Split mode may DELETE the corrected PAT hat, and that is unmeasured
 
 E11 (#3267) writes `first_sample_idx` from `oxyii.ppg_stream_offset` — **`0x04`'s `[20:24]`, u32 LE**. It
-is the ring's own cumulative stream position, and #3270's three-floor PAT hat exists only because of it.
+is the field that would hold the ring's own cumulative stream position, and #3270's three-floor PAT hat
+exists only because of it. 🔴 **The ring leaves that field dead** — zero on every frame of 819 files since
+2026-10-04, and 0 on all 177 frames of the §P1 session. §P1 corrects the premise below, and the paragraph
+stays as the reasoning this brief carried on the day someone wrote it.
 
 `0x03`'s reply header is **exactly 6 bytes** (measured 2026-09-06: `payload_len − declared_count == 6` on
-every reply of two runs), with the u16 LE declared count at `[4:6]`. **`[0:4]` is unexamined** and no
-cumulative position is known on this opcode. If there is none, then on a split night the arrival rows
+every reply of two runs), with the u16 LE declared count at `[4:6]`. **`[0:4]` was EXAMINED on 2026-10-06
+and is not a position** — 0 on all 887 worn replies, 11 of 886 steps matching because those replies had
+declared 0 (§P1, criterion (b) FAIL). So no cumulative position is known on this opcode. If there is none, then on a split night the arrival rows
 carry no device position, `ringDevColumn` refuses, and the hat stops existing — trading the finger's floor
 axis for a completeness gain that ② says is not real.
 
@@ -166,6 +170,11 @@ reply's declared count on ≥ 95 % of consecutive pairs"):
 - the read is sound: `[4:6]`, the declared count, lives in the same 6 bytes and varies reply to reply
   (250, 0, 40, 13, …), so the header was read, and `[0:4]` is genuinely constant.
 
+**The header read is now the committed instrument.** The run above used a SCRATCH copy of the probe, which
+was never committed, so re-measuring after a firmware change would have cost the same patch. Since
+2026-10-20 `probe_oxyii_0x03.py` records the word per reply (`hdr0`, plus the raw `hdr_hex`), reports the
+share against the 95 % pre-stated here. A control ring whose word DOES advance covers the reader.
+
 The same session's `0x04` `[20:24]` also read 0 on all 177 frames. That is not a failed control: it is the field
 `oxyii.ppg_stream_offset` documents as measured dead on this ring since 2026-10-04 (zero on every frame of 819
 files). **So neither opcode carries a moving device position on this unit.** By the criterion as written, split
@@ -233,7 +242,7 @@ floor axis for an accounting gain is a loss, not a trade. This is why (a) alone 
 
 ## Acceptance (unchanged in shape, corrected in content)
 
-- [ ] P1 and P2 run and recorded.
+- [x] P1 and P2 run and recorded (2026-10-06, worn, box-local; §P1/P2 results above).
 - [ ] A config flag selecting the wave-poll mode, **default OFF**, so main's behaviour is byte-identical.
 - [ ] E11's arrival logger follows the frame-carrying command, writing the position column **BLANK** when
       that command carries none — and the consumer's refusal NAMES split mode rather than today's

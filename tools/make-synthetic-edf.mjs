@@ -34,9 +34,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { pathToFileURL } from 'node:url';
 
 const argv = process.argv.slice(2);
-if (argv.includes('--help') || argv.includes('-h')) {
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
+   arguments, so an import of anything in this file judged flags it never passed (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI && (argv.includes('--help') || argv.includes('-h'))) {
   console.log('usage: node tools/make-synthetic-edf.mjs [outdir]   (default: uploads/)');
   process.exit(0);
 }
@@ -44,7 +49,7 @@ if (argv.includes('--help') || argv.includes('-h')) {
    and wrote five EDFs into it, because the output directory was `process.argv[2]` whatever it looked
    like (residue 2026-10-11-help-flag-made-a-directory). Write-side, which is the class
    `tools/argv-survey.mjs` deliberately does not probe — so this one had to be caught in the act. */
-refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h'], positional: true }, { tool: 'tools/make-synthetic-edf.mjs' });
+if (IS_CLI) refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h'], positional: true }, { tool: 'tools/make-synthetic-edf.mjs' });
 const OUT = argv[0] || 'uploads';
 const STAMP = '20260613_231433'; // fixed; matches the header clock below
 const DATE_F = '13.06.26'; // EDF startdate  dd.mm.yy
@@ -206,12 +211,18 @@ const files = {
   CSL: writeEDF([ann(CSL_EVENTS)])
 };
 
-fs.mkdirSync(OUT, { recursive: true });
-let total = 0;
-for (const [kind, buf] of Object.entries(files)) {
-  const f = path.join(OUT, `${STAMP}_${kind}.edf`);
-  fs.writeFileSync(f, buf);
-  total += buf.length;
-  console.log(`  ${path.basename(f).padEnd(28)} ${String(buf.length).padStart(8)} bytes`);
+/* THE WRITE IS THE PROGRAM, AND A PROGRAM MUST NOT RUN ON AN IMPORT. Putting the refusal behind
+   `IS_CLI` without this would re-open `2026-10-11-help-flag-made-a-directory` on the import path:
+   measured 2026-10-20, an import from a script run with `--jobs=auto` took that token as `OUT` and
+   wrote five EDFs into a directory named after it. The CLI path is unchanged and still refuses. */
+if (IS_CLI) {
+  fs.mkdirSync(OUT, { recursive: true });
+  let total = 0;
+  for (const [kind, buf] of Object.entries(files)) {
+    const f = path.join(OUT, `${STAMP}_${kind}.edf`);
+    fs.writeFileSync(f, buf);
+    total += buf.length;
+    console.log(`  ${path.basename(f).padEnd(28)} ${String(buf.length).padStart(8)} bytes`);
+  }
+  console.log(`\n  ${Object.keys(files).length} files, ${(total / 1024).toFixed(0)} KB total — deterministic, no personal data.`);
 }
-console.log(`\n  ${Object.keys(files).length} files, ${(total / 1024).toFixed(0)} KB total — deterministic, no personal data.`);
