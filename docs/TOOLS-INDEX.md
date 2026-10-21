@@ -249,7 +249,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ste-lint.mjs`](../tools/ste-lint.mjs) | the writing rules, checked node tools/ste-lint.mjs <file.md> # exit 1 on any finding node tools/ste-lint.mjs - < body.md # a PR body on stdin node tools/ste-lint.mjs <file> --json # the… |
 | [`stitch-31d-run.mjs`](../tools/stitch-31d-run.mjs) | // stitch-31d-run.mjs — server-side 31-day fused-tool compute. |
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | LEVEL B — PSEUDO-TESTED STATEMENTS. Delete ONE statement and see whether anything notices. |
-| [`strip-markup.mjs`](../tools/strip-markup.mjs) | import { fileURLToPath } from 'node:url'; import { resolve } from 'node:path'; |
+| [`strip-markup.mjs`](../tools/strip-markup.mjs) | import { isCliEntry } from './argv-guard.mjs'; Remove an element AND ITS CONTENT from an HTML string — `<script>`/`<style>` for the tools that read a guide as prose. |
 | [`stuck-run-lengths.mjs`](../tools/stuck-run-lengths.mjs) | // // stuck-run-lengths.mjs — is T_STUCK = 200 samples a threshold for this stream, or only for the one // it was derived from? |
 | [`survivor-witness.mjs`](../tools/survivor-witness.mjs) | A WITNESS INPUT FOR EVERY SURVIVOR THAT HAS ONE 4708 operator mutants survive the JS sweeps unresolved. |
 | [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | FLIP A BRIEF'S STATUS, THEN RUN THIS. It carries the flip into DOCS-INDEX.md. |
