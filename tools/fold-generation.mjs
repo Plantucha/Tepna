@@ -41,6 +41,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -484,29 +485,44 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
+/* THE POPULATION THIS RUN READ, and whether it held still while the run read it. The corpus is a
+   live tree: a capture host writes nights into it, so a run that opens 147 nights and closes over
+   148 has described neither. `populationVerdict` makes that an emitted statement rather than a
+   silent average — the rule `tools/corpus-reads.mjs` enforces over every corpus enumerator. */
+function withPopulation(root, fn) {
+  const abs = join(ROOT, root);
+  const before = snapshotNights(abs);
+  const value = fn();
+  const after = snapshotNights(abs);
+  return { value, population: populationVerdict(before, after, { commit: gitCommitShort(), tool: SELF, evidence: [SELF] }) };
+}
+
 function main() {
   const argv = process.argv.slice(2);
   refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--json', '--all'], string: ['--record'], positional: false }, { tool: 'fold-generation' });
   if (argv.includes('--selftest')) process.exit(selftest());
   const commit = gitCommitShort();
   if (argv.includes('--all') || argv.includes('--record')) {
-    const { identity, rows } = auditRecords({ commit: null });
+    const run = withPopulation(TRIO, () => auditRecords({ commit: null }));
+    const { identity, rows } = run.value;
     const want = argv.includes('--record') ? argv[argv.indexOf('--record') + 1]?.split('/').pop() : null;
     const picked = want ? rows.filter((r) => r.name === want) : rows;
     const v = allVerdict(picked, identity, { commit });
     if (argv.includes('--json')) {
-      console.log(JSON.stringify(v, null, 2));
+      console.log(JSON.stringify({ verdict: v, population: run.population }, null, 2));
       return;
     }
     console.log(`published-number corpus identity · ${identity.root} at the working tree\n`);
     for (const r of picked) console.log(`  ${(r.judged ? r.state : 'not judged').padEnd(12)}  ${r.name}${r.judged ? (r.detail ? `   (${r.detail})` : '') : `   (${r.why})`}`);
     console.log(`\n  ${v.status} — ${v.result?.resolving ?? 0} of ${v.population.checked} live record(s) re-resolve; ${v.population.excluded} of ${v.population.eligible} are out of scope.`);
     if (v.reason) console.log(`  ${v.reason}`);
+    console.log(`  corpus-population ${run.population.status} over ${run.population.population.checked} night(s)${run.population.reason ? ` — ${run.population.reason}` : ''}`);
     return;
   }
-  const identity = corpusIdentity(TRIO, { commit: null });
+  const run = withPopulation(TRIO, () => corpusIdentity(TRIO, { commit: null }));
+  const identity = run.value;
   if (argv.includes('--json')) {
-    console.log(JSON.stringify(corpusBlock(identity), null, 2));
+    console.log(JSON.stringify({ corpus: corpusBlock(identity), population: run.population }, null, 2));
     return;
   }
   if (!identity.ok) {
@@ -520,6 +536,7 @@ function main() {
     `  foldGeneration  ${identity.generation}   ${identity.nights} night(s): ${identity.stamped} stamped under ${identity.codeDigests.length} code digest(s), ${identity.unstamped} unstamped`
   );
   console.log(`\n  Unstamped nights carry no generation and are named, never counted as one: ${identity.unstamped ? `${identity.unstampedNights.slice(0, 3).join(', ')}…` : 'none'}`);
+  console.log(`  corpus-population ${run.population.status} over ${run.population.population.checked} night(s)${run.population.reason ? ` — ${run.population.reason}` : ''}`);
 }
 
 if (isCliEntry(import.meta.url)) main();
