@@ -172,6 +172,21 @@ export function flagIndexVars(masked, aliases) {
 
 /* ── sites ─────────────────────────────────────────────────────────────────────────────────────── */
 const GUARD = /refuseUnknownArgvOrExit|refuseUnknownArgv\b/;
+/* ONE READ, TWO SPELLINGS. `argv[0]` is decided here as `positional` — an unknown token becomes data —
+   and `argv.filter((a) => !a.startsWith('--'))` is the SAME read written as a shape test, which this
+   scan abstained on as a bare `traversal`. The predicate names no flag: it rejects the dash-prefixed
+   tokens and keeps the rest, so whatever bare token arrives lands in the variable and flows to the
+   work. `wt-done.mjs` removes those paths. Measured 2026-10-21 over the 21 single-site traversals:
+   15 carry this exact shape, 3 are a prefix match against a flag name, 2 are a braced or multi-line
+   body, and 1 forwards the rest to a child process.
+   Bounded on purpose: `!x.startsWith('-…')` directly after the arrow, in `filter`/`find`/`findLast`.
+   The chained form `process.argv.slice(2).filter(…)` is the same read a third time, so an inline slice
+   may sit in front of the call.
+   A negated regex test, a helper predicate and a braced body are NOT read here and stay abstentions,
+   because a rule that guesses at a loop body is worse than one that declines. The dash is tested
+   against the RAW text: the mask blanks a string body, so `'--'` reads as `'  '` on the mask. */
+const SHAPE_POSITIONAL =
+  /^\s*(?:\.slice\(\s*\d*\s*\)\s*)?\.(?:filter|find|findLast)\s*\(\s*\(?\s*([A-Za-z_$][\w$]*)\s*(?:,\s*[A-Za-z_$][\w$]*\s*)?\)?\s*=>\s*\(?\s*!\s*\1\s*\.\s*startsWith\s*\(\s*['"`]-/;
 const UNKNOWN_WORD = /\b(unknown|unrecognis|unrecogniz|unexpected|not a (?:known )?(?:flag|option)|refus|invalid (?:flag|option|argument))/i;
 
 /** The statement a site sits in: back to the previous `;`, `{`, `}` or blank line, forward to the
@@ -252,8 +267,12 @@ export function argvSites(text) {
       )
         sites.push({ ...site, cls: 'literal-flag' });
       else sites.push({ ...site, cls: 'positional' });
-    } else if (/^\s*\.(?:slice|filter|find|findIndex|findLast|map|some|every|forEach|join|at|shift|pop|reduce|flatMap|concat|entries|keys)\b/.test(after)) sites.push({ ...site, cls: 'traversal' });
-    else if (/^\s*[),;\]}]/.test(after) || /^\s*\.\.\./.test(masked.slice(Math.max(0, idx - 3), idx))) sites.push({ ...site, cls: 'passed-on' });
+    } else if (/^\s*\.(?:slice|filter|find|findIndex|findLast|map|some|every|forEach|join|at|shift|pop|reduce|flatMap|concat|entries|keys)\b/.test(after)) {
+      /* the predicate is read from the RAW text at the same offsets, and only as far as the statement
+         this site sits in — a 24-character window cuts `!a.startsWith('-` in half. */
+      const rawWin = text.slice(idx + m[1].length, Math.min(to, idx + m[1].length + 200));
+      sites.push({ ...site, cls: SHAPE_POSITIONAL.test(rawWin) ? 'positional-by-shape' : 'traversal' });
+    } else if (/^\s*[),;\]}]/.test(after) || /^\s*\.\.\./.test(masked.slice(Math.max(0, idx - 3), idx))) sites.push({ ...site, cls: 'passed-on' });
     else if (/^\s*\.length\b/.test(after)) sites.push({ ...site, cls: 'length-only' });
     else sites.push({ ...site, cls: 'undecidable', why: `no rule matched the context \`${after.trim().slice(0, 20)}\`` });
   }
@@ -372,6 +391,16 @@ export function classifyTool(text) {
   const iter = iterationConsumes(masked, argvAliases(masked), text);
   if (!inputs.length && !iter.length) return { cls: 'no-read', sites, why: 'argv is bound or tested for the main guard and never read as input' };
   if (by('positional').length) return { cls: 'consumes', sites, why: `${by('positional').length} positional read(s) can turn an unknown token into data` };
+  /* Same precedence as the indexed spelling, and for the same reason: the token becoming data is the
+     expensive outcome, so it outranks both a proof of ignoring and an abstention beside it. */
+  if (by('positional-by-shape').length)
+    return {
+      cls: 'consumes',
+      sites,
+      why: `${by('positional-by-shape').length} shape-selected positional read(s) keep every non-flag token at line(s) ${by('positional-by-shape')
+        .map((s) => s.line)
+        .join(', ')}`
+    };
   if (iter.length) return { cls: 'consumes', sites, why: `every token is iterated and reaches a call at line(s) ${iter.map((h) => h.line).join(', ')}` };
 
   const abst = [...by('undecidable'), ...by('traversal'), ...by('passed-on'), ...by('indexed-by-variable')];
@@ -510,7 +539,12 @@ const PLANT = {
   'ignores.mjs': `const argv = process.argv.slice(2);\nif (argv.includes('--json')) go();\nconst i = argv.indexOf('--only');\nconst only = i >= 0 ? argv[i + 1] : null;\n`,
   'consumes.mjs': `const argv = process.argv.slice(2);\nif (argv.includes('--json')) go();\nconst target = argv[0];\nreaddirSync(target);\n`,
   'refuses.mjs': `import { refuseUnknownArgvOrExit } from './argv-guard.mjs';\nconst argv = process.argv.slice(2);\nrefuseUnknownArgvOrExit(argv, ['--json']);\nif (argv.includes('--json')) go();\n`,
-  'undecidable.mjs': `const argv = process.argv.slice(2);\nconst rest = argv.filter((a) => !a.startsWith('--'));\nwork(rest);\n`,
+  /* This plant used to be the `undecidable` one, under the assertion that a predicate traversal is not
+     decided by this scan. The abstention was honest while no rule read the predicate; with one it is
+     under-reporting, so the plant moved to `consumes` and the class below got a predicate that is
+     genuinely undecided — a membership test against a set the tool loads at runtime. */
+  'shape-positional.mjs': `const argv = process.argv.slice(2);\nconst rest = argv.filter((a) => !a.startsWith('--'));\nwork(rest);\n`,
+  'undecidable.mjs': `const argv = process.argv.slice(2);\nconst known = new Set(load());\nconst rest = argv.filter((a) => known.has(a));\nwork(rest);\n`,
   'noread.mjs': `import { pathToFileURL } from 'node:url';\nconst IS_MAIN = import.meta.url === pathToFileURL(process.argv[1]).href;\nconst argv = process.argv.slice(2);\n`,
   'commented.mjs': `// const argv = process.argv.slice(2); argv[0] would be a path\nconst s = 'process.argv[2]';\nconsole.log(s);\n`,
   'valued-flag.mjs': `const argv = process.argv.slice(2);\nconst k = argv.indexOf('--out');\nconst out = k >= 0 ? argv[k + 1] : 'default';\n`,
@@ -535,7 +569,31 @@ function selftest() {
     classifyTool("refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--json'] }, { tool: 't' });\nconst J = process.argv.includes('--json');\n").cls === 'refuses',
     'a guard called on an INLINE slice is a guard, not a binding — the order of these two rules decided it wrongly once'
   );
-  ok(cls('undecidable.mjs') === 'undecidable', 'a predicate traversal is not decided by this scan');
+  ok(cls('undecidable.mjs') === 'undecidable', 'a predicate computed at runtime is not decided by this scan');
+  /* THE SHAPE-SELECTED POSITIONAL, both directions. The positive plant is the dominant idiom in this
+     tree; the three decoys are the shapes the rule deliberately declines, and each must still abstain,
+     or the rule is a clearance wearing a decision's name. */
+  ok(cls('shape-positional.mjs') === 'consumes', 'a predicate that keeps every non-flag token is a positional read by another spelling');
+  ok(
+    classifyTool("const argv = process.argv.slice(2);\nconst hit = argv.find((a) => a.startsWith('--dir='));\n").cls === 'undecidable',
+    'a prefix match against a flag NAME is not a positional read, and stays an abstention'
+  );
+  ok(
+    classifyTool('const argv = process.argv.slice(2);\nconst rest = argv.filter((a) => !isFlag(a));\nwork(rest);\n').cls === 'undecidable',
+    'a helper predicate is not read, so the shape rule declines it'
+  );
+  ok(
+    classifyTool("const argv = process.argv.slice(2);\nconst rest = argv.filter((a) => {\n  if (a.startsWith('--')) return false;\n  return true;\n});\nwork(rest);\n").cls === 'undecidable',
+    'a braced predicate body is not read either — the bound is stated in the rule and asserted here'
+  );
+  ok(
+    argvSites("const argv = process.argv.slice(2);\nconst files = argv.filter((a) => !a.startsWith('--') && existsSync(a));\n").some((s) => s.cls === 'positional-by-shape'),
+    'a conjoined existence test does not hide the shape test in front of it'
+  );
+  ok(
+    classifyTool("const DIRS = process.argv.slice(2).filter((a) => !a.startsWith('--'));\nwork(DIRS);\n").cls === 'consumes',
+    'the chained spelling, with the slice inline in front of the call, is the same read'
+  );
   ok(cls('noread.mjs') === 'no-read', 'a main guard and a bare binding are not input reads');
   ok(cls('valued-flag.mjs') === 'ignores-by-construction', 'the valued-flag idiom indexes by a variable the literal lookup set');
   ok(cls('main-via-helper.mjs') === 'ignores-by-construction', 'the reads inside a helper called on argv are tracked through its parameter');
