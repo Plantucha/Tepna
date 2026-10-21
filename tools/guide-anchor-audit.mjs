@@ -100,7 +100,7 @@ function main() {
    "refuse a run finding fewer than ten" floor cannot see it either — the floor was met by the other 44.
    The banner must also read `all N selftests passed`: that is the string the runner parses for the
    COUNT, and a count is what makes a suite silently shrinking from 12 legs to 3 visible. */
-if (process.argv.includes('--selftest') || process.argv.includes('--self-test')) {
+if ((process.argv.includes('--selftest') || process.argv.includes('--self-test')) && isCliEntry(import.meta.url)) {
   let legs = 0;
   const eq = (c, m) => {
     legs++;

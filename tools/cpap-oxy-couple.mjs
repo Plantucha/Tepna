@@ -38,6 +38,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d) => {
@@ -52,7 +53,7 @@ if (process.argv.includes('--verdict-sample')) {
 }
 /* `--selftest`: `couplingPerNight` over synthetic nights with a known answer. It reads no file and
    builds no OxyDex realm, so it runs before the `--exports` / `--oxy` check. */
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let pass = 0;
   let fail = 0;
   const ok = (cond, name) => {

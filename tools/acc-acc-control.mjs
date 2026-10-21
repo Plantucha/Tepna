@@ -241,7 +241,7 @@ const med = (a) => {
 
 /* --- `--selftest`: the parser, the stitch and the FINE leg against synthetic ACC with a known answer.
    It writes two layouts of one stream into a scratch dir, so it needs no corpus. */
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let pass = 0;
   let fail = 0;
   const ok = (cond, name) => {

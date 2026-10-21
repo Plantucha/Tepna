@@ -441,7 +441,7 @@ if (process.argv.includes('--verdict-sample')) {
   );
   process.exit(0);
 }
-if (process.argv.includes('--selftest') || process.argv.includes('--self-test')) {
+if ((process.argv.includes('--selftest') || process.argv.includes('--self-test')) && isCliEntry(import.meta.url)) {
   /* The pass count is COUNTED, never written down — a hardcoded "8/8" survives the ninth leg being added
      and then reports a number about a set it no longer describes. */
   let legs = 0;

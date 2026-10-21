@@ -723,7 +723,7 @@ function main(argv) {
 }
 
 /* self-test: node tools/wt-done.mjs --selftest (pure core only — no repo, no gh) */
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   /* COUNTED, not narrated. This line read `selftest: 6/6 ok` as a hardcoded string while the file
      carried fourteen assertions — the same defect as an advisory row that prints its baseline
      instead of its measurement: a summary that cannot be wrong is not a summary. */

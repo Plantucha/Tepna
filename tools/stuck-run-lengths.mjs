@@ -69,6 +69,7 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { gitShort, makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 export const T_STUCK = 200;
 export const GAP_FACTOR = 4;
@@ -475,5 +476,5 @@ async function main() {
   console.log('VERDICT ' + JSON.stringify(runVerdict(rows, { commit: gitShort(), evidence: [dir, `stream=${name}`] })));
 }
 
-if (process.argv.includes('--selftest')) await selftest();
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) await selftest();
 else await main();

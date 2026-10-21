@@ -503,7 +503,7 @@ function readRecord() {
 }
 
 /* ── selftest: the rules and the fold, pinned without a network, a clock or a repo ──────────────── */
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let ran = 0;
   const ok = (c, m) => {
     ran += 1;

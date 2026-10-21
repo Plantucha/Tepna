@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**283 tools** · 282 with a purpose line · **1 without**
+**284 tools** · 283 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -111,6 +111,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`h10-session-rate.mjs`](../tools/h10-session-rate.mjs) | what moves the ECG sample rate between sessions of ONE chest strap |
 | [`hook-contract.mjs`](../tools/hook-contract.mjs) | EVERY CLAUDE-CODE HOOK DRAINS ITS STDIN BEFORE IT CAN EXIT. The harness writes each hook's tool-call JSON down a PIPE. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
+| [`importer-flag-probe.mjs`](../tools/importer-flag-probe.mjs) | DOES AN IMPORTER'S FLAG FIRE AN IMPORTED TOOL'S SELFTEST. Executable, paired against a control, and bounded to tools whose closure cannot write, exec or fetch. |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
 | [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | every Integrator key declares its surface node tools/integrator-surface-gate.mjs # gate node tools/integrator-surface-gate.mjs --json # verdict only node tools/integrator-surface-gate.mjs… |
 | [`js-lex.mjs`](../tools/js-lex.mjs) | THE ONE REGEX-AWARE JS LEXER, shared by the tools that need to tell code from prose. |

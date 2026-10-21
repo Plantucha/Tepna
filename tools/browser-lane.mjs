@@ -39,6 +39,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = resolve(join(dirname(fileURLToPath(import.meta.url)), '..'));
 
@@ -79,7 +80,7 @@ export function contentTypeFor(abs, types = TYPES) {
   return (dot >= 0 && types[abs.slice(dot).toLowerCase()]) || 'application/octet-stream';
 }
 
-if (process.argv.slice(2).includes('--selftest')) {
+if (process.argv.slice(2).includes('--selftest') && isCliEntry(import.meta.url)) {
   const fails = [];
   /* 🔴 THE COUNT IS INCREMENTED BY THE HELPER, so it cannot drift from what ran. The printed total used
      to be the literal `13`, which `tools/test-tools.mjs` parses as this tool's assertion count — so the

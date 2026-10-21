@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 /* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
@@ -124,7 +125,7 @@ if (process.argv.includes('--verdict-sample')) {
   console.log(JSON.stringify(gateVerdict({ pass: 88, tot: 92, errs: 0, medianDeltaRing: 0.4, commit: gitShort() })));
   process.exit(0);
 }
-if (process.argv.includes('--selftest')) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let bad = 0,
     good = 0;
   const ok = (name, cond, detail) => {

@@ -64,6 +64,7 @@ import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_R
 import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as argvReads from '../tools/argv-reads.mjs';
 import * as corpusReads from '../tools/corpus-reads.mjs';
+import * as importerFlagProbe from '../tools/importer-flag-probe.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
@@ -3505,6 +3506,7 @@ async function main() {
     },
     argvReads,
     corpusReads,
+    importerFlagProbe,
     sources: readSources(),
     // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
     get toolTexts() {

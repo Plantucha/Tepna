@@ -193,11 +193,11 @@ function main() {
   process.exit(1);
 }
 
-if (process.argv.includes('--verdict-sample')) {
+if (process.argv.includes('--verdict-sample') && isCliEntry(import.meta.url)) {
   const v = verdictFor({ findings: [], commits: 0, privateTerms: null, commit: gitCommit(), status: 'NOT_RUN', reason: 'sample only; this invocation scanned no commits' });
   console.log(JSON.stringify(v, null, 2));
   process.exit(0);
-} else if (process.argv.includes('--selftest')) {
+} else if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let bad = 0,
     ran = 0;
   const ck = (n, got, want) => {
