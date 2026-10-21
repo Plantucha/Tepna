@@ -48,6 +48,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -59,6 +60,7 @@ const arg = (k, d) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
 const TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));
+const TOOL = 'tools/tch-bootstrap-ci.mjs';
 const REPS = Number(arg('--reps', '2000'));
 const BLOCK = Number(arg('--block', '5'));
 
@@ -133,10 +135,10 @@ const pct = (arr, p) => {
 const median = (a) => pct(a, 0.5);
 
 /* ── load ─────────────────────────────────────────────────────────────────── */
-const nights = fs
-  .readdirSync(TRIO)
-  .filter((d) => /^\d{4}-\d\d-\d\d$/.test(d))
-  .sort();
+/* ONE walk, and the walk is the population
+   (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+const popBefore = snapshotNights(TRIO);
+const nights = popBefore.nights;
 const data = [];
 for (const n of nights) {
   const al = alignedNight(path.join(TRIO, n));
@@ -215,3 +217,8 @@ for (const [i, j] of [
   const sep = lo > 0 || hi < 0 ? 'SEPARATED' : 'overlapping — the ordering is not resolved';
   console.log(`    ${NODES[i]} − ${NODES[j]}: [${lo.toFixed(3)}, ${hi.toFixed(3)}]  ${sep}`);
 }
+
+/* The replicates above resample the nights this run loaded, so the population closes here rather
+   than where it opened. */
+const population = populationVerdict(popBefore, snapshotNights(TRIO), { tool: TOOL, evidence: [TOOL] });
+console.log(`\n  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);

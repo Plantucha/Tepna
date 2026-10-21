@@ -51,13 +51,13 @@
  *   node tools/tch-degeneracy-d7.mjs --verdict-sample
  *   node tools/tch-degeneracy-d7.mjs --selftest        # planted truth: the inversion, the constant-weight identity
  */
-import { readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { nightSeries } from './tch-fused-corpus.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -154,11 +154,13 @@ export function measureNight(dir, night) {
 }
 
 export function run(dir) {
-  const nights = readdirSync(dir)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && statSync(join(dir, d)).isDirectory())
-    .sort();
-  const rows = nights.map((n) => measureNight(dir, n));
-  return { dir, rows, nights: nights.length };
+  /* ONE walk, and the walk is the population: the night list comes out of the snapshot, so the
+     verdict below describes the set this run actually scored
+     (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+  const popBefore = snapshotNights(dir);
+  const rows = popBefore.nights.map((n) => measureNight(dir, n));
+  const population = populationVerdict(popBefore, snapshotNights(dir), { tool: TOOL, evidence: [TOOL] });
+  return { dir, rows, nights: popBefore.nights.length, population };
 }
 
 export function verdicts(res, commit) {
@@ -469,12 +471,15 @@ function main() {
   const res = run(argv[dirI + 1]);
   const vs = verdicts(res, gitCommit());
   if (argv.includes('--json')) {
-    console.log(JSON.stringify({ dir: res.dir, verdicts: vs, rows: res.rows }, null, 2));
+    console.log(JSON.stringify({ dir: res.dir, verdicts: vs, population: res.population, rows: res.rows }, null, 2));
     return;
   }
   const solved = res.rows.filter((r) => !r.skip);
   console.log(`\n  D7 · fused-hat degeneracy — ${res.dir}\n`);
-  console.log(`  ${solved.length} of ${res.rows.length} night(s) solved · ${solved.filter((r) => r.hasConf).length} carry per-beat conf\n`);
+  console.log(`  ${solved.length} of ${res.rows.length} night(s) solved · ${solved.filter((r) => r.hasConf).length} carry per-beat conf`);
+  console.log(
+    `  population: ${res.population.status} — ${res.population.population.checked} night(s) covered of ${res.population.population.eligible}${res.population.reason ? ` · ${res.population.reason}` : ''}\n`
+  );
   console.log('  night        n_s   fused        common       ρ-solve');
   console.log('  ' + '─'.repeat(66));
   for (const r of res.rows) {

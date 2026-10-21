@@ -10767,13 +10767,20 @@
 
        MEASURED 2026-10-21 over the 286 files in `tools/`: 129 of them read the capture corpus.
        The suite sees the 126 written as `.mjs`, because `env.toolTexts` carries that extension
-       alone, and the 3 `.js` consumers enumerate nothing, so the hazard set is the same either
-       way. Of the 126: reports 3 · enumerates 41 · repo-tree 16 · undecidable 28 ·
-       no-enumeration 38. `pat-dip-index.mjs` is the third `reports`: this PR wires it, and the
-       reverse leg is what forced its line out of the backlog below. The gate below reads 121
-       of those 124, because `env.toolTexts` carries `tools/*.mjs` alone. The three it cannot see
-       are `drift-report.js`, `realm-manifest.js` and `tch-corpus.js`, and all three enumerate
-       nothing, so the hazard set loses no member to that gap.
+       alone. The three it cannot see are `drift-report.js`, `realm-manifest.js` and
+       `tch-corpus.js`, and all three enumerate nothing, so the hazard set loses no member to that
+       gap. Of the 126: reports 9 · enumerates 35 · repo-tree 16 · undecidable 28 ·
+       no-enumeration 38.
+
+       🔴 A WIRED TOOL STOPS CALLING `readdirSync`, AND THE FIRST VERSION OF THIS SCAN READ THAT AS
+       "ENUMERATES NO DIRECTORY". Measured 2026-10-21 while wiring the TCH family: the walk moves
+       behind `snapshotNights`, so `tch-fused-corpus.mjs` left the hazard set for `no-enumeration`
+       — the same bin as a tool that never touches a capture — and the night-shaped regex it used
+       to carry went with it, which is half of what made it a corpus consumer at all. A hazard set
+       that shrinks because the hazard became invisible is the failure this group exists to catch.
+       `ENUM_CALL` therefore counts the helper call itself, and the capture vocabulary counts a
+       `corpus-scope.mjs` import, so delegation moves a tool from `enumerates` to `reports` and
+       never out of the population.
 
        The NAMED SET below is what makes this a gate rather than a ratchet: a count would pass a new
        consumer arriving as another one is wired. Every entry carries the number of run-time
@@ -10793,7 +10800,7 @@
       /* tool → run-time enumerations pinned 2026-10-21. One shared reason, stated above. */
       /* THE NAMED SET LIVES IN THE TOOL, NOT HERE. `verdict-adoption.mjs` reads any tool stem
          named under `tests/` outside a comment as proof that a test covers that tool, so pinning
-         41 names in this file flipped `pat-ppg-ppg-control.mjs` to GATED and reded the adoption
+         those names in this file flipped `pat-ppg-ppg-control.mjs` to GATED and reded the adoption
          ratchet, which may only go down. The pin is a hazard list and not a test of those tools,
          so the claim would have been false. Keeping it in `tools/corpus-reads.mjs` also matches
          both sibling ratchets (`UNPARSEABLE_RATCHET`, `UNGATED_RATCHET`), which live beside the
@@ -10841,6 +10848,35 @@
       );
       T.eq('the class vocabulary is closed', offVocab.join(', '), '');
       T.eq('every abstention names a reason', silent.join(', '), '');
+      /* ONE WALK PER POPULATION. A tool can call `populationVerdict` and still enumerate the root a
+         second time by hand, and then the verdict describes one walk while the run scores another —
+         measured 2026-10-21 on `tch-firmware-reference.mjs`, where a night arriving between the two
+         was scored into a figure whose population never saw it. The tell is a `readdirSync` sitting
+         next to a night-shaped regex inside a tool that already reports. */
+      var twoWalks = wired.filter(function (t) {
+        return /readdirSync[\s\S]{0,200}?\\d\{4\}-\\d\{2\}-\\d\{2\}/.test(TT['tools/' + t] || '');
+      });
+      T.eq('a tool that reports its population does not enumerate the same root a second time by hand', twoWalks.join(', '), '');
+      /* THE DELEGATION MUST NOT DELETE THE EVIDENCE. Wiring moves the walk behind the helper, which
+         also removes the night regex that put the tool in this population. A tool that imports the
+         primitive is a corpus consumer whatever else its text says. */
+      var importers = Object.keys(TT)
+        .filter(function (k) {
+          return /^tools\/[^/]+\.m?js$/.test(k) && k !== CR.SELF && /from '\.\/corpus-scope\.mjs'/.test(TT[k]);
+        })
+        .map(function (k) {
+          return k.replace(/^.*\//, '');
+        });
+      T.ok('ANTI-VACUITY · the delegating population is not empty', importers.length >= 6, importers.length + ' importer(s): ' + importers.join(', '));
+      T.eq(
+        'every tool that imports the night primitive stays inside the corpus population',
+        importers
+          .filter(function (t) {
+            return !CR.isCorpusConsumer(TT['tools/' + t]);
+          })
+          .join(', '),
+        ''
+      );
     });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool

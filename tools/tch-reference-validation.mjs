@@ -27,6 +27,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 // ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
 // vm-loading (else "Unexpected token 'export'"). build-core.js is required relative to THIS tool (not
@@ -38,6 +39,8 @@ const DexBuild = createRequire(import.meta.url)('./build-core.js');
    around it; the DSP loads were left pointing at the dead path anyway. A comment recording a defect
    is not a fix (ENGINE-VERIFICATION §0), and gated now by `tools · source-scan · portability`. */
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const TOOL = 'tools/tch-reference-validation.mjs';
+const TRIO = path.join(REPO, 'uploads', 'trio');
 /* DATA, not code — overridable, and defaulted to where the corpus actually lives on this deployment. */
 const EN = process.env.DEX_ECG_NIGHTLY || '/run/media/michal/647A504F7A50205A/Ecg nightly';
 /* AN ABSENT INPUT PATH IS NOT A MEASUREMENT. The default below points at a removable volume that
@@ -230,10 +233,12 @@ function night(dateISO) {
 }
 
 /* ── run ── */
-const DATES = fs
-  .readdirSync(path.join(REPO, 'uploads', 'trio'))
-  .filter((d) => /^2026-/.test(d))
-  .sort();
+/* ONE walk, and the walk is the population. The `^2026-` rule is this tool's own and it stays:
+   a wider rule here would report a population the run never scored. The rule's own narrowness is
+   logged as RESIDUE 2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year.
+   (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population) */
+const popBefore = snapshotNights(TRIO, { re: /^2026-/ });
+const DATES = popBefore.nights;
 const ONLY = process.env.ONLY ? [process.env.ONLY] : DATES;
 const all = [];
 for (const d of ONLY) {
@@ -253,6 +258,10 @@ for (const d of ONLY) {
   );
   all.push(...r.rows);
 }
+const population = populationVerdict(popBefore, snapshotNights(TRIO, { re: /^2026-/ }), { tool: TOOL, evidence: [TOOL] });
+console.log(`\n  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
+if (process.env.ONLY) console.log(`  ONLY=${process.env.ONLY} narrowed this run to 1 of ${popBefore.n} night(s) in the root.`);
+
 if (!all.length) {
   console.log('\n  no data');
   process.exit(0);
