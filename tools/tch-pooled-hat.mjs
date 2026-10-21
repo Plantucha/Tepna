@@ -37,6 +37,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { solveNight } from './tch-fused-corpus.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { corpusBlock, corpusIdentity, repoRelative } from './fold-generation.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const KEYS = ['h10', 'verity', 'o2'];
@@ -150,8 +151,17 @@ function main() {
     process.exit(1);
   }
   const e = estimators(solved);
+  /* The corpus identity of THIS cut, scoped to the nights the estimators actually read. A published
+     number that records only which files it hashed cannot say which pipeline folded them, and the
+     2026-09-22 whole-corpus re-fold moved 288 of 288 comparable exports without touching one input
+     path. `fold-generation.mjs` re-resolves this block later; an unstamped night it names is a hole
+     in this number's provenance, not a zero. */
+  const root = repoRelative(dir);
+  const corpus = root
+    ? corpusBlock(corpusIdentity(root, { nights: solved.map((r) => r.night) }))
+    : { root: dir, resolvable: false, reason: 'the corpus is outside this checkout, so git cannot identify it', dataDigest: null, foldGeneration: null };
   if (asJson) {
-    console.log(JSON.stringify({ dir, nights: e.nights, skipped: skipped.length, pairs: e.P, pooled: e.pooled, weighted: e.weighted, gap: e.gap, medianSigma: e.med }, null, 2));
+    console.log(JSON.stringify({ dir, corpus, nights: e.nights, skipped: skipped.length, pairs: e.P, pooled: e.pooled, weighted: e.weighted, gap: e.gap, medianSigma: e.med }, null, 2));
     return;
   }
   console.log(`\n  POOLED-SECONDS HAT vs MEDIAN OVER NIGHTS — ${e.nights} nights, ${e.P.N.toLocaleString()} pooled seconds (${skipped.length} skipped)\n`);
@@ -174,6 +184,13 @@ function main() {
   for (const k of KEYS) {
     const lhs = e.pooled[k] - e.weighted[k];
     console.log(`    ${k.padEnd(8)} lhs ${lhs.toFixed(9)}   rhs ${e.gap[k].toFixed(9)}   |Δ| ${Math.abs(lhs - e.gap[k]).toExponential(2)}`);
+  }
+  console.log(`\n  corpus identity (the ${e.nights} nights read)`);
+  if (corpus.resolvable) {
+    console.log(`    dataDigest ${corpus.dataDigest} over ${corpus.dataFiles} export file(s) · foldGeneration ${corpus.foldGeneration}`);
+    console.log(`    ${corpus.stamped} of ${corpus.nights} night(s) carry a fold stamp under ${corpus.codeDigests.length} code digest(s); ${corpus.unstamped} carry none and cannot be attributed.`);
+  } else {
+    console.log(`    unresolvable — ${corpus.reason}`);
   }
   console.log('\n  ⚠ These are the SAME nights under three estimators. A difference between them is not');
   console.log('    disagreement about the devices — it is the estimators answering different questions.\n');

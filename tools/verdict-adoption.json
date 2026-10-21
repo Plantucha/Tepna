@@ -1269,6 +1269,20 @@
    },
    "note": "wave-2 adopter (Magpie): the decision is the --baseline RATCHET \u2014 gateVerdict(): PASS 0 newly pseudo-tested functions vs tools/pseudo-tested-baseline.json \u00b7 FAIL names the new ones \u00b7 NOT_APPLICABLE file absent from the baseline (unmeasured, deliberately not gated) \u00b7 UNKNOWN canary survived \u00b7 population = function bodies scored, excluded = declined (trivial / no operator / not reached). Emitted at every --baseline exit (--json prints it); the pseudo-tested COUNT itself is a measurement, not the gate. Sample = a synthetic ratchet through the real decision, no git."
   },
+  "tools/fold-generation.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/fold-generation.mjs",
+     "--all",
+     "--json"
+    ],
+    "key": "verdict"
+   },
+   "note": "re-resolves every analysis/published-numbers record against the committed corpus it names. Residue 2026-09-22-corpus-consumers-have-no-staleness-stamp: a record states which files it read and not which fold produced them, and the 2026-09-22 re-fold moved 288 of 288 comparable exports without changing one input path. `population` is RECORDS (checked + excluded = eligible); a superseded record or one naming another corpus leaves BY NAME, and no live record at all emits NOT_RUN rather than a PASS over zero. The same run emits a second corpus-population object under `population`, because the corpus is a live tree a capture host writes into."
+  },
   "tools/formula-constant-audit.mjs": {
    "bin": "decides",
    "status": "adopted",

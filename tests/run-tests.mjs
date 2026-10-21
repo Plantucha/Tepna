@@ -1791,6 +1791,31 @@ async function runSealReader(ctx) {
   return out;
 }
 
+/* Re-resolve every `analysis/published-numbers/*.json` record against the committed corpus it
+   names. A record records the files it read; it does not record WHICH FOLD produced them, and the
+   2026-09-22 whole-corpus re-fold moved 288 of 288 comparable exports without changing one path.
+   An import failure is returned as an ERROR the group reds on, never as an absent env that skips. */
+async function readPublishedCorpus() {
+  try {
+    const M = await import('../tools/fold-generation.mjs');
+    const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+    const { identity, rows } = M.auditRecords({ cwd: ROOT });
+    const verdict = M.allVerdict(rows, identity, { commit: null });
+    return {
+      error: null,
+      identity,
+      rows,
+      verdict,
+      verdictErrors: Verdict.validate(verdict).errors || [],
+      supersededName: M.supersededName,
+      compare: (record, cut) => M.compareRecord(record, identity, cut),
+      scoped: (nights) => M.corpusIdentity(identity.root || M.TRIO, { cwd: ROOT, nights })
+    };
+  } catch (e) {
+    return { error: String((e && e.message) || e), identity: null, rows: [], verdict: null, verdictErrors: [] };
+  }
+}
+
 function readTableProvenance() {
   const crypto = require('node:crypto');
   const sha12 = (t) => crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12);
@@ -3596,6 +3621,7 @@ async function main() {
     docsMdTwins: readDocsMdTwins(),
     claudeMdClaims: readClaudeMdClaims(),
     tableProvenance: readTableProvenance(),
+    publishedCorpus: await readPublishedCorpus(),
     /* Does this repo-relative path exist in the tree? Used by the TABLE-PROVENANCE gate to red on a
        dead producer or an unresolvable committed input, rather than skipping — a stamp naming a tool
        that no longer exists is the stale attribution the gate is for. */
