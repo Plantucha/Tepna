@@ -230,7 +230,7 @@ export function isPointerRepair(before, after, isRow) {
  * @param {string} baseText  ledger at the merge base (removals / edits)
  * @param {string} headText  ledger on this branch
  * @param {string} [tipText] ledger at origin/main now (collisions / high-water); defaults to baseText
- * @returns {{collisions: string[], mutated: string[], added: string[]}}
+ * @returns {{collisions: string[], mutated: string[], added: string[], landed: string[]}}
  */
 export function verdict(baseText, headText, tipText) {
   const base = parseRows(baseText);
@@ -242,6 +242,7 @@ export function verdict(baseText, headText, tipText) {
   const collisions = [];
   const mutated = [];
   const added = [];
+  const landed = [];
 
   /* DUPLICATE IDS IN THE HEAD FILE ITSELF — checked FIRST, and independently of base/added.
      Measured 2026-09-14 (Osprey, #2506): `briefs/RESIDUE.md` carries `merge=union`, and a union
@@ -272,8 +273,26 @@ export function verdict(baseText, headText, tipText) {
   for (const r of head) {
     const prior = baseById.get(r.id);
     if (!prior) {
-      // present on the tip but not on the base ⇒ someone else minted it concurrently
+      /* 🔴 A GATE WHOSE BASE IS `origin/main` INVERTS WHEN YOUR OWN BRANCH MERGES. Present on the
+         tip and absent from the merge base used to mean one thing — a concurrent mint — and it means
+         two. The second is your own row, landed: Kodiak squashes, so the merge rewrites nothing you
+         can recognise by commit. Measured 2026-10-21 on the two branches it fired on, four minutes
+         and three minutes after their own merges (#3811 at ec13038d9, #3813 at 2425021d7): each run
+         named the author's own key as "already used by another branch" and exited 1 at step 4 of 40,
+         so 36 steps never ran and the top line named the wrong cause.
+
+         The discriminator is the ROW, not the commit. `git merge-base --is-ancestor HEAD origin/main`
+         answers NO for both measured cases — a squash merge leaves the branch head unreachable — so
+         the obvious test would have changed neither. What does hold is that the tip's row and ours are
+         the same row: identical in every non-state cell, which is the frozen identity this tool already
+         compares for an edit. Two authors contending for one key write DIFFERENT defects and evidence,
+         and that stays a collision (the control below, and the 704-row population measurement in #3814).
+         A landed row is reported, never counted as a problem — the branch has nothing to rename. */
       if (tipById.has(r.id)) {
+        if (tipById.get(r.id).key === r.key) {
+          landed.push(`${r.id} — the identical row is already on origin/main (this branch’s own work has LANDED; nothing to rename)`);
+          continue;
+        }
         collisions.push(`${r.id} — already used on origin/main by another branch`);
         continue;
       }
@@ -292,7 +311,7 @@ export function verdict(baseText, headText, tipText) {
     if (seen.has(id)) collisions.push(`${id} — added twice on this branch`);
     seen.add(id);
   }
-  return { collisions, mutated, added };
+  return { collisions, mutated, added, landed };
 }
 
 /* ── THE PICKUP HALF: the list a session sizes work from must come from the REF ───────────────────
@@ -585,6 +604,9 @@ function main() {
   } else {
     process.stdout.write(`residue-ids: ok — ${v.added.length} row(s) added, none colliding, none mutated\n`);
   }
+  // A landed row is said out loud in both outcomes: it is the reason a count can read 0 added, and a
+  // reader who is not told would go looking for the row the branch appears to have lost.
+  if (!asJson) for (const l of v.landed) process.stderr.write(`  · ${l}\n`);
   process.exit(problems.length ? 1 : 0);
 }
 
@@ -626,6 +648,22 @@ if (IS_CLI && process.argv.includes('--selftest')) {
   //     independently choose the same words on the same day, and then it is a real duplicate.
   v = verdict([row(A)].join('\n'), [row(A), row(B)].join('\n'), [row(A), row(B, 'someone else’s row')].join('\n'));
   assert(v.collisions.length === 1 && v.collisions[0].includes('another branch'), 'a key minted concurrently on the tip FIRES');
+
+  /* 2e — THE POST-MERGE INVERSION, and its control. The plants are the two shapes that reach the
+     branch with one id on the tip and none on the base: the SAME row (this branch's work, merged) and
+     a DIFFERENT row under the same key (two authors contending). The first must not be a problem, the
+     second must stay one — and the pair is the whole discriminator, so both halves are asserted here
+     rather than left to the population run. The third plant is the one that matters least and breaks
+     most easily: a landed row that the tip has since CLOSED still matches, because the state cell is
+     not part of the identity. */
+  const tipSame = [row(A), row(B)].join('\n');
+  v = verdict([row(A)].join('\n'), [row(A), row(B)].join('\n'), tipSame);
+  assert(v.collisions.length === 0 && v.mutated.length === 0, 'this branch’s own landed row is NOT a collision');
+  assert(v.landed.length === 1 && v.landed[0].includes('LANDED') && v.added.length === 0, 'the landed row is reported, and is not counted as added');
+  v = verdict([row(A)].join('\n'), [row(A), row(B)].join('\n'), [row(A), row(B, 'd', 'fixed #3813')].join('\n'));
+  assert(v.landed.length === 1 && v.collisions.length === 0, 'a landed row closed on the tip still matches — the state cell is not the identity');
+  v = verdict([row(A)].join('\n'), [row(A), row(B)].join('\n'), [row(A), row(B, 'a different defect under the same slug')].join('\n'));
+  assert(v.collisions.length === 1 && v.landed.length === 0, 'the CONTROL: one key, two different rows, is still a collision');
 
   /* 2b — THE UNION-MERGE DUPLICATE (#2506, measured 2026-09-14). A row closed on one branch while
      the same row sits OPEN on main comes back from a `merge=union` rebase as TWO rows with one key,
