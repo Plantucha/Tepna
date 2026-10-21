@@ -44,8 +44,11 @@ import { maskNonCode } from './argv-reads.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-/** The five classes, closed. A sixth would be a silent re-definition of the hazard set. */
-export const TOOL_CLASSES = ['reports', 'enumerates', 'repo-tree', 'undecidable', 'no-enumeration'];
+/** The six classes, closed. A seventh would be a silent re-definition of the hazard set, and the
+ *  sixth is what adding one DELIBERATELY looks like: `repo-corpus` carries row
+ *  2026-10-21-a-repo-rooted-path-can-still-be-corpus, whose whole content is that the previous
+ *  vocabulary answered `repo-tree` — a clearance — for a walk over captured bytes. */
+export const TOOL_CLASSES = ['reports', 'enumerates', 'repo-corpus', 'repo-tree', 'undecidable', 'no-enumeration'];
 
 /* A directory read. `execFileSync('find', …)` counts: it enumerates, whatever walks it. */
 /* ⚠️ `snapshotNights` IS AN ENUMERATION, and leaving it out inverted this scan. A tool that moves
@@ -63,6 +66,37 @@ const REPO_DERIVED = /\b(HERE|ROOT|REPO|__dirname|import\.meta\.dirname)\b|proce
 
 /* A path that arrived from outside the process. */
 const RUNTIME_SUPPLIED = /process\.argv|process\.env|\bargv\b|\bopts?\.|\bflags?\./;
+
+/* ── A CORPUS-SHAPED PATH SEGMENT ──────────────────────────────────────────────────────────────
+   `repo-tree` says the walk cannot reach a path a RUN supplies. It never said the walk cannot
+   reach the corpus, and `docs/CORPUS-LOCATIONS.md` names the checkout's own `uploads/` tree as one
+   of the places the corpus lives — so `readdirSync(join(ROOT, 'uploads/trio'))` is a repo-rooted
+   enumeration over captured bytes, and the old vocabulary cleared it.
+
+   THE SEGMENT LIST IS QUOTED, NOT INVENTED. It is the hard line `tools/xerj-load.mjs` already
+   refuses per path (`FORBIDDEN`: an `uploads/` or `captures/` segment, `.edf`, raw sample
+   suffixes). Re-deriving it here would give the repo two spellings of one rule that drift apart
+   silently; the raw-sample suffixes are left out only because a DIRECTORY argument never carries
+   one, and a file suffix in an enumeration argument is already the `capture-suffix` rule above.
+
+   READ OVER THE RAW ARGUMENT, NEVER THE MASK. A path literal lives inside a string and
+   `maskNonCode` blanks every string body, which is why `argv-reads.mjs` tests its dash against raw
+   text too. Measured 2026-10-21: a scan of the MASKED argument finds this shape 0 times in
+   `tools/`, and the raw argument finds it once. A detector reading the mask here would have
+   reported the hazard as absent. */
+const CORPUS_SEGMENT = /(?:^|\/)(?:uploads|captures?)(?:\/|$)|tepna-corpus/i;
+const STR_LITERAL = /'([^'\n]*)'|"([^"\n]*)"|`([^`\n]*)`/g;
+
+/** Does this RAW expression name a corpus-shaped path segment in one of its string literals? PURE.
+ *
+ * Only the literals are tested, not the whole expression: an identifier called `uploadsDir` names
+ * nothing, and a comment is gone from the argument span by construction. */
+export function corpusShapedPath(raw) {
+  for (const m of String(raw || '').matchAll(STR_LITERAL)) {
+    if (CORPUS_SEGMENT.test(m[1] ?? m[2] ?? m[3] ?? '')) return true;
+  }
+  return false;
+}
 
 /* THE SCAN'S OWN POPULATION RULE. A tool that enumerates a run-time path is not yet a corpus
    consumer: `wt-done.mjs` walks a worktree, `repo-map.mjs` walks the checkout, and this file walks
@@ -85,8 +119,12 @@ const CAPTURE_VOCAB = [
   /captures? root|night(?:s)? root|per-night/i
 ];
 
-/** The NAMES of the population rules, in the order `CAPTURE_VOCAB` declares them. */
-export const VOCAB_NAMES = ['night-regex', 'capture-suffix', 'corpus-root', 'night-primitive', 'usage-line'];
+/** The NAMES of the population rules: the five text rules in the order `CAPTURE_VOCAB` declares
+ *  them, then `walked-path`, which is not a text rule at all — it reads the PATH THE TOOL WALKS.
+ *  A member admitted by that rule alone has no capture vocabulary anywhere in its text, which is
+ *  how `rho-overlap-power.mjs` sat outside this population while reading the committed trio
+ *  corpus: it names `uploads/trio` in a path literal and nothing else the five rules look for. */
+export const VOCAB_NAMES = ['night-regex', 'capture-suffix', 'corpus-root', 'night-primitive', 'usage-line', 'walked-path'];
 
 /** Which population rule(s) admitted this file, and the text each one matched. PURE.
  *
@@ -98,6 +136,9 @@ export function vocabHits(text) {
     const m = re.exec(String(text));
     if (m) hits.push({ rule: VOCAB_NAMES[i], match: m[0] });
   });
+  /* THE SIXTH RULE OWES ITS EVIDENCE TOO, and here the evidence is the argument of the walk. */
+  const walked = enumerationSites(text).find((site) => site.corpusPath);
+  if (walked) hits.push({ rule: 'walked-path', match: walked.raw.slice(0, 60) });
   return hits;
 }
 
@@ -108,7 +149,16 @@ export function isCorpusConsumer(text) {
      population from 50-odd tools to 16 and quietly dropped most real corpus consumers. A usage
      line that says `--dir <captures root>` is evidence too. The population rule is deliberately
      generous; the precision lives in the origin axis below, which decides what the tool ENUMERATES. */
-  return CAPTURE_VOCAB.some((re) => re.test(String(text)));
+  if (CAPTURE_VOCAB.some((re) => re.test(String(text)))) return true;
+  /* AND THE PATH THE TOOL WALKS IS EVIDENCE WHEN ITS TEXT CARRIES NONE. A vocabulary rule keyed on
+     the file reads every mention — a usage line, a forbidden-path list, a scrub — while this rule
+     reads the one string that is unambiguously a corpus read: the argument of an enumeration.
+     Deliberately NOT a text rule: measured 2026-10-21, admitting any file whose text holds an
+     `uploads/` segment anywhere would have pulled in 20 more tools, 9 of them straight into the
+     hazard set, and `build.mjs`, `gemini-review.mjs`, `repo-map.mjs` and `xerj-bench.mjs` among
+     them name the segment in a forbidden-path list or a docs walk. Keyed on the walk it is one
+     tool, and that tool reads the committed trio corpus. */
+  return enumerationSites(text).some((site) => site.corpusPath);
 }
 
 /** Every DECLARATION SITE of every identifier, in source order, with its offset. PURE.
@@ -358,31 +408,61 @@ export function enumerationSites(text) {
     }
     if (end < 0) continue;
     const args = masked.slice(open + 1, end);
-    const first = splitTop(args)[0] || '';
     const call = m[0].replace(/\s*\($/, '').replace(/\($/, '');
-    const arg = /find/.test(call) ? splitTop(args)[1] || '' : first;
-    sites.push({ call: call.trim(), arg: arg.trim(), ...originOf(arg, decls, params, new Set(), { ...ctx, at: open }) });
+    const ranges = splitTopRanges(args);
+    /* `find` takes its path in the SECOND argument (`execFileSync('find', [dir], …)`). */
+    const span = /find/.test(call) ? ranges[1] : ranges[0];
+    const arg = span ? args.slice(span[0], span[1]).trim() : '';
+    /* THE SAME SPAN, TAKEN FROM THE RAW TEXT. The mask is length-preserving, so one pair of offsets
+       indexes both: the masked slice decides the ORIGIN (a string body must not look like code) and
+       the raw slice decides whether the path is CORPUS-SHAPED (a path literal is nothing but a
+       string body). Reading one of those two questions off the wrong text is how the hazard was
+       invisible: the masked argument carries the shape 0 times across `tools/`. */
+    const raw = span ? text.slice(open + 1 + span[0], open + 1 + span[1]).trim() : '';
+    sites.push({
+      call: call.trim(),
+      arg,
+      raw,
+      corpusPath: corpusShapedPath(raw),
+      ...originOf(arg, decls, params, new Set(), { ...ctx, at: open })
+    });
   }
   return sites;
 }
 
-/** Split an argument list on top-level commas. PURE. */
-export function splitTop(args) {
+/** The `[start, end)` span of every top-level argument in an argument list. PURE.
+ *
+ * `splitTop` returns the TEXT, which is all the origin axis needs. The corpus axis needs the same
+ * argument's RAW characters, and the only way to take those from the raw text is by offset: the
+ * mask preserves length, so a span measured on the mask indexes the raw text exactly. Splitting
+ * the RAW list instead would desync on a comma inside a string literal — the one thing the mask
+ * exists to hide — so the split stays on the mask and only the slice moves. */
+export function splitTopRanges(args) {
+  const str = String(args);
   const out = [];
   let depth = 0;
-  let cur = '';
-  for (const ch of String(args)) {
+  let start = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
     if ('([{'.includes(ch)) depth++;
     else if (')]}'.includes(ch)) depth--;
-    if (ch === ',' && depth === 0) {
-      out.push(cur);
-      cur = '';
-      continue;
+    else if (ch === ',' && depth === 0) {
+      out.push([start, i]);
+      start = i + 1;
     }
-    cur += ch;
   }
-  out.push(cur);
-  return out.map((s) => s.trim());
+  out.push([start, str.length]);
+  return out;
+}
+
+/** Split an argument list on top-level commas. PURE.
+ *
+ * One splitter, two readers: this is `splitTopRanges` sliced and trimmed. The equality is pinned by
+ * a selftest leg over every argument list in `tools/`, because `mutate.mjs` is not the only thing
+ * that would break quietly if a re-expression of a shared splitter moved one character. */
+export function splitTop(args) {
+  const str = String(args);
+  return splitTopRanges(str).map(([a, b]) => str.slice(a, b).trim());
 }
 
 /** Decide one tool from its source. PURE. */
@@ -406,6 +486,22 @@ export function classifyTool(text) {
   const undec = sites.filter((s) => s.origin === 'undecidable');
   if (undec.length > 0) {
     return { cls: 'undecidable', why: `${undec.length} of ${sites.length} enumeration(s) unresolved — ${undec[0].why}`, sites };
+  }
+  /* THE RUNG THE ROW ADDED, AND IT SITS BELOW THE ABSTENTION ON PURPOSE. A walk whose path cannot
+     be resolved is the stronger finding: `undecidable` says nobody has read this path, while
+     `repo-corpus` says the path HAS been read and it reaches captured bytes inside the checkout.
+     Above a clearance, though — `repo-tree` is the only verdict in this vocabulary that says a run
+     cannot steer the walk, and it was being handed to a tool walking the committed trio corpus
+     (row 2026-10-21-a-repo-rooted-path-can-still-be-corpus). The class is a HAZARD class: the
+     suite group requires a population verdict or a named backlog row from it, exactly as it does
+     from `enumerates`. */
+  const inCorpus = sites.filter((site) => site.corpusPath);
+  if (inCorpus.length > 0) {
+    return {
+      cls: 'repo-corpus',
+      why: `${inCorpus.length} repo-rooted enumeration(s) under a corpus-shaped path — \`${inCorpus[0].raw.slice(0, 48)}\``,
+      sites
+    };
   }
   return { cls: 'repo-tree', why: null, sites };
 }
@@ -464,8 +560,10 @@ export const UNDECIDED_CORPUS = {
 };
 
 /* ── THE NAMED SET: corpus enumerators that report no population ───────────────────────────────
-   DEBT, NOT APPROVAL. Each value is the number of run-time enumerations the scan found in that
-   tool. A ratchet on the COUNT would pass a new consumer arriving as another one left, so the
+   DEBT, NOT APPROVAL. Each value is the number of enumerations that put the tool in the HAZARD
+   set — run-time reads for an `enumerates` row, and repo-rooted reads under a corpus-shaped path
+   for a `repo-corpus` row. The two classes carry the same obligation, so they share one list; the
+   class is on the scan's row, where it is measured rather than transcribed. A ratchet on the COUNT would pass a new consumer arriving as another one left, so the
    suite group pins the NAMES and reds in both directions: an unlisted enumerator, and a listed
    tool the scan has stopped reading as one.
 
@@ -532,6 +630,11 @@ export const UNWIRED_BACKLOG = {
   'ppg2w-spo2-fit.mjs': 1,
   'ppi-jitter-vs-ecg.mjs': 1,
   'resp-acc-headless.mjs': 2,
+  /* THE ONE `repo-corpus` MEMBER (row 2026-10-21-a-repo-rooted-path-can-still-be-corpus). It walks
+     `uploads/trio` inside the checkout, which no flag can re-point, and its own usage line says
+     "reads the committed uploads/trio corpus" — so the walk was never in doubt, only invisible.
+     Wiring it means deleting this line, and the reverse leg reds if the line outlives the debt. */
+  'rho-overlap-power.mjs': 1,
   'resp-cardiac-suppression-e8.mjs': 1,
   'seqnet-eval.mjs': 1,
   'stage-lab.mjs': 12,
@@ -592,10 +695,25 @@ function selftest() {
       "const argv = process.argv.slice(2);\nconst arg = (k, d) => {\n  const i = argv.indexOf(k);\n  return i >= 0 ? argv[i + 1] : d;\n};\nconst DIR = arg('--dir', null);\nconst base = DIR.startsWith('/') ? DIR : join(ROOT, DIR);\nreaddirSync(base);",
       'enumerates'
     ],
+    /* THE RUNG THIS UNIT ADDED, in the two spellings the corpus wears in a join. */
+    ['a repo-rooted path under a corpus directory is not a clearance', "const ROOT = join(HERE, '..');\nreaddirSync(path.join(ROOT, 'uploads/trio'));", 'repo-corpus'],
+    ['one segment per literal reads the same', "const ROOT = join(HERE, '..');\nreaddirSync(join(ROOT, 'uploads', 'trio'));", 'repo-corpus'],
+    ['a run-time read still outranks the corpus rung', "const DIR = process.argv[2];\nreaddirSync(join(DIR, 'uploads'));", 'enumerates'],
+    ['and so does an abstention', "readdirSync(join(ROOT, 'uploads/trio'));\nreaddirSync(mystery);", 'undecidable'],
     /* KNOWN GAP, PINNED SO IT CANNOT BE FORGOTTEN: the same flag idiom with an IMPORTED helper
        still clears, because the mask blanks the dashed literal that would give it away. Six corpus
-       rows read `repo-tree` for this reason; the row that records it is dated 2026-10-21. */
-    ['KNOWN GAP: an imported flag helper beside a repo join still clears', "const DIR = opt('--dir', join(ROOT, 'uploads', 'trio'));\nreaddirSync(DIR);", 'repo-tree']
+       rows read `repo-tree` for this reason; the row that records it is dated 2026-10-21.
+       ⚠️ THIS LEG'S PATH MOVED, AND THAT IS THE POINT. It used to join `uploads/trio`, which the
+       corpus rung now answers `repo-corpus` — so the leg would have gone green while pinning
+       nothing about the helper. A gap leg has to fail for exactly one reason, so the path is now a
+       directory no corpus vocabulary matches and the flag read is the only thing left to miss. */
+    ['KNOWN GAP: an imported flag helper beside a repo join still clears', "const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);", 'repo-tree'],
+    /* KNOWN GAP, MEASURED RATHER THAN GUESSED: the corpus axis reads the literal AT THE SITE, so a
+       corpus path bound to a variable one line earlier reads as a bare identifier and clears. The
+       identifier hop was built as a probe and run over all 286 files in `tools/` on 2026-10-21: it
+       moves ZERO tools into `repo-corpus` today, so the gap is latent and the hop would be an
+       unvalidatable change. Pinned here instead; row 2026-10-21-the-corpus-axis-reads-the-site-only. */
+    ['KNOWN GAP: a corpus path bound to a variable is invisible to the corpus axis', "const ROOT = join(HERE, '..');\nconst dir = join(ROOT, 'uploads', 'trio');\nreaddirSync(dir);", 'repo-tree']
   ];
   let bad = 0;
   for (const [name, src, want] of cases) {
@@ -628,9 +746,24 @@ function selftest() {
   const same = listed === measured;
   if (!same) bad++;
   console.log(`  ${same ? '✓' : '✗'} the abstaining corpus consumers are the ${scanned.length} named${same ? '' : ` (measured: ${measured})`}`);
+  /* THE CORPUS RULE, TESTED BOTH WAYS AND INDEPENDENTLY OF ANY TOOL'S STATE. The leg above goes
+     quiet the day `rho-overlap-power.mjs` is wired; this one asks whether the instrument can still
+     tell the two apart, which is the question a repair must not erase. The third case is the one a
+     text rule gets wrong: an identifier is not a path. */
+  const shapes = corpusShapedPath("join(ROOT, 'uploads/trio')") && !corpusShapedPath("join(ROOT, 'tools')") && !corpusShapedPath('uploadsDir') && corpusShapedPath('"captures/box"');
+  if (!shapes) bad++;
+  console.log(`  ${shapes ? '✓' : '✗'} the corpus-segment rule separates uploads/ and captures/ from tools/ and from an identifier`);
+  /* THE SPANS PARTITION THE LIST, which is what lets one pair of offsets index both texts. Stated
+     as a reconstruction rather than a second splitter: a reference implementation beside the real
+     one is two things to keep in step. */
+  const sample = "a, join(b, 'c, d'), { e: 1 }";
+  const parts = splitTopRanges(sample).map(([x, y]) => sample.slice(x, y));
+  const partition = parts.join(',') === sample && parts.length === 3;
+  if (!partition) bad++;
+  console.log(`  ${partition ? '✓' : '✗'} the argument spans partition the list exactly (${parts.length} span(s), reconstructed)`);
   /* The count is the point: `tools/selftest-all.mjs` reads PASS either way, and a suite quietly
      shrinking from nine legs to three is visible only in this number. */
-  const total = cases.length + 4;
+  const total = cases.length + 6;
   console.log(bad === 0 ? `all ${total} selftests passed` : `corpus-reads selftest: FAIL (${bad} of ${total})`);
   return bad === 0 ? 0 : 1;
 }

@@ -10768,9 +10768,24 @@
        MEASURED 2026-10-21 over the 286 files in `tools/`, AND THE INSTRUMENT MOVED MORE THAN THE
        POPULATION DID. 129 files read the capture corpus; 4 of those leave the population by name
        (below) and the 3 written as `.js` are invisible to `env.toolTexts`, so this gate decides
-       122: reports 9 · enumerates 67 · repo-tree 3 · undecidable 5 · no-enumeration 38. The three
-       `.js` consumers (`drift-report.js`, `realm-manifest.js`, `tch-corpus.js`) enumerate nothing,
-       so the hazard set loses no member to that gap.
+       123: reports 9 · enumerates 67 · repo-corpus 1 · repo-tree 3 · undecidable 5 ·
+       no-enumeration 38. The three `.js` consumers (`drift-report.js`, `realm-manifest.js`,
+       `tch-corpus.js`) enumerate nothing, so the hazard set loses no member to that gap.
+
+       🔴 A REPO-ROOTED WALK IS NOT A SAFE WALK, which is the sixth class and row
+       2026-10-21-a-repo-rooted-path-can-still-be-corpus. `repo-tree` says only that no flag can
+       re-point the walk. `uploads/` sits inside this checkout, so `readdirSync(join(ROOT,
+       'uploads/trio'))` is a repo-rooted enumeration over captured nights, and the old vocabulary
+       answered it with the one verdict that reads as a clearance. The shape is read from the RAW
+       argument, because a path lives in a string body and `maskNonCode` blanks those: measured
+       2026-10-21, the MASKED argument carries it 0 times across `tools/` and the raw argument once.
+       Both engines over one tree move the population 122 → 123, and exactly one tool moves —
+       `rho-overlap-power.mjs`, from outside the population into the hazard set, with nothing
+       travelling the other way. The segment vocabulary is quoted from `tools/xerj-load.mjs`'s
+       `FORBIDDEN` rather than re-derived, and it is keyed on the WALKED path rather than on the
+       file's text: admitting any file whose text holds an `uploads/` segment would have pulled in
+       20 more tools, 9 of them straight into the hazard set, several of which name the segment
+       only in a forbidden-path list.
 
        THE CONTROL IS BOTH ENGINES OVER ONE TREE, because a census taken before a rebase measures
        two things at once. Run side by side on this checkout, the previous classifier reads
@@ -10855,7 +10870,13 @@
           population.push(self);
           if (CR.TOOL_CLASSES.indexOf(r.cls) < 0) offVocab.push(self + ' → ' + r.cls);
           if (r.cls === 'reports') wired.push(self);
-          if (r.cls === 'enumerates') hazard.push(self);
+          /* TWO CLASSES, ONE OBLIGATION. `enumerates` walks a path a run supplies; `repo-corpus`
+             walks a corpus-shaped path inside the checkout, which no flag can re-point and which
+             `docs/CORPUS-LOCATIONS.md` names as one of the places the corpus lives. Either way the
+             tool covers captured nights and reports no population, so either way it owes a verdict
+             or a named row. Keeping `repo-corpus` out of this bucket would have been a hazard class
+             with no consequence attached. */
+          if (r.cls === 'enumerates' || r.cls === 'repo-corpus') hazard.push(self);
           if (r.cls === 'undecidable') {
             abstaining.push(self);
             if (!(r.why && r.why.length > 8)) silent.push(self);
@@ -10886,6 +10907,16 @@
         ''
       );
       T.eq('the class vocabulary is closed', offVocab.join(', '), '');
+      /* THE INSTRUMENT, TESTED BOTH WAYS AND INDEPENDENTLY OF ANY TOOL'S STATE. The membership legs
+         above go quiet the day the one `repo-corpus` tool is wired, and the question a repair must
+         not erase is whether the scan can still tell a corpus path from a repo path at all. Read
+         over RAW text on purpose: the path lives in a string body and the code mask blanks those,
+         so the masked argument carries this shape zero times across `tools/`. */
+      T.ok(
+        'CONTROL · the corpus-segment rule separates a corpus path from a repo path, and a path from an identifier',
+        CR.corpusShapedPath("join(ROOT, 'uploads/trio')") === true && CR.corpusShapedPath("join(ROOT, 'tools')") === false && CR.corpusShapedPath('uploadsDir') === false,
+        'uploads/trio true · tools false · identifier false'
+      );
       T.eq('every abstention names a reason', silent.join(', '), '');
       /* THE ABSTENTIONS ARE A NAMED SET TOO, measured both ways: a sixth is a red, and a listed
          tool the tracer has learned to decide is a red. An abstention is the one verdict that
