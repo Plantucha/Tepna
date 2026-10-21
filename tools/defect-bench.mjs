@@ -3,10 +3,10 @@
 /* ════════════════════════════════════════════════════════════════════════
    tools/defect-bench.mjs — the frozen benchmark of past defects, built
 
-       node tools/defect-bench.mjs --build              # enumerate, classify, write the set
-       node tools/defect-bench.mjs --build --prove 8    # …and prove up to 8 more candidates
-       node tools/defect-bench.mjs --build --prove 200 --reprove   # discard the proof cache and run it again
-       node tools/defect-bench.mjs --build --json       # the verdict alone
+       node tools/defect-bench.mjs                      # enumerate, classify, write the set (the default)
+       node tools/defect-bench.mjs --prove 8            # …and prove up to 8 more candidates
+       node tools/defect-bench.mjs --prove 200 --reprove   # discard the proof cache and run it again
+       node tools/defect-bench.mjs --json               # the verdict alone
        node tools/defect-bench.mjs --selftest
        node tools/defect-bench.mjs --verdict-sample
 

@@ -209,7 +209,10 @@ if (solved.length) {
 }
 
 /* ── bootstrap the POOLED rho over nights, so the headline carries an interval ── */
-const B = Number(process.env.BOOT || 2000);
+/* `--boot N` is what the usage line promises; `BOOT=N` in the environment was the only reader until
+   2026-10-21, so a caller who passed the documented flag silently got the 2000-replicate default. */
+const bootIx = process.argv.indexOf('--boot');
+const B = Number((bootIx > 0 && process.argv[bootIx + 1]) || process.env.BOOT || 2000);
 if (nights.length >= 4) {
   // deterministic LCG — Math.random() would make this unreproducible
   let seed = 12345;
