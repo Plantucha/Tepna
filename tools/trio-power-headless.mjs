@@ -58,7 +58,7 @@
  * ════════════════════════════════════════════════════════════════════════ */
 
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { launch } from './pw-launch.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -70,7 +70,11 @@ const argv = process.argv.slice(2);
 /* Refuse a token nobody reads BEFORE a browser is launched or 20 000 trials are run. This tool emits a
    `tepna.verdict/1` object, so a mistyped `--trails` would not just waste the run — it would publish a
    verdict computed at the DEFAULT trial count while the operator recorded the one they typed. */
-refuseUnknownArgvOrExit(argv, { valued: ['--trials'], boolean: ['--allow-software', '--cpu', '--json', '--selftest', '--verdict-sample'] }, { tool: 'trio-power-headless' });
+/* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
+   arguments, so an import of anything in this file judged flags it never passed (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
+const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (IS_CLI) refuseUnknownArgvOrExit(argv, { valued: ['--trials'], boolean: ['--allow-software', '--cpu', '--json', '--selftest', '--verdict-sample'] }, { tool: 'trio-power-headless' });
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);

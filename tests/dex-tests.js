@@ -9985,6 +9985,53 @@
       }
     });
 
+    /* AN ARGV REFUSAL AT MODULE SCOPE JUDGES THE IMPORTER, NOT THE TOOL — residue
+       `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`. `process.argv` belongs to
+       whoever is RUNNING, so a tool that calls the guard at module scope reads the flags of whatever
+       imported it. #3797's own first draft proved it: the suite runs `node tests/run-tests.mjs
+       --jobs=auto`, `run-tests.mjs` does `await import()` of a guarded tool, and the guard refused the
+       RUNNER's flag and reded step 14 of 40.
+       THE DEFECT WAS NEVER CONFINED TO THE FOUR THAT EXPORT. Measured 2026-10-20 over all eleven
+       module-scope adopters on main: importing each from a script run with `--jobs=auto` produced the
+       refusal 11 times out of 11, while the same eleven as a CLI still exit 2 on an unknown flag. The
+       remedy is one line, `if (IS_CLI)`, and this group is its tripwire — the next adopter written at
+       column 0 reds HERE under its own name, rather than inside whichever importer pays for it first.
+       The scan strips comments, because a guard documented in prose and absent from the code is
+       CLAUDE.md §4b's examined-nothing. The adopter set is the same population the known-answer group
+       `argv-guard — a token nobody reads REFUSES` derives for its per-flag declarations; this group
+       asks a different question of it, where the call SITS rather than what it accepts. The `tools/` tree is outside `astgrep-gate.mjs`'s js scope
+       (root `*.js` + `tests/` + `codegen/`), so the shape cannot be gated there without widening that
+       scope over 260 files; `env.toolTexts` already carries the population this needs. */
+    group('no tool refuses an unknown argv token at module scope', 'tools · argv-guard · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane has no such
+         excuse, so an absent population is a FAILURE there (the sibling drawn-axis group's lesson). */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the module-scope scan examined nothing');
+        else T.skip('the module-scope argv scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var stripC = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      var ADOPTERS = [],
+        UNGUARDED = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var t = stripC(TT[k]);
+          if (t.indexOf('refuseUnknownArgvOrExit(') < 0) return;
+          ADOPTERS.push(k);
+          /* Column 0 IS module scope: `if (IS_CLI) refuse…` and a call inside a function are both
+             indented, and the guard's own definition in `argv-guard.mjs` reads `export function`. */
+          if (/^refuseUnknownArgvOrExit\(/m.test(t)) UNGUARDED.push(k);
+        });
+      /* ANTI-VACUITY: a scan that matched nothing would satisfy the equality below. */
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.ok('the adopter population is non-empty', ADOPTERS.length >= 20, 'ADOPTERS=' + ADOPTERS.length + ' — 28 measured 2026-10-20; the guard scan matched almost nothing');
+      T.eq('every adopter calls the guard behind IS_CLI — none at module scope', UNGUARDED.join(', '), '');
+    });
     /* ════ THE HAT ROWS RENDER THE PER-CORNER STATUS (PAT-HAT-DRIFT-DIFFERENCED, 2026-09-27) ═════════
        A negative solved variance has TWO different meanings and the page used to print one word for both.
        `patHatCornerStatus` separates them: a CI that spans 0 means the data are consistent with
