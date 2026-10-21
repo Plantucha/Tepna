@@ -1,0 +1,50 @@
+{
+ "schema": "tepna.published-number-record/1",
+ "producer": "tools/sigma-corpus-headless.mjs",
+ "producerCommit": "8e472749",
+ "invocation": "node tools/sigma-corpus-headless.mjs --corpus /srv/data/tepna-corpus --list-in <file list> --concurrency 2 --out <run.json> · node tools/sigma-corpus-headless.mjs --record-from <run.json> --list-in <file list> --record <this file>",
+ "generated": "2026-10-21",
+ "inputs": {
+  "path": "/srv/data/tepna-corpus (private overnight capture set — multi-GB raw waveforms, NOT committed, never fetched by the suite)",
+  "committed": false,
+  "files": 7329,
+  "digest": "a84f7b7860e6",
+  "note": "sha256[0:12] over name\\0role of every file the page's own classifier accepted, sorted. It pins the POPULATION this record claims. It does NOT pin the bytes inside a capture, so a re-written waveform is invisible to it — re-run the producer to resolve that."
+ },
+ "publishedIn": "papers/sigma-no-reference.html §4 and Reproducibility (population re-run under the classifier widened by #3805, 2026-10-21)",
+ "supersedes": null,
+ "claims": {
+  "note": "the values EXACTLY as the prose states them, so a reader compares without rounding",
+  "indexedNights": 155,
+  "trioEligibleNights": 123,
+  "solvedNights": 95,
+  "simultaneousSeconds": 669640
+ },
+ "population": {
+  "entriesWalked": 62708,
+  "acceptedFiles": 7329,
+  "concurrency": 2,
+  "filesKeyedByFilename": 854,
+  "nonSolvedEligible": 28,
+  "skippedFamilies": [
+   {
+    "reason": "three-way overlap below 1000 s",
+    "nights": 25
+   },
+   {
+    "reason": "no Verity-HR",
+    "nights": 3
+   }
+  ]
+ },
+ "supersededFigure": {
+  "note": "what the paper states today, and why it is not wrong as of its date",
+  "indexedNights": 58,
+  "trioEligibleNights": 31,
+  "solvedNights": 26,
+  "simultaneousSeconds": 291561,
+  "why": "computed before #3805 widened the classifier, which could not read box-layout capture names; most of the gain is later box-era capture that did not exist when the paper was written"
+ },
+ "measuredAt": "2026-10-21T08:02:18.911Z",
+ "elapsedS": 6031
+}
