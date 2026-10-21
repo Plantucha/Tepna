@@ -68,6 +68,13 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+/* ⚠️ THE CELL READER IS `residue-ids.mjs`'s, NOT A SECOND COPY OF IT — the same reason `rebase-safe.mjs`
+   imports `parseRows` rather than re-deriving a row. A bare pipe split is escape-BLIND, and the row
+   contract mandates the escape, so `closedRows` below used to shift its cells on any row quoting a
+   regex or an alternation: `c[5]` then held part of the evidence, the `fixed #N` match failed, and the
+   row left this benchmark's population in silence. Measured 2026-10-20: 30 of the ledger's 543 closed
+   rows carried that escape. */
+import { splitRowCells } from './residue-ids.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -94,8 +101,7 @@ export function closedRows(text) {
   const out = [];
   for (const line of String(text).split('\n')) {
     if (!line.startsWith('| 20')) continue;
-    const c = line
-      .split('|')
+    const c = splitRowCells(line)
       .slice(1, 7)
       .map((s) => s.trim());
     if (c.length < 6) continue;
