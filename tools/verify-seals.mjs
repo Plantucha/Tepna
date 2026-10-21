@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
 import { webcrypto } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 // THE contract's only definition (VERDICT-CONTRACT §2): every object this tool emits is validated by it
@@ -359,7 +359,7 @@ async function main(argv) {
   return v.status === 'PASS' ? 0 : 2;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isCliEntry(import.meta.url)) {
   main(process.argv.slice(2)).then(
     (c) => process.exit(c),
     (e) => {

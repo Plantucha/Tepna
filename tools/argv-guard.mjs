@@ -126,8 +126,13 @@ export function refuseUnknownArgvOrExit(argv, spec, { tool = 'this tool' } = {})
 
 /**
  * IS THIS MODULE THE PROGRAM? The house predicate was
- * `process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href`, carried by 75 call sites
- * across 60 files, and it goes SILENT when a symlink leads to the tool.
+ * `process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href`, and that spelling alone
+ * held 88 sites across 86 files. Six more spellings held 47 sites across 45 more: `resolve()`d strings,
+ * `join()`, `new URL(import.meta.url).pathname`, a realpath on BOTH sides, and two fallbacks that
+ * compared a `basename`. Every one of them goes SILENT when a symlink leads to the tool — except the
+ * realpath-on-both-sides form, which goes silent under `--preserve-symlinks-main` instead, and the
+ * basename fallbacks, which answer "any program with my name" and let an import ACT. The tree decides
+ * in one place now: 140 call sites across 135 files, measured 2026-10-21.
  *
  * MEASURED 2026-10-21 (Heron, board #685): `node <dir>/tools/hook-contract.mjs --probe-bytes` printed
  * NOTHING and exited 0 where `<dir>/tools` was a symlink to the real directory; the real path prints
@@ -147,8 +152,22 @@ export function refuseUnknownArgvOrExit(argv, spec, { tool = 'this tool' } = {})
  * @returns {boolean} true when node was launched on this module
  */
 export function isCliEntry(moduleUrl) {
-  const entry = process.argv[1];
-  if (!entry) return false;
+  return isEntryUrl(process.argv[1], moduleUrl);
+}
+
+/**
+ * The same question with the entry passed in, for a caller that already holds one and for a test that
+ * must ask about a path it did not launch. `doc-search.mjs` carried exactly this signature as
+ * `isEntryPoint`, with its own selftests, and compared `resolve()`d strings — symlink-blind in the way
+ * above. It delegates here now, so the repair is in one place and its selftests still ask the question
+ * in their own words.
+ *
+ * @param {string|undefined} entry the launched path, normally `process.argv[1]`
+ * @param {string} moduleUrl a module's own `import.meta.url`
+ * @returns {boolean} true when node was launched on that module
+ */
+export function isEntryUrl(entry, moduleUrl) {
+  if (!entry || !moduleUrl) return false;
   let asWritten;
   try {
     asWritten = pathToFileURL(entry).href;

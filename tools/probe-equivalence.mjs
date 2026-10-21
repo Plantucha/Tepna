@@ -100,10 +100,11 @@
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { gitShort, makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -114,7 +115,7 @@ const opt = (f, d) => {
 };
 /* Importable: the pure helpers below are known-answer tested, and a module that runs its CLI on
    import cannot be tested by anything but a subprocess. */
-const IS_MAIN = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const IS_MAIN = isCliEntry(import.meta.url);
 
 /* ── The enclosing-function range, read from the source ───────────────────────────────────────
    A family is a FUNCTION, not a line window a human guessed, because rule 1 is about the function —

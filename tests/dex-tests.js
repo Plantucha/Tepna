@@ -10087,7 +10087,7 @@
        checkout before the repair: `geometry-probe` through a link wrote 0 bytes at exit 0, where the
        direct call refuses at exit 2. That direction is what earns a tripwire — a tool reached through
        `~/.local/bin` or `node_modules/.bin` reads as a pass while doing nothing, CLAUDE.md §4b's
-       examined-nothing in an idiom 86 files carried.
+       examined-nothing in an idiom 86 files carried, beside six further spellings in 45 more.
        `isCliEntry` answers on BOTH forms, because realpath alone is wrong under
        `--preserve-symlinks-main`, where node keeps the link in `import.meta.url`.
        ONE NAMED EXEMPTION: `tools/argv-reads.mjs` plants the old idiom as a STRING, as input to its own
@@ -10114,10 +10114,20 @@
           var t = stripC(TT[k]);
           if (/isCliEntry\(import\.meta\.url\)/.test(t)) DECIDERS.push(k);
           if (k === FIXTURE || k === HELPER) return;
-          if (/import\.meta\.url\s*===|===\s*import\.meta\.url/.test(t)) RAW.push(k);
+          /* ANY spelling that decides by comparing the ENTRY with this module, not just the one this
+             unit removed: `mutation-map`, `mutation-crawl` and `mutation-suite` carried
+             `fileURLToPath(import.meta.url) === realpathSync(process.argv[1])`, which is RIGHT through
+             a symlink and wrong under `--preserve-symlinks-main` — the mirror image, and a `===` regex
+             anchored on `import.meta.url` missed all three. The match is per LINE, so a predicate split
+             across two statements would still evade it; every spelling in the tree on 2026-10-21 wrote
+             it on one line. */
+          var raw = t.split('\n').filter(function (l) {
+            return l.indexOf('process.argv[1]') >= 0 && l.indexOf('import.meta.url') >= 0;
+          });
+          if (raw.length) RAW.push(k);
         });
       T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
-      T.ok('the helper population is non-empty', DECIDERS.length >= 60, 'DECIDERS=' + DECIDERS.length + ' — 86 files migrated 2026-10-21');
+      T.ok('the helper population is non-empty', DECIDERS.length >= 120, 'DECIDERS=' + DECIDERS.length + ' — 135 files, 140 sites, measured 2026-10-21');
       T.eq('no tool decides CLI-vs-import by comparing argv[1] raw', RAW.join(', '), '');
       T.ok(
         'the one exemption still carries the fixture it names',
@@ -66101,11 +66111,7 @@
       var realm = { module: { exports: {} } };
       realm.exports = realm.module.exports;
       vmG.createContext(realm);
-      vmG.runInContext(
-        srcText.replace(/^export /gm, '').replace(/^import .*$/gm, '') +
-          '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag;',
-        realm
-      );
+      vmG.runInContext(srcText.replace(/^export /gm, '').replace(/^import .*$/gm, '') + '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag;', realm);
       var checkArgv = realm.exports.checkArgv,
         nearestFlag = realm.exports.nearestFlag;
       var SPEC = { valued: ['--src', '--out', '--night'], boolean: ['--dry-run', '--force'] };

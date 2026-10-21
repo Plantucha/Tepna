@@ -41,6 +41,7 @@ import { resolveStatePath, stateDirs, stateJsonFiles } from './mutation-map.mjs'
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { ResumeLedger, etaFromThroughput, fingerprint, fmtDuration } from './run-progress.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* MUTATION-SUITE-FOLLOWUPS §1: reads UNION both state dirs (shared git-common location first,
@@ -122,7 +123,7 @@ async function ask(c) {
 
 const IS_MAIN = (() => {
   try {
-    return process.argv[1] && join(process.argv[1]) === fileURLToPath(import.meta.url);
+    return isCliEntry(import.meta.url);
   } catch {
     return false;
   }

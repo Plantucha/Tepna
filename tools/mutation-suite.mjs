@@ -47,12 +47,13 @@
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
 import { cpus, uptime as osUptime } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { buildIdentity, mapCandidates, resolveMapPath, stateDirs, verifyFor } from './mutation-map.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -2558,15 +2559,9 @@ const USAGE = [
   'refuses (exit 2) instead of falling through to it.'
 ].join('\n');
 
-const INVOKED_DIRECTLY = (() => {
-  try {
-    /* realpath on BOTH sides, matching mutation-crawl.mjs: a normalise-only comparison misses the
-       symlinked-invocation case, and getting this wrong means an `import` starts a multi-hour sweep. */
-    return !!process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1]);
-  } catch {
-    return false;
-  }
-})();
+/* `isCliEntry` compares the entry AS WRITTEN and its realpath, so neither a symlinked invocation nor
+   `--preserve-symlinks-main` can flip this answer. Getting it wrong in either direction is silent. */
+const INVOKED_DIRECTLY = isCliEntry(import.meta.url);
 
 if (INVOKED_DIRECTLY) {
   const cli = parseArgv(argv);

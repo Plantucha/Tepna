@@ -61,6 +61,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { corpusSearch } from './regen-goldens-core.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -450,4 +451,4 @@ function main(argv) {
   console.log(`status ${verdict.status}${verdict.reason ? ' — ' + verdict.reason : ''}`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2));
+if (isCliEntry(import.meta.url)) main(process.argv.slice(2));

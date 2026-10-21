@@ -39,6 +39,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const V = createRequire(import.meta.url)(join(HERE, '..', 'verdict.js'));
@@ -235,4 +236,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));
