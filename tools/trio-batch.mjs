@@ -64,7 +64,7 @@
  *     --json             also print the run-level tepna.verdict/1 object (the per-night ones are always
  *                        written to <out>/trio-batch-verdicts.json on a real run — VERDICT-CONTRACT §3b #7)
  *     --verdict-sample   emit one synthetic run-level verdict and exit (the adoption gate's corpus-free probe)
- *     --selftest         known-answer checks for the nocturnal gate (no corpus, no I/O)
+ *     --selftest         known-answer checks for the nocturnal gate (no corpus; one scratch dir for the content hash)
  *     --code-digest      print the digest of THE CURRENT TREE's compute closure (the `codeDigest` every .trio-stamp
  *                        records) as one line on stdout and exit — no --src, no corpus, nothing written
  *
@@ -76,7 +76,7 @@
  * memory is returned to the OS on exit, so nothing accumulates across the corpus, and no
  * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync, fstatSync, realpathSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync, fstatSync, realpathSync, mkdtempSync, rmSync, utimesSync } from 'node:fs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, concurrentWith, ivIntersect, ivSpan, mergeIv, startOf } from './trio-anchor.mjs';
@@ -247,11 +247,18 @@ function shouldSplitNodes(jobs, nights) {
   return jobs > 1 && nights < jobs;
 }
 
-function redoReason(stamp, nJson, inputsDigest, codeDigest) {
+/* `inputsDigest` is a STALENESS KEY (name · bytes · mtime), never an identity: a `touch` or a copy moves it
+   over byte-identical inputs (residue 2026-09-28-trio-inputs-digest-hashes-mtime-not-content). When the key
+   moved, the stamp's `inputsContent` — a hash of the file BODIES — decides; `contentOf` is a thunk so the
+   bodies are read only on that path. A stamp written before the field existed keeps today's verdict. */
+function redoReason(stamp, nJson, inputsDigest, codeDigest, contentOf) {
   if (!stamp) return 'no stamp';
   if (stamp === 'BAD') return 'unreadable stamp';
   if (nJson !== 3) return `${nJson}/3 exports present`;
-  if (stamp.inputsDigest !== inputsDigest) return 'inputs changed';
+  if (stamp.inputsDigest !== inputsDigest) {
+    const same = typeof stamp.inputsContent === 'string' && typeof contentOf === 'function' && stamp.inputsContent === contentOf();
+    if (!same) return 'inputs changed';
+  }
   if (stamp.codeDigest !== codeDigest) return 'code changed';
   return null;
 }
@@ -712,6 +719,60 @@ if (flag('--selftest')) {
   eq('a new session appended ⇒ redo', redoReason(S, 3, 'IN-MOVED', 'CODE'), 'inputs changed');
   // The stale-artifact case this whole gate exists for: a DSP edit must invalidate every night.
   eq('a DSP edit ⇒ redo', redoReason(S, 3, 'IN', 'CODE-MOVED'), 'code changed');
+  // The content hash decides only when the staleness key moved (residue
+  // 2026-09-28-trio-inputs-digest-hashes-mtime-not-content).
+  const SC = { inputsDigest: 'IN', inputsContent: 'BODY', codeDigest: 'CODE' };
+  eq(
+    'a touched input, same bodies, same code ⇒ SKIP',
+    redoReason(SC, 3, 'IN-TOUCHED', 'CODE', () => 'BODY'),
+    null
+  );
+  eq(
+    'a touched input, same bodies, new code ⇒ the CODE is the cause',
+    redoReason(SC, 3, 'IN-TOUCHED', 'CODE-MOVED', () => 'BODY'),
+    'code changed'
+  );
+  eq(
+    'a changed body ⇒ redo',
+    redoReason(SC, 3, 'IN-TOUCHED', 'CODE', () => 'BODY-MOVED'),
+    'inputs changed'
+  );
+  eq(
+    'an unreadable body ⇒ redo',
+    redoReason(SC, 3, 'IN-TOUCHED', 'CODE', () => null),
+    'inputs changed'
+  );
+  eq(
+    'a stamp without inputsContent keeps the old verdict',
+    redoReason(S, 3, 'IN-MOVED', 'CODE', () => 'BODY'),
+    'inputs changed'
+  );
+  let reads = 0;
+  redoReason(SC, 3, 'IN', 'CODE', () => (reads++, 'BODY'));
+  eq('an unmoved key reads no body', reads, 0);
+  // inputContent reads real files: two synthetic inputs in a scratch dir, removed after.
+  {
+    const tmp = mkdtempSync(join(os.tmpdir(), 'trio-content-'));
+    try {
+      const mk = (name, body) => (writeFileSync(join(tmp, name), body), { name, full: join(tmp, name), bytes: body.length });
+      const ecg = mk('a_ECG.txt', 'ecg-body-1');
+      const ppg = mk('a_PPG.txt', 'ppg-body-1');
+      const night = { ecg: [ecg], ppg: [ppg] };
+      const c0 = inputContent(night);
+      utimesSync(ecg.full, 1e9, 1e9);
+      eq('a touch keeps the content identity', inputContent(night), c0);
+      eq('array order does not move the identity', inputContent({ ppg: [ppg], ecg: [ecg] }), c0);
+      writeFileSync(ecg.full, 'ecg-body-2');
+      utimesSync(ecg.full, 1e9, 1e9);
+      eq('one changed byte, same size and mtime, moves the identity', inputContent(night) !== c0, true);
+      eq('a renamed file moves the identity', inputContent({ ecg: [{ ...ecg, name: 'b_ECG.txt' }], ppg: [ppg] }) !== inputContent(night), true);
+      eq('a moved file moves the identity', inputContent({ ecg: [ppg], ppg: [ecg] }) !== inputContent(night), true);
+      rmSync(ppg.full);
+      eq('a missing input has no identity', inputContent(night), null);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  }
 
   /* Node split. The rule has to be safe on a SMALL machine first: the probe hands it jobs=1 there, and
      a 1-slot host must behave exactly as it did before. Splitting is only ever a use for slots that
@@ -1164,6 +1225,33 @@ const inputDigest = (p) =>
       .sort()
       .join('\n')
   );
+/* The identity `inputsDigest` cannot give: SHA-256 over each input's key, name and BODY, in the same order,
+   streamed in 1 MiB reads so a night's ECG never sits in memory whole. An unreadable file returns null — no
+   identity, never a partial one. */
+function inputContent(p) {
+  const h = createHash('sha256');
+  const buf = Buffer.allocUnsafe(1 << 20);
+  const files = Object.keys(p)
+    .flatMap((k) => {
+      const v = p[k];
+      return (Array.isArray(v) ? v : v && v.name ? [v] : []).map((f) => ({ id: `${k}\0${f.name}\0`, f }));
+    })
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const { id, f } of files) {
+    h.update(id);
+    let fd;
+    try {
+      fd = openSync(f.full, 'r');
+      for (let n; (n = readSync(fd, buf, 0, buf.length, null)) > 0; ) h.update(buf.subarray(0, n));
+    } catch {
+      return null;
+    } finally {
+      if (fd !== undefined) closeSync(fd);
+    }
+    h.update('\0');
+  }
+  return h.digest('hex').slice(0, 16);
+}
 /* `--code-digest` — the digest of the tree THIS process is running from, the one number a `.trio-stamp` records
    as `codeDigest` and no other mode printed (residue 2026-10-12-trio-batch-prints-no-current-tree-digest).
    It sits HERE, above the capture-root scan, so it needs no `--src` and touches nothing; it prints the same
@@ -2117,7 +2205,7 @@ if (SKIP_EXISTING && !FORCE && !DRY) {
       }
     }
     const nJson = countTrioExports(dir);
-    const why = redoReason(st, nJson, inputDigest(p), CODE_DIGEST);
+    const why = redoReason(st, nJson, inputDigest(p), CODE_DIGEST, () => inputContent(p));
     if (why) {
       // SAY WHY. "code changed" is the line that matters while the engine is being tuned: it is the
       // tool reporting that today's DSP bytes are not the ones that produced this night, which is the
@@ -2294,7 +2382,10 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
             const dir = join(OUT, p.key);
             const nJson = countTrioExports(dir);
             if (nJson === TRIO_NODES.length)
-              writeFileSync(join(dir, STAMP), JSON.stringify({ inputsDigest: inputDigest(p), codeDigest: CODE_DIGEST, nodes: TRIO_NODES.slice().sort() }, null, 2) + '\n');
+              writeFileSync(
+                join(dir, STAMP),
+                JSON.stringify({ inputsDigest: inputDigest(p), inputsContent: inputContent(p), codeDigest: CODE_DIGEST, nodes: TRIO_NODES.slice().sort() }, null, 2) + '\n'
+              );
             // …and the clock fit, for the same reason the stamp is here: it reads all THREE exports,
             // so no --only-node child can compute it correctly. Printed under its own heading because
             // by now the per-node blocks above have already been flushed.
@@ -3475,7 +3566,10 @@ for (const p of work) {
   // actually landed. A partial night (a node threw, or the run was OOM-killed) stays unstamped and is
   // recomputed next time rather than being mistaken for done.
   if (row.nodes.length === 3) {
-    writeFileSync(join(dir, STAMP), JSON.stringify({ inputsDigest: inputDigest(p), codeDigest: CODE_DIGEST, nodes: row.nodes.map((n) => n.node).sort() }, null, 2) + '\n');
+    writeFileSync(
+      join(dir, STAMP),
+      JSON.stringify({ inputsDigest: inputDigest(p), inputsContent: inputContent(p), codeDigest: CODE_DIGEST, nodes: row.nodes.map((n) => n.node).sort() }, null, 2) + '\n'
+    );
   }
 
   /* ── CLOCK FIT vs the CPAP (optional: --cpap <DATALOG>) ─────────────────────────────────────
