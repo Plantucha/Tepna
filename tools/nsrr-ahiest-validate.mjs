@@ -53,7 +53,7 @@
  * §2.11 — nothing GPU-accelerated; per-record arrays are far too small for dispatch to pay.
  */
 import { readFileSync } from 'node:fs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ODI = await import('./nsrr-oxydex-odi.mjs');
 
@@ -202,4 +202,11 @@ function selftest() {
 }
 
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) process.exit(selftest());
+if (IS_CLI) {
+  /* THIS TOOL IS ITS SELFTEST: the whole CLI is the planted-truth run, so the flag is accepted and
+     anything else is refused rather than ignored. The read is also the DISCOVERY the gates key on —
+     the CI loop finds a tool by grepping the literal `--selftest` out of `tools/*.mjs`, and this file
+     carried it ZERO times, so these assertions ran in neither gate until 2026-10-21. */
+  refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--selftest'] }, { tool: 'nsrr-ahiest-validate' });
+  process.exit(selftest());
+}

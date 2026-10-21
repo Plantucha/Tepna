@@ -1407,7 +1407,13 @@ function emitVerdict(a, results, nCv, nExtra, sample = false) {
 /* ── selftest: the PIPELINE on synthetic nights (never evidence about staging accuracy — REM-STAGING
    §1 bans that); proves adapters' arithmetic, cache round trip and the verdict path. ───────────── */
 async function selftest() {
+  /* COUNTED BY THE HELPER, never typed: `selftest-all.mjs` reads the printed number as this tool's
+     assertion total, so a figure a hand wrote would survive deleting an assertion. A green tool whose
+     summary that script cannot parse is a named FAIL there unless it joins UNPARSEABLE_RATCHET, which
+     is debt that may only shrink — so this prints a real count instead of joining it. */
+  let n = 0;
   const ok = (c, m) => {
+    n++;
     if (!c) {
       console.error('SELFTEST FAIL: ' + m);
       process.exitCode = 1;
@@ -1461,6 +1467,8 @@ async function selftest() {
     ok(wrong === 0, 'hsmm decodes planted bouts (' + wrong + ' wrong)');
     ok(Math.abs(S.logDur[1].reduce((a, v) => a + (Number.isFinite(v) ? Math.exp(v) : 0), 0) + Math.exp(S.logTail[1]) - 1) < 1e-9, 'hsmm duration mass sums to one');
   }
+  if (process.exitCode) console.error('\u2717 ' + n + ' assertion(s) ran, at least one failed');
+  else console.log('\u2713 all ' + n + ' selftests passed');
 }
 
 function args(argv) {
