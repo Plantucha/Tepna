@@ -373,3 +373,69 @@ def test_neither_new_WORD_can_excuse_a_SEAM_in_the_axis(tmp_path):
         encoding="utf-8",
     )
     assert sni._seam_cause(str(night)) is not None
+
+
+# ---------------------------------------------------------------- 7 · the watchdog's two decline arms
+#
+# `clock_decline_verdict` is tested purely above. These two drive the watchdog itself, because the arms
+# that CONSUME the verdict are where a wrong word reaches the night's file and the operator's log.
+
+
+def _watchdog(monkeypatch, root, skew, cycles, sync=None):
+    """Run the watchdog `cycles` polls against one connected Polar holding a constant skew.
+
+    Shaped after `tests/test_clocksync_sidecar._drive`, with `_set` CAPTURED rather than discarded: the
+    `unreadable` arm's whole claim is that it leaves STATUS alone, and a no-op stub cannot show that."""
+    sets = []
+    monkeypatch.setattr(capture, "_set", lambda name, **kw: sets.append((name, kw)))
+    calls = []
+
+    async def _ok(addr):
+        calls.append(addr)
+
+    monkeypatch.setattr(capture, "sync_device_time", sync or _ok)
+    dev = [{"name": "H10", "address": "AA:BB:CC:DD:EE:FF", "vendor": "Polar"}]
+    capture.STATUS["devices"] = {"H10": {"clock_skew_sec": skew, "clock_skew_floor_sec": skew, "connected": True}}
+    n = {"i": 0}
+
+    async def fake_sleep(_s):
+        n["i"] += 1
+        if n["i"] >= cycles:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    capture._STOP.clear()
+    try:
+        _run(capture.clock_watchdog({"devices": dev, "time": {"drift_check_sec": 0}}, str(root)))
+    finally:
+        capture._STOP.set()
+    return sets, calls
+
+
+def test_ONE_beyond_the_bound_read_lands_UNREADABLE_and_claims_nothing(tmp_path, monkeypatch, _no_sleep):
+    """The 2026-10-20 skew on its FIRST cycle. The row says what was read and what was attempted, and
+    nothing else moves: `uncorrectable` would name corrections that never ran, and clearing
+    `clock_synced` would erase when the last real sync happened on the strength of one unreadable
+    sample."""
+    sets, calls = _watchdog(monkeypatch, tmp_path, skew=-246245660.72, cycles=1)
+    rows = _rows(str(tmp_path))
+    unr = [r for r in rows if ";unreadable;" in r]
+    assert len(unr) == 1, rows
+    assert ";H10;AA:BB:CC:DD:EE:FF;unreadable;-246245660.720;one read past the plausible bound" in unr[0]
+    assert not [r for r in rows if ";uncorrectable;" in r], "nothing was attempted, so nothing gave up"
+    assert calls == [], "one read past the bound must not grab the link"
+    assert not [kw for _n, kw in sets if "clock_synced" in kw], sets
+
+
+def test_the_SECOND_such_read_re_syncs_the_clock_as_a_RESET(tmp_path, monkeypatch, _no_sleep):
+    """THE CONTROL on the test above, and the whole point of the persistence rung. The same constant
+    skew, one cycle later: now a `prev` past the bound exists, so the read is a reset clock rather than
+    an absent stamp, and the watchdog corrects it."""
+    sets, calls = _watchdog(monkeypatch, tmp_path, skew=-246245660.72, cycles=2)
+    rows = _rows(str(tmp_path))
+    assert len([r for r in rows if ";unreadable;" in r]) == 1, rows
+    res = [r for r in rows if ";resynced;" in r]
+    assert len(res) == 1, rows
+    assert res[0].endswith(";reset"), res
+    assert calls == ["AA:BB:CC:DD:EE:FF"], calls
+    assert ("H10", {"clock_synced": None}) in sets, sets

@@ -146,6 +146,12 @@
       },
       {
         "file": "capture-host/capture.py",
+        "match": "failed_adrift.get(addr, 0)",
+        "ordinal": 2,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
         "match": "scfg.get(\"keep_nights\", 0)",
         "ordinal": 0,
         "why": "config-default"

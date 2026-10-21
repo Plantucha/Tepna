@@ -562,7 +562,14 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # apart from it. +1, the whole delta: the assembler and the clock-word derivation live in
     # `acq_evidence_polar.py`, which this count does not cover.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 324, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 324 → 327 on 2026-10-21 (`handoffs/heron-device-clock-presync.md`, the pre-START clock sync):
+    # the two PURE predicates the clock machinery was missing — `clock_decline_verdict`, which names WHY a
+    # declined clock was declined and quotes the count of corrections that really ran, and
+    # `clock_reads_reset`, the one-read firmware-default bound the reconnect rung needs — plus
+    # `paid_a_pause`, the closure inside `auto_sync_clock` that replaced six copies of one pause
+    # expression so a pre-START ladder can stand the pause-priced bounds down. +3, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 327, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
