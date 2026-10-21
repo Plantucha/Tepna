@@ -18,6 +18,12 @@ ONE ARTIFACT, ONE STREAM. A Polar session writes a SEPARATE file per stream, so 
 describes exactly one of them and `signal` names it. This is the opposite shape from the ring, where one
 live envelope describes the 1 Hz CSV while other streams of the same device travel in `provenance`.
 
+AND THE STORED HALF — `assemble_pull`. The same device also records to its OWN flash when nobody is
+connected, and `polar_psftp.pull_recording` mirrors that directory off the device over PS-FTP. That
+acquisition is a SET of files rather than one stream, it carries no host clock at all, and its one
+independent check is the per-file size the device DECLARED in its own directory listing. It gets its own
+assembler and its own `source` word; §10 forbids collapsing it into the live one.
+
 THE CLOCK WORD IS DERIVED FROM THE ARTIFACT'S OWN HEADER, NOT FROM ITS TRANSPORT. `clock_status` was
 declared on the envelope from the start and documented as "device+host / host / none", and until this
 module no production caller ever passed one of those words — `pull_session` names the field and passes
@@ -33,6 +39,9 @@ writer silently, and the suite pins the parity in both directions (`tests/test_a
 """
 
 from __future__ import annotations
+
+import calendar
+import datetime as _dt
 
 import acq_evidence as ae
 import writers
@@ -169,3 +178,181 @@ def assemble_live(
             "negotiated_hz": negotiated_hz,
         },
     )
+
+
+# ── the STORED path: an onboard recording pulled off the device's own filesystem (PS-FTP) ──────────
+
+# What the pull actually verified about the bytes it holds. The device's directory listing DECLARES a
+# size per file and `pull_recording` compares the transferred length against it, landing a mismatch in
+# `.part` rather than under the real name. That is a real check, run per file, and naming its depth is
+# what keeps the VALID word from implying a hash or a decode nobody ran (§6).
+PULL_VALIDATION_DEPTH = "declared-size-per-file"
+
+# WHERE the device clock was read, carried in `provenance` so `clock_status` cannot be over-read. The
+# device named the session directory `/U/0/YYYYMMDD/{E|R}/HHMMSS/` from its own RTC while no host was
+# connected, and that stamp is the whole of the device clock this path can see: nothing here decodes the
+# recording's own container, so whether the SAMPLES carry their own stamps is unmeasured, not denied.
+PULL_CLOCK_SOURCE = "session-path stamp (not per-sample)"
+
+
+def _device_start_ms(date: str | None, hhmmss: str | None) -> float | None:
+    """The device's own session start as a Clock-Contract floating wall-clock ms, or `None`.
+
+    `date` is `YYYYMMDD` and `hhmmss` is `HHMMSS`, exactly as the device named the directories and as
+    `polar_psftp._session_meta` already split them out. The stamp carries NO ZONE — it is the device's
+    local civil time — so the result is floating (`tMs`), the same encoding `capture` uses for the live
+    path, and no offset is claimed.
+
+    ⚠️ THE COMPONENTS ARE RANGE-VALIDATED, and that is not belt-and-braces. The Clock Contract §7 records
+    that `Date.UTC` silently rolls impossible components onto a wrong instant, and `timegm` over a
+    hand-built tuple does the same: `20261332` would become January 1932's problem rather than a
+    refusal. `_session_meta` checks only that the segment is eight digits, so a corrupted or
+    foreign-shaped directory name reaches here intact. Building a `datetime` first is what refuses it —
+    and the refusal is visible, because `clock_status_for_pull` reads this result and says UNKNOWN
+    rather than naming a clock it could not read."""
+    if not date or not hhmmss or len(date) != 8 or len(hhmmss) != 6:
+        return None
+    if not date.isdigit() or not hhmmss.isdigit():
+        return None
+    try:
+        dt = _dt.datetime(
+            int(date[:4]), int(date[4:6]), int(date[6:]), int(hhmmss[:2]), int(hhmmss[2:4]), int(hhmmss[4:])
+        )
+    except ValueError:
+        return None  # an impossible calendar day or clock reading — absent, never rolled (§∅)
+    return calendar.timegm(dt.timetuple()) * 1000.0
+
+
+def clock_status_for_pull(start_ms: float | None) -> str:
+    """The `clock_status` word for a PS-FTP pull: `device`, or UNKNOWN when no device stamp was read.
+
+    AN OFFLINE RECORDING HAS NO HOST CLOCK, BY CONSTRUCTION. The device writes those samples to its own
+    flash with nothing connected, so the host's clock never touched them and no cross-check between two
+    clocks can ever exist for those bytes — which is exactly why `device+host` would be a false promise
+    here and why the live adapter's header rule cannot answer this question. The device's own clock, on
+    the other hand, is demonstrably there: the device named the session directory from its RTC, which is
+    the stamp `start_ms` was derived from. `none` would deny it.
+
+    When that stamp did not parse, this path has read NO clock at all and says so. It does not fall back
+    to `none`, which is a measured conclusion about both clocks rather than an absence of measurement
+    (§5), and it does not guess from the transport (the mistake the live adapter's docstring records)."""
+    return ae.CLOCK_DEVICE_ONLY if start_ms is not None else ae.UNKNOWN
+
+
+def assemble_pull(
+    manifest: dict,
+    *,
+    device_id: str | None = None,
+    session_id: str | None = None,
+    session_meta: dict | None = None,
+    device_state: str | None = None,
+    clock_offset: ae.ClockOffset | None = None,
+) -> ae.AcquisitionEvidence:
+    """Normalize ONE pulled Polar onboard recording — a whole session directory — into an envelope.
+
+    `manifest` is what `polar_psftp.pull_recording` returns and `session_meta` is what its
+    `_session_meta` derived from the on-device path; this reads both and opens nothing (§9/§12: no
+    second hashing system, no re-read of the pulled bytes).
+
+    THE ARTIFACT IS THE SET. A pull mirrors a directory, so one envelope describes the whole session and
+    `signal` stays absent: the file names are in `provenance`, and naming one of them as the signal would
+    describe a fraction of what the envelope covers. `artifact_size` is the transferred total, which is
+    the one size that is true of the set.
+
+    ⚠️ THE TWO AXES SEPARATE CLEANLY HERE, AND THE PULL IS THE CONTRACT'S CLEANEST §6 EXAMPLE. Validation
+    asks whether the bytes we hold match what the device declared — a per-file length check that really
+    ran. Completeness asks whether we hold the whole set, which a TRUNCATED LISTING leaves unanswerable
+    even when every transferred byte checked out. So a pull is routinely VALID + UNKNOWN, and that pair
+    is information rather than a contradiction.
+
+    ⚠️ AN UNENUMERATED DIRECTORY IS UNKNOWN, NOT PARTIAL. `pull_recording` already draws this line for
+    its own `ok` field: a listing that raised or came back truncated means the pull was complete over
+    what it HAPPENED TO SEE. Reporting PARTIAL would assert that something is missing, which nobody
+    measured; reporting COMPLETE would assert the opposite (§5). A manifest that carries no
+    `unenumerated` count at all gets the same UNKNOWN — the count is absent, so it is not zero."""
+    meta = dict(session_meta or {})
+    files = list(manifest.get("files") or [])
+    short = list(manifest.get("short") or [])
+    unenumerated = manifest.get("unenumerated")
+    new_files = manifest.get("new_files")
+
+    start_ms = _device_start_ms(meta.get("date"), meta.get("time"))
+
+    # ── validation (§6): the declared-size check per file. Nothing was pulled ⇒ nothing was checked,
+    # and a verdict over zero files is not a verdict. ──
+    if not files:
+        validation = ae.UNKNOWN
+        validation_depth = None
+    elif short:
+        validation = ae.INVALID
+        validation_depth = PULL_VALIDATION_DEPTH
+    else:
+        validation = ae.VALID
+        validation_depth = PULL_VALIDATION_DEPTH
+
+    # ── completeness (§6), independent of the above and ordered by certainty: a short file is a hole we
+    # MEASURED; an unenumerated directory is a question we could not ask; everything else answered. ──
+    if not files:
+        completeness = ae.UNKNOWN
+    elif short:
+        completeness = ae.PARTIAL
+    elif unenumerated is None:
+        completeness = ae.UNKNOWN  # nobody counted — an absent count is not a count of zero (§∅)
+    elif unenumerated:
+        completeness = ae.UNKNOWN  # counted, and a directory did not answer: we cannot tell
+    else:
+        completeness = ae.COMPLETE
+
+    return ae.AcquisitionEvidence(
+        session_id=session_id if session_id is not None else _pull_session_id(meta),
+        device_id=device_id,
+        source=ae.SOURCE_STORED_FILES,
+        # see the docstring: the set spans whatever streams the device recorded, so no one name is it
+        signal=None,
+        start_time_ms=start_ms,  # the DEVICE's stamp, floating (no zone was ever written)
+        end_time_ms=None,  # the pull reads no end stamp, and samples/s is not decoded here
+        clock_status=clock_status_for_pull(start_ms),
+        clock_offset=clock_offset if clock_offset is not None else ae.ClockOffset.unknown(),
+        # a file pull moves BYTES. Nothing here decodes the device's container, so there is no sample
+        # count to report and nothing declares one either (§8: UNKNOWN, never 0).
+        sample_count=None,
+        expected_sample_count=ae.UNKNOWN,
+        duration_check=ae.DurationCheck.build(stored_s=None, observed_s=None),
+        # a truncated FILE is not a packet that never arrived, and nothing decoded these bytes at all —
+        # filing either count under a gap category would be the fabricated measurement §8 forbids
+        transport_gaps=ae.UNKNOWN,
+        decode_gaps=ae.UNKNOWN,
+        device_state=device_state if device_state is not None else ae.UNKNOWN,
+        artifact_path=manifest.get("out_dir"),
+        artifact_size=manifest.get("total_bytes"),
+        artifact_sha256=None,  # the pull computes none; the declared-size check is what it does run
+        validation=validation,
+        validation_depth=validation_depth,
+        completeness=completeness,
+        provenance={
+            "session_path": manifest.get("session"),
+            "kind": meta.get("kind"),
+            "device_stamp_local": meta.get("start_local"),
+            "device_clock_read_from": PULL_CLOCK_SOURCE if start_ms is not None else None,
+            "n_files": len(files),
+            "n_new": None if new_files is None else len(new_files),
+            "n_skipped": sum(1 for f in files if f.get("skipped")),
+            "short": short,
+            "unreadable_dirs": manifest.get("unreadable_dirs"),
+            "truncated_dirs": manifest.get("truncated_dirs"),
+            "unenumerated": unenumerated,
+            # the pull's OWN one-line verdict, carried rather than re-derived: it folds both axes into
+            # one boolean, so a reader can see where this envelope's two words came from
+            "pull_ok": manifest.get("ok"),
+        },
+    )
+
+
+def _pull_session_id(meta: dict) -> str | None:
+    """The 14-digit `YYYYMMDDHHMMSS` stamp, or None when the device path carried no date and time.
+
+    The same token the live path uses, and for the same reason: a reader joins an envelope to a night by
+    finding the session id inside the artifact's name, and the box already names a pulled directory
+    `Polar_Offline_<serial>_<14 digits>`. Reusing the token means no second matching rule."""
+    date, hhmmss = meta.get("date"), meta.get("time")
+    return f"{date}{hhmmss}" if date and hhmmss else None

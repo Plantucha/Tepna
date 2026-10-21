@@ -30,6 +30,8 @@ from __future__ import annotations
 import argparse, asyncio, json, logging, os, time
 from bleak import BleakClient, BleakScanner
 
+import acq_evidence_polar
+
 log = logging.getLogger(__name__)
 
 
@@ -725,10 +727,17 @@ async def list_recordings(address: str, adapter: str | None = None) -> list[dict
 
 
 async def pull_recording(
-    address: str, session: str, out_dir: str, adapter: str | None = None, on_progress=None
+    address: str, session: str, out_dir: str, adapter: str | None = None, on_progress=None, device_id: str | None = None
 ) -> dict:
     """Download every file under `session` (a /U/0/DATE/{E|R}/TIME/ dir) into out_dir, mirroring the
-    on-device tree. Returns a manifest {session, files:[...], total_bytes, out_dir}."""
+    on-device tree. Returns a manifest {session, files:[...], total_bytes, out_dir}.
+
+    `device_id` is the device's LOGICAL identity (`VERITY-01`), the token every other acquisition
+    envelope joins on, and it is optional because it is a FACT THE CALLER HOLDS and this function
+    cannot derive: all it has is the BLE address, which lives in a different namespace. Both production
+    callers read it off the configured device. When nobody passes one the envelope reports the identity
+    as absent rather than substituting the address (§5). The address is not lost: it travels beside the
+    envelope in the same sidecar, under the `device` key it has always used."""
     if not session.endswith("/"):
         session += "/"
     os.makedirs(out_dir, exist_ok=True)
@@ -825,14 +834,32 @@ async def pull_recording(
     manifest["ok"] = not got["short"] and manifest["unenumerated"] == 0
     manifest["total_bytes"] = got["total_bytes"]
     # a small sidecar so the pull is self-describing (mirrors pull_session.py's .meta.json)
+    sess_meta = _session_meta(session)
     meta = {
-        **_session_meta(session),
+        **sess_meta,
         **{k: manifest[k] for k in ("session", "total_bytes")},
         "device": address,
         # manifest is a heterogeneous dict; mypy infers dict[str, object] and
         # len(object) is an error. The value is always a list here (built above).
         "n_files": len(manifest["files"]),  # type: ignore[arg-type]
     }
+    # ACQUISITION EVIDENCE CONTRACT (ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF): the four fields above are
+    # what this sidecar has always carried, and none of them states what is KNOWN about the acquisition
+    # — not whether every file matched the size the device declared, not whether the listing was even
+    # answered, not which clock stamped the bytes. The live Polar streams gained that envelope first, so
+    # the stored half read as evidence-free beside them (residue
+    # `2026-10-21-the-polar-ps-ftp-pull-carries-no-acquisition-evidence`). Assembled from the manifest
+    # built above and the path meta already derived — nothing is re-read and nothing is re-hashed (§12).
+    #
+    # IT NEVER RAISES INTO THE PULL, the posture `capture._emit_polar_live_evidence` keeps for the live
+    # half: the envelope is a REPORT ABOUT the transfer, so failing to assemble one must not discard the
+    # manifest that tells the caller which bytes landed on disk. The sidecar is still written without it.
+    try:
+        meta["acquisition_evidence"] = acq_evidence_polar.assemble_pull(
+            manifest, device_id=device_id, session_meta=sess_meta
+        ).to_dict()
+    except Exception:  # noqa: BLE001 — see above: the report must never damage the pull it describes
+        log.exception("PS-FTP %s: acquisition-evidence envelope failed — the pulled files are unaffected", session)
     with open(os.path.join(out_dir, "recording.meta.json"), "w") as fh:
         json.dump(meta, fh, indent=2)
     return manifest

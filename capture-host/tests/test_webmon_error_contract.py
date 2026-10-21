@@ -708,7 +708,7 @@ def test_a_pull_progress_percentage_is_a_real_percentage(tmp_path, monkeypatch):
     polar = {**H10, "vendor": "Polar", "address": "24:AC:AC:0C:30:1E"}
     seen = []
 
-    async def fake_pull(address, session, out_dir, adapter=None, on_progress=None):
+    async def fake_pull(address, session, out_dir, adapter=None, on_progress=None, device_id=None):
         # the progress record is POPPED when the pull returns, so read it while it is live
         on_progress(1, 8)
         seen.append(st["devices"][polar["name"]]["pull_progress"]["pct"])

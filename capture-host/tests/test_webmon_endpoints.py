@@ -170,7 +170,7 @@ def test_polar_recordings_lists_via_the_offline_path(tmp_path, monkeypatch):
 
 
 def test_polar_pull_downloads_via_the_offline_path(tmp_path, monkeypatch):
-    async def fake_pull(address, session, out_dir, adapter=None, on_progress=None):
+    async def fake_pull(address, session, out_dir, adapter=None, on_progress=None, device_id=None):
         return {"files": [out_dir + "/x.dat"]}
 
     monkeypatch.setattr(webmon.polar_psftp, "pull_recording", fake_pull)
@@ -258,7 +258,7 @@ def test_polar_recordings_surfaces_a_generic_error_as_502(tmp_path, monkeypatch)
 
 
 def test_polar_pull_surfaces_a_generic_error_as_502(tmp_path, monkeypatch):
-    async def boom(a, s, o, adapter=None, on_progress=None):
+    async def boom(a, s, o, adapter=None, on_progress=None, device_id=None):
         raise RuntimeError("pull died")
 
     monkeypatch.setattr(webmon.polar_psftp, "pull_recording", boom)
@@ -301,7 +301,7 @@ def test_pull_stored_surfaces_a_generic_error_as_502(tmp_path):
 def test_polar_pull_surfaces_a_busy_slot_as_409(tmp_path, monkeypatch):
     import offline_lock
 
-    async def busy(a, s, o, adapter=None, on_progress=None):
+    async def busy(a, s, o, adapter=None, on_progress=None, device_id=None):
         raise offline_lock.OfflineBusy("H10")
 
     monkeypatch.setattr(webmon.polar_psftp, "pull_recording", busy)
@@ -376,7 +376,7 @@ def test_pull_malformed_body_is_tolerated(tmp_path):
 def test_polar_pull_reports_progress(tmp_path, monkeypatch):
     seen = {}
 
-    async def fake_pull(address, session, out_dir, adapter=None, on_progress=None):
+    async def fake_pull(address, session, out_dir, adapter=None, on_progress=None, device_id=None):
         if on_progress:
             on_progress(50, 100)  # drives the _prog closure (line 392-393)
             seen["fired"] = True
