@@ -18720,6 +18720,116 @@
       );
       T.ok('CONTROL · ∅ scoping to a night that is not there refuses, rather than reporting an empty corpus', PC.scoped(['1999-01-01']).ok === false);
 
+      /* ── THE CUT TREE A LEGACY RECORD WAS CUT FROM ─────────────────────────────────────────────
+         Residue 2026-10-21-a-published-record-names-a-commit-the-squash-merge-does-not-keep: every
+         `tch-pooled-hat-*` record predates the corpus block, so each carried a `producerCommit` and
+         a byte digest and nothing a re-resolver could compare. `--recover --write` added a block
+         PROVEN by the record's own digest: a tree is accepted only when its all-files digest equals
+         the one the record already published. Nothing in a record was edited.
+
+         🔴 AND A `producerCommit` CAN NAME A TREE IT NEVER HELD. Measured 2026-10-21:
+         `tch-pooled-hat-2026-09-29.json` names a docs commit whose root carries 609 tracked files
+         while the record documents 658, and its digest reproduces at a different commit entirely.
+         The recovery keeps both names, so the disagreement stays readable instead of being tidied. */
+      var trioRecs = (PC.records || []).filter(function (r) {
+        return r.record && String((r.record.inputs || {}).path || '') === PC.trio;
+      });
+      T.ok('ANTI-VACUITY · the committed records include at least one naming the trio corpus', trioRecs.length > 0, trioRecs.length + ' of ' + (PC.records || []).length);
+      var noBlock = trioRecs.filter(function (r) {
+        return !r.record.corpus || !r.record.corpus.dataDigest;
+      });
+      T.eq(
+        'every record naming the corpus carries a tree identity',
+        noBlock
+          .map(function (r) {
+            return r.name;
+          })
+          .join(', '),
+        ''
+      );
+      /* THE PROOF IS IN THE BLOCK. A recovery that cannot quote the record's own digest proved
+         nothing, and would be a stamp asserting provenance rather than re-deriving it. */
+      var unproven = trioRecs.filter(function (r) {
+        var rec = r.record.corpus && r.record.corpus.recovered;
+        var want = (r.record.inputs || {}).digest;
+        return !rec || !want || String(rec.verifiedBy || '').indexOf(String(want)) < 0;
+      });
+      T.eq(
+        'each recovered block quotes the digest the record itself published',
+        unproven
+          .map(function (r) {
+            return r.name;
+          })
+          .join(', '),
+        ''
+      );
+      var renamed = trioRecs.filter(function (r) {
+        var rec = (r.record.corpus || {}).recovered || {};
+        return rec.matchedNamedCommit === false;
+      });
+      T.ok(
+        'THE MEASURED DEFECT · a record proven at a commit it does not name keeps BOTH names',
+        renamed.every(function (r) {
+          var rec = r.record.corpus.recovered;
+          return typeof rec.namedCommit === 'string' && typeof rec.commit === 'string' && rec.namedCommit !== rec.commit;
+        }),
+        renamed.length + ' record(s) proved themselves elsewhere'
+      );
+      /* ∅ ABSENCE IS NULL. The generation half describes the nights a producer READ, and a legacy
+         record names a night COUNT only, so no generation describes its population. The comparable
+         field is null with a reason; the whole-root value sits under its own name and is never
+         compared, because an unread night gaining a stamp would read MOVED. */
+      var invented = trioRecs.filter(function (r) {
+        var c = r.record.corpus;
+        return !c.recovered ? false : c.foldGeneration !== null || !c.foldGenerationReason;
+      });
+      T.eq(
+        '∅ a recovered record states NO fold generation, and says why',
+        invented
+          .map(function (r) {
+            return r.name;
+          })
+          .join(', '),
+        ''
+      );
+      var atCutBad = trioRecs.filter(function (r) {
+        var c = r.record.corpus;
+        return c.recovered && !/^[0-9a-f]{12}$/.test(String(c.foldGenerationAtCut));
+      });
+      T.eq('the whole-root generation at the cut is kept as a fact, under its own name', atCutBad.length, 0);
+      /* THE WRITER MUST NOT REFORMAT. These records are hand-cut and three of the five indent with
+         ONE space: a fixed two-space rewrite turned a 29-line addition into a 174-line diff and
+         buried the block a reviewer is meant to read. The invariant is byte-idempotence. */
+      var reflowed = (PC.records || []).filter(function (r) {
+        if (!r.record) return false;
+        return JSON.stringify(r.record, null, PC.recordIndent(r.text)) + '\n' !== r.text;
+      });
+      T.eq(
+        'a rewrite of any record is byte-identical to the file on disk (no reformat)',
+        reflowed
+          .map(function (r) {
+            return r.name;
+          })
+          .join(', '),
+        ''
+      );
+      T.ok(
+        'CONTROL · the records are not all one layout, so the leg above is not trivially true',
+        new Set(
+          (PC.records || []).map(function (r) {
+            return PC.recordIndent(r.text);
+          })
+        ).size > 1,
+        'indent widths: ' +
+          Array.from(
+            new Set(
+              (PC.records || []).map(function (r) {
+                return PC.recordIndent(r.text);
+              })
+            )
+          ).join(', ')
+      );
+
       /* The verdict is the API (§🧾). */
       var v = PC.verdict;
       T.eq('the verdict validates under verdict.js', (PC.verdictErrors || []).join(' | '), '');
