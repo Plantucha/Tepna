@@ -2091,6 +2091,14 @@ class StreamWriter:
         return self._health.rows_lost
 
     @property
+    def seams(self) -> int:
+        """Device-clock DISCONTINUITIES this writer's seam sidecar counted (0 while the clock is
+        monotonic, and 0 for a stream whose sidecar never opened). The sidecar owns the detection;
+        this is the one number a report ABOUT the artifact needs, and reaching into `_seams` from
+        outside is what this property exists to stop."""
+        return self._seams.seams
+
+    @property
     def fsync_max_ms(self) -> float:
         """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
         return self._health.fsync_max_ms

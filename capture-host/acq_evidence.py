@@ -50,6 +50,18 @@ SOURCE_STORED_SPOOL = "stored_spool"  # the device's own spooled data, pulled ov
 # not move. `source` was an open vocabulary from the start (§10 requires that live and stored never
 # collapse into one word); adding the CPAP spool to it is what that vocabulary is for.
 
+# ── the `clock_status` vocabulary, named here because the field had no producer ────────────────────
+# `clock_status` is declared on the envelope and documented below as "device+host / host / none", and
+# until `acq_evidence_polar` landed NO production caller ever passed one of those words: measured
+# 2026-10-21 over this tree, `pull_session.py` was the only call site naming the field at all and it
+# names `UNKNOWN`, so every envelope the box has written reads UNKNOWN there. The words were therefore
+# a comment rather than a vocabulary. Naming them as constants is what lets an adapter state one and a
+# reader compare without matching a string literal. These are VALUES in an open vocabulary, exactly as
+# the sources above are, so SCHEMA_VERSION does not move.
+CLOCK_DEVICE_AND_HOST = "device+host"  # the stream carries the device's own clock beside the host's
+CLOCK_HOST_ONLY = "host"  # only the host stamped it — there is no second clock to compare against
+CLOCK_NONE = "none"  # neither clock reached the artifact
+
 
 @dataclass(frozen=True)
 class DurationCheck:
