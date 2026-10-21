@@ -10635,13 +10635,21 @@
       T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
       T.ok(
         'the helper has its measured population of callers',
-        USERS.length >= 11,
-        'USERS=' + USERS.length + ' (' + USERS.join(' ') + ') — 11 pickers were converted 2026-10-21, and the guard itself is excluded; a scan reading fewer is masking real code'
+        USERS.length >= 12,
+        'USERS=' +
+          USERS.length +
+          ' (' +
+          USERS.join(' ') +
+          ') — 11 pickers were converted 2026-10-21 and `ppg2w-rate.mjs` is the twelfth, and the guard itself is excluded; a scan reading fewer is masking real code'
       );
       T.ok(
         'CONTROL · bare dash-test pickers still exist where no valued flag can collide',
-        PICKERS.length >= 10,
-        'PICKERS=' + PICKERS.length + ' (' + PICKERS.join(' ') + ') — 10 measured 2026-10-21 under this mask; an empty control column means the regex stopped matching'
+        PICKERS.length >= 9,
+        'PICKERS=' +
+          PICKERS.length +
+          ' (' +
+          PICKERS.join(' ') +
+          ') — 10 measured 2026-10-21 under this mask, then 9 once `ppg2w-rate.mjs` declared its valued flags and converted; an empty control column means the regex stopped matching'
       );
       T.eq('no tool combines a bare dash-test picker with a valued flag', VIOLATORS.join(', '), '');
     });

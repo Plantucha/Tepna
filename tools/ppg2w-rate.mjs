@@ -28,7 +28,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import fs from 'node:fs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const arg = (k) => {
   const i = process.argv.indexOf(k);
@@ -246,11 +246,22 @@ function selftest() {
 }
 
 if (isCliEntry(import.meta.url)) {
+  /* EVERY FLAG THIS TOOL READS, DECLARED. `tools/argv-survey.mjs` probed this tool and it IGNORED an
+     unknown token, so `--pleh f.txt` read as no `--pleth` at all and the tool printed its usage line
+     over a path the caller did get right. `positional: true` is load-bearing and not laxity: `--fill`
+     takes a BARE list of capture files, so a guard that refused every non-flag token would refuse the
+     tool's own documented form. */
+  /* ONE SPEC, READ TWICE — the refusal below and the `--fill` file list. Declaring the valued flags is
+     what exposed the second reader: `--fill <f> --pleth <p>` counted `<p>` as a capture file, measured
+     2026-10-21 as `2 skipped as too short` against `1 skipped` for the documented order (row
+     `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). `positionalArgs` owns the skip. */
+  const SPEC = { valued: ['--pleth', '--ppg2w'], boolean: ['--selftest', '--fill'], positional: true };
+  refuseUnknownArgvOrExit(process.argv.slice(2), SPEC, { tool: 'ppg2w-rate' });
   if (process.argv.includes('--selftest')) process.exit(selftest());
   /* `--fill <_PPG2W.txt>...` — the FILL rate, which the calibrated rate below cannot see because the
      stream is drain-limited (residue `2026-09-06-ppg2w-fill-rate-unmeasured`). */
   if (process.argv.includes('--fill')) {
-    const files = process.argv.slice(process.argv.indexOf('--fill') + 1).filter((a) => !a.startsWith('--'));
+    const files = positionalArgs(process.argv.slice(process.argv.indexOf('--fill') + 1), SPEC);
     if (!files.length) {
       console.log('usage: --fill <_PPG2W.txt> [more...]');
       process.exit(2);
