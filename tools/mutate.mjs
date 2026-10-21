@@ -101,7 +101,7 @@
  */
 import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, mkdirSync, symlinkSync, mkdtempSync } from 'node:fs';
 import { cpus, tmpdir } from 'node:os';
-import { execFileSync, execSync, spawn } from 'node:child_process';
+import { execFileSync, execSync, spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
@@ -159,12 +159,20 @@ const RESUME = has('--resume');
 const INCREMENTAL = has('--incremental');
 const JOURNAL = has('--no-journal') ? false : opt('--journal', null);
 const STREAM = !has('--quiet-stream');
-/* `--quarantine-timeout <ms>` — the no-progress watchdog (default 300000). A mutant whose suite run
-   emits no stdout for this long is SIGKILLed and journaled QUARANTINED, and the sweep moves on.
-   Elapsed-time timeouts cannot tell a slow box from a jammed mutant; silence can: a healthy suite
-   streams group results continuously, while a wedged one goes quiet. 0 disables it (the elapsed
+/* `--quarantine-timeout <ms>` — the no-progress watchdog. A mutant whose suite run emits no output
+   for this long is SIGKILLed and journaled QUARANTINED, and the sweep moves on. Elapsed-time timeouts
+   cannot tell a slow box from a jammed mutant; silence can, but only if the suite SPEAKS while it
+   runs. The runner prints its results in ONE write at the end, so stdout alone is silent for the
+   whole run (measured on rig: the first stdout byte of a clean 102 s `oxydex-dsp` run came at
+   98.2 s), and a fixed 300 s bound was an elapsed bound shorter than the clean runs it guarded
+   (residue 2026-10-20-the-no-progress-bound-is-shorter-than-the-clean-run-it-guards). The child now
+   runs with `DEX_PROGRESS=1`, which keeps the runner's per-group stderr line under CI, and the
+   watchdog hears both streams. Without the flag, the bound derives from the calibration run's
+   longest silence (see quarantineBoundMs); with it, the given value wins. 0 disables it (the elapsed
    timeout still bounds the run). Pooled path only; --jobs 1 keeps the sync runner's elapsed timeout. */
-const QUARANTINE_MS = +opt('--quarantine-timeout', '300000');
+const QUARANTINE_FLAG = opt('--quarantine-timeout', null);
+const QUARANTINE_MS = QUARANTINE_FLAG == null ? null : +QUARANTINE_FLAG;
+const QUARANTINE_FLOOR_MS = 300000;
 /* `--verdict` — print the TOOL-BUILD-STANDARD section 2.13 machine-readable compliance manifest as
    JSON on stdout after the run. */
 const WANT_VERDICT = has('--verdict');
@@ -477,6 +485,28 @@ export function measuredDenominator(r) {
 /* A quarantine is not a verdict — it is the harness saying "this mutant wedged me". One is a bad
    mutant; many is a sick suite or a loaded box, and the reader cannot tell which without being told
    the count. Pure and exported so --selftest pins it. */
+/* The runner's per-group progress line (tests/run-tests.mjs progressReporter):
+   `  [ 12/40]    3.4s  elapsed 41s  ETA 1m02s  <title>` or `    812ms` for a sub-second group.
+   Returns the longest group in ms, or null when no line is present — null means the run printed no
+   per-group line, so its longest silence is the whole run, never 0. Pure and exported for --selftest. */
+export function maxGroupMsFromProgress(text) {
+  let max = null;
+  for (const m of String(text || '').matchAll(/^ {2}\[\s*\d+(?:\/\d+)?\]\s+(\d+(?:\.\d+)?)(ms|s) {2}elapsed /gm)) {
+    const ms = m[2] === 's' ? Math.round(+m[1] * 1000) : +m[1];
+    if (Number.isFinite(ms) && (max == null || ms > max)) max = ms;
+  }
+  return max;
+}
+/* THE NO-PROGRESS BOUND. An explicit `--quarantine-timeout` wins (0 still disables). Otherwise the
+   bound is 5x the longest silence of the clean calibration run — the longest group when the run
+   printed per-group lines, the whole run when it did not — with a 300 s floor. The factor matches
+   the elapsed timeout's 5x of the clean run, so a mutant that is merely as slow as the elapsed
+   bound allows is never quarantined for its silence. Pure and exported for --selftest. */
+export function quarantineBoundMs(explicitMs, maxGroupMs, baseMs) {
+  if (explicitMs != null && Number.isFinite(explicitMs)) return explicitMs;
+  const silent = maxGroupMs != null && Number.isFinite(maxGroupMs) ? maxGroupMs : baseMs;
+  return Math.max(QUARANTINE_FLOOR_MS, Number.isFinite(silent) ? silent * 5 : 0);
+}
 export function quarantineWarning(q, tested, quarantineMs) {
   if (!(q > 0)) return null;
   return (
@@ -828,6 +858,12 @@ export function suiteArgs(filter) {
   if (typeof filter === 'string' && filter) return ['tests/run-tests.mjs', '--group=' + filter];
   return ['tests/run-tests.mjs'];
 }
+/* The env of every suite child: `DEX_PROGRESS=1` keeps the runner's per-group stderr line under CI,
+   which is all the no-progress watchdog and the calibration's longest-group read can hear. Pure and
+   exported so --selftest runs the real runner under it. */
+export function suiteEnv(base, bail) {
+  return { ...base, DEX_PROGRESS: '1', ...(bail ? { DEX_BAIL: '1' } : {}) };
+}
 function runSuiteAsync(filter, cwd, timeoutMs, quarantineMs) {
   return new Promise((resolve) => {
     /* DEX_BAIL stops the suite at the first FAILING group. Measured on a real clock.js mutant:
@@ -838,9 +874,9 @@ function runSuiteAsync(filter, cwd, timeoutMs, quarantineMs) {
        surveys that exist to measure `killers` should run without it. */
     const ch = spawn('node', suiteArgs(filter), {
       cwd,
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'],
       timeout: timeoutMs || 900000,
-      env: BAIL ? { ...process.env, DEX_BAIL: '1' } : process.env
+      env: suiteEnv(process.env, BAIL)
     });
     let out = '';
     /* The promise settles exactly once: the no-progress watchdog and the close handler race, and
@@ -856,14 +892,15 @@ function runSuiteAsync(filter, cwd, timeoutMs, quarantineMs) {
     };
     /* ── THE NO-PROGRESS WATCHDOG ──
        Elapsed-time timeouts cannot tell a slow box from a jammed mutant: both look like "too long".
-       Silence can. A healthy suite streams group results to stdout continuously; a mutant that wedges
-       the suite (an infinite loop, a deadlock) goes quiet. When no stdout has arrived for
+       Silence can. A healthy suite prints one stderr line per group (`DEX_PROGRESS=1`; its stdout is
+       one write at the end); a mutant that wedges the suite (an infinite loop, a deadlock) goes
+       quiet. When neither stream has spoken for
        `quarantineMs`, the child is SIGKILLed and the mutant is journaled QUARANTINED — and the sweep
        moves on instead of stalling a worker for the rest of the elapsed timeout. This is the
        in-process half of quarantine; the journal half (started-twice-never-finished) still applies
        on --resume for anything the watchdog could not see. */
     let lastOut = Date.now();
-    const qms = quarantineMs == null ? QUARANTINE_MS : quarantineMs;
+    const qms = quarantineMs == null ? quarantineBoundMs(QUARANTINE_MS, null, Number.NaN) : quarantineMs;
     let watch = null;
     if (qms > 0) {
       /* Check often enough to be prompt, seldom enough to be cheap; unref'd so the timer alone
@@ -882,6 +919,7 @@ function runSuiteAsync(filter, cwd, timeoutMs, quarantineMs) {
           }
           try {
             ch.stdout.destroy();
+            ch.stderr.destroy();
           } catch (_) {
             /* already gone */
           }
@@ -892,6 +930,11 @@ function runSuiteAsync(filter, cwd, timeoutMs, quarantineMs) {
     }
     ch.stdout.on('data', (d) => {
       out += d;
+      lastOut = Date.now();
+    });
+    /* Read, never kept: the stderr lines only prove the suite is alive. A piped stream nobody reads
+       fills its buffer and blocks the child, so the listener is required, not optional. */
+    ch.stderr.on('data', () => {
       lastOut = Date.now();
     });
     ch.on('error', () => finish({ verdict: 'INVALID', killers: [] }));
@@ -1426,9 +1469,28 @@ async function runFile(file) {
   const calDesc = Array.isArray(calSel) ? calSel.length + ' selected group(s)' : calSel ? 'group "' + calSel + '"' : 'FULL SUITE';
   process.stderr.write('  calibrating: one clean ' + calDesc + ' run to size the timeout — no mutant is tested yet\n');
   const t0 = Date.now();
-  runSuite(calSel, ROOT, 600000);
+  /* spawnSync, not runSuite: the calibration needs the child's stderr to read the longest group
+     (runSuite's execFileSync returns nothing on a green run). Same args and env as a mutant run. */
+  const cal = spawnSync('node', suiteArgs(calSel), {
+    cwd: ROOT,
+    encoding: 'utf8',
+    timeout: 600000,
+    maxBuffer: 256 * 1024 * 1024,
+    env: suiteEnv(process.env, false)
+  });
   const baseMs = Math.max(1, Date.now() - t0);
-  process.stderr.write('  calibrated: clean run took ' + (baseMs / 1000).toFixed(0) + 's\n');
+  const maxGroupMs = maxGroupMsFromProgress(cal.stderr);
+  const quarantineMs = quarantineBoundMs(QUARANTINE_MS, maxGroupMs, baseMs);
+  process.stderr.write(
+    '  calibrated: clean run took ' +
+      (baseMs / 1000).toFixed(0) +
+      's, longest group ' +
+      (maxGroupMs == null ? 'unknown (no per-group line)' : (maxGroupMs / 1000).toFixed(1) + 's') +
+      ', no-progress bound ' +
+      (quarantineMs > 0 ? (quarantineMs / 1000).toFixed(0) + 's' : 'off') +
+      (QUARANTINE_MS == null ? '' : ' (--quarantine-timeout)') +
+      '\n'
+  );
   const timeoutMs = Math.max(30000, baseMs * 5);
   /* PRICE THE POPULATION THIS RUN WILL TEST, not the file it lives in. `mutantsFor` enumerates the
      whole file; a diff run tests only the mutants on the changed lines (the `all` filter one screen
@@ -2015,7 +2077,7 @@ async function runFile(file) {
              note for the same reason.) */
           rmSync(wAbs, { force: true });
           beginMutant(picked[i], wAbs);
-          classify(await runSuiteAsync(sel(picked[i]), dir, timeoutMs), picked[i]);
+          classify(await runSuiteAsync(sel(picked[i]), dir, timeoutMs, quarantineMs), picked[i]);
         }
       };
       await Promise.all(trees.map(worker));
@@ -2043,7 +2105,7 @@ async function runFile(file) {
      problem, and the reader has no way to know which they are looking at unless the tool says so. */
   const warn = invalidWarning(invalid, picked.length, killed);
   if (warn) process.stderr.write(warn);
-  const qwarn = quarantineWarning(quarantinedThisRun, picked.length, QUARANTINE_MS);
+  const qwarn = quarantineWarning(quarantinedThisRun, picked.length, quarantineMs);
   if (qwarn) process.stderr.write(qwarn);
   if (canaryState === 'FAILED') {
     process.stderr.write(
@@ -2764,6 +2826,39 @@ function selftest() {
     'QUARANTINED:0:0'
   );
   ck('quarantine - the honest denominator excludes quarantined as well as invalid', measuredDenominator({ tested: 60, invalid: 3, quarantined: 2 }), 55);
+  ck(
+    'quarantine - the longest group is read from the runner progress lines, null when there are none',
+    [
+      maxGroupMsFromProgress(
+        '  \u23f1  plan: 3 groups will run, ~9s\n  [  1/3]    812ms  elapsed 1s  ETA 8s  a\n  [  2/3]   41.5s  elapsed 43s  ETA ~3s  b\n  [  3]     3.0s  elapsed 46s  ETA ~?  c\n'
+      ),
+      maxGroupMsFromProgress('  [  1/1]    90ms  elapsed 0s  ETA 0s  only\n'),
+      maxGroupMsFromProgress('ok 12 assertions\n'),
+      maxGroupMsFromProgress(undefined)
+    ].join(':'),
+    '41500:90::'
+  );
+  ck(
+    'quarantine - the bound scales with the longest silence, floors at 300 s, and an explicit flag wins',
+    [
+      quarantineBoundMs(null, 41500, 102000),
+      quarantineBoundMs(null, 90000, 102000),
+      quarantineBoundMs(null, null, 102000),
+      quarantineBoundMs(null, null, 20000),
+      quarantineBoundMs(0, 90000, 102000),
+      quarantineBoundMs(120000, 90000, 102000)
+    ].join(':'),
+    '300000:450000:510000:300000:0:120000'
+  );
+  ck(
+    'quarantine - the real runner under CI, given the suite env, prints a per-group line the bound can read',
+    (() => {
+      const r = spawnSync('node', suiteArgs('quantity'), { cwd: ROOT, encoding: 'utf8', timeout: 120000, env: suiteEnv({ ...process.env, CI: '1' }, false) });
+      const env = suiteEnv({ A: '1' }, true);
+      return (maxGroupMsFromProgress(r.stderr) != null) + ':' + env.DEX_PROGRESS + ':' + env.DEX_BAIL + ':' + env.A + ':' + ('DEX_BAIL' in suiteEnv({}, false));
+    })(),
+    'true:1:1:1:false'
+  );
   ck('quarantine - the warning fires on any quarantine and stays silent at zero', (quarantineWarning(0, 60, 300000) === null) + ':' + (quarantineWarning(2, 60, 300000) !== null), 'true:true');
 
   /* GAP 2 - journal scope header: resume across a changed scope must refuse, fail-closed */
