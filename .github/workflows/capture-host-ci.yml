@@ -83,10 +83,15 @@ defaults:
 
 jobs:
   # Relevance check, as a JOB so the gate can report `skipped` rather than never being scheduled.
-  # ALLOWLIST, unlike browser-gates' denylist, because the dependency set here is closed and provable:
-  # tests/conftest.py puts ONLY capture-host/ on sys.path, so nothing outside this directory can change
-  # what the Python suite executes — the sole other input is this workflow file (the matrix, the pins,
-  # the coverage floor), which is why it is listed.
+  # ALLOWLIST, unlike browser-gates' denylist, because the dependency set here is closed and MEASURED.
+  # It used to be closed and ARGUED: tests/conftest.py puts only capture-host/ on sys.path, so nothing
+  # outside this directory can change what the suite executes. That holds for what the suite IMPORTS
+  # and not for what it READS. The suite opens repo-root files as DATA through a `ROOT` anchor, so a
+  # change to one of them reded this workflow with this job having skipped it.
+  #
+  # The decision now lives in `capture-host/tools/relevance.sh`, over the set `tools/root_reads.py`
+  # traced from a green run — 45 tracked root paths, re-measured by tests/test_relevance_filter.py. The
+  # script is the ONE implementation and this job is one of its two callers; the other is that test.
   changes:
     # measured 2026-10-11 over 28 job run(s): p95 0.7 min, max 1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
     timeout-minutes: 3
@@ -111,20 +116,11 @@ jobs:
           changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" \
                                           "${{ github.event.pull_request.head.sha }}")
           echo "changed files:"; echo "$changed"
-          # Pure-shell `case`, NOT grep: `grep -qv` returns the wrong exit status under ugrep, and a
-          # filter that mis-answers toward SKIP is a blind gate (see browser-gates.yml for the bite).
-          run=false
-          if [ -z "$changed" ]; then
-            run=true                                # no diff to judge ⇒ run, never silently skip
-          else
-            while IFS= read -r f; do
-              [ -z "$f" ] && continue
-              case "$f" in
-                capture-host/*|.github/workflows/capture-host-ci.yml) run=true ;;
-                *) ;;
-              esac
-            done <<< "$changed"
-          fi
+          # The decision is the committed script, never a copy of it inlined here: a filter this job
+          # spells out itself is a filter no test can run. It stays pure-shell `case` inside — `grep -qv`
+          # returns the wrong exit status under ugrep, and a filter that mis-answers toward SKIP is a
+          # blind gate (see browser-gates.yml for the bite).
+          run=$(printf '%s\n' "$changed" | capture-host/tools/relevance.sh)
           echo "run=$run" >> "$GITHUB_OUTPUT"
           echo "decision: run=$run"
 
