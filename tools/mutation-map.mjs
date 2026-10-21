@@ -40,9 +40,9 @@
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 export const MAP_BASENAME = 'per-group.json';
 
@@ -322,11 +322,7 @@ function selftest() {
    the importer's argv, and THIS selftest ran and called process.exit — so the suite's own
    assertions never executed and the run reported "all green" for tests that had not been reached.
    A check that examined nothing and reported cleanly; mutation-crawl.mjs documents the same trap. */
-const INVOKED_DIRECTLY = (() => {
-  try {
-    return !!process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1]);
-  } catch {
-    return false;
-  }
-})();
+/* `isCliEntry` compares the entry AS WRITTEN and its realpath, so neither a symlinked invocation nor
+   `--preserve-symlinks-main` can flip this answer. Getting it wrong in either direction is silent. */
+const INVOKED_DIRECTLY = isCliEntry(import.meta.url);
 if (INVOKED_DIRECTLY && process.argv.includes('--selftest')) process.exit(selftest());

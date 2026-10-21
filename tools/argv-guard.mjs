@@ -30,6 +30,9 @@
  * would refuse its own child dispatch. Enumerate from the `flag(`/`opt(`/`optAll(` call sites.
  */
 
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
 /** Levenshtein distance, for "did you mean". Small inputs; clarity over speed. */
 function editDistance(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -119,4 +122,62 @@ export function refuseUnknownArgvOrExit(argv, spec, { tool = 'this tool' } = {})
   console.error(`  accepted: ${[...(spec.valued || []), ...(spec.boolean || [])].sort().join(' ')}`);
   console.error('  nothing was read and nothing was written.');
   process.exit(2);
+}
+
+/**
+ * IS THIS MODULE THE PROGRAM? The house predicate was
+ * `process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href`, and that spelling alone
+ * held 88 sites across 86 files. Six more spellings held 47 sites across 45 more: `resolve()`d strings,
+ * `join()`, `new URL(import.meta.url).pathname`, a realpath on BOTH sides, and two fallbacks that
+ * compared a `basename`. Every one of them goes SILENT when a symlink leads to the tool — except the
+ * realpath-on-both-sides form, which goes silent under `--preserve-symlinks-main` instead, and the
+ * basename fallbacks, which answer "any program with my name" and let an import ACT. The tree decides
+ * in one place now: 140 call sites across 135 files, measured 2026-10-21.
+ *
+ * MEASURED 2026-10-21 (Heron, board #685): `node <dir>/tools/hook-contract.mjs --probe-bytes` printed
+ * NOTHING and exited 0 where `<dir>/tools` was a symlink to the real directory; the real path prints
+ * `4194304`. Node resolves the ENTRY through the link, so `import.meta.url` is the real path while
+ * `process.argv[1]` stays as written. The two disagree, the tool decides it was imported, runs no main
+ * and exits 0 — an examined-nothing pass in the §4b family, and the direction of the error is what makes
+ * it worth a guard: a tool invoked through `~/.local/bin` or `node_modules/.bin` reads as success.
+ *
+ * So compare BOTH forms and accept either:
+ *   • as written — the common case, and the ONLY correct one under `--preserve-symlinks-main`, where
+ *     node leaves `import.meta.url` on the link and realpath would disagree in the other direction;
+ *   • realpath'd — the symlink case above.
+ * An argv[1] that cannot be resolved (absent, a directory, a broken link) is not this module, so the
+ * answer is `false` rather than a throw: the predicate decides a branch and must never be the crash.
+ *
+ * @param {string} moduleUrl the caller's own `import.meta.url`
+ * @returns {boolean} true when node was launched on this module
+ */
+export function isCliEntry(moduleUrl) {
+  return isEntryUrl(process.argv[1], moduleUrl);
+}
+
+/**
+ * The same question with the entry passed in, for a caller that already holds one and for a test that
+ * must ask about a path it did not launch. `doc-search.mjs` carried exactly this signature as
+ * `isEntryPoint`, with its own selftests, and compared `resolve()`d strings — symlink-blind in the way
+ * above. It delegates here now, so the repair is in one place and its selftests still ask the question
+ * in their own words.
+ *
+ * @param {string|undefined} entry the launched path, normally `process.argv[1]`
+ * @param {string} moduleUrl a module's own `import.meta.url`
+ * @returns {boolean} true when node was launched on that module
+ */
+export function isEntryUrl(entry, moduleUrl) {
+  if (!entry || !moduleUrl) return false;
+  let asWritten;
+  try {
+    asWritten = pathToFileURL(entry).href;
+  } catch {
+    return false;
+  }
+  if (moduleUrl === asWritten) return true;
+  try {
+    return moduleUrl === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return false;
+  }
 }

@@ -59,6 +59,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIOME = join(ROOT, 'node_modules', '.bin', 'biome');
@@ -338,7 +339,7 @@ function selfTest() {
 
 /* Guarded so the module can be IMPORTED without running — its own selftest needs that, and the
    tools index shipped this exact bug hours earlier: the first `import` wrote a file and exited. */
-const IS_MAIN = resolve(process.argv[1] || '') === resolve(fileURLToPath(import.meta.url));
+const IS_MAIN = isCliEntry(import.meta.url);
 const argv = process.argv.slice(2);
 if (IS_MAIN && (argv.includes('--selftest') || argv.includes('--self-test'))) process.exit(selfTest());
 if (!IS_MAIN) {

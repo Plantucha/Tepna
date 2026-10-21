@@ -60,6 +60,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const Verdict = createRequire(import.meta.url)(join(dirname(fileURLToPath(import.meta.url)), '..', 'verdict.js'));
 
@@ -478,4 +479,4 @@ function main() {
   process.exit(flagged.length || rootFlagged.length ? 1 : 0);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isCliEntry(import.meta.url)) main();

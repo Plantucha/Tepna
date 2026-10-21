@@ -30,8 +30,9 @@
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { selfTest as stripSelfTest, stripElement } from './strip-markup.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -133,4 +134,4 @@ if (process.argv.includes('--selftest') || process.argv.includes('--self-test'))
   console.log(`all ${legs} selftests passed`);
   process.exit(0);
 }
-if (resolve(process.argv[1] || '') === resolve(fileURLToPath(import.meta.url))) process.exit(main());
+if (isCliEntry(import.meta.url)) process.exit(main());

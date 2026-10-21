@@ -42,7 +42,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const DexClock = require(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'clock.js'));
@@ -575,7 +575,8 @@ function selftest() {
   process.exit(fails ? 1 : 0);
 }
 
-/* ⚠️ `process.argv[1] &&` IS LOAD-BEARING — without it this file cannot be IMPORTED at all.
+/* ⚠️ THE ABSENT-argv GUARD IS LOAD-BEARING, and it now lives in `isCliEntry` (`tools/argv-guard.mjs`):
+   without it this file cannot be IMPORTED at all.
    `pathToFileURL(undefined)` throws `ERR_INVALID_ARG_TYPE`, and argv[1] is undefined under
    `node -e`, `node --eval`, a REPL, and any embedding host. That made this module unimportable in
    exactly the contexts a consumer uses, and the failure is worse than a crash: `tests/run-tests.mjs`
@@ -583,4 +584,4 @@ function selftest() {
    silently to SKIP rather than red. The sibling `dual-clock-rate.mjs:223` has always carried the
    guard; this file did not, and the gap only surfaced when something tried to import it
    (CROSS-DEVICE-DRIFT-FOLLOWUPS §Done-when, sharing the crystal rule). */
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isCliEntry(import.meta.url)) main();

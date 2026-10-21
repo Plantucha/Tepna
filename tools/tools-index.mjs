@@ -39,6 +39,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'docs', 'TOOLS-INDEX.md');
@@ -309,7 +310,7 @@ function selfTest() {
 
 /* Guarded so the module can be IMPORTED (by its own selftest, or any future caller) without running.
    Without this the first `import` writes the file and exits — measured while debugging this file. */
-const IS_MAIN = resolve(process.argv[1] || '') === resolve(fileURLToPath(import.meta.url));
+const IS_MAIN = isCliEntry(import.meta.url);
 const argv = process.argv.slice(2);
 if ((IS_MAIN && argv.includes('--selftest')) || argv.includes('--self-test')) process.exit(selfTest());
 

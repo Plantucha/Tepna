@@ -53,8 +53,9 @@ import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -225,7 +226,7 @@ function selftest() {
    Everything below runs only when this file is the program. The planter, the two series the callers
    derive and the realm loader are exports, and `tools/cvhr-edge-widen.mjs` imports them; without
    this guard an import ran the whole battery and consumed the importer's own argv. */
-const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+const isMain = isCliEntry(import.meta.url);
 async function main() {
   if (has('--selftest')) return selftest() ? 1 : 0;
 

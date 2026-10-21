@@ -34,6 +34,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readlinkSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 
@@ -705,5 +706,5 @@ if (process.argv.includes('--selftest')) {
   console.log(`selftest: ${ran}/${ran} ok`);
   process.exit(0);
 }
-const isDirect = process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname;
+const isDirect = isCliEntry(import.meta.url);
 if (isDirect && !process.argv.includes('--selftest')) process.exit(main(process.argv.slice(2)));

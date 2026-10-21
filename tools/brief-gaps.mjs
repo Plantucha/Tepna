@@ -44,6 +44,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -390,7 +391,7 @@ async function main() {
   process.exit(0);
 }
 
-if (process.argv.includes('--verdict-sample') && process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv.includes('--verdict-sample') && isCliEntry(import.meta.url)) {
   const v = Verdict.make({
     gate: 'brief-gaps',
     scope: 'internal',
@@ -406,7 +407,7 @@ if (process.argv.includes('--verdict-sample') && process.argv[1] && fileURLToPat
   process.exit(0);
 }
 
-if (process.argv.includes('--selftest') && process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   let bad = 0;
   let ran = 0;
   const ck = (n, got, want) => {
@@ -526,5 +527,5 @@ if (process.argv.includes('--selftest') && process.argv[1] && fileURLToPath(impo
 
 /* RUN ONLY WHEN INVOKED, never on import. A module that acts on import cannot be reused by a
    diagnostic or a test — measured here: importing it to rank pairs ran the whole report instead. */
-const INVOKED_DIRECTLY = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const INVOKED_DIRECTLY = isCliEntry(import.meta.url);
 if (INVOKED_DIRECTLY && !process.argv.includes('--selftest') && !process.argv.includes('--verdict-sample')) await main();

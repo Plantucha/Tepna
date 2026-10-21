@@ -55,8 +55,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { fileURLToPath } from 'node:url';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 /* Own location, never the caller's cwd — the PR #686 invariant: a tool that reads repo code must
@@ -70,7 +70,7 @@ const ROOT = join(HERE, '..');
    as a shard dying with no verdict (§4c), the one failure shape that is hardest to attribute to the
    diff that caused it, and it is why no test group could read this gate's own criterion. The house
    idiom, matching adev-curve.mjs and beat-correspondence.mjs. */
-const IS_MAIN = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_MAIN = isCliEntry(import.meta.url);
 
 const argv = process.argv.slice(2);
 if (IS_MAIN) refuseUnknownArgvOrExit(argv, { valued: ['--only', '--timeout-ms'], boolean: ['--json', '--selftest', '--verdict-sample'] }, { tool: 'argv-survey' });

@@ -10078,6 +10078,83 @@
       T.ok('residue-ids reads its cells through the scanner', routed, 'parseRows → splitRowCells: ' + (routed ? 'wired' : 'ABSENT'));
       T.ok('…and the scanner consumes a backslash pair as one unit', escapeBranch, 'escape branch: ' + (escapeBranch ? 'present' : 'ABSENT'));
     });
+    /* ════ AND THE PREDICATE ITSELF MUST SURVIVE A SYMLINK TO THE TOOL (board #685, 2026-10-21) ══════
+       The house predicate compared `import.meta.url` with `pathToFileURL(process.argv[1]).href`. Node
+       resolves the ENTRY through a symlink and leaves `process.argv[1]` as written, so the two disagree
+       and the tool decides it was imported: no main, no output, EXIT 0.
+       MEASURED (Heron): `node <dir>/tools/hook-contract.mjs --probe-bytes` printed nothing and exited 0
+       where `<dir>/tools` was a link; the real path prints 4194304. Re-measured here over the primary
+       checkout before the repair: `geometry-probe` through a link wrote 0 bytes at exit 0, where the
+       direct call refuses at exit 2. That direction is what earns a tripwire — a tool reached through
+       `~/.local/bin` or `node_modules/.bin` reads as a pass while doing nothing, CLAUDE.md §4b's
+       examined-nothing in an idiom 86 files carried, beside six further spellings in 45 more.
+       `isCliEntry` answers on BOTH forms, because realpath alone is wrong under
+       `--preserve-symlinks-main`, where node keeps the link in `import.meta.url`.
+       ONE NAMED EXEMPTION: `tools/argv-reads.mjs` plants the old idiom as a STRING, as input to its own
+       classifier, and the leg below reds if that fixture ever leaves — an exemption that stops
+       describing what it exempts is a hole. */
+    group('the CLI predicate survives a symlink to the tool', 'tools · argv-guard · source-scan · execution', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the symlink-predicate scan examined nothing');
+        else T.skip('the CLI-predicate scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var stripC = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      var FIXTURE = 'tools/argv-reads.mjs'; // plants the idiom as classifier INPUT, never as its own guard
+      var HELPER = 'tools/argv-guard.mjs'; // where the comparison is allowed to live, once
+      var DECIDERS = [],
+        RAW = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var t = stripC(TT[k]);
+          if (/isCliEntry\(import\.meta\.url\)/.test(t)) DECIDERS.push(k);
+          if (k === FIXTURE || k === HELPER) return;
+          /* ANY spelling that decides by comparing the ENTRY with this module, not just the one this
+             unit removed: `mutation-map`, `mutation-crawl` and `mutation-suite` carried
+             `fileURLToPath(import.meta.url) === realpathSync(process.argv[1])`, which is RIGHT through
+             a symlink and wrong under `--preserve-symlinks-main` — the mirror image, and a `===` regex
+             anchored on `import.meta.url` missed all three. The match is per LINE, so a predicate split
+             across two statements would still evade it; every spelling in the tree on 2026-10-21 wrote
+             it on one line. */
+          var raw = t.split('\n').filter(function (l) {
+            return l.indexOf('process.argv[1]') >= 0 && l.indexOf('import.meta.url') >= 0;
+          });
+          if (raw.length) RAW.push(k);
+        });
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.ok('the helper population is non-empty', DECIDERS.length >= 120, 'DECIDERS=' + DECIDERS.length + ' — 135 files, 140 sites, measured 2026-10-21');
+      T.eq('no tool decides CLI-vs-import by comparing argv[1] raw', RAW.join(', '), '');
+      T.ok(
+        'the one exemption still carries the fixture it names',
+        /noread\.mjs/.test(String(TT[FIXTURE] || '')),
+        'argv-reads no longer plants that string — drop the exemption instead of keeping a hole'
+      );
+      var g = stripC(String(TT[HELPER] || ''));
+      T.ok('the helper answers on the path AS WRITTEN', /moduleUrl === asWritten/.test(g), 'absent — a realpath-only predicate breaks under --preserve-symlinks-main');
+      T.ok('…and on the RESOLVED path', /realpathSync\(entry\)/.test(g), 'absent — the symlink case is unrepaired');
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns a tool through a symlink in a temp cwd)');
+        return;
+      }
+      var TOKEN = '--no-such-flag-9f3'; // the same probe tools/argv-survey.mjs uses
+      var link = probe('tools/geometry-probe.mjs', [TOKEN], { viaSymlink: true });
+      T.eq('through a SYMLINK an unknown flag exits 2, not 0', link.status, 2);
+      T.ok('…and the refusal names the token', String(link.out).indexOf(TOKEN) >= 0, String(link.out).slice(0, 200));
+      T.eq('…and nothing was written beside the link', link.wrote, []);
+      var direct = probe('tools/geometry-probe.mjs', [TOKEN]);
+      T.eq('CONTROL · the direct call gives the same exit', direct.status, link.status);
+      T.ok('CONTROL · and the same refusal text', String(direct.out).indexOf(TOKEN) >= 0, String(direct.out).slice(0, 120));
+      /* Heron's own measurement, as an assertion: a main that PRINTS A NUMBER went mute through a link. */
+      var hc = probe('tools/hook-contract.mjs', ['--probe-bytes'], { viaSymlink: true });
+      T.eq('hook-contract --probe-bytes still runs through a symlink', hc.status, 0);
+      T.ok('…and prints the size rather than nothing', /\d{4,}/.test(String(hc.out)), JSON.stringify(String(hc.out).slice(0, 80)));
+    });
     /* ════ THE HAT ROWS RENDER THE PER-CORNER STATUS (PAT-HAT-DRIFT-DIFFERENCED, 2026-09-27) ═════════
        A negative solved variance has TWO different meanings and the page used to print one word for both.
        `patHatCornerStatus` separates them: a CI that spans 0 means the data are consistent with
@@ -66017,11 +66094,24 @@
         return;
       }
       /* `export ` stripped because this suite is CJS (run-tests.mjs loads it through createRequire) and
-         cannot await an ESM import. The functions are pure, so the realm needs nothing else. */
+         cannot await an ESM import. The functions are pure, so the realm needs nothing else.
+         Since 2026-10-21 the module also imports two node builtins for `isCliEntry`, so the import
+         lines are stripped as well — and the strip is ASSERTED to be builtins only, because dropping a
+         future dependency on repo code would leave this realm evaluating a different module than the
+         one the tools load. `isCliEntry` reads `process.argv`, so it is exercised by execution in the
+         `the CLI predicate survives a symlink to the tool` group, never here. */
+      var IMPORTSg = String(srcText).match(/^import .*$/gm) || [];
+      T.eq(
+        'every import argv-guard.mjs carries is a node builtin, so stripping them keeps the realm faithful',
+        IMPORTSg.filter(function (l) {
+          return !/from 'node:[a-z]+';\s*$/.test(l);
+        }).join(' | '),
+        ''
+      );
       var realm = { module: { exports: {} } };
       realm.exports = realm.module.exports;
       vmG.createContext(realm);
-      vmG.runInContext(srcText.replace(/^export /gm, '') + '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag;', realm);
+      vmG.runInContext(srcText.replace(/^export /gm, '').replace(/^import .*$/gm, '') + '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag;', realm);
       var checkArgv = realm.exports.checkArgv,
         nearestFlag = realm.exports.nearestFlag;
       var SPEC = { valued: ['--src', '--out', '--night'], boolean: ['--dry-run', '--force'] };

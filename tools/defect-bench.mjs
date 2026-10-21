@@ -75,6 +75,7 @@ import { createRequire } from 'node:module';
    row left this benchmark's population in silence. Measured 2026-10-20: 30 of the ledger's 543 closed
    rows carried that escape. */
 import { splitRowCells } from './residue-ids.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -506,7 +507,7 @@ export function verdictFor(set, commit) {
   });
 }
 
-const DIRECT = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const DIRECT = isCliEntry(import.meta.url);
 
 if (DIRECT && has('--verdict-sample')) {
   const v = verdictFor({ tasks: [], excluded: [], population: { closedRows: 0, candidates: 0 } }, null);

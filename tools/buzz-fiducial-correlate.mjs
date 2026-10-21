@@ -39,6 +39,7 @@
  */
 import fs from 'node:fs';
 import { makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const arg = (k) => {
   const i = process.argv.indexOf(k);
@@ -330,7 +331,7 @@ export function buzzVerdict({ status, tolS, gaps, series, onsets, match, refusal
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   if (process.argv.includes('--verdict-sample')) {
     /* The PASS shape, from an aligned synthetic schedule. No capture is read and none is claimed. */

@@ -89,11 +89,11 @@
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, copyFileSync, unlinkSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { cpus } from 'node:os';
 import { launch } from './pw-launch.mjs';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'analysis-rerun-checkpoint.json');
@@ -684,7 +684,7 @@ function selftest() {
   return bad ? 1 : 0;
 }
 
-const IS_CLI = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
   else process.exit(await main(process.argv.slice(2)));

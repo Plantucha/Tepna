@@ -43,10 +43,10 @@
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, writeSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import vm from 'node:vm';
 import { loadRealm, isRealmArtefact } from './mutation-crawl.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
@@ -1307,7 +1307,7 @@ function cmdStatus() {
 
 const INVOKED_DIRECTLY = (() => {
   try {
-    return !!process.argv[1] && fileURLToPath(import.meta.url).endsWith(basename(process.argv[1]));
+    return isCliEntry(import.meta.url);
   } catch {
     return false;
   }

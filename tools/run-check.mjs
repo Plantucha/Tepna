@@ -58,6 +58,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -203,7 +204,7 @@ export function verdictSample() {
   return runVerdict(r, { steps: S, commit: null, commitReason: '--verdict-sample: a scratch step list, no gate run, no code identity claimed', at: '2026-09-22T00:00:00Z' });
 }
 
-const IS_MAIN = process.argv[1] && join(process.argv[1]) === fileURLToPath(import.meta.url);
+const IS_MAIN = isCliEntry(import.meta.url);
 
 if (IS_MAIN && process.argv.includes('--selftest')) {
   let pass = 0;

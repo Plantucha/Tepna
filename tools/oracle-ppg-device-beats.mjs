@@ -58,7 +58,8 @@
 import { createRequire } from 'node:module';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -212,7 +213,7 @@ export function verdictObject(pooled, rows, meta = {}) {
 const SAMPLE_POOLED = { nights: 12, files: 61, ppiDeltaMedianMs: 2.24, latencyMedianMs: 189.9, latencyMadMs: 1.98, matchedPct: 99.1 };
 const SAMPLE_ROWS = Array.from({ length: 12 }, () => ({ ok: true }));
 
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   const argv = process.argv.slice(2);
   const arg = (n, d) => {

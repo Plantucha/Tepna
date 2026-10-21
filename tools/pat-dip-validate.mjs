@@ -30,10 +30,10 @@
  */
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { anklePair } from './pat-dip-index.mjs';
 import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const PATAlign = require('../pat-align.js');
@@ -273,6 +273,6 @@ function main() {
   }
 }
 
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) main();
 export { main };

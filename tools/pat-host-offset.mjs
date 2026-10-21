@@ -46,11 +46,12 @@
  *   node tools/pat-host-offset.mjs --dir <captures> --window 120 --surrogates 50 --json
  */
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { legacyMatchRate, strictMatchRate, circShift, rawLags } from './pat-matchrate-strict.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -347,7 +348,7 @@ function scoreWindow(rT, fT, nSurr) {
 
 export { hostAnchors, hostCorrector, toHostAxis, scoreWindow, scanOffsets };
 
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   const base = DIR.startsWith('/') ? DIR : join(ROOT, DIR);
   if (!existsSync(base)) {

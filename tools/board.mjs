@@ -23,8 +23,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { isCliEntry } from './argv-guard.mjs';
 
 const OUT_DIR = process.env.TEPNA_BOARD_DIR || path.join(homedir(), '.local', 'share', 'tepna', 'board');
 const REPO = process.env.TEPNA_REPO || path.join(homedir(), 'Tepna');
@@ -1526,8 +1526,7 @@ function runSelftest() {
    doc-search for the helper — and node reported `Detected unsettled top-level await`, i.e. a deadlock,
    not a warning to ignore. Three lines duplicated beats a cycle between two tools that must each be
    runnable alone. */
-const _entry = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : '';
-if (_entry === import.meta.url) await main();
+if (isCliEntry(import.meta.url)) await main();
 
 async function main() {
   const argv = process.argv.slice(2);

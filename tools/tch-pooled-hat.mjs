@@ -34,8 +34,9 @@
  */
 import { readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { solveNight } from './tch-fused-corpus.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const KEYS = ['h10', 'verity', 'o2'];
@@ -178,4 +179,4 @@ function main() {
   console.log('    disagreement about the devices — it is the estimators answering different questions.\n');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isCliEntry(import.meta.url)) main();

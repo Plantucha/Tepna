@@ -68,7 +68,7 @@ import { execSync } from 'node:child_process';
 import { createReadStream, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { corpusSearch } from './regen-goldens-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -191,6 +191,7 @@ export const MIN_STEPS = 1000;
    conservative choice, and reports the modal share of every session it turns away so the gap between
    the two bounds is visible rather than assumed. */
 import { DRAWN_MODAL_SHARE, MAX_CRYSTAL_SPREAD_PPM } from './device-stability.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 /* THE WINDOW THE SHIPPED COMMENT QUOTES. `ecgdex-dsp.js:5141` reads "measured over the box corpus
    the H10's real rate is 129.9866–129.9966 Hz" — a 77 ppm window, and the run reports how many
    sessions of that same corpus sit inside it. Nothing here edits the comment or the constant. */
@@ -949,7 +950,7 @@ async function main() {
 
 /* Importing this file must not read a corpus: a tool with no main-module guard consumes the
    importer's argv and prints its own report instead. */
-const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+const isMain = isCliEntry(import.meta.url);
 
 if (isMain)
   main().then(

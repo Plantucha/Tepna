@@ -38,6 +38,7 @@
  * This tool removes the busywork of the race; it does not make entering five of them a good idea.
  */
 import { execFileSync } from 'node:child_process';
+import { isCliEntry } from './argv-guard.mjs';
 
 /* ── the pure core ──────────────────────────────────────────────────────────────────────────────
    `snap` is { state, mergeState, buckets, required, reported }:
@@ -297,7 +298,7 @@ async function main() {
    ⚠️ That tool's guard is `endsWith('rebase-safe.mjs')`, which makes it a SILENT NO-OP under any
    other filename — measured when `npm run rebase` shelled out to a renamed copy and exited 0 having
    done nothing. Compare the resolved path instead, so a rename breaks loudly rather than quietly. */
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+if (isCliEntry(import.meta.url)) {
   main().catch((e) => {
     console.error(String(e.message || e));
     process.exit(1);

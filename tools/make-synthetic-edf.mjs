@@ -33,14 +33,13 @@
  * ════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
 import path from 'node:path';
-import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { pathToFileURL } from 'node:url';
+import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING. At module scope this refusal reads the IMPORTER's
    arguments, so an import of anything in this file judged flags it never passed (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
-const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI && (argv.includes('--help') || argv.includes('-h'))) {
   console.log('usage: node tools/make-synthetic-edf.mjs [outdir]   (default: uploads/)');
   process.exit(0);
