@@ -1,0 +1,529 @@
+{
+  "schema": "tepna.root-reads/1",
+  "command": "pytest -q -n 4 --timeout=180 --cov --cov-branch --cov-report=term-missing --cov-fail-under=100",
+  "paths": [
+    {
+      "path": ".github/workflows/capture-host-ci.yml",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "CPAPDex.src.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "Dex-Test-Suite.html",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "ECGDex.src.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "MotionDex.src.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "OverDex.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "OverDex.src.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "OxyDex.src.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "PAT Classic vs Fused.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "PAT Feasibility.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "PpgDex.src.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "PulseDex.src.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "README.md",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "briefs/BLE-SNIFFER-DUTY-CYCLE-2026-09-07-BRIEF.md",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "briefs/SOLID-NIGHT-2026-09-23-BRIEF.md",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "clock.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "cpapdex-dsp.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "dex-badges.css",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "ecgdex-dsp.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "glucodex-dsp.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "hrvdex-dsp.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "index.html",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "motiondex-dsp.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "pat-feasibility.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "ppgdex-dsp.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "provenance/_meta.json",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "provenance/index.json",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "pulsedex-dsp.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "sensor-trio-night.html",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "sensor-trio-night.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "sensor-trio-power-analysis.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "sigma-no-reference-analysis.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "suite.manifest.json",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "tests/dex-tests.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "tools/argv-guard.mjs",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "tools/mutate-equivalence.json",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "tools/mutate.mjs",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "tools/o2ring-dat-timefit.mjs",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "tools/trio-batch.mjs",
+      "found": [
+        "named"
+      ]
+    },
+    {
+      "path": "tools/verdict-adoption.json",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "tools/verify-seals.mjs",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "exec",
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/20260613_231433_BRP.edf",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/20260613_231433_CSL.edf",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/20260613_231433_EVE.edf",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/20260613_231433_PLD.edf",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/20260613_231433_SA2.edf",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/cpapdex_comparator_live_twin_BRP.edf",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/cpapdex_comparator_sd_twin_BRP.edf",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/cpapdex_maskoff_twin_BRP.edf",
+      "found": [
+        "traced"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/synthetic_ecgdex_h10.txt",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/synthetic_motiondex_acc.txt",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "uploads/synthetic_oxydex_o2ring.csv",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
+      "path": "verdict.js",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "exec",
+        "read"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "token": ".",
+      "how": [
+        "exec"
+      ],
+      "why": "present here and in no commit, so no PR diff names it"
+    },
+    {
+      "token": "devices/1-2",
+      "how": [
+        "exec"
+      ],
+      "why": "not a file \u2014 an argv token a traced subprocess carried"
+    },
+    {
+      "token": "hci0",
+      "how": [
+        "exec"
+      ],
+      "why": "not a file \u2014 an argv token a traced subprocess carried"
+    },
+    {
+      "token": "hci1",
+      "how": [
+        "exec"
+      ],
+      "why": "not a file \u2014 an argv token a traced subprocess carried"
+    },
+    {
+      "token": "x",
+      "how": [
+        "exec"
+      ],
+      "why": "not a file \u2014 an argv token a traced subprocess carried"
+    }
+  ]
+}

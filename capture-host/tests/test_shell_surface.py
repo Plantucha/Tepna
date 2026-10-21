@@ -65,6 +65,7 @@ COVERED = {
     "deploy/fix-web-origin.sh": "test_shell_surface.py",
     "deploy/flash-nrf52840-hci.sh": "test_shell_surface.py",
     "unwedge.sh": "test_shell_surface.py",
+    "tools/relevance.sh": "test_relevance_filter.py",
 }
 
 # Deliberately untested, each with the reason. Empty today; it exists so that "we chose not to" stays a
