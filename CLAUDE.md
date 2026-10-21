@@ -266,6 +266,17 @@ line after any SPDX comment:
   status line), a repo path, or `#NNNN` — the real origin, never the nearest brief. You append a row
   and close it (`fixed #NNNN` or `→ \`<NAME>-BRIEF.md\``), and you never edit one. Only the session
   picking a row up creates a `-FOLLOWUPS-` brief.
+- 🔴 **PICK A ROW UP FROM THE REF, NEVER FROM YOUR WORKING COPY** (*why → RATIONALE §📌*). Every
+  landing PR appends to the ledger, so a checkout is behind it most of the time and the scan still
+  returns a well-formed table with no line saying the file is old — **four sessions in two days
+  claimed a row `origin/main` already showed closed.** Two reads are right whatever your checkout is
+  at: `node tools/residue-ids.mjs --open`, which names every row your copy gets wrong, and
+  `git show origin/main:briefs/RESIDUE.md`. A worktree cut from the ref is current by construction.
+  Hook-enforced by `guard-stale-ledger.sh`, which denies a read whose row states disagree with the
+  ref and names the first disagreement; hatch `CLAUDE_ALLOW_STALE_LEDGER=1`. **The criterion is the
+  FILE, not `behindCommits`** — the root is behind on commits that never touch the ledger, so only a
+  row-state disagreement means anything. §👥.2's caveat holds: a terminal, the web UI, a second agent
+  and an un-pulled tree inherit no hook.
 - **Supersession:** `Superseded-by: <NAME>` on the old, `Supersedes: <NAME>` on the new.
 - **`DOCS-INDEX.md` is the dashboard** — add a row for every new doc; reorganise the view, not the files.
 - 🔍 **Search before you size or build: `node tools/doc-search.mjs --read "<the thing>"`** (owner
