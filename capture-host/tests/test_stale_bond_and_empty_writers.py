@@ -21,7 +21,7 @@ import pytest
 
 import bonding
 import writers
-from tests._srcscan import module_source
+from tests._srcscan import anchored_segment, module_source
 
 
 def _run(coro):
@@ -139,14 +139,14 @@ def test_a_writer_with_data_is_kept(tmp_path):
 
 
 def test_the_teardown_deletes_only_empty_writers():
-    src = module_source("capture.py")  # skips on a mutmut file — see tests/_srcscan.py
-    # 2000, not 1200: the explanatory comment above the loop grew, and a fixed character window that
-    # happens to end mid-comment turns a source scan into a test of comment length.
     # ANCHORED ON THE LOOP, not a character count. This window was 1200, then 2000, and was widened
     # each time the comment above the loop grew — a source scan measured in characters is a test of
     # comment length. Split on the `for wr in` line so the assertions below read the CODE regardless of
     # how much prose precedes it (widened a third time 2026-09-03; fixed instead).
-    tail = src.split("DISCARD HEADER-ONLY FILES")[1].split("for wr in ", 1)[1][:1200]
+    # Through `anchored_segment`, which still skips on a mutmut file and now NAMES an anchor that moved
+    # instead of raising a bare IndexError — the loop header carried a dict key once and all three
+    # scans in this file raised at the same moment, naming nothing.
+    tail = anchored_segment("capture.py", ("DISCARD HEADER-ONLY FILES", 1), ("for wr in ", 1, 1), chars=1200)
     assert "not wr.rows" in tail, "emptiness must be judged by rows, not file size"
     # `os.remove(path)` USED TO BE ASSERTED HERE, and asserting it is what kept CAPTURE-HOST-DEEP-AUDIT
     # §C8 alive: `wr.path` names only the writer's PRIMARY file, so removing it left the `hr` writer's
@@ -231,11 +231,10 @@ def test_a_writer_that_CREATED_its_file_still_gets_pruned(tmp_path):
 def test_the_teardown_consults_resumed_and_says_so_when_it_keeps(tmp_path):
     """Pins the wiring and the visibility. The old discard logged at DEBUG on a box running INFO, so
     the deletions left NO trace — the one line that would have named the loss was invisible."""
-    src = module_source("capture.py")
     # Anchored on the loop for the same reason as the scan above — and I wrote this one with a fixed
     # [:2600] window first, which failed on my own comment. Third instance of the identical mistake in
     # one file; the character count is the defect, not its size.
-    block = src.split("DISCARD HEADER-ONLY FILES")[1].split("for wr in ", 1)[1][:1500]
+    block = anchored_segment("capture.py", ("DISCARD HEADER-ONLY FILES", 1), ("for wr in ", 1, 1), chars=1500)
     assert "if not wr.rows and not wr.resumed:" in block, "the pruner must consult resumed"
     assert "log.info(" in block, "keeping a resumed empty set must be visible at INFO, not DEBUG"
 
@@ -249,10 +248,11 @@ def test_the_START_REJECTED_branch_also_refuses_to_delete_a_resumed_set():
     exactly this branch — on a set earlier sessions filled.
 
     Anchored on the branch, not a character offset (see the two scans above; the count is the defect)."""
-    src = module_source("capture.py")
     # TWO CONTENT ANCHORS, no character count. Three scans in this file used a fixed window and all
     # three broke when a comment grew — including, twice, mine. A region is bounded by what ENDS it.
-    branch = src.split("truly unsupported settings", 1)[1].split("del writers[meas]", 1)[0]
+    # `until=` is the closing bound: `split(x, 1)[0]` returns the WHOLE text when the bound disappears,
+    # so the region would widen to the end of capture.py and the assertions below could not fail.
+    branch = anchored_segment("capture.py", ("truly unsupported settings", 1, 1), until="del writers[meas]")
     assert "if writers[meas].resumed:" in branch, "the rejected-START branch must check resumed"
     assert "writers[meas].close()" in branch, "a resumed set is closed, never discarded"
     assert "writers[meas].discard()" in branch, "a set this session created must still be pruned"
@@ -372,12 +372,17 @@ def test_every_ring_prune_tuple_writer_reports_resumed(tmp_path, cls, seed):
     assert p.read_text() == seed, "a resumed writer with no rows must leave the earlier bytes untouched"
 
 
-def _ring_block(src, site):
+def _ring_block(site):
     """The two ring sites, each bounded by CONTENT: the pruner comment that opens it and the loop
-    keyword that closes it. No character offsets — see the three scans above that broke on a comment."""
+    keyword that closes it. No character offsets — see the three scans above that broke on a comment.
+
+    Every anchor runs through `anchored_segment`, so a moved opener names itself rather than raising
+    IndexError, and a vanished closer refuses rather than widening the region to the end of the file."""
     if site == "oxyii":
-        return src.split("DISCARD HEADER-ONLY FILES")[2].split("for _w in ", 1)[1].split("ACQUISITION EVIDENCE", 1)[0]
-    return src.split("INCLUDING its `resumed` guard", 1)[1].split("if not _STOP.is_set()", 1)[0]
+        return anchored_segment(
+            "capture.py", ("DISCARD HEADER-ONLY FILES", 2), ("for _w in ", 1, 1), until="ACQUISITION EVIDENCE"
+        )
+    return anchored_segment("capture.py", ("INCLUDING its `resumed` guard", 1, 1), until="if not _STOP.is_set()")
 
 
 @pytest.mark.parametrize("site, var", [("oxyii", "_w"), ("viatom", "wr")])
@@ -385,7 +390,7 @@ def test_the_ring_teardowns_consult_resumed_and_default_to_KEEP(site, var):
     """`getattr(..., False)` is the reflex fix and the wrong one: it would have shipped green against a
     StreamWriter test and deleted SPO2 exactly as before. Unknown ⇒ keep — the wrong keep costs a
     header-only file, the wrong delete costs the night."""
-    block = _ring_block(module_source("capture.py"), site)
+    block = _ring_block(site)
     assert f'getattr({var}, "resumed", True)' in block, "absent `resumed` must fail toward KEEP"
     assert "if _empty and not _resumed:" in block, "the pruner must consult resumed"
     assert "log.info(" in block and "RESUMED" in block, "keeping a resumed empty set must be visible at INFO"
@@ -394,7 +399,7 @@ def test_the_ring_teardowns_consult_resumed_and_default_to_KEEP(site, var):
 def test_ring_pruner_discards_through_the_writer_when_it_can():
     """A StreamWriter owns sidecars (its RUNS ledger); removing `path` alone orphans them (§C8 shape).
     Where the writer knows its own files, the teardown must ask it."""
-    block = _ring_block(module_source("capture.py"), "oxyii")
+    block = _ring_block("oxyii")
     assert "_w.discard()" in block and 'hasattr(_w, "discard")' in block
 
 
