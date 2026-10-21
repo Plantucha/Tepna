@@ -77,11 +77,15 @@
         .pop() || '';
     var m = FNAME_RE.exec(base);
     if (!m) return null;
-    var d = m[1],
-      t = m[2];
-    var sec = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)) / 1000;
-    if (!isFinite(sec)) return null;
-    return { sec: sec, type: m[3].toUpperCase(), file: name };
+    // FNAME_RE stays the ACCEPT TEST, so this adapter still claims exactly the names it claimed.
+    // The INSTANT comes from clock.js, which range-validates the components (Clock Contract §2.7).
+    // The bare `Date.UTC` that stood here rolled an out-of-range stamp onto a real instant instead
+    // of refusing: `20261332_999999_BRP.edf` became 2027-02-05 and keyed a session at that date.
+    // Called INSIDE the body on purpose — `Data Unifier.src.html` loads this file BEFORE clock.js,
+    // so a module-scope `var f = DexClock.fileStamp` would throw at evaluation (CLAUDE.md §👥.3).
+    var p = DexClock.fileStamp(base);
+    if (!p) return null;
+    return { sec: p.tMs / 1000, type: m[3].toUpperCase(), file: name };
   }
 
   /**
