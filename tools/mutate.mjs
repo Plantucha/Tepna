@@ -51,7 +51,7 @@
  * true and is not fixed by this tool.
  *
  * USAGE
- *   node tools/mutate.mjs --changed                 # files changed vs origin/main (default)
+ *   node tools/mutate.mjs                           # files changed vs origin/main: the DEFAULT set
  *   node tools/mutate.mjs --file ppgdex-dsp.js      # one file (repeatable)
  *   node tools/mutate.mjs --file X --limit 40       # cap mutants per file (default 60)
  *   node tools/mutate.mjs --file X --jobs 12        # parallel workers (default: ~⅔ of cores; 1 at ≤2 cores)

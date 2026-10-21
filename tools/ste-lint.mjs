@@ -323,7 +323,7 @@ export function verdictFor(label, f, lineCount, { advisory = false, excluded = 0
 
 function main() {
   const argv = process.argv.slice(2);
-  refuseUnknownArgvOrExit(argv, { boolean: ['--advisory', '--json', '--verdict-sample', '--selftest', '--strict'], positional: true }, { tool: 'ste-lint' });
+  refuseUnknownArgvOrExit(argv, { boolean: ['--advisory', '--json', '--verdict-sample', '--selftest', '--strict'], positional: true, stdin: true }, { tool: 'ste-lint' });
   const target = argv.find((a) => !a.startsWith('-')) || (argv.includes('-') ? '-' : null);
   if (!target) {
     console.error('usage: node tools/ste-lint.mjs <file.md|-> [--json] [--advisory]');

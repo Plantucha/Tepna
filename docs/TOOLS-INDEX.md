@@ -68,7 +68,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`deep-flow-join.mjs`](../tools/deep-flow-join.mjs) | DEEP-epoch × flow-event join, with a PER-COHORT clock offset instead of one global shift. |
 | [`deep-vlf-probe.mjs`](../tools/deep-vlf-probe.mjs) | THE STANDING VLF-vs-CONTAMINATED-DEEP PROBE (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §9/§11/§12). |
 | [`defect-bench-solve.mjs`](../tools/defect-bench-solve.mjs) | Solver runner for audits/DEFECT-BENCHMARK.json. Measures the BENCHMARK METHOD with a local model, never the fleet. |
-| [`defect-bench.mjs`](../tools/defect-bench.mjs) | the frozen benchmark of past defects, built node tools/defect-bench.mjs --build # enumerate, classify, write the set node tools/defect-bench.mjs --build --prove 8 # …and prove up to 8 more… |
+| [`defect-bench.mjs`](../tools/defect-bench.mjs) | the frozen benchmark of past defects, built node tools/defect-bench.mjs # enumerate, classify, write the set (the default) node tools/defect-bench.mjs --prove 8 # …and prove up to 8 more… |
 | [`defect-pin-census.mjs`](../tools/defect-pin-census.mjs) | the enumeration gate for tests that once asserted the defect they were written for |
 | [`derive-open-ahi.mjs`](../tools/derive-open-ahi.mjs) | DERIVE AN AHI PER RECORDING OVER THE TWO ANNOTATED OPEN SETS — ISRUC and iSleeps. |
 | [`derive-sigma-window.mjs`](../tools/derive-sigma-window.mjs) | Headless derivation of the two raw-signal 1-Hz HR series a three-device σ window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md): • Verity HR ← raw PPG via the suite's… |

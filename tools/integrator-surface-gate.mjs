@@ -126,12 +126,15 @@ function main() {
           .join(' · '),
     producedBy: { tool: 'tools/integrator-surface-gate.mjs', commit: gitCommit() }
   });
+  /* `--json` is the documented "verdict only": without it stdout carries the object AND the ✓ line,
+     which reads well and does not parse. Nothing read the flag until 2026-10-21. */
+  const JSON_ONLY = process.argv.includes('--json');
   console.log(JSON.stringify(v));
   if (!r.ok) {
     console.error('✗ ' + v.reason);
     process.exit(1);
   }
-  console.log(`✓ ${keys.length} Integrator key(s): ${cards} card · ${keys.length - cards} export-only · 0 undeclared`);
+  if (!JSON_ONLY) console.log(`✓ ${keys.length} Integrator key(s): ${cards} card · ${keys.length - cards} export-only · 0 undeclared`);
   if (r.stale.length) console.log(`  note: ${r.stale.length} declaration(s) name a key the fusion no longer emits (${r.stale.join(', ')}) — not a red, but worth pruning`);
   process.exit(0);
 }

@@ -44,12 +44,16 @@
  *   node tools/residue-ids.mjs --base <ref>
  *   node tools/residue-ids.mjs --json
  *   node tools/residue-ids.mjs --full-tree      # every merged commit's `Closes residue <key>` claim vs that row's state
- *   node tools/residue-ids.mjs --open           # the OPEN rows AT THE REF, plus every state the file on disk gets wrong
+ *   node tools/residue-ids.mjs --open           # the OPEN rows AT THE REF, plus every state the file on disk gets wrong,
+ *                                                 # plus each OPEN row a later code commit names (a lead, never a close)
  *   node tools/residue-ids.mjs --open --verdict-sample   # the pickup verdict alone, for the adoption gate
  * ════════════════════════════════════════════════════════════════════════ */
 
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
 
@@ -387,6 +391,109 @@ export function pickupDrift(refText, diskText) {
   };
 }
 
+/* ── THE CODE READ ────────────────────────────────────────────────────────────────────────────────
+   Row 2026-10-20-no-instrument-compares-a-residue-row-against-the-code-that-closes-it. `pickupDrift`
+   compares the disk against the ref and never against the code, so a row whose fix has landed stays on
+   the pickup list. `2026-10-06-zero-on-empty-dsp-helpers` read OPEN five hours after #3754 landed its
+   last half, while the verdict read `staleOpen: 0`. A closure names a PR and stays a human act, so this
+   read is a LEAD for a picker, never a close.
+
+   The signal is the one a fixing PR leaves by convention: its message names the row's key. A commit
+   counts when (1) its message names the key as a whole token, (2) it changed at least one path outside
+   `briefs/` and `changes/`, because a ledger or changeset edit logs or annotates a row and is not code,
+   and (3) it is not the commit that added the row, because a code PR that logs its own remainder row
+   names that key without fixing it. Measured 2026-10-21 at origin/main: 26 of the 73 OPEN rows carry a
+   lead. At ec918e9e3 the read names #3754 for the zero-on-empty row. */
+
+/** The `git log` format `parseLog` reads: record separator, then sha, subject, full message, names. */
+export const LOG_FORMAT = '%x1e%H%x1f%s%x1f%B%x1f';
+
+/**
+ * Pure. Parses `git log --format=LOG_FORMAT --name-only` output.
+ * @param {string} text
+ * @returns {Array<{sha: string, subject: string, message: string, files: string[]}>}
+ */
+export function parseLog(text) {
+  const out = [];
+  for (const rec of String(text || '')
+    .split('\x1e')
+    .slice(1)) {
+    const parts = rec.split('\x1f');
+    if (parts.length < 4) continue;
+    const [sha, subject, message, names] = parts;
+    out.push({
+      sha: sha.trim(),
+      subject,
+      message,
+      files: names
+        .split('\n')
+        .map((f) => f.trim())
+        .filter(Boolean)
+    });
+  }
+  return out;
+}
+
+/**
+ * Pure. Maps each row key to the commit that ADDED its row, from `git log --format=%x1e%H -p
+ * --unified=0 -- briefs/RESIDUE.md`. The log runs newest first, so a later record overwrites an
+ * earlier one and the map ends at the OLDEST add. A row re-added by a revert keeps its first author.
+ * @param {string} patchText
+ * @returns {Map<string, string>}
+ */
+export function rowAddedBy(patchText) {
+  const out = new Map();
+  for (const rec of String(patchText || '')
+    .split('\x1e')
+    .slice(1)) {
+    const sha = rec.slice(0, 40);
+    for (const m of rec.matchAll(/^\+\| (\d{4}-\d\d-\d\d-[a-z0-9-]+) \|/gm)) out.set(m[1], sha);
+  }
+  return out;
+}
+
+/** Pure. True when the path is code and not a ledger, brief or changeset edit. */
+export function isCodePath(f) {
+  return !f.startsWith('briefs/') && !f.startsWith('changes/');
+}
+
+/**
+ * Pure. True when `text` names `key` as a whole token. A bare `includes` would let
+ * `2026-10-20-foo` match inside `2026-10-20-foo-bar`, which is a different row.
+ */
+export function namesKey(text, key) {
+  const t = String(text || '');
+  const tok = /[a-z0-9-]/;
+  for (let i = t.indexOf(key); i >= 0; i = t.indexOf(key, i + 1)) {
+    const before = i === 0 ? '' : t[i - 1];
+    const after = t[i + key.length] || '';
+    if (!tok.test(before) && !tok.test(after)) return true;
+  }
+  return false;
+}
+
+/** Pure. `#N` from a squash subject's `(#N)` suffix, else the short sha. */
+export function prOf(subject, sha) {
+  const m = /\(#(\d+)\)\s*$/.exec(String(subject || ''));
+  return m ? `#${m[1]}` : String(sha).slice(0, 9);
+}
+
+/**
+ * Pure. The leads: each key a later code commit names, with the PRs that name it.
+ * @param {string[]} keys      the OPEN rows at the ref
+ * @param {ReturnType<typeof parseLog>} commits
+ * @param {Map<string, string>} addedBy
+ * @returns {Map<string, string[]>} key → PR numbers (or short shas), newest first; keys with no lead are absent
+ */
+export function namedByCode(keys, commits, addedBy) {
+  const out = new Map();
+  for (const k of keys) {
+    const hits = commits.filter((c) => c.sha !== addedBy.get(k) && c.files.some(isCodePath) && namesKey(c.message, k)).map((c) => prOf(c.subject, c.sha));
+    if (hits.length) out.set(k, hits);
+  }
+  return out;
+}
+
 /**
  * Pure. The `tepna.verdict/1` for a pickup read. The criterion is pre-stated in the brief-free
  * form the row asked for: a read a session may size work from carries ZERO rows whose state
@@ -414,6 +521,9 @@ export function pickupVerdict(drift, ctx) {
       onlyDisk: drift.onlyDisk.length,
       openOnRef: drift.openOnRef.length,
       openOnDisk: drift.openOnDisk.length,
+      /* Informational, never part of the status: a lead is not a close. `null` when the code read
+         did not run (the verdict sample, or a git log this tree could not read). */
+      openNamedByCode: Number.isInteger(ctx.namedByCode) ? ctx.namedByCode : null,
       behindCommits: ctx.behind,
       base: ctx.base
     },
@@ -508,17 +618,41 @@ function main() {
       commit = null;
     }
     const drift = pickupDrift(refText, diskText);
-    const v = pickupVerdict(drift, { behind, base, commit });
+    /* THE CODE READ. Bounded by the oldest OPEN key's date, less one day for the zone: a commit cannot
+       name a key before the day it was coined. A git failure leaves `leads` null and says so. */
+    let leads = null;
+    if (!sample) {
+      try {
+        const dates = drift.openOnRef.map((k) => k.slice(0, 10)).sort();
+        if (dates.length === 0) leads = new Map();
+        else {
+          const since = `--since=${new Date(Date.parse(dates[0]) - 86400000).toISOString().slice(0, 10)}`;
+          const big = { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 };
+          const commits = parseLog(execFileSync('git', ['log', base, `--format=${LOG_FORMAT}`, '--name-only', since], big));
+          const addedBy = rowAddedBy(execFileSync('git', ['log', base, '--format=%x1e%H', '-p', '--unified=0', since, '--', LEDGER_PATH], big));
+          leads = namedByCode(drift.openOnRef, commits, addedBy);
+        }
+      } catch {
+        leads = null;
+      }
+    }
+    const v = pickupVerdict(drift, { behind, base, commit, namedByCode: leads === null ? null : leads.size });
     if (sample) {
       process.stdout.write(`${JSON.stringify(v)}\n`);
       process.exit(0);
     }
     if (asJson) {
-      process.stdout.write(`${JSON.stringify({ verdict: v, ...drift }, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify({ verdict: v, ...drift, namedByCode: leads === null ? null : Object.fromEntries(leads) }, null, 2)}\n`);
       process.exit(v.status === 'PASS' ? 0 : 1);
     }
     process.stdout.write(`residue-pickup: ${drift.openOnRef.length} OPEN row(s) at ${base}${behind === null ? '' : ` (this tree is ${behind} commit(s) behind it)`}\n`);
-    for (const k of drift.openOnRef) process.stdout.write(`  ${k}\n`);
+    for (const k of drift.openOnRef) process.stdout.write(`  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}\n`);
+    if (leads === null) process.stdout.write('\nresidue-pickup: the code read did not run (git log was not readable), so no row carries a lead\n');
+    else
+      process.stdout.write(
+        `\nresidue-pickup: ${leads.size} of the ${drift.openOnRef.length} OPEN row(s) are named by a later commit that changed code. ` +
+          'Read those PRs before you size the row: the fix may have landed. A lead is not a close.\n'
+      );
     if (v.status === 'PASS') {
       process.stdout.write(`\nresidue-pickup: the file on disk agrees with ${base} on all ${drift.checked} shared row(s)\n`);
     } else {
@@ -799,6 +933,74 @@ if (IS_CLI && process.argv.includes('--selftest')) {
   assert(pv.status === 'PASS' && pv.reason === null && pv.population.checked === 3, 'an identical read passes over the rows it compared');
   pv = pickupVerdict(pickupDrift([row(A), row(B)].join('\n'), [row(A)].join('\n')), { behind: 2, base: 'origin/main', commit: 'abc1234' });
   assert(pv.status === 'FAIL' && pv.population.excluded === 1, 'a row the read cannot see fails the pickup on its own');
+
+  /* THE CODE READ — each assertion is a plant for one of the three conditions. */
+  {
+    const K = '2026-10-20-foo';
+    const K2 = '2026-10-20-foo-bar';
+    const rec = (sha, subject, message, files) => `\x1e${sha}\x1f${subject}\x1f${message}\x1f\n${files.join('\n')}\n`;
+    const s40 = (c) => c.repeat(40);
+    const logText =
+      rec(s40('a'), 'fix(x): the fix (#30)', `closes ${K}.`, ['x-dsp.js', 'briefs/RESIDUE.md']) +
+      rec(s40('b'), 'docs(residue): annotate (#20)', `about ${K}`, ['briefs/RESIDUE.md', 'changes/a.md']) +
+      rec(s40('c'), 'fix(y): logs its remainder (#10)', `new row ${K}`, ['y.js', 'briefs/RESIDUE.md']) +
+      rec(s40('d'), 'fix(z): another row (#5)', `row ${K2}`, ['z.js']);
+    const commits = parseLog(logText);
+    assert(commits.length === 4 && commits[0].files.join() === 'x-dsp.js,briefs/RESIDUE.md' && commits[2].message === `new row ${K}`, 'parseLog reads sha, subject, message and files');
+    assert(parseLog('').length === 0 && parseLog(undefined).length === 0, 'an empty log has no commits');
+    const patch = `\x1e${s40('e')}\n+| ${K} | x |\n\x1e${s40('c')}\n+| ${K} | x |\n+| ${K2} | y |\n`;
+    const added = rowAddedBy(patch);
+    assert(added.get(K) === s40('c') && added.get(K2) === s40('c'), 'rowAddedBy keeps the OLDEST add (the last record of a newest-first log)');
+    let leads = namedByCode([K, K2], commits, added);
+    assert(leads.get(K)?.join() === '#30', 'a code commit naming the key is a lead; a docs-only commit and the adding commit are not');
+    assert(leads.get(K2)?.join() === '#5', 'a commit naming the longer key leads to that key only');
+    assert(namesKey(`row ${K2}`, K) === false && namesKey(`(${K})`, K) === true && namesKey(`x${K}`, K) === false, 'namesKey matches a whole token only');
+    leads = namedByCode([K], commits, new Map());
+    assert(leads.get(K)?.join() === '#30,#10', 'without the add map, the remainder-logging commit would read as a lead');
+    assert(namedByCode([K], [], added).size === 0, 'no commits, no leads');
+    assert(isCodePath('tools/a.mjs') && !isCodePath('briefs/RESIDUE.md') && !isCodePath('changes/x.md'), 'isCodePath splits code from ledger and changeset edits');
+    assert(prOf('fix: x (#3754)', s40('a')) === '#3754' && prOf('local commit', s40('a')) === 'aaaaaaaaa', 'prOf reads the squash suffix, else the short sha');
+    const d0 = pickupDrift([row(A)].join('\n'), [row(A)].join('\n'));
+    assert(pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234', namedByCode: 3 }).result.openNamedByCode === 3, 'the verdict carries the lead count');
+    const pv0 = pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234' });
+    assert(pv0.result.openNamedByCode === null && pv0.status === 'PASS', 'no code read is null, never 0, and a lead never moves the status');
+  }
+
+  /* BLACK BOX: the CLI in a scratch repo. Commit 1 adds the row in a code commit that names it (a
+     remainder row); commit 2 is a code fix that names it; commit 3 only annotates the ledger. The
+     listing must name commit 2 alone. */
+  {
+    const scratch = mkdtempSync(path.join(os.tmpdir(), 'residue-ids-code-'));
+    try {
+      const here = path.dirname(fileURLToPath(import.meta.url));
+      mkdirSync(path.join(scratch, 'tools'));
+      mkdirSync(path.join(scratch, 'briefs'));
+      for (const f of ['residue-ids.mjs', 'argv-guard.mjs']) copyFileSync(path.join(here, f), path.join(scratch, 'tools', f));
+      copyFileSync(path.join(here, '..', 'verdict.js'), path.join(scratch, 'verdict.js'));
+      const K = '2026-10-20-a-scratch-row';
+      const g = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, encoding: 'utf8' });
+      const put = (f, t) => writeFileSync(path.join(scratch, f), t);
+      g('init', '-q');
+      put('briefs/RESIDUE.md', `${row(K)}\n`);
+      put('a.js', '1\n');
+      g('add', '-A');
+      g('commit', '-qm', `fix(a): a change that logs its remainder ${K}`);
+      put('a.js', '2\n');
+      g('add', 'a.js');
+      g('commit', '-qm', `fix(a): the fix for ${K}`);
+      const fix = g('rev-parse', '--short=9', 'HEAD').trim();
+      put('briefs/RESIDUE.md', `${row(K)}\n${row('2026-10-20-another-row')}\n`);
+      g('add', 'briefs/RESIDUE.md');
+      g('commit', '-qm', `docs(residue): a note about ${K}`);
+      const run = spawnSync(process.execPath, [path.join(scratch, 'tools', 'residue-ids.mjs'), '--open', '--base', 'HEAD'], { cwd: scratch, encoding: 'utf8' });
+      assert(run.status === 0, `BLACK BOX: --open exits 0 on an agreeing read (exit ${run.status}: ${run.stderr})`);
+      assert(run.stdout.includes(`  ${K}  ← named by code: ${fix}\n`), 'BLACK BOX: the listing names the fixing commit, and only it');
+      assert(/1 of the 2 OPEN row\(s\) are named by a later commit/.test(run.stdout), 'BLACK BOX: the summary counts the one lead');
+      assert(/"openNamedByCode":1/.test(run.stdout), 'BLACK BOX: the verdict carries the lead count');
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }
 
   // Phrased so `selftest-all.mjs` can PARSE the count: a tool that silently drops from 8
   // assertions to 1 still exits 0, and only a readable number makes that visible.
