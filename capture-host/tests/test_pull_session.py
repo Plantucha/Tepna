@@ -418,10 +418,26 @@ def test_a_truncated_transfer_still_writes_but_the_sidecar_shows_the_shortfall(t
 
 
 def test_an_empty_chunk_stops_the_transfer_rather_than_looping_forever(tmp_path, monkeypatch):
-    """A zero-length FILE_DATA reply never advances the offset; without the guard this spins forever."""
+    """A zero-length FILE_DATA reply never advances the offset; without the guard this spins forever.
+
+    The test must FAIL on that spin, not hang in it: a hang reads as a mutation-gate TIMEOUT (UNDECIDED,
+    so `mutate_diff` refuses) instead of a kill. A second FILE_DATA wait is the spin's first step, so it
+    ends the transfer the way a silent link does and the count below names the defect."""
     ring = FakeRing(["20260719010000"], b"", declared=5000)
     _install(monkeypatch, ring)
+    real_wait = pull_session._wait
+    seen = {"n": 0}
+
+    async def once(q, op, timeout=20.0):
+        if op == oxyii.OP_FILE_DATA:
+            seen["n"] += 1
+            if seen["n"] > 1:
+                raise asyncio.TimeoutError("asked again after an empty chunk")
+        return await real_wait(q, op, timeout=timeout)
+
+    monkeypatch.setattr(pull_session, "_wait", once)
     got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+    assert seen["n"] == 1, f"the transfer asked for more data after an empty chunk ({seen['n']} waits)"
     assert len(got) == 1 and os.path.getsize(got[0]) == 0
 
 
