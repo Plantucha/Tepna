@@ -2406,7 +2406,29 @@ function readBiomeCoverage() {
       /* vanished between walk and stat — not our business */
     }
   }
-  return { maxSize: (cfg.files && cfg.files.maxSize) || null, defaultMaxSize: 1048576, files };
+  /* A rule's configured level is either the bare string or `{ level, options }`. `recommended: true`
+     sits beside the groups and is not a group, so a non-object member is skipped rather than read. */
+  const flatten = (rules) => {
+    const out = {};
+    for (const [grp, members] of Object.entries(rules || {})) {
+      if (!members || typeof members !== 'object') continue;
+      for (const [name, val] of Object.entries(members)) {
+        out[`${grp}/${name}`] = typeof val === 'string' ? val : val && typeof val === 'object' ? val.level || null : null;
+      }
+    }
+    return out;
+  };
+  const overrides = (Array.isArray(cfg.overrides) ? cfg.overrides : []).map((o) => ({
+    includes: Array.isArray(o.includes) ? o.includes.slice() : [],
+    rules: flatten(o.linter && o.linter.rules)
+  }));
+  return {
+    maxSize: (cfg.files && cfg.files.maxSize) || null,
+    defaultMaxSize: 1048576,
+    files,
+    rules: flatten(cfg.linter && cfg.linter.rules),
+    overrides
+  };
 }
 
 function readDocsLedger() {
