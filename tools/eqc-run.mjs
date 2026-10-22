@@ -32,10 +32,14 @@
  *
  * USAGE
  *   node tools/eqc-run.mjs [--trio <dir>] [--cpap <dir>] [--maxlag 20]
+ *     --selftest         known-answer checks for the collocation solver (no corpus, no I/O)
+ *     --verdict-sample   the population verdict alone, for `verify:verdict-adoption`
  * ════════════════════════════════════════════════════════════════════════ */
 
 import fs from 'node:fs';
 import path from 'node:path';
+
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {
@@ -44,17 +48,6 @@ const arg = (k, d) => {
 };
 const TRIO = arg('--trio', 'uploads/trio');
 const CPAP = arg('--cpap', '/run/media/michal/647A504F7A50205A/Ecg nightly/CPAP');
-/* AN ABSENT INPUT PATH IS NOT A MEASUREMENT. The default below points at a removable volume that
-   is not always mounted (and is no longer where the primary checkout lives), so the common failure
-   is that the directory simply is not there. Without this, this run printed "⊘ INSUFFICIENT: 0 pooled epoch-pairs" and exited 0 — a caller reading the exit
-   code sees success, and the output reads as a finding about the data rather than about the path.
-   Refuse with exit 2, the convention `tools/hostaxis-estimator-bakeoff.mjs` already uses. This is
-   §∅ one layer out: absence must stay visible, never be reported as a value. */
-if (!fs.existsSync(CPAP)) {
-  console.error(`✗ input path does not exist: ${CPAP}\n  Pass --cpap <dir>, or mount the volume.`);
-  process.exit(2);
-}
-
 const MAXLAG = Number(arg('--maxlag', '4')); // in 5-min epochs => +/- 20 min
 
 /* ── minimal EDF reader. Only what is needed: one named signal, physical units.
@@ -195,18 +188,44 @@ function loadCpapEpochs(dateDir) {
   return out;
 }
 
+/* ── the two corpus-free entry points, AND THEY SIT ABOVE THE INPUT-PATH REFUSAL ────────────────
+   Both are read where the captures are absent: `verify:verdict-adoption` parses the sample object
+   from stdout and `tools/selftest-all.mjs` runs the known-answer checks, neither on a box with the
+   CPAP volume mounted. The refusal below is the guard for the RUN, so it comes after them — above
+   them it would refuse the two callers that have no corpus to refuse over. */
+if (argv.includes('--selftest')) process.exit(selftest());
+
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+  process.exit(0);
+}
+
+/* AN ABSENT INPUT PATH IS NOT A MEASUREMENT. The default points at a removable volume that is not
+   always mounted (and is no longer where the primary checkout lives), so the common failure is that
+   the directory simply is not there. Without this, this run printed "⊘ INSUFFICIENT: 0 pooled
+   epoch-pairs" and exited 0 — a caller reading the exit code sees success, and the output reads as
+   a finding about the data rather than about the path. Refuse with exit 2, the convention
+   `tools/hostaxis-estimator-bakeoff.mjs` already uses. This is §∅ one layer out: absence must stay
+   visible, never be reported as a value. */
+if (!fs.existsSync(CPAP)) {
+  console.error(`✗ input path does not exist: ${CPAP}\n  Pass --cpap <dir>, or mount the volume.`);
+  process.exit(2);
+}
+
 /* ── main ─────────────────────────────────────────────────────────────────── */
-const nights = fs
-  .readdirSync(TRIO)
-  .filter((d) => /^\d{4}-\d\d-\d\d$/.test(d))
-  .filter((d) => fs.existsSync(path.join(CPAP, d.replace(/-/g, ''))))
-  .sort();
+/* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. `popBefore.nights` is the
+   offer; the CPAP-existence filter below is a COVERAGE rule over that offer, not a night rule, so
+   it rides `notANight` at the end rather than `snapshotNights`'s `re` — a night with no CPAP
+   directory is a night this run could not score, and the triple must keep saying what MOVED. */
+const popBefore = snapshotNights(TRIO);
+const nights = popBefore.nights.filter((d) => fs.existsSync(path.join(CPAP, d.replace(/-/g, ''))));
 
 console.log('Extended Quadruple Collocation — real corpus');
 console.log(`  trio ${TRIO} · cpap ${CPAP}`);
-console.log(`  ${nights.length} nights with both\n`);
+console.log(`  ${popBefore.n} nights offered${popBefore.ok ? '' : ` — ${popBefore.reason}`} · ${nights.length} with both\n`);
 
 const pooled = PAIRS.map(() => []);
+const covered = [];
 let used = 0;
 let rejected = 0;
 const rejectLog = [];
@@ -216,6 +235,7 @@ for (const night of nights) {
   const cp = loadCpapEpochs(path.join(CPAP, night.replace(/-/g, '')));
   if (!trio || !cp || !cp.length) {
     rejected++;
+    covered.push({ night, ok: false });
     rejectLog.push(`${night}: missing stream — trio=${trio ? 'ok' : 'NULL'} cpap=${cp ? `${cp.length} epochs` : 'NULL'}`);
     continue;
   }
@@ -243,11 +263,13 @@ for (const night of nights) {
   }
   if (!Number.isFinite(bestScore)) {
     rejected++;
+    covered.push({ night, ok: false });
     rejectLog.push(`${night}: no overlap`);
     continue;
   }
   if (Math.abs(bestLag) >= MAXLAG) {
     rejected++;
+    covered.push({ night, ok: false });
     rejectLog.push(`${night}: CPAP lag ${bestLag * 5} min hit the ±${MAXLAG * 5} min bound — clock fault, not shifted`);
     continue;
   }
@@ -265,6 +287,7 @@ for (const night of nights) {
   }
   if (rows.length < 20) {
     rejected++;
+    covered.push({ night, ok: false });
     rejectLog.push(`${night}: only ${rows.length} matched epochs`);
     continue;
   }
@@ -275,11 +298,20 @@ for (const night of nights) {
     for (const x of d) pooled[k].push(x - m);
   });
   used++;
+  covered.push({ night, ok: true });
   console.log(`  ${night}  n=${String(rows.length).padStart(3)}  cpapLag=${bestLag * 5} min`);
 }
 
 console.log(`\n  used ${used} nights · rejected ${rejected}`);
 for (const r of rejectLog) console.log(`    ✗ ${r}`);
+
+/* THE POPULATION IS PUBLISHED HERE, ABOVE EVERY EXIT BELOW. The two insufficiency exits and the
+   no-solution exit all leave with status 0, so a population reported after them would be reported
+   on the one path that reaches the end — and the runs that need it most are the short ones. */
+const population = populationVerdict(popBefore, snapshotNights(TRIO), { tool: 'tools/eqc-run.mjs' });
+const unscored = notANight(popBefore, covered);
+console.log(`  offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+console.log(JSON.stringify(population));
 
 const N = pooled[0].length;
 if (used < 2 || N < 200) {
@@ -311,3 +343,86 @@ console.log('   These two are NOT distinguishable by this method at any sample s
 const s2 = best.f.s2;
 console.log('\n  implied per-source SD (bpm), under the best-fitting hypothesis:');
 NAMES.forEach((n, i) => console.log(`    ${n.padEnd(8)} ${Math.sqrt(Math.max(0, s2[i])).toFixed(3)}`));
+
+/* One synthetic pair of snapshots, so the shape the gate parses needs no mounted volume. The two
+   lists are identical: the sample states the STABLE case, which is the only one a sample can state
+   without inventing a movement that never happened. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const snap = (nights) => ({
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^\d{4}-\d{2}-\d{2}$/),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  });
+  const sample = ['2026-06-10', '2026-06-11'];
+  return populationVerdict(snap(sample), snap(sample), { tool: 'tools/eqc-run.mjs', at });
+}
+
+/* ── selftest: known answers for the solver ─────────────────────────────────────────────────────
+   THE 2-FOLD AMBIGUITY IS THE TOOL'S LOAD-BEARING CLAIM, and nothing tested it. §3.1(a) of the
+   brief pre-registers that an exact pair is not identifiable, so the tool reports the CLASS; the
+   legs below construct a model with ONE correlated edge and measure that the edge and its disjoint
+   complement fit equally well while disagreeing about the per-source variances. A tool whose
+   refusal to name a pair is untested could have been refusing for a reason that stopped holding. */
+function selftest() {
+  let pass = 0;
+  let fail = 0;
+  const near = (a, b, tol = 1e-9) => Number.isFinite(a) && Math.abs(a - b) <= tol;
+  const ok = (name, cond, detail = '') => {
+    if (cond) {
+      pass++;
+      console.log(`  ok   ${name}`);
+    } else {
+      fail++;
+      console.log(`  FAIL ${name}${detail ? ' — ' + detail : ''}`);
+    }
+  };
+
+  const xs = [2, 4, 4, 4, 5, 5, 7, 9];
+  ok('mean of a known list', near(mean(xs), 5));
+  ok('variance is the SAMPLE form (n-1)', near(variance(xs), 32 / 7), String(variance(xs)));
+  ok('variance of one sample is not a number', Number.isNaN(variance([3])));
+
+  /* The uncorrelated model: every pairwise difference variance is the sum of the two source
+     variances. Five of the six equations identify four unknowns exactly. */
+  const s2 = [1, 2, 3, 4];
+  const clean = PAIRS.map(([a, b]) => s2[a] + s2[b]);
+  const fitClean = fitGivenPair(clean, 0);
+  ok('a clean model recovers every source variance', fitClean && fitClean.s2.every((v, i) => near(v, s2[i])), JSON.stringify(fitClean));
+  ok('and leaves no residual', fitClean && near(fitClean.resid, 0, 1e-18));
+
+  /* One correlated edge, ECGDex–PpgDex, with covariance 0.5: its difference variance drops by 2c
+     and every other equation is untouched. */
+  const corr = PAIRS.map(([a, b]) => s2[a] + s2[b]);
+  corr[0] -= 2 * 0.5;
+  const fits = PAIRS.map((p, k) => fitGivenPair(corr, k));
+  const compIdx = PAIRS.findIndex((q) => q[0] === 2 && q[1] === 3);
+  ok('the correlated edge fits with no residual', fits[0] && near(fits[0].resid, 0, 1e-18));
+  ok('and so does its disjoint complement — the 2-fold ambiguity, §3.1(a)', fits[compIdx] && near(fits[compIdx].resid, 0, 1e-18));
+  ok(
+    'every hypothesis outside that class carries a residual',
+    PAIRS.every((p, k) => k === 0 || k === compIdx || (fits[k] && fits[k].resid > 1e-6)),
+    fits.map((f) => (f ? f.resid.toExponential(2) : 'null')).join(' ')
+  );
+  ok(
+    'the two class members disagree about the per-source variances',
+    fits[0] && fits[compIdx] && fits[0].s2.some((v, i) => !near(v, fits[compIdx].s2[i], 1e-6)),
+    'a method that cannot name the pair cannot publish one member\u2019s SDs as THE answer'
+  );
+
+  /* A fit whose solution is not strictly positive is not a variance. The refusal is the §∅ line:
+     an impossible solution must come back absent, never as a number in range. */
+  ok('a degenerate system refuses instead of returning a non-positive variance', fitGivenPair([0, 0, 0, 0, 0, 0], 0) === null);
+
+  console.log(fail ? `\n${fail} of ${pass + fail} selftests FAILED` : `\nall ${pass} selftests passed`);
+  return fail ? 1 : 0;
+}

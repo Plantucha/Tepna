@@ -2909,19 +2909,68 @@ def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLO
     'jump'   — the clock MOVED. Always worth correcting, no matter how often we have tried before: an
                H10 resets to its 2019 firmware default whenever it leaves the strap.
     'adrift' — steady, but outside tolerance. Worth correcting until we have PROVEN we cannot shift it.
-    None     — in tolerance, or an offset we have repeatedly failed to move (see CLOCK_ADRIFT_GIVEUP).
+    'reset'  — beyond a year AND still there on the next read: a firmware reset, not a bad sample.
+    None     — in tolerance, an offset we have repeatedly failed to move (see CLOCK_ADRIFT_GIVEUP), or a
+               single beyond-a-year read we have not yet seen twice.
     """
     # ∅ DEFENCE IN DEPTH, device-agnostic: a skew beyond a year is not a clock error, it is a bad or
     # absent read. Re-syncing on it DROPS THE LINK, so acting is strictly worse than waiting for the
     # next sample. Layer 1 stops the known source; this stops sources we have not met.
-    # Not a tuned threshold: 288 H10 device-clock events in 14 days produced ZERO reads beyond a year,
-    # against 22 on the Verity, so the two populations do not overlap anywhere near it.
-    if skew is None or abs(skew) > CLOCK_IMPLAUSIBLE_S:
+    if skew is None:
         return None
+    if abs(skew) > CLOCK_IMPLAUSIBLE_S:
+        # 🔴 PERSISTENCE SEPARATES THE TWO POPULATIONS; MAGNITUDE DOES NOT. The bound above read every
+        # beyond-a-year skew as a bad sample, and the evidence for that was "288 H10 device-clock events
+        # in 14 days produced ZERO reads beyond a year, against 22 on the Verity". The night of
+        # 2026-10-20 refutes the H10 half: the strap came off its dock on the 2019 firmware default and
+        # read -2.46e+08 s, PERSISTENTLY, while the owner's manual sync took on attempt 1 — so the read
+        # was true and the clock was settable all along. Nothing re-synced it, because this returned
+        # None and `clock_watchdog` then recorded a give-up that had never been attempted.
+        #
+        # What the two populations DO differ in is persistence. All 22 measured bad reads were
+        # ISOLATED — each bracketed by a sane skew of -1.1..-1.9 s, a zero sensor stamp resolving to
+        # `_POLAR_EPOCH` for one frame — whereas a firmware reset is the device's actual clock and is
+        # still there on the next read. So the second read is the discriminator, and it costs one
+        # watchdog cycle to collect rather than a dropped link to guess at.
+        #
+        # `prev is None` declines on purpose (§∅): no previous read is not evidence of persistence, and
+        # a daemon that has just started has no second read yet. The give-up budget still bounds this,
+        # so a device that truly cannot be written is not asked forever.
+        if prev is None or abs(prev) <= CLOCK_IMPLAUSIBLE_S:
+            return None
+        return "reset" if failed_adrift < giveup else None
     if prev is not None and abs(skew - prev) >= jump:
         return "jump"
     if abs(skew) > tolerance and failed_adrift < giveup:
         return "adrift"
+    return None
+
+
+def clock_decline_verdict(skew, prev, failed_adrift, tolerance, giveup=CLOCK_ADRIFT_GIVEUP):
+    """PURE: what to RECORD when `clock_resync_reason` declines a clock that is out of tolerance.
+
+    Returns `(verdict, resyncs_that_ran)`, or None when nothing should be said yet.
+
+    🔴 §🧾 A VERDICT MUST NAME ITS OWN CAUSE AND QUOTE A COUNT IT MEASURED. The caller used to emit one
+    sentence — "did NOT move after CLOCK_ADRIFT_GIVEUP re-syncs" — for both of the ways
+    `clock_resync_reason` can decline, with the GIVE-UP CONSTANT standing in for a count. On the night
+    of 2026-10-20 that wrote `uncorrectable;-246245660.720;after 3 re-syncs` for an H10 that had been
+    re-synced ZERO times: the skew was beyond the implausible bound, so the decision never reached the
+    adrift arm where corrections are counted. A number that was not measured is not a number (§∅), and
+    the operator reading that row was told the clock had resisted three attempts that never ran.
+
+    'uncorrectable' — the give-up budget is spent. `resyncs_that_ran` is how many corrections were
+                      actually attempted and left the skew where it was.
+    'unreadable'    — one beyond-a-year read, not yet seen twice. NOTHING has been attempted; the next
+                      read decides whether this is a firmware reset or an absent sample, so the count
+                      is 0 and the word does not claim a failure.
+    """
+    if skew is None or abs(skew) <= tolerance:
+        return None
+    if abs(skew) > CLOCK_IMPLAUSIBLE_S and (prev is None or abs(prev) <= CLOCK_IMPLAUSIBLE_S):
+        return ("unreadable", 0)
+    if failed_adrift >= giveup:
+        return ("uncorrectable", failed_adrift)
     return None
 
 
@@ -3024,7 +3073,7 @@ def clock_sync_capable(psftp, is_polar) -> bool:
     return bool(is_polar) if psftp is None else bool(psftp)
 
 
-def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False, synced_age_s=None) -> bool:
+def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False, synced_age_s=None, reset=False) -> bool:
     """PURE: should we (re-)write this device's clock before the next connection attempt?
 
     RE-SYNC ON EVERY RECONNECT, not once per task. The sync used to run exactly once, ahead of the
@@ -3054,6 +3103,10 @@ def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False, syn
     every reconnect, and each ask costs a live-capture pause. Measured 2026-09-18/19 on vigil:
     **80 ladders in 18 h**, every one of them paying that pause, 77 % of them abandoned at the op ceiling.
 
+    `reset` is the FIRMWARE-DEFAULT override (`clock_reads_reset`), added LAST and defaulting to False.
+    It is the only one of these that can make this predicate return True where the others said False,
+    and the arm below says why each bound stands down and why `charging` does not.
+
     `synced_age_s` is FRESHNESS — seconds since this device's clock was last successfully written, or
     `None` if it never was. Added LAST and defaulting to None so positional callers are unaffected.
     It closes the other half of the repetition: `cooling` bounds repeated FAILURES, this bounds redundant
@@ -3075,9 +3128,46 @@ def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False, syn
     would re-sync it forever, pausing capture every cycle for nothing. So we trigger on a CHANGE in
     skew."* Its lesson never reached the reconnect-driven path, which is the one that runs hundreds of
     times a night."""
+    if reset:
+        # 🔴 A RESET CLOCK OUTRANKS BOTH REPETITION BOUNDS, because both of them are reasoning about a
+        # clock that no longer exists. `cooling` says "this device keeps refusing the write"; one
+        # TimeoutError earned the cooldown that skipped the 21:34:54 reconnect on 2026-10-20 while the
+        # clock was settable. `synced_age_s` says "we wrote this clock N seconds ago"; a device that
+        # has reset since that write has not got the clock we wrote, so its freshness describes
+        # nothing (§∅ — the record is about a clock the device discarded).
+        #
+        # `charging` STILL BINDS. A docked Polar cannot take the write at all (status 0x0D), so the
+        # attempt would only burn the give-up budget — that is the 2026-07-29 failure in the paragraph
+        # above, and being reset does not make a docked device settable. `first_attempt` drops out on
+        # purpose: it exists to avoid repeating the pre-loop sync, and a clock reading its firmware
+        # default right after that sync is new information rather than a repeat.
+        return bool(capable and enabled and not charging)
     if synced_age_s is not None and synced_age_s < _CLOCK_SYNC_FRESH_S:
         return False
     return bool(capable and enabled and not charging and not first_attempt and not cooling)
+
+
+def clock_reads_reset(skew_s) -> bool:
+    """PURE: does this skew read say the device clock is at its FIRMWARE DEFAULT?
+
+    An H10 that leaves the strap comes back on 2019-01-01, which reads as a skew of about -2.4e+08 s —
+    seven orders of magnitude past `CLOCK_TOLERANCE_S` and well past `CLOCK_IMPLAUSIBLE_S`. Nothing a
+    real clock does lands there.
+
+    🔴 ONE READ IS ENOUGH HERE AND TWO ARE NEEDED IN `clock_resync_reason`, AND THE DIFFERENCE IS THE
+    COST OF BEING WRONG, NOT THE CONFIDENCE OF THE READ. That function decides whether to grab the
+    device's single link away from a STREAMING session; a false positive there drops live signal, and
+    22 measured zero-stamp reads would each have bought one, which is why it waits for the skew to
+    persist. This predicate decides only whether a RECONNECT — where the link is already down and a
+    sync is the normal thing to do — may be skipped for a backoff. A false positive costs one ladder
+    on a reconnect that was going to happen anyway; a false negative costs the night its absolute time.
+    So the two rungs disagree on purpose, and each is the cheap error for its own caller.
+
+    Measured on the night of 2026-10-20: the H10 read -2.46e+08 s, the reconnect at 21:34:54 was skipped
+    for a cooldown earned by ONE TimeoutError, and the clock then took the owner's manual sync on
+    attempt 1 at 21:38:17. The backoff's own docstring prices waiting at "72 ms per hour", which is true
+    of a clock that is nearly right and false by nine orders of magnitude of this one."""
+    return skew_s is not None and abs(skew_s) > CLOCK_IMPLAUSIBLE_S
 
 
 def clock_sync_attempt_affordable(spent, budget, worst_attempt_s) -> bool:
@@ -3200,7 +3290,7 @@ def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit, sync_pendin
     return attempts < limit and (sync_pending or iteration % every == 0)
 
 
-async def auto_sync_clock(name, addr, root=None) -> bool:
+async def auto_sync_clock(name, addr, root=None, live=True) -> bool:
     """Write the host clock into one Polar device, waiting out contention. Returns True on success.
 
     Every device task starts at once and each wants the single offline slot, so the losers get
@@ -3223,11 +3313,30 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
     AND BOUNDED IN PAUSES, which is the bound the wall-clock one does not draw. Every attempt that gets
     past the presence guard and the offline slot PAUSES LIVE CAPTURE — that is how it takes the device's
     single BLE link — so the ladder's cost is not only lock-seconds, it is lost signal. See the transient
-    branch below and `clock_sync_backoff_s` for the per-ladder and cross-ladder halves of that bound."""
+    branch below and `clock_sync_backoff_s` for the per-ladder and cross-ladder halves of that bound.
+
+    `live` (added LAST, default True) is False for the ONE sync that runs before PMD START. Both bounds
+    above price the same thing — a pause of LIVE capture — and before the first START there is no
+    capture to pause: the device is not streaming, nothing is being written, and an attempt that takes
+    the link costs lost signal of exactly zero. So the after-pause deferral has nothing to protect and
+    the cross-ladder backoff has nothing to charge for, while the thing they would cost is the sync that
+    gives the whole night an origin. The owner's framing, 2026-10-20: a normal user puts the strap on
+    and goes to sleep, so there is no second chance and no feedback. The wall-clock budget and the
+    12-attempt ceiling still bound this ladder; only the pause-priced halves stand down."""
     started = _time.monotonic()
     # THE LADDER's pause snapshot, as against `paused_before`'s per-ATTEMPT one: the backoff asks whether
     # this whole ladder cost signal, the transient branch asks whether this attempt did.
     ladder_paused_before = blestats.attempts("offline_op", addr)
+
+    def paid_a_pause() -> bool:
+        """Did this ladder take the device away from LIVE capture?
+
+        The op counter rising is how a pause is detected — `polar_offline_op` is the only thing that
+        takes the device's single link — but a rise is only a COST while something was streaming. Before
+        PMD START nothing is, so `live=False` reports the honest zero rather than charging the next
+        ladder a backoff for signal that was never lost."""
+        return live and blestats.attempts("offline_op", addr) > ladder_paused_before
+
     worst = 0.0  # the longest attempt SO FAR; the budget's estimator, measured
     for attempt in range(12):
         # THE PAUSE COUNTER, observed rather than predicted. `blestats.attempt("offline_op", …)` is
@@ -3243,9 +3352,7 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
             _set(name, clock_synced=_now().isoformat(timespec="seconds"), clock_uncorrectable=False)
             _CLOCK_FRESHLY_SYNCED.add(addr)
             append_clock_sync_event(root, _now(), name, addr, "synced", detail=f"attempt {attempt + 1}")
-            _clock_sync_note_outcome(
-                addr, True, blestats.attempts("offline_op", addr) > ladder_paused_before, _time.monotonic()
-            )
+            _clock_sync_note_outcome(addr, True, paid_a_pause(), _time.monotonic())
             return True
         except offline_lock.OfflineBusy:
             worst = max(worst, _time.monotonic() - attempt_started)
@@ -3264,9 +3371,7 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
                     attempt + 1,
                 )
                 append_clock_sync_event(root, _now(), name, addr, "deferred-absent", detail=f"attempt {attempt + 1}")
-                _clock_sync_note_outcome(
-                    addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before, _time.monotonic()
-                )
+                _clock_sync_note_outcome(addr, False, paid_a_pause(), _time.monotonic())
                 return False
             # BUSY: a transient BlueZ state is a signal from a different layer, not a failure.
             # Surrendering here left the device stamping samples from an unsynced clock all night.
@@ -3303,7 +3408,7 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
                 # are this line. Nothing is lost by declining: `clock_sync_due` re-arms on the next
                 # reconnect, which is the same reasoning the absent branch above already uses, and the
                 # cross-ladder backoff then bounds how often that re-arming may pay the pause again.
-                if blestats.attempts("offline_op", addr) > paused_before:
+                if live and blestats.attempts("offline_op", addr) > paused_before:
                     log.info(
                         "%s clock auto-sync deferred after one pause — the attempt took the device "
                         "and failed (%s); retrying here would pause live capture again, and the "
@@ -3319,9 +3424,7 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
                         "deferred-after-pause",
                         detail=f"attempt {attempt + 1} ({type(e).__name__})",
                     )
-                    _clock_sync_note_outcome(
-                        addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before, _time.monotonic()
-                    )
+                    _clock_sync_note_outcome(addr, False, paid_a_pause(), _time.monotonic())
                     return False
                 # THE BUDGET, ASKED AS A QUESTION ABOUT THE NEXT ATTEMPT RATHER THAN THE LAST ONE.
                 # Every attempt runs through `polar_offline_op`, which holds the GLOBAL `_CONNECT_LOCK`,
@@ -3350,23 +3453,17 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
                         "gave-up-budget",
                         detail=f"{spent:.0f}s of {_CLOCK_SYNC_LADDER_BUDGET_S:.0f}s",
                     )
-                    _clock_sync_note_outcome(
-                        addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before, _time.monotonic()
-                    )
+                    _clock_sync_note_outcome(addr, False, paid_a_pause(), _time.monotonic())
                     return False
                 await asyncio.sleep(min(5 * (attempt + 1), 30))
                 continue
             log.warning("%s clock auto-sync failed: %r", name, e)
             append_clock_sync_event(root, _now(), name, addr, "sync-failed", detail=repr(e)[:120])
-            _clock_sync_note_outcome(
-                addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before, _time.monotonic()
-            )
+            _clock_sync_note_outcome(addr, False, paid_a_pause(), _time.monotonic())
             return False
     log.warning("%s clock auto-sync gave up — device stayed unreachable/busy", name)
     append_clock_sync_event(root, _now(), name, addr, "gave-up-busy", detail="12 attempts")
-    _clock_sync_note_outcome(
-        addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before, _time.monotonic()
-    )
+    _clock_sync_note_outcome(addr, False, paid_a_pause(), _time.monotonic())
     return False
 
 
@@ -3632,7 +3729,32 @@ async def run_polar(dev: dict, root: str):
     # characteristic — and it costs a global capture pause to find that out, every task start.
     # This is the FIRST sync; `clock_sync_due` repeats it on every later reconnect (see the loop below).
     if _clock_gate(name, addr, is_polar) and (_CFG.get("time") or {}).get("auto_sync_devices", True):
-        await auto_sync_clock(name, addr, root)
+        # `live=False`: nothing streams yet, so the pause-priced bounds inside the ladder stand down.
+        if not await auto_sync_clock(name, addr, root, live=False):
+            # 🔴 START ANYWAY, AND SAY SO IN THE NIGHT'S OWN FILE (owner, 2026-10-20: "normal user just
+            # put on chest strap and go to sleep" — there is no feedback and no second chance, so
+            # refusing to start would trade a night with a bad clock for no night at all). The sync
+            # ladder's own failure row says why the ladder stopped; this row says what was done next,
+            # which is the question asked of the night afterwards. `clock_sync_due` re-arms on the
+            # first reconnect, so this is the state at START, not the state of the night.
+            log.warning(
+                "%s PMD start proceeds on an UNSYNCED device clock — the pre-start sync did not "
+                "land. Sample stamps stay usable for cross-device alignment once a later sync "
+                "gives them an origin; until then absolute time does not.",
+                name,
+            )
+            append_clock_sync_event(
+                root,
+                _now(),
+                name,
+                addr,
+                # NOT a word containing "synced": `solid_night_inputs._seam_cause` names a clock event
+                # as a seam's cause by substring over the whole row, so a word spelled `unsynced-start`
+                # would excuse a step in the axis on the strength of a sync that never happened. The
+                # test beside this one pins that, because the coupling is invisible from either file.
+                "start-without-sync",
+                detail="PMD start proceeded without a clock sync",
+            )
     first_attempt = True
     iteration = 0
     rebond_attempts = 0
@@ -3659,6 +3781,9 @@ async def run_polar(dev: dict, root: str):
             first_attempt,
             _clock_sync_cooling(addr, _time.monotonic()),
             _clock_sync_synced_age_s(addr, _time.monotonic()),
+            # The SAME key `clock_watchdog` decides on — the envelope over a window, not one frame's
+            # reading with its delivery latency in it.
+            clock_reads_reset(STATUS["devices"].get(name, {}).get("clock_skew_floor_sec")),
         ):
             sync_due = True
         first_attempt = False
@@ -8470,7 +8595,7 @@ async def clock_watchdog(cfg: dict, root=None):
     forever, pausing capture every cycle for nothing. So we trigger on a CHANGE in skew: a constant
     offset is recorded once and left alone; a jump means the device clock actually moved.
 
-    Verdicts (resynced / resync-failed / uncorrectable) also land in the night's `CLOCKSYNC.csv` when
+    Verdicts (resynced / resync-failed / uncorrectable / unreadable) also land in the night's `CLOCKSYNC.csv` when
     `root` is given — see `writers.append_clock_sync_event` for why STATUS+journald are not enough."""
     tcfg = cfg.get("time") or {}
     if not tcfg.get("auto_sync_devices", True):
@@ -8551,31 +8676,76 @@ async def clock_watchdog(cfg: dict, root=None):
                 # night's data — the operator needs it in `status.json`, not buried in a log that repeats
                 # every five minutes. `clock_synced` stays cleared: we are not claiming a sync we do not
                 # believe, we are admitting we cannot get one.
-                if abs(skew) > CLOCK_TOLERANCE_S and addr not in gave_up:
+                #
+                # 🔴 TWO CAUSES DECLINE HERE AND THEY ARE NOT THE SAME NIGHT. The give-up budget runs
+                # out after corrections that were attempted and failed; a read beyond the plausible
+                # bound declines before anything is attempted at all. Both used to emit the same
+                # sentence, with CLOCK_ADRIFT_GIVEUP in place of a count — see
+                # `clock_decline_verdict`, which names the cause and quotes the measured number.
+                verdict = clock_decline_verdict(skew, prev, failed_adrift.get(addr, 0), CLOCK_TOLERANCE_S)
+                if verdict is not None and addr not in gave_up:
+                    word, ran = verdict
                     gave_up.add(addr)
-                    log.warning(
-                        "%s device clock is %+.1fs off and did NOT move after %d re-syncs — "
-                        "accepting it as uncorrectable and leaving capture alone. Sample stamps "
-                        "stay usable for cross-device alignment; absolute time does not.",
-                        name,
-                        skew,
-                        CLOCK_ADRIFT_GIVEUP,
-                    )
-                    _set(name, clock_uncorrectable=True, clock_synced=None)
-                    append_clock_sync_event(
-                        root,
-                        _now(),
-                        name,
-                        addr,
-                        "uncorrectable",
-                        skew_s=skew,
-                        detail=f"after {CLOCK_ADRIFT_GIVEUP} re-syncs",
-                    )
+                    if word == "uncorrectable":
+                        log.warning(
+                            "%s device clock is %+.1fs off and did NOT move after %d re-sync(s) — "
+                            "accepting it as uncorrectable and leaving capture alone. Sample stamps "
+                            "stay usable for cross-device alignment; absolute time does not.",
+                            name,
+                            skew,
+                            ran,
+                        )
+                        _set(name, clock_uncorrectable=True, clock_synced=None)
+                        append_clock_sync_event(
+                            root,
+                            _now(),
+                            name,
+                            addr,
+                            "uncorrectable",
+                            skew_s=skew,
+                            detail=f"after {ran} re-syncs",
+                        )
+                    else:
+                        # ∅ NOTHING RAN, SO NOTHING IS CLAIMED — not a give-up, and not a sync either.
+                        # STATUS is left exactly as it stands: a beyond-a-year read says nothing about
+                        # whether the last real sync happened, so clearing `clock_synced` here would
+                        # erase a measured fact on the strength of a sample we cannot read. The row
+                        # carries the evidence; the next cycle's read decides what it was.
+                        log.warning(
+                            "%s device clock read %+.1fs off host, past the %.0f-day plausible bound — "
+                            "not correcting on ONE such read and not calling it uncorrectable, because "
+                            "no correction has been attempted. A second read decides between a clock "
+                            "that was reset and a stamp that was absent.",
+                            name,
+                            skew,
+                            CLOCK_IMPLAUSIBLE_S / 86400.0,
+                        )
+                        append_clock_sync_event(
+                            root,
+                            _now(),
+                            name,
+                            addr,
+                            "unreadable",
+                            skew_s=skew,
+                            detail="one read past the plausible bound; 0 corrections attempted",
+                        )
                 continue  # in tolerance and steady, or proven unfixable
             gave_up.discard(addr)
             if reason == "adrift":
                 log.warning(
                     "%s device clock is %+.1fs off host (tolerance %.1fs) — re-syncing", name, skew, CLOCK_TOLERANCE_S
+                )
+                _set(name, clock_synced=None)  # do not claim a sync we no longer believe
+                tried_adrift[addr] = True
+            elif reason == "reset":
+                # A SECOND beyond-the-bound read, so the first was not an absent stamp. `skew - prev`
+                # would read as a few seconds of drift between two reads of a clock sitting 26 years
+                # out, which is why this does not borrow the jump line's wording.
+                log.warning(
+                    "%s device clock reads %+.1fs off host for the SECOND cycle — a persistent "
+                    "beyond-the-bound skew is a reset clock, not an absent stamp; re-syncing",
+                    name,
+                    skew,
                 )
                 _set(name, clock_synced=None)  # do not claim a sync we no longer believe
                 tried_adrift[addr] = True

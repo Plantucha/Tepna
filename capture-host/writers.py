@@ -2577,6 +2577,12 @@ def append_clock_sync_event(
         resynced        — the watchdog corrected a jump/adrift clock mid-session (detail = reason)
         resync-failed   — the watchdog's correction attempt failed hard
         uncorrectable   — repeated re-syncs did not move the skew; accepted and left alone
+        start-without-sync — the pre-START ladder did not land and PMD START went ahead anyway. The
+                          night still happens; its absolute time waits for the first reconnect sync.
+        unreadable      — ONE skew read past the plausible bound, nothing attempted yet. Separate from
+                          `uncorrectable` on purpose: that word names corrections that ran and failed,
+                          and a reader cannot recover the difference from a count it was handed
+                          (`capture.clock_decline_verdict`).
 
     Same disciplines as the sidecar family above: a SIDECAR, never a column in a vendor layout;
     TELEMETRY, never a `ganglior.node-export` metric. Two deliberate departures from the writer-class

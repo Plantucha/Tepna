@@ -1271,6 +1271,18 @@
    },
    "note": "the edge-settle verdict (owner 2026-10-17, start/end session jitter): per sensor and edge, the settle time is the first or last 60 s run of clean 10 s bins in the trio node exports; pre-stated rule: p90 settle <= 300 s (one 5-min window) at both edges of ECG, PPG and O2Ring, n >= 20 per leg; late wear > 600 s is excluded and counted; no export found NOT_RUN"
   },
+  "tools/eqc-run.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/eqc-run.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "extended quadruple collocation reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, published above every insufficiency exit rather than on the one path that reaches the end. Its CPAP-pairing filter is a coverage rule over that offer, so the nights it drops are named by `notANight` instead of narrowing the snapshot. The sample is synthetic, because the CPAP leg lives on a removable volume no gate mounts"
+  },
   "tools/extreme-mutate.mjs": {
    "bin": "already-json",
    "status": "adopted",

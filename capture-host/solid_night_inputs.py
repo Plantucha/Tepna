@@ -1285,7 +1285,12 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
     return out, "seam sidecar + journal clock events + CLOCKSYNC.csv"
 
 
-_A5_NON_RECORD_EVENTS = ("deferred-absent",)
+# EVENTS THAT RECORD NO CLOCK WRITE, so they cannot excuse a step in the axis. `deferred-absent` skipped
+# the sync because the device was off the air; `unreadable` declined on a single skew read past the
+# plausible bound, before any correction was attempted (`capture.clock_decline_verdict`); and
+# `start-without-sync` records that PMD START went ahead after the pre-start ladder failed. None of the
+# three moved a device clock, so none is a record of the step a band is asking about.
+_A5_NON_RECORD_EVENTS = ("deferred-absent", "unreadable", "start-without-sync")
 writers_CLOCKSYNC = "CLOCKSYNC.csv"
 
 
