@@ -16,6 +16,7 @@ import datetime as _dt
 
 import capture
 import pytest
+from tests._srcscan import split_segment
 
 
 # ── transient_ble_error: which failures are worth retrying ──────────────────────────────────────────
@@ -242,7 +243,8 @@ def test_the_auto_sync_retry_line_logs_the_message_not_just_the_class():
 
     src = inspect.getsource(capture.auto_sync_clock)
     line = next(l for l in src.splitlines() if "clock auto-sync busy" in l)
-    assert "%s" in line.split("busy")[1], "the retry line must interpolate the error text"
+    after = split_segment(line, "busy", 1, where="the retry line of capture.auto_sync_clock")
+    assert "%s" in after, "the retry line must interpolate the error text"
     body = src[src.index("clock auto-sync busy") :]
     assert "repr(e)" in body[:400], "repr(e), not str(e) — str() on a bare BleakError can be empty"
     assert "[:160]" in body[:400] or "[:" in body[:400], "truncate: this runs up to 12x per ladder"

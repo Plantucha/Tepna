@@ -19,9 +19,11 @@
 # bound refuses instead of widening, and that a chain says WHICH link went stale. The equivalence leg
 # keeps the raw idiom beside the helper on synthetic text — the one place it is harmless — so the
 # substitution is proven rather than asserted.
+import ast
+
 import pytest
 
-from tests._srcscan import after_last, anchored_segment, split_segment, until_anchor
+from tests._srcscan import HERE, after_last, anchored_segment, split_segment, until_anchor
 
 # Synthetic source: no module is read, so nothing here depends on `capture.py`'s current text.
 SRC = "head A one A two B tail\n"
@@ -127,3 +129,120 @@ def test_the_helper_reaches_a_real_module_through_module_source():
     go stale the way the scans it serves do — those five sites assert their own anchors and now name
     them when they move."""
     assert anchored_segment("capture.py", ("def ", 1), chars=40).strip()
+
+
+# ── THE RATCHET: no scan in this suite may cut a SOURCE window with a bare split index ────────────
+# Converting the sites is half a repair. The idiom is one keystroke shorter than the helper, so the
+# next scan written is bare unless something reds. This is that something, and it is a MEASURED set
+# rather than a grep: the criterion is where the split's receiver came from.
+_SRCSCAN_READERS = frozenset(
+    {"module_source", "function_source", "block_source", "suite_tail", "anchored_segment", "strip_comments"}
+)
+# A read anchored on one of these reaches a file that SHIPS in this repo. A `read_text()` on a
+# `tmp_path` is data the test just wrote, where an index is a column number and an IndexError is a
+# real regression — that is the 47-line population this gate deliberately does not judge.
+_REPO_ANCHORS = frozenset({"HERE", "ROOT", "__file__"})
+
+
+def _call_name(call: ast.Call) -> str | None:
+    f = call.func
+    return f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", None)
+
+
+def _reads_a_repo_file(call: ast.Call) -> bool:
+    f = call.func
+    if not isinstance(f, ast.Attribute):
+        return False
+    if f.attr == "getsource":  # inspect.getsource — source text by another route
+        return True
+    if f.attr not in ("read_text", "read"):
+        return False
+    return any(isinstance(n, ast.Name) and n.id in _REPO_ANCHORS for n in ast.walk(call))
+
+
+def _chain_root(node: ast.AST) -> ast.AST:
+    """The Name a `.split(…)[1].split(…)[0]` chain ultimately reads from."""
+    while True:
+        if isinstance(node, ast.Subscript):
+            node = node.value
+        elif isinstance(node, ast.Call):
+            node = node.func
+        elif isinstance(node, ast.Attribute):
+            node = node.value
+        else:
+            return node
+
+
+def raw_source_window_scans(src: str) -> list[tuple[int, str]]:
+    """Every `<source text>.split(…)[N]` in `src`, as (line, text). The helpers are not matched."""
+    tree = ast.parse(src)
+    lines = src.splitlines()
+    tainted: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        carries = any(
+            (isinstance(n, ast.Call) and (_call_name(n) in _SRCSCAN_READERS or _reads_a_repo_file(n)))
+            or (isinstance(n, ast.Name) and n.id in tainted)
+            for n in ast.walk(node.value)
+        )
+        if carries:
+            tainted |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+    found = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Subscript) or not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        if not (isinstance(call.func, ast.Attribute) and call.func.attr in ("split", "rsplit")):
+            continue
+        if not (isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, int)):
+            continue
+        root = _chain_root(call.func.value)
+        if isinstance(root, ast.Name) and (root.id in tainted or root.id in _SRCSCAN_READERS):
+            found.add((node.lineno, lines[node.lineno - 1].strip()))
+    return sorted(found)
+
+
+def test_the_ratchet_fires_on_a_planted_scan_and_leaves_a_data_split_alone():
+    """The control, so the gate below cannot pass by examining nothing. Both halves are planted: a
+    source window cut bare must be found, and the same shape over a CSV row the test wrote must not."""
+    planted = (
+        "from tests._srcscan import module_source\n"
+        "def test_x():\n"
+        "    src = module_source('capture.py')\n"
+        "    body = src.split('async def run_polar')[1].split('\\nasync def ')[0]\n"
+        "    assert body\n"
+    )
+    assert [ln for ln, _ in raw_source_window_scans(planted)] == [4], raw_source_window_scans(planted)
+
+    data = (
+        "def test_y(tmp_path):\n"
+        "    p = tmp_path / 'x.csv'\n"
+        "    rows = p.read_text().splitlines()\n"
+        "    assert rows[1].split(';')[2] == '0.0'\n"
+    )
+    assert raw_source_window_scans(data) == [], raw_source_window_scans(data)
+
+    converted = (
+        "from tests._srcscan import module_source, split_segment\n"
+        "def test_z():\n"
+        "    src = module_source('capture.py')\n"
+        "    body = split_segment(src, 'async def run_polar', 1, where='capture.py')\n"
+    )
+    assert raw_source_window_scans(converted) == [], raw_source_window_scans(converted)
+
+
+def test_no_scan_in_this_suite_cuts_a_source_window_with_a_bare_split_index():
+    """28 sites in 13 files cut their window this way (measured 2026-10-22, residue
+    `2026-10-21-a-split-chain-over-module-source-survives-in-twelve-test-files`), and one of them had
+    already failed silently: a 400-character window whose closing anchor sat 1,134 characters past its
+    end returned the whole window, so the region widened and the assertion stopped describing what it
+    read. The helpers report instead. This gate holds the set at zero."""
+    offenders = []
+    for path in sorted((HERE / "tests").glob("test_*.py")):
+        for lineno, text in raw_source_window_scans(path.read_text(encoding="utf-8")):
+            offenders.append(f"{path.name}:{lineno}  {text}")
+    assert not offenders, (
+        "a source window is cut with a bare split index — route it through `split_segment` / "
+        "`until_anchor` / `after_last`, which name the anchor that moved:\n" + "\n".join(offenders)
+    )
