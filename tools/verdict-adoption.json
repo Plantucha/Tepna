@@ -1785,9 +1785,15 @@
    "note": "PAT-ROOT-CAUSE-FORENSICS \u2014 does the host-clock rate difference explain the observed lag drift? It was `word-only`/exempt as a \"selftest assertion printer\", which was already a stretch (it prints CLOCK EXPLAINS / PARTIAL / CLOCK DOES NOT EXPLAIN per night against a pre-stated band) and went false outright when the run began publishing its night population. Three bare `continue`s dropped a night out of the table with no line, so the offer is what names them now. The adopted object is the population verdict; the per-night attribution band stays a printed column, and `--selftest` is its gate."
   },
   "tools/pat-ecg-axis-residual.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-ecg-axis-residual.mjs",
+     "--verdict-sample"
+    ]
+   }
   },
   "tools/pat-fiducial-compare.mjs": {
    "bin": "decides",
