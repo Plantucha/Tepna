@@ -1379,6 +1379,18 @@
    },
    "note": "every .claude/hooks hook must drain stdin before it can exit (residue 2026-10-12-seven-hooks-exit-before-draining-stdin-and-their-tests-cannot-see-it; #3493, #3759). Three readings per hook: STATIC (only comments, set/shopt and plain assignments may precede the drain), BEHAVIOURAL (a payload past fs.pipe-max-size down a real pipe, 5 trials, the writer's own PIPESTATUS[0] \u2014 141 is SIGPIPE), ENUMERATION (a <name>.test.sh exists and test:hooks names it). Population = hooks found; a hook with no PROBES row is EXCLUDED and FAILs, so a new hook cannot arrive unmeasured. NOT_RUN when the hook directory holds nothing."
   },
+  "tools/hook-liveness.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/hook-liveness.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "residue 2026-10-21-a-landed-hook-fix-is-inert-until-the-primary-checkout-pulls: every hook entry runs its script under the PRIMARY checkout, so a landed guard fix is inert in every session until that tree pulls. The verdict is over the scripts named in .claude/settings.json, read three ways (the bytes on disk, the bytes at that tree's HEAD, the bytes at the ref): PASS when none is behind, FAIL naming each script that would run older code, UNKNOWN when the ref does not resolve or nothing is comparable, NOT_RUN with no result when there are no settings to read. `modified` is reported beside the criterion and never inside it, because an uncommitted edit and an unpulled tree need opposite remedies. --verdict-sample prints the object alone and reads no checkout."
+  },
   "tools/importer-flag-probe.mjs": {
    "bin": "decides",
    "status": "adopted",
