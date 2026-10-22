@@ -41,17 +41,18 @@
  * without the guard read median |Δ| 110.3 ms over 9 "connections"; that number is not a measurement of
  * this assumption and is retained only as the reason the guard exists.
  *
- *   node tools/pat-connection-stability.mjs <captures-root> [--min-span-sec 300] [--min-beats 60] [--json]
+ *   node tools/pat-connection-stability.mjs <captures-root> [--min-span-sec 300] [--min-beats 60] [--json] [--verdict-sample]
  */
 import { readdirSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDsps, ecgRpeakTimes, ppgFootTimes, median } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { snapshotNights, populationVerdict, notANight } from './corpus-scope.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--min-span-sec', '--min-beats', '--device', '--ecg-device'], boolean: ['--json'], positional: true };
+const ARGV_SPEC = { valued: ['--min-span-sec', '--min-beats', '--device', '--ecg-device'], boolean: ['--json', '--verdict-sample'], positional: true };
 
 const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
@@ -211,13 +212,16 @@ export function baselineExposure(times, lags, opts) {
 function main() {
   loadDsps();
   if (!ROOT) {
-    console.error('usage: node tools/pat-connection-stability.mjs <captures-root> [--min-span-sec 300] [--min-beats 60] [--json]');
+    console.error('usage: node tools/pat-connection-stability.mjs <captures-root> [--min-span-sec 300] [--min-beats 60] [--json] [--verdict-sample]');
     process.exit(2);
   }
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. A hand-rolled walk here
+     published a pooled median over a set it never named, so a re-tier mid-run narrowed the
+     population and the output read the same. `snapshotNights` names the offer once, and the
+     re-snapshot after the loop turns a moved population into a SHORTFALL verdict. */
+  const popBefore = snapshotNights(ROOT);
   const rows = [];
-  for (const night of readdirSync(ROOT)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort()) {
+  for (const night of popBefore.nights) {
     const dir = join(ROOT, night);
     const ecgSpans = connectionSpans(dir, ECG_DEVICE);
     const spans = connectionSpans(dir, DEVICE)
@@ -289,8 +293,20 @@ function main() {
     const d = per.map((x) => Math.abs(x.deltaMs)).sort((x, y) => x - y);
     rows.push({ night, nSpans: spans.length, nScored: per.length, medAbsDeltaMs: +median(d).toFixed(1), maxAbsDeltaMs: +d[d.length - 1].toFixed(1), per });
   }
+  /* A skipped night scored nothing, so its row carries `ok: false`. `notANight` reads a row's mere
+     existence as the read, so an unflagged skip would count as covered. */
+  const population = populationVerdict(popBefore, snapshotNights(ROOT), {
+    tool: 'tools/pat-connection-stability.mjs',
+    evidence: ['tools/pat-connection-stability.mjs']
+  });
+  const unscored = notANight(
+    popBefore,
+    rows.map((r) => ({ night: r.night, ok: !r.skip }))
+  );
   if (AS_JSON) {
-    console.log(JSON.stringify({ minSpanSec: MIN_SPAN / 1000, minBeats: MIN_BEATS, device: DEVICE, rows }, null, 1));
+    /* Stdout stays ONE JSON document — this tool gets piped into `jq` — so the verdict rides inside
+       the tool's own object rather than beside it. */
+    console.log(JSON.stringify({ minSpanSec: MIN_SPAN / 1000, minBeats: MIN_BEATS, device: DEVICE, offered: popBefore.n, population, rows }, null, 1));
     return;
   }
   console.log(`Within-connection offset constancy — ${DEVICE}, spans >= ${MIN_SPAN / 1000} s, >= ${MIN_BEATS} beats/half`);
@@ -320,8 +336,26 @@ function main() {
       console.log('assumption is doing real work and is wrong; well under it means the assumption holds.');
     }
   } else console.log('\nno connection scored — nothing measured, and that is not a pass.');
+  console.log(`\npopulation: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}` + (population.reason ? `\n  ${population.reason}` : ''));
+  console.log(`offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
 }
 
+/* The corpus-free sample the adoption gate runs: the shape this tool reports when the population
+   held still across the run. Synthetic snapshots, so the sample stays runnable where the captures
+   are absent — which is where both the gate and CI run it. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = { ok: true, root: ROOT_SAMPLE, reason: null, n: nights.length, nights, digest: null, maxCtimeMs: null, at };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-connection-stability.mjs', evidence: ['tools/pat-connection-stability.mjs'], at });
+}
+
+const ROOT_SAMPLE = '/srv/data/tepna-corpus/smoketest-captures';
+
+/* The sample dispatch sits ABOVE main(), because main() refuses an absent captures root with exit 2
+   and both the adoption gate and CI run where that root is absent. */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) main();
-export { connectionSpans, nearestLags, main };
+if (IS_CLI && argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+} else if (IS_CLI) main();
+export { connectionSpans, nearestLags, main, verdictSample };
