@@ -34,11 +34,12 @@ import { createRequire } from 'node:module';
 import { anklePair } from './pat-dip-index.mjs';
 import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--cpap', '--trio'], boolean: ['--json'], positional: true };
+const ARGV_SPEC = { valued: ['--cpap', '--trio'], boolean: ['--json', '--verdict-sample'], positional: true };
 
 const require = createRequire(import.meta.url);
 const PATAlign = require('../pat-align.js');
@@ -91,10 +92,14 @@ function main() {
   }
   const cpapAll = JSON.parse(readFileSync(CPAP, 'utf8'));
   const cpapByDay = new Map((cpapAll.exports || []).map((e) => [e._day, e]));
+  /* THE POPULATION IS MEASURED, NOT ASSUMED. The hand-filtered listing this replaced left no trace of
+     what it refused, so a re-tiered corpus moved the scored set under an unchanged table. The trio root
+     is read per night rather than enumerated, so a night the trio lacks appears as a ⊘ row below and
+     never narrows this population. */
+  const popBefore = snapshotNights(ROOT);
   const rows = [];
-  for (const night of readdirSync(ROOT)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort()) {
+  const covered = [];
+  for (const night of popBefore.nights) {
     const day = night.replace(/-/g, '');
     const cp = cpapByDay.get(day);
     if (!cp) {
@@ -264,9 +269,12 @@ function main() {
       chanceKatzQuietPct: chanceKq.length ? +(100 * med(chanceKq)).toFixed(0) : null,
       nSurrogates: chanceK.length
     });
+    covered.push({ night, ok: true });
   }
+  /* THE SCORED SET IS THE SNAPSHOT THE RUN REPORTS, never a second walk. */
+  const population = populationVerdict(popBefore, snapshotNights(ROOT), { tool: 'tools/pat-dip-validate.mjs', evidence: ['tools/pat-dip-validate.mjs'] });
   if (AS_JSON) {
-    console.log(JSON.stringify({ rows }, null, 1));
+    console.log(JSON.stringify({ rows, population }, null, 1));
     return;
   }
   console.log('ΔPAT validation — CPAP clock anchored per night on desats; null = ' + K_SHIFT + ' circular shifts of the dip onsets\n');
@@ -280,8 +288,29 @@ function main() {
       `${r.night}  ${String(r.deltaMin).padStart(6)}  ${String(r.anchorPct).padStart(6)}  ${String(r.nCpapEvents + '(' + r.nCoverable + ')').padStart(11)}  ${String(r.nDips + '(' + r.nQuiet + ')').padStart(11)}  ${String(r.quietSharePct == null ? '—' : r.quietSharePct).padStart(10)}  ${String(r.katzPct + '/' + (r.chanceKatzPct == null ? '—' : r.chanceKatzPct)).padStart(12)}  ${String(r.katzQuietPct + '/' + (r.chanceKatzQuietPct == null ? '—' : r.chanceKatzQuietPct)).padStart(17)}`
     );
   }
+  /* The status labels MOVEMENT across the run, never coverage: `covered` is the separate count. */
+  console.log(
+    `\npopulation: ${popBefore.n} night(s) offered under the captures root · ${covered.length} scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : '')
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log('POPULATION ' + JSON.stringify(population));
 }
 
+/* The corpus-free sample the adoption gate runs: a population that did NOT move across the run, over
+   synthetic snapshots, so the sample costs no corpus read and runs where the captures are not. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = { ok: true, root: ROOT_SAMPLE, reason: null, n: nights.length, nights, digest: null, maxCtimeMs: null, at };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-dip-validate.mjs', at, evidence: ['tools/pat-dip-validate.mjs'] });
+}
+
+const ROOT_SAMPLE = '/srv/data/tepna-corpus/smoketest-captures';
+
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) main();
-export { main };
+if (IS_CLI) {
+  if (argv.includes('--verdict-sample')) console.log(JSON.stringify(verdictSample()));
+  else main();
+}
+export { main, verdictSample };

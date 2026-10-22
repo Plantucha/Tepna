@@ -1742,9 +1742,16 @@
    "note": "the \u0394PAT dip index reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier that moves the set mid-run reads as SHORTFALL rather than as a table nobody re-read. The sample is corpus-free and synthetic, because the captures are absent wherever the gate runs"
   },
   "tools/pat-drift-attribution.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-drift-attribution.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the drift-attribution run reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after. It was `word-only` while its only machine-readable result was the selftest count; it now decides about data, so the sample flag prints the object alone. The sample is synthetic, because the raw corpus is gitignored"
   },
   "tools/pat-ecg-axis-residual.mjs": {
    "bin": "word-only",
@@ -2449,6 +2456,18 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
+  },
+  "tools/pat-connection-stability.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-connection-stability.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the within-connection offset constancy run reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier mid-run reads as SHORTFALL rather than as a table nobody re-read. The scored count is separate from the status, which labels movement. The sample is synthetic, because the raw corpus is gitignored. It enters the enumerated population on a literal word in a comment, not on the status it prints \u2014 the gate's population rule reads literal words anywhere in the file, which is why `pat-dip-validate.mjs` and `pat-host-offset.mjs` publish the same object and cannot be binned at all (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file)"
   }
  }
 }

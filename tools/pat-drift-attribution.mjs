@@ -91,6 +91,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_EXPLAINS = 0.3;
@@ -253,6 +254,12 @@ async function main() {
     console.error('--ecg-axis must be linear|counter|piecewise');
     process.exit(2);
   }
+  /* THE SAMPLE SITS ABOVE THE `--dir` REFUSAL, because the adoption gate has to read one verdict
+     object on a box holding no nights. */
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(), null, 2));
+    return;
+  }
   if (!DIR || !existsSync(DIR)) {
     console.error('usage: node tools/pat-drift-attribution.mjs --selftest | --dir <root> [--only a,b] [--ecg-axis linear|counter|piecewise]');
     process.exit(2);
@@ -264,9 +271,17 @@ async function main() {
   console.log(`ecg-axis ${ECG_AXIS}\n`);
   console.log(`bands on |obs-pred|/|obs|: <=${BAND_EXPLAINS} CLOCK EXPLAINS · <=${BAND_PARTIAL} PARTIAL · else CLOCK DOES NOT EXPLAIN\n`);
   console.log('night         ppmECG  ppmPPG   predicted   censored      RAW    ratio  rawR2   verdict');
-  for (const n of readdirSync(DIR)
-    .filter((x) => /^2026-/.test(x) && (!ONLY || ONLY.has(x)))
-    .sort()) {
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. The two filters that
+     used to sit in one `.filter()` are DIFFERENT KINDS of statement: `/^2026-/` is a NIGHT RULE, so
+     it goes to `snapshotNights`, which measures it against `NIGHT_RE` over the same listing and
+     names what it refused and what it swallowed; `--only` is a SELECTION over that offer, so it
+     stays here and is named by the count of nights it left unread. Every `continue` below is a
+     COVERAGE refusal over the offer — an absent pair, a parse failure, a refused oracle, too few
+     accepted lags — so those nights ride `notANight` at the end rather than the walk's own `re`. */
+  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+  const nights = popBefore.nights.filter((x) => !ONLY || ONLY.has(x));
+  const covered = [];
+  for (const n of nights) {
     const dir = join(DIR, n);
     let files;
     try {
@@ -347,11 +362,53 @@ async function main() {
     const why = [cE.reason ? 'ECG ' + cE.reason : null, cP.reason ? 'PPG ' + cP.reason : null].filter(Boolean).join('; ');
     const pred = pE == null || pP == null ? Number.NaN : (pP - pE) * 1e-6;
     const a = attribute(rawFit?.slope ?? Number.NaN, pred); // RAW arm decides
+    covered.push({ night: n, ok: true });
     console.log(
       `${n}  ${(pE == null ? '-' : pE.toFixed(1)).padStart(7)} ${(pP == null ? '-' : pP.toFixed(1)).padStart(7)}  ${(Number.isFinite(pred) ? (pred * 1e6).toFixed(1) : '-').padStart(10)}  ${(fit ? (fit.slope * 1e6).toFixed(1) : '-').padStart(9)} ${(rawFit ? (rawFit.slope * 1e6).toFixed(1) : '-').padStart(8)}  ${(Number.isFinite(a.frac) ? a.frac.toFixed(2) : '-').padStart(6)}  ${(rawFit ? rawFit.r2.toFixed(2) : '-').padStart(5)}   ${a.verdict}${why ? '   [' + why + ']' : ''}`
     );
   }
   console.log('\n(ppm columns and predicted/observed slopes are in ppm, i.e. ms of lag per 1e6 ms elapsed)');
+
+  /* THE POPULATION, REPORTED SEPARATELY FROM THE ATTRIBUTION. The attribution's verdict is per
+     night; this verdict says whether the night population MOVED under the run. The status labels
+     MOVEMENT, not coverage: `checked` is the intersection of the two snapshots, and reading it as a
+     scored count would publish the whole offer as scored. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+    tool: 'tools/pat-drift-attribution.mjs',
+    evidence: ['tools/pat-drift-attribution.mjs']
+  });
+  /* Named against the SELECTED set: under `--only` the rest of the offer was never a candidate, and
+     the line below already states how many nights the selection left unread. */
+  const unscored = notANight({ n: nights.length, nights }, covered);
+  console.log(
+    `\n  population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${covered.length} scored · movement ${population.status}${ONLY ? ` · --only left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log('  ' + rl);
+  console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  console.log('POPULATION ' + JSON.stringify(population));
+}
+
+/* The sample the adoption gate reads: two identical fabricated snapshots, so the object is complete
+   and no corpus is touched. */
+export function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^2026-/),
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-drift-attribution.mjs', at, evidence: ['tools/pat-drift-attribution.mjs'] });
 }
 
 if (isCliEntry(import.meta.url)) await main();

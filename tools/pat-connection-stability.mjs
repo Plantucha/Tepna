@@ -47,11 +47,12 @@ import { readdirSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDsps, ecgRpeakTimes, ppgFootTimes, median } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--min-span-sec', '--min-beats', '--device', '--ecg-device'], boolean: ['--json'], positional: true };
+const ARGV_SPEC = { valued: ['--min-span-sec', '--min-beats', '--device', '--ecg-device'], boolean: ['--json', '--verdict-sample'], positional: true };
 
 const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
@@ -214,10 +215,15 @@ function main() {
     console.error('usage: node tools/pat-connection-stability.mjs <captures-root> [--min-span-sec 300] [--min-beats 60] [--json]');
     process.exit(2);
   }
+  /* THE POPULATION IS MEASURED, NOT ASSUMED. This loop filtered the listing by hand, so a run that
+     opened over one night set and closed over another reported a median that describes neither, and
+     the narrowing left no trace. `snapshotNights` is the same enumeration, and it names what its rule
+     refused and what it let through; the closing snapshot turns a moved population into a SHORTFALL. */
+  const popBefore = snapshotNights(ROOT);
+  const nights = popBefore.nights;
   const rows = [];
-  for (const night of readdirSync(ROOT)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort()) {
+  const covered = [];
+  for (const night of nights) {
     const dir = join(ROOT, night);
     const ecgSpans = connectionSpans(dir, ECG_DEVICE);
     const spans = connectionSpans(dir, DEVICE)
@@ -288,9 +294,13 @@ function main() {
     }
     const d = per.map((x) => Math.abs(x.deltaMs)).sort((x, y) => x - y);
     rows.push({ night, nSpans: spans.length, nScored: per.length, medAbsDeltaMs: +median(d).toFixed(1), maxAbsDeltaMs: +d[d.length - 1].toFixed(1), per });
+    covered.push({ night, ok: true });
   }
+  /* THE SCORED SET IS THE SNAPSHOT THE RUN REPORTS, never a second walk: both snapshots read the same
+     root, so the verdict's population is the one these rows came from. */
+  const population = populationVerdict(popBefore, snapshotNights(ROOT), { tool: 'tools/pat-connection-stability.mjs', evidence: ['tools/pat-connection-stability.mjs'] });
   if (AS_JSON) {
-    console.log(JSON.stringify({ minSpanSec: MIN_SPAN / 1000, minBeats: MIN_BEATS, device: DEVICE, rows }, null, 1));
+    console.log(JSON.stringify({ minSpanSec: MIN_SPAN / 1000, minBeats: MIN_BEATS, device: DEVICE, rows, population }, null, 1));
     return;
   }
   console.log(`Within-connection offset constancy — ${DEVICE}, spans >= ${MIN_SPAN / 1000} s, >= ${MIN_BEATS} beats/half`);
@@ -320,8 +330,28 @@ function main() {
       console.log('assumption is doing real work and is wrong; well under it means the assumption holds.');
     }
   } else console.log('\nno connection scored — nothing measured, and that is not a pass.');
+  /* The text run says it too. A population that moved under a table nobody re-read is the defect.
+     The status labels MOVEMENT across the run, never coverage: `covered` is the separate count. */
+  console.log(`\npopulation: ${popBefore.n} night(s) offered under the root · ${covered.length} scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log('POPULATION ' + JSON.stringify(population));
 }
 
+/* The corpus-free sample the adoption gate runs: a population that did NOT move across the run,
+   over synthetic snapshots, so the sample costs no corpus read and runs where the captures are not. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = { ok: true, root: ROOT_SAMPLE, reason: null, n: nights.length, nights, digest: null, maxCtimeMs: null, at };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-connection-stability.mjs', at, evidence: ['tools/pat-connection-stability.mjs'] });
+}
+
+const ROOT_SAMPLE = '/srv/data/tepna-corpus/smoketest-captures';
+
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) main();
-export { connectionSpans, nearestLags, main };
+if (IS_CLI) {
+  if (argv.includes('--verdict-sample')) console.log(JSON.stringify(verdictSample()));
+  else main();
+}
+export { connectionSpans, nearestLags, main, verdictSample };

@@ -11073,6 +11073,61 @@
         return /export function notANight\s*\(/.test(TT[k] || '');
       });
       T.eq('the removal namer is defined once, and in corpus-scope.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope.mjs');
+      /* ── A PUBLISHED VERDICT THE ADOPTION GATE CANNOT SEE ─────────────────────────────────────
+         Row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file.
+         `verdict-adoption.mjs` enumerates its population by grepping LITERAL decision words over the
+         file, comments included. So membership turns on the file's prose rather than on what the run
+         prints: `pat-connection-stability.mjs` entered the population on the word SHORTFALL inside a
+         comment, while `pat-dip-validate.mjs` and `pat-host-offset.mjs` publish the same verdict
+         object through `${population.status}` and are invisible to the gate — binning them reds as a
+         STALE row, so they cannot be registered at all.
+
+         Measured 2026-10-22 over the working tree: 27 tools build a `tepna.verdict/1` through the
+         night primitive or `verdict.js`, and 6 of them carry no literal word. Four of those six
+         landed before this unit. The set is named here, so widening the enumerator SHRINKS a list
+         that the gate itself cannot hold, and a new invisible publisher reds. */
+      var vaSrc = TT['tools/verdict-adoption.mjs'] || '';
+      var mWords = vaSrc.match(/export const WORDS = \/(.+?)\/;/);
+      T.ok('the adoption population rule is readable from the gate, not copied here', !!mWords, mWords ? 'WORDS read from the gate: ' + mWords[1] : 'the gate holds no readable WORDS regex');
+      var wordsRe = mWords ? new RegExp(mWords[1]) : null;
+      var builders = Object.keys(TT).filter(function (k) {
+        return /^tools\/[^/]+\.m?js$/.test(k) && /\b(populationVerdict|censusVerdict)\b/.test(TT[k] || '');
+      });
+      T.ok('ANTI-VACUITY · the verdict-building population is not empty', builders.length >= 20, builders.length + ' builder(s)');
+      var invisible = wordsRe
+        ? builders.filter(function (k) {
+            return !wordsRe.test(TT[k] || '');
+          })
+        : [];
+      T.eq(
+        'every tool publishing a population verdict that the adoption gate cannot see is named here',
+        invisible.sort().join(', '),
+        [
+          'tools/pat-dip-validate.mjs',
+          'tools/pat-host-offset.mjs',
+          'tools/tch-bootstrap-ci.mjs',
+          'tools/tch-fused-corpus.mjs',
+          'tools/tch-reference-validation.mjs',
+          'tools/tch-window-sensitivity.mjs'
+        ].join(', ')
+      );
+      /* ── AND THIS BATCH'S FOUR PUBLISH THE OBJECT, NOT ONLY THE SENTENCE ──────────────────────
+         Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. §🧾 names the object as the
+         API and the prose as the explanation, and a run that prints only the sentence leaves no
+         reader able to take the population machine-readably. Each of these four hand-filtered the
+         listing before this unit, so the leg pins all three halves at once: the primitive is
+         imported, the object is printed, and the sample the adoption gate runs is exported. */
+      var batch = ['tools/pat-connection-stability.mjs', 'tools/pat-dip-validate.mjs', 'tools/pat-drift-attribution.mjs', 'tools/pat-host-offset.mjs'];
+      T.eq(
+        'each PAT run wired in this unit imports the night primitive, prints the object and exports its sample',
+        batch
+          .filter(function (k) {
+            var t = TT[k] || '';
+            return !(/from '\.\/corpus-scope\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && /verdictSample\b/.test(t));
+          })
+          .join(', '),
+        ''
+      );
       /* ── A REPORT THAT ONLY THE SCORING PATH REACHES IS A REPORT NO BOX RUNS ──────────────────
          Row 2026-10-21-the-reference-validation-population-path-runs-on-no-box-here.
          `tch-reference-validation.mjs` scores an external nightly volume named by `DEX_ECG_NIGHTLY`,
