@@ -206,14 +206,19 @@ def test_the_driver_bounds_a_SINGLE_mutant_not_just_the_module():
     is exactly the kind of line a refactor drops without any test noticing.
 
     NOTE this reads `tools/mutate.py`, which is NOT a mutatable module (`_mutatable_modules()` globs the
-    capture-host ROOT), so the raw read is safe and does not need `_srcscan`.
+    capture-host ROOT), so the raw READ is safe without `_srcscan.module_source`. The anchored
+    split below still goes through `_srcscan`, which reports a moved anchor rather than raising
+    an unnamed IndexError on it.
     """
     src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
     # Anchor on the TABLE and read forward. `src.split("timeout_multiplier")[0]` splits at the first
     # occurrence, which is the header comment ABOVE explaining the setting — the very idiom
     # `tests/_srcscan.py` warns about, and it fails here the moment the thing is documented.
     assert "[tool.mutmut]" in src, "the driver no longer writes a [tool.mutmut] table"
-    table = src.split("[tool.mutmut]", 1)[1].split('"""', 1)[0]
+    from _srcscan import split_segment, until_anchor
+
+    opened = split_segment(src, "[tool.mutmut]", 1, where="tools/mutate.py", maxsplit=1)
+    table = until_anchor(opened, '"""', where="tools/mutate.py (the end of the config template)")
     # The knob is TEMPLATED since the timeout retry, because the gate re-runs a timed-out mutant at a
     # wider bound (residue `2026-10-19-a-mutant-whose-cost-is-a-wait-spends-its-own-bound`). What this
     # pin protects is unchanged: the table must still SET the knob, and the ordinary value must still be

@@ -9,7 +9,7 @@
 import datetime as _dt
 import capture
 import oxyii
-from tests._srcscan import module_source
+from tests._srcscan import module_source, split_segment, until_anchor
 
 
 NOW = _dt.datetime(2026, 7, 19, 12, 0, 0)
@@ -90,7 +90,8 @@ def test_the_clock_write_stays_behind_the_policy():
     calls = [ln.strip() for ln in src.splitlines() if "set_time_frame(" in ln and not ln.strip().startswith("#")]
     assert len(calls) == 1, f"expected exactly one set_time_frame call site, found {len(calls)}: {calls}"
     # ...and it must sit inside the _rtc_sync helper, which is the only thing that records the write.
-    helper = src.split("async def _rtc_sync(")[1].split("\n\n")[0]
+    opened = split_segment(src, "async def _rtc_sync(", 1, where="capture.py")
+    helper = until_anchor(opened, "\n\n", where="capture.py (the end of _rtc_sync)")
     assert "set_time_frame(" in helper, "the clock write moved out of _rtc_sync — policy bypassed"
     assert "_OXYII_RTC_AT[addr]" in helper, "_rtc_sync must record the write, or the policy cannot age it"
 

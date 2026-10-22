@@ -22,6 +22,7 @@
 import pytest
 
 import mutation_diff as md
+from tests._srcscan import split_segment
 
 
 def test_survivors_and_undecided_are_separated():
@@ -85,7 +86,8 @@ def test_the_gate_does_not_keep_only_survived_lines():
     src = (pathlib.Path(__file__).resolve().parents[1] / "tools" / "mutate_diff.py").read_text()
     assert '": survived" not in line' not in src, "the survivors-only filter is back"
     assert "split_results(" in src, "the gate no longer classifies the full results listing"
-    assert "REFUSING" in src.split("if undecided:")[1][:600], "undecided must REFUSE, not pass"
+    branch = split_segment(src, "if undecided:", 1, where="tools/mutate_diff.py")
+    assert "REFUSING" in branch[:600], "undecided must REFUSE, not pass"
 
 
 # ── A KILL IS A DETECTION, OR IT IS NOTHING (2026-10-05) ──────────────────────────────────────────

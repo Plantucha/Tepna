@@ -11,7 +11,7 @@
 
 import capture
 import settings_schema
-from tests._srcscan import module_source
+from tests._srcscan import module_source, split_segment
 
 
 G = 180.0
@@ -62,4 +62,5 @@ def test_worn_since_is_module_level_so_it_survives_the_probe_reconnects():
 def test_a_dropped_strap_sleeps_the_recheck_interval_not_the_error_backoff():
     src = module_source("capture.py")
     assert "elif drop_for_power:" in src
-    assert "_NOT_WORN_RECHECK_S" in src.split("elif drop_for_power:")[1][:700]
+    branch = split_segment(src, "elif drop_for_power:", 1, where="capture.py")
+    assert "_NOT_WORN_RECHECK_S" in branch[:700]

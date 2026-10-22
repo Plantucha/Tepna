@@ -12,6 +12,7 @@ import datetime as dt
 import datetime as _dt
 
 import timeline
+from tests._srcscan import split_segment
 
 
 def _ts(h, m, s=0):
@@ -391,7 +392,7 @@ def _tl_base_mapper():
     html = open(__file__.replace("tests/test_timeline.py", "monitor.html"), encoding="utf-8").read()
     # There are two `const base = key…` lines — deviceForStream has its own. Anchor on the one inside
     # tlForStream, or the test silently measures the wrong function.
-    body = html.split("function tlForStream(")[1]
+    body = split_segment(html, "function tlForStream(", 1, where="monitor.html")
     # Read the whole STATEMENT, not one line: the chain is long enough to wrap, and a line-based
     # reader silently drops whatever sits past the newline — which is how this test first passed
     # against a mapping it could not see.
