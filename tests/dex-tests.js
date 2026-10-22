@@ -42572,6 +42572,84 @@
       );
     });
 
+    /* ════ A PER-FILE DOWNGRADE IS THE SAME BLINDNESS AS A SKIPPED FILE ═══════════════════════
+     The group above pins that biome OPENS every file. This one pins that it JUDGES them all by one
+     standard. `biome.json` carried an `overrides` entry lowering `correctness/noUnusedVariables` to a
+     warning for four files, and a warning does not fail `biome ci`. So 25 flagged sites sat in the
+     tree while the gate exited 0 — success reported about code the rule declined to judge, which is
+     the maxSize family in other clothes (residue 2026-10-18-four-pinned-files-keep-their-unused-variables).
+
+     #3779 ended the downgrade for three files. The fourth, `synth-gen.js`, kept 2 sites: a `sinus`
+     initializer no line read, and a `hypoStart` arithmetic superseded on the line below it. Both are
+     gone with the override, so this group states the standing rule instead of that history — no
+     override may lower a rule the top level sets to `error`.
+
+     It is not a ban on overrides: a formatter override, or one that RAISES a level, passes. The repo's
+     idiom for a site that must stay is a per-site `biome-ignore` naming the caller (`oxydex-util.js`'s
+     nine page globals), which leaves the rule binding everywhere else.
+
+     MEASURED while building the control for this change, and worth carrying: a plant named `_x` is
+     invisible to `noUnusedVariables` in BOTH arms, because biome exempts a leading underscore, and a
+     top-level plant in a classic script is not flagged either. A control has to put a non-underscore
+     name inside a FUNCTION body to measure anything at all. ═══════════════════════════════ */
+    group('A biome override may not lower a rule the top level makes an error', 'tooling · biome · coverage', function (T) {
+      var BC = env.biomeCoverage;
+      if (!BC || !BC.rules) {
+        T.skip('env.biomeCoverage provided to the runner', 'Node-lane only (run-tests.mjs readBiomeCoverage, fs truth) — the browser lane can’t read biome.json so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      var WEAK = { warn: 1, info: 1, off: 1 };
+      /* One predicate, used on the real config and on two planted ones, so the leg below cannot pass
+         merely because the repo happens to carry no overrides today. */
+      var weakening = function (topRules, overrides) {
+        var out = [];
+        (overrides || []).forEach(function (o) {
+          Object.keys(o.rules || {}).forEach(function (rule) {
+            if (topRules[rule] === 'error' && WEAK[o.rules[rule]]) {
+              out.push(((o.includes || []).join(', ') || '(no includes)') + ' → ' + rule + ': ' + o.rules[rule]);
+            }
+          });
+        });
+        return out;
+      };
+      var names = Object.keys(BC.rules);
+      /* The floor is deliberately far below the 20 rules configured today: this leg exists to catch an
+         empty or one-entry map (a parse that read nothing), not to count rules, which would red on every
+         deliberate config change. */
+      T.ok('ANTI-VACUITY · the rule map was read from biome.json', names.length > 10, names.length + ' rule(s) configured, floor 10');
+      T.ok(
+        'ANTI-VACUITY · the rule this group was written about is in the map',
+        Object.prototype.hasOwnProperty.call(BC.rules, 'correctness/noUnusedVariables'),
+        'correctness/noUnusedVariables = ' + JSON.stringify(BC.rules['correctness/noUnusedVariables'])
+      );
+      T.ok(
+        'ANTI-VACUITY · the predicate demonstrably fires on a planted downgrade',
+        weakening({ 'correctness/noUnusedVariables': 'error' }, [{ includes: ['planted.js'], rules: { 'correctness/noUnusedVariables': 'warn' } }]).length === 1,
+        'a planted warn-level override of an error-level rule is detected'
+      );
+      T.ok(
+        '…and does NOT fire on a formatter-only override or one that raises a level',
+        weakening({ 'correctness/noUnusedVariables': 'error', 'suspicious/noDoubleEquals': 'warn' }, [
+          { includes: ['fmt.js'], rules: {} },
+          { includes: ['strict.js'], rules: { 'suspicious/noDoubleEquals': 'error' } }
+        ]).length === 0,
+        'an override that changes no rule level downward is not a finding'
+      );
+      T.ok(
+        'noUnusedVariables is an error for the whole tree, not a warning',
+        BC.rules['correctness/noUnusedVariables'] === 'error',
+        'level ' + JSON.stringify(BC.rules['correctness/noUnusedVariables']) + ' — a warning does not fail `biome ci`, so a flagged site can stay indefinitely'
+      );
+      var downgrades = weakening(BC.rules, BC.overrides);
+      T.ok(
+        'no override lowers an error-level rule for a named file',
+        downgrades.length === 0,
+        downgrades.length
+          ? downgrades.join(' · ') + ' — `biome ci` exits 0 on those sites, so they are unjudged rather than clean. Delete them, or suppress per site with a `biome-ignore` that names the caller.'
+          : (BC.overrides || []).length + ' override(s) configured, none weakening an error-level rule'
+      );
+    });
+
     group('Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)', 'docs · docs-ledger', function (T) {
       var DL = env.docsLedger;
       if (!DL || !DL.briefs || DL.indexText == null) {

@@ -16,7 +16,7 @@
   },
   "detector": {
     "oxy": {
-      "synth-gen.js": "5da30a5e5fcd",
+      "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "cbf2deb86790",
@@ -26,7 +26,7 @@
       "oxydex-dsp.js": "8a6d7668203a"
     },
     "pulse": {
-      "synth-gen.js": "5da30a5e5fcd",
+      "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "cbf2deb86790",
@@ -81,9 +81,9 @@
       "reason": "PR #3689: the filename stamp delegates to DexClock.fileStamp. Re-cut at paper scale: 233 tx / 239 flat, unchanged. That re-cut also deleted the three notes above, restored here on 2026-10-20 from the pin at bc84db9f6 (residue 2026-10-18-yield-pin-rerun-deletes-hand-appended-history)."
     }
   ],
-  "measuredAt": "2026-10-20T11:37:23.898Z",
+  "measuredAt": "2026-10-22T07:42:46.942Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "67040b989"
+    "commit": "93d98bddb"
   }
 }
