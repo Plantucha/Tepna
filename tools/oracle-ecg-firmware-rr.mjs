@@ -1140,6 +1140,10 @@ async function main(argv) {
   /* ONE WALK PER POPULATION: this snapshot is the SAME listing `discoverPairs` reads, taken with the
      walk's own rule. A second hand-rolled filter here would report a set the run never scored. */
   const popBefore = unionNights(roots.map((r) => snapshotNights(r, { re: /./ })));
+  /* 🔴 STAMP THE CODE THAT RAN. This stood after the scoring loop, so a run spanning a commit named
+     a tree it never ran — measured on the PPG twin, which read a sha committed eight minutes after
+     its own start. Node loaded the module here; the identity of the producer is the identity here. */
+  const commitAtStart = gitCommit();
   let pairs = [];
   for (const r of roots) pairs = pairs.concat(discoverPairs(r));
   if (!pairs.length) {
@@ -1148,7 +1152,7 @@ async function main(argv) {
        `--json` too, so a consumer asking for the object got unparseable text and a success code.
        No `corpus-population` verdict rides this path: nothing ran between two snapshots, and
        comparing one snapshot with itself would publish a PASS over `checked: 0`. */
-    const commitSkip = gitCommit();
+    const commitSkip = commitAtStart;
     const v = verdictObject(pooled([]), [], {
       roots,
       commit: commitSkip,
@@ -1163,7 +1167,12 @@ async function main(argv) {
       printPopulation(null, popBefore, pairs);
       console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: v.status, population: v.population, reason: v.reason }));
     }
-    return 0;
+    /* A RUN THAT SCORED NOTHING IS NOT A SUCCESSFUL RUN, and exit 0 is the only thing an unattended
+       caller reads. Row 2026-09-04-respacc-empty-run-exits-zero records the same shape in a reporter
+       whose empty run wrote no figures and still exited 0, and #2269 closed it the same way. 2 keeps
+       FAIL's 1 distinct: 1 means the oracle scored nights and the criterion missed, 2 means it scored
+       none. The sibling `oracle-ppg-device-beats.mjs` already exits 2 on an absent root. */
+    return 2;
   }
   // one pair per night: the largest ECG file (the overnight session, not a fragment)
   const byNight = new Map();
@@ -1186,7 +1195,7 @@ async function main(argv) {
   }
   const P = pooled(rows);
   const cov = ppiCoverage(roots[0]);
-  const commit = gitCommit();
+  const commit = commitAtStart;
   const verdict = verdictObject(P, rows, { roots, commit });
   /* THE SET MAY HAVE MOVED WHILE THIS RAN: `tepna-corpus-tier.service` re-tiers daily, so the walk
      above and the scoring below can see different nights. The population verdict is that comparison. */
