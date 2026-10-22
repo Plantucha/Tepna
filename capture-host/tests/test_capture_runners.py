@@ -15,7 +15,7 @@ import os
 import pytest
 
 import capture
-from tests._srcscan import module_source
+from tests._srcscan import module_source, split_segment, until_anchor
 
 
 _DROP_DEFAULT = capture._DROP_NOT_WORN_SEC
@@ -5728,7 +5728,8 @@ def test_no_post_connect_gatt_await_in_run_polar_is_left_unbounded():
     """A source check, because the next one added will be bare too unless something says otherwise.
     Every start_notify / read_gatt_char inside run_polar must carry a bound."""
     src = module_source("capture.py")
-    body = src.split("async def run_polar")[1].split("\nasync def ")[0]
+    run_polar = split_segment(src, "async def run_polar", 1, where="capture.py")
+    body = until_anchor(run_polar, "\nasync def ", where="capture.py (the end of run_polar)")
     bare = [
         ln.strip()
         for ln in body.splitlines()
@@ -6559,7 +6560,8 @@ def test_the_budget_is_measured_monotonically():
 
     src = inspect.getsource(capture.auto_sync_clock)
     assert "_time.monotonic()" in src, "elapsed time must come from a monotonic source"
-    assert "_now()" not in src.split("started =")[1].split("for attempt")[0]
+    since = split_segment(src, "started =", 1, where="capture.auto_sync_clock")
+    assert "_now()" not in until_anchor(since, "for attempt", where="capture.auto_sync_clock")
 
 
 # ══ PRESENCE PRE-CHECK — absence must not cost the global lock (2026-08-09) ═══════════════════════════
