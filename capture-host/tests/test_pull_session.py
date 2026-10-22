@@ -267,6 +267,30 @@ def test_a_finalized_recording_carries_the_devices_own_session_summary(tmp_path,
     assert acq["session_id"] == "20260720020000"
 
 
+def test_a_failing_envelope_never_costs_the_ring_pull_its_sidecar(tmp_path, monkeypatch, capsys):
+    """An undeclared vocabulary word now refuses at construction, and THIS is the path that refusal
+    would have landed in: the four other production producers assemble inside a guard and this one
+    did not. The bytes are committed before the envelope is built, so a fault must cost the ENVELOPE
+    and nothing else — the sidecar that explains the pull is what an operator reads next."""
+    blob = bytes([0x01, 0x03, 0, 0, 0, 0, 0, 0, 0x04, 0x00]) + bytes([96, 50, 0]) * 300 + bytes(48)
+    ring = FakeRing(["20260721030000"], blob)
+    _install(monkeypatch, ring)
+
+    def boom(*a, **kw):
+        raise ValueError("acq_evidence: clock_status='host_only' is not a declared word")
+
+    monkeypatch.setattr(pull_session.acq_evidence_o2ring, "assemble_dat", boom)
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+
+    assert open(got[0], "rb").read() == blob, "the pulled bytes are untouched"
+    meta = json.load(open(got[0] + ".meta.json"))
+    assert "acquisition_evidence" not in meta, "the envelope is the whole of what the fault costs"
+    assert meta["session"] == "20260721030000", "the rest of the sidecar is still written"
+    printed = capsys.readouterr().out
+    assert "20260721030000" in printed, "the line must name WHICH session lost its envelope"
+    assert "host_only" in printed, "and WHICH word the assembler refused"
+
+
 def test_the_transfer_survives_frames_split_across_notifications(tmp_path, monkeypatch):
     """BLE delivers whatever fits the MTU; a reply can straddle two notifications. The real Reassembler
     is in this path, so splitting every frame must change nothing."""
@@ -394,10 +418,26 @@ def test_a_truncated_transfer_still_writes_but_the_sidecar_shows_the_shortfall(t
 
 
 def test_an_empty_chunk_stops_the_transfer_rather_than_looping_forever(tmp_path, monkeypatch):
-    """A zero-length FILE_DATA reply never advances the offset; without the guard this spins forever."""
+    """A zero-length FILE_DATA reply never advances the offset; without the guard this spins forever.
+
+    The test must FAIL on that spin, not hang in it: a hang reads as a mutation-gate TIMEOUT (UNDECIDED,
+    so `mutate_diff` refuses) instead of a kill. A second FILE_DATA wait is the spin's first step, so it
+    ends the transfer the way a silent link does and the count below names the defect."""
     ring = FakeRing(["20260719010000"], b"", declared=5000)
     _install(monkeypatch, ring)
+    real_wait = pull_session._wait
+    seen = {"n": 0}
+
+    async def once(q, op, timeout=20.0):
+        if op == oxyii.OP_FILE_DATA:
+            seen["n"] += 1
+            if seen["n"] > 1:
+                raise asyncio.TimeoutError("asked again after an empty chunk")
+        return await real_wait(q, op, timeout=timeout)
+
+    monkeypatch.setattr(pull_session, "_wait", once)
     got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+    assert seen["n"] == 1, f"the transfer asked for more data after an empty chunk ({seen['n']} waits)"
     assert len(got) == 1 and os.path.getsize(got[0]) == 0
 
 
