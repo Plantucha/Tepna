@@ -11103,6 +11103,37 @@
          `no data`, and exited 0. The population was honest and the exit code was not. */
       T.eq('a run that scored no epoch does not exit 0', (RV.match(/process\.exit\(0\)/g) || []).length, 0);
     });
+    /* ════ A PUBLISHED CONTROL CARRIES THE POPULATION IT WAS COMPUTED OVER ══════════════════════
+       Row 2026-10-22-the-apnea-controls-are-compared-across-two-populations: the apnea harness read
+       §9's four published figures as a bare delta of 0.02 and printed `drifted` past it. §9 computed
+       all four over 39 paired nights; today's run pairs 31, and each row drops its own nulls below
+       that. So the cell mixed a moved correlation with a different denominator, and it called every
+       such run drift. The repair is three-valued: only an equal population earns a word. ════ */
+    group('a published control carries the population it was computed over', 'tools · controls · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS, AND THE LANE DECIDES WHICH. The browser lane enumerates no directory, so
+         `toolTexts` is absent there; the node lane has no such excuse. Measured 2026-10-22 on this
+         PR's own head: without this guard the two regex assertions below ran over an empty string and
+         reded `browser-gates` while the node lane read green. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the published-control scan examined nothing');
+        else T.skip('the published-control population scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var AC = TT['tools/ecg-apnea-correlate.mjs'] || '';
+      T.ok('ANTI-VACUITY · the apnea-correlate source is loaded', /const CANDIDATES = \[/.test(AC), AC.length + ' chars');
+      /* A PLANT NAMES THE CANDIDATE, NOT A COUNT. Deleting one `controlN` reports which published
+         figure lost its population, which is the only thing a reader can act on. */
+      var naked = (AC.match(/\{ key: '[^']+', of: [^}]*control: -?\d[^}]*\}/g) || []).filter(function (c) {
+        return c.indexOf('controlN') < 0;
+      });
+      T.eq('every candidate with a published control names its population', naked.join(' · '), '');
+      T.ok('the printed cell reads the three-valued comparison', /cc\.verdict === 'population-differs'/.test(AC), 'population-differs');
+      /* THE SHAPE THE ROW IS ABOUT. A bare delta against a published figure is the defect itself, so
+         its spelling must not come back. */
+      T.eq('no bare-delta control cell survives', (AC.match(/d <= 0\.02 \?/g) || []).length, 0);
+    });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool
        has a selftest: `selftest-all.mjs` (which tools the sweep RUNS) and `verdict-adoption.mjs`
