@@ -366,6 +366,11 @@ if (IS_CLI) {
      by the capture host and this tool must not decide what a night looks like. The snapshot records
      that wide rule and names what it swallowed, which is the only form a reader can chase. */
   const snap = snapshotNights(dir, { re: /./ });
+  /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Scoring takes minutes, and this
+     tool read `a60f2102f` on a run that opened at 02:47 under an earlier tree and closed at 02:55
+     after a commit landed in this worktree. Node loaded the module at the start, so the identity of
+     what produced the figures is the identity HERE — the later sha names a tree the run never ran. */
+  const commit = gitCommit();
   for (const night of snap.nights) {
     const nd = join(dir, night);
     let files = [];
@@ -402,7 +407,6 @@ if (IS_CLI) {
     process.exit(2);
   }
   const pooled = pool(rows);
-  const commit = gitCommit();
   const v = verdictObject(pooled, rows, { roots: [dir], commit, nightsOffered: snap.n, filesRead: rows.length });
   /* THE SET MAY HAVE MOVED WHILE THIS RAN. Scoring 54 session files takes minutes and
      `tepna-corpus-tier.service` re-tiers daily, so the opening walk and the last file read can see
