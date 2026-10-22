@@ -16,8 +16,11 @@
  * WHY THIS EXISTS AS A COMMITTED TOOL. §9 published `cpcHfc` r = −0.408 and `cvhrIndex` r = −0.151
  * from a script that was not committed — the same failure §11/§12 hit, where a quoted result could
  * not be re-run without rebuilding the harness from prose. So §9's numbers are now a **CONTROL** this
- * tool reproduces on every run: if the `hfcPct` row does not come back at −0.408, either the corpus
- * moved or this harness is wrong, and both are things you want to know BEFORE reading a new row.
+ * tool reproduces on every run: if the `hfcPct` row does not come back at −0.408, the corpus moved,
+ * or this harness is wrong, or the two sides cover different nights — and all three are things you
+ * want to know BEFORE reading a new row. §9 computed every control over 39 paired nights, so a run
+ * pairing some other number reports that instead of calling the difference drift (row
+ * 2026-10-22-the-apnea-controls-are-compared-across-two-populations).
  *
  * WHY NOT A DSP CHANGE. Reads two already-emitted export sets and computes no new signal — no bundle,
  * no manifestHash. Read-only: writes nothing.
@@ -118,13 +121,44 @@ const rank = (a) => {
 };
 const spearman = (x, y) => pearson(rank(x), rank(y));
 
+/* ── the §9 controls and the population they were computed over ────────────────────── */
+/* 🔴 A CONTROL IS A NUMBER PLUS THE NIGHTS IT WAS COMPUTED OVER. §9 computed all four published
+   figures over one set: "CPC was computed on all 39 merged nights … and paired to its ResMed night"
+   (`briefs/ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §9). The selftest PROVES that count
+   rather than quoting it, because each published CI reproduces from `fisherCI(r, 39)` and from no
+   other n. Without it the `vs §9` cell compared a run over 31 nights against a figure over 39 and
+   called the gap drift, which is the one thing that comparison cannot distinguish (row
+   2026-10-22-the-apnea-controls-are-compared-across-two-populations). */
+const CONTROL_N = 39;
+const CONTROL_TOL = 0.02;
+
+/* Three-valued on purpose. An equal population earns `reproduces` or `drifted`. An unequal one earns
+   neither: the same r over a different set is a different measurement, so a 0.000 delta there would
+   read as agreement when nothing was compared. `null` means the candidate has no published control,
+   which is not a failure to judge. */
+function controlCompare(r, n, control, controlN, tol = CONTROL_TOL) {
+  const cn = controlN == null ? null : controlN;
+  if (control == null || r == null) return { verdict: null, delta: null, n, controlN: cn };
+  if (cn == null || n !== cn) return { verdict: 'population-differs', delta: Math.abs(r - control), n, controlN: cn };
+  const delta = Math.abs(r - control);
+  return { verdict: delta <= tol ? 'reproduces' : 'drifted', delta, n, controlN: cn };
+}
+
 /* ── selftest ─────────────────────────────────────────────────────────────── */
 if (SELFTEST) {
-  let bad = 0;
+  let bad = 0,
+    ran = 0;
   const near = (l, got, want, tol) => {
+    ran++;
     const ok = got != null && Math.abs(got - want) <= tol;
     if (!ok) bad++;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${l}: got ${got}, want ${want} ±${tol}`);
+  };
+  const is = (l, got, want) => {
+    ran++;
+    const ok = got === want;
+    if (!ok) bad++;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${l}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
   };
   near('pearson perfect +1', pearson([1, 2, 3, 4], [2, 4, 6, 8]), 1, 1e-12);
   near('pearson perfect −1', pearson([1, 2, 3, 4], [8, 6, 4, 2]), -1, 1e-12);
@@ -137,7 +171,35 @@ if (SELFTEST) {
   near('§9 cpcHfc CI lo (published −0.641)', Math.round(ci.lo * 1000) / 1000, -0.641, 1e-9);
   near('§9 cpcHfc CI hi (published −0.106)', Math.round(ci.hi * 1000) / 1000, -0.106, 1e-9);
   near('§9 cvhrIndex CI lo (published −0.445)', Math.round(fisherCI(-0.151, 39).lo * 1000) / 1000, -0.445, 1e-9);
-  console.log(bad ? `\n${bad} FAILED` : '\nall selftests pass');
+  /* THE CONTROL POPULATION IS PROVEN HERE, NOT QUOTED. §9's other two published intervals reproduce
+     from the same n, so `CONTROL_N` is a measured property of the published table rather than a
+     number read off its prose. The LFC lower bound lands 0.001 away because §9 published r rounded
+     to three places, which is the only slack any of the four needs. */
+  near('§9 vlfcPct CI lo (published +0.046)', Math.round(fisherCI(0.356, CONTROL_N).lo * 1000) / 1000, 0.046, 1e-9);
+  near('§9 vlfcPct CI hi (published +0.604)', Math.round(fisherCI(0.356, CONTROL_N).hi * 1000) / 1000, 0.604, 1e-9);
+  near('§9 lfcPct CI lo (published −0.356, r rounded)', fisherCI(-0.045, CONTROL_N).lo, -0.356, 2e-3);
+  near('§9 lfcPct CI hi (published +0.274)', Math.round(fisherCI(-0.045, CONTROL_N).hi * 1000) / 1000, 0.274, 1e-9);
+  /* And the n itself has to BITE: the same r at a different population must not reproduce §9's CI. */
+  is("a CI at n = 31 is not §9's published interval", Math.round(fisherCI(-0.408, 31).lo * 1000) / 1000 === -0.641, false);
+
+  /* THE COMPARISON IS THREE-VALUED (row 2026-10-22-the-apnea-controls-are-compared-across-two-populations) */
+  is('equal population, inside tolerance → reproduces', controlCompare(-0.4, 39, -0.408, 39).verdict, 'reproduces');
+  is('equal population, outside tolerance → drifted', controlCompare(-0.2, 39, -0.408, 39).verdict, 'drifted');
+  /* THE LEG THAT IS THE WHOLE ROW: an IDENTICAL r over a different set is still not a reproduction. */
+  is('identical r, 31 nights against 39 → population-differs', controlCompare(-0.408, 31, -0.408, 39).verdict, 'population-differs');
+  near('and that case still reports its delta', controlCompare(-0.408, 31, -0.408, 39).delta, 0, 1e-12);
+  is('one night short is already a different population', controlCompare(-0.408, 38, -0.408, 39).verdict, 'population-differs');
+  is('a control with no population cannot be judged', controlCompare(-0.408, 39, -0.408, null).verdict, 'population-differs');
+  /* CONTROL ON THE CONTROL: a candidate with no published figure is not an unjudged control. */
+  is('no published control → no verdict', controlCompare(-0.408, 39, null, null).verdict, null);
+  is('no computed r → no verdict', controlCompare(null, 39, -0.408, 39).verdict, null);
+  /* The bound is inclusive, and it is read off a delta the float grid holds exactly. ✕ Measured:
+     `|-0.428 - -0.408|` is 0.020000000000000018, so a decimal pair AT the tolerance can land either
+     side of it. No published control sits near the edge, so the edge is pinned here and never read
+     off two three-place figures. */
+  is('a delta exactly at the tolerance reproduces', controlCompare(0.02, 39, 0, 39).verdict, 'reproduces');
+  is('just past the tolerance is drift', controlCompare(0.0201, 39, 0, 39).verdict, 'drifted');
+  console.log(bad ? `\n${bad} FAILED of ${ran}` : `\nall ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
 
@@ -210,10 +272,10 @@ for (const n of cpapNights) {
    open questions. Everything in the apnea block that carries a number is included on purpose —
    testing only the favourite is how a fishing expedition looks respectable. */
 const CANDIDATES = [
-  { key: 'cpc.hfcPct', of: (a) => a.cpc && a.cpc.hfcPct, control: -0.408 },
-  { key: 'cpc.lfcPct', of: (a) => a.cpc && a.cpc.lfcPct, control: -0.045 },
-  { key: 'cpc.vlfcPct', of: (a) => a.cpc && a.cpc.vlfcPct, control: 0.356 },
-  { key: 'cvhrIndex', of: (a) => a.cvhrIndex, control: -0.151 },
+  { key: 'cpc.hfcPct', of: (a) => a.cpc && a.cpc.hfcPct, control: -0.408, controlN: CONTROL_N },
+  { key: 'cpc.lfcPct', of: (a) => a.cpc && a.cpc.lfcPct, control: -0.045, controlN: CONTROL_N },
+  { key: 'cpc.vlfcPct', of: (a) => a.cpc && a.cpc.vlfcPct, control: 0.356, controlN: CONTROL_N },
+  { key: 'cvhrIndex', of: (a) => a.cvhrIndex, control: -0.151, controlN: CONTROL_N },
   { key: 'cvhrEvents', of: (a) => a.cvhrEvents },
   { key: 'surgeEscalationPct', of: (a) => a.surgeEscalationPct }
 ];
@@ -263,7 +325,19 @@ const rows = CANDIDATES.map((c) => {
     ys.push(p.ahi);
   }
   const r = pearson(xs, ys);
-  return { key: c.key, n: xs.length, r, ci: fisherCI(r, xs.length), p: pValue(r, xs.length), rho: spearman(xs, ys), control: c.control };
+  return {
+    key: c.key,
+    n: xs.length,
+    r,
+    ci: fisherCI(r, xs.length),
+    p: pValue(r, xs.length),
+    rho: spearman(xs, ys),
+    /* ∅ ABSENCE IS NULL, on BOTH halves of the control: a candidate with no published figure reads
+       `null` for the figure and `null` for its population, never an absent key. */
+    control: c.control == null ? null : c.control,
+    controlN: c.controlN == null ? null : c.controlN,
+    controlCheck: controlCompare(r, xs.length, c.control, c.controlN)
+  };
 });
 
 /* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing walk is what says so. Without it a
@@ -311,13 +385,27 @@ printPopulation();
 console.log('\n  predictor'.padEnd(24) + 'n'.padEnd(5) + 'Pearson r'.padEnd(12) + '95% CI'.padEnd(22) + 'p'.padEnd(9) + 'Spearman'.padEnd(11) + 'vs §9');
 for (const row of rows) {
   const ci = row.ci ? `[${f3(row.ci.lo)}, ${f3(row.ci.hi)}]` : '—';
+  /* THE CELL NAMES BOTH POPULATIONS WHENEVER IT CANNOT JUDGE. A bare ✕ read as drift on every run
+     where this corpus and §9 cover different nights, and that is the row's whole defect. */
+  const cc = row.controlCheck || { verdict: null };
   let ctl = '';
-  if (row.control != null && row.r != null) {
-    const d = Math.abs(row.r - row.control);
-    ctl = d <= 0.02 ? `✓ ${row.control}` : `✕ drifted (was ${row.control})`;
-  }
+  if (cc.verdict === 'reproduces') ctl = `✓ ${row.control} over ${row.controlN}`;
+  else if (cc.verdict === 'drifted') ctl = `✕ drifted (was ${row.control} over ${row.controlN})`;
+  else if (cc.verdict === 'population-differs') ctl = `? ${row.control} over ${row.controlN} night(s), this run ${row.n}`;
   console.log(`  ${row.key}`.padEnd(24) + String(row.n).padEnd(5) + f3(row.r).padEnd(12) + ci.padEnd(22) + (row.p == null ? '—' : row.p.toFixed(3)).padEnd(9) + f3(row.rho).padEnd(11) + ctl);
 }
+/* A READER MUST NOT HAVE TO COUNT THE `?` CELLS. The table says what each control did; this line
+   says how many of them this run could judge at all, which is the number a drifted-control alarm
+   would otherwise be read off. */
+const controlRows = rows.filter((r) => r.control != null);
+const judgedRows = controlRows.filter((r) => r.controlCheck.verdict === 'reproduces' || r.controlCheck.verdict === 'drifted');
+const spans = [...new Set(controlRows.map((r) => r.n))].sort((a, b) => a - b);
+console.log(
+  `\n  §9 controls judged: ${judgedRows.length} of ${controlRows.length}` +
+    (judgedRows.length < controlRows.length
+      ? ` — §9 published over ${CONTROL_N} paired night(s) and these rows span ${spans.join(', ')}, so a delta there mixes drift with a different denominator`
+      : '')
+);
 /* Bonferroni over the candidates actually tested — stated, not left for the reader to apply, because
    an unadjusted p on the best of six rows is exactly how a null result gets published as a finding. */
 const k = rows.filter((r) => r.r != null).length;
