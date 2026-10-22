@@ -61,7 +61,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -257,17 +257,11 @@ function gitCommit() {
 /* The population beside the verdict, from the SAME snapshot the scored set was drawn from — never a
    second walk, which would let the two disagree (Magpie, #3850). `snap` is the offer, the scored
    nights are the read, and the gap between them is what a reader needs to chase a figure that moved. */
-/* THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED. `ruleLine` names the non-night directories the
-   WALK let through, because the walk knows them. It cannot say which of them held no ring session
-   file, because only the READ knows that — and a count of removals names nothing to chase, so this
-   names them. The ECG sibling exports the same shape over its own pair list; the shared home is
-   `corpus-scope.mjs` (row 2026-10-22-the-removal-namer-is-duplicated-in-two-oracles). */
-export function notANight(snap, rows) {
-  const scored = new Set(rows.filter((r) => r.ok).map((r) => r.night));
-  /* A night whose read failed is removed too: `r.ok` is the READ's verdict, and a row that threw
-     scored nothing. Filtering on membership alone would name it as covered. */
-  return snap.nights.filter((n) => !scored.has(n));
-}
+/* THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED now comes from `corpus-scope.mjs`, which is where
+   that row said the shared home was (2026-10-22-the-removal-namer-is-duplicated-in-two-oracles). The
+   sentence stays here — below, where it says the directory held no scorable Wellue `_PPG.txt` — and
+   so do the legs that accept the shared namer against THIS tool's shape: rows carrying the read's own
+   `ok`, where a night whose read failed is removed rather than counted as covered. */
 
 function printPopulation(pop, snap, rows) {
   if (pop) console.log(`\n  population: ${pop.status} — ${pop.population.checked} night(s) the run can report over, of ${pop.population.eligible} it saw${pop.reason ? ` · ${pop.reason}` : ''}`);

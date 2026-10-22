@@ -391,6 +391,28 @@ export function ruleLine(population) {
   return `  rule ${r.rule} — ${say(r.ruleRejectedNightShaped, 'night-shaped names it refused')} · ${say(r.ruleAdmittedNonNight, 'non-night names it counted as nights')}`;
 }
 
+/** THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED, in ONE place. `ruleLine` above is the WALK's
+ *  account of its own rule: it can name the non-night directories the rule let through, because the
+ *  walk knows them. It cannot say which of them held nothing the READ could score, because only the
+ *  read knows that — and a COUNT of removals names nothing to chase, so this names them.
+ *
+ *  Both device oracles answered that question with their own four-line copy, differing only in the
+ *  sentence about what the night lacked, so the next widening of the question moved two files and a
+ *  fix to one left the other reading the old way (row
+ *  2026-10-22-the-removal-namer-is-duplicated-in-two-oracles). The node-specific half is the
+ *  SENTENCE, which stays with the caller; the set arithmetic is the same in both and lives here.
+ *
+ *  `covered` rows carry a `night`. A row reporting its own read as failed (`ok === false`) scored
+ *  nothing and is REMOVED, never counted as covered — membership alone would name it as scored. A
+ *  caller whose rows have no `ok` at all, where a row's EXISTENCE is the read, is unaffected, because
+ *  `undefined !== false`. There is no guard on the offer: a snapshot or a union that enumerated
+ *  nothing already carries an empty `nights`, and a guard here would restate that invariant where no
+ *  control can fire it — an unfireable guard reads as covered. */
+export function notANight(offer, covered) {
+  const scored = new Set((covered || []).filter((r) => r && r.ok !== false).map((r) => r.night));
+  return ((offer && offer.nights) || []).filter((n) => !scored.has(n));
+}
+
 function gitCommitShort() {
   try {
     return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
@@ -649,6 +671,21 @@ function selftest() {
         JSON.stringify(line)
       );
     }
+    /* ── THE REMOVAL NAMER, ONE IMPLEMENTATION FOR BOTH ORACLE SHAPES ──────────────────────────
+       Row 2026-10-22-the-removal-namer-is-duplicated-in-two-oracles. The two callers differ in one
+       thing only: the ECG pair list has no `ok`, because a pair's existence IS the read, while the
+       PPG row list carries the read's own verdict. Both shapes are pinned here, so a widening of the
+       question moves one file. */
+    const offered = { n: 3, nights: ['2026-07-25', '2026-07-26', 'logs'] };
+    ok('the read removed two of three, and the namer NAMES them rather than counting them', notANight(offered, [{ night: '2026-07-25' }]).join(',') === '2026-07-26,logs');
+    ok(
+      'a row whose own read failed is removed too, never counted as covered',
+      notANight(offered, [{ night: '2026-07-25', ok: false }]).length === 3,
+      JSON.stringify(notANight(offered, [{ night: '2026-07-25', ok: false }]))
+    );
+    ok('CONTROL · the same row with ok true is covered, so the two shapes read differently', notANight(offered, [{ night: '2026-07-25', ok: true }]).join(',') === '2026-07-26,logs');
+    ok('CONTROL · an offer that enumerated nothing names no removal', notANight({ n: 0, nights: [] }, []).length === 0);
+    ok('a covered night the offer never held cannot appear: the difference runs offer minus read', notANight(offered, [{ night: '2099-01-01' }]).length === 3);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
