@@ -44,6 +44,13 @@
  * preview, never for the real replacement — the owner ruled full hashing, and a size match is what
  * every rsync failure mode looks like from outside.
  *
+ * WHAT IT REPORTS ABOUT ITSELF. The run prints its own resident high-water (`VmHWM`) and the largest
+ * `VmSwap` it sampled, because systemd's "memory peak" cannot answer what the job HOLDS: that figure is
+ * the cgroup's `memory.peak` and it charges reclaimable page cache, so a run that copies 52 GB and
+ * hashes both sides pins it at the cap whatever the heap does (residue
+ * `2026-09-23-memorypeak-is-a-cgroup-figure`, `2026-10-20-corpus-tier-swap-can-hide-an-over-cap-heap`).
+ * The two figures are this PROCESS's, they are not comparable to `MemoryPeak`, and the report says so.
+ *
  * Usage:
  *   node tools/corpus-tier.mjs --dry-run              # print the plan, change nothing
  *   node tools/corpus-tier.mjs                        # replace, with full verification
@@ -60,7 +67,7 @@
  * tiered and the marker kept local: the run #2784's byte audit did by hand, as the tool's own check.
  */
 import { createHash } from 'node:crypto';
-import { createReadStream, promises as fs, statSync } from 'node:fs';
+import { createReadStream, promises as fs, readFileSync, statSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -137,6 +144,57 @@ const JSON_OUT = flag('--json');
 const SELFTEST = flag('--selftest');
 // under --json the human report goes to stderr so stdout is one parseable document
 const out = (line) => (JSON_OUT ? console.error(line) : console.log(line));
+
+/* ── WHAT THE JOB HOLDS, WHICH `MemoryPeak` CANNOT SAY ──────────────────────────────
+   `VmHWM` is the kernel's high-water mark for THIS process's resident set, so it needs no sampler: the
+   kernel keeps the maximum and one read reports the whole run. `VmSwap` carries no high-water at all,
+   so the only honest figure is the largest value SAMPLED, and the sample count travels beside it — a
+   maximum over three samples is not a peak. An absent field is `null` with a reason, never 0: a memory
+   figure of 0 reads as a measurement (§∅). */
+const MEM_STATUS = '/proc/self/status';
+const MEM_FIELDS = ['VmHWM', 'VmRSS', 'VmSwap'];
+
+function parseProcMem(text) {
+  const kb = {};
+  for (const f of MEM_FIELDS) {
+    const m = new RegExp(`^${f}:[ \\t]+(\\d+) kB$`, 'm').exec(text);
+    kb[f] = m ? Number(m[1]) : null;
+  }
+  const absent = MEM_FIELDS.filter((f) => kb[f] === null);
+  return {
+    hwmKb: kb.VmHWM,
+    rssKb: kb.VmRSS,
+    swapKb: kb.VmSwap,
+    absent,
+    reason: absent.length ? `${MEM_STATUS} names no ${absent.join(', ')}` : null
+  };
+}
+
+function readProcMem() {
+  try {
+    return parseProcMem(readFileSync(MEM_STATUS, 'utf8'));
+  } catch (e) {
+    return { hwmKb: null, rssKb: null, swapKb: null, absent: MEM_FIELDS.slice(), reason: `${MEM_STATUS} unreadable: ${e.code ?? e.message}` };
+  }
+}
+
+const memHeld = { samples: 0, vmHWMKb: null, vmRSSMaxKb: null, vmSwapMaxKb: null, reason: null };
+
+/* The max over VmHWM is a belt: the kernel promises it is monotonic, and this does not depend on the
+   promise. The max over VmSwap is the measurement itself. */
+function memFold(acc, s) {
+  acc.samples++;
+  const up = (cur, next) => (next === null ? cur : cur === null ? next : Math.max(cur, next));
+  acc.vmHWMKb = up(acc.vmHWMKb, s.hwmKb);
+  acc.vmRSSMaxKb = up(acc.vmRSSMaxKb, s.rssKb);
+  acc.vmSwapMaxKb = up(acc.vmSwapMaxKb, s.swapKb);
+  if (s.reason) acc.reason = s.reason;
+  return acc;
+}
+
+const MEM_EVERY = 500; // one 4 KiB read per 500 files, so the sampler is not the cost it measures
+const memSample = () => memFold(memHeld, readProcMem());
+const memMiB = (kb) => (kb === null ? 'null' : (kb / 1024).toFixed(1));
 
 function emitVerdict({ status, eligible, checked, result, reason, gate }) {
   let commit = null;
@@ -225,6 +283,25 @@ async function selftest() {
   const loadedUnderPipe = !/Cannot find module/.test(String(piped.stderr) + String(piped.stdout));
   const refusedNamingBoth = /cannot find the checkout root/.test(String(pipedNoRoot.stderr)) && /TEPNA_ROOT/.test(String(pipedNoRoot.stderr)) && /walked up from/.test(String(pipedNoRoot.stderr));
 
+  /* ── THE FIGURE THE PARENT ROW ASKED FOR, PROVEN AGAINST A KNOWN ALLOCATION ───────────────
+     A reader that returns a plausible number for every input proves nothing, so the ballast leg moves
+     the figure by a known amount, and the three parser legs feed it text whose answer is known. The
+     allocation is touched: an untouched `Buffer.alloc` need never become resident. */
+  const memReal = readProcMem();
+  const BALLAST_MIB = 96;
+  let ballast = Buffer.alloc(BALLAST_MIB * 1024 * 1024);
+  ballast.fill(1);
+  const ballastBytes = ballast.length;
+  const memAfterBallast = readProcMem().hwmKb;
+  ballast = null;
+  const memGrewMiB = memReal.hwmKb === null || memAfterBallast === null ? null : (memAfterBallast - memReal.hwmKb) / 1024;
+  const memShaped = parseProcMem('Name:\tnode\nVmHWM:\t 1234 kB\nVmRSS:\t  567 kB\nVmSwap:\t    8 kB\n');
+  const memPartial = parseProcMem('VmHWM:\t 1234 kB\nVmRSS:\t 1000 kB\n');
+  const memEmpty = parseProcMem('');
+  const memFolded = memFold({ samples: 0, vmHWMKb: null, vmRSSMaxKb: null, vmSwapMaxKb: null, reason: null }, { hwmKb: 100, rssKb: 90, swapKb: 10, reason: null });
+  memFold(memFolded, { hwmKb: 100, rssKb: 40, swapKb: 3, reason: null });
+  memFold(memFolded, { hwmKb: null, rssKb: null, swapKb: null, reason: 'absent' });
+
   const res = child && child.result ? child.result : {};
   const checks = {
     /* ANTI-VACUITY: an empty stdout AND stderr would make both checks below pass by examining
@@ -237,7 +314,17 @@ async function selftest() {
     plantRefusedAndLeftLocal: plantLocal && res.refused === 1,
     corruptNasTwinNotOverwritten: nasPlant,
     zeroByteMarkerKeptLocal: markerLocal && res.zeroByte === 1,
-    childExit3: r.status === 3
+    childExit3: r.status === 3,
+    /* ANTI-VACUITY: a 96 MiB allocation that did not happen would make the growth leg pass by
+       examining nothing. */
+    ballastWasActuallyAllocated: ballastBytes === BALLAST_MIB * 1024 * 1024,
+    procMemAnswersOrNamesWhyNot: (memReal.hwmKb !== null && memReal.rssKb !== null) || !!memReal.reason,
+    vmHWMRisesWithAKnownAllocation: memGrewMiB === null ? !!memReal.reason : memGrewMiB >= BALLAST_MIB * 0.75,
+    procMemReadsTheThreeFieldsExactly: memShaped.hwmKb === 1234 && memShaped.rssKb === 567 && memShaped.swapKb === 8 && memShaped.reason === null,
+    procMemNullsAnAbsentFieldAndNamesIt: memPartial.swapKb === null && memPartial.hwmKb === 1234 && /names no VmSwap/.test(memPartial.reason || ''),
+    procMemOverEmptyTextNamesAllThree: memEmpty.hwmKb === null && memEmpty.rssKb === null && memEmpty.swapKb === null && /VmHWM, VmRSS, VmSwap/.test(memEmpty.reason || ''),
+    theFoldKeepsTheMaxAndCountsEverySample: memFolded.vmSwapMaxKb === 10 && memFolded.vmRSSMaxKb === 90 && memFolded.samples === 3 && memFolded.reason === 'absent',
+    theRealRunReportsItsOwnHighWater: !!(res.memory && Number.isFinite(res.memory.vmHWMKb) && res.memory.samples >= 3)
   };
   await fs.rm(root, { recursive: true, force: true });
   const failed = Object.keys(checks).filter((k) => !checks[k]);
@@ -318,12 +405,14 @@ async function main() {
     process.exit(2);
   }
 
+  memSample(); // the baseline, before the walk builds the one structure that grows with the corpus
   const files = [];
   let alreadyLinked = 0;
   for await (const f of walk(SRC)) {
     if (f.link) alreadyLinked++;
     else files.push(f.rel);
   }
+  memSample(); // the path list is the heap the parent row predicted; this is it, before any I/O
   const nights = new Map();
   let undated = 0;
   for (const rel of files) {
@@ -340,8 +429,10 @@ async function main() {
 
   // §sync — every regular local file with no NAS twin is copied there first (additive; never overwrites)
   let synced = 0;
+  let memSyncSeen = 0;
   const syncFailed = [];
   for (const rel of files) {
+    if (++memSyncSeen % MEM_EVERY === 0) memSample();
     const remote = path.join(NAS, rel);
     try {
       await fs.access(remote);
@@ -376,7 +467,9 @@ async function main() {
     zeroByte = 0,
     bytes = 0;
   const refusals = [];
+  let memTierSeen = 0;
   for (const rel of tierOut) {
+    if (++memTierSeen % MEM_EVERY === 0) memSample();
     const local = path.join(SRC, rel),
       remote = path.join(NAS, rel);
     let ls, rs;
@@ -422,6 +515,11 @@ async function main() {
   out(`  ${DRY ? 'would replace' : 'replaced'} ${replaced} files (${(bytes / 2 ** 30).toFixed(1)} GB) · refused ${refused} · zero-byte kept local ${zeroByte}`);
   for (const r of refusals.slice(0, 20)) out(`    ! ${r}`);
   if (refusals.length > 20) out(`    … and ${refusals.length - 20} more`);
+  memSample();
+  out(
+    `  memory held: VmHWM ${memMiB(memHeld.vmHWMKb)} MiB · VmRSS max ${memMiB(memHeld.vmRSSMaxKb)} MiB · VmSwap max ${memMiB(memHeld.vmSwapMaxKb)} MiB over ${memHeld.samples} sample(s)${memHeld.reason ? ` · ${memHeld.reason}` : ''}`
+  );
+  out("    both figures are this process's own; the unit's MemoryPeak is the cgroup's and charges page cache, so the two never match");
   if (JSON_OUT) {
     const bad = refused + syncFailed.length;
     emitVerdict({
@@ -439,6 +537,14 @@ async function main() {
         synced,
         syncFailed: syncFailed.length,
         bytes,
+        memory: {
+          vmHWMKb: memHeld.vmHWMKb,
+          vmRSSMaxKb: memHeld.vmRSSMaxKb,
+          vmSwapMaxKb: memHeld.vmSwapMaxKb,
+          samples: memHeld.samples,
+          reason: memHeld.reason,
+          note: 'this process, not the cgroup: MemoryPeak charges reclaimable page cache and is not comparable'
+        },
         refusals: refusals.slice(0, 50)
       },
       reason: bad

@@ -78970,6 +78970,28 @@
         );
       });
     });
+    /* RESIDUE 2026-10-20-corpus-tier-swap-can-hide-an-over-cap-heap — the tiering job reports what it
+       HOLDS, because the unit's `MemoryPeak` is the cgroup's and charges reclaimable page cache. Two
+       runs pinned it at exactly the 8G cap while copying 52 GB, which says nothing about the heap. The
+       figures are this process's `VmHWM` and the largest `VmSwap` sampled, and the three legs below
+       pin the shape the figure must keep: an absent field reads null, the sampler stays bounded, and
+       the verdict's own criterion never reads a memory number. */
+    group('the tiering job reports its own held memory, and no figure stands in for an absent one', 'tools · corpus-tier · absence · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var CT = (TT && TT['tools/corpus-tier.mjs']) || '';
+      T.ok('ANTI-VACUITY · the corpus-tier source is loaded', /const MEM_FIELDS = \['VmHWM', 'VmRSS', 'VmSwap'\];/.test(CT), CT.length + ' chars');
+      T.eq('an unmatched field is null, and exactly one assignment decides that', (CT.match(/kb\[f\] = m \? Number\(m\[1\]\) : null;/g) || []).length, 1);
+      T.eq('§∅ · no memory figure falls back to a number', (CT.match(/(hwmKb|rssKb|swapKb|vmHWMKb|vmRSSMaxKb|vmSwapMaxKb)[^\n]*(\?\? 0|\|\| 0)/g) || []).join(' · '), '');
+      T.ok('an absent figure prints the word null, not a zero', /kb === null \? 'null'/.test(CT), 'memMiB');
+      T.eq('the per-file sampler is bounded by one named interval', (CT.match(/% MEM_EVERY === 0/g) || []).length, 2);
+      T.ok('the sampler reads a named file, not a cgroup path', /const MEM_STATUS = '\/proc\/self\/status';/.test(CT), 'MEM_STATUS');
+      /* The criterion this tool decides on is the byte-identical NAS twin. A memory figure that
+         reached the status would make a verdict about one thing report another. */
+      T.ok('the verdict status still reads only the refusals', /status: bad \? 'FAIL' : 'PASS'/.test(CT), 'status');
+      var statusSlice = CT.slice(CT.indexOf('status: bad ?'), CT.indexOf('eligible: tierOut.length'));
+      T.eq('and no memory figure appears in the status expression', /mem/i.test(statusSlice), false);
+      T.ok('the held figures travel in the result instead', /memory: \{\n\s+vmHWMKb: memHeld\.vmHWMKb,/.test(CT), 'result.memory');
+    });
     group('OxyDex math — injectBias is exact, clamped to [0,100], and null-preserving (synthetic)', 'oxydex · math-correctness · known-answer', function (T) {
       var OA = env.OxyAccuracy;
       if (!OA || typeof OA.injectBias !== 'function') {
