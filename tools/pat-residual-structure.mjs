@@ -65,6 +65,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_STRUCTURED = 0.3;
@@ -369,9 +370,17 @@ async function main() {
     excludedBy[why] = (excludedBy[why] || 0) + 1;
   };
   const ONLY = argv.includes('--only') ? new Set(argv[argv.indexOf('--only') + 1].split(',')) : null;
-  for (const n of readdirSync(DIR)
-    .filter((x) => /^2026-/.test(x) && (!ONLY || ONLY.has(x)))
-    .sort()) {
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk — and the two filters that
+     used to sit in one `.filter()` are DIFFERENT KINDS of statement. `/^2026-/` is a NIGHT RULE, so
+     it goes to `snapshotNights`, which measures it against `NIGHT_RE` over the same listing and
+     names what it refused and what it swallowed; `--only` is a SELECTION over that offer, so it
+     stays here and is named by the count of nights it left unread. Folded together, a narrowed root
+     and a `--only` run read alike (residue
+     `2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year`). */
+  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+  const selected = popBefore.nights.filter((x) => !ONLY || ONLY.has(x));
+  const covered = [];
+  for (const n of selected) {
     const dir = join(DIR, n);
     eligible++;
     let files;
@@ -421,6 +430,7 @@ async function main() {
     const rhr = spearman(rrs, lags);
     const v = band(r1);
     tally[v] = (tally[v] || 0) + 1;
+    covered.push({ night: n, ok: true });
     const hr = Math.abs(rhr) >= BAND_HR ? ' HR-DEP' : '';
     const sh = shapeVerdict(lags);
     console.log(
@@ -429,6 +439,27 @@ async function main() {
   }
   console.log('\nTALLY:', JSON.stringify(tally));
   console.log('SKIPPED:', JSON.stringify(excludedBy));
+  /* TWO VERDICTS, EACH ABOUT ITS OWN CRITERION. `runVerdict` judges the residual's band over the
+     nights this run SCORED; the population verdict judges whether the night population moved under
+     it. Folding the second into the first's `excluded` would make a narrowed root and a skipped
+     night read alike, which is the defect it exists to expose. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+    tool: 'tools/pat-residual-structure.mjs',
+    commit: gitCommitShort(),
+    evidence: ['tools/pat-residual-structure.mjs']
+  });
+  /* Named against the SELECTED set: under `--only` the rest of the offer was never a candidate, and
+     the line above already states how many nights the selection left unread. */
+  const unscored = notANight({ n: selected.length, nights: selected }, covered);
+  /* The status labels MOVEMENT, not coverage: `checked` is the intersection of the two snapshots,
+     and reading it as a scored count would publish the whole offer as scored. */
+  console.log(
+    `population: ${popBefore.n} offered under ${DIR} · ${selected.length} selected · ${covered.length} scored · movement ${population.status}${ONLY ? ` · --only left ${popBefore.n - selected.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  console.log('POPULATION ' + JSON.stringify(population));
   console.log('VERDICT ' + JSON.stringify(runVerdict(tally, excludedBy, eligible, { commit: gitCommitShort(), evidence: [DIR] })));
 }
 

@@ -829,9 +829,16 @@
    "note": "the ACC shortlist comparison reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier mid-run reads as SHORTFALL. `--only` is a selection over that offer, never a narrowing of the snapshot, and a skipped night is named rather than counted as read. The sample is synthetic, because the raw corpus is gitignored"
   },
   "tools/acc-shared-movement.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/acc-shared-movement.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "ACC-SHARED-MOVEMENT \u2014 the chest/wrist corroboration sweep. It was `word-only`/exempt as a \"selftest assertion printer\", and that claim went false the moment the run began publishing its night population: the sigma sweep's pre-stated band is a MEDIAN over nights, so the set it was taken over is part of the claim and the JSON said only `nights: <count>`. `--only` is now a selection over the offer rather than part of the walk, so a narrowed root no longer reads like a deliberate selection."
   },
   "tools/adev-curve.mjs": {
    "bin": "decides",
@@ -1753,10 +1760,29 @@
    },
    "note": "the \u0394PAT dip index reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier that moves the set mid-run reads as SHORTFALL rather than as a table nobody re-read. The sample is corpus-free and synthetic, because the captures are absent wherever the gate runs"
   },
+  "tools/pat-dip-validate.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-dip-validate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "PAT-RELATIVE-REFRAME \u00a73.2/\u00a75 \u2014 the Katz fraction and the per-night empirical null. It joined this manifest when it began publishing the NIGHT POPULATION its figures were taken over: the walk is now `snapshotNights`, the re-snapshot after the loop turns a moved population into SHORTFALL, and `notANight` names the offered nights that scored nothing instead of counting them. The per-night Katz/chance decision stays prose beside the rows; the adopted object is the population one, which is what a reader of a pooled fraction cannot otherwise check."
+  },
   "tools/pat-drift-attribution.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-drift-attribution.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "PAT-ROOT-CAUSE-FORENSICS \u2014 does the host-clock rate difference explain the observed lag drift? It was `word-only`/exempt as a \"selftest assertion printer\", which was already a stretch (it prints CLOCK EXPLAINS / PARTIAL / CLOCK DOES NOT EXPLAIN per night against a pre-stated band) and went false outright when the run began publishing its night population. Three bare `continue`s dropped a night out of the table with no line, so the offer is what names them now. The adopted object is the population verdict; the per-night attribution band stays a printed column, and `--selftest` is its gate."
   },
   "tools/pat-ecg-axis-residual.mjs": {
    "bin": "word-only",
