@@ -317,7 +317,6 @@
     let lf = 0,
       lfT = 0,
       bw = 0,
-      sinus = 1000,
       pendComp = 0,
       cvhrS = 0;
     // RSA phase is integrated in real time with a slowly-WANDERING respiratory
@@ -343,8 +342,7 @@
     const bwBank = bwTau.map(() => gaussFrom(r));
     // hypo window (N2): compensatory tachycardia + rMSSD collapse + a few ectopics
     const hypo = cfg.gluc === 'hypo';
-    const hypoStart = 3 * 3600 + 6 * 60 - (cfg.bed[3] * 3600 + cfg.bed[4] * 60 - 23 * 3600 - 55 * 60); // align ~03:06 civil
-    // simpler: compute hypo nadir civil 03:00..03:40 → rel via t0Ms
+    // hypo nadir at civil 03:06, carried to a relative second through t0Ms
     const hypoNadirRel = (civilMs(2026, 5, cfg.bed[2] + 1, 3, 6, 0) - tl.t0Ms) / 1000;
     // base HR curve: deep-sleep dip, REM rise, slow circadian fall
     function baseRR(relSec) {
