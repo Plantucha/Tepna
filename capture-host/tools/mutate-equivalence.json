@@ -5828,5 +5828,15 @@
       "probe": "Loaded the original module and the mutant side by side and ran 2310 call scripts against each: 7 start stamps x 10 sample counts x 11 intervals, each driven through three call sequences (a fresh start then a following frame; a drop then a resume hint; a full session then a clean end). After every call the probe compared `snapshot()`, `status`, `gap_ms`, `stalls`, `_expected_next_ms`, `_interval_ms` and any exception raised. 0 of 2310 differed. Run empirically 2026-10-19.",
       "why": "The line is the `except (TypeError, ValueError)` fallback, so it runs only when `int()` or `float()` raised, and it sets `iv` to 0.0 unconditionally. Four lines later `if start is None or iv <= 0: return` fires on that 0.0. `n` has exactly one reader, `self._expected_next_ms = start + n * iv`, which sits after that return. The mutated value is unreachable by construction rather than merely untested. Surfaced because the stall counter put `note_frame` in diff-scope."
     }
+  ],
+  "pull_session.py": [
+    {
+      "brief": "residue 2026-10-22-pull-once-survivors-part-3-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "class": "no-distinguishing-input",
+      "function": "_pull_once",
+      "key": "- await send(oxyii.file_start_frame(ts, 0)) | + await send(oxyii.file_start_frame(ts, ))",
+      "probe": "Compared oxyii.file_start_frame(ts) with oxyii.file_start_frame(ts, 0) byte for byte over 1000 stamps (5 fixed boundary stamps plus 995 random digit strings of length 8-14, seed 1): 0 of 1000 differed. Applied the mutant by hand, once to the first-START line and once to the re-serve START line of _pull_once: tests/test_pull_session.py, tests/test_pull_resume_path.py, tests/test_pull_once_contract.py and tests/test_pull_once_survivors_p3.py stay green both times (104 passed). mutmut 3.8.0 over _pull_once with that selection reports both mutants (x__pull_once__mutmut_335 and _459) surviving. Run empirically 2026-10-22.",
+      "why": "The signature is `file_start_frame(ts14, offset=0, seq=0, *, ftype=None)`. Removing the explicit `0` makes `offset` take its default, which is the same 0, so the call builds the same frame and the same bytes reach the ring. No input to `_pull_once` can reach a difference: the mutation changes how the argument is spelled, not its value. The same text appears twice in `_pull_once` (the first START at offset 0 and the re-serve START after an unanswered resume), and the argument holds for both. If the default of `offset` ever changes, the explicit 0 starts to matter and this entry must be deleted."
+    }
   ]
 }

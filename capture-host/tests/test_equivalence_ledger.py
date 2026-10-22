@@ -138,6 +138,8 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # mutation_diff.py 38 -> 41 on 2026-10-12 (#3511): the floor trailed the file by one, and two `.get` defaults
 # feeding `function_of_mutant` in `classify` are equivalent by proof — that function opens `if not name:
 # return ""`, so `""` and `None` are one argument. A canary test retires both the day that guard narrows.
+# pull_session.py ENTERS at 1 on 2026-10-22 (residue 2026-10-22-pull-once-survivors-part-3-of-6): the
+# explicit `0` offset of `file_start_frame(ts, 0)` in `_pull_once` equals the parameter's default.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
@@ -179,6 +181,7 @@ RATCHET = {
     "probe_pmd_surface.py": 2,
     "probe_ring_adv.py": 4,
     "proc_util.py": 3,
+    "pull_session.py": 1,
     "pulsedex-dsp.js": 43,
     "qc_child.py": 2,
     "solid_night.py": 2,
