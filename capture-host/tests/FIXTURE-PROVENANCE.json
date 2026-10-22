@@ -722,6 +722,12 @@
       "source": "real device address(es) 24:AC:AC:0C:30:1E, D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
+    "test_webmon_gaps.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "stamps and bytes built in the test; no provenance claim in the file",
+      "sha256": null
+    },
     "test_webmon_nights.py": {
       "class": "authored",
       "kind": "constructed-stamps",

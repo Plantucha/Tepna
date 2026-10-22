@@ -64,15 +64,73 @@ def test_an_undeclared_night_reports_both_nulls_and_no_error(tmp_path):
     }
 
 
+def _wrote_at(night_dir, when):
+    """Stamp the night's capture FILE, which is what `newest_night` reads."""
+    os.utime(str(night_dir / os.listdir(str(night_dir))[0]), (when, when))
+
+
 def test_the_endpoint_defaults_to_the_folder_being_written(tmp_path):
     """No `night` named: the operator is marking tonight, and tonight is the folder with the newest
     ACTIVITY — never the newest NAME, because after midnight the writers stay in their session's
-    start-date folder while only the sidecars move."""
+    start-date folder while only the sidecars move.
+
+    BOTH directions, because the claim is that these two timestamps DECIDE the answer. Until
+    2026-10-22 the chooser stat()ed the night DIRECTORY, whose mtime records entry creation and never
+    an append, so no value of these file mtimes could change what it returned. The assertion rode on
+    `mkdir` order alone, and it reded `test (py3.13)` on #3872 with `'2026-10-11' == '2026-10-12'`
+    against a diff touching no file under `capture-host/`."""
     old = _night(tmp_path, "2026-10-11")
     new = _night(tmp_path, "2026-10-12")
-    os.utime(str(new / os.listdir(str(new))[0]), (1_800_000_000, 1_800_000_000))
-    os.utime(str(old / os.listdir(str(old))[0]), (1_700_000_000, 1_700_000_000))
+    _wrote_at(new, 1_800_000_000)
+    _wrote_at(old, 1_700_000_000)
     assert _get(_mk(tmp_path)[0])[1]["night"] == "2026-10-12"
+    _wrote_at(old, 1_900_000_000)
+    assert _get(_mk(tmp_path)[0])[1]["night"] == "2026-10-11", "the newest WRITE wins, not the newest name"
+
+
+def test_the_midnight_decoy_holding_only_sidecars_is_not_the_folder_being_written(tmp_path):
+    """The incident the chooser exists for. At 00:00 the box creates tomorrow's folder and writes
+    LINK/CLOCK sidecars into it, while every sensor keeps appending to the session's START-date folder.
+    The decoy is lexically newer AND the only folder whose directory mtime just moved, so a name read
+    and a folder-mtime read both land on the folder holding no data at all. QC reported nine streams
+    absent against 942 MB of healthy tri-device recording on 2026-07-28 for this."""
+    sess = _night(tmp_path, "2026-10-11")
+    decoy = tmp_path / "captures" / "2026-10-12"
+    decoy.mkdir()
+    (decoy / "vigil_box_0_20261012000000_LINK.txt").write_text("at;event\n")
+    (decoy / "vigil_box_0_20261012000000_CLOCK.txt").write_text("at;ppm\n")
+    assert _get(_mk(tmp_path)[0])[1]["night"] == "2026-10-11"
+    # The control: the decoy WOULD win a directory-mtime read, so the assertion above is about the
+    # rule and not about the fixture happening to be ordered conveniently.
+    assert os.path.getmtime(str(decoy)) > os.path.getmtime(str(sess))
+
+
+def test_a_tree_whose_folders_hold_no_capture_file_is_no_night(tmp_path):
+    """§∅. A sidecar is the box talking about itself, so a tree of sidecar-only folders holds no
+    session and the answer is the absence — never the newest folder as a stand-in for one."""
+    for name in ("2026-10-11", "2026-10-12"):
+        d = tmp_path / "captures" / name
+        d.mkdir(parents=True)
+        (d / f"vigil_box_0_{name.replace('-', '')}000000_LINK.txt").write_text("at;event\n")
+    status, j = _get(_mk(tmp_path)[0])
+    assert status == 200 and j["night"] is None and j["error"] == "no night folder"
+
+
+def test_an_equal_newest_write_resolves_by_name_whatever_order_the_tree_lists(tmp_path, monkeypatch):
+    """A tie-break that is not stated is the runner's `os.listdir` order: `max` keeps the FIRST maximal
+    element, which passes on a box enumerating one way and reds on a runner enumerating the other. The
+    tie-break is the NAME, and this test forces both enumeration orders to prove it."""
+    stamps = []
+    for name in ("2026-10-11", "2026-10-12"):
+        d = _night(tmp_path, name)
+        _wrote_at(d, 1_800_000_000)
+        stamps.append(os.path.getmtime(str(d / os.listdir(str(d))[0])))
+    # The control: a tie-break test over two DIFFERENT newest writes tests nothing.
+    assert stamps[0] == stamps[1], stamps
+    real = os.listdir
+    for reverse in (False, True):
+        monkeypatch.setattr(os, "listdir", lambda p, _r=reverse: sorted(real(p), reverse=_r))
+        assert _get(_mk(tmp_path)[0])[1]["night"] == "2026-10-12", reverse
 
 
 def test_a_named_night_is_read_and_an_unknown_one_is_an_error_not_a_guess(tmp_path):
