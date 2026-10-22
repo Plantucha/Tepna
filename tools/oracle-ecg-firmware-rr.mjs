@@ -129,6 +129,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { digestNights, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOTS = ['/srv/data/tepna-corpus/smoketest-captures', join(HERE, '..', 'uploads', 'captures')];
@@ -517,6 +518,48 @@ export function scoreNight(ECGDSP, ecgText, rrText, opts = {}) {
   };
 }
 
+/* ── THE POPULATION THIS ORACLE WAS OFFERED ───────────────────────────────────────────────────────
+   Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `discoverPairs` walks EVERY
+   subdirectory of EVERY root and keeps the ones holding an H10 ECG+RR pair, so the set it scored is
+   a subset of a set nobody reported. `snapshotNights` with a rule of `/./` is that walk's own rule,
+   and a narrower night-shaped rule here would publish a population this tool never used.
+
+   TWO ROOTS, ONE NIGHT NAME. `main` keys its one-pair-per-night Map on the bare directory name, so a
+   name carried by both roots is ONE night to this tool. The union below therefore dedupes bare names
+   rather than qualifying them by root: the population has to be the set the tool can score, not a
+   larger set its own Map would collapse. */
+export function unionNights(snaps) {
+  const live = snaps.filter((s) => s.ok);
+  const names = [...new Set(live.flatMap((s) => s.nights))].sort();
+  const pool = (k) => [...new Set(live.flatMap((s) => s[k] || []))].sort();
+  return {
+    ok: live.length > 0,
+    root: snaps.map((s) => s.root).join(' + '),
+    reason: live.length ? null : snaps.map((s) => `${s.root}: ${s.reason}`).join('; '),
+    n: names.length,
+    nights: names,
+    digest: live.length ? digestNights(names) : null,
+    maxCtimeMs: live.reduce((m, s) => (s.maxCtimeMs != null && (m === null || s.maxCtimeMs > m) ? s.maxCtimeMs : m), null),
+    at: snaps.length ? snaps[0].at : null,
+    rule: snaps.length ? snaps[0].rule : null,
+    ruleIsDefault: false,
+    /* ∅: no root enumerated, so the rule's effect was never measured — not "it refused nothing". */
+    rejectedNightShaped: live.length ? pool('rejectedNightShaped') : null,
+    admittedNonNight: live.length ? pool('admittedNonNight') : null
+  };
+}
+
+/* THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED. `ruleLine` can name the non-night directories the
+   walk let through, because the walk knows them. It cannot say which directories held no H10 pair,
+   because only the READ knows that. A count of scored nights names nothing to chase, so this names them. */
+export function notANight(union, pairs) {
+  const scored = new Set(pairs.map((p) => p.night));
+  /* No `union.ok` guard: `unionNights` builds `nights` from the snapshots that enumerated, so a union
+     that enumerated nothing already carries an empty list. A guard here would be a second statement of
+     that invariant which no control can fire, and an unfireable guard reads as covered. */
+  return union.nights.filter((n) => !scored.has(n));
+}
+
 /* ── corpus discovery: an ECG file and the RR file that shares its stamp ──────────────────────── */
 export function discoverPairs(root) {
   const out = [];
@@ -640,6 +683,31 @@ export function verdictObject(P, rows, meta) {
   };
   let status;
   let reason = null;
+  /* NOT_RUN EXAMINED NOTHING; UNDERPOWERED EXAMINED TOO FEW (VERDICT-CONTRACT §1). With no ECG+RR
+     pair under any root this oracle scored no night at all, and the band arithmetic below would call
+     that UNDERPOWERED — a claim that it looked at nights and found too few of them. `meta.notRun`
+     carries the real reason and the count of directories the walk OFFERED, so an absent corpus
+     (`eligible: 0`) and a corpus holding no H10 pair (`eligible: N`) stop reading alike. */
+  if (meta.notRun) {
+    const eligible = meta.notRun.eligible || 0;
+    return {
+      schema: 'tepna.verdict/1',
+      gate: 'oracle-ecg-firmware-rr',
+      scope: 'internal',
+      status: 'NOT_RUN',
+      population: { checked: 0, eligible, excluded: eligible },
+      criterion: { name: 'rr_delta_median_time_paired', threshold: BANDS.medianAbsMs[0], unit: 'ms', direction: 'lte' },
+      result: null,
+      evidence: ['tools/oracle-ecg-firmware-rr.mjs', ...(meta.roots || []).map((r) => `${r}/**/{*_ECG.txt,*_RR.txt}`)],
+      reason: meta.notRun.reason,
+      producedBy: {
+        tool: 'tools/oracle-ecg-firmware-rr.mjs',
+        commit: meta.commit || null,
+        ...(meta.commit ? {} : { commitReason: 'not run inside a git checkout' })
+      },
+      at: (meta.at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+    };
+  }
   if (P.nights < BANDS.minNights) {
     status = 'UNDERPOWERED';
     reason = `${P.nights} night(s) scored < the pre-stated minimum of ${BANDS.minNights}`;
@@ -995,8 +1063,65 @@ function selftest() {
       'verdict: --verdict-sample is internal-scope, SHORTFALL over the synthetic fixture, claims no commit, fixed `at`, valid: ' + V.validate(smp).errors.join(' | ')
     );
   }
+  // population — the three states that printed ONE identical SKIP, with no verdict, before this change
+  {
+    const V = createRequire(import.meta.url)('../verdict.js');
+    const at = '2026-09-21T18:40:12Z';
+    const nr = (eligible, reason) => verdictObject(SAMPLE_POOLED, [], { roots: ['/corpus'], commit: '3c0dbdec', at, notRun: { eligible, reason } });
+    const absent = nr(0, 'no root enumerated (ENOENT), so no night was read');
+    ok(
+      absent.status === 'NOT_RUN' && absent.population.checked === 0 && absent.population.eligible === 0 && absent.result === null && V.validate(absent).ok,
+      'population: an unenumerable root publishes NOT_RUN over nothing, never the UNDERPOWERED the band arithmetic would reach: ' + V.validate(absent).errors.join(' | ')
+    );
+    const offered = nr(3, 'no H10 ECG+RR pair under any root — 3 directories offered, 0 holding a pair');
+    ok(
+      offered.status === 'NOT_RUN' && offered.population.eligible === 3 && offered.population.excluded === 3 && V.validate(offered).ok,
+      'population: three directories offered and none holding a pair is a DIFFERENT object from an absent root'
+    );
+    const snapA = { ok: true, root: '/a', reason: null, nights: ['2026-07-25', '2026-07-26'], maxCtimeMs: 10, at, rule: '/./', rejectedNightShaped: [], admittedNonNight: ['logs'] };
+    const snapB = { ok: true, root: '/b', reason: null, nights: ['2026-07-26', 'logs'], maxCtimeMs: 20, at, rule: '/./', rejectedNightShaped: [], admittedNonNight: ['logs'] };
+    const u = unionNights([snapA, snapB]);
+    ok(
+      u.ok && u.n === 3 && u.maxCtimeMs === 20 && u.admittedNonNight.length === 1 && u.digest !== null,
+      'population: two roots sharing one bare night name count it ONCE, because the pair Map keys on that name'
+    );
+    const dead = unionNights([{ ok: false, root: '/a', reason: 'ENOENT', nights: [], maxCtimeMs: null, at, rule: '/./' }]);
+    ok(
+      dead.ok === false && dead.n === 0 && dead.digest === null && dead.rejectedNightShaped === null && dead.admittedNonNight === null,
+      "population: nothing enumerated ⇒ the rule's effect reads null (∅), never an empty list"
+    );
+    ok(notANight(u, [{ night: '2026-07-25' }]).join(',') === '2026-07-26,logs', 'population: the read removed two directories, and the line NAMES them rather than counting them');
+    /* This last one is a CONTRACT statement, not a detector: a mutation swapping the union's `live`
+       filter for `snaps` leaves it passing, because a snapshot that failed to enumerate already
+       carries an empty night list. The four above it each red under a named mutation (PR body). */
+    ok(notANight(dead, []).length === 0, 'population: no enumeration names no removal');
+  }
   console.log(fails.length ? `${fails.length} failed of ${ran}` : `all ${ran} selftests passed`);
   return fails.length ? 1 : 0;
+}
+
+const dirs = (n) => `${n} ${n === 1 ? 'directory' : 'directories'}`;
+
+function gitCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: HERE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    /* not a checkout → commit null with commitReason (the verdict says so) */
+    return null;
+  }
+}
+
+/* ONE PRINTER FOR THE POPULATION, read by the scoring path and the SKIP alike. Two printers drift, and
+   the one that drifts unseen is the one nobody runs (row
+   2026-10-21-the-reference-validation-population-path-runs-on-no-box-here). */
+function printPopulation(v, union, pairs) {
+  if (v) console.log(`\n  population: ${v.status} — ${v.population.checked} night(s) covered of ${v.population.eligible}${v.reason ? ` · ${v.reason}` : ''}`);
+  else console.log(`\n  population: ${dirs(union.n)} offered under ${union.root}${union.ok ? '' : ` · ${union.reason}`}`);
+  const rl = ruleLine(v && v.result ? v : { result: { rule: union.rule, ruleRejectedNightShaped: union.rejectedNightShaped, ruleAdmittedNonNight: union.admittedNonNight } });
+  if (rl) console.log(rl);
+  const bare = notANight(union, pairs);
+  if (bare.length)
+    console.log(`  the read removed ${bare.length} of ${dirs(union.n)}, holding no H10 ECG+RR pair: ${bare.slice(0, 12).join(', ')}${bare.length > 12 ? `, … (+${bare.length - 12})` : ''}`);
 }
 
 async function main(argv) {
@@ -1012,10 +1137,32 @@ async function main(argv) {
   const roots = argv.includes('--root') ? [arg('--root')] : DEFAULT_ROOTS;
   const minBeats = +arg('--min-beats', 3600);
   const limit = +arg('--limit', 0);
+  /* ONE WALK PER POPULATION: this snapshot is the SAME listing `discoverPairs` reads, taken with the
+     walk's own rule. A second hand-rolled filter here would report a set the run never scored. */
+  const popBefore = unionNights(roots.map((r) => snapshotNights(r, { re: /./ })));
   let pairs = [];
   for (const r of roots) pairs = pairs.concat(discoverPairs(r));
   if (!pairs.length) {
-    console.log(header() + '\nSKIP — no H10 ECG+RR pairs found. Searched:\n  ' + roots.join('\n  ') + '\nNo metrics reported; this tool never fetches.');
+    /* A SKIP THAT PUBLISHES NOTHING IS NOT A VERDICT, AND `--json` DID NOT EMIT JSON HERE. Measured
+       2026-10-22: with an absent root this branch printed seven prose lines and exited 0, under
+       `--json` too, so a consumer asking for the object got unparseable text and a success code.
+       No `corpus-population` verdict rides this path: nothing ran between two snapshots, and
+       comparing one snapshot with itself would publish a PASS over `checked: 0`. */
+    const commitSkip = gitCommit();
+    const v = verdictObject(pooled([]), [], {
+      roots,
+      commit: commitSkip,
+      notRun: {
+        eligible: popBefore.n,
+        reason: popBefore.ok ? `no H10 ECG+RR pair under any root — ${dirs(popBefore.n)} offered, 0 holding a pair` : `no root enumerated (${popBefore.reason}), so no night was read`
+      }
+    });
+    if (argv.includes('--json')) console.log(JSON.stringify({ ...v, detail: { roots, population: popBefore } }, null, 1));
+    else {
+      console.log(header() + '\nSKIP — no H10 ECG+RR pairs found. Searched:\n  ' + roots.join('\n  ') + '\nNo metrics reported; this tool never fetches.');
+      printPopulation(null, popBefore, pairs);
+      console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: v.status, population: v.population, reason: v.reason }));
+    }
     return 0;
   }
   // one pair per night: the largest ECG file (the overnight session, not a fragment)
@@ -1039,16 +1186,21 @@ async function main(argv) {
   }
   const P = pooled(rows);
   const cov = ppiCoverage(roots[0]);
-  let commit = null;
-  try {
-    commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: HERE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    /* not a checkout → commit null with commitReason (the verdict says so) */
-  }
+  const commit = gitCommit();
   const verdict = verdictObject(P, rows, { roots, commit });
+  /* THE SET MAY HAVE MOVED WHILE THIS RAN: `tepna-corpus-tier.service` re-tiers daily, so the walk
+     above and the scoring below can see different nights. The population verdict is that comparison. */
+  const population = populationVerdict(popBefore, unionNights(roots.map((r) => snapshotNights(r, { re: /./ }))), {
+    commit,
+    tool: 'tools/oracle-ecg-firmware-rr.mjs',
+    evidence: ['tools/oracle-ecg-firmware-rr.mjs', 'tools/corpus-scope.mjs']
+  });
   // VERDICT-CONTRACT §1: the object IS the API. --json emits it at the top level; the report detail rides under `detail`.
-  if (argv.includes('--json')) console.log(JSON.stringify({ ...verdict, detail: { bands: BANDS, roots, pooled: P, ppiCoverage: cov, nights: rows } }, null, 1));
-  else console.log(report(rows, P, cov, roots) + '\n\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdict.status, population: verdict.population, reason: verdict.reason }));
+  if (argv.includes('--json')) console.log(JSON.stringify({ ...verdict, detail: { bands: BANDS, roots, pooled: P, ppiCoverage: cov, nights: rows, corpusPopulation: population } }, null, 1));
+  else {
+    console.log(report(rows, P, cov, roots) + '\n\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdict.status, population: verdict.population, reason: verdict.reason }));
+    printPopulation(population, popBefore, pairs);
+  }
   return 0;
 }
 
