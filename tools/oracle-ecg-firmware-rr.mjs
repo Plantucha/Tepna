@@ -1163,7 +1163,12 @@ async function main(argv) {
       printPopulation(null, popBefore, pairs);
       console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: v.status, population: v.population, reason: v.reason }));
     }
-    return 0;
+    /* A RUN THAT SCORED NOTHING IS NOT A SUCCESSFUL RUN, and exit 0 is the only thing an unattended
+       caller reads. Row 2026-09-04-respacc-empty-run-exits-zero records the same shape in a reporter
+       whose empty run wrote no figures and still exited 0, and #2269 closed it the same way. 2 keeps
+       FAIL's 1 distinct: 1 means the oracle scored nights and the criterion missed, 2 means it scored
+       none. The sibling `oracle-ppg-device-beats.mjs` already exits 2 on an absent root. */
+    return 2;
   }
   // one pair per night: the largest ECG file (the overnight session, not a fragment)
   const byNight = new Map();
