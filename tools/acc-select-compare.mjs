@@ -29,8 +29,11 @@
  *
  * Usage:  node tools/acc-select-compare.mjs --dir <corpus> [--only YYYY-MM-DD] [--top 3]
  *         node tools/acc-select-compare.mjs --selftest
+ *         node tools/acc-select-compare.mjs --verdict-sample   # the population verdict alone, for the adoption gate
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { closeSync, openSync, readSync, readdirSync, existsSync, statSync } from 'node:fs';
+
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 import { join } from 'node:path';
 import { getDsps, loadDsps, median } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
@@ -175,6 +178,11 @@ function selftest() {
 const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   if (argv.includes('--selftest')) process.exit(selftest());
+  /* The sample runs where the corpus is absent, so it must answer above the `--dir` refusal below. */
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(), null, 2));
+    process.exit(0);
+  }
   const DIR = av('--dir');
   const ONLY = av('--only');
   const TOP = +av('--top', 3);
@@ -185,10 +193,11 @@ if (IS_CLI) {
   loadDsps();
   const { DexClock } = getDsps();
   const pt = (s) => DexClock.parseTimestamp(s);
-  const nights = readdirSync(DIR)
-    .filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n) && statSync(join(DIR, n)).isDirectory())
-    .filter((n) => !ONLY || n === ONLY)
-    .sort();
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS. `--only` is a SELECTION over that offer, not
+     a night rule, so it never narrows the snapshot — a figure cut to one night has to say which
+     offer it came from. */
+  const popBefore = snapshotNights(DIR);
+  const nights = popBefore.nights.filter((n) => !ONLY || n === ONLY);
   const rows = [];
   for (const n of nights) {
     let r;
@@ -205,13 +214,29 @@ if (IS_CLI) {
     );
   }
   const used = rows.filter((r) => !r.skipped);
+  /* The population goes out above the summary, because a reader who stops at the first number
+     still gets the set it was computed over. A SKIPPED night scored nothing, so it is NOT covered:
+     `notANight` reads `ok === false` and a row without the flag would count as read. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR), { tool: 'tools/acc-select-compare.mjs' });
+  const unscored = notANight(
+    { nights },
+    rows.map((r) => ({ night: r.night, ok: !r.skipped }))
+  );
+  console.error(
+    `  population: ${population.status} — ${population.population.checked} night(s) of ${population.population.eligible}` +
+      (ONLY ? ` · --only ${ONLY} left ${popBefore.n - nights.length} offered night(s) unread` : '') +
+      (population.reason ? `\n  ${population.reason}` : '')
+  );
+  console.error(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   const sum = (k) => used.filter((r) => r[k]).length;
   const lost = (k) => used.map((r) => r[k]).filter((v) => Number.isFinite(v) && v > 0);
   console.log(
     JSON.stringify(
       {
+        offered: popBefore.n,
         nights: rows.length,
         measured: used.length,
+        population,
         top: TOP,
         fragmentsPerNight: { h10: median(used.map((r) => r.nA)), verity: median(used.map((r) => r.nB)) },
         bySize: { keepsTruth: sum('bySizeKeepsTruth'), of: used.length, nightsLosingTime: lost('bySizeLostH').length, medianHoursLost: lost('bySizeLostH').length ? median(lost('bySizeLostH')) : 0 },
@@ -227,4 +252,28 @@ if (IS_CLI) {
       2
     )
   );
+}
+
+/* THE SAMPLE IS SYNTHETIC AND SITS ABOVE THE `--dir` REFUSAL. `verify:verdict-adoption` parses this
+   object from stdout wherever the gate runs, and the raw corpus is gitignored, so a sample taken
+   after that refusal would never be taken at all. The two snapshots are identical: a sample can
+   state the stable case honestly and cannot invent a movement that never happened. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-10', '2026-06-11'];
+  const snap = {
+    ok: true,
+    root: '<corpus>',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^\d{4}-\d{2}-\d{2}$/),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/acc-select-compare.mjs', at });
 }

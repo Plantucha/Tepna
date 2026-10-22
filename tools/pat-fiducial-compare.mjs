@@ -32,8 +32,11 @@
  * Usage:
  *   node tools/pat-fiducial-compare.mjs --dir <corpus> [--only YYYY-MM-DD] [--surrogates 20]
  *   node tools/pat-fiducial-compare.mjs --selftest
+ *   node tools/pat-fiducial-compare.mjs --verdict-sample   # the population verdict alone, for the adoption gate
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 import { join } from 'node:path';
 import { halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { MIN_OVERLAP_MIN, alignFeet, bestPair, circShift, loadDsps, median, quantile, rawLags, strictMatchRate } from './pat-matchrate-strict.mjs';
@@ -158,6 +161,11 @@ function selftest() {
 const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   if (argv.includes('--selftest')) process.exit(selftest());
+  /* The sample runs where the corpus is absent, so it must answer above the `--dir` refusal below. */
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(), null, 2));
+    process.exit(0);
+  }
   const DIR = av('--dir');
   const ONLY = av('--only');
   const NSUR = +av('--surrogates', 20);
@@ -166,10 +174,11 @@ if (IS_CLI) {
     process.exit(2);
   }
   loadDsps();
-  const nights = readdirSync(DIR)
-    .filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n) && statSync(join(DIR, n)).isDirectory())
-    .filter((n) => !ONLY || n === ONLY)
-    .sort();
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS. `--only` is a SELECTION over that offer, not
+     a night rule, so it never narrows the snapshot — a figure cut to one night has to say which
+     offer it came from. */
+  const popBefore = snapshotNights(DIR);
+  const nights = popBefore.nights.filter((n) => !ONLY || n === ONLY);
   const rows = [];
   for (const n of nights) {
     let r;
@@ -191,14 +200,30 @@ if (IS_CLI) {
      precisely the arm the window hurts most, which is the arm under test. So the count that scored
      at all is reported beside every median, and the headline is `nightsBeatingNull`, whose
      denominator is every analysed night and for which NaN counts as a loss. */
+  /* The population goes out above the summary, because a reader who stops at the first number
+     still gets the set it was computed over. A SKIPPED night scored nothing, so it is NOT covered:
+     `notANight` reads `ok === false` and a row without the flag would count as read. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR), { tool: 'tools/pat-fiducial-compare.mjs' });
+  const unscored = notANight(
+    { nights },
+    rows.map((r) => ({ night: r.night, ok: !r.skipped }))
+  );
+  console.error(
+    `  population: ${population.status} — ${population.population.checked} night(s) of ${population.population.eligible}` +
+      (ONLY ? ` · --only ${ONLY} left ${popBefore.n - nights.length} offered night(s) unread` : '') +
+      (population.reason ? `\n  ${population.reason}` : '')
+  );
+  console.error(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   const rate = (k) => used.map((r) => r[k].matchRate).filter(Number.isFinite);
   const won = (k) => used.filter((r) => r[k].beatsNull).length;
   const summary = (k) => ({ medianMatchRate: median(rate(k)), nScored: rate(k).length, nightsBeatingNull: won(k) });
   console.log(
     JSON.stringify(
       {
+        offered: popBefore.n,
         nights: rows.length,
         analysed: used.length,
+        population,
         skipped: rows.filter((r) => r.skipped).length,
         of: used.length,
         base: summary('base'),
@@ -211,4 +236,28 @@ if (IS_CLI) {
       2
     )
   );
+}
+
+/* THE SAMPLE IS SYNTHETIC AND SITS ABOVE THE `--dir` REFUSAL. `verify:verdict-adoption` parses this
+   object from stdout wherever the gate runs, and the raw corpus is gitignored, so a sample taken
+   after that refusal would never be taken at all. The two snapshots are identical: a sample can
+   state the stable case honestly and cannot invent a movement that never happened. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-10', '2026-06-11'];
+  const snap = {
+    ok: true,
+    root: '<corpus>',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^\d{4}-\d{2}-\d{2}$/),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-fiducial-compare.mjs', at });
 }
