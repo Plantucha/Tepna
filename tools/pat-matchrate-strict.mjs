@@ -54,6 +54,7 @@ import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { snapshotNights, populationVerdict, notANight } from './corpus-scope.mjs';
 
 // the repo's own ESM→classic shim, so a DSP's `export const` tail does not break the vm realm
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
@@ -602,18 +603,37 @@ export { loadDsps, getDsps, ecgRpeakTimes, ecgCounterTimeMs, ppgFootTimes, media
    the whole failure `pat-finger-coupler.mjs`'s note above was written to avoid. Additive. */
 export { bestPair, alignFeet, MIN_OVERLAP_MIN };
 
+/* The corpus-free sample the adoption gate runs: the shape this tool reports when the population
+   held still across the run. Synthetic snapshots, so it stays runnable where the captures are
+   absent — which is where both the gate and CI run it. */
+const SAMPLE_ROOT = '/srv/data/tepna-corpus/smoketest-captures';
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = { ok: true, root: SAMPLE_ROOT, reason: null, n: nights.length, nights, digest: null, maxCtimeMs: null, at };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-matchrate-strict.mjs', evidence: ['tools/pat-matchrate-strict.mjs'], at });
+}
+export { verdictSample };
+
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) {
+/* The sample dispatch sits ABOVE the `--dir` refusal, because both the adoption gate and CI run
+   where the captures are absent and that refusal leaves with exit 2. */
+if (IS_CLI && argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+} else if (IS_CLI) {
   // the raw corpus lives OUTSIDE the repo volume (it is gitignored), so an absolute --dir must work
   const base = DIR.startsWith('/') ? DIR : join(ROOT, DIR);
   if (!existsSync(base)) {
     console.error(`pat-matchrate-strict: ${DIR} not found. The raw corpus is gitignored — pass --dir.`);
     process.exit(2);
   }
-  const nights = readdirSync(base)
-    .filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n) && statSync(join(base, n)).isDirectory())
-    .filter((n) => !ONLY || n === ONLY)
-    .sort();
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. The old hand-rolled walk
+     published a per-night table over a set it never named, so a re-tier mid-run narrowed the
+     population without a trace. The re-snapshot after the loop turns a move into a SHORTFALL.
+     `--night` is a SELECTION over that offer and never a night rule: folding it into the snapshot
+     would make a one-night run and a corpus that lost every other night read alike. */
+  const popBefore = snapshotNights(base);
+  const nights = popBefore.nights.filter((n) => !ONLY || n === ONLY);
 
   loadDsps();
   const rows = [];
@@ -634,8 +654,26 @@ if (IS_CLI) {
     }
   }
 
+  /* A skipped night scored nothing, so its row carries `ok: false`. `notANight` reads a row's mere
+     existence as the read, so an unflagged skip would count as covered. */
+  const population = populationVerdict(popBefore, snapshotNights(base), {
+    tool: 'tools/pat-matchrate-strict.mjs',
+    evidence: ['tools/pat-matchrate-strict.mjs']
+  });
+  const unscored = notANight(
+    { nights },
+    rows.map((r) => ({ night: r.night, ok: !r.skipped }))
+  );
+  const popLine =
+    `population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}` +
+    (ONLY ? ` · --night ${ONLY} left ${popBefore.n - nights.length} offered night(s) unread` : '') +
+    (population.reason ? `\n  ${population.reason}` : '');
+
   if (JSON_OUT) {
-    console.log(JSON.stringify({ strictWindowMs: STRICT_W_MS, blockMin: BIN_MIN, surrogates: N_SURR, rows }, null, 2));
+    /* Stdout stays ONE JSON document — this tool gets piped into `jq` — so the verdict rides inside
+       the tool's own object and the human line goes to stderr. */
+    console.error(`  ${popLine}`);
+    console.log(JSON.stringify({ strictWindowMs: STRICT_W_MS, blockMin: BIN_MIN, surrogates: N_SURR, offered: popBefore.n, population, rows }, null, 2));
   } else {
     const ok = rows.filter((r) => !r.skipped);
     console.log(`\nPAT matchRate — shipped definition vs a held-out-anchor definition, each against its own circular-shift null`);
@@ -667,5 +705,7 @@ if (IS_CLI) {
       );
       console.log(`\n${ok.length} night(s) scored.  A definition is evidence only where its chance column is LOW and its ratio is HIGH.`);
     }
+    console.log(`\n${popLine}`);
+    console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   }
 }

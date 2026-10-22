@@ -1722,6 +1722,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/pat-connection-stability.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-connection-stability.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the within-connection offset-constancy run reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier that moves the set mid-run reads as SHORTFALL rather than as a pooled median nobody re-read. `notANight` names every offered night the both-links guard left unscored. The sample is corpus-free and synthetic, because the captures are absent wherever the gate runs"
+  },
   "tools/pat-dip-index.mjs": {
    "bin": "already-json",
    "status": "adopted",
@@ -1765,6 +1777,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-matchrate-strict.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-matchrate-strict.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the matchRate definition comparison reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier that moves the set mid-run reads as SHORTFALL rather than as a per-night table nobody re-read. `--night` is a selection over that offer and states how many offered nights it left unread. The sample is corpus-free and synthetic, because the captures are absent wherever the gate runs"
   },
   "tools/pat-mode-posture.mjs": {
    "bin": "decides",
