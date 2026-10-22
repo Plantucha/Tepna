@@ -11061,6 +11061,18 @@
           .join(', '),
         ''
       );
+      /* ── AND THE NAMER ITSELF HAS ONE DEFINITION ──────────────────────────────────────────────
+         Row 2026-10-22-the-removal-namer-is-duplicated-in-two-oracles. Both device oracles defined
+         their own `notANight` over the same set arithmetic, and only the sentence naming what the
+         night lacked differed. So the leg above was answered twice, a widening of it moved two files,
+         and a fix to one left the other reading the old way. The shared home is
+         `tools/corpus-scope.mjs`, beside `ruleLine`, which is the WALK half of the same account; each
+         oracle keeps its own sentence and its own acceptance legs over its own row shape. A
+         re-duplication reds HERE, which is the only place that can see both files at once. */
+      var namerDefs = Object.keys(TT).filter(function (k) {
+        return /export function notANight\s*\(/.test(TT[k] || '');
+      });
+      T.eq('the removal namer is defined once, and in corpus-scope.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope.mjs');
       /* ── A REPORT THAT ONLY THE SCORING PATH REACHES IS A REPORT NO BOX RUNS ──────────────────
          Row 2026-10-21-the-reference-validation-population-path-runs-on-no-box-here.
          `tch-reference-validation.mjs` scores an external nightly volume named by `DEX_ECG_NIGHTLY`,
