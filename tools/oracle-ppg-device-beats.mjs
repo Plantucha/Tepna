@@ -55,11 +55,13 @@
  *                                                            # input — no corpus, no DSP; what the
  *                                                            # adoption gate runs in CI
  */
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -169,22 +171,48 @@ export function pool(rows) {
 }
 
 export function verdictObject(pooled, rows, meta = {}) {
-  const eligible = rows.length,
-    checked = rows.filter((r) => r.ok).length;
   const head = pooled.ppiDeltaMedianMs;
-  let status, reason;
-  if (pooled.nights < MIN_NIGHTS || !Number.isFinite(head)) {
-    status = 'UNDERPOWERED';
-    reason = `${pooled.nights} usable night(s)${pooled.files != null ? ` across ${pooled.files} session file(s)` : ''} against a floor of ${MIN_NIGHTS} nights — a file is not a night (files from one night share strap, placement and perfusion), so the pooled median is not a verdict below it`;
-  } else if (head <= BANDS.ppiDeltaMedianMs[0] && pooled.latencyMadMs <= BANDS.latencyMadMs[0]) {
-    status = 'PASS';
-    reason = null;
-  } else if (head <= BANDS.ppiDeltaMedianMs[1]) {
-    status = 'SHORTFALL';
-    reason = `pooled ppi_delta_median ${head.toFixed(2)} ms exceeds one ADC sample (${SAMPLE_MS.toFixed(3)} ms) but stays inside the ${BANDS.ppiDeltaMedianMs[1]} ms shortfall band`;
+  const files = pooled.files != null ? pooled.files : rows.filter((r) => r.ok).length;
+  let status, reason, population, result;
+  /* NOT_RUN EXAMINED NOTHING; UNDERPOWERED EXAMINED TOO FEW (VERDICT-CONTRACT §1). With no ring
+     `_PPG.txt` anywhere under the root this oracle scored no night at all, and the band arithmetic
+     reads that as UNDERPOWERED — a claim that it looked at nights and found too few of them. So the
+     arithmetic sits in the `else` below, which a run that examined nothing cannot enter. `meta.notRun`
+     carries the real reason and the count of night directories the walk OFFERED, so an absent corpus
+     (`eligible: 0`) and a corpus holding no session file (`eligible: N`) stop reading alike. The twin
+     `oracle-ecg-firmware-rr.mjs` publishes the same shape for the same reason. */
+  if (meta.notRun) {
+    const offered = meta.notRun.eligible || 0;
+    status = 'NOT_RUN';
+    reason = meta.notRun.reason;
+    population = { checked: 0, eligible: offered, excluded: offered };
+    result = null;
   } else {
-    status = 'FAIL';
-    reason = `pooled ppi_delta_median ${head.toFixed(2)} ms exceeds the ${BANDS.ppiDeltaMedianMs[1]} ms band`;
+    /* THE POPULATION IS IN NIGHTS, THE UNIT ITS OWN FLOOR IS WRITTEN IN. `pool()` counts DISTINCT
+       NIGHTS because files from one night share strap, placement and perfusion, and `MIN_NIGHTS`
+       judges that count — but `checked` published the scored FILE count, so the field and the floor
+       beside it spoke different units (61 against a floor of 10). The file count is already inside
+       `result`. `eligible` is the night directories the walk offered, the same unit the NOT_RUN
+       branch publishes. A walk cannot offer fewer nights than it scored; the clamp keeps
+       `checked + excluded = eligible` true rather than publishing a negative if one ever does. */
+    const checked = pooled.nights;
+    population = { checked, eligible: Math.max(meta.nightsOffered == null ? checked : meta.nightsOffered, checked), excluded: 0 };
+    population.excluded = population.eligible - checked;
+    result = null;
+    if (pooled.nights < MIN_NIGHTS || !Number.isFinite(head)) {
+      status = 'UNDERPOWERED';
+      reason = `${pooled.nights} usable night(s) across ${files} session file(s)${meta.filesRead != null && meta.filesRead !== files ? ` of ${meta.filesRead} read` : ''} against a floor of ${MIN_NIGHTS} nights — a file is not a night (files from one night share strap, placement and perfusion), so the pooled median is not a verdict below it`;
+    } else if (head <= BANDS.ppiDeltaMedianMs[0] && pooled.latencyMadMs <= BANDS.latencyMadMs[0]) {
+      status = 'PASS';
+      reason = null;
+    } else if (head <= BANDS.ppiDeltaMedianMs[1]) {
+      status = 'SHORTFALL';
+      reason = `pooled ppi_delta_median ${head.toFixed(2)} ms exceeds one ADC sample (${SAMPLE_MS.toFixed(3)} ms) but stays inside the ${BANDS.ppiDeltaMedianMs[1]} ms shortfall band`;
+    } else {
+      status = 'FAIL';
+      reason = `pooled ppi_delta_median ${head.toFixed(2)} ms exceeds the ${BANDS.ppiDeltaMedianMs[1]} ms band`;
+    }
+    if (!(status === 'UNDERPOWERED' && !Number.isFinite(head))) result = pooled;
   }
   return {
     schema: 'tepna.verdict/1',
@@ -193,14 +221,18 @@ export function verdictObject(pooled, rows, meta = {}) {
     // `internal`: this is a detector cross-check on ONE sensor, so its numbers are not quotable
     // outside the repo as independent validation (R5 §4 — a second estimator, not a second sensor).
     scope: 'internal',
-    population: { checked, eligible, excluded: eligible - checked },
+    population,
     criterion: { name: 'ppi_delta_median', threshold: +BANDS.ppiDeltaMedianMs[0].toFixed(3), unit: 'ms', direction: 'lte' },
-    result: status === 'UNDERPOWERED' && !Number.isFinite(head) ? null : pooled,
+    result,
     evidence: ['tools/oracle-ppg-device-beats.mjs', ...(meta.roots || []).map((r) => `${r}/**/*_PPG.txt`)],
     reason,
     producedBy: {
       tool: 'tools/oracle-ppg-device-beats.mjs',
       commit: meta.commit || null,
+      /* 🔴 THE REASON MUST BE THE REAL ONE. No real run passed `meta.commit`, so every published
+         object claimed `not run inside a git checkout` from inside this checkout. The CLI now stamps
+         `gitCommit()`, and this line is reached only when that returned null — or for the sample,
+         which claims no code identity by design. */
       ...(meta.commit ? {} : { commitReason: meta.sample ? '--verdict-sample: synthetic input, no code identity claimed' : 'not run inside a git checkout' })
     },
     at: (meta.at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
@@ -212,6 +244,34 @@ export function verdictObject(pooled, rows, meta = {}) {
    which is the point: a sample that could not occur would assert nothing about the real object. */
 const SAMPLE_POOLED = { nights: 12, files: 61, ppiDeltaMedianMs: 2.24, latencyMedianMs: 189.9, latencyMadMs: 1.98, matchedPct: 99.1 };
 const SAMPLE_ROWS = Array.from({ length: 12 }, () => ({ ok: true }));
+
+function gitCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: HERE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+  } catch {
+    /* not a checkout → commit null, and THEN the commitReason above is the true one */
+    return null;
+  }
+}
+
+/* The population beside the verdict, from the SAME snapshot the scored set was drawn from — never a
+   second walk, which would let the two disagree (Magpie, #3850). `snap` is the offer, the scored
+   nights are the read, and the gap between them is what a reader needs to chase a figure that moved. */
+/* THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED now comes from `corpus-scope.mjs`, which is where
+   that row said the shared home was (2026-10-22-the-removal-namer-is-duplicated-in-two-oracles). The
+   sentence stays here — below, where it says the directory held no scorable Wellue `_PPG.txt` — and
+   so do the legs that accept the shared namer against THIS tool's shape: rows carrying the read's own
+   `ok`, where a night whose read failed is removed rather than counted as covered. */
+
+function printPopulation(pop, snap, rows) {
+  if (pop) console.log(`\n  population: ${pop.status} — ${pop.population.checked} night(s) the run can report over, of ${pop.population.eligible} it saw${pop.reason ? ` · ${pop.reason}` : ''}`);
+  else console.log(`\n  population: ${snap.n} night director${snap.n === 1 ? 'y' : 'ies'} offered under ${snap.root}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  const rl = ruleLine({ result: { rule: snap.rule, ruleRejectedNightShaped: snap.rejectedNightShaped, ruleAdmittedNonNight: snap.admittedNonNight } });
+  if (rl) console.log(rl);
+  const bare = notANight(snap, rows);
+  if (bare.length)
+    console.log(`  the read removed ${bare.length} of ${snap.n}, holding no scorable Wellue _PPG.txt: ${bare.slice(0, 12).join(', ')}${bare.length > 12 ? `, … (+${bare.length - 12})` : ''}`);
+}
 
 const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
@@ -242,8 +302,47 @@ if (IS_CLI) {
     chk('a median past one sample but inside the band is a SHORTFALL', verdictObject({ ...SAMPLE_POOLED, ppiDeltaMedianMs: 12 }, SAMPLE_ROWS, {}).status === 'SHORTFALL');
     chk('past the band it FAILS', verdictObject({ ...SAMPLE_POOLED, ppiDeltaMedianMs: 44 }, SAMPLE_ROWS, {}).status === 'FAIL');
     chk('a clean median with a blown LATENCY MAD is not a PASS', verdictObject({ ...SAMPLE_POOLED, latencyMadMs: 31 }, SAMPLE_ROWS, {}).status !== 'PASS');
-    chk('every non-PASS carries a reason', ['UNDERPOWERED', 'SHORTFALL', 'FAIL'].every((st) => true) && verdictObject({ ...SAMPLE_POOLED, ppiDeltaMedianMs: 44 }, SAMPLE_ROWS, {}).reason);
+    /* 🔴 THIS LEG EXAMINED NOTHING. It read
+       `['UNDERPOWERED','SHORTFALL','FAIL'].every((st) => true) && verdictObject(…).reason`: the
+       `.every` maps three status NAMES onto the literal `true`, never builds a verdict for any of
+       them, and cannot fail. Only the one FAIL object after the `&&` was ever tested, so two of the
+       three named statuses rode on an assertion that could not see them. The question needs one real
+       verdict per status, which is what this does. */
+    const nonPass = [
+      ['UNDERPOWERED', verdictObject({ ...SAMPLE_POOLED, nights: 3 }, SAMPLE_ROWS.slice(0, 3), {})],
+      ['SHORTFALL', verdictObject({ ...SAMPLE_POOLED, ppiDeltaMedianMs: 12 }, SAMPLE_ROWS, {})],
+      ['FAIL', verdictObject({ ...SAMPLE_POOLED, ppiDeltaMedianMs: 44 }, SAMPLE_ROWS, {})],
+      ['NOT_RUN', verdictObject({ nights: 0 }, [], { notRun: { eligible: 3, reason: 'three offered, none holding a session file' } })]
+    ];
+    chk('each of the four non-PASS statuses is reachable, in order', nonPass.map(([, v]) => v.status).join(',') === nonPass.map(([st]) => st).join(','));
+    chk(
+      'every non-PASS verdict carries a reason',
+      nonPass.every(([, v]) => typeof v.reason === 'string' && v.reason.length > 0)
+    );
+    chk(
+      '…and every one of them validates against verdict.js',
+      nonPass.every(([, v]) => V.validate(v).ok !== false)
+    );
     chk('a PASS carries none', verdictObject(SAMPLE_POOLED, SAMPLE_ROWS, {}).reason === null);
+    // NOT_RUN EXAMINED NOTHING: a refusal publishes a verdict, and the two refusals differ.
+    const nrAbsent = verdictObject({ nights: 0 }, [], { notRun: { eligible: 0, reason: 'no corpus root' } });
+    const nrOffered = nonPass[3][1];
+    chk('an absent root and a root offering nights stop reading alike', nrAbsent.population.eligible === 0 && nrOffered.population.eligible === 3);
+    chk('a NOT_RUN verdict publishes no result', nrAbsent.result === null && nrOffered.result === null);
+    chk('NOT_RUN keeps checked + excluded = eligible', nrOffered.population.checked + nrOffered.population.excluded === nrOffered.population.eligible);
+    chk('an unscorable corpus is never UNDERPOWERED, which would claim it looked', nrOffered.status === 'NOT_RUN' && nrAbsent.status === 'NOT_RUN');
+    // THE POPULATION IS IN NIGHTS — the unit MIN_NIGHTS is written in, not the session-file count.
+    const withOffer = verdictObject({ ...SAMPLE_POOLED, nights: 12, files: 61 }, SAMPLE_ROWS, { nightsOffered: 14 });
+    chk('population.checked counts nights, not the 61 session files', withOffer.population.checked === 12);
+    chk('…eligible is what the walk offered, and excluded is the gap', withOffer.population.eligible === 14 && withOffer.population.excluded === 2);
+    chk('…and the file count stays published, inside result', withOffer.result.files === 61);
+    chk('with no offered count the population closes on itself', verdictObject(SAMPLE_POOLED, SAMPLE_ROWS, {}).population.excluded === 0);
+    /* THE REMOVAL IS NAMED, NOT COUNTED. The rule here is `/./`, so the walk admits any directory
+       and only the read can say which held nothing. */
+    const plantedSnap = { n: 3, nights: ['2026-07-25', '2026-07-26', 'logs'] };
+    chk('the read removes two directories, and names them rather than counting them', notANight(plantedSnap, [{ night: '2026-07-25', ok: true }]).join(',') === '2026-07-26,logs');
+    chk('a night whose read failed is removed, never counted as covered', notANight(plantedSnap, [{ night: '2026-07-25', ok: false }]).length === 3);
+    chk('CONTROL · a root that offered nothing names no removal', notANight({ n: 0, nights: [] }, []).length === 0);
     if (fail.length) {
       console.error('oracle-ppg-device-beats --selftest FAILED:\n  ' + fail.join('\n  '));
       process.exit(1);
@@ -255,15 +354,35 @@ if (IS_CLI) {
     process.exit(0);
   }
   const dir = arg('--dir', join(ROOT, 'uploads', 'captures'));
+  /* A REFUSAL IS A RESULT, SO IT CARRIES A VERDICT. This printed one line and exited 2 with no
+     `tepna.verdict/1` object at all, so an unattended caller collecting verdicts saw the run simply
+     missing, and could not tell an absent root from a root holding no ring night. Both now publish
+     NOT_RUN, and `population.eligible` separates them. */
   if (!existsSync(dir)) {
     console.error(`oracle-ppg-device-beats: ${dir} not found. The raw corpus is gitignored — pass --dir.`);
+    console.log(
+      JSON.stringify(
+        verdictObject({ nights: 0 }, [], { roots: [dir], commit: gitCommit(), notRun: { eligible: 0, reason: `no corpus root at ${dir} — the raw corpus is gitignored, so pass --dir` } }),
+        null,
+        2
+      )
+    );
     process.exit(2);
   }
   const PM = await import('./pat-matchrate-strict.mjs');
   const { PPGDSP } = PM.getDsps();
   ppgFootTimes = PM.ppgFootTimes;
   const rows = [];
-  for (const night of readdirSync(dir).sort()) {
+  /* `/./` — every directory under the root is OFFERED to this oracle, because a ring night is named
+     by the capture host and this tool must not decide what a night looks like. The snapshot records
+     that wide rule and names what it swallowed, which is the only form a reader can chase. */
+  const snap = snapshotNights(dir, { re: /./ });
+  /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Scoring takes minutes, and this
+     tool read `a60f2102f` on a run that opened at 02:47 under an earlier tree and closed at 02:55
+     after a commit landed in this worktree. Node loaded the module at the start, so the identity of
+     what produced the figures is the identity HERE — the later sha names a tree the run never ran. */
+  const commit = gitCommit();
+  for (const night of snap.nights) {
     const nd = join(dir, night);
     let files = [];
     try {
@@ -277,10 +396,41 @@ if (IS_CLI) {
       console.log(r.ok ? `  ✓ ${night} ${f}  matched ${r.matchedPct}%  lag ${r.latencyMedianMs} ms (MAD ${r.latencyMadMs})  ppiΔ ${r.ppiDeltaMedianMs} ms` : `  ⊘ ${night} ${f}  ${r.reason}`);
     }
   }
+  if (!rows.length) {
+    const v = verdictObject({ nights: 0 }, [], {
+      roots: [dir],
+      commit: gitCommit(),
+      notRun: {
+        eligible: snap.n,
+        reason: !snap.ok
+          ? `root not enumerable: ${snap.reason}`
+          : snap.n === 0
+            ? 'the root holds no directory at all, so no night was offered and none was scored'
+            : `${snap.n} night director${snap.n === 1 ? 'y' : 'ies'} offered under the root and not one holds a Wellue _PPG.txt, so no night was scored`
+      }
+    });
+    printPopulation(null, snap, rows);
+    console.log(JSON.stringify(v, null, 2));
+    /* A RUN THAT SCORED NOTHING IS NOT A SUCCESSFUL RUN, and exit 0 is the only thing an unattended
+       caller reads (row 2026-09-04-respacc-empty-run-exits-zero, closed by #2269). 2 keeps FAIL's 1
+       distinct: 1 means nights were scored and the criterion missed, 2 means none were scored. The
+       absent-root path above already exited 2, so the two refusals now agree. */
+    process.exit(2);
+  }
   const pooled = pool(rows);
-  const v = verdictObject(pooled, rows, { roots: [dir] });
+  const v = verdictObject(pooled, rows, { roots: [dir], commit, nightsOffered: snap.n, filesRead: rows.length });
+  /* THE SET MAY HAVE MOVED WHILE THIS RAN. Scoring 54 session files takes minutes and
+     `tepna-corpus-tier.service` re-tiers daily, so the opening walk and the last file read can see
+     different nights. The population verdict is that comparison, and without it a figure that moved
+     because the corpus moved reads exactly like a figure that moved because the detector changed. */
+  const population = populationVerdict(snap, snapshotNights(dir, { re: /./ }), {
+    commit,
+    tool: 'tools/oracle-ppg-device-beats.mjs',
+    evidence: ['tools/oracle-ppg-device-beats.mjs', 'tools/corpus-scope.mjs']
+  });
   console.log('\nA REFERENCE IS A REFERENCE, NOT GROUND TRUTH — disagreement opens an investigation, never an auto-fix.');
   console.log("The lag is the firmware's DETECTION LATENCY, a device property. The agreement is its MAD and the interval delta.");
-  console.log(JSON.stringify(v, null, 2));
+  printPopulation(population, snap, rows);
+  console.log(JSON.stringify({ ...v, detail: { corpusPopulation: population } }, null, 2));
   process.exit(v.status === 'FAIL' ? 1 : 0);
 }

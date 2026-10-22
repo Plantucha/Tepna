@@ -110,6 +110,56 @@ export function dirtyVerdict(probe) {
    Separated so the decisions are gate-backed without `gh`, a network or a clock — the same shape as
    land-pr's `decide()`, for the same reason: this tool acts on other sessions' work unattended. */
 
+/* 🔴 A REQUIRED CONTEXT CAN HOLD TWO CHECK RUNS, AND THE ROLLUP SHOWS ONLY THE LATER ONE.
+   Measured on #3871, 2026-10-21: the `tests` workflow fired TWICE on one sha at the same instant,
+   21:04:22Z, because the push and the PR creation arrived seconds apart. Concurrency cancelled one
+   run; its six shards went `cancelled` and its aggregator job `test` ended `failure`. So the head
+   carried two check runs named `test` — a failure at 21:06:11Z and a success at 21:10:59Z.
+   `gh pr checks` reported 26 pass, 2 skipping, 0 fail, 0 cancel, and GitHub refused the merge
+   anyway. Kodiak said why in its own check run: `🛑 cannot merge (failing required status checks:
+   {'test'})`. Every rung above reads the rollup, so the PR classified `stuck-unarmed` and the
+   report told a human to arm auto-merge, which under Kodiak adds nothing (CLAUDE.md §5).
+   The remedy is a re-run of the CANCELLED DUPLICATE, so the state must name that run's id. */
+
+/** The workflow-run id inside a check run's URL, or null. The rerun verb takes the RUN, not the job. */
+export function runIdFromUrl(u) {
+  const m = /\/actions\/runs\/(\d+)(?:\/|$)/.exec(String(u || ''));
+  return m ? m[1] : null;
+}
+
+/* A conclusion that satisfies a required context. `neutral` is here because a skipped matrix job and
+   a deliberately-neutral gate both report it, and GitHub treats neither as a failure. A null
+   conclusion is a run still in flight: the pending rung owns it, so it is neither OK nor stale. */
+const RUN_OK = new Set(['success', 'skipped', 'neutral']);
+
+/**
+ * Required contexts whose head carries a non-success check run that the rollup hides.
+ *
+ * Pure. `runs` is `[{ name, conclusion, runId }]`, every check run on the head. A name with ONE run
+ * is what the rollup already shows, so it is not this rung's business; a name with no satisfying run
+ * belongs to `failing` or `cancelled` above. What is left is DISAGREEMENT under one name, which no
+ * `gh pr` view reports.
+ */
+export function staleRequiredRuns(required, runs) {
+  if (!Array.isArray(runs) || !Array.isArray(required)) return [];
+  const req = new Set(required);
+  const byName = new Map();
+  for (const r of runs) {
+    if (!r || !req.has(r.name)) continue;
+    if (!byName.has(r.name)) byName.set(r.name, []);
+    byName.get(r.name).push(r);
+  }
+  const out = [];
+  for (const [name, list] of byName) {
+    if (list.length < 2) continue;
+    if (!list.some((r) => RUN_OK.has(r.conclusion))) continue;
+    for (const r of list) {
+      if (r.conclusion != null && !RUN_OK.has(r.conclusion)) out.push({ name, conclusion: r.conclusion, runId: r.runId || null });
+    }
+  }
+  return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : String(a.runId) < String(b.runId) ? -1 : 1));
+}
+
 /** Classify ONE pr snapshot. `required` is the ruleset's required contexts; `null` means unreadable. */
 export function classify(pr, required, nowMs) {
   if (pr.state !== 'OPEN') return { k: 'gone', why: `state=${pr.state}` };
@@ -176,6 +226,20 @@ export function classify(pr, required, nowMs) {
   }
   if (pr.mergeState === 'DIRTY') return dirtyVerdict(pr.mergeProbe);
 
+  /* The hidden wedge, above every green flavour because arming or updating cannot clear it. It sits
+     BELOW `failing`, `cancelled` and the pending rungs by construction: each of those reads the
+     rollup, and this one only has anything to say when the rollup reads satisfied. */
+  const stale = staleRequiredRuns(required, pr.checkRuns);
+  if (stale.length) {
+    const named = stale.map((r) => `${r.name} (${r.conclusion}${r.runId ? `, run ${r.runId}` : ''})`).join(', ');
+    const reruns = stale.map((r) => r.runId).filter(Boolean);
+    const bot = pr.botSays ? ` · merge bot says: "${pr.botSays}"` : '';
+    return {
+      k: 'wedged',
+      why: `required context(s) hold a stale non-success run the rollup hides: ${named} — ${reruns.length ? `\`gh run rerun ${reruns.join(' ')}\`` : 'nothing names a run to re-run'}${bot}`
+    };
+  }
+
   /* Green. Everything below is a flavour of STUCK — the state with no name. */
   const idleMin = pr.updatedAtMs ? (nowMs - pr.updatedAtMs) / 60000 : 0;
   if (pr.mergeState === 'BEHIND') {
@@ -193,13 +257,16 @@ export function classify(pr, required, nowMs) {
  * (abandoned) PR read as "no PR is green-and-stuck" and `--report` exited 0 over it — a red PR looked like
  * an idle queue. `cancelled` is a PR whose REQUIRED check was cancelled: terminal, so it waits forever.
  * `dirty` holds both DIRTY kinds: neither merges until a human merges `main` in, and the `why` says which.
- * `--report` is clean only when ALL FOUR are empty.
+ * `wedged` is a PR whose required context holds a stale non-success run the rollup hides: no arming
+ * and no update clears it, only a re-run of the duplicate.
+ * `--report` is clean only when ALL FIVE are empty.
  */
 export function attention(classified) {
   return {
     stuck: classified.filter((c) => c.k === 'stuck-behind' || c.k === 'stuck-unarmed'),
     failing: classified.filter((c) => c.k === 'failing'),
     cancelled: classified.filter((c) => c.k === 'cancelled'),
+    wedged: classified.filter((c) => c.k === 'wedged'),
     dirty: classified.filter((c) => c.k === 'dirty' || c.k === 'dirty-display')
   };
 }
@@ -335,8 +402,36 @@ function requiredContexts() {
   }
 }
 
+/* THE CHECK RUNS ON ONE HEAD, which is the only place a hidden duplicate is visible, plus what the
+   merge bot says about the same head. `gh pr checks` collapses the runs sharing a name; this does
+   not. Returns null when the payload could not be read WHOLE — a truncated page under-reports the
+   duplicates, and an under-report here reads exactly like a clean head. */
+function headCheckRuns(repo, sha) {
+  if (!repo || !sha) return null;
+  try {
+    const j = JSON.parse(gh(['api', `repos/${repo}/commits/${sha}/check-runs?per_page=100`]));
+    const arr = Array.isArray(j.check_runs) ? j.check_runs : null;
+    if (!arr) return null;
+    if (typeof j.total_count === 'number' && j.total_count > arr.length) return null;
+    const runs = arr.map((c) => ({ name: c.name, conclusion: c.conclusion, runId: runIdFromUrl(c.html_url || c.details_url) }));
+    /* The bot's own sentence. It named the failing context in ONE query on #3871, where no `gh pr`
+       field did, so the report quotes it rather than paraphrasing a cause. */
+    const bot = arr.find((c) => /kodiak/i.test(String(c.name || '')));
+    const botSays = bot && bot.output && bot.output.title ? String(bot.output.title).slice(0, 120) : null;
+    return { runs, botSays };
+  } catch {
+    return null;
+  }
+}
+
 function snapshotAll() {
   const prs = JSON.parse(gh(['pr', 'list', '--limit', '100', '--json', 'number,state,isDraft,mergeStateStatus,autoMergeRequest,updatedAt,title,headRefOid,baseRefName']));
+  let repo = null;
+  try {
+    repo = JSON.parse(gh(['repo', 'view', '--json', 'nameWithOwner'])).nameWithOwner;
+  } catch {
+    repo = null;
+  }
   return prs.map((p) => {
     let checks = [];
     let readable = true;
@@ -355,6 +450,7 @@ function snapshotAll() {
         }
       } else readable = false;
     }
+    const cr = p.state === 'OPEN' && !p.isDraft ? headCheckRuns(repo, p.headRefOid) : { runs: [], botSays: null };
     return {
       number: p.number,
       title: p.title,
@@ -365,6 +461,9 @@ function snapshotAll() {
       updatedAtMs: Date.parse(p.updatedAt),
       checks,
       readable,
+      checkRuns: cr ? cr.runs : null,
+      botSays: cr ? cr.botSays : null,
+      runsReadable: cr != null,
       mergeProbe: p.mergeStateStatus === 'DIRTY' && !p.isDraft ? probeMerge(p.number, p.headRefOid, p.baseRefName) : null
     };
   });
@@ -418,7 +517,7 @@ function main() {
   const now = Date.now();
   const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now) }));
 
-  const { stuck, failing, cancelled, dirty } = attention(classified);
+  const { stuck, failing, cancelled, wedged, dirty } = attention(classified);
   const stamp = new Date(now).toISOString().slice(11, 19);
 
   /* SAY THE THING NO VIEW SAYS. This line is the whole point of the tool: a PR that is green, armed
@@ -439,6 +538,12 @@ function main() {
     console.log(`${stamp}  ⊘ CANCELLED: ${cancelled.length} PR(s) with a cancelled REQUIRED check — no merge until someone re-runs it`);
     for (const c of cancelled) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
   }
+  /* A WEDGE IS INVISIBLE IN EVERY ROLLUP, and the remedy is a re-run of the run that examined
+     nothing — never an arm and never an update. */
+  if (wedged.length) {
+    console.log(`${stamp}  ⧗ WEDGED: ${wedged.length} PR(s) whose rollup reads green while a stale run holds a required context`);
+    for (const c of wedged) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
+  }
   /* DIRTY IS NAMED WITH ITS REMEDY. The local merge probe tells GitHub's display artifact from a real
      conflict, and the `why` carries the remedy for each. */
   if (dirty.length) {
@@ -448,13 +553,18 @@ function main() {
   const fresh = writeRedLedger(failing, required, now);
   for (const l of fresh) console.log(`    ${l.includes('  RED ') ? 'NEW this run' : 'cleared'}: ${l.slice(22)}`);
   for (const p of unreadable) console.log(`    #${p.number}  checks unreadable — NOT counted either way`);
+  /* ABSTENTION IS VISIBLE. A head whose check runs did not come back whole cannot be examined for a
+     hidden duplicate, and silence there would read as "no wedge". */
+  for (const p of prs) {
+    if (p.readable && p.state === 'OPEN' && !p.isDraft && !p.runsReadable) console.log(`    #${p.number}  check RUNS unreadable — the wedge rung examined nothing on this head`);
+  }
 
   const unarmed = stuck.filter((c) => c.k === 'stuck-unarmed');
   if (unarmed.length) {
     console.log(`    → ${unarmed.length} need a human: arm auto-merge (\`gh pr merge <N> --auto --squash\`); updating cannot land them.`);
   }
 
-  if (REPORT) process.exit(stuck.length || failing.length || cancelled.length || dirty.length ? 1 : 0);
+  if (REPORT) process.exit(stuck.length || failing.length || cancelled.length || wedged.length || dirty.length ? 1 : 0);
 
   const d = pick(classified);
   if (d.action !== 'update') {

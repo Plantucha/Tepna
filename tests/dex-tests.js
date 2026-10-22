@@ -11061,6 +11061,78 @@
           .join(', '),
         ''
       );
+      /* ── AND THE NAMER ITSELF HAS ONE DEFINITION ──────────────────────────────────────────────
+         Row 2026-10-22-the-removal-namer-is-duplicated-in-two-oracles. Both device oracles defined
+         their own `notANight` over the same set arithmetic, and only the sentence naming what the
+         night lacked differed. So the leg above was answered twice, a widening of it moved two files,
+         and a fix to one left the other reading the old way. The shared home is
+         `tools/corpus-scope.mjs`, beside `ruleLine`, which is the WALK half of the same account; each
+         oracle keeps its own sentence and its own acceptance legs over its own row shape. A
+         re-duplication reds HERE, which is the only place that can see both files at once. */
+      var namerDefs = Object.keys(TT).filter(function (k) {
+        return /export function notANight\s*\(/.test(TT[k] || '');
+      });
+      T.eq('the removal namer is defined once, and in corpus-scope.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope.mjs');
+      /* ── A REPORT THAT ONLY THE SCORING PATH REACHES IS A REPORT NO BOX RUNS ──────────────────
+         Row 2026-10-21-the-reference-validation-population-path-runs-on-no-box-here.
+         `tch-reference-validation.mjs` scores an external nightly volume named by `DEX_ECG_NIGHTLY`,
+         and it refused at the absent input BEFORE reaching its population report. So the wiring ran
+         on no box here. Measured 2026-10-22 against `origin/main`'s copy: with no volume the run
+         printed two lines about a mount, exited 2, and named no corpus at all.
+
+         The scope is narrow on purpose. Two siblings refuse the same way — `tch-window-sensitivity`
+         at its `existsSync(DIR)` guard and `tch-multinight` at `--dir`: path not found — and neither
+         CAN report a population there, because the absent path IS the corpus root. This tool's root
+         is `uploads/trio`, a different path, which stays readable while the input is gone. A refusal
+         that can state the corpus it did not score, and does not, is the row's defect.
+
+         So the refusal reports from the SAME printer as the scoring path. Two printers drift, and the
+         one that drifts unseen is the one nobody runs. */
+      var RV = TT['tools/tch-reference-validation.mjs'] || '';
+      T.ok('ANTI-VACUITY · the reference-validation source is loaded', /DEX_ECG_NIGHTLY/.test(RV), RV.length + ' char(s)');
+      T.ok(
+        'the absent-input refusal reports the population it could not score',
+        /if \(!fs\.existsSync\(EN\)\) \{[\s\S]{0,400}?refuseWithPopulation\(/.test(RV),
+        'the guard calls refuseWithPopulation'
+      );
+      T.ok('that refusal publishes NOT_RUN over nothing, never a PASS', /status: 'NOT_RUN'[\s\S]{0,200}?checked: 0/.test(RV), 'NOT_RUN with checked 0');
+      T.eq('ONE printer, so the refusal and the scoring path cannot drift apart', (RV.match(/population: \$\{/g) || []).length, 1);
+      /* AND A RUN THAT SCORED NOTHING DOES NOT READ AS A PASS. Row
+         2026-10-22-a-present-but-empty-input-path-still-exits-zero: with `DEX_ECG_NIGHTLY` pointed at
+         an empty directory the tool walked all 147 nights, published `population: PASS`, printed
+         `no data`, and exited 0. The population was honest and the exit code was not. */
+      T.eq('a run that scored no epoch does not exit 0', (RV.match(/process\.exit\(0\)/g) || []).length, 0);
+    });
+    /* ════ A PUBLISHED CONTROL CARRIES THE POPULATION IT WAS COMPUTED OVER ══════════════════════
+       Row 2026-10-22-the-apnea-controls-are-compared-across-two-populations: the apnea harness read
+       §9's four published figures as a bare delta of 0.02 and printed `drifted` past it. §9 computed
+       all four over 39 paired nights; today's run pairs 31, and each row drops its own nulls below
+       that. So the cell mixed a moved correlation with a different denominator, and it called every
+       such run drift. The repair is three-valued: only an equal population earns a word. ════ */
+    group('a published control carries the population it was computed over', 'tools · controls · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS, AND THE LANE DECIDES WHICH. The browser lane enumerates no directory, so
+         `toolTexts` is absent there; the node lane has no such excuse. Measured 2026-10-22 on this
+         PR's own head: without this guard the two regex assertions below ran over an empty string and
+         reded `browser-gates` while the node lane read green. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the published-control scan examined nothing');
+        else T.skip('the published-control population scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var AC = TT['tools/ecg-apnea-correlate.mjs'] || '';
+      T.ok('ANTI-VACUITY · the apnea-correlate source is loaded', /const CANDIDATES = \[/.test(AC), AC.length + ' chars');
+      /* A PLANT NAMES THE CANDIDATE, NOT A COUNT. Deleting one `controlN` reports which published
+         figure lost its population, which is the only thing a reader can act on. */
+      var naked = (AC.match(/\{ key: '[^']+', of: [^}]*control: -?\d[^}]*\}/g) || []).filter(function (c) {
+        return c.indexOf('controlN') < 0;
+      });
+      T.eq('every candidate with a published control names its population', naked.join(' · '), '');
+      T.ok('the printed cell reads the three-valued comparison', /cc\.verdict === 'population-differs'/.test(AC), 'population-differs');
+      /* THE SHAPE THE ROW IS ABOUT. A bare delta against a published figure is the defect itself, so
+         its spelling must not come back. */
+      T.eq('no bare-delta control cell survives', (AC.match(/d <= 0\.02 \?/g) || []).length, 0);
     });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool
@@ -41173,6 +41245,185 @@
       );
       T.eq('…and is neither stuck nor failing', a.stuck.length + a.failing.length, 0);
       T.eq('a healthy queue has nothing cancelled to name', att([green, advisoryCancel]).cancelled.length, 0);
+    });
+
+    /* ── queue-doctor: ONE required context can hold TWO check runs, and every rollup shows the later
+       one. Measured on #3871, 2026-10-21: the `tests` workflow fired twice on one sha at 21:04:22Z
+       because the push and the PR creation arrived seconds apart; concurrency cancelled one run, its
+       six shards went `cancelled` and its aggregator job `test` ended `failure`. So the head carried
+       a `test` failure (run 39675743047) AND a `test` success (run 39675741664). `gh pr checks` read
+       26 pass / 2 skipping / 0 fail / 0 cancel while GitHub refused the merge, and the only field
+       that named the cause was the merge bot's own sentence on its check run:
+       `🛑 cannot merge (failing required status checks: {'test'})`. Five more required contexts were
+       wedged the same way on that head — biome, browser-gates, no-network, stale-file, typecheck —
+       and `gh run rerun <the stale run>` cleared all seven. The rung reads the per-commit check-run
+       list, which is the only view where the disagreement is visible. */
+    group('Queue-doctor — one required context holding two runs is a wedge the rollup hides', 'tools · queue-doctor-wedge', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention,
+        stale = env.qdStaleRuns,
+        runId = env.qdRunIdFromUrl;
+      if (typeof cl !== 'function' || typeof att !== 'function' || typeof stale !== 'function' || typeof runId !== 'function') {
+        T.skip('queue-doctor wedge rung is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1755000000000;
+      var GREEN = [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'pass' }
+      ];
+      var wrap = function (o) {
+        var pr = {
+          number: 1,
+          title: 't',
+          state: 'OPEN',
+          isDraft: false,
+          mergeState: 'CLEAN',
+          autoMerge: true,
+          updatedAtMs: NOW - 90 * 60000,
+          checks: GREEN,
+          checkRuns: [],
+          botSays: null
+        };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test', 'biome'], NOW);
+        r.pr = pr;
+        return r;
+      };
+
+      /* #3871's real shape: one name, two runs, the failure first by id. */
+      var wedged = wrap({
+        number: 3871,
+        checkRuns: [
+          { name: 'test', conclusion: 'failure', runId: '39675743047' },
+          { name: 'test', conclusion: 'success', runId: '39675741664' },
+          { name: 'biome', conclusion: 'success', runId: '39675741657' }
+        ],
+        botSays: "🛑 cannot merge (failing required status checks: {'test'})"
+      });
+      T.eq('a required context holding a failure beside a success is wedged, not ready', wedged.k, 'wedged');
+      T.ok('…and the reason names the context', /\btest\b/.test(wedged.why));
+      T.ok('…and the STALE run id, not the passing one', /39675743047/.test(wedged.why) && !/39675741664/.test(wedged.why));
+      T.ok('…and the verb that clears it', /gh run rerun 39675743047/.test(wedged.why));
+      T.ok('…and quotes the merge bot, the only field that named the cause', /cannot merge \(failing required status checks/.test(wedged.why));
+
+      /* CONTROL: the same PR with one run per name is the state the rollup already describes. */
+      var oneEach = wrap({
+        number: 3872,
+        checkRuns: [
+          { name: 'test', conclusion: 'success', runId: '39675741664' },
+          { name: 'biome', conclusion: 'success', runId: '39675741657' }
+        ]
+      });
+      T.eq('one run per required name is ready (non-vacuity)', oneEach.k, 'ready');
+      T.eq('a PR whose check runs were unreadable is ready, not wedged', wrap({ number: 3873, checkRuns: [] }).k, 'ready');
+
+      /* The rung must not reach past the rollup's own business. */
+      var advisoryDup = wrap({
+        number: 3874,
+        checkRuns: [
+          { name: 'mutation', conclusion: 'failure', runId: '1' },
+          { name: 'mutation', conclusion: 'success', runId: '2' }
+        ]
+      });
+      T.eq('a duplicate under a NON-required name does not fire', advisoryDup.k, 'ready');
+      var redToo = wrap({
+        number: 3875,
+        checks: [
+          { name: 'test', bucket: 'fail' },
+          { name: 'biome', bucket: 'pass' }
+        ],
+        checkRuns: [
+          { name: 'test', conclusion: 'failure', runId: '1' },
+          { name: 'test', conclusion: 'success', runId: '2' }
+        ]
+      });
+      T.eq('a rollup red is still failing — the wedge rung sits below it', redToo.k, 'failing');
+      var behindWedge = wrap({
+        number: 3876,
+        mergeState: 'BEHIND',
+        checkRuns: [
+          { name: 'test', conclusion: 'cancelled', runId: '7' },
+          { name: 'test', conclusion: 'success', runId: '8' }
+        ]
+      });
+      T.eq('a BEHIND wedge is wedged, not stuck-behind — an update cannot clear it', behindWedge.k, 'wedged');
+
+      /* staleRequiredRuns, pure, at its three edges. */
+      T.eq(
+        'a run still in flight (null conclusion) is not stale — the pending rung owns it',
+        stale(
+          ['test'],
+          [
+            { name: 'test', conclusion: null, runId: '1' },
+            { name: 'test', conclusion: 'success', runId: '2' }
+          ]
+        ).length,
+        0
+      );
+      T.eq(
+        'two failures with NO success is a plain red the rollup shows',
+        stale(
+          ['test'],
+          [
+            { name: 'test', conclusion: 'failure', runId: '1' },
+            { name: 'test', conclusion: 'failure', runId: '2' }
+          ]
+        ).length,
+        0
+      );
+      T.eq(
+        'a skipped run satisfies a required context',
+        stale(
+          ['test'],
+          [
+            { name: 'test', conclusion: 'skipped', runId: '1' },
+            { name: 'test', conclusion: 'success', runId: '2' }
+          ]
+        ).length,
+        0
+      );
+      T.eq('an unreadable run list examines nothing', stale(['test'], null), []);
+      T.eq(
+        'two wedged names come out sorted, so the rerun line is stable',
+        stale(
+          ['typecheck', 'biome'],
+          [
+            { name: 'typecheck', conclusion: 'cancelled', runId: '39675741694' },
+            { name: 'typecheck', conclusion: 'success', runId: '9' },
+            { name: 'biome', conclusion: 'cancelled', runId: '39675741657' },
+            { name: 'biome', conclusion: 'success', runId: '8' }
+          ]
+        ).map(function (r) {
+          return r.name + ':' + r.runId;
+        }),
+        ['biome:39675741657', 'typecheck:39675741694']
+      );
+      var noId = wrap({
+        number: 3877,
+        checkRuns: [
+          { name: 'test', conclusion: 'cancelled', runId: null },
+          { name: 'test', conclusion: 'success', runId: '2' }
+        ]
+      });
+      T.ok('a wedge whose run id is unreadable says so instead of printing a bare verb', /nothing names a run to re-run/.test(noId.why));
+
+      /* The URL is the only place the RUN id appears; the rerun verb refuses a job id. */
+      T.eq('a run URL yields the run id', runId('https://github.com/o/r/actions/runs/39675743047'), '39675743047');
+      T.eq('a job URL yields the RUN, not the job', runId('https://github.com/o/r/actions/runs/39675743047/job/111222333'), '39675743047');
+      T.eq('a check-run URL with no run segment refuses', runId('https://github.com/o/r/runs/41234567'), null);
+      T.eq('an absent URL refuses', runId(null), null);
+
+      var a = att([wedged, oneEach, advisoryDup]);
+      T.eq(
+        'the wedged PR alone is in the wedged set',
+        a.wedged.map(function (c) {
+          return c.pr.number;
+        }),
+        [3871]
+      );
+      T.eq('…and it is in no other attention set', a.stuck.length + a.failing.length + a.cancelled.length + a.dirty.length, 0);
+      T.eq('a healthy queue has nothing wedged to name', att([oneEach, advisoryDup]).wedged.length, 0);
     });
 
     /* ── queue-doctor: DIRTY is two states, and the local merge probe tells them apart (residue
@@ -78749,6 +79000,81 @@
           'callers ' + callers.join(', ') + ' without dex-escape.js'
         );
       });
+    });
+    /* RESIDUE 2026-10-20-corpus-tier-swap-can-hide-an-over-cap-heap — the tiering job reports what it
+       HOLDS, because the unit's `MemoryPeak` is the cgroup's and charges reclaimable page cache. Two
+       runs pinned it at exactly the 8G cap while copying 52 GB, which says nothing about the heap. The
+       figures are this process's `VmHWM` and the largest `VmSwap` sampled, and the three legs below
+       pin the shape the figure must keep: an absent field reads null, the sampler stays bounded, and
+       the verdict's own criterion never reads a memory number. */
+    group('the tiering job reports its own held memory, and no figure stands in for an absent one', 'tools · corpus-tier · absence · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS, AND THE LANE DECIDES WHICH. The browser lane enumerates no directory, so
+         `toolTexts` is absent there and every regex below would run over an empty string and red
+         `browser-gates`; the node lane has no such excuse, so there an absent population is a FAILURE.
+         Measured 2026-10-22 against a sibling group that shipped without this guard. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the held-memory scan examined nothing');
+        else T.skip('the held-memory source scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var CT = TT['tools/corpus-tier.mjs'] || '';
+      T.ok('ANTI-VACUITY · the corpus-tier source is loaded', /const MEM_FIELDS = \['VmHWM', 'VmRSS', 'VmSwap'\];/.test(CT), CT.length + ' chars');
+      T.eq('an unmatched field is null, and exactly one assignment decides that', (CT.match(/kb\[f\] = m \? Number\(m\[1\]\) : null;/g) || []).length, 1);
+      T.eq('§∅ · no memory figure falls back to a number', (CT.match(/(hwmKb|rssKb|swapKb|vmHWMKb|vmRSSMaxKb|vmSwapMaxKb)[^\n]*(\?\? 0|\|\| 0)/g) || []).join(' · '), '');
+      T.ok('an absent figure prints the word null, not a zero', /kb === null \? 'null'/.test(CT), 'memMiB');
+      T.eq('the per-file sampler is bounded by one named interval', (CT.match(/% MEM_EVERY === 0/g) || []).length, 2);
+      T.ok('the sampler reads a named file, not a cgroup path', /const MEM_STATUS = '\/proc\/self\/status';/.test(CT), 'MEM_STATUS');
+      /* The criterion this tool decides on is the byte-identical NAS twin. A memory figure that
+         reached the status would make a verdict about one thing report another. */
+      T.ok('the verdict status still reads only the refusals', /status: bad \? 'FAIL' : 'PASS'/.test(CT), 'status');
+      var statusSlice = CT.slice(CT.indexOf('status: bad ?'), CT.indexOf('eligible: tierOut.length'));
+      T.eq('and no memory figure appears in the status expression', /mem/i.test(statusSlice), false);
+      T.ok('the held figures travel in the result instead', /memory: \{\n\s+vmHWMKb: memHeld\.vmHWMKb,/.test(CT), 'result.memory');
+    });
+    /* RESIDUE 2026-10-21-a-landed-hook-fix-is-inert-until-the-primary-checkout-pulls — every hook
+       entry runs its script under `$CLAUDE_PROJECT_DIR/.claude/hooks/`, which is the PRIMARY checkout,
+       so a guard fix that merges stays inert in every session until that one tree pulls. The reader
+       that was missing says which copy would run. The legs below pin the shape of its answer: the
+       comparison is three-valued, an absence is null, and the criterion counts only the class whose
+       remedy is a pull. */
+    group('the hook-liveness reader says which copy of a guard would run, three-valued', 'tools · hooks · absence · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS, AND THE LANE DECIDES WHICH. The browser lane enumerates no directory, so
+         `toolTexts` is absent there and every regex below would run over an empty string and red
+         `browser-gates`; the node lane has no such excuse, so there an absent population is a FAILURE. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the hook-liveness scan examined nothing');
+        else T.skip('the hook-liveness source scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var HL = TT['tools/hook-liveness.mjs'] || '';
+      T.ok('ANTI-VACUITY · the hook-liveness source is loaded', /const GATE = 'hook-liveness';/.test(HL), HL.length + ' chars');
+      /* Three classes, in the order that makes them distinguishable: equal to the ref is current;
+         equal to HEAD while HEAD differs is a tree that has not pulled; anything else is an edit. */
+      T.ok('live === ref reads current', /if \(live === ref\) return \{ cls: 'current'/.test(HL), 'current');
+      T.ok('live === head over a differing ref reads behind', /if \(head != null && live === head\) return \{ cls: 'behind'/.test(HL), 'behind');
+      T.ok('anything else reads modified, with a named reason', /cls: 'modified',\n\s+reason:\s*\n?\s*head == null \?/.test(HL), 'modified');
+      /* §∅ — a file that is not there has no digest, and the ref cannot judge a hook it never saw. */
+      T.ok('an absent file is absent, never a digest', /if \(live == null\) return \{ cls: 'absent'/.test(HL), 'absent');
+      T.ok('no copy at the ref is excluded, not agreement', /if \(ref == null\) return \{ cls: 'untracked-at-ref'/.test(HL), 'untracked-at-ref');
+      T.eq('§∅ · no digest falls back to a number or an empty string', (HL.match(/\b(live|head|refSha)\s*=[^\n]*(\?\? 0|\|\| 0|\?\? ''|\|\| '')/g) || []).join(' · '), '');
+      T.ok('the live digest is null when the file is missing', /existsSync\(abs\) \? sha\(readFileSync\(abs, 'utf8'\)\) : null/.test(HL), 'live');
+      /* The checkout is RESOLVED, never taken on trust from the environment the process inherited. */
+      T.ok('the primary checkout comes from the common git dir', /'--git-common-dir'/.test(HL), 'resolvePrimary');
+      T.ok('CLAUDE_PROJECT_DIR is reported and compared, never used as the root', /rootMatchesClaudeProjectDir/.test(HL) && !/root = process\.env\.CLAUDE_PROJECT_DIR/.test(HL), 'envRoot');
+      T.eq('no home-directory path is written into the tool', (HL.match(/\/home\/[a-z]/g) || []).join(' · '), '');
+      /* The criterion is pre-stated, and it counts only the class a pull repairs. */
+      T.ok('the criterion names the behind count with a zero threshold', /name: 'hook_scripts_behind_the_ref', threshold: 0/.test(HL), 'criterion');
+      T.ok('the status reads the behind count alone', /status: behind\.length === 0 \? 'PASS' : 'FAIL'/.test(HL), 'status');
+      var statusSlice = HL.slice(HL.indexOf('status: behind.length === 0'), HL.indexOf('reason: behind.length === 0'));
+      T.eq('and no modified count appears in the status expression', /modified/.test(statusSlice), false);
+      /* NOT_RUN examined nothing, so it reports nothing — the contract refuses a result beside it. */
+      T.ok('NOT_RUN carries no result', /result: scanned\.refMissing \? result : null,/.test(HL), 'NOT_RUN');
+      T.ok('an enumerated population with nothing comparable reads UNKNOWN', /status: 'UNKNOWN',\n\s+population: \{ checked: 0, eligible: rows\.length/.test(HL), 'UNKNOWN');
+      T.ok('the sample flag prints the object alone', /if \(flag\('--verdict-sample'\)\) \{\n\s+console\.log\(JSON\.stringify\(sample\(\)\)\);/.test(HL), '--verdict-sample');
     });
     group('OxyDex math — injectBias is exact, clamped to [0,100], and null-preserving (synthetic)', 'oxydex · math-correctness · known-answer', function (T) {
       var OA = env.OxyAccuracy;

@@ -22,7 +22,7 @@ import pytest
 
 import capture
 import writers
-from _srcscan import module_source
+from _srcscan import module_source, split_segment
 
 _WHEN = _dt.datetime(2026, 9, 5, 2, 0, 0)
 
@@ -436,6 +436,46 @@ def test_THE_EXIT_DRAIN_IS_BOUNDED_SO_A_WEDGED_DISK_CANNOT_HOLD_SHUTDOWN(tmp_pat
     fh.close()
 
 
+def test_THE_EXIT_DRAIN_WAITS_THE_FIVE_SECOND_POLICY_BOUND_WHEN_NO_CALLER_NAMES_ONE(monkeypatch):
+    """🔴 THE DEFAULT IS THE ONLY BOUND THE SHUTDOWN PATH EVER USES, and the equivalence ledger
+    classed it `untestable-by-design` on the reading that an introspection of the function object is
+    the only instrument. `_atexit.register(_drain_fsync)` passes no argument, so the literal `5.0` IS
+    the production bound, and every other call in the tree names its own number.
+
+    A fake worker observes the value the drain HANDS to `join`, which is behaviour rather than
+    introspection — so this kills the `5.0` -> `6.0` mutant without touching `__defaults__`, whose
+    assertion the mutation harness replaces with a dispatcher and blinds four whole functions.
+
+    Measured with a planted `6.0`: this test fails and the rest of the file passes, which is what
+    makes the ledger entry a refuted claim rather than an untestable one."""
+    joined: list[float | None] = []
+    queued: list[object] = []
+
+    class _FakeWorker:
+        def is_alive(self):
+            return True
+
+        def join(self, timeout=None):
+            joined.append(timeout)
+
+    class _FakeQueue:
+        def put(self, item):
+            queued.append(item)
+
+    monkeypatch.setattr(writers, "_FSYNC_THREAD", _FakeWorker())
+    monkeypatch.setattr(writers, "_FSYNC_Q", _FakeQueue())
+
+    writers._drain_fsync()
+
+    assert queued == [None], "the drain must queue the stop sentinel before it waits"
+    assert joined == [5.0], f"the drain waited {joined} with no caller-supplied bound, not 5.0 s"
+
+    src = module_source("writers.py")
+    assert "_atexit.register(_drain_fsync)" in src, (
+        "the shutdown hook no longer registers the drain bare, so the default is not the exit bound"
+    )
+
+
 def test_A_BARRIER_EXACTLY_AT_THE_THRESHOLD_IS_NAMED(tmp_path, caplog):
     """The boundary, both sides. `SLOW_FSYNC_MS` is documented as the point at which the disk is
     struggling, so AT it must warn — `>=` mutated to `>` survived, which means the threshold's own
@@ -618,7 +658,7 @@ def test_EVERY_RECOVER_SET_SITE_HAS_A_FINALLY():
         # The property is unchanged; only how many characters "nearby" takes.
         window = src[at : at + 3200]
         assert "finally:" in window, src[at - 200 : at + 300]
-        after = window.split("finally:", 1)[1]
+        after = split_segment(window, "finally:", 1, where=f"capture.py (the _RECOVER.set() at {at})", maxsplit=1)
         assert "_RECOVER.clear()" in after[:1500], src[at : at + 400]
 
 

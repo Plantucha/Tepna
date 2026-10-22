@@ -674,12 +674,13 @@ export const UNWIRED_BACKLOG = {
      2026-10-21-the-repo-name-heuristic-decides-before-the-parts-recursion.
      THE COUNTS WERE RE-MEASURED in that row, because four of them moved with the ladder and two
      had drifted under the rung that landed in #3862. Nothing reads the number; a wrong one is
-     still a wrong statement. */
+     still a wrong statement.
+     THREE OF THOSE SEVEN HAVE LEFT THIS LIST — `ecg-apnea-correlate.mjs`, `deep-vlf-probe.mjs` and
+     `pb-agreement.mjs` now snapshot the trio root before the walk and publish the comparison, so
+     the scan reads them as `reports` and this list must not name them (row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population). */
   'closure-tol-hac.mjs': 1,
-  'deep-vlf-probe.mjs': 1,
-  'ecg-apnea-correlate.mjs': 1,
   'motion-rho-vs-minrho.mjs': 2,
-  'pb-agreement.mjs': 1,
   'pb-fusion-blast.mjs': 1,
   'tch-minrho-corpus.mjs': 2,
   'acc-select-compare.mjs': 2,
@@ -709,8 +710,6 @@ export const UNWIRED_BACKLOG = {
   'nsrr-oxydex-odi.mjs': 2,
   'nsrr-stage-validate.mjs': 1,
   'o2ring-finger-validate-batch.mjs': 1,
-  'oracle-ecg-firmware-rr.mjs': 4,
-  'oracle-ppg-device-beats.mjs': 2,
   'oxy-hr-bias.mjs': 2,
   'pat-connection-stability.mjs': 3,
   'pat-dip-validate.mjs': 2,

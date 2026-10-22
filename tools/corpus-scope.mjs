@@ -288,6 +288,7 @@ export function populationVerdict(before, after, { commit = null, at = null, too
   const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
   const ev = ['tools/corpus-scope.mjs', DOC, ...evidence].filter((e, i, a) => a.indexOf(e) === i);
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const names = (xs) => (xs.length > 4 ? `${xs.slice(0, 4).join(', ')} and ${xs.length - 4} more` : xs.join(', '));
   let v;
   if (!before.ok || !after.ok) {
     const which = !before.ok && !after.ok ? 'neither snapshot' : !before.ok ? 'the opening snapshot' : 'the closing snapshot';
@@ -303,9 +304,35 @@ export function populationVerdict(before, after, { commit = null, at = null, too
       producedBy: { tool, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) },
       at: stamp
     });
+  } else if ((before.nights || []).length === 0 && (after.nights || []).length === 0) {
+    /* ∅ EXAMINED NOTHING IS NOT A STABLE POPULATION. Both walks succeeded and both offered no
+       night, so nothing arrived and nothing left and the movement criterion is met — by a run that
+       looked at nothing. `Verdict.make` refuses that `PASS` over `checked: 0` at the type level, so
+       before this branch existed the primitive THREW at its own caller, and a tool pointed at an
+       empty root died with a stack trace instead of reporting an empty root
+       (row 2026-10-22-the-population-primitive-throws-on-an-empty-root).
+       🔴 AND AN EMPTY `nights` IS NOT THE SAME FACT UNDER A DECLARED RULE: a narrow rule can refuse
+       every night-shaped directory a root does hold, and "offered nothing" would then be false. The
+       reason states which of the two happened, because `result` must be null on a NOT_RUN and the
+       rule block cannot ride along. */
+    const refusedBy = (before.rejectedNightShaped || []).concat(after.rejectedNightShaped || []);
+    const refused = [...new Set(refusedBy)].sort();
+    v = Verdict.make({
+      gate: 'corpus-population',
+      status: 'NOT_RUN',
+      scope: 'internal',
+      population: { checked: 0, eligible: 0, excluded: 0 },
+      criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
+      result: null,
+      evidence: ev,
+      reason: refused.length
+        ? `the root ${before.root} offered ${refused.length} night-shaped director${refused.length === 1 ? 'y' : 'ies'} and the caller's own rule ${before.rule} refused every one of them (${names(refused)}), so this run measured no population`
+        : `the root ${before.root} enumerated and offered no night directory at all, so this run measured no population`,
+      producedBy: { tool, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) },
+      at: stamp
+    });
   } else {
     const d = intersectSnapshots(before, after);
-    const names = (xs) => (xs.length > 4 ? `${xs.slice(0, 4).join(', ')} and ${xs.length - 4} more` : xs.join(', '));
     v = Verdict.make({
       gate: 'corpus-population',
       status: d.stable ? 'PASS' : 'SHORTFALL',
@@ -362,6 +389,28 @@ export function ruleLine(population) {
   if (!r || r.rule === undefined) return '';
   const say = (xs, what) => (xs === null ? `${what}: NOT MEASURED` : xs.length === 0 ? `${what}: none` : `${what}: ${xs.join(', ')}`);
   return `  rule ${r.rule} — ${say(r.ruleRejectedNightShaped, 'night-shaped names it refused')} · ${say(r.ruleAdmittedNonNight, 'non-night names it counted as nights')}`;
+}
+
+/** THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED, in ONE place. `ruleLine` above is the WALK's
+ *  account of its own rule: it can name the non-night directories the rule let through, because the
+ *  walk knows them. It cannot say which of them held nothing the READ could score, because only the
+ *  read knows that — and a COUNT of removals names nothing to chase, so this names them.
+ *
+ *  Both device oracles answered that question with their own four-line copy, differing only in the
+ *  sentence about what the night lacked, so the next widening of the question moved two files and a
+ *  fix to one left the other reading the old way (row
+ *  2026-10-22-the-removal-namer-is-duplicated-in-two-oracles). The node-specific half is the
+ *  SENTENCE, which stays with the caller; the set arithmetic is the same in both and lives here.
+ *
+ *  `covered` rows carry a `night`. A row reporting its own read as failed (`ok === false`) scored
+ *  nothing and is REMOVED, never counted as covered — membership alone would name it as scored. A
+ *  caller whose rows have no `ok` at all, where a row's EXISTENCE is the read, is unaffected, because
+ *  `undefined !== false`. There is no guard on the offer: a snapshot or a union that enumerated
+ *  nothing already carries an empty `nights`, and a guard here would restate that invariant where no
+ *  control can fire it — an unfireable guard reads as covered. */
+export function notANight(offer, covered) {
+  const scored = new Set((covered || []).filter((r) => r && r.ok !== false).map((r) => r.night));
+  return ((offer && offer.nights) || []).filter((n) => !scored.has(n));
 }
 
 function gitCommitShort() {
@@ -506,6 +555,43 @@ function selftest() {
       notrun.status
     );
     ok('the NOT_RUN verdict validates', V.validate(notrun).ok, V.validate(notrun).errors.join(' | '));
+
+    /* PLANT — A READABLE ROOT THAT OFFERED NOTHING. The two walks agree, so the movement criterion
+       is met over a run that examined nothing, and `Verdict.make` refuses that `PASS` at the type
+       level: the primitive used to THROW here and kill its caller with a stack trace instead of
+       reporting an empty root. Three legs, because the repair must not quietly turn a real
+       population into NOT_RUN either. */
+    const bare = join(tmp, 'offered-nothing');
+    mkdirSync(bare, { recursive: true });
+    const nothing = populationVerdict(snapshotNights(bare), snapshotNights(bare));
+    ok('an empty but READABLE root → NOT_RUN, never PASS over checked 0, and never a throw', nothing.status === 'NOT_RUN' && nothing.population.checked === 0, nothing.status);
+    ok(
+      'the empty-root NOT_RUN validates and states what was offered, not what failed',
+      V.validate(nothing).ok && /offered no night directory at all/.test(nothing.reason),
+      V.validate(nothing).errors.join(' | ') || nothing.reason
+    );
+    ok(
+      'and it reads differently from the unreadable root — nobody looked is not nothing was there',
+      /not enumerable/.test(notrun.reason) && !/not enumerable/.test(nothing.reason) && nothing.result === null,
+      `${nothing.reason} || ${notrun.reason}`
+    );
+    /* PLANT — THE OTHER WAY TO OFFER NO NIGHT. The root holds two night-shaped directories and the
+       caller's rule refuses both, so `nights` is empty for a reason the first reason would misstate. */
+    night(bare, '2025-12-31');
+    night(bare, '2025-12-30');
+    const refusedAll = populationVerdict(snapshotNights(bare, { re: /^2026-/ }), snapshotNights(bare, { re: /^2026-/ }));
+    ok(
+      'a rule that refused every night-shaped directory says SO, and names them, rather than claiming the root was empty',
+      refusedAll.status === 'NOT_RUN' && /refused every one of them/.test(refusedAll.reason) && /2025-12-30/.test(refusedAll.reason),
+      refusedAll.reason
+    );
+    rmSync(join(bare, '2025-12-31'), { recursive: true, force: true });
+    rmSync(join(bare, '2025-12-30'), { recursive: true, force: true });
+    night(bare, '2026-07-04');
+    ok(
+      'CONTROL · one night under that same root → PASS over a population of 1, so the branch binds on emptiness alone',
+      populationVerdict(snapshotNights(bare), snapshotNights(bare)).status === 'PASS'
+    );
     ok('the digest is order-free', digestNights(['b', 'a']) === digestNights(['a', 'b']) && digestNights(['2026-06-20', '2026-06-21']) !== digestNights(['2026-06-20']));
 
     /* ── WHAT THE CALLER'S OWN RULE DID ────────────────────────────────────────────────────────
@@ -585,6 +671,21 @@ function selftest() {
         JSON.stringify(line)
       );
     }
+    /* ── THE REMOVAL NAMER, ONE IMPLEMENTATION FOR BOTH ORACLE SHAPES ──────────────────────────
+       Row 2026-10-22-the-removal-namer-is-duplicated-in-two-oracles. The two callers differ in one
+       thing only: the ECG pair list has no `ok`, because a pair's existence IS the read, while the
+       PPG row list carries the read's own verdict. Both shapes are pinned here, so a widening of the
+       question moves one file. */
+    const offered = { n: 3, nights: ['2026-07-25', '2026-07-26', 'logs'] };
+    ok('the read removed two of three, and the namer NAMES them rather than counting them', notANight(offered, [{ night: '2026-07-25' }]).join(',') === '2026-07-26,logs');
+    ok(
+      'a row whose own read failed is removed too, never counted as covered',
+      notANight(offered, [{ night: '2026-07-25', ok: false }]).length === 3,
+      JSON.stringify(notANight(offered, [{ night: '2026-07-25', ok: false }]))
+    );
+    ok('CONTROL · the same row with ok true is covered, so the two shapes read differently', notANight(offered, [{ night: '2026-07-25', ok: true }]).join(',') === '2026-07-26,logs');
+    ok('CONTROL · an offer that enumerated nothing names no removal', notANight({ n: 0, nights: [] }, []).length === 0);
+    ok('a covered night the offer never held cannot appear: the difference runs offer minus read', notANight(offered, [{ night: '2099-01-01' }]).length === 3);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

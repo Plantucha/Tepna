@@ -153,6 +153,90 @@ def block_source(name: str, anchor: str) -> str:
     return "\n".join(out)
 
 
+def split_segment(text: str, anchor: str, index: int, *, where: str, maxsplit: int | None = None) -> str:
+    """Segment `index` of `text.split(anchor)`, or an AssertionError that NAMES what was absent.
+
+    ⚠️ THE IDIOM THIS REPLACES REPORTS NOTHING. `src.split(ANCHOR)[1]` raises
+    `IndexError: list index out of range` the moment the anchored line changes, and that message names
+    no invariant, no anchor and no file — a reader cannot tell a stale test from a real regression, and
+    three scans in `test_stale_bond_and_empty_writers.py` all raised it at once when a loop header was
+    widened to carry a dict key. The residue row is
+    `2026-10-21-a-source-scan-split-on-a-code-token-raises-instead-of-reporting`.
+
+    The split itself is unchanged, so the text a caller reads is byte-identical. Only the failure moves:
+    an absent anchor becomes a finding that names the anchor, the file, how many segments the split did
+    yield and which one the scan asked for. The comments in those three scans record that a fixed
+    character window was widened three times before an anchor replaced it, so this is the second
+    generation of one fragility — and `block_source` and `suite_tail` above already report their own
+    absent anchors this way.
+    """
+    parts = text.split(anchor) if maxsplit is None else text.split(anchor, maxsplit)
+    if len(parts) <= index:
+        raise AssertionError(
+            f"anchor {anchor!r} yields {len(parts)} segment(s) in {where} and the scan asks for "
+            f"segment {index} — the anchored text no longer exists, which is a stale scan, not a pass"
+        )
+    return parts[index]
+
+
+def until_anchor(text: str, anchor: str, *, where: str) -> str:
+    """`text` up to `anchor`, refusing when the anchor is absent.
+
+    ⚠️ THE IDIOM THIS REPLACES FAILS IN THE OTHER DIRECTION, AND SILENTLY. `text.split(anchor, 1)[0]`
+    is the usual way to bound a region on its closing content, and segment 0 of a split ALWAYS exists:
+    when the closing anchor disappears, the expression returns the WHOLE text instead of raising, the
+    region silently widens to the end of file, and a positive `in` assertion inside it starts passing
+    on any matching line anywhere in the module. That is the defect `block_source` names above — a test
+    that stops being a false failure and becomes a test that cannot fail, which is worse.
+    """
+    i = text.find(anchor)
+    if i < 0:
+        raise AssertionError(
+            f"closing anchor {anchor!r} is absent from {where}, so the region would widen to the end "
+            f"of the text rather than end where the scan says it ends — a stale scan, not a pass"
+        )
+    return text[:i]
+
+
+def after_last(text: str, anchor: str, *, where: str) -> str:
+    """`text` after the LAST `anchor`, refusing when the anchor is absent.
+
+    The mirror of `split_segment` for a scan that reads BACKWARD from a point — "the span that opens
+    the chip nearest this label". `text.rsplit(anchor, 1)[1]` raises the same unnamed
+    `IndexError: list index out of range` the moment the anchor moves, because an absent anchor makes
+    `rsplit` return a one-element list. The failure names neither the anchor nor the file, which is the
+    defect `split_segment` above documents, reached from the other end of the text.
+    """
+    i = text.rfind(anchor)
+    if i < 0:
+        raise AssertionError(
+            f"anchor {anchor!r} is absent from {where}, so a backward scan has nothing to read from "
+            f"— a stale scan, not a pass"
+        )
+    return text[i + len(anchor) :]
+
+
+def anchored_segment(name: str, *steps, chars: int | None = None, until: str | None = None) -> str:
+    """A CHAIN of `split_segment` steps over `<repo>/<name>`, each naming itself when it fails.
+
+    Each step is `(anchor, index)` or `(anchor, index, maxsplit)`, applied in order to the previous
+    step's result — the same shape as the `split(...)[1].split(..., 1)[1]` chains this replaces, with
+    the ordinal of the failing step in the message. `chars` truncates the result, which keeps a caller's
+    existing window byte-identical; a window is still a guess about where a block ends, and
+    `block_source` is the better tool when the property is about a block. `until` bounds the result on
+    its CLOSING content through `until_anchor`, which refuses an absent bound rather than widening to
+    the end of the text.
+    """
+    text = module_source(name)
+    for n, step in enumerate(steps, 1):
+        anchor, index = step[0], step[1]
+        maxsplit = step[2] if len(step) > 2 else None
+        text = split_segment(text, anchor, index, where=f"{name} (chain step {n} of {len(steps)})", maxsplit=maxsplit)
+    if until is not None:
+        text = until_anchor(text, until, where=f"{name} (closing bound of a {len(steps)}-step chain)")
+    return text if chars is None else text[:chars]
+
+
 def suite_tail(name: str, anchor: str) -> str:
     """From the line holding `anchor` to the END OF THE SUITE IT SITS IN — its siblings, not its body.
 

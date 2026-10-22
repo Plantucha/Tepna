@@ -382,7 +382,6 @@ export const UNPARSEABLE_RATCHET = new Set([
   'aperiodic-method-compare.mjs',
   'deep-vlf-probe.mjs',
   'device-stability.mjs',
-  'ecg-apnea-correlate.mjs',
   'find-copied-bodies.mjs',
   'find-unwired-js.mjs',
   'gate-subject.mjs',
