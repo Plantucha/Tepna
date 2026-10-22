@@ -552,11 +552,40 @@ export function splitTop(args) {
   return splitTopRanges(str).map(([a, b]) => str.slice(a, b).trim());
 }
 
+/* A SAMPLE CALL IS NOT A REPORTED POPULATION.
+ *
+ * `--verdict-sample` exists so the adoption gate can read one verdict object on a box with no
+ * corpus mounted, so every wired tool carries a helper that calls `populationVerdict` over two
+ * FABRICATED snapshots. That call cleared the tool here, and a run that reports nothing then read
+ * exactly like a run that reports its offer: measured 2026-10-22 by gutting the REAL call in
+ * `acc-shared-movement.mjs` while leaving its `verdictSample` intact — the class stayed `reports`
+ * and this module's own ratchet group stayed green over 28 assertions. That is §4b one module
+ * along: a clearance stated about something the run never examines.
+ *
+ * So the sample and selftest helpers are blanked before the question is asked, over the spans this
+ * module already computes for the argv rung rather than a second brace walker. The names are the
+ * two shapes the verdict contract asks a tool to carry (`--verdict-sample` prints one object;
+ * `--selftest` asserts over fabricated input), and `verdict-adoption.mjs`'s own `selftestSpan`
+ * stays as it is on purpose — it also spans Python, and its gate prints the count of files its
+ * locator matches. */
+const SAMPLE_HELPER = /^(?:verdictSample|sampleVerdict|sampleRun|selftest\w*)$/;
+
+/** The masked source with every sample/selftest helper BODY blanked. Offsets and lines keep. PURE. */
+export function blankSampleHelpers(masked) {
+  let out = String(masked);
+  for (const s of functionSpans(out)) {
+    if (!s.name || !SAMPLE_HELPER.test(s.name)) continue;
+    const blanked = out.slice(s.at, s.end + 1).replace(/[^\n]/g, ' ');
+    out = out.slice(0, s.at) + blanked + out.slice(s.end + 1);
+  }
+  return out;
+}
+
 /** Decide one tool from its source. PURE. */
 export function classifyTool(text) {
   const sites = enumerationSites(text);
   if (sites.length === 0) return { cls: 'no-enumeration', why: 'the file enumerates no directory', sites };
-  const masked = maskNonCode(text);
+  const masked = blankSampleHelpers(maskNonCode(text));
   if (/\bpopulationVerdict\s*\(/.test(masked)) {
     return { cls: 'reports', why: null, sites };
   }
@@ -683,7 +712,6 @@ export const UNWIRED_BACKLOG = {
   'motion-rho-vs-minrho.mjs': 2,
   'pb-fusion-blast.mjs': 1,
   'tch-minrho-corpus.mjs': 2,
-  'acc-shared-movement.mjs': 2,
   'beat-comb-analysis.mjs': 1,
   'beat-correspondence.mjs': 1,
   'beat-error-recovery.mjs': 2,
@@ -709,8 +737,6 @@ export const UNWIRED_BACKLOG = {
   'nsrr-stage-validate.mjs': 1,
   'o2ring-finger-validate-batch.mjs': 1,
   'oxy-hr-bias.mjs': 2,
-  'pat-dip-validate.mjs': 2,
-  'pat-drift-attribution.mjs': 2,
   'pat-ecg-axis-residual.mjs': 1,
   'pat-finger-coupler.mjs': 2,
   'pat-host-offset.mjs': 2,
@@ -719,7 +745,6 @@ export const UNWIRED_BACKLOG = {
   'pat-mode-posture.mjs': 2,
   'pat-per-led.mjs': 1,
   'pat-ppg-ppg-control.mjs': 2,
-  'pat-residual-structure.mjs': 2,
   'pat-three-corner.mjs': 1,
   'pat-window-oracle.mjs': 1,
   'pat-window-scaling.mjs': 1,

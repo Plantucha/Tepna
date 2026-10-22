@@ -35,11 +35,12 @@
  * Usage:  node tools/acc-shared-movement.mjs --dir <corpus> [--only YYYY-MM-DD]
  *         node tools/acc-shared-movement.mjs --selftest
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { bestPairOver, fragmentBounds } from './acc-select-compare.mjs';
 import { getDsps, loadDsps, median, quantile } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const argv = process.argv.slice(2);
 const av = (k, d) => {
@@ -177,9 +178,38 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
+/* One synthetic pair of snapshots, so the shape `verify:verdict-adoption` parses needs no corpus.
+   The two lists are identical: a sample can state the STABLE case honestly and nothing else. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-10', '2026-06-11'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^\d{4}-\d{2}-\d{2}$/),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/acc-shared-movement.mjs', at, evidence: ['tools/acc-shared-movement.mjs'] });
+}
+
 const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
   if (argv.includes('--selftest')) process.exit(selftest());
+  /* The sample sits ABOVE the `--dir` refusal: `verify:verdict-adoption` reads it where the corpus
+     is gitignored and absent, and the refusal below is the guard for the RUN (residue
+     `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(), null, 2));
+    process.exit(0);
+  }
   const DIR = av('--dir');
   const ONLY = av('--only');
   const SIGMAS = av('--sigmas') ? av('--sigmas').split(',').map(Number) : null;
@@ -188,10 +218,12 @@ if (IS_CLI) {
     process.exit(2);
   }
   loadDsps();
-  const nights = readdirSync(DIR)
-    .filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n) && statSync(join(DIR, n)).isDirectory())
-    .filter((n) => !ONLY || n === ONLY)
-    .sort();
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. The sigma sweep's
+     pre-stated band is a MEDIAN over nights, so the set it was taken over is part of the claim: a
+     night added between two sweeps moves every median and the JSON said only `nights: <count>`.
+     `--only` is a SELECTION over the offer, so it stays beside the walk rather than inside it. */
+  const popBefore = snapshotNights(DIR);
+  const nights = popBefore.nights.filter((n) => !ONLY || n === ONLY);
   const rows = [];
   for (const n of nights) {
     let r;
@@ -212,6 +244,26 @@ if (IS_CLI) {
     );
   }
   const used = rows.filter((r) => !r.skipped);
+  /* COMPUTED ONCE, ABOVE BOTH EXITS. The sweep branch below ends in `process.exit(0)`, so a
+     population built after it would be absent from exactly the run that varies the threshold. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR), {
+    tool: 'tools/acc-shared-movement.mjs',
+    evidence: ['tools/acc-shared-movement.mjs']
+  });
+  /* The removals are named against the SELECTED set, not the whole offer: under `--only` the offer's
+     other 96 nights were never a candidate for this run, and the clause above already states how
+     many the selection left unread. Naming them here would bury the one fact a reader can chase —
+     which SELECTED night was offered and scored nothing. */
+  const unscored = notANight(
+    { n: nights.length, nights },
+    rows.map((r) => ({ night: r.night, ok: !r.skipped }))
+  );
+  /* The status labels MOVEMENT, not coverage: `checked` is the intersection of the two snapshots,
+     and reading it as a measured count would publish the whole offer as measured. */
+  console.error(
+    `  population: ${popBefore.n} offered · ${nights.length} selected · ${used.length} measured · movement ${population.status}${ONLY ? ` · --only left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+  );
+  console.error(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   if (SIGMAS) {
     /* ┌─ DECISION BAND, PRE-STATED (FOLLOWUPS §1) ────────────────────────────────────────────────┐
        │ Written before the sweep ran, and derived from what the detector is SUPPOSED to catch —   │
@@ -249,7 +301,7 @@ if (IS_CLI) {
       console.error(
         `  sigma=${String(b.sigma).padStart(4)}  cand/h ${String(b.medCandidatesPerHour).padStart(6)}  anchors ${String(b.medAnchors).padStart(5)}  corrob ${String(b.medCorroborated).padStart(6)}  refusals ${b.refusals}/${b.nights}`
       );
-    console.log(JSON.stringify({ sigmas: SIGMAS, nights: rows.length, measured: used.length, bySigma, rows }, null, 2));
+    console.log(JSON.stringify({ sigmas: SIGMAS, offered: popBefore.n, population, nights: rows.length, measured: used.length, bySigma, rows }, null, 2));
     process.exit(0);
   }
   const pass = used.filter((r) => r.ok);
@@ -261,6 +313,8 @@ if (IS_CLI) {
   console.log(
     JSON.stringify(
       {
+        offered: popBefore.n,
+        population,
         nights: rows.length,
         measured: used.length,
         aligns: pass.length,
