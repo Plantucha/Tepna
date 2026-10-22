@@ -257,13 +257,24 @@ function gitCommit() {
 /* The population beside the verdict, from the SAME snapshot the scored set was drawn from — never a
    second walk, which would let the two disagree (Magpie, #3850). `snap` is the offer, the scored
    nights are the read, and the gap between them is what a reader needs to chase a figure that moved. */
-function printPopulation(pop, snap, rows) {
+/* THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED. `ruleLine` names the non-night directories the
+   WALK let through, because the walk knows them. It cannot say which of them held no ring session
+   file, because only the READ knows that — and a count of removals names nothing to chase, so this
+   names them. The ECG sibling exports the same shape over its own pair list; the shared home is
+   `corpus-scope.mjs` (row 2026-10-22-the-removal-namer-is-duplicated-in-two-oracles). */
+export function notANight(snap, rows) {
   const scored = new Set(rows.filter((r) => r.ok).map((r) => r.night));
+  /* A night whose read failed is removed too: `r.ok` is the READ's verdict, and a row that threw
+     scored nothing. Filtering on membership alone would name it as covered. */
+  return snap.nights.filter((n) => !scored.has(n));
+}
+
+function printPopulation(pop, snap, rows) {
   if (pop) console.log(`\n  population: ${pop.status} — ${pop.population.checked} night(s) the run can report over, of ${pop.population.eligible} it saw${pop.reason ? ` · ${pop.reason}` : ''}`);
   else console.log(`\n  population: ${snap.n} night director${snap.n === 1 ? 'y' : 'ies'} offered under ${snap.root}${snap.ok ? '' : ` · ${snap.reason}`}`);
   const rl = ruleLine({ result: { rule: snap.rule, ruleRejectedNightShaped: snap.rejectedNightShaped, ruleAdmittedNonNight: snap.admittedNonNight } });
   if (rl) console.log(rl);
-  const bare = snap.nights.filter((n) => !scored.has(n));
+  const bare = notANight(snap, rows);
   if (bare.length)
     console.log(`  the read removed ${bare.length} of ${snap.n}, holding no scorable Wellue _PPG.txt: ${bare.slice(0, 12).join(', ')}${bare.length > 12 ? `, … (+${bare.length - 12})` : ''}`);
 }
@@ -332,6 +343,12 @@ if (IS_CLI) {
     chk('…eligible is what the walk offered, and excluded is the gap', withOffer.population.eligible === 14 && withOffer.population.excluded === 2);
     chk('…and the file count stays published, inside result', withOffer.result.files === 61);
     chk('with no offered count the population closes on itself', verdictObject(SAMPLE_POOLED, SAMPLE_ROWS, {}).population.excluded === 0);
+    /* THE REMOVAL IS NAMED, NOT COUNTED. The rule here is `/./`, so the walk admits any directory
+       and only the read can say which held nothing. */
+    const plantedSnap = { n: 3, nights: ['2026-07-25', '2026-07-26', 'logs'] };
+    chk('the read removes two directories, and names them rather than counting them', notANight(plantedSnap, [{ night: '2026-07-25', ok: true }]).join(',') === '2026-07-26,logs');
+    chk('a night whose read failed is removed, never counted as covered', notANight(plantedSnap, [{ night: '2026-07-25', ok: false }]).length === 3);
+    chk('CONTROL · a root that offered nothing names no removal', notANight({ n: 0, nights: [] }, []).length === 0);
     if (fail.length) {
       console.error('oracle-ppg-device-beats --selftest FAILED:\n  ' + fail.join('\n  '));
       process.exit(1);
