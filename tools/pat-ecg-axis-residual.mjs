@@ -40,6 +40,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { overlapSplit } from './pat-window-oracle.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -142,6 +143,12 @@ function selftest() {
 
 async function main() {
   if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
+  /* The sample sits above the usage refusal: the adoption gate reads one object on a box holding no
+     nights. */
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(), null, 2));
+    return;
+  }
   const DIR = argv[argv.indexOf('--dir') + 1];
   const nights = argv.flatMap((a, i) => (a === '--night' ? [argv[i + 1]] : []));
   if (!DIR || !existsSync(DIR) || !nights.length) {
@@ -151,6 +158,15 @@ async function main() {
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
   const { pickPair } = await import(join(HERE, 'pat-window-oracle.mjs'));
   getDsps();
+  /* THIS TOOL IS NAMED-NIGHT, NOT A WALK, AND THAT IS STILL A POPULATION. The run scores the nights
+     the caller typed, so there is no offer to narrow — but a reader cannot tell a deliberate
+     three-night run from a root that has lost the other 94 unless the offer is stated beside it.
+     The snapshot is the OFFER; `--night` is the selection, named by the count it left unread; and a
+     named night the offer does not hold is reported as such rather than counted as a skip, because
+     "the root has no such night" and "the night had no usable pair" are different statements. */
+  const popBefore = snapshotNights(DIR);
+  const absentFromOffer = popBefore.ok ? nights.filter((n) => !popBefore.nights.includes(n)) : [];
+  const covered = [];
   console.log('night        ΔmodePred   tMsCorrected  independent  maxStep   c range        split (h)');
   for (const n of nights) {
     const dir = join(DIR, n);
@@ -199,10 +215,47 @@ async function main() {
     }
     const d = halvesMeanDiff(cSamples, split.lo, split.mid, split.hi);
     const spanH = ((split.hi - split.lo) / 3600e3).toFixed(1);
+    covered.push({ night: n, ok: true });
     console.log(
       `${n}  ${d == null ? '   n/a  ' : (d >= 0 ? '+' : '') + d.toFixed(1).padStart(7) + ' ms'}   ${String(E.tMsCorrected).padEnd(12)}  ${String(E.independent).padEnd(11)}  ${E.maxStepMs == null ? '  n/a' : E.maxStepMs.toFixed(0).padStart(5)}   ${cMin.toFixed(0)}..${cMax.toFixed(0)} ms   ${spanH}`
     );
   }
+  /* The status labels MOVEMENT, not coverage: `checked` is the intersection of the two snapshots,
+     and reading it as a scored count would publish the whole offer as scored. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR), {
+    tool: 'tools/pat-ecg-axis-residual.mjs',
+    evidence: ['tools/pat-ecg-axis-residual.mjs']
+  });
+  const unscored = notANight({ n: nights.length, nights }, covered);
+  console.log(
+    `\npopulation: ${popBefore.n} offered under ${DIR} · ${nights.length} named · ${covered.length} scored · movement ${population.status} · --night left ${Math.max(0, popBefore.n - nights.length + absentFromOffer.length)} offered night(s) unread${population.reason ? ' — ' + population.reason : ''}`
+  );
+  console.log(`named but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  console.log(`named but absent from the offer: ${absentFromOffer.length ? absentFromOffer.join(', ') : 'none'}`);
+  console.log('POPULATION ' + JSON.stringify(population));
+}
+
+/* The sample the adoption gate reads: two identical fabricated snapshots, so the object is complete
+   and no corpus is touched. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-07-24', '2026-07-25'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^\d{4}-\d{2}-\d{2}$/),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-ecg-axis-residual.mjs', at, evidence: ['tools/pat-ecg-axis-residual.mjs'] });
 }
 
 if (isCliEntry(import.meta.url)) await main();
+export { verdictSample };

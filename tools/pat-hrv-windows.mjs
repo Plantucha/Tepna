@@ -36,6 +36,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -48,6 +49,12 @@ const DIR = arg('--dir', null);
 const ONLY = arg('--night', null);
 const WIN_MIN = +arg('--win', 5); // the HRV convention
 const BAR_MS = 60; // pat-gate.js BEAT_IQR_MAX_MS — mirrored, not re-derived
+/* THE SAMPLE SITS ABOVE THE `--dir` REFUSAL, because the adoption gate has to read one verdict
+   object on a box holding no nights, and this file decides at module evaluation. */
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+  process.exit(0);
+}
 if (!DIR) {
   console.error('need --dir <captures root>');
   process.exit(1);
@@ -175,10 +182,15 @@ console.log(`  artefact gate: ${artifactMode}\n`);
 console.log('  night        win  kept  rej   medLag   IQR  p25  p75   %win<=60ms');
 console.log('  ' + '-'.repeat(78));
 
-const nights = fs
-  .readdirSync(DIR)
-  .filter((d) => /^2026-/.test(d) && (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory())
-  .sort();
+/* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk, and the two filters in the
+   old one-line `.filter()` are DIFFERENT KINDS of statement. `/^2026-/` is a NIGHT RULE and goes to
+   `snapshotNights`, which measures it against `NIGHT_RE` over the same listing and names what it
+   refused and what it swallowed; `--night` is a SELECTION over that offer, so it stays here and is
+   named by the count it left unread. The quality gates below are COVERAGE rules over the offer, not
+   night rules, so they ride `notANight` at the end. */
+const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+const nights = popBefore.nights.filter((d) => !ONLY || d === ONLY);
+const covered = [];
 const allIQR = [],
   allLag = [];
 let totKept = 0,
@@ -281,6 +293,7 @@ for (const n of nights) {
   totPass += passN;
   allIQR.push(...wIQR);
   allLag.push(...wLag);
+  covered.push({ night: n, ok: true });
   console.log(
     `  ${n}  ${String(kept + rej).padStart(4)} ${String(kept).padStart(5)} ${String(rej).padStart(4)}  ` +
       `${med(wLag).toFixed(0).padStart(6)}ms ${med(wIQR).toFixed(0).padStart(5)} ${pct(wIQR, 0.25).toFixed(0).padStart(4)} ${pct(wIQR, 0.75).toFixed(0).padStart(4)}   ` +
@@ -294,3 +307,43 @@ if (allIQR.length) {
   console.log(`    median lag        : ${med(allLag).toFixed(0)} ms  (p25 ${pct(allLag, 0.25).toFixed(0)} · p75 ${pct(allLag, 0.75).toFixed(0)}) — chest→periphery transit`);
   console.log(`    windows clearing the ${BAR_MS} ms bar : ${totPass}/${allIQR.length}  (${((100 * totPass) / allIQR.length).toFixed(1)}%)`);
 } else console.log('\n  no window survived — that is the result.');
+
+/* THE POPULATION, REPORTED SEPARATELY FROM THE WINDOW DISTRIBUTION. The corpus block above counts
+   WINDOWS; this verdict says whether the night population moved under the run. The status labels
+   MOVEMENT, not coverage: `checked` is the intersection of the two snapshots, and reading it as a
+   scored count would publish the whole offer as scored. */
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+  tool: 'tools/pat-hrv-windows.mjs',
+  evidence: ['tools/pat-hrv-windows.mjs']
+});
+/* Named against the SELECTED set: under `--night` the rest of the offer was never a candidate. */
+const unscored = notANight({ n: nights.length, nights }, covered);
+console.log(
+  `\n  population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${covered.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+);
+const rl = ruleLine(population);
+if (rl) console.log('  ' + rl);
+console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+console.log('POPULATION ' + JSON.stringify(population));
+
+/* The sample the adoption gate reads: two identical fabricated snapshots, so the object is complete
+   and no corpus is touched. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^2026-/),
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-hrv-windows.mjs', at, evidence: ['tools/pat-hrv-windows.mjs'] });
+}
