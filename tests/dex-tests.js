@@ -11061,6 +11061,35 @@
           .join(', '),
         ''
       );
+      /* ── A REPORT THAT ONLY THE SCORING PATH REACHES IS A REPORT NO BOX RUNS ──────────────────
+         Row 2026-10-21-the-reference-validation-population-path-runs-on-no-box-here.
+         `tch-reference-validation.mjs` scores an external nightly volume named by `DEX_ECG_NIGHTLY`,
+         and it refused at the absent input BEFORE reaching its population report. So the wiring ran
+         on no box here. Measured 2026-10-22 against `origin/main`'s copy: with no volume the run
+         printed two lines about a mount, exited 2, and named no corpus at all.
+
+         The scope is narrow on purpose. Two siblings refuse the same way — `tch-window-sensitivity`
+         at its `existsSync(DIR)` guard and `tch-multinight` at `--dir`: path not found — and neither
+         CAN report a population there, because the absent path IS the corpus root. This tool's root
+         is `uploads/trio`, a different path, which stays readable while the input is gone. A refusal
+         that can state the corpus it did not score, and does not, is the row's defect.
+
+         So the refusal reports from the SAME printer as the scoring path. Two printers drift, and the
+         one that drifts unseen is the one nobody runs. */
+      var RV = TT['tools/tch-reference-validation.mjs'] || '';
+      T.ok('ANTI-VACUITY · the reference-validation source is loaded', /DEX_ECG_NIGHTLY/.test(RV), RV.length + ' char(s)');
+      T.ok(
+        'the absent-input refusal reports the population it could not score',
+        /if \(!fs\.existsSync\(EN\)\) \{[\s\S]{0,400}?refuseWithPopulation\(/.test(RV),
+        'the guard calls refuseWithPopulation'
+      );
+      T.ok('that refusal publishes NOT_RUN over nothing, never a PASS', /status: 'NOT_RUN'[\s\S]{0,200}?checked: 0/.test(RV), 'NOT_RUN with checked 0');
+      T.eq('ONE printer, so the refusal and the scoring path cannot drift apart', (RV.match(/population: \$\{/g) || []).length, 1);
+      /* AND A RUN THAT SCORED NOTHING DOES NOT READ AS A PASS. Row
+         2026-10-22-a-present-but-empty-input-path-still-exits-zero: with `DEX_ECG_NIGHTLY` pointed at
+         an empty directory the tool walked all 147 nights, published `population: PASS`, printed
+         `no data`, and exited 0. The population was honest and the exit code was not. */
+      T.eq('a run that scored no epoch does not exit 0', (RV.match(/process\.exit\(0\)/g) || []).length, 0);
     });
     /* ════ ONE SELFTEST PREDICATE, AND IT LIVES IN TWO FILES ════════════════════════════════════
        Row 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. Two gates decide whether a tool
