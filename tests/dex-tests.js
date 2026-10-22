@@ -10997,6 +10997,29 @@
         return /readdirSync[\s\S]{0,200}?\\d\{4\}-\\d\{2\}-\\d\{2\}/.test(TT['tools/' + t] || '');
       });
       T.eq('a tool that reports its population does not enumerate the same root a second time by hand', twoWalks.join(', '), '');
+      /* AND THE CLEARANCE MUST COME OFF A CALL THE RUN MAKES. Every wired tool carries a
+         `verdictSample` helper, because the adoption gate has to read one verdict object on a box
+         with no corpus mounted, and that FABRICATED call was clearing the tool here: measured
+         2026-10-22 by gutting the real call in `acc-shared-movement.mjs` and leaving the sample,
+         which left the class `reports` and this group green over 28 assertions. §4b one module
+         along — a clearance stated about something the run never examines. Both directions,
+         because blanking every helper body would pass the negative half and clear nothing. */
+      T.ok(
+        'CONTROL · a population verdict reachable only from a sample helper does not clear a tool, and a real call does',
+        CR.classifyTool("const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);\nfunction verdictSample() {\n  return populationVerdict(a, b, {});\n}").cls === 'enumerates' &&
+          CR.classifyTool("const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);\nconst p = populationVerdict(a, b, {});").cls === 'reports',
+        'sample-only → enumerates · real call → reports'
+      );
+      /* AND THE BLANKING IS THE HELPER AND NOTHING ELSE, read off the pure helper so a later move
+         in the class ladder cannot hide a span that swallowed the rest of the file. The line count
+         is part of the contract: every other rung reports a position. */
+      T.ok(
+        'the sample blanking removes the helper body, keeps the code around it, and keeps the line positions',
+        !/populationVerdict/.test(CR.blankSampleHelpers('function verdictSample() {\n  return populationVerdict(y);\n}\n')) &&
+          /populationVerdict/.test(CR.blankSampleHelpers('const a = populationVerdict(x);\nfunction verdictSample() {\n  return populationVerdict(y);\n}\n')) &&
+          CR.blankSampleHelpers('function verdictSample() {\n  return populationVerdict(y);\n}\n').split('\n').length === 4,
+        'the call inside is gone · the call outside survives · 4 line(s) in, 4 out'
+      );
       /* THE DELEGATION MUST NOT DELETE THE EVIDENCE. Wiring moves the walk behind the helper, which
          also removes the night regex that put the tool in this population. A tool that imports the
          primitive is a corpus consumer whatever else its text says. */
