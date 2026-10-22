@@ -192,10 +192,23 @@ def test_timeline_refuses_path_traversal_in_the_night_name(tmp_path, night):
     assert _serve(app, go) == 400
 
 
+def _capture_night(caps, night, when=None):
+    """A night folder holding one real capture FILE, which is what `webmon.newest_night` reads.
+
+    An EMPTY folder is not a night being written, and the chooser says so. A test that needs the
+    default night to exist therefore needs a capture file in it, not just a `mkdir`."""
+    d = pathlib.Path(caps) / night
+    d.mkdir(parents=True)
+    f = d / f"Polar_H10_02849638_{night.replace('-', '')}220000_ECG.txt"
+    f.write_text("Phone timestamp;x\n2026-07-25T22:00:00.000;1\n")
+    if when is not None:
+        os.utime(str(f), (when, when))
+    return d
+
+
 def test_timeline_falls_back_to_the_default_bucket_count(tmp_path):
     """A non-numeric ?buckets must not 500 — it falls back, and the clamp keeps it sane."""
-    cap = tmp_path / "captures" / "2026-07-25"
-    cap.mkdir(parents=True)
+    _capture_night(tmp_path / "captures", "2026-07-25")
     app, *_ = _mk(tmp_path)
 
     async def go(c):
@@ -207,13 +220,20 @@ def test_timeline_falls_back_to_the_default_bucket_count(tmp_path):
 
 def test_timeline_picks_the_night_with_the_newest_ACTIVITY(tmp_path):
     """Not the newest NAME. After midnight the sensor writers stay in their session's start-date folder
-    while only the sidecars roll, so the newest name holds two files and no data."""
+    while only the sidecars roll, so the newest name holds two files and no data.
+
+    Two things this test got wrong until 2026-10-22, and both made it assert less than its name says.
+    It stamped the two DIRECTORIES, which the chooser does not read and which an append never moves,
+    over folders holding no capture file at all. And it read the answer through
+    `body.get("night", "2026-07-25")`, so a response with no `night` key at all passed. The stamps now
+    land on the capture FILES, and the key is read directly."""
     caps = tmp_path / "captures"
-    old, new = caps / "2026-07-26", caps / "2026-07-25"
-    old.mkdir(parents=True)
-    new.mkdir(parents=True)
-    os.utime(str(old), (1000, 1000))  # newest name, stale mtime
-    os.utime(str(new), (9_000_000_000, 9_000_000_000))  # older name, freshest activity
+    # Created in THIS order on purpose: the decoy is both the newest NAME and the newest DIRECTORY
+    # mtime, so a chooser reading either one lands on it and this test fails. Creation order is the
+    # only thing a directory mtime records.
+    session = _capture_night(caps, "2026-07-25", when=9_000_000_000)  # older name, freshest write
+    decoy = _capture_night(caps, "2026-07-26", when=1000)  # newest name, stale write
+    assert os.path.getmtime(str(decoy)) > os.path.getmtime(str(session))
     app, *_ = _mk(tmp_path)
 
     async def go(c):
@@ -221,7 +241,7 @@ def test_timeline_picks_the_night_with_the_newest_ACTIVITY(tmp_path):
         return r.status, await r.json()
 
     status, body = _serve(app, go)
-    assert status == 200 and body.get("night", "2026-07-25") == "2026-07-25"
+    assert status == 200 and body["night"] == "2026-07-25"
 
 
 def test_timeline_500s_with_a_reason_when_the_build_throws(tmp_path, monkeypatch):

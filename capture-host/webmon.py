@@ -31,6 +31,7 @@ import storage_targets
 import alerts
 import timeline as _timeline
 import nights_index as _nights
+import nightqc as _nightqc
 import ble_series as _ble
 import mem_series as _mem
 import build_id
@@ -74,19 +75,47 @@ _NIGHT_NAME = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def newest_night(captures: str) -> str:
-    """The night folder being WRITTEN — the newest ACTIVITY, never the newest name, and `""` when the
-    captures directory cannot be listed.
+    """The night folder being WRITTEN — the newest DATA WRITE, never the newest name, never the newest
+    FOLDER, and `""` when nothing in the tree holds capture data.
 
-    After midnight the sensor writers stay in their session's start-date folder while only the sidecars
-    roll, so the newest NAME holds two files and no data. `sorted(... or True)` stood in the timeline
-    handler until 2026-08-01: an `or True` makes the whole condition constant, so the filter selected
-    nothing and the sort was thrown away by the `max` on the next line. ONE copy now, because the probe
-    toggle has to write into exactly the folder the timeline is showing."""
+    A directory's mtime records ENTRY CREATION and nothing else: creating the folder and its first file
+    sets it, an append to that file leaves it unchanged, and creating a second entry moves it (measured
+    2026-10-21 on tmpfs). Capture writers append all night, so a directory-mtime read cannot see a
+    session at all — and at 00:00 the box creates tomorrow's folder and writes sidecars into it while
+    every sensor keeps appending to the session's START-date folder. That decoy is lexically newer AND
+    the only folder whose directory mtime just moved, so both the name read and the folder-mtime read
+    land on the folder holding no data. `nightqc.newest_data_mtime` already pays for the right answer —
+    per-FILE mtimes with the sidecars excluded — and the incident in its docstring is the price of
+    getting this wrong: nine streams reported absent against 942 MB of healthy tri-device recording.
+    ONE copy here, because the probe toggle has to write into exactly the folder the timeline is
+    showing.
+
+    §∅: a tree whose folders hold no capture file has no folder being written, so the answer is `""`
+    and both call sites report the absence. It is never the newest directory as a stand-in.
+
+    The tie-break is the NAME, so an equal newest write resolves the same way on every box: `max` keeps
+    the first maximal element, which is whichever name `os.listdir` happens to yield first, and that
+    reds a test on one runner and passes it on another.
+
+    `sorted(... or True)` stood in the timeline handler until 2026-08-01: an `or True` makes the whole
+    condition constant, so the filter selected nothing and the sort was thrown away by the `max` on the
+    next line."""
     try:
-        nights = [n for n in os.listdir(captures) if os.path.isdir(os.path.join(captures, n))]
-        return max(nights, key=lambda n: os.path.getmtime(os.path.join(captures, n)), default="")
+        names = os.listdir(captures)
     except OSError:
         return ""
+    best: tuple[float, str] | None = None
+    for n in names:
+        path = os.path.join(captures, n)
+        if not os.path.isdir(path):
+            continue
+        m = _nightqc.newest_data_mtime(path)
+        if m is None:
+            continue
+        cand = (m, n)
+        if best is None or cand > best:
+            best = cand
+    return "" if best is None else best[1]
 
 
 def _valid_mac(a) -> bool:
