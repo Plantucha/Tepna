@@ -709,8 +709,6 @@ export const UNWIRED_BACKLOG = {
   'nsrr-oxydex-odi.mjs': 2,
   'nsrr-stage-validate.mjs': 1,
   'o2ring-finger-validate-batch.mjs': 1,
-  'oracle-ecg-firmware-rr.mjs': 4,
-  'oracle-ppg-device-beats.mjs': 2,
   'oxy-hr-bias.mjs': 2,
   'pat-connection-stability.mjs': 3,
   'pat-dip-validate.mjs': 2,
