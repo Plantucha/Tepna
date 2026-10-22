@@ -11111,7 +11111,17 @@
        such run drift. The repair is three-valued: only an equal population earns a word. ════ */
     group('a published control carries the population it was computed over', 'tools · controls · source-scan', function (T) {
       var TT = env.toolTexts;
-      var AC = (TT && TT['tools/ecg-apnea-correlate.mjs']) || '';
+      /* A SKIP IS NOT A PASS, AND THE LANE DECIDES WHICH. The browser lane enumerates no directory, so
+         `toolTexts` is absent there; the node lane has no such excuse. Measured 2026-10-22 on this
+         PR's own head: without this guard the two regex assertions below ran over an empty string and
+         reded `browser-gates` while the node lane read green. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the published-control scan examined nothing');
+        else T.skip('the published-control population scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var AC = TT['tools/ecg-apnea-correlate.mjs'] || '';
       T.ok('ANTI-VACUITY · the apnea-correlate source is loaded', /const CANDIDATES = \[/.test(AC), AC.length + ' chars');
       /* A PLANT NAMES THE CANDIDATE, NOT A COUNT. Deleting one `controlN` reports which published
          figure lost its population, which is the only thing a reader can act on. */
