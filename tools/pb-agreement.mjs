@@ -31,9 +31,11 @@
  *   node tools/pb-agreement.mjs --cpap /tmp/cpap-exports.json [--dir uploads/trio] [--json]
  *     --selftest   known-answer checks for the agreement math (no corpus, no I/O)
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -257,6 +259,15 @@ if (VERDICT_SAMPLE) {
   process.exit(0);
 }
 
+function gitCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+  } catch {
+    /* not a checkout → commit null, and the verdict's own commitReason is then the true one */
+    return null;
+  }
+}
+
 if (!CPAP || !existsSync(CPAP)) {
   console.error('pb-agreement: --cpap <exports.json> required.\n  node tools/cpap-corpus.mjs --root <SD>/DATALOG --out /tmp/cpap-exports.json\n');
   process.exit(2);
@@ -279,17 +290,33 @@ for (const n of cpapNights) {
   dev.set(key, pb.length ? { totalSec: (pb[0].meta && pb[0].meta.totalSec) || 0, pct: (pb[0].meta && pb[0].meta.pct) || 0 } : { totalSec: 0, pct: 0 });
 }
 
+/* THE OFFER, UNDER THE DEFAULT NIGHT RULE — `trio-batch.mjs` writes `YYYY-MM-DD` folders and this
+   tool declares no rule of its own. A directory the rule refuses could only have been dropped one
+   line below by the export-and-pairing test anyway, so the paired set does not move (measured on the
+   real root, where the rule and the hand walk offered the same nights). */
+const snap = snapshotNights(DIR);
+/* 🔴 STAMP THE CODE THAT RAN, not the code at the end of the run. */
+const commit = gitCommit();
 const rows = [];
-for (const night of readdirSync(DIR, { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .map((d) => d.name)
-  .sort()) {
+/* EVERY REMOVAL CARRIES ITS REASON. These three `continue`s used to spend a night in silence, which
+   is how 108 of 147 offered nights left no trace in a κ over 39 (row
+   2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+const dropped = [];
+for (const night of snap.nights) {
   const f = join(DIR, night, `OxyDex_${night}.node-export.json`);
-  if (!existsSync(f) || !dev.has(night)) continue;
+  if (!existsSync(f)) {
+    dropped.push(`${night}: no OxyDex export`);
+    continue;
+  }
+  if (!dev.has(night)) {
+    dropped.push(`${night}: no device-scored CPAP night`);
+    continue;
+  }
   let j;
   try {
     j = JSON.parse(readFileSync(f, 'utf8'));
-  } catch {
+  } catch (e) {
+    dropped.push(`${night}: unparseable OxyDex export (${e.message})`);
     continue;
   }
   const pb = (j.ganglior_events || []).filter((e) => e.impulse === 'periodic_breathing');
@@ -314,6 +341,23 @@ const r =
       )
     : null;
 
+/* THE SET MAY HAVE MOVED WHILE THIS RAN; the closing walk is what says so. */
+const population = populationVerdict(snap, snapshotNights(DIR), {
+  commit,
+  tool: 'tools/pb-agreement.mjs',
+  evidence: ['tools/pb-agreement.mjs', 'tools/corpus-scope.mjs']
+});
+
+function printPopulation() {
+  console.log(
+    `  population: ${population.status} — ${population.population.checked} offered night(s) the run can report over, of ${population.population.eligible} it saw${population.reason ? ` · ${population.reason}` : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`  the read paired ${rows.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  if (dropped.length) console.log(`  it removed ${dropped.length}, by name: ${dropped.slice(0, 8).join(' · ')}${dropped.length > 8 ? ` · … (+${dropped.length - 8})` : ''}`);
+}
+
 const VERDICT = pbVerdict({
   n: rows.length,
   table: { both: a, deviceOnly: b, oxyOnly: c, neither: d },
@@ -326,15 +370,30 @@ const VERDICT = pbVerdict({
 if (AS_JSON) {
   console.log(
     JSON.stringify(
-      { dir: DIR, cpap: CPAP, nights: rows.length, table: { both: a, deviceOnly: b, oxyOnly: c, neither: d }, kappa: k, burdenR: r, multiSpanNights: multiSpan, rows, verdict: VERDICT },
+      {
+        dir: DIR,
+        cpap: CPAP,
+        nights: rows.length,
+        table: { both: a, deviceOnly: b, oxyOnly: c, neither: d },
+        kappa: k,
+        burdenR: r,
+        multiSpanNights: multiSpan,
+        dropped,
+        rows,
+        verdict: VERDICT,
+        corpusPopulation: population
+      },
       null,
       2
     )
   );
-  process.exit(0);
+  /* A RUN THAT PAIRED NOTHING IS NOT A SUCCESSFUL RUN. The verdict already said NOT_RUN and the
+     exit code said 0, which is the half an unattended caller reads. */
+  process.exit(rows.length ? 0 : 2);
 }
 
 console.log(`\npb-agreement — ${rows.length} paired night(s)`);
+printPopulation();
 console.log(`\nThe device exports PB as ONE event per night carrying meta.totalSec — a nightly TOTAL, not`);
 console.log(`located spans (${multiSpan} night(s) carried more than one). So an episode-by-episode overlap is`);
 console.log(`not possible from this export, with or without the ~38.28 min clock correction. This is the`);
@@ -346,4 +405,13 @@ console.log(`\n  Cohen's kappa (chance-corrected agreement): ${k == null ? `— 
 console.log(`  OxyDex flags PB on ${a + c}/${rows.length} nights; the device on ${a + b}/${rows.length}.`);
 if (r != null) console.log(`  burden correlation where BOTH fire (n=${both.length}): r = ${r.toFixed(3)}`);
 else console.log(`  burden correlation: n=${both.length} nights where both fire — too few to report`);
+if (dropped.length) {
+  console.log(`\n  the ${dropped.length} offered night(s) this run removed, with the reason each one carries:`);
+  for (const line of dropped) console.log(`    ⊘ ${line}`);
+}
 console.log('');
+/* THE OBJECT IS THE API (§🧾). This run DECIDES whether κ is defined, and until now it printed that
+   decision only under `--json` — the prose went out and the object stayed in the process
+   (row 2026-10-22-the-pb-agreement-verdict-is-printed-only-under-json). */
+console.log(JSON.stringify({ verdict: VERDICT, corpusPopulation: population }, null, 2));
+process.exit(rows.length ? 0 : 2);
