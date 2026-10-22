@@ -11096,6 +11096,37 @@
         return /export function notANight\s*\(/.test(TT[k] || '');
       });
       T.eq('the removal namer is defined once, and in corpus-scope.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope.mjs');
+      /* ── A REASON THAT NAMES A CAUSE THE RUN CANNOT HAVE HAD ──────────────────────────────────
+         Row 2026-10-22-the-population-verdict-stamps-a-cause-it-never-checked. Every verdict
+         `tools/corpus-scope.mjs` built stamped `commit: null, commitReason: 'not read from a git
+         tree'` whenever the caller named no commit — and no caller does, because the primitive owns
+         the repo root and its 20 consumers do not. So every wired tool published a null code
+         identity under a sentence that was FALSE of all of them: they run from inside the checkout,
+         where `git rev-parse` answers. `tools/tch-reference-validation.mjs` carried the same pair as
+         a hardcoded literal on its refusal path.
+
+         ∅ The rule is not "always stamp a commit" — a run genuinely outside a tree must still say
+         so. It is that the REASON is measured: the literal pair below asserts an absence the code
+         never checked, so it reds, while a reason derived from a failed lookup passes. */
+      var borrowedCause = Object.keys(TT).filter(function (k) {
+        return /commit:\s*null,\s*commitReason:\s*'not read from a git tree'/.test(TT[k] || '');
+      });
+      T.eq('no tool asserts an absent code identity under a cause it never checked', borrowedCause.sort().join(', '), '');
+      T.ok(
+        'ANTI-VACUITY · the detector fires on the pair it names',
+        /commit:\s*null,\s*commitReason:\s*'not read from a git tree'/.test("producedBy: { tool: TOOL, commit: null, commitReason: 'not read from a git tree' },"),
+        'the planted literal matches'
+      );
+      /* AND THE PRIMITIVE OWNS THE READER, so a consumer cannot be asked to resolve what it has no
+         root for. A re-duplication of the git read into a corpus consumer reds here. */
+      T.ok('the night primitive exports the commit reader it uses', /export function gitCommitOf\s*\(/.test(TT['tools/corpus-scope.mjs'] || ''), 'gitCommitOf is exported from corpus-scope.mjs');
+      /* AND THE THREE-BRANCH CHOICE HAS ONE DEFINITION. Stated commit wins · a caller disclaiming
+         identity keeps its own reason · otherwise read the tree. Three tools spelled that out by
+         hand and one of them spelled it wrong, which is the `notANight` duplication lesson again. */
+      var producedByDefs = Object.keys(TT).filter(function (k) {
+        return /export function producedByOf\s*\(/.test(TT[k] || '');
+      });
+      T.eq('the code-identity resolver is defined once, and in corpus-scope.mjs', producedByDefs.sort().join(', '), 'tools/corpus-scope.mjs');
       /* ── A REPORT THAT ONLY THE SCORING PATH REACHES IS A REPORT NO BOX RUNS ──────────────────
          Row 2026-10-21-the-reference-validation-population-path-runs-on-no-box-here.
          `tch-reference-validation.mjs` scores an external nightly volume named by `DEX_ECG_NIGHTLY`,
