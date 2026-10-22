@@ -78978,7 +78978,17 @@
        the verdict's own criterion never reads a memory number. */
     group('the tiering job reports its own held memory, and no figure stands in for an absent one', 'tools · corpus-tier · absence · source-scan', function (T) {
       var TT = env.toolTexts;
-      var CT = (TT && TT['tools/corpus-tier.mjs']) || '';
+      /* A SKIP IS NOT A PASS, AND THE LANE DECIDES WHICH. The browser lane enumerates no directory, so
+         `toolTexts` is absent there and every regex below would run over an empty string and red
+         `browser-gates`; the node lane has no such excuse, so there an absent population is a FAILURE.
+         Measured 2026-10-22 against a sibling group that shipped without this guard. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the held-memory scan examined nothing');
+        else T.skip('the held-memory source scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var CT = TT['tools/corpus-tier.mjs'] || '';
       T.ok('ANTI-VACUITY · the corpus-tier source is loaded', /const MEM_FIELDS = \['VmHWM', 'VmRSS', 'VmSwap'\];/.test(CT), CT.length + ' chars');
       T.eq('an unmatched field is null, and exactly one assignment decides that', (CT.match(/kb\[f\] = m \? Number\(m\[1\]\) : null;/g) || []).length, 1);
       T.eq('§∅ · no memory figure falls back to a number', (CT.match(/(hwmKb|rssKb|swapKb|vmHWMKb|vmRSSMaxKb|vmSwapMaxKb)[^\n]*(\?\? 0|\|\| 0)/g) || []).join(' · '), '');
