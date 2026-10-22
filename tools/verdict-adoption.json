@@ -464,6 +464,58 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_pull_once_survivors_p3.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_qwen.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_qwen2.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_qwen3.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_r1.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_r2.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_r3.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_r4.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_r5.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_s1.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_s2.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_s4.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_survivors_s5.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_pull_session.py": {
    "bin": "test",
    "status": "exempt"
