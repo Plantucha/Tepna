@@ -7,6 +7,7 @@ tests' idiom — because the load runs in a browser against a same-origin app wi
 import os
 
 import webmon
+from tests._srcscan import split_segment, until_anchor
 from tests.test_webmon_api import _mk, _serve
 
 ROWS = "Phone timestamp;x\n2026-09-19T22:00:00.000;1\n2026-09-19T23:00:00.000;1\n"
@@ -210,11 +211,19 @@ def test_every_clickable_night_routes_to_an_input_the_app_actually_has():
     # test_the_tool_classifiers_accept_box_filenames), so the ✓ cell carries the same data-night/data-node
     # the device cells do, and their routes are in the equality above like any other clickable column.
     # Since the Nights view (2026-10-11) the ✓ is a cell of the "Fused & derived" tab, built by nFusCell.
-    fus = html.split("function nFusCell")[1].split("\nfunction ")[0]
+    fus = until_anchor(
+        split_segment(html, "function nFusCell", 1, where="monitor.html"),
+        "\nfunction ",
+        where="monitor.html (the end of nFusCell)",
+    )
     assert 'data-node="${esc(f.node)}"' in fus and "v===true" in fus
     # …and EVERY derived tool has a column on that tab: a tool the index publishes and the page never draws
     # would be a click nobody can make
-    fused = html.split("const NIGHT_FUSED = [")[1].split("];")[0]
+    fused = until_anchor(
+        split_segment(html, "const NIGHT_FUSED = [", 1, where="monitor.html"),
+        "];",
+        where="monitor.html (the end of the NIGHT_FUSED literal)",
+    )
     drawn = set(re.findall(r"node:'([^']+)'", fused))
     assert set(ni.DERIVED) <= drawn, sorted(set(ni.DERIVED) - drawn)
     # the positional fallback is gone: a missing route or selector refuses instead of guessing
@@ -815,16 +824,34 @@ def test_the_nights_view_is_the_owner_approved_design():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
     assert 'data-ntab="dev"' in html and 'data-ntab="fus"' in html and 'id="nightsOverview"' in html
-    devices = html.split("const NIGHT_DEVICES = [")[1].split("];")[0]
+    devices = until_anchor(
+        split_segment(html, "const NIGHT_DEVICES = [", 1, where="monitor.html"),
+        "];",
+        where="monitor.html (the end of the NIGHT_DEVICES literal)",
+    )
     names = re.findall(r"name:'([^']+)'", devices)
     assert names == ["H10", "Verity", "O2Ring", "AirSense", "Muse", "CGM"], names
-    assert "name:'Verity'" in devices and "node:'PPGDex'" in devices.split("name:'Verity'")[1].split("\n")[0]
+    verity = until_anchor(
+        split_segment(devices, "name:'Verity'", 1, where="the NIGHT_DEVICES literal"),
+        "\n",
+        where="the NIGHT_DEVICES literal (the end of the Verity row)",
+    )
+    assert "name:'Verity'" in devices and "node:'PPGDex'" in verity
     # the solid row leads the strip, read from the night's own folder
-    render = html.split("function renderNights(){")[1].split("\n}\n")[0]
+    render = until_anchor(
+        split_segment(html, "function renderNights(){", 1, where="monitor.html"),
+        "\n}\n",
+        where="monitor.html (the end of renderNights)",
+    )
     assert render.index("Solid night") < render.index("for(const c of cols)")
     assert "'/SOLID-VERDICT.json'" in html
     # every status class has a glyph, and no two classes share one: hue is never the only signal
-    glyphs = dict(re.findall(r"(\w+):'([^']+)'", html.split("const NIGHT_GLYPH = {")[1].split("};")[0]))
+    glyph_table = until_anchor(
+        split_segment(html, "const NIGHT_GLYPH = {", 1, where="monitor.html"),
+        "};",
+        where="monitor.html (the end of the NIGHT_GLYPH literal)",
+    )
+    glyphs = dict(re.findall(r"(\w+):'([^']+)'", glyph_table))
     assert set(glyphs) == {"ok", "part", "low", "rec", "unk", "none", "probe"} and len(set(glyphs.values())) == 7, (
         glyphs
     )

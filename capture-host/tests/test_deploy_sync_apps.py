@@ -18,6 +18,8 @@ import os
 import re
 import subprocess
 
+from tests._srcscan import split_segment, until_anchor
+
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = os.path.join(HERE, "deploy", "sync-apps.sh")
 
@@ -916,7 +918,10 @@ def test_THE_DROP_IN_CONTAINS_THE_READWRITEPATHS_THE_UNIT_SAYS_IT_DOES():
     assert promised, "the unit no longer documents the clock drop-in — the scan has stopped working"
 
     # The paths the SCRIPT actually writes into the drop-in heredoc.
-    body = script.split("clock-control.conf <<'DROPIN'", 1)[1].split("DROPIN", 1)[0]
+    opened = split_segment(
+        script, "clock-control.conf <<'DROPIN'", 1, where="deploy/enable-clock-control.sh", maxsplit=1
+    )
+    body = until_anchor(opened, "DROPIN", where="deploy/enable-clock-control.sh (the end of the drop-in heredoc)")
     written = set()
     for line in body.splitlines():
         t = line.strip()
