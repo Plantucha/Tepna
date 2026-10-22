@@ -1142,9 +1142,16 @@
    }
   },
   "tools/deep-vlf-probe.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/deep-vlf-probe.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "emits the corpus-population verdict for the trio root the AUCs are computed over: the opening and closing walks of the same root, so an AUC that moved because the corpus gained a night is distinguishable from one that moved because the probe changed. The criterion is pre-stated and is about MOVEMENT (nights_added_or_removed <= 0), never about the AUC, which stays unbanded; --until is a declared narrowing and the nights it removes are named beside the skips. A readable root that offered no night is NOT_RUN and the run exits 2. scope: internal."
   },
   "tools/defect-bench-solve.mjs": {
    "bin": "decides",
@@ -1217,9 +1224,16 @@
    "note": "wave-3 adopter (#3368 gates): --json prints ONE tepna.verdict/1. Was binned word-only/exempt on the grounds that \"the machine-readable result is the exit code\" \u2014 which the VERDICT-CONTRACT rejects as a reason: an exit code carries no population, no criterion and no reason, so it cannot say what was examined. PASS/FAIL over the declared CHECKS list. A doc sentence reworded or a constant renamed is a FAILURE (doc-pattern-missing / code-pattern-missing), never a skip: a gate that cannot compare must not report agreement."
   },
   "tools/ecg-apnea-correlate.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ecg-apnea-correlate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "emits the corpus-population verdict for the trio root it correlates over: the opening and closing walks of the same root, so a correlation that moved because a night arrived is distinguishable from one that moved because a candidate changed. The criterion is pre-stated and is about MOVEMENT (nights_added_or_removed <= 0), never about the correlation itself, which stays unbanded on purpose; a readable root that offered no night is NOT_RUN and the run exits 2. scope: internal."
   },
   "tools/ecg-physionet-differential.mjs": {
    "bin": "decides",

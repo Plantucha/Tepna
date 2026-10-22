@@ -26,13 +26,22 @@
  *   --dir <trio>    `uploads/trio/<night>/ECGDex_<night>.node-export.json` (tools/trio-batch.mjs output)
  *   --cpap <json>   output of `node tools/cpap-corpus.mjs --root <SD>/DATALOG --out <file>`
  *
+ * WHAT POPULATION A ROW IS ABOUT. The trio root is re-tiered and re-folded between runs, so a
+ * correlation that moved because a night arrived reads exactly like one that moved because a
+ * candidate changed. Every run now snapshots the root before the walk and again after it, publishes
+ * that comparison as a `tepna.verdict/1` under the gate `corpus-population`, and names the offered
+ * nights the read could not pair (row 2026-10-21-forty-one-corpus-enumerators-report-no-population).
+ *
  * USAGE
  *   node tools/ecg-apnea-correlate.mjs --cpap /tmp/cpap-exports.json [--dir uploads/trio] [--json]
- *     --selftest    known-answer checks for the correlation math (no corpus, no I/O)
+ *     --selftest         known-answer checks for the correlation math (no corpus, no I/O)
+ *     --verdict-sample   the population verdict alone, for `verify:verdict-adoption`
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -132,6 +141,49 @@ if (SELFTEST) {
   process.exit(bad ? 1 : 0);
 }
 
+/* ── the population statement ─────────────────────────────────────────────── */
+/* A planted pair of snapshots, printed ALONE because `verify:verdict-adoption` parses stdout as
+   JSON. The sample population MOVED on purpose: a sample showing only the stable case would not
+   show the reader the one shape they have to act on. */
+const snapshotOf = (nights) => ({
+  ok: true,
+  root: '/corpus/trio',
+  reason: null,
+  n: nights.length,
+  nights,
+  digest: null,
+  maxCtimeMs: null,
+  at: '2026-10-22T00:00:00Z',
+  rule: '/^\\d{4}-\\d{2}-\\d{2}$/',
+  ruleIsDefault: true,
+  rejectedNightShaped: [],
+  admittedNonNight: []
+});
+if (argv.includes('--verdict-sample')) {
+  console.log(
+    JSON.stringify(
+      populationVerdict(snapshotOf(['2026-06-10', '2026-06-11', '2026-06-12']), snapshotOf(['2026-06-10', '2026-06-11']), {
+        commit: null,
+        at: '2026-10-22T00:00:00Z',
+        tool: 'tools/ecg-apnea-correlate.mjs',
+        evidence: ['tools/ecg-apnea-correlate.mjs']
+      }),
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
+
+function gitCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+  } catch {
+    /* not a checkout → commit null, and the verdict's own commitReason is then the true one */
+    return null;
+  }
+}
+
 /* ── corpus ───────────────────────────────────────────────────────────────── */
 if (!CPAP || !existsSync(CPAP)) {
   console.error(`ecg-apnea-correlate: --cpap <exports.json> is required and must exist.\n  Generate it with:\n    node tools/cpap-corpus.mjs --root <SD-card>/DATALOG --out /tmp/cpap-exports.json\n`);
@@ -166,12 +218,18 @@ const CANDIDATES = [
   { key: 'surgeEscalationPct', of: (a) => a.surgeEscalationPct }
 ];
 
+/* THE OFFER, UNDER THE DEFAULT NIGHT RULE. `trio-batch.mjs` writes `YYYY-MM-DD` folders, so the
+   default rule is the one this tool wants and it declares none of its own. A directory the rule
+   refuses could only have been dropped one line below by the ECGDex-export test anyway, so the
+   scored set does not move — measured on the real root, where the rule and the hand walk offered
+   the same nights. */
+const snap = snapshotNights(DIR);
+/* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading 147 exports takes long
+   enough for a commit to land in this worktree, and Node loaded this module at the start. */
+const commit = gitCommit();
 const paired = [];
 const skipped = [];
-for (const night of readdirSync(DIR, { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .map((d) => d.name)
-  .sort()) {
+for (const night of snap.nights) {
   const f = join(DIR, night, `ECGDex_${night}.node-export.json`);
   if (!existsSync(f)) {
     skipped.push(`${night}: no ECGDex export`);
@@ -208,14 +266,48 @@ const rows = CANDIDATES.map((c) => {
   return { key: c.key, n: xs.length, r, ci: fisherCI(r, xs.length), p: pValue(r, xs.length), rho: spearman(xs, ys), control: c.control };
 });
 
+/* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing walk is what says so. Without it a
+   correlation that moved because the corpus gained a night is indistinguishable from one that moved
+   because a candidate changed. */
+const population = populationVerdict(snap, snapshotNights(DIR), {
+  commit,
+  tool: 'tools/ecg-apnea-correlate.mjs',
+  evidence: ['tools/ecg-apnea-correlate.mjs', 'tools/corpus-scope.mjs']
+});
+
+/* THE OTHER HALF OF THE POPULATION. The verdict above is about MOVEMENT — what arrived or left
+   while the run read. It says nothing about the offered nights this run could not pair, and a count
+   of them names nothing to chase, so the removals go out by name with the reason each one carries.
+   The cap keeps a 147-night root readable; the `--json` form carries every one. */
+function printPopulation() {
+  console.log(
+    `\n  population: ${population.status} — ${population.population.checked} offered night(s) the run can report over, of ${population.population.eligible} it saw${population.reason ? ` · ${population.reason}` : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`  the read paired ${paired.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  if (skipped.length) console.log(`  it removed ${skipped.length}, by name: ${skipped.slice(0, 8).join(' · ')}${skipped.length > 8 ? ` · … (+${skipped.length - 8})` : ''}`);
+}
+
 if (AS_JSON) {
-  console.log(JSON.stringify({ dir: DIR, cpap: CPAP, nights: paired.length, skipped, rows }, null, 2));
-  process.exit(0);
+  console.log(JSON.stringify({ dir: DIR, cpap: CPAP, nights: paired.length, skipped, rows, corpusPopulation: population }, null, 2));
+  /* A RUN THAT PAIRED NOTHING IS NOT A SUCCESSFUL RUN, and the exit code is the only thing an
+     unattended caller reads. 2 keeps a refusal distinct from a computed row. */
+  process.exit(paired.length ? 0 : 2);
 }
 
 const f3 = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(3));
+if (!paired.length) {
+  /* `Math.min(...[])` is `Infinity`, so the heading below used to publish `AHI Infinity–-Infinity`
+     over an empty set and exit 0 — a range printed about nothing examined
+     (row 2026-10-22-the-apnea-correlate-empty-run-publishes-an-infinite-ahi-range). */
+  printPopulation();
+  console.error(`\necg-apnea-correlate: not one of the ${snap.n} offered night(s) paired with a device-scored CPAP night, so no correlation was computed.`);
+  console.log(JSON.stringify(population, null, 2));
+  process.exit(2);
+}
 console.log(`\necg-apnea-correlate — ${paired.length} paired night(s), AHI ${Math.min(...paired.map((p) => p.ahi)).toFixed(1)}–${Math.max(...paired.map((p) => p.ahi)).toFixed(1)}`);
-if (skipped.length) console.log(`skipped ${skipped.length} night(s)`);
+printPopulation();
 console.log('\n  predictor'.padEnd(24) + 'n'.padEnd(5) + 'Pearson r'.padEnd(12) + '95% CI'.padEnd(22) + 'p'.padEnd(9) + 'Spearman'.padEnd(11) + 'vs §9');
 for (const row of rows) {
   const ci = row.ci ? `[${f3(row.ci.lo)}, ${f3(row.ci.hi)}]` : '—';
@@ -234,3 +326,4 @@ for (const row of rows) {
   if (row.p != null && row.p < 0.05 / k) console.log(`    ${row.key} SURVIVES (p = ${row.p.toFixed(4)})`);
 }
 console.log('');
+console.log(JSON.stringify(population, null, 2));

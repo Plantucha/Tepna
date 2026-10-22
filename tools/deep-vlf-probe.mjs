@@ -43,10 +43,20 @@
  *     --until <date>     ignore nights after this date (for the placebo split — see below)
  *     --json             machine-readable output instead of the printed report
  *     --selftest         known-answer checks for the AUC/CI math (no corpus, no I/O)
+ *     --verdict-sample   the population verdict alone, for `verify:verdict-adoption`
+ *
+ * WHAT POPULATION A FIGURE IS ABOUT. The trio root is re-folded and re-tiered between runs, so an
+ * AUC that moved because a night arrived reads exactly like one that moved because the probe
+ * changed. Every run snapshots the root before the walk and again after it and publishes that
+ * comparison as a `tepna.verdict/1` under the gate `corpus-population`; `--until` is a declared
+ * narrowing, so the nights it removes are counted and named beside the skips rather than vanishing
+ * (row 2026-10-21-forty-one-corpus-enumerators-report-no-population).
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -146,6 +156,48 @@ if (SELFTEST) {
   process.exit(fails ? 1 : 0);
 }
 
+/* ── the population statement ─────────────────────────────────────────────── */
+/* Printed ALONE because `verify:verdict-adoption` parses stdout as JSON. The planted population
+   MOVED on purpose — a sample showing only the stable case hides the shape a reader must act on. */
+const snapshotOf = (nights) => ({
+  ok: true,
+  root: '/corpus/trio',
+  reason: null,
+  n: nights.length,
+  nights,
+  digest: null,
+  maxCtimeMs: null,
+  at: '2026-10-22T00:00:00Z',
+  rule: '/^\\d{4}-\\d{2}-\\d{2}$/',
+  ruleIsDefault: true,
+  rejectedNightShaped: [],
+  admittedNonNight: []
+});
+if (argv.includes('--verdict-sample')) {
+  console.log(
+    JSON.stringify(
+      populationVerdict(snapshotOf(['2026-07-16', '2026-07-17', '2026-07-18']), snapshotOf(['2026-07-16', '2026-07-17']), {
+        commit: null,
+        at: '2026-10-22T00:00:00Z',
+        tool: 'tools/deep-vlf-probe.mjs',
+        evidence: ['tools/deep-vlf-probe.mjs']
+      }),
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
+
+function gitCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+  } catch {
+    /* not a checkout → commit null, and the verdict's own commitReason is then the true one */
+    return null;
+  }
+}
+
 /* ── corpus ───────────────────────────────────────────────────────────────── */
 if (!existsSync(DIR)) {
   console.error(
@@ -153,10 +205,16 @@ if (!existsSync(DIR)) {
   );
   process.exit(2);
 }
-const nightDirs = readdirSync(DIR, { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .map((d) => d.name)
-  .sort();
+/* THE OFFER, UNDER THE DEFAULT NIGHT RULE. `trio-batch.mjs` owns the night key and writes
+   `YYYY-MM-DD` folders, so the default rule is this tool's rule and it declares none of its own. A
+   directory the rule refuses could only have been dropped one line below by the two export tests,
+   so the read set does not move — measured on the real root, where the rule and the hand walk
+   offered the same nights. */
+const snap = snapshotNights(DIR);
+/* 🔴 STAMP THE CODE THAT RAN, not the code at the end of the run: reading two exports per night
+   takes long enough for a commit to land, and Node loaded this module at the start. */
+const commit = gitCommit();
+const nightDirs = snap.nights;
 
 const epochsOut = []; // { night, arm, stage, contaminated, vlf, lf, hf, tp, rmssd, lfhf }
 const nightsUsed = [];
@@ -166,7 +224,12 @@ const skipped = [];
 const nightWindows = [];
 
 for (const night of nightDirs) {
-  if (UNTIL && night > UNTIL) continue;
+  if (UNTIL && night > UNTIL) {
+    /* A DECLARED NARROWING STILL COSTS NIGHTS, and a `continue` with no record spends them in
+       silence — the reader cannot tell this root from one that never held them (Magpie, #3860). */
+    skipped.push(`${night}: after --until ${UNTIL}, so this run declared it out of scope`);
+    continue;
+  }
   const ecgFile = join(DIR, night, `ECGDex_${night}.node-export.json`);
   const oxyFile = join(DIR, night, `OxyDex_${night}.node-export.json`);
   if (!existsSync(ecgFile) || !existsSync(oxyFile)) {
@@ -334,6 +397,26 @@ function compareArms(a, b, key) {
 }
 
 /* ── report ───────────────────────────────────────────────────────────────── */
+/* THE SET MAY HAVE MOVED WHILE THIS RAN. Without the closing walk an AUC that moved because the
+   corpus gained a night is indistinguishable from one that moved because the probe changed. */
+const population = populationVerdict(snap, snapshotNights(DIR), {
+  commit,
+  tool: 'tools/deep-vlf-probe.mjs',
+  evidence: ['tools/deep-vlf-probe.mjs', 'tools/corpus-scope.mjs']
+});
+
+/* The verdict above is about MOVEMENT — what arrived or left while the run read. The offered nights
+   this run did not read are a different statement, and a count of them names nothing to chase, so
+   the per-night skip list below carries the reason each one holds. */
+function printPopulation() {
+  console.log(
+    `\n  population: ${population.status} — ${population.population.checked} offered night(s) the run can report over, of ${population.population.eligible} it saw${population.reason ? ` · ${population.reason}` : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`  the read used ${nightsUsed.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}, removing ${skipped.length} named below`);
+}
+
 const pooled = armStats(epochsOut);
 const vigil = armStats(epochsOut.filter((e) => e.arm === 'vigil'));
 const legacy = armStats(epochsOut.filter((e) => e.arm === 'legacy'));
@@ -344,6 +427,7 @@ if (AS_JSON) {
       {
         dir: DIR,
         vigilFrom: VIGIL_FROM,
+        corpusPopulation: population,
         nightsUsed,
         skipped,
         pooled,
@@ -355,7 +439,9 @@ if (AS_JSON) {
       2
     )
   );
-  process.exit(0);
+  /* A RUN THAT READ NO NIGHT IS NOT A SUCCESSFUL RUN, and the exit code is the only thing an
+     unattended caller reads. 2 keeps a refusal distinct from a computed figure. */
+  process.exit(nightsUsed.length ? 0 : 2);
 }
 
 const f3 = (v) => (v == null ? '—' : v.toFixed(3));
@@ -363,9 +449,15 @@ const pct = (v) => (v == null ? '—' : (v * 100).toFixed(1) + ' %');
 
 console.log(`\ndeep-vlf-probe — ${DIR}`);
 console.log(`nights read: ${nightsUsed.length}   (vigil ≥ ${VIGIL_FROM}: ${nightsUsed.filter((n) => n.arm === 'vigil').length}, legacy: ${nightsUsed.filter((n) => n.arm === 'legacy').length})`);
+printPopulation();
 if (skipped.length) {
   console.log(`nights skipped: ${skipped.length}`);
   for (const s of skipped) console.log(`  ⊘ ${s}`);
+}
+if (!nightsUsed.length) {
+  console.error(`\ndeep-vlf-probe: not one of the ${snap.n} offered night(s) carried the pair of exports this probe reads, so no AUC was computed.`);
+  console.log(JSON.stringify(population, null, 2));
+  process.exit(2);
 }
 
 function printArm(label, s) {
@@ -424,3 +516,4 @@ if (SHIFT_PROFILE) {
   }
 }
 console.log('');
+console.log(JSON.stringify(population, null, 2));
