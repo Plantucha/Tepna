@@ -817,9 +817,16 @@
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); ACC\u2194ACC alignment recovery per leg rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/acc-select-compare.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/acc-select-compare.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the ACC shortlist comparison reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier mid-run reads as SHORTFALL. `--only` is a selection over that offer, never a narrowing of the snapshot, and a skipped night is named rather than counted as read. The sample is synthetic, because the raw corpus is gitignored"
   },
   "tools/acc-shared-movement.mjs": {
    "bin": "word-only",
@@ -1745,9 +1752,16 @@
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
   "tools/pat-fiducial-compare.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-fiducial-compare.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the fiducial-arm comparison reports the night population it covered: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus re-tier mid-run reads as SHORTFALL. `--only` is a selection over that offer, never a narrowing of the snapshot, and a skipped night is named rather than counted as read. The sample is synthetic, because the raw corpus is gitignored"
   },
   "tools/pat-fiducial-jitter.mjs": {
    "bin": "decides",
