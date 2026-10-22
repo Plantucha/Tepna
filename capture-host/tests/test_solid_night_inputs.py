@@ -1717,6 +1717,44 @@ def test_a_polled_stream_does_not_bind_the_completeness_band(tmp_path):
     assert "continuity band" in out["reason"], "the coverage question is named, not dropped"
 
 
+def _charger_set(d, rows=0, stamp="20260921053645"):
+    """The file set the box opens when the ring reconnects on its charger: a `_SPO2.csv` with no sidecar,
+    because the writer lays the acquisition evidence down only when the set closes."""
+    p = d / f"Wellue_O2Ring-S_S8AW2100_{stamp}_SPO2.csv"
+    t = [f"{T0 + dt.timedelta(seconds=i):%H:%M:%S %d/%m/%Y},97" for i in range(rows)]
+    p.write_text("Time,Oxygen Level\n" + "".join(x + "\n" for x in t))
+    return str(p)
+
+
+def test_a_file_with_NO_ROW_in_the_interval_gets_no_vote_on_the_denominator(tmp_path):
+    """🔴 THE 2026-10-21 RING NIGHT. The recording declared `@1Hz`; a set opened on the charger two
+    minutes before the judge ran held no row and no sidecar, and its missing rate made the band UNKNOWN."""
+    night = [str(_spo2(tmp_path, 197, period_s=1.0149)), _charger_set(tmp_path)]
+    end = T0 + dt.timedelta(seconds=200)
+    out = si.completeness(str(tmp_path), RING["name"], "O2Ring-S", night, T0, end)
+    assert out["status"] == "NOT_APPLICABLE", out
+    assert "polled stream, rate declared not negotiated" in out["reason"]
+    _spo2(tmp_path, 200, expected=200)
+    out = si.completeness(str(tmp_path), RING["name"], "O2Ring-S", night, T0, end)
+    assert out == {"status": "PASS", "reason": None}, "an empty set does not block a STATED count either"
+
+
+def test_a_file_with_ONE_row_in_the_interval_still_votes(tmp_path):
+    """The line is zero rows, not few: one row inside the interval is a stream that ran, and its missing
+    rate stays the band's answer (§∅ — the judge never fills a rate in for it)."""
+    night = [str(_spo2(tmp_path, 197)), _charger_set(tmp_path, rows=1)]
+    out = si.completeness(str(tmp_path), RING["name"], "O2Ring-S", night, T0, T0 + dt.timedelta(seconds=200))
+    assert out == {"status": "UNKNOWN", "reason": "no rate declared in the stream's acquisition evidence"}
+
+
+def test_when_NO_file_has_a_row_every_file_votes_as_before(tmp_path):
+    """No row anywhere leaves nothing to prefer, so the filter steps aside and the sidecar-less file's
+    missing rate is still the reason — never a rate borrowed from a file that measured nothing either."""
+    night = [_charger_set(tmp_path), str(_spo2(tmp_path, 0))]
+    out = si.completeness(str(tmp_path), RING["name"], "O2Ring-S", night, T0, T0 + dt.timedelta(seconds=200))
+    assert out == {"status": "UNKNOWN", "reason": "no rate declared in the stream's acquisition evidence"}
+
+
 def test_a_writer_that_STATES_its_expected_count_is_judged_against_that_number(tmp_path):
     """The rule self-heals: the box already writes a real `expected_sample_count` for downloaded
     `STORED.dat` sessions, so the day the live writer can state one, completeness binds again — against
