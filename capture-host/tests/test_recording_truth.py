@@ -320,8 +320,11 @@ def _rebond_vs_sync_run(monkeypatch, tmp_path, *, bonded, n_stop=3):
         events.append("rebond" if force else "start-bond")
         return True
 
-    async def sync(name, addr, root=None):
+    async def sync(name, addr, root=None, live=True):
+        # `live` mirrors the real signature, and True is the real success return: `run_polar` reads this
+        # verdict now and records a `start-without-sync` row on a falsy one, which this test is not about.
         events.append("sync")
+        return True
 
     def refuse(addr, *a, **k):
         raise OSError("le-connection-abort-by-local")
