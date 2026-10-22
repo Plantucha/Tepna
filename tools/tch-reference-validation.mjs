@@ -49,9 +49,48 @@ const EN = process.env.DEX_ECG_NIGHTLY || '/run/media/michal/647A504F7A50205A/Ec
    code sees success, and the output reads as a finding about the data rather than about the path.
    Refuse with exit 2, the convention `tools/hostaxis-estimator-bakeoff.mjs` already uses. This is
    §∅ one layer out: absence must stay visible, never be reported as a value. */
+/* ── THE POPULATION REPORT BELONGS TO EVERY EXIT PATH ──────────────────────────────────────────
+   The scoring path at the bottom reports the night population. The refusal below did not, and on a
+   box without the volume the refusal is the ONLY path that runs — so the wiring this tool carries
+   had never run anywhere, and the run said one thing about a mount and nothing about the corpus
+   (RESIDUE 2026-10-21-the-reference-validation-population-path-runs-on-no-box-here). ONE printer,
+   called from both paths, so the two cannot drift apart again. */
+function printPopulation(v, snap) {
+  console.log(`\n  population: ${v.status} — ${v.population.checked} night(s) covered of ${v.population.eligible}${v.reason ? ` · ${v.reason}` : ''}`);
+  /* `ruleLine` formats three fields. A refusal has no before/after comparison, so it hands over the
+     snapshot's own copies rather than inventing a `result` the run never produced. */
+  const rl = ruleLine(v.result ? v : { result: { rule: snap.rule, ruleRejectedNightShaped: snap.rejectedNightShaped, ruleAdmittedNonNight: snap.admittedNonNight } });
+  if (rl) console.log(rl);
+}
+
+/* AN ABSENT INPUT IS NOT A SMALLER MEASUREMENT. `checked` is 0 and the status is NOT_RUN, the one
+   status that says this run examined nothing (§🧾). `eligible` is still readable, because the night
+   root is in the checkout, so the report names what a mounted volume would have covered — and the
+   report itself is what proves the wiring runs on a box with no volume. */
+function refuseWithPopulation(reason) {
+  const Verdict = createRequire(import.meta.url)(path.join(REPO, 'verdict.js'));
+  const snap = snapshotNights(TRIO, { re: /^2026-/ });
+  const v = Verdict.make({
+    gate: 'corpus-population',
+    status: 'NOT_RUN',
+    scope: 'internal',
+    population: { checked: 0, eligible: snap.n, excluded: snap.n },
+    criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
+    result: null,
+    evidence: [TOOL, 'tools/corpus-scope.mjs'],
+    reason,
+    producedBy: { tool: TOOL, commit: null, commitReason: 'not read from a git tree' },
+    at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`${TOOL}: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  printPopulation(v, snap);
+  process.exit(2);
+}
+
 if (!fs.existsSync(EN)) {
   console.error(`✗ input path does not exist: ${EN}\n  Set DEX_ECG_NIGHTLY=<dir>, or mount the volume.`);
-  process.exit(2);
+  refuseWithPopulation(`input path absent (${EN}), so no night was read — set DEX_ECG_NIGHTLY or mount the volume`);
 }
 
 const CLIP_MIN = +(process.env.CLIP_MIN || 30); // minutes of each raw signal to analyse
@@ -266,16 +305,19 @@ for (const d of ONLY) {
   all.push(...r.rows);
 }
 const population = populationVerdict(popBefore, snapshotNights(TRIO, { re: /^2026-/ }), { tool: TOOL, evidence: [TOOL] });
-console.log(`\n  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
-{
-  const rl = ruleLine(population);
-  if (rl) console.log(rl);
-}
+printPopulation(population, popBefore);
 if (process.env.ONLY) console.log(`  ONLY=${process.env.ONLY} narrowed this run to 1 of ${popBefore.n} night(s) in the root.`);
 
+/* A PRESENT INPUT PATH HOLDING NO READABLE RECORDING IS STILL AN ABSENT INPUT. The guard above
+   tests whether the directory EXISTS, and a mounted-but-empty volume, a wrong directory or a
+   volume holding another year passes it — then every night reads `no usable epochs` and this
+   branch printed `no data` and exited 0. The comment on that guard already named the hazard
+   ("a caller reading the exit code sees success") and only the missing-directory half was fixed.
+   Measured 2026-10-22: an empty directory in DEX_ECG_NIGHTLY walked all 147 nights and exited 0.
+   RESIDUE 2026-10-22-a-present-but-empty-input-path-still-exits-zero. */
 if (!all.length) {
-  console.log('\n  no data');
-  process.exit(0);
+  console.log(`\n  no data — 0 usable epoch(s) over ${ONLY.length} night(s); the input path holds no readable recording for them`);
+  process.exit(2);
 }
 
 fs.writeFileSync(process.env.OUT || '/tmp/p6.json', JSON.stringify(all));
