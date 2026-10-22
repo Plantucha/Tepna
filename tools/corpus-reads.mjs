@@ -702,7 +702,6 @@ export const UNWIRED_BACKLOG = {
   'dual-clock-rate.mjs': 1,
   'ecg-rate-transfer.mjs': 1,
   'edge-settle.mjs': 1,
-  'eqc-run.mjs': 3,
   'geometry-scan.mjs': 1,
   'h10-session-rate.mjs': 1,
   'hostaxis-estimator-bakeoff.mjs': 1,
