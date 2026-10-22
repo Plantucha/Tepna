@@ -22,7 +22,7 @@ import pytest
 
 import capture
 import writers
-from _srcscan import module_source
+from _srcscan import module_source, split_segment
 
 _WHEN = _dt.datetime(2026, 9, 5, 2, 0, 0)
 
@@ -658,7 +658,7 @@ def test_EVERY_RECOVER_SET_SITE_HAS_A_FINALLY():
         # The property is unchanged; only how many characters "nearby" takes.
         window = src[at : at + 3200]
         assert "finally:" in window, src[at - 200 : at + 300]
-        after = window.split("finally:", 1)[1]
+        after = split_segment(window, "finally:", 1, where=f"capture.py (the _RECOVER.set() at {at})", maxsplit=1)
         assert "_RECOVER.clear()" in after[:1500], src[at : at + 400]
 
 

@@ -198,6 +198,24 @@ def until_anchor(text: str, anchor: str, *, where: str) -> str:
     return text[:i]
 
 
+def after_last(text: str, anchor: str, *, where: str) -> str:
+    """`text` after the LAST `anchor`, refusing when the anchor is absent.
+
+    The mirror of `split_segment` for a scan that reads BACKWARD from a point — "the span that opens
+    the chip nearest this label". `text.rsplit(anchor, 1)[1]` raises the same unnamed
+    `IndexError: list index out of range` the moment the anchor moves, because an absent anchor makes
+    `rsplit` return a one-element list. The failure names neither the anchor nor the file, which is the
+    defect `split_segment` above documents, reached from the other end of the text.
+    """
+    i = text.rfind(anchor)
+    if i < 0:
+        raise AssertionError(
+            f"anchor {anchor!r} is absent from {where}, so a backward scan has nothing to read from "
+            f"— a stale scan, not a pass"
+        )
+    return text[i + len(anchor) :]
+
+
 def anchored_segment(name: str, *steps, chars: int | None = None, until: str | None = None) -> str:
     """A CHAIN of `split_segment` steps over `<repo>/<name>`, each naming itself when it fails.
 

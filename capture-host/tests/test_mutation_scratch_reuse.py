@@ -16,6 +16,7 @@
 
 
 import mutation_diff
+from tests._srcscan import until_anchor
 
 _refresh = mutation_diff.refresh_scratch
 
@@ -986,5 +987,6 @@ def test_the_tool_keys_reuse_on_the_marker_and_writes_it_on_mutmuts_completion_l
 
     src = (pathlib.Path(__file__).resolve().parents[1] / "tools" / "mutate.py").read_text()
     assert "if reuse and scratch_generation_reusable(reusable, module):" in src
-    done_branch = src[src.index("if GENERATION_DONE_RE.search(line):") :].split("return", 1)[0]
+    from_marker = src[src.index("if GENERATION_DONE_RE.search(line):") :]
+    done_branch = until_anchor(from_marker, "return", where="tools/mutate.py (the completion branch)")
     assert "_gen_done.add(True)" in done_branch and "mark_generation_complete(scratch)" in done_branch

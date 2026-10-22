@@ -17,7 +17,22 @@
 # Residue 2026-09-10-h10-comment-denies-its-contact-bit; BLE-TRANSPORT-REDESIGN §1.3.
 
 import capture
-from tests._srcscan import module_source
+from tests._srcscan import module_source, split_segment, until_anchor
+
+
+def _js_body(html: str, fn: str, *, bound: str = "\nfunction ") -> str:
+    """The text of ONE `monitor.html` function, bounded on the next `function` keyword.
+
+    Four scans below read a JS function out of the page this way. Through `_srcscan` a renamed
+    function names itself, where `split("function " + fn)[1]` raised `IndexError` and named
+    nothing — residue `2026-10-21-a-split-chain-over-module-source-survives-in-twelve-test-files`.
+    `bound` stays a parameter because one caller bounds on `function ` rather than `\\nfunction `,
+    and the two cut at different places: the window must hold byte for byte or its assertions
+    change meaning.
+    """
+    opened = split_segment(html, f"function {fn}", 1, where="monitor.html")
+    return until_anchor(opened, bound, where=f"monitor.html (the end of {fn})")
+
 
 # Real frames captured from a Coospo HRM808S, 2026-07-19.
 COOSPO_WORN = bytes.fromhex("16394404")  # flags 0x16, hr 57, rr 1092/1024 s
@@ -87,9 +102,16 @@ def test_an_hr_only_strap_never_touches_pmd():
     """A Coospo has no PMD service. streams=['hr'] must leave `writers` empty so the whole PMD
     negotiation block is skipped — otherwise the session tears down on a device that is working fine."""
     src = module_source("capture.py")
-    body = src.split("for s in streams:")[1][:400]
+    # ⚠️ THE [:400] WINDOW HAD DRIFTED PAST ITS OWN CLOSING ANCHOR. `if "hr" in streams` sits 1534
+    # characters into the loop (measured 2026-10-21), so `body.split('if "hr" in streams')[0]`
+    # returned the whole window and the region silently widened to its end — the second direction
+    # `tests/_srcscan.py` documents, found in the field by residue
+    # `2026-10-21-a-split-chain-over-module-source-survives-in-twelve-test-files`. Bounding on the
+    # anchor makes the region the thing this test says it reads: the loop UP TO the hr branch.
+    loop = split_segment(src, "for s in streams:", 1, where="capture.py")
+    body = until_anchor(loop, 'if "hr" in streams', where="capture.py (the stream loop)")
     assert "if s in meas_of:" in body, "only PMD streams may open a PMD writer"
-    assert '"hr"' not in body.split('if "hr" in streams')[0], "hr must not be routed through meas_of"
+    assert '"hr"' not in body, "hr must not be routed through meas_of"
 
 
 def test_the_scan_foregrounds_a_strap_named_only_by_its_model():
@@ -108,7 +130,7 @@ def test_the_monitor_can_identify_a_coospo():
     assert "Coospo" in html and "HRM808S" in html
     # NOT a fixed-width slice: adding a comment inside the function silently slid the Coospo line out
     # of a [:1400] window and the assertion stopped covering anything.
-    guess = html.split("function guessDevice")[1].split("\nfunction ")[0]
+    guess = _js_body(html, "guessDevice")
     assert "streams=['hr']" in guess.replace('"', "'"), (
         "an HR-only strap must request hr alone — asking for ecg opens a writer that can never start"
     )
@@ -121,7 +143,7 @@ def test_bonding_is_gated_on_actually_needing_pmd():
     one fails and reports 'bond failed' for a device that was about to work fine."""
     src = module_source("capture.py")
     assert "if needs_pmd:" in src
-    head = src.split("async def run_polar")[1][:2600]
+    head = split_segment(src, "async def run_polar", 1, where="capture.py")[:2600]
     assert head.index("needs_pmd") < head.index("ensure_bonded"), "the gate must precede the bond"
 
 
@@ -167,7 +189,7 @@ def test_remember_defaults_ask_for_every_stream_the_sensor_can_give():
     An H10 re-added after a factory reset came back 'ecg' only and lost its RR (the HRV substrate) and
     its chest ACC (which apnea typing needs) for a whole session."""
     html = open(__file__.replace("tests/test_hr_strap.py", "monitor.html"), encoding="utf-8").read()
-    guess = html.split("function guessDevice")[1].split("function ")[0].replace('"', "'")
+    guess = _js_body(html, "guessDevice", bound="function ").replace('"', "'")
     h10 = [ln for ln in guess.splitlines() if "'H10'" in ln][0]
     for want in ("'ecg'", "'acc'", "'hr'"):
         assert want in h10, f"the H10 default must request {want}: {h10.strip()}"
@@ -182,7 +204,7 @@ def test_an_untrusted_stream_does_not_render_a_number_or_a_clean_trace():
     and the graph kept drawing — a glance reads that as a real heartbeat. The value and the trace must
     both defer to streamState().trust, which is false for charging / not-worn / no-data."""
     html = open(__file__.replace("tests/test_hr_strap.py", "monitor.html"), encoding="utf-8").read()
-    ss = html.split("function streamState")[1].split("\nfunction ")[0]
+    ss = _js_body(html, "streamState")
     # every non-live state that carries no valid reading is trust:false; weak/live are trust:true
     assert "worn === false" in ss and "trust:false" in ss
     for line_key in ("charging", "not worn", "no data"):
@@ -192,9 +214,9 @@ def test_an_untrusted_stream_does_not_render_a_number_or_a_clean_trace():
         row = [ln for ln in ss.splitlines() if f"txt:'{line_key}'" in ln or f"txt: '{line_key}'" in ln]
         assert row and "trust:true" in row[0], f"{line_key!r} must be trust:true: {row}"
     # the value readout blanks on !trust
-    vals = html.split("function ovValues")[1].split("\nfunction ")[0]
+    vals = _js_body(html, "ovValues")
     assert "!state.trust" in vals and 'class="big muted"' in vals, "value must blank when untrusted"
     assert "st.rate = null" in vals, "the smoothed HR must reset so it can't resume mid-number"
     # the graph dims on !trust
-    draw = html.split("function ovDrawMini")[1].split("\nfunction ")[0]
+    draw = _js_body(html, "ovDrawMini")
     assert "globalAlpha = trusted" in draw, "the trace must dim when the stream is untrusted"
