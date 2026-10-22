@@ -57,7 +57,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { nightSeries } from './tch-fused-corpus.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, producedByOf, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -163,12 +163,16 @@ export function run(dir) {
   return { dir, rows, nights: popBefore.nights.length, population };
 }
 
-export function verdicts(res, commit) {
+export function verdicts(res, commit, commitReason = null) {
   const solved = res.rows.filter((r) => !r.skip);
   const skipped = res.rows.length - solved.length;
   const fusedNeg = solved.filter((r) => r.fused.neg);
   const commonNeg = solved.filter((r) => r.common.neg);
-  const producedBy = { tool: TOOL, ...(commit ? { commit } : { commit: null, commitReason: 'not read from a git tree' }) };
+  /* THE REASON FOR AN ABSENT IDENTITY IS MEASURED, NOT BORROWED. This asserted `not read from a
+     git tree` for every caller that named no commit, which was false of the CLI path and of the
+     sample alike. The shared resolver reads the tree, and a caller that must disclaim identity —
+     the fabricated sample below — states its own reason. */
+  const producedBy = producedByOf(TOOL, commit, commitReason);
   const evidence = [TOOL, 'tools/tch-fused-corpus.mjs', 'analysis-stats.js', BRIEF];
   const out = [];
 
@@ -326,7 +330,7 @@ export function verdictSample() {
     plain: { neg: r.neg, corners: NEG_CORNERS(r) },
     common: { neg: r.neg, corners: NEG_CORNERS(r), negVar: r.negVar }
   };
-  return verdicts({ dir: '(synthetic)', rows: [row], nights: 1 }, null)[0];
+  return verdicts({ dir: '(synthetic)', rows: [row], nights: 1 }, null, '--verdict-sample: one synthetic night, no corpus read, no code identity claimed')[0];
 }
 
 /* ── SELFTEST ────────────────────────────────────────────────────────────────────────────────────

@@ -27,7 +27,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 // ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
 // vm-loading (else "Unexpected token 'export'"). build-core.js is required relative to THIS tool (not
@@ -61,6 +61,10 @@ function printPopulation(v, snap) {
      snapshot's own copies rather than inventing a `result` the run never produced. */
   const rl = ruleLine(v.result ? v : { result: { rule: snap.rule, ruleRejectedNightShaped: snap.rejectedNightShaped, ruleAdmittedNonNight: snap.admittedNonNight } });
   if (rl) console.log(rl);
+  /* §🧾 THE OBJECT IS THE API, THE PROSE IS THE EXPLANATION. Both exit paths built and validated
+     this verdict and then printed only the sentence, so no reader could take the population
+     machine-readably and the `producedBy` identity above reached nobody at all. */
+  console.log('POPULATION ' + JSON.stringify(v));
 }
 
 /* AN ABSENT INPUT IS NOT A SMALLER MEASUREMENT. `checked` is 0 and the status is NOT_RUN, the one
@@ -79,7 +83,11 @@ function refuseWithPopulation(reason) {
     result: null,
     evidence: [TOOL, 'tools/corpus-scope.mjs'],
     reason,
-    producedBy: { tool: TOOL, commit: null, commitReason: 'not read from a git tree' },
+    /* THE IDENTITY OF A REFUSAL IS STILL AN IDENTITY. This stamped `commit: null` under a reason
+       that was false of every run of it — the night root it reads sits in the checkout, so the tool
+       is always inside a git tree. The shared reader answers the commit, and a reason appears only
+       when the lookup itself fails. */
+    producedBy: producedByOf(TOOL),
     at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
   });
   const chk = Verdict.validate(v);

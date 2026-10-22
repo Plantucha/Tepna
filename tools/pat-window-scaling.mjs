@@ -35,6 +35,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -45,6 +46,12 @@ const arg = (k, d) => {
 };
 const DIR = arg('--dir', null);
 const ONLY = arg('--night', null);
+/* THE SAMPLE SITS ABOVE THE `--dir` REFUSAL, because the adoption gate has to read one verdict
+   object on a box holding no nights, and this file decides at module evaluation. */
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+  process.exit(0);
+}
 if (!DIR) {
   console.error('need --dir <captures root>');
   process.exit(1);
@@ -151,10 +158,16 @@ function beatsPPG(file) {
 
 console.log('PAT scatter vs WINDOW LENGTH — drift integrates, physiology does not');
 console.log('selection is STRUCTURAL only: one fragment each side, span >= 40 min, 30-120 bpm both\n');
-const nights = fs
-  .readdirSync(DIR)
-  .filter((d) => /^2026-/.test(d) && (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory())
-  .sort();
+/* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk — and the two filters that
+   used to sit in one `.filter()` are DIFFERENT KINDS of statement. `/^2026-/` is a NIGHT RULE, so it
+   goes to `snapshotNights`, which measures it against `NIGHT_RE` over the same listing and names
+   what it refused and what it swallowed; `--night` is a SELECTION over that offer, so it stays here
+   and is named by the count of nights it left unread. Folded together, a narrowed root and a
+   one-night run read alike. The structural criteria below are COVERAGE rules over the offer, not
+   night rules, so they ride `notANight` at the end rather than the walk's own `re`. */
+const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+const nights = popBefore.nights.filter((d) => !ONLY || d === ONLY);
+const covered = [];
 const rows = [];
 for (const n of nights) {
   const dir = path.join(DIR, n);
@@ -237,6 +250,7 @@ for (const n of nights) {
     out.by[W] = per.length ? med(per) : NaN;
   }
   rows.push(out);
+  covered.push({ night: n, ok: true });
   console.log(
     `  ${n}  beats=${String(out.n).padStart(5)}  ovl=${out.ovMin.toFixed(0)}m  medLag=${out.medLag.toFixed(0)}ms  ` +
       WINDOWS_MIN.map((W) => `${W}m:${isFinite(out.by[W]) ? out.by[W].toFixed(0) : '--'}`).join('  ')
@@ -264,4 +278,45 @@ if (rows.length) {
   console.log(`  n = ${rows.length} night(s).`);
 } else {
   console.log('\n  no night met the structural criteria — that is itself the result (see the ⊘ reasons).');
+}
+
+/* THE POPULATION, REPORTED SEPARATELY FROM THE SWEEP. The sweep's figure is a median over the
+   nights that met the structural criteria; this verdict says whether the night population MOVED
+   under the run. The status labels MOVEMENT, not coverage: `checked` is the intersection of the two
+   snapshots, and reading it as a scored count would publish the whole offer as scored. */
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+  tool: 'tools/pat-window-scaling.mjs',
+  evidence: ['tools/pat-window-scaling.mjs']
+});
+/* Named against the SELECTED set: under `--night` the rest of the offer was never a candidate, and
+   the line above already states how many nights the selection left unread. */
+const unscored = notANight({ n: nights.length, nights }, covered);
+console.log(
+  `\n  population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${covered.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+);
+const rl = ruleLine(population);
+if (rl) console.log('  ' + rl);
+console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+console.log('POPULATION ' + JSON.stringify(population));
+
+/* The sample the adoption gate reads: two identical fabricated snapshots, so the object is complete
+   and no corpus is touched. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^2026-/),
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-window-scaling.mjs', at, evidence: ['tools/pat-window-scaling.mjs'] });
 }

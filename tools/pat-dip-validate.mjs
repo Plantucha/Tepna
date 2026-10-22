@@ -34,11 +34,12 @@ import { createRequire } from 'node:module';
 import { anklePair } from './pat-dip-index.mjs';
 import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--cpap', '--trio'], boolean: ['--json'], positional: true };
+const ARGV_SPEC = { valued: ['--cpap', '--trio'], boolean: ['--json', '--verdict-sample'], positional: true };
 
 const require = createRequire(import.meta.url);
 const PATAlign = require('../pat-align.js');
@@ -91,10 +92,15 @@ function main() {
   }
   const cpapAll = JSON.parse(readFileSync(CPAP, 'utf8'));
   const cpapByDay = new Map((cpapAll.exports || []).map((e) => [e._day, e]));
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. The Katz fraction and the
+     per-night chance index were published over a set this tool never named, so a night added or a
+     night retiered mid-run moved the population and the output read the same. `snapshotNights` names
+     the offer once; the re-snapshot below turns a moved population into a SHORTFALL verdict. The
+     CPAP-export and desat-anchor filters inside the loop are COVERAGE rules over that offer, not
+     night rules, so they ride `notANight` at the end rather than the walk's own `re`. */
+  const popBefore = snapshotNights(ROOT);
   const rows = [];
-  for (const night of readdirSync(ROOT)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort()) {
+  for (const night of popBefore.nights) {
     const day = night.replace(/-/g, '');
     const cp = cpapByDay.get(day);
     if (!cp) {
@@ -265,8 +271,18 @@ function main() {
       nSurrogates: chanceK.length
     });
   }
+  /* THE POPULATION IS PUBLISHED ON BOTH PATHS, and in JSON mode it rides INSIDE the one document
+     this tool writes to stdout — a second top-level object would break every `jq` reading it. */
+  const population = populationVerdict(popBefore, snapshotNights(ROOT), {
+    tool: 'tools/pat-dip-validate.mjs',
+    evidence: ['tools/pat-dip-validate.mjs']
+  });
+  const unscored = notANight(
+    popBefore,
+    rows.map((r) => ({ night: r.night, ok: !r.skip }))
+  );
   if (AS_JSON) {
-    console.log(JSON.stringify({ rows }, null, 1));
+    console.log(JSON.stringify({ offered: popBefore.n, population, rows }, null, 1));
     return;
   }
   console.log('ΔPAT validation — CPAP clock anchored per night on desats; null = ' + K_SHIFT + ' circular shifts of the dip onsets\n');
@@ -280,8 +296,41 @@ function main() {
       `${r.night}  ${String(r.deltaMin).padStart(6)}  ${String(r.anchorPct).padStart(6)}  ${String(r.nCpapEvents + '(' + r.nCoverable + ')').padStart(11)}  ${String(r.nDips + '(' + r.nQuiet + ')').padStart(11)}  ${String(r.quietSharePct == null ? '—' : r.quietSharePct).padStart(10)}  ${String(r.katzPct + '/' + (r.chanceKatzPct == null ? '—' : r.chanceKatzPct)).padStart(12)}  ${String(r.katzQuietPct + '/' + (r.chanceKatzQuietPct == null ? '—' : r.chanceKatzQuietPct)).padStart(17)}`
     );
   }
+  /* THE TRIPLE IS ABOUT MOVEMENT, NOT ABOUT COVERAGE, so the status is labelled as such. `checked`
+     is the intersection of the two snapshots — nights that were there throughout — and reading it
+     as "scored" would publish 97 scored nights for a run that scored none. */
+  const scored = rows.filter((r) => !r.skip).length;
+  console.log(`\npopulation: ${popBefore.n} night(s) offered under ${ROOT} · ${scored} scored · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`);
+  console.log(`offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
 }
 
+/* One synthetic pair of snapshots, so the shape `verify:verdict-adoption` parses needs no corpus.
+   The two lists are identical: a sample can state the STABLE case honestly and nothing else. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-10', '2026-06-11'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^\d{4}-\d{2}-\d{2}$/),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-dip-validate.mjs', at, evidence: ['tools/pat-dip-validate.mjs'] });
+}
+
+/* The sample sits ABOVE `main`'s input refusal: the adoption gate reads it where no corpus is
+   mounted, and `main` refuses without one (residue
+   `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) main();
-export { main };
+if (IS_CLI && argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+} else if (IS_CLI) main();
+export { main, verdictSample };

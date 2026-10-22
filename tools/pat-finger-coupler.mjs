@@ -40,6 +40,7 @@ import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, legacyMatchRate, strictMatchRate, circShift, rawLags, median, STRICT_W_MS } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {
@@ -187,10 +188,13 @@ function main() {
     process.exit(2);
   }
   loadDsps();
-  const nights = readdirSync(DIR)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && statSync(join(DIR, d)).isDirectory())
-    .filter((d) => !ONLY || d === ONLY)
-    .sort();
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. The night-shaped test was
+     `NIGHT_RE` spelled out, so the walk takes the primitive's default rule and nothing is declared
+     here; `--night` is a SELECTION over that offer, so it stays below and is named by the count it
+     left unread. The pairing and plausibility gates inside the loop are COVERAGE rules over the
+     offer, not night rules, so they ride `notANight` at the end. */
+  const popBefore = snapshotNights(DIR);
+  const nights = popBefore.nights.filter((d) => !ONLY || d === ONLY);
   const rows = [];
   for (const n of nights) {
     for (const p of pairsIn(join(DIR, n))) {
@@ -201,8 +205,23 @@ function main() {
       }
     }
   }
+  /* THE POPULATION TRAVELS WITH THE ROWS. The status labels MOVEMENT, not coverage: `checked` is the
+     intersection of the two snapshots, and reading it as a scored count would publish the whole
+     offer as scored. The rows move under an `rows` key so stdout stays ONE JSON document — nothing
+     in the tree reads this array, and a reader that only wants the rows now gets the offer with
+     them. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR), {
+    tool: 'tools/pat-finger-coupler.mjs',
+    evidence: ['tools/pat-finger-coupler.mjs']
+  });
+  /* Named against the SELECTED set: under `--night` the rest of the offer was never a candidate. A
+     night with several pairs counts as scored when ANY of its rows scored. */
+  const unscored = notANight(
+    { n: nights.length, nights },
+    rows.map((r) => ({ night: r.night, ok: !r.skip }))
+  );
   if (JSON_OUT) {
-    console.log(JSON.stringify(rows, null, 1));
+    console.log(JSON.stringify({ offered: popBefore.n, selected: nights.length, population, rows }, null, 1));
     return;
   }
   console.log(`O2Ring FINGER PPG <-> H10 ECG coupling — fiducial=${FIDUCIAL} — no ACC alignment (constant delta)`);
@@ -242,8 +261,39 @@ function main() {
           : 'NO usable night shows coupling above its own chance floor.'
     );
   }
+  console.log(
+    `population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${scored.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+  );
+  console.log(`selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  console.log('POPULATION ' + JSON.stringify(population));
+}
+
+/* The sample the adoption gate reads: two identical fabricated snapshots, so the object is complete
+   and no corpus is touched. The rule is the primitive's own, which is what this tool walks under. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^\d{4}-\d{2}-\d{2}$/),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-finger-coupler.mjs', at, evidence: ['tools/pat-finger-coupler.mjs'] });
 }
 
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) main();
-export { pairsIn, analyse, RE_RING };
+/* The sample dispatch sits ABOVE `main`, which refuses without a readable `--dir`: the adoption gate
+   reads the object on a box holding no nights. */
+if (IS_CLI && argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+} else if (IS_CLI) main();
+export { pairsIn, analyse, RE_RING, verdictSample };

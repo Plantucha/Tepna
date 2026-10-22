@@ -10997,6 +10997,29 @@
         return /readdirSync[\s\S]{0,200}?\\d\{4\}-\\d\{2\}-\\d\{2\}/.test(TT['tools/' + t] || '');
       });
       T.eq('a tool that reports its population does not enumerate the same root a second time by hand', twoWalks.join(', '), '');
+      /* AND THE CLEARANCE MUST COME OFF A CALL THE RUN MAKES. Every wired tool carries a
+         `verdictSample` helper, because the adoption gate has to read one verdict object on a box
+         with no corpus mounted, and that FABRICATED call was clearing the tool here: measured
+         2026-10-22 by gutting the real call in `acc-shared-movement.mjs` and leaving the sample,
+         which left the class `reports` and this group green over 28 assertions. §4b one module
+         along — a clearance stated about something the run never examines. Both directions,
+         because blanking every helper body would pass the negative half and clear nothing. */
+      T.ok(
+        'CONTROL · a population verdict reachable only from a sample helper does not clear a tool, and a real call does',
+        CR.classifyTool("const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);\nfunction verdictSample() {\n  return populationVerdict(a, b, {});\n}").cls === 'enumerates' &&
+          CR.classifyTool("const DIR = opt('--dir', join(ROOT, 'docs'));\nreaddirSync(DIR);\nconst p = populationVerdict(a, b, {});").cls === 'reports',
+        'sample-only → enumerates · real call → reports'
+      );
+      /* AND THE BLANKING IS THE HELPER AND NOTHING ELSE, read off the pure helper so a later move
+         in the class ladder cannot hide a span that swallowed the rest of the file. The line count
+         is part of the contract: every other rung reports a position. */
+      T.ok(
+        'the sample blanking removes the helper body, keeps the code around it, and keeps the line positions',
+        !/populationVerdict/.test(CR.blankSampleHelpers('function verdictSample() {\n  return populationVerdict(y);\n}\n')) &&
+          /populationVerdict/.test(CR.blankSampleHelpers('const a = populationVerdict(x);\nfunction verdictSample() {\n  return populationVerdict(y);\n}\n')) &&
+          CR.blankSampleHelpers('function verdictSample() {\n  return populationVerdict(y);\n}\n').split('\n').length === 4,
+        'the call inside is gone · the call outside survives · 4 line(s) in, 4 out'
+      );
       /* THE DELEGATION MUST NOT DELETE THE EVIDENCE. Wiring moves the walk behind the helper, which
          also removes the night regex that put the tool in this population. A tool that imports the
          primitive is a corpus consumer whatever else its text says. */
@@ -11073,6 +11096,37 @@
         return /export function notANight\s*\(/.test(TT[k] || '');
       });
       T.eq('the removal namer is defined once, and in corpus-scope.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope.mjs');
+      /* ── A REASON THAT NAMES A CAUSE THE RUN CANNOT HAVE HAD ──────────────────────────────────
+         Row 2026-10-22-the-population-verdict-stamps-a-cause-it-never-checked. Every verdict
+         `tools/corpus-scope.mjs` built stamped `commit: null, commitReason: 'not read from a git
+         tree'` whenever the caller named no commit — and no caller does, because the primitive owns
+         the repo root and its 20 consumers do not. So every wired tool published a null code
+         identity under a sentence that was FALSE of all of them: they run from inside the checkout,
+         where `git rev-parse` answers. `tools/tch-reference-validation.mjs` carried the same pair as
+         a hardcoded literal on its refusal path.
+
+         ∅ The rule is not "always stamp a commit" — a run genuinely outside a tree must still say
+         so. It is that the REASON is measured: the literal pair below asserts an absence the code
+         never checked, so it reds, while a reason derived from a failed lookup passes. */
+      var borrowedCause = Object.keys(TT).filter(function (k) {
+        return /commit:\s*null,\s*commitReason:\s*'not read from a git tree'/.test(TT[k] || '');
+      });
+      T.eq('no tool asserts an absent code identity under a cause it never checked', borrowedCause.sort().join(', '), '');
+      T.ok(
+        'ANTI-VACUITY · the detector fires on the pair it names',
+        /commit:\s*null,\s*commitReason:\s*'not read from a git tree'/.test("producedBy: { tool: TOOL, commit: null, commitReason: 'not read from a git tree' },"),
+        'the planted literal matches'
+      );
+      /* AND THE PRIMITIVE OWNS THE READER, so a consumer cannot be asked to resolve what it has no
+         root for. A re-duplication of the git read into a corpus consumer reds here. */
+      T.ok('the night primitive exports the commit reader it uses', /export function gitCommitOf\s*\(/.test(TT['tools/corpus-scope.mjs'] || ''), 'gitCommitOf is exported from corpus-scope.mjs');
+      /* AND THE THREE-BRANCH CHOICE HAS ONE DEFINITION. Stated commit wins · a caller disclaiming
+         identity keeps its own reason · otherwise read the tree. Three tools spelled that out by
+         hand and one of them spelled it wrong, which is the `notANight` duplication lesson again. */
+      var producedByDefs = Object.keys(TT).filter(function (k) {
+        return /export function producedByOf\s*\(/.test(TT[k] || '');
+      });
+      T.eq('the code-identity resolver is defined once, and in corpus-scope.mjs', producedByDefs.sort().join(', '), 'tools/corpus-scope.mjs');
       /* ── A REPORT THAT ONLY THE SCORING PATH REACHES IS A REPORT NO BOX RUNS ──────────────────
          Row 2026-10-21-the-reference-validation-population-path-runs-on-no-box-here.
          `tch-reference-validation.mjs` scores an external nightly volume named by `DEX_ECG_NIGHTLY`,

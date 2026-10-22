@@ -123,7 +123,7 @@ export function dedupeRoots(rows, resolver) {
 /** The census as ONE tepna.verdict/1 object. `population` is ROOTS: checked = roots counted here,
  *  excluded = roots this machine cannot count (elided · remote · absent), and the equality is what
  *  makes a narrowed scope visible instead of invisible. */
-export function censusVerdict(pattern, rows, { commit = null } = {}) {
+export function censusVerdict(pattern, rows, { commit = null, commitReason = null } = {}) {
   const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
   const counted = rows.filter((r) => r.count !== null);
   /* A root that aliases another is COUNTED but not SUMMED — it is still shown, because hiding it
@@ -155,7 +155,7 @@ export function censusVerdict(pattern, rows, { commit = null } = {}) {
     result: status === 'NOT_RUN' ? null : { pattern, files: total, summedRoots: summed.length, byRoot: rows },
     evidence: ['tools/corpus-scope.mjs', DOC],
     reason,
-    producedBy: { tool: 'tools/corpus-scope.mjs', commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
+    producedBy: producedByOf('tools/corpus-scope.mjs', commit, commitReason)
   });
   const chk = Verdict.validate(v);
   if (!chk.ok) throw new Error(`corpus-scope: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);
@@ -284,7 +284,7 @@ export function intersectSnapshots(before, after) {
  *  population, the intersection, so this annotates reduced coverage instead of refusing a figure
  *  (owner ruling 2026-09-17, `CLAUDE.md` §∅ — a discontinuity refuses, reduced coverage annotates).
  *  A caller that must not narrow treats SHORTFALL as its own refusal. */
-export function populationVerdict(before, after, { commit = null, at = null, tool = 'tools/corpus-scope.mjs', evidence = [] } = {}) {
+export function populationVerdict(before, after, { commit = null, commitReason = null, at = null, tool = 'tools/corpus-scope.mjs', evidence = [] } = {}) {
   const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
   const ev = ['tools/corpus-scope.mjs', DOC, ...evidence].filter((e, i, a) => a.indexOf(e) === i);
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -301,7 +301,7 @@ export function populationVerdict(before, after, { commit = null, at = null, too
       result: null,
       evidence: ev,
       reason: `${which} could not enumerate the root (${(before.ok ? after : before).reason}), so this run cannot tell a stable population from a moved one`,
-      producedBy: { tool, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) },
+      producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
   } else if ((before.nights || []).length === 0 && (after.nights || []).length === 0) {
@@ -328,7 +328,7 @@ export function populationVerdict(before, after, { commit = null, at = null, too
       reason: refused.length
         ? `the root ${before.root} offered ${refused.length} night-shaped director${refused.length === 1 ? 'y' : 'ies'} and the caller's own rule ${before.rule} refused every one of them (${names(refused)}), so this run measured no population`
         : `the root ${before.root} enumerated and offered no night directory at all, so this run measured no population`,
-      producedBy: { tool, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) },
+      producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
   } else {
@@ -348,7 +348,7 @@ export function populationVerdict(before, after, { commit = null, at = null, too
       reason: d.stable
         ? null
         : `the night population moved during the run: ${d.added.length} arrived (${names(d.added)}), ${d.removed.length} left (${names(d.removed)}) — only the ${d.n}-night intersection is one population`,
-      producedBy: { tool, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) },
+      producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
   }
@@ -413,12 +413,33 @@ export function notANight(offer, covered) {
   return ((offer && offer.nights) || []).filter((n) => !scored.has(n));
 }
 
-function gitCommitShort() {
+/** The tool tree's commit, WITH THE REASON a lookup actually failed. `null` with no reason is the
+ *  one shape a consumer cannot act on, so the two facts travel together. */
+export function gitCommitOf(cwd = ROOT) {
   try {
-    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
-  } catch {
-    return null;
+    const out = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (out) return { commit: out, reason: null };
+    return { commit: null, reason: 'git rev-parse --short HEAD printed nothing for this tool tree' };
+  } catch (e) {
+    const why = String((e && e.message) || e).split('\n')[0];
+    return { commit: null, reason: `git rev-parse --short HEAD failed for this tool tree: ${why}` };
   }
+}
+
+/** 🔴 A BORROWED REASON IS A FABRICATED CAUSE. Every verdict this module builds used to stamp
+ *  `commitReason: 'not read from a git tree'` whenever the caller named no commit — and no caller
+ *  does, because the primitive owns the repo root and the callers do not. So 20 wired tools
+ *  published a null code identity under a cause that was FALSE of all of them: they run from inside
+ *  the checkout, and `git rev-parse` answers there. The primitive resolves the commit itself now,
+ *  and a reason appears only when the lookup genuinely failed, naming what failed.
+ *  A caller that must disclaim code identity passes its own `commitReason` with `commit: null`.
+ *  EXPORTED because three tools outside this file built the same three-branch choice by hand, and a
+ *  fix to one left the others reading the old way (the `notANight` lesson re-applied). */
+export function producedByOf(tool, commit, commitReason = null) {
+  if (commit) return { tool, commit };
+  if (commitReason) return { tool, commit: null, commitReason };
+  const g = gitCommitOf();
+  return g.commit ? { tool, commit: g.commit } : { tool, commit: null, commitReason: g.reason };
 }
 
 function selftest() {
@@ -686,6 +707,38 @@ function selftest() {
     ok('CONTROL · the same row with ok true is covered, so the two shapes read differently', notANight(offered, [{ night: '2026-07-25', ok: true }]).join(',') === '2026-07-26,logs');
     ok('CONTROL · an offer that enumerated nothing names no removal', notANight({ n: 0, nights: [] }, []).length === 0);
     ok('a covered night the offer never held cannot appear: the difference runs offer minus read', notANight(offered, [{ night: '2099-01-01' }]).length === 3);
+
+    /* THE CODE IDENTITY, AND THE REASON FOR ITS ABSENCE. A reason that names a cause the run cannot
+       have had is worse than no reason, so the CONTROL below must be able to fire: a directory that
+       is genuinely outside a git tree has to produce a null commit WITH a reason that names the
+       failure. Without that leg the honest-reason guard is unfireable and reads as covered. */
+    const snap = snapshotNights(join(tmp, 'root'));
+    const live = populationVerdict(snap, snap, { tool: 'tools/corpus-scope.mjs' });
+    ok(
+      'a caller that names no commit gets the tool tree own commit, and NO reason is invented for it',
+      /^[0-9a-f]{7,40}$/.test(String(live.producedBy.commit)) && live.producedBy.commitReason === undefined,
+      JSON.stringify(live.producedBy)
+    );
+    const stated = populationVerdict(snap, snap, { tool: 'tools/corpus-scope.mjs', commit: 'deadbee' });
+    ok('an explicitly stated commit wins over the lookup', stated.producedBy.commit === 'deadbee' && stated.producedBy.commitReason === undefined);
+    const disclaimed = populationVerdict(snap, snap, { tool: 'tools/corpus-scope.mjs', commitReason: 'a fabricated sample claims no code identity' });
+    ok(
+      'a caller that disclaims code identity keeps its OWN reason verbatim',
+      disclaimed.producedBy.commit === null && disclaimed.producedBy.commitReason === 'a fabricated sample claims no code identity'
+    );
+    const outside = gitCommitOf('/');
+    ok(
+      'CONTROL · outside a git tree the commit is null AND the reason names the failure, never a borrowed sentence',
+      outside.commit === null && typeof outside.reason === 'string' && /rev-parse/.test(outside.reason),
+      JSON.stringify(outside)
+    );
+    ok('CONTROL · inside the tool tree the same reader answers a commit and no reason', /^[0-9a-f]{7,40}$/.test(String(gitCommitOf().commit)) && gitCommitOf().reason === null);
+    const refused = populationVerdict(snapshotNights(join(tmp, 'absent-root')), snapshotNights(join(tmp, 'absent-root')), { tool: 'tools/corpus-scope.mjs' });
+    ok(
+      'the NOT_RUN leg carries the same resolved identity, so a refusal is still attributable',
+      refused.status === 'NOT_RUN' && /^[0-9a-f]{7,40}$/.test(String(refused.producedBy.commit)),
+      JSON.stringify(refused.producedBy)
+    );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -709,7 +762,7 @@ function main() {
       ],
       (x) => (x === '/home/michal/tepna-smoketest/captures' ? '/srv/data/tepna-corpus/smoketest-captures' : x)
     );
-    console.log(JSON.stringify(censusVerdict('*_ECG.txt', rows, { commit: gitCommitShort() }), null, 2));
+    console.log(JSON.stringify(censusVerdict('*_ECG.txt', rows), null, 2));
     return;
   }
   const pattern = argv.find((a) => !a.startsWith('--'));
@@ -724,7 +777,7 @@ function main() {
     return { root: r.path, count, why: r.countable ? (count === null ? 'absent' : null) : r.why };
   });
   const deduped = dedupeRoots(rows, (x) => realpathSync(resolve(x)));
-  const v = censusVerdict(pattern, deduped, { commit: gitCommitShort() });
+  const v = censusVerdict(pattern, deduped);
   if (argv.includes('--json')) {
     console.log(JSON.stringify(v, null, 2));
     return;
