@@ -21,7 +21,7 @@
 # substitution is proven rather than asserted.
 import pytest
 
-from tests._srcscan import anchored_segment, split_segment, until_anchor
+from tests._srcscan import after_last, anchored_segment, split_segment, until_anchor
 
 # Synthetic source: no module is read, so nothing here depends on `capture.py`'s current text.
 SRC = "head A one A two B tail\n"
@@ -66,6 +66,28 @@ def test_a_vanished_closing_bound_refuses_instead_of_widening_to_the_end():
     assert "a synthetic scan" in msg, msg
     assert "widen to the end" in msg, msg
     assert until_anchor(SRC, "B", where="w") == SRC.split("B", 1)[0]
+
+
+def test_a_backward_scan_names_its_absent_anchor_instead_of_raising_indexerror():
+    """The same reporting, reached from the other end. A scan that reads BACKWARD from a label —
+    `html.split(LABEL)[0].rsplit("<span", 1)[1]`, which is how `test_charging_state.py` finds the chip
+    holding a label — raises the unnamed `IndexError` the moment the opening tag moves, because
+    `rsplit` on an absent anchor returns a one-element list."""
+    with pytest.raises(IndexError) as raw:
+        SRC.rsplit("ZZZ", 1)[1]
+    assert "ZZZ" not in str(raw.value)
+
+    with pytest.raises(AssertionError) as named:
+        after_last(SRC, "ZZZ", where="a synthetic scan")
+    msg = str(named.value)
+    assert "'ZZZ'" in msg, msg
+    assert "a synthetic scan" in msg, msg
+    assert "stale scan, not a pass" in msg, msg
+
+    # The LAST occurrence, not the first — `SRC` carries two `A`s, and the forward helper takes the
+    # first. The two are opposite ends of one text and must not be interchangeable.
+    assert after_last(SRC, "A", where="w") == SRC.rsplit("A", 1)[1]
+    assert after_last(SRC, "A", where="w") != split_segment(SRC, "A", 1, where="w")
 
 
 def test_a_chain_names_which_link_went_stale(tmp_path, monkeypatch):

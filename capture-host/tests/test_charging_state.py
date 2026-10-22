@@ -12,7 +12,7 @@ import pytest
 
 import oxyii
 import telemetry
-from tests._srcscan import module_source
+from tests._srcscan import after_last, module_source, split_segment, until_anchor
 
 
 def test_the_ring_reports_its_own_charge_state():
@@ -88,8 +88,16 @@ def test_not_worn_and_charging_are_amber_or_blue_never_red():
     """These are NORMAL states — the user isn't wearing the sensor. Red would cry fault at an expected
     condition and train people to ignore the colour that should mean something is genuinely broken."""
     html = open(__file__.replace("tests/test_charging_state.py", "monitor.html"), encoding="utf-8").read()
-    warn = html.split(".ov-head .st.warn{")[1].split("}")[0]
-    chg = html.split(".ov-head .st.chg{")[1].split("}")[0]
+    warn = until_anchor(
+        split_segment(html, ".ov-head .st.warn{", 1, where="monitor.html"),
+        "}",
+        where="monitor.html (the end of the .st.warn rule)",
+    )
+    chg = until_anchor(
+        split_segment(html, ".ov-head .st.chg{", 1, where="monitor.html"),
+        "}",
+        where="monitor.html (the end of the .st.chg rule)",
+    )
     assert "--amber" in warn and "--red" not in warn
     assert "--blue" in chg and "--red" not in chg
 
@@ -104,7 +112,8 @@ def test_the_charger_chip_reads_THREE_answers_and_never_a_truthy_flag():
     assert "dev.charging === true" in html, "the pill must claim the charger only on an explicit true"
     assert "dev && dev.charging)" not in html, "a truthy test reads a null as 'not charging'"
     assert "charger unknown" in html, "the third answer must be drawn, not left as an empty chip"
-    unknown = html.split("charger unknown")[0].rsplit("<span", 1)[1]
+    before = until_anchor(html, "charger unknown", where="monitor.html")
+    unknown = after_last(before, "<span", where="monitor.html (the chip holding 'charger unknown')")
     assert 'class="clk idle"' in unknown, "an unknown is neutral — amber or red would cry fault at it"
 
 
