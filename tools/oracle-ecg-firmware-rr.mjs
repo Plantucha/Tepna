@@ -129,7 +129,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { digestNights, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { digestNights, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOTS = ['/srv/data/tepna-corpus/smoketest-captures', join(HERE, '..', 'uploads', 'captures')];
@@ -549,16 +549,12 @@ export function unionNights(snaps) {
   };
 }
 
-/* THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED. `ruleLine` can name the non-night directories the
-   walk let through, because the walk knows them. It cannot say which directories held no H10 pair,
-   because only the READ knows that. A count of scored nights names nothing to chase, so this names them. */
-export function notANight(union, pairs) {
-  const scored = new Set(pairs.map((p) => p.night));
-  /* No `union.ok` guard: `unionNights` builds `nights` from the snapshots that enumerated, so a union
-     that enumerated nothing already carries an empty list. A guard here would be a second statement of
-     that invariant which no control can fire, and an unfireable guard reads as covered. */
-  return union.nights.filter((n) => !scored.has(n));
-}
+/* THE OTHER HALF OF A RULE WIDER THAN NIGHT-SHAPED comes from `corpus-scope.mjs` now. The set
+   arithmetic was identical in both device oracles and only the sentence about what the night lacked
+   differed, so a widening of the question moved two files
+   (row 2026-10-22-the-removal-namer-is-duplicated-in-two-oracles). This tool keeps the sentence —
+   below, where it says the directory held no H10 pair — and the legs that accept the shared namer
+   against ITS OWN shape: a pair list with no `ok`, where a pair's existence is the read. */
 
 /* ── corpus discovery: an ECG file and the RR file that shares its stamp ──────────────────────── */
 export function discoverPairs(root) {
