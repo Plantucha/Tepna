@@ -79111,6 +79111,49 @@
       T.eq('and no memory figure appears in the status expression', /mem/i.test(statusSlice), false);
       T.ok('the held figures travel in the result instead', /memory: \{\n\s+vmHWMKb: memHeld\.vmHWMKb,/.test(CT), 'result.memory');
     });
+    /* RESIDUE 2026-10-21-a-landed-hook-fix-is-inert-until-the-primary-checkout-pulls — every hook
+       entry runs its script under `$CLAUDE_PROJECT_DIR/.claude/hooks/`, which is the PRIMARY checkout,
+       so a guard fix that merges stays inert in every session until that one tree pulls. The reader
+       that was missing says which copy would run. The legs below pin the shape of its answer: the
+       comparison is three-valued, an absence is null, and the criterion counts only the class whose
+       remedy is a pull. */
+    group('the hook-liveness reader says which copy of a guard would run, three-valued', 'tools · hooks · absence · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS, AND THE LANE DECIDES WHICH. The browser lane enumerates no directory, so
+         `toolTexts` is absent there and every regex below would run over an empty string and red
+         `browser-gates`; the node lane has no such excuse, so there an absent population is a FAILURE. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the hook-liveness scan examined nothing');
+        else T.skip('the hook-liveness source scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var HL = TT['tools/hook-liveness.mjs'] || '';
+      T.ok('ANTI-VACUITY · the hook-liveness source is loaded', /const GATE = 'hook-liveness';/.test(HL), HL.length + ' chars');
+      /* Three classes, in the order that makes them distinguishable: equal to the ref is current;
+         equal to HEAD while HEAD differs is a tree that has not pulled; anything else is an edit. */
+      T.ok('live === ref reads current', /if \(live === ref\) return \{ cls: 'current'/.test(HL), 'current');
+      T.ok('live === head over a differing ref reads behind', /if \(head != null && live === head\) return \{ cls: 'behind'/.test(HL), 'behind');
+      T.ok('anything else reads modified, with a named reason', /cls: 'modified',\n\s+reason:\s*\n?\s*head == null \?/.test(HL), 'modified');
+      /* §∅ — a file that is not there has no digest, and the ref cannot judge a hook it never saw. */
+      T.ok('an absent file is absent, never a digest', /if \(live == null\) return \{ cls: 'absent'/.test(HL), 'absent');
+      T.ok('no copy at the ref is excluded, not agreement', /if \(ref == null\) return \{ cls: 'untracked-at-ref'/.test(HL), 'untracked-at-ref');
+      T.eq('§∅ · no digest falls back to a number or an empty string', (HL.match(/\b(live|head|refSha)\s*=[^\n]*(\?\? 0|\|\| 0|\?\? ''|\|\| '')/g) || []).join(' · '), '');
+      T.ok('the live digest is null when the file is missing', /existsSync\(abs\) \? sha\(readFileSync\(abs, 'utf8'\)\) : null/.test(HL), 'live');
+      /* The checkout is RESOLVED, never taken on trust from the environment the process inherited. */
+      T.ok('the primary checkout comes from the common git dir', /'--git-common-dir'/.test(HL), 'resolvePrimary');
+      T.ok('CLAUDE_PROJECT_DIR is reported and compared, never used as the root', /rootMatchesClaudeProjectDir/.test(HL) && !/root = process\.env\.CLAUDE_PROJECT_DIR/.test(HL), 'envRoot');
+      T.eq('no home-directory path is written into the tool', (HL.match(/\/home\/[a-z]/g) || []).join(' · '), '');
+      /* The criterion is pre-stated, and it counts only the class a pull repairs. */
+      T.ok('the criterion names the behind count with a zero threshold', /name: 'hook_scripts_behind_the_ref', threshold: 0/.test(HL), 'criterion');
+      T.ok('the status reads the behind count alone', /status: behind\.length === 0 \? 'PASS' : 'FAIL'/.test(HL), 'status');
+      var statusSlice = HL.slice(HL.indexOf('status: behind.length === 0'), HL.indexOf('reason: behind.length === 0'));
+      T.eq('and no modified count appears in the status expression', /modified/.test(statusSlice), false);
+      /* NOT_RUN examined nothing, so it reports nothing — the contract refuses a result beside it. */
+      T.ok('NOT_RUN carries no result', /result: scanned\.refMissing \? result : null,/.test(HL), 'NOT_RUN');
+      T.ok('an enumerated population with nothing comparable reads UNKNOWN', /status: 'UNKNOWN',\n\s+population: \{ checked: 0, eligible: rows\.length/.test(HL), 'UNKNOWN');
+      T.ok('the sample flag prints the object alone', /if \(flag\('--verdict-sample'\)\) \{\n\s+console\.log\(JSON\.stringify\(sample\(\)\)\);/.test(HL), '--verdict-sample');
+    });
     group('OxyDex math — injectBias is exact, clamped to [0,100], and null-preserving (synthetic)', 'oxydex · math-correctness · known-answer', function (T) {
       var OA = env.OxyAccuracy;
       if (!OA || typeof OA.injectBias !== 'function') {
