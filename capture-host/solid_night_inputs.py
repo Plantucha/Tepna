@@ -836,8 +836,16 @@ def completeness(night_dir: str, device: str, model: str, primaries: list[str], 
     ⚠️ The device's own `duration_s` counter does NOT rescue case 3, and was checked before this shape was
     chosen: on 2026-09-28 it read 24 177 s against the host's 24 179 s, so 23 826 / 24 177 = 98.55 % —
     the same FAIL. The drift is in the POLL PERIOD, not in the span, so no better span can fix it."""
+    # 🔴 A FILE WITH NO ROW INSIDE THE INTERVAL STATES NOTHING ABOUT IT, so it does not get a vote on the
+    # denominator. The 2026-10-21 ring night: the recording closed at 04:50 with `spo2_hr_motion@1Hz`
+    # beside it, the ring went onto its charger at 05:36 and the box opened a fresh file set for it, and
+    # the judge ran at 05:38 while that set held no row and no sidecar yet. Its missing rate decided the
+    # band — UNKNOWN for a night whose only stream with rows declared its rate. A file contributes its
+    # rows to the count either way; only when NO file has a row does every file vote, as before.
+    counts = {p: rows_between(p, start, end) for p in primaries}
+    rows = sum(counts.values())
+    primaries = [p for p in primaries if counts[p] > 0] or primaries
     stated = [stated_expected_count(p) for p in primaries]
-    rows = sum(rows_between(p, start, end) for p in primaries)
     if all(n is not None for n in stated) and primaries:
         expected = float(sum(n for n in stated if n is not None))
         return _complete_ratio(rows, expected, "expected_sample_count stated beside the stream")
