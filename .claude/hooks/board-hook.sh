@@ -18,7 +18,8 @@
 #                         last board post, and names the post to write. `stop_hook_active`
 #                         lets the second stop through, so it can never loop. It reads the
 #                         command TEXT, so heredoc bodies come out first: a note that quotes a
-#                         retirement path is not a retirement.
+#                         retirement path is not a retirement. `tools/board-note.mjs` counts
+#                         as a post, so a note chained onto the finishing command clears it.
 #
 # THE NAME. A board identity is the bird's name (`--as kestrel`); the CLI's own guess is
 # `claude:<job>`, which nobody addresses. Resolution: $AGENT_BOARD_NAME, else the herdr
@@ -92,7 +93,7 @@ case "$mode" in
     owed="$(python3 -I - "$transcript" <<'PY' 2>/dev/null
 import json, re, sys
 FINISH = re.compile(r"\bgh\s+pr\s+(create|ready)\b|tools/wt-done\.mjs")
-POST = re.compile(r"agent-board\b.*\s(post|new)\s")
+POST = re.compile(r"agent-board\b.*\s(post|new)\s|tools/board-note\.mjs\b")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 
 
@@ -143,7 +144,7 @@ print(what if last_finish > last_post else "")
 PY
 )"
     [ -n "$owed" ] || exit 0
-    reason="Board post owed: this session ran \`$owed\` after its last board post. Post a short finish note before you stop: what you finished, the PR number and its state, and what is next. Command: ~/.local/bin/agent-board --as $name post 8 --kind note - < note.md (ste-lint the note first). Set CLAUDE_ALLOW_NO_BOARD_POST=1 only when the owner says no post is wanted."
+    reason="Board post owed: this session ran \`$owed\` after its last board post. Post a short finish note before you stop: what you finished, the PR number and its state, and what is next. Command: node tools/board-note.mjs --as $name note.md (it lints, then posts to thread 8). Next time, chain that command onto the finishing command in the same call and no block fires. Set CLAUDE_ALLOW_NO_BOARD_POST=1 only when the owner says no post is wanted."
     jq -n --arg r "$reason" '{decision: "block", reason: $r}'
     exit 0
     ;;
