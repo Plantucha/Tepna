@@ -28,6 +28,11 @@ import { isCliEntry } from './argv-guard.mjs';
 
 const OUT_DIR = process.env.TEPNA_BOARD_DIR || path.join(homedir(), '.local', 'share', 'tepna', 'board');
 const REPO = process.env.TEPNA_REPO || path.join(homedir(), 'Tepna');
+/* The board reads the REF, never the checkout's HEAD or working files. The primary checkout stays on
+   `main`, lags `origin/main` most of the time and holds other sessions' edits, so `git describe` from
+   HEAD named v2.21.0 for a day after v2.22.0 was tagged (measured 2026-10-22: HEAD 61 commits behind),
+   and a ledger read from the working copy is the stale read CLAUDE.md §📌 forbids. */
+const MAIN_REF = 'origin/main';
 
 /* A section is `{ ok: true, ... }` or `{ ok: false, reason }`. `reason` is the operator's sentence, not
    a stack trace: "gh not authenticated" tells them what to do, "Error: 1" does not. */
@@ -36,6 +41,12 @@ const fail = (reason) => ({ ok: false, reason: String(reason).split('\n')[0].sli
 function sh(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, timeout: 60000, ...opts }).trim();
 }
+/* A tracked file as `MAIN_REF` holds it, and the names in one directory of it. */
+const atRef = (rel) => sh('git', ['show', `${MAIN_REF}:${rel}`], { cwd: REPO });
+const lsRef = (dir) =>
+  sh('git', ['ls-tree', '--name-only', MAIN_REF, `${dir}/`], { cwd: REPO })
+    .split('\n')
+    .filter(Boolean);
 
 // ── PURE: THE BANNER RULES ────────────────────────────────────────────────────────────────────────
 /**
@@ -163,7 +174,7 @@ export function parseRosterHosts(md) {
 }
 function rosterHosts() {
   try {
-    return parseRosterHosts(readFileSync(path.join(REPO, 'CLAUDE.md'), 'utf-8'));
+    return parseRosterHosts(atRef('CLAUDE.md'));
   } catch {
     return {};
   }
@@ -184,7 +195,7 @@ export function unreadReason(name, u) {
 }
 function rosterNames() {
   try {
-    return parseRoster(readFileSync(path.join(REPO, 'CLAUDE.md'), 'utf-8'));
+    return parseRoster(atRef('CLAUDE.md'));
   } catch {
     return [];
   }
@@ -272,11 +283,6 @@ export function formatTimerRow(row) {
   return `next ${m[2]} (${left}) · last ${m[5]} (${m[6]})`;
 }
 
-/* The release card reads the REF, never the checkout's HEAD. The primary checkout stays on `main` and
-   lags `origin/main` most of the time, so `git describe` from HEAD named v2.21.0 for a day after
-   v2.22.0 was tagged (measured 2026-10-22: HEAD 61 commits behind, the new tag not its ancestor). */
-const RELEASE_REF = 'origin/main';
-
 /* Hours an UNFINISHED release-land run has sat on its step. Pure, so --selftest can plant the text.
    A finished run prints `current:   -`, and `-` is no step: it read 34.4 h stuck over a done chain. */
 export function landStuckHours(statusText, nowMs) {
@@ -289,18 +295,17 @@ export function landStuckHours(statusText, nowMs) {
 function release() {
   const out = { ok: true };
   try {
-    const tag = sh('git', ['describe', '--tags', '--abbrev=0', RELEASE_REF], { cwd: REPO });
+    const tag = sh('git', ['describe', '--tags', '--abbrev=0', MAIN_REF], { cwd: REPO });
     const when = sh('git', ['log', '-1', '--format=%cI', tag], { cwd: REPO });
     out.lastTag = tag;
     out.taggedAt = when;
     out.ageDays = +((Date.now() - Date.parse(when)) / 864e5).toFixed(1);
-    out.commitsSince = +sh('git', ['rev-list', '--count', `${tag}..${RELEASE_REF}`], { cwd: REPO });
+    out.commitsSince = +sh('git', ['rev-list', '--count', `${tag}..${MAIN_REF}`], { cwd: REPO });
   } catch (e) {
     return fail(`git tag read failed: ${e.message}`);
   }
   try {
-    const ch = sh('bash', ['-c', `ls ${path.join(REPO, 'changes')}/*.md 2>/dev/null | grep -vc README || true`]);
-    out.pendingChangesets = Number(ch) || 0;
+    out.pendingChangesets = lsRef('changes').filter((f) => f.endsWith('.md') && !/README/.test(f)).length;
   } catch {
     out.pendingChangesets = null;
   }
@@ -651,9 +656,9 @@ function boardActivity() {
 /* Residue backlog: open rows from the living ledger. No tokens needed. */
 function residueBacklog() {
   try {
-    const p = path.join(REPO, 'briefs', 'RESIDUE.md');
-    if (!existsSync(p)) return fail('no briefs/RESIDUE.md');
-    const rows = sh('grep', ['^| 202', p]).split('\n').filter(Boolean);
+    const rows = atRef('briefs/RESIDUE.md')
+      .split('\n')
+      .filter((l) => l.startsWith('| 202'));
     const open = rows.filter((r) => /\| OPEN/.test(r));
     const byMonth = {};
     for (const r of open) {
@@ -669,8 +674,8 @@ function residueBacklog() {
 /* Release countdown: commits and days since the last tag. Due at 100 commits or 7 days. */
 function releaseCountdown() {
   try {
-    const tag = sh('git', ['describe', '--tags', '--abbrev=0'], { cwd: REPO }).trim();
-    const commits = parseInt(sh('git', ['rev-list', '--count', tag + '..HEAD'], { cwd: REPO }).trim(), 10);
+    const tag = sh('git', ['describe', '--tags', '--abbrev=0', MAIN_REF], { cwd: REPO }).trim();
+    const commits = parseInt(sh('git', ['rev-list', '--count', `${tag}..${MAIN_REF}`], { cwd: REPO }).trim(), 10);
     const tagDate = new Date(sh('git', ['log', '-1', '--format=%cI', tag], { cwd: REPO }).trim());
     const days = (Date.now() - tagDate.getTime()) / 864e5;
     return { ok: true, tag, commits, commitsLeft: 100 - commits, days: +days.toFixed(1), daysLeft: +(7 - days).toFixed(1) };
@@ -682,11 +687,15 @@ function releaseCountdown() {
 /* Open briefs: brief files whose Status is not DONE. */
 function openBriefs() {
   try {
-    const dir = path.join(REPO, 'briefs');
-    const files = sh('sh', ['-c', `ls "${dir}"/*.md 2>/dev/null | wc -l`]).trim();
-    const done = sh('sh', ['-c', `grep -l "Status.*DONE" "${dir}"/*.md 2>/dev/null | wc -l`]).trim();
-    const total = parseInt(files, 10),
-      doneN = parseInt(done, 10);
+    const total = lsRef('briefs').filter((f) => f.endsWith('.md')).length;
+    /* `git grep` exits 1 on no match; that is a count of 0, not a failure. */
+    let hits = '';
+    try {
+      hits = sh('git', ['grep', '-l', '-e', 'Status.*DONE', MAIN_REF, '--', ':(glob)briefs/*.md'], { cwd: REPO });
+    } catch (e) {
+      if (e.status !== 1) throw e;
+    }
+    const doneN = hits.split('\n').filter(Boolean).length;
     return { ok: true, total, done: doneN, open: total - doneN };
   } catch (e) {
     return fail('brief count failed: ' + e.message);
@@ -729,10 +738,14 @@ function ownerDecisions() {
   /* Fallback: the decision-queue brief, read by its "### D<n>" headings. Never by table rows that
      contain the word "open" — on 2026-10-12 that matched a defect row, an answered row and a table
      header, and the owner read four non-decisions as the queue. */
-  const f = path.join(REPO, 'briefs', 'OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md');
-  if (!existsSync(f)) return fail('OWNER-DECISION-QUEUE brief not found');
+  let text;
   try {
-    const rows = readFileSync(f, 'utf-8')
+    text = atRef('briefs/OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md');
+  } catch {
+    return fail('OWNER-DECISION-QUEUE brief not found');
+  }
+  try {
+    const rows = text
       .split('\n')
       .filter((l) => /^### .*\bD\d/.test(l) && !/RULED|ANSWERED|✅/.test(l))
       .map((l) => l.replace(/^###\s*/, '').slice(0, 150))

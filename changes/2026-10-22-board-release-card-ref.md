@@ -4,4 +4,4 @@ type: fixed
 brief: none
 ---
 
-The board release card reads the newest tag from `origin/main`, and a finished release-land run no longer reads as stuck.
+The board reads the tag, the ledgers and the roster from `origin/main`, and a finished release-land run no longer reads as stuck.
