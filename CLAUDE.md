@@ -243,6 +243,8 @@ column — `/tmp` is a 30 GB tmpfs invisible to `ps`. Deleting orphans there is 
   is 80k; the rest is conversation you carry. Write the handoff first.
 - **Two tools per turn.** `fleet-turns.mjs` prints tools/turn with its target (≥ 2.0) and the window
   median with its cap. A row that misses either is the first thing to fix in your next unit.
+- **Plan the turn before you take it.** List every read and check the next step needs, then issue them
+  all in one call. A turn costs the whole window; a tool call inside it costs only its output.
 
 ---
 
