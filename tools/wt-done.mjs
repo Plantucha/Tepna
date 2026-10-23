@@ -439,6 +439,28 @@ function prByNumber(num) {
   }
 }
 
+/* A RELAY TREE'S TIP IS THE MERGED PR'S HEAD, under a branch name that never reached origin (or no
+   branch at all: a detached relay). Measured 2026-10-22: Kestrel's `wt-acqfix-k9a` sat detached at
+   `2a6c0b2f3`, exactly #3855's `headRefOid` after it merged as `claude/acqvocab-hrn`, and the tool
+   refused with `no PR found for branch` until a hand check licensed `--landed`. The proof is EQUALITY
+   of the tip and a merged PR's head oid — never ancestry, never a name — so nothing weaker is accepted.
+   Pure, so --selftest can plant the PR list. */
+export function prMatchingTip(prs, tip) {
+  if (!tip || !Array.isArray(prs)) return null;
+  const hit = prs.find((p) => p && p.state === 'MERGED' && p.headRefOid === tip);
+  return hit ? { state: 'MERGED', mergedAt: hit.mergedAt || null, number: hit.number, headRefName: hit.headRefName ?? null } : null;
+}
+
+function prForTip(wtPath) {
+  try {
+    const tip = run('git', ['-C', wtPath, 'rev-parse', 'HEAD']).trim();
+    const js = JSON.parse(run('gh', ['pr', 'list', '--search', tip, '--state', 'merged', '--json', 'number,state,mergedAt,headRefOid,headRefName', '--limit', '5']));
+    return prMatchingTip(js, tip);
+  } catch {
+    return null; // gh unavailable reads as "no proof", never as merged
+  }
+}
+
 function prFor(branch) {
   if (!branch) return { state: null, mergedAt: null };
   try {
@@ -690,6 +712,13 @@ function main(argv) {
       pr = named;
     } else {
       pr = prFor(w.branch);
+      if (pr.state === null) {
+        const byTip = prForTip(w.path);
+        if (byTip) {
+          console.log(`  proof: PR #${byTip.number} merged as '${byTip.headRefName}' with this tree's tip as its head`);
+          pr = byTip;
+        }
+      }
     }
     /* Computed ONCE for both roles below. A MERGED tree is measured too, and that is the repair: the
        emptiness rung could never fire on the path that needed it, because the measurement was not taken
@@ -755,6 +784,14 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
      here because the wording is the defect this fixes: the old refusal hinted `--pushed` at every
      PR-less tree, including ones the flag cannot help, and that hint cost a manual removal. */
   const EMPTY = { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: false };
+  {
+    const tip = '2a6c0b2f37040a33507009c495f620d560255e2b';
+    const merged = { number: 3855, state: 'MERGED', mergedAt: '2026-10-22T23:13:18Z', headRefOid: tip, headRefName: 'claude/acqvocab-hrn' };
+    // The positive control first: a matcher that refused everything would pass both refusals below.
+    assert(prMatchingTip([merged], tip)?.number === 3855, 'a merged PR whose head IS the tip proves the relay tree landed');
+    assert(prMatchingTip([{ ...merged, headRefOid: 'f'.repeat(40) }], tip) === null, 'a merged PR that only CONTAINS the tip is no proof');
+    assert(prMatchingTip([{ ...merged, state: 'OPEN' }], tip) === null, 'an OPEN PR with the tip as head is no proof');
+  }
   const CONTAINED = { ok: true, kind: 'contained', remote: 'origin/x', commitsAhead: 3, remoteRef: true };
   assert(verdict({ prState: null, dirtyCount: 0, isMain: false, landless: EMPTY }).ok, 'an EMPTY tree passes with no flag');
   assert(!verdict({ prState: null, dirtyCount: 1, isMain: false, landless: EMPTY }).ok, 'empty never overrides dirty');

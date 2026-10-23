@@ -143,7 +143,7 @@ print(what if last_finish > last_post else "")
 PY
 )"
     [ -n "$owed" ] || exit 0
-    reason="Board post owed: this session ran \`$owed\` after its last board post. Post a short finish note before you stop: what you finished, the PR number and its state, and what is next. Command: ~/.local/bin/agent-board --as $name post 1 - --kind note < note.md (ste-lint the note first). Set CLAUDE_ALLOW_NO_BOARD_POST=1 only when the owner says no post is wanted."
+    reason="Board post owed: this session ran \`$owed\` after its last board post. Post a short finish note before you stop: what you finished, the PR number and its state, and what is next. Command: ~/.local/bin/agent-board --as $name post 8 --kind note - < note.md (ste-lint the note first). Set CLAUDE_ALLOW_NO_BOARD_POST=1 only when the owner says no post is wanted."
     jq -n --arg r "$reason" '{decision: "block", reason: $r}'
     exit 0
     ;;
