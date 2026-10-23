@@ -272,15 +272,29 @@ export function formatTimerRow(row) {
   return `next ${m[2]} (${left}) · last ${m[5]} (${m[6]})`;
 }
 
+/* The release card reads the REF, never the checkout's HEAD. The primary checkout stays on `main` and
+   lags `origin/main` most of the time, so `git describe` from HEAD named v2.21.0 for a day after
+   v2.22.0 was tagged (measured 2026-10-22: HEAD 61 commits behind, the new tag not its ancestor). */
+const RELEASE_REF = 'origin/main';
+
+/* Hours an UNFINISHED release-land run has sat on its step. Pure, so --selftest can plant the text.
+   A finished run prints `current:   -`, and `-` is no step: it read 34.4 h stuck over a done chain. */
+export function landStuckHours(statusText, nowMs) {
+  const upd = String(statusText || '').match(/updated (\S+)/);
+  const cur = String(statusText || '').match(/current:\s+(\S+)/);
+  if (!upd || !cur || cur[1] === '-') return null;
+  return +((nowMs - Date.parse(upd[1])) / 3.6e6).toFixed(1);
+}
+
 function release() {
   const out = { ok: true };
   try {
-    const tag = sh('git', ['describe', '--tags', '--abbrev=0'], { cwd: REPO });
+    const tag = sh('git', ['describe', '--tags', '--abbrev=0', RELEASE_REF], { cwd: REPO });
     const when = sh('git', ['log', '-1', '--format=%cI', tag], { cwd: REPO });
     out.lastTag = tag;
     out.taggedAt = when;
     out.ageDays = +((Date.now() - Date.parse(when)) / 864e5).toFixed(1);
-    out.commitsSince = +sh('git', ['rev-list', '--count', `${tag}..HEAD`], { cwd: REPO });
+    out.commitsSince = +sh('git', ['rev-list', '--count', `${tag}..${RELEASE_REF}`], { cwd: REPO });
   } catch (e) {
     return fail(`git tag read failed: ${e.message}`);
   }
@@ -297,12 +311,11 @@ function release() {
       .slice(0, 6)
       .map((l) => l.trim())
       .filter(Boolean);
-    const upd = st.match(/updated (\S+)/);
     const cur = st.match(/current:\s+(\S+)/);
-    out.landCurrentStep = cur ? cur[1] : null;
+    out.landCurrentStep = cur && cur[1] !== '-' ? cur[1] : null;
     /* `stuckHours` is only meaningful while a run is UNFINISHED — a `current:` step with no `done` for
        the whole chain. A finished chain has no current step and cannot be stuck. */
-    out.landStuckHours = upd && cur ? +((Date.now() - Date.parse(upd[1])) / 3.6e6).toFixed(1) : null;
+    out.landStuckHours = landStuckHours(st, Date.now());
   } catch (e) {
     out.land = null;
     /* --status exits 1 with "no release-land run recorded on this machine" when nothing has run here;
@@ -1510,6 +1523,11 @@ function runSelftest() {
       'a two-token "left" survives'
     );
     ok(formatTimerRow('something else') === 'something else' && formatTimerRow('') === '', 'an unrecognised row is kept raw, an empty one stays empty');
+    const doneRun = 'v2.22.0  started 2026-10-21T13:04:48.208Z  updated 2026-10-21T13:24:01.785Z\ndone:      plan tag release cleanup\ncurrent:   -\nremaining: -';
+    ok(landStuckHours(doneRun, Date.parse('2026-10-22T23:48:00Z')) === null, 'a finished release-land run (`current:   -`) is not stuck, however old');
+    const midRun = 'v2.23.0  started 2026-10-22T10:00:00Z  updated 2026-10-22T10:30:00Z\ndone:      plan\ncurrent:   merge\nremaining: tag';
+    ok(landStuckHours(midRun, Date.parse('2026-10-22T12:30:00Z')) === 2, 'CONTROL · a run on its merge step for 2 h reads 2 h stuck');
+    ok(landStuckHours('', Date.now()) === null, 'no status text is no stall');
     ok(herderRows('not json', 'birds').length === 0 && herderRows('{"result":{}}', 'birds').length === 0, 'unparseable or agent-less herder output yields no rows, never a throw');
   }
   console.log(fails.length ? `board selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
