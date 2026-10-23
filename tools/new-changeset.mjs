@@ -32,7 +32,9 @@
  *        --brief=CPAP-ACQ-P4 --body="Follow the device's pointer instead of stopping."
  *   node tools/new-changeset.mjs --slug=docs-tidy --bump=patch --type=changed   # → brief: none
  * ════════════════════════════════════════════════════════════════════════ */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
@@ -41,6 +43,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BUMPS = ['patch', 'minor', 'major'];
 // Keep a Changelog's set, which is what `check5` accepts — restated nowhere else in this file.
 const TYPES = ['added', 'changed', 'fixed', 'removed', 'deprecated', 'security'];
+const TODO_BODY = 'TODO: one imperative sentence — this becomes the changelog bullet.';
 
 const arg = (k, d = null) => {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${k}=`));
@@ -78,11 +81,30 @@ export function changesetText({ bump, type, brief, body }) {
   return `---\nbump: ${bump}\ntype: ${type}\nbrief: ${brief}\n---\n\n${body}\n`;
 }
 
+/* Run the STE linter on a changeset's text BEFORE it lands on disk. `pr-compliance` lints every new
+   Markdown file at step 36 of 40 of `npm run check`, so a long bullet failed a gate after 35 slow
+   steps (measured 2026-10-22, #3901: one 27-word sentence). Returns { ok, report }. */
+export function lintChangeset(text, name, root = ROOT) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'changeset-lint-'));
+  const f = path.join(dir, name);
+  try {
+    fs.writeFileSync(f, text, 'utf8');
+    const r = spawnSync(process.execPath, [path.join(root, 'tools', 'ste-lint.mjs'), f], { encoding: 'utf8' });
+    const report = String(r.stdout || '')
+      .split('\n')
+      .filter((l) => /^\s+\S.*:\d+\s/.test(l))
+      .map((l) => l.trim().replace(f, name));
+    return { ok: r.status === 0, status: r.status, report };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function main() {
   const slug = arg('slug');
   const bump = arg('bump', 'patch');
   const type = arg('type');
-  const body = arg('body', 'TODO: one imperative sentence — this becomes the changelog bullet.');
+  const body = arg('body', TODO_BODY);
   const date = arg('date') || new Date().toISOString().slice(0, 10);
 
   const die = (msg) => {
@@ -109,8 +131,18 @@ function main() {
 
   const file = path.join(ROOT, 'changes', `${date}-${slug}.md`);
   if (fs.existsSync(file)) die(`${path.relative(ROOT, file)} already exists — pick another slug`);
-  fs.writeFileSync(file, changesetText({ bump, type, brief: r.brief, body }), 'utf8');
+  const text = changesetText({ bump, type, brief: r.brief, body });
+  if (body !== TODO_BODY) {
+    const l = lintChangeset(text, path.basename(file));
+    if (!l.ok) {
+      console.error(`new-changeset: --body fails the writing rules (tools/ste-lint.mjs exit ${l.status}); nothing written:`);
+      for (const x of l.report) console.error(`  ${x}`);
+      process.exit(2);
+    }
+  }
+  fs.writeFileSync(file, text, 'utf8');
   console.log(`wrote ${path.relative(ROOT, file)}  (brief: ${r.brief})`);
+  if (body === TODO_BODY) console.log(`replace the TODO line, then:  node tools/ste-lint.mjs ${path.relative(ROOT, file)}`);
   console.log('verify in ~4 s:  node tests/run-tests.mjs --group=release-ledger');
 }
 
@@ -146,6 +178,13 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const t = changesetText({ bump: 'patch', type: 'fixed', brief: 'none', body: 'x' });
   ok("emitted frontmatter matches check5's own brief regex", /^brief:\s*(\S+)\s*$/m.test(t));
   ok('emitted bump/type are on their own lines', /^bump: patch$/m.test(t) && /^type: fixed$/m.test(t));
+
+  // The write-time lint: the positive control first, so a linter that refused everything fails here.
+  const good = lintChangeset(changesetText({ bump: 'patch', type: 'fixed', brief: 'none', body: 'Read the tag from the ref.' }), 'g.md');
+  ok('a short bullet passes the write-time lint', good.ok, JSON.stringify(good));
+  const long = 'The board reads the tag, the residue ledger, the briefs, the roster and the changesets from the ref, and a finished run no longer reads as stuck.';
+  const bad = lintChangeset(changesetText({ bump: 'patch', type: 'fixed', brief: 'none', body: long }), 'b.md');
+  ok('a 27-word bullet fails it and names the rule', !bad.ok && bad.report.some((l) => /long-sentence/.test(l)), JSON.stringify(bad));
 
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
