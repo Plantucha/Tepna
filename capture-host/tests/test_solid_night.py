@@ -1356,3 +1356,33 @@ def test_A_DECLARED_PROBE_NIGHT_TRAVELS_FROM_THE_FOLDER_TO_THE_PUBLISHED_VERDICT
     js_validate(v)
     assert v["status"] == "NOT_APPLICABLE"
     assert v["reason"] == "probe night: declared by monitor toggle at 2026-01-01T21:00:00"
+
+
+# ── `newest_written`: the LAST verdict on disk, for a caller that wants a statement not a series ──────
+def test_NEWEST_WRITTEN_WALKS_BACKWARDS_AND_STEPS_OVER_A_NIGHT_THAT_HAS_NO_VERDICT(tmp_path):
+    """The newest night that HAS a file wins, and an unjudged night in the middle is stepped over.
+
+    THE ORDER IS THE WHOLE FUNCTION. Both of the other nights here carry a verdict too, and the oldest
+    one carries a DIFFERENT status, so a walk that forgot to reverse returns a well-formed verdict about
+    the wrong night — which is exactly the defect the status card paid for."""
+    captures = tmp_path / "captures"
+    for name, status in (("2026-09-17", "FAIL"), ("2026-09-19", "PASS")):
+        d = captures / name
+        d.mkdir(parents=True)
+        (d / sn.VERDICT_NAME).write_text(json.dumps({"status": status, "reason": None}))
+    (captures / "2026-09-20").mkdir()  # judged by nothing: no verdict file at all
+    nights = ["2026-09-17", "2026-09-19", "2026-09-20"]
+    found = sn.newest_written(str(captures), nights)
+    assert found is not None
+    night, obj = found
+    assert (night, obj["status"]) == ("2026-09-19", "PASS")
+    # The list's own order must not decide it either: the function sorts what it is handed.
+    assert sn.newest_written(str(captures), list(reversed(nights)))[0] == "2026-09-19"
+
+
+def test_NEWEST_WRITTEN_IS_NONE_WHEN_NO_NIGHT_HAS_BEEN_JUDGED(tmp_path):
+    """∅ A box that has judged nothing returns None, never an empty or invented verdict."""
+    captures = tmp_path / "captures"
+    (captures / "2026-09-19").mkdir(parents=True)
+    assert sn.newest_written(str(captures), ["2026-09-19"]) is None
+    assert sn.newest_written(str(captures), []) is None

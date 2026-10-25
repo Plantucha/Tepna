@@ -472,3 +472,89 @@ def test_a_CHILD_THAT_DIED_is_a_poll_that_did_not_run_and_the_poller_says_so(tmp
         _poll_once(monkeypatch, tmp_path)
     assert any("loss-audit: poll failed" in r.getMessage() for r in caplog.records)
     assert "loss" not in capture.STATUS, "nothing is published about a night nothing audited"
+
+
+# ── the card's floor at startup (residue 2026-10-21-the-solid-card-states-a-stale-night-…) ───────────
+def _stored(root, night, obj):
+    """A written SOLID-VERDICT.json beside `night`, with no capture data: judged, not re-judgeable."""
+    d = root / "captures" / night
+    d.mkdir(parents=True, exist_ok=True)
+    (d / capture.solid_night.VERDICT_NAME).write_text(json.dumps(obj))
+    return d
+
+
+def test_the_card_is_seeded_from_the_newest_written_verdict_at_startup(tmp_path, monkeypatch, caplog):
+    """All six fields the two publish paths write, mapped from the file's own two levels.
+
+    The run statement, the solid count and the exit flag live under `result.run`; the night, the status
+    and the reason are at the top. The card draws only the second three, and the first three are carried
+    anyway so the object's shape does not depend on which path last wrote it."""
+    _stored(tmp_path, "2026-09-17", {"status": "FAIL", "reason": "earlier night"})
+    _stored(
+        tmp_path,
+        "2026-09-19",
+        {
+            "status": "PASS",
+            "reason": None,
+            "result": {"run": {"statement": "3 solid of 5 nights over 5 days", "solid": 3, "exit": False}},
+        },
+    )
+    monkeypatch.setattr(capture, "STATUS", {})
+    with caplog.at_level("INFO"):
+        capture._seed_solid(str(tmp_path / "captures"))
+    assert capture.STATUS["solid"] == {
+        "night": "2026-09-19",
+        "status": "PASS",
+        "reason": None,
+        "run": "3 solid of 5 nights over 5 days",
+        "solid": 3,
+        "exit": False,
+    }
+    assert any("card seeded from 2026-09-19 PASS" in r.getMessage() for r in caplog.records)
+
+
+def test_a_not_applicable_nights_absent_run_is_null_on_the_card_never_a_zero(tmp_path, monkeypatch):
+    """∅ `result: null` is the verdict contract's own shape for NOT_APPLICABLE, so the run is ABSENT.
+
+    A zero count with a false exit would read as "this programme has zero solid nights and has not
+    exited", which is a measurement. Nothing measured it: the night was skipped."""
+    _stored(tmp_path, "2026-09-19", {"status": "NOT_APPLICABLE", "reason": "probe night", "result": None})
+    monkeypatch.setattr(capture, "STATUS", {})
+    capture._seed_solid(str(tmp_path / "captures"))
+    s = capture.STATUS["solid"]
+    assert (s["night"], s["status"], s["reason"]) == ("2026-09-19", "NOT_APPLICABLE", "probe night")
+    assert s["run"] is None and s["solid"] is None and s["exit"] is None, s
+
+
+def test_a_box_that_has_judged_no_night_seeds_nothing_and_says_so(tmp_path, monkeypatch, caplog):
+    """∅ No verdict anywhere leaves the key absent, so `renderSolidNight` keeps the card hidden."""
+    (tmp_path / "captures" / "2026-09-19").mkdir(parents=True)  # a night, and nothing has judged it
+    monkeypatch.setattr(capture, "STATUS", {})
+    with caplog.at_level("INFO"):
+        capture._seed_solid(str(tmp_path / "captures"))
+    assert "solid" not in capture.STATUS
+    assert any("the card seeds nothing" in r.getMessage() for r in caplog.records)
+
+
+def test_after_a_restart_the_seed_keeps_a_re_judged_older_night_off_the_card(tmp_path, monkeypatch):
+    """THE DEFECT ITSELF. `_publish_solid` promises a re-judged older night is written but not published.
+
+    With `STATUS` empty after a restart that promise holds for nothing, and the poller walks its window
+    oldest-first — measured on the box as `PASS · 2026-09-08` while 09-20 recorded. The seed is the
+    floor that rule needs. The control below is the same poll with the seed removed."""
+    older = _night(tmp_path, "2026-09-18")  # settled DATA: this night is the one the poller re-judges
+    _stored(tmp_path, "2026-09-19", {"status": "PASS", "reason": None})  # the newest JUDGED night
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    monkeypatch.setattr(capture, "STATUS", {})
+    _poll_once(monkeypatch, tmp_path)
+    assert (older / capture.solid_night.VERDICT_NAME).exists(), "the older night is still judged and written"
+    assert capture.STATUS["solid"]["night"] == "2026-09-19", "and the card states the newest judged night"
+    # CONTROL — the seed removed, nothing else changed: the card reads the older night back. Its
+    # verdict goes with it, because the poll above already wrote one under the running commit and a
+    # night that carries that commit is re-judged by nothing.
+    (older / capture.solid_night.VERDICT_NAME).unlink()
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture, "_seed_solid", lambda captures: None)
+    _poll_once(monkeypatch, tmp_path)
+    assert capture.STATUS["solid"]["night"] == "2026-09-18", "which is the state the row logged"
