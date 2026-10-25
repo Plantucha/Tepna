@@ -64,6 +64,37 @@ def _counter(summary: dict | None, *keys: str) -> int | str:
     return sum(int(v or 0) for v in vals)
 
 
+# ── the CPAP live rail's own clock word ────────────────────────────────────────────────────────────
+# DERIVED FROM THE RECORD'S CONTENT, never from its transport — `acq_evidence_polar`'s rule, for the
+# reason that module measured: a transport-keyed rule claims a device clock the artifact may not hold.
+# `cpap_record.RawRecordSink.on_batch` writes `device_start` VERBATIM beside `host_wall` and
+# `host_mono` on every batch (INV3/INV4), so the record's own facts decide the word: whether any batch
+# carried a device stamp, and whether any batch was written at all.
+#
+# This does NOT contradict the `clock_offset` note in `assemble_live` ("this adapter measures no
+# clocks"). That line is about MEASURING the two clocks against each other, which stays the caller's
+# job. This names WHICH clocks stamped the artifact, which is a property of the artifact itself.
+def clock_status_for(raw_facts: dict | None) -> str:
+    """The `clock_status` word for one live CPAP acquisition, read off its raw record's own facts.
+
+    Measured 2026-10-25: `cpap_stream._emit_acq_evidence` named every other derived field and left this
+    one at `assemble_live`'s `UNKNOWN` default. So every live CPAP envelope the box has written declares
+    an unknown clock while the same call hands the envelope a MEASURED offset between the two clocks it
+    will not name. The same defect as the ring's stored path (#3906), on the rail that holds the most
+    evidence of a second clock.
+
+    ∅ AN ABSENT `records` IS NOT `0`. A facts dict that does not state its batch count cannot tell
+    "nothing streamed" from "not measured", so it reads UNKNOWN rather than `none`."""
+    facts = raw_facts or {}
+    records = facts.get("records")
+    if not isinstance(records, int):
+        return ae.UNKNOWN
+    if records == 0:
+        # The header line carries no stamp of either kind, so neither clock reached the artifact.
+        return ae.CLOCK_NONE
+    return ae.CLOCK_DEVICE_AND_HOST if facts.get("first_device_start") is not None else ae.CLOCK_HOST_ONLY
+
+
 def assemble_live(
     raw_facts: dict,
     *,
