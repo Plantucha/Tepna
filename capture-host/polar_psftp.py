@@ -31,6 +31,7 @@ import argparse, asyncio, json, logging, os, time
 from bleak import BleakClient, BleakScanner
 
 import acq_evidence_polar
+import oxy_inventory  # §12: the ONE content-hash helper this tree has — never a second one
 
 log = logging.getLogger(__name__)
 
@@ -766,7 +767,19 @@ async def pull_recording(
                 # of a short read deliberately does NOT satisfy this, or a truncation is never repaired.
                 if os.path.exists(dst) and os.path.getsize(dst) == size:
                     m["files"].append(
-                        {"name": rel, "bytes": size, "declared": size, "ok": True, "skipped": True, "dst": dst}
+                        # §∅ `sha256: None` IS THE POINT HERE. This branch matched a file by SIZE and read
+                        # none of its bytes, so it holds no digest of anything. Hashing the copy on disk
+                        # instead would answer a DIFFERENT question — what we hold, not what arrived —
+                        # and filing that answer under the same key would make the two indistinguishable.
+                        {
+                            "name": rel,
+                            "bytes": size,
+                            "declared": size,
+                            "ok": True,
+                            "skipped": True,
+                            "sha256": None,
+                            "dst": dst,
+                        }
                     )
                     m["total_bytes"] += size
                     done += size
@@ -787,6 +800,13 @@ async def pull_recording(
                 part = dst + ".part"
                 with open(part, "wb") as fh:
                     fh.write(data)
+                # HASH WHAT ARRIVED, WHERE THE RING PULL HASHES IT (`pull_session.py` hashes `data`
+                # before the commit rename, not the file after it). The device declares a SIZE in its
+                # listing and no hash, so this digest deepens nothing about validation — it is the
+                # artifact identity a later reader needs to show that the bytes on disk are still the
+                # bytes this pull received. A short read gets one too: its bytes are real, and `.part`
+                # already says they are incomplete.
+                sha = oxy_inventory.sha256_bytes(data)
                 short = len(data) != size
                 if short:
                     m["short"].append(
@@ -801,6 +821,7 @@ async def pull_recording(
                         "bytes": len(data),
                         "declared": size,
                         "ok": not short,
+                        "sha256": sha,
                         "dst": dst if not short else part,
                     }
                 )
