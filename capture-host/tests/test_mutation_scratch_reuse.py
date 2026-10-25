@@ -610,17 +610,31 @@ def test_manifest_reads_refuses_a_DECLARED_path_it_must_not_stage(tmp_path):
     """Bounded exactly as the static half is. An absolute path and a `..` escape the root; a path under
     the tree's own name is already inside the scratch; a declared name that is not a regular file is
     skipped rather than fabricated; a symlink out of the root is still an escape; and an unresolvable
-    name raises nothing. The positive control shows the reader itself still works."""
+    name raises nothing. The positive control shows the reader itself still works.
+
+    🔴 THREE OF THESE INPUTS ARE THE ONLY ONES THEIR CLAUSE REFUSES ALONE, and the mutation gate named
+    them. `/etc/hostname` is refused TWICE — by the absolute-path clause and again by the root bound —
+    so it says nothing about either; an absolute path to a real file INSIDE the root is refused by the
+    first clause only. `capture-host/seal.py` carries one separator, so its first segment is also its
+    last and a right split reads the same name; the tree-is-the-scratch bound is observable only three
+    segments deep. And a declared path that is a NUMBER reaches `.startswith` unless `isinstance` is
+    tested on its own, where it raises `AttributeError` and takes the whole gate down with it."""
     root, tree = _tree_with_root_read(tmp_path)
     (tree / "seal.py").write_text("X = 1\n")  # the self-reference the tree already carries
+    (tree / "nested").mkdir(exist_ok=True)
+    (tree / "nested" / "seal.py").write_text("X = 1\n")  # and the same self-reference three deep
     (tmp_path / "outside.txt").write_text("not ours\n")
     (root / "escapes_the_root.txt").symlink_to(tmp_path / "outside.txt")
     _write_manifest(
         tree,
         [
             "/etc/hostname",
+            str(root / "ecgdex-dsp.js"),  # absolute AND a real file inside the root
+            "",
+            123,
             "../outside.txt",
             "capture-host/seal.py",
+            "capture-host/nested/seal.py",
             "declared_but_absent.txt",
             "escapes_the_root.txt",
             "docs",
@@ -659,6 +673,71 @@ def test_manifest_reads_contributes_NOTHING_rather_than_RAISING(tmp_path):
     assert mutation_diff.manifest_reads(tree) == []
     assert mutation_diff.root_reads(tree) == ["ecgdex-dsp.js"]  # the static half, under every shape
     assert mutation_diff.staged_root_reads(tree) == ["ecgdex-dsp.js"]  # and so does the consumer
+
+
+def test_the_manifest_is_read_as_UTF8_AND_NOT_AS_THE_LOCALE_SAYS(tmp_path):
+    """∅ A MANIFEST READ THROUGH THE LOCALE CAN DECLARE NOTHING, which is the quiet-manifest defect
+    reached from the reader instead of from the producer. The gate runs under systemd and under CI,
+    where the locale is POSIX, so a read with no `encoding=` decodes committed UTF-8 bytes as ASCII. One
+    non-ASCII character in one declared path then raises `UnicodeDecodeError` — a subclass of
+    `ValueError`, so this reader's own guard swallows it and returns `[]`. The locale is forced here
+    rather than assumed, and restored in a `finally`.
+
+    The manifest is written by hand rather than through `_write_manifest`, because `json.dumps` escapes
+    non-ASCII by default and the producer takes that default. So the bytes this test needs are bytes a
+    hand edit writes, and the reader is the consumer of a file on disk either way."""
+    import json
+    import locale
+
+    root, tree = _tree_with_root_read(tmp_path)
+    (root / "caf\u00e9.js").write_text("const A = 1;\n")
+    (tree / "tools").mkdir(exist_ok=True)
+    (tree / "tools" / "root-reads.json").write_text(
+        json.dumps(
+            {"schema": mutation_diff.ROOT_READS_SCHEMA, "paths": [{"path": "caf\u00e9.js"}]}, ensure_ascii=False
+        ),
+        encoding="utf-8",
+    )
+    assert b"caf\xc3\xa9" in (tree / "tools" / "root-reads.json").read_bytes()  # UTF-8 on disk
+    previous = locale.setlocale(locale.LC_CTYPE)
+    try:
+        locale.setlocale(locale.LC_CTYPE, "C")
+        # THE PRECONDITION, stated rather than assumed: without an ASCII locale this test proves nothing.
+        assert locale.getencoding().upper() not in ("UTF-8", "UTF8"), locale.getencoding()
+        assert mutation_diff.manifest_reads(tree) == ["caf\u00e9.js"]
+    finally:
+        locale.setlocale(locale.LC_CTYPE, previous)
+
+
+def test_the_RECORDED_equivalence_for_THE_FIRST_SEGMENT_is_RE_DERIVABLE():
+    """The committed battery behind the two `mutation_diff.py` entries in `tools/mutate-equivalence.json`
+    that no input can kill. `[0]` of a LEFT split is the text before the first separator for every
+    maxsplit the operator writes, so `split("/")` and `split("/", 2)` read the same first segment as
+    `split("/", 1)`. A RIGHT split does not, and the test above kills that one with a path three
+    segments deep, so the two claims below are about the operator and not about a missing test.
+
+    `tools/mutate-equivalence.json` asks for a probe saying what was actually run. This is that probe,
+    committed: a battery over the shapes a declared path takes, re-derived on every suite run."""
+    battery = [
+        "",
+        "/",
+        "//",
+        "ok.txt",
+        "capture-host",
+        "capture-host/",
+        "/capture-host",
+        "capture-host/seal.py",
+        "capture-host/nested/seal.py",
+        "capture-host//nested//seal.py",
+        "a/b/c/d/e",
+        "../outside.txt",
+        "capture-host/nested/../seal.py",
+        "\u00e9/\u00e9",
+    ]
+    for rel in battery:
+        assert rel.split("/", 1)[0] == rel.split("/")[0] == rel.split("/", 2)[0], rel
+    deep = "capture-host/nested/seal.py"
+    assert deep.rsplit("/", 1)[0] != deep.split("/", 1)[0]  # the variant a test kills, and its input
 
 
 def test_the_manifest_LITERALS_agree_with_their_producer():
