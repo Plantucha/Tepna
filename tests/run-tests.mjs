@@ -3046,6 +3046,13 @@ async function main() {
     // only worth asserting if the shared escaper is known to close that hole.
     escapeHTML: ctx.escapeHTML || (ctx.DexEsc && ctx.DexEsc.escapeHTML),
     DexClock: ctx.DexClock,
+    /* THE REALM GLOBAL — the object the co-loaded modules actually hang their globals on. The suite
+       runs in the HOST context here (`require('./dex-tests.js')`) while the modules run inside the vm,
+       so a group that must recompute the way a BUNDLE computes cannot reach them through its own
+       `globalThis`: it hid nothing and the co-loaded answer came back unchanged (measured 2026-10-24,
+       caught by that group's own anti-vacuity leg). The browser lane passes `window`, where the two
+       are the same object. Consumed by `inBundleRealm` in tests/dex-tests.js. */
+    realmGlobal: ctx,
     PulseDex: ctx.PulseDex,
     OxyDex: ctx.OxyDex,
     OxyAccuracy: ctx.OxyAccuracy,

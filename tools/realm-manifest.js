@@ -59,10 +59,20 @@ var OXY_ECG_REALM = Object.freeze(OXY_REALM.concat(ECG_LEG));
    of a fixture pair is a committed node-export, which fusion reads as plain data. */
 var OXY_FUSION_REALM = Object.freeze(OXY_REALM.concat(['oxydex-fusion.js']));
 
-/* The PpgDex realm — clock.js before ppgdex-dsp.js (the DSP aliases DexClock.parseTimestamp at load). */
+/* The PpgDex realm — the co-load of the PpgDex bundle's compute modules, and `clock.js` is NOT one of
+   them. PpgDex.src.html inlines no `clock.js` (CLAUDE.md §✅ — `DexClock` is undefined in that bundle,
+   and the node keeps its deliberate node-local parser), so a realm that loads it is not the realm the
+   app runs in. The entry sat here until 2026-10-24 under a comment claiming `ppgdex-dsp.js` aliases
+   `DexClock.parseTimestamp` at load; it does not — every `DexClock` read in that DSP is guarded by
+   `typeof`, and with the module present those guards take the branch the bundle never takes. Measured
+   cost of the entry: the five reachable committed goldens were regenerated under it and carried a
+   host-axis-corrected beat train, so `recording.contentId`, `recording.hostAxis`,
+   `measurement.*.window.spreadMs` and up to fifteen `timeseries.ppi.tSec` values were values the
+   shipped bundle cannot reproduce (residue 2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible).
+   Gate: `tools · realm-manifest · single-source` reads each node's own `.src.html` and reds a realm
+   that loads a module its node omits. */
 var PPG_REALM = Object.freeze([
   'kernel-constants.js',
-  'clock.js',
   'signal-frame.js',
   'dex-export.js',
   'metric-registry.js',

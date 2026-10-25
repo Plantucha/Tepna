@@ -859,6 +859,8 @@ async function main(){
     pickProvenanceBanner: window.pickProvenanceBanner,
     docs, hosts, manifests, docsLedger, releaseLedger, discoverability,
     srcHtml, bundleCsp,
+    // The realm global: in THIS lane the modules and the suite share one global (see run-tests.mjs).
+    realmGlobal: window,
     fixtures, sources, equiv, odiPilot,
     // published so `adapter sources reach BOTH lanes` can tell an EMPTY adapter manifest from a
     // lane that simply has no adapters — a silent `[]` there is the blindness that group closes.
