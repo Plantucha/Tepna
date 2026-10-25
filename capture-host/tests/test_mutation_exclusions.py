@@ -573,7 +573,14 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # swap): `clock_sync_owed_on_connect`, the PURE predicate that decides if a link that just came up is
     # released before PMD START so the owed sync can run. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 328, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 328 → 329 on 2026-10-25 (residue 2026-10-21-the-solid-card-states-a-stale-night-until-the-rejudge-backlog-reaches-today):
+    # `_seed_solid`, which puts the newest WRITTEN verdict on the status card at startup so the
+    # never-backwards rule in `_publish_solid` has a floor. It is a named function because the poller
+    # calls it once before its first sleep, and the card's six fields come from two levels of a file the
+    # poller never reads otherwise. +1, the whole delta: the file read is `solid_night.newest_written`,
+    # and this count does not cover that module.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 329, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

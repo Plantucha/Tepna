@@ -9941,6 +9941,10 @@ async def loss_poller(cfg: dict, root: str):
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
     commit = verdict.commit_sha()
+    # THE CARD'S FLOOR, ONCE, BEFORE THE FIRST POLL — and the first poll is `interval` away, so without
+    # this the card is blank for 1800 s after every restart and then states whatever the backlog reaches
+    # first. Off the loop: a tree listing plus one JSON read.
+    await asyncio.to_thread(_seed_solid, captures)
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
@@ -10088,6 +10092,42 @@ def _publish_solid(night: str, s: dict) -> None:
         "solid": s["solid"],
         "exit": s["exit"],
     }
+
+
+def _seed_solid(captures: str) -> None:
+    """THE NEWEST WRITTEN VERDICT ON THE CARD AT STARTUP, so the never-backwards rule has a floor.
+
+    `_publish_solid` above promises that a re-judged OLDER night is written but not published. After a
+    restart `STATUS` is empty, so `shown` is None and that promise holds for nothing: the loss poller
+    walks its window oldest-first, one re-judge per poll, and the card states each old night in turn
+    under that old night's date. Measured on the box during the night of 2026-10-20 — the sidebar read
+    `PASS · 2026-10-08` while 10-20 was recording, 12 nights behind, which at the 1800 s default poll is
+    about 6 h of a card an operator reads as last night's verdict. The window's own bound is 31 polls.
+
+    THE CARD'S THREE DRAWN FIELDS ARE THE THREE THE FILE KEEPS AT ITS TOP (`monitor.html
+    renderSolidNight`): the night, the status word and the reason that decided it. The run statement,
+    the solid count and the exit flag are the PROGRAMME's state, drawn by nothing, and they live under
+    `result.run`. They are carried here anyway, because both publish paths put them in this object and a
+    seed that dropped three keys would make the shape depend on how the card was last written.
+
+    ∅ A NOT_APPLICABLE NIGHT CARRIES `result: null` BY CONTRACT, so its run is ABSENT — null here, never
+    a zero count or a false exit. NO WRITTEN VERDICT ANYWHERE SEEDS NOTHING and says so in the log: the
+    card stays hidden, which is what "this box has judged no night" looks like."""
+    found = solid_night.newest_written(captures, diskguard.list_nights(captures))
+    if found is None:
+        log.info("solid-night: no written verdict under %s — the card seeds nothing", captures)
+        return
+    night, obj = found
+    run = (obj.get("result") or {}).get("run") or {}
+    STATUS["solid"] = {
+        "night": night,
+        "status": obj.get("status"),
+        "reason": obj.get("reason"),
+        "run": run.get("statement"),
+        "solid": run.get("solid"),
+        "exit": run.get("exit"),
+    }
+    log.info("solid-night: card seeded from %s %s — %s", night, obj.get("status"), obj.get("reason"))
 
 
 async def _solid_pending(captures: str, every: list, active: set, cfg: dict, settle: float, commit) -> None:
