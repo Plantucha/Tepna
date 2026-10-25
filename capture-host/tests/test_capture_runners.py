@@ -2582,6 +2582,7 @@ def test_run_oxyii_syncs_rtc_on_a_new_session(tmp_path, monkeypatch):
     capture._OXYII_PAUSE.clear()
     capture._RECOVER.clear()
     capture._OXYII_RTC_AT.clear()
+    capture.STATUS.setdefault("devices", {}).setdefault("Ring", {}).pop("clock_synced", None)
     capture._OXYII_LAST_DURATION["D1:98:62:7C:92:B3"] = 5000  # a big prior duration...
     c = FakeGattClient()
     c.on_live = lambda data: (
@@ -2590,7 +2591,13 @@ def test_run_oxyii_syncs_rtc_on_a_new_session(tmp_path, monkeypatch):
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 5)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
-    assert capture.STATUS["devices"]["Ring"].get("clock_synced")  # the RTC re-sync stamped it
+    st = capture.STATUS["devices"]["Ring"]
+    # 🔴 THE PUSH IS THE EVIDENCE, AND IT IS NOT A SYNC CLAIM. This assertion read `clock_synced`
+    # until 2026-10-25. The 0xC0 write is unacknowledged and this ring answers no GET_INFO, so no
+    # read has agreed yet and a sync claim here states a measurement nobody made. Residue
+    # `2026-10-21-the-ring-clock-is-claimed-synced-on-an-unacknowledged-write`.
+    assert st.get("ring_rtc_push"), "the re-sync must record the write it actually made"
+    assert st.get("clock_synced") is None, "an unacknowledged write agrees with nothing"
 
 
 # ── restart STORM: 4 session restarts in 120 s → drop the link, hold off, resume when the hold expires ──
@@ -7164,6 +7171,69 @@ def test_run_oxyii_publishes_the_ring_rtc_offset(tmp_path, monkeypatch):
     assert st["ring_rtc_read"].startswith("2026-08-19T21:50")
     # the session-start config read populated the struct without any write happening
     assert st["ring_config"]["brightness"] == 0 and st["ring_config"]["motor"] == 60
+    # …and the push and the agreement are now two fields. |-5.0| is outside `_OXYII_RTC_CONFIRM_S`,
+    # so this read REFUTES the push it follows: the request is recorded, the sync claim is not.
+    assert st["ring_rtc_push"] == "2026-08-19T21:50:05", "the unacknowledged write is its own fact"
+    assert st["clock_synced"] is None, "a 5 s disagreement is not a synced clock"
+
+
+def _o2_ring_responder_rtc(c, cfg_state, info_s):
+    """The shared responder with its GET_INFO second overridden, so a test can drive the ring's RTC to
+    AGREE with the monkeypatched host clock. The shared helper answers a fixed 21:50:00, which is the
+    only offset it can produce."""
+    base = _o2_ring_responder(c, cfg_state)
+
+    def on(data):
+        if data[1] == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply(mi=50, s=info_s))
+            return
+        base(data)
+
+    return on
+
+
+def _oxyii_rtc_fixture(monkeypatch, c, host_second):
+    """One ring session, one GET_INFO read, host clock frozen at 21:50:`host_second`."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    _inject_connect_scan(monkeypatch, c)
+    monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 8, 19, 21, 50, host_second))
+    _stop_after(monkeypatch, 4)
+
+
+def test_a_read_that_agrees_with_the_host_is_what_stamps_clock_synced(tmp_path, monkeypatch):
+    """🔴 THE READ IS THE MEASUREMENT. The 0xC0 clock write asks for `response=False`, so the only
+    evidence that the ring's RTC carries host time is a GET_INFO that comes back agreeing. The ring
+    reads 21:50:04 against a host at 21:50:05, an offset of 1.0 s inside `_OXYII_RTC_CONFIRM_S`, and
+    THAT is what may claim a synced clock."""
+    c = FakeGattClient()
+    c.on_live = _o2_ring_responder_rtc(c, {"brightness": 0, "motor": 60}, 4)
+    _oxyii_rtc_fixture(monkeypatch, c, 5)
+    capture.STATUS.setdefault("devices", {}).setdefault("Ring", {}).pop("clock_synced", None)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["ring_rtc_offset_s"] == -1.0, "ring 21:50:04 against host 21:50:05"
+    assert st["clock_synced"] == "2026-08-19T21:50:05", (
+        "the agreeing READ stamps the sync, and it is stamped when the read landed"
+    )
+    assert st["ring_rtc_push"] == "2026-08-19T21:50:05", "the push it confirms stays recorded too"
+
+
+def test_a_read_that_disagrees_clears_a_sync_claim_it_did_not_earn(tmp_path, monkeypatch):
+    """A stale agreement is the same false claim in slower motion. `clock_synced` means "the last read
+    agreed", so a read 9 s out must CLEAR a stamp from an earlier read rather than leave it standing —
+    an RTC that drifted away otherwise keeps the pill it earned an hour ago."""
+    c = FakeGattClient()
+    c.on_live = _o2_ring_responder_rtc(c, {"brightness": 0, "motor": 60}, 14)
+    _oxyii_rtc_fixture(monkeypatch, c, 5)
+    capture.STATUS.setdefault("devices", {}).setdefault("Ring", {})["clock_synced"] = "2026-08-19T20:00:00"
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["ring_rtc_offset_s"] == 9.0, "ring 21:50:14 against host 21:50:05, read as a 9 s lead"
+    assert st["clock_synced"] is None, "the earlier agreement must not survive a read that refutes it"
 
 
 # ── run_oxyii: IDENTITY from the same 0xE1 reply (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C) ──
