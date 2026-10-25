@@ -215,7 +215,12 @@ def _artifact_digest(files: list[dict]) -> tuple[str | None, dict]:
 
     A size-matched skip is the ordinary way a leaf is absent: the second pull of a session reads no
     bytes at all, so it can digest nothing. That is honest rather than unfortunate — a re-pull which
-    opened no file has shown nothing about those bytes, and the ring pull is the same shape."""
+    opened no file has shown nothing about those bytes, and the ring pull is the same shape.
+
+    🔴 THE ABSENT LEAVES ARE NAMED, NOT COUNTED. A count tells a reader how many files the digest is
+    waiting on and nothing about WHICH, so the next question — is this the one 4 KB sidecar or the
+    session's whole ACC stream — costs a second pull to answer. The names travel in manifest order,
+    which is the order the device listed them in."""
     leaves, unhashed = [], []
     for f in files:
         sha = f.get("sha256")
@@ -223,7 +228,13 @@ def _artifact_digest(files: list[dict]) -> tuple[str | None, dict]:
             unhashed.append(f.get("name"))
             continue
         leaves.append(f"{f.get('name')}\0{sha}")
-    meta = {"rule": SET_DIGEST_RULE, "n_hashed": len(leaves), "n_unhashed": len(unhashed), "absent": None}
+    meta = {
+        "rule": SET_DIGEST_RULE,
+        "n_hashed": len(leaves),
+        "n_unhashed": len(unhashed),
+        "unhashed": unhashed,
+        "absent": None,
+    }
     if not files:
         meta["absent"] = "nothing was pulled, so there is no set to digest"
         return None, meta

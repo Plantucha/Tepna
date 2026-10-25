@@ -726,7 +726,7 @@ def test_the_digest_covers_the_NAMES_as_well_as_the_bytes():
     assert straight != swapped
 
 
-def test_ONE_UNHASHED_MEMBER_MAKES_THE_WHOLE_SET_DIGEST_ABSENT_with_the_count_named():
+def test_ONE_UNHASHED_MEMBER_MAKES_THE_WHOLE_SET_DIGEST_ABSENT_with_that_member_NAMED():
     """§∅: `artifact_size` is the transferred total over EVERY file, skipped ones included, so a digest
     that quietly dropped the unhashed members would carry the identity of the whole set while covering
     part of it. A size-matched skip is the ordinary way a leaf is absent — the second pull of a
@@ -742,9 +742,28 @@ def test_ONE_UNHASHED_MEMBER_MAKES_THE_WHOLE_SET_DIGEST_ABSENT_with_the_count_na
     assert ev.artifact_sha256 is None
     d = ev.provenance["artifact_digest"]
     assert d["n_hashed"] == 1 and d["n_unhashed"] == 1
+    assert d["unhashed"] == ["PLETH.GZ"], "WHICH file the digest waits on, not just how many"
     assert "1 of 2 file(s)" in d["absent"]
     # and the one leaf that DOES exist still travels, so the reader is not left with nothing
     assert [f["sha256"] for f in ev.provenance["files"]] == [_SHA_ACC, None]
+
+
+def test_EVERY_UNHASHED_MEMBER_IS_NAMED_and_not_only_the_first_one_found():
+    """A reader deciding whether to re-pull needs the whole absent set. Naming one member of three
+    would read as a single skipped sidecar while a session's ACC stream was also unhashed, and the
+    count beside it does not say which name was dropped. So the scan does not stop at the first."""
+    m = _manifest(
+        files=[
+            {"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True, "skipped": True, "sha256": None},
+            {"name": "PLETH.GZ", "bytes": 12, "declared": 12, "ok": True, "sha256": _SHA_BPM},
+            {"name": "PPI.REC", "bytes": 40, "declared": 40, "ok": True, "skipped": True, "sha256": None},
+        ],
+        total_bytes=1815,
+    )
+    d = _pull(m).provenance["artifact_digest"]
+    assert d["unhashed"] == ["ACC.REC", "PPI.REC"], "manifest order, both of them"
+    assert d["n_unhashed"] == 2 and d["n_hashed"] == 1
+    assert "2 of 3 file(s)" in d["absent"]
 
 
 def test_a_pull_that_moved_nothing_has_no_SET_to_digest():
@@ -754,7 +773,7 @@ def test_a_pull_that_moved_nothing_has_no_SET_to_digest():
     assert ev.artifact_sha256 is None
     d = ev.provenance["artifact_digest"]
     assert d["absent"] == "nothing was pulled, so there is no set to digest"
-    assert d["n_hashed"] == 0 and d["n_unhashed"] == 0
+    assert d["n_hashed"] == 0 and d["n_unhashed"] == 0 and d["unhashed"] == []
     assert ev.provenance["files"] == []
 
 
@@ -765,6 +784,7 @@ def test_a_manifest_from_before_per_file_hashing_reports_ABSENCE_and_not_a_diges
     ev = _pull(_manifest(files=[{"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True}], total_bytes=1763))
     assert ev.artifact_sha256 is None
     assert ev.provenance["artifact_digest"]["n_unhashed"] == 1
+    assert ev.provenance["artifact_digest"]["unhashed"] == ["ACC.REC"]
     assert ev.provenance["files"] == [{"name": "ACC.REC", "bytes": 1763, "sha256": None}]
 
 
