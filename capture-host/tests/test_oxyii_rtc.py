@@ -153,3 +153,37 @@ def test_an_unanswered_GET_INFO_is_not_suspect():
     every link before identity arrives."""
     assert _capture.aes_session_suspect(None) is False
     assert _capture.aes_session_suspect("") is False
+
+
+# ── the agreement bound is its own constant, and the unacknowledged write claims nothing ───────────
+# Residue `2026-10-21-the-ring-clock-is-claimed-synced-on-an-unacknowledged-write`.
+def test_the_confirm_bound_is_its_own_constant_and_not_the_jump_bound():
+    """🔴 A PRE-STATED THRESHOLD MUST NOT BE BORROWED. `_OXYII_RTC_JUMP_S` judges the DELTA between two
+    reads and answers "did the RTC restart". The confirm bound judges the ABSOLUTE offset and answers
+    "is the clock right now". The two questions take different numbers, and once they share a name
+    nothing says which one a reader is looking at — the borrowed-reason defect filed against
+    `tools/measurement-walk.mjs:240` on 2026-10-25, in the one place where it would be cheapest to
+    create. The bound is the read quantum (±1 s) plus the write latency and one cadence of drift, and
+    it is tuned to no corpus."""
+    assert capture._OXYII_RTC_CONFIRM_S == 2.0, "the agreement bound is pre-stated, not derived"
+    assert capture._OXYII_RTC_CONFIRM_S < capture._OXYII_RTC_JUMP_S, (
+        "a delta big enough to suspect a reset sits far outside the agreement bound — the two are "
+        "different questions and may never collapse onto one number"
+    )
+
+
+def test_the_unacknowledged_write_does_not_claim_a_synced_clock():
+    """Source scan beside `test_the_clock_write_stays_behind_the_policy`, over the same helper. The
+    0xC0 write asks `response=False`, so the ring says nothing back and `clock_synced` inside this
+    helper would state a measurement nobody made. The behavioural tests live in
+    `tests/test_capture_runners.py`; this one holds the SHAPE, because a one-line re-stamp here reads
+    as a convenience and restores the false claim with every runner test still green."""
+    src = module_source("capture.py")
+    opened = split_segment(src, "async def _rtc_sync(", 1, where="capture.py")
+    helper = until_anchor(opened, "\n\n", where="capture.py (the end of _rtc_sync)")
+    assert "ring_rtc_push=" in helper, "the push must record the request it actually made"
+    # Comment lines are stripped the way the sibling scan strips them: the helper's own comment NAMES
+    # `clock_synced` to say which site owns it, and a scan that reads prose as code would red on the
+    # explanation of the fix.
+    code = "\n".join(ln for ln in helper.splitlines() if not ln.strip().startswith("#"))
+    assert "clock_synced" not in code, "only an agreeing READ may stamp a synced clock"

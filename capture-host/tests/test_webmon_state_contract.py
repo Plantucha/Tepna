@@ -48,6 +48,7 @@ FULL_STATUS = {
     # The ring's readable clock + gated settings (2026-08-19) — values distinct from everything above.
     "ring_rtc_offset_s": -1.3,
     "ring_rtc_read": "2026-08-19T21:56:12",
+    "ring_rtc_push": "2026-08-19T21:56:03",
     "ring_config": {"brightness": 2, "motor": 61},
     "ring_config_verdict": "brightness=2 applied",
     "ring_buzz_at": "2026-08-19T22:41:03.117",
@@ -142,6 +143,11 @@ DEVICE_KEYS = {
     # when it was read, the ring's own 0x00-read-back settings struct, and the last write's verdict.
     "ring_rtc_offset_s",
     "ring_rtc_read",
+    # When the host last PUSHED its clock to the ring. The 0xC0 write is unacknowledged, so the
+    # push and the agreement are two facts: `clock_synced` says a read agreed, this says we asked.
+    # Without it the monitor cannot tell a clock we wrote and have not re-read from one we never
+    # wrote, and those two draw the same empty pill.
+    "ring_rtc_push",
     "ring_config",
     "ring_config_verdict",
     "ring_buzz_at",
@@ -232,6 +238,9 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     # rule this file exists to enforce — forwarded here or not published at all.
     assert d["ring_rtc_offset_s"] == -1.3
     assert d["ring_rtc_read"] == "2026-08-19T21:56:12"
+    assert d["ring_rtc_push"] == "2026-08-19T21:56:03", (
+        "the unacknowledged write must reach the monitor as its own fact, not as a sync claim"
+    )
     assert d["ring_config"] == {"brightness": 2, "motor": 61}
     assert d["ring_config_verdict"] == "brightness=2 applied"
     assert d["ring_buzz_at"] == "2026-08-19T22:41:03.117"
@@ -288,6 +297,7 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
         "ring_identity_mismatch",
         "ring_barren_connects",
         "ring_barren_alert",
+        "ring_rtc_push",
         "auth_mode",
         "auth_reason",
         "auth_unknown_links",
