@@ -291,7 +291,11 @@ export function populationVerdict(before, after, { commit = null, commitReason =
   const names = (xs) => (xs.length > 4 ? `${xs.slice(0, 4).join(', ')} and ${xs.length - 4} more` : xs.join(', '));
   let v;
   if (!before.ok || !after.ok) {
-    const which = !before.ok && !after.ok ? 'neither snapshot' : !before.ok ? 'the opening snapshot' : 'the closing snapshot';
+    /* `neither snapshot COULD enumerate` — the negation lives in the verb once. Read back on
+       2026-10-25 from a `--from` re-aggregation, the three-way form printed "neither snapshot could
+       not enumerate the root", which states the opposite of what happened. */
+    const which =
+      !before.ok && !after.ok ? 'neither snapshot could enumerate the root' : !before.ok ? 'the opening snapshot could not enumerate the root' : 'the closing snapshot could not enumerate the root';
     v = Verdict.make({
       gate: 'corpus-population',
       status: 'NOT_RUN',
@@ -300,7 +304,7 @@ export function populationVerdict(before, after, { commit = null, commitReason =
       criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
       result: null,
       evidence: ev,
-      reason: `${which} could not enumerate the root (${(before.ok ? after : before).reason}), so this run cannot tell a stable population from a moved one`,
+      reason: `${which} (${(before.ok ? after : before).reason}), so this run cannot tell a stable population from a moved one`,
       producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });

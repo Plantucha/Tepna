@@ -19,6 +19,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from '
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -467,6 +468,7 @@ function main() {
     console.error(`no MANIFEST.json at ${manifestPath}; run the stitcher first`);
     process.exit(2);
   }
+  const popBefore = snapshotNights(args.capturesDir);
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const sidecars = existsSync(sidecarsPath) ? JSON.parse(readFileSync(sidecarsPath, 'utf8')) : { sidecars: {} };
 
@@ -479,6 +481,21 @@ function main() {
     // model (compute per night where co-location holds, aggregate across).
     result = { tool: args.tool, at: new Date().toISOString(), error: 'not yet implemented (phase 3)' };
   }
+
+  /* THE NIGHT POPULATION UNDER THE CAPTURES ROOT, beside the manifest's own count. The scored set is
+     the manifest's nights; the captures tree is a different population, and the run published its
+     aggregate without ever saying how the two compared. The status labels MOVEMENT across the run. */
+  const population = populationVerdict(popBefore, snapshotNights(args.capturesDir), {
+    tool: 'tools/stitch-31d-run.mjs',
+    evidence: ['tools/stitch-31d-run.mjs']
+  });
+  console.log(
+    `population: ${popBefore.n} night(s) under the captures root \u00b7 ${(manifest.nights || []).length} in the manifest \u00b7 ${result.n_nights ?? 0} aggregated \u00b7 movement ${population.status}` +
+      (population.reason ? ` \u2014 ${population.reason}` : '')
+  );
+  const populationRule = ruleLine(population);
+  if (populationRule) console.log(populationRule);
+  console.log('POPULATION ' + JSON.stringify(population));
 
   const outPath = join(toolDir, 'RESULT.json');
   writeFileSync(outPath, JSON.stringify(result, null, 2) + '\n');

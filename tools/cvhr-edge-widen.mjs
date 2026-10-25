@@ -70,6 +70,7 @@ import { fileURLToPath } from 'node:url';
 import { GAP_S, HOLES_S, PERIOD_S, STEPS_BPM, activeSecOf, plant, realms, spansGapOf } from './cvhr-gap-edge.mjs';
 import { corpusSearch } from './regen-goldens-core.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -357,7 +358,29 @@ export function scoreNight(P, path) {
    deduplicated by resolved path. Selection is by NAME only — the node's own floors do the excluding,
    inside the detector, with a reason. */
 export const PPG_RE = /_PPG\.txt$/;
-export function inputs(tree, flat) {
+/* A snapshot for a run that walked NOTHING — a `--from` re-aggregation reads rows off disk and never
+   opens the night tree. `populationVerdict` reads this as NOT_RUN with the reason, which is the honest
+   statement: not "the population held", and not a number over a walk nobody made. */
+function notEnumerated(reason) {
+  return {
+    ok: false,
+    root: '(not enumerated)',
+    reason,
+    n: 0,
+    nights: [],
+    digest: null,
+    maxCtimeMs: null,
+    at: new Date().toISOString(),
+    rule: String(/^\d{4}-\d{2}-\d{2}$/),
+    ruleIsDefault: true,
+    rejectedNightShaped: null,
+    admittedNonNight: null
+  };
+}
+
+/* `nights` is the night listing the caller already snapshotted: the scored set and the published
+   population are then ONE walk, not two that can disagree. Absent, the walk is this function's own. */
+export function inputs(tree, flat, nights = null) {
   const seen = new Map();
   const add = (p) => {
     try {
@@ -371,7 +394,7 @@ export function inputs(tree, flat) {
   };
   if (flat && existsSync(flat)) for (const f of readdirSync(flat)) if (PPG_RE.test(f)) add(join(flat, f));
   if (tree && existsSync(tree))
-    for (const night of readdirSync(tree)) {
+    for (const night of nights ?? readdirSync(tree)) {
       const dir = join(tree, night);
       let kids = [];
       try {
@@ -521,7 +544,8 @@ async function main() {
   const saved = from ? JSON.parse(readFileSync(from, 'utf8')) : null;
   const flat = saved ? null : corpusSearch(ROOT).dir;
   const tree = saved ? null : arg('--tree', join(flat, 'vigil-archive', 'captures'));
-  const all = saved ? [] : inputs(tree, flat);
+  const popBefore = tree ? snapshotNights(tree) : notEnumerated(from ? `re-aggregated from ${from}: this run opened no night tree` : 'no night tree was resolved for this run');
+  const all = saved ? [] : inputs(tree, flat, popBefore.ok ? popBefore.nights : null);
   const limit = saved ? 0 : +arg('--limit', '0') || all.length;
   const take = saved ? (saved.rows || []).concat(saved.refused || []) : all.slice(0, limit);
   if (saved) say(`\n▸ phase 2 · cost — re-aggregated from ${from}: ${(saved.rows || []).length} night(s) measured, ${(saved.refused || []).length} refused`);
@@ -537,9 +561,27 @@ async function main() {
       reason: `the planted grid ran and the cost did not: no _PPG.txt stream under ${tree} or ${flat} — point --tree at the corpus (docs/CORPUS-LOCATIONS.md; a worktree has no corpus)`,
       producedBy: PRODUCED_BY
     });
+    publishPopulation(0);
     console.log(JSON.stringify(v, null, 2));
     return 2;
   }
+  /* THE POPULATION THE RUN READ, published beside its own verdict. The cost phase printed how many
+     optical streams it found and nothing about the night population they came from, so a tree that
+     grew or shrank mid-run left no trace. The status labels MOVEMENT across the run, never coverage. */
+  const publishPopulation = (scored) => {
+    const after = tree ? snapshotNights(tree) : popBefore;
+    const population = populationVerdict(popBefore, after, { tool: 'tools/cvhr-edge-widen.mjs', evidence: ['tools/cvhr-edge-widen.mjs'] });
+    /* A COUNT OVER A WALK NOBODY MADE IS NOT A POPULATION: the `--from` path opens no tree, so the
+       sentence says that instead of printing a 0 that reads as an empty corpus. */
+    say(
+      popBefore.ok
+        ? `\npopulation: ${popBefore.n} night(s) under the night tree \u00b7 ${scored} night(s) scored \u00b7 movement ${population.status}`
+        : `\npopulation: NOT ENUMERATED \u00b7 ${scored} night(s) scored \u00b7 movement ${population.status} \u2014 ${population.reason}`
+    );
+    const populationRule = ruleLine(population);
+    if (populationRule) say(populationRule);
+    console.log('POPULATION ' + JSON.stringify(population));
+  };
   const rows = saved ? saved.rows || [] : [];
   const refused = saved ? saved.refused || [] : [];
   for (const f of saved ? [] : take) {
@@ -642,6 +684,7 @@ async function main() {
     writeFileSync(out, JSON.stringify({ verdict: v, rows, refused }, null, 2));
     say(`\n  detail → ${out}`);
   }
+  publishPopulation(rows.length);
   console.log(JSON.stringify(v, null, 2));
   return status === 'PASS' || status === 'NOT_APPLICABLE' || status === 'SHORTFALL' ? 0 : 1;
 }

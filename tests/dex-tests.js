@@ -11288,6 +11288,36 @@
           .join(', '),
         ''
       );
+      /* ── THE FIVE NIGHT-SHAPED RUNS, SAME THREE HALVES ──────────────────────────────────────
+         Same row. These five each hand-rolled a night listing — `readdirSync(root).filter(NIGHT_RE)`
+         — and printed figures over whatever it returned. Two of them (the trio pair) had no verdict
+         at all and now export the corpus-free sample; the other three already decided under their
+         own gate and were silent about the population that fed it. The leg pins the three halves
+         that make a population readable: the primitive imported, the object printed, and a
+         `--verdict-sample` the adoption gate can run. A key naming a file that does not exist reads
+         as '' and fails the filter, so a typo reds here rather than passing vacuously. */
+      var nightWired = ['tools/cvhr-edge-widen.mjs', 'tools/motion-rho-vs-minrho.mjs', 'tools/stitch-31d-run.mjs', 'tools/tch-minrho-corpus.mjs', 'tools/trio-batch.mjs'];
+      T.eq(
+        'each night-shaped run imports the night primitive, prints the object and answers --verdict-sample',
+        nightWired
+          .filter(function (k) {
+            var t = TT[k] || '';
+            return !(/from '\.\/corpus-scope\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && t.indexOf('--verdict-sample') >= 0);
+          })
+          .join(', '),
+        ''
+      );
+      /* AN EXIT THAT PLANNED A POPULATION AND REPORTED NONE. `--dry-run` returns from the fold
+         before the batch summary, so the planner printed its night list and said nothing about the
+         population it planned over — the absence the row is about, one exit over. The assertion
+         reads the dry block itself rather than counting calls, so moving the site does not red it. */
+      var tbText = TT['tools/trio-batch.mjs'] || '';
+      var dryBlock = tbText.slice(tbText.indexOf('if (DRY) {'), tbText.indexOf('--dry-run: nothing computed'));
+      T.ok(
+        'the fold publishes its population on the --dry-run exit too, not only after the batch',
+        dryBlock.length > 0 && dryBlock.indexOf('publishPopulation(') >= 0,
+        'the --dry-run exit of tools/trio-batch.mjs does not publish a population'
+      );
       /* ── A REASON THAT NAMES A CAUSE THE RUN CANNOT HAVE HAD ──────────────────────────────────
          Row 2026-10-22-the-population-verdict-stamps-a-cause-it-never-checked. Every verdict
          `tools/corpus-scope.mjs` built stamped `commit: null, commitReason: 'not read from a git
