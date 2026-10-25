@@ -11,6 +11,8 @@ populations that separate them, published from inside."""
 import asyncio
 import ctypes
 
+import pytest
+
 import capture
 from tests.test_capture_coverage_100 import _run, _stop_after
 
@@ -545,17 +547,65 @@ def test_proc_rss_kb_keeps_its_default_keys_when_no_keys_are_named(tmp_path):
     assert capture.proc_rss_kb(status, keys=("VmHWM",)) == {"VmHWM": 9}
 
 
+def test_an_accepted_write_the_kernel_ignored_is_a_named_refusal(tmp_path):
+    # 🔴 THE GATE'S OWN RUNNER DID THIS: 371004 kB twice across a 64 MiB spike that had already been
+    # freed (GitHub run 40224410380, 2026-10-25). The write landed and the peak never moved, so every
+    # later figure was the peak since process start while the line called it the peak of its minute.
+    clear = tmp_path / "clear_refs"
+    clear.write_text("")
+    status = _status_file(tmp_path, "VmHWM:\t  402449 kB\nVmRSS:\t  400400 kB\n")
+    hwm, why = capture.hwm_since_last_kb(status, str(clear))
+    assert hwm == 402449, "the figure still ships; what changes is what it MEANS"
+    assert why == (
+        "VmHWM reset not honoured (402449 kB still over VmRSS 400400 kB after the write): "
+        "the figure is the peak since process start"
+    )
+    assert clear.read_text() == "5", "the write is not the thing that failed"
+
+
+def test_a_peak_exactly_one_slack_above_the_resident_set_is_honoured(tmp_path):
+    # The slack covers the process growing between the write and the re-read, so the boundary itself
+    # reads as honoured and one kB past it does not.
+    clear = tmp_path / "clear_refs"
+    clear.write_text("")
+    status = _status_file(tmp_path, "VmHWM:\t  402448 kB\nVmRSS:\t  400400 kB\n")
+    assert capture.hwm_since_last_kb(status, str(clear)) == (402448, None)
+
+
+def test_a_resident_set_that_cannot_be_read_leaves_the_reset_unjudged(tmp_path):
+    # §∅: with no `VmRSS` there is nothing to compare the peak against. An unjudged reset keeps the
+    # figure's plain meaning — a refusal is never invented out of a missing key.
+    clear = tmp_path / "clear_refs"
+    clear.write_text("")
+    status = _status_file(tmp_path, "VmHWM:\t 4096 kB\n")
+    assert capture.hwm_since_last_kb(status, str(clear)) == (4096, None)
+
+
 def test_the_REAL_kernel_resets_the_peak_so_the_next_window_starts_low():
     # The contract the whole fix rests on, read from this process's own /proc: a 64 MiB spike that is
     # gone again shows in the window it happened in, and not in the next one.
+    #
+    # 🔴 TWO PREMISES THIS READS FROM THE HOST AND NEVER ASSERTS. The kernel has to honour the reset,
+    # and the allocator has to hand the freed 64 MiB back to the kernel. Neither is this module's
+    # business, and the gate's own mutation runner withheld one of them (the run named above), so a
+    # premise the host declines is a SKIP that names it, never a red. The production reader now
+    # DETECTS the first premise, which is what makes this skip a measurement instead of a shrug.
     before, why = capture.hwm_since_last_kb()
-    assert why is None and before is not None
+    if why is not None:
+        pytest.skip(f"this host does not honour the peak reset: {why}")
+    assert before is not None
     spike = bytearray(64 * 1024 * 1024)
     for i in range(0, len(spike), 4096):
         spike[i] = 1
     del spike
-    during, _ = capture.hwm_since_last_kb()
-    after, _ = capture.hwm_since_last_kb()
+    during, why_during = capture.hwm_since_last_kb()
+    rss = capture.proc_rss_kb(keys=("VmRSS",))["VmRSS"]
+    after, why_after = capture.hwm_since_last_kb()
+    if why_during is not None or why_after is not None:
+        pytest.skip(f"this host does not honour the peak reset: {why_during or why_after}")
+    assert rss is not None
+    if during - rss < 60 * 1024:
+        pytest.skip(f"the allocator kept the freed block: VmRSS {rss} kB under a window peak of {during} kB")
     assert during - after >= 60 * 1024, f"the reset did not take: {during} kB then {after} kB"
 
 

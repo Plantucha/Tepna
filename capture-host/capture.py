@@ -12185,6 +12185,13 @@ def proc_rss_kb(status_path: str = "/proc/self/status", keys: tuple = _RSS_KEYS)
     return out
 
 
+#: A kernel that honours the reset leaves `VmHWM` AT the current `VmRSS`, so a peak standing further
+#: above the resident set than this is a write that was accepted and ignored. The slack covers the
+#: process growing between the write and the re-read. One-sided by construction: a quiet process whose
+#: peak sits just above its RSS is undetectable this way, so silence here is not proof the reset took.
+_HWM_RESET_SLACK_KB = 2048
+
+
 def hwm_since_last_kb(status_path: str = "/proc/self/status", clear_path: str = "/proc/self/clear_refs") -> tuple:
     """`(kB, reason)`: this process's peak resident set SINCE THE LAST CALL, then the peak is reset.
 
@@ -12200,13 +12207,27 @@ def hwm_since_last_kb(status_path: str = "/proc/self/status", clear_path: str = 
     A peak reached between the read and the reset is lost; the gap is two syscalls wide.
 
     §∅: an unreadable `VmHWM` is `None`, never 0. A refused reset keeps the figure and names the refusal,
-    because the figure is then the peak since process start, not since the last line."""
+    because the figure is then the peak since process start, not since the last line.
+
+    🔴 AN ACCEPTED WRITE IS NOT AN HONOURED RESET. The write only has to reach the file; the kernel is
+    free to ignore it, and then every later figure is the peak since the process started while the line
+    says it is the peak of its own minute. The gate's own mutation runner showed it: the same 371004 kB
+    twice across a 64 MiB spike that had already been freed (GitHub run 40224410380, 2026-10-25). So the
+    reset is VERIFIED here — `VmHWM` is re-read against `VmRSS`, and a peak still standing above the
+    resident set is reported as a named refusal, exactly like an `OSError`."""
     hwm = proc_rss_kb(status_path, keys=("VmHWM",))["VmHWM"]
     try:
         with open(clear_path, "w", encoding="ascii") as fh:
             fh.write("5")
     except OSError as e:
         return hwm, f"VmHWM reset refused ({type(e).__name__}): the figure is the peak since process start"
+    post = proc_rss_kb(status_path, keys=("VmHWM", "VmRSS"))
+    peak, rss = post["VmHWM"], post["VmRSS"]
+    if peak is not None and rss is not None and peak - rss > _HWM_RESET_SLACK_KB:
+        return hwm, (
+            f"VmHWM reset not honoured ({peak} kB still over VmRSS {rss} kB after the write): "
+            "the figure is the peak since process start"
+        )
     return hwm, None
 
 
