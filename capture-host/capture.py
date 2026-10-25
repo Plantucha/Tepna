@@ -5604,8 +5604,10 @@ def _emit_polar_live_evidence(name, dev, started, wr, negotiated_hz):
     ONE ENVELOPE PER WRITER, describing that writer's PRIMARY file. A Polar session writes one file per
     stream, so unlike the ring there is no stream-mixing question — but two writers own siblings: the
     `hr` writer also writes the `_RR.txt` PSL splits into, and any stream with a seam sidecar owns that
-    too. The sidecar lands beside `wr.path`, so the RR file and the seam file carry no envelope of
-    their own. That is stated rather than silently true, and it is logged as residue.
+    too. Those files still carry no envelope of their own, and a reader holding the primary's envelope
+    could not even see that they exist — so `wr.paths` travels as `provenance.sibling_artifacts`, which
+    NAMES the owned set without claiming an acquisition for any member of it. One envelope describes one
+    artifact, and the `hr` writer DERIVES its RR rows, so naming is the whole of what is owed here.
 
     `session_id` is the 14-digit start stamp — the token the FILENAME already carries, so a reader joins
     an envelope to a night by the same filename substring the O2Ring live envelope uses (#1752) rather
@@ -5624,6 +5626,7 @@ def _emit_polar_live_evidence(name, dev, started, wr, negotiated_hz):
             seam_count=wr.seams,
             rows_lost=wr.rows_lost,
             flush_failures=wr.flush_failures,
+            sibling_artifacts=wr.paths,
         )
         with open(wr.path + ".meta.json", "w") as fh:
             json.dump({"acquisition_evidence": ev.to_dict()}, fh, indent=2)
