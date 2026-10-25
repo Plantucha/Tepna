@@ -70,10 +70,12 @@ function parseArgs(argv) {
 
 // Quiet-hours guard: refuse when capture is active (recent writes in captures/).
 // A running capture means the solid-night set may change mid-compute.
-function captureActive(capturesDir) {
+/* ONE WALK, NOT TWO. The guard listed the captures root by hand while the population verdict
+   snapshotted the same root a few lines later, so the two could disagree about which nights exist and
+   the published population would describe neither. The caller hands its snapshot in. */
+function captureActive(capturesDir, nights) {
   const cutoff = Date.now() - QUIET_SEC * 1000;
   try {
-    const nights = readdirSync(capturesDir).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
     // Check only the newest few nights; older ones never change.
     for (const n of nights.slice(-3)) {
       const nd = join(capturesDir, n);
@@ -460,7 +462,8 @@ function main() {
   const manifestPath = join(toolDir, 'MANIFEST.json');
   const sidecarsPath = join(toolDir, 'SIDECARS.json');
 
-  if (!args.force && captureActive(args.capturesDir)) {
+  const popBefore = snapshotNights(args.capturesDir);
+  if (!args.force && captureActive(args.capturesDir, popBefore.nights)) {
     console.error('capture is active (recent writes in captures/); refusing. Use --force to override.');
     process.exit(3);
   }
@@ -468,7 +471,6 @@ function main() {
     console.error(`no MANIFEST.json at ${manifestPath}; run the stitcher first`);
     process.exit(2);
   }
-  const popBefore = snapshotNights(args.capturesDir);
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const sidecars = existsSync(sidecarsPath) ? JSON.parse(readFileSync(sidecarsPath, 'utf8')) : { sidecars: {} };
 

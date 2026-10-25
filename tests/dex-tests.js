@@ -11261,12 +11261,14 @@
         'every tool publishing a population verdict that the adoption gate cannot see is named here',
         invisible.sort().join(', '),
         [
+          'tools/motion-rho-vs-minrho.mjs',
           'tools/pat-finger-coupler.mjs',
           'tools/pat-host-offset.mjs',
           'tools/pat-hrv-windows.mjs',
           'tools/pat-window-scaling.mjs',
           'tools/tch-bootstrap-ci.mjs',
           'tools/tch-fused-corpus.mjs',
+          'tools/tch-minrho-corpus.mjs',
           'tools/tch-reference-validation.mjs',
           'tools/tch-window-sensitivity.mjs'
         ].join(', ')
