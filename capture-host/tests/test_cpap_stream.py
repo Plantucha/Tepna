@@ -3059,3 +3059,40 @@ def test_the_MEASURED_clock_offset_reaches_the_envelope():
         )
     )
     assert envelopes[-1].clock_offset == offset, "the measurement, not ClockOffset.unknown()"
+
+
+def test_an_UNREADABLE_clock_offset_WARNS_and_the_envelope_still_carries_the_honest_unknown(caplog):
+    """The twin of the test above, on the branch where the provider REFUSES. Two things are owed and
+    neither implies the other: the envelope must fall back to `ClockOffset.unknown()` rather than a
+    zero, AND the operator must learn the measurement was unavailable — a silent fallback makes a
+    never-measured offset indistinguishable from a provider that was never wired.
+
+    🔴 The warning TEXT is the assertion, not the record count. `_emit_acq_evidence` swallows the
+    exception by design, so this log line is the only live channel that says why the envelope went
+    unknown, and a message mutated to `None` would still produce exactly one WARNING record."""
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data_at("2026-08-23T01:30:28.730Z")])
+
+    def _refuses():
+        raise RuntimeError("the offset provider is down")
+
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                clock_offset_provider=_refuses,
+            )
+        )
+    assert envelopes[-1].clock_offset.measured is False, "a provider that refused measured nothing"
+    assert envelopes[-1].clock_offset.offset_sec is None, "∅ the absent offset is None, never 0.0"
+    said = [r.getMessage() for r in caplog.records if "clock offset unavailable" in r.getMessage()]
+    assert len(said) == 1, f"the refusal must say so once, got {[r.getMessage() for r in caplog.records]}"
+    assert "unknown" in said[0], f"and name what it recorded instead, got {said[0]}"

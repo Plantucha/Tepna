@@ -392,6 +392,11 @@ def _emit_acq_evidence(
                 observed_interval_ms=observed_ms,
                 stopped_cleanly=stopped_cleanly,
                 start_time_ms=start_ms,
+                # WHICH CLOCKS STAMPED THE RECORD, read off the record itself. Left unpassed this took
+                # `assemble_live`'s UNKNOWN default, so every live CPAP envelope denied a second clock
+                # in the same call that carried the measured offset between the two (#3906's defect on
+                # this rail). The derivation is the adapter's, beside the vocabulary it answers in.
+                clock_status=acq_evidence_cpap.clock_status_for(raw),
                 clock_offset=clock_offset,
                 # The second witness (cpap_events), or None when none was wired — never an empty record.
                 events=events.snapshot() if events is not None else None,
