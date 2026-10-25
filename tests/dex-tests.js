@@ -1760,6 +1760,40 @@
         false
       );
 
+      /* ════ THE SAME VERDICT UNDER THE NAME A CONSUMER REFUSES ON ═══════════════════════════════
+         (residue `2026-09-29-thirty-five-of-ninety-folded-ring-nights-publish-an-impossible-ppm`)
+         Every assertion above reads `drawn`, which is this node's own spelling and nothing else's.
+         The fleet refuses on `deviceDrawn`: `pat-drift-attribution.ppmContribution` and
+         `pat-host-offset` both test it by name, and `clock.js` publishes it. PpgDex never wrote it,
+         so on this node those refusals read an absent key and returned a number.
+         Measured 2026-10-25 over the 173 committed `uploads/trio` PpgDex exports, reconstructing the
+         parse shape each export was reshaped from: 38 of them took `ppmContribution` all the way to
+         its last line and got `ppm: 0` — "the correction was applied, no drift outstanding" — for a
+         device column with no oscillator to have drifted. All 38 are the ring finger rail. §∅: that
+         zero is a manufactured number standing in for a quantity that cannot exist.
+         THE LAYOUT CASE IS THE LOAD-BEARING ONE, and it is why the alias is `axisSynthetic` and not
+         the spine's own verdict. Of the 74 committed finger exports, 63 carry `quantizedShare < 0.67`
+         and all 35 that publish an impossible |ppm| > 50 are among them, near 0.0001. The spine's
+         statistic reads NOT drawn on every one, so forwarding `hostAx.deviceDrawn` would have left
+         the refusal as dead as it was. `slew` below is that corpus shape. */
+      T.eq('the slew fixture publishes the FLEET spelling too, not only `drawn`', slew.hostAxis.deviceDrawn, true);
+      T.ok(
+        '…and NAMES the layout rule as what fired, never the share that did not (§∅ — a reason of its own, not a borrowed one)',
+        typeof slew.hostAxis.drawnReason === 'string' && /finger layout/.test(slew.hostAxis.drawnReason) && !/concentrate/.test(slew.hostAxis.drawnReason),
+        String(slew.hostAxis.drawnReason)
+      );
+      T.ok('…on exactly the corpus shape: the statistic is blind here, so the spine verdict could not have carried it', slew.hostAxis.quantizedShare < 0.67, 'share=' + slew.hostAxis.quantizedShare);
+      T.eq('the rounded-rate twin carries it as well', rounded.hostAxis.deviceDrawn, true);
+      T.ok(
+        '…and names the SHARE there, because that is the rule that fired on a wrist layout',
+        typeof rounded.hostAxis.drawnReason === 'string' && /concentrate/.test(rounded.hostAxis.drawnReason),
+        String(rounded.hostAxis.drawnReason)
+      );
+      /* ANTI-VACUITY, both halves: the flag must not be true everywhere, and the reason must not be
+         a string everywhere, or neither assertion above means anything. */
+      T.eq('control · a measured wrist axis is NOT deviceDrawn', meas.hostAxis.deviceDrawn, false);
+      T.eq('control · …and carries no drawnReason', meas.hostAxis.drawnReason, null);
+
       /* F13 · A HOST COLUMN IS NOT AUTOMATICALLY A SECOND CLOCK (DA-V §2.4).
          `DexClock.hostAxis` already decides this — `independent` is true only when the residual spread
          exceeds one stamp quantum — and `parsePPG` DROPPED `independent`/`spreadMs`/`inertReason` at
@@ -2125,6 +2159,54 @@
       T.ok('optimalTauSec is exported and positive', typeof st.optimalTauSec === 'number' && st.optimalTauSec > 0, 'optimalTauSec = ' + st.optimalTauSec);
       T.ok('atLongestPpm is exported and finite', typeof st.atLongestPpm === 'number' && isFinite(st.atLongestPpm), 'atLongestPpm = ' + st.atLongestPpm);
       T.ok('candidates is a non-empty array or null, never an empty array', st.candidates === null || (Array.isArray(st.candidates) && st.candidates.length > 0), JSON.stringify(st.candidates));
+
+      /* ════ THE PROVENANCE KEYS ON THE EXPORT, WHICH NO COMMITTED GOLDEN CAN REACH ════════════════
+         (residue `2026-09-29-thirty-five-of-ninety-folded-ring-nights-publish-an-impossible-ppm`)
+         `PpgDex.html` inlines no `clock.js`, so in the shipped realm `hostAx.ok` is false and the whole
+         `recording.hostAxis` block never builds — the committed finger golden carries no hostAxis at
+         all. The block is live exactly where the analysis tools co-load the spine, which is where the
+         659 `uploads/trio` exports were folded, so the export path has no golden that can hold this
+         and needs a pin of its own. Both directions, because a key that appears unconditionally would
+         move every clean Verity export's bytes. */
+      var exDrawn = P.buildNodeExport(
+        {
+          hostAxis: { ...ha, deviceDrawn: true, drawn: true, drawnShare: 0.993, drawnReason: '99.30 % of deltas share one value' },
+          t0Ms: Date.UTC(2026, 8, 7, 0, 0, 0),
+          fs: 125,
+          n: 400,
+          ch: [new Float32Array(400)],
+          site: 'finger',
+          beats: [],
+          events: []
+        },
+        { rich: true }
+      );
+      var haD = exDrawn && exDrawn.recording && exDrawn.recording.hostAxis;
+      T.ok(
+        'a drawn axis exports deviceDrawn:true with its share and its reason',
+        !!haD && haD.deviceDrawn === true && haD.drawnShare === 0.993 && /99.30 %/.test(String(haD.drawnReason)),
+        JSON.stringify(haD && [haD.deviceDrawn, haD.drawnShare, haD.drawnReason])
+      );
+      T.ok('…and `ppm` stays beside it — §7 relabels a drawn axis, it never withholds the diagnostic', !!haD && typeof haD.ppm === 'number', 'ppm=' + (haD && haD.ppm));
+      /* THE CONTROL NEEDS ITS OWN AXIS, and finding that out is the point of writing it. `ha` above
+         is built from `devMs: m * 100` — a PERFECTLY uniform device column, so the spine reads it
+         `deviceDrawn:true` and reusing it as the clean case asserted nothing at all. A real device
+         column carries packet-level variation, so this one jitters by a few ms. */
+      var cleanAnchors = [];
+      for (var q = 0; q < 400; q++) cleanAnchors.push({ devMs: q * 100 + Math.round(40 * rnd()), hostMs: q * 100 * (1 + 30e-6) + 40 * rnd() });
+      var haClean = C.hostAxis(cleanAnchors, {});
+      T.ok(
+        'ANTI-VACUITY · the control axis really is NOT drawn, or the assertion below tests nothing',
+        !!haClean && haClean.ok && haClean.deviceDrawn === false,
+        'deviceDrawn=' + (haClean && haClean.deviceDrawn) + ' share=' + (haClean && haClean.drawnShare)
+      );
+      var exClean = P.buildNodeExport({ hostAxis: haClean, t0Ms: Date.UTC(2026, 8, 7, 0, 0, 0), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'wrist', beats: [], events: [] }, { rich: true });
+      var haC = exClean && exClean.recording && exClean.recording.hostAxis;
+      T.ok(
+        'control · a non-drawn axis exports NONE of the three (clean exports keep their bytes)',
+        !!haC && !('deviceDrawn' in haC) && !('drawnShare' in haC) && !('drawnReason' in haC),
+        JSON.stringify(Object.keys(haC || {}))
+      );
     });
 
     /* ALLAN-STABILITY-GAPS §2.1's Done-when names the EXPORT PATH, and the group above drives
@@ -76102,10 +76184,13 @@
         // deliberately admitted, because the two devices then do share a timebase. Refuted as a hole
         // by residue 2026-09-12-drawn-consumers-already-migrated.
         'pat-gate.js': /timingSource\s*===\s*'none'/,
-        // :1349 `axisSynthetic = axisDrawn || site === 'finger'` decides first at :1650, so the
-        // `independent` arm is reached only on an axis already known not to be drawn (residue
-        // 2026-09-05-drawn-remedy-is-relabel-not-refuse).
-        'ppgdex-dsp.js': /axisSynthetic\s*=\s*axisDrawn/,
+        // ppgdex-dsp.js LEFT this allowlist on 2026-10-25 and must never return to it. The pin read
+        // `axisSynthetic = axisDrawn || site === 'finger'`, which is true and was never the whole
+        // question: it says the node refuses a drawn axis for ITSELF, and says nothing about what it
+        // hands DOWNSTREAM. The node published that verdict as `drawn`, a name no consumer refuses on,
+        // so `pat-drift-attribution.ppmContribution` read `ppm: 0` off 35 ring nights with no
+        // oscillator. The file now publishes `deviceDrawn`, so the classifier's own `drawn` arm keeps
+        // it out of `bare` and no pin is owed. The producer leg below is what watches that.
         // classifyStability tests its own `r.drawn` (DRAWN_MODAL_SHARE) BEFORE `r.independent`, so a
         // drawn axis never reaches the independence branch.
         'tools/device-stability.mjs': /DRAWN_MODAL_SHARE/,
@@ -76198,6 +76283,105 @@
       pinned.forEach(function (f) {
         T.ok(f + ' is still in the scan population', names.indexOf(f) >= 0, 'a pinned file was renamed or removed — update the allowlist');
         T.ok('…and still carries the discriminator it is pinned for ' + String(ALLOW[f]), ALLOW[f].test(code(FILES[f] || '')), 'the local guard moved — the pin is no longer justified');
+      });
+    });
+
+    /* ════ THE PRODUCER SIDE OF THE SAME RULE ══════════════════════════════════════════════════════
+       (residue `2026-09-29-thirty-five-of-ninety-folded-ring-nights-publish-an-impossible-ppm`)
+       The ratchet above watches CONSUMERS. It cannot see the defect that actually shipped, which sat
+       one step earlier: `ppgdex-dsp.js` built a spine axis, reshaped it into its own summary, kept
+       `ppm`, and dropped `deviceDrawn` on the way out. Every migrated consumer then refused on a key
+       that was never present, so the ring's drawn axis was spent as a crystal for two months and the
+       consumer ratchet stayed green throughout — the file HAD no gate to audit.
+       The file said the rule and broke it in the same block: its `stability` comment reads "this block
+       is a RESHAPE and anything not named here is dropped … a node summary that renames fields must
+       forward the ones it does not rename", and the field list below it omitted three.
+       POPULATION: a source that builds a spine axis (`DexClock.hostAxis(`) and republishes a `ppm`
+       field of its own. Measured 2026-10-25 that is six files; five carry the key and
+       `tools/device-stability.mjs` is allowed with the discriminator it uses instead, asserted
+       present so a file that loses its local guard reds here rather than being grandfathered.
+       Run this leg against `ppgdex-dsp.js` as it stood before the fix and it reds — which is the only
+       reason to believe it would catch the next one. Node-lane only (fs read). */
+    group('a node that reshapes a spine axis and keeps `ppm` must keep `deviceDrawn` with it', 'clock · drawn-axis · producer-scan · ratchet', function (T) {
+      var FILES = env.drawnFlagScan;
+      if (!FILES) {
+        T.skip('env.drawnFlagScan provided to the runner', 'Node-lane only — wire env.drawnFlagScan (run-tests.mjs readDrawnFlagScan)');
+        return;
+      }
+      /* the discriminator a pinned producer uses INSTEAD of `deviceDrawn`, asserted present below */
+      var ALLOW = {
+        // classifyStability tests its own `r.drawn` (DRAWN_MODAL_SHARE) before it reads independence,
+        // and publishes a stability verdict rather than an axis a consumer refuses on.
+        'tools/device-stability.mjs': /DRAWN_MODAL_SHARE/
+      };
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1')
+          .replace(/\s+/g, ' ');
+      }
+      function classify(src) {
+        var c = code(src);
+        /* PUBLISHES, never merely MENTIONS — the lesson the consumer ratchet above learned the hard
+           way (`:10302`: matching the bare identifier passes a file that only READS the key). A
+           producer satisfies this rule by writing the field: an object key, or an assignment onto an
+           export. `if (ax.deviceDrawn === true)` is a read and must not count, or `pat-host-offset`
+           — which refuses on the key and publishes nothing — would certify every producer. */
+        return {
+          builds: /DexClock\.hostAxis\s*\(/.test(c),
+          republishes: /[{,]\s*ppm:/.test(c),
+          drawn: /[{,]\s*deviceDrawn\s*:/.test(c) || /\.deviceDrawn\s*=[^=]/.test(c)
+        };
+      }
+
+      /* ── the classifier must be shown to DISCRIMINATE before any verdict off it counts ── */
+      [
+        ['a reshaping producer', 'var a = DexClock.hostAxis(an); return { ppm: a.ppm };', true, true, false],
+        ['…the same with the key kept', 'var a = DexClock.hostAxis(an); return { ppm: a.ppm, deviceDrawn: a.deviceDrawn };', true, true, true],
+        ['a builder that republishes NOTHING is out of population', 'var a = DexClock.hostAxis(an); if (!a.ok) return null;', true, false, false],
+        ['a ppm field with no spine axis is out of population', 'return { ppm: measured / span };', false, true, false],
+        ['a commented-out build is not a build', '/* var a = DexClock.hostAxis(an); */\nreturn { ppm: 1 };', false, true, false],
+        ['a READ of the key is not a publication', 'var a = DexClock.hostAxis(an); if (a.deviceDrawn === true) return null;\nreturn { ppm: a.ppm };', true, true, false],
+        ['…nor is a negated read', 'var a = DexClock.hostAxis(an); return { ppm: a.deviceDrawn !== true ? a.ppm : null };', true, true, false],
+        ['an assignment onto the export IS a publication', 'var a = DexClock.hostAxis(an); out.ppm = a.ppm;\nout.deviceDrawn = true;\nreturn { ppm: a.ppm };', true, true, true]
+      ].forEach(function (p) {
+        var got = classify(p[1]);
+        T.eq('classifier · ' + p[0] + ' · builds', got.builds, p[2]);
+        T.eq('classifier · ' + p[0] + ' · republishes', got.republishes, p[3]);
+        T.eq('classifier · ' + p[0] + ' · deviceDrawn', got.drawn, p[4]);
+      });
+
+      var pop = [];
+      var bare = [];
+      Object.keys(FILES).forEach(function (f) {
+        var c = classify(FILES[f]);
+        if (!c.builds || !c.republishes) return;
+        pop.push(f);
+        if (!c.drawn && !ALLOW[f]) bare.push(f);
+      });
+      T.ok('the producer population is non-empty, so this gate examined something', pop.length > 0, pop.join(' '));
+      T.ok(
+        'every producer forwards `deviceDrawn`, or is pinned with the discriminator it uses instead (' + pop.length + ' in population)',
+        bare.length === 0,
+        'bare: ' + (bare.length ? bare.join(' ') : 'none')
+      );
+      Object.keys(ALLOW).forEach(function (f) {
+        if (!FILES[f]) {
+          T.skip(f + ' present for its pin', 'absent from the scan');
+          return;
+        }
+        if (pop.indexOf(f) < 0) {
+          T.ok(f + ' left the producer population — drop its pin in the same PR', false, 'pinned but no longer builds-and-republishes');
+          return;
+        }
+        T.ok(f + ' still carries the local discriminator its pin names', ALLOW[f].test(code(FILES[f])), 'local guard gone — migrate it to deviceDrawn or correct the pin');
+      });
+      // ANTI-VACUITY: the two nodes this rule exists for must BOTH be in population and both carry it.
+      ['ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(function (f) {
+        T.ok(f + ' is in the producer population and forwards the key', pop.indexOf(f) >= 0 && classify(FILES[f]).drawn, 'pop=' + (pop.indexOf(f) >= 0));
       });
     });
 

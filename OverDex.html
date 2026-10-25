@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d97d1367fc9e" data-compute-hash="f50ccfb22c79"><head>
+<html lang="en" data-manifest-hash="7a0a5611f74b" data-compute-hash="38de86d8f741"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-dz2qb834NCJQ4fo7JU8ZhsGGDA2wyQBPPTHkZnGB/gc=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sCn18g+fNp0a/OgeJRU/EwWMWSYi0+ArhRgtz+Y2w6E=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7jFug5/cK4HQ8jBHOHFoF4DgRa3xrK1G3FKtJMUlqrA=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-dz2qb834NCJQ4fo7JU8ZhsGGDA2wyQBPPTHkZnGB/gc=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -29918,6 +29918,28 @@ __exports.GlucoDex = window.GlucoDex;
        the two stay distinguishable: `quantizedShare` is still published raw, and a reader can still
        see that the fingerprint is absent while the verdict is drawn. */
     const axisSynthetic = axisDrawn || site === 'finger';
+    /* THE SAME FACT UNDER THE FLEET'S NAME, because a consumer refuses on the NAME. `clock.js`
+       publishes `deviceDrawn`/`drawnShare`/`drawnReason`, and every migrated consumer tests
+       `deviceDrawn === true` — `pat-drift-attribution.ppmContribution` and `pat-host-offset` by name.
+       This node spelled its verdict `drawn` alone, so those refusals read a key that is never present
+       and a drawn ring axis was spent as a crystal.
+       ⚠️ THE ALIAS IS `axisSynthetic`, NOT `hostAx.deviceDrawn`, AND THE CORPUS DECIDES THAT. The
+       spine's statistic is computed over the ANCHORS; segment re-anchoring leaves the ring's
+       inter-anchor deltas unconcentrated, so it reads NOT drawn on the nights that matter most.
+       Measured 2026-10-25 over the 74 committed `PpgDexFinger_*` exports: all 74 are drawn, 63 carry
+       `quantizedShare < 0.67`, and ALL 35 of the exports publishing an impossible |ppm| > 50 sit in
+       that 63 at a share near 0.0001. Forwarding the spine's verdict would therefore publish
+       `deviceDrawn:false` on every one of them and leave the refusal exactly as dead as it is now.
+       `axisSynthetic` is the broader and the CORRECT answer to the question a consumer asks — is the
+       device column a clock — because the finger layout settles it on provenance when the statistic
+       cannot see it. */
+    const axisDrawnReason = !axisSynthetic
+      ? null
+      : axisDrawn && quantizedShare != null
+        ? 'device inter-sample deltas concentrate on one value (' + (quantizedShare * 100).toFixed(2) + ' % share) — a synthesised counter, not a clock, whatever ppm it reports'
+        : 'O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the ' +
+          (quantizedShare == null ? 'absent' : (quantizedShare * 100).toFixed(2) + ' %') +
+          ' delta share says';
     /* ── DEVICE-CRYSTAL TIMEBASE (O2RING-ADAPTIVE-TIMEBASE Stage 2) ─────────────────────────────────
        O2Ring finger only, opt-in. Rebuild relSec on the 125.000 crystal grid instead of the
        host-disciplined ROW-rate axis: real ADC samples advance by 1/125.000, the inserted `156` beat
@@ -30181,6 +30203,15 @@ __exports.GlucoDex = window.GlucoDex;
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
+            /* The fleet spelling of `drawn`, ALONGSIDE it rather than instead of it: `drawn` is this
+               node's own long-standing key and `axisQuantizedShare`/`axisDrawn` project off it, while
+               `deviceDrawn` is the name every migrated consumer refuses on. `drawnShare` carries the
+               SPINE's share so it means on this node exactly what it means on ECGDex, and the reason
+               above says which of the two rules fired — so a reader who sees `deviceDrawn:true` beside
+               a 0.01 % share is told why, instead of reading a contradiction. */
+            deviceDrawn: axisSynthetic,
+            drawnShare: hostAx.drawnShare != null ? hostAx.drawnShare : null,
+            drawnReason: axisDrawnReason,
             /* Present ONLY when a seam dropped anchors, so a clean stream's export stays byte-identical
                (ECGDex's discipline, and deliberately ECGDex's key NAME — a consumer should not have to
                learn two spellings of one fact). */
@@ -30220,7 +30251,15 @@ __exports.GlucoDex = window.GlucoDex;
             stability: axisSynthetic ? null : hostAx.stability || null,
             timingSource: axisSynthetic ? 'host' : hostAx.independent === false ? 'device' : 'device+host'
           }
-        : { ok: false, reason: hostAx.reason || 'no host anchors', drawn: axisSynthetic, quantizedShare, timingSource: axisSynthetic ? 'none' : 'device' }
+        : {
+            ok: false,
+            reason: hostAx.reason || 'no host anchors',
+            drawn: axisSynthetic,
+            deviceDrawn: axisSynthetic,
+            quantizedShare,
+            drawnReason: axisDrawnReason,
+            timingSource: axisSynthetic ? 'none' : 'device'
+          }
     };
   }
 
@@ -35505,6 +35544,18 @@ __exports.GlucoDex = window.GlucoDex;
               }
             : null
         };
+        /* THE PROVENANCE KEYS, CONDITIONAL — ECGDex's discipline and deliberately ECGDex's key names
+           (`ppgdex-dsp.js` already says the field set "mirrors ECGDex so the two are comparable by
+           construction", and then omitted the one key a consumer refuses on). Emitted only when the
+           axis IS drawn, so the 99 committed Verity exports stay byte-identical and only the rail
+           that is drawn gains a field.
+           A reader who finds `deviceDrawn:true` here must not spend `ppm` or this recording as a
+           second clock: `drawn` has always said the same thing, under a name no consumer reads. */
+        if (r.hostAxis.deviceDrawn === true) {
+          out.recording.hostAxis.deviceDrawn = true;
+          out.recording.hostAxis.drawnShare = nz(r.hostAxis.drawnShare);
+          out.recording.hostAxis.drawnReason = r.hostAxis.drawnReason || null;
+        }
       }
       out.hrv = {
         time: {
