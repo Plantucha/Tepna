@@ -33,6 +33,8 @@ reconciliation. Same vocabulary, same sign convention (`delta_s = stored_s - obs
 
 from __future__ import annotations
 
+from typing import Literal
+
 import acq_evidence as ae
 
 # The live BRP stream is flow + mask pressure at 25 Hz (40 ms), fixed by the AS11 BRP layout.
@@ -43,7 +45,7 @@ DEPTH_JSONL_CLOSED = "jsonl+closed"  # the raw record was flushed, fsynced and c
 DEPTH_SPOOL_PROMOTE = "sha256+promote"  # every committed round was re-read and sha-verified by promote()
 
 
-def _counter(summary: dict | None, *keys: str) -> int | str:
+def _counter(summary: dict | None, *keys: str) -> int | Literal["UNKNOWN"]:
     """Sum the named gap categories, or UNKNOWN when there is no accounting at all (§5/§8: absent
     accounting is UNKNOWN, never a fabricated 0 — 0 means "counted, and none happened")."""
     if not summary:
@@ -128,7 +130,7 @@ def assemble_live(
     sample_count = None
     if counters and counters.get("samples_ok") is not None:
         sample_count = int(counters["samples_ok"])
-    expected_sample_count: int | str = ae.UNKNOWN
+    expected_sample_count: int | Literal["UNKNOWN"] = ae.UNKNOWN
     if observed_duration_s is not None and observed_interval_ms:
         expected_sample_count = int(observed_duration_s * 1000 / observed_interval_ms)
 

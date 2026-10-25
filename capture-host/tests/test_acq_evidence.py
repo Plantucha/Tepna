@@ -8,6 +8,7 @@ Both are stated from the physics/semantics (pre-state-the-threshold), not as aft
 """
 
 from types import SimpleNamespace
+from typing import Literal, get_type_hints
 
 import json
 
@@ -385,6 +386,34 @@ def test_a_count_field_still_takes_a_real_count_including_zero(field_name):
     assert getattr(_envelope(**{field_name: 0}), field_name) == 0
     assert getattr(_envelope(**{field_name: 7}), field_name) == 7
     assert getattr(_envelope(**{field_name: ae.UNKNOWN}), field_name) == ae.UNKNOWN
+
+
+def test_each_count_field_REFUSES_A_STRANGE_WORD_AT_TYPE_TIME_TOO_not_only_at_construction():
+    """THE REFUSAL ABOVE IS RUNTIME-ONLY, AND THAT IS A NIGHT'S DELAY. These three fields were
+    annotated `int | str`, so mypy accepted `transport_gaps="n/a"` and the producer learnt at
+    construction — on a capture path that assembles once a night. Measured on this tree: a planted
+    `"n/a"` at a construction site drew no mypy error before the `Literal` union and three named
+    `arg-type` errors after it.
+
+    The annotation is therefore load-bearing, so it gets a check of its own. The mypy ratchet cannot
+    be that check: it convicts on errors the tree HAS and says nothing about a refusal the tree
+    LOST, and widening a field back to `int | str` removes errors rather than adding any. This test
+    reds instead.
+
+    The two tests above cannot catch it either — they splat `**{field_name: bad}`, and a splat erases
+    the literal type, which is exactly why the runtime guard stays wider than the fields (see
+    `_refuse_unlisted_count`)."""
+    hints = get_type_hints(ae.AcquisitionEvidence)
+    count = int | Literal["UNKNOWN"]
+
+    assert hints["transport_gaps"] == count, "a gap count is a count or UNKNOWN, and no other string"
+    assert hints["decode_gaps"] == count, "a gap count is a count or UNKNOWN, and no other string"
+    # `None` belongs here and `str` does not: an unknowable expectation is absent, not a word.
+    assert hints["expected_sample_count"] == count | None
+
+    # The union names the word, so a renamed constant would leave the annotation pinned to a word the
+    # module no longer declares. That reads as a passing test about nothing, so pin the value too.
+    assert ae.UNKNOWN == "UNKNOWN"
 
 
 def test_every_STRING_CONSTANT_the_module_declares_sits_in_exactly_one_vocabulary():
