@@ -1263,11 +1263,19 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
     the one failure mode this function exists to prevent, so the neighbour is read and its absence is not
     an error (most nights have none).
 
-    `deferred-absent` is the one event word excluded, and deliberately: it means the device was not
-    reachable and NOTHING was written to its clock — 153 of 09-28's rows. Every other word in the
-    vocabulary, including the failures, is a record that the daemon was writing to that clock at that
-    moment, which is the brief's own rule ("a FAILED re-sync is still a record that a clock event
-    happened")."""
+    FIVE EVENT WORDS ARE EXCLUDED, and the list is `_A5_NON_RECORD_EVENTS` below, which names the
+    producer of each. `deferred-absent` means the device was not reachable and NOTHING was written to its
+    clock — 153 of 09-28's rows. `deferred-after-pause` took the device, failed and declined to retry.
+    `unreadable` read one implausible skew and attempted nothing. `start-without-sync` records a START
+    that went ahead after the ladder failed. `released-to-set` records a fresh link released so the sync
+    could run. Every OTHER word in the vocabulary, including the give-ups, is a record that the daemon was
+    writing to that clock at that moment, which is the brief's own rule ("a FAILED re-sync is still a
+    record that a clock event happened").
+
+    ⚠️ THE WORD FILTER GUARDS THIS SOURCE ONLY. The journal's `clock_events` carry their own vocabulary
+    (`loss_audit.CLOCK_EVENT_PHRASES`) and it admits `device clock unreadable`, which is the same event
+    this list excludes. That disagreement is open and is the owner's to settle; do not resolve it by
+    editing one side."""
     out: list[float] = [r["host_ms"] for r in recorded_seams(primary, start, end)]
     audit = read_json(os.path.join(night_dir, LOSS_AUDIT_NAME))
     if audit is None:
@@ -1294,13 +1302,31 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
 
 
 # EVENTS THAT RECORD NO CLOCK WRITE, so they cannot excuse a step in the axis. `deferred-absent` skipped
-# the sync because the device was off the air; `unreadable` declined on a single skew read past the
-# plausible bound, before any correction was attempted (`capture.clock_decline_verdict`); and
-# `start-without-sync` records that PMD START went ahead after the pre-start ladder failed; and
-# `released-to-set` records that a fresh link was released before START so the sync could run
-# (`capture.clock_sync_owed_on_connect`). None of the four moved a device clock, so none is a record of the
-# step a band is asking about. The sync that follows a release writes its own `synced` row.
-_A5_NON_RECORD_EVENTS = ("deferred-absent", "unreadable", "start-without-sync", "released-to-set")
+# the sync because the device was off the air; `deferred-after-pause` took the device, failed, and
+# DECLINED to retry (`capture.py` — the emitter logs "the attempt took the device and failed", calls
+# `_clock_sync_note_outcome(addr, False, …)` and returns False, and says in as many words that the branch
+# reasons like the absent one above); `unreadable` declined on a single skew read past the plausible
+# bound, before any correction was attempted (`capture.clock_decline_verdict`); `start-without-sync`
+# records that PMD START went ahead after the pre-start ladder failed; and `released-to-set` records that
+# a fresh link was released before START so the sync could run (`capture.clock_sync_owed_on_connect`).
+# None of the five moved a device clock, so none is a record of the step a band is asking about. The sync
+# that follows a release writes its own `synced` row.
+#
+# 🔴 `deferred-after-pause` WAS THE THIRD MOST COMMON WORD IN THE CORPUS AND NO LIST HAD HEARD OF IT.
+# Measured 2026-10-25 over the capture-host's 54 `CLOCKSYNC.csv` files, 108 device-nights, 19,455 rows:
+# 968 of them carry it, and `writers.append_clock_sync_event`'s own vocabulary docstring omitted it too.
+# Keeping it cost the excuse arm most of its reach — over 1,794 h of kept-row span the ±300 s window
+# pre-excused 14.8 % of the night with it and 7.5 % without. It also produced the refusal the residue row
+# names: on 2026-10-20 the H10 kept 28 rows, 26 of them this word, and the density arm fired on two
+# deferrals that wrote nothing. The give-up words STAY — a ladder that attempted writes is the brief's
+# own case — and removing them as well would have cost 1,293 excuses to retire 34 dense refusals.
+_A5_NON_RECORD_EVENTS = (
+    "deferred-absent",
+    "deferred-after-pause",
+    "unreadable",
+    "start-without-sync",
+    "released-to-set",
+)
 writers_CLOCKSYNC = "CLOCKSYNC.csv"
 
 
@@ -1437,10 +1463,13 @@ def unrecorded_shift(scan: dict, records: list[float], nominal_hz: float | None)
     PRECEDENCE, and it is not arbitrary. Each test below can only make the verdict SOFTER than a fire,
     and the softest applicable one wins, because each says the candidate cannot be adjudicated for a
     different reason:
-      1. recorded         — a clock event within `A5_RECORD_NEAR_S`. Not a finding at all: the box said
-                            so. Checked FIRST, because convicting a logged step is the 08-18 mistake.
-      2. too dense        — `A5_DENSE_RECORDS` records inside the persistence span; ±15–30 s flips
-                            minutes apart cannot be assigned to one another.
+      1. too dense        — `A5_DENSE_RECORDS` records inside the persistence span; ±15–30 s flips
+                            minutes apart cannot be assigned to one another. Checked FIRST, and the
+                            order is load-bearing for the reason the code below states: dense sets are
+                            dense because several sit NEAR the candidate, so asking "is one within the
+                            match window" first would absorb every storm night as recorded.
+      2. recorded         — a clock event within `A5_RECORD_NEAR_S`. Not a finding at all: the box said
+                            so. Never convict a logged step; that was the 08-18 mistake.
       3. latency regime   — Guard 1: the row rate in either window departs from nominal by more than
                             `A5_RATE_TOL`. A clock step holds delivery at the nominal rate.
       4. across a gap     — Guard 2: the after-window contains, or ends within `A5_GAP_NEAR_S` of, a gap
