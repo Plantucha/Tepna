@@ -81,6 +81,31 @@ async def pull(
             await asyncio.sleep(2)
 
 
+def _write_dat_sidecar(final, meta_j):
+    """Write the `<file>.meta.json` sidecar beside the pulled bytes. Never raises into the pull.
+
+    Separated from `_pull_once` for the reason `capture._emit_oxy_live_evidence` is separated from
+    `run_oxyii`: the write is then testable without driving a BLE session, and the pump closure is not.
+    All three live producers carry this guard, and each docstring states the same reason — the sidecar is
+    a REPORT ABOUT the session, so failing to write it must never also cost the session.
+
+    Here the stake is the pull REPORT. `oxy_transfer.commit` has already renamed the bytes into the night
+    tree by this point, and `saved_paths.append(final)` runs after this call, so a raise would hide real
+    bytes on disk from the API's `new_files`/`sessions` — the operator loses the whole report for a file
+    that is there.
+
+    `OSError` only. That is the full disk and the read-only mount this guard exists for, and the CPAP
+    write guard (`capture._cpap_acq_evidence_writer`) draws the same line. An unserialisable `meta_j` is a
+    defect of ours and owes a raise. A half-written sidecar needs nothing from here: `capture.session_meta`
+    reports any read fault as `{"unreadable": True, "reason": ...}` rather than as a session with no
+    metadata."""
+    try:
+        with open(final + ".meta.json", "w") as f:
+            json.dump(meta_j, f, indent=2)
+    except OSError as e:
+        print(f"  ⚠ sidecar write FAILED for {os.path.basename(final)} ({e!r}) — the bytes are unaffected", flush=True)
+
+
 async def _pull_once(
     address, out_dir, which, resume, adapter, serial, on_progress=None, lifecycle=None, device_id=None
 ):
@@ -556,8 +581,7 @@ async def _pull_once(
                 ).to_dict()
             except Exception as e:  # noqa: BLE001 — the report never damages the pull it describes
                 print(f"  ⚠ acquisition-evidence envelope failed for {ts} ({e!r}) — bytes unaffected", flush=True)
-            with open(final + ".meta.json", "w") as f:
-                json.dump(meta_j, f, indent=2)
+            _write_dat_sidecar(final, meta_j)
             # REPORT IT EITHER WAY — under the name that says which it is. Returning nothing for a
             # short pull would hide real bytes from the operator: `saved_paths` feeds the API's
             # `new_files`/`sessions`, and the prior design deliberately surfaced partials there ("the
