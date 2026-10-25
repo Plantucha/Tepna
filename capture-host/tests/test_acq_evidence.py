@@ -528,3 +528,80 @@ def test_a_trailerless_pull_still_carries_no_start_time():
     """The derivation adds information and invents none: with no trailer there is no stamp to read."""
     ev = o2.assemble_dat(_row(), trailer=None, verify_result=_verify())
     assert ev.start_time_ms is None and ev.end_time_ms is None
+
+
+# ── the stored envelope RE-STATES the pull's own facts ────────────────────────────────────────────
+# The diff-scoped mutation gate reported 17 survivors inside `assemble_dat` on #3906, and nearly every
+# one replaced a single field with `None`. Each assertion below names a fact the envelope owes the
+# inventory row it was handed. A dropped field is not cosmetic: a consumer reads this sidecar as the
+# record of what the pull was, so a null there denies a fact the pull established.
+def test_the_stored_envelope_CARRIES_every_identity_its_inventory_row_states():
+    """Six fields, each a verbatim re-statement. The row names the ring, the session, the file and the
+    attempt; the adapter adds the one signal an O2Ring `.dat` holds. None of the six is derived, so a
+    null in any of them is a lost fact rather than a measured absence."""
+    row = _row(device_id="S8-AW-07", session="20260719010203", path="/x/20260719010203.dat", attempt=3)
+    ev = o2.assemble_dat(row, trailer=_TRAILER_18311, verify_result=_verify())
+    assert ev.device_id == "S8-AW-07", "the ring the row names"
+    assert ev.session_id == "20260719010203"
+    assert ev.artifact_path == "/x/20260719010203.dat"
+    assert ev.artifact_size == 18311 * 3 + 58
+    assert ev.signal == "spo2_hr_motion@1Hz", "the one signal a ring .dat carries"
+    assert ev.provenance == {"inventory_state": "VERIFIED", "attempt": 3}
+
+
+def test_the_stored_envelope_CARRIES_the_device_state_its_caller_OBSERVED():
+    """UNKNOWN belongs to the caller who observed nothing. A caller passing a word did observe the
+    ring, so the envelope states that word. UNKNOWN in its place would report an unexamined device."""
+    ev = o2.assemble_dat(_row(), trailer=_TRAILER_18311, verify_result=_verify(), device_state="worn")
+    assert ev.device_state == "worn"
+    bare = o2.assemble_dat(_row(), trailer=_TRAILER_18311, verify_result=_verify())
+    assert bare.device_state == ae.UNKNOWN, "the CONTROL: nobody looked, so the word says so"
+
+
+def test_the_RECORD_WALK_hash_outranks_the_inventory_row_own_copy():
+    """Both digests cover the same bytes, and the walk computed its own while reading every record
+    boundary. The row's copy can predate a re-verify, so the richer reading wins. A null here would
+    discard a hash this pull actually computed, and the row's own value sits right beside it."""
+    ev = o2.assemble_dat(_row(sha256="row-sha"), trailer=_TRAILER_18311, verify_result=_verify(sha256="walk-sha"))
+    assert ev.artifact_sha256 == "walk-sha"
+
+
+def test_a_file_of_HEADER_AND_TRAILER_ONLY_counts_NO_samples():
+    """58 bytes is a 10-byte header and a 48-byte trailer with nothing between them. A count of 0 is a
+    MEASUREMENT, and these bytes support none: the body must EXCEED both envelopes before a sample
+    grid exists at all (§∅). A shorter file is the same absence, and never a negative count."""
+    empty = o2.assemble_dat(_row(size=58), trailer=_TRAILER_18311, verify_result=_verify())
+    assert empty.sample_count is None, "no grid was found, which is not a grid of zero samples"
+    stub = o2.assemble_dat(_row(size=10), trailer=_TRAILER_18311, verify_result=_verify())
+    assert stub.sample_count is None, "a header alone yields no count, and never one below zero"
+
+
+def test_the_sample_count_is_a_WHOLE_number_of_records():
+    """The body divides into 3-byte records, and the count is how many of them it holds. A true
+    division would write `300.0` into the sidecar, which states a fractional sample a 1 Hz grid
+    cannot hold."""
+    ev = o2.assemble_dat(_row(size=300 * 3 + 58), trailer=_TRAILER_18311, verify_result=_verify())
+    assert ev.sample_count == 300
+    assert isinstance(ev.sample_count, int), "a float count serialises as 300.0 in the sidecar"
+
+
+def test_a_COARSE_validation_depth_never_claims_ZERO_decode_gaps():
+    """Only the record-boundary walk can prove the sample grid whole. A VERIFIED inventory row was
+    classified at the coarser size-and-finalised depth, which examined no boundary, so the gap count
+    stays UNKNOWN. Both halves of the guard are load-bearing: VALID alone proves nothing about the
+    grid, and a 0 here would be a count nothing measured (§∅)."""
+    coarse = o2.assemble_dat(_row(state="VERIFIED"), trailer=_TRAILER_18311, verify_result=None)
+    assert coarse.validation == ae.VALID and coarse.validation_depth == "size+finalised"
+    assert coarse.decode_gaps == ae.UNKNOWN
+    deep = o2.assemble_dat(_row(), trailer=_TRAILER_18311, verify_result=_verify())
+    assert deep.decode_gaps == 0, "the CONTROL: the record walk DID examine every boundary"
+
+
+def test_a_COMMITTED_inventory_row_is_as_VALID_as_a_VERIFIED_one():
+    """`oxy_inventory` classifies both words clean at the size-and-finalised depth, and the adapter
+    reads the two as one. No test passed the second word, so renaming it inside its tuple changed
+    nothing. The gate excludes a string literal from what it DEMANDS, and its own note asks for the
+    test when the literal carries data a consumer reads. An inventory state is exactly that."""
+    ev = o2.assemble_dat(_row(state="COMMITTED"), trailer=_TRAILER_18311, verify_result=None)
+    assert ev.validation == ae.VALID and ev.validation_depth == "size+finalised"
+    assert ev.provenance["inventory_state"] == "COMMITTED"
