@@ -53,6 +53,21 @@ scratch_hostile = pytest.mark.skipif(
     IN_SCRATCH, reason="asserts the real checkout layout or its git index; a scratch is a flattened copy"
 )
 
+# ── AND ONE MORE, FOR A DIFFERENT REASON: A BASENAME INDEX INVENTS A ROOT READ INSIDE A COPY ────────
+#
+# `root_reads` matches a test's string literal against a basename index of the WHOLE tree, so it pairs
+# that literal with any same-named file anywhere under the root. `tests/test_mmeta.py` spells
+# `mutmut-stats.json` as a fixture path under a temporary work directory. In the real checkout no root
+# file carries that basename, so the literal contributes nothing. In a scratch mutmut writes a real
+# `work/mutants/mutmut-stats.json` while it runs, the index pairs the literal with it, and the static
+# derivation reports a root read that exists nowhere in the repo. The failure is about the copy, never
+# about the manifest the assertion names. Measured 2026-10-25: `named - manifest` held exactly
+# `work/mutants/mutmut-stats.json`, and that assertion was the ONLY failure across the 14 files
+# `mutation_sweep.select_tests` picks for this module — 1 failed, 1508 passed, 12 skipped.
+scratch_invented_read = pytest.mark.skipif(
+    IN_SCRATCH, reason="the basename index pairs a test literal with mutmut's own artefact in a copy"
+)
+
 
 def decide(changed, manifest=None):
     """Run the committed filter the way CI runs it. The test never re-implements the decision: a test
@@ -145,6 +160,7 @@ def test_the_workflow_calls_the_script_and_inlines_no_copy_of_it():
     assert "capture-host/*|.github" not in text, "the old inlined decision is back"
 
 
+@scratch_invented_read
 def test_the_static_derivation_and_the_manifest_agree():
     """THE TRIPWIRE THAT COSTS NOTHING. `mutation_diff.root_reads` already derives root reads from the
     test sources for the mutation scratch. It runs on every suite run, so making the manifest a
