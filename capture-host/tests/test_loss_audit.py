@@ -984,6 +984,10 @@ def test_the_reconnect_search_window_and_its_folders(tmp_path):
     assert loss_audit._relink_gap(str(night) + "/", pat, end) == (2950.0, 0)  # a trailing slash: the same night
     (night / "Polar_H10_0284_nostamp_ECG.txt").write_text("h\n")  # no start stamp: COUNTED, never ignored
     assert loss_audit._relink_gap(str(night), pat, end) == (2950.0, 1)
+    # TWO unreadable names ACCUMULATE. The counter is a population, so a second one must raise it: a
+    # count that stops at 1 says "some name was unreadable" where the row promises how many.
+    (night / "Polar_H10_0284_alsonostamp_ECG.txt").write_text("h\n")
+    assert loss_audit._relink_gap(str(night), pat, end) == (2950.0, 2)
     assert loss_audit._relink_gap(str(tmp_path / "not-a-date"), pat, end) == (None, 0)
 
 
@@ -1262,6 +1266,21 @@ def test_a_ring_end_without_a_usable_ppg2w_witness_says_which_and_never_calls_a_
     _ring(d, R0, worn_s=30, off_s=10, spo2_s=40)
     e = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"][0]
     assert e["ppg2w_unusable"] == "under 60 s of rows" and e["tail_off"] is None and e["doff_at"] is None
+
+
+def test_a_ring_end_whose_relink_search_hit_an_unstamped_name_says_so_and_counts_them(tmp_path):
+    """The ring row carries the §∅ counter and the reason that names it.
+
+    `_ring_end` reads the same relink witness as the H10 path, so a sibling SpO2 name with no start
+    stamp in either layout leaves the search with nothing it can place. "No next file" is then not what
+    it measured, and the row says `quiet-end-relink-undetermined` with the count beside it rather than
+    borrowing the quiet end."""
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=30, off_s=10, spo2_s=40)  # 40 s of PPG2W: under the detector's minute, so no doff
+    (d / "Wellue_O2Ring-S_S8AW2100_nostamp_SPO2.csv").write_text("Time,Oxygen Level,Pulse Rate,Motion\n")
+    (e,) = [x for x in loss_audit.wear_ends(str(d), "O2Ring-S")["ends"] if x["usable"]]
+    assert e["reason"] == "quiet-end-relink-undetermined", e
+    assert e["relink_gap_s"] is None and e["relink_names_unstamped"] == 1
 
 
 def test_an_spo2_file_with_no_stamped_row_is_not_an_end(tmp_path):
