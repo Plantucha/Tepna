@@ -93,8 +93,8 @@ def test_get_never_returns_the_url_only_whether_and_where(tmp_path):
         "enabled": True,
         "configured": True,
         "hint": "https://hooks.slack.com",
-        "email_configured": False,
-        "email_hint": "",
+        "emails": [],
+        "emails_max": 5,
     }
 
 
@@ -124,8 +124,8 @@ def test_an_unconfigured_box_says_so_rather_than_looking_healthy(tmp_path):
         "enabled": False,
         "configured": False,
         "hint": "",
-        "email_configured": False,
-        "email_hint": "",
+        "emails": [],
+        "emails_max": 5,
     }
 
 
@@ -150,8 +150,8 @@ def test_an_explicit_empty_string_clears_it(tmp_path):
         "enabled": False,
         "configured": False,
         "hint": "",
-        "email_configured": False,
-        "email_hint": "",
+        "emails": [],
+        "emails_max": 5,
     }
 
 

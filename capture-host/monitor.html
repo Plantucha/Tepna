@@ -195,6 +195,8 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
 /* ── Overview stream grid ──────────────────────────────────────────────── */
 .ov-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:var(--sp-5);}
 /* Batteries card: one row per device — name · level · 24 h change · 7-day line · last alert. */
+.al-emails{list-style:none;margin:.3rem 0 .5rem;padding:0;display:grid;gap:4px;font-size:12px;}
+.al-emails li{display:flex;gap:.5rem;align-items:center;}
 .bt-list{display:grid;gap:6px;}
 .bt-row{display:grid;grid-template-columns:minmax(9rem,1.4fr) auto 5.5rem minmax(8rem,2fr) minmax(7rem,1fr);
   align-items:center;gap:var(--sp-3);font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums;}
@@ -608,7 +610,7 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
       <div class="card" id="battCard" style="display:none;margin-bottom:var(--sp-5)">
         <div class="bt-list" id="battList"></div>
         <p class="hint">Lowest reading per hour over the last 7 days. A push alert goes out at 20 % and
-          at 10 %; the 10 % alert also emails the address set under Settings → Push alerts.</p>
+          at 10 %; the 10 % alert also emails the addresses set under Settings → Push alerts.</p>
       </div>
       <div class="section-title" id="ovGridTitle">Streams</div>
       <div class="ov-grid" id="ovGrid"></div>
@@ -723,11 +725,16 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
         </div>
         <input id="alUrl" type="password" autocomplete="new-password" spellcheck="false"
                placeholder="https://ntfy.sh/your-topic" style="width:100%;max-width:38rem">
-        <p class="hint">Email for the 10 % battery alert. ntfy sends the email, so this works only with an
-          ntfy address above. Like the URL, the saved address is never shown again.
-          <span id="alEmailState">—</span></p>
-        <input id="alEmail" type="email" autocomplete="off" spellcheck="false"
-               placeholder="you@example.org" style="width:100%;max-width:38rem">
+        <p class="hint">Emails for the 10 % battery alert, up to 5. ntfy sends them, so this works only
+          with an ntfy topic above. The first address goes with the push. ntfy emails the others from the
+          topic name plus <code>-mail</code>, which no phone needs to subscribe to. A saved address shows
+          only its first letter and its domain.</p>
+        <ul class="al-emails" id="alEmails"><li class="hint">—</li></ul>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+          <input id="alEmail" type="email" autocomplete="off" spellcheck="false"
+                 placeholder="you@example.org" style="flex:1;min-width:0;max-width:30rem">
+          <button class="btn" id="alEmailAdd" onclick="addEmail(this)">Add email</button>
+        </div>
         <div style="display:flex;gap:.5rem;align-items:center;margin-top:.6rem;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="saveAlerts(this)">Save alerts</button>
           <button class="btn" onclick="testAlerts(this)">Send test alert</button>
@@ -2334,8 +2341,23 @@ async function daemonDeploy(btn){
 
 function alEmailState(a){
   $('#alEmail').value = '';
-  $('#alEmailState').innerHTML = a.email_configured
-    ? `Email set \u2192 <b>${esc(a.email_hint||'set')}</b>.` : 'No email set.';
+  const L = a.emails || [];
+  $('#alEmails').innerHTML = L.length
+    ? L.map((h,i) => `<li><b>${esc(h)}</b><button class="btn" data-i="${i}" data-h="${esc(h)}"
+        onclick="removeEmail(this)">Remove</button></li>`).join('')
+    : '<li class="hint">No email set.</li>';
+  $('#alEmailAdd').disabled = L.length >= (a.emails_max || 5);
+}
+
+function addEmail(btn){
+  const em = $v('alEmail').trim();
+  if(!em){ $('#alMsg').textContent = 'Type an address first.'; return false; }
+  return postAlerts(btn, {email_add: em}, 'adding');
+}
+
+function removeEmail(btn){
+  // The hint travels with the index: a tab showing an old list gets a 409, not the wrong removal.
+  return postAlerts(btn, {email_remove: {index: +btn.dataset.i, hint: btn.dataset.h}}, 'removing');
 }
 
 async function postAlerts(btn, body, verb){
@@ -2360,14 +2382,12 @@ function saveAlerts(btn){
   const url = $v('alUrl').trim();
   const body = {enabled: $('#alEnabled').checked};
   if(url) body.webhook_url = url;      // omitted => the box keeps the stored one
-  const em = $v('alEmail').trim();
-  if(em) body.email = em;              // same rule: omitted => keep
   return postAlerts(btn, body, 'saving');
 }
 
 function clearAlerts(btn){
   // The explicit clear. Sent as "" rather than by omission, which is the keep case.
-  return postAlerts(btn, {webhook_url:'', email:'', enabled:false}, 'clearing');
+  return postAlerts(btn, {webhook_url:'', emails:[], enabled:false}, 'clearing');
 }
 
 async function testAlerts(btn){

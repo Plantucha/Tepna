@@ -1802,13 +1802,43 @@ def make_app(
             "enabled": bool(a.get("enabled")) and bool(url),
             "configured": bool(url),
             "hint": alerts.webhook_hint(url),
-            # The email address is personal data: configured-or-not and its domain, never the address.
-            "email_configured": bool(a.get("email")),
-            "email_hint": alerts.email_hint(a.get("email")),
+            # The addresses are personal data: a first letter and a domain each, never an address.
+            "emails": [alerts.email_hint(e) for e in alerts.configured_emails(a.get("emails"))],
+            "emails_max": alerts.MAX_EMAILS,
         }
 
     async def alerts_get(_req):
         return web.json_response(_alerts_cfg())
+
+    def _edit_emails(body: dict, emails: list[str]) -> tuple[list[str], tuple[int, str] | None]:
+        """Apply one address edit. `email_add` appends one address. `email_remove` takes `{index, hint}`:
+        the hint must still match, so a tab showing an old list cannot remove the wrong address.
+        `emails: []` clears them all. An absent key keeps the list. Errors never quote an address."""
+        if "emails" in body:
+            if body["emails"] != []:
+                return emails, (400, "emails accepts only [] (clear all); add addresses one at a time")
+            return [], None
+        if "email_add" in body:
+            try:
+                v = alerts.validate_email(body["email_add"])
+            except alerts.AlertsError as e:
+                return emails, (400, str(e))
+            if not v:
+                return emails, (400, "email_add is empty")
+            if v in emails:
+                return emails, None
+            if len(emails) >= alerts.MAX_EMAILS:
+                return emails, (400, f"at most {alerts.MAX_EMAILS} email addresses")
+            return [*emails, v], None
+        if "email_remove" in body:
+            r = body["email_remove"]
+            i = r.get("index") if isinstance(r, dict) else None
+            if isinstance(i, bool) or not isinstance(i, int) or not 0 <= i < len(emails):
+                return emails, (400, "email_remove needs the index of a stored address")
+            if r.get("hint") != alerts.email_hint(emails[i]):
+                return emails, (409, "the address list changed; reload the page")
+            return emails[:i] + emails[i + 1 :], None
+        return emails, None
 
     async def alerts_post(req):
         """Set / change / clear the webhook destination, applied to the LIVE notifier.
@@ -1831,15 +1861,13 @@ def make_app(
             )
         except alerts.AlertsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
-        # Same "absent keeps, empty clears" rule as the URL: the field renders empty when one is stored.
-        try:
-            email = alerts.validate_email(body["email"]) if "email" in body else (a.get("email") or "")
-        except alerts.AlertsError as e:
-            return web.json_response({"ok": False, "error": str(e)}, status=400)
-        if email:
-            a["email"] = email
+        emails, err = _edit_emails(body, alerts.configured_emails(a.get("emails")))
+        if err is not None:
+            return web.json_response({"ok": False, "error": err[1]}, status=err[0])
+        if emails:
+            a["emails"] = emails
         else:
-            a.pop("email", None)
+            a.pop("emails", None)
         enabled = bool(body.get("enabled", a.get("enabled", False)))
         if url:
             a["webhook_url"] = url
@@ -1852,7 +1880,7 @@ def make_app(
             return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
         if notifier is not None:
             notifier.configure(url or None, a["enabled"])  # live — no restart, no dropped BLE links
-            notifier.email = email or None
+            notifier.emails = list(emails)
         return web.json_response({"ok": True, **_alerts_cfg()})
 
     async def alerts_test(_req):

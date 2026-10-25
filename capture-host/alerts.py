@@ -15,7 +15,7 @@
 from __future__ import annotations
 import logging
 import time as _time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 _log = logging.getLogger("tepna-capture")
 
@@ -70,7 +70,14 @@ def validate_webhook_url(value) -> str:
 # and no mail credentials. Other webhook services ignore the header. The address is personal data, so it
 # follows the webhook URL's rule: the monitor may set it and never shows it back, and it stays out of the
 # repo (it lives in the box's config.yaml only).
+#
+# SEVERAL ADDRESSES, ONE PUSH. ntfy takes one address per publish, and every publish to a topic also
+# pushes to that topic's phones. So the first address rides on the push, and each further address goes
+# to a second topic, `<topic>-mail`, that no phone subscribes to: one push, one email per address
+# (owner ruling 2026-10-25). The extra publishes go out only after the push was delivered, because an
+# undelivered push is sent again on the next poll and would email the extra addresses twice.
 _MAX_EMAIL = 254  # RFC 5321's path limit
+MAX_EMAILS = 5
 
 
 def validate_email(value) -> str:
@@ -96,21 +103,41 @@ def validate_email(value) -> str:
     return v
 
 
-def configured_email(value) -> str | None:
-    """The stored address the daemon starts with, or None. A hand-edited bad value is logged and dropped:
-    the daemon runs without the email rather than refusing to start."""
-    try:
-        return validate_email(value) or None
-    except AlertsError as e:
-        _log.warning("alerts.email ignored: %s", e)
-        return None
+def configured_emails(value) -> list[str]:
+    """The stored addresses the daemon starts with, in order, without repeats, at most `MAX_EMAILS`.
+    A hand-edited bad entry is logged and dropped: the daemon runs without it rather than refusing to
+    start. The log line never quotes the value."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        _log.warning("alerts.emails ignored: not a list")
+        return []
+    out: list[str] = []
+    for item in value:
+        try:
+            v = validate_email(item)
+        except AlertsError as e:
+            _log.warning("alerts.emails entry ignored: %s", e)
+            continue
+        if v and v not in out:
+            out.append(v)
+    if len(out) > MAX_EMAILS:
+        _log.warning("alerts.emails holds %d addresses; the first %d are used", len(out), MAX_EMAILS)
+    return out[:MAX_EMAILS]
 
 
 def email_hint(addr: str | None) -> str:
-    """A non-identifying label for a stored address: the domain only."""
+    """A label for a stored address: its first character and its domain. The first character lets
+    the operator tell two addresses on one domain apart without the monitor showing either."""
     if not addr or "@" not in addr:
         return ""
-    return "…@" + addr.rpartition("@")[2]
+    return addr[0] + "…@" + addr.rpartition("@")[2]
+
+
+def mail_topic_url(url: str) -> str:
+    """The email-only ntfy topic beside `url`: the same server, the path plus `-mail`."""
+    p = urlsplit(url)
+    return urlunsplit((p.scheme, p.netloc, p.path.rstrip("/") + "-mail", p.query, p.fragment))
 
 
 def webhook_hint(url: str | None) -> str:
@@ -144,9 +171,9 @@ class Notifier:
     `key`+`dedupe_sec` suppress a repeat of the SAME alert within a window so one flapping sensor cannot
     spam the operator. `_post` is injectable for tests (defaults to the real webhook)."""
 
-    def __init__(self, url: str | None = None, enabled: bool = False, _post=None, email: str | None = None):
+    def __init__(self, url: str | None = None, enabled: bool = False, _post=None, emails: list[str] | None = None):
         self.url = url
-        self.email = email or None  # the ntfy `Email:` recipient for `send(..., email=True)`; never echoed
+        self.emails: list[str] = list(emails or [])  # ntfy `Email:` recipients for `send(..., email=True)`
         self.enabled = bool(enabled and url)
         self._post = _post or _http_post  # resolved here (not a default arg) so tests can patch it
         self._last: dict[str, float] = {}  # dedupe key → monotonic ts of the last send
@@ -166,6 +193,7 @@ class Notifier:
         self.last_ok: float | None = None  # wall-clock epoch of the last DELIVERED alert
         self.last_error: str | None = None  # why the last attempt failed; None once one succeeds
         self.last_title: str | None = None
+        self.email_failed = 0  # extra-address publishes that did not arrive; the push itself did
 
     def stats(self) -> dict:
         """What the monitor shows. A notifier that has never delivered anything reports
@@ -179,7 +207,8 @@ class Notifier:
             "last_ok": self.last_ok,
             "last_error": self.last_error,
             "last_title": self.last_title,
-            "email_configured": bool(self.email),
+            "emails": len(self.emails),
+            "email_failed": self.email_failed,
         }
 
     async def send(
@@ -194,8 +223,9 @@ class Notifier:
     ) -> bool:
         """Fire one alert. Returns True only if it was actually delivered.
 
-        `email=True` also asks ntfy to email the stored address (the `Email:` header). With no address
-        stored, the alert goes out as a plain push."""
+        `email=True` also asks ntfy to email the stored addresses (the `Email:` header): the first on
+        the push, the rest through `mail_topic_url` once the push is delivered. With no address stored,
+        the alert goes out as a plain push."""
         # ONE condition, not two: `enabled` is set as `bool(enabled and url)` in both `__init__` and
         # `configure`, so "enabled" already implies a URL — but that invariant lived across two
         # attributes and only a reader could see it. Stating it here makes it checkable, and mypy
@@ -211,8 +241,8 @@ class Notifier:
         self.last_title = title
         try:
             payload = {"title": title, "message": message}
-            if email and self.email:
-                ok = bool(await self._post(self.url, payload, headers={"Email": self.email}))
+            if email and self.emails:
+                ok = bool(await self._post(self.url, payload, headers={"Email": self.emails[0]}))
             else:
                 ok = bool(await self._post(self.url, payload))
         except Exception as e:
@@ -237,7 +267,23 @@ class Notifier:
         self.delivered += 1
         self.last_ok = _time.time()
         self.last_error = None
+        if email:
+            await self._email_the_rest(self.url, payload)
         return True
+
+    async def _email_the_rest(self, url: str, payload: dict) -> None:
+        """Email addresses 2..n through the email-only topic. A failure here is counted and logged; it
+        does not undo the push, which already arrived."""
+        for i, addr in enumerate(self.emails[1:], start=2):
+            try:
+                ok = bool(await self._post(mail_topic_url(url), payload, headers={"Email": addr}))
+            except Exception as e:
+                _log.warning("alert email %d of %d not delivered: %r", i, len(self.emails), e)
+                ok = None
+            if not ok:
+                if ok is not None:
+                    _log.warning("alert email %d of %d rejected (non-2xx)", i, len(self.emails))
+                self.email_failed += 1
 
     def reset(self, key: str) -> None:
         """Forget a dedupe key so the NEXT occurrence alerts immediately (call when a sensor recovers)."""

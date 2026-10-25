@@ -15307,7 +15307,9 @@ async def main():
     # Push-alert transport (webhook) — disabled unless config sets alerts.enabled + alerts.webhook_url.
     _acfg = cfg.get("alerts") or {}
     notifier = alerts.Notifier(
-        _acfg.get("webhook_url"), enabled=bool(_acfg.get("enabled")), email=alerts.configured_email(_acfg.get("email"))
+        _acfg.get("webhook_url"),
+        enabled=bool(_acfg.get("enabled")),
+        emails=alerts.configured_emails(_acfg.get("emails")),
     )
     # Published every status tick (see status_loop). Module-level rather than threaded through a dozen
     # signatures because the ONE thing this needs is to reach the same surface as everything else it

@@ -92,44 +92,85 @@ def test_validate_email_refuses_without_quoting_the_value():
             raise AssertionError(f"accepted {value!r}")
 
 
-def test_configured_email_drops_a_bad_value_and_keeps_a_good_one(caplog):
-    assert alerts.configured_email(None) is None
-    assert alerts.configured_email("someone@example.org") == "someone@example.org"
-    assert alerts.configured_email("not an address") is None
-    assert "alerts.email ignored" in caplog.text
+def test_configured_emails_keeps_good_entries_in_order_and_drops_the_rest(caplog):
+    f = alerts.configured_emails
+    assert f(None) == []
+    assert f("someone@example.org") == [], "a bare string is not the list form"
+    assert "not a list" in caplog.text
+    got = f(["b@example.org", "secret bad", "a@example.org", "b@example.org", ""])
+    assert got == ["b@example.org", "a@example.org"], "order kept, repeats and blanks dropped"
+    assert "entry ignored" in caplog.text and "secret" not in caplog.text
+    many = [f"u{i}@example.org" for i in range(alerts.MAX_EMAILS + 2)]
+    assert f(many) == many[: alerts.MAX_EMAILS]
+    assert "the first 5 are used" in caplog.text
 
 
-def test_email_hint_is_the_domain_only():
+def test_email_hint_is_the_first_letter_and_the_domain():
     assert alerts.email_hint(None) == "" and alerts.email_hint("junk") == ""
-    assert alerts.email_hint("someone@example.org") == "…@example.org"
+    assert alerts.email_hint("someone@example.org") == "s…@example.org"
 
 
-# ── the Notifier carries the header only when asked and only when an address is stored ─────────────
+def test_mail_topic_url_keeps_the_server_and_the_query():
+    assert alerts.mail_topic_url("https://ntfy.example/tepna") == "https://ntfy.example/tepna-mail"
+    assert alerts.mail_topic_url("https://ntfy.example/tepna/") == "https://ntfy.example/tepna-mail"
+    assert alerts.mail_topic_url("https://h:8080/t?auth=x") == "https://h:8080/t-mail?auth=x"
 
 
-def _notifier(email):
+# ── the Notifier: one push, one email per address ───────────────────────────────────────────────────
+
+
+def _notifier(emails, results=None):
     seen = []
+    results = list(results or [])
 
     async def post(url, payload, **kw):
-        seen.append(kw)
-        return True
+        seen.append((url, kw.get("headers")))
+        r = results.pop(0) if results else True
+        if isinstance(r, Exception):
+            raise r
+        return r
 
-    return alerts.Notifier("https://ntfy.example/t", enabled=True, _post=post, email=email), seen
+    n = alerts.Notifier("https://ntfy.example/t", enabled=True, _post=post, emails=emails)
+    return n, seen
 
 
-def test_send_with_email_adds_the_ntfy_header():
-    n, seen = _notifier("someone@example.org")
+def test_the_first_address_rides_the_push_and_the_rest_use_the_mail_topic():
+    n, seen = _notifier(["a@example.org", "b@example.org", "c@example.org"])
     assert asyncio.run(n.send("T", "M", email=True)) is True
+    assert seen == [
+        ("https://ntfy.example/t", {"Email": "a@example.org"}),
+        ("https://ntfy.example/t-mail", {"Email": "b@example.org"}),
+        ("https://ntfy.example/t-mail", {"Email": "c@example.org"}),
+    ]
+    assert n.stats()["emails"] == 3 and n.stats()["email_failed"] == 0
+
+
+def test_a_push_without_email_reaches_only_the_topic():
+    n, seen = _notifier(["a@example.org", "b@example.org"])
     assert asyncio.run(n.send("T", "M")) is True
-    assert seen == [{"headers": {"Email": "someone@example.org"}}, {}]
-    assert n.stats()["email_configured"] is True
+    assert seen == [("https://ntfy.example/t", None)]
 
 
-def test_send_with_email_but_no_address_is_a_plain_push():
-    n, seen = _notifier(None)
+def test_with_no_address_an_email_alert_is_a_plain_push():
+    n, seen = _notifier([])
     assert asyncio.run(n.send("T", "M", email=True)) is True
-    assert seen == [{}]
-    assert n.stats()["email_configured"] is False
+    assert seen == [("https://ntfy.example/t", None)]
+    assert n.stats()["emails"] == 0
+
+
+def test_an_undelivered_push_sends_no_extra_email():
+    """The poller sends an undelivered alert again; extra emails sent now would arrive twice."""
+    n, seen = _notifier(["a@example.org", "b@example.org"], results=[False])
+    assert asyncio.run(n.send("T", "M", email=True)) is False
+    assert len(seen) == 1
+
+
+def test_a_failed_extra_email_is_counted_and_keeps_the_push(caplog):
+    n, seen = _notifier(["a@example.org", "b@example.org", "c@example.org"], results=[True, False, OSError("x")])
+    assert asyncio.run(n.send("T", "M", email=True)) is True
+    assert n.stats()["email_failed"] == 2 and n.delivered == 1 and n.failed == 0
+    assert "email 2 of 3 rejected" in caplog.text and "email 3 of 3 not delivered" in caplog.text
+    assert "example.org" not in caplog.text
 
 
 def test_http_post_sends_the_header():
@@ -218,10 +259,10 @@ def test_poller_with_alerting_off_logs_once_and_latches(monkeypatch, caplog):
     assert caplog.text.count("battery reads 10 %") == 1
 
 
-# ── /api/alerts: the email is write-only ────────────────────────────────────────────────────────────
+# ── /api/alerts: the addresses are write-only ───────────────────────────────────────────────────────
 
 
-def _alerts_post(tmp_path, body, alerts_cfg, notifier):
+def _alerts_post(tmp_path, body, alerts_cfg, notifier=None):
     app, cfg = _app(tmp_path, alerts_cfg, notifier)
 
     async def go(c):
@@ -232,25 +273,76 @@ def _alerts_post(tmp_path, body, alerts_cfg, notifier):
     return status, js, cfg
 
 
-def test_api_alerts_sets_keeps_and_clears_the_email_and_never_echoes_it(tmp_path):
+BASE = {"enabled": True, "webhook_url": "https://ntfy.example/t"}
+TWO = ["anna@example.org", "bert@example.org"]
+
+
+def test_api_alerts_adds_an_address_and_shows_only_its_hint(tmp_path):
     spy = _Spy("https://ntfy.example/t", True)
-    base = {"enabled": True, "webhook_url": "https://ntfy.example/t"}
-    status, js, cfg = _alerts_post(tmp_path, {"email": "someone@example.org"}, dict(base), spy)
-    assert status == 200 and js["email_configured"] is True and js["email_hint"] == "…@example.org"
-    assert "someone" not in str(js)
-    assert cfg["alerts"]["email"] == "someone@example.org" and spy.email == "someone@example.org"
-
-    status, js, cfg = _alerts_post(tmp_path, {"enabled": True}, {**base, "email": "someone@example.org"}, spy)
-    assert cfg["alerts"]["email"] == "someone@example.org", "absent keeps"
-
-    status, js, cfg = _alerts_post(tmp_path, {"email": ""}, {**base, "email": "someone@example.org"}, spy)
-    assert "email" not in cfg["alerts"] and js["email_configured"] is False and spy.email is None
+    status, js, cfg = _alerts_post(tmp_path, {"email_add": "carl@example.org"}, {**BASE, "emails": list(TWO)}, spy)
+    assert status == 200 and js["emails"] == ["a…@example.org", "b…@example.org", "c…@example.org"]
+    assert js["emails_max"] == alerts.MAX_EMAILS
+    assert "anna" not in str(js) and "carl" not in str(js)
+    assert cfg["alerts"]["emails"] == [*TWO, "carl@example.org"] and spy.emails == cfg["alerts"]["emails"]
 
 
-def test_api_alerts_refuses_a_bad_email_without_quoting_it(tmp_path):
-    status, js, cfg = _alerts_post(tmp_path, {"email": "secret-name@nowhere"}, {}, None)
+def test_api_alerts_keeps_the_list_when_no_email_key_is_sent(tmp_path):
+    status, js, cfg = _alerts_post(tmp_path, {"enabled": True}, {**BASE, "emails": list(TWO)})
+    assert status == 200 and cfg["alerts"]["emails"] == TWO
+
+
+def test_api_alerts_adding_a_stored_address_again_is_a_no_op(tmp_path):
+    status, js, cfg = _alerts_post(tmp_path, {"email_add": " anna@example.org "}, {**BASE, "emails": list(TWO)})
+    assert status == 200 and cfg["alerts"]["emails"] == TWO
+
+
+def test_api_alerts_refuses_a_sixth_address(tmp_path):
+    full = [f"u{i}@example.org" for i in range(alerts.MAX_EMAILS)]
+    status, js, cfg = _alerts_post(tmp_path, {"email_add": "secret@example.org"}, {**BASE, "emails": list(full)})
+    assert status == 400 and "at most" in js["error"] and cfg["alerts"]["emails"] == full
+
+
+def test_api_alerts_refuses_a_bad_or_empty_address_without_quoting_it(tmp_path):
+    status, js, cfg = _alerts_post(tmp_path, {"email_add": "secret-name@nowhere"}, {})
     assert status == 400 and "secret-name" not in str(js)
-    assert "email" not in (cfg.get("alerts") or {})
+    assert "emails" not in (cfg.get("alerts") or {})
+    status, js, _ = _alerts_post(tmp_path, {"email_add": "  "}, {})
+    assert status == 400 and "empty" in js["error"]
+
+
+def test_api_alerts_removes_one_address_by_index_and_hint(tmp_path):
+    spy = _Spy("https://ntfy.example/t", True)
+    body = {"email_remove": {"index": 0, "hint": "a…@example.org"}}
+    status, js, cfg = _alerts_post(tmp_path, body, {**BASE, "emails": list(TWO)}, spy)
+    assert status == 200 and js["emails"] == ["b…@example.org"]
+    assert cfg["alerts"]["emails"] == ["bert@example.org"] and spy.emails == ["bert@example.org"]
+    assert cfg["alerts"]["webhook_url"] == BASE["webhook_url"], "removing an address keeps the URL"
+
+
+def test_api_alerts_removing_the_last_address_drops_the_key(tmp_path):
+    body = {"email_remove": {"index": 0, "hint": "a…@example.org"}}
+    status, js, cfg = _alerts_post(tmp_path, body, {**BASE, "emails": ["anna@example.org"]})
+    assert status == 200 and js["emails"] == [] and "emails" not in cfg["alerts"]
+
+
+def test_api_alerts_refuses_a_removal_from_an_old_list(tmp_path):
+    body = {"email_remove": {"index": 0, "hint": "b…@example.org"}}
+    status, js, cfg = _alerts_post(tmp_path, body, {**BASE, "emails": list(TWO)})
+    assert status == 409 and cfg["alerts"]["emails"] == TWO
+
+
+def test_api_alerts_refuses_a_removal_with_no_valid_index(tmp_path):
+    for r in [None, {}, {"index": True}, {"index": "0"}, {"index": -1}, {"index": 2}]:
+        status, js, cfg = _alerts_post(tmp_path, {"email_remove": r}, {**BASE, "emails": list(TWO)})
+        assert status == 400 and cfg["alerts"]["emails"] == TWO, r
+
+
+def test_api_alerts_clears_every_address_only_with_an_empty_list(tmp_path):
+    spy = _Spy("https://ntfy.example/t", True)
+    status, js, cfg = _alerts_post(tmp_path, {"emails": []}, {**BASE, "emails": list(TWO)}, spy)
+    assert status == 200 and "emails" not in cfg["alerts"] and spy.emails == []
+    status, js, cfg = _alerts_post(tmp_path, {"emails": ["secret@example.org"]}, {**BASE, "emails": list(TWO)})
+    assert status == 400 and cfg["alerts"]["emails"] == TWO and "secret" not in str(js)
 
 
 # ── /api/battery and battery_history ────────────────────────────────────────────────────────────────
