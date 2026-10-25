@@ -90,6 +90,22 @@ headroom is *worse* than measured and the under-10 GB target becomes an under-5 
 stale assumption about this machine, in which case there is ~60 % more room than the plan assumes.
 **Which box the requirement targets is an owner question, and the P1/P2 sizing depends on the answer.**
 
+**ANSWERED 2026-10-25 (Heron, rig): the question no longer reaches a design, and the measurement says
+so without the owner's word.** No constant in the tree states the box's RAM. `planConcurrency` in
+`tools/trio-batch.mjs` reads `os.freemem()`, `os.totalmem()` and the unit's own cgroup ceiling at run
+time, and `hostBudgetFrom` keeps the smaller of free memory and total minus the 2 GB reserve. The
+shipped `capture-host/systemd/tepna-fold.service` then carries `MemoryMax=4G`, and `budgetFromFence`
+keeps the smaller of host budget and fence, so the fence is the tighter number on BOTH hosts: 3.5 GB
+after the coordinator's reserve, which `jobsFromBudget` turns into ONE child either way. One child
+peaks at 1.61 to 2.68 GB over the four real box nights P0 measured, so it clears a 4 GB fence under
+both readings.
+
+Four known answers in `trio-batch.mjs --selftest` pin it: an 8 GB host budgets 6 GB, the measured box
+budgets 13 GB, and each plans one child under the shipped fence. The P1 and P2 sizing this section
+makes conditional therefore has no live dependent. What remains of the question is a PROCUREMENT one
+and it belongs to `VIGIL-OFFLOAD-AND-RETENTION`, where the hardware choice sits. Residue row
+`2026-09-06-folding-brief-assumes-8gb` reads this as its answer.
+
 - **P1 — per-fragment sequencing in trio-batch** (if P0 blames concatenation): feed each parser only
   its own fragment file, release between; peak drops from whole-night to largest-fragment. No DSP
   contract change.
