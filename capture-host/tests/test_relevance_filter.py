@@ -34,6 +34,25 @@ SCRIPT = CH / "tools" / "relevance.sh"
 MANIFEST = CH / "tools" / "root-reads.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "capture-host-ci.yml"
 
+# ── SIX ASSERTIONS HERE ARE ABOUT THE REAL CHECKOUT, AND A MUTATION SCRATCH IS NOT ONE ─────────────
+#
+# `tools/mutate.py` copies capture-host into `<scratch>/work`, and mutmut generates `work/mutants`. So
+# inside a scratch `CH` is named `work` or `mutants`, `ROOT` is the scratch directory, and neither is a
+# git repository. Six assertions below read the real layout as truth. Two `relativise` cases expect a
+# path INSIDE capture-host to relativise to None. The argv recorder expects a bare `node` under `CH` to
+# fall outside the filtered set. Three more reach `tracked_files`, whose `git ls-files` the producer
+# refuses in a copy by design. Measured 2026-10-25 in scratch `mut-mutation_diff-7ca7d180bafd`: 6
+# failed, 39 passed, which cost the whole mutation gate its baseline.
+#
+# They are SKIPPED and not deselected for two reasons. Two of the six are parametrized on an absolute
+# scratch path, so their node ids differ in every scratch and `DESELECTED_TESTS` cannot name them. And
+# the file must stay selected, because its other tests are the ones that kill `mutation_diff` mutants
+# (residue 2026-10-25-the-mutation-stager-drops-the-one-dotted-read-the-manifest-declares).
+IN_SCRATCH = CH.name != "capture-host"
+scratch_hostile = pytest.mark.skipif(
+    IN_SCRATCH, reason="asserts the real checkout layout or its git index; a scratch is a flattened copy"
+)
+
 
 def decide(changed, manifest=None):
     """Run the committed filter the way CI runs it. The test never re-implements the decision: a test
@@ -173,8 +192,10 @@ def test_repo_root_is_above_capture_host():
         (3, None),  # a file descriptor, not a path
         (b"clock.js", "clock.js"),  # bytes, which is what a traced argv often carries
         (str(ROOT / "clock.js"), "clock.js"),
-        (str(CH / "oxyii.py"), None),  # inside capture-host, which the filter already covers
-        (str(CH), None),  # capture-host itself
+        pytest.param(
+            str(CH / "oxyii.py"), None, marks=scratch_hostile
+        ),  # inside capture-host, which the filter already covers
+        pytest.param(str(CH), None, marks=scratch_hostile),  # capture-host itself
         ("/etc/hostname", None),  # outside the repo
     ],
 )
@@ -213,6 +234,7 @@ def test_audit_records_an_open_with_and_without_a_mode():
     assert seen == {"clock.js": {"read"}, "verdict.js": {"read"}, "out.json": {"write"}}
 
 
+@scratch_hostile
 def test_audit_records_every_argv_member_of_a_subprocess():
     seen = {}
     root_reads.audit(
@@ -297,6 +319,7 @@ def test_named_root_reads_drops_what_lives_inside_capture_host():
     assert not [p for p in named if p.startswith("capture-host/")]
 
 
+@scratch_hostile
 def test_tracked_files_reads_the_index():
     tracked = root_reads.tracked_files(ROOT)
     assert "clock.js" in tracked
@@ -327,6 +350,7 @@ def test_main_refuses_without_fold(capsys):
     assert "usage" in capsys.readouterr().err
 
 
+@scratch_hostile
 def test_main_writes_the_manifest_it_was_asked_for(tmp_path, capsys):
     src = tmp_path / "trace.jsonl"
     src.write_text(json.dumps({"path": "clock.js", "how": ["read"]}) + "\n")
@@ -336,6 +360,7 @@ def test_main_writes_the_manifest_it_was_asked_for(tmp_path, capsys):
     assert "tracked root path" in capsys.readouterr().out
 
 
+@scratch_hostile
 def test_main_defaults_to_the_committed_manifest_path(tmp_path, monkeypatch):
     src = tmp_path / "trace.jsonl"
     src.write_text(json.dumps({"path": "clock.js", "how": ["read"]}) + "\n")
