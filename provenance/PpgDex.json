@@ -39,7 +39,7 @@
       "inputHashes": {
         "synthetic_ppgdex_verity.txt": "277cb71eed902d44"
       },
-      "outputHash": "617b9ee6a0a12ed3",
+      "outputHash": "18b89d9a251f4212",
       "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for PpgDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
     },
     "synthetic_ppgdex_gapped_golden.node-export.json": {
@@ -50,7 +50,7 @@
       "inputs": [
         "synthetic_ppgdex_verity_gapped.txt"
       ],
-      "outputHash": "9daa36cce48e0512",
+      "outputHash": "17084dc7e638841c",
       "inputHashes": {
         "synthetic_ppgdex_verity_gapped.txt": "3807ac2e3b6e208c"
       }
@@ -63,7 +63,7 @@
       "inputs": [
         "synthetic_ppgdex_verity.txt"
       ],
-      "outputHash": "1d11d26766059af0",
+      "outputHash": "edbfea6c51df5560",
       "inputHashes": {
         "synthetic_ppgdex_verity.txt": "277cb71eed902d44"
       }
@@ -76,7 +76,7 @@
       "inputs": [
         "synthetic_ppgdex_o2ring_finger.txt"
       ],
-      "outputHash": "ab75d8091032b9d3",
+      "outputHash": "147e886b9a0369e4",
       "inputHashes": {
         "synthetic_ppgdex_o2ring_finger.txt": "d73e38672ef5c375"
       }
@@ -89,7 +89,7 @@
       "inputs": [
         "synthetic_ppgdex_verity_inverted.txt"
       ],
-      "outputHash": "0dd8f6d74a0d605f",
+      "outputHash": "6c6414e28f3e50e1",
       "inputHashes": {
         "synthetic_ppgdex_verity_inverted.txt": "1b02dcbda84baed4"
       }

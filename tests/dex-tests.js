@@ -178,6 +178,59 @@
       return Date.UTC(y, mo, d, h || 0, mi || 0, s || 0, ms || 0);
     };
 
+    /* ── THE BUNDLE REALM — a node must recompute a golden the way its OWN bundle computes ────────
+       Both lanes co-load `clock.js`, because five of the eight app bundles inline it. Three do not
+       (CLAUDE.md §✅ — PpgDex, GlucoDex, CPAPDex), and there `DexClock` is UNDEFINED, so every
+       `typeof DexClock !== 'undefined'` guard in those DSPs takes the branch the shipped app takes and
+       the co-loaded suite does not. An equivalence leg that recomputes a committed golden in the
+       CO-LOADED realm is therefore not testing the shipped bundle at all. Measured 2026-10-24 over the
+       five reachable PpgDex goldens: the two realms differ in up to 23 fields — `recording.contentId`,
+       `recording.hostAxis`, `measurement.*.window.spreadMs`, `measurement.*.evidence.inputHash` and up
+       to fifteen `timeseries.ppi.tSec` values (residue
+       2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible).
+
+       The omission is READ from the builder's own inline list — `env.srcHtml`, the `<script src>` block
+       `tools/build.mjs` inlines — and never restated here, so a node that later gains the module needs
+       no edit in this file. An unreadable shell returns `null`, and the caller decides: "cannot tell"
+       is not "omitted" (§∅). */
+    function shellOmitsModule(node, mod) {
+      var html = (env.srcHtml || {})[node + '.src.html'];
+      if (typeof html !== 'string' || !html) return null;
+      return !new RegExp('<script[^>]*\\ssrc="' + mod.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&') + '"').test(html);
+    }
+    /* Run fn() with the `DexClock` global hidden when `node`'s bundle omits `clock.js`. Restored in a
+       `finally`, so a throwing fn cannot leave the realm altered for the groups that follow. */
+    function inBundleRealm(node, fn) {
+      if (shellOmitsModule(node, 'clock.js') !== true) return fn();
+      /* `env.realmGlobal` is the object the CO-LOADED modules hang their globals on. In the node lane
+         that is the vm context, not this file's `globalThis` — reaching for the wrong one hides
+         nothing at all. */
+      var g = env.realmGlobal || (typeof globalThis !== 'undefined' ? globalThis : null);
+      if (!g || !('DexClock' in g)) return fn(); // already the bundle realm — nothing to hide
+      var had = g.DexClock;
+      try {
+        g.DexClock = undefined;
+        return fn();
+      } finally {
+        g.DexClock = had;
+      }
+    }
+
+    /* The shell a labelled case belongs to. Every equivalence case's label opens with its node's
+       name, and every node's shell is `<Node>.src.html` in `env.srcHtml`, so the match is a lookup
+       and never a hardcoded table that can rot apart from the tree. Returns `null` when no shell
+       carries that name — the caller must say so rather than quietly skipping the realm. */
+    function shellNameFor(label) {
+      var tok = String(label || '').match(/^[A-Za-z0-9]+/);
+      if (!tok) return null;
+      var keys = Object.keys(env.srcHtml || {});
+      for (var i = 0; i < keys.length; i++) {
+        var base = keys[i].replace(/\.src\.html$/, '');
+        if (base.toLowerCase() === tok[0].toLowerCase()) return base;
+      }
+      return null;
+    }
+
     /* Selection is decided BEFORE fn() runs, so an unselected group costs ~0.
        (Until CI-SHARDING this filter was applied only to the REPORT, at the bottom
        of runDexTests — every group still EXECUTED, so `--group=oxydex` was 100.7 s
@@ -28434,7 +28487,25 @@
         T.skip('committed rich-export pair present', 'synthetic_ppgdex_verity.txt / _rich_golden absent — both are COMMITTED, so this must run everywhere including CI');
         return;
       }
-      var rich = P.compute({ text: eq.input }, { rich: true });
+      /* The golden is regenerated in the BUNDLE's realm, so the recompute must run there too. */
+      var omits = shellOmitsModule('PpgDex', 'clock.js');
+      if (omits === null) {
+        T.ok('PpgDex.src.html is readable, so the realm fact is read and not assumed', false, 'env.srcHtml carries no PpgDex.src.html — this leg cannot tell the bundle realm from the suite realm');
+        return;
+      }
+      T.ok('CONTROL · PpgDex.src.html inlines no clock.js — the realm fact comes from the builder list', omits === true, 'PpgDex now inlines clock.js; the goldens owe a regeneration');
+      var rich = inBundleRealm('PpgDex', function () {
+        return P.compute({ text: eq.input }, { rich: true });
+      });
+      /* ANTI-VACUITY · the hiding must be LOAD-BEARING here. The same call in the co-loaded realm
+         carries a host axis the bundle cannot build, so if these two ever agree the leg above has
+         stopped proving anything. */
+      var coLoaded = P.compute({ text: eq.input }, { rich: true });
+      T.ok(
+        'ANTI-VACUITY · the co-loaded realm really does produce a different export',
+        JSON.stringify(coLoaded.recording && coLoaded.recording.hostAxis) !== JSON.stringify(rich.recording && rich.recording.hostAxis),
+        'both realms gave hostAxis=' + JSON.stringify(rich.recording && rich.recording.hostAxis)
+      );
 
       /* Volatile keys the equiv gate excludes fleet-wide: they move on every run by design and say
          nothing about compute. Same exclusion list the other equiv legs use. */
@@ -28495,7 +28566,9 @@
       /* CONTROL — the LIGHT export on the SAME input must carry none of it. This is what makes the
          fixture a test of `opts.rich` rather than of the input, and it is the leg that would have
          exposed the gap in the first place. */
-      var light = P.compute({ text: eq.input });
+      var light = inBundleRealm('PpgDex', function () {
+        return P.compute({ text: eq.input });
+      });
       T.ok('CONTROL · the LIGHT export on the same input has NO hrv block', !light.hrv, 'light.hrv=' + JSON.stringify(light.hrv));
       T.ok('CONTROL · …and no apnea block — so the three pre-existing goldens could not have pinned either', !light.apnea);
       T.ok('CONTROL · …while still carrying recording + ganglior_events', !!light.recording && Array.isArray(light.ganglior_events));
@@ -28537,7 +28610,17 @@
         }
         return c;
       }
-      var out = P.compute({ text: eq.input }, { rich: true }); // rich, but NO timebase opt ⇒ the DEFAULT path
+      /* The golden is regenerated in the BUNDLE's realm (no clock.js — CLAUDE.md §✅), so the
+         recompute runs there too; the suite co-loads clock.js for the five bundles that carry it. */
+      var omitsF = shellOmitsModule('PpgDex', 'clock.js');
+      if (omitsF === null) {
+        T.ok('PpgDex.src.html is readable, so the realm fact is read and not assumed', false, 'env.srcHtml carries no PpgDex.src.html — this leg cannot tell the bundle realm from the suite realm');
+        return;
+      }
+      T.ok('CONTROL · PpgDex.src.html inlines no clock.js — the realm fact comes from the builder list', omitsF === true, 'PpgDex now inlines clock.js; the goldens owe a regeneration');
+      var out = inBundleRealm('PpgDex', function () {
+        return P.compute({ text: eq.input }, { rich: true }); // rich, but NO timebase opt ⇒ the DEFAULT path
+      });
       T.eq('compute({rich:true}) on the finger twin reproduces the committed golden (volatile keys aside)', JSON.stringify(strip(out)), JSON.stringify(strip(eq.fixture)));
       // ANTI-VACUITY: the golden must actually record the crystal default, not an empty export.
       T.eq('the golden was recorded on the device-crystal DEFAULT', eq.fixture.quality && eq.fixture.quality.timebase, 'device-crystal');
@@ -56566,6 +56649,9 @@
           })
         );
       });
+      /* A case whose label resolves to no shell silently skips the realm swap above, which is the
+         one way this gate could go quiet without saying so. Collected, then asserted. */
+      var unresolved = [];
       CASES.forEach(function (c) {
         // Split the precondition: a missing DSP NAMESPACE is a real regression (co-load broke) → FAIL.
         // A missing committed INPUT is expected on a fresh CI clone — uploads/ raw recordings are
@@ -56580,7 +56666,17 @@
           T.skip(c.label + ' compute() ≡ committed export', 'committed input absent — uploads/ is gitignored (personal data); this leg runs locally with uploads/ present');
           return;
         }
-        var res = c.run(c.node, EQ[c.key].input);
+        /* THE BUNDLE REALM. The co-load carries `clock.js` because five of the eight bundles inline
+           it, so a recompute here runs in a realm three nodes never ship (CLAUDE.md §✅). Hide the
+           global for the nodes whose own shell omits it, or this gate compares a committed export
+           against something the app cannot produce. Measured: with `clock.js` visible the two
+           PpgDex synthetic twins came back with a host-axis-corrected `recording.contentId`, a
+           `measurement.*.window.spreadMs` and up to fifteen moved beat times. */
+        var shell = shellNameFor(c.label);
+        if (!shell) unresolved.push(c.label);
+        var res = inBundleRealm(shell, function () {
+          return c.run(c.node, EQ[c.key].input);
+        });
         var el = c.pick(res);
         // serialize exactly as the export does, so the comparison is structural, not by reference.
         var elSer = el ? JSON.parse(JSON.stringify(el)) : null;
@@ -56592,6 +56688,9 @@
           T.ok(c.label + '.compute() ≡ committed export (physiological fields; vol/profile excluded)', d.length === 0, d.length ? d.slice(0, 8).join(' · ') : 'byte-identical');
         }
       });
+      var realmDetail = CASES.length ? CASES.length + ' case(s)' : 'no cases — this check examined nothing';
+      if (unresolved.length) realmDetail = 'no <Node>.src.html for: ' + unresolved.join(', ');
+      T.ok('every equivalence case resolved to a shell, so each recompute ran in its own bundle realm', unresolved.length === 0 && CASES.length > 0, realmDetail);
 
       // ── CPAPDex GOLDEN-EXPORT reference gate (CPAPDEX-PHASE9-FOLLOWUPS-II §1) ──
       // CPAPDex can't join the CASES loop above — its real input is a BINARY multi-file EDF set, not {text}.
@@ -79132,6 +79231,75 @@
           'callers ' + callers.join(', ') + ' without dex-escape.js'
         );
       });
+
+      /* ── A REALM MUST NOT LOAD A MODULE ITS NODE'S BUNDLE OMITS ─────────────────────────────────
+         residue 2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible. `PPG_REALM` carried
+         `clock.js` while `PpgDex.src.html` inlines none (CLAUDE.md §✅), so every tool that built the
+         PpgDex realm — the GOLDEN REGENERATOR among them — ran the DSP's `typeof DexClock` guards down
+         a branch the shipped app never takes, and the committed goldens recorded the result under the
+         bundle's own `manifestHash`. Measured 2026-10-24 by dropping the entry: the five reachable
+         goldens moved 23 / 23 / 20 / 7 / 0 fields, `recording.contentId` and fifteen
+         `timeseries.ppi.tSec` values among them.
+
+         The comparison set is the UNION of the shells of every `*-dsp.js` the realm loads, because a
+         realm may deliberately carry two nodes (OXY_ECG_REALM walks both). The shells are the
+         builder's own `<script src>` list, so this reads the bundles rather than restating them, and
+         an unreadable shell reports that it examined nothing instead of reading clean. */
+      var SH = env.srcHtml || {};
+      var shellKeys = Object.keys(SH);
+      T.ok('env.srcHtml is wired, so the realm-vs-bundle check has a population', shellKeys.length > 0, shellKeys.length ? shellKeys.length + ' shell(s)' : 'absent — this check examined nothing');
+      function shellInlines(key) {
+        var t = SH[key];
+        if (typeof t !== 'string' || !t) return null;
+        var out = [],
+          re = /<script[^>]*\ssrc="([^"]+\.js)"/g;
+        var m = re.exec(t);
+        while (m) {
+          out.push(m[1]);
+          m = re.exec(t);
+        }
+        return out;
+      }
+      /* [] clean · null a shell is unreadable · undefined the realm names no DSP, so no bundle
+         identifies its module set. */
+      function alienModules(L) {
+        var nodes = L.filter(function (f) {
+          return /-dsp\.js$/.test(f);
+        }).map(function (f) {
+          return f.replace(/-dsp\.js$/, '');
+        });
+        if (!nodes.length) return undefined;
+        var union = [];
+        for (var i = 0; i < nodes.length; i++) {
+          var key = null;
+          for (var j = 0; j < shellKeys.length; j++) if (shellKeys[j].replace(/\.src\.html$/, '').toLowerCase() === nodes[i]) key = shellKeys[j];
+          var mods = key ? shellInlines(key) : null;
+          if (mods == null) return null;
+          union = union.concat(mods);
+        }
+        return L.filter(function (f) {
+          return union.indexOf(f) < 0;
+        });
+      }
+      if (shellKeys.length) {
+        /* CLASSIFIER, over the REAL shells: PpgDex inlines ppgdex-dsp.js and no clock.js, so a realm
+           pairing the two must name clock.js and a realm without it must name nothing. */
+        T.eq("CLASSIFIER · clock.js beside ppgdex-dsp.js is alien to PpgDex's bundle", alienModules(['clock.js', 'ppgdex-dsp.js']), ['clock.js']);
+        T.eq('CLASSIFIER · the same realm without it is clean', alienModules(['ppgdex-dsp.js']), []);
+        T.eq('CLASSIFIER · a realm naming no *-dsp.js identifies no bundle', alienModules(['clock.js']), undefined);
+        names.forEach(function (k) {
+          var alien = alienModules(M[k]);
+          if (alien === undefined) {
+            T.skip(k + ': loads no module its node bundles omit', 'names no *-dsp.js, so no bundle identifies its module set');
+            return;
+          }
+          if (alien === null) {
+            T.ok(k + ": its node's *.src.html is readable", false, 'a shell for a *-dsp.js in this realm is missing from env.srcHtml — this realm was not checked');
+            return;
+          }
+          T.eq(k + ': loads no module its node bundles omit', alien, []);
+        });
+      }
     });
     /* RESIDUE 2026-10-20-corpus-tier-swap-can-hide-an-over-cap-heap — the tiering job reports what it
        HOLDS, because the unit's `MemoryPeak` is the cgroup's and charges reclaimable page cache. Two

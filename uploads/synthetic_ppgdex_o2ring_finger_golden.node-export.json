@@ -12,27 +12,14 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "eb6b340f0acd",
+    "contentId": "0f52a1aeb181",
     "startEpochMs": 1784340847000,
     "endEpochMs": 1784340886995,
     "durSec": 40.232,
     "sessions": 1,
     "events": 0,
     "site": "finger",
-    "siteSource": "device-default",
-    "hostAxis": {
-      "anchors": 11,
-      "ppm": -6.868177291421405,
-      "maxStepMs": 0,
-      "totalMs": -0.273059999999532,
-      "independent": false,
-      "spreadMs": 0.7504489999992074,
-      "inertReason": "host ≡ device — residual spread 0.75 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock",
-      "drawn": true,
-      "quantizedShare": 0.7790813282958838,
-      "timingSource": "host",
-      "stability": null
-    }
+    "siteSource": "device-default"
   },
   "ganglior_events": [],
   "reserved": {
@@ -46,8 +33,9 @@
         "startTMs": 1784340847000,
         "endTMs": 1784340886995,
         "clockDomain": "device",
-        "timingSource": "host",
-        "spreadMs": 0.7504489999992074
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
@@ -57,7 +45,7 @@
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "eb6b340f0acd"
+        "inputHash": "0f52a1aeb181"
       },
       "basis": "derived",
       "quality": {
@@ -76,8 +64,9 @@
         "startTMs": 1784340847000,
         "endTMs": 1784340886995,
         "clockDomain": "device",
-        "timingSource": "host",
-        "spreadMs": 0.7504489999992074
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
@@ -87,7 +76,7 @@
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "eb6b340f0acd"
+        "inputHash": "0f52a1aeb181"
       },
       "basis": "derived",
       "quality": {
@@ -129,7 +118,7 @@
         "samplesSaturated": 0
       }
     ],
-    "timingSource": "host",
+    "timingSource": "none",
     "axisDrawn": true,
     "axisQuantizedShare": 0.7791,
     "timebase": "device-crystal"
@@ -221,9 +210,9 @@
       "spine": "foot",
       "n": 32,
       "tSec": [
-        1.197,
-        2.454,
-        3.703,
+        1.198,
+        2.455,
+        3.704,
         4.962,
         6.219,
         7.475,
@@ -233,12 +222,12 @@
         12.497,
         13.756,
         15.012,
-        16.269,
+        16.27,
         17.525,
         18.784,
-        20.04,
+        20.041,
         21.292,
-        22.547,
+        22.548,
         23.807,
         25.064,
         26.32,
@@ -249,10 +238,10 @@
         32.6,
         33.858,
         35.114,
-        36.371,
+        36.372,
         37.629,
-        38.886,
-        40.111
+        38.887,
+        40.112
       ],
       "ms": [
         1188,
