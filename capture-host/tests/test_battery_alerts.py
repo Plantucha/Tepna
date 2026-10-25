@@ -8,7 +8,10 @@ it. Owner ruling 2026-10-25: a push at 20 %, a push plus an email at 10 %, and a
 Device names here are synthetic."""
 
 import asyncio
+import json
+import logging
 import os
+import subprocess
 import sys
 
 import pytest
@@ -119,12 +122,14 @@ def test_mail_topic_url_keeps_the_server_and_the_query():
 # ── the Notifier: one push, one email per address ───────────────────────────────────────────────────
 
 
-def _notifier(emails, results=None):
+def _notifier(emails, results=None, payloads=None):
     seen = []
     results = list(results or [])
 
     async def post(url, payload, **kw):
         seen.append((url, kw.get("headers")))
+        if payloads is not None:
+            payloads.append(payload)
         r = results.pop(0) if results else True
         if isinstance(r, Exception):
             raise r
@@ -192,6 +197,129 @@ def test_http_post_sends_the_header():
 
     assert asyncio.run(go()) is True
     assert got["email"] == "a@b.org"
+
+
+# ── the address checks, at their edges ──────────────────────────────────────────────────────────────
+
+
+def test_validate_email_says_which_rule_refused():
+    """The error never quotes the value, so its wording is the only thing telling the operator why."""
+    cases = [
+        (5, "email must be a string"),
+        ("x" * 250 + "@example.org", r"email is too long \(max 254\)"),
+        ("a b@example.org", "space, a separator or a control character"),
+        ("someone", "one address of the form name@example.org"),
+    ]
+    for value, why in cases:
+        with pytest.raises(alerts.AlertsError, match=why):
+            alerts.validate_email(value)
+
+
+def test_validate_email_length_limit_is_inclusive():
+    at_limit = "x" * (254 - len("@example.org")) + "@example.org"
+    assert len(at_limit) == 254 and alerts.validate_email(at_limit) == at_limit
+    with pytest.raises(alerts.AlertsError, match="too long"):
+        alerts.validate_email("x" + at_limit)
+
+
+def test_validate_email_refuses_each_separator_and_del_but_not_the_first_printable():
+    for c in ',;<>"':
+        with pytest.raises(alerts.AlertsError, match="a separator"):
+            alerts.validate_email(f"a{c}b@example.org")
+    with pytest.raises(alerts.AlertsError, match="control character"):
+        alerts.validate_email("a\x7fb@example.org")
+    assert alerts.validate_email("a!b@example.org") == "a!b@example.org", "0x21 is the first printable, not a space"
+    assert alerts.validate_email("a\x80b@example.org") == "a\x80b@example.org", "only 0x7F is DEL"
+
+
+def test_configured_emails_logs_the_reason_and_warns_only_above_the_cap(caplog):
+    assert alerts.configured_emails(["secret bad"]) == []
+    assert "entry ignored: email contains a space" in caplog.text
+    caplog.clear()
+    five = [f"u{i}@example.org" for i in range(alerts.MAX_EMAILS)]
+    assert alerts.configured_emails(five) == five
+    assert "holds" not in caplog.text, "exactly MAX_EMAILS addresses is not too many"
+
+
+def test_email_hint_takes_the_domain_after_the_last_at():
+    assert alerts.email_hint("a@b@example.org") == "a…@example.org"
+
+
+# ── the Notifier's ledger: defaults, dedupe edges, counters ─────────────────────────────────────────
+
+
+def test_a_fresh_notifier_has_shown_no_title():
+    n, _ = _notifier([])
+    assert n.stats()["last_title"] is None, "never sent is not an empty title"
+
+
+def test_a_key_without_a_window_does_not_dedupe():
+    n, seen = _notifier([])
+    assert asyncio.run(n.send("T", "M", key="k")) is True
+    assert asyncio.run(n.send("T", "M", key="k")) is True
+    assert len(seen) == 2 and n.suppressed == 0
+
+
+def test_the_default_clock_reads_zero():
+    n, seen = _notifier([])
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=60)) is True  # stamped at now=0
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=60, now=60.5)) is True, "60.5 s after 0 is past 60 s"
+    assert len(seen) == 2
+
+
+def test_a_zero_window_never_suppresses_even_when_the_clock_steps_back():
+    n, seen = _notifier([])
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=0, now=100.0)) is True
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=0, now=50.0)) is True
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=60, now=60.0)) is True, "a zero window records nothing"
+    assert len(seen) == 3 and n.suppressed == 0
+
+
+def test_a_sub_minute_window_still_suppresses():
+    n, seen = _notifier([])
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=1, now=100.0)) is True
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=1, now=100.5)) is False
+    assert len(seen) == 1 and n.suppressed == 1
+
+
+def test_the_window_ends_exactly_at_dedupe_sec():
+    n, seen = _notifier([])
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=60, now=100.0)) is True
+    assert asyncio.run(n.send("T", "M", key="k", dedupe_sec=60, now=160.0)) is True
+    assert len(seen) == 2
+
+
+def test_every_suppressed_failed_and_delivered_alert_is_counted(caplog):
+    caplog.set_level(logging.INFO, logger="tepna-capture")
+    n, _ = _notifier([], results=[True, True, False, False, OSError("x"), OSError("y")])
+    for t in (0.0, 10.0, 20.0):
+        asyncio.run(n.send("T", "M", key="k", dedupe_sec=60, now=t))
+    assert n.delivered == 1 and n.suppressed == 2
+    assert asyncio.run(n.send("Late", "M")) is True
+    assert n.delivered == 2
+    assert "alert 'Late' delivered" in caplog.text
+    for _ in range(2):
+        assert asyncio.run(n.send("T", "M")) is False
+    assert n.failed == 2 and n.last_error == "rejected by the webhook (non-2xx)"
+    for _ in range(2):
+        assert asyncio.run(n.send("T", "M")) is False
+    assert n.failed == 4 and n.last_error == "OSError: y"
+
+
+def test_every_publish_carries_the_alert_body():
+    payloads = []
+    n, seen = _notifier(["a@example.org", "b@example.org"], payloads=payloads)
+    assert asyncio.run(n.send("T", "M", email=True)) is True
+    assert len(seen) == 2
+    assert payloads == [{"title": "T", "message": "M"}] * 2, "the push AND the mail-topic publish"
+
+
+def test_a_raising_extra_email_is_logged_with_its_error_and_not_as_a_rejection(caplog):
+    n, _ = _notifier(["a@example.org", "b@example.org"], results=[True, OSError("refused")])
+    assert asyncio.run(n.send("T", "M", email=True)) is True
+    assert "email 2 of 2 not delivered: OSError('refused')" in caplog.text
+    assert "rejected" not in caplog.text, "an exception is not a non-2xx answer"
+    assert n.email_failed == 1
 
 
 # ── alert_poller ────────────────────────────────────────────────────────────────────────────────────
@@ -437,3 +565,120 @@ def test_api_battery_serves_caches_and_never_500s_on_a_reader_fault(tmp_path, mo
 
     status, js = _serve(app, go2)
     assert status == 500 and "OSError" in js["error"]
+
+
+# ── battery_history at its edges ────────────────────────────────────────────────────────────────────
+
+
+def test_hour_ms_accepts_every_last_valid_field_and_refuses_one_past_it():
+    f = battery_history._hour_ms
+    assert f("2026-12-31T23:59:59.000") == 1798758000000, "December 31st, 23:59 is a real stamp"
+    for bad in ("2026-13-01T00:00", "2026-01-32T00:00", "2026-01-01T24:00", "2026-01-01T00:60"):
+        assert f(bad) is None, bad
+
+
+def test_pct_keeps_both_ends_of_the_scale_and_nothing_beyond():
+    f = battery_history._pct
+    assert f("0") == 0, "an empty cell is no reading, but a reading of 0 % is one"
+    assert f("100") == 100
+    assert f("-1") is None and f("101") is None
+
+
+def test_build_reads_only_the_newest_days_plus_one_nights(tmp_path):
+    """A night folder holds rows past its own midnight, so the read is bounded by FOLDERS (days + 1)."""
+    cap = tmp_path / "captures"
+    _link(cap / "2026-01-01", "Tepna_1_LINK.csv", [_row("2026-01-02T12:00:00.000", "EARLY-01", 50)])
+    _link(cap / "2026-01-02", "Tepna_2_LINK.csv", [_row("2026-01-02T13:00:00.000", "H10-01", 60)])
+    _link(cap / "2026-01-03", "Tepna_3_LINK.csv", [_row("2026-01-03T00:00:00.000", "H10-01", 55)])
+    assert set(battery_history.build(str(cap), days=1)["devices"]) == {"H10-01"}
+    assert set(battery_history.build(str(cap), days=2)["devices"]) == {"EARLY-01", "H10-01"}
+
+
+def test_build_reads_only_tepna_link_files(tmp_path):
+    night = tmp_path / "captures" / "2026-01-01"
+    _link(night, "Tepna_1_LINK.csv", [_row("2026-01-01T00:00:00.000", "H10-01", 50)])
+    _link(night, "Tepna_1_STATUS.csv", [_row("2026-01-01T00:00:00.000", "STRAY-01", 50)])
+    _link(night, "copy_LINK.csv", [_row("2026-01-01T00:00:00.000", "STRAY-02", 50)])
+    assert set(battery_history.build(str(tmp_path / "captures"))["devices"]) == {"H10-01"}
+
+
+def test_build_window_and_24h_change_both_include_their_boundary(tmp_path):
+    night = tmp_path / "captures" / "2026-01-02"
+    _link(
+        night,
+        "Tepna_1_LINK.csv",
+        [
+            _row("2026-01-01T12:00:00.000", "A-OLD", 90),  # every point older than the window
+            _row("2026-01-01T00:00:00.000", "B-NEW", 80),  # exactly `days` before the newest
+            _row("2026-01-02T00:00:00.000", "B-NEW", 70),
+            _row("2026-01-03T00:00:00.000", "C-LAST", 50),  # the newest reading of ANY device
+        ],
+    )
+    out = battery_history.build(str(tmp_path / "captures"), days=2)
+    assert sorted(out["devices"]) == ["A-OLD", "B-NEW", "C-LAST"]
+    out = battery_history.build(str(tmp_path / "captures"), days=1)
+    assert sorted(out["devices"]) == ["B-NEW", "C-LAST"], "a device with nothing in the window is skipped, not the end"
+    b = out["devices"]["B-NEW"]
+    assert [p for _, p in b["points"]] == [70], "2026-01-01 00:00 is 2 days before the newest: outside"
+    out = battery_history.build(str(tmp_path / "captures"), days=2)
+    b = out["devices"]["B-NEW"]
+    assert [p for _, p in b["points"]] == [80, 70], "exactly `days` before the newest is inside"
+    assert b["d24"] == -10, "a point exactly 24 h before the last one is the comparison point"
+
+
+def test_read_link_finds_the_three_columns_in_any_order_and_strips_only_the_newline(tmp_path):
+    """The minimal header (just the three named columns) is a LINK layout; the line's own trailing
+    whitespace is part of the last field."""
+    night = tmp_path / "captures" / "2026-01-01"
+    rows = ["2026-01-01T01:00:00.000;40;H10-01\n", "2026-01-01T02:00:00.000;30;RING-01\t\n"]
+    _link(night, "Tepna_1_LINK.csv", rows, header="Phone timestamp;battery_pct;device\n")
+    devs = battery_history.build(str(tmp_path / "captures"))["devices"]
+    assert sorted(devs) == ["H10-01", "RING-01\t"]
+    assert devs["H10-01"]["last"] == 40
+
+
+def test_read_link_skips_a_bad_or_torn_row_and_keeps_reading(tmp_path):
+    night = tmp_path / "captures" / "2026-01-01"
+    rows = [
+        _row("2026-01-01T01:00:00.000", "H10-01", 70),
+        "2026-01-01T01:10:00.000;H10-01\n",  # torn
+        _row("2026-01-01T01:20:00.000", "H10-01", 60),
+        _row("2026-01-01T01:30:00.000", "H10-01", ""),  # no reading
+        _row("2026-01-01T01:40:00.000", "H10-01", 50),
+        _row("2026-01-01T01:50:00.000", "H10-01", 50),  # ties the low
+    ]
+    _link(night, "Tepna_1_LINK.csv", rows)
+    lows = {}
+    battery_history.read_link(str(night / "Tepna_1_LINK.csv"), lows)
+    assert lows == {"H10-01": {1767229200000: 50}}
+
+
+def test_read_link_replaces_undecodable_bytes_instead_of_raising(tmp_path):
+    night = tmp_path / "captures" / "2026-01-01"
+    _link(night, "Tepna_1_LINK.csv", [_row("2026-01-01T01:00:00.000", "H10-01", 40)])
+    with open(night / "Tepna_1_LINK.csv", "ab") as fh:
+        fh.write(b"2026-01-01T02:00:00.000;H10-\xff;1;-60;30;;;1;synthetic\n")
+    devs = battery_history.build(str(tmp_path / "captures"))["devices"]
+    assert devs["H10-\ufffd"]["last"] == 30 and devs["H10-01"]["last"] == 40
+
+
+def test_read_link_does_not_depend_on_the_boxes_locale(tmp_path):
+    """The device name is the field the decoder reaches: `Ringé-01` is UTF-8 on disk. Run the REAL
+    reader under `LC_ALL=C PYTHONUTF8=0` (ASCII locale) and compare with this process, the probe shape
+    of test_nightqc's sidecar-reader test."""
+    cap = tmp_path / "captures"
+    _link(cap / "2026-01-01", "Tepna_1_LINK.csv", [_row("2026-01-01T01:00:00.000", "Ringé-01", 40)])
+    here = battery_history.build(str(cap))
+    assert list(here["devices"]) == ["Ringé-01"], "decoded as UTF-8 here, or the probe below compares nothing"
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+    script = (
+        f"import json,locale,sys; sys.path.insert(0,{os.path.dirname(os.path.abspath(battery_history.__file__))!r});"
+        f"import battery_history; print(locale.getencoding());"
+        f"print(json.dumps(battery_history.build({str(cap)!r}), sort_keys=True))"
+    )
+    r = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
+    assert r.returncode == 0, f"the probe itself failed, which says nothing about encoding:\n{r.stderr[-600:]}"
+    enc, got = r.stdout.splitlines()
+    if enc.lower().replace("-", "") in ("utf8",):
+        pytest.skip(f"this host forces UTF-8 even under LC_ALL=C ({enc}) — the condition was not reached")
+    assert got == json.dumps(here, sort_keys=True), f"the history must not depend on the ambient encoding ({enc})"

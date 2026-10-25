@@ -158,8 +158,14 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # now derives the word from the trailer it already parsed, so a trailer carrying the ring's `start_t_ms`
 # distinguishes the two calls. `test_pull_session.py::test_a_written_start_stamp_makes_the_real_pull_name_
 # the_DEVICE_clock` kills that mutant, and the canary states the live fact instead of the retired one.
+# alerts.py and battery_history.py ENTER at 1 each on 2026-10-25 (claude/batt-alert-wrn, alert emails and the
+# Batteries card): `domain.strip(".")` -> `domain.strip(None)` in validate_email's `"." not in` clause (strip
+# never removes a dot, and a dotted edge is refused by the next clause either way; 11.4M inputs, 0 differed),
+# and `pct < per[hour]` -> `<=` in read_link (a tie re-stores an equal int; 3,000 random trees, 0 differed).
 RATCHET = {
     "acq_evidence_cpap.py": 1,
+    "alerts.py": 1,
+    "battery_history.py": 1,
     "ble_visibility.py": 4,
     "blind_spots.py": 1,
     "bonding.py": 4,
