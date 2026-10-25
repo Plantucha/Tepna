@@ -29,6 +29,7 @@ import polar_pmd as pmd  # for SDK_MODE — the feature bit, named once, not spe
 import polar_psftp
 import storage_targets
 import alerts
+import battery_history
 import timeline as _timeline
 import nights_index as _nights
 import nightqc as _nightqc
@@ -68,6 +69,7 @@ _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
 # TTL and monitor.html's poll interval is assertable — that relationship is the defect, not the value
 # (see the block above `_tl_cache`), and a constant a test cannot import is a constant nothing guards.
 _TL_CACHE_TTL_S = 300.0
+_BH_CACHE_TTL_S = 300.0  # the Batteries card's history: levels move in 10 % steps over days
 _TL_CACHE_MAX = 8
 # The night-folder shape, for the probe endpoint's name check. `nights_index` keeps the same pattern
 # for its own listing; this one guards a WRITE, so it lives beside the handler that performs it.
@@ -391,6 +393,8 @@ def make_app(
                     },
                     "connected": bool(st.get("connected")),
                     "battery": st.get("battery"),
+                    # The last low-battery alert this daemon DELIVERED ({pct, threshold, at}), or None.
+                    "battery_alert": st.get("battery_alert"),
                     "rssi": st.get("rssi"),
                     "clock_synced": st.get("clock_synced"),
                     "device_time": st.get("device_time"),
@@ -1798,6 +1802,9 @@ def make_app(
             "enabled": bool(a.get("enabled")) and bool(url),
             "configured": bool(url),
             "hint": alerts.webhook_hint(url),
+            # The email address is personal data: configured-or-not and its domain, never the address.
+            "email_configured": bool(a.get("email")),
+            "email_hint": alerts.email_hint(a.get("email")),
         }
 
     async def alerts_get(_req):
@@ -1824,6 +1831,15 @@ def make_app(
             )
         except alerts.AlertsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
+        # Same "absent keeps, empty clears" rule as the URL: the field renders empty when one is stored.
+        try:
+            email = alerts.validate_email(body["email"]) if "email" in body else (a.get("email") or "")
+        except alerts.AlertsError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+        if email:
+            a["email"] = email
+        else:
+            a.pop("email", None)
         enabled = bool(body.get("enabled", a.get("enabled", False)))
         if url:
             a["webhook_url"] = url
@@ -1836,6 +1852,7 @@ def make_app(
             return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
         if notifier is not None:
             notifier.configure(url or None, a["enabled"])  # live — no restart, no dropped BLE links
+            notifier.email = email or None
         return web.json_response({"ok": True, **_alerts_cfg()})
 
     async def alerts_test(_req):
@@ -1920,6 +1937,24 @@ def make_app(
         # only so a long-lived process cannot accumulate entries for every night it is ever asked for.
         if len(_tl_cache) > _TL_CACHE_MAX:
             del _tl_cache[min(_tl_cache, key=lambda k: _tl_cache[k][0])]
+        return web.json_response(out)
+
+    # ── Battery history (the monitor's Batteries card) ──────────────────────────────────────────
+    # Seven days of LINK rows, reduced to one lowest-reading point per device per hour. Cached: the
+    # card polls every 5 min, and the level moves in 10 % steps over days.
+    _bh_cache: dict = {}
+
+    async def battery_get(_req):
+        captures = os.path.join(cfg.get("root", "/srv/tepna"), "captures")
+        now = asyncio.get_event_loop().time()
+        hit = _bh_cache.get("v")
+        if hit and now - hit[0] < _BH_CACHE_TTL_S:
+            return web.json_response(hit[1])
+        try:
+            out = await asyncio.to_thread(battery_history.build, captures)
+        except Exception as e:  # a display aid must never 500 the monitor
+            return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=500)
+        _bh_cache["v"] = (now, out)
         return web.json_response(out)
 
     def _probe_night_dir(night: str) -> "tuple[str, str] | None":
@@ -2330,6 +2365,7 @@ def make_app(
             web.post("/api/settings", settings_post),
             web.post("/api/daemon", daemon_post),
             web.get("/api/timeline", timeline_get),
+            web.get("/api/battery", battery_get),
             web.get("/api/nights", nights_get),
             web.get("/api/probe-night", probe_night_get),
             web.post("/api/probe-night", probe_night_post),

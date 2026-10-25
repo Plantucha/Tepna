@@ -89,7 +89,13 @@ def test_get_never_returns_the_url_only_whether_and_where(tmp_path):
     body = _get(tmp_path, {"enabled": True, "webhook_url": SECRET})
     assert SECRET not in repr(body), body
     assert "XXXXtokenXXXX" not in repr(body)
-    assert body == {"enabled": True, "configured": True, "hint": "https://hooks.slack.com"}
+    assert body == {
+        "enabled": True,
+        "configured": True,
+        "hint": "https://hooks.slack.com",
+        "email_configured": False,
+        "email_hint": "",
+    }
 
 
 def test_the_hint_strips_the_path_because_that_is_where_the_token_lives(tmp_path):
@@ -114,7 +120,13 @@ def test_a_rejected_url_is_not_quoted_back_in_the_error(tmp_path):
 
 
 def test_an_unconfigured_box_says_so_rather_than_looking_healthy(tmp_path):
-    assert _get(tmp_path) == {"enabled": False, "configured": False, "hint": ""}
+    assert _get(tmp_path) == {
+        "enabled": False,
+        "configured": False,
+        "hint": "",
+        "email_configured": False,
+        "email_hint": "",
+    }
 
 
 # ── absent means keep, "" means clear ─────────────────────────────────────────────────────────────
@@ -133,7 +145,14 @@ def test_an_explicit_empty_string_clears_it(tmp_path):
     (res, cfg) = _post(tmp_path, {"webhook_url": "", "enabled": False}, {"enabled": True, "webhook_url": SECRET})
     assert res["status"] == 200
     assert "webhook_url" not in cfg["alerts"]
-    assert res["json"] == {"ok": True, "enabled": False, "configured": False, "hint": ""}
+    assert res["json"] == {
+        "ok": True,
+        "enabled": False,
+        "configured": False,
+        "hint": "",
+        "email_configured": False,
+        "email_hint": "",
+    }
 
 
 def test_enabled_cannot_survive_without_a_destination(tmp_path):

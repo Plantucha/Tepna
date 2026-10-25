@@ -226,8 +226,8 @@ def test_the_webhook_post_is_bounded_and_only_2xx_counts_as_delivered(monkeypatc
         async def __aexit__(self, *a):
             return False
 
-        def post(self, url, json=None):
-            seen["url"], seen["json"] = url, json
+        def post(self, url, json=None, headers=None):
+            seen["url"], seen["json"], seen["headers"] = url, json, headers
             return _Resp(seen["status"])
 
     class _Timeout:
