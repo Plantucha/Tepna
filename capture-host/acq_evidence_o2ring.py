@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import math
 
+from typing import Literal
+
 import acq_evidence as ae
 
 _HEADER_LEN = 10
@@ -93,7 +95,7 @@ def assemble_dat(
         body = size - _HEADER_LEN - _TRAILER_LEN
         sample_count = body // _RECORD_LEN if body % _RECORD_LEN == 0 else None
     stored_s = trailer.get("total_seconds") if trailer else None
-    expected_sample_count = stored_s if stored_s is not None else ae.UNKNOWN
+    expected_sample_count: int | Literal["UNKNOWN"] = stored_s if stored_s is not None else ae.UNKNOWN
 
     duration_check = ae.DurationCheck.build(stored_s=stored_s, observed_s=observed_duration_s)
 
@@ -135,10 +137,10 @@ def assemble_dat(
     # ── decode gaps (§8): the record-boundary walk proved the grid whole ⇒ 0; otherwise UNKNOWN, never
     # a fabricated count. Transport gaps are a LIVE-stream concept; for a stored file pull they are
     # UNKNOWN here (the .dat does not carry the original recording's BLE gap accounting). ──
-    decode_gaps: int | str = (
+    decode_gaps: int | Literal["UNKNOWN"] = (
         0 if (validation == ae.VALID and validation_depth and "records" in validation_depth) else ae.UNKNOWN
     )
-    transport_gaps: int | str = ae.UNKNOWN
+    transport_gaps: int | Literal["UNKNOWN"] = ae.UNKNOWN
 
     sha = None
     if verify_result is not None and verify_result.sha256:
