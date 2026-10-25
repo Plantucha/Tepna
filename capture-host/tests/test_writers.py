@@ -645,6 +645,22 @@ def test_the_filename_fields_are_parsed_from_the_right(fname, stamp, device_id):
         # too few fields to carry a stamp at all, and no extension to strip
         ("ECG.txt", None),
         ("ECG", None),
+        # THE BOUNDARY AND EXTENSION KILLS. Nine mutants survived the eight shapes above (measured
+        # 2026-10-25), and each line below kills one family by VALUE rather than by exception where it
+        # can. The guards are inequalities and the fields are read from the right, so a shape whose
+        # field count sits ON the boundary is the only input that can decide them.
+        # exactly two fields: `len(parts) < 2` must admit this name, not refuse it
+        ("20260716213451_ECG.txt", "20260716213451"),
+        # exactly three: the split branch's `len(parts) >= 3` is an inclusive bound
+        ("20260617_010616_ACC.txt", "20260617010616"),
+        # five fields, so parts[-3] and parts[3] differ — the index is read from the RIGHT
+        ("H10_02849638_20260617_010616_ACC.txt", "20260617010616"),
+        # no extension at all: the strip falls back to the whole name rather than to nothing
+        ("Polar_H10_02849638_20260716213451_ECG", "20260716213451"),
+        # a dot LEFT of the stamp: the extension comes off the right end, so the base keeps its fields
+        ("Verity.Sense_02849638_20260716213451_PPG.txt", "20260716213451"),
+        # an underscore INSIDE the extension: stripping first is what stops it manufacturing a field
+        ("Polar_H10_02849638_20260716213451_ECG.t_xt", "20260716213451"),
     ],
 )
 def test_file_start_stamp_reads_BOTH_stamp_layouts_and_never_the_serial(fname, start):
