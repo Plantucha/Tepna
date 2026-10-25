@@ -25,6 +25,7 @@ THREE INVARIANTS, each planted-control tested (spec §5/§6/§8):
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from typing import Final, Literal
 
 SCHEMA = "ganglior.acquisition-evidence"
 SCHEMA_VERSION = "1.1.0"  # ganglior-family, MINOR-bumped as fields are added back-compatibly
@@ -32,7 +33,9 @@ SCHEMA_VERSION = "1.1.0"  # ganglior-family, MINOR-bumped as fields are added ba
 #           `SOURCE_STORED_SPOOL` addition below, which added a VALUE to an open vocabulary.
 
 # ── the one sentinel that keeps missing information from becoming a negative conclusion (§5) ──
-UNKNOWN = "UNKNOWN"
+# `Final` is what carries the LITERAL type to the three count-field annotations below: without it
+# mypy widens this to `str`, and `int | Literal[UNKNOWN]` would then admit every string again.
+UNKNOWN: Final = "UNKNOWN"
 
 # validation axis (§6) — independent of completeness
 VALID = "VALID"
@@ -125,7 +128,14 @@ def _refuse_unlisted(field_name: str, word: object, vocabulary: tuple[str, ...])
 
 def _refuse_unlisted_count(field_name: str, value: int | str | None) -> None:
     """A count field is an int, or UNKNOWN, or None — never another word (§8). `"0"`, `"none"` and
-    `"n/a"` are exactly the strings that read as a measured zero downstream, so they stop here."""
+    `"n/a"` are exactly the strings that read as a measured zero downstream, so they stop here.
+
+    ⚠️ THE PARAMETER STAYS `int | str | None` ON PURPOSE, which is wider than the three fields it
+    guards. The annotations above refuse a bad word at type-check time, and this refuses it at
+    construction time, and the two cover different callers: a `**kwargs` splat erases the literal
+    type (the suite's own refusal tests do exactly that), an `Any` from a `dict.get` satisfies any
+    annotation, and nothing type-checks a caller outside this tree at all. Narrowing this parameter
+    to match the fields would leave those three callers with no check anywhere."""
     if isinstance(value, str) and value != UNKNOWN:
         raise ValueError(f"acq_evidence: {field_name}={value!r} is a count or {UNKNOWN}, never another word")
 
@@ -216,12 +226,12 @@ class AcquisitionEvidence:
     #  a defaulted field ahead of non-defaulted ones, so it sits there rather than here)
 
     sample_count: int | None
-    expected_sample_count: int | None | str  # int, or UNKNOWN — NEVER 0 for "we don't know" (§8)
+    expected_sample_count: int | Literal["UNKNOWN"] | None  # int, or UNKNOWN — NEVER 0 for "we don't know" (§8)
     duration_check: DurationCheck
 
     # gap accounting kept forensic, not a percentage (§8). Each category is a count or UNKNOWN.
-    transport_gaps: int | str
-    decode_gaps: int | str
+    transport_gaps: int | Literal["UNKNOWN"]
+    decode_gaps: int | Literal["UNKNOWN"]
 
     device_state: str  # a normalized OXYLIFE/FGState observation, or UNKNOWN (§9)
 

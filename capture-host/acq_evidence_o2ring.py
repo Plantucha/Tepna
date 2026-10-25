@@ -15,6 +15,10 @@ adapter splits them back apart into the envelope's two independent axes.
 
 from __future__ import annotations
 
+import math
+
+from typing import Literal
+
 import acq_evidence as ae
 
 _HEADER_LEN = 10
@@ -23,6 +27,46 @@ _RECORD_LEN = 3
 # The O2Ring stored recording is one 3-byte record per second (SpO2, HR, motion) between a 10-byte
 # header and a 48-byte trailer — the signal this envelope describes.
 _SIGNAL = "spo2_hr_motion@1Hz"
+
+
+def _start_ms(trailer: dict | None) -> float | None:
+    """The ring's OWN recording-start stamp from a parsed trailer, or None when none is readable.
+
+    ONE READING SERVES BOTH THE WORD AND THE FIELD. `clock_status_for_dat` says a device clock reached
+    the artifact exactly when this returns a number, so the two can never disagree: a `device` word
+    beside a null `start_time_ms` would name a clock the envelope does not carry.
+
+    THREE SHAPES ARE REFUSED, each for its own reason. A non-number (a `None` the parser surfaced, or a
+    string) is not a clock reading. A `bool` is refused although `isinstance(True, int)` holds, because
+    `True` is a flag that happens to equal 1. A non-finite float cannot be a wall-clock instant. And
+    `<= 0` is refused as ABSENCE-AS-A-VALUE (§∅): the stamp is a u32 the ring writes at T+8, so a zero
+    there is the field never written rather than the ring recording at the 1970 epoch."""
+    if not isinstance(trailer, dict):
+        return None
+    v = trailer.get("start_t_ms")
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    if not math.isfinite(v) or v <= 0:
+        return None
+    return float(v)
+
+
+def clock_status_for_dat(trailer: dict | None) -> str:
+    """The `clock_status` word for a stored `.dat` pull: `device`, or UNKNOWN when no stamp was read.
+
+    AN ONBOARD RECORDING HAS NO HOST CLOCK, BY CONSTRUCTION. The ring writes those records to its own
+    flash with nothing connected, so no host stamp ever touched them and no cross-check between two
+    clocks can exist for those bytes — which is why `device+host` would be a false promise here. The
+    ring's own clock IS demonstrably there: the trailer carries `start_t_ms` at T+8, a u32 the ring
+    wrote itself, measured as a floating wall clock against the filename stamp over six stored files.
+    `none` would deny a clock the bytes hold.
+
+    When no trailer parsed, this path has read NO clock at all and says so. It does not fall back to
+    `none`, which is a measured conclusion about BOTH clocks rather than an absence of measurement, and
+    it does not guess from the transport. `acq_evidence_polar.clock_status_for_pull` decided this same
+    question for the Polar pull, off the session directory the device named; this is that rule read off
+    the ring's trailer instead."""
+    return ae.CLOCK_DEVICE_ONLY if _start_ms(trailer) is not None else ae.UNKNOWN
 
 
 def assemble_dat(
@@ -51,9 +95,16 @@ def assemble_dat(
         body = size - _HEADER_LEN - _TRAILER_LEN
         sample_count = body // _RECORD_LEN if body % _RECORD_LEN == 0 else None
     stored_s = trailer.get("total_seconds") if trailer else None
-    expected_sample_count = stored_s if stored_s is not None else ae.UNKNOWN
+    expected_sample_count: int | Literal["UNKNOWN"] = stored_s if stored_s is not None else ae.UNKNOWN
 
     duration_check = ae.DurationCheck.build(stored_s=stored_s, observed_s=observed_duration_s)
+
+    # ── the trailer's own start stamp (§∅). A caller passing nothing is not asserting absence — it
+    # simply holds nothing the trailer does not, and the stamp is right there in the bytes it already
+    # parsed. An EXPLICIT value still wins: the live path may have co-observed the session open, which
+    # is a host-disciplined instant rather than the ring's free-running clock.
+    if start_time_ms is None:
+        start_time_ms = _start_ms(trailer)
 
     # ── validation axis (§6): independent of completeness. Prefer an oxy_transfer.verify() result (the
     # D-w1 record-boundary walk, richest depth); fall back to the landed pull's oxy_inventory state
@@ -86,10 +137,10 @@ def assemble_dat(
     # ── decode gaps (§8): the record-boundary walk proved the grid whole ⇒ 0; otherwise UNKNOWN, never
     # a fabricated count. Transport gaps are a LIVE-stream concept; for a stored file pull they are
     # UNKNOWN here (the .dat does not carry the original recording's BLE gap accounting). ──
-    decode_gaps: int | str = (
+    decode_gaps: int | Literal["UNKNOWN"] = (
         0 if (validation == ae.VALID and validation_depth and "records" in validation_depth) else ae.UNKNOWN
     )
-    transport_gaps: int | str = ae.UNKNOWN
+    transport_gaps: int | Literal["UNKNOWN"] = ae.UNKNOWN
 
     sha = None
     if verify_result is not None and verify_result.sha256:

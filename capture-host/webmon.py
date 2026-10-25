@@ -474,6 +474,9 @@ def make_app(
                     # it landed and how far the free-running RTC has wandered since.
                     "ring_rtc_offset_s": st.get("ring_rtc_offset_s"),
                     "ring_rtc_read": st.get("ring_rtc_read"),
+                    # The unacknowledged 0xC0 request, which `clock_synced` no longer stands in for.
+                    # Without it the monitor cannot tell a pushed clock from one we never wrote.
+                    "ring_rtc_push": st.get("ring_rtc_push"),
                     # WHO ANSWERED. The 0xE1 reply's wire serial + firmware (parsed since 2026-08-19,
                     # published since 2026-09-05), and the audit §6.2 Mitigation C verdict when the
                     # operator has configured `serial:` — a wrong ring streams SpO₂ exactly like the

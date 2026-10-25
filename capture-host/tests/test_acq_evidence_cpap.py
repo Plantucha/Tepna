@@ -1350,3 +1350,67 @@ def test_a_measured_ZERO_stall_does_not_block_COMPLETE():
     to be reachable from."""
     ev = cpap.assemble_live(_facts(), counters=_counters(stalls=0), stopped_cleanly=True)
     assert ev.completeness == ae.COMPLETE
+
+
+# ── `clock_status` gained a producer on this rail (cpap_stream → clock_status_for) ─────────────────
+def test_a_record_that_holds_BOTH_stamps_names_BOTH_clocks():
+    """`on_batch` writes `device_start` verbatim beside `host_wall`, so a record whose first batch
+    carried a device stamp holds two clocks and the word says so."""
+    assert cpap.clock_status_for(_facts(first_device_start="2026-08-23T01:30:28.730Z")) == ae.CLOCK_DEVICE_AND_HOST
+
+
+def test_a_record_the_device_never_stamped_names_the_HOST_alone():
+    """`_first_device_start` stays None only when NO batch carried a `startTime` — the device never
+    stamped anything, so there is no second clock to compare against."""
+    assert cpap.clock_status_for(_facts()) == ae.CLOCK_HOST_ONLY
+
+
+def test_an_EMPTY_record_is_reached_by_NEITHER_clock_so_the_word_is_none():
+    """🔴 The trap. `acq_evidence` says a live stream always has a host, which reads as "a live rail is
+    never `none`" — and on this rail that is wrong, because the HOST stamp is written per BATCH. With
+    zero batches the file holds its header line alone, which carries no stamp of either kind, so `host`
+    would claim a stamp no byte of the artifact holds."""
+    assert cpap.clock_status_for(_facts(records=0)) == ae.CLOCK_NONE
+
+
+def test_an_ABSENT_batch_count_is_UNKNOWN_never_none():
+    """∅ A facts dict that does not state its batch count cannot tell "nothing streamed" from "not
+    measured". `none` is a conclusion; this is missing information."""
+    assert cpap.clock_status_for(_facts(records=None)) == ae.UNKNOWN
+    assert cpap.clock_status_for(None) == ae.UNKNOWN, "no facts at all is the same absence"
+
+
+def test_the_pump_NAMES_the_clocks_instead_of_defaulting_to_UNKNOWN():
+    """The wiring witness, and it runs the pump TWICE on purpose. `_emit_acq_evidence` left this field
+    unpassed, so `assemble_live`'s `UNKNOWN` default stood on every live CPAP envelope the box has
+    written — in the same call that hands the envelope a MEASURED offset between the two clocks it
+    would not name. A single-case assertion would also pass a wiring that hardcoded one word, so the
+    two runs must DIFFER: the word has to travel from the record, not from the call site."""
+    words = []
+    for stamp in ("2026-08-23T01:30:28.730Z", None):
+
+        class _RawWithStamp(_FakeRaw):
+            def acq_facts(self, _s=stamp):
+                f = _facts(closed=self.closed)
+                f["first_device_start"] = _s
+                return f
+
+        got = []
+        dev = _FakeDev(_handshake() + [_ack(), _data()])
+        asyncio.run(
+            CS.stream_to_bus(
+                _FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                extra_sinks=[_RawWithStamp()],
+                acq_evidence_out=got.append,
+            )
+        )
+        assert len(got) == 1
+        words.append(got[0].clock_status)
+    assert words == [ae.CLOCK_DEVICE_AND_HOST, ae.CLOCK_HOST_ONLY]
+    assert ae.UNKNOWN not in words, "the default is what this wiring exists to replace"

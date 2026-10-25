@@ -614,6 +614,13 @@ def _oxy_storm_block(addr: str, now_mono: "float | None" = None) -> dict:
 _OXYII_INFO_EVERY_S = 600.0  # RTC read cadence; one 60 B frame per 10 min
 _OXYII_RTC_JUMP_S = 5.0  # |Δoffset| between reads above this = battery-event
 #                                                    reset suspect (quantum is ±1 s; 10-min drift ≪ 1 s)
+_OXYII_RTC_CONFIRM_S = 2.0  # |offset| at or under this = the ring's RTC agrees with the host
+#   🔴 PRE-STATED, AND DELIBERATELY NOT `_OXYII_RTC_JUMP_S`. That bound judges a DELTA between two
+#   reads and answers "did the RTC restart". This one judges the ABSOLUTE offset and answers "is the
+#   clock right now". Borrowing one for the other is the borrowed-reason defect
+#   (`tools/measurement-walk.mjs:240`, residue 2026-10-25), so the two carry separate names and
+#   separate reasons. The value is the read quantum (±1 s, stated at `monitor.html:3304`) plus the
+#   sub-second BLE write latency and the drift over one read cadence. It is not tuned to any corpus.
 _OXYII_LAST_RTC_OFF: dict[str, float] = {}  # addr -> previous read offset (survives reconnects,
 #                                                    which is where battery swaps actually happen)
 _OXYII_CFG_PENDING: dict[str, tuple[str, int]] = {}  # addr -> (field, value) queued by webmon
@@ -6119,6 +6126,17 @@ async def run_oxyii(dev: dict, root: str):
                             _off = round(ring_clock_offset_s(_rtc, _now()), 1) if _rtc else None
                             _set(name, ring_rtc_offset_s=_off, ring_rtc_read=_now().isoformat(timespec="seconds"))
                             if _off is not None:
+                                # 🔴 THE READ IS WHAT CONFIRMS OR REFUTES THE PUSH. The 0xC0 write is
+                                # unacknowledged, so this measured offset is the first evidence that the
+                                # ring's RTC carries host time. An offset inside the pre-stated bound
+                                # stamps `clock_synced`; one outside it CLEARS the stamp, because the key
+                                # means "the last read agreed" and a stale agreement is the same false
+                                # claim in slower motion. An absent reading changes neither (∅) — it is
+                                # handled by the `else` below, which only logs the read.
+                                if abs(_off) <= _OXYII_RTC_CONFIRM_S:
+                                    _set(name, clock_synced=_now().isoformat(timespec="seconds"))
+                                else:
+                                    _set(name, clock_synced=None)
                                 # RTC RESET DETECTION. Between two reads the offset moves by drift (≪1 s
                                 # per 10 min) or by a 0xC0 push we made ourselves — a jump beyond
                                 # _OXYII_RTC_JUMP_S with no push means the RTC restarted (battery event,
@@ -6748,9 +6766,15 @@ async def run_oxyii(dev: dict, root: str):
                     )  # 0xC0
                     rtcwr.write(_now(), "push")
                     _OXYII_RTC_AT[addr] = _clk
-                    _set(name, clock_synced=_clk.isoformat(timespec="seconds"))
+                    # 🔴 THIS WRITE IS UNACKNOWLEDGED, SO IT IS A REQUEST AND NOT A MEASUREMENT.
+                    # `response=False` above asks the ring for nothing back, so the only honest claim
+                    # here is that we pushed. `clock_synced` is stamped by the READ that agrees
+                    # (search `_OXYII_RTC_CONFIRM_S`), which runs every `_OXYII_INFO_EVERY_S`, so the
+                    # pushed-and-unconfirmed state can last one read cadence and needs its own word.
+                    # Stamping `clock_synced` here used to state a measurement nobody had made.
+                    _set(name, ring_rtc_push=_clk.isoformat(timespec="seconds"))
                     log.info(
-                        "%s RTC synced to host %s (%s)",
+                        "%s RTC pushed to host %s, unconfirmed until the next read (%s)",
                         name,
                         _clk.strftime("%Y-%m-%d %H:%M:%S"),
                         why or "reason not recorded",

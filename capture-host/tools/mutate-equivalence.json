@@ -5911,14 +5911,6 @@
       "why": "The guards differ only at len(data) == 59. There the original takes the first arm, max(0, 1) // 3 == 0, and the mutant takes the else arm, 0. The same number. A proof by cases, not a sampling."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r6-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
-      "class": "no-distinguishing-input",
-      "function": "_pull_once",
-      "key": "- clock_status=acq_evidence.UNKNOWN, | - ).to_dict() | + ).to_dict()",
-      "probe": "Built the envelope with acq_evidence_o2ring.assemble_dat(row, trailer=t, clock_status=acq_evidence.UNKNOWN) and with assemble_dat(row, trailer=t) over 800 inputs (5 inventory states x 10 sizes including None, 48, 58, 59 x 4 trailer durations x finalised or not x sha256 present or None) and compared the full to_dict(): 0 of 800 differed. Applied the mutant by hand to _pull_once: the 23 test files tools/mutate.py selects for pull_session.py stay green (1081 passed). mutmut 3.8.0 over _pull_once reports it surviving as x__pull_once__mutmut_748. Run empirically 2026-10-22.",
-      "why": "The signature is `assemble_dat(inventory_row, *, ..., clock_status: str = ae.UNKNOWN, ...)`, and `ae` is the same `acq_evidence` module pull_session imports, so dropping the explicit argument passes the identical object. No input to `_pull_once` can reach a difference: the mutation changes how the argument is spelled, not its value. tests/test_pull_once_survivors_r6.py::test_CANARY_assemble_dat_defaults_clock_status_to_UNKNOWN reds the day the default changes, and then this entry must be deleted and the argument tested."
-    },
-    {
       "brief": "residue 2026-10-22-pull-once-survivors-r1-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
       "class": "no-distinguishing-input",
       "function": "_pull_once",

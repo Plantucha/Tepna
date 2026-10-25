@@ -1007,11 +1007,17 @@ function clockStatus(dev){
   // The O2Ring exposes no per-sample device time, but we DO set its RTC on every connect — so it earns
   // a pill from that alone. (Its RTC is set in LOCAL civil, not UTC like the Polars: the ring has a
   // screen the wearer reads, and its samples are host-arrival stamped so its clock never fed timing.)
+  // 🔴 'SET' AND 'PUSHED' ARE DIFFERENT CLAIMS, AND THE RING IS WHERE THEY DIVERGE. The 0xC0 write
+  // is unacknowledged, so `clock_synced` now waits for the read that agrees, which lands within one
+  // RTC poll cycle. `ring_rtc_push` carries the request in the meantime. Reading only `clock_synced`
+  // here would show NO PILL for that whole window, and no pill reads as no information rather than
+  // as a clock we asked for and have not yet seen.
   // GIVE-UP OUTRANKS 'we set it once', so it is checked before the no-device_time shortcut —
   // otherwise a device with no per-sample stamps (the ring) shows 'clock set' from a sync that has
   // since been written off, or shows no pill at all.
   if(dev.clock_uncorrectable && !dev.device_time) return {cls:'bad', txt:'clock uncorrectable'};
-  if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'} : null;
+  if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'}
+       : (dev.ring_rtc_push ? {cls:'warn', txt:'clock unconfirmed'} : null);
   const yr = +String(dev.device_time).slice(0,4);
   if(yr < 2020) return {cls:'bad',  txt:'clock not set'};       // sitting at the firmware default
   // A MEASURED agreement IS verification — arguably better evidence than "we set it hours ago".
@@ -1119,7 +1125,11 @@ function clkChip(dev){
   const f = dev.clock_skew_floor_sec;
   const t = `device clock ${dev.device_time}`
           + (dev.clock_uncorrectable ? ' · AUTO-SYNC GAVE UP — the daemon could not write this clock' : '')
-          + (dev.clock_synced ? ` · set from host at ${String(dev.clock_synced).slice(11,19)}` : ' · not set by us this session')
+          // The three states are distinct: a read AGREED, we pushed and no read has agreed yet, or we
+          // never wrote this clock at all. The middle one used to read as the last one.
+          + (dev.clock_synced ? ` · set from host at ${String(dev.clock_synced).slice(11,19)}`
+             : dev.ring_rtc_push ? ` · pushed from host at ${String(dev.ring_rtc_push).slice(11,19)}, no read has confirmed it`
+             : ' · not set by us this session')
           + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '')
           // The number the watchdog acts on, beside the live one. When they disagree the difference IS
           // the delivery latency, which is the thing worth seeing — a re-sync explained by an envelope
@@ -3300,7 +3310,9 @@ function deviceSettingsBlock(d){
       const rc = d.ring_config || {};
       const off = d.ring_rtc_offset_s;
       const clock = off == null
-        ? '<span class="hint">ring clock not read yet — first readback lands within a poll cycle of the next connect</span>'
+        ? (d.ring_rtc_push
+            ? `<span class="hint">ring clock pushed at ${esc(String(d.ring_rtc_push).slice(11,19))}, not read back yet — the first readback lands within a poll cycle</span>`
+            : '<span class="hint">ring clock not read yet — first readback lands within a poll cycle of the next connect</span>')
         : `ring clock <b>${off>=0?'+':''}${off} s</b> vs host <span class="hint">(±1 s read quantum · read ${esc(String(d.ring_rtc_read||'').slice(11,19))})</span>`;
       const verdict = d.ring_config_verdict
         ? `<div class="rate-why"><b>${esc(d.ring_config_verdict)}</b></div>` : '';

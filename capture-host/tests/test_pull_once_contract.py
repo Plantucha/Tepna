@@ -15,6 +15,7 @@
 
 import json
 import os
+import sys
 
 import pytest
 
@@ -356,3 +357,97 @@ def test_a_MISSING_sidecar_is_unreadable_too(tmp_path):
     p.write_bytes(b"x")
     m = _capture.session_meta(str(p))
     assert m.get("unreadable") is True and m.get("reason") == "FileNotFoundError", m
+
+
+# ── a sidecar write fault must not cost the operator the pull REPORT ────────────────────────────────
+# Row `2026-10-21-the-ring-sidecar-write-is-the-one-unguarded-step-of-the-pull`. The envelope assembly
+# beside it has been guarded since #3906; the `open` + `json.dump` were not. By the time they run,
+# `oxy_transfer.commit` has already renamed the bytes into the night tree, and `saved_paths.append`
+# runs AFTER them — so an OSError there raised past the return that feeds the API's `new_files`, and
+# real bytes on disk went unreported. The three live producers in capture.py each carry this guard.
+#
+# ON THE NARROW CLAUSE. `OSError` is the full disk and the read-only mount the row names. An
+# unserialisable `meta_j` is a defect of ours and owes a raise, which is what the third test pins —
+# without it a widened clause would read green and the first two could pass over a guard that swallows
+# every fault, including ours.
+
+
+def _no_space_for_sidecars(monkeypatch):
+    """Raise errno 28 for the sidecar path only, and delegate every other open to the real builtin.
+
+    Surgical on purpose: `pull_session` opens the `.part` for writing and for the resume read in the
+    same function, so a blanket double would fail the download instead of the sidecar and the test
+    would observe the wrong fault."""
+    real_open = open
+
+    def no_space(path, *a, **k):
+        if str(path).endswith(".meta.json"):
+            raise OSError(28, "No space left on device")
+        return real_open(path, *a, **k)
+
+    monkeypatch.setattr(pull_session, "open", no_space, raising=False)
+
+
+def test_a_RAISING_sidecar_write_still_reports_the_committed_bytes(tmp_path, monkeypatch):
+    """The row's own failure mode. The .dat is committed and returned; only the sidecar is missing."""
+    blob = b"\x01\x03" + bytes(3000)
+    _install(monkeypatch, FakeRing(["20260720010000"], blob, chunk=512))
+    _no_space_for_sidecars(monkeypatch)
+    saved = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
+
+    dats = list(tmp_path.rglob("*.dat"))
+    assert len(dats) == 1 and dats[0].stat().st_size == len(blob), "the bytes are committed regardless"
+    assert saved and saved[0].endswith(".dat"), "the pull REPORT is what the guard protects"
+    assert list(tmp_path.rglob("*.meta.json")) == [], "and the sidecar genuinely did not land"
+
+
+def test_the_sidecar_fault_NAMES_the_file_and_the_errno(tmp_path, capsys):
+    """Unattended, so journalctl is the only record. Calling the writer directly keeps the fault REAL —
+    `final` sits in a directory that does not exist, so the builtin raises FileNotFoundError, itself an
+    OSError. Values, not wording: a mutant that drops the whole argument prints an empty line and reds
+    here, while rewording the message stays green."""
+    missing = tmp_path / "no-such-night" / "20260720010000.dat"
+    pull_session._write_dat_sidecar(str(missing), {"session": "20260720010000", "bytes": 3002})
+    out = capsys.readouterr().out
+    assert "20260720010000.dat" in out, "the message must name the file whose sidecar is missing"
+    assert "FileNotFoundError" in out, "and the fault, so a full disk reads differently from a bad path"
+
+
+def test_an_UNSERIALISABLE_sidecar_is_OUR_defect_and_still_raises(tmp_path):
+    """The control that keeps the clause narrow. A widened `except` would swallow a shape error in
+    `meta_j` — the one fault the operator cannot act on and we can — and then both tests above would
+    pass over a guard that hides it."""
+    p = tmp_path / "20260720010000.dat"
+    with pytest.raises(TypeError):
+        pull_session._write_dat_sidecar(str(p), {"device_summary": {1, 2, 3}})
+    assert (tmp_path / "20260720010000.dat.meta.json").exists(), (
+        "and the half-written sidecar is on disk, where capture.session_meta reports it as unreadable"
+    )
+
+
+def test_the_sidecar_FAULT_LINE_IS_FLUSHED_so_a_piped_daemon_sees_it(tmp_path, monkeypatch):
+    """`flush=True` carries weight at all 34 prints in this module, and it is not decoration. The
+    auto-pull runs unattended with stdout a pipe into journald, where Python block-buffers, so an
+    unflushed fault line waits for the buffer and is lost outright if the pull is killed first.
+    `print` calls `sys.stdout.flush()` only when the keyword is truthy, so a recorder standing in for
+    stdout observes what `capsys` cannot: dropping the keyword, or passing False or None, leaves
+    `flushes` at 0 while the text still arrives."""
+
+    class Recorder:
+        def __init__(self):
+            self.text = ""
+            self.flushes = 0
+
+        def write(self, s):
+            self.text += s
+            return len(s)
+
+        def flush(self):
+            self.flushes += 1
+
+    rec = Recorder()
+    monkeypatch.setattr(sys, "stdout", rec)
+    pull_session._write_dat_sidecar(str(tmp_path / "no-such-night" / "20260720010000.dat"), {"n": 1})
+
+    assert rec.flushes == 1, "the fault line asks for a flush, so a piped daemon reads it at once"
+    assert "20260720010000.dat" in rec.text, "and the line it flushed is the one naming the file"

@@ -8,6 +8,7 @@
 # the walk/list_recordings/pull_recording flows are all exercised — no BLE hardware, no protocol stub.
 
 import asyncio
+import hashlib
 import json
 import os
 
@@ -1760,6 +1761,7 @@ def test_the_manifest_describes_every_file_it_wrote(monkeypatch, tmp_path):
         "bytes": 12,
         "declared": 12,
         "ok": True,
+        "sha256": hashlib.sha256(b"A" * 12).hexdigest(),
         "dst": str(tmp_path / "BPM.GZ"),
     }
 
@@ -1778,8 +1780,47 @@ def test_a_skipped_file_is_recorded_as_skipped_and_complete(monkeypatch, tmp_pat
         "declared": 34,
         "ok": True,
         "skipped": True,
+        "sha256": None,
         "dst": str(tmp_path / "PLETH.GZ"),
     }
+
+
+def test_a_transferred_file_carries_a_DIGEST_OF_THE_BYTES_THAT_ARRIVED_and_a_skip_carries_none(monkeypatch, tmp_path):
+    """THE PULL COMPARED EVERY LENGTH AGAINST THE DEVICE'S DECLARATION AND KEPT NO HASH, so a reader
+    could see that each file arrived at its declared length and could never show that the bytes on disk
+    are the bytes that arrived (residue
+    `2026-10-21-the-polar-pull-hashes-nothing-while-the-ring-pull-hashes-its-artifact`).
+
+    The digest covers the bytes the device SERVED, hashed where the ring pull hashes its own
+    (`pull_session.py` digests `data` before the commit rename). A short read gets one too: those bytes
+    are real, and `.part` already says they are incomplete.
+
+    §∅ A SIZE-MATCHED SKIP MUST STAY `None`. That branch opens no file, so it holds no digest of
+    anything; hashing the copy on disk would answer what we HOLD rather than what ARRIVED, and filing
+    that under the same key would make the two readings indistinguishable."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    first = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    by_name = {f["name"]: f for f in first["files"]}
+    assert by_name["BPM.GZ"]["sha256"] == hashlib.sha256(b"A" * 12).hexdigest()
+    assert by_name["PLETH.GZ"]["sha256"] == hashlib.sha256(b"B" * 34).hexdigest()
+    # the digest is of the bytes, not of the name or the length: two files of the SAME size differ
+    assert by_name["BPM.GZ"]["sha256"] != by_name["PLETH.GZ"]["sha256"]
+
+    second = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert [f["sha256"] for f in second["files"]] == [None, None], "a re-pull read nothing, so it hashed nothing"
+    assert all(f["skipped"] for f in second["files"])
+
+
+def test_a_short_read_still_carries_the_digest_of_what_it_received(monkeypatch, tmp_path):
+    """The truncated bytes are real and they are on disk under `.part`. Withholding their digest would
+    leave the one file a reader most needs to identify as the only one it cannot."""
+    c = _fs_with_a_short_file()
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    short = next(f for f in m["files"] if f["name"] == "PLETH.GZ")
+    assert short["ok"] is False and short["bytes"] == 9
+    assert short["sha256"] == hashlib.sha256(b"B" * 9).hexdigest()
 
 
 def test_a_short_file_points_its_record_at_the_part_it_actually_wrote(monkeypatch, tmp_path):

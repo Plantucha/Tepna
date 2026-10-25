@@ -12,7 +12,7 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "0bbe8465160a",
+    "contentId": "67343c0d1fa1",
     "startEpochMs": 1782021923891,
     "endEpochMs": 1782021963883,
     "durSec": 39.992592592592594,
@@ -34,7 +34,8 @@
         "endTMs": 1782021963883,
         "clockDomain": "device",
         "timingSource": "device",
-        "spreadMs": 0.9259260000035283
+        "spreadMs": null,
+        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
       },
       "sourceChannel": "Verity:ppg",
       "code": {
@@ -44,7 +45,7 @@
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "0bbe8465160a"
+        "inputHash": "67343c0d1fa1"
       },
       "basis": "derived",
       "quality": {
@@ -64,7 +65,8 @@
         "endTMs": 1782021963883,
         "clockDomain": "device",
         "timingSource": "device",
-        "spreadMs": 0.9259260000035283
+        "spreadMs": null,
+        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
       },
       "sourceChannel": "Verity:ppg",
       "code": {
@@ -74,7 +76,7 @@
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "0bbe8465160a"
+        "inputHash": "67343c0d1fa1"
       },
       "basis": "derived",
       "quality": {

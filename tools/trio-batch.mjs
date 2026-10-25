@@ -594,6 +594,14 @@ function cgroupLimitGB(readText) {
 /* The two arithmetic steps, pure: a fence narrows the budget, and the budget decides how many
    children start. Pure because this is the pair that decides whether `MemoryMax` bounds the fold or
    kills it, and a decision that cannot be pinned by a known answer is the one that drifts. */
+/* The HOST half of the same pair. `os.freemem()` under-reports (it excludes reclaimable page cache)
+   and `total - reserve` over-reports on a busy box, so the budget is the smaller of the two. Pure for
+   the same reason the fence is: the 8-vs-15.4 GB box question (residue
+   `2026-09-06-folding-brief-assumes-8gb`) is a question about THIS arithmetic, and the answer belongs
+   in a known answer rather than in a paragraph. */
+function hostBudgetFrom(freeGB, totalGB) {
+  return Math.max(0, Math.min(freeGB, totalGB - RESERVE_GB));
+}
 function budgetFromFence(hostBudgetGB, cgGB) {
   if (cgGB == null) return hostBudgetGB;
   return Math.max(0, Math.min(hostBudgetGB, cgGB - CGROUP_RESERVE_GB));
@@ -709,6 +717,16 @@ if (flag('--selftest')) {
   ok('an 8 GB fence starts three', jobsFromBudget(budgetFromFence(13, 8)), 3);
   ok('the floor is one child even with no budget left', jobsFromBudget(0), 1);
   ok('the box unfenced would start five', jobsFromBudget(budgetFromFence(13, null)), 5);
+  /* WHICH BOX the fold targets does not reach the plan. The brief designs against an 8 GB box and
+     vigil measures 15.4 GB, which `VIGIL-SELF-SUSTAINED-FOLDING` §P0-box records as an open owner
+     question. Under the shipped `tepna-fold.service` fence of 4 G the fence is the tighter number on
+     BOTH hosts, so both plan ONE child, and one child peaks 1.61-2.68 GB over the four real box
+     nights P0 measured. */
+  ok('a free 8 GB box budgets 6 GB before any fence', hostBudgetFrom(7.4, 8), 6);
+  ok('the measured box budgets 13 GB before any fence', hostBudgetFrom(13, 15.4), 13);
+  ok('a box smaller than the reserve budgets nothing, never a negative', hostBudgetFrom(0.5, 1), 0);
+  ok('the shipped 4 G fence starts ONE child on an 8 GB box', jobsFromBudget(budgetFromFence(hostBudgetFrom(7.4, 8), 4)), 1);
+  ok('…and ONE on the measured box, so the box question changes no plan', jobsFromBudget(budgetFromFence(hostBudgetFrom(13, 15.4), 4)), 1);
   const S = { inputsDigest: 'IN', codeDigest: 'CODE' };
   eq('same inputs + same code + 3 exports ⇒ SKIP', redoReason(S, 3, 'IN', 'CODE'), null);
   eq('no stamp ⇒ redo', redoReason(null, 3, 'IN', 'CODE'), 'no stamp');
@@ -1131,7 +1149,7 @@ function planConcurrency() {
     totalGB = os.totalmem() / GB;
   // `os.freemem()` excludes reclaimable page cache on Linux, so it UNDER-reports what is really
   // available. Trust the smaller of (free) and (total − reserve) — pessimistic on purpose.
-  const hostBudgetGB = Math.max(0, Math.min(freeGB, totalGB - RESERVE_GB));
+  const hostBudgetGB = hostBudgetFrom(freeGB, totalGB);
   // The fence wins when one exists, because the host figure is the one the kernel will not honour.
   const cgGB = cgroupLimitGB(readTextOrNull);
   const budgetGB = budgetFromFence(hostBudgetGB, cgGB);
