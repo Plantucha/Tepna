@@ -3987,3 +3987,55 @@ def test_the_ring_gap_a_stall_opened_is_the_daemons_and_not_unattributed():
     assert loss_audit.by_cause_of(loss_audit.attribute_gaps([(dt.datetime(2026, 10, 19, 1, 50, 28), 12.0)], ev)) == {
         "daemon:event-loop stall": 0.2
     }
+
+
+def test_the_stall_bins_own_coverage_reaches_both_artifacts_and_counts_no_suppression(tmp_path):
+    """The row's defect: `daemon:event-loop stall` events are a SAMPLE, and the caveat lived only in a
+    source comment. Both artifacts the morning is read from now state what the bin covers."""
+    d = _night(tmp_path)
+    a = loss_audit.audit_night(
+        d, DEV, journal=lambda *_a, **_k: [], clock_events=lambda *_a, **_k: [], journal_shape_of=lambda *_a: None
+    )
+    s = a["stall_sample"]
+    assert set(s) == {
+        "cause",
+        "logged_at_or_over_ms",
+        "counted_at_or_over_ms",
+        "at_most_one_line_per_period_s",
+        "suppressed",
+        "suppressed_reason",
+    }, s
+    assert s["cause"] == loss_audit.LOOP_STALL, "it names the bin it describes, not a borrowed one"
+    # §∅: the suppression is NOT measured, so it is null WITH a named reason — never a derived count
+    assert s["suppressed"] is None and s["suppressed_reason"], s
+    v = loss_audit.night_verdict(a, night_dir=d, commit="deadbeef")
+    js_validate(v)
+    assert v["result"]["stall_sample"] == s, v["result"]
+    # and it moves no status: the criterion is pre-stated and single
+    assert v["criterion"]["name"] == "worn_but_not_recorded_fraction", v["criterion"]
+
+
+def test_the_published_stall_thresholds_are_the_daemons_OWN_and_a_drift_reds_this_test():
+    """Two modules now state the same three numbers, so the pair is a drift surface. `capture` is the
+    producer; this module only republishes. A change on either side must fail here, not in a morning."""
+    import capture
+
+    assert loss_audit.LOOP_STALL_COUNTED_MS == capture._LOOP_LAG_STALL_MS
+    assert loss_audit.LOOP_STALL_LOGGED_MS == capture._LOOP_LAG_WARN_MS
+    assert loss_audit.LOOP_STALL_WARN_EVERY_S == capture._LOOP_LAG_WARN_EVERY_S
+    s = loss_audit.stall_sample()
+    assert s["counted_at_or_over_ms"] == capture._LOOP_LAG_STALL_MS
+    assert s["logged_at_or_over_ms"] == capture._LOOP_LAG_WARN_MS
+    assert s["at_most_one_line_per_period_s"] == capture._LOOP_LAG_WARN_EVERY_S
+    # the two thresholds differ, which is the whole reason the count cannot be subtracted
+    assert s["counted_at_or_over_ms"] < s["logged_at_or_over_ms"], s
+
+
+def test_the_reason_is_BUILT_from_the_numbers_so_the_prose_cannot_drift_from_them():
+    """A reason typed by hand goes stale the day a threshold moves, and then the artifact lies in prose
+    while its own numbers are right."""
+    r = loss_audit.LOOP_STALL_SUPPRESSED_REASON
+    assert "100 ms" in r and "1000 ms" in r and "300 s" in r, r
+    assert "two populations" in r, r
+    # and it names WHERE the record is, so a reader is pointed at the live counter rather than stopped
+    assert "loop status block" in r, r
