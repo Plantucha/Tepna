@@ -117,10 +117,17 @@ def test_the_closing_lifecycle_edge_says_why_the_link_is_released(tmp_path, monk
     assert last.reason == "pull complete — releasing the link", last
 
 
-# ── canary for the recorded equivalence ─────────────────────────────────────────────────────────────
-def test_CANARY_assemble_dat_defaults_clock_status_to_UNKNOWN():
-    """`_pull_once` passes `clock_status=acq_evidence.UNKNOWN`, and the equivalence ledger excuses the
-    mutant that drops it because it equals this default. If the default changes, the explicit argument
-    starts to matter: this reds, and the ledger entry must be deleted and a real test written."""
+# ── the equivalence this call site used to carry ────────────────────────────────────────────────────
+def test_the_clock_status_argument_no_longer_repeats_the_default():
+    """`_pull_once` passed `clock_status=acq_evidence.UNKNOWN` until 2026-10-24, and the equivalence
+    ledger excused the mutant that dropped the argument: it repeated the signature's own default, so no
+    input to `_pull_once` could tell the two apart. The call site now derives the word from the trailer
+    it already parsed, which is exactly the input that distinguishes them — so the ledger entry is
+    deleted rather than re-verified, and dropping the argument reds
+    `test_pull_session.py::test_a_written_start_stamp_makes_the_real_pull_name_the_DEVICE_clock`."""
     default = inspect.signature(acq_evidence_o2ring.assemble_dat).parameters["clock_status"].default
     assert default is acq_evidence.UNKNOWN, default
+
+    derived = acq_evidence_o2ring.clock_status_for_dat({"start_t_ms": 1_771_200_000_000})
+    assert derived == acq_evidence.CLOCK_DEVICE_ONLY, derived
+    assert derived != default, "the dropped-argument mutant has a distinguishing input now"

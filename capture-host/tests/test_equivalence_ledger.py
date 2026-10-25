@@ -152,6 +152,12 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # pull_session.py 11 -> 13 on 2026-10-22 (residue 2026-10-22-pull-once-survivors-r1-of-6): `identity = None`
 # -> `""` (every reader tests its truth only), and the `.part` size in `part_files` -> None (`oxy_restart.plan`
 # reads the keys of that map, never its values).
+# pull_session.py 13 -> 12 on 2026-10-24 (residue 2026-10-21-the-ring-stored-path-declares-an-unknown-clock-
+# it-could-name): the entry excusing the dropped `clock_status=acq_evidence.UNKNOWN` is DELETED, because its
+# own reason expired. It held only while the argument repeated the default of `assemble_dat`; the call site
+# now derives the word from the trailer it already parsed, so a trailer carrying the ring's `start_t_ms`
+# distinguishes the two calls. `test_pull_session.py::test_a_written_start_stamp_makes_the_real_pull_name_
+# the_DEVICE_clock` kills that mutant, and the canary states the live fact instead of the retired one.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
@@ -193,7 +199,7 @@ RATCHET = {
     "probe_pmd_surface.py": 2,
     "probe_ring_adv.py": 4,
     "proc_util.py": 3,
-    "pull_session.py": 13,
+    "pull_session.py": 12,
     "pulsedex-dsp.js": 43,
     "qc_child.py": 2,
     "solid_night.py": 2,

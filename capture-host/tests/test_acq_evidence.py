@@ -458,3 +458,73 @@ def test_a_one_sided_duration_keeps_the_side_it_HAS():
     assert (got.delta_s, got.agrees) == (None, None), "one side present leaves no comparison to make"
     got = ae.DurationCheck.build(7200, None)
     assert (got.stored_s, got.observed_s, got.source) == (7200, None, ae.DURATION_SOURCE_STORED)
+
+
+# ── the ring's own start stamp: ONE reading decides both the word and the field ───────────────────
+# Row `2026-10-21-the-ring-stored-path-declares-an-unknown-clock-it-could-name`. The row proposed
+# `none`; the trailer carries `start_t_ms` at T+8, so the measured word is `device`.
+_TRAILER_WITH_START = {"finalized": True, "total_seconds": 300, "start_t_ms": 1_771_200_000_000}
+
+
+def test_a_trailer_that_carries_a_start_stamp_names_the_DEVICE_clock():
+    """The ring wrote that u32 itself with no phone connected, so the device clock reached the artifact
+    and `none` would deny it. `device+host` would promise a cross-check those bytes cannot have."""
+    assert o2.clock_status_for_dat(_TRAILER_WITH_START) == ae.CLOCK_DEVICE_ONLY
+    assert o2.clock_status_for_dat(_TRAILER_WITH_START) != ae.CLOCK_NONE
+
+
+def test_no_trailer_reads_NO_clock_and_says_UNKNOWN_not_none():
+    """§5/§∅ and the sibling adapter's ruling: `none` is a measured conclusion about BOTH clocks, so a
+    path that parsed no trailer may not borrow it. UNKNOWN is the absence of measurement."""
+    assert o2.clock_status_for_dat(None) == ae.UNKNOWN
+    assert o2.clock_status_for_dat({}) == ae.UNKNOWN
+    assert o2.clock_status_for_dat({"finalized": True, "total_seconds": 300}) == ae.UNKNOWN
+
+
+def test_a_zero_start_stamp_is_ABSENCE_not_the_1970_epoch():
+    """§∅ as raw bytes: the stamp is a u32 the ring writes at T+8, so 0 is the field never written. A
+    value-trusting reader would publish a recording that began on 1970-01-01."""
+    assert o2.clock_status_for_dat({"start_t_ms": 0}) == ae.UNKNOWN
+    assert o2.clock_status_for_dat({"start_t_ms": -1}) == ae.UNKNOWN
+    assert o2._start_ms({"start_t_ms": 0}) is None
+
+
+def test_the_boundary_is_non_positive_so_the_smallest_positive_stamp_is_a_reading():
+    """Where the refusal sits, pinned. The rule refuses `<= 0` and nothing more, so 1 ms is a
+    reading. A mutant that moved the constant to 1 survived every other test here: both stamps
+    those tests use, 0 and 1_771_200_000_000, answer the same on either side of that line."""
+    assert o2._start_ms({"start_t_ms": 1}) == 1.0
+    assert o2.clock_status_for_dat({"start_t_ms": 1}) == ae.CLOCK_DEVICE_ONLY
+
+
+def test_a_stamp_that_is_not_a_clock_reading_is_refused_by_shape():
+    """A `bool` passes `isinstance(v, int)`, a string passes neither, and a non-finite float is no
+    instant. Each is refused, and the refusal is the same absence in all three cases."""
+    assert o2._start_ms({"start_t_ms": True}) is None
+    assert o2._start_ms({"start_t_ms": "20260719010000"}) is None
+    assert o2._start_ms({"start_t_ms": float("inf")}) is None
+    assert o2._start_ms({"start_t_ms": float("nan")}) is None
+    assert o2._start_ms(["start_t_ms"]) is None  # not a dict at all
+    assert o2._start_ms({"start_t_ms": 1_771_200_000_000}) == 1_771_200_000_000.0
+
+
+def test_the_assembler_takes_the_start_stamp_from_the_trailer_it_already_parsed():
+    """The caller holds nothing the trailer does not, so passing none is not asserting absence. The
+    envelope gains a real start and a real end rather than two nulls beside a readable stamp."""
+    ev = o2.assemble_dat(_row(), trailer=_TRAILER_WITH_START, verify_result=_verify())
+    assert ev.start_time_ms == 1_771_200_000_000.0
+    assert ev.end_time_ms == 1_771_200_000_000.0 + 300 * 1000
+    assert ev.clock_status == ae.UNKNOWN, "the assembler forwards the WORD its caller states"
+
+
+def test_an_explicit_start_time_outranks_the_trailers_own_stamp():
+    """The live path may have co-observed the session open, which is a host-disciplined instant rather
+    than the ring's free-running clock. An explicit value therefore wins."""
+    ev = o2.assemble_dat(_row(), trailer=_TRAILER_WITH_START, verify_result=_verify(), start_time_ms=5_000.0)
+    assert ev.start_time_ms == 5_000.0 and ev.end_time_ms == 5_000.0 + 300 * 1000
+
+
+def test_a_trailerless_pull_still_carries_no_start_time():
+    """The derivation adds information and invents none: with no trailer there is no stamp to read."""
+    ev = o2.assemble_dat(_row(), trailer=None, verify_result=_verify())
+    assert ev.start_time_ms is None and ev.end_time_ms is None
