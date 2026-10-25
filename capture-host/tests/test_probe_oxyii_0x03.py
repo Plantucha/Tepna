@@ -1162,6 +1162,9 @@ def test_the_prose_says_so_when_the_header_has_no_reading():
     assert len(line) == 1
     assert "no examinable pair" in line[0]
     assert "51 absent" in line[0]
+    # The clause after the dash is the conclusion an operator acts on, not decoration: it says the run
+    # produced no reading, so it must survive any rewording of the counts in front of it.
+    assert line[0].endswith("— the header word has no reading from this run")
 
 
 def test_run_records_the_header_word_and_the_raw_header_bytes(monkeypatch):
