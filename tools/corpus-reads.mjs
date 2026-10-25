@@ -737,7 +737,6 @@ export const UNWIRED_BACKLOG = {
   'nsrr-stage-validate.mjs': 1,
   'o2ring-finger-validate-batch.mjs': 1,
   'oxy-hr-bias.mjs': 2,
-  'pat-host-offset.mjs': 2,
   'pat-literature-spec.mjs': 1,
   'pat-mode-posture.mjs': 2,
   'pat-per-led.mjs': 1,
