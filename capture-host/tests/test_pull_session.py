@@ -265,6 +265,11 @@ def test_a_finalized_recording_carries_the_devices_own_session_summary(tmp_path,
     assert acq["validation"] == "VALID" and acq["completeness"] == "COMPLETE"  # VERIFIED classify + finalised
     assert acq["duration_check"]["stored_s"] == 300 and acq["duration_check"]["observed_s"] is None
     assert acq["session_id"] == "20260720020000"
+    # This trailer's T+8 start stamp is left at 0, which is the field never written (§∅) rather than a
+    # recording that began at the 1970 epoch. So the real path reads NO clock and says UNKNOWN, and it
+    # publishes no start time — the twin test below writes the stamp and gets `device`.
+    assert acq["clock_status"] == "UNKNOWN"
+    assert acq["start_time_ms"] is None and acq["end_time_ms"] is None
 
 
 def test_a_failing_envelope_never_costs_the_ring_pull_its_sidecar(tmp_path, monkeypatch, capsys):
@@ -1298,3 +1303,29 @@ def test_probe_reports_the_reply_LENGTH_and_OPCODE_not_merely_some_hex(monkeypat
     assert out == [(oxyii.OP_PPG_FILE_LIST, body)], "the decoded frame is returned verbatim"
     assert f"len={len(body)}" in printed and body.hex() in printed
     assert "NO non-live reply" not in printed, "a real reply must never render as silence"
+
+
+def test_a_written_start_stamp_makes_the_real_pull_name_the_DEVICE_clock(tmp_path, monkeypatch):
+    """EXECUTION WITNESS for row `2026-10-21-the-ring-stored-path-declares-an-unknown-clock-it-could-name`.
+
+    The site used to hand `UNKNOWN` to the assembler on every stored pull, which says nobody looked at
+    a question the bytes answer: the trailer's T+8 u32 is a start stamp the RING wrote from its own
+    clock. This is the real `_pull_once` path over a trailer that carries one, so the envelope must
+    name `device` and must carry the stamp it read. The twin above leaves T+8 at 0 and gets UNKNOWN."""
+    start_s = 1_771_200_000
+    hdr = bytes([0x01, 0x03, 0, 0, 0, 0, 0, 0, 0x04, 0x00])
+    body = bytes([96, 50, 0]) * 300
+    t = bytearray(48)
+    t[4:8] = bytes([0x48, 0x12, 0x5A, 0xDA])  # finalisation sub-magic
+    t[8:12] = start_s.to_bytes(4, "little")  # the ring's own recording-start stamp
+    t[12], t[13] = 300 & 0xFF, 300 >> 8
+    ring = FakeRing(["20260720020000"], hdr + body + bytes(t))
+    _install(monkeypatch, ring)
+
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+
+    acq = json.load(open(got[0] + ".meta.json"))["acquisition_evidence"]
+    assert acq["clock_status"] == "device", "the word the trailer's own stamp states"
+    assert acq["clock_status"] not in ("UNKNOWN", "none"), "neither unexamined nor a denied clock"
+    assert acq["start_time_ms"] == start_s * 1000
+    assert acq["end_time_ms"] == start_s * 1000 + 300 * 1000

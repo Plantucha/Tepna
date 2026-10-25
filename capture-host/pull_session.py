@@ -29,7 +29,6 @@ import oxy_transfer
 import oxy_lifecycle
 import oxy_presence
 import oxy_power
-import acq_evidence
 import acq_evidence_o2ring
 
 
@@ -553,7 +552,7 @@ async def _pull_once(
                 meta_j["acquisition_evidence"] = acq_evidence_o2ring.assemble_dat(
                     _acq_row,
                     trailer=summary,
-                    clock_status=acq_evidence.UNKNOWN,
+                    clock_status=acq_evidence_o2ring.clock_status_for_dat(summary),
                 ).to_dict()
             except Exception as e:  # noqa: BLE001 — the report never damages the pull it describes
                 print(f"  ⚠ acquisition-evidence envelope failed for {ts} ({e!r}) — bytes unaffected", flush=True)
