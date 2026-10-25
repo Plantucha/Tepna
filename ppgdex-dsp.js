@@ -1347,6 +1347,28 @@
        the two stay distinguishable: `quantizedShare` is still published raw, and a reader can still
        see that the fingerprint is absent while the verdict is drawn. */
     const axisSynthetic = axisDrawn || site === 'finger';
+    /* THE SAME FACT UNDER THE FLEET'S NAME, because a consumer refuses on the NAME. `clock.js`
+       publishes `deviceDrawn`/`drawnShare`/`drawnReason`, and every migrated consumer tests
+       `deviceDrawn === true` — `pat-drift-attribution.ppmContribution` and `pat-host-offset` by name.
+       This node spelled its verdict `drawn` alone, so those refusals read a key that is never present
+       and a drawn ring axis was spent as a crystal.
+       ⚠️ THE ALIAS IS `axisSynthetic`, NOT `hostAx.deviceDrawn`, AND THE CORPUS DECIDES THAT. The
+       spine's statistic is computed over the ANCHORS; segment re-anchoring leaves the ring's
+       inter-anchor deltas unconcentrated, so it reads NOT drawn on the nights that matter most.
+       Measured 2026-10-25 over the 74 committed `PpgDexFinger_*` exports: all 74 are drawn, 63 carry
+       `quantizedShare < 0.67`, and ALL 35 of the exports publishing an impossible |ppm| > 50 sit in
+       that 63 at a share near 0.0001. Forwarding the spine's verdict would therefore publish
+       `deviceDrawn:false` on every one of them and leave the refusal exactly as dead as it is now.
+       `axisSynthetic` is the broader and the CORRECT answer to the question a consumer asks — is the
+       device column a clock — because the finger layout settles it on provenance when the statistic
+       cannot see it. */
+    const axisDrawnReason = !axisSynthetic
+      ? null
+      : axisDrawn && quantizedShare != null
+        ? 'device inter-sample deltas concentrate on one value (' + (quantizedShare * 100).toFixed(2) + ' % share) — a synthesised counter, not a clock, whatever ppm it reports'
+        : 'O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the ' +
+          (quantizedShare == null ? 'absent' : (quantizedShare * 100).toFixed(2) + ' %') +
+          ' delta share says';
     /* ── DEVICE-CRYSTAL TIMEBASE (O2RING-ADAPTIVE-TIMEBASE Stage 2) ─────────────────────────────────
        O2Ring finger only, opt-in. Rebuild relSec on the 125.000 crystal grid instead of the
        host-disciplined ROW-rate axis: real ADC samples advance by 1/125.000, the inserted `156` beat
@@ -1610,6 +1632,15 @@
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
+            /* The fleet spelling of `drawn`, ALONGSIDE it rather than instead of it: `drawn` is this
+               node's own long-standing key and `axisQuantizedShare`/`axisDrawn` project off it, while
+               `deviceDrawn` is the name every migrated consumer refuses on. `drawnShare` carries the
+               SPINE's share so it means on this node exactly what it means on ECGDex, and the reason
+               above says which of the two rules fired — so a reader who sees `deviceDrawn:true` beside
+               a 0.01 % share is told why, instead of reading a contradiction. */
+            deviceDrawn: axisSynthetic,
+            drawnShare: hostAx.drawnShare != null ? hostAx.drawnShare : null,
+            drawnReason: axisDrawnReason,
             /* Present ONLY when a seam dropped anchors, so a clean stream's export stays byte-identical
                (ECGDex's discipline, and deliberately ECGDex's key NAME — a consumer should not have to
                learn two spellings of one fact). */
@@ -1649,7 +1680,15 @@
             stability: axisSynthetic ? null : hostAx.stability || null,
             timingSource: axisSynthetic ? 'host' : hostAx.independent === false ? 'device' : 'device+host'
           }
-        : { ok: false, reason: hostAx.reason || 'no host anchors', drawn: axisSynthetic, quantizedShare, timingSource: axisSynthetic ? 'none' : 'device' }
+        : {
+            ok: false,
+            reason: hostAx.reason || 'no host anchors',
+            drawn: axisSynthetic,
+            deviceDrawn: axisSynthetic,
+            quantizedShare,
+            drawnReason: axisDrawnReason,
+            timingSource: axisSynthetic ? 'none' : 'device'
+          }
     };
   }
 
@@ -6934,6 +6973,18 @@
               }
             : null
         };
+        /* THE PROVENANCE KEYS, CONDITIONAL — ECGDex's discipline and deliberately ECGDex's key names
+           (`ppgdex-dsp.js` already says the field set "mirrors ECGDex so the two are comparable by
+           construction", and then omitted the one key a consumer refuses on). Emitted only when the
+           axis IS drawn, so the 99 committed Verity exports stay byte-identical and only the rail
+           that is drawn gains a field.
+           A reader who finds `deviceDrawn:true` here must not spend `ppm` or this recording as a
+           second clock: `drawn` has always said the same thing, under a name no consumer reads. */
+        if (r.hostAxis.deviceDrawn === true) {
+          out.recording.hostAxis.deviceDrawn = true;
+          out.recording.hostAxis.drawnShare = nz(r.hostAxis.drawnShare);
+          out.recording.hostAxis.drawnReason = r.hostAxis.drawnReason || null;
+        }
       }
       out.hrv = {
         time: {
