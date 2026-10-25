@@ -707,6 +707,46 @@ def test_verity_end_rule_and_the_named_reasons():
     assert loss_audit.end_reason(None, 90.0) == "link-loss"
     assert loss_audit.end_reason(False, 1801.0) == "quiet-end-unclassified"
     assert loss_audit.end_reason(False, None) == "quiet-end-unclassified"
+    # THE §∅ THIRD STATE: a relink witness that could not be read is named, never spent as a quiet end.
+    assert loss_audit.end_reason(False, None, relink_undetermined=True) == "quiet-end-relink-undetermined"
+    assert loss_audit.end_reason(True, None, relink_undetermined=True) == "doff"  # the device's own evidence wins
+    assert loss_audit.end_reason(False, 90.0, relink_undetermined=True) == "link-loss"  # a measured gap wins
+    assert loss_audit.end_reason(False, 1801.0, relink_undetermined=True) == "quiet-end-unclassified"
+
+
+def test_the_relink_stamp_is_read_ANCHORED_and_an_unstamped_sibling_names_its_own_absence(tmp_path):
+    """The relink witness reads the START stamp, never the first 14-digit run in the name.
+
+    A box-written name is `vendor_model_id_stamp_TAG` (`writers.capture_filename`), and an H10's device
+    id IS a 14-digit serial — `writers.file_stamp` cites this exact name from audit F5. The unanchored
+    `_(\\d{14})_` that stood in `_relink_gap` took the SERIAL, strptime'd it to 2025-01-01, sorted it
+    before every real end, dropped it from `later`, and reported no next appearance at all. A measured
+    658 s link loss printed `quiet-end-unclassified` on the box.
+
+    Third case: a sibling whose name carries no stamp at all is COUNTED and said, because "no later
+    file" is not what the search measured (CLAUDE.md §∅)."""
+    d, _ = _h10_night(tmp_path, 50)
+    nxt = tmp_path / "captures" / "2026-09-24"
+    nxt.mkdir(parents=True)
+    last_row = dt.datetime(2026, 9, 23, 23, 15, 49, 950000)  # 950 s of 20 Hz rows from 23:00:00
+    want = round((dt.datetime(2026, 9, 23, 23, 20, 46) - last_row).total_seconds())
+
+    def one(name):
+        for f in nxt.glob("*"):
+            f.unlink()
+        (nxt / name).write_text("Phone timestamp;x\n")
+        return loss_audit.wear_ends(str(d), "H10")["ends"][0]
+
+    e = one("Polar_H10_20250101000000_20260923232046_ECG.txt")  # id slot = a 14-digit serial
+    assert e["reason"] == "link-loss" and e["relink_gap_s"] == want, e
+    assert e["relink_names_unstamped"] == 0
+
+    e = one("Polar_H10_0284_20260923_232046_ECG.txt")  # the split stamp a Sensor-Logger export carries
+    assert e["reason"] == "link-loss" and e["relink_gap_s"] == want, e
+
+    e = one("Polar_H10_0284_nostamp_ECG.txt")  # no start stamp in either layout
+    assert e["reason"] == "quiet-end-relink-undetermined", e
+    assert e["relink_gap_s"] is None and e["relink_names_unstamped"] == 1
 
 
 def test_epoch_stats_bins_on_the_clock_across_midnight_and_drops_torn_edges(tmp_path):
@@ -761,7 +801,7 @@ def test_a_clean_h10_end_is_a_link_loss_when_the_stream_returns_and_unclassified
     assert e["reason"] == "link-loss" and e["relink_gap_s"] == round(
         (dt.datetime(2026, 9, 23, 23, 20, 46) - last_row).total_seconds()
     )
-    assert loss_audit._relink_gap(str(tmp_path / "not-a-date"), "Polar_H10_*_ECG.txt", W0) is None
+    assert loss_audit._relink_gap(str(tmp_path / "not-a-date"), "Polar_H10_*_ECG.txt", W0) == (None, 0)
 
 
 def test_files_that_cannot_be_judged_say_why_and_never_supply_the_worn_end(tmp_path, monkeypatch):
@@ -932,17 +972,19 @@ def test_the_reconnect_search_window_and_its_folders(tmp_path):
             f.unlink()
         folder.mkdir(exist_ok=True)
         (folder / f"Polar_H10_0284_{stamp}_ECG.txt").write_text("h\n")
-        return loss_audit._relink_gap(str(night), pat, end)
+        gap, unstamped = loss_audit._relink_gap(str(night), pat, end)
+        assert unstamped == 0  # every name here carries a stamp, so the §∅ counter stays empty
+        return gap
 
     assert only("20260923231545") is None  # exactly end - 5 s: the same session, not a reconnect
     assert only("20260923231546") == -4.0  # end - 4 s: inside the tolerance, counted
     assert only("20260923231600") == 10.0
     nxt = tmp_path / "captures" / "2026-09-24"
     assert only("20260924000500", nxt) == 2950.0  # tomorrow's folder is searched too
-    assert loss_audit._relink_gap(str(night) + "/", pat, end) == 2950.0  # a trailing slash is the same night
-    (night / "Polar_H10_0284_nostamp_ECG.txt").write_text("h\n")  # a name without a start stamp: ignored
-    assert loss_audit._relink_gap(str(night), pat, end) == 2950.0
-    assert loss_audit._relink_gap(str(tmp_path / "not-a-date"), pat, end) is None
+    assert loss_audit._relink_gap(str(night) + "/", pat, end) == (2950.0, 0)  # a trailing slash: the same night
+    (night / "Polar_H10_0284_nostamp_ECG.txt").write_text("h\n")  # no start stamp: COUNTED, never ignored
+    assert loss_audit._relink_gap(str(night), pat, end) == (2950.0, 1)
+    assert loss_audit._relink_gap(str(tmp_path / "not-a-date"), pat, end) == (None, 0)
 
 
 def test_the_worn_end_is_the_LATEST_usable_end_and_each_end_names_its_file(tmp_path):
@@ -2727,7 +2769,7 @@ def test_relink_gap_looks_OUTSIDE_the_band_and_only_relink_does(tmp_path):
     # out of band is the case the parameter exists for: with membership ON it reads as "no next file",
     # which turns a measured gap into a silent None.
     end = dt.datetime(2026, 9, 20, 13, 0, 0)
-    gap = loss_audit._relink_gap(d9, "Polar_H10_*_HR.txt", end)
+    gap, _unstamped = loss_audit._relink_gap(d9, "Polar_H10_*_HR.txt", end)
     assert gap == 3600.0, (
         "the 14:00 session is the next appearance of this stream and sits OUTSIDE this night's band; "
         f"membership must be off here or the gap vanishes: {gap}"

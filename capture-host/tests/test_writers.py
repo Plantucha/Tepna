@@ -626,6 +626,36 @@ def test_the_filename_fields_are_parsed_from_the_right(fname, stamp, device_id):
     assert writers.file_device_id(fname) == device_id
 
 
+@pytest.mark.parametrize(
+    "fname,start",
+    [
+        # this host: the contiguous stamp, returned as it stands
+        ("Polar_H10_02849638_20260716213451_ECG.txt", "20260716213451"),
+        # Polar Sensor Logger: the split stamp, normalised to the one layout callers parse. `file_stamp`
+        # returns None here BY DESIGN, which is the whole reason this sibling exists.
+        ("Polar_H10_02849638_20260617_010616_ACC.txt", "20260617010616"),
+        # the serial in the id slot: anchored from the right, so the instant is the stamp, never the id
+        ("Polar_H10_20250101000000_20260725225058_ECG.txt", "20260725225058"),
+        # date-only: an incomplete instant is absent, not midnight (CLAUDE.md §∅)
+        ("Polar_H10_02849638_20260617_ACC.txt", None),
+        # six digits with no date before them: the split branch must not fire
+        ("Vendor_Model_Sub_Part_123456_ECG.txt", None),
+        # six digits in the first field: the split branch needs a token to its left as well
+        ("123456_ECG.txt", None),
+        # too few fields to carry a stamp at all, and no extension to strip
+        ("ECG.txt", None),
+        ("ECG", None),
+    ],
+)
+def test_file_start_stamp_reads_BOTH_stamp_layouts_and_never_the_serial(fname, start):
+    """The INSTANT a filename carries, for readers that need one rather than the stamp token.
+
+    `loss_audit._relink_gap` is the first caller and the reason: its unanchored `_(\\d{14})_` search read
+    the device SERIAL of a box-written H10 file, turning a measured 658 s link loss into
+    `quiet-end-unclassified`. Both layouts resolve here, and a name carrying neither returns None."""
+    assert writers.file_start_stamp(fname) == start
+
+
 def test_write_ppg2w_round_trips_through_the_parser(tmp_path):
     """End-to-end on the shape the ring actually sends: parser output feeds the writer unchanged.
 

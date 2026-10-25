@@ -48,6 +48,7 @@ import nightqc
 import nights_index as _ni
 import probe_night as _probe
 import verdict as _verdict
+import writers as _w
 
 GATE = "night-loss"
 TOOL = "capture-host/loss_audit.py"
@@ -1187,6 +1188,10 @@ def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
 #   `link-loss`               no removal signature, and the same stream's next file starts within
 #                             WEAR_RELINK_S — the external label the thresholds below were validated against
 #   `quiet-end-unclassified`  neither: no signature and no reconnect. Stated, not guessed.
+#   `quiet-end-relink-undetermined`
+#                             no signature, and the reconnect search read a sibling name carrying no
+#                             start stamp — so "no next file" is not what it measured (§∅). The count
+#                             travels beside it as `relink_names_unstamped`.
 # Reported, gated by NOTHING (the ring's `ppg2w_contact` precedent): a night the wearer ended early is not
 # a capture failure.
 #
@@ -1265,7 +1270,6 @@ _WEAR_STREAM = {"H10": ("Polar_H10_*_ECG.txt", [3]), "VeritySense": ("Polar_Veri
 RING_DOFF_SPO2_AGREE_S = 30.0
 _RING_SPO2 = "Wellue_O2Ring-S_*_SPO2.csv"
 _TAIL_BYTES = 4096  # the last stamped row of an SpO2 file sits in its final ~30 bytes
-_STAMP_IN_NAME = re.compile(r"_(\d{14})_")
 
 
 def h10_tail(epoch_sd: list[float]) -> dict | None:
@@ -1295,12 +1299,19 @@ def verity_end_doff(final_amb_ratio: float | None, final_acc_sd: float | None) -
     return amb or acc
 
 
-def end_reason(doff: bool | None, relink_gap_s: float | None) -> str:
-    """The named reason for one file end. PURE: the device's own evidence first, the reconnect label second."""
+def end_reason(doff: bool | None, relink_gap_s: float | None, *, relink_undetermined: bool = False) -> str:
+    """The named reason for one file end. PURE: the device's own evidence first, the reconnect label second.
+
+    `relink_undetermined` is the §∅ third state of the relink witness: `_relink_gap` read a sibling file
+    of this stream whose name carries NO start stamp, so "no later file" is not what it measured. A gap
+    it could not read must not be spent as a quiet end — that is a borrowed reason, and the 658 s link
+    loss it hid is residue row `2026-09-22-filename-stamp-still-wrong-for-other-consumers`."""
     if doff:
         return "doff"
     if relink_gap_s is not None and relink_gap_s <= WEAR_RELINK_S:
         return "link-loss"
+    if relink_gap_s is None and relink_undetermined:
+        return "quiet-end-relink-undetermined"
     return "quiet-end-unclassified"
 
 
@@ -1369,19 +1380,30 @@ def _final_acc_sd(acc_path: str, start: _dt.datetime) -> float | None:
     return statistics.pstdev(mags) if len(mags) > _ACC_MIN_ROWS else None
 
 
-def _relink_gap(night_dir: str, pattern: str, end: _dt.datetime) -> float | None:
-    """Seconds from `end` to the next file of the same stream — this night's folder and the next day's."""
+def _relink_gap(night_dir: str, pattern: str, end: _dt.datetime) -> tuple[float | None, int]:
+    """`(seconds from end to this stream's next file, count of sibling names carrying no start stamp)`.
+
+    The folders searched are this night's and the next day's. The second member is why `None` in the
+    first is not automatically a quiet end: a name whose stamp cannot be read is a witness that was not
+    measured, and `end_reason` names that state rather than borrowing one (CLAUDE.md §∅).
+
+    THE STAMP IS READ ANCHORED, through `writers.file_start_stamp`. The `_(\\d{14})_` search that stood
+    here took the FIRST 14-digit run in the name, which on a box-written H10 file is the device SERIAL:
+    it strptime'd to 2025-01-01, sorted before every real end, dropped out of `later`, and turned a
+    measured relink into a silent None — a 658 s link loss printed `quiet-end-unclassified`."""
     # MEMBERSHIP OFF, deliberately: the next appearance of this stream may be in the NEXT band, and a
     # band filter would report "no next file" — turning a measured relink gap into a silent None. The
     # FOLDER SET is still the judge's, replacing the hand-rolled next-day arithmetic that stood here and
     # was a second definition of the same thing.
-    starts = []
+    starts, unreadable = [], 0
     for f in _recording_glob(night_dir, pattern, membership=False):
-        m = _STAMP_IN_NAME.search(os.path.basename(f))
-        if m:
-            starts.append(_dt.datetime.strptime(m.group(1), "%Y%m%d%H%M%S"))
+        st = _w.file_start_stamp(os.path.basename(f))
+        if st is None:
+            unreadable += 1
+            continue
+        starts.append(_dt.datetime.strptime(st, "%Y%m%d%H%M%S"))
     later = [s for s in starts if s > end - _dt.timedelta(seconds=5)]
-    return (min(later) - end).total_seconds() if later else None
+    return ((min(later) - end).total_seconds() if later else None), unreadable
 
 
 def _wear_end(path: str, night_dir: str, model: str) -> dict:
@@ -1391,7 +1413,7 @@ def _wear_end(path: str, night_dir: str, model: str) -> dict:
     floor = H10_MIN_EPOCHS if model == "H10" else VERITY_MIN_EPOCHS
     if len(ep) < floor or last is None:
         return {"file": base, "usable": False, "reason": f"under {floor} epochs of {WEAR_EPOCH_S:.0f} s"}
-    gap = _relink_gap(night_dir, pattern, last)
+    gap, no_stamp = _relink_gap(night_dir, pattern, last)
     if model == "H10":
         t = h10_tail([e[2] for e in ep])
         if t is None:
@@ -1417,8 +1439,9 @@ def _wear_end(path: str, night_dir: str, model: str) -> dict:
         "usable": True,
         "end_at": last.isoformat(timespec="seconds"),
         "worn_end_at": worn_end.isoformat(timespec="seconds"),
-        "reason": end_reason(doff, gap),
+        "reason": end_reason(doff, gap, relink_undetermined=no_stamp > 0),
         "relink_gap_s": None if gap is None else round(gap),
+        "relink_names_unstamped": no_stamp,
         **detail,
     }
 
@@ -1449,15 +1472,18 @@ def _ring_end(path: str, night_dir: str, contact: list[dict]) -> dict:
     last = _last_stamp(path)
     if last is None:
         return {"file": base, "usable": False, "reason": "no stamped SpO2 row"}
-    m = _STAMP_IN_NAME.search(base)
-    blk = next((b for b in contact if m and f"_{m.group(1)}_" in b["file"]), None)
+    # The stamp is read ANCHORED (see `_relink_gap`): a ring whose device id were 14 digits would
+    # otherwise pair on its serial. The search over the PPG2W name is unchanged — a sibling of the same
+    # session carries the same stamp token, and only the SOURCE of that token moved.
+    st = _w.file_start_stamp(base)
+    blk = next((b for b in contact if st and f"_{st}_" in b["file"]), None)
     if blk is None or not blk["usable"]:
         tail, doff_at, why = None, None, "no paired PPG2W file" if blk is None else blk["reason"]
     else:
         tail, why = blk["tail_off"], None
         doff_at = _dt.datetime.fromisoformat(blk["doff_at"]) if blk["doff_at"] else None
     doff = ring_end_doff(tail, doff_at, last)
-    gap = _relink_gap(night_dir, _RING_SPO2, last)
+    gap, no_stamp = _relink_gap(night_dir, _RING_SPO2, last)
     # The worn interval ends where EITHER witness goes quiet: the doff second is typically 0–4 s AFTER the SpO2
     # file's last row, and a worn end past the primary's own last row can never be covered by that file (the
     # SOLID-NIGHT continuity band read UNKNOWN on 2026-09-24 for 2 s of exactly that). Within the 30 s agreement
@@ -1471,8 +1497,9 @@ def _ring_end(path: str, night_dir: str, contact: list[dict]) -> dict:
         "usable": True,
         "end_at": last.isoformat(timespec="seconds"),
         "worn_end_at": worn_end.isoformat(timespec="seconds"),
-        "reason": end_reason(doff, gap),
+        "reason": end_reason(doff, gap, relink_undetermined=no_stamp > 0),
         "relink_gap_s": None if gap is None else round(gap),
+        "relink_names_unstamped": no_stamp,
         "ppg2w_file": None if blk is None else blk["file"],
         "ppg2w_unusable": why,
         "tail_off": tail,
