@@ -1296,9 +1296,11 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
 # EVENTS THAT RECORD NO CLOCK WRITE, so they cannot excuse a step in the axis. `deferred-absent` skipped
 # the sync because the device was off the air; `unreadable` declined on a single skew read past the
 # plausible bound, before any correction was attempted (`capture.clock_decline_verdict`); and
-# `start-without-sync` records that PMD START went ahead after the pre-start ladder failed. None of the
-# three moved a device clock, so none is a record of the step a band is asking about.
-_A5_NON_RECORD_EVENTS = ("deferred-absent", "unreadable", "start-without-sync")
+# `start-without-sync` records that PMD START went ahead after the pre-start ladder failed; and
+# `released-to-set` records that a fresh link was released before START so the sync could run
+# (`capture.clock_sync_owed_on_connect`). None of the four moved a device clock, so none is a record of the
+# step a band is asking about. The sync that follows a release writes its own `synced` row.
+_A5_NON_RECORD_EVENTS = ("deferred-absent", "unreadable", "start-without-sync", "released-to-set")
 writers_CLOCKSYNC = "CLOCKSYNC.csv"
 
 
