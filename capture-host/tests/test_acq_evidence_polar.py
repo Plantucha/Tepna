@@ -21,6 +21,7 @@ Two findings this adapter rests on are pinned here so neither can be "simplified
     append mode at `rows=0`, so the instance's figures describe the instance and not the file.
 """
 
+import hashlib
 import json
 
 import acq_evidence as ae
@@ -417,12 +418,20 @@ _SESS = "/U/0/20260802/R/224700/"
 _META = {"kind": "offline", "date": "20260802", "time": "224700", "start_local": "2026-08-02T22:47:00"}
 
 
+# the digests `pull_recording` records per file, derived here rather than typed, so a changed helper
+# cannot agree with a stale literal
+_SHA_ACC = hashlib.sha256(b"A" * 1763).hexdigest()
+_SHA_BPM = hashlib.sha256(b"B" * 12).hexdigest()
+
+
 def _manifest(**kw):
     """A clean one-file pull, in the shape `polar_psftp.pull_recording` really returns."""
     m = {
         "session": _SESS,
         "out_dir": "/srv/tepna/captures/stored/Polar_Offline_VERITY-01_20260802224700",
-        "files": [{"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True, "dst": "…/ACC.REC"}],
+        "files": [
+            {"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True, "sha256": _SHA_ACC, "dst": "…/ACC.REC"}
+        ],
         "new_files": ["ACC.REC"],
         "short": [],
         "unreadable_dirs": [],
@@ -541,12 +550,17 @@ def test_a_rolled_stamp_would_have_been_a_plausible_looking_instant():
 
 def test_the_declared_size_check_is_what_VALID_means_here():
     """§6: the pull compares each transferred length against the size the device DECLARED in its own
-    directory listing. That check really ran, so the depth names it — and names only it: no hash was
-    computed and nothing decoded the container."""
+    directory listing. That check really ran, so the depth names it — and names only it.
+
+    ⚠️ A DIGEST IS NOT A DEEPER CHECK HERE. The device declares a size in its listing and never a hash,
+    so there is nothing for a digest to be checked AGAINST — it is the artifact's identity, not a second
+    verdict. The depth therefore stays `declared-size-per-file` while `artifact_sha256` is present, and
+    a reader that sees the digest must not read it as a validated hash."""
     ev = _pull()
     assert ev.validation == ae.VALID
     assert ev.validation_depth == polar.PULL_VALIDATION_DEPTH == "declared-size-per-file"
-    assert ev.artifact_sha256 is None
+    assert ev.artifact_sha256 is not None
+    assert "hash" not in polar.PULL_VALIDATION_DEPTH
 
 
 def test_a_short_file_is_INVALID_and_PARTIAL_at_once():
@@ -659,3 +673,118 @@ def test_the_pull_s_own_accounting_travels_under_names_that_say_what_it_is():
     m2 = _manifest()
     del m2["new_files"]
     assert _pull(m2).provenance["n_new"] is None
+
+
+# ── the SET digest: one identity for a pulled directory ─────────────────────────────────────────────
+def _compose(pairs):
+    """Re-derive the set digest BY HAND, from the rule and not from the module under test: sorted
+    `name \0 sha256(file)` lines, joined by newlines, hashed once. A test that called the helper would
+    agree with any composition the helper happened to use."""
+    return hashlib.sha256("\n".join(sorted(f"{n}\0{h}" for n, h in pairs)).encode()).hexdigest()
+
+
+def test_the_set_digest_is_the_composition_THIS_TREE_ALREADY_USES_and_not_a_new_rule():
+    """A pulled recording is a DIRECTORY, so the row's open question was per-file digests against one
+    digest over the set. The set is what `artifact_path` and `artifact_size` already describe, and the
+    composition is not invented here: `manifest-gate.js` identifies a bundle by sorted
+    `logicalName \0 sha256(text)` lines and `tools/sigma-corpus-headless.mjs` pins a corpus population
+    the same way. Reusing it keeps §12's one hashing system true of a set as well as of a file."""
+    m = _manifest(
+        files=[
+            {"name": "PLETH.GZ", "bytes": 12, "declared": 12, "ok": True, "sha256": _SHA_BPM},
+            {"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True, "sha256": _SHA_ACC},
+        ],
+        total_bytes=1775,
+    )
+    ev = _pull(m)
+    assert ev.artifact_sha256 == _compose([("ACC.REC", _SHA_ACC), ("PLETH.GZ", _SHA_BPM)])
+    assert len(ev.artifact_sha256) == 64, "the full digest, as every other artifact hash here is"
+
+
+def test_the_set_digest_does_not_depend_on_the_order_the_files_were_pulled_in():
+    """The device's listing order is not a property of the recording, and a re-pull may transfer the
+    same set in another order. A digest that moved with that order would read as a changed artifact."""
+    a = {"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True, "sha256": _SHA_ACC}
+    b = {"name": "PLETH.GZ", "bytes": 12, "declared": 12, "ok": True, "sha256": _SHA_BPM}
+    first = _pull(_manifest(files=[a, b], total_bytes=1775)).artifact_sha256
+    second = _pull(_manifest(files=[b, a], total_bytes=1775)).artifact_sha256
+    assert first == second == _compose([("ACC.REC", _SHA_ACC), ("PLETH.GZ", _SHA_BPM)])
+
+
+def test_the_digest_covers_the_NAMES_as_well_as_the_bytes():
+    """Two files that swapped names are a different recording, and a digest over the bytes alone would
+    call the two sets identical. The name travels in the leaf, which is why the leaf has a separator."""
+    a = {"name": "ACC.REC", "bytes": 12, "declared": 12, "ok": True, "sha256": _SHA_ACC}
+    b = {"name": "PLETH.GZ", "bytes": 12, "declared": 12, "ok": True, "sha256": _SHA_BPM}
+    straight = _pull(_manifest(files=[a, b], total_bytes=24)).artifact_sha256
+    swapped = _pull(
+        _manifest(
+            files=[{**a, "sha256": _SHA_BPM}, {**b, "sha256": _SHA_ACC}],
+            total_bytes=24,
+        )
+    ).artifact_sha256
+    assert straight != swapped
+
+
+def test_ONE_UNHASHED_MEMBER_MAKES_THE_WHOLE_SET_DIGEST_ABSENT_with_the_count_named():
+    """§∅: `artifact_size` is the transferred total over EVERY file, skipped ones included, so a digest
+    that quietly dropped the unhashed members would carry the identity of the whole set while covering
+    part of it. A size-matched skip is the ordinary way a leaf is absent — the second pull of a
+    session opens no file — and the honest answer is absence with the count beside it."""
+    m = _manifest(
+        files=[
+            {"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True, "sha256": _SHA_ACC},
+            {"name": "PLETH.GZ", "bytes": 12, "declared": 12, "ok": True, "skipped": True, "sha256": None},
+        ],
+        total_bytes=1775,
+    )
+    ev = _pull(m)
+    assert ev.artifact_sha256 is None
+    d = ev.provenance["artifact_digest"]
+    assert d["n_hashed"] == 1 and d["n_unhashed"] == 1
+    assert "1 of 2 file(s)" in d["absent"]
+    # and the one leaf that DOES exist still travels, so the reader is not left with nothing
+    assert [f["sha256"] for f in ev.provenance["files"]] == [_SHA_ACC, None]
+
+
+def test_a_pull_that_moved_nothing_has_no_SET_to_digest():
+    """A verdict over zero files is not a verdict (§5), and the empty join hashes to a perfectly real
+    digest that would describe an empty directory as a recording."""
+    ev = _pull(_manifest(files=[], new_files=[], total_bytes=0))
+    assert ev.artifact_sha256 is None
+    d = ev.provenance["artifact_digest"]
+    assert d["absent"] == "nothing was pulled, so there is no set to digest"
+    assert d["n_hashed"] == 0 and d["n_unhashed"] == 0
+    assert ev.provenance["files"] == []
+
+
+def test_a_manifest_from_before_per_file_hashing_reports_ABSENCE_and_not_a_digest_of_what_it_has():
+    """An envelope assembled over an older manifest — one whose file records carry no `sha256` key at
+    all — has no leaf to compose. That is the same absence as a skip, and it must not become a digest
+    over the subset that happens to be hashable, because here that subset is empty."""
+    ev = _pull(_manifest(files=[{"name": "ACC.REC", "bytes": 1763, "declared": 1763, "ok": True}], total_bytes=1763))
+    assert ev.artifact_sha256 is None
+    assert ev.provenance["artifact_digest"]["n_unhashed"] == 1
+    assert ev.provenance["files"] == [{"name": "ACC.REC", "bytes": 1763, "sha256": None}]
+
+
+def test_the_RULE_travels_so_a_reader_holding_the_directory_can_re_derive_the_digest():
+    """A digest a reader cannot reproduce is a number to trust rather than evidence to check. The
+    composition states its own order and separator, and the per-file leaves travel beside it, so the
+    whole claim is re-derivable from the files on disk."""
+    ev = _pull()
+    d = ev.provenance["artifact_digest"]
+    assert d["rule"] == polar.SET_DIGEST_RULE
+    assert "sorted" in d["rule"] and "sha256" in d["rule"]
+    assert d["absent"] is None and d["n_hashed"] == 1 and d["n_unhashed"] == 0
+    assert ev.provenance["files"] == [{"name": "ACC.REC", "bytes": 1763, "sha256": _SHA_ACC}]
+
+
+def test_a_short_file_is_INVALID_and_STILL_CARRIES_ITS_DIGEST():
+    """The two axes stay separate. A length that failed its declaration refuses the VALID word, and the
+    bytes that did arrive are real and sit on disk under `.part` — so the set they belong to still has
+    an identity. Withholding it would leave the one file a reader most needs to identify as the only
+    one it cannot."""
+    ev = _pull(_manifest(short=["ACC.REC: declared 1763, got 900 bytes — left as ACC.REC.part"], ok=False))
+    assert ev.validation == ae.INVALID
+    assert ev.artifact_sha256 == _compose([("ACC.REC", _SHA_ACC)])

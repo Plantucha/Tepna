@@ -44,6 +44,7 @@ import calendar
 import datetime as _dt
 
 import acq_evidence as ae
+import oxy_inventory  # §12: the ONE content-hash helper this tree has — never a second one
 import writers
 
 # The streams the live Polar path opens: the PMD set plus the two SIG-standard files. Declared here
@@ -194,6 +195,47 @@ PULL_VALIDATION_DEPTH = "declared-size-per-file"
 # recording's own container, so whether the SAMPLES carry their own stamps is unmeasured, not denied.
 PULL_CLOCK_SOURCE = "session-path stamp (not per-sample)"
 
+# HOW ONE DIGEST COVERS A DIRECTORY, carried in `provenance` so a reader can RE-DERIVE it from the files
+# on disk instead of trusting the number. The composition is not new: `manifest-gate.js` identifies a
+# bundle by sorted `logicalName \0 sha256(text)` lines, and `tools/sigma-corpus-headless.mjs` pins a
+# corpus population the same way. Reusing that rule keeps §12's "one hashing system" true of a SET as
+# well as of a file — every leaf is `oxy_inventory.sha256_bytes`, and only the ORDER and the separator
+# are stated here.
+SET_DIGEST_RULE = "sha256 over sorted '<name>\\0<sha256 of that file>' lines joined by '\\n'"
+
+
+def _artifact_digest(files: list[dict]) -> tuple[str | None, dict]:
+    """ONE digest over the pulled set, or `None` beside the reason it could not be computed.
+
+    ⚠️ A DIGEST OVER A SUBSET WOULD DESCRIBE A DIFFERENT POPULATION THAN `artifact_size`. That field is
+    the transferred total over EVERY file in the manifest, skipped ones included, so a digest that
+    quietly dropped the unhashed members would read as the identity of the whole set while covering
+    part of it. So one absent leaf makes the whole digest absent, and the count of absent leaves
+    travels beside it (§∅: absent, with a named reason, never a partial answer under a whole name).
+
+    A size-matched skip is the ordinary way a leaf is absent: the second pull of a session reads no
+    bytes at all, so it can digest nothing. That is honest rather than unfortunate — a re-pull which
+    opened no file has shown nothing about those bytes, and the ring pull is the same shape."""
+    leaves, unhashed = [], []
+    for f in files:
+        sha = f.get("sha256")
+        if not sha:
+            unhashed.append(f.get("name"))
+            continue
+        leaves.append(f"{f.get('name')}\0{sha}")
+    meta = {"rule": SET_DIGEST_RULE, "n_hashed": len(leaves), "n_unhashed": len(unhashed), "absent": None}
+    if not files:
+        meta["absent"] = "nothing was pulled, so there is no set to digest"
+        return None, meta
+    if unhashed:
+        meta["absent"] = (
+            f"{len(unhashed)} of {len(files)} file(s) carry no digest, so the set has none: a size-matched "
+            "skip reads no bytes, and hashing the copy on disk would answer a different question"
+        )
+        return None, meta
+    leaves.sort()
+    return oxy_inventory.sha256_bytes("\n".join(leaves).encode()), meta
+
 
 def _device_start_ms(date: str | None, hhmmss: str | None) -> float | None:
     """The device's own session start as a Clock-Contract floating wall-clock ms, or `None`.
@@ -257,7 +299,8 @@ def assemble_pull(
     THE ARTIFACT IS THE SET. A pull mirrors a directory, so one envelope describes the whole session and
     `signal` stays absent: the file names are in `provenance`, and naming one of them as the signal would
     describe a fraction of what the envelope covers. `artifact_size` is the transferred total, which is
-    the one size that is true of the set.
+    the one size that is true of the set, and `artifact_sha256` is one digest over the same population
+    (`_artifact_digest`, composed by the rule `provenance.artifact_digest.rule` states).
 
     ⚠️ THE TWO AXES SEPARATE CLEANLY HERE, AND THE PULL IS THE CONTRACT'S CLEANEST §6 EXAMPLE. Validation
     asks whether the bytes we hold match what the device declared — a per-file length check that really
@@ -303,6 +346,9 @@ def assemble_pull(
     else:
         completeness = ae.COMPLETE
 
+    # ── artifact identity (§12): one digest over the set, or None with the reason named ──
+    set_sha, digest_meta = _artifact_digest(files)
+
     return ae.AcquisitionEvidence(
         session_id=session_id if session_id is not None else _pull_session_id(meta),
         device_id=device_id,
@@ -325,7 +371,11 @@ def assemble_pull(
         device_state=device_state if device_state is not None else ae.UNKNOWN,
         artifact_path=manifest.get("out_dir"),
         artifact_size=manifest.get("total_bytes"),
-        artifact_sha256=None,  # the pull computes none; the declared-size check is what it does run
+        # ONE digest over the SET, which is what `artifact_path` and `artifact_size` already describe.
+        # It deepens no verdict: the device declares a size and never a hash, so `validation_depth`
+        # stays `declared-size-per-file`. What it adds is the identity the declared-size check cannot
+        # give — a reader holding the directory can show that these are still the bytes that arrived.
+        artifact_sha256=set_sha,
         validation=validation,
         validation_depth=validation_depth,
         completeness=completeness,
@@ -335,6 +385,10 @@ def assemble_pull(
             "device_stamp_local": meta.get("start_local"),
             "device_clock_read_from": PULL_CLOCK_SOURCE if start_ms is not None else None,
             "n_files": len(files),
+            # THE ENUMERATION, not just the count: a reader that meets this envelope can now walk the
+            # directory and re-derive both the per-file digests and the set digest from `rule`.
+            "files": [{"name": f.get("name"), "bytes": f.get("bytes"), "sha256": f.get("sha256")} for f in files],
+            "artifact_digest": digest_meta,
             "n_new": None if new_files is None else len(new_files),
             "n_skipped": sum(1 for f in files if f.get("skipped")),
             "short": short,
