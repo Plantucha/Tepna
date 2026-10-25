@@ -354,7 +354,7 @@ def test_neither_new_WORD_can_excuse_a_SEAM_in_the_axis(tmp_path):
     events moved a device clock, so neither is a record of the step a band is asking about."""
     import solid_night_inputs as sni
 
-    for word in ("unreadable", "start-without-sync"):
+    for word in ("unreadable", "start-without-sync", "released-to-set"):
         night = tmp_path / word
         night.mkdir()
         (night / "CLOCKSYNC.csv").write_text(
@@ -439,3 +439,137 @@ def test_the_SECOND_such_read_re_syncs_the_clock_as_a_RESET(tmp_path, monkeypatc
     assert res[0].endswith(";reset"), res
     assert calls == ["AA:BB:CC:DD:EE:FF"], calls
     assert ("H10", {"clock_synced": None}) in sets, sets
+
+
+# ── 4 · a device that comes up on a clock no sync has set is synced before START ────────────────────
+#
+# 2026-10-24, after a battery swap: the pre-start scan missed the H10 at 22:24:06, the loop's scan missed
+# it at 22:25:04, the connect found it at 22:25:12, and streaming ran on the 2019 clock until a manual
+# sync at 22:29:47. The connect proved the device was back; nothing acted on it.
+
+
+def _up_runner(monkeypatch, sync, connects, sleeps=1):
+    """Drive the real `run_polar` with a `_connect` that SUCCEEDS on the first call and refuses after.
+
+    The released link never reaches a writer or PMD, so the dummy client is never touched; a session
+    that does go on to START meets the refusal instead, which ends the iteration in the error backoff."""
+    import contextlib
+
+    from tests.test_capture_runners import _pdev, _polar_common, _stop_after
+
+    _polar_common(monkeypatch)
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": True}})
+
+    @contextlib.asynccontextmanager
+    async def connect(addr, *a, **k):
+        connects.append(addr)
+        if len(connects) > 1:
+            raise OSError("le-connection-abort-by-local")
+        yield object()
+
+    monkeypatch.setattr(capture, "sync_device_time", sync)
+    monkeypatch.setattr(capture, "_connect", connect)
+    _stop_after(monkeypatch, sleeps)
+    return _pdev()
+
+
+def _absent_then(outcomes):
+    """A `sync_device_time` whose scan misses the device, then applies `outcomes` in order."""
+    seq = list(outcomes)
+    calls = []
+
+    async def sync(addr):
+        o = seq[min(len(calls), len(seq) - 1)]
+        calls.append(o)
+        if isinstance(o, BaseException):
+            raise o
+        return o
+
+    return sync, calls
+
+
+def test_a_device_UP_on_an_unsynced_clock_is_released_and_synced_before_START(tmp_path, monkeypatch):
+    """22:25:12 replayed: pre-start sync absent, the first connect succeeds. The link is released, the
+    next iteration syncs (in spite of `first_attempt`), and only then does the loop connect again."""
+    absent = capture.DeviceNotAdvertising("not advertising")
+    assert capture.device_absent_error(absent), "the plant must take the deferred-absent arm"
+    sync, calls = _absent_then([absent, None])
+    connects = []
+    dev = _up_runner(monkeypatch, sync, connects)
+    asyncio.run(capture.run_polar(dev, str(tmp_path)))
+
+    assert len(calls) == 2, f"the pre-start sync, then the sync after the release: {calls}"
+    assert len(connects) == 2, "released the first link, then connected again after the sync"
+    rows = _rows(str(tmp_path))
+    kinds = [r.split(";")[3] for r in rows]
+    assert kinds == ["deferred-absent", "start-without-sync", "released-to-set", "synced"], kinds
+
+
+def test_a_device_UP_whose_clock_IS_set_is_not_released(tmp_path, monkeypatch):
+    """The control: a pre-start sync that landed owes nothing, so the first connect goes on to START."""
+    sync, calls = _absent_then([None])
+    connects = []
+    dev = _up_runner(monkeypatch, sync, connects)
+    asyncio.run(capture.run_polar(dev, str(tmp_path)))
+
+    assert len(calls) == 1
+    assert not [r for r in _rows(str(tmp_path)) if ";released-to-set;" in r]
+
+
+def test_a_sync_that_LANDED_ELSEWHERE_settles_the_debt(tmp_path, monkeypatch):
+    """The watchdog or the monitor's button can set the clock between the failure and the connect. That
+    write is newer in `_CLOCK_SYNC_LAST_OK`, so the connect must not release the link for it."""
+    absent = capture.DeviceNotAdvertising("not advertising")
+    sync, calls = _absent_then([absent])
+    connects = []
+    dev = _up_runner(monkeypatch, sync, connects)
+    real_gate = capture._clock_gate
+
+    def gate_and_land(name, addr, is_polar):
+        if calls:  # after the pre-start failure: another path writes the clock
+            capture._CLOCK_SYNC_LAST_OK[addr] = capture._time.monotonic() + 1.0
+        return real_gate(name, addr, is_polar)
+
+    monkeypatch.setattr(capture, "_clock_gate", gate_and_land)
+    asyncio.run(capture.run_polar(dev, str(tmp_path)))
+
+    assert not [r for r in _rows(str(tmp_path)) if ";released-to-set;" in r]
+
+
+def test_the_release_is_BOUNDED_for_a_device_the_sync_scan_never_finds(tmp_path, monkeypatch):
+    """Connect works, the sync scan never does: three releases, then START on the unsynced clock. Without
+    the bound this cycles all night with no START at all."""
+    import contextlib
+
+    absent = capture.DeviceNotAdvertising("not advertising")
+    sync, calls = _absent_then([absent])
+    connects = []
+    dev = _up_runner(monkeypatch, sync, connects)
+
+    @contextlib.asynccontextmanager
+    async def always_up(addr, *a, **k):
+        connects.append(addr)
+        if len(connects) > capture._CLOCK_SYNC_UP_RELEASES:
+            raise OSError("le-connection-abort-by-local")  # the START that follows the last release
+        yield object()
+
+    monkeypatch.setattr(capture, "_connect", always_up)
+    asyncio.run(capture.run_polar(dev, str(tmp_path)))
+
+    released = [r for r in _rows(str(tmp_path)) if ";released-to-set;" in r]
+    assert len(released) == capture._CLOCK_SYNC_UP_RELEASES, released
+    assert len(connects) == capture._CLOCK_SYNC_UP_RELEASES + 1
+
+
+def test_clock_sync_owed_on_connect_is_PURE_and_each_bound_binds():
+    f = capture.clock_sync_owed_on_connect
+    assert f(True, True, True, False, False, 0, 3) is True
+    assert f(False, True, True, False, False, 0, 3) is False, "nothing owed"
+    assert f(True, False, True, False, False, 0, 3) is False, "cannot take the write"
+    assert f(True, True, False, False, False, 0, 3) is False, "sync disabled"
+    assert f(True, True, True, True, False, 0, 3) is False, "docked"
+    assert f(True, True, True, None, False, 0, 3) is True, "charging unknown is not charging"
+    assert f(True, True, True, False, True, 0, 3) is False, "inside its backoff"
+    assert f(True, True, True, False, False, 2, 3) is True
+    assert f(True, True, True, False, False, 3, 3) is False, "the bound"

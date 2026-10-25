@@ -569,7 +569,11 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # `paid_a_pause`, the closure inside `auto_sync_clock` that replaced six copies of one pause
     # expression so a pre-START ladder can stand the pause-priced bounds down. +3, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 327, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 327 → 328 on 2026-10-25 (a Polar clock is set when the device comes up unsynced, 2026-10-24's battery
+    # swap): `clock_sync_owed_on_connect`, the PURE predicate that decides if a link that just came up is
+    # released before PMD START so the owed sync can run. +1, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 328, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

@@ -3177,6 +3177,27 @@ def clock_reads_reset(skew_s) -> bool:
     return skew_s is not None and abs(skew_s) > CLOCK_IMPLAUSIBLE_S
 
 
+def clock_sync_owed_on_connect(owed, capable, enabled, charging, cooling, releases, limit) -> bool:
+    """PURE: has a device just come up on a clock that no sync has set, so the link should be released
+    before PMD START and the sync run at once?
+
+    THE RING'S "FIRST CONTACT" RULE, FOR POLAR. `oxyii_rtc_due` writes the ring's clock on first contact.
+    The Polar path syncs BEFORE each connect, and when that sync cannot find the device it defers to "the
+    next reconnect". On 2026-10-24 after a battery swap the H10 sat on its 2019 firmware default: the
+    pre-start scan missed it at 22:24:06, the loop's scan missed it at 22:25:04, and the connect found it
+    at 22:25:12. The device was back, but no reconnect followed, so streaming ran on the 2019 clock until
+    a manual sync at 22:29:47. A connect that succeeds is the proof that the device is on the air, so this
+    is the moment to settle the debt, while nothing streams and a release costs no signal.
+
+    `owed` — the last sync this task ran did not land, and no sync has landed since (a watchdog or manual
+    sync also clears it, through `_CLOCK_SYNC_LAST_OK`). The other arms are the eligibility bounds of
+    `clock_sync_due`, with the same reasons: a device that cannot take the write, a disabled sync, a
+    docked device (status 0x0D refuses the write) and a device inside its cross-ladder backoff are not
+    asked. `releases < limit` stops a device that answers a connect but never the sync scan from cycling
+    all night without a START."""
+    return bool(owed and capable and enabled and not charging and not cooling and releases < limit)
+
+
 def clock_sync_attempt_affordable(spent, budget, worst_attempt_s) -> bool:
     """PURE: is there room left in the ladder's budget to START another attempt?
 
@@ -3735,9 +3756,13 @@ async def run_polar(dev: dict, root: str):
     # PS-FTP is POLAR-SPECIFIC. On anything else the sync cannot succeed — it fails on a missing
     # characteristic — and it costs a global capture pause to find that out, every task start.
     # This is the FIRST sync; `clock_sync_due` repeats it on every later reconnect (see the loop below).
+    # Monotonic time of the last sync that did not land, or None. A sync that lands later from any path
+    # (this loop, the watchdog, the monitor's button) is newer in `_CLOCK_SYNC_LAST_OK` and settles it.
+    clock_owed_at: float | None = None
     if _clock_gate(name, addr, is_polar) and (_CFG.get("time") or {}).get("auto_sync_devices", True):
         # `live=False`: nothing streams yet, so the pause-priced bounds inside the ladder stand down.
         if not await auto_sync_clock(name, addr, root, live=False):
+            clock_owed_at = _time.monotonic()
             # 🔴 START ANYWAY, AND SAY SO IN THE NIGHT'S OWN FILE (owner, 2026-10-20: "normal user just
             # put on chest strap and go to sleep" — there is no feedback and no second chance, so
             # refusing to start would trade a night with a bad clock for no night at all). The sync
@@ -3765,6 +3790,8 @@ async def run_polar(dev: dict, root: str):
     first_attempt = True
     iteration = 0
     rebond_attempts = 0
+    up_releases = 0  # links released before START to set an owed clock; see `clock_sync_owed_on_connect`
+    sync_after_release = False  # the iteration after a release runs the sync, whatever `first_attempt` says
     while not _STOP.is_set():
         iteration += 1
         if addr in _POLAR_PAUSED or _RECOVER.is_set():  # a pull owns the link, or the watchdog is resetting the adapter
@@ -3793,6 +3820,8 @@ async def run_polar(dev: dict, root: str):
             clock_reads_reset(STATUS["devices"].get(name, {}).get("clock_skew_floor_sec")),
         ):
             sync_due = True
+        if sync_after_release:
+            sync_due, sync_after_release = True, False
         first_attempt = False
         # RE-BOND A LOST BOND. Also before `_connect`, and for the same reason the clock write is: the
         # pairing needs the device's own link. Without this a bond that goes stale mid-session is
@@ -3834,7 +3863,10 @@ async def run_polar(dev: dict, root: str):
         # wants an encrypted link, and a sync due while the bond was gone used to burn its whole 120 s
         # budget (up to 12 NotConnected retries) before the every-5th-iteration re-bond ever ran.
         if sync_due:
-            await auto_sync_clock(name, addr, root)
+            if await auto_sync_clock(name, addr, root):
+                clock_owed_at, up_releases = None, 0
+            else:
+                clock_owed_at = _time.monotonic()
         writers: dict[int, StreamWriter] = {}
         stream_fs: dict[int, float] = {}  # actual negotiated sample rate per meas (ACC differs per device)
         stream_scale: dict[int, float] = {}  # raw-int → physical-unit factor per meas (GYRO dps / MAG gauss)
@@ -3892,6 +3924,38 @@ async def run_polar(dev: dict, root: str):
                 _set(name, connected=True)
                 _OPT_QUIET.discard(addr)
                 log.info("%s connected", name)
+                _last_ok = _CLOCK_SYNC_LAST_OK.get(addr)
+                if clock_sync_owed_on_connect(
+                    clock_owed_at is not None and (_last_ok is None or _last_ok < clock_owed_at),
+                    _clock_gate(name, addr, is_polar),
+                    (_CFG.get("time") or {}).get("auto_sync_devices", True),
+                    STATUS["devices"].get(name, {}).get("charging"),
+                    _clock_sync_cooling(addr, _time.monotonic()),
+                    up_releases,
+                    _CLOCK_SYNC_UP_RELEASES,
+                ):
+                    # Before any writer opens and before PMD START: the PS-FTP write needs this link, and
+                    # leaving the block here costs one connect and no signal. `continue` skips the
+                    # reconnect delay, so the sync runs while the device is still on the air.
+                    up_releases += 1
+                    sync_after_release = True
+                    log.info(
+                        "%s is up on a clock no sync has set — releasing the link to set it before START (%d/%d)",
+                        name,
+                        up_releases,
+                        _CLOCK_SYNC_UP_RELEASES,
+                    )
+                    append_clock_sync_event(
+                        root,
+                        _now(),
+                        name,
+                        addr,
+                        # NOT a word containing "synced", "resync" or "offline": `_seam_cause` names a seam's
+                        # cause by substring over the whole row (see "start-without-sync" above).
+                        "released-to-set",
+                        detail=f"device answered a connect after the sync did not land ({up_releases}/{_CLOCK_SYNC_UP_RELEASES})",
+                    )
+                    continue
                 # NB: backoff is NOT reset here — a bare connect is not a viable session (E3 parity with
                 # run_viatom/run_oxyii). A strap that connects then drops before any data reset the floor
                 # on every doomed attempt, so the exponential backoff could never grow and a flapping
@@ -7348,6 +7412,13 @@ _CLOCK_SYNC_BACKOFF_CAP_S = 3600.0
 # Sized against what redundancy it removes: 78 % of consecutive successful-sync pairs in this corpus fall
 # inside it, and the 31 % inside 120 s are the indefensible ones.
 _CLOCK_SYNC_FRESH_S = 1800.0
+# HOW MANY TIMES ONE TASK MAY RELEASE A FRESH LINK TO SET AN OWED CLOCK (`clock_sync_owed_on_connect`).
+# Each release costs one connect, about 2 s and no signal, because nothing streams yet. The bound exists
+# for a device that answers a connect but whose sync scan keeps missing it: without it, connect → release
+# → deferred → connect would cycle for the whole night with no PMD START. Three releases cover a device
+# that comes up just after the scan, which is the 2026-10-24 case (scan missed at 22:25:04, connect found
+# it at 22:25:12). A successful sync resets the count, so a later episode starts with all three.
+_CLOCK_SYNC_UP_RELEASES = 3
 
 
 class DeviceNotAdvertising(Exception):
