@@ -560,20 +560,16 @@ async def _pull_once(
             # wired into this landed path, so validation derives from the oxy_inventory state at the
             # coarser "size+finalised" depth, and clock/observed-duration facts are UNKNOWN until the
             # live path co-observes them. When G1's verify wires in, the envelope gains the deeper depth.
-            _acq_row = {
-                "device_id": device_id,
-                "session": ts,
-                "state": state,
-                "size": len(data),
-                "sha256": sha,
-                "path": final,
-                "attempt": None,
-            }
             # THE ENVELOPE MUST NEVER COST THE PULL ITS SIDECAR. The bytes are already committed and
             # `meta_j` above already explains them, so an assembler fault — an undeclared word now
             # refuses at construction — logs and leaves the rest of the sidecar intact. The four other
             # production producers each carry this guard; this one was the exception.
             try:
+                # The row comes from `make_row`, the builder the seven ledger writes above use, and not
+                # from a hand-typed dict. `assemble_dat` reads every key with `.get`, so a misspelt key
+                # in a literal published `null` for a fact the pull had just measured, and nothing
+                # raised. A misspelt keyword here is a TypeError, which the guard below reports.
+                _acq_row = oxy_inventory.make_row(device_id, ts, state, size=len(data), sha256=sha, path=final)
                 meta_j["acquisition_evidence"] = acq_evidence_o2ring.assemble_dat(
                     _acq_row,
                     trailer=summary,
