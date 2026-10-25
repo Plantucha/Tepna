@@ -15,7 +15,7 @@
 from __future__ import annotations
 import logging
 import time as _time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 _log = logging.getLogger("tepna-capture")
 
@@ -65,6 +65,81 @@ def validate_webhook_url(value) -> str:
     return v
 
 
+# ── THE ALERT EMAIL ADDRESS ────────────────────────────────────────────────────────────────────────
+# ntfy sends an email itself when a publish carries an `Email:` header, so the box needs no mail server
+# and no mail credentials. Other webhook services ignore the header. The address is personal data, so it
+# follows the webhook URL's rule: the monitor may set it and never shows it back, and it stays out of the
+# repo (it lives in the box's config.yaml only).
+#
+# SEVERAL ADDRESSES, ONE PUSH. ntfy takes one address per publish, and every publish to a topic also
+# pushes to that topic's phones. So the first address rides on the push, and each further address goes
+# to a second topic, `<topic>-mail`, that no phone subscribes to: one push, one email per address
+# (owner ruling 2026-10-25). The extra publishes go out only after the push was delivered, because an
+# undelivered push is sent again on the next poll and would email the extra addresses twice.
+_MAX_EMAIL = 254  # RFC 5321's path limit
+MAX_EMAILS = 5
+
+
+def validate_email(value) -> str:
+    """Coerce + validate one alert email address. Returns "" for an explicit clear.
+
+    A shape check, not a deliverability check: one `@`, a dotted domain, no whitespace, no separators
+    and no control characters. The value becomes an HTTP header, so anything that could end the header
+    or name a second recipient is refused. The error never quotes the value."""
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise AlertsError("email must be a string")
+    v = value.strip()
+    if not v:
+        return ""
+    if len(v) > _MAX_EMAIL:
+        raise AlertsError(f"email is too long (max {_MAX_EMAIL})")
+    if any(ord(c) <= 0x20 or ord(c) == 0x7F or c in ',;<>"' for c in v):
+        raise AlertsError("email contains a space, a separator or a control character")
+    local, at, domain = v.rpartition("@")
+    if not at or not local or "@" in local or "." not in domain.strip(".") or domain != domain.strip("."):
+        raise AlertsError("email is not one address of the form name@example.org")
+    return v
+
+
+def configured_emails(value) -> list[str]:
+    """The stored addresses the daemon starts with, in order, without repeats, at most `MAX_EMAILS`.
+    A hand-edited bad entry is logged and dropped: the daemon runs without it rather than refusing to
+    start. The log line never quotes the value."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        _log.warning("alerts.emails ignored: not a list")
+        return []
+    out: list[str] = []
+    for item in value:
+        try:
+            v = validate_email(item)
+        except AlertsError as e:
+            _log.warning("alerts.emails entry ignored: %s", e)
+            continue
+        if v and v not in out:
+            out.append(v)
+    if len(out) > MAX_EMAILS:
+        _log.warning("alerts.emails holds %d addresses; the first %d are used", len(out), MAX_EMAILS)
+    return out[:MAX_EMAILS]
+
+
+def email_hint(addr: str | None) -> str:
+    """A label for a stored address: its first character and its domain. The first character lets
+    the operator tell two addresses on one domain apart without the monitor showing either."""
+    if not addr or "@" not in addr:
+        return ""
+    return addr[0] + "…@" + addr.rpartition("@")[2]
+
+
+def mail_topic_url(url: str) -> str:
+    """The email-only ntfy topic beside `url`: the same server, the path plus `-mail`."""
+    p = urlsplit(url)
+    return urlunsplit((p.scheme, p.netloc, p.path.rstrip("/") + "-mail", p.query, p.fragment))
+
+
 def webhook_hint(url: str | None) -> str:
     """A safe, non-secret label for a configured URL: scheme://host[:port], PATH AND QUERY REMOVED.
 
@@ -80,14 +155,14 @@ def webhook_hint(url: str | None) -> str:
     return f"{p.scheme}://{p.netloc}" if p.scheme and p.netloc else ""
 
 
-async def _http_post(url: str, payload: dict) -> bool:
+async def _http_post(url: str, payload: dict, headers: dict | None = None) -> bool:
     """POST `payload` as JSON with a short timeout. Returns True on a 2xx. aiohttp is already a daemon dep
     (webmon), imported lazily so `import alerts` stays cheap and dependency-free for tests."""
     import aiohttp
 
     timeout = aiohttp.ClientTimeout(total=10)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(url, json=payload) as resp:
+        async with session.post(url, json=payload, headers=headers) as resp:
             return 200 <= resp.status < 300
 
 
@@ -96,8 +171,9 @@ class Notifier:
     `key`+`dedupe_sec` suppress a repeat of the SAME alert within a window so one flapping sensor cannot
     spam the operator. `_post` is injectable for tests (defaults to the real webhook)."""
 
-    def __init__(self, url: str | None = None, enabled: bool = False, _post=None):
+    def __init__(self, url: str | None = None, enabled: bool = False, _post=None, emails: list[str] | None = None):
         self.url = url
+        self.emails: list[str] = list(emails or [])  # ntfy `Email:` recipients for `send(..., email=True)`
         self.enabled = bool(enabled and url)
         self._post = _post or _http_post  # resolved here (not a default arg) so tests can patch it
         self._last: dict[str, float] = {}  # dedupe key → monotonic ts of the last send
@@ -117,6 +193,7 @@ class Notifier:
         self.last_ok: float | None = None  # wall-clock epoch of the last DELIVERED alert
         self.last_error: str | None = None  # why the last attempt failed; None once one succeeds
         self.last_title: str | None = None
+        self.email_failed = 0  # extra-address publishes that did not arrive; the push itself did
 
     def stats(self) -> dict:
         """What the monitor shows. A notifier that has never delivered anything reports
@@ -130,12 +207,25 @@ class Notifier:
             "last_ok": self.last_ok,
             "last_error": self.last_error,
             "last_title": self.last_title,
+            "emails": len(self.emails),
+            "email_failed": self.email_failed,
         }
 
     async def send(
-        self, title: str, message: str, *, key: str | None = None, dedupe_sec: float = 0.0, now: float = 0.0
+        self,
+        title: str,
+        message: str,
+        *,
+        key: str | None = None,
+        dedupe_sec: float = 0.0,
+        now: float = 0.0,
+        email: bool = False,
     ) -> bool:
-        """Fire one alert. Returns True only if it was actually delivered."""
+        """Fire one alert. Returns True only if it was actually delivered.
+
+        `email=True` also asks ntfy to email the stored addresses (the `Email:` header): the first on
+        the push, the rest through `mail_topic_url` once the push is delivered. With no address stored,
+        the alert goes out as a plain push."""
         # ONE condition, not two: `enabled` is set as `bool(enabled and url)` in both `__init__` and
         # `configure`, so "enabled" already implies a URL — but that invariant lived across two
         # attributes and only a reader could see it. Stating it here makes it checkable, and mypy
@@ -150,7 +240,11 @@ class Notifier:
             self._last[key] = now
         self.last_title = title
         try:
-            ok = bool(await self._post(self.url, {"title": title, "message": message}))
+            payload = {"title": title, "message": message}
+            if email and self.emails:
+                ok = bool(await self._post(self.url, payload, headers={"Email": self.emails[0]}))
+            else:
+                ok = bool(await self._post(self.url, payload))
         except Exception as e:
             # SWALLOWING THE EXCEPTION MUST NOT ALSO SWALLOW THE EVIDENCE (CAPTURE-HOST-DEEP-AUDIT §C1).
             # A webhook must never crash capture — that part is right and stays. But this used to return
@@ -173,7 +267,23 @@ class Notifier:
         self.delivered += 1
         self.last_ok = _time.time()
         self.last_error = None
+        if email:
+            await self._email_the_rest(self.url, payload)
         return True
+
+    async def _email_the_rest(self, url: str, payload: dict) -> None:
+        """Email addresses 2..n through the email-only topic. A failure here is counted and logged; it
+        does not undo the push, which already arrived."""
+        for i, addr in enumerate(self.emails[1:], start=2):
+            try:
+                ok = bool(await self._post(mail_topic_url(url), payload, headers={"Email": addr}))
+            except Exception as e:
+                _log.warning("alert email %d of %d not delivered: %r", i, len(self.emails), e)
+                ok = None
+            if not ok:
+                if ok is not None:
+                    _log.warning("alert email %d of %d rejected (non-2xx)", i, len(self.emails))
+                self.email_failed += 1
 
     def reset(self, key: str) -> None:
         """Forget a dedupe key so the NEXT occurrence alerts immediately (call when a sensor recovers)."""
@@ -225,6 +335,39 @@ def device_is_recording(connected: bool, last_data_mono: float | None, now: floa
     if not connected or last_data_mono is None:
         return False
     return (now - last_data_mono) <= grace_sec
+
+
+# ── LOW BATTERY ────────────────────────────────────────────────────────────────────────────────────
+# Measured on vigil, 2026-10-13 → 10-23: the H10 coin cell read 90 % on 10-13, 50 % on 10-19, then
+# 10 % for 3½ days, and the strap went silent on 10-23 at 06:29. The level was in every LINK row and on
+# the monitor chip, and nothing pushed it. Owner ruling 2026-10-25: a push at 20 %, a push plus an email
+# at 10 %.
+#
+# THE LATCH RE-ARMS ONLY WELL ABOVE THE THRESHOLDS. A coin cell recovers while it rests and sags under
+# load: on 2026-10-19 the H10 read 50 %, then 90 % → 80 % → 10 % inside four minutes. Re-arming at the
+# threshold itself would re-alert on every such bounce. At 50 % a rebound re-arms only after a real
+# recovery (a new cell, a charge).
+BATTERY_WARN_PCT = 20
+BATTERY_CRIT_PCT = 10
+BATTERY_REARM_PCT = 50
+
+
+def battery_alert_step(pct, latched: int | None) -> tuple[int | None, int | None]:
+    """PURE: which low-battery alert to send now, and the latch after it is delivered.
+
+    `pct` is the device's latest battery reading (None = never read: no change, absence is not 0 %).
+    `latched` is the lowest threshold already alerted this episode (None = none). Returns
+    `(threshold_to_alert_or_None, next_latch)`. A reading that jumps straight past both thresholds
+    sends the 10 % alert only, because that one carries the email."""
+    if pct is None or isinstance(pct, bool) or not isinstance(pct, (int, float)):
+        return None, latched
+    if pct >= BATTERY_REARM_PCT:
+        return None, None
+    if pct <= BATTERY_CRIT_PCT:
+        return (None, latched) if latched == BATTERY_CRIT_PCT else (BATTERY_CRIT_PCT, BATTERY_CRIT_PCT)
+    if pct <= BATTERY_WARN_PCT and latched is None:
+        return BATTERY_WARN_PCT, BATTERY_WARN_PCT
+    return None, latched
 
 
 def offline_alert_due(down_since: float | None, now: float, threshold_sec: float) -> bool:

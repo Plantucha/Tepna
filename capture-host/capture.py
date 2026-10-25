@@ -9234,6 +9234,9 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     identity_alerted: set[str] = set()
     # And its clause-2 sibling. Separate again: a link can serve nothing while its serial matches.
     barren_alerted: set[str] = set()
+    # Low-battery latch: the lowest threshold already alerted per device (see `alerts.battery_alert_step`).
+    # In memory, so a daemon restart while a cell sits at 10 % sends the 10 % alert once more.
+    batt_latch: dict[str, int | None] = {}
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         now = _time.monotonic()
@@ -9241,6 +9244,25 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             name = d.get("name")
             if not name:
                 continue
+            # LOW BATTERY — first in the loop, because every check below may `continue` past it, and a
+            # disconnected device keeps its last reading (the case that matters: a cell that just died).
+            dst = STATUS["devices"].get(name, {})
+            pct = dst.get("battery")
+            fire, nxt = alerts.battery_alert_step(pct, batt_latch.get(name))
+            if fire is None:
+                batt_latch[name] = nxt
+            else:
+                log.warning("alert: %s battery reads %s %% (at or below %d %%)", name, pct, fire)
+                crit = fire <= alerts.BATTERY_CRIT_PCT
+                delivered = await notifier.send(
+                    f"Tepna: {name} battery {pct} %",
+                    f"{name} battery reads {pct} %. "
+                    + ("Replace or charge it before the next night." if crit else "Plan a replacement or a charge."),
+                    email=crit,
+                )
+                if delivered or not notifier.enabled:
+                    batt_latch[name] = nxt
+                    dst["battery_alert"] = {"pct": pct, "threshold": fire, "at": _time.strftime("%Y-%m-%d %H:%M")}
             # IMPOSTOR-SHAPE (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The oxyii session sets
             # `ring_identity_mismatch` when the peer's 0xE1 serial ≠ the configured one and clears it when
             # it matches. Checked BEFORE the offline logic on purpose: the wrong ring streams SpO₂ like the
@@ -15284,7 +15306,11 @@ async def main():
 
     # Push-alert transport (webhook) — disabled unless config sets alerts.enabled + alerts.webhook_url.
     _acfg = cfg.get("alerts") or {}
-    notifier = alerts.Notifier(_acfg.get("webhook_url"), enabled=bool(_acfg.get("enabled")))
+    notifier = alerts.Notifier(
+        _acfg.get("webhook_url"),
+        enabled=bool(_acfg.get("enabled")),
+        emails=alerts.configured_emails(_acfg.get("emails")),
+    )
     # Published every status tick (see status_loop). Module-level rather than threaded through a dozen
     # signatures because the ONE thing this needs is to reach the same surface as everything else it
     # guards — an alert transport whose own health is invisible is the failure it exists to prevent.

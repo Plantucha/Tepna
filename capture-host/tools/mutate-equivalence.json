@@ -5926,5 +5926,25 @@
       "probe": "Ran original and mutant `_pull_once` through the real fakes of tests/test_pull_session.py (FakeRing speaking the real oxyii wire format) over 2304 scenarios: identity read in {answered, silent, short reply (parse_get_info -> None), _wait raising} x caller device_id in {None, given} x flash list of 0/1/2 sessions x which in {latest, all, new} x finished .dat on disk in {no, yes} x leftover .part in {none, 7 B} x ledger in {empty, VERIFIED, COMMITTED, DISCOVERED} x blob in {plain, finalised}. Compared per scenario: return value or exception, every printed line, every ledger row, every sidecar JSON, every file left on disk byte for byte, every frame written to the ring (the AUTH frame by opcode and length only, because it carries the host clock and differs between two runs of the SAME code), and the lifecycle history; ledger `at` and lifecycle clocks stripped. Original vs original: 0 of 2304 differed. Original vs mutant: 0 of 2304 differed. 1152 of the scenarios leave a .part on disk, so the mutated value reaches `oxy_restart.plan`; in 48 of them the .part turns a VERIFIED-but-uncommitted file into a re-pull of that session. Also applied by hand: the 1028 tests that import pull_session stay green. Run empirically 2026-10-22.",
       "why": "`part_files` has one consumer, `oxy_restart.plan(rows, disk_listing, part_files)`, and `plan` reads only its KEYS: `part_files = part_files or {}` (a non-empty dict is truthy whatever its values), `for ident in part_files:` and `sorted(part_files)` for `stale_parts`. No value is read, so the .part's size and None give the same plan. `_pull_once` does not read the map again after the call. If `plan` ever reads a .part size (to adopt or to size a resume), this entry must be deleted."
     }
+  ],
+  "alerts.py": [
+    {
+      "brief": "claude/batt-alert-wrn — up to 5 alert email addresses (validate_email shape check)",
+      "class": "no-distinguishing-input",
+      "function": "validate_email",
+      "key": "- if not at or not local or \"@\" in local or \".\" not in domain.strip(\".\") or domain != domain.strip(\".\"): | + if not at or not local or \"@\" in local or \".\" not in domain.strip(None) or domain != domain.strip(\".\"):",
+      "probe": "Loaded the real alerts.py twice — unchanged, and with only the `\".\" not in domain.strip(\".\")` clause rewritten to `domain.strip(None)` — and compared validate_email's outcome (the returned string, or the AlertsError message) on 11,411,111 inputs: every string of length 0-7 over {a . @ SPACE U+00A0 U+0085 U+2003 U+3000 TAB U+001C} (11,111,111), plus 300,000 random strings (seed 20261025) over all 29 code points for which str.isspace() is true and `abcxyz.@-_+!,;<>\"` DEL U+0080 é, half of them shaped `n...@<domain>`. 0 of 11,411,111 differed. Run 2026-10-25.",
+      "why": "`str.strip(None)` removes only whitespace and never a '.', so a '.' is in `domain.strip()` exactly when it is in `domain`. The two calls can disagree only on a domain with a leading or trailing '.', and for every such domain the last clause `domain != domain.strip(\".\")` is True, so the whole `or` chain is True under both. For every other domain `domain.strip(\".\") == domain` and both clauses read `\".\" not in domain`. Neither call can raise on a str."
+    }
+  ],
+  "battery_history.py": [
+    {
+      "brief": "claude/batt-alert-wrn — the Batteries card's hourly low (read_link)",
+      "class": "no-distinguishing-input",
+      "function": "read_link",
+      "key": "- if hour not in per or pct < per[hour]: | + if hour not in per or pct <= per[hour]:",
+      "probe": "Loaded the real battery_history.py twice — unchanged and with `pct < per[hour]` -> `pct <= per[hour]` — and built 3,000 random capture trees (seeded RNG, 20261025): 1-3 night folders x 1-2 Tepna_*_LINK.csv files x 0-40 rows, stamps over 4 days at minute resolution so hours repeat, pct drawn from 0-100 with '50' weighted to force ties plus '', 'abc', '101', '-1', ' 7', devices H10-01/RING-01/''/x. Compared json.dumps(build(tree, days)) for days 1 and 7, and read_link's `lows` dict for every file (also checking every stored value is an int): 0 differed. Run 2026-10-25.",
+      "why": "The arms differ only when `pct == per[hour]`, and then the mutant's extra `per[hour] = pct` stores an int equal to the one already stored. Both values come from `_pct`, which returns only `int(cell)` (never a bool or float), so the stored value and everything `build` derives from it (`points`, `last`, `d24`) is unchanged. Ties are where a LINK file's repeated low reading lands, so the case is exercised, not hypothetical."
+    }
   ]
 }

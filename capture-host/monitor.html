@@ -194,6 +194,17 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
 
 /* ── Overview stream grid ──────────────────────────────────────────────── */
 .ov-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:var(--sp-5);}
+/* Batteries card: one row per device — name · level · 24 h change · 7-day line · last alert. */
+.al-emails{list-style:none;margin:.3rem 0 .5rem;padding:0;display:grid;gap:4px;font-size:12px;}
+.al-emails li{display:flex;gap:.5rem;align-items:center;}
+.bt-list{display:grid;gap:6px;}
+.bt-row{display:grid;grid-template-columns:minmax(9rem,1.4fr) auto 5.5rem minmax(8rem,2fr) minmax(7rem,1fr);
+  align-items:center;gap:var(--sp-3);font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums;}
+.bt-row .bt-name{color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bt-row .bt-d24.fall{color:var(--amber);}
+.bt-row svg{width:100%;height:26px;display:block;}
+.bt-row .bt-alert{color:var(--text3);}
+@media (max-width:640px){.bt-row{grid-template-columns:1fr auto auto;}.bt-row svg,.bt-row .bt-alert{grid-column:1/-1;}}
 .ov-stat{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:12px 14px;border-left:3px solid var(--border2);}
 .ov-stat .lab{font-size:11px;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:6px;}
 .ov-stat .val{font-size:22px;font-weight:700;line-height:1;font-family:ui-monospace,monospace;letter-spacing:-.02em;}
@@ -592,6 +603,15 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
            frame"), so that a configured-and-failing stream is visible rather than absent. That is the
            right behaviour and the wrong heading: "Live streams" over six IDLE cards reads as six live
            streams. Owner-reported 2026-09-06. -->
+      <!-- BATTERIES. The per-stream chip shows one number at a time, and a coin cell that falls 90 → 50
+           → 10 % over a week (the H10, 2026-10-13 → 10-23) looks fine on any given day. The 7-day line
+           shows the fall; the 20 % and 10 % push alerts (alert_poller) say it out loud. -->
+      <div class="section-title" id="battTitle" style="display:none">Batteries</div>
+      <div class="card" id="battCard" style="display:none;margin-bottom:var(--sp-5)">
+        <div class="bt-list" id="battList"></div>
+        <p class="hint">Lowest reading per hour over the last 7 days. A push alert goes out at 20 % and
+          at 10 %; the 10 % alert also emails the addresses set under Settings → Push alerts.</p>
+      </div>
       <div class="section-title" id="ovGridTitle">Streams</div>
       <div class="ov-grid" id="ovGrid"></div>
       <p class="hint" style="color:var(--text4);font-size:12px;margin-top:16px;line-height:1.5">
@@ -705,6 +725,16 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
         </div>
         <input id="alUrl" type="password" autocomplete="new-password" spellcheck="false"
                placeholder="https://ntfy.sh/your-topic" style="width:100%;max-width:38rem">
+        <p class="hint">Emails for the 10 % battery alert, up to 5. ntfy sends them, so this works only
+          with an ntfy topic above. The first address goes with the push. ntfy emails the others from the
+          topic name plus <code>-mail</code>, which no phone needs to subscribe to. A saved address shows
+          only its first letter and its domain.</p>
+        <ul class="al-emails" id="alEmails"><li class="hint">—</li></ul>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+          <input id="alEmail" type="email" autocomplete="off" spellcheck="false"
+                 placeholder="you@example.org" style="flex:1;min-width:0;max-width:30rem">
+          <button class="btn" id="alEmailAdd" onclick="addEmail(this)">Add email</button>
+        </div>
         <div style="display:flex;gap:.5rem;align-items:center;margin-top:.6rem;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="saveAlerts(this)">Save alerts</button>
           <button class="btn" onclick="testAlerts(this)">Send test alert</button>
@@ -2177,6 +2207,7 @@ async function loadAlerts(){
     const a = await api('/api/alerts');
     $('#alEnabled').checked = !!a.enabled;
     $('#alUrl').value = '';
+    alEmailState(a);
     $('#alState').innerHTML = a.configured
       ? `configured \u2192 <b>${esc(a.hint||'set')}</b>${a.enabled?'':' <span class="bad">(off)</span>'}`
       : '<span class="bad">no destination set \u2014 alerts go nowhere</span>';
@@ -2308,6 +2339,27 @@ async function daemonDeploy(btn){
   return daemonPost(btn, {verb:'restart'}, 'restarting\u2026');
 }
 
+function alEmailState(a){
+  $('#alEmail').value = '';
+  const L = a.emails || [];
+  $('#alEmails').innerHTML = L.length
+    ? L.map((h,i) => `<li><b>${esc(h)}</b><button class="btn" data-i="${i}" data-h="${esc(h)}"
+        onclick="removeEmail(this)">Remove</button></li>`).join('')
+    : '<li class="hint">No email set.</li>';
+  $('#alEmailAdd').disabled = L.length >= (a.emails_max || 5);
+}
+
+function addEmail(btn){
+  const em = $v('alEmail').trim();
+  if(!em){ $('#alMsg').textContent = 'Type an address first.'; return false; }
+  return postAlerts(btn, {email_add: em}, 'adding');
+}
+
+function removeEmail(btn){
+  // The hint travels with the index: a tab showing an old list gets a 409, not the wrong removal.
+  return postAlerts(btn, {email_remove: {index: +btn.dataset.i, hint: btn.dataset.h}}, 'removing');
+}
+
 async function postAlerts(btn, body, verb){
   btn.disabled = true; $('#alMsg').textContent = verb + '\u2026';
   try{
@@ -2315,6 +2367,7 @@ async function postAlerts(btn, body, verb){
                                        body:JSON.stringify(body)});
     if(!r.ok){ $('#alMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return false; }
     $('#alUrl').value = '';
+    alEmailState(r);
     $('#alEnabled').checked = !!r.enabled;
     $('#alState').innerHTML = r.configured
       ? `configured \u2192 <b>${esc(r.hint||'set')}</b>${r.enabled?'':' <span class="bad">(off)</span>'}`
@@ -2334,7 +2387,7 @@ function saveAlerts(btn){
 
 function clearAlerts(btn){
   // The explicit clear. Sent as "" rather than by omission, which is the keep case.
-  return postAlerts(btn, {webhook_url:'', enabled:false}, 'clearing');
+  return postAlerts(btn, {webhook_url:'', emails:[], enabled:false}, 'clearing');
 }
 
 async function testAlerts(btn){
@@ -2961,6 +3014,7 @@ async function loadState(){
   STATE = s;
   STREAMS = s.streams || [];
   DEVICES = s.devices || [];
+  renderBatt();                                    // live level each poll; history refreshes every 5 min
   ADAPTER_MAC = s.adapter || '';
   $('#adapterInfo').textContent = s.adapter ? ('adapter '+s.adapter) : 'adapter —';
   const hci = $('#hostClockInfo');
@@ -4293,6 +4347,46 @@ const TL_STATE = {
   idle:     {c:'#334155', h:0.22, t:'not recording'},
 };
 
+// ── BATTERIES CARD ─────────────────────────────────────────────────────────────────────────────────
+// Live level from /api/state (DEVICES), history from /api/battery (BH). A device with neither a live
+// level nor any history is left out: no reading is not 0 %.
+let BH = null;
+async function loadBattery(){
+  try{ BH = await api('/api/battery'); }catch(_){ /* a display aid must never break the page */ }
+  renderBatt();
+}
+function battSpark(pts){
+  if(!pts || pts.length < 2) return '<svg viewBox="0 0 100 26" aria-hidden="true"></svg>';
+  const t0 = pts[0][0], span = Math.max(1, pts[pts.length-1][0] - t0);
+  const xy = pts.map(([t,p]) => `${(100*(t-t0)/span).toFixed(1)},${(24 - 22*p/100).toFixed(1)}`).join(' ');
+  const last = pts[pts.length-1][1];
+  return `<svg viewBox="0 0 100 26" preserveAspectRatio="none" role="img" aria-label="Battery, last 7 days">
+    <line x1="0" x2="100" y1="${24-22*0.2}" y2="${24-22*0.2}" stroke="var(--border2)" stroke-dasharray="2 2" stroke-width=".6"/>
+    <polyline class="batt ${battClass(last)}" points="${xy}" fill="none" stroke="currentColor" stroke-width="1.4"
+      vector-effect="non-scaling-stroke" style="border:0;padding:0;background:none"/></svg>`;
+}
+function renderBatt(){
+  const card = $('#battCard'), title = $('#battTitle'), list = $('#battList');
+  if(!card || !list) return;
+  const hist = (BH && BH.devices) || {};
+  const names = [...new Set([...DEVICES.filter(d=>d.battery!=null).map(d=>d.name), ...Object.keys(hist)])];
+  const rows = names.map(n=>{
+    const dev = DEVICES.find(d=>d.name===n), h = hist[n];
+    const now = dev && dev.battery!=null ? dev.battery : (h ? h.last : null);
+    const d24 = h ? h.d24 : null;
+    const al = dev && dev.battery_alert;
+    return `<div class="bt-row">
+      <span class="bt-name" title="${esc(n)}">${esc(n)}</span>
+      <span><span class="ev ev-measured" title="Measured — the device's own battery reading"></span>${battChip(now)}</span>
+      <span class="bt-d24${d24!=null&&d24<0?' fall':''}">${d24==null?'24 h —':`<span class="ev ev-measured" title="Measured"></span>${d24>0?'+':''}${d24} % / 24 h`}</span>
+      ${battSpark(h && h.points)}
+      <span class="bt-alert">${al?`alerted ${esc(String(al.pct))} % · ${esc(al.at)}`:''}</span>
+    </div>`;
+  });
+  list.innerHTML = rows.join('');
+  card.style.display = title.style.display = rows.length ? '' : 'none';
+}
+
 async function loadTimeline(){
   if(_tlBusy) return; _tlBusy = true;
   try{ TL = await api('/api/timeline?buckets=240'); drawTimelines(); }
@@ -4396,6 +4490,7 @@ function ovStart(){
   if(!OV._rate){ OV._rate = setInterval(ovRates, 1000); }
   loadTimeline();                                  // history is cheap to fetch and cached server-side
   if(!OV._tl){ OV._tl = setInterval(loadTimeline, 60000); }
+  if(!OV._bh){ loadBattery(); OV._bh = setInterval(loadBattery, 300000); }
   if(!OV._val){ OV._val = setInterval(ovValues, 250); }
 }
 function ovStop(){

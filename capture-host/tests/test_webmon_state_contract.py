@@ -187,6 +187,9 @@ DEVICE_KEYS = {
     # The restart-storm hold's ONLY witness outside a log line — a hold that fires overnight is
     # otherwise reconstructable only by grepping the journal for a restart marker.
     "oxy_storm",
+    # The last low-battery push (`alert_poller`): {pct, threshold, at}, null until one went out. The
+    # Batteries card shows it so an operator can tell a cell that was reported from one that was not.
+    "battery_alert",
 }
 
 
