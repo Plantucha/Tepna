@@ -302,6 +302,10 @@ function main() {
   const scored = rows.filter((r) => !r.skip).length;
   console.log(`\npopulation: ${popBefore.n} night(s) offered under ${ROOT} · ${scored} scored · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`);
   console.log(`offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  /* §🧾 NAMES THE OBJECT AS THE API and the prose as the explanation. This run published the
+     sentence and kept the object to itself, so no reader could take the population machine-readably
+     — the same defect the reference validator carried. */
+  console.log('POPULATION ' + JSON.stringify(population));
 }
 
 /* One synthetic pair of snapshots, so the shape `verify:verdict-adoption` parses needs no corpus.

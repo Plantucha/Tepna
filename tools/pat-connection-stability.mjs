@@ -338,6 +338,10 @@ function main() {
   } else console.log('\nno connection scored — nothing measured, and that is not a pass.');
   console.log(`\npopulation: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}` + (population.reason ? `\n  ${population.reason}` : ''));
   console.log(`offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  /* §🧾 NAMES THE OBJECT AS THE API and the prose as the explanation. This run published the
+     sentence and kept the object to itself, so no reader could take the population machine-readably
+     — the same defect the reference validator carried. */
+  console.log('POPULATION ' + JSON.stringify(population));
 }
 
 /* The corpus-free sample the adoption gate runs: the shape this tool reports when the population
