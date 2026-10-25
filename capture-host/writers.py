@@ -2571,6 +2571,15 @@ def append_clock_sync_event(
         synced          — a clock write reached the device (startup ladder or reconnect)
         deferred-absent — the sync was skipped because the device is not reachable; the reconnect
                           loop re-triggers it, so this defers rather than loses
+        deferred-after-pause — the attempt took the device, failed, and the ladder declined to retry
+                          after paying a pause. Like `deferred-absent`, it wrote nothing, and the
+                          emitter in `capture.py` says so in as many words. THIS WORD WENT
+                          UNDOCUMENTED FOR 968 CORPUS ROWS: measured 2026-10-25, it is the third most
+                          common of 19,455 rows across 108 device-nights, and the list below it in
+                          `solid_night_inputs._A5_NON_RECORD_EVENTS` had never heard of it either, so
+                          the §A5 tripwire read 968 non-writes as records of a clock write. A
+                          vocabulary this docstring does not police is a vocabulary its consumers
+                          cannot enumerate — add the word HERE when an emitter invents one.
         gave-up-busy    — the 12-attempt ladder exhausted on transient busy states
         gave-up-budget  — the ladder exceeded its wall-clock lock budget
         sync-failed     — a non-transient failure (the give-up the operator should read first)

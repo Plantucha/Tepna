@@ -2131,24 +2131,42 @@ def test_the_record_set_reads_CLOCKSYNC_from_the_NEXT_date_too(tmp_path):
     assert len(recs) == 1 and "CLOCKSYNC.csv" in how
 
 
-def test_deferred_absent_is_the_one_event_word_that_is_NOT_a_record(tmp_path):
-    """It means the device was not reachable and NOTHING was written to its clock — 153 of 2026-09-28's
-    rows. Every other word, including the failures, records that the daemon was writing to that clock."""
+def test_EVERY_non_record_event_word_is_dropped_and_the_SET_is_pre_stated(tmp_path):
+    """One case per member of `_A5_NON_RECORD_EVENTS`, and a case for the set itself.
+
+    TUPLE MEMBERSHIP IS NOT A BRANCH, so the 100 % branch floor never asked which words the list holds.
+    Until 2026-10-25 only `deferred-absent` was named here, and `deferred-after-pause` — 968 of the
+    corpus's 19,455 CLOCKSYNC rows, the third most common word — sat outside the list AND outside
+    `writers.append_clock_sync_event`'s own vocabulary docstring. A word the daemon emits and no list
+    knows is read as a record of a clock write, which is how a non-write came to excuse a step.
+
+    The assertion earned itself on the rebase: `released-to-set` arrived on main in #3916 while this
+    branch was in flight, and the equality leg named the new member rather than passing over it.
+
+    The equality assertion is the §🧾 pre-stated set: adding a word without a case below reds here."""
+    assert si._A5_NON_RECORD_EVENTS == (
+        "deferred-absent",
+        "deferred-after-pause",
+        "unreadable",
+        "start-without-sync",
+        "released-to-set",
+    ), "the set is pre-stated; a new non-record word owes a case in the loop below"
     night = tmp_path / "2026-09-20"
     night.mkdir()
     (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": []}))
-    _clocksync(
-        tmp_path,
-        [
-            "2026-09-20T23:10:00;Polar H10 02849638;a;deferred-absent;;attempt 1",
-            "2026-09-20T23:20:00;Polar H10 02849638;a;resync-failed;;hard",
-            "2026-09-20T23:30:00;Polar Sense 0C301E3F;a;resynced;;other device",
-        ],
-    )
-    recs, _how = si.clock_records(
-        str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
-    )
-    assert len(recs) == 1, "the failure is a record, the deferral is not, the other device is not ours"
+    for word in si._A5_NON_RECORD_EVENTS:
+        _clocksync(
+            tmp_path,
+            [
+                f"2026-09-20T23:10:00;Polar H10 02849638;a;{word};;attempt 1",
+                "2026-09-20T23:20:00;Polar H10 02849638;a;resync-failed;;hard",
+                "2026-09-20T23:30:00;Polar Sense 0C301E3F;a;resynced;;other device",
+            ],
+        )
+        recs, _how = si.clock_records(
+            str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
+        )
+        assert len(recs) == 1, f"`{word}` wrote nothing, the failure IS a record, the other device is not ours"
 
 
 def test_a_MISSING_record_source_returns_None_rather_than_a_shorter_record_set(tmp_path):
