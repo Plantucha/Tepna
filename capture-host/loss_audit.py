@@ -245,6 +245,45 @@ TIMESYNC_TAIL_S = 60.0  # CHOSEN: 2026-09-24's pauses ran to 48 s after the requ
 LOOP_STALL = "daemon:event-loop stall"
 LOOP_STALL_NEEDLE = "event loop stalled"
 _LOOP_STALL_MS = re.compile(r"event loop stalled (\d+) ms")
+
+# 🔴 THE BIN IS A SAMPLE, AND THE ARTIFACT NOW SAYS SO. The caveat above lived here as a comment, so a
+# reader of `LOSS-AUDIT.json` saw `daemon:event-loop stall` events with nothing to tell them what the
+# set covers — and an `unattributed` gap may sit beside a stall the journal never printed.
+# ⚠️ AND THE SUPPRESSION IS NOT DERIVABLE FROM THE JOURNAL, though the warning line makes it look free:
+# the line states `stalls so far: N`, but `capture._LOOP_LAG_STALL_MS` COUNTS a stall at 100 ms while
+# `capture._LOOP_LAG_WARN_MS` LOGS one at 1000 ms. Those are two populations, so N minus the lines seen
+# mixes a stall that never logs with one the limiter dropped (§🧾). `suppressed` is therefore `null`
+# with its reason named (§∅) and never a derived count.
+# ⚠️ THE RECORD DOES EXIST, and the reason names where: the daemon's own `loop` status block carries the
+# live counter. Measured on vigil 2026-10-13 over one 90 s loss poll — the journal printed ONE line
+# reading `stalls so far: 5`, while `/api/state`'s `loop` block reached `stalls 11` in the same window.
+# This file reads the journal, so it quotes the pointer rather than a count it cannot take.
+LOOP_STALL_LOGGED_MS = 1000.0  # mirrors capture._LOOP_LAG_WARN_MS — the drift guard is in the tests
+LOOP_STALL_COUNTED_MS = 100.0  # mirrors capture._LOOP_LAG_STALL_MS
+LOOP_STALL_WARN_EVERY_S = 300.0  # mirrors capture._LOOP_LAG_WARN_EVERY_S
+LOOP_STALL_SUPPRESSED_REASON = (
+    "two populations: the daemon counts a stall at %.0f ms and logs one at %.0f ms, capped at one line "
+    "per %.0f s, so the journal cannot separate a suppressed stall from one that never logs; the live "
+    "count is in the daemon's own loop status block, not here"
+) % (LOOP_STALL_COUNTED_MS, LOOP_STALL_LOGGED_MS, LOOP_STALL_WARN_EVERY_S)
+
+
+def stall_sample() -> dict:
+    """What the `daemon:event-loop stall` bin covers, published beside the gaps it attributes.
+
+    Pre-stated and constant: these are the daemon's own thresholds, not a reading of the night. So the
+    object describes the SAMPLE and never counts it — `suppressed` stays `null` for the reason the
+    comment above measures."""
+    return {
+        "cause": LOOP_STALL,
+        "logged_at_or_over_ms": LOOP_STALL_LOGGED_MS,
+        "counted_at_or_over_ms": LOOP_STALL_COUNTED_MS,
+        "at_most_one_line_per_period_s": LOOP_STALL_WARN_EVERY_S,
+        "suppressed": None,
+        "suppressed_reason": LOOP_STALL_SUPPRESSED_REASON,
+    }
+
+
 _ACCESS_START = re.compile(r"\[(\d{2})/([A-Z][a-z]{2})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) [+-]\d{4}\]")
 _MONTHS = {
     m: i + 1 for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
@@ -1557,6 +1596,9 @@ def audit_night(
     )
     # The journal's SHAPE over the same window. `None` when it could not be read — see `journal_shape`.
     out["journal_shape"] = journal_shape_of(since, until)
+    # WHAT THE STALL BIN COVERS, beside the causes it assigns. Constant and pre-stated, so it is written
+    # on every path — a reader of this file learns the sample without holding the source open.
+    out["stall_sample"] = stall_sample()
     # THE PROBE DECLARATION'S JOURNAL HALF (SOLID-NIGHT-COWEAR-AND-PROBE §2), written beside the night
     # for the reason `clock_events` above is: the verdict side has no journal and journald rotates.
     # `None` (unread) stays distinct from `[]` (read, no probe armed) — only the second may let a night
@@ -1798,6 +1840,9 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
         # On the NOT_RUN / NOT_APPLICABLE paths above `result` is None by contract, so the shape's
         # always-written home is `LOSS-AUDIT.json` — which is the artifact the row asked for.
         "journal_shape": audit.get("journal_shape"),
+        # THE STALL BIN'S COVERAGE, republished here for the reason `journal_shape` is: a consumer of the
+        # verdict reads `by_cause` and must know that this one cause is a 1 s, one-per-300 s sample.
+        "stall_sample": audit.get("stall_sample"),
     }
     if not devs:
         return _verdict.make(
