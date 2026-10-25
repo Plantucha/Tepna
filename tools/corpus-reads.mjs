@@ -709,9 +709,7 @@ export const UNWIRED_BACKLOG = {
      the scan reads them as `reports` and this list must not name them (row
      2026-10-21-forty-one-corpus-enumerators-report-no-population). */
   'closure-tol-hac.mjs': 1,
-  'motion-rho-vs-minrho.mjs': 2,
   'pb-fusion-blast.mjs': 1,
-  'tch-minrho-corpus.mjs': 2,
   'beat-comb-analysis.mjs': 1,
   'beat-correspondence.mjs': 1,
   'beat-error-recovery.mjs': 2,
@@ -721,7 +719,6 @@ export const UNWIRED_BACKLOG = {
   'cpap-corpus.mjs': 2,
   'cpap-oxy-couple.mjs': 1,
   'cpap-sa2-agreement.mjs': 1,
-  'cvhr-edge-widen.mjs': 3,
   'cvhr-fold-rescore.mjs': 1,
   'deep-desat-falsifier.mjs': 1,
   'deep-flow-join.mjs': 2,
@@ -762,10 +759,8 @@ export const UNWIRED_BACKLOG = {
   'resp-cardiac-suppression-e8.mjs': 1,
   'seqnet-eval.mjs': 1,
   'stage-lab.mjs': 12,
-  'stitch-31d-run.mjs': 3,
   'stuck-run-lengths.mjs': 1,
   'tch-pooled-hat.mjs': 1,
-  'trio-batch.mjs': 7,
   'wearable-sync.mjs': 1
 };
 

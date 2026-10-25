@@ -89,6 +89,7 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2ring-dat-timefit.mjs';
 import { buildRecord, appendFold, LEDGER_NAME } from './fold-provenance.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);
@@ -1688,6 +1689,22 @@ const bump = (key) => {
    `staging/` or `backup-2026-06/` carries no leading dot and is caught by the de-dup rule above, which
    is the actual guarantee. A SILENT skip would be the same defect one directory over, so every skipped
    directory is printed — an unprinted one would have hidden exactly the five dirs that caused this. */
+const popBefore = snapshotNights(SRC);
+
+/* THE POPULATION THE FOLD READ — the source root, not the output. `OUT` grows by design here, so a
+   verdict over it would red on a healthy run; `SRC` must hold still, and a capture writing a new night
+   into it mid-fold is the movement worth refusing. The status labels MOVEMENT, never coverage.
+   EVERY EXIT THAT PLANNED A POPULATION REPORTS IT: `--dry-run` returns before the batch summary, so a
+   plan printed its night list and said nothing about the population it planned over. */
+const publishPopulation = (planned) => {
+  const population = populationVerdict(popBefore, snapshotNights(SRC), { tool: 'tools/trio-batch.mjs', evidence: ['tools/trio-batch.mjs'] });
+  console.log(
+    `population    : ${popBefore.n} night(s) under the source root \u00b7 ${planned} planned \u00b7 movement ${population.status}` + (population.reason ? ` \u2014 ${population.reason}` : '')
+  );
+  const populationRule = ruleLine(population);
+  if (populationRule) console.log(populationRule);
+  console.log('POPULATION ' + JSON.stringify(population));
+};
 const skippedDirs = new Set();
 for (const rel of readdirSync(SRC, { recursive: true })) {
   const name = basename(rel);
@@ -2248,6 +2265,7 @@ if (DRY) {
       if (list.length > 3) console.log(`            … +${list.length - 3} more`);
     }
   }
+  publishPopulation(work.length);
   console.log('\n--dry-run: nothing computed, nothing written.');
   process.exit(0);
 }
@@ -2461,7 +2479,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
 
   const secs = (Date.now() - t0) / 1000;
   const complete = readdirSync(OUT, { withFileTypes: true }).filter((d) => d.isDirectory() && countTrioExports(join(OUT, d.name)) === TRIO_NODES.length).length;
-  console.log(`\n${'─'.repeat(64)}`);
+  publishPopulation(work.length);
   console.log(`nights        : ${work.length} planned · ${complete} complete trio(s) on disk${failed ? ` · ${failed} child failure(s)` : ''}`);
   console.log(`wall-clock    : ${secs.toFixed(0)}s  (${(secs / Math.max(1, work.length)).toFixed(0)}s/night at ${plan.jobs}×${splitNodes ? `, nodes split ${TRIO_NODES.length}-way` : ''})`);
   console.log(foldLedgerLine(writeFoldLedger(trio, { dry: DRY })));
@@ -3667,6 +3685,7 @@ if (noMotion)
       `                  ecgdex-dsp.js epoch push; PpgDex/OxyDex do. The motion-ρ leg of\n` +
       `                  TCH FU-III §1 needs that DSP change, not more data.)`
   );
+if (!CHILD) publishPopulation(work.length);
 if (!CHILD) console.log(foldLedgerLine(writeFoldLedger(trio, { dry: DRY })));
 if (!CHILD) console.log(foldVerdictLine(writeFoldVerdict(LIMIT ? trio.slice(0, LIMIT) : trio, gateRun)));
 console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);

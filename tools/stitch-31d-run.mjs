@@ -19,6 +19,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from '
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -69,10 +70,12 @@ function parseArgs(argv) {
 
 // Quiet-hours guard: refuse when capture is active (recent writes in captures/).
 // A running capture means the solid-night set may change mid-compute.
-function captureActive(capturesDir) {
+/* ONE WALK, NOT TWO. The guard listed the captures root by hand while the population verdict
+   snapshotted the same root a few lines later, so the two could disagree about which nights exist and
+   the published population would describe neither. The caller hands its snapshot in. */
+function captureActive(capturesDir, nights) {
   const cutoff = Date.now() - QUIET_SEC * 1000;
   try {
-    const nights = readdirSync(capturesDir).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
     // Check only the newest few nights; older ones never change.
     for (const n of nights.slice(-3)) {
       const nd = join(capturesDir, n);
@@ -459,7 +462,8 @@ function main() {
   const manifestPath = join(toolDir, 'MANIFEST.json');
   const sidecarsPath = join(toolDir, 'SIDECARS.json');
 
-  if (!args.force && captureActive(args.capturesDir)) {
+  const popBefore = snapshotNights(args.capturesDir);
+  if (!args.force && captureActive(args.capturesDir, popBefore.nights)) {
     console.error('capture is active (recent writes in captures/); refusing. Use --force to override.');
     process.exit(3);
   }
@@ -479,6 +483,21 @@ function main() {
     // model (compute per night where co-location holds, aggregate across).
     result = { tool: args.tool, at: new Date().toISOString(), error: 'not yet implemented (phase 3)' };
   }
+
+  /* THE NIGHT POPULATION UNDER THE CAPTURES ROOT, beside the manifest's own count. The scored set is
+     the manifest's nights; the captures tree is a different population, and the run published its
+     aggregate without ever saying how the two compared. The status labels MOVEMENT across the run. */
+  const population = populationVerdict(popBefore, snapshotNights(args.capturesDir), {
+    tool: 'tools/stitch-31d-run.mjs',
+    evidence: ['tools/stitch-31d-run.mjs']
+  });
+  console.log(
+    `population: ${popBefore.n} night(s) under the captures root \u00b7 ${(manifest.nights || []).length} in the manifest \u00b7 ${result.n_nights ?? 0} aggregated \u00b7 movement ${population.status}` +
+      (population.reason ? ` \u2014 ${population.reason}` : '')
+  );
+  const populationRule = ruleLine(population);
+  if (populationRule) console.log(populationRule);
+  console.log('POPULATION ' + JSON.stringify(population));
 
   const outPath = join(toolDir, 'RESULT.json');
   writeFileSync(outPath, JSON.stringify(result, null, 2) + '\n');
