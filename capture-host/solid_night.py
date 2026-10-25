@@ -479,6 +479,22 @@ def code_moved(night_dir: str, running: str | None, run=None) -> str | None:
     return CODE_MOVED.format(old=stored, new=running) if _moved[key] else None
 
 
+def newest_written(captures_dir: str, nights: list[str]) -> tuple[str, dict] | None:
+    """The NEWEST night that has a written verdict beside it, as `(night, verdict)`.
+
+    `history` above reads every night's verdict for the run; this reads only the last one that exists,
+    for a caller that wants the latest STATEMENT rather than the series. Nights are walked newest-first
+    and the first file that parses wins, so a gap in the middle of the window costs one `read_json`.
+
+    NONE IS "NO NIGHT HAS BEEN JUDGED HERE", never a fabricated verdict — a box whose captures tree
+    holds no verdict at all has nothing to say about a night, and saying so is the caller's job."""
+    for night in sorted(nights, reverse=True):
+        obj = _inputs.read_json(os.path.join(captures_dir, night, VERDICT_NAME))
+        if obj is not None:
+            return night, obj
+    return None
+
+
 def write_night(
     night_dir: str,
     devices: list,
