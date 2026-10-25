@@ -1,6 +1,6 @@
 {
  "schema": "tepna.verdict-adoption/1",
- "enumeratedWith": "git grep -lE <WORDS> -- tools/*.mjs capture-host/*.py (tools non-recursive)",
+ "enumeratedWith": "publication over comment-blanked source \u2014 a WORDS token, a quoted tepna.verdict/1 literal, an import of verdict.js (or the python verdict module), or a call to a verdict builder imported from a module that does -- tools/*.mjs capture-host/*.py tests/*.mjs (tools and tests non-recursive)",
  "contributions": {
   "enumeratedFrom": "briefs/VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md \u00a72",
   "figures": {
@@ -56,11 +56,6 @@
    },
    "note": "the adapter-hci night verdict (residue 2026-09-11-dead-adapter-goes-unnoticed, REPORT half): the watchdog probes every enumerated radio each poll (capture._adapter_responds, the HCI round trip) and appends a row per radio to <root>/ADAPTERHCI.csv; nightqc writes ADAPTERHCI-VERDICT.json beside the other two from the rows in the night's session window \u2014 pre-stated rule: longest run of unanswered polls >= 2 FAIL \u00b7 an isolated miss SHORTFALL \u00b7 every determinable probe answered PASS \u00b7 all undeterminable UNKNOWN \u00b7 no rows NOT_RUN; population = radios, all-None radios excluded; nothing here resets a radio"
   },
-  "capture-host/as11_link_guard.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "two occurrences, both prose in the module header: \"FAIL FAST, NEVER QUEUE\" (the offline_lock design rule this mirrors) and \"CONSISTENT with an overlap\" (what the 2026-10-05 journal does and does not establish). The module decides nothing and prints no status - it claims a BLE link and raises LinkBusy."
-  },
   "capture-host/ble_sniff.py": {
    "bin": "decides",
    "status": "adopted",
@@ -89,11 +84,6 @@
     ]
    },
    "note": "check.sh's runner-level object (VERDICT-CONTRACT \u00a73d, #2672's advisory token one level up): population = the four blocking children ruff \u00b7 shellcheck \u00b7 pytest \u00b7 unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS \u00b7 issues code FAIL \u00b7 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN \u00b7 abnormal codes and pytest 5 UNKNOWN); unwired is OURS and ADOPTED (find_unwired emits its own object, read by checkverdict.ADOPTED_OURS; a missing, invalid, foreign or self-contradicting object is UNKNOWN by provenance, so the object reads PASS on a green run and never green on a silent child); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
-  },
-  "capture-host/clock_offset.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "one occurrence, in the prose of `CLOCK_IMPLAUSIBLE_S`'s note explaining why a 7.74-year offset published as a green is a fabricated one (\u00a7\u2205, \u00a7\ud83e\uddfe). The module DECIDES by refusing: `estimate` returns {ok: False, reason: 'implausible-offset'|'implausible-skew'|'too-few'|'no-span'} in its own long-standing shape, and that shape is consumed and republished by `nightqc.arrival_quality`, which is the enumerated producer for this path. No verdict word is emitted here."
   },
   "capture-host/coverage_scope.py": {
    "bin": "word-only",
@@ -183,11 +173,6 @@
    },
    "note": "wave 2: consistency_verdict() over self_consistency()'s two pre-stated bands (|mean SpO2 - trailer avg| <= 1, |n - total_seconds| <= max(2, 2 %)) \u2014 criterion = bands violated <= 0 with each band and value in result \u00b7 PASS \u00b7 FAIL (the notes are the reason) \u00b7 NOT_RUN no valid trailer; population = samples, None SpO2 excluded; the sample is the synthetic .dat"
   },
-  "capture-host/polar_psftp.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the ONE match is the word VERDICT in a \u00a7\u2205 comment above `manifest[\"ok\"]` (\"A POSITIVE VERDICT IS PUBLISHED ONLY OVER ANSWERED READS\", #2955) \u2014 prose, not output. The module emits no verdict word at runtime: `ok` is a bool in the returned manifest, and its only logged line names short reads. Checkable: `git grep -nE '\\\\b(PASS|FAIL|VERDICT|UNDERPOWERED|SHORTFALL|CONSISTENT|INCONCLUSIVE)\\\\b' -- capture-host/polar_psftp.py` returns that comment and nothing else."
-  },
   "capture-host/probe_oxyii_0x03.py": {
    "bin": "decides",
    "status": "adopted",
@@ -200,11 +185,6 @@
    },
    "note": "wave 2: verdict_object() over summarise() \u2014 the 2 % band the prose has always applied: PASS the unsaturated rate is within 2 % of exactly one of 112.9 / 125.0 Hz (which one is the result) \u00b7 FAIL neither (a third answer) \u00b7 UNDERPOWERED no unsaturated pair (0 of N, minimum 1) \u00b7 UNKNOWN no records (empty reply and wrong argument indistinguishable); rides the --json log at the top level; bleak import guarded so the sample runs without a radio stack"
   },
-  "capture-host/probe_polar_usb.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
   "capture-host/probe_rtc_read.py": {
    "bin": "decides",
    "status": "adopted",
@@ -216,16 +196,6 @@
     ]
    },
    "note": "wave 2: classify() per opcode from clock_candidates() (the CLOCK CANDIDATE band diff() prints: a LE window advanced by the gap, +-max(2 s, 20 %)) then verdict_object() \u2014 PASS an opcode carries a candidate \u00b7 FAIL every readable reply byte-identical (the prose VERDICT) \u00b7 UNKNOWN bytes moved but no window tracked the gap (the prose said nothing there; the object says so) \u00b7 NOT_RUN nothing readable on both sides; population = opcodes, unreadable excluded; bleak import guarded"
-  },
-  "capture-host/probe_verity_survey.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "capture-host/pull_session.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
   },
   "capture-host/qc_child.py": {
    "bin": "decides",
@@ -297,10 +267,6 @@
    "bin": "test",
    "status": "exempt"
   },
-  "capture-host/tests/test_acq_evidence_cpap.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
   "capture-host/tests/test_adapter_hci.py": {
    "bin": "test",
    "status": "exempt"
@@ -330,10 +296,6 @@
    "status": "exempt"
   },
   "capture-host/tests/test_capture.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_capture_runners.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -424,95 +386,11 @@
    "bin": "test",
    "status": "exempt"
   },
-  "capture-host/tests/test_offline_lock.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
   "capture-host/tests/test_parse_dat.py": {
    "bin": "test",
    "status": "exempt"
   },
-  "capture-host/tests/test_pmd_arrival_writer.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_polar_pmd.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_polar_psftp_client.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_ppg_grid_check.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
   "capture-host/tests/test_probe_oxyii_0x03.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_probe_read_char.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_psftp_protocol.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_contract.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_p3.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_qwen.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_qwen2.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_qwen3.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_r1.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_r2.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_r3.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_r4.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_r5.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_s1.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_s2.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_s4.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_survivors_s5.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -582,18 +460,6 @@
    "status": "exempt",
    "since": "2026-10-17"
   },
-  "capture-host/tests/test_storage_targets.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_tepna_sniff_sh.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_timeline.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
   "capture-host/tests/test_verdict.py": {
    "bin": "test",
    "status": "exempt"
@@ -611,14 +477,6 @@
    "status": "exempt"
   },
   "capture-host/tests/test_webmon_state_contract.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_writers.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_writers_sidecars.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -686,11 +544,6 @@
      "--verdict-sample"
     ]
    }
-  },
-  "capture-host/tools/mutate_pure.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
   },
   "capture-host/tools/scan_coexistence.py": {
    "bin": "decides",
@@ -775,6 +628,11 @@
     ]
    },
    "note": "the scoped runner as ONE object (\u00a73d): children = the two lanes, each read from its OWN object under --json (run-tests' under `verdict`, verify-manifest's whole stdout); a lane with no valid object is exit-code only (0 \u21d2 UNKNOWN by provenance, \u2260 0 \u21d2 FAIL). Filtered BY CONSTRUCTION \u2014 the dex filter is the declared exclusion and the object always carries the consumer rule: check-dex is never the gate. Measured: `oxydex --json` \u21d2 PASS over {2, 3, 1} filtered, lanes {81/641} and {6/14}. The exit code stays (0 iff both lanes exited 0)."
+  },
+  "tests/fold-provenance-tests.mjs": {
+   "bin": "test",
+   "status": "exempt",
+   "note": "a test file: it plants `{ schema: \"tepna.verdict/1\" }` into a fold ledger to assert that the appender carries an object through, so it is a READER of the contract, not a producer. It entered the population on 2026-10-25 with the publication rule, which counts the quoted schema literal."
   },
   "tests/run-tests.mjs": {
    "bin": "decides",
@@ -1048,11 +906,6 @@
    },
    "note": "the analysis-tool ARTIFACT gate (residue 2026-09-28-generator-compared-to-itself-examines-no-artifact): `--check` re-bundles and byte-compares, which decides only that this generator reproduces the tree \u2014 the splice that shipped four pages with an unclosed `var __WSRC` string literal passed exactly that test, because a re-bundle of the same source reproduces the same broken bytes. `--json` now prints ONE tepna.verdict/1 over three pre-stated legs read off the artifact itself: no inlined block carries the page's own first 200 bytes (by the page's own signature, never value membership \u2014 a legitimate '<!DOCTYPE html>' literal flags 6 blocks in this tree), every block whose data-inline-src names a file sits inside a 0.5-1.02 size ratio of that file (measured 0.9999-1.0013 over 69 sourced blocks), and the injected worker map parses as JSON with a non-empty entry for every __mkWorker name on the page. Population = pages; a page missing from the tree is excluded. The negative control is in --selftest, and the writer now refuses to write a page that fails its own audit"
   },
-  "tools/build-docs.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
   "tools/buzz-fiducial-correlate.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1069,11 +922,6 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/check-stranded.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
   },
   "tools/codex-export.mjs": {
    "bin": "decides",
@@ -1178,11 +1026,6 @@
    },
    "note": "the cost of widening the CVHR hole exclusion from the hole's own seconds to the DECISION's support window, which reaches 37 s back and 72 s forward. Pre-stated criterion excluded_events_per_hole_mean <= 2 events, the bound the artefact itself carries (a planted hole adds at most 2 events, tools/cvhr-gap-edge.mjs), so a widen removing more real events per hole than that cannot pay for itself. Phase 1 is planted and phase 2 reads every optical stream of the corpus; `--verdict-sample` is what this gate reads, because both phases together outlast its timeout and a real run needs a corpus. The recomputation refuses a night whose event count does not reproduce the node's own, so `population.excluded` is part of the result and not an aside."
   },
-  "tools/cvhr-fold-rescore.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a MEASUREMENT re-score, not a gate: it recomputes the cross-node CVHR rho on the FOLD's night selection (every concurrent fragment, not the largest file per stream) and reports rho with n, proposing no band and moving no threshold \u2014 the same exemption its two siblings carry (gap-s-sweep.mjs, treatment-response-recut.mjs). Its verdict words are the selftest printer's and the REFUSAL it prints when the 23-night control does not reproduce the committed merged view; both are about whether the instrument may run, never about the number."
-  },
   "tools/cvhr-gap-edge.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1271,11 +1114,6 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/doc-search.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "concedes emission: since 2026-10-11 doc-search prints the board's three-line summary after every search, so a verdict word can appear in its output - quoted from board.json, which quotes the release-due unit. doc-search decides nothing and emits no tepna.verdict/1; the footer is read-only and fail-silent."
   },
   "tools/docs-constants.mjs": {
    "bin": "decides",
@@ -1503,16 +1341,6 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
-  "tools/land-pr.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a QUEUE decision (update \u00b7 wait \u00b7 merge \u00b7 stop) about a PR's state, in its own vocabulary \u2014 not a gate over data; its 'VERDICT' is the gh checks exit it reads, i.e. it is a CONSUMER of CI's verdicts, and the contract's status enum does not describe queue actions"
-  },
-  "tools/make-synthetic-inputs.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
   "tools/measurement-emitter-perf-oxydex.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1558,16 +1386,6 @@
     ]
    },
    "note": "the JS diff gate (pair of capture-host/tools/mutate_diff.py): diffVerdict() decides ONE tepna.verdict/1 at every --diff exit \u2014 PASS all killed \u00b7 FAIL survivors \u00b7 UNKNOWN canary survived or mutants never ran (never a kill) \u00b7 NOT_APPLICABLE no mutable source / no mutant on the changed lines (was \"all 0 killed\") \u00b7 NOT_RUN diff unreadable or no file measured; exit codes unchanged"
-  },
-  "tools/mutation-adoption-delta.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/mutation-ai-probe.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
   },
   "tools/mutation-crawl.mjs": {
    "bin": "word-only",
@@ -1619,11 +1437,6 @@
     ]
    },
    "note": "the survivor ledger's two-sided open-count ratchet (brief MUTATION-SURVIVOR-LEDGER-2026-09-28; residue 2026-09-24-mutation-survivors-outlive-the-pr-that-reported-them) \u2014 PASS on equal-or-shrinking, FAIL when an unanswered survivor raises the count or an entry names no PR"
-  },
-  "tools/mutation-worklist.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
   },
   "tools/name-lease.mjs": {
    "bin": "decides",
@@ -1876,6 +1689,42 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/pat-finger-coupler.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-finger-coupler.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+  },
+  "tools/pat-host-offset.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-host-offset.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+  },
+  "tools/pat-hrv-windows.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-hrv-windows.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+  },
   "tools/pat-matchrate-strict.mjs": {
    "bin": "already-json",
    "status": "adopted",
@@ -1953,6 +1802,18 @@
    },
    "note": "the PAT window oracle decides per unit and per run: the row's previous reason (\"selftest assertion printer \u2026 not a verdict about data\") was copy-pasted and false \u2014 the tool prints a per-unit verdict table and a TALLY over real nights. The run object uses the tool's OWN pre-stated bands (BAND_RECOVERED 20 ms, BAND_PARTIAL 60, null must be beaten), so no threshold is invented: PASS every scored unit inside the band \u00b7 SHORTFALL some inside, some not \u00b7 FAIL none \u00b7 UNDERPOWERED units offered and none scorable \u00b7 NOT_RUN no units \u00b7 UNKNOWN an UNDEFINED band. Named refusals are EXCLUDED from the population, never averaged into the data verdict. Found by residue 2026-09-22-word-only-claims-go-stale; `--verdict-sample` emits the SHORTFALL arm corpus-free."
   },
+  "tools/pat-window-scaling.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-window-scaling.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+  },
   "tools/pb-agreement.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1969,11 +1830,6 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/per-group-coverage.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
   },
   "tools/pin-coverage.mjs": {
    "bin": "word-only",
@@ -2104,16 +1960,6 @@
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); PPG\u2212vendor pulse Bland\u2013Altman (bias/SD/LoA, per-night medians) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
-  "tools/queue-doctor.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/qwen-mypy-fix.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
   "tools/rebase-safe.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -2136,11 +1982,6 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
-  "tools/release.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
   "tools/residue-ids.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2153,11 +1994,6 @@
     ]
    },
    "note": "the residue-pickup verdict (row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale). --open reads the ledger from origin/main rather than from the working tree, and compares every row's state against the copy on disk. Pre-stated rule: a row whose state differs, or a row the disk copy does not carry at all, is a stale read and FAILs. Population = the rows on the ref, a row only on the ref excluded as unreadable. An unresolvable base refuses with exit 2, and NOT_RUN appears only under --verdict-sample, where there is no ref to resolve"
-  },
-  "tools/resp-acc-headless.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
   },
   "tools/resp-cardiac-suppression-e8.mjs": {
    "bin": "word-only",
@@ -2285,6 +2121,11 @@
    },
    "note": "residue 2026-09-06-t-stuck-validated-on-ring-only: does writers.T_STUCK = 200 SAMPLES transfer to the four streams RUN_MIN_BY_STREAM extends it to? Criterion pre-registered in the tool header before any stream was read - a bracketed multiplicative gap of >= 4x above p99.99 containing 200. The per-channel words (HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED) are the tool's own reading and live in result; the contract's closed vocabulary is reached by an explicit map, precedence FAIL > UNKNOWN > UNDERPOWERED > PASS, never a vote. NOT-EXERCISED maps to UNKNOWN and not NOT_APPLICABLE: the contract refused that on the first attempt because NOT_APPLICABLE must carry result: null, and here the result (550M samples, p99.99, N = 0) IS the finding. Population = channel-reports; checked = those the criterion bound on."
   },
+  "tools/tch-bootstrap-ci.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. It prints a PROSE line derived from the object (\"population: <status> \u2014 n night(s) covered of m\") and never the object, so the bootstrap confidence interval reports its scope in a form no reader can validate. The adoption owed is the record beside the prose, plus a corpus-free sample. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+  },
   "tools/tch-degeneracy-d7.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2326,6 +2167,11 @@
    },
    "note": "classic hat vs the two-detector (ECGDex + H10 firmware) reference; PASS/FAIL on the fraction of optical night-corners within band, UNDERPOWERED below 10 nights \u2192 verdictObject(); --json emits the ALL-population object at the top level (unchanged shape for tepna-tchref-nightly.service) with the rolling-30 and solid-stratum objects beside it in `verdicts`, --verdict-sample the synthetic-shape object the gate reads; --axis host|wall selects whether DexClock.hostAxis disciplines the corners, and a non-PASS reason names the axis because a \u03c3 is not comparable across axes"
   },
+  "tools/tch-fused-corpus.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. The object rides inside the `--json` payload (`{ dir, nights, population }`), so the record exists and nothing the gate can run prints it alone: the adoption owed is a corpus-free sample, since the fused corpus lives on a volume no gate mounts. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+  },
   "tools/tch-multinight.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2362,6 +2208,11 @@
    },
    "note": "the PUBLIC record of the sibling tool's reference check \u2014 pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS \u00a74's owed comparison \u2014 is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI \u2014 and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
   },
+  "tools/tch-reference-validation.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. Every exit path prints the object as `POPULATION <json>` (`emitPopulation`), and the run itself needs the trio corpus, so the adoption owed is a corpus-free sample the gate can run. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+  },
   "tools/tch-third-corner.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -2373,6 +2224,11 @@
     ]
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); one-night three-cornered hat \u03c3 per corner on the O2Ring's own clock rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+  },
+  "tools/tch-window-sensitivity.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. It prints a PROSE line derived from the object (\"population: <status> \u2014 n night(s) covered of m\") and never the object, so the window-length sweep reports its scope in a form no reader can validate. The adoption owed is the record beside the prose, plus a corpus-free sample. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
   },
   "tools/treatment-response-recut.mjs": {
    "bin": "word-only",
@@ -2448,11 +2304,6 @@
     ]
    },
    "note": "the ONE builder the eight band-less analysis tools share: tepna.verdict/1 with status UNKNOWN (NOT_RUN when nothing contributed), the statistic verbatim in result, the \u00a71 sentence and the route to a band as the reason; selftest pins the shape against verdict.js"
-  },
-  "tools/verify-drafts.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
   },
   "tools/verify-fixtures.mjs": {
    "bin": "decides",
