@@ -554,6 +554,161 @@ def test_root_reads_does_not_scan_an_IN_TREE_VENV(tmp_path):
     assert "uploads/synthetic_ecgdex_h10.txt" in got, got  # the helper-named read survives too
 
 
+# ── the TRACED manifest: the declared reads no literal spells (2026-10-25, #3920) ──────────────────
+
+
+def _write_manifest(tree, paths, *, schema=mutation_diff.ROOT_READS_SCHEMA, key="path"):
+    """`tools/root-reads.json` as `tools/root_reads.py --fold` writes it, with only the two keys this
+    reader looks at."""
+    import json
+
+    (tree / "tools").mkdir(exist_ok=True)
+    (tree / "tools" / "root-reads.json").write_text(
+        json.dumps({"schema": schema, "command": "pytest -q", "paths": [{key: p} for p in paths]})
+    )
+
+
+def test_manifest_reads_declares_the_DOTTED_read_the_STATIC_scan_cannot_see(tmp_path):
+    """🔴 THE PLANT FOR THE REFUSAL THAT BLOCKED #3920. The static scan keys on a literal, so it cannot
+    see `.github/workflows/capture-host-ci.yml` (dropped by the dot rule) nor a path built from parts
+    (`OxyDex.src.html`). `tests/test_relevance_filter.py` reads the first one with no `.exists()` guard,
+    so the scratch baseline died with FileNotFoundError, every glob recorded 0 tested mutants, and the
+    gate refused a REQUIRED context. The union with the traced manifest is the repair, and the staging
+    has to land a dotted path under its own subdirectory in both run locations."""
+    root, tree = _tree_with_root_read(tmp_path)
+    wf = root / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "capture-host-ci.yml").write_text("on: push\n")
+    # ⚠️ SYNTHETIC on purpose, like the planted names above. The static scan reads THIS file too, so
+    # spelling a real root path here would name it for `named_root_reads` and widen the manifest's
+    # `named` class — the circularity `test_the_REAL_suite_…`'s own comment warns about. The dotted
+    # path is safe to spell because the dot rule drops it either way, which is the whole point of it.
+    (root / "built_from_parts_in_the_real_tree.html").write_text("<html></html>\n")
+    assert mutation_diff.manifest_reads(tree) == []  # no manifest ⇒ nothing DECLARED
+    assert ".github/workflows/capture-host-ci.yml" not in mutation_diff.root_reads(tree)
+    _write_manifest(tree, [".github/workflows/capture-host-ci.yml", "built_from_parts_in_the_real_tree.html"])
+    assert mutation_diff.manifest_reads(tree) == [
+        ".github/workflows/capture-host-ci.yml",
+        "built_from_parts_in_the_real_tree.html",
+    ]
+    # THE CONSUMER TAKES BOTH INSTRUMENTS; the static derivation is unchanged by the manifest, which is
+    # what keeps `tools/root_reads.py`'s `named` class meaning what it says.
+    assert ".github/workflows/capture-host-ci.yml" not in mutation_diff.root_reads(tree)
+    got = mutation_diff.staged_root_reads(tree)
+    assert ".github/workflows/capture-host-ci.yml" in got, got
+    assert "built_from_parts_in_the_real_tree.html" in got, got
+    assert "ecgdex-dsp.js" in got, got  # the static half still runs beside it
+    scratch = tmp_path / "scratch"
+    work = scratch / "work"
+    (work / "mutants" / "tests").mkdir(parents=True)
+    mutation_diff.stage_root_reads(tree, work, got)
+    for dest in (work, scratch):
+        assert (dest / ".github" / "workflows" / "capture-host-ci.yml").read_text() == "on: push\n"
+
+
+def test_manifest_reads_refuses_a_DECLARED_path_it_must_not_stage(tmp_path):
+    """Bounded exactly as the static half is. An absolute path and a `..` escape the root; a path under
+    the tree's own name is already inside the scratch; a declared name that is not a regular file is
+    skipped rather than fabricated; a symlink out of the root is still an escape; and an unresolvable
+    name raises nothing. The positive control shows the reader itself still works."""
+    root, tree = _tree_with_root_read(tmp_path)
+    (tree / "seal.py").write_text("X = 1\n")  # the self-reference the tree already carries
+    (tmp_path / "outside.txt").write_text("not ours\n")
+    (root / "escapes_the_root.txt").symlink_to(tmp_path / "outside.txt")
+    _write_manifest(
+        tree,
+        [
+            "/etc/hostname",
+            "../outside.txt",
+            "capture-host/seal.py",
+            "declared_but_absent.txt",
+            "escapes_the_root.txt",
+            "docs",
+            "has\x00a_nul_byte",
+            "ecgdex-dsp.js",
+        ],
+    )
+    assert mutation_diff.manifest_reads(tree) == ["ecgdex-dsp.js"]
+
+
+def test_manifest_reads_contributes_NOTHING_rather_than_RAISING(tmp_path):
+    """∅ A MANIFEST THIS READER CANNOT USE DECLARES NOTHING, and it must never raise: `root_reads` runs
+    before every scratch, so a raise there takes the whole mutation gate down. Each shape below is the
+    manifest the producer does NOT write — absent, unparsable, not an object, a schema this reader has
+    not agreed to, a `paths` that is not a list, an excluded observation carrying `token` instead of
+    `path`, and an entry that is not an object at all. The static half survives all seven, which is the
+    old behaviour and is also the defect, so the detector for a manifest gone quiet is the population
+    pin below."""
+    import json
+
+    root, tree = _tree_with_root_read(tmp_path)
+    assert mutation_diff.manifest_reads(tree) == []  # absent
+    (tree / "tools").mkdir(exist_ok=True)
+    mf = tree / "tools" / "root-reads.json"
+    mf.write_text("{not json")
+    assert mutation_diff.manifest_reads(tree) == []
+    mf.write_text('["a list, not an object"]')
+    assert mutation_diff.manifest_reads(tree) == []
+    _write_manifest(tree, ["ecgdex-dsp.js"], schema="tepna.root-reads/2")
+    assert mutation_diff.manifest_reads(tree) == []
+    mf.write_text(json.dumps({"schema": mutation_diff.ROOT_READS_SCHEMA, "paths": "ecgdex-dsp.js"}))
+    assert mutation_diff.manifest_reads(tree) == []
+    _write_manifest(tree, ["ecgdex-dsp.js"], key="token")
+    assert mutation_diff.manifest_reads(tree) == []
+    mf.write_text(json.dumps({"schema": mutation_diff.ROOT_READS_SCHEMA, "paths": ["ecgdex-dsp.js"]}))
+    assert mutation_diff.manifest_reads(tree) == []
+    assert mutation_diff.root_reads(tree) == ["ecgdex-dsp.js"]  # the static half, under every shape
+    assert mutation_diff.staged_root_reads(tree) == ["ecgdex-dsp.js"]  # and so does the consumer
+
+
+def test_the_manifest_LITERALS_agree_with_their_producer():
+    """Two strings are duplicated in `mutation_diff` rather than imported, because importing
+    `tools.root_reads` would pull a pytest plugin into the gate's own import graph. This is the pin that
+    makes the duplication safe: the producer owns the names, and a rename there reds here."""
+    from pathlib import Path
+    import pytest
+
+    here = Path(__file__).resolve().parent.parent
+    if here.name != "capture-host":
+        pytest.skip("source pin is about the real checkout; this is a scratch copy")
+    src = (here / "tools" / "root_reads.py").read_text(encoding="utf-8")
+    assert 'MANIFEST = "%s"' % mutation_diff.ROOT_READS_MANIFEST in src
+    assert 'SCHEMA = "%s"' % mutation_diff.ROOT_READS_SCHEMA in src
+
+
+def test_the_STAGED_set_is_THE_UNION_of_the_two_instruments():
+    """The population pin for what a scratch actually receives, beside `test_the_REAL_suite_…`'s pin on
+    the static half. Pinned as COUNTS rather than as a path list on purpose: spelling the twenty
+    manifest-only paths here would name them for the static scan, widen the manifest's `named` class,
+    and leave the fold reading itself — the same circularity the static pin above refuses.
+
+    Measured 2026-10-25 (#3920): 34 static, 54 declared, 54 staged, and the staged bytes go from
+    8.43 MB to 17.22 MB summed over the entries. The manifest is a SUPERSET of the static derivation
+    today, so the union equals it, and the static half stays in as the half DERIVED on every run rather
+    than regenerated by a traced one. The twenty it adds are reads no literal spells — every
+    `*.src.html`, the root apps, the seven CPAP EDF fixtures — plus the one dotted read,
+    `.github/workflows/capture-host-ci.yml`, which `_subdir_index`'s dot rule drops by design and which
+    `tests/test_relevance_filter.py` opens with no `.exists()` guard. That read is why every scratch
+    baseline died with FileNotFoundError, why mutmut recorded 0 tested mutants, and why a REQUIRED
+    context refused. Residue
+    2026-10-25-the-mutation-stager-drops-the-one-dotted-read-the-manifest-declares."""
+    from pathlib import Path
+    import pytest
+
+    here = Path(__file__).resolve().parent.parent
+    if here.name != "capture-host":
+        pytest.skip("population pin is about the real checkout's root; this is a scratch copy")
+    static = set(mutation_diff.root_reads(here))
+    declared = set(mutation_diff.manifest_reads(here))
+    staged = mutation_diff.staged_root_reads(here)
+    assert set(staged) == static | declared
+    counts = (len(static), len(declared), len(staged))
+    assert counts == (34, 54, 54), counts
+    # A static read the manifest omits means the manifest is stale: re-run the trace and re-fold it.
+    assert static - declared == set(), static - declared
+    assert ".github/workflows/capture-host-ci.yml" in staged, staged
+
+
 def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     """Pinned as an EQUALITY so a change in the population is VISIBLE (a floor would not count it).
     Measured 2026-09-19: one real read — `ecgdex-dsp.js` (the seam-bound parity check) — plus four
