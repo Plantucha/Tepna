@@ -52,6 +52,7 @@ import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { legacyMatchRate, strictMatchRate, circShift, rawLags } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -346,20 +347,35 @@ function scoreWindow(rT, fT, nSurr) {
   };
 }
 
-export { hostAnchors, hostCorrector, toHostAxis, scoreWindow, scanOffsets };
+/* The corpus-free sample the adoption gate runs: a population that did NOT move across the run, over
+   synthetic snapshots, so the sample costs no corpus read and runs where the captures are not. */
+function verdictSample() {
+  const at = '2026-10-22T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = { ok: true, root: DIR_SAMPLE, reason: null, n: nights.length, nights, digest: null, maxCtimeMs: null, at };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-host-offset.mjs', at, evidence: ['tools/pat-host-offset.mjs'] });
+}
+
+const DIR_SAMPLE = '/srv/data/tepna-corpus/smoketest-captures';
+
+export { hostAnchors, hostCorrector, toHostAxis, scoreWindow, scanOffsets, verdictSample };
 
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) {
+if (IS_CLI && process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+} else if (IS_CLI) {
   const base = DIR.startsWith('/') ? DIR : join(ROOT, DIR);
   if (!existsSync(base)) {
     console.error(`pat-host-offset: ${DIR} not found. The raw corpus is gitignored — pass --dir.`);
     process.exit(2);
   }
   loadDsps();
-  const nights = readdirSync(base)
-    .filter((n) => /^\d{4}-\d{2}-\d{2}$/.test(n) && statSync(join(base, n)).isDirectory())
-    .filter((n) => !ONLY || n === ONLY)
-    .sort();
+  /* THE POPULATION IS MEASURED, NOT ASSUMED. The hand-filtered listing this replaced left no trace of
+     what it refused, so a re-tiered corpus moved the scored set under an unchanged table. `--night` is
+     a SELECTION and stays here beside the walk, named below by the count it left unread — a rule
+     folded into the snapshot would make a narrowed root and a moved root read alike. */
+  const popBefore = snapshotNights(base);
+  const nights = popBefore.nights.filter((n) => !ONLY || n === ONLY);
   const rows = [],
     refusals = [];
   /* EVERY NIGHT LEAVES A ROW OR A REFUSAL. The header's "REFUSALS ARE LOUD" was true of the four
@@ -544,8 +560,12 @@ if (IS_CLI) {
       }
     }
   }
+  /* THE SCORED SET IS THE SNAPSHOT THE RUN REPORTS, never a second walk. Rows are per WINDOW, so the
+     covered count is the nights that produced at least one of them. */
+  const population = populationVerdict(popBefore, snapshotNights(base), { tool: 'tools/pat-host-offset.mjs', evidence: ['tools/pat-host-offset.mjs'] });
+  const coveredNights = new Set(rows.map((r) => r.night));
   if (JSON_OUT) {
-    console.log(JSON.stringify({ windowMin: WINDOW_MIN, surrogates: N_SURR, rows, refusals }, null, 2));
+    console.log(JSON.stringify({ windowMin: WINDOW_MIN, surrogates: N_SURR, rows, refusals, population }, null, 2));
   } else {
     console.log(`\nPAT under a hostAxis-READ inter-device offset (PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4)`);
     console.log(`windows ${WINDOW_MIN} min · ${N_SURR} surrogates · ref: ${REF_MODE} · PPG timing point: ${TIMING_POINT} · every pair and window scored, none selected\n`);
@@ -570,5 +590,14 @@ if (IS_CLI) {
       console.log(`strict beats its own null at p<0.05 on ${sig}/${rows.length} window(s)`);
     } else console.log('no window scored.');
     for (const r of refusals) console.log(`⊘ ${r}`);
+    /* The status labels MOVEMENT across the run, never coverage: the night counts are separate. */
+    console.log(
+      `\npopulation: ${popBefore.n} night(s) offered under the root · ${nights.length} selected · ${coveredNights.size} scored · movement ${population.status}` +
+        (ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : '') +
+        (population.reason ? ` — ${population.reason}` : '')
+    );
+    const rl = ruleLine(population);
+    if (rl) console.log(rl);
+    console.log('POPULATION ' + JSON.stringify(population));
   }
 }

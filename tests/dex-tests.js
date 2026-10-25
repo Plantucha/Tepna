@@ -11231,6 +11231,63 @@
         return /export function notANight\s*\(/.test(TT[k] || '');
       });
       T.eq('the removal namer is defined once, and in corpus-scope.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope.mjs');
+      /* ── A PUBLISHED VERDICT THE ADOPTION GATE CANNOT SEE ────────────────────────
+         Row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file.
+         `verdict-adoption.mjs` enumerates its population by grepping LITERAL decision words over the
+         whole file, comments included. Membership therefore turns on the file's prose and not on what
+         the run prints: a tool carrying the word SHORTFALL in a comment is binned, while a tool
+         publishing the same object through `${population.status}` is invisible, and binning an
+         invisible one reds as a STALE row.
+
+         Measured 2026-10-25 over the working tree: 30 tools build a `tepna.verdict/1` through the
+         night primitive, and 8 of them carry no literal word. The set MOVED in three days —
+         `pat-dip-validate.mjs` gained a word and left it, and three more PAT runs joined — so this
+         leg re-measures the list instead of copying one forward. Naming it means widening the
+         enumerator SHRINKS a list the gate cannot hold, and a new invisible publisher reds here. */
+      var vaSrc = TT['tools/verdict-adoption.mjs'] || '';
+      var mWords = vaSrc.match(/export const WORDS = \/(.+?)\/;/);
+      T.ok('the adoption population rule is readable from the gate, not copied here', !!mWords, mWords ? 'WORDS read from the gate: ' + mWords[1] : 'the gate holds no readable WORDS regex');
+      var wordsRe = mWords ? new RegExp(mWords[1]) : null;
+      var builders = Object.keys(TT).filter(function (k) {
+        return /^tools\/[^/]+\.m?js$/.test(k) && /\b(populationVerdict|censusVerdict)\b/.test(TT[k] || '');
+      });
+      T.ok('ANTI-VACUITY · the verdict-building population is not empty', builders.length >= 20, builders.length + ' builder(s)');
+      var invisible = wordsRe
+        ? builders.filter(function (k) {
+            return !wordsRe.test(TT[k] || '');
+          })
+        : [];
+      T.eq(
+        'every tool publishing a population verdict that the adoption gate cannot see is named here',
+        invisible.sort().join(', '),
+        [
+          'tools/pat-finger-coupler.mjs',
+          'tools/pat-host-offset.mjs',
+          'tools/pat-hrv-windows.mjs',
+          'tools/pat-window-scaling.mjs',
+          'tools/tch-bootstrap-ci.mjs',
+          'tools/tch-fused-corpus.mjs',
+          'tools/tch-reference-validation.mjs',
+          'tools/tch-window-sensitivity.mjs'
+        ].join(', ')
+      );
+      /* ── AND THE FOUR PAT RUNS PUBLISH THE OBJECT, NOT ONLY THE SENTENCE ────────────────
+         Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. §🧾 names the object as
+         the API and the prose as the explanation, so a run printing only the sentence leaves no
+         reader able to take the population machine-readably. Each of these four hand-filtered its
+         listing before the population work, and the leg pins all three halves at once: the primitive
+         is imported, the object is printed, and the sample the adoption gate runs is exported. */
+      var patWired = ['tools/pat-connection-stability.mjs', 'tools/pat-dip-validate.mjs', 'tools/pat-drift-attribution.mjs', 'tools/pat-host-offset.mjs'];
+      T.eq(
+        'each PAT run in the population series imports the night primitive, prints the object and exports its sample',
+        patWired
+          .filter(function (k) {
+            var t = TT[k] || '';
+            return !(/from '\.\/corpus-scope\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && /verdictSample\b/.test(t));
+          })
+          .join(', '),
+        ''
+      );
       /* ── A REASON THAT NAMES A CAUSE THE RUN CANNOT HAVE HAD ──────────────────────────────────
          Row 2026-10-22-the-population-verdict-stamps-a-cause-it-never-checked. Every verdict
          `tools/corpus-scope.mjs` built stamped `commit: null, commitReason: 'not read from a git
