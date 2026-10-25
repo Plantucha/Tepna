@@ -3120,17 +3120,81 @@ def _subdir_index(root, tree_name):
         parts = rel.split("/")
         if len(parts) < 2 or parts[0] == tree_name:
             continue  # root-level files are `names`; the tree is the scratch copy itself
-        # DOT SEGMENTS STAY OUT, matching the root-level rule above. `.github/workflows/capture-host-ci.yml`
-        # IS a genuine read — test_dev_requirements.py reaches it through a root anchor — but staging it
-        # would make a test that has never executed inside a scratch start executing there, which is a
-        # behaviour change this widening should not smuggle in. Recorded as residue instead; the test
-        # skips on `.exists()` today, which is why nobody has noticed it.
+        # DOT SEGMENTS STAY OUT OF THE BASENAME INDEX, matching the root-level rule above — a basename
+        # is too weak a key for a dot directory, where `.github/workflows/ci.yml` and a cache copy of it
+        # collide. The dotted read the suite really has, `.github/workflows/capture-host-ci.yml`, is
+        # staged through `manifest_reads` instead, which keys on a DECLARED path rather than a basename.
+        # ⚠️ THE PREMISE THIS EXCLUSION RESTED ON LAPSED ON 2026-10-21 and nothing re-checked it: the
+        # comment here said the reader skips on `.exists()`, which `test_dev_requirements.py:65` still
+        # does, while #3822 added `tests/test_relevance_filter.py` reading the same path unguarded. So
+        # every scratch baseline died with FileNotFoundError and the gate refused a required context
+        # (residue 2026-10-25-the-mutation-stager-drops-the-one-dotted-read-the-manifest-declares).
         if any(seg.startswith(".") for seg in parts):
             continue
         by_base[rel.rsplit("/", 1)[-1]].append(rel)
     index = {b: v[0] for b, v in by_base.items() if len(v) == 1}
     dups = {b for b, v in by_base.items() if len(v) > 1}
     return index, dups
+
+
+# THE TRACED MANIFEST THE STAGER READS, and why two of its literals are duplicated here.
+# `tools/root_reads.py` produces `tools/root-reads.json` from an audit-hook trace of the real suite, so
+# it records a path the interpreter OPENED however the test spelled it. `root_reads` below records a
+# path a test SPELLS. The two miss in opposite directions, so the stager takes their UNION. The producer
+# owns these two strings and `test_the_manifest_literals_agree_with_their_producer` pins the pair —
+# importing `tools.root_reads` here would pull a pytest plugin into the gate's own import graph.
+ROOT_READS_MANIFEST = "tools/root-reads.json"
+ROOT_READS_SCHEMA = "tepna.root-reads/1"
+
+
+def manifest_reads(tree) -> list[str]:
+    """The repo-root reads the TRACED manifest DECLARES, as repo-root-relative paths.
+
+    🔴 A STATIC SCAN CANNOT SEE A CONSTRUCTED PATH, AND THAT COST A REQUIRED CHECK. `root_reads` keys on
+    the literals a test spells, so on 2026-10-25 it named 34 of the 54 root paths the suite really opens.
+    The 20 it missed are assembled from parts — every `*.src.html`, the four root apps, the seven CPAP
+    EDF fixtures — plus `.github/workflows/capture-host-ci.yml`, which the basename index drops by its
+    dot rule. #3822 added `tests/test_relevance_filter.py` on 2026-10-21 reading that workflow with no
+    `.exists()` guard, so the baseline suite inside every scratch died with FileNotFoundError, mutmut
+    recorded 0 tested mutants, and `mutate_diff` REFUSED. `mutation (diff-scoped)` is a required context
+    in ruleset `protect-main`, so that refusal blocks the merge and no re-run clears it.
+
+    Bounded exactly as the static half is: never an absolute path, never a `..`, never a self-reference
+    under the tree's own directory, and the target must be a regular file inside the root.
+
+    ⚠️ AN UNREADABLE MANIFEST CONTRIBUTES NOTHING, which is this same defect again, so the detector is a
+    TEST rather than a guess here: `root_reads` must never raise (a raise takes the whole mutation gate
+    down with it), and the real-suite population pin reds the moment the manifest stops contributing."""
+    import json
+    from pathlib import Path
+
+    tree = Path(tree)
+    root = tree.resolve().parent
+    try:
+        data = json.loads((tree / ROOT_READS_MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []  # absent or unparsable: the static half still runs, and the pin says so
+    if not isinstance(data, dict) or data.get("schema") != ROOT_READS_SCHEMA:
+        return []
+    entries = data.get("paths")
+    if not isinstance(entries, list):
+        return []
+    found: set[str] = set()
+    for entry in entries:
+        # Only a `paths` entry carries `path`; an EXCLUDED observation carries `token` instead, which is
+        # the producer's own guard against a reader mistaking an argv token for a file (`hci0`).
+        rel = entry.get("path") if isinstance(entry, dict) else None
+        if not isinstance(rel, str) or not rel or rel.startswith("/") or ".." in rel:
+            continue
+        if rel.split("/", 1)[0] == tree.name:
+            continue  # the tree IS the scratch copy, so its own files are not root reads
+        try:
+            target = (root / rel).resolve()
+        except (OSError, ValueError):
+            continue  # a DECLARED name that will not even resolve is not a file, and must not raise
+        if target.is_file() and target.is_relative_to(root.resolve()):
+            found.add(rel)
+    return sorted(found)
 
 
 def root_reads(tree) -> list[str]:
@@ -3248,6 +3312,22 @@ def root_reads(tree) -> list[str]:
             except (OSError, ValueError):
                 continue  # an unresolvable literal is not a read, and never an exception
     return sorted(found)
+
+
+def staged_root_reads(tree) -> list[str]:
+    """THE SET THE STAGER COPIES: the static derivation above UNIONED with the traced manifest.
+
+    🔴 THE UNION LIVES HERE AND NOT INSIDE `root_reads`, because the manifest is folded FROM
+    `root_reads`. `tools/root_reads.py` classes every manifest entry as `traced`, `named` or both, and
+    its `named_root_reads` reads that class straight out of `root_reads`. A `root_reads` that consumed
+    the manifest would make `named` mean "present in the manifest", collapse the two classes into one,
+    and leave `test_the_static_derivation_and_the_manifest_agree` — the tripwire that reds when a test
+    newly NAMES a root file the manifest omits — true by construction and measuring nothing. The first
+    cut of this fix put the union inside `root_reads`, and that test caught it (2026-10-25).
+
+    So the producer keeps reading ONE instrument, and the consumer takes both.
+    """
+    return sorted(set(root_reads(tree)) | set(manifest_reads(tree)))
 
 
 def tree_shadowed(tree, names) -> list[str]:

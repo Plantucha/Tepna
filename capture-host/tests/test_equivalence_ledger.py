@@ -162,6 +162,10 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # Batteries card): `domain.strip(".")` -> `domain.strip(None)` in validate_email's `"." not in` clause (strip
 # never removes a dot, and a dotted edge is refused by the next clause either way; 11.4M inputs, 0 differed),
 # and `pct < per[hour]` -> `<=` in read_link (a tie re-stores an equal int; 3,000 random trees, 0 differed).
+# mutation_diff.py 39 -> 41 on 2026-10-25 (#3920, residue 2026-10-25-the-mutation-stager-drops-the-one-dotted-read-the-manifest-declares):
+# `manifest_reads` reads the traced manifest, and the two maxsplit variants of `rel.split("/", 1)[0]` compute the
+# first segment identically for every string — `split("/")` and `split("/", 2)`. 0 of 211 declared-path cases
+# differed, and the argument is over the whole domain, not the battery. The right-split variant IS killed by a test.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "alerts.py": 1,
@@ -187,7 +191,7 @@ RATCHET = {
     "loss_audit.py": 19,
     "mmeta.py": 9,
     "motiondex-dsp.js": 100,
-    "mutation_diff.py": 39,
+    "mutation_diff.py": 41,
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,

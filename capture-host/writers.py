@@ -704,6 +704,31 @@ def file_stamp(fname: str) -> str | None:
     return tok if _DATE14.match(tok) else None
 
 
+def file_start_stamp(fname: str) -> str | None:
+    """The start instant of a capture filename as `YYYYMMDDHHMMSS`, reading BOTH stamp layouts.
+
+    `file_stamp` above answers a narrower question: it returns the stamp TOKEN, and a Polar Sensor
+    Logger name carries the instant in two tokens (`..._YYYYMMDD_HHMMSS_TAG`), where it returns None
+    by design — pinned at `tests/test_writers.py`. A reader that wants the INSTANT needs both layouts,
+    and the unanchored `_(\\d{14})_` search it would otherwise reach for is the audit F5 defect: on
+    `Polar_H10_20250101000000_20260725225058_ECG.txt` the first 14-digit run is the device SERIAL, and
+    it strptime's cleanly into an instant eighteen months away.
+
+    Anchored from the RIGHT, exactly as `file_device_id` below argues: the stamp is the token before
+    the stream tag, or the two tokens before it. None when neither layout fits — an absent stamp is
+    reported, never guessed (CLAUDE.md §∅)."""
+    base = fname.rpartition(".")[0] or fname
+    parts = base.split("_")
+    if len(parts) < 2:
+        return None
+    tok = parts[-2]  # parts[-1] is the stream tag
+    if _DATE14.match(tok):
+        return tok
+    if _TIME6.match(tok) and len(parts) >= 3 and _DATE8.match(parts[-3]):
+        return parts[-3] + tok  # PSL's split stamp, normalised to the one layout callers parse
+    return None
+
+
 def _newest_set_in(d: str, prefix: str) -> tuple[float, str] | None:
     """`(newest member's mtime, that set's stamp)` for this device's newest file-set in ONE directory.
 
