@@ -46,6 +46,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -57,6 +58,39 @@ const arg = (k, d) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
 const TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));
+
+/* THE TOOL'S OWN PATTERN STAYS THE ACCEPT TEST and rides into the primitive, which then reports what
+   that rule refused and what it swallowed against NIGHT_RE over the same listing. */
+const NIGHT_DIR_RE = /^\d{4}-\d\d-\d\d$/;
+
+/* The corpus-free sample the adoption gate runs: a population that did NOT move across the run, over
+   synthetic snapshots, so the sample costs no corpus read and runs where the captures are not. */
+function verdictSample() {
+  const at = '2026-10-25T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_DIR_RE),
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/motion-rho-vs-minrho.mjs', at, evidence: ['tools/motion-rho-vs-minrho.mjs'] });
+}
+
+export { verdictSample };
+
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 
 /* ── the real integrator, as a classic script, so module-local fns are reachable ── */
 const mod = require(path.join(ROOT, 'tools/build-core.js'));
@@ -146,10 +180,8 @@ function minRhoOf(rows) {
   return { negative: true, minRho: co ? co.rho : null };
 }
 
-const nights = fs
-  .readdirSync(TRIO)
-  .filter((d) => /^\d{4}-\d\d-\d\d$/.test(d))
-  .sort();
+const popBefore = snapshotNights(TRIO, { re: NIGHT_DIR_RE });
+const nights = [...popBefore.nights].sort();
 
 console.log('Shipped motion-ρ proxy vs the correlation the data REQUIRES');
 console.log('  proxy = _tchRhoFromMotion (the real function, called in a realm)');
@@ -189,6 +221,22 @@ for (const night of nights) {
       `${(proxy == null ? '—' : proxy.toFixed(3)).padStart(7)}   ${(pr ? pr.weightedPairR.toFixed(3) : '—').padStart(13)}   ${verdict}`
   );
 }
+
+/* THE SCORED SET IS THE SNAPSHOT THE RUN REPORTS, never a second walk. The hand-rolled listing this
+   replaced left no trace of what the rule refused, and the run printed its figures over whatever the
+   walk happened to return. The status labels MOVEMENT across the run, never coverage; the night counts
+   are separate. This sits BEFORE the empty-run exit, because a run that scored nothing still owes the
+   population it walked. */
+const population = populationVerdict(popBefore, snapshotNights(TRIO, { re: NIGHT_DIR_RE }), {
+  tool: 'tools/motion-rho-vs-minrho.mjs',
+  evidence: ['tools/motion-rho-vs-minrho.mjs']
+});
+console.log(
+  `\npopulation: ${popBefore.n} night(s) offered under the root \u00b7 ${rows.length} scored \u00b7 movement ${population.status}` + (population.reason ? ` \u2014 ${population.reason}` : '')
+);
+const populationRule = ruleLine(population);
+if (populationRule) console.log(populationRule);
+console.log('POPULATION ' + JSON.stringify(population));
 
 if (!rows.length) {
   console.log('\n⊘ no nights loaded.');
