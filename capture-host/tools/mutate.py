@@ -98,9 +98,9 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     prune_scratches,
     refresh_scratch,
     resolve_interpreter,
-    root_reads,
     stage_capture_host_view,
     stage_root_reads,
+    staged_root_reads,
     GENERATION_DONE_RE,
     mark_generation_complete,
     scratch_generation_reusable,
@@ -522,7 +522,7 @@ def run_one(
         plan["refreshed_siblings"] = refresh_scratch(HERE, work, extras)
         plan["reused_scratch"] = str(scratch)
         # A reused scratch refreshes the root reads too — the same drift class as the siblings.
-        plan["root_reads"] = root_reads(HERE)
+        plan["root_reads"] = staged_root_reads(HERE)
         plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
         # AND THE READ BACK DOWN. A staged root tool resolves `capture-host/<path>`, which the flattened
         # scratch has no answer for until these two links exist (`stage_capture_host_view`).
@@ -546,8 +546,9 @@ def run_one(
         # opens `../ecgdex-dsp.js` (seam-bound parity with ECGDex); absent from the scratch, the baseline
         # fails and every mutant of the module reports "0 tested" (measured 2026-09-19, #2675 — and the
         # same line sits in #2581's log, hidden then by the refusal not yet existing). The set is DERIVED
-        # from the tests each run, never listed by hand (`mutation_diff.root_reads`).
-        plan["root_reads"] = root_reads(HERE)
+        # from the tests each run, never listed by hand (`mutation_diff.staged_root_reads`, which is
+        # the static derivation unioned with the traced manifest).
+        plan["root_reads"] = staged_root_reads(HERE)
         plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
         # AND THE READ BACK DOWN. A staged root tool resolves `capture-host/<path>`, which the flattened
         # scratch has no answer for until these two links exist (`stage_capture_host_view`).
