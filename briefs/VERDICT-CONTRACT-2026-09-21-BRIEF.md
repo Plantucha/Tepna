@@ -149,9 +149,15 @@ a group-level verdict is the summary).
   default `internal`, flipped only by the owner's ruling recorded in the producing tool — a machine reader then
   cannot mistake a green internal verdict for a quotable one.
 
-Adoption gate: the manifest's three bins partition the enumerated set (an equality — a producer in no bin is
-a red with its name); every `decides` and `already-json` entry validates under `verdict.js`; every `word-only`
-entry carries a reason.
+Adoption gate: the manifest's four bins (`decides` · `already-json` · `word-only` · `test`) partition the
+enumerated set (an equality — a producer in no bin is a red with its name); every `decides` and
+`already-json` entry validates under `verdict.js`; every `word-only` entry carries a reason.
+**Enumeration is PUBLICATION, not a word** — widened 2026-10-25, residue
+`2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file`. Over
+comment-blanked source a file enters on a verdict word, a quoted `tepna.verdict/1` literal, an import
+of the contract module, or a call to a verdict builder imported from a file that does one of those.
+The §3 counts below are the 2026-09-22 word-grep and stay as the measurement of that day;
+`docs/VERDICT-CONTRACT.md` §Producers states the rule the gate runs now.
 
 ## 3b · Sequence — DECIDED (Kestrel, team lead, 2026-09-22; owner: "adoption sequence is in your hands")
 

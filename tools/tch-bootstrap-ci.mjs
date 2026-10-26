@@ -134,6 +134,82 @@ const pct = (arr, p) => {
 };
 const median = (a) => pct(a, 0.5);
 
+/* ── --selftest ─────────────────────────────────────────────────────────────
+   Corpus-free, seeded, and it exercises the four pure parts a wrong interval
+   would come out of: the generator, the moving-block resampler, the percentile
+   and the TCH split. The ordering case injects three KNOWN noise levels and
+   asks the split to recover their order and their scale; the control feeds it
+   three identical series, where a classic split has no physical answer. */
+if (argv.includes('--selftest')) {
+  let ran = 0;
+  let failed = 0;
+  const ok = (cond, name) => {
+    ran += 1;
+    if (!cond) failed += 1;
+    console.log(`  ${cond ? '✓' : '✗'} ${name}`);
+  };
+
+  const r1 = mulberry32(7);
+  const r2 = mulberry32(7);
+  const r3 = mulberry32(8);
+  const draw = (r, n) => Array.from({ length: n }, () => r());
+  const d1 = draw(r1, 8);
+  const d2 = draw(r2, 8);
+  const d3 = draw(r3, 8);
+  ok(
+    d1.every((v, i) => v === d2[i]),
+    'one seed gives one sequence — an interval that moves between runs is not an interval'
+  );
+  ok(
+    d1.some((v, i) => v !== d3[i]),
+    'ANTI-VACUITY · a different seed gives a different sequence'
+  );
+  ok(
+    d1.every((v) => v >= 0 && v < 1),
+    'every draw lies in [0, 1)'
+  );
+
+  const rb = mulberry32(31);
+  const n = 120;
+  const idxL5 = movingBlock(n, 5, rb);
+  ok(idxL5.length === n && idxL5.every((i) => i >= 0 && i < n), 'the resample has exactly n indices, all in range');
+  const runs = (idx) => idx.reduce((acc, v, i) => acc + (i > 0 && v === idx[i - 1] + 1 ? 1 : 0), 0);
+  const runs5 = runs(idxL5);
+  const runs1 = runs(movingBlock(n, 1, mulberry32(31)));
+  ok(runs5 >= n / 2, `L=5 preserves within-block dependence — ${runs5} consecutive pairs of ${n - 1}`);
+  ok(runs1 < runs5, `CONTROL · L=1 destroys it — ${runs1} consecutive pairs against ${runs5}`);
+
+  const hundred = Array.from({ length: 100 }, (_, i) => i + 1);
+  ok(pct(hundred, 0.025) < median(hundred) && median(hundred) < pct(hundred, 0.975), 'the percentile brackets the median');
+  ok(Number.isNaN(pct([], 0.5)), '∅ · a percentile over no samples is NaN, never 0');
+
+  /* Three series over one truth, with pre-stated noise 0.3 / 0.6 / 1.2 bpm. */
+  const rn = mulberry32(20261025);
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - rn())) * Math.cos(2 * Math.PI * rn());
+  const INJECTED = [0.3, 0.6, 1.2];
+  const truth = Array.from({ length: 600 }, (_, i) => 60 + 8 * Math.sin(i / 23));
+  const series = INJECTED.map((sd) => truth.map((v) => v + sd * gauss()));
+  const rec = sigmasOf(series[0], series[1], series[2]);
+  ok(rec != null, 'the split returns three sigmas over independent noise');
+  ok(rec != null && rec.s[0] < rec.s[1] && rec.s[1] < rec.s[2], `the recovered order matches the injected order — ${rec ? rec.s.map((v) => v.toFixed(2)).join(' < ') : 'no estimate'}`);
+  ok(
+    rec != null && rec.s.every((v, k) => v > INJECTED[k] / 2 && v < INJECTED[k] * 2),
+    `every recovered sigma sits within a factor of two of its injected level — ${rec ? rec.s.map((v) => v.toFixed(2)).join(' / ') : 'no estimate'}`
+  );
+
+  /* Known answer: three copies of one series carry no independent noise at all,
+     so the classic split must return exactly zero for each node. Measured
+     2026-10-25 — it does, and it does not raise the negative alarm either. */
+  const same = sigmasOf(truth, truth, truth);
+  ok(
+    same != null && same.s.every((v) => v === 0) && same.negative === false,
+    `CONTROL · three identical series recover zero noise, never a manufactured one — ${same ? same.s.join(' / ') : 'no estimate'}`
+  );
+
+  console.log(failed ? `✗ ${failed} failed of ${ran}` : `✓ all ${ran} selftests passed`);
+  process.exit(failed ? 1 : 0);
+}
+
 /* ── load ─────────────────────────────────────────────────────────────────── */
 /* ONE walk, and the walk is the population
    (RESIDUE 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
