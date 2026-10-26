@@ -130,6 +130,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { digestNights, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { printVerdict } from './verdict-emit.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOTS = ['/srv/data/tepna-corpus/smoketest-captures', join(HERE, '..', 'uploads', 'captures')];
@@ -1161,7 +1162,7 @@ async function main(argv) {
     else {
       console.log(header() + '\nSKIP — no H10 ECG+RR pairs found. Searched:\n  ' + roots.join('\n  ') + '\nNo metrics reported; this tool never fetches.');
       printPopulation(null, popBefore, pairs);
-      console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: v.status, population: v.population, reason: v.reason }));
+      printVerdict(v);
     }
     /* A RUN THAT SCORED NOTHING IS NOT A SUCCESSFUL RUN, and exit 0 is the only thing an unattended
        caller reads. Row 2026-09-04-respacc-empty-run-exits-zero records the same shape in a reporter
@@ -1203,7 +1204,8 @@ async function main(argv) {
   // VERDICT-CONTRACT §1: the object IS the API. --json emits it at the top level; the report detail rides under `detail`.
   if (argv.includes('--json')) console.log(JSON.stringify({ ...verdict, detail: { bands: BANDS, roots, pooled: P, ppiCoverage: cov, nights: rows, corpusPopulation: population } }, null, 1));
   else {
-    console.log(report(rows, P, cov, roots) + '\n\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdict.status, population: verdict.population, reason: verdict.reason }));
+    console.log(report(rows, P, cov, roots) + '\n');
+    printVerdict(verdict);
     printPopulation(population, popBefore, pairs);
   }
   return 0;

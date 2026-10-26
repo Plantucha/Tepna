@@ -61,6 +61,25 @@ export function makeVerdict(f) {
   return v;
 }
 
+/* ── THE PRINTED LINE IS THE OBJECT, NOT A VIEW OF IT (§🧾) ────────────────────────────────────────
+   Seven sites printed `{status, population, reason}` under the label `tepna.verdict/1`, so the only
+   object a LOCAL run offered a PR body carried no `schema`, no `criterion`, no `evidence` and no
+   `producedBy.commit`. `tools/pr-compliance.mjs` keys its extractor on `schema`, so a body quoting
+   that line was examined without being read, and completing the line by hand either reds the same
+   check or names a commit nobody measured (residue
+   `2026-10-25-six-tools-print-a-verdict-projection-under-the-schema-label`). The whole object already
+   existed at every one of those sites; only the print was narrow.
+
+   So the print goes through here, and here refuses anything that is not a whole, valid object —
+   a projection has no `schema` and cannot pass `Verdict.validate`. */
+export function printVerdict(v, opts = {}) {
+  const check = Verdict.validate(v);
+  if (!check.ok) throw new Error('printVerdict: refusing to print an object that is not a valid tepna.verdict/1: ' + check.errors.join('; '));
+  const line = (opts.prefix === undefined ? '\nVERDICT (tepna.verdict/1): ' : opts.prefix) + JSON.stringify(v);
+  (opts.log || console.log)(line);
+  return line;
+}
+
 /* ── RUNNER AGGREGATION — VERDICT-CONTRACT §3d, one function for every runner ──────────────────────
    A runner decides nothing of its own; its status is an aggregation of its CHILDREN, and the rule is
    written once here so run-check, selftest-all and the test runner cannot drift apart on it.

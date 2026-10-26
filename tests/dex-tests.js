@@ -66491,6 +66491,210 @@
       T.ok('a decomposition over two devices validates on the same rules (the LOSS case)', V.validate(withBlock(decomp)).ok, V.validate(withBlock(decomp)).errors.join(' | '));
       T.ok('a negative delta is legal and keeps its sign — a share is |delta| / Σ|delta|', decomp.inputs[1].delta < 0 && decomp.inputs[1].share > 0);
     });
+    /* ═══ A VERDICT PRINT CARRIES THE WHOLE OBJECT, NEVER A PROJECTION (§🧾) ════════════════════════
+       Residue `2026-10-25-six-tools-print-a-verdict-projection-under-the-schema-label`: six tools printed
+       `{status, population, reason}` under the label `tepna.verdict/1`. `tools/pr-compliance.mjs` keys its
+       extractor on the `schema` key, so a PR body quoting one of those lines was EXAMINED and never READ —
+       §4b's shape, a success reported about something nothing looked at. The whole object existed at every
+       one of those sites; only the print was narrow.
+
+       THE GATE IS A SOURCE CENSUS, because the defect lives at the print site and shows in no run. Every
+       occurrence of the printed label — over `tools/*.mjs` plus the one capture-host site — is read forward
+       to the `JSON.stringify` / `json.dumps` it hands its object to, and the handed expression may not be an
+       object literal and may not re-type a `schema` key. Comments are blanked first (`js-lex` on the JS side,
+       `#`-led lines on the Python side), so a mention in prose is not a print. The label match is
+       case-insensitive, so lowering the label cannot leave the population.
+
+       THE CENSUS NAMES NO TOOL IN THIS FILE. `tools/verdict-adoption.mjs` reads any tool stem named under
+       `tests/` outside a comment as proof that a test covers that tool, so pinning these stems here would
+       flip them to GATED and red the adoption ratchet, which may only go down (sibling row
+       `2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested`). So the census is counted, an offender is
+       named by the FAILURE, and the plants below are what make a count mean anything.
+
+       Measured 2026-10-25: 14 label prints over 11 files — 13 whole, 0 projections, 1 prose-only. A
+       prose-only line (`verdict (…): PASS`, with the object behind `--json`) hands over no object at all, so
+       it is not this gate's subject: `verdict-adoption` requires a parseable object from `--verdict-sample`
+       separately. It is counted here and may not grow. */
+    group('a verdict print hands over the whole object, never a projection of it', 'tools · verdict-contract · print-census · plant', function (T) {
+      var TT = env.toolTexts;
+      var JL = env.jsLex;
+      var fs = env.nodeFs;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !JL || typeof JL.blankComments !== 'function' || !fs || !env.repoRoot) {
+        if (nodeLane) T.ok('env.toolTexts, env.jsLex and env.nodeFs are wired in the node lane', false, 'absent — the verdict-print census examined nothing');
+        else T.skip('the verdict-print census', 'reads tools/ and capture-host/ from disk; the browser lane cannot');
+        return;
+      }
+      /* The handed expression, read to its matching `)`. Depth counts the bracket families so a nested
+         call or literal does not end the argument early; a `)` at depth 0 does. */
+      function handed(s) {
+        var d = 0;
+        for (var i = 0; i < s.length; i++) {
+          var c = s.charAt(i);
+          if (c === '(' || c === '{' || c === '[') d++;
+          else if (c === '}' || c === ']') d--;
+          else if (c === ')') {
+            if (d === 0) return s.slice(0, i);
+            d--;
+          }
+        }
+        return s;
+      }
+      /* ONE classifier for the tree and for the plants — a control that runs different code is not a
+         control (CLAUDE.md §4b's family). */
+      function census(key, text) {
+        var src;
+        if (/\.py$/.test(key)) {
+          src = String(text)
+            .split('\n')
+            .map(function (l) {
+              return /^\s*#/.test(l) ? '' : l;
+            })
+            .join('\n');
+        } else {
+          src = JL.blankComments(String(text));
+        }
+        var out = [];
+        var re = /VERDICT \(tepna\.verdict\/1\)/gi;
+        var m = re.exec(src);
+        for (; m !== null; m = re.exec(src)) {
+          var at = key + ':' + src.slice(0, m.index).split('\n').length;
+          var win = src.slice(m.index, m.index + 400);
+          var call = /(?:JSON\.stringify|json\.dumps)\(/.exec(win);
+          if (!call) {
+            out.push({ at: at, kind: 'prose-only', arg: null });
+            continue;
+          }
+          var arg = handed(win.slice(call.index + call[0].length));
+          var literal = /^\s*\{/.test(arg);
+          var retyped = /(^|[^\w.$])["']?schema["']?\s*:/.test(arg);
+          out.push({ at: at, kind: literal || retyped ? 'projection' : 'whole', arg: arg });
+        }
+        return out;
+      }
+      var sites = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          if (!/^tools\/[^/]+\.mjs$/.test(k)) return;
+          sites = sites.concat(census(k, TT[k]));
+        });
+      /* THE CAPTURE-HOST SITE IS READ FROM DISK — `toolTexts` is `tools/*.mjs` only, and the one Python
+         printer is half this row's population. Absent, that is an assertion and not a skip: the whole
+         census would otherwise read clean for the wrong reason. */
+      var PY = 'capture-host/tools/mutate_diff.py';
+      var pyText = null;
+      try {
+        pyText = fs.readFileSync(env.nodePath.join(env.repoRoot, PY), 'utf8');
+      } catch (_e) {
+        pyText = null;
+      }
+      T.ok(
+        'the capture-host verdict printer is readable, so the census covers both languages',
+        !!pyText,
+        PY + ' — this leg reds when that file cannot be read, and the census would then cover JS alone'
+      );
+      if (pyText) sites = sites.concat(census(PY, pyText));
+      var files = {};
+      sites.forEach(function (s) {
+        files[s.at.replace(/:\d+$/, '')] = 1;
+      });
+      var nFiles = Object.keys(files).length;
+      function bin(kind) {
+        return sites.filter(function (s) {
+          return s.kind === kind;
+        });
+      }
+      var projections = bin('projection'),
+        prose = bin('prose-only'),
+        whole = bin('whole');
+      /* ANTI-VACUITY — a scan that found nothing reads exactly like a clean tree. */
+      T.ok(
+        'the census found the verdict-print population it was pinned against (14 prints over 11 files on 2026-10-25)',
+        sites.length >= 13 && nFiles >= 10,
+        sites.length + ' print(s) over ' + nFiles + ' file(s) — the scan collapsed, so a green here says nothing'
+      );
+      T.eq(
+        'no verdict print hands over a projection — an object literal, or a re-typed `schema` key',
+        projections.map(function (s) {
+          return s.at;
+        }),
+        []
+      );
+      T.ok(
+        'every other print hands over a whole object, and the prose-only count may not grow past the one measured',
+        whole.length === sites.length - prose.length && prose.length <= 1,
+        prose.length +
+          ' prose-only: ' +
+          prose
+            .map(function (s) {
+              return s.at;
+            })
+            .join(', ')
+      );
+      /* ═══ PLANTS — the classifier is shown catching each shape the row named, and acquitting prose ═══ */
+      var pLit = census('tools/plant-a.mjs', "console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify({ schema: v.schema, gate: v.gate, status: v.status }));");
+      T.eq('PLANT · the three-key projection the row found is classified as a projection', pLit.length === 1 && pLit[0].kind, 'projection');
+      var pAsg = census('tools/plant-b.mjs', "console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify(Object.assign({}, { schema: v.schema, status: v.status })));");
+      T.eq('PLANT · a projection that reaches the label through a call is caught by its re-typed `schema` key', pAsg.length === 1 && pAsg[0].kind, 'projection');
+      var pPy = census('capture-host/tools/plant-c.py', 'print("\\nVERDICT (tepna.verdict/1): " + json.dumps({"schema": v.schema, "status": v.status}))');
+      T.eq('PLANT · the Python half is classified by the same rule', pPy.length === 1 && pPy[0].kind, 'projection');
+      var pProse = census('tools/plant-d.mjs', "process.stderr.write('verdict (tepna.verdict/1): ' + v.status);");
+      T.eq('PLANT · a lowercase prose-only line stays in the population and is binned prose-only', pProse.length === 1 && pProse[0].kind, 'prose-only');
+      var pCmt = census('tools/plant-e.mjs', "/* VERDICT (tepna.verdict/1) is printed further down */\nconsole.log('x' + JSON.stringify({ schema: 1 }));");
+      T.eq('CONTROL · a label inside a comment is not a print, so a mention cannot red the gate', pCmt.length, 0);
+      var pOk = census('tools/plant-f.mjs', "console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify(v));");
+      T.eq('CONTROL · a whole-object print passes the same classifier', pOk.length === 1 && pOk[0].kind, 'whole');
+      /* ═══ THE SHARED PRINTER REFUSES A PROJECTION — the census pins the sites, this pins the remedy ═══
+         Run in a CHILD: `printVerdict` validates and throws, and the throw is the contract. */
+      if (!env.nodeSpawnSync || !nodeLane) {
+        T.skip('printVerdict refuses a projection', 'spawns a child — the browser lane cannot');
+        return;
+      }
+      var mod = 'file://' + env.nodePath.join(env.repoRoot, 'tools/verdict-emit.mjs');
+      var prc = 'file://' + env.nodePath.join(env.repoRoot, 'tools/pr-compliance.mjs');
+      var src =
+        'import { makeVerdict, printVerdict } from ' +
+        JSON.stringify(mod) +
+        ';\n' +
+        'import { extractVerdicts } from ' +
+        JSON.stringify(prc) +
+        ';\n' +
+        "const v = makeVerdict({ gate: 'print-census-probe', status: 'PASS', population: { checked: 1, eligible: 1, excluded: 0 }, criterion: { name: 'n', threshold: 1, unit: 'u', direction: 'lte' }, result: { n: 1 }, evidence: ['tests/dex-tests.js'], reason: null, tool: 'tests/dex-tests.js', commit: null, commitReason: 'a probe, not a measurement', at: '2026-10-25T00:00:00Z' });\n" +
+        'const lines = [];\n' +
+        'printVerdict(v, { log: (l) => lines.push(l) });\n' +
+        'let refused = null;\n' +
+        "try { printVerdict({ schema: v.schema, gate: v.gate, status: v.status }, { log: () => lines.push('LEAKED') }); } catch (e) { refused = String(e.message).slice(0, 60); }\n" +
+        "const printed = lines.length === 1 ? JSON.parse(lines[0].slice(lines[0].indexOf('{'))) : null;\n" +
+        /* THE POPULATION IS WHATEVER THE CONSUMER'S PARSER RETURNS (memory
+           `measure-a-population-with-the-consumers-parser`). `pr-compliance` keys its extractor on the
+           `schema` key, so the three-key line the row found was EXAMINED and read as nothing. Both
+           lines go through that extractor here — the remedy's and the defect's. */
+        "const old = 'VERDICT (tepna.verdict/1): ' + JSON.stringify({ status: v.status, population: v.population, reason: v.reason });\n" +
+        "console.log('__R__' + JSON.stringify({ refused: refused, leaked: lines.indexOf('LEAKED') >= 0, keys: printed ? Object.keys(printed).sort() : null, readNow: extractVerdicts(lines[0] || '').length, readThen: extractVerdicts(old).length }));";
+      var r = env.nodeSpawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8' });
+      var line = String(r.stdout || '')
+        .split('\n')
+        .filter(function (l) {
+          return l.indexOf('__R__') === 0;
+        })[0];
+      var got = null;
+      try {
+        got = JSON.parse(String(line).slice(5));
+      } catch (_e) {
+        got = null;
+      }
+      T.ok('the printVerdict probe ran', r.status === 0 && !!got, 'exit ' + r.status + ' — ' + String(r.stderr || '').slice(0, 200));
+      if (!got) return;
+      T.ok(
+        'printVerdict hands the whole object to the line — `schema`, `criterion`, `evidence` and `producedBy` all present',
+        !!got.keys && got.keys.indexOf('schema') >= 0 && got.keys.indexOf('criterion') >= 0 && got.keys.indexOf('evidence') >= 0 && got.keys.indexOf('producedBy') >= 0,
+        JSON.stringify(got.keys)
+      );
+      T.ok('…and it THROWS on a three-key projection rather than printing it', !!got.refused && got.leaked === false, JSON.stringify(got));
+      T.eq("the printed line is READ by the consumer's own extractor — one verdict, not a brace it skips", got.readNow, 1);
+      T.eq('CONTROL · the three-key line the row found is read as NOTHING by that same extractor, which is why it was examined and never read', got.readThen, 0);
+    });
 
     /* ═══ MEASUREMENT-PROVENANCE-ROADMAP §3 — OxyDex is the FIRST EMITTER of the measurement block ═══
        The reference path, executed 2026-09-21: every OxyDex night element carries `measurement.<id>`

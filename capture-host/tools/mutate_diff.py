@@ -429,7 +429,13 @@ def main(argv=None) -> int:
         verdict["verdict"] = obj
         if a.json:
             Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
-        print("\nVERDICT (tepna.verdict/1): " + json.dumps({k: obj[k] for k in ("status", "population", "reason")}))
+        # THE PRINTED LINE IS THE OBJECT (§🧾). This printed `{status, population, reason}`, so the
+        # only object a LOCAL run offered a PR body carried no `schema`, no `criterion`, no
+        # `evidence` and no `producedBy.commit`, and `tools/pr-compliance.mjs` keys its extractor on
+        # `schema` — a body quoting the line was examined without being read. The whole object was
+        # already built above and reached a file under `--json`; only the print was narrow (residue
+        # `2026-10-25-the-mutation-gate-prints-a-three-key-projection-of-its-verdict`).
+        print("\nVERDICT (tepna.verdict/1): " + json.dumps(obj))
         return code
 
     changed = changed_lines(a.base)
