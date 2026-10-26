@@ -61,6 +61,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { ecgCounterTimeMs } from './pat-matchrate-strict.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 import { printVerdict, undeclaredVerdict } from './verdict-undeclared.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -261,7 +262,29 @@ say('  bands: A→B ' + JSON.stringify(BAND.AB) + '  A→C ' + JSON.stringify(BA
 say('  night        win   lag A→B  A→C  B→C |  closure  |  IQR AB   AC   BC');
 console.log('  ' + '-'.repeat(80));
 
-const nights = (SAMPLE ? [] : fs.readdirSync(DIR)).filter((d) => /^2026-/.test(d) && (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory()).sort();
+/* ONE WALK, AND THE WALK IS THE POPULATION. `/^2026-/` is this tool's own NIGHT RULE and travels as
+   the walk's `re`, so `snapshotNights` names every night-shaped name it refused; inside a `.filter()`
+   the refusal left no trace at all. `--night` is a SELECTION over that offer and stays here. Under
+   `--verdict-sample` no corpus is read, so the snapshot refuses and the population line says so. Row
+   2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one. */
+const popBefore = SAMPLE
+  ? {
+      ok: false,
+      root: DIR,
+      reason: 'not read: --verdict-sample reads no corpus',
+      n: 0,
+      nights: [],
+      digest: null,
+      maxCtimeMs: null,
+      at: null,
+      rule: String(/^2026-/),
+      ruleIsDefault: false,
+      rejectedNightShaped: null,
+      admittedNonNight: null
+    }
+  : snapshotNights(DIR, { re: /^2026-/ });
+const nights = (popBefore.nights || []).filter((d) => (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory());
+const scoredNights = [];
 const V = { AB: [], AC: [], BC: [] },
   CLOSE = [],
   LAG = { AB: [], AC: [], BC: [] };
@@ -362,9 +385,29 @@ for (const n of nights) {
     LAG[k].push(...nightL[k]);
   }
   CLOSE.push(...nightC);
+  scoredNights.push(n);
 }
 
 say('  ' + '-'.repeat(80));
+/* THE POPULATION THIS RUN COVERED, printed before the hat it qualifies. The status labels MOVEMENT of
+   the night population under the run, never coverage. */
+const population = populationVerdict(popBefore, SAMPLE ? popBefore : snapshotNights(DIR, { re: /^2026-/ }), {
+  tool: 'tools/pat-three-corner.mjs',
+  evidence: ['tools/pat-three-corner.mjs']
+});
+const unscoredNights = notANight({ n: nights.length, nights }, scoredNights);
+say(
+  `  population: ${popBefore.ok ? popBefore.n + ' offered under ' + DIR : 'NOT ENUMERATED — ' + popBefore.reason} · ${nights.length} selected · ${scoredNights.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+);
+const popRuleLine = ruleLine(population);
+if (popRuleLine) say('  ' + popRuleLine);
+say(`  selected but not scored: ${unscoredNights.length ? unscoredNights.join(', ') : 'none'}`);
+/* THROUGH `say`, NOT `console.log`. Under `--verdict` and `--verdict-sample` this tool's contract is
+   that STDOUT carries the hat object ALONE — `verdict-adoption.mjs` parses stdout as JSON and a
+   second line on it reds the gate (measured at step 37/40: "Unexpected non-whitespace character
+   after JSON"). `say` is stderr under either flag and stdout on a plain run, which is where a human
+   reader and a POPULATION consumer both want it. */
+say('POPULATION ' + JSON.stringify(population));
 if (!V.AB.length) {
   say('\n  no night produced a three-way window — that is the result.');
   /* Under --verdict that is still a verdict: nothing was checked, so the object says NOT_RUN rather

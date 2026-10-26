@@ -53,6 +53,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -64,6 +65,32 @@ const arg = (k, d) => {
 const DIR = arg('--dir', null),
   ONLY = arg('--night', null),
   SITE = arg('--site', 'ankle');
+/* THE SAMPLE THE ADOPTION GATE READS — two identical fabricated snapshots, so the object is
+   complete and no corpus is touched. */
+function verdictSample() {
+  const at = '2026-10-25T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^2026-/),
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/pat-per-led.mjs', at, evidence: ['tools/pat-per-led.mjs'] });
+}
+export { verdictSample };
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 if (!DIR && !argv.includes('--selftest')) {
   console.error('need --dir  (or --selftest)');
   process.exit(1);
@@ -216,10 +243,13 @@ if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
 
 console.log('PER-LED PAT — each optical channel as its own detector (no consensus)');
 console.log('  inter-LED differences cancel the beat, so their TCH gives FIDUCIAL jitter directly\n');
-const nights = fs
-  .readdirSync(DIR)
-  .filter((n) => /^2026-/.test(n) && (!ONLY || n === ONLY) && fs.statSync(path.join(DIR, n)).isDirectory())
-  .sort();
+/* ONE WALK, AND THE WALK IS THE POPULATION. `/^2026-/` is this tool's own NIGHT RULE and travels as
+   the walk's `re`, so `snapshotNights` names every night-shaped name it refused; folded into a
+   `.filter()` it dropped them in silence. `--night` is a SELECTION over that offer and stays here.
+   Row 2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one. */
+const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+const nights = popBefore.nights.filter((n) => (!ONLY || n === ONLY) && fs.statSync(path.join(DIR, n)).isDirectory());
+const covered = [];
 for (const n of nights) {
   const dir = path.join(DIR, n);
   const big = (re) =>
@@ -290,4 +320,20 @@ for (const n of nights) {
   const rep = (v) => (v > 0 ? `${Math.sqrt(v).toFixed(2)} ms` : `REFUSED (negative variance) — the LEDs are not independent`);
   console.log(`     TCH fiducial jitter:  LED0 ${rep(a2)} · LED1 ${rep(b2)} · LED2 ${rep(c2)}`);
   console.log(`     → literature fiducial term for comparison: 5.69 ms (intersecting-tangent RMSE)\n`);
+  covered.push(n);
 }
+
+/* THE POPULATION THIS RUN COVERED. The status labels MOVEMENT of the night population under the run,
+   never coverage, and the `scored` count beside it is what this tool actually measured. */
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+  tool: 'tools/pat-per-led.mjs',
+  evidence: ['tools/pat-per-led.mjs']
+});
+const unscored = notANight({ n: nights.length, nights }, covered);
+console.log(
+  `  population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${covered.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+);
+const rl = ruleLine(population);
+if (rl) console.log('  ' + rl);
+console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+console.log('POPULATION ' + JSON.stringify(population));

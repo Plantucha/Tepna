@@ -42,6 +42,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -351,8 +352,39 @@ function selftest() {
 }
 
 /* ── corpus runner ────────────────────────────────────────────────────────────────────────────── */
+/* THE SAMPLE THE ADOPTION GATE READS — two identical fabricated snapshots, so the object is
+   complete and no corpus is touched. */
+function verdictSample() {
+  const at = '2026-10-25T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^2026-/),
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, {
+    tool: 'tools/ppg-foot-residual-sweep.mjs',
+    at,
+    evidence: ['tools/ppg-foot-residual-sweep.mjs']
+  });
+}
+export { verdictSample };
+
 async function main() {
   if (argv.includes('--selftest')) process.exit(selftest());
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    process.exit(0);
+  }
   const DIR = arg('--dir', null);
   const SITE = arg('--site', 'ankle');
   const JSON_OUT = arg('--json', null);
@@ -389,8 +421,15 @@ async function main() {
      (2026-07-17/…), the phone-tree mirror (`Ecg-nightly-archive`) is FLAT with the date only in
      the filename stamp (…_20260610_211539_PPG.txt). Both resolve to one candidate file per night —
      the largest, the convention every sibling uses. */
+  /* ONE WALK FOR THE NIGHT LAYOUT, AND THAT WALK IS THE POPULATION. `/^2026-/` is this tool's own
+     NIGHT RULE and travels as the walk's `re`, so `snapshotNights` names every night-shaped name it
+     refused rather than dropping it inside a `.filter()`. Row
+     2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one. The flat
+     mirror below carries no night directories at all, so the population there reads 0 night-shaped
+     names and the layout word beside it says which branch ran. */
+  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
   const entries = fs.readdirSync(DIR);
-  const dateDirs = entries.filter((n) => /^2026-/.test(n) && fs.statSync(path.join(DIR, n)).isDirectory()).sort();
+  const dateDirs = popBefore.nights.filter((n) => fs.statSync(path.join(DIR, n)).isDirectory());
   const perNight = new Map(); // night -> [{f,s}]
   if (dateDirs.length) {
     for (const n of dateDirs) {
@@ -493,6 +532,21 @@ async function main() {
       );
     rows.push({ night: n, fs: rec.fs, ...row });
   }
+  /* THE POPULATION THIS RUN COVERED, printed before the cross-night figures it qualifies. The
+     status labels MOVEMENT of the night population under the run, never coverage. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+    tool: 'tools/ppg-foot-residual-sweep.mjs',
+    evidence: ['tools/ppg-foot-residual-sweep.mjs']
+  });
+  const scored = rows.map((r) => r.night);
+  const unscored = notANight({ n: dateDirs.length, nights: dateDirs }, scored);
+  console.log(
+    `\n  population: ${popBefore.n} night-shaped name(s) under ${DIR} · layout ${dateDirs.length ? 'night directories' : 'flat mirror'} · ${perNight.size} night(s) offered by the layout · ${scored.length} scored · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log('  ' + rl);
+  console.log(`  night-directory names not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  console.log('POPULATION ' + JSON.stringify(population));
   /* Cross-night Spearman per pre-registered candidate — worst pair per night, IQR as the estimand
      (the brief's figure), SD reported beside it. */
   const per = rows.map((r) => r.pairs.reduce((a, b) => (b.iqr > a.iqr ? b : a)));
