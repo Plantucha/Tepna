@@ -13,6 +13,7 @@
 # them stays green while dropping the interpolated value goes red. That distinction is the whole point:
 # pinning phrasing turns the suite into a change-detector, pinning the VALUES pins the diagnostic.
 
+import hashlib
 import json
 import os
 import sys
@@ -116,6 +117,29 @@ def test_the_meta_sidecar_is_written_indented_so_it_can_be_read(tmp_path, monkey
     meta = json.loads(raw)
     assert meta["session"] == "20260720010000"
     assert meta["bytes"] == 92 and meta["declared_size"] == 92
+
+
+def test_the_envelope_names_the_device_the_file_and_its_digest(tmp_path, monkeypatch):
+    """`acq_evidence_o2ring.assemble_dat` reads every key of its row with `.get`. A row with a lost or
+    misspelt key therefore publishes `null` for that fact, and nothing raises: the sidecar is still
+    written and the pull still reports success. So this test reads the facts the envelope takes from
+    that row back out of the sidecar, against values it derives itself — the identity read's serial,
+    the session stamp, the path the call returned, and the digest and size of the bytes on disk.
+
+    Residue 2026-10-21-pull-once-operator-reporting-is-observed-by-no-test (Heron's measurement at
+    board #1218 named the hand-typed keys)."""
+    ring = FakeRing(["20260720010000"], b"\x01\x03" + bytes(range(256)) * 8)
+    _install(monkeypatch, ring)
+    got = _run(
+        pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000", device_id="CALLER-ID")
+    )
+
+    ev = json.load(open(got[0] + ".meta.json"))["acquisition_evidence"]
+    assert ev["device_id"] == "O2R-TEST-1", "the identity read's serial keys the envelope, not the caller's id"
+    assert ev["session_id"] == "20260720010000"
+    assert ev["artifact_path"] == got[0], "the envelope names the file it describes"
+    assert ev["artifact_sha256"] == hashlib.sha256(open(got[0], "rb").read()).hexdigest()
+    assert ev["artifact_size"] == os.path.getsize(got[0])
 
 
 # ── the progress output names its values ────────────────────────────────────────────────────────────
