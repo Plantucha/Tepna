@@ -2178,8 +2178,15 @@
   },
   "tools/tch-bootstrap-ci.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. It prints a PROSE line derived from the object (\"population: <status> \u2014 n night(s) covered of m\") and never the object, so the bootstrap confidence interval reports its scope in a form no reader can validate. The adoption owed is the record beside the prose, plus a corpus-free sample. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-bootstrap-ci.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. It prints a PROSE line derived from the object (\"population: <status> \u2014 n night(s) covered of m\") and never the object, so the bootstrap confidence interval reports its scope in a form no reader can validate. It now prints `POPULATION <json>` and the rule line beside the prose, and `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
   },
   "tools/tch-degeneracy-d7.mjs": {
    "bin": "decides",
@@ -2224,8 +2231,15 @@
   },
   "tools/tch-fused-corpus.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. The object rides inside the `--json` payload (`{ dir, nights, population }`), so the record exists and nothing the gate can run prints it alone: the adoption owed is a corpus-free sample, since the fused corpus lives on a volume no gate mounts. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-fused-corpus.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. The object rides inside the `--json` payload (`{ dir, nights, population }`), so the record exists and nothing the gate can run prints it alone: `--verdict-sample` prints the object over a synthetic two-night snapshot before the `--dir` refusal, so the gate validates it without the fused corpus, which lives on a volume no gate mounts. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
   },
   "tools/tch-minrho-corpus.mjs": {
    "bin": "already-json",
@@ -2277,8 +2291,15 @@
   },
   "tools/tch-reference-validation.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. Every exit path prints the object as `POPULATION <json>` (`emitPopulation`), and the run itself needs the trio corpus, so the adoption owed is a corpus-free sample the gate can run. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-reference-validation.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. Every exit path prints the object as `POPULATION <json>` (`emitPopulation`), and the run itself needs the trio corpus, so `--verdict-sample` prints the object over a synthetic two-night snapshot before the absent-input refusal, which exits 2 on a volume CI does not mount. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
   },
   "tools/tch-third-corner.mjs": {
    "bin": "decides",
@@ -2294,8 +2315,15 @@
   },
   "tools/tch-window-sensitivity.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. It prints a PROSE line derived from the object (\"population: <status> \u2014 n night(s) covered of m\") and never the object, so the window-length sweep reports its scope in a form no reader can validate. The adoption owed is the record beside the prose, plus a corpus-free sample. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-window-sensitivity.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. It prints a PROSE line derived from the object (\"population: <status> \u2014 n night(s) covered of m\") and never the object, so the window-length sweep reports its scope in a form no reader can validate. It now prints `POPULATION <json>` and the rule line beside the prose on BOTH exit paths \u2014 the empty-root refusal included \u2014 and `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
   },
   "tools/treatment-response-recut.mjs": {
    "bin": "word-only",
