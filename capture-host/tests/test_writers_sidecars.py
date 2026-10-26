@@ -211,6 +211,19 @@ def test_oxyframe_counts_rows(tmp_path):
 
 
 # ── HostClockLogWriter ──────────────────────────────────────────────────────────────────────────────
+def test_host_clock_keeps_its_own_path_and_binds_health_to_it(tmp_path):
+    """`self.path = path` and `_FlushHealth(path)` in this writer's `__init__`, both trivially mutable
+    to `None` and both unobserved. The path is what a flush failure NAMES — `_FlushHealth.failed`
+    logs it and nothing else — so losing it turns a named failure into an anonymous one. The sibling
+    `PmdArrivalLogWriter` already carries this leg; this writer's `__init__` had none, which is why
+    appending one column to its header surfaced the gap."""
+    p = tmp_path / "named_CLOCK.csv"
+    w = HostClockLogWriter(str(p), fsync=False)
+    assert w.path == str(p)
+    assert getattr(w._health, "path", None) == str(p), "health must be bound to this file, not to None"
+    w.close()
+
+
 def test_host_clock_header_and_bool_rendering(tmp_path):
     p = tmp_path / "c.csv"
     w = HostClockLogWriter(str(p), fsync=False)
@@ -229,17 +242,21 @@ def test_host_clock_header_and_bool_rendering(tmp_path):
             "reason": "ok",
             "chrony_skew_ppm": 0.123,
             "timebase": "device-crystal",
+            "capture_absorbed_sec": 3600.0,
         },
     )
     w.close()
     assert _lines(str(p))[0].startswith("Phone timestamp;trust;absolute_ok;synchronized;server;")
-    assert _lines(str(p))[0].rstrip().endswith(";chrony_skew_ppm;timebase"), "the timebase decision is the last column"
+    assert _lines(str(p))[0].rstrip().endswith(";chrony_skew_ppm;timebase;capture_absorbed_sec"), (
+        "the absorbed civil shift is the last column, appended after the timebase decision"
+    )
     cells = _rows(str(p))[0].split(";")
     assert cells[1] == "ntp"
     assert cells[2] == "1", "True must render as 1"
     assert cells[3] == "0", "False must render as 0 — it is a real negative claim, not an absence"
-    assert cells[-2] == "0.123", "chrony_skew_ppm rides the second-to-last column"
-    assert cells[-1] == "device-crystal", "the timebase decision rides the last column"
+    assert cells[-3] == "0.123", "chrony_skew_ppm keeps its offset from the end"
+    assert cells[-2] == "device-crystal", "the timebase decision keeps its offset from the end"
+    assert cells[-1] == "3600.0", "the absorbed civil shift rides the last column"
 
 
 def test_host_clock_absent_fields_are_blank_not_false(tmp_path):
@@ -262,7 +279,7 @@ def test_host_clock_reason_cannot_break_the_delimiter(tmp_path):
     w.write(WHEN, {"reason": "step; then slew; done"})
     w.close()
     row = _rows(str(p))[0]
-    assert row.count(";") == 12, "one row must keep exactly the header's delimiter count"
+    assert row.count(";") == 13, "one row must keep exactly the header's delimiter count"
     assert "step, then slew, done" in row and "step; then slew" not in row, "the ';' must be escaped"
 
 
@@ -272,9 +289,59 @@ def test_host_clock_none_reason_is_blank_not_the_string_none(tmp_path):
     w.write(WHEN, {"reason": None})
     w.close()
     cells = _rows(str(p))[0].split(";")
-    assert cells[-3] == "", "a None reason renders blank, never the string 'None'"
-    assert cells[-2] == "", "an absent chrony_skew_ppm renders blank, never a fabricated 0"
-    assert cells[-1] == "", "an absent timebase renders blank, never a fabricated value"
+    assert cells[-4] == "", "a None reason renders blank, never the string 'None'"
+    assert cells[-3] == "", "an absent chrony_skew_ppm renders blank, never a fabricated 0"
+    assert cells[-2] == "", "an absent timebase renders blank, never a fabricated value"
+    assert cells[-1] == "", "an absent absorbed shift renders blank, never a fabricated 0"
+
+
+def test_host_clock_absorbed_civil_shift_is_read_back_out_of_the_csv(tmp_path):
+    """Row 2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact. The value rode
+    `capture.py`'s host-clock status dict into this writer every poll, and the column list dropped it, so
+    a night carried no record that its absolute stamps were knowingly wrong.
+
+    A test of the accessor cannot see this class: the 2026-08-05 audit measured that deleting the line
+    which PUBLISHES the value survived every accessor test. So this leg reads the column back out of a
+    WRITTEN file, and it reads a steady-state zero and a real shift from two different rows."""
+    p = tmp_path / "c.csv"
+    w = HostClockLogWriter(str(p), fsync=False)
+    w.write(WHEN, {"trust": "ntp", "capture_absorbed_sec": 0.0})
+    w.write(WHEN, {"trust": "ntp", "capture_absorbed_sec": -3600.0})
+    w.close()
+    head = _lines(str(p))[0].rstrip().split(";")
+    assert head[-1] == "capture_absorbed_sec"
+    col = head.index("capture_absorbed_sec")
+    steady, shifted = (r.split(";") for r in _rows(str(p)))
+    assert steady[col] == "0.0", "zero is the steady state and a real measurement, never an absence"
+    assert shifted[col] == "-3600.0", "a backward civil step is absorbed, and the night now says so"
+
+
+def test_host_clock_absorbed_column_does_not_move_the_earlier_ones(tmp_path):
+    """The append-never-insert rule, asserted rather than assumed. A positional reader of the thirteen
+    earlier columns must be unaffected, which is the whole reason the column went last."""
+    p = tmp_path / "c.csv"
+    w = HostClockLogWriter(str(p), fsync=False)
+    w.write(WHEN, {"trust": "ntp", "stratum": 2, "timebase": "host-disciplined", "capture_absorbed_sec": 1.5})
+    w.close()
+    head = _lines(str(p))[0].rstrip().split(";")
+    assert head[:13] == [
+        "Phone timestamp",
+        "trust",
+        "absolute_ok",
+        "synchronized",
+        "server",
+        "stratum",
+        "reference",
+        "root_dispersion_ms",
+        "jitter_us",
+        "packet_count",
+        "reason",
+        "chrony_skew_ppm",
+        "timebase",
+    ], head
+    cells = _rows(str(p))[0].split(";")
+    assert len(cells) == len(head) == 14
+    assert cells[1] == "ntp" and cells[5] == "2" and cells[12] == "host-disciplined"
 
 
 # ── LinkLogWriter ───────────────────────────────────────────────────────────────────────────────────
@@ -598,6 +665,7 @@ def test_the_host_clock_row_carries_every_column_it_promises(tmp_path):
             "reason": "normal",
             "chrony_skew_ppm": 0.123,
             "timebase": "host-disciplined",
+            "capture_absorbed_sec": -3600.0,
         },
     )
     w.close()
@@ -616,6 +684,7 @@ def test_the_host_clock_row_carries_every_column_it_promises(tmp_path):
         "reason",
         "chrony_skew_ppm",
         "timebase",
+        "capture_absorbed_sec",
     ]
     assert row.split(";") == [
         "2026-07-19T03:04:05.678",
@@ -631,6 +700,7 @@ def test_the_host_clock_row_carries_every_column_it_promises(tmp_path):
         "normal",
         "0.123",
         "host-disciplined",
+        "-3600.0",
     ], "every column, in the header's order — a reader keys on position"
 
 
