@@ -126,10 +126,18 @@ def rates_span(lines: list[str], lo: int, hi: int) -> tuple[int, int] | None:
     if i is None:
         return None
     base = indent_of(lines[i])
-    j = i + 1
-    while j < hi and (not lines[j].strip() or indent_of(lines[j]) > base):
-        j += 1
-    return i, j
+    # A BOUNDED scan, and the bound is the point. A hand-advanced `while` index times out under the
+    # capture-host mutation gate rather than failing (CLAUDE.md §🧪), because a mutant of the advance
+    # can stop the loop terminating. An UNDECIDED mutant is unmeasured, not killed, and no timeout
+    # bound converts one into the other — so the scanner carries its own ceiling. Measured here: CI
+    # read `verity_sdk_config.x_rates_span__mutmut_24` as a timeout at 489 generated and 488 decided,
+    # where this box decided all 489.
+    end = hi
+    for j in range(i + 1, hi):
+        if lines[j].strip() and indent_of(lines[j]) <= base:
+            end = j
+            break
+    return i, end
 
 
 def body_indent_of(lines: list[str], lo: int, hi: int) -> int:
