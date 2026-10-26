@@ -2350,14 +2350,21 @@ class HostClockLogWriter:
                 "# elevation_m=%s fix=%s sats=%s hdop=%s source=%s\n"
                 % (geo.get("elevation_m"), geo.get("fix_quality"), geo.get("sats"), geo.get("hdop"), geo.get("source"))
             )
-        # chrony_skew_ppm then timebase are APPENDED LAST so a positional reader of the earlier columns is
-        # unaffected — the same "never shift an existing column" discipline LinkLogWriter keeps.
+        # chrony_skew_ppm, timebase then capture_absorbed_sec are APPENDED LAST so a positional reader of
+        # the earlier columns is unaffected — the same "never shift an existing column" discipline
+        # LinkLogWriter keeps.
         # chrony_skew_ppm = clock-frequency precision (ppm error bound), chrony-only, blank on timesyncd.
         # timebase = the RATE reference this capture is analysed on, 'device-crystal' | 'host-disciplined'
         # (host_clock.timebase_decision); the Stage-3 decision, recorded per capture (O2RING-ADAPTIVE-TIMEBASE).
+        # capture_absorbed_sec = seconds this session is deliberately behind civil time, so every absolute
+        # stamp in the night is off by that much (`capture.absorbed_shift_sec`). It reached the daemon
+        # status surface and NO night artifact, which tells an operator and tells no downstream consumer
+        # (CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-II §3's named remainder). ZERO IS A MEASUREMENT HERE, not an
+        # absence: zero is the steady state, and a blank cell means the poller never set the key.
         self._fh.write(
             "Phone timestamp;trust;absolute_ok;synchronized;server;stratum;reference;"
-            "root_dispersion_ms;jitter_us;packet_count;reason;chrony_skew_ppm;timebase\n"
+            "root_dispersion_ms;jitter_us;packet_count;reason;chrony_skew_ppm;timebase;"
+            "capture_absorbed_sec\n"
         )
         self.rows = 0
         self._flush_interval = flush_interval
@@ -2393,6 +2400,7 @@ class HostClockLogWriter:
                     str(st.get("reason") or "").replace(";", ","),
                     _f(st.get("chrony_skew_ppm")),
                     _f(st.get("timebase")),
+                    _f(st.get("capture_absorbed_sec")),
                 )
             )
             + "\n",
