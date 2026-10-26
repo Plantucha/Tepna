@@ -30,9 +30,12 @@
  * can chase. `unanchored` was a bare integer and `beyond-eof` had no field at all until row
  * 2026-10-26-the-unanchored-class-is-counted-and-never-named.
  *
- * ADVISORY: exits 0 and prints the list (`--strict` exits 1 on any `moved`). A row's line hint moving
- * is not a defect in the row; it is the reason the identifier rule exists. Rows are never edited by
- * this tool — the ledger's rows are append-only.
+ * ADVISORY: exits 0 and prints the list. `--strict` exits 1 on the three classes this file ranks as
+ * defects — `missing-file`, `unanchored`, `beyond-eof` — and never on `moved`. A row's line hint
+ * moving is not a defect in the row; it is the reason the identifier rule exists. The flag read
+ * `moved` alone until row 2026-10-26-the-strict-exit-reads-the-one-class-the-tool-calls-benign, which
+ * inverted that ordering and made the flag's green unreachable: rows are append-only, so nobody may
+ * repair a line hint where it sits. Rows are never edited by this tool.
  *
  *   node tools/residue-cite-drift.mjs                 # every row, against origin/main
  *   node tools/residue-cite-drift.mjs --ref HEAD      # against the checkout's HEAD
@@ -183,6 +186,15 @@ function readAt(ref, relPath) {
   return null;
 }
 
+/* THE EXIT CODE READS THE CLASSES THIS FILE RANKS AS DEFECTS. `--strict` read `r.moved.length`
+   alone, which inverted the ordering stated in the header: a moved hint is advisory, and §📌 forbids
+   editing a row cell, so nobody may repair one where it sits — the flag's green was unreachable
+   while 76 citations in the three actionable classes left it green. `moved` stays out of the sum on
+   purpose. (Row 2026-10-26-the-strict-exit-reads-the-one-class-the-tool-calls-benign.) */
+export function strictFailures(r) {
+  return r.missing.length + r.unanchored.length + r.beyondEof.length;
+}
+
 export function sweep(rows, reader) {
   const cache = new Map();
   const lines = (p) => {
@@ -274,6 +286,25 @@ function selftest() {
     r.beyondEof.length === 1 && r.beyondEof[0].key === '2026-09-20-c' && r.beyondEof[0].cite === 'mod.py:99' && r.beyondEof[0].length === 8
   );
   check('ANTI-VACUITY · anchored stays a count, since a pointer that still points names nothing to chase', r.byVerdict.anchored === 1 && r.anchored === undefined);
+  /* THE EXIT CODE'S POPULATION. One of each class is planted above, so the sum is the three
+     actionable ones and the moved hint is absent from it. The control below carries a moved citation
+     and nothing else: it must read zero, or `--strict` is still gating on the advisory class. */
+  check('strictFailures sums the three classes the tool ranks as defects', strictFailures(r) === 3);
+  {
+    const movedOnly = parseRows('| 2026-09-20-m | 2026-09-20 | `mod.py` | cites `pull_session` at mod.py:1 | ok | OPEN |');
+    const rm = sweep(movedOnly, (q) => (q === 'mod.py' ? file : null));
+    check('CONTROL · a sweep whose only finding is MOVED decides nothing, so --strict stays green', rm.byVerdict.moved === 1 && strictFailures(rm) === 0);
+  }
+  check(
+    'TRIPWIRE · the flag is wired to that sum and reads `moved` nowhere in its exit',
+    (() => {
+      const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+      /* MATCH THE STATEMENT, NOT ITS NAME. A first version searched for the exit's own text and
+         found THIS leg's string literal instead — the §4 self-match, one layer up. */
+      const line = src.split('\n').find((l) => /^\s*process\.exit\(has\(/.test(l));
+      return Boolean(line) && line.includes('strictN') && !line.includes('moved');
+    })()
+  );
   check(
     'each file is read once per sweep (cache)',
     (() => {
@@ -335,6 +366,11 @@ function main() {
     }
     console.log('\n  Advisory: a moved hint is not a defect in the row — grep the identifier; the line was only ever a shortcut.');
   }
-  process.exit(has('--strict') && r.moved.length ? 1 : 0);
+  const strictN = strictFailures(r);
+  if (has('--strict') && strictN)
+    console.log(
+      `\n  --strict: ${strictN} citation(s) in the classes this tool ranks as defects (missing-file ${r.missing.length} · unanchored ${r.unanchored.length} · beyond-eof ${r.beyondEof.length}). The ${r.moved.length} moved hint(s) do not decide this exit.`
+    );
+  process.exit(has('--strict') && strictN ? 1 : 0);
 }
 main();
