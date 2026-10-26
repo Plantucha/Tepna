@@ -66,6 +66,8 @@
  *   node tools/reanchor-equivalence.mjs                    # report only, writes nothing
  *   node tools/reanchor-equivalence.mjs --probe            # re-test every movable entry, write nothing
  *   node tools/reanchor-equivalence.mjs --probe --write    # the only form that moves an anchor
+ *   node tools/reanchor-equivalence.mjs --qualify          # what an enclosing-function qualifier is worth
+ *   node tools/reanchor-equivalence.mjs --qualify --write  # write the qualifier; moves no address
  *   node tools/reanchor-equivalence.mjs --file pulsedex-dsp.js
  *   node tools/reanchor-equivalence.mjs --selftest         # known-answer, no enumeration
  *   node tools/reanchor-equivalence.mjs --verdict-sample   # the verdict object alone, no enumeration
@@ -93,14 +95,97 @@ export const codeKey = (e) => norm(e.op) + '\0' + norm(e.before);
 /* The whole decision, as a pure function so it can be known-answer tested without a sweep.
    Returns one of: {action:'ok'} · {action:'reanchor', line} · {action:'ambiguous', n} ·
    {action:'gone'}. */
-export function planEntry(entry, generated) {
+/* EVERY FIELD AN ENTRY ACTUALLY CONSTRAINS, and no more. `op` and `before` are always recorded;
+   `after` and `fn` are OPTIONAL, and an absent one constrains nothing — the same back-compatible
+   reading the ledger gives a missing `fn`, applied to the field that was missing first.
+
+   This used to filter on (op, before) alone, while the matcher it reports for (`survivorKey`) has
+   always carried `after`. The looser key does not endanger anything — it over-counts candidates, so
+   the tool orphans where it could have moved — but it misreports, and the report is what a reader
+   acts on. Measured 2026-10-26 over the committed ledger: of 106 entries it called AMBIGUOUS, 69 have
+   exactly one candidate once `after` is honoured, 2 have none at all and were GONE, and only 35 are
+   ambiguous on the matcher's own key. 6 entries carry no `after` at all and keep the loose reading. */
+export function candidatesFor(entry, generated) {
   const k = codeKey(entry);
-  const exact = generated.find((m) => m.line === entry.line && codeKey(m) === k);
-  if (exact) return { action: 'ok' };
-  const same = generated.filter((m) => codeKey(m) === k);
-  if (same.length === 1) return { action: 'reanchor', line: same[0].line };
-  if (same.length > 1) return { action: 'ambiguous', n: same.length };
+  let c = generated.filter((m) => codeKey(m) === k);
+  if (entry.after != null && norm(entry.after) !== '') c = c.filter((m) => norm(m.after) === norm(entry.after));
+  if (entry.fn != null && entry.fn !== '') c = c.filter((m) => m.fn === entry.fn);
+  return c;
+}
+
+export function planEntry(entry, generated) {
+  const cands = candidatesFor(entry, generated);
+  if (cands.some((m) => m.line === entry.line)) return { action: 'ok' };
+  if (cands.length === 1) return { action: 'reanchor', line: cands[0].line };
+  if (cands.length > 1) return { action: 'ambiguous', n: cands.length };
   return { action: 'gone' };
+}
+
+/* The identity a qualifier creates: the enclosing function plus the mutation, with no line in it.
+   `fn` is stamped on every mutant by `mutate.mjs --dry-run --json`, which is the one process holding
+   the source — so this tool never re-implements the brace matcher and cannot drift from it. */
+export const idKey = (m) => (m.fn == null ? '\u0000top' : m.fn) + '\u0000' + codeKey(m) + '\u0000' + norm(m.after);
+
+/* WHAT A QUALIFIER IS WORTH, ENTRY BY ENTRY — and which entries may safely receive one.
+   `write` is the only safe set, and the two conditions that define it are both necessary:
+
+   · the entry is ALREADY exactly anchored, so writing `fn` moves no address and renews no claim. It
+     records where the entry already points, which is why this write needs no probe while a
+     re-anchor does (PR #3989's ruling).
+   · its (fn, op, before, after) identity is UNIQUE among the file's mutants, so the line-free match
+     the qualifier enables resolves to that same single mutant. Without this the qualifier would widen
+     one excuse onto a sibling mutant nobody probed — the defect #3989 found 33 live instances of.
+
+   The other buckets are refusals, each for its own reason: `collides` fails the uniqueness test,
+   `topLevel` sits outside any named function so no qualifier can name it, `legacy` records no `after`
+   and a qualifier would have to invent one, and `drifted` is not anchored, so its function could only
+   be read off a line already known to be wrong. */
+export function qualifyPlan(entries, generated) {
+  const cnt = new Map();
+  for (const m of generated) {
+    const k = idKey(m);
+    cnt.set(k, (cnt.get(k) || 0) + 1);
+  }
+  const out = { write: [], collides: [], topLevel: [], legacy: [], drifted: [], already: [] };
+  for (const e of entries) {
+    if (e.fn != null && e.fn !== '') {
+      out.already.push(e);
+      continue;
+    }
+    if (e.after == null) {
+      out.legacy.push(e);
+      continue;
+    }
+    const plan = planEntry(e, generated);
+    if (plan.action !== 'ok') {
+      /* WHAT A QUALIFIER WOULD HAVE BOUGHT, for an entry that never carried one. The recorded
+         function is unknowable — the entry has no `fn` and its line has drifted, so reading one off
+         that line would read it off an address already known to be wrong. What IS decidable is
+         whether the answer depends on it: group the candidates by their own function, and if every
+         group holds exactly one mutant, resolution is unique WHICHEVER function was recorded. One
+         group of two or more makes it conditional on the recorded name, and a single group of two or
+         more makes it impossible — the same mutation twice inside one function, which no qualifier
+         can separate. */
+      const cands = generated.filter((m) => codeKey(m) === codeKey(e) && (e.after == null || norm(e.after) === '' || norm(m.after) === norm(e.after)));
+      const groups = new Map();
+      for (const m of cands) groups.set(m.fn == null ? '\u0000top' : m.fn, (groups.get(m.fn == null ? '\u0000top' : m.fn) || 0) + 1);
+      const sizes = [...groups.values()];
+      const would = cands.length === 0 ? 'gone' : sizes.every((n) => n === 1) ? 'anyFn' : sizes.some((n) => n === 1) ? 'someFn' : 'neverPlaced';
+      out.drifted.push({ entry: e, action: plan.action, would });
+      continue;
+    }
+    const m = candidatesFor(e, generated).find((x) => x.line === e.line);
+    if (m.fn == null) {
+      out.topLevel.push(e);
+      continue;
+    }
+    if (cnt.get(idKey(m)) !== 1) {
+      out.collides.push(e);
+      continue;
+    }
+    out.write.push({ entry: e, fn: m.fn });
+  }
+  return out;
 }
 
 export function planFile(entries, generated) {
@@ -247,6 +332,41 @@ export function sampleTally() {
   return { movable: 3, survived: 2, refuted: 0, agreeing: 1, unprobed: 0, collided: 0, voidedFiles: [] };
 }
 
+/* The qualifier pass decides something of its own — which entries may carry a function qualifier —
+   so it owes its own object rather than borrowing the re-anchor criterion. The criterion is stated
+   before the data: a written qualifier must resolve to exactly ONE mutant. The tool cannot write one
+   that does not (`qualifyPlan` routes those to `collides`), so the number this reports is a
+   measurement of the guard holding, not a hope. */
+export function makeQualifyVerdict(tq) {
+  const commit = headCommit();
+  const checked = tq.entries;
+  return Verdict.make({
+    gate: 'reanchor-equivalence-qualify',
+    status: checked ? 'PASS' : 'NOT_RUN',
+    population: { checked, eligible: checked, excluded: 0 },
+    criterion: { name: 'qualifiers_resolving_to_other_than_one_mutant', threshold: 0, unit: 'entries', direction: 'lte' },
+    result: {
+      qualifiable: tq.write,
+      identityCollides: tq.collides,
+      topLevel: tq.topLevel,
+      noAfterRecorded: tq.legacy,
+      drifted: tq.drifted,
+      alreadyQualified: tq.already,
+      ambiguousWritten: 0,
+      /* The retrospective: of the already-drifted entries, how many a qualifier would place. */
+      driftPlacedForAnyFn: tq.wouldAnyFn,
+      driftPlacedOnlyForSomeFn: tq.wouldSomeFn,
+      driftNeverPlaceable: tq.wouldNever,
+      driftMutationGone: tq.wouldGone
+    },
+    evidence: ['tools/reanchor-equivalence.mjs', 'tools/mutate-equivalence.json'],
+    reason: checked ? null : 'no ledger entry was examined, so nothing was decided',
+    producedBy: commit
+      ? { tool: 'tools/reanchor-equivalence.mjs', commit }
+      : { tool: 'tools/reanchor-equivalence.mjs', commit: null, commitReason: 'git rev-parse failed here, so there is no commit to stamp' }
+  });
+}
+
 export function makeVerdict(tally) {
   const f = verdictFields(tally);
   const commit = headCommit();
@@ -360,6 +480,67 @@ if (IS_MAIN && has('--selftest')) {
   );
 
   const vs = Verdict.validate(makeVerdict(sampleTally()));
+  /* ── the enclosing-function qualifier ──────────────────────────────────────────────────────────
+     Residue 2026-10-26-a-line-keyed-equivalence-entry-that-drifts-ambiguously-cannot-be-placed. */
+  const Q = (line, op, before, after, fn) => ({ line, op, before, after, fn });
+  const qgen = [
+    Q(10, 'num → 0', 'x = 5;', 'x = 0;', 'alpha'),
+    Q(20, 'num → 0', 'x = 5;', 'x = 0;', 'beta'),
+    Q(30, 'num → 0', 'x = 5;', 'x = 1;', 'beta'),
+    Q(40, 'cmp > → >=', 'if (a > b) {', 'if (a >= b) {', null)
+  ];
+  ok('`after` narrows a candidate set the old key called ambiguous', candidatesFor({ line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 1;' }, qgen).length === 1);
+  ok('…so the entry is MOVABLE where the loose key reported ambiguity', planEntry({ line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 1;' }, qgen).action === 'reanchor');
+  ok('an entry recording NO `after` keeps the loose reading rather than matching nothing', planEntry({ line: 99, op: 'num → 0', before: 'x = 5;' }, qgen).action === 'ambiguous');
+  ok('a qualifier picks between two mutants `after` cannot separate', planEntry({ line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 0;', fn: 'beta' }, qgen).action === 'reanchor');
+  ok('…and names the right one', planEntry({ line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 0;', fn: 'beta' }, qgen).line === 20);
+  ok('a qualifier naming no candidate is GONE, never guessed around', planEntry({ line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 0;', fn: 'gamma' }, qgen).action === 'gone');
+  /* qualifyPlan — which entries may RECEIVE a qualifier, and why each refusal is a refusal. */
+  const qp = qualifyPlan(
+    [
+      { line: 10, op: 'num → 0', before: 'x = 5;', after: 'x = 0;' },
+      { line: 40, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' },
+      { line: 10, op: 'num → 0', before: 'x = 5;' },
+      { line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 1;' },
+      { line: 20, op: 'num → 0', before: 'x = 5;', after: 'x = 0;', fn: 'beta' }
+    ],
+    qgen
+  );
+  ok('an anchored entry with a unique identity is qualifiable', qp.write.length === 1 && qp.write[0].fn === 'alpha', JSON.stringify(qp.write));
+  ok('a TOP-LEVEL mutant can carry no qualifier', qp.topLevel.length === 1);
+  ok('an entry recording no `after` is refused — a qualifier would have to invent one', qp.legacy.length === 1);
+  ok('a DRIFTED entry is refused — its function could only be read off a wrong line', qp.drifted.length === 1);
+  ok('an entry that already carries one is left alone', qp.already.length === 1);
+  const coll = qualifyPlan([{ line: 20, op: 'num → 0', before: 'x = 5;', after: 'x = 0;' }], [qgen[1], { ...qgen[2], after: 'x = 0;' }]);
+  ok('an identity that names two mutants in ONE function is refused, not written', coll.collides.length === 1 && coll.write.length === 0);
+  /* the retrospective: what a qualifier would have bought an entry that never carried one */
+  ok(
+    'a drifted entry whose candidates are one-per-function is placed whichever name was recorded',
+    qualifyPlan([{ line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 0;' }], qgen).drifted[0].would === 'anyFn'
+  );
+  ok(
+    '…one with a two-mutant group is placed only for SOME name',
+    qualifyPlan([{ line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 0;' }], [qgen[0], qgen[1], { ...qgen[2], after: 'x = 0;' }]).drifted[0].would === 'someFn'
+  );
+  ok(
+    '…and one whose mutation repeats inside a single function is NEVER placeable',
+    qualifyPlan([{ line: 99, op: 'num → 0', before: 'x = 5;', after: 'x = 0;' }], [qgen[1], { ...qgen[2], after: 'x = 0;' }]).drifted[0].would === 'neverPlaced'
+  );
+  ok('…and one with no candidate at all is reported as gone, not as placeable', qualifyPlan([{ line: 99, op: 'num → 0', before: 'nothing', after: 'nothing' }], qgen).drifted[0].would === 'gone');
+  /* THE COMMITTED LEDGER ITSELF: every qualifier written must be a plain identifier. */
+  const _led = JSON.parse(readFileSync(join(ROOT, 'tools/mutate-equivalence.json'), 'utf8'));
+  let _fnBad = 0,
+    _fnSeen = 0;
+  for (const f of Object.keys(_led)) {
+    if (f === '_README') continue;
+    for (const e of _led[f]) {
+      if (e.fn == null) continue;
+      _fnSeen++;
+      if (typeof e.fn !== 'string' || !/^\w+$/.test(e.fn)) _fnBad++;
+    }
+  }
+  ok('the committed ledger carries qualifiers', _fnSeen > 0, _fnSeen + ' qualified');
+  ok('…and every one of them is a plain identifier', _fnBad === 0);
   ok('the emitted verdict object validates', vs.ok, (vs.errors || []).join('; '));
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
@@ -383,11 +564,93 @@ if (IS_MAIN && !has('--selftest')) {
   }
   const PROBE = has('--probe');
   const WRITE = has('--write');
-  if (WRITE && !PROBE) {
+  const QUALIFY = has('--qualify');
+  if (QUALIFY && PROBE) {
+    console.error('--qualify --probe REFUSED: a qualifier write moves no address, so a probe has nothing to renew. Run them as separate passes.');
+    process.exit(2);
+  }
+  if (WRITE && !PROBE && !QUALIFY) {
     console.error('--write REFUSED: moving an anchor without a probe re-arms an excuse nobody re-probed.');
     console.error('Owner ruling, board #1549 item 21 (2026-10-26): re-anchor WITH a probe for each entry. Re-run as `--probe --write`.');
     process.exit(2);
   }
+  /* Enumerate through a FILE, never a pipe: a big file's mutant list truncates at ~146 KB through a
+     child's stdout, and a truncated enumeration would report live entries as `gone`. Returns null on
+     a failed enumeration so a caller skips the file rather than reading an empty one as empty. */
+  const enumerate = (file) => {
+    const tmp = join(tmpdir(), `reanchor-${process.pid}.json`);
+    const fd = openSync(tmp, 'w');
+    try {
+      execFileSync(process.execPath, [join(ROOT, 'tools/mutate.mjs'), '--file', file, '--dry-run', '--limit', '100000', '--json'], { cwd: ROOT, stdio: ['ignore', fd, 'ignore'] });
+    } catch (_) {
+      closeSync(fd);
+      console.error(`  ✗ ${file}: could not enumerate mutants — skipped`);
+      return null;
+    }
+    closeSync(fd);
+    const g = JSON.parse(readFileSync(tmp, 'utf8')).files[0].mutants;
+    unlinkSync(tmp);
+    return g;
+  };
+
+  if (QUALIFY) {
+    /* THE QUALIFIER PASS. It writes `fn` on entries that are already exactly anchored and whose
+       (fn, op, before, after) identity is unique in the file, and it moves no address — so it needs
+       no probe, where a re-anchor does. The control for that claim is in the code below, not in this
+       comment: every line is snapshotted before the write and compared after. */
+    const tq = { write: 0, collides: 0, topLevel: 0, legacy: 0, drifted: 0, already: 0, entries: 0, files: 0, wouldAnyFn: 0, wouldSomeFn: 0, wouldNever: 0, wouldGone: 0 };
+    const before = new Map();
+    for (const file of files) {
+      const generated = enumerate(file);
+      if (!generated) continue;
+      tq.files++;
+      for (const e of doc[file]) before.set(e, e.line);
+      const q = qualifyPlan(doc[file], generated);
+      tq.entries += doc[file].length;
+      tq.write += q.write.length;
+      tq.collides += q.collides.length;
+      tq.topLevel += q.topLevel.length;
+      tq.legacy += q.legacy.length;
+      tq.drifted += q.drifted.length;
+      tq.already += q.already.length;
+      for (const d of q.drifted) {
+        if (d.would === 'anyFn') tq.wouldAnyFn++;
+        else if (d.would === 'someFn') tq.wouldSomeFn++;
+        else if (d.would === 'neverPlaced') tq.wouldNever++;
+        else tq.wouldGone++;
+      }
+      console.log(
+        `▸ ${file}  ${doc[file].length} entr(ies) · ${q.write.length} qualifiable · ${q.collides.length} identity-collides · ${q.topLevel.length} top-level · ${q.legacy.length} no-after · ${q.drifted.length} drifted · ${q.already.length} already`
+      );
+      for (const c of q.collides) console.log(`    ⚠ COLLIDES L${c.line} [${c.op}] — its (fn, op, before, after) names more than one mutant, so a qualifier would widen the excuse`);
+      if (WRITE) for (const w of q.write) w.entry.fn = w.fn;
+    }
+    if (WRITE) {
+      /* THE CONTROL. A qualifier write that moved an address would be a re-anchor wearing another
+         flag's name, and PR #3989's ruling would apply to it. Refuse before touching the file. */
+      const movedLines = [...before.entries()].filter(([e, l]) => e.line !== l);
+      if (movedLines.length) {
+        console.error(`--qualify --write REFUSED: ${movedLines.length} address(es) moved. A qualifier write must move none; that is why it needs no probe.`);
+        process.exit(2);
+      }
+      writeFileSync(LEDGER, JSON.stringify(doc, null, LEDGER_INDENT) + '\n');
+      console.log(`\n✓ qualified ${tq.write} entr(ies) with their enclosing function. NO address moved — verified over all ${before.size} entr(ies), not asserted.`);
+    } else {
+      console.log(`\n${tq.write} of ${tq.entries} entr(ies) can carry a qualifier. Re-run with \`--qualify --write\`.`);
+      console.log(
+        `  of the ${tq.drifted} already-drifted: ${tq.wouldAnyFn} would be placed whichever function was recorded, ${tq.wouldSomeFn} only for some, ${tq.wouldNever} never (one mutation repeated inside one function), ${tq.wouldGone} have no candidate at all.`
+      );
+    }
+    const vq = makeQualifyVerdict(tq);
+    const cq = Verdict.validate(vq);
+    if (!cq.ok) {
+      console.error('verdict invalid: ' + (cq.errors || []).join('; '));
+      process.exit(1);
+    }
+    console.log(JSON.stringify(vq));
+    process.exit(0);
+  }
+
   const TODAY = new Date().toISOString().slice(0, 10);
   const COMMIT = headCommit();
   const jobsOpt = opt('--jobs', null);
@@ -439,18 +702,8 @@ if (IS_MAIN && !has('--selftest')) {
   for (const file of files) {
     /* Enumerate through a FILE, never a pipe: a big file's mutant list truncates at ~146 KB through
        a child's stdout, and a truncated enumeration would report live entries as `gone`. */
-    const tmp = join(tmpdir(), `reanchor-${process.pid}.json`);
-    const fd = openSync(tmp, 'w');
-    try {
-      execFileSync(process.execPath, [join(ROOT, 'tools/mutate.mjs'), '--file', file, '--dry-run', '--limit', '100000', '--json'], { cwd: ROOT, stdio: ['ignore', fd, 'ignore'] });
-    } catch (_) {
-      closeSync(fd);
-      console.error(`  ✗ ${file}: could not enumerate mutants — skipped`);
-      continue;
-    }
-    closeSync(fd);
-    const generated = JSON.parse(readFileSync(tmp, 'utf8')).files[0].mutants;
-    unlinkSync(tmp);
+    const generated = enumerate(file);
+    if (!generated) continue;
 
     const plan = planFile(doc[file], generated);
     fine += plan.ok.length;

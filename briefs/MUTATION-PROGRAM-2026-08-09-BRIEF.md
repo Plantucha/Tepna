@@ -705,6 +705,29 @@ the 272 movable entries that day: 239 re-anchored and **33 refuted** — the sui
 those entries excuse. A probe renews SURVIVAL, never equivalence, so the sentence above still holds
 for the 239.
 
+**THE DURABLE FIX IS AN ADDRESS THAT IS NOT A LINE (2026-10-26).** An entry may carry `fn`, the
+enclosing named function, and one that does is matched on `(fn, op, before, after)` with the line
+ignored — so an edit above it no longer detaches it, and it detaches only when the mutation leaves
+that function, which is a different site. The qualifier is OPTIONAL, as the Python lane's already is:
+an entry without one is matched on its line exactly as before. `--qualify` writes it, under two
+conditions it enforces rather than trusting an author — the entry must already be exactly anchored, so
+the write moves no address and needs no probe, and its `(fn, op, before, after)` identity must be
+unique in the file, or the line-free match would widen one excuse onto a sibling nobody probed.
+261 of 434 entries qualified; 4 in `oxydex-dsp.js` fail the uniqueness test and stay line-keyed.
+
+The same work found the report wrong. `planEntry` filtered on `(op, before)` while the matcher it
+reports for has always carried `after`, so #3989 published **106 ambiguous** where the matcher's own
+key says 37: 69 of those have exactly one candidate once `after` is honoured, and 2 have none and were
+gone. The looser key endangered nothing — it orphans where it could move — but a reader acts on the
+report. Corrected counts over the same ledger: 266 anchored, **102** movable, **37** ambiguous, 29
+gone. The 102 still owe a probe each; nothing was moved here.
+
+What a qualifier would have been worth to the 163 entries that drifted before carrying one, measured
+by grouping each entry's candidates by their own function: **118** resolve uniquely whichever function
+was recorded, 7 only for some, **12 never** — one mutation repeated inside one function, which no
+qualifier can separate — and 26 have no candidate at all. So the qualifier is a durability mechanism
+for entries recorded from now on, not a repair for the drift already there.
+
 ⚠️ It also found that **`clock.js`'s three entries — the oldest in the ledger, on the file the whole
 mechanism was built for — are genuinely stale** (all three lines now hold different code). They are
 `real-gap` records so nothing is falsely excused, but they had rotted unnoticed.
