@@ -1305,7 +1305,11 @@ def test_the_cowear_fields_travel_with_the_device_and_an_absent_one_stays_absent
     assert "cowear" not in v["result"]["devices"]["mystery"]
     assert "pre_cowear" not in v["result"]["devices"]["mystery"]
     assert "restart_gaps" not in v["result"]["devices"]["mystery"]
-    assert sn.DEVICE_EXTRAS == ("cowear", "pre_cowear", "restart_gaps")
+    # `coverage` joins the set on 2026-10-26 and is the one extra that may be absent on a SCORED device
+    # too: a band writes it only when it narrowed the span it judged. The equality is what makes a new
+    # key announce itself — see `solid_night_inputs.timebase`'s thin-segment rule.
+    assert "coverage" not in v["result"]["devices"]["ring"]
+    assert sn.DEVICE_EXTRAS == ("cowear", "pre_cowear", "restart_gaps", "coverage")
 
 
 def test_a_single_device_night_says_single_device_in_the_verdict():

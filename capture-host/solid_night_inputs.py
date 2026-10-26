@@ -278,8 +278,16 @@ _DECLARED_HZ = re.compile(r"@(\d+(?:\.\d+)?)Hz$")
 DECLARED_RATE_WHY = "declared in the acquisition evidence (A6)"
 
 
-def _decision(status: str, reason: str | None = None) -> dict:
-    return {"status": status, "reason": reason}
+def _decision(status: str, reason: str | None = None, coverage: str | None = None) -> dict:
+    # `coverage` IS ABSENT WHEN THERE IS NONE, deliberately against the convention `score_devices`
+    # states for its device keys ("always present and `None` when empty"). The two differ because the
+    # consumers differ: every device has a co-wear answer, while only a band that narrowed its own span
+    # writes a coverage note. `compose` already carries situational keys this way — its `DEVICE_EXTRAS`
+    # splice keeps absent keys absent — and every committed band decision keeps its two-key shape.
+    out: dict = {"status": status, "reason": reason}
+    if coverage is not None:
+        out["coverage"] = coverage
+    return out
 
 
 def read_json(path: str) -> dict | None:
@@ -1833,11 +1841,30 @@ def timebase(night_dir: str, device: str, clock_tag: str, clock_files: list[str]
             f"; the axis is judged in {len(segs)} segment(s), never across a step"
         )
 
+    # ── 🔴 A THIN SEGMENT IS REDUCED COVERAGE, NOT A DISCONTINUITY ────────────────────────────────
+    # Owner ruling 2026-09-17 (CLAUDE.md §∅): a discontinuity refuses and reduced coverage annotates.
+    # A recorded clock-set splits the axis, and the head before the first set is often a handful of
+    # rows — too few to measure a rate at all. Ranking that head returned UNKNOWN for the WHOLE device,
+    # which threw away a judgeable segment because a shorter one could not be judged. So a thin segment
+    # annotates and the judgeable segments decide. Second half of residue
+    # `2026-10-21-the-night-judge-counts-clock-rows-that-recorded-no-clock-write`; the density refusal
+    # that row names is a different arm and is unchanged here.
+    # ⚠️ ONLY WHILE SOMETHING ELSE IS JUDGEABLE. When every segment is thin this band examined nothing,
+    # and a judge over nothing reports the absence (§∅) — those segments keep ranking and the device
+    # stays UNKNOWN, carrying the same sentence it carried before this rule.
+    annotate_thin = any(len(seg) >= TB_MIN_ANCHORS for seg in segs)
+    notes: list[str] = []
     worst_out: dict | None = None
     rank = {"FAIL": 2, "UNKNOWN": 1, "PASS": 0}
     for si, seg in enumerate(segs, 1):
         tag = f"`{who}` segment {si}/{len(segs)}" if len(segs) > 1 else f"`{who}`"
         if len(seg) < TB_MIN_ANCHORS:
+            if annotate_thin:
+                # ONE SENTENCE, TWO CHANNELS. The wording is the ranking branch's own, so a reader and
+                # a test see the same count and the same floor whichever way the segment was disposed
+                # of; only the clause saying what happened to it differs.
+                notes.append(f"{tag} gave {len(seg)} anchor(s) — under {TB_MIN_ANCHORS}, so it is not judged")
+                continue
             out = _decision("UNKNOWN", f"{tag} gave {len(seg)} anchor(s) — under {TB_MIN_ANCHORS}{seam_note}")
         else:
             r0 = seg[0][0] - seg[0][1]
@@ -1893,7 +1920,11 @@ def timebase(night_dir: str, device: str, clock_tag: str, clock_files: list[str]
                             )
         if worst_out is None or rank[out["status"]] > rank[worst_out["status"]]:
             worst_out = out
-    assert worst_out is not None  # `anchors` is non-empty above, so `segs` carries at least one segment
+    # `annotate_thin` is False unless some segment is judgeable, so at least one segment always ranks:
+    # either a judgeable one, or — when none is — every thin one.
+    assert worst_out is not None
+    if notes:
+        return _decision(worst_out["status"], worst_out["reason"], coverage="; ".join(notes))
     return worst_out
     # A5 IS BUILT ABOVE (`unrecorded_shift`), and the distinction this note used to draw still holds: the
     # segment split consumes a step the box RECORDED, which is the opposite of detecting an unrecorded
@@ -2246,7 +2277,8 @@ def _pooled_audit(night_dir: str) -> dict | None:
 
 
 def score_devices(night_dir: str, devices: list) -> dict:
-    """`{name: {"bands", "cowear", "pre_cowear", "restart_gaps"}}` for `compose`.
+    """`{name: {"bands", "cowear", "pre_cowear", "restart_gaps"}}` for `compose`, plus `coverage` on a
+    device whose bands wrote one.
 
     The scored interval of every device starts at CO-WEAR (SOLID-NIGHT-COWEAR-AND-PROBE §1), so the
     devices are read first and scored second: the latest first row is not known until the last of them
@@ -2319,6 +2351,12 @@ def score_devices(night_dir: str, devices: list) -> dict:
             # because the next reader will reach for `clocks` too.
             clock_files = stream_files(night_dir, model, clock_tag)
             bands["timebase"] = timebase(night_dir, name, clock_tag, clock_files, start, end)
+        # THE BAND'S OWN COVERAGE NOTE, LIFTED TO THE DEVICE so that it survives a PASS.
+        # `device_outcome` collects reasons from FAIL and UNKNOWN bands only — "empty for a PASS" — so a
+        # band that narrowed its span and then passed had nowhere to say so, and §∅'s "reduced COVERAGE
+        # annotates" needs a channel a PASS does not close. Keyed by band, because the note is about one
+        # band's span and a reader must not have to guess which.
+        cover = {b: d["coverage"] for b, d in bands.items() if d.get("coverage")}
         out[name] = {
             "bands": bands,
             "cowear": cowear_note,
@@ -2326,5 +2364,7 @@ def score_devices(night_dir: str, devices: list) -> dict:
             # WHAT THE BAND EXCLUDED, beside what it never covered. Both keys are always present and
             # `None` when empty, so a consumer reads one shape per device rather than testing for a key.
             "restart_gaps": restart_gaps(audit_dev, scored_start, end),
+            # ABSENT WHEN NO BAND WROTE ONE, unlike the three keys above — see `_decision`.
+            **({"coverage": cover} if cover else {}),
         }
     return out

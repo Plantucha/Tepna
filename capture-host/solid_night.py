@@ -42,8 +42,9 @@ NOT_SETTLED = "not settled"
 EXIT_SOLID = 14
 VERDICT_NAME = "SOLID-VERDICT.json"
 NO_VERDICT = "no solid-night verdict was written for this settled night"
-#: What a device result carries beside its bands — see `solid_night_inputs.score_devices`.
-DEVICE_EXTRAS = ("cowear", "pre_cowear", "restart_gaps")
+#: What a device result carries beside its bands — see `solid_night_inputs.score_devices`. `coverage`
+#: is the one that may be absent: a band writes it only when it narrowed the span it judged.
+DEVICE_EXTRAS = ("cowear", "pre_cowear", "restart_gaps", "coverage")
 CRITERION = {
     "name": "failing band decisions across the night's scored devices (SOLID-NIGHT §3.4)",
     "threshold": 0,
