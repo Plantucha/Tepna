@@ -152,6 +152,69 @@ expectcmd ALLOW "inline hatch after && is command position too"       "cd $WORK 
 expectcmd DENY  "the variable merely QUOTED does not release it"      "echo 'set CLAUDE_ALLOW_STALE_BRIEF=1 to override' >> briefs/SHARED-BRIEF.md"
 
 echo
+echo "### §3b — the interpreter arm is a READ ALLOWLIST, and an unknown form denies"
+# Owner ruling 1, fleet board #1549: invert the write-verb list to a read allowlist that fails
+# closed. The four forms below are the ones measured 2026-10-26 (#1437, hatches cleared, one
+# command per arm) to rewrite a stale guarded doc with BOTH guards silent. Each was invisible to
+# the enumeration this arm used to carry, and each must now deny.
+#
+# THE PRE-INVERSION CONTROL, measured 2026-10-26: this whole file was run against `origin/main`'s
+# copy of the hook, from inside a checkout (the hook derives the repo root from its own location, so
+# a copy under /tmp REFUSES on the payload-size probe and measures nothing). It read
+# `FAIL — 9 problem(s)` with 102 ok: the four write forms above, the two unknown-form legs, the two
+# post-`;` legs and the in-place perl all came back ALLOW. The other new legs pass under both hooks
+# by design — they assert the guard does NOT fire, so only these nine discriminate.
+expectcmd DENY  "pathlib write_text — invisible to the old verb list" "python3 -c \"import pathlib; pathlib.Path('briefs/SHARED-BRIEF.md').write_text('v3')\""
+expectcmd DENY  "shutil.copy ONTO a stale brief"                     "python3 -c \"import shutil; shutil.copy('/tmp/x.md','briefs/SHARED-BRIEF.md')\""
+expectcmd DENY  "os.replace ONTO a stale brief"                      "python3 -c \"import os; os.replace('/tmp/x.md','briefs/SHARED-BRIEF.md')\""
+expectcmd DENY  "node appendFileSync on a stale brief"               "node -e \"require('fs').appendFileSync('briefs/SHARED-BRIEF.md','v3')\""
+# THE CONTROL from that same run, and the reason the four legs above measure the inversion rather
+# than a change of fixture: `writeFileSync` is the one verb the old list held, and it denied then.
+expectcmd DENY  "the writeFileSync control, which denied BEFORE too" "node -e \"require('fs').writeFileSync('briefs/SHARED-BRIEF.md','v3')\""
+
+# 🔴 THE FAIL-CLOSED DIRECTION, WHICH IS THE POINT OF THE INVERSION. Neither leg is a write, and
+# neither reaches the path through a form the allowlist recognises. Both ALLOWED under the old
+# enumeration. Denying them is the cost the ruling accepts: a guard that fails open on an unknown
+# verb protects nothing it has not already enumerated.
+expectcmd DENY  "an unknown form on a guarded path fails closed"     "python3 -c \"import mymod; mymod.roundtrip('briefs/SHARED-BRIEF.md')\""
+expectcmd DENY  "…and the index is guarded on the same terms"        "python3 -c \"import mymod; mymod.roundtrip('DOCS-INDEX.md')\""
+
+# The paired ALLOWs, without which the arm would be a blanket denial on every interpreter that
+# names a brief. Each names a guarded path in program text and reaches it through a known read.
+expectcmd ALLOW "open() with no mode is a read"                      "python3 -c \"print(open('briefs/SHARED-BRIEF.md').read())\""
+expectcmd ALLOW "read_text() on a stale brief is a read"             "python3 -c \"import pathlib; print(pathlib.Path('briefs/SHARED-BRIEF.md').read_text())\""
+expectcmd ALLOW "readFileSync on a stale brief is a read"            "node -e \"console.log(require('fs').readFileSync('briefs/SHARED-BRIEF.md','utf8'))\""
+
+# ⚠ THE BOUNDARY OF THE INVERSION, PINNED AS TWO LEGS. A script FILE's source is not text this
+# hook can read: `node tools/ste-lint.mjs briefs/X-BRIEF.md` names the path as an ARGUMENT and does
+# its work inside a file the hook never opens. So the allowlist judges INLINE program text only.
+# Failing closed over command text instead would deny every brief-reading tool in this repo on its
+# first use — the allowlist-on-the-wrong-axis defect `capture-host/nights_index.py:97` records.
+expectcmd ALLOW "a script FILE naming a brief is not program text"   "node tools/ste-lint.mjs briefs/SHARED-BRIEF.md"
+# …and the flag that is NOT an inline program must not drag the clause in as program text.
+expectcmd ALLOW "a long flag ending in 'e' is not an inline program" "node tools/ste-lint.mjs --trace briefs/SHARED-BRIEF.md"
+# The same script file with a redirect, which the FIRST arm catches in command text as before.
+expectcmd DENY  "…but a redirect beside that script IS command text" "node tools/ste-lint.mjs --json > briefs/SHARED-BRIEF.md"
+
+# 🔴 THE SPLITTER LEG, which is the defect this unit measured in its own first draft. A `;` inside
+# a quoted payload is NOT a clause boundary, and a `tr`-based split cut the flag away from the path.
+# Both legs below read ALLOW under that split and DENY under the tokenizer that replaced it.
+expectcmd DENY  "a ';' inside the quoted payload is not a boundary"  "python3 -c \"import pathlib; pathlib.Path('briefs/SHARED-BRIEF.md').write_text('v3')\""
+expectcmd DENY  "…and the same for an unknown form after a ';'"      "python3 -c \"import mymod; mymod.roundtrip('briefs/SHARED-BRIEF.md')\""
+# The paired ALLOW the tokenizer buys: a READ of a guarded path in one clause, and an unrelated
+# inline program in another. A splitter that kept whole clauses would hand the path to the program.
+expectcmd ALLOW "a read clause beside an unrelated inline program"   "grep -n v1 briefs/SHARED-BRIEF.md && node -e \"console.log(1)\""
+
+# An in-place perl names its target as an ARGUMENT, so no program-text rule can reach it. It is the
+# in-place sed one word apart, and the old verb list saw neither.
+expectcmd DENY  "an in-place perl on a stale brief"                  "perl -pi -e 's/a/b/' briefs/SHARED-BRIEF.md"
+expectcmd ALLOW "…and a perl with no -i flag is not a write"         "perl -ne 'print if /v1/' briefs/SHARED-BRIEF.md"
+
+# The hatch, in command position, over the hardest of the new denials. The denial names it, so a
+# session that meets an unknown form has one documented way past it.
+expectcmd ALLOW "the hatch releases a new fail-closed denial"        "CLAUDE_ALLOW_STALE_BRIEF=1 python3 -c \"import mymod; mymod.roundtrip('briefs/SHARED-BRIEF.md')\""
+
+echo
 echo "### WHAT THE DENIAL SAYS — the verdict is not the only thing a reader has to act on"
 # Residue 2026-10-26-a-guarded-path-written-as-data-reads-as-a-write-of-that-path. The interpreter
 # arm cannot see its target, so a program that writes elsewhere and merely NAMES a guarded doc is
