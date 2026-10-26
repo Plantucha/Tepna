@@ -14,6 +14,8 @@ A refusal is a `Refusal`, never an exit, so every refusal below is asserted on i
 
 from __future__ import annotations
 
+import copy
+
 import pytest
 import verity_sdk_config as VT
 import yaml
@@ -319,3 +321,177 @@ def test_the_diff_is_redacted_and_empty_when_nothing_changes():
 def test_the_module_pins_the_rate_menu_sdk_mode_unlocks():
     assert VT.WANT_PPG == 176
     assert VT.SDK_RATES == (28, 44, 55, 135, 176)
+
+
+# ── WHAT A SURVIVING MUTANT SAID ABOUT THE TESTS ABOVE ────────────────────────────────────────────
+# The diff-scoped mutation gate reded this file's first version with 25 survivors over 17 functions,
+# at 100 % line and branch coverage. Every one of them says the same thing: a test ran the line and
+# then asserted nothing that could tell the line's result from a wrong one. The assertions below are
+# the killers, one property each, and the comment on each names the change it refuses.
+
+
+def test_body_indent_reads_the_block_it_was_given_not_an_earlier_one():
+    """`range(lo, hi)` narrowed to `range(hi)` reads the first indented key in the WHOLE file.
+
+    The bound is the whole point of the argument: an inserted key must line up with the keys of ITS
+    block, and a file's first device block is almost never the one being edited.
+    """
+    L = lines("devices:\n  - name: A\n    address: x\n  - name: B\n        ppg: 1\n")
+    assert VT.body_indent_of(L, 3, 5) == 8
+
+
+def test_key_line_never_looks_before_the_lower_bound():
+    """Same narrowing, and here it returns an index OUTSIDE the span the caller asked about."""
+    L = lines("    ppg: 9\ndevices:\n    rates:\n      ppg: 176\n")
+    assert VT.key_line(L, 2, 4, "ppg") == 3
+
+
+def test_rates_span_starts_below_the_rates_key_itself():
+    """`j = i + 1` moved to `i + 2` skips the first body line, so an EMPTY block reads as one deep.
+
+    `rates:` with no body is the case that separates them, and it is the case the edit must get
+    right: the span decides whether `ppg` is inserted or rewritten.
+    """
+    L = lines("    rates:\n    other: 2\n    ppg: 3\n")
+    assert VT.rates_span(L, 0, 3) == (0, 1)
+
+
+def test_rates_span_ends_at_a_sibling_at_the_same_indent():
+    """`indent_of(...) > base` weakened to `>=` swallows the next sibling key into the block."""
+    L = lines("    rates:\n      ppg: 1\n    other: 2\n")
+    assert VT.rates_span(L, 0, 3) == (0, 2)
+
+
+def test_a_comment_keeps_the_trailing_spaces_it_was_written_with():
+    """`rstrip("\n")` widened to `rstrip()` eats trailing spaces, so a rewritten line loses them.
+
+    The comments on these lines are measured findings. A rewrite carries the comment forward BYTE
+    for byte, or the diff the operator reads shows a change nobody made.
+    """
+    assert VT.comment_of("    sdk_mode: true  # measured 2026-10-20  \n") == "  # measured 2026-10-20  "
+
+
+def test_the_strip_before_a_comment_is_trailing_not_leading():
+    """`rstrip("\n")` turned into `lstrip("\n")`. Two trailing newlines are what separate them:
+    the comment regex anchors on `$`, which reaches past ONE trailing newline and no further."""
+    assert VT.comment_of("    sdk_mode: true  # m\n\n") == "  # m"
+
+
+def test_value_of_strips_every_trailing_newline_not_a_leading_one():
+    """The same swap inside `value_of`, where it returns the comment as part of the VALUE."""
+    assert VT.value_of("    ppg: 176  # m\n\n") == "176"
+
+
+def test_value_of_splits_on_the_colon_not_on_whitespace():
+    """`split(":", 1)` turned into `split(None, 1)` agrees on every spaced line and raises here.
+
+    The docstring says "the text after the first colon", so a line with no space after the colon is
+    the contract, not an edge case.
+    """
+    assert VT.value_of("root:/data/tepna\n") == "/data/tepna"
+
+
+def test_device_blocks_ignores_an_item_before_the_devices_key():
+    """`in_devices = False` flipped to `True` at the top makes every leading item a device."""
+    L = lines("  - name: Ghost\ndevices:\n  - name: VERITY-01\n    address: x\n")
+    assert VT.device_blocks(L) == [(2, 4, "VERITY-01")]
+
+
+def test_device_blocks_ignores_an_item_after_a_top_level_key_closed_the_list():
+    """The same flip where the list CLOSES. A later `- name:` under another key is not a device."""
+    L = lines("devices:\n  - name: VERITY-01\npull:\n  - name: Ghost\n")
+    assert VT.device_blocks(L) == [(1, 2, "VERITY-01")]
+
+
+def test_device_blocks_reads_a_second_devices_section():
+    """`continue` turned into `break` stops the scan at the first top-level key after the list.
+
+    Nothing in YAML forbids a second `devices:` section, and a scanner that stops early reports an
+    absence it never looked for.
+    """
+    L = lines("devices:\n  - name: VERITY-01\npull:\n  enabled: true\ndevices:\n  - name: H10-01\n")
+    assert VT.device_blocks(L) == [(1, 2, "VERITY-01"), (5, 6, "H10-01")]
+
+
+def test_the_diff_header_names_both_sides():
+    """Dropping either filename leaves the operator reading a diff whose sides are unlabelled."""
+    d = VT.diff_text(lines("a: 1\n"), lines("a: 2\n"))
+    assert "--- config.yaml\n" in d
+    assert "+++ config.yaml (trial)\n" in d
+
+
+def test_the_diff_is_stripped_at_its_end_not_its_start():
+    """`rstrip()` turned into `lstrip()`. The header must survive and the trailing newline must not."""
+    d = VT.diff_text(lines("a: 1\n"), lines("a: 2\n"))
+    assert d.startswith("--- config.yaml")
+    assert not d.endswith("\n")
+
+
+def test_the_rate_is_inserted_as_the_first_key_under_rates():
+    """`out.insert(r0 + 1, ...)` moved to `r0 + 2` puts the key one line too low — under a sibling,
+    or past the end of a one-line block, which is a different document."""
+    L = lines("devices:\n  - name: VERITY-01\n    streams: [ppg]\n    sdk_mode: true\n    rates:\n      acc: 52\n")
+    out, _ = VT.edit(L, 176)
+    i = next(k for k, s in enumerate(out) if s.strip() == "rates:")
+    assert out[i + 1].strip() == "ppg: 176"
+
+
+def test_the_rate_search_starts_below_the_rates_key():
+    """`key_line(out, r0 + 1, r1, "ppg")` moved to `r0 - 1` reads a key ABOVE `rates:` as the rate.
+
+    A scalar `ppg` beside `rates:` is a plausible hand edit, and rewriting it would move a third
+    value while the note claims only two changed.
+    """
+    L = lines(
+        "devices:\n  - name: VERITY-01\n    streams: [ppg]\n    sdk_mode: true\n    ppg: 9\n    rates:\n      acc: 52\n"
+    )
+    out, notes = VT.edit(L, 176)
+    assert "rates.ppg: ABSENT -> 176 (inserted)" in notes
+    assert "    ppg: 9\n" in out
+
+
+def test_the_proof_does_not_alter_the_document_it_was_handed():
+    """`copy.deepcopy(now)` weakened to `copy.copy(now)` restores the two keys ON THE CALLER'S doc.
+
+    The verdict is identical either way, which is why no assertion on the return value sees it. The
+    proof's whole job is to leave the parsed file alone and compare, so the side effect IS the
+    defect: a shallow probe silently edits the document the caller may still read.
+    """
+    before_doc = {"devices": [{"name": "VERITY-01", "rates": {"ppg": 55, "acc": 52}}]}
+    after_doc = {"devices": [{"name": "VERITY-01", "sdk_mode": True, "rates": {"ppg": 176, "acc": 52}}]}
+    snapshot = copy.deepcopy(after_doc)
+
+    def load(text):
+        return before_doc if text == "BEFORE" else after_doc
+
+    assert VT.only_two_keys_moved("BEFORE", "AFTER", 176, load) == []
+    assert after_doc == snapshot
+
+
+def test_the_proof_reports_an_unwritten_sdk_mode_instead_of_raising():
+    """`pd.pop("sdk_mode", None)` with the default dropped raises when the key was never written.
+
+    That is exactly the failure the proof exists to REPORT, so a crash there replaces a named
+    problem with a traceback.
+    """
+    before_doc = {"devices": [{"name": "VERITY-01", "rates": {"ppg": 55}}]}
+    after_doc = {"devices": [{"name": "VERITY-01", "rates": {"ppg": 176}}]}
+
+    def load(text):
+        return before_doc if text == "BEFORE" else after_doc
+
+    problems = VT.only_two_keys_moved("BEFORE", "AFTER", 176, load)
+    assert any("sdk_mode" in p for p in problems)
+
+
+def test_the_proof_reports_an_unwritten_rate_instead_of_raising():
+    """The same dropped default on `pd["rates"].pop("ppg", None)`, reached when the file carried a
+    `rates:` block with other keys and the write never landed."""
+    before_doc = {"devices": [{"name": "VERITY-01", "sdk_mode": True, "rates": {"acc": 52}}]}
+    after_doc = {"devices": [{"name": "VERITY-01", "sdk_mode": True, "rates": {"acc": 52}}]}
+
+    def load(text):
+        return before_doc if text == "BEFORE" else after_doc
+
+    problems = VT.only_two_keys_moved("BEFORE", "AFTER", 176, load)
+    assert any("rates.ppg" in p for p in problems)

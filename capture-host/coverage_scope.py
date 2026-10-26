@@ -98,6 +98,15 @@ UNMEASURED_BY_DESIGN: dict[str, str] = {
         "in verity_sdk_config.py one directory up, and tests/test_verity_sdk_config.py covers that "
         "module to 100 % of its statements and branches"
     ),
+    "tools/probe_verity_equivalence.py": (
+        "a hand-run probe, and a DELIBERATELY WEAK PIN. It rebuilds each claimed-equivalent mutant "
+        "from the module source BY LINE NUMBER, so it cannot be a test: under the mutation gate the "
+        "source on disk is already rewritten and the line numbers have moved, so the same code run "
+        "as a test would compare the wrong lines and kill mutants for the wrong reason, hiding real "
+        "survivors across the whole module. Kept out of the suite for that reason, which is also why "
+        "no test imports it. Its claims are re-checked by running it, and the equivalence entries it "
+        "supports name it"
+    ),
 }
 
 # The four ways the ledger and the report can disagree. All four red; none is advisory.
