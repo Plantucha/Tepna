@@ -132,6 +132,45 @@ if [ -z "$names_ledger" ] && [ -n "$code" ]; then
     printf '%s' "$clause" | grep -q 'residue-ids\.mjs' && continue
     # History, not state.
     printf '%s' "$clause" | grep -qE '\bgit\b.*\b(log|diff|blame|annotate)\b' && continue
+    # ── DATA CARRIERS: PRINTING a path, and DESCRIBING it in a commit message, read nothing ─
+    #    The heredoc drop above already says a body is data as far as "which files does this
+    #    command read" goes. Two more positions carry that same property: the operand of
+    #    `echo`/`printf`, and the message argument of `git commit`. The expensive one is the
+    #    commit message, because a row-closing commit names the ledger by construction, so the
+    #    more precisely a session documents a closure the more likely it was blocked.
+    #
+    #    ⚠ THE ROW'S OWN REMEDY SHAPE IS REFUSED, AND MEASURED BEFORE REFUSING. Row
+    #    2026-10-26-a-data-position-ledger-mention-denies-the-command proposes extending the data
+    #    drop from the heredoc body "to a quoted literal", for every command. Measured on this
+    #    hook 2026-10-26: `sed -i 's/OPEN/fixed/' "briefs/RESIDUE.md"` moves from DENY to ALLOW
+    #    under that shape, because a quoted path is an OPERAND as often as it is prose.
+    #    `guard-shared-tree.sh:49-66` records the same reasoning from the other side: its quote
+    #    strip is safe BECAUSE the add, reset and clean rules still read the command raw. This
+    #    hook has one rule and no such backstop, so the exemption names the CARRIERS instead.
+    #
+    #    Three shapes are operands, never prose, and none of them is exempt: a redirect into the
+    #    ledger (`echo x > briefs/RESIDUE.md` overwrites it, which is the write this hook exists
+    #    to stop), a command substitution (`echo $(cat briefs/RESIDUE.md)` reads the stale file),
+    #    and a quoted span that is EXACTLY the path. The third is deliberately conservative: it
+    #    keeps `echo "briefs/RESIDUE.md"` denied, and it is also what keeps the `sed -i` above
+    #    shut whichever command carries it.
+    _op=''
+    printf '%s' "$clause" | grep -qE '>>?[[:space:]]*["'"'"']?[^[:space:]"'"'"']*'"$LEDGER" && _op=1
+    printf '%s' "$clause" | grep -q '[$`]' && _op=1
+    printf '%s' "$clause" | grep -qE '["'"'"']'"$LEDGER"'["'"'"']' && _op=1
+    if [ -z "$_op" ]; then
+      printf '%s' "$clause" | grep -qE '^[[:space:]]*(echo|printf)[[:space:]]' && continue
+      # The mention must live inside a quoted span AND the clause must still read as a
+      # `git commit` carrying a message flag once the spans are blanked. Blanking alone is the
+      # refused shape above; the command test is what keeps every read and write denied.
+      _bare="$(printf '%s' "$clause" | sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g")"
+      case "$_bare" in
+        *"$LEDGER"*) : ;;
+        *) printf '%s' "$_bare" | grep -qE '\bgit\b.*\bcommit\b' \
+             && printf '%s' "$_bare" | grep -qE '(^|[[:space:]])(-m|-F|--message|--file)([[:space:]]|=|$)' \
+             && continue ;;
+      esac
+    fi
     names_ledger=1
     # The clause that names the ledger is the one that ACTS on it, so it is the only clause whose
     # `-C` target or absolute path says which tree the read happens in (see the block below).
