@@ -11357,6 +11357,62 @@
         ''
       );
 
+      /* ── THE HEAVIEST KEY, AND THE UNIT THAT MADE IT UNWIRABLE ──────────────────────────────
+         Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `tools/stage-lab.mjs` held
+         backlog weight 12 in `tools/corpus-reads.mjs` — the largest single key — through four wiring
+         units, because every one of its twelve enumerations walks an external PSG archive
+         (`sub-NNN`, `ucddbNNN.rec`, `edfs/<visit>/*.edf`) and the primitive counted night
+         directories only. `snapshotNights` over such a root answers `ok: true, n: 0`: a full dataset
+         published as empty, which is the ∅ defect wearing the fix's clothes, measured 2026-10-25
+         before any of it was wired.
+
+         So the population carries its UNIT, and these legs pin the unit rather than only the call.
+         A re-wiring onto the night walk would still print an object and would still read as
+         `reports` in the scan — only the unit says whether anything was examined. */
+      var SLAB = TT['tools/stage-lab.mjs'] || '';
+      var CSCOPE = TT['tools/corpus-scope.mjs'] || '';
+      T.ok('ANTI-VACUITY · the stage-lab source is loaded', /const COHORTS = \{/.test(SLAB), SLAB.length + ' char(s)');
+      T.ok(
+        'the stage lab publishes a population through the primitive and prints the object',
+        /from '\.\/corpus-scope\.mjs'/.test(SLAB) && /populationVerdict\(/.test(SLAB) && SLAB.indexOf("'POPULATION '") >= 0,
+        'tools/stage-lab.mjs does not publish a population'
+      );
+      T.ok(
+        'and its unit is a PSG record, never a night directory',
+        /snapshotEntries\([^)]*\{[^}]*unit: 'records'/.test(SLAB) && !/snapshotNights\(/.test(SLAB),
+        'tools/stage-lab.mjs does not snapshot a record population'
+      );
+      T.ok('the heaviest key has left the unwired backlog it headed', CR.UNWIRED_BACKLOG['stage-lab.mjs'] === undefined, 'stage-lab.mjs is still listed as an unwired corpus enumerator');
+      /* AND THE UNIT RIDES THE OBJECT, not only the prose: a reader indexing on `criterion.name`
+         must be able to tell a record population from a night one, and the night key is one 20
+         published verdicts already carry. */
+      T.eq(
+        'the primitive defines the record population and takes the criterion from the unit',
+        [
+          ['export snapshotEntries', /export function snapshotEntries\(/],
+          ['export notCovered', /export function notCovered\(/],
+          ['unitWords', /function unitWords\(/],
+          ['criterion from the unit', /name: W\.criterion/],
+          ['no night key in the set arithmetic', /function membersOf\(/]
+        ]
+          .filter(function (pair) {
+            return !pair[1].test(CSCOPE);
+          })
+          .map(function (pair) {
+            return pair[0];
+          })
+          .join(', '),
+        ''
+      );
+      /* AND THE REMOVAL NAMER STILL HAS ONE DEFINITION ACROSS BOTH UNITS. `notANight` is the night
+         name for `notCovered`, so a record caller cannot grow a second copy of the set arithmetic —
+         the lesson of row 2026-10-22-the-removal-namer-is-duplicated-in-two-oracles, re-applied to a
+         unit rather than to a node. */
+      T.ok(
+        'the night namer delegates to the one definition rather than re-deriving the difference',
+        /export function notANight\(offer, covered\) \{\s*return notCovered\(offer, covered\);/.test(CSCOPE),
+        'notANight no longer delegates to notCovered'
+      );
       /* AN EXIT THAT PLANNED A POPULATION AND REPORTED NONE. `--dry-run` returns from the fold
          before the batch summary, so the planner printed its night list and said nothing about the
          population it planned over — the absence the row is about, one exit over. The assertion

@@ -47,6 +47,7 @@ import { fileURLToPath } from 'node:url';
 import * as Core from './stage-lab-core.mjs';
 import { makeRealm } from './nsrr-stage-validate.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { notCovered, populationVerdict, snapshotEntries } from './corpus-scope.mjs';
 import { makeRealm as makeEcgRealm } from './ecg-physionet-differential.mjs'; // v16: the suite's own Pan–Tompkins for ECG-derived pulse
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -631,7 +632,19 @@ async function cmdFeatures(a) {
     }
     return;
   }
-  const ids = COHORTS[cohort].list(dir).slice(0, a.limit ? +a.limit : undefined),
+  /* ── THE POPULATION THIS RUN COVERS, AND WHY ITS UNIT IS A RECORD ─────────────────────────────
+     Row 2026-10-21-forty-one-corpus-enumerators-report-no-population: this tool carried the heaviest
+     unwired weight in `tools/corpus-reads.mjs` (12 enumerations) and reported no population at all,
+     so a run over 104 of the 128 BOAS sessions read exactly like a run over all of them. The unit is
+     a PSG RECORD and not a night directory — `sub-NNN`, `ucddbNNN.rec`, `edfs/<visit>/*.edf` — so
+     the night primitive would have published `n: 0` over a full dataset, which is the ∅ defect
+     wearing the fix's clothes. The cohort's own `list` IS the enumeration here, which leaves all six
+     adapters' rules where they are defined instead of restating them. */
+  const popBefore = snapshotEntries(dir, { list: () => COHORTS[cohort].list(dir), unit: 'records' });
+  /* An unreadable cohort root THROWS, exactly as the bare listing did: a population of zero records
+     would read as "this dataset is empty", which is the absence the snapshot exists to make visible. */
+  if (!popBefore.ok) throw new Error(`cohort "${cohort}": ${popBefore.reason} (${dir})`);
+  const ids = popBefore.members.slice(0, a.limit ? +a.limit : undefined),
     tag = a.tag || (a.harmonize ? blocks.map((b) => (b === 'spo2' ? 'spo2h' : b)).join('+') : blocks.join('+'));
   const workers = Math.max(1, Math.min(+(a.workers || 8), cpus().length - 2));
   const hb = heartbeat(cache, `features ${cohort}`);
@@ -681,6 +694,24 @@ async function cmdFeatures(a) {
   hb.stop();
   const errs = readdirSync(join(cache, cohort)).filter((f) => f.endsWith('.err')).length;
   console.log(`features ${cohort}: ${count() - errs} cached, ${errs} errors (see *.err in the cache)`);
+  /* The population closes over the same lister it opened with: a dataset can gain a record while a
+     multi-hour feature build runs, and the status labels that MOVEMENT, never the coverage. */
+  const population = populationVerdict(popBefore, snapshotEntries(dir, { list: () => COHORTS[cohort].list(dir), unit: 'records' }), {
+    tool: 'tools/stage-lab.mjs',
+    evidence: ['tools/stage-lab.mjs', 'briefs/STAGE-LAB-2026-09-27-BRIEF.md']
+  });
+  /* `--limit` is a SELECTION over the offered records, so the records it left unread are NAMED. A
+     count names nothing a reader can chase, which is the `notANight` lesson one unit over. */
+  const unread = notCovered(
+    popBefore,
+    ids.map((id) => ({ record: id })),
+    { key: 'record' }
+  );
+  console.log(
+    `  population: ${popBefore.n} record(s) offered under ${dir} · ${ids.length} selected · ${count() - errs} cached · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`
+  );
+  console.log(`  offered but not selected: ${unread.length ? unread.join(', ') : 'none'}`);
+  console.log('POPULATION ' + JSON.stringify(population));
 }
 
 /* ── eval: grouped CV on one cohort, optional extra training cohort, learning curve ──────────── */
