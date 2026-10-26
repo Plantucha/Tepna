@@ -373,12 +373,18 @@ mypy_ratchet() {
   esac
 }
 run_gate "mypy-ratchet" mypy_ratchet
-# ── THE DEV FLOORS LEG: a declared version compared to an installed one ─────────────────────────────
+# ── THE FLOORS LEG: a declared version compared to an installed one, runtime and dev ───────────────
 # NOTHING IN THIS TREE COMPARED A VERSION TO A FLOOR. `tests/test_dev_requirements.py` compares NAMES,
 # so `requirements-dev.txt` could raise a floor with nobody reading it — and it had: measured
 # 2026-10-12 on rig-x870, this venv ran ruff 0.16.0 against the declared `>=0.16.9` and hypothesis
 # 6.165.10 against `>=6.168.3`, with every gate green. Three ruffs are in play (this file, the lint
 # job's unpinned install, a session's venv) and no line said which one ran.
+#
+# BOTH DECLARING FILES SINCE 2026-10-26. The leg read the dev file alone, so the four RUNTIME floors in
+# `requirements.txt` had no reader anywhere: CI installs that file in three jobs and satisfies every
+# floor it declares, while the daemon keeps whatever its venv holds. The gap is measured — the file
+# declares `cryptography>=50.0.1` and both venvs carried 50.0.0 on 2026-10-18. A runtime row reading
+# ABSENT here is a finding too: it says the interpreter running this gate is not the daemon's.
 #
 # ADVISORY, for the same reason mypy is: a floor nobody has installed yet is an environment fact, not a
 # finding about the diff, and a blocking check would red every local run until each box is upgraded.
@@ -400,7 +406,7 @@ devfloors_advisory() {
   fi
   return "$rc"
 }
-run_advisory "devfloors" "floors from requirements-dev.txt against this interpreter" devfloors_advisory
+run_advisory "devfloors" "floors from requirements.txt and requirements-dev.txt against this interpreter" devfloors_advisory
 
 # THE WHOLE TREE, and BLOCKING since the owner's 2026-10-05 notice (see the block at the top of this
 # file for why both halves changed). `ruff format --check .` reads every tracked .py under this

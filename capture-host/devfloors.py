@@ -1,14 +1,26 @@
 #!/usr/bin/env python3
 # tepna-capture — devfloors.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
-"""Compare the dev-tool floors `requirements-dev.txt` DECLARES with what the gate's interpreter HAS.
+"""Compare the floors this tree DECLARES with what the gate's interpreter HAS, runtime and dev alike.
 
-NO GATE IN THIS TREE COMPARED A VERSION TO A FLOOR. `tests/test_dev_requirements.py` is the only
+NO GATE IN THIS TREE COMPARED A VERSION TO A FLOOR. `tests/test_dev_requirements.py` is the only other
 comparison and it compares NAMES — `inline_ci_packages` strips every specifier — so a floor could move
 with nothing reading it. Measured 2026-10-12 on rig-x870: the venv `check.sh` prefers ran ruff 0.16.0
 against the declared `>=0.16.9` and hypothesis 6.165.10 against `>=6.168.3`, with every gate green.
 Three install paths are in play (this file, the lint job's unpinned `ruff`, and whatever a session's
 venv holds), and no line anywhere said which one ran.
+
+BOTH DECLARING FILES, because the first draft read the dev file alone. `requirements.txt` declares the
+four RUNTIME floors, and nothing compared them against any interpreter: CI runs `pip install -r
+requirements.txt` in three jobs and so satisfies every floor it declares, while the daemon keeps
+whatever its venv holds. That gap is measured — `requirements.txt` declares `cryptography>=50.0.1` and
+both venvs carried 50.0.0 on 2026-10-18, with every gate green. Row
+`2026-10-26-four-runtime-floors-have-no-reader-against-the-interpreter` logged the absent reader, and
+`2026-10-18-the-cryptography-floor-is-met-by-neither-venv` logged that one drift.
+
+A RUNTIME ROW READING `ABSENT` IS A FINDING ABOUT THE INTERPRETER, not noise. It says the environment
+running this gate is not the one running the daemon, which is the fact a shortfall comparison needs
+stated out loud.
 
 ADVISORY, which is a decision and not a default. A blocking floor would red every local run on a box
 nobody has upgraded yet, and that is an environment fact rather than a finding about the diff — §🐍's
@@ -24,7 +36,8 @@ THE TOKENS ARE DELIBERATELY NOT THE SEVEN `tepna.verdict/1` STATUSES. This leg r
 second verdict. `check.sh` carries the token into its own `advisory-state:` line.
 
 An absent package is `ABSENT` and an unparseable version is `NOT_COMPARABLE` — never a quiet `MET`
-(§∅: a comparison that could not run is not a comparison that agreed).
+(§∅: a comparison that could not run is not a comparison that agreed). An unread declaring file and an
+empty population are `NOT_COMPARABLE` for the same reason: the run compared nothing there.
 """
 
 from __future__ import annotations
@@ -34,10 +47,14 @@ import os
 import re
 import sys
 
-REQ = "requirements-dev.txt"
+RUNTIME_REQ = "requirements.txt"
+DEV_REQ = "requirements-dev.txt"
+# Runtime first, because the daemon's own libraries are the half a reader is least likely to have
+# compared. Every row names its own file, so the order carries no meaning beyond the print order.
+REQS = (RUNTIME_REQ, DEV_REQ)
 TOKEN = "devfloors"
 
-# `name<op><version>`, with the inline comment already stripped. Only `>=` and `==` occur in the file
+# `name<op><version>`, with the inline comment already stripped. Only `>=` and `==` occur in the files
 # and only those two are understood here: a specifier this pattern does not match is NAMED in the
 # report rather than skipped, because a dropped line is a floor nobody compares.
 FLOOR_RE = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(>=|==)\s*([0-9][0-9A-Za-z.*+!-]*)$")
@@ -105,8 +122,8 @@ def compare_floor(op: str, floor: str, installed: str | None) -> str:
     have += (0,) * (width - len(have))
     want += (0,) * (width - len(want))
     if op == "==":
-        # A PIN IS AN IDENTITY, so a newer version is a finding too. `mutmut==3.8.0` is the file's only
-        # `==` and the reason is written there: the mutant GENERATOR is the gate, and two versions
+        # A PIN IS AN IDENTITY, so a newer version is a finding too. `mutmut==3.8.0` is the dev file's
+        # only `==` and the reason is written there: the mutant GENERATOR is the gate, and two versions
         # generate different mutant sets, so "newer" is not "better" for this one line.
         return MET if have == want else OFF_PIN
     return MET if have >= want else BELOW
@@ -138,7 +155,7 @@ def worst(tokens) -> str:
     return MET
 
 
-def note(rows, unreadable, state: str) -> str:
+def note(rows, unreadable, state: str, unread) -> str:
     """One line naming what was MEASURED, for `check.sh`'s summary row."""
     counts = {t: sum(1 for r in rows if r[4] == t) for t in (MET, BELOW, OFF_PIN, NOT_COMPARABLE, ABSENT)}
     head = (
@@ -146,6 +163,10 @@ def note(rows, unreadable, state: str) -> str:
         f"{counts[OFF_PIN]} off its pin, {counts[ABSENT]} not installed, "
         f"{counts[NOT_COMPARABLE]} not comparable, {len(unreadable)} line(s) not understood"
     )
+    # An unread file is part of the population this line reports on, so the count of floors above is
+    # over the files that WERE read and the summary says which ones were not.
+    if unread:
+        head = f"{head}, {len(unread)} file(s) unread ({', '.join(unread)})"
     named = [f"{r[0]} {r[3]} < {r[2]}" for r in rows if r[4] == BELOW]
     if not named:
         return f"{head} ({state})"
@@ -153,37 +174,53 @@ def note(rows, unreadable, state: str) -> str:
     return f"{head} — {shown}"
 
 
-def render(rows, unreadable, executable: str) -> list[str]:
-    lines = [f"  interpreter : {executable}"]
+def render(rows, unreadable, req: str) -> list[str]:
+    """One section per declaring file. EVERY LINE NAMES ITS FILE, because a shortfall attributed to
+    the wrong half sends the reader to the wrong install command."""
+    lines = [f"  {req} — {len(rows)} floor(s) declared"]
     for name, op, floor, installed, token in rows:
         shown = installed if installed is not None else "(absent)"
-        lines.append(f"  {name:<16} declared {op + floor:<14} found {shown:<14} {token}")
+        lines.append(f"  {name:<16} declared {op + floor:<14} found {shown:<14} {token}  [{req}]")
     for line in unreadable:
-        lines.append(f"  {REQ}: specifier not understood, so nothing compared it — {line}")
+        lines.append(f"  {req}: specifier not understood, so nothing compared it — {line}")
     return lines
 
 
 def main(argv) -> int:
     if argv:
         print(f"  devfloors.py takes no arguments; ignored: {' '.join(argv)}")
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), REQ)
-    try:
-        with open(path, encoding="utf-8") as fh:
-            text = fh.read()
-    except OSError as exc:
-        # The declaring file is the population. Without it nothing was compared, and saying so is the
-        # whole point of the leg.
-        print(f"  {REQ} could not be read: {exc}")
-        print(f"{TOKEN}-note=the declaring file could not be read, so no floor was compared")
-        print(f"{TOKEN}-state={NOT_COMPARABLE}")
-        return RC[NOT_COMPARABLE]
-    rows, unreadable = survey(text)
-    state = worst([r[4] for r in rows] + ([NOT_COMPARABLE] if unreadable else []))
-    for line in render(rows, unreadable, sys.executable):
-        print(line)
+    here = os.path.dirname(os.path.abspath(__file__))
+    print(f"  interpreter : {sys.executable}")
+    rows: list[tuple[str, str, str, str | None, str]] = []
+    unreadable: list[str] = []
+    unread: list[str] = []
+    for req in REQS:
+        try:
+            with open(os.path.join(here, req), encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as exc:
+            # A declaring file is the population for its own half. Unread, it compared nothing, and the
+            # run says which file rather than reporting on the other one alone.
+            print(f"  {req} could not be read: {exc}")
+            unread.append(req)
+            continue
+        file_rows, file_unreadable = survey(text)
+        for line in render(file_rows, file_unreadable, req):
+            print(line)
+        rows += file_rows
+        unreadable += file_unreadable
+    tokens = [r[4] for r in rows]
+    if unreadable or unread or not rows:
+        tokens.append(NOT_COMPARABLE)
+    state = worst(tokens)
+    if not rows:
+        print(f"{TOKEN}-note=no floor was compared, over {len(REQS)} declaring file(s), {len(unread)} unread")
+        print(f"{TOKEN}-state={state}")
+        return RC[state]
     if state != MET:
-        print(f"  Upgrade this interpreter: {sys.executable} -m pip install -r {REQ}")
-    print(f"{TOKEN}-note={note(rows, unreadable, state)}")
+        installs = " ".join(f"-r {req}" for req in REQS)
+        print(f"  Upgrade this interpreter: {sys.executable} -m pip install {installs}")
+    print(f"{TOKEN}-note={note(rows, unreadable, state, unread)}")
     print(f"{TOKEN}-state={state}")
     return RC[state]
 
