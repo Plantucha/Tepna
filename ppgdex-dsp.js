@@ -6705,6 +6705,27 @@
        was feeding `apnea.overlapHours` as if it were continuous. Assigned conditionally so a clean
        export stays byte-identical (see the identical note in ecgdex-dsp). */
     if (r.coverage) out.recording.coverage = r.coverage;
+    /* THE CLOCK SEAM, WHERE THE CORPUS COULD NOT SEE IT. `clockSeam` and `clockResyncs` have sat on
+       the internal result since the §∅ ruling of 2026-09-17, and this builder published neither — so a
+       reader of the folded nights can bound the step count from `recording.hostAxis.maxStepMs` and can
+       never MEASURE it. Both clocks tick through a dropout and only a real step makes them disagree,
+       which is why MotionDex's census over 1278 `_ACC` files read 137 dropouts against 3 resyncs.
+       Scanned 2026-10-25 over `uploads/trio`: the field appears in 0 of 173 PPG exports and 5 of 5
+       ECGDex ones, the rail that carries `clock.js`. Field set and the no-null-key discipline mirror
+       `ecgdex-dsp.js`, so a night without a seam keeps today's bytes and no clean fixture moves.
+       Entries are `{ idx, deviceStepMs, phoneDeltaMs }`: PpgDex anchors nothing past a seam, so it
+       publishes no `atRelMs` or `hostOffsetMs`, and a null `phoneDeltaMs` reads as an unmeasured gap
+       rather than as zero. NO SEPARATE BOOLEAN — the node's own verdict is
+       `!!(clockResyncs && clockResyncs.length)`, so the array carries it and a second key would be a
+       second source of truth. Row `2026-10-25-the-ring-seam-verdict-never-reaches-a-folded-artifact`. */
+    if (Array.isArray(r.clockResyncs) && r.clockResyncs.length)
+      out.recording.clockResyncs = r.clockResyncs.map(function (c) {
+        return {
+          idx: c.idx,
+          deviceStepMs: c.deviceStepMs,
+          phoneDeltaMs: c.phoneDeltaMs == null ? null : c.phoneDeltaMs
+        };
+      });
     /* SELF vs FIRMWARE — ON THE INTEGRATOR-FACING SURFACE. This is a DEFECT FIX, not a new feature:
        `validation` (with its `stability` leg) was added to `ppgdex-app.js buildV2` and the Integrator's
        `readDetectorStability()` was written to read `nodeExport.validation.stability` — but `buildV2` is
