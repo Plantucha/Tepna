@@ -52,7 +52,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { NIGHT_RE, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = 'tools/tch-window-sensitivity.mjs';
 const AS = createRequire(import.meta.url)(join(ROOT, 'analysis-stats.js'));
@@ -124,7 +124,13 @@ if (argv.includes('--help') || argv.includes('-h')) {
    arguments, so an import of anything in this file judged flags it never passed (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h'], positional: true }, { tool: 'tools/tch-window-sensitivity.mjs' });
+if (IS_CLI) refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h', '--verdict-sample'], positional: true }, { tool: 'tools/tch-window-sensitivity.mjs' });
+/* CLI-gated like the refusal above: `process.argv` belongs to whoever is running, so an importer
+   carrying this flag for its own reasons must not make this module print and exit. */
+if (IS_CLI && argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+  process.exit(0);
+}
 const DIR = argv[0] || '/tmp/trio-box';
 /* The DEFAULT corpus dir is absent on any box that has not built it, so the no-argument run — the
    documented one — died on an uncaught ENOENT with a stack trace. Refuse by name instead. */
@@ -190,6 +196,9 @@ console.log(`\ncorpus: ${rows.length} nights · total simultaneous s = ${base.re
 if (!base.length) {
   const empty = populationVerdict(popBefore, snapshotNights(DIR), { tool: TOOL, evidence: [TOOL] });
   console.log(`population: ${empty.status} — ${empty.population.checked} night(s) covered of ${empty.population.eligible}`);
+  /* §🧾 An EXIT PATH is where a machine reader needs the object most: this one refuses, and the
+     sentence alone gave no consumer the reason in a form it could test. */
+  console.log('POPULATION ' + JSON.stringify(empty));
   console.error(`✗ tools/tch-window-sensitivity.mjs: ${popBefore.n} night folder(s) under ${DIR} and none carries the three node-export JSONs this tool reads.`);
   process.exit(2);
 }
@@ -321,3 +330,33 @@ for (const [lab, pred] of [
    while sections A through H ran is the difference between one corpus and two. */
 const population = populationVerdict(popBefore, snapshotNights(DIR), { tool: TOOL, evidence: [TOOL] });
 console.log(`\npopulation: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
+const rl = ruleLine(population);
+if (rl) console.log(rl);
+/* §🧾 THE OBJECT IS THE API, THE PROSE IS THE EXPLANATION. The window sweep above reports its
+   scope, and until this line that scope was a sentence no reader could validate. */
+console.log('POPULATION ' + JSON.stringify(population));
+
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS. Two identical fabricated snapshots, so the object
+   is complete, the movement criterion is met, and no corpus is touched — CI mounts none
+   (`docs/VERDICT-CONTRACT.md`: an `emits.cmd` must be cheap and corpus-free). The rule below is the
+   rule this tool really walks with, so the sample cannot claim a population shape the run does not
+   use. */
+function verdictSample() {
+  const at = '2026-10-26T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: [TOOL] });
+}

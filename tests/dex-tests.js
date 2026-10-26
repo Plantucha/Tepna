@@ -11488,7 +11488,101 @@
          2026-10-22-a-present-but-empty-input-path-still-exits-zero: with `DEX_ECG_NIGHTLY` pointed at
          an empty directory the tool walked all 147 nights, published `population: PASS`, printed
          `no data`, and exited 0. The population was honest and the exit code was not. */
-      T.eq('a run that scored no epoch does not exit 0', (RV.match(/process\.exit\(0\)/g) || []).length, 0);
+      /* ONE exit 0 is legal, and it is not a run. `--verdict-sample` prints the adoption object and
+         leaves before the first corpus read, so it scores no epoch and claims none — the corpus-free
+         `emits.cmd` that `docs/VERDICT-CONTRACT.md:151-160` requires. The three legs below pin it to
+         that block and to that position, and the executed group below RUNS the command and reads
+         what it prints, which no source scan can do. The row's guarantee is unchanged: no SCORING
+         path in this file exits 0. */
+      var exits0 = RV.match(/process\.exit\(0\)/g) || [];
+      T.eq('the scoring path has no exit 0 — only the adoption sample does', exits0.length, 1);
+      T.ok('…and that one sits inside the --verdict-sample block', /--verdict-sample'\)\)\s*\{[\s\S]{0,300}?process\.exit\(0\)/.test(RV), 'the only exit 0 must be the sample block');
+      var iSample = RV.indexOf('--verdict-sample'),
+        iRead = RV.indexOf('snapshotNights(');
+      T.ok('…and the source places it before every corpus read', iSample >= 0 && iRead > iSample, 'sample at ' + iSample + ' · first snapshotNights( at ' + iRead);
+    });
+    /* ════ THE FOUR tch- CORPUS READERS PUBLISH THEIR POPULATION WITHOUT A CORPUS ═════════════════
+       `docs/VERDICT-CONTRACT.md` requires an `adopted` row's `emits.cmd` to be cheap and CORPUS-FREE,
+       because CI runs it on a machine that holds no nights. These four read `uploads/trio` on every
+       real path, so the only way they can adopt is a `--verdict-sample` flag that exits BEFORE the
+       first corpus read. That ordering is the whole contract, and a source scan cannot see it: a
+       flag declared after the read still greps as present. So the legs below RUN the command the
+       manifest names, in an empty temp cwd, and read the object it prints.
+       Two of the four printed their population as prose alone, so no grep over their source could
+       ever find the object — they now print a `POPULATION ` line beside the prose.
+       The CONTROL is the ordering proof: `tch-fused-corpus.mjs` with no flag exits 2 for want of
+       `--dir`, so the exit 0 above measures the early return rather than a tool that needs nothing.
+       The KNOWN ANSWER is the refusal shape: pointed at an empty directory the sensitivity tool
+       publishes NOT_RUN over `checked: 0` and still exits 2 — a population verdict reports corpus
+       movement, and a readable corpus is a separate question. ════ */
+    group('the four tch corpus readers publish their population without a corpus', 'tools · corpus-reads · verdict-sample', function (T) {
+      var TT = env.toolTexts;
+      if (!TT) {
+        T.skip('the tch verdict-sample population', 'env.toolTexts is absent in this lane (browser); the node lane carries it');
+        return;
+      }
+      var TCH = ['tools/tch-bootstrap-ci.mjs', 'tools/tch-fused-corpus.mjs', 'tools/tch-reference-validation.mjs', 'tools/tch-window-sensitivity.mjs'];
+      /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+      var missing = TCH.filter(function (rel) {
+        return typeof TT[rel] !== 'string' || TT[rel].length === 0;
+      });
+      T.eq('all four tch readers are readable in this lane', missing, []);
+      if (missing.length) return;
+      TCH.forEach(function (rel) {
+        var src = TT[rel];
+        T.ok(
+          rel + ' imports populationVerdict from the shared primitive',
+          /populationVerdict[\s\S]{0,200}?from '\.\/corpus-scope\.mjs'/.test(src),
+          'absent — a hand-rolled object is not the primitive'
+        );
+        T.ok(rel + ' declares --verdict-sample', src.indexOf('--verdict-sample') >= 0, 'absent — the manifest row names a flag the tool does not read');
+        T.ok(rel + ' builds the sample in one named helper', /function verdictSample\(/.test(src), 'absent — an inline object drifts from the real path');
+      });
+      /* The two that decided in prose alone. A `POPULATION ` line is what makes the real run audible. */
+      ['tools/tch-bootstrap-ci.mjs', 'tools/tch-window-sensitivity.mjs'].forEach(function (rel) {
+        T.ok(rel + ' prints a POPULATION line on its real path too', TT[rel].indexOf("'POPULATION '") >= 0, 'absent — the object exists only under the sample flag, so no real run publishes it');
+      });
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      TCH.forEach(function (rel) {
+        var r = probe(rel, ['--verdict-sample']);
+        T.eq(rel + ' --verdict-sample exits 0 with no corpus in reach', r.status, 0);
+        var obj = null;
+        try {
+          obj = JSON.parse(String(r.out));
+        } catch {
+          obj = null;
+        }
+        T.ok(rel + ' prints ONE parseable object and nothing else', obj != null, String(r.out).slice(0, 200));
+        if (obj == null) return;
+        T.eq(rel + ' publishes the contract schema', obj.schema, 'tepna.verdict/1');
+        T.eq(rel + ' names itself as the producer', obj.producedBy && obj.producedBy.tool, rel);
+        T.eq(rel + ' scored the two fabricated nights', obj.population && obj.population.checked, 2);
+        T.eq(rel + ' carries the primitive’s own criterion', obj.criterion && obj.criterion.name, 'nights_added_or_removed');
+        T.eq(rel + ' is a PASS, so the sample exercises the published path', obj.status, 'PASS');
+        T.eq(rel + ' wrote nothing beside itself', r.wrote, []);
+      });
+      /* CONTROL · the flag is what returns early, not an absence of work to do. */
+      var bare = probe('tools/tch-fused-corpus.mjs', []);
+      T.eq('CONTROL · the same tool with no flag refuses for want of --dir', bare.status, 2);
+      T.ok('CONTROL · and says so', /--dir/.test(String(bare.out)), String(bare.out).slice(0, 160));
+      /* KNOWN ANSWER · an empty root is a refusal that still publishes its population. */
+      var empty = probe('tools/tch-window-sensitivity.mjs', ['.']);
+      T.eq('an empty root exits 2', empty.status, 2);
+      var line = String(empty.out)
+        .split('\n')
+        .filter(function (l) {
+          return l.indexOf('POPULATION ') === 0;
+        })[0];
+      T.ok('…and still printed a POPULATION line', line != null, String(empty.out).slice(0, 200));
+      if (line == null) return;
+      var ev = JSON.parse(line.slice('POPULATION '.length));
+      T.eq('…whose status is NOT_RUN, never a PASS over nothing', ev.status, 'NOT_RUN');
+      T.eq('…over checked 0', ev.population.checked, 0);
+      T.ok('…and names the empty root as the reason', /offered no night directory/.test(String(ev.reason)), String(ev.reason));
     });
     /* ════ A PUBLISHED CONTROL CARRIES THE POPULATION IT WAS COMPUTED OVER ══════════════════════
        Row 2026-10-22-the-apnea-controls-are-compared-across-two-populations: the apnea harness read
