@@ -152,6 +152,55 @@ expectcmd ALLOW "inline hatch after && is command position too"       "cd $WORK 
 expectcmd DENY  "the variable merely QUOTED does not release it"      "echo 'set CLAUDE_ALLOW_STALE_BRIEF=1 to override' >> briefs/SHARED-BRIEF.md"
 
 echo
+echo "### WHAT THE DENIAL SAYS — the verdict is not the only thing a reader has to act on"
+# Residue 2026-10-26-a-guarded-path-written-as-data-reads-as-a-write-of-that-path. The interpreter
+# arm cannot see its target, so a program that writes elsewhere and merely NAMES a guarded doc is
+# denied the same way as one that writes it. Whether the arm narrows is a call the owner holds, and
+# none of the legs here move a verdict. They pin the TEXT, because the text is what tells an operator
+# which of the two cases they are in. Every needle below is paired with a command that must NOT
+# print it — a line the block prints unconditionally would otherwise score as loudly as a real one.
+saysof() { # saysof <command string> ; echoes the hook's stderr, the denial text
+  jq -nc --arg c "$1" '{tool_input:{command:$c}}' | bash "$H" 2>&1 >/dev/null
+}
+saysof_f() { # saysof_f <file_path> ; same, for an Edit/Write payload
+  printf '{"tool_input":{"file_path":"%s"}}' "$1" | bash "$H" 2>&1 >/dev/null
+}
+expectsays() { # expectsays <PRESENT|ABSENT> <label> <needle> <text>
+  local got
+  if printf '%s' "$4" | grep -qF "$3"; then got=PRESENT; else got=ABSENT; fi
+  if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
+}
+
+# The case this session paid twice: the target is a variable pointing OUTSIDE the repo, and the
+# guarded path stands in the program text as prose. The verdict is DENY and stays DENY.
+_data_msg="$(saysof "python3 - <<'PY'
+p='$TMP/elsewhere.txt'
+open(p,'w').write('briefs/SHARED-BRIEF.md holds the rows')
+PY")"
+expectsays PRESENT "a data mention names the interpreter verb that fired"  "an interpreter write verb, matched as" "$_data_msg"
+expectsays PRESENT "…and says the path was read in program text alone"     "read ONLY inside a heredoc the shell hands to an interpreter" "$_data_msg"
+expectsays PRESENT "…and warns that every path sat inside the program"     "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_data_msg"
+expectsays PRESENT "…and names the candidate set as a candidate set"       "which is a candidate set and not a target" "$_data_msg"
+
+# The control, differing in ONE property: the write verb stands in the command beside the path.
+_sed_msg="$(saysof "sed -i 's/a/b/' briefs/SHARED-BRIEF.md")"
+expectsays PRESENT "an in-place sed is named as the shape that fired"      "an in-place sed" "$_sed_msg"
+expectsays PRESENT "…and the path is reported in the command text"         "read in the command text" "$_sed_msg"
+expectsays ABSENT  "…and the program-text warning is NOT printed"          "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_sed_msg"
+expectsays ABSENT  "…and no interpreter verb is claimed"                   "an interpreter write verb" "$_sed_msg"
+
+# A redirect reaches the first arm, which DOES test adjacency, so the shape says so.
+_redir_msg="$(saysof "printf 'v3' >> briefs/SHARED-BRIEF.md")"
+expectsays PRESENT "a redirect names the clause-adjacent shape"            "standing in the same clause as the guarded path" "$_redir_msg"
+
+# A payload path is the one case with no heuristic in it at all, and the text must not pretend to one.
+_pay_msg="$(saysof_f "briefs/SHARED-BRIEF.md")"
+expectsays PRESENT "a payload path is reported as named by the payload"    "named by the tool payload" "$_pay_msg"
+expectsays PRESENT "…and the source line says the target is certain"       "so the target is certain" "$_pay_msg"
+expectsays ABSENT  "…and claims no write shape it never tested"            "WHY THIS COMMAND READS AS A WRITE: a" "$_pay_msg"
+
+echo
 echo "### escape hatch + degenerate inputs"
 got="$(printf '{"tool_input":{"file_path":"briefs/SHARED-BRIEF.md"}}' | CLAUDE_ALLOW_STALE_BRIEF=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
 if [ "$got" = ALLOW ]; then echo "  ok    CLAUDE_ALLOW_STALE_BRIEF=1 releases it"
