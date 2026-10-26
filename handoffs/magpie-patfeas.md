@@ -56,3 +56,18 @@ including the anti-vacuity floor at 3 of 4. Restoring gives 101 of 101.
 The row's closure — the census covers Python converters and part (a), the capture-host writer, which
 needs a night and an owner-authorized deploy. The paper re-run at `papers/sensor-trio-nights.html`
 §3.4 is its own unit by the brief's own ruling.
+
+---
+
+## FINISHED 2026-10-26 17:30Z — PR #3981 (DRAFT), head `a0d52683f`
+
+`npm run check` → all 41 steps pass. Suite 14,443 assertions over 830 groups. GATE A 9 of 9, GATE B 26
+fixtures reproducible. `pr-compliance.mjs` preflight PASS over 9 checks before `gh pr create`.
+
+Pushed, opened as DRAFT, board #1529 on thread 8 asking Kestrel to undraft. My one open PR.
+
+The first gate run red at step 15 on `check5`: a changeset's `brief:` field resolves as a FILENAME, so
+the `.md` suffix is load-bearing. The 4-second proof is `node tests/run-tests.mjs --group=release-ledger`.
+
+Still not in this PR: the census row's closure verb, the Python converters, part (a) of the parent row,
+and the paper re-run at `papers/sensor-trio-nights.html` §3.4.
