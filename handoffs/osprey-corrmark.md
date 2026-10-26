@@ -29,3 +29,26 @@ rather than the ref. Measure a file's absence at `origin/main`, never at your ba
 **Doc-search query.** `a residue pickup reader annotates a row that a later correcting row names`
 
 Fleet-Session: Osprey
+
+## 2026-10-26, second pass — rebased, gated, body written
+
+**State.** `claude/corrmark-osp` at `ba71f715f` in `wt-corrmark-osp`, rebased onto `origin/main` after
+#3966 with no source conflict. Survival: `git show HEAD:tools/residue-ids.mjs | grep -c
+CORRECTION_VERBS` reads 3. One commit, three files, 153 insertions.
+
+**Gate on the rebased state.** `npm run check` reads all 41 steps passed, detached, sentinel `EXIT=0`.
+
+**PR body.** Written and linted to 0 findings, in this session's scratchpad at `corrmark/body.md`. It
+carries the Rule 0 line from the query below, the closure of the asking row, the per-pair attribution
+measurement and the fixture-floor lesson.
+
+**Queue position.** Third of three. #3967 merged at 10:56Z and #3968 is the slot holder, so this one
+waits for #3968 to merge. Each wait costs one more rebase of the ledger tail, which is cheap and
+never a source conflict.
+
+**Next step.** When #3968 merges: rebase, verify `CORRECTION_VERBS` reads 3, open the PR as a draft
+from the linted body, read the number from `gh pr view`, move row
+`2026-10-26-a-correcting-row-leaves-no-mark-on-the-row-it-corrects` to that number in a second
+commit, push, then ask Kestrel for the undraft.
+
+**Doc-search query.** `a residue pickup reader annotates a row that a later correcting row names`
