@@ -227,17 +227,23 @@ echo "### Biome genuinely unreachable — ALLOW, but SAY so, and say it ONCE"
 # Absent and clean must not look identical. The notice is the whole point; it must not
 # become a denial, and it must not repeat on every commit.
 mk="$TMP/marker-home"; mkdir -p "$mk"
-absent() { # absent <n> ; echoes "<VERDICT> <notice-lines>"
+# ⚠ THE EXIT CODE TRAVELS IN THE OUTPUT, NOT IN `$?` AFTER THE CAPTURE. A function whose
+# last statement is a `printf` returns PRINTF's status, so `first="$(absent)"; first_ec=$?`
+# read 0 whatever the hook did, and the "never a denial" leg below could never fail. The
+# comment above it records a first draft asserting the wrong command's code; the rewrite
+# moved the defect instead of removing it. Measured 2026-10-26 beside the ruff sibling.
+absent() { # absent ; echoes "<exit-code>|<notice-lines>"
+  local ec
   out="$(cd "$W" && TMPDIR="$mk" CLAUDE_CODE_SESSION_ID=tsess DEX_BIOME=/nonexistent/biome \
-        env PATH="$PATH" bash -c 'mv node_modules nm.hidden 2>/dev/null; jq -nc --arg c "git commit -m wip" "{tool_input:{command:\$c}}" | bash '"$H"' 2>&1 >/dev/null; ec=$?; mv nm.hidden node_modules 2>/dev/null; exit $ec')"
-  printf '%s' "$out"
+        env PATH="$PATH" bash -c 'mv node_modules nm.hidden 2>/dev/null; jq -nc --arg c "git commit -m wip" "{tool_input:{command:\$c}}" | bash '"$H"' 2>&1 >/dev/null; ec=$?; mv nm.hidden node_modules 2>/dev/null; exit $ec')"; ec=$?
+  printf '%s|%s' "$ec" "$out"
 }
-first="$(absent)"; first_ec=$?
+first="$(absent)"; first_ec="${first%%|*}"; first="${first#*|}"
 if printf '%s' "$first" | grep -qF 'was NOT format-checked'; then echo "  ok    absent Biome SAYS so — not a silent pass"
 else echo "  FAIL  absent Biome produced no notice"; fail=$((fail+1)); fi
 if printf '%s' "$first" | grep -qF 'Looked for it at:'; then echo "  ok    …and prints WHERE it looked, so 'absent' is checkable"
 else echo "  FAIL  notice does not say where it looked"; fail=$((fail+1)); fi
-second="$(absent)"
+second="$(absent)"; second="${second#*|}"
 if [ -z "$second" ]; then echo "  ok    …and says it ONCE per session, not on every commit"
 else echo "  FAIL  the notice repeated"; fail=$((fail+1)); fi
 # ⚠ Assert the EXIT CODE of the absent run itself — not a fresh `expect`, which runs with

@@ -48,10 +48,28 @@ case "$_PROBE_BYTES" in ''|*[!0-9]*) printf '  REFUSE  the writer-fate payload s
 REPO="$(cd "$(dirname "$H")/../.." && pwd)"
 fail=0
 
-RUFF="$REPO/capture-host/.venv/bin/ruff"
-[ -x "$RUFF" ] || RUFF="$(command -v ruff 2>/dev/null || true)"
-if [ -z "$RUFF" ] || [ ! -x "$RUFF" ]; then
-  echo "  SKIP  guard-ruff.test.sh — no ruff available; the guard fails OPEN here and this test would certify nothing"
+# ⚠ RESOLVE RUFF THE WAY THE HOOK NOW DOES, AND SAY WHERE IT LOOKED. This harness carried
+# the defect it tests for, exactly as guard-format.test.sh did on 2026-09-22: `.venv` is
+# gitignored, so in a fresh worktree — the checkout CLAUDE.md §👥.1 mandates every session
+# make — `$REPO` holds no ruff and this test SKIPPED. Measured 2026-10-26 on this rig: 28
+# working trees, ONE with a reachable ruff, and that one the primary checkout. A skip is
+# honest about examining nothing, and 27 of 28 sessions still never ran this test.
+# Same four candidates the hook searches, in the same order.
+_common="$(cd "$REPO" && git rev-parse --git-common-dir 2>/dev/null)"
+case "${_common:-}" in
+  /*) _PRIMARY="$(dirname "$_common")" ;;
+  '') _PRIMARY='' ;;
+  *)  _PRIMARY="$(cd "$REPO" && cd "$(dirname "$_common")" 2>/dev/null && pwd)" ;;
+esac
+RUFF=''
+for _c in "$REPO/capture-host/.venv/bin/ruff" "${DEX_RUFF:-}" \
+          "${_PRIMARY:+$_PRIMARY/capture-host/.venv/bin/ruff}" \
+          "$(command -v ruff 2>/dev/null || true)"; do
+  [ -n "$_c" ] && [ -x "$_c" ] && { RUFF="$_c"; break; }
+done
+if [ -z "$RUFF" ]; then
+  echo "  SKIP  guard-ruff.test.sh — no pinned ruff reachable; this test would certify nothing"
+  echo "        looked in: $REPO/capture-host/.venv · \$DEX_RUFF · ${_PRIMARY:-<no primary>}/capture-host/.venv · PATH"
   exit 0
 fi
 
@@ -180,6 +198,57 @@ for _i in 1 2 3 4 5; do
 done
 if [ "$_worst" = 0 ]; then echo "  ok    the hatch drains a payload past pipe-max, 5 writers live   rc=0"
 else echo "  FAIL  the writer into the hatched hook exited $_worst (141 = SIGPIPE, the hook never read it)"; fail=$((fail+1)); fi
+
+# ── a WORKTREE WITH NO VENV — the guard now FINDS ruff instead of going silent ─────
+# The case the whole change exists for, exercised as a REAL worktree rather than by
+# hiding a symlink. W is the primary here and it holds the venv; the worktree holds
+# none, because `.venv` is gitignored and a new worktree checks out tracked files only.
+echo
+git -C "$W" worktree add -q "$TMP/wt" -b wtbranch >/dev/null 2>&1
+if [ -d "$TMP/wt" ]; then
+  mkdir -p "$TMP/wt/capture-host"
+  printf 'import os\n\n\ndef f():\n    return 1\n' > "$TMP/wt/capture-host/dirty2.py"
+  git -C "$TMP/wt" add capture-host/dirty2.py >/dev/null 2>&1
+  if [ -e "$TMP/wt/capture-host/.venv" ]; then
+    echo "  FAIL  the test worktree HAS a venv; it cannot exercise the case"; fail=$((fail+1))
+  fi
+  got="$(cd "$TMP/wt" && jq -nc --arg c 'git commit -m wip' '{tool_input:{command:$c}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
+  if [ "$got" = DENY ]; then echo "  ok    no venv in the worktree, and it still DENIES — found the primary's ruff"
+  else echo "  FAIL  worktree commit got $got, want DENY (the search did not reach the primary)"; fail=$((fail+1)); fi
+else
+  echo "  SKIP  could not create a test worktree"
+fi
+
+# ── ruff genuinely unreachable — ALLOW, but SAY so, and say it ONCE ────────────────
+# Absent and clean must not look identical. The notice must never become a denial, and
+# it must not repeat on every commit of the session.
+echo
+if command -v ruff >/dev/null 2>&1; then
+  echo "  SKIP  a ruff on PATH means the unreachable case cannot be built here"
+  echo "        PATH ruff: $(command -v ruff) — the hook's fourth candidate is reachable"
+else
+  mk="$TMP/marker-home"; mkdir -p "$mk"
+  # ⚠ THE EXIT CODE TRAVELS IN THE OUTPUT, NOT IN `$?` AFTER THE CAPTURE. A function whose
+  # last statement is a `printf` returns PRINTF's status, so `x="$(absent)"; ec=$?` reads 0
+  # whatever the hook did, and the "never a denial" leg below could then never fail. Its
+  # sibling in guard-format.test.sh reads `$?` that way. Measured 2026-10-26.
+  absent() { # absent ; echoes "<exit-code>|<stderr>"
+    local out ec
+    out="$(cd "$W" && TMPDIR="$mk" DEX_RUFF=/nonexistent/ruff \
+          bash -c 'mv capture-host/.venv capture-host/.venv.hidden 2>/dev/null; jq -nc --arg c "git commit -m wip" "{tool_input:{command:\$c}}" | bash '"$H"' 2>&1 >/dev/null; ec=$?; mv capture-host/.venv.hidden capture-host/.venv 2>/dev/null; exit $ec')"; ec=$?
+    printf '%s|%s' "$ec" "$out"
+  }
+  first="$(absent)"; first_ec="${first%%|*}"; first_out="${first#*|}"
+  if printf '%s' "$first_out" | grep -qF 'was NOT ruff-checked'; then echo "  ok    absent ruff SAYS so — not a silent pass"
+  else echo "  FAIL  absent ruff produced no notice"; fail=$((fail+1)); fi
+  if printf '%s' "$first_out" | grep -qF 'Looked for it at:'; then echo "  ok    …and prints WHERE it looked, so 'absent' is checkable"
+  else echo "  FAIL  notice does not say where it looked"; fail=$((fail+1)); fi
+  second="$(absent)"; second_out="${second#*|}"
+  if [ -z "$second_out" ]; then echo "  ok    …and says it ONCE per session, not on every commit"
+  else echo "  FAIL  the notice repeated"; fail=$((fail+1)); fi
+  if [ "$first_ec" = 0 ]; then echo "  ok    …and it is a NOTICE, never a denial (exit 0)"
+  else echo "  FAIL  absent ruff exited $first_ec, want 0 — it must never deny"; fail=$((fail+1)); fi
+fi
 
 # ── structural: the same two checks guard-format.test.sh pins ─────────────────────
 if [ "$(tail -n1 "$H")" = "exit 2" ]; then echo "  ok    terminal statement is the DENY (exit 2)"
