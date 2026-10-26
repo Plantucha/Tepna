@@ -21,10 +21,14 @@
  *   moved        none is on that line, but ≥ 1 is elsewhere in the file — reported with where it is now
  *   unanchored   the row names no identifier that occurs anywhere in the file — the pointer cannot be
  *                judged (the row cites by line ALONE, which is the class the residue names); not drift
- *   beyond-eof   the file is shorter than the cited line
+ *   beyond-eof   the file is shorter than the cited line — the pointer cannot resolve at all
  *   missing-file the path resolves nowhere (tried as given, then under capture-host/)
  * The identifiers are the ROW'S, never a guess of this tool's: a citation is judged against what its
  * author wrote beside it, so "anchored" means the author's own words still hold at that line.
+ *
+ * Every verdict but `anchored` is printed WITH ITS ROW KEY, because a count names nothing a reader
+ * can chase. `unanchored` was a bare integer and `beyond-eof` had no field at all until row
+ * 2026-10-26-the-unanchored-class-is-counted-and-never-named.
  *
  * ADVISORY: exits 0 and prints the list (`--strict` exits 1 on any `moved`). A row's line hint moving
  * is not a defect in the row; it is the reason the identifier rule exists. Rows are never edited by
@@ -185,7 +189,11 @@ export function sweep(rows, reader) {
     if (!cache.has(p)) cache.set(p, reader(p));
     return cache.get(p);
   };
-  const report = { rows: rows.length, citations: 0, byVerdict: {}, moved: [], unanchored: 0, missing: [] };
+  /* EVERY NON-ANCHORED CLASS CARRIES KEYS. `unanchored` was an integer and `beyond-eof` had no field
+     at all, so the two verdicts a reader must act on were the two the report could not locate (row
+     2026-10-26-the-unanchored-class-is-counted-and-never-named). `anchored` stays a count, because a
+     pointer that still points names nothing to chase. */
+  const report = { rows: rows.length, citations: 0, byVerdict: {}, moved: [], unanchored: [], beyondEof: [], missing: [] };
   for (const row of rows) {
     const ids = identifiers(row.text);
     for (const c of citations(row.text)) {
@@ -194,7 +202,8 @@ export function sweep(rows, reader) {
       report.byVerdict[j.verdict] = (report.byVerdict[j.verdict] || 0) + 1;
       if (j.verdict === 'moved') report.moved.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, now: j.now });
       else if (j.verdict === 'missing-file') report.missing.push({ key: row.key, cite: `${c.path}:${c.line}` });
-      else if (j.verdict === 'unanchored') report.unanchored++;
+      else if (j.verdict === 'beyond-eof') report.beyondEof.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, length: j.length });
+      else if (j.verdict === 'unanchored') report.unanchored.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, tried: j.tried, specific: j.specific });
     }
   }
   return report;
@@ -239,17 +248,32 @@ function selftest() {
   check('…but it still anchors when it IS on the cited line', judge({ line: 2 }, file, ['def']).verdict === 'anchored');
   // the sweep over a synthetic ledger, with a reader that serves one file
   const ledger = [
-    '| 2026-09-20-a | 2026-09-20 | `x.py` | cites `beta` at `mod.py:5` | ok | OPEN |',
+    '| 2026-09-20-a | 2026-09-20 | `x.py` | cites `beta` at `mod.py:5` and `gamma` at `mod.py:3` | ok | OPEN |',
     '| 2026-09-20-b | 2026-09-20 | `x.py` | cites `pull_session` at `mod.py:1` | ok | OPEN |',
-    '| 2026-09-20-c | 2026-09-20 | `x.py` | cites `beta` at `gone.py:1` | ok | fixed #1 |',
+    '| 2026-09-20-c | 2026-09-20 | `x.py` | cites `beta` at `gone.py:1` and `beta` at `mod.py:99` | ok | fixed #1 |',
     '| not a row |',
     '| 2026-09-20-d | 2026-09-20 | `x.py` | no citation at all | ok | OPEN |'
   ].join('\n');
   const rows = parseRows(ledger);
   check('parseRows keeps the four rows and drops the non-row', rows.length === 4 && rows[2].state === 'fixed #1');
   const r = sweep(rows, (p) => (p === 'mod.py' ? file : null));
-  check('sweep: 3 citations → 1 anchored, 1 moved, 1 missing', r.citations === 3 && r.byVerdict.anchored === 1 && r.byVerdict.moved === 1 && r.byVerdict['missing-file'] === 1);
+  check(
+    'sweep: 5 citations → 1 each of anchored, moved, missing, unanchored and beyond-eof',
+    r.citations === 5 && r.byVerdict.anchored === 1 && r.byVerdict.moved === 1 && r.byVerdict['missing-file'] === 1 && r.byVerdict.unanchored === 1 && r.byVerdict['beyond-eof'] === 1
+  );
   check('the moved entry names the row, the citation and the current line', r.moved[0].key === '2026-09-20-b' && r.moved[0].cite === 'mod.py:1' && r.moved[0].now.pull_session[0] === 8);
+  /* THE CLASS A READER MUST ACT ON IS THE ONE THE REPORT COULD NOT LOCATE. `unanchored` was an
+     integer and `beyond-eof` had no field, so both are pinned as key-bearing lists here. */
+  check(
+    'the UNANCHORED entry names the row and the citation, not just a count',
+    Array.isArray(r.unanchored) && r.unanchored.length === 1 && r.unanchored[0].key === '2026-09-20-a' && r.unanchored[0].cite === 'mod.py:3' && r.unanchored[0].state === 'OPEN'
+  );
+  check('…and it carries why it could not be judged — identifiers read, and how many were code-shaped', r.unanchored[0].tried === 2 && r.unanchored[0].specific === 0);
+  check(
+    'the BEYOND-EOF entry names the row, the citation and the length that refutes it',
+    r.beyondEof.length === 1 && r.beyondEof[0].key === '2026-09-20-c' && r.beyondEof[0].cite === 'mod.py:99' && r.beyondEof[0].length === 8
+  );
+  check('ANTI-VACUITY · anchored stays a count, since a pointer that still points names nothing to chase', r.byVerdict.anchored === 1 && r.anchored === undefined);
   check(
     'each file is read once per sweep (cache)',
     (() => {
@@ -299,10 +323,16 @@ function main() {
       console.log(`\n  MISSING FILE — the path resolves nowhere under ${ref} (renamed, deleted, or cited from another tree):`);
       for (const m of r.missing) console.log(`    ${m.cite}  (${m.key})`);
     }
-    if (r.unanchored)
+    if (r.beyondEof.length) {
+      console.log(`\n  BEYOND EOF — the cited line is past the end of the file, so the pointer cannot resolve at all:`);
+      for (const b of r.beyondEof) console.log(`    ${b.cite}  (${b.key}, ${b.state})  →  the file is ${b.length} line(s) long`);
+    }
+    if (r.unanchored.length) {
       console.log(
-        `\n  ${r.unanchored} citation(s) UNANCHORED: the row names no identifier found in the file, so the line cannot be judged — the class the residue's rule exists for (cite by identifier).`
+        `\n  UNANCHORED (${r.unanchored.length}) — the row names no identifier found in the file, so the line cannot be judged. This is the class the residue's rule exists for (cite by identifier):`
       );
+      for (const u of r.unanchored) console.log(`    ${u.cite}  (${u.key}, ${u.state})  →  ${u.tried} identifier(s) read from the row, ${u.specific} of them code-shaped`);
+    }
     console.log('\n  Advisory: a moved hint is not a defect in the row — grep the identifier; the line was only ever a shortcut.');
   }
   process.exit(has('--strict') && r.moved.length ? 1 : 0);
