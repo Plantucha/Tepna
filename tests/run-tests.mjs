@@ -617,6 +617,9 @@ const SHIPPED_INLINED = new Set(); // every .js the owned bundles inline — the
 /* Populated by readSources(); read by the drawn-axis consumer-population gate. See the block there. */
 let TOOL_TEXTS = null;
 let HOOK_TEXTS = null;
+/* Populated by readSources(); read by any ban whose subject is a DEFECT SHAPE rather than a tools/
+   convention. See the block there. */
+let HARNESS_TEXTS = null;
 
 function readSources() {
   const wanted = [
@@ -870,6 +873,30 @@ function readSources() {
     if (names.length < 20) throw new Error('readSources: only ' + names.length + ' .claude/hooks/*.sh found — refusing a population that short');
     const t = {};
     for (const f of names) t['.claude/hooks/' + f] = readFileSync(join(dir, f), 'utf8');
+    return t;
+  })();
+  /* ── THE GATE HARNESS IS A SOURCE LAYER, AND IT WAS IN NO POPULATION ────────────────────────────
+     Residue `2026-10-26-the-tool-text-population-holds-tools-mjs-alone`. `TOOL_TEXTS` is `tools/*.mjs`
+     alone, so a ban over it reads clean while a file under `tests/` carries the banned literal in
+     plain sight. That happened: seven sites named a cause their own lookup never stated, and the one
+     in `tests/verify-shard-timings.mjs` was invisible in EITHER spelling — blind by denominator, not
+     by regex. The leg that caught it then read that ONE file by name, which is a hand-maintained list
+     of one and goes stale at the next carrier (DEEP-AUDIT-III §1.4).
+     MEASURED BEFORE CHOOSING THIS SHAPE (2026-10-26, at 82838d478): widening `TOOL_TEXTS` itself to
+     the 17 `tests/*.mjs` takes it 287 → 304 and reds NOTHING — 830 groups, 14,407 assertions, all
+     green. Safe is not the same as right: 13 legs read that map, and most state a tools/ CLI
+     convention (an argv guard, a usage line, a bare-dash stdin). Enrolling the harness in a rule
+     written for tools is the scope change smuggled under another gate's fix that `TOOL_TEXTS`'s own
+     block refuses. So this is a SEPARATE population a leg opts into, exactly as `HOOK_TEXTS` is.
+     FAILS CLOSED — an unreadable or implausibly small tests tree throws, because walking nothing
+     reads exactly like a clean tree (CLAUDE.md §4b). */
+  HARNESS_TEXTS = (() => {
+    const dir = join(ROOT, 'tests');
+    if (!existsSync(dir)) throw new Error('readSources: tests/ is unreadable — refusing to derive a harness population from nothing');
+    const names = readdirSync(dir).filter((f) => f.endsWith('.mjs'));
+    if (names.length < 10) throw new Error('readSources: only ' + names.length + ' tests/*.mjs found — refusing a population that short');
+    const t = {};
+    for (const f of names) t['tests/' + f] = readFileSync(join(dir, f), 'utf8');
     return t;
   })();
   /* DEEP-AUDIT-III §1.4 — the scope must be DERIVED, not hand-maintained. The list above is curated,
@@ -3544,6 +3571,10 @@ async function main() {
     // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
     get toolTexts() {
       return TOOL_TEXTS;
+    },
+    // Must come AFTER `sources:` too — readSources() is what fills HARNESS_TEXTS.
+    get harnessTexts() {
+      return HARNESS_TEXTS;
     },
     // Must come AFTER `sources:` too — readSources() is what fills HOOK_TEXTS.
     get hookTexts() {

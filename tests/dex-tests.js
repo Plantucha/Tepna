@@ -11525,7 +11525,7 @@
          alone, so `tests/verify-shard-timings.mjs` could not be seen in EITHER spelling — a
          detector blind by denominator, not by regex. Widening `TOOL_TEXTS` would silently move
          every other source-scanning gate's population (`tests/run-tests.mjs` says so where it
-         builds the map), so this leg reads that one file itself and names it in the verdict.
+         builds the map), so the harness is its OWN derived population and this leg reads both.
 
          ∅ The rule stays "the reason is MEASURED". A run genuinely outside a tree must still say
          so, and `producedByOf` says it in the failed lookup's own words. What reds here is the
@@ -11534,24 +11534,39 @@
       var seesBorrowed = function (src) {
         return JLv && JLv.blankComments ? JLv.blankComments(String(src || '')).indexOf(BORROWED_CAUSE) >= 0 : false;
       };
+      /* ── THE OUT-OF-POPULATION SITE IS A POPULATION NOW, NOT A FILENAME ──────────────────────────
+         Row 2026-10-26-the-tool-text-population-holds-tools-mjs-alone. This leg used to read
+         `tests/verify-shard-timings.mjs` by name, because that one carrier sat outside `TOOL_TEXTS`.
+         A list of one is still a hand-maintained list, and the next harness file to write this
+         literal would be invisible exactly as that one was. `env.harnessTexts` is the derived
+         `tests/*.mjs` map, kept SEPARATE from `env.toolTexts` so no tools/ convention leg inherits a
+         wider subject (`tests/run-tests.mjs` says why where it builds both). */
+      var HT = env.harnessTexts;
       var SHARD_GATE = 'tests/verify-shard-timings.mjs';
-      var shardSrc = '';
-      if (env.nodeFs && env.repoRoot) {
-        try {
-          shardSrc = env.nodeFs.readFileSync(env.repoRoot + '/' + SHARD_GATE, 'utf8');
-        } catch {
-          shardSrc = '';
-        }
+      if (!HT) {
+        if (nodeLane) T.ok('env.harnessTexts is wired in the node lane', false, 'absent — the harness half of this ban examined nothing');
+        else T.skip('the harness half of this ban', 'no directory enumeration in this lane (browser); the node lane carries it');
       }
+      var harnessKeys = HT ? Object.keys(HT) : [];
       T.ok(
-        'ANTI-VACUITY · the out-of-population site is loaded, so its absence cannot read as clean',
-        shardSrc.length > 500 && shardSrc.indexOf('shard-untimed-ratchet') >= 0,
-        shardSrc.length + ' char(s) read for ' + SHARD_GATE
+        'ANTI-VACUITY · the harness population is loaded, so its absence cannot read as clean',
+        harnessKeys.length >= 10 && String(HT && HT[SHARD_GATE]).indexOf('shard-untimed-ratchet') >= 0,
+        harnessKeys.length + ' harness file(s), and ' + SHARD_GATE + ' among them by name'
       );
-      var borrowedAnySpelling = Object.keys(TT).filter(function (k) {
-        return seesBorrowed(TT[k]);
-      });
-      if (seesBorrowed(shardSrc)) borrowedAnySpelling.push(SHARD_GATE);
+      T.eq(
+        'the two derived populations stay disjoint, so no tools/ convention leg widens by accident',
+        harnessKeys
+          .filter(function (k) {
+            return Object.prototype.hasOwnProperty.call(TT, k);
+          })
+          .join(', '),
+        ''
+      );
+      var borrowedAnySpelling = Object.keys(TT)
+        .concat(harnessKeys)
+        .filter(function (k) {
+          return seesBorrowed((Object.prototype.hasOwnProperty.call(TT, k) ? TT[k] : HT[k]) || '');
+        });
       T.eq('no tool names a cause its own lookup never reported, in any spelling', borrowedAnySpelling.sort().join(', '), '');
       T.ok(
         'ANTI-VACUITY · the detector fires on the CONDITIONAL spelling, the one the seven sites used',
@@ -11575,7 +11590,7 @@
         return !/producedByOf\(/.test(TT[k] || '');
       });
       T.eq('every migrated verdict builder composes producedByOf', resolverUsers.sort().join(', '), '');
-      T.ok('and the gate outside tools/ composes it too', /producedByOf\(/.test(shardSrc), SHARD_GATE + ' calls producedByOf');
+      T.ok('and the gate outside tools/ composes it too', /producedByOf\(/.test(String((HT && HT[SHARD_GATE]) || '')), SHARD_GATE + ' calls producedByOf, read from the harness population');
       /* AND THE PRIMITIVE OWNS THE READER, so a consumer cannot be asked to resolve what it has no
          root for. A re-duplication of the git read into a corpus consumer reds here. */
       T.ok('the night primitive exports the commit reader it uses', /export function gitCommitOf\s*\(/.test(TT['tools/corpus-scope.mjs'] || ''), 'gitCommitOf is exported from corpus-scope.mjs');
