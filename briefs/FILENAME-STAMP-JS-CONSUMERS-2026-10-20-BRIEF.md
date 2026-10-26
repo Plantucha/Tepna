@@ -85,6 +85,20 @@ the bound. It removes the case the promise could not cover.
   through this tool's folder-ingest arm, and 2026-06-19 sits in that window: one of the paper's 26
   nights changes its chosen verityHR file. Re-running that section is its own unit, because it decides
   what a reader who quoted the old figure should be told.
+
+  **Re-run 2026-10-26: the figures do not move, and the keying is now recorded rather than assumed.**
+  The page's own ingest, run over the capture folder held here under both keyings, returns 58 nights
+  and 31 eligible either way, with no night present under one keying alone. One file changes night in
+  the whole corpus, the 2026-06-19 Verity `_HR.txt`. `sensor-trio-worker.js:1085` reads that file only
+  as `if (!V && f.verityHR)`, and the night resolves its Verity corner from raw PPG, so the file that
+  moved is never read. 🔴 **A CHANGED INPUT IS NOT A CHANGED FIGURE UNTIL YOU READ ITS CONSUMER** — the
+  brief named a moved published figure, and the moved file sits on a fallback leg that night declines.
+  The §3.4 caption now carries the keying as a third unrecorded-provenance axis beside the window
+  length and the DSP generation it already confessed, because a later reader cannot re-derive that
+  nothing moved. ⚠️ The ingest arm does not solve, so the re-run cannot check the published 26-of-31
+  solve rate. It does report both counts over this folder as two different populations: 31 eligible
+  over the whole span, 26 nights inside the stated window. The file set behind the published pair is
+  not recorded, which is the same gap the caption already states.
 - [x] **`sensor-trio-power-analysis.js` and `sigma-no-reference-analysis.js`, the same repair.**
   Landed as #3791. Each
   publishes figures, so each owes its own before-and-after night counts in its PR. Neither carries
