@@ -52,3 +52,23 @@ from the linted body, read the number from `gh pr view`, move row
 commit, push, then ask Kestrel for the undraft.
 
 **Doc-search query.** `a residue pickup reader annotates a row that a later correcting row names`
+
+## 2026-10-26 11:40Z — the PR is up as #3970
+
+**State.** #3970, DRAFT, `claude/corrmark-osp` at `23930db82`, base `010ebed8d`, worktree
+`wt-corrmark-osp`. My one open PR. #3968 merged and `wt-done.mjs` retired its worktree.
+
+**Gate on this head.** `npm run check` passed all 41 steps after the rebase. `residue-ids` reads
+0 rows added, none colliding, none mutated. The row's state cell moved to its closure in a second
+commit, so the diff over the ledger is one line changed and one line removed.
+
+**One defect caught before it landed.** The body first read `Closes residue row <key>`. `CLAIM_RE`
+in `tools/residue-ids.mjs` wants the key straight after the word `residue`, so the intervening word
+kills the claim and the full-tree cross-check matches nothing. The body now carries the matching
+form, and the cell moves in the same push, which is what keeps the pair honest.
+
+**Next step.** Wait for Kestrel's undraft, asked at board #1479, then for Kodiak. On merge, retire
+the worktree with `node tools/wt-done.mjs`.
+
+**Open question.** Whether the correction-verb convention belongs in `CLAUDE.md` §📌 or stays in the
+tool. The tool names which kind a citation is either way, so nothing blocks on the answer.
