@@ -309,6 +309,17 @@ export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
 export function snapshotEntries(root, { list, unit = 'records', at = null } = {}) {
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   if (typeof list !== 'function') throw new Error('snapshotEntries: a `list` function IS the enumeration — without one there is no population to snapshot');
+  /* THE CALLER'S LISTER IS THE RULE for this unit, so the snapshot NAMES it. The header above
+     promises names rather than counts because nobody can chase a count, and `rule: null` dropped the
+     one decision this primitive's caller makes. An inline arrow carries no name, and `null` then says
+     so rather than inventing one (§∅). Row 2026-10-26-the-entries-walk-drops-the-lister-that-chose-it.
+     🔴 `list.name` IS NOT A NAME THE CALLER CHOSE. JS infers a function's name from the property it
+     is assigned to, so `{ list: (d) => ... }` reads `list` — the parameter's own key, which names no
+     lister and would publish a rule nobody wrote. A function genuinely called `list` is
+     indistinguishable from that, so both read `null` and the note says why. Measured over the two
+     live callers: `ppg-gap-bridge-scan.mjs` passes `listPpgFiles` and `stage-lab.mjs` passes an
+     inline arrow, so the two live populations fall on opposite sides of this line. */
+  const ruleName = list.name && list.name !== 'list' ? list.name : null;
   let members;
   try {
     members = [...list(root)].map(String).sort();
@@ -323,7 +334,7 @@ export function snapshotEntries(root, { list, unit = 'records', at = null } = {}
       digest: null,
       maxCtimeMs: null,
       at: stamp,
-      rule: null,
+      rule: ruleName,
       ruleIsDefault: true,
       rejectedNightShaped: null,
       admittedNonNight: null,
@@ -340,7 +351,7 @@ export function snapshotEntries(root, { list, unit = 'records', at = null } = {}
     digest: digestNights(members),
     maxCtimeMs: null,
     at: stamp,
-    rule: null,
+    rule: ruleName,
     ruleIsDefault: true,
     rejectedNightShaped: null,
     admittedNonNight: null,
@@ -498,6 +509,22 @@ export function populationVerdict(before, after, { commit = null, commitReason =
  *  key answers it with silence. The two snapshots are the same root a few seconds apart, so a name
  *  either side rejected counts; the union is what the run actually passed over. */
 function ruleBlock(before, after) {
+  /* AN ENTRIES WALK HAS NO NIGHT RULE, so the two night questions do not bind and `ruleIsDefault`
+     reads true for a reason the night arm never means by it. `unit` is the discriminator, because
+     `snapshotNights` carries no such key. The lister still DECIDED the population, so its name goes
+     out ALONE: no night list rides beside it to read as a measurement of something nobody ran. */
+  const entriesUnit = before.unit ?? after.unit ?? null;
+  if (entriesUnit !== null) {
+    const name = before.rule === after.rule ? before.rule : `${before.rule} then ${after.rule}`;
+    return {
+      rule: name,
+      ruleUnit: entriesUnit,
+      ruleNote:
+        name === null
+          ? `the lister that chose this ${entriesUnit} population carries no name of its own, so the rule has none to chase; the night questions do not bind`
+          : `the caller's lister IS the rule for a ${entriesUnit} population, so the night questions do not bind`
+    };
+  }
   if (before.ruleIsDefault !== false && after.ruleIsDefault !== false) return {};
   const union = (a, b) => (a === null || b === null ? null : [...new Set([...a, ...b])].sort());
   const rejected = union(before.rejectedNightShaped ?? null, after.rejectedNightShaped ?? null);
@@ -518,6 +545,10 @@ function ruleBlock(before, after) {
 export function ruleLine(population) {
   const r = population && population.result;
   if (!r || r.rule === undefined) return '';
+  /* THE ENTRIES FORM carries no night list, and `say` below would read `undefined.length`. "The two
+     night questions do not bind for this unit" is a different statement from NOT MEASURED, so it
+     gets its own line rather than borrowing the unreadable-root wording. */
+  if (r.ruleUnit !== undefined) return `  rule ${r.rule === null ? 'ANONYMOUS LISTER' : r.rule} — the night questions do not bind for a ${r.ruleUnit} population`;
   const say = (xs, what) => (xs === null ? `${what}: NOT MEASURED` : xs.length === 0 ? `${what}: none` : `${what}: ${xs.join(', ')}`);
   return `  rule ${r.rule} — ${say(r.ruleRejectedNightShaped, 'night-shaped names it refused')} · ${say(r.ruleAdmittedNonNight, 'non-night names it counted as nights')}`;
 }
@@ -962,6 +993,52 @@ function selftest() {
         } catch (e) {
           return /IS the enumeration/.test(e.message);
         }
+      })()
+    );
+
+    /* THE LISTER IS THE RULE, AND THE SNAPSHOT NOW NAMES IT. Row
+       2026-10-26-the-entries-walk-drops-the-lister-that-chose-it: `rule: null` dropped the one
+       decision an entries caller makes, and `ruleBlock` could not publish it either, so a reader of
+       either live verdict could not tell a wide lister from a narrow one. */
+    ok('a named lister reaches the snapshot as the rule', recBefore.rule === 'recList', JSON.stringify(recBefore.rule));
+    /* 🔴 A PROPERTY KEY IS NOT A LISTER NAME. `{ list: (d) => ... }` infers `list`, so the naive
+       read would publish a rule the caller never wrote. Both arms below must read null. */
+    const mkAnon = () => (d) => readdirSync(d);
+    ok('an inline lister reads null, because its only name is the parameter it was passed as', snapshotEntries(recRoot, { list: (d) => readdirSync(d) }).rule === null);
+    ok('and a genuinely nameless lister reads null too, with no sentinel standing in for a name', snapshotEntries(recRoot, { list: mkAnon() }).rule === null);
+    const rSnap = snapshotEntries(recRoot, { list: recList });
+    const recRule = populationVerdict(rSnap, snapshotEntries(recRoot, { list: recList }), { tool: 'selftest' }).result;
+    ok(
+      'and the VERDICT publishes that name, with no night list beside it to read as a measurement',
+      recRule.rule === 'recList' && recRule.ruleUnit === 'records' && recRule.ruleRejectedNightShaped === undefined && recRule.ruleAdmittedNonNight === undefined,
+      JSON.stringify({ rule: recRule.rule, unit: recRule.ruleUnit })
+    );
+    ok('the note says the night questions do not bind, never that nobody measured them', /do not bind/.test(recRule.ruleNote) && !/never measured/.test(recRule.ruleNote), recRule.ruleNote);
+    ok(
+      'the one-line form reads the entries shape instead of subscripting a list it never had',
+      ruleLine({ result: recRule }) === '  rule recList — the night questions do not bind for a records population',
+      ruleLine({ result: recRule })
+    );
+    ok(
+      'a nameless lister says so on that line rather than printing a bare null',
+      (() => {
+        const a = snapshotEntries(recRoot, { list: mkAnon() });
+        const line = ruleLine({ result: populationVerdict(a, snapshotEntries(recRoot, { list: mkAnon() }), { tool: 'selftest' }).result });
+        return /ANONYMOUS LISTER/.test(line) && !/null/.test(line);
+      })()
+    );
+    ok(
+      'CONTROL · a NIGHT verdict under a narrowed rule keeps both night lists and carries no unit',
+      (() => {
+        /* TWO WAYS THIS CONTROL READ AS COVERED BEFORE IT COULD FIRE. A root with no night-shaped
+           directory makes the verdict NOT_RUN with `result: null`, and the shared root above gains
+           directories from earlier legs, so an exact list could never be pinned to it. So plant one. */
+        const nr = join(tmp, 'rule-control');
+        mkdirSync(join(nr, '2026-07-25'), { recursive: true });
+        mkdirSync(join(nr, '2026-07-26'), { recursive: true });
+        const narrow = { re: /^2026-07-25$/ };
+        const w = populationVerdict(snapshotNights(nr, narrow), snapshotNights(nr, narrow), { tool: 'selftest' }).result;
+        return w !== null && w.ruleUnit === undefined && Array.isArray(w.ruleAdmittedNonNight) && Array.isArray(w.ruleRejectedNightShaped) && w.ruleRejectedNightShaped.join() === '2026-07-26';
       })()
     );
 
