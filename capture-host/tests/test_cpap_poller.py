@@ -300,7 +300,9 @@ def test_association_is_released_on_cancellation(tmp_path, monkeypatch):
     The `shield()` in that `finally` has no observed consequence here, which this leg does not claim to
     test: removing it leaves this leg green under a single cancel and under a second cancel delivered
     while the teardown awaits. Asyncio delivers one cancellation, so a bare await inside the `finally`
-    completes as the shielded one does. Row `2026-10-26-the-shielded-cpap-teardown-has-no-reader`."""
+    completes as the shielded one does. The leg below reaches the one shape this one does not — a
+    cancellation already delivered when the `finally` is entered — and names the mechanism that carries
+    the release. Row `2026-10-26-the-shielded-cpap-teardown-has-no-reader`."""
     spy = _Spy()
     spy.install(monkeypatch)
     entered = asyncio.Event()
@@ -321,6 +323,39 @@ def test_association_is_released_on_cancellation(tmp_path, monkeypatch):
     _run(go())
     # The entry sweep AND the teardown. `>= 1` cannot tell a run that never reached the `finally`
     # from one that did, which is what the sibling legs at `up == 1 and down >= 2` already knew.
+    assert spy.up == 0 and spy.down >= 2
+
+
+def test_the_release_survives_a_cancellation_pending_at_teardown_entry(tmp_path, monkeypatch):
+    """The shape the leg above does not reach: the task is ALREADY cancelling when the `finally` runs,
+    so the teardown's own `await` starts inside a cancelling task. That is the state the comment at
+    `capture.py`'s teardown describes, and the release still happens.
+
+    It happens for a reason the `shield()` does not supply. `asyncio.to_thread` submits the call to the
+    executor before its first suspension, and a submitted job runs whatever happens to the task awaiting
+    it. Measured 2026-10-26: this leg is green with the shield and green without it, while a control
+    over a coroutine awaitable calls the inner function once shielded and never bare — so a probe of
+    this shape can see a shield that matters, and there is none to see here.
+
+    Row `2026-10-26-the-shielded-cpap-teardown-has-no-reader`."""
+    spy = _Spy()
+    spy.install(monkeypatch)
+
+    async def self_cancelling_loop(*a, **k):
+        # Cancel from inside the body, then suspend: the `CancelledError` is raised here and travels to
+        # the poller's `finally` with the cancellation already delivered.
+        asyncio.current_task().cancel()
+        await asyncio.sleep(0)
+
+    monkeypatch.setattr(capture, "_cpap_loop", self_cancelling_loop)
+
+    async def go():
+        t = asyncio.create_task(capture.cpap_poller(CFG, str(tmp_path)))
+        with pytest.raises(asyncio.CancelledError):
+            await t
+
+    _run(go())
+    # The entry sweep AND the teardown, as the sibling legs read it.
     assert spy.up == 0 and spy.down >= 2
 
 
