@@ -371,8 +371,13 @@ function notEnumerated(reason) {
     digest: null,
     maxCtimeMs: null,
     at: new Date().toISOString(),
-    rule: String(/^\d{4}-\d{2}-\d{2}$/),
-    ruleIsDefault: true,
+    /* ∅: `snapshotNights` nulls only the rule's EFFECT on its own refusal arm, because a caller
+       handed it a rule and the configured rule is a fact even when the walk failed. Here no caller
+       ever configured one — a `--from` re-aggregation takes no night rule at all — so the rule is
+       absent too, and the default answer is a comparison this mode never makes. The literal it
+       replaced said `true` about a regex written for no reader. */
+    rule: null,
+    ruleIsDefault: null,
     rejectedNightShaped: null,
     admittedNonNight: null
   };
