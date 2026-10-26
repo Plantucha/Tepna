@@ -264,14 +264,88 @@ export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
   };
 }
 
+/** A population whose unit is NOT a night directory: the caller's own lister IS the enumeration, and
+ *  the names it returns are the members. The shape matches `snapshotNights` so one verdict builder
+ *  serves both, with two deliberate differences — the names ride `members` and never a key called
+ *  `nights`, and `unit` says what was counted.
+ *
+ *  🔴 THE NIGHT PRIMITIVE WOULD HAVE PUBLISHED A POPULATION THAT EXAMINED NOTHING.
+ *  `tools/stage-lab.mjs` held the heaviest unwired weight in `tools/corpus-reads.mjs` (12
+ *  enumerations) through four wiring units, and not one of them walks a night folder: its cohorts are
+ *  external PSG archives keyed `sub-NNN`, `ucddbNNN.rec`, `edfs/<visit>/*.edf`. `snapshotNights` over
+ *  any of those roots returns `ok: true, n: 0`, which reads as "this dataset is empty" — the ∅ defect
+ *  wearing the fix's clothes (measured 2026-10-25, row
+ *  2026-10-21-forty-one-corpus-enumerators-report-no-population). So the UNIT is a decision the
+ *  snapshot records, exactly as a night rule is.
+ *
+ *  A lister that throws returns `ok: false` with the reason and NEVER an empty population: an
+ *  unreadable root is not a dataset of zero records. The night rule's two measurements do not apply
+ *  here — there is no yardstick for "record-shaped" — so they are `null` rather than `[]`, the same
+ *  distinction `snapshotNights` draws on a failed walk: nobody looked, as against nothing found. */
+export function snapshotEntries(root, { list, unit = 'records', at = null } = {}) {
+  const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  if (typeof list !== 'function') throw new Error('snapshotEntries: a `list` function IS the enumeration — without one there is no population to snapshot');
+  let members;
+  try {
+    members = [...list(root)].map(String).sort();
+  } catch (e) {
+    return {
+      ok: false,
+      root,
+      reason: `root not enumerable: ${e.code || e.message}`,
+      n: 0,
+      unit,
+      members: [],
+      digest: null,
+      maxCtimeMs: null,
+      at: stamp,
+      rule: null,
+      ruleIsDefault: true,
+      rejectedNightShaped: null,
+      admittedNonNight: null
+    };
+  }
+  return {
+    ok: true,
+    root,
+    reason: null,
+    n: members.length,
+    unit,
+    members,
+    digest: digestNights(members),
+    maxCtimeMs: null,
+    at: stamp,
+    rule: null,
+    ruleIsDefault: true,
+    rejectedNightShaped: null,
+    admittedNonNight: null
+  };
+}
+
+/** The member names a snapshot counts, whatever its unit. A night snapshot carries `nights`, a record
+ *  snapshot `members`, and every piece of set arithmetic below reads THIS — so a record population is
+ *  never addressed through a key named for a unit it does not have. */
+function membersOf(s) {
+  return (s && (s.members || s.nights)) || [];
+}
+
+/** The population's unit, as both the criterion and the prose need it. A snapshot that names no unit
+ *  is a NIGHT snapshot: that was this module's only unit, and `nights_added_or_removed` is a key
+ *  published verdicts are already indexed on, so the default must keep producing it byte for byte. */
+function unitWords(before, after) {
+  const unit = (before && before.unit) || (after && after.unit) || 'nights';
+  const one = unit.endsWith('s') ? unit.slice(0, -1) : unit;
+  return { unit, one, thing: unit === 'nights' ? 'night directory' : one, criterion: `${unit}_added_or_removed` };
+}
+
 /** The intersection of two snapshots, with what arrived and what left named. */
 export function intersectSnapshots(before, after) {
-  const b = new Set(before.nights || []);
-  const a = new Set(after.nights || []);
-  const added = (after.nights || []).filter((n) => !b.has(n));
-  const removed = (before.nights || []).filter((n) => !a.has(n));
-  const nights = (before.nights || []).filter((n) => a.has(n));
-  return { nights, n: nights.length, added, removed, stable: added.length === 0 && removed.length === 0, digest: digestNights(nights) };
+  const b = new Set(membersOf(before));
+  const a = new Set(membersOf(after));
+  const added = membersOf(after).filter((n) => !b.has(n));
+  const removed = membersOf(before).filter((n) => !a.has(n));
+  const nights = membersOf(before).filter((n) => a.has(n));
+  return { nights, members: nights, n: nights.length, added, removed, stable: added.length === 0 && removed.length === 0, digest: digestNights(nights) };
 }
 
 /** The stability of one measurement's population as ONE tepna.verdict/1 object.
@@ -288,6 +362,9 @@ export function populationVerdict(before, after, { commit = null, commitReason =
   const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
   const ev = ['tools/corpus-scope.mjs', DOC, ...evidence].filter((e, i, a) => a.indexOf(e) === i);
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  /* THE UNIT IS READ FROM THE SNAPSHOT, so one builder serves a night population and a record one and
+     neither can borrow the other's words. */
+  const W = unitWords(before, after);
   const names = (xs) => (xs.length > 4 ? `${xs.slice(0, 4).join(', ')} and ${xs.length - 4} more` : xs.join(', '));
   let v;
   if (!before.ok || !after.ok) {
@@ -301,14 +378,14 @@ export function populationVerdict(before, after, { commit = null, commitReason =
       status: 'NOT_RUN',
       scope: 'internal',
       population: { checked: 0, eligible: 0, excluded: 0 },
-      criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
+      criterion: { name: W.criterion, threshold: 0, unit: W.unit, direction: 'lte' },
       result: null,
       evidence: ev,
       reason: `${which} (${(before.ok ? after : before).reason}), so this run cannot tell a stable population from a moved one`,
       producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
-  } else if ((before.nights || []).length === 0 && (after.nights || []).length === 0) {
+  } else if (membersOf(before).length === 0 && membersOf(after).length === 0) {
     /* ∅ EXAMINED NOTHING IS NOT A STABLE POPULATION. Both walks succeeded and both offered no
        night, so nothing arrived and nothing left and the movement criterion is met — by a run that
        looked at nothing. `Verdict.make` refuses that `PASS` over `checked: 0` at the type level, so
@@ -326,12 +403,12 @@ export function populationVerdict(before, after, { commit = null, commitReason =
       status: 'NOT_RUN',
       scope: 'internal',
       population: { checked: 0, eligible: 0, excluded: 0 },
-      criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
+      criterion: { name: W.criterion, threshold: 0, unit: W.unit, direction: 'lte' },
       result: null,
       evidence: ev,
       reason: refused.length
         ? `the root ${before.root} offered ${refused.length} night-shaped director${refused.length === 1 ? 'y' : 'ies'} and the caller's own rule ${before.rule} refused every one of them (${names(refused)}), so this run measured no population`
-        : `the root ${before.root} enumerated and offered no night directory at all, so this run measured no population`,
+        : `the root ${before.root} enumerated and offered no ${W.thing} at all, so this run measured no population`,
       producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
@@ -346,12 +423,23 @@ export function populationVerdict(before, after, { commit = null, commitReason =
          and it rides `result.rule` below — folding the two into one integer would make a narrowed
          root and a moved root read the same, which is the defect one level up. */
       population: { checked: d.n, eligible: d.n + d.added.length + d.removed.length, excluded: d.added.length + d.removed.length },
-      criterion: { name: 'nights_added_or_removed', threshold: 0, unit: 'nights', direction: 'lte' },
-      result: { root: before.root, n: d.n, digest: d.digest, added: d.added, removed: d.removed, openedAt: before.at, closedAt: after.at, maxCtimeMs: after.maxCtimeMs, ...ruleBlock(before, after) },
+      criterion: { name: W.criterion, threshold: 0, unit: W.unit, direction: 'lte' },
+      result: {
+        root: before.root,
+        n: d.n,
+        unit: W.unit,
+        digest: d.digest,
+        added: d.added,
+        removed: d.removed,
+        openedAt: before.at,
+        closedAt: after.at,
+        maxCtimeMs: after.maxCtimeMs,
+        ...ruleBlock(before, after)
+      },
       evidence: ev,
       reason: d.stable
         ? null
-        : `the night population moved during the run: ${d.added.length} arrived (${names(d.added)}), ${d.removed.length} left (${names(d.removed)}) — only the ${d.n}-night intersection is one population`,
+        : `the ${W.one} population moved during the run: ${d.added.length} arrived (${names(d.added)}), ${d.removed.length} left (${names(d.removed)}) — only the ${d.n}-${W.one} intersection is one population`,
       producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
@@ -412,9 +500,15 @@ export function ruleLine(population) {
  *  `undefined !== false`. There is no guard on the offer: a snapshot or a union that enumerated
  *  nothing already carries an empty `nights`, and a guard here would restate that invariant where no
  *  control can fire it — an unfireable guard reads as covered. */
+export function notCovered(offer, covered, { key = 'night' } = {}) {
+  const scored = new Set((covered || []).filter((r) => r && r.ok !== false).map((r) => r[key]));
+  return membersOf(offer).filter((n) => !scored.has(n));
+}
+
+/** The night-unit name, kept because its callers read it and the arithmetic has ONE definition —
+ *  which is the whole point of the row above. A record population passes `key: 'record'`. */
 export function notANight(offer, covered) {
-  const scored = new Set((covered || []).filter((r) => r && r.ok !== false).map((r) => r.night));
-  return ((offer && offer.nights) || []).filter((n) => !scored.has(n));
+  return notCovered(offer, covered);
 }
 
 /** The tool tree's commit, WITH THE REASON a lookup actually failed. `null` with no reason is the
@@ -711,6 +805,65 @@ function selftest() {
     ok('CONTROL · the same row with ok true is covered, so the two shapes read differently', notANight(offered, [{ night: '2026-07-25', ok: true }]).join(',') === '2026-07-26,logs');
     ok('CONTROL · an offer that enumerated nothing names no removal', notANight({ n: 0, nights: [] }, []).length === 0);
     ok('a covered night the offer never held cannot appear: the difference runs offer minus read', notANight(offered, [{ night: '2099-01-01' }]).length === 3);
+
+    /* ── A POPULATION WHOSE UNIT IS NOT A NIGHT ────────────────────────────────────────────────
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `tools/stage-lab.mjs` walks
+       six external PSG archives and none of them holds a night directory, so the night walk over any
+       of their roots answers `ok: true, n: 0` — a dataset of records published as empty. The cases
+       below pin the three facts a record population needs: the members come from the caller's own
+       lister, the criterion and the prose say `records`, and an unreadable root REFUSES rather than
+       reporting a population of zero. The night control beside them is what makes the first fact a
+       measurement: both calls run over the SAME planted root. */
+    const recRoot = join(tmp, 'psg');
+    mkdirSync(recRoot, { recursive: true });
+    for (const f of ['ucddb002.rec', 'ucddb003.rec', 'ucddb002_stage.txt']) writeFileSync(join(recRoot, f), 'x');
+    const recList = (d) =>
+      readdirSync(d)
+        .filter((f) => /^ucddb\d+\.rec$/.test(f))
+        .map((f) => f.slice(0, -4));
+    const recBefore = snapshotEntries(recRoot, { list: recList, unit: 'records' });
+    ok('a record snapshot counts what the caller enumerates, sorted', recBefore.ok && recBefore.n === 2 && recBefore.members.join(',') === 'ucddb002,ucddb003', JSON.stringify(recBefore.members));
+    ok('and it carries no key named for a unit it does not have', recBefore.nights === undefined && recBefore.unit === 'records', JSON.stringify(Object.keys(recBefore)));
+    ok('CONTROL · the night walk over the same root reads ok with a population of zero, which is the defect', snapshotNights(recRoot).ok === true && snapshotNights(recRoot).n === 0);
+    const recStable = populationVerdict(recBefore, snapshotEntries(recRoot, { list: recList }), { tool: 'selftest' });
+    ok(
+      'a stable record population passes under a records criterion',
+      recStable.status === 'PASS' && recStable.criterion.name === 'records_added_or_removed' && recStable.criterion.unit === 'records',
+      JSON.stringify(recStable.criterion)
+    );
+    ok('and the result says which unit it counted', recStable.result.unit === 'records' && recStable.result.n === 2, JSON.stringify(recStable.result.unit));
+    ok(
+      'CONTROL · a night population still publishes the key its readers index on',
+      populationVerdict(snapshotNights(join(tmp, 'root')), snapshotNights(join(tmp, 'root'))).criterion.name === 'nights_added_or_removed'
+    );
+    writeFileSync(join(recRoot, 'ucddb004.rec'), 'x');
+    const recMoved = populationVerdict(recBefore, snapshotEntries(recRoot, { list: recList }), { tool: 'selftest' });
+    ok(
+      'an arriving record is SHORTFALL, and the reason says record where it used to say night',
+      recMoved.status === 'SHORTFALL' && recMoved.reason.indexOf('the record population moved during the run') === 0 && recMoved.reason.indexOf('only the 2-record intersection') > 0,
+      recMoved.reason
+    );
+    const recGone = snapshotEntries(join(tmp, 'no-such-psg'), { list: recList });
+    ok('an unreadable record root refuses and never reports zero records', recGone.ok === false && recGone.n === 0 && /not enumerable/.test(recGone.reason || ''), JSON.stringify(recGone.reason));
+    ok(
+      'a record root that enumerated nothing is NOT_RUN, and the reason names the record',
+      populationVerdict(snapshotEntries(bare, { list: () => [] }), snapshotEntries(bare, { list: () => [] })).reason.indexOf('offered no record at all') > 0
+    );
+    ok(
+      'the removal namer serves both units from one definition',
+      notCovered({ members: ['a', 'b'] }, [{ record: 'a' }], { key: 'record' }).join(',') === 'b' && notANight(offered, [{ night: '2026-07-25' }]).join(',') === '2026-07-26,logs'
+    );
+    ok(
+      'a lister is the enumeration, so its absence throws rather than reporting an empty population',
+      (() => {
+        try {
+          snapshotEntries(recRoot, {});
+          return false;
+        } catch (e) {
+          return /IS the enumeration/.test(e.message);
+        }
+      })()
+    );
 
     /* THE CODE IDENTITY, AND THE REASON FOR ITS ABSENCE. A reason that names a cause the run cannot
        have had is worse than no reason, so the CONTROL below must be able to fire: a directory that

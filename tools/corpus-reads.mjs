@@ -752,7 +752,11 @@ export const UNWIRED_BACKLOG = {
   'rho-overlap-power.mjs': 2,
   'resp-cardiac-suppression-e8.mjs': 1,
   'seqnet-eval.mjs': 1,
-  'stage-lab.mjs': 12,
+  /* `stage-lab.mjs` WAS THE HEAVIEST KEY HERE, at weight 12, and has LEFT: its twelve enumerations
+     walk external PSG archives, so it reports a RECORD population through `snapshotEntries` rather
+     than a night one. A night snapshot there answers `ok: true, n: 0` over a full dataset, which is
+     why the weight sat unspent through four wiring units — the unit was the blocker, not the wiring
+     (row 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
   'stuck-run-lengths.mjs': 1,
   'tch-pooled-hat.mjs': 1,
   'wearable-sync.mjs': 1
