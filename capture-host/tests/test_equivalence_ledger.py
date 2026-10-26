@@ -20,6 +20,8 @@ import json
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import mutation_diff  # noqa: E402
@@ -231,13 +233,51 @@ RATCHET = {
 }
 
 
+def _js_ledger_path():
+    """The JS lane's `tools/mutate-equivalence.json`, or `None` where that path answers with THIS lane's file.
+
+    🔴 A mutmut sandbox is this lane FLATTENED. Under the mutants geometry `os.path.dirname(HERE)` is the
+    scratch's `work/`, which is the tree copy itself, so the JS lane's path there answers with a byte copy
+    of this lane's own ledger. `mutation_diff.tree_shadowed` stages a shadowed root read one level up
+    alone, on purpose, so that the tree's own file survives inside the tree. That staging rule is #3256's
+    fix for `2026-10-03-root-read-staging-clobbers-a-samename-file`, which measured the same collision in
+    the opposite direction. One path carries two meanings, and the decision serves the clean baseline. Measured 2026-10-26 inside the gate's own
+    scratch `/tmp/mut-writers-5c9a3fbfbcb9/work/mutants`: three legs below failed there against none in
+    the checkout, 12 globs of that run reported 0 tested mutants, and every mutant the gate generated
+    read as unmeasured rather than killed.
+
+    ⚠️ THE MARKER IS THE FILE'S IDENTITY AND NEVER A SECOND PATH. A marker file named here would enter
+    the root-read set `mutation_diff.root_reads` derives from these sources, the stager would copy it into
+    the scratch, and it would then be present in the very tree it is meant to rule out. §∅: the absence is
+    `None`, never the path of a different file answering to the same name.
+    """
+    path = os.path.join(os.path.dirname(str(HERE)), "tools", "mutate-equivalence.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as fh:
+        there = fh.read()
+    with open(LEDGER, "rb") as fh:
+        here = fh.read()
+    return None if there == here else path
+
+
+def _require_js_ledger():
+    """The JS ledger path for a test that has nothing to examine without it, skipping with a named reason
+    rather than passing over a population of 0 (§∅: a measurement nobody took is not a green one)."""
+    path = _js_ledger_path()
+    if path is None:
+        pytest.skip("no JS lane in this tree — its ledger path answers with this lane's own file")
+    return path
+
+
 def _both_ledgers():
     """BOTH ledgers that carry the four-field key: this lane's and the JS lane's `tools/` one. `_load()`
     reads only this lane's, so a test about a field the JS lane holds and this one does not would pass
     while examining nothing — measured 2026-10-26, when the two qualifier invariants below were first
     written against `_load()` and reported green over 0 qualified entries."""
-    root = os.path.dirname(str(HERE))
-    for path in (LEDGER, os.path.join(root, "tools", "mutate-equivalence.json")):
+    for path in (LEDGER, _js_ledger_path()):
+        if path is None:
+            continue
         with open(path, encoding="utf-8") as fh:
             yield path, json.load(fh)
 
@@ -418,10 +458,8 @@ def test_the_README_does_not_tell_authors_that_after_is_not_matched_on():
     matching". It is part of the key, so an author who believed it would rewrite `after` and orphan the
     entry. The README must say the key has four fields — in BOTH ledgers that carry it (the JS lane's
     `tools/` one, which `mutate.mjs` reads, and this lane's)."""
-    root = os.path.dirname(str(HERE))
-    for path in (LEDGER, os.path.join(root, "tools", "mutate-equivalence.json")):
-        with open(path, encoding="utf-8") as fh:
-            text = " ".join(json.load(fh)["_README"])
+    for path, led in _both_ledgers():
+        text = " ".join(led["_README"])
         assert "not for matching" not in text, f"{path}: the README still says `after` is not matched on"
         assert "(line, op, before, after)" in text, f"{path}: the README must name the real four-field matcher key"
 
@@ -461,6 +499,42 @@ def test_every_KEYED_entry_s_BEFORE_TEXT_is_still_in_its_MODULE():
     )
 
 
+def test_the_JS_LEDGER_is_ABSENT_in_a_FLATTENED_tree_rather_than_IMPERSONATED(tmp_path, monkeypatch):
+    """🔴 Row `2026-10-26-a-flattened-sandbox-root-answers-with-the-wrong-equivalence-ledger`.
+
+    `os.path.dirname(HERE)` is the repo root in a checkout and the SANDBOX root under the mutation gate,
+    where it holds a copy of this lane's ledger under the JS lane's name. A path that resolves is not the
+    file its reader meant.
+
+    The two arms below differ in the BYTES at that path and in nothing else, which is what makes the
+    identity the thing the assertions read."""
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "capture-host").mkdir()
+    monkeypatch.setitem(globals(), "HERE", str(tmp_path / "capture-host"))
+    at_root = tmp_path / "tools" / "mutate-equivalence.json"
+    with open(LEDGER, "rb") as fh:
+        ours = fh.read()
+
+    # FLATTENED: a ledger sits at the path and it is ours.
+    at_root.write_bytes(ours)
+    assert _js_ledger_path() is None, "this lane's own ledger was reported as the JS lane's"
+    assert [p for p, _ in _both_ledgers()] == [LEDGER], "the impersonating ledger was read anyway"
+    with pytest.raises(pytest.skip.Exception) as skipped:
+        _require_js_ledger()
+    assert "no JS lane" in str(skipped.value), "the skip must name why the ledger is absent"
+
+    # A CHECKOUT: a different ledger at the same path, and nothing else changed.
+    at_root.write_bytes(json.dumps({"_README": ["(line, op, before, after)"]}).encode("utf-8"))
+    want = str(at_root)
+    assert _js_ledger_path() == want
+    assert _require_js_ledger() == want
+    assert [p for p, _ in _both_ledgers()] == [LEDGER, want]
+
+    # ABSENT ALTOGETHER is the same answer, by the same rule.
+    at_root.unlink()
+    assert _js_ledger_path() is None
+
+
 def test_a_FUNCTION_QUALIFIER_is_unique_within_its_module():
     """Residue 2026-10-26-a-line-keyed-equivalence-entry-that-drifts-ambiguously-cannot-be-placed. An entry
     may carry `fn`, the enclosing named function, and an entry that carries one is matched on
@@ -470,6 +544,7 @@ def test_a_FUNCTION_QUALIFIER_is_unique_within_its_module():
     nothing else would catch if a qualifier were added by hand. Measured 2026-10-26 over the 261 qualified
     entries: 0 collisions, which is why this is an invariant and not a target. Re-measured 2026-10-27
     over 320, after #3995 probed and qualified 59 more: still 0."""
+    _require_js_ledger()
     dupes = []
     qualified = 0
     for path, led in _both_ledgers():
@@ -498,6 +573,7 @@ def test_a_QUALIFIED_entry_still_records_the_after_it_is_matched_on():
     be matched on (fn, op, before) alone, which is looser than the key it replaced — a widening dressed as a
     durability fix. `--qualify` routes an entry with no recorded `after` to its own refusal bucket for this
     reason; this is the agent-neutral half of that refusal."""
+    _require_js_ledger()
     bad = []
     qualified = 0
     for path, led in _both_ledgers():
@@ -521,8 +597,7 @@ def test_the_README_documents_the_OPTIONAL_qualifier():
     enclosing function already, so the JS qualifier is not its vocabulary. The four-field key wording stays
     alongside it — the qualifier replaces the line for entries that carry one, it does not retire the key
     for entries that do not."""
-    root = os.path.dirname(str(HERE))
-    with open(os.path.join(root, "tools", "mutate-equivalence.json"), encoding="utf-8") as fh:
+    with open(_require_js_ledger(), encoding="utf-8") as fh:
         text = " ".join(json.load(fh)["_README"])
     assert "`fn`" in text, "the README never mentions the qualifier"
     assert "OPTIONAL" in text, "the README must say the qualifier is optional"
