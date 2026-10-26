@@ -289,20 +289,39 @@ def test_a_stale_association_is_cleared_before_the_first_run(tmp_path, monkeypat
 
 
 def test_association_is_released_on_cancellation(tmp_path, monkeypatch):
-    """At shutdown the task is cancelled mid-flight. The teardown is shielded so it still completes —
-    an unshielded await would be cancelled too, stranding exactly what it exists to prevent."""
+    """At shutdown the task is cancelled mid-flight and the `finally` still releases the card.
+
+    The cancel lands AFTER the loop has been entered, so the release counted here is the teardown's.
+    The previous form cancelled after one `await asyncio.sleep(0)`, which landed on the entry sweep's
+    own `to_thread` — the loop was never entered, the `finally` never ran, and `spy.down >= 1` was met
+    by the entry sweep alone. It was racy for the same reason: a pool worker that had not yet dequeued
+    the sweep never ran it, and the leg read `down=0`.
+
+    The `shield()` in that `finally` has no observed consequence here, which this leg does not claim to
+    test: removing it leaves this leg green under a single cancel and under a second cancel delivered
+    while the teardown awaits. Asyncio delivers one cancellation, so a bare await inside the `finally`
+    completes as the shielded one does. Row `2026-10-26-the-shielded-cpap-teardown-has-no-reader`."""
     spy = _Spy()
     spy.install(monkeypatch)
+    entered = asyncio.Event()
+
+    async def blocked_loop(*a, **k):
+        entered.set()
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(capture, "_cpap_loop", blocked_loop)
 
     async def go():
         t = asyncio.create_task(capture.cpap_poller(CFG, str(tmp_path)))
-        await asyncio.sleep(0)
+        await asyncio.wait_for(entered.wait(), 5)
         t.cancel()
         with pytest.raises(asyncio.CancelledError):
             await t
 
     _run(go())
-    assert spy.down >= 1
+    # The entry sweep AND the teardown. `>= 1` cannot tell a run that never reached the `finally`
+    # from one that did, which is what the sibling legs at `up == 1 and down >= 2` already knew.
+    assert spy.up == 0 and spy.down >= 2
 
 
 # ── interlocks ──────────────────────────────────────────────────────────────────────────────────────
