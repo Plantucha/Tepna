@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**287 tools** · 286 with a purpose line · **1 without**
+**288 tools** · 287 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -142,6 +142,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`name-lease.mjs`](../tools/name-lease.mjs) | WHO ALREADY HOLDS THIS FILENAME — run it BEFORE naming a new file. |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
+| [`night-rule-horizon.mjs`](../tools/night-rule-horizon.mjs) | THE YEAR A DECLARED NIGHT RULE STOPS SCORING — measured, never read off the digits. |
 | [`no-third-party-names.mjs`](../tools/no-third-party-names.mjs) | the name gate node tools/no-third-party-names.mjs # gate (exit 1 on a hit) node tools/no-third-party-names.mjs --json # the verdict alone |
 | [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | DOES OXYDEX'S AUTONOMIC AROUSAL INDEX TRACK EXPERT-SCORED AROUSALS? |
 | [`nsrr-ahi-refit.mjs`](../tools/nsrr-ahi-refit.mjs) | Refits the shipped AHI surrogates against each of the four harmonized NSRR AHI definitions, and scores every refit under the band the owner ratified on 2026-10-13… |
