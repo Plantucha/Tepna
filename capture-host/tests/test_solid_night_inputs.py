@@ -758,12 +758,20 @@ def test_a_seam_OUTSIDE_the_worn_interval_does_not_split_the_axis(tmp_path):
     assert "recorded clock seam" not in tb["reason"], tb["reason"]
 
 
-def test_a_segment_with_too_few_anchors_is_UNKNOWN_and_names_the_seam(tmp_path):
-    """The worst-of-segments rule, and the honest shape of a short tail: a step 30 s before the end
-    leaves a segment that cannot be judged, which is UNKNOWN — never a silent drop of that stretch."""
-    # The seam lands after two anchors, so SEGMENT 1 is the short one and wins the tie on rank.
+def test_a_segment_with_too_few_anchors_is_ANNOTATED_and_the_seam_is_still_named(tmp_path):
+    """The worst-of-segments rule, and the honest shape of a thin head: a recorded step 1 s in leaves a
+    segment that cannot be judged — never a silent drop of that stretch.
+
+    🔴 THE DISPOSITION CHANGED ON 2026-10-26 AND THE PROPERTY DID NOT. This read UNKNOWN for the whole
+    device until the owner's ruling of 2026-09-17 was applied here: reduced coverage annotates and a
+    discontinuity refuses (CLAUDE.md §∅), so the 2 unjudgeable anchors move to `coverage` and the 24
+    minutes after the step decide the band. The stretch is still named, with its count and its floor;
+    what it no longer does is discard a judgeable segment. The seam itself is named in the reason of
+    the segment that WAS judged, which is where a reader of the verdict looks for it."""
+    # The seam lands after two anchors, so SEGMENT 1 is the thin one.
     tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0, at_min=1000.0 / 60_000.0, minutes=24)
-    assert tb["status"] == "UNKNOWN", tb["reason"]
+    assert tb["status"] == "PASS", tb
+    assert "segment 1/2" in tb["coverage"], tb["coverage"]
     assert "recorded clock seam" in tb["reason"], tb["reason"]
 
 
@@ -960,13 +968,15 @@ def test_TWO_segments_are_still_tagged_by_number(tmp_path):
 
 
 def test_a_segment_under_the_anchor_floor_NAMES_the_count_and_the_floor(tmp_path):
-    """`_decision("UNKNOWN", …)` with its reason dropped (to None, or to no argument at all) still
-    returns UNKNOWN, so a status-only assertion cannot see it. The reason is the whole product here:
-    "which segment, how many anchors, under what floor"."""
-    # The seam lands after two anchors, so SEGMENT 1 is the short one and wins the tie on rank.
+    """A dropped reason (to None, or to no argument at all) leaves the status intact, so a status-only
+    assertion cannot see it. The sentence is the whole product here: "which segment, how many anchors,
+    under what floor". Since 2026-10-26 a thin segment beside a judgeable one carries that sentence in
+    `coverage` rather than in the band reason, and the words are deliberately the ranking branch's own
+    so this assertion reads the same text through either channel."""
+    # The seam lands after two anchors, so SEGMENT 1 is the thin one.
     tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0, at_min=1000.0 / 60_000.0, minutes=24)
-    assert tb["status"] == "UNKNOWN", tb["reason"]
-    assert "anchor(s) — under 3" in tb["reason"], tb["reason"]
+    assert tb["status"] == "PASS", tb
+    assert "anchor(s) — under 3" in tb["coverage"], tb["coverage"]
 
 
 # ── the seam sidecar READER, row by row (#3095's `recorded_seams`) ──────────────────────────────────
@@ -2794,6 +2804,144 @@ def test_a_CLOCK_SET_RECORDED_AFTER_THE_STRAP_CAME_OFF_does_not_excuse_a_step(tm
     assert "unrecorded-shift-candidate" not in inside["reason"], (
         "the control: the SAME record 20 s earlier is inside the interval, and then it is a record"
     )
+
+
+def test_a_THIN_HEAD_before_the_first_clock_set_ANNOTATES_and_the_TAIL_is_judged(tmp_path):
+    """🔴 REDUCED COVERAGE ANNOTATES, A DISCONTINUITY REFUSES (owner ruling 2026-09-17, CLAUDE.md §∅).
+
+    A recorded clock-set splits the axis, and the head before the first set is often two rows. Ranking
+    that head took the whole device to UNKNOWN, which threw away 198 judgeable anchors because 2 could
+    not be judged. The seam below sits 1 s in, so segment 1 holds the anchors at 0.0 s and 0.5 s and
+    segment 2 holds every other one.
+
+    The control moves the SAME seam to 60 s, where both segments carry enough anchors: then nothing is
+    annotated and the key is absent. So the assertion separates the new rule from the old one rather
+    than pinning a shape both would produce. Second half of residue
+    `2026-10-21-the-night-judge-counts-clock-rows-that-recorded-no-clock-write`."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / f"{BASE}_ECG.txt").write_text(_axis(minutes=4, step_ms=0.0))
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=(), end="2026-09-20T23:04:00")
+    p = [str(night / f"{BASE}_ECG.txt")]
+    end = T0 + dt.timedelta(minutes=4)
+
+    _seam_rows(night, [(1000.0, 0.0)])
+    thin = si.timebase(str(night), H10["name"], "ECG", p, T0, end)
+    assert thin["status"] == "PASS", thin
+    assert "segment 1/2 gave 2 anchor(s) — under 3, so it is not judged" in thin["coverage"], thin
+    assert "segment 2/2" in thin["reason"], "the verdict comes from the segment that was judged"
+
+    _seam_rows(night, [(60000.0, 0.0)])
+    both = si.timebase(str(night), H10["name"], "ECG", p, T0, end)
+    assert both["status"] == "PASS", both
+    assert "coverage" not in both, "the control: two judgeable segments annotate nothing"
+
+
+def test_EVERY_segment_THIN_keeps_the_UNKNOWN_and_writes_no_coverage_note(tmp_path):
+    """⚠️ THE ANNOTATION IS NOT A LICENCE TO STOP JUDGING. When no segment carries enough anchors the
+    band examined nothing, and a judge over nothing reports the absence (§∅) — so every thin segment
+    ranks again and the device stays UNKNOWN with the sentence it carried before.
+
+    A recorded set every second over a 2 Hz stream is that night: 119 seams, two anchors per segment,
+    and 240 anchors in total, so the whole-file anchor floor above is cleared and the loop is reached.
+    Writing this as a short file instead would have been refused one guard earlier as a DRAWN axis —
+    the helper's device jitter needs about a hundred rows before any delta stops dominating."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / f"{BASE}_ECG.txt").write_text(_axis(minutes=2, step_ms=0.0))
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=(), end="2026-09-20T23:02:00")
+    _seam_rows(night, [(float(ms), 0.0) for ms in range(1000, 120000, 1000)])
+    out = si.timebase(
+        str(night), H10["name"], "ECG", [str(night / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(minutes=2)
+    )
+    assert out["status"] == "UNKNOWN", out
+    assert "gave 2 anchor(s) — under 3" in out["reason"], out["reason"]
+    assert "coverage" not in out, "nothing was judged, so there is no reduced coverage to annotate"
+
+
+def test_a_BAND_COVERAGE_note_reaches_the_DEVICE_result_and_survives_a_PASS(tmp_path):
+    """🔴 `device_outcome` COLLECTS REASONS FROM FAILING AND UNDECIDED BANDS ONLY — "empty for a PASS" —
+    so a band that narrowed its span and then passed had nowhere to say so. The note therefore rides on
+    the device result, where `solid_night.DEVICE_EXTRAS` carries it into the verdict.
+
+    The clean night is the one from the first test in this file, with its zero-seam sidecar replaced by
+    a seam 1 s in. The band still passes; what changes is that the device now says which stretch the
+    pass did not cover. The control is the clean night itself, which writes no key."""
+    _good_h10(tmp_path)
+    clean = _bands(tmp_path)[H10["name"]]
+    assert clean["bands"]["timebase"]["status"] == "PASS", clean["bands"]["timebase"]
+    assert "coverage" not in clean, "the control: no band narrowed anything"
+
+    _seam_rows(tmp_path, [(1000.0, 0.0)])
+    dev = _bands(tmp_path)[H10["name"]]
+    assert dev["bands"]["timebase"]["status"] == "PASS", dev["bands"]["timebase"]
+    assert list(dev["coverage"]) == ["timebase"], dev["coverage"]
+    # ONE anchor, not two: this helper writes one host arrival per batch rather than one per row, so the
+    # first second of the stream contributes a single point. The head is thinner here than in the test
+    # above, which is the shape the box actually produces.
+    assert "segment 1/2 gave 1 anchor(s) — under 3, so it is not judged" in dev["coverage"]["timebase"]
+
+
+def test_the_ANCHOR_FLOOR_is_a_FLOOR_so_a_tail_of_EXACTLY_THREE_is_judgeable(tmp_path):
+    """Kills `any(len(seg) >= TB_MIN_ANCHORS …)` -> `>`. The floor admits a segment that sits ON it, so
+    a tail of exactly three anchors is enough to judge and the thin head beside it annotates. Under `>`
+    no segment counts as judgeable, both segments rank again, and the head takes the device to UNKNOWN
+    with no note — the behaviour this rule replaced.
+
+    Constructed, not searched: five anchors with a recorded set 1 s in, so the head holds two and the
+    tail holds three. The device deltas take three distinct values over four steps (modal share 0.5),
+    which keeps the drawn branch from refusing the file before the segments are ever cut."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    _pairs(night, [(0, 0), (500, 520_000_000), (1000, 1_010_000_000), (1500, 1_470_000_000), (2000, 1_990_000_000)])
+    _seam_rows(night, [(1000.0, 0.0)])
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=(), end="2026-09-20T23:00:03")
+    out = si.timebase(
+        str(night), H10["name"], "ECG", [str(night / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(seconds=3)
+    )
+    assert "coverage" in out, out
+    assert "segment 1/2 gave 2 anchor(s) — under 3" in out["coverage"], out["coverage"]
+    assert "segment 2/2" in out["reason"], out["reason"]
+
+
+def test_a_FAILING_segment_OUTRANKS_an_undecided_one_that_came_FIRST(tmp_path):
+    """Kills `rank = {"FAIL": 2, "UNKNOWN": 1, "PASS": 0}` -> `{"FAIL": 2, "UNKNOWN": 2, …}`. The
+    aggregation keeps a segment only when its rank is STRICTLY greater, so equal ranks leave the first
+    segment standing. With UNKNOWN tied to FAIL an undecided head therefore hides a failing tail, and
+    the device reads "could not be decided" over a stretch that was decided and failed.
+
+    The order is what makes the mutant visible, and it has to be this one: a FAIL arriving first keeps
+    FAIL under either table. Segment 1 is five anchors whose residual never moves, which is the inert
+    branch — the host column adds nothing, so there is no second clock to judge. Segment 2 is the
+    refusal-bound construction from `test_a_rate_exactly_at_the_refusal_bound_is_REFUSED`, 22 anchors
+    with the residual falling 1050 ms per second, which is -50000 ppm to the bit. Neither segment is
+    thin, so the night also controls the annotation: nothing narrowed, and no note is written."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    pairs = []
+    for i in range(5):
+        h = 1000 * i + (i % 3) * 7 + (i % 7) * 11
+        pairs.append((h, h * 1_000_000))
+    for i in range(5, 27):
+        h = 1000 * i + (i % 3) * 7 + (i % 7) * 11
+        pairs.append((h, (h + 1050 * (i - 5)) * 1_000_000))
+    _pairs(night, pairs)
+    _seam_rows(night, [(5000.0, 0.0)])
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=(), end="2026-09-20T23:00:30")
+    out = si.timebase(
+        str(night), H10["name"], "ECG", [str(night / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(seconds=30)
+    )
+    assert out["status"] == "FAIL", out
+    assert "segment 2/2" in out["reason"] and "ppm" in out["reason"], out["reason"]
+    assert "coverage" not in out, "both segments are judgeable, so nothing is annotated"
 
 
 def test_the_SPAN_in_the_timebase_reason_is_MINUTES(tmp_path):
