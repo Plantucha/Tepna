@@ -203,17 +203,34 @@ export function digestNights(nights) {
  *
  *    rejectedNightShaped  night-shaped names the rule REFUSED  (a narrower rule; invisible before)
  *    admittedNonNight     non-night names the rule ADMITTED    (a wider rule; counted as nights)
+ *    passedOver           names NOTHING counted: the remainder of the listing, files included
  *
- *  Both are NAMES, not counts, because a count cannot be chased. `ruleIsDefault` says whether either
- *  question binds at all. None of this changes `nights`, so no caller's scored set moves. */
+ *  All three are NAMES, not counts, because a count cannot be chased. `ruleIsDefault` says whether
+ *  the first two questions bind at all; `passedOver` binds under EVERY rule, the default one
+ *  included.
+ *
+ *  🔴 THE DEFAULT RULE HAD NO ACCOUNT OF WHAT IT PASSED OVER, so a root holding `sub-01`, `sub-02`
+ *  and `sub-03` answered `ok: true, n: 0` under the same digest as a genuinely empty root, and the
+ *  verdict one level up then published a record-keyed corpus as an emptied one (row
+ *  2026-10-26-a-non-night-root-and-an-empty-root-publish-the-same-population). `passedOver` closes
+ *  that by PARTITIONING the listing: every name `readdirSync` returned sits in exactly one of
+ *  `nights`, `rejectedNightShaped` and `passedOver`, whatever the rule, because the third bin is
+ *  defined as the remainder. The walk's own directory filter is inside that remainder, so a
+ *  record-keyed root of FILES is named as well. `admittedNonNight` is not a fourth bin — it is the
+ *  subset of `nights` the default yardstick would have refused.
+ *
+ *  None of this changes `nights`, so no caller's scored set moves. */
 export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   let names;
   let dirNames;
+  let entryNames;
   try {
-    dirNames = readdirSync(root, { withFileTypes: true })
-      .filter((d) => d.isDirectory() || d.isSymbolicLink())
-      .map((d) => d.name);
+    const ents = readdirSync(root, { withFileTypes: true });
+    /* The walk's own filter is a decision too, so the full listing is kept: a record-keyed root
+       holds FILES, and a bin built from directories alone could not name them. */
+    entryNames = ents.map((d) => d.name);
+    dirNames = ents.filter((d) => d.isDirectory() || d.isSymbolicLink()).map((d) => d.name);
     names = dirNames.filter((n) => re.test(n));
   } catch (e) {
     return {
@@ -230,7 +247,8 @@ export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
       /* ∅: the walk failed, so the rule's effect was never measured. An empty list here would read
          as "the rule rejected nothing", which is a different statement from "nobody looked". */
       rejectedNightShaped: null,
-      admittedNonNight: null
+      admittedNonNight: null,
+      passedOver: null
     };
   }
   const nights = names.sort();
@@ -238,6 +256,11 @@ export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
   const admitted = new Set(nights);
   const rejectedNightShaped = ruleIsDefault ? [] : dirNames.filter((n) => NIGHT_RE.test(n) && !admitted.has(n)).sort();
   const admittedNonNight = ruleIsDefault ? [] : nights.filter((n) => !NIGHT_RE.test(n));
+  /* Unconditional, because the DEFAULT rule is the one whose silence published a record-keyed root
+     as an emptied corpus. Defined as the REMAINDER of the listing, so the three bins partition it by
+     construction rather than by a regex coincidence. */
+  const refusedSet = new Set(rejectedNightShaped);
+  const passedOver = entryNames.filter((n) => !admitted.has(n) && !refusedSet.has(n)).sort();
   let maxCtimeMs = null;
   for (const n of nights) {
     try {
@@ -260,7 +283,8 @@ export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
     rule: String(re),
     ruleIsDefault,
     rejectedNightShaped,
-    admittedNonNight
+    admittedNonNight,
+    passedOver
   };
 }
 
@@ -302,7 +326,8 @@ export function snapshotEntries(root, { list, unit = 'records', at = null } = {}
       rule: null,
       ruleIsDefault: true,
       rejectedNightShaped: null,
-      admittedNonNight: null
+      admittedNonNight: null,
+      passedOver: null
     };
   }
   return {
@@ -318,7 +343,10 @@ export function snapshotEntries(root, { list, unit = 'records', at = null } = {}
     rule: null,
     ruleIsDefault: true,
     rejectedNightShaped: null,
-    admittedNonNight: null
+    admittedNonNight: null,
+    /* ∅: the unit is not a directory name, so no night rule ran and no name was passed over. `[]`
+       would read as "the walk looked and found nothing to pass over". */
+    passedOver: null
   };
 }
 
@@ -395,9 +423,18 @@ export function populationVerdict(before, after, { commit = null, commitReason =
        🔴 AND AN EMPTY `nights` IS NOT THE SAME FACT UNDER A DECLARED RULE: a narrow rule can refuse
        every night-shaped directory a root does hold, and "offered nothing" would then be false. The
        reason states which of the two happened, because `result` must be null on a NOT_RUN and the
-       rule block cannot ride along. */
+       rule block cannot ride along.
+       🔴 AND NEITHER IS AN EMPTY `nights` THE SAME FACT AS A ROOT KEYED ON SOMETHING ELSE. A root
+       holding `sub-01`, `sub-02` and `sub-03` read exactly like an empty root here, down to the
+       digest, so a record-keyed corpus was published as an emptied one (row
+       2026-10-26-a-non-night-root-and-an-empty-root-publish-the-same-population). The third arm
+       names what the walk passed over, so the two roots no longer read alike. */
     const refusedBy = (before.rejectedNightShaped || []).concat(after.rejectedNightShaped || []);
     const refused = [...new Set(refusedBy)].sort();
+    const passedBy = (before.passedOver || []).concat(after.passedOver || []);
+    const passed = [...new Set(passedBy)].sort();
+    const alsoPassed = passed.length ? ` and passed over ${passed.length} further entr${passed.length === 1 ? 'y' : 'ies'} (${names(passed)})` : '';
+    const entries = (xs) => `${xs.length} entr${xs.length === 1 ? 'y' : 'ies'}`;
     v = Verdict.make({
       gate: 'corpus-population',
       status: 'NOT_RUN',
@@ -407,8 +444,10 @@ export function populationVerdict(before, after, { commit = null, commitReason =
       result: null,
       evidence: ev,
       reason: refused.length
-        ? `the root ${before.root} offered ${refused.length} night-shaped director${refused.length === 1 ? 'y' : 'ies'} and the caller's own rule ${before.rule} refused every one of them (${names(refused)}), so this run measured no population`
-        : `the root ${before.root} enumerated and offered no ${W.thing} at all, so this run measured no population`,
+        ? `the root ${before.root} offered ${refused.length} night-shaped director${refused.length === 1 ? 'y' : 'ies'} and the caller's own rule ${before.rule} refused every one of them (${names(refused)})${alsoPassed}, so this run measured no population`
+        : passed.length
+          ? `the root ${before.root} enumerated ${entries(passed)} and the rule ${before.rule} matched none of them (${names(passed)}), so this run measured no population and the root may be keyed on something other than a ${W.one}`
+          : `the root ${before.root} enumerated and offered no ${W.thing} at all, so this run measured no population`,
       producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
@@ -711,6 +750,40 @@ function selftest() {
       'CONTROL · one night under that same root → PASS over a population of 1, so the branch binds on emptiness alone',
       populationVerdict(snapshotNights(bare), snapshotNights(bare)).status === 'PASS'
     );
+    /* PLANT — THE THIRD WAY TO OFFER NO NIGHT, and the one the DEFAULT rule had no words for. This
+       root is keyed on records, so the default rule matches nothing: `nights` is empty for a reason
+       neither sentence above states, and before the third bin this root and `offered-nothing` above
+       published the same digest under the same words (row
+       2026-10-26-a-non-night-root-and-an-empty-root-publish-the-same-population). */
+    const recordKeyed = join(tmp, 'record-keyed');
+    mkdirSync(recordKeyed, { recursive: true });
+    for (const r of ['sub-01', 'sub-02', 'sub-03']) mkdirSync(join(recordKeyed, r), { recursive: true });
+    const rk = snapshotNights(recordKeyed);
+    ok(
+      'a record-keyed root NAMES what the default rule passed over, under the default rule',
+      rk.ok === true && rk.n === 0 && rk.ruleIsDefault === true && rk.passedOver.join() === 'sub-01,sub-02,sub-03',
+      JSON.stringify(rk.passedOver)
+    );
+    const vrk = populationVerdict(rk, snapshotNights(recordKeyed), { tool: 'selftest' });
+    ok(
+      'and its verdict names the three entries instead of publishing an emptied corpus',
+      vrk.status === 'NOT_RUN' && /enumerated 3 entries/.test(vrk.reason) && /sub-02/.test(vrk.reason) && V.validate(vrk).ok,
+      vrk.reason
+    );
+    ok(
+      'ANTI-FIX CONTROL · the two roots no longer read alike, though the digest alone still cannot tell them apart',
+      !/offered no night directory at all/.test(vrk.reason) && /offered no night directory at all/.test(nothing.reason) && rk.digest === digestNights([]),
+      `${vrk.reason} || ${nothing.reason}`
+    );
+    /* The nsrr shape: a record root holds FILES, so a bin built from the directory listing alone
+       would have left exactly this root reading as empty. */
+    writeFileSync(join(recordKeyed, 'ucddb002.rec'), 'x');
+    const rkFile = snapshotNights(recordKeyed);
+    ok(
+      'a FILE no rule counted is named too, so a record root of files is not an emptied corpus either',
+      rkFile.n === 0 && rkFile.passedOver.join() === 'sub-01,sub-02,sub-03,ucddb002.rec',
+      JSON.stringify(rkFile.passedOver)
+    );
     ok('the digest is order-free', digestNights(['b', 'a']) === digestNights(['a', 'b']) && digestNights(['2026-06-20', '2026-06-21']) !== digestNights(['2026-06-20']));
 
     /* ── WHAT THE CALLER'S OWN RULE DID ────────────────────────────────────────────────────────
@@ -722,6 +795,7 @@ function selftest() {
     mkdirSync(ruled, { recursive: true });
     for (const n of ['2026-06-20', '2026-06-21', '2027-01-04']) night(ruled, n);
     mkdirSync(join(ruled, 'scratch'), { recursive: true });
+    writeFileSync(join(ruled, 'NOTES.txt'), 'x');
 
     const dflt = snapshotNights(ruled);
     ok(
@@ -757,6 +831,18 @@ function selftest() {
       wide.n === 4 && wide.admittedNonNight.join() === 'scratch' && wide.rejectedNightShaped.length === 0,
       JSON.stringify(wide.admittedNonNight)
     );
+    /* THE INVARIANT THE THIRD BIN BUYS: the three name lists PARTITION the listing under every
+       rule, so no name can go uncounted the way `scratch` did under the default rule. */
+    const partitioned = (snap, all) => {
+      const bins = [...snap.nights, ...snap.rejectedNightShaped, ...snap.passedOver].sort();
+      return bins.length === all.length && bins.join() === [...all].sort().join();
+    };
+    const everyDir = ['2026-06-20', '2026-06-21', '2027-01-04', 'scratch', 'NOTES.txt'];
+    ok(
+      'nights · rejected · passedOver partition the whole listing under the default, a narrower and a wider rule',
+      partitioned(dflt, everyDir) && partitioned(narrow, everyDir) && partitioned(wide, everyDir),
+      `${JSON.stringify(dflt.passedOver)} ${JSON.stringify(narrow.passedOver)} ${JSON.stringify(wide.passedOver)}`
+    );
     const vWide = populationVerdict(wide, snapshotNights(ruled, { re: /./ }), { tool: 'selftest' });
     ok(
       'the verdict names the non-night it swallowed',
@@ -767,7 +853,10 @@ function selftest() {
     /* ∅ — a rule whose effect nobody could measure is `null`, never an empty list. An empty list
        here would read as "the rule rejected nothing", which the failed walk never established. */
     const nopeRuled = snapshotNights(join(tmp, 'no-such-root'), { re: /^2026-/ });
-    ok('an unreadable root leaves the rule effect NULL, never []', nopeRuled.ok === false && nopeRuled.rejectedNightShaped === null && nopeRuled.admittedNonNight === null);
+    ok(
+      'an unreadable root leaves the rule effect NULL, never [] — and that covers the third bin too',
+      nopeRuled.ok === false && nopeRuled.rejectedNightShaped === null && nopeRuled.admittedNonNight === null && nopeRuled.passedOver === null
+    );
 
     /* CONTROL — the real root this residue row was written about. The rule is a no-op here today,
        and that is a MEASUREMENT: the row claimed the corpus already held nights outside 2026. */
@@ -816,7 +905,8 @@ function selftest() {
        measurement: both calls run over the SAME planted root. */
     const recRoot = join(tmp, 'psg');
     mkdirSync(recRoot, { recursive: true });
-    for (const f of ['ucddb002.rec', 'ucddb003.rec', 'ucddb002_stage.txt']) writeFileSync(join(recRoot, f), 'x');
+    const recFiles = ['ucddb002.rec', 'ucddb003.rec', 'ucddb002_stage.txt'];
+    for (const f of recFiles) writeFileSync(join(recRoot, f), 'x');
     const recList = (d) =>
       readdirSync(d)
         .filter((f) => /^ucddb\d+\.rec$/.test(f))
@@ -824,7 +914,17 @@ function selftest() {
     const recBefore = snapshotEntries(recRoot, { list: recList, unit: 'records' });
     ok('a record snapshot counts what the caller enumerates, sorted', recBefore.ok && recBefore.n === 2 && recBefore.members.join(',') === 'ucddb002,ucddb003', JSON.stringify(recBefore.members));
     ok('and it carries no key named for a unit it does not have', recBefore.nights === undefined && recBefore.unit === 'records', JSON.stringify(Object.keys(recBefore)));
-    ok('CONTROL · the night walk over the same root reads ok with a population of zero, which is the defect', snapshotNights(recRoot).ok === true && snapshotNights(recRoot).n === 0);
+    /* The night walk over a record root still reads `ok` with a population of zero — `nights` must
+       not move for a caller who asked for nights — but the zero no longer stands alone: the names it
+       passed over ride beside it (row
+       2026-10-26-a-non-night-root-and-an-empty-root-publish-the-same-population). */
+    const recAsNights = snapshotNights(recRoot);
+    ok(
+      'the night walk over a record root reads ok with a population of zero, and NAMES what it passed over',
+      recAsNights.ok === true && recAsNights.n === 0 && recAsNights.passedOver.join() === [...recFiles].sort().join(),
+      JSON.stringify(recAsNights.passedOver)
+    );
+    ok('and the RECORD snapshot of that same root asks no night question at all', recBefore.passedOver === null && recBefore.rejectedNightShaped === null, JSON.stringify(recBefore.passedOver));
     const recStable = populationVerdict(recBefore, snapshotEntries(recRoot, { list: recList }), { tool: 'selftest' });
     ok(
       'a stable record population passes under a records criterion',
