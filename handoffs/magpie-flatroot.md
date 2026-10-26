@@ -60,4 +60,15 @@ lands as a tripwire ahead of the date rather than a repair after it.
 
 ## Closure
 
-The row closes `fixed #NNNN` in this PR, appended once the number exists.
+This PR writes no verb. The row wants `fixed #3985` on the next RESIDUE-only PR, which Kestrel
+sequences, and the ask sits on thread 8 as #1548.
+
+---
+
+## FINISHED 2026-10-26 18:35Z — head `dd5df69ed`, PR #3985 DRAFT, all 41 steps pass
+
+`npm run check` EXIT=0, suite 14446 assertions over 830 groups. `pr-compliance.mjs` passed its nine
+checks before `gh pr create`, which is the habit that holds. Branch 0 behind at push time.
+
+⚠️ **The undraft ask cleared `long-sentence` and then surfaced `long-paragraph`.** The second rule
+only appears once the first is clean, so lint twice before posting.
