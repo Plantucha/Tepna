@@ -479,12 +479,30 @@ export function prOf(subject, sha) {
 }
 
 /**
- * Pure. The leads: each key a later code commit names, with the PRs that name it.
- * @param {string[]} keys      the OPEN rows at the ref
- * @param {ReturnType<typeof parseLog>} commits
- * @param {Map<string, string>} addedBy
- * @returns {Map<string, string[]>} key → PR numbers (or short shas), newest first; keys with no lead are absent
+ * Pure. Every residue key a row's cells NAME, less the row's own id and less a changeset filename.
+ *
+ * `changes/<key>.md` is a key-shaped slug, not a pointer to a row: measured 2026-10-26 over the ref,
+ * 6 such tokens across 2 rows, and NEITHER slug names a row at all, because a release consumes the
+ * changeset. The suite's check8h already excludes that shape, so this read now agrees with it.
+ *
+ * @param {string} text  the row's cells, joined
+ * @param {string} selfId  the row's own key
+ * @returns {Set<string>} the distinct keys the row names
  */
+export function namedKeys(text, selfId) {
+  const src = String(text ?? '');
+  const out = new Set();
+  const re = new RegExp(KEY, 'g');
+  for (let m; (m = re.exec(src)); ) {
+    // the row's own id opens its first cell, and a row does not cite itself
+    if (m[0] === selfId) continue;
+    // `changes/<key>.md` is a key-shaped FILENAME; the suite's check8h excludes the same shape
+    if (src.slice(m.index + m[0].length, m.index + m[0].length + 3) === '.md') continue;
+    out.add(m[0]);
+  }
+  return out;
+}
+
 /**
  * Pure. THE LEDGER-INTERNAL READ: which rows CITE an open key inside their own cells.
  *
@@ -495,29 +513,42 @@ export function prOf(subject, sha) {
  * mechanism is the ledger's own rule — a measurement may enter the row it is about only when it
  * moves that row's state, and every other measurement becomes a NEW row.
  *
+ * Each entry carries the citing row's FAN-OUT, the number of rows it names in all, because breadth
+ * predicts whether the citation carries anything: measured 2026-10-26 over the ref, a one-to-one
+ * citer carried something 9 times in 9, and a citer naming three or more carried something once in 5
+ * (that arm rests on one distinct carrier, so it orders a read and settles nothing).
+ *
  * A citing row's STATE says nothing about whether it holds the answer, so both states are reported
  * and neither is a verdict. This is a reading order, exactly like a code lead.
  *
  * @param {string[]} keys  the OPEN keys to look up
  * @param {ReturnType<typeof parseRows>} rows  every row at the ref
- * @returns {Map<string, Array<{id: string, state: string}>>}
+ * @returns {Map<string, Array<{id: string, state: string, fanOut: number}>>}
  */
 export function citedBy(keys, rows) {
   const want = new Set(keys);
-  /** @type {Map<string, Array<{id: string, state: string}>>} */
+  /** @type {Map<string, Array<{id: string, state: string, fanOut: number}>>} */
   const out = new Map();
   for (const r of rows) {
-    for (const k of String(r.key ?? '').match(KEY_RE) ?? []) {
-      // the row's own id opens its first cell, and a row does not cite itself
-      if (k === r.id || !want.has(k)) continue;
+    // fan-out belongs to the CITING row, so it counts every key that row names, not the asked-for ones
+    const named = namedKeys(r.key, r.id);
+    for (const k of named) {
+      if (!want.has(k)) continue;
       if (!out.has(k)) out.set(k, []);
       const list = out.get(k);
-      if (!list.some((e) => e.id === r.id)) list.push({ id: r.id, state: r.state });
+      if (!list.some((e) => e.id === r.id)) list.push({ id: r.id, state: r.state, fanOut: named.size });
     }
   }
   return out;
 }
 
+/**
+ * Pure. The leads: each key a later code commit names, with the PRs that name it.
+ * @param {string[]} keys      the OPEN rows at the ref
+ * @param {ReturnType<typeof parseLog>} commits
+ * @param {Map<string, string>} addedBy
+ * @returns {Map<string, string[]>} key → PR numbers (or short shas), newest first; keys with no lead are absent
+ */
 export function namedByCode(keys, commits, addedBy) {
   const out = new Map();
   for (const k of keys) {
@@ -692,7 +723,7 @@ function main() {
             cites.has(k)
               ? `  ← cited by row: ${cites
                   .get(k)
-                  .map((e) => `${e.id} [${e.state}]`)
+                  .map((e) => `${e.id} [${e.state}, cites ${e.fanOut}]`)
                   .join(', ')}`
               : ''
           }\n`
@@ -706,7 +737,10 @@ function main() {
     process.stdout.write(
       `residue-pickup: ${cites.size} of the ${drift.openOnRef.length} OPEN row(s) are named by ANOTHER ROW. ` +
         'Read those rows too, including the ones that already read closed: a measurement that does not move a ' +
-        "row's state becomes a new row, so a row's answer often sits outside it.\n"
+        "row's state becomes a new row, so a row's answer often sits outside it. " +
+        "`cites N` is that row's fan-out, the number of rows it names in all. Read a `cites 1` first: measured " +
+        '2026-10-26 over the ref, a one-to-one citer carried something 9 times in 9, and a citer naming three or ' +
+        'more rows carried something once in 5.\n'
     );
     if (v.status === 'PASS') {
       process.stdout.write(`\nresidue-pickup: the file on disk agrees with ${base} on all ${drift.checked} shared row(s)\n`);
@@ -1056,6 +1090,39 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     const pvc = pickupVerdict(pickupDrift(text, text), { behind: 0, base: 'b', commit: 'abc1234', citedBy: 2 });
     assert(pvc.result.openCitedByRow === 2 && pvc.status === 'PASS', 'the verdict carries the citing count, which never moves the status');
     assert(pickupVerdict(pickupDrift(text, text), { behind: 0, base: 'b', commit: 'abc1234' }).result.openCitedByRow === null, 'an absent citing read is null, never 0');
+  }
+
+  /* FAN-OUT — the citing row's own breadth, with a control for each way it could inflate: a key named
+     twice, the row naming its own id again, and a changeset filename that is key-shaped and names no row. */
+  {
+    const A = '2026-10-24-alpha';
+    const B = '2026-10-24-beta';
+    const ftext = [
+      row(A, 'the defect', 'OPEN'),
+      row(B, 'another defect', 'OPEN'),
+      row('2026-10-25-narrow', `this measures ${A}`, 'OPEN'),
+      row('2026-10-25-carrier', `this carries ${A} and ${B} and 2026-10-24-gamma`, 'answered #1'),
+      row('2026-10-25-twice', `${A} again, and ${A}`, 'OPEN'),
+      row('2026-10-25-changeset-only', `the changeset changes/${B}.md`, 'fixed #2')
+    ].join('\n');
+    const frows = parseRows(ftext);
+    const fc = citedBy([A, B], frows);
+    assert(
+      fc
+        .get(A)
+        ?.map((e) => `${e.id}:${e.fanOut}`)
+        .join(',') === '2026-10-25-narrow:1,2026-10-25-carrier:3,2026-10-25-twice:1',
+      'fan-out counts the DISTINCT rows a citing row names, so a key named twice still reads 1'
+    );
+    assert(
+      fc
+        .get(B)
+        ?.map((e) => e.id)
+        .join() === '2026-10-25-carrier',
+      'a changeset filename is a key-shaped slug, not a citation, so the row naming only one cites nobody'
+    );
+    assert(namedKeys(row(A, `this measures ${A}`), A).size === 0, 'a row naming its own key in prose does not cite itself');
+    assert(namedKeys(`changes/${A}.md and ${B}`, 'x').size === 1, 'the changeset exclusion drops the .md token and keeps its neighbour');
   }
 
   /* BLACK BOX: the CLI in a scratch repo. Commit 1 adds the row in a code commit that names it (a
