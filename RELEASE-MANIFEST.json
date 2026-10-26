@@ -1634,6 +1634,30 @@
         "ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.23.0",
+      "date": "2026-10-26",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "ab12d63caf33",
+        "OxyDex": "696b2971c96a",
+        "PulseDex": "5a463b23ecd0",
+        "GlucoDex": "3db0912943bb",
+        "PpgDex": "b2e94d5304c7",
+        "HRVDex": "e8be252a0de3",
+        "CPAPDex": "3a76f9d0a932",
+        "Integrator": "d469c8a70d27",
+        "MotionDex": "628c53a97933"
+      },
+      "briefs": [
+        "ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md",
+        "VERDICT-CONTRACT-2026-09-21-BRIEF.md",
+        "BLE-TIMEBASE-EDGE-STAMP-FOLLOWUPS-2026-10-25-BRIEF.md",
+        "VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
