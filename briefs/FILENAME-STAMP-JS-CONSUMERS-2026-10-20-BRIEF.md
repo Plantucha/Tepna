@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-20 · **Created:** 2026-10-20
+**Status:** IN-PROGRESS — 2026-10-26 · **Created:** 2026-10-20
 
 # The JS consumers of a capture filename stamp
 
@@ -55,7 +55,9 @@ the bound. It removes the case the promise could not cover.
 
 ## 4 · The remainder, and why each piece is its own unit
 
-- [ ] **`dex-ingest.js stampMs` range-validates its components.** `Date.UTC` over unchecked slices
+- [x] **`dex-ingest.js stampMs` range-validates its components.** Landed as #3812: `_stampMk`
+  round-trips the date, admits the one ISO `24:00:00` overflow and bounds the time fields, and the
+  four carrying bundles re-bundled. `Date.UTC` over unchecked slices
   rolls `20261332999999` onto a wrong instant, which §2.7 forbids and which `fileStamp` already
   solved for the tools. The instant feeds `pickNearestByStamp`, so a rolled stamp can drop a true
   sidecar or pick a wrong one. 🔴 **The remedy is node-local, never `DexClock`**: `dex-ingest.js`
@@ -83,14 +85,31 @@ the bound. It removes the case the promise could not cover.
   through this tool's folder-ingest arm, and 2026-06-19 sits in that window: one of the paper's 26
   nights changes its chosen verityHR file. Re-running that section is its own unit, because it decides
   what a reader who quoted the old figure should be told.
-- [ ] **`sensor-trio-power-analysis.js` and `sigma-no-reference-analysis.js`, the same repair.** Each
+- [x] **`sensor-trio-power-analysis.js` and `sigma-no-reference-analysis.js`, the same repair.**
+  Landed as #3791. Each
   publishes figures, so each owes its own before-and-after night counts in its PR. Neither carries
   `clock.js` either; the reader above is the shape to mirror, not to import.
+- [x] **`pat-feasibility.js`, a FOURTH page the census never read.** The row enumerates ten JS
+  converters and this is not one of them, yet `tools/build-analysis.mjs TOOLS` builds and serves
+  `PAT Feasibility.html`, so the defect was live. The page keyed its night on the filename stamp and
+  picked every companion by name-stamp proximity, and its own comment cites
+  `sensor-trio-power-analysis.js` as the rule it copies — the rule #3791 repaired under this residue
+  while the copy stayed. Measured over the 9591 files its own classifier accepts: 8075 carry a
+  parseable first-row stamp and 1516 do not, median error 4.5 s, 99 files over 5 min, worst 18.71 h,
+  and **13 files cross the noon fold**. Nights 141 by name and 141 by row with none gained or lost,
+  and **eligible 126 by name against 127 by row** — one night whose ECG and PPG the name had split
+  across two buckets now holds both. This page copies the reader verbatim rather than importing it,
+  for the reason the two items above give.
+
+  🔴 **AN ENUMERATION IN A ROW AGES LIKE ANY OTHER FROZEN CELL.** Re-running the census row's own
+  derivation at `20a175458` returns 15 files against its 17: four left as their fixes landed and two
+  entered. Nothing in the tree re-derives it, which is why a served page sat outside the set for two
+  weeks. Logged as `2026-10-26-a-residue-census-enumeration-has-no-instrument-and-has-drifted-by-two`.
 
 ## 5 · Acceptance
 
 - [x] every one of the ten converters read, with its verdict in §2
 - [x] the pre-filter bound exceeds the measured name error, pinned by a selftest leg
-- [ ] `dex-ingest.js` refuses an out-of-range filename stamp, with the four bundles re-bundled
-- [ ] each night-grouping script keys on content, with the night-count delta measured — 1 of 3
+- [x] `dex-ingest.js` refuses an out-of-range filename stamp, with the four bundles re-bundled — #3812
+- [x] each night-grouping script keys on content, with the night-count delta measured — 4 of 4
 - [ ] residue `2026-09-22-filename-stamp-still-wrong-for-other-consumers` closes only when §4 is empty
