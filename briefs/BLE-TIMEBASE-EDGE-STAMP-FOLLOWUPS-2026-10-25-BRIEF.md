@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-10-25 (core BUILT, verified 2026-10-25. §1 measures every rail's edge. The CPAP live rail now declares its clocks. §3 names a new defect for a residue row. §4 stays the owner's.) · **Created:** 2026-10-25
+**Status:** PROPOSED — 2026-10-25 (core BUILT, remainder PR- and owner-blocked — verified 2026-10-26, Kestrel: §3 waits on #3959, OPEN, which carries row `2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact`. §4 holds two owner questions, still undecided.) · Previously: PROPOSED — 2026-10-25 (core BUILT, verified 2026-10-25. §1 measures every rail's edge. The CPAP live rail now declares its clocks. §3 names a new defect for a residue row. §4 stays the owner's.) · **Created:** 2026-10-25
 
 # Brief — where a transport-edge seam stamp lives, and what a seam event is on the wire
 

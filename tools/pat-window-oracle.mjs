@@ -74,7 +74,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PHYS_LO = 200;
@@ -740,7 +740,7 @@ export function runVerdict(tally, { commit = null, evidence = [], admissibility 
     result: status === 'NOT_RUN' ? null : { tally, recovered, scored: checked, refused: excluded, halvesAdmissibility: admissibility },
     evidence: ['tools/pat-window-oracle.mjs', ...evidence],
     reason,
-    producedBy: { tool: 'tools/pat-window-oracle.mjs', commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
+    producedBy: producedByOf('tools/pat-window-oracle.mjs', commit)
   });
   const chk = Verdict.validate(v);
   if (!chk.ok) throw new Error(`pat-window-oracle: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);

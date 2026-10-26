@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { readTimings } from './shard-plan.mjs';
+import { producedByOf } from '../tools/corpus-scope.mjs';
 
 /* verdict.js is CommonJS and assigns `module.exports = API` — a named import of `Verdict` throws at
    load. `createRequire` is the house idiom for reaching it from an .mjs tool (tools/box-sample.mjs:150). */
@@ -125,11 +126,7 @@ function verdictFor(untimed, checked) {
     result: { untimed: untimed.length, checked, pct: r.pct === null ? null : Number(r.pct.toFixed(2)) },
     evidence: ['tests/verify-shard-timings.mjs', 'tests/group-timings.json'],
     reason: r.reason,
-    producedBy: {
-      tool: 'tests/verify-shard-timings.mjs',
-      commit,
-      ...(commit ? {} : { commitReason: 'not read from a git tree' })
-    }
+    producedBy: producedByOf('tests/verify-shard-timings.mjs', commit)
   });
 }
 

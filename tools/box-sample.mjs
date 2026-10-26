@@ -25,6 +25,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
+import { producedByOf } from './corpus-scope.mjs';
 
 // `hwm_kb` is APPENDED, never inserted: existing TSV column positions must not shift.
 export const FIELDS = ['cpu_pct', 'rss_kb', 'elapsed_s', 'hci0_le', 'hci1_le', 'hci2_le', 'load1', 'mem_used_mb', 'disk_pct', 'unit_active', 'hwm_kb'];
@@ -160,7 +161,7 @@ export function peakVerdict(rows, { path: srcPath = '<trace>', commit = null } =
     result: { peakKb: c.peakKb, nPeakSamples: c.nPeak, elapsedFromS: c.span.fromS, elapsedToS: c.span.toS, restarts: c.span.restarts },
     evidence: ['tools/box-sample.mjs', srcPath],
     reason: status === 'PASS' ? null : c.reason,
-    producedBy: { tool: 'tools/box-sample.mjs', commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
+    producedBy: producedByOf('tools/box-sample.mjs', commit)
   });
   const chk = Verdict.validate(v);
   if (!chk.ok) throw new Error(`box-sample: verdict invalid under verdict.js \u2014 ${chk.errors.join(' | ')}`);

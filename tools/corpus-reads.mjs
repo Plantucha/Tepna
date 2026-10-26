@@ -157,6 +157,27 @@ export function dashedFlagRead(expr, raw) {
    `tools/`. What makes a read a CORPUS read is capture vocabulary — a night-shaped directory name,
    a capture file suffix, or a named corpus root. Without this second axis the hazard set reads 59
    and most of it is repository housekeeping. */
+/** The night primitives `corpus-scope.mjs` exports, named once so the text rule below and the
+ *  suite leg that reads the IMPORTS both key on the same list. That module also exports the
+ *  code-identity pair `gitCommitOf` / `producedByOf`, which reads no night, so a rule keyed on the
+ *  module's NAME counts an import that enumerates nothing (measured 2026-10-26). */
+export const NIGHT_EXPORTS = ['snapshotNights', 'snapshotEntries', 'intersectSnapshots', 'digestNights', 'populationVerdict', 'censusVerdict', 'notANight', 'notCovered'];
+
+/** Does this text IMPORT a night primitive from `corpus-scope.mjs`? PURE.
+ *
+ * FAILS OPEN on a namespace import, which hides every specifier: a tool whose night read we cannot
+ * see stays in the population rather than leaving it unexamined. */
+export function importsNightPrimitive(text) {
+  const re = /import\s*(?:\{([^}]*)\}|\*\s*as\s+\w+)\s*from\s*'\.\/corpus-scope\.mjs'/g;
+  let m;
+  while ((m = re.exec(String(text ?? '')))) {
+    if (m[1] === undefined) return true; // a namespace import names nothing — fail open
+    const specs = m[1].split(',').map((x) => x.trim().split(/\s+as\s+/)[0]);
+    if (specs.some((x) => NIGHT_EXPORTS.includes(x))) return true;
+  }
+  return false;
+}
+
 const CAPTURE_VOCAB = [
   /\\d\{4\}-\\d\{2\}-\\d\{2\}/, // a night-shaped name TESTED AS A REGEX. A bare 2026-10-21 is
   //                                  excluded: nearly every file header carries a date, and
@@ -166,9 +187,17 @@ const CAPTURE_VOCAB = [
   //   only the plain-string form. `pat-dip-index.mjs` carries both suffixes in regex form alone, so
   //   the strict pattern dropped it out of the population the moment its night regex was wired away.
   /\/srv\/data\/tepna-corpus|DEX_UPLOADS|CORPUS-LOCATIONS|corpusSearch/,
-  /corpus-scope\.mjs|snapshotNights\s*\(/, // the night primitive itself: a tool that calls it
-  //                                  reads nights, and delegating the walk must not delete the
-  //                                  evidence that it does.
+  new RegExp('\\b(?:' + NIGHT_EXPORTS.join('|') + ')\\b'),
+  // the night primitives THEMSELVES, never the module that holds them: a tool that calls one reads
+  //   nights, and delegating the walk must not delete the evidence that it does. KEYED ON THE
+  //   EXPORTS because keying on `corpus-scope.mjs` made the module's NAME the population rule, and
+  //   that module also exports the code-identity pair `gitCommitOf` / `producedByOf`, which reads
+  //   no night at all. Measured 2026-10-26: importing `producedByOf` alone moved
+  //   `usage-guard.mjs` into the population and reded the enumerator gate over a tool that
+  //   enumerates no corpus. The re-keying is population-neutral at `origin/main` — 135 members
+  //   either way, symmetric difference empty — because the two tools the name clause carried alone
+  //   (`ppg-gap-bridge-scan.mjs`, `stage-lab.mjs`) import `populationVerdict` and
+  //   `snapshotEntries` from it.
 
   /captures? root|night(?:s)? root|per-night/i
 ];

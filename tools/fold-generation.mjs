@@ -41,7 +41,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, producedByOf, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -334,7 +334,7 @@ export function allVerdict(rows, identity, { commit = null } = {}) {
     result: status === 'NOT_RUN' ? null : { resolving: resolving.length, undecidable: undecidable.length, failing: failing.length, rows, identity },
     evidence: [SELF, RECORD_DIR],
     reason,
-    producedBy: { tool: SELF, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
+    producedBy: producedByOf(SELF, commit)
   });
   const chk = Verdict.validate(v);
   if (!chk.ok) throw new Error(`fold-generation: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);

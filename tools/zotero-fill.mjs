@@ -40,8 +40,8 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
 import { isCliEntry } from './argv-guard.mjs';
+import { producedByOf } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -250,16 +250,9 @@ export async function run({ dry = false } = {}) {
       : failed.length
         ? `${failed.length} of ${ledger.length} DOIs not written: ${failed.map((f) => f.doi).join(', ')}`
         : null,
-    producedBy: { tool: 'tools/zotero-fill.mjs', commit: gitCommit(), ...(gitCommit() ? {} : { commitReason: 'not read from a git tree' }) }
+    producedBy: producedByOf('tools/zotero-fill.mjs', null)
   });
   return { verdict, created, already, failed };
-}
-function gitCommit() {
-  try {
-    return execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    return null;
-  }
 }
 
 export function selftest() {
@@ -352,7 +345,7 @@ async function main() {
       result: null,
       evidence: ['tools/zotero-fill.mjs'],
       reason: '--verdict-sample reads no ledger and touches no library — nothing was examined',
-      producedBy: { tool: 'tools/zotero-fill.mjs', commit: gitCommit(), ...(gitCommit() ? {} : { commitReason: 'not read from a git tree' }) }
+      producedBy: producedByOf('tools/zotero-fill.mjs', null)
     });
     process.stdout.write(`${JSON.stringify(v)}\n`);
     process.exit(0);
