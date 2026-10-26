@@ -11102,8 +11102,15 @@ async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
         )
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
-        # shield() because at shutdown this task is already being cancelled and a bare await here would
-        # be cancelled with it, leaving exactly the stranded association this block exists to prevent.
+        # WHAT RELEASES IT IS THE SUBMISSION, NOT THE SHIELD. `to_thread` hands the call to the executor
+        # before its first suspension, and a submitted job runs whatever happens to the task awaiting it.
+        # Measured 2026-10-26 (`2026-10-26-the-shielded-cpap-teardown-has-no-reader`): with a cancellation
+        # already delivered at `finally` entry, `wifi_down` runs once with the shield and once without it,
+        # while the same probe over a coroutine awaitable runs it once shielded and NEVER bare. So the
+        # shield is inert for this call shape, and correct for the shape a refactor of `wifi_down` into a
+        # coroutine would create — keep it, and never copy it onto a bare await in the belief that the
+        # await is what carries the guarantee. `suppress(Exception)` leaves the `CancelledError` alone
+        # either way, because a `BaseException` is outside its reach.
         with contextlib.suppress(Exception):
             await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root))
 
