@@ -11158,14 +11158,51 @@
       /* THE DELEGATION MUST NOT DELETE THE EVIDENCE. Wiring moves the walk behind the helper, which
          also removes the night regex that put the tool in this population. A tool that imports the
          primitive is a corpus consumer whatever else its text says. */
-      var importers = Object.keys(TT)
+      var moduleImporters = Object.keys(TT)
         .filter(function (k) {
           return /^tools\/[^/]+\.m?js$/.test(k) && k !== CR.SELF && /from '\.\/corpus-scope\.mjs'/.test(TT[k]);
         })
         .map(function (k) {
           return k.replace(/^.*\//, '');
         });
+      /* AND THE IMPORT RULE READS THE SPECIFIERS, NEVER THE MODULE NAME. Row
+         2026-10-26-a-population-rule-keyed-on-a-module-name: `corpus-scope.mjs` also exports the
+         code-identity pair `gitCommitOf` / `producedByOf`, which reads no night, so keying this
+         population on the module's name put three tools that enumerate nothing inside it and reded
+         this leg over them. The list lives once, in `corpus-reads.mjs NIGHT_EXPORTS`. */
+      var importers = moduleImporters.filter(function (t) {
+        return CR.importsNightPrimitive(TT['tools/' + t]);
+      });
+      var identityOnly = moduleImporters.filter(function (t) {
+        return !CR.importsNightPrimitive(TT['tools/' + t]);
+      });
       T.ok('ANTI-VACUITY · the delegating population is not empty', importers.length >= 6, importers.length + ' importer(s): ' + importers.join(', '));
+      T.ok(
+        'ANTI-VACUITY · the module has importers that name no night primitive, so the narrowing is not a no-op',
+        identityOnly.length >= 1 && importers.length + identityOnly.length === moduleImporters.length,
+        identityOnly.length + ' of ' + moduleImporters.length + ' importer(s) name no night primitive: ' + identityOnly.join(', ')
+      );
+      T.ok(
+        'the import rule reads the SPECIFIERS, not the module name',
+        CR.importsNightPrimitive("import { snapshotNights } from './corpus-scope.mjs';") &&
+          CR.importsNightPrimitive("import { snapshotNights as walk } from './corpus-scope.mjs';") &&
+          CR.importsNightPrimitive("import * as CS from './corpus-scope.mjs';") &&
+          CR.importsNightPrimitive("import { producedByOf } from './corpus-scope.mjs';\nimport { notCovered } from './corpus-scope.mjs';") &&
+          !CR.importsNightPrimitive("import { producedByOf } from './corpus-scope.mjs';") &&
+          !CR.importsNightPrimitive("// snapshotNights lives in corpus-scope.mjs\nimport { gitCommitOf } from './corpus-scope.mjs';"),
+        'night specifier in · renamed in · namespace in, because it hides the list · second statement in · code identity alone out · prose out'
+      );
+      T.ok(
+        'every night primitive in the one list admits a file by the night-primitive rule',
+        CR.NIGHT_EXPORTS.length >= 8 &&
+          CR.NIGHT_EXPORTS.every(function (n) {
+            var hit = CR.vocabHits(n + '(a, b)').find(function (h) {
+              return h.rule === 'night-primitive';
+            });
+            return hit && hit.match === n;
+          }),
+        CR.NIGHT_EXPORTS.length + ' primitive(s), each matched under its own name'
+      );
       T.eq(
         'every tool that imports the night primitive stays inside the corpus population',
         importers
