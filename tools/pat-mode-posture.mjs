@@ -63,6 +63,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -465,9 +466,15 @@ async function main() {
   const fns = { rawLags: o.rawLags, lagMode: o.lagMode, searchMax: o.MODE_SEARCH_MAX };
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
   getDsps();
-  const nights = readdirSync(DIR)
-    .filter((n) => /^2026-/.test(n) && statSync(join(DIR, n)).isDirectory())
-    .sort();
+  /* ONE WALK, AND THE WALK IS THE POPULATION. `/^2026-/` is this tool's own NIGHT RULE, so it
+     travels as the walk's `re` and `snapshotNights` names every night-shaped name it refused.
+     Folded into a `.filter()` the rule was invisible: this run published `eligible: 1` over a root
+     holding a 2026 night and a 2027 night, and said nothing about the one it dropped. Row
+     2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one. The run
+     verdict below keeps counting the ADMITTED set, which its own criterion is about; the population
+     object states the offer and the refusal beside it. */
+  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+  const nights = popBefore.nights.filter((n) => statSync(join(DIR, n)).isDirectory());
   const excludedBy = {};
   const skip = (n, why) => {
     excludedBy[why] = (excludedBy[why] || 0) + 1;
@@ -528,6 +535,18 @@ async function main() {
     );
   }
   console.log('\nSKIPPED:', JSON.stringify(excludedBy));
+  /* THE POPULATION THIS RUN COVERED, beside the run verdict rather than inside it. The status labels
+     MOVEMENT of the night population under the run, never coverage. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+    tool: 'tools/pat-mode-posture.mjs',
+    evidence: ['tools/pat-mode-posture.mjs']
+  });
+  console.log(
+    `  population: ${popBefore.n} offered under ${DIR} · ${nights.length} night directories · ${nightRows.length} scored · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log('  ' + rl);
+  console.log('POPULATION ' + JSON.stringify(population));
   const v = runVerdict(nightRows, excludedBy, nights.length, { commit: gitCommitShort(), evidence: [DIR] });
   console.log(`${v.status} — ${v.result ? v.result.reading : v.reason}`);
   console.log('VERDICT ' + JSON.stringify(JSON_OUT ? v : { ...v, result: v.result && { ...v.result, nights: v.result.nights.map((r) => ({ night: r.night, ratio: r.ratio, p: r.p })) } }));
