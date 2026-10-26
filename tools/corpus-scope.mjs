@@ -209,6 +209,13 @@ export function digestNights(nights) {
  *  the first two questions bind at all; `passedOver` binds under EVERY rule, the default one
  *  included.
  *
+ *  🔴 `ruleIsDefault` IS A NIGHT-RULE ANSWER, so an entries walk has none to give and the field
+ *  reads `null` there (§∅ at the verdict layer). `true` meant "the default NIGHT rule applied",
+ *  which is a claim about a comparison nobody ran for a population that is not keyed on dates at
+ *  all, and it read as a measurement while standing in for not-applicable. `passedOver` two lines
+ *  below in the same literal already reads `null` for the same reason, so the two fields now
+ *  agree (row 2026-10-26-the-entries-walk-asserts-a-night-rule-answer-it-never-computed).
+ *
  *  🔴 THE DEFAULT RULE HAD NO ACCOUNT OF WHAT IT PASSED OVER, so a root holding `sub-01`, `sub-02`
  *  and `sub-03` answered `ok: true, n: 0` under the same digest as a genuinely empty root, and the
  *  verdict one level up then published a record-keyed corpus as an emptied one (row
@@ -335,7 +342,8 @@ export function snapshotEntries(root, { list, unit = 'records', at = null } = {}
       maxCtimeMs: null,
       at: stamp,
       rule: ruleName,
-      ruleIsDefault: true,
+      /* ∅: no night rule ran, so there is no default to be at. See the header. */
+      ruleIsDefault: null,
       rejectedNightShaped: null,
       admittedNonNight: null,
       passedOver: null
@@ -352,7 +360,8 @@ export function snapshotEntries(root, { list, unit = 'records', at = null } = {}
     maxCtimeMs: null,
     at: stamp,
     rule: ruleName,
-    ruleIsDefault: true,
+    /* ∅: no night rule ran, so there is no default to be at. See the header. */
+    ruleIsDefault: null,
     rejectedNightShaped: null,
     admittedNonNight: null,
     /* ∅: the unit is not a directory name, so no night rule ran and no name was passed over. `[]`
@@ -510,9 +519,11 @@ export function populationVerdict(before, after, { commit = null, commitReason =
  *  either side rejected counts; the union is what the run actually passed over. */
 function ruleBlock(before, after) {
   /* AN ENTRIES WALK HAS NO NIGHT RULE, so the two night questions do not bind and `ruleIsDefault`
-     reads true for a reason the night arm never means by it. `unit` is the discriminator, because
-     `snapshotNights` carries no such key. The lister still DECIDED the population, so its name goes
-     out ALONE: no night list rides beside it to read as a measurement of something nobody ran. */
+     reads `null` there rather than answering a comparison nobody ran. `unit` is the discriminator,
+     because `snapshotNights` carries no such key, and it stays the discriminator precisely so this
+     branch never has to read a night field to decide. The lister still DECIDED the population, so
+     its name goes out ALONE: no night list rides beside it to read as a measurement of something
+     nobody ran. */
   const entriesUnit = before.unit ?? after.unit ?? null;
   if (entriesUnit !== null) {
     const name = before.rule === after.rule ? before.rule : `${before.rule} then ${after.rule}`;
@@ -1039,6 +1050,41 @@ function selftest() {
         const narrow = { re: /^2026-07-25$/ };
         const w = populationVerdict(snapshotNights(nr, narrow), snapshotNights(nr, narrow), { tool: 'selftest' }).result;
         return w !== null && w.ruleUnit === undefined && Array.isArray(w.ruleAdmittedNonNight) && Array.isArray(w.ruleRejectedNightShaped) && w.ruleRejectedNightShaped.join() === '2026-07-26';
+      })()
+    );
+
+    /* A NIGHT-RULE ANSWER OVER A POPULATION THAT HAS NO NIGHT RULE. Row
+       2026-10-26-the-entries-walk-asserts-a-night-rule-answer-it-never-computed: both entries arms
+       wrote `ruleIsDefault: true`, which claims a comparison against `NIGHT_RE` that nobody ran for
+       a listing not keyed on dates. §∅ reaches the verdict layer, so the field reads `null` and the
+       reader can tell a night answer from no night answer at all. */
+    ok('an entries snapshot gives no night-rule answer rather than asserting the default one', rSnap.ruleIsDefault === null && rSnap.ruleIsDefault !== true, JSON.stringify(rSnap.ruleIsDefault));
+    ok(
+      'and its refusal arm says the same, because a walk that never ran compared nothing either',
+      recGone.ok === false && recGone.ruleIsDefault === null,
+      JSON.stringify({ ok: recGone.ok, ruleIsDefault: recGone.ruleIsDefault })
+    );
+    /* THE TWO ∅ FIELDS IN ONE LITERAL HAVE TO AGREE. `passedOver` already read null for exactly this
+       reason two lines below, and the disagreement is what made `true` legible as a measurement. */
+    ok(
+      'the two absent-by-construction fields of an entries snapshot agree with each other',
+      rSnap.ruleIsDefault === null && rSnap.passedOver === null && rSnap.rejectedNightShaped === null && rSnap.admittedNonNight === null
+    );
+    /* THE DISCRIMINATOR IS STILL `unit`, so dropping the night answer costs the verdict nothing. A
+       branch that had read the night field would have gone silent on this very change. */
+    ok(
+      'the verdict still publishes the lister, so the entries branch never read the night field',
+      recRule.rule === 'recList' && recRule.ruleUnit === 'records',
+      JSON.stringify({ rule: recRule.rule, unit: recRule.ruleUnit })
+    );
+    ok(
+      'CONTROL · a NIGHT snapshot still ANSWERS the question, both ways, so null is not a blanket',
+      (() => {
+        const nr2 = join(tmp, 'rule-default-control');
+        mkdirSync(join(nr2, '2026-07-25'), { recursive: true });
+        const d = snapshotNights(nr2);
+        const n = snapshotNights(nr2, { re: /^2026-07-25$/ });
+        return d.ruleIsDefault === true && n.ruleIsDefault === false;
       })()
     );
 
