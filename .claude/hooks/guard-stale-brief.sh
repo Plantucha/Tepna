@@ -123,6 +123,11 @@ printf '%s' "${cmd:-}" | grep -qE '(^|[;&|])[[:space:]]*CLAUDE_ALLOW_STALE_BRIEF
 #    ⚠ The Bash path has no file argument, so it still falls back to the hook's cwd. That residual
 #      gap is documented rather than hidden: a computed edit from a worktree is measured against the
 #      root until the payload carries a cwd we can trust.
+# GUARDED SET — the hot shared docs. `briefs/*.md` is where the collision happened;
+# DOCS-INDEX.md is the dashboard every brief change touches, so it collides for the
+# same reason and by the same mechanism.
+GUARDED_RE='(briefs/[A-Za-z0-9._@+-]+\.md|DOCS-INDEX\.md)'
+
 edit_dir="."
 cd_missing=""
 [ -n "$f" ] && edit_dir="$(dirname "$f")"
@@ -175,6 +180,37 @@ if [ -z "$f" ] && [ -n "$cmd" ]; then
     fi
   done
   [ -n "$cd_dir" ] && [ -d "$cd_dir" ] && edit_dir="$cd_dir"
+
+  #    ⚠ A `cd` IS NOT THE ONLY WAY A COMMAND NAMES ITS TREE. A computed edit writing an
+  #      ABSOLUTE guarded path carries its tree in the path it writes, and the Edit/Write route
+  #      has read exactly that since 2026-08-18 while this route never did. Measured 2026-10-26:
+  #      a write-shaped append to `<worktree>/briefs/X-BRIEF.md` was measured against a root 101
+  #      commits behind and denied, while the same append after a `cd` passed. So the more
+  #      exactly a session follows §👥.1 the more reliably this guard denied it, and the hatch
+  #      became reflex.
+  #      The path names an EXISTING tree, so unlike `cd_missing` above nothing is guessed here,
+  #      and the signal can only move the query CLOSER to the tree being written.
+  #      ⚠ A `git -C <dir>` target is deliberately NOT read here, though `guard-format.sh:107`
+  #      takes one first. On THIS route the write is usually relative to the cwd, so an unrelated
+  #      `-C` clause beside it would move the base AWAY from the tree being written — a false
+  #      NEGATIVE, the direction this guard exists to avoid. `guard-stale-ledger.sh` reads a `-C`
+  #      only from the clause that names the ledger, where the target IS the acting tree.
+  #      An absolute guarded path names its tree too, and the Edit/Write route has read one since
+  #      2026-08-18. The Bash route never did: a computed edit writing
+  #      `<worktree>/briefs/X-BRIEF.md` carries the tree in the path it writes.
+  if [ "$edit_dir" = "." ]; then
+    #      ⚠ ANCHORED ON THE WRITE, not on any absolute path in the text. A read of one tree
+    #        beside a relative write in another (`grep x <wt>/briefs/A.md && sed -i … briefs/A.md`)
+    #        must not move the base to the tree that was only READ: that would ALLOW the stale
+    #        write, which is the false NEGATIVE this guard exists to avoid.
+    _abs_path="$(printf '%s' "$cmd" \
+      | grep -oE "(>>?|\btee\b|\bcp\b|\bmv\b|\btruncate\b|sed[[:space:]]+-i[^[:space:]]*|open\(['\"]?)[^|;&]*/[^[:space:];&|\"']*$GUARDED_RE" \
+      | head -1 | grep -oE "/[^[:space:];&|\"']*$GUARDED_RE" | head -1)"
+    if [ -n "$_abs_path" ]; then
+      _abs_dir="$(dirname "$_abs_path")"
+      [ -d "$_abs_dir" ] && edit_dir="$_abs_dir"
+    fi
+  fi
 fi
 
 [ -d "$edit_dir" ] || edit_dir="."
@@ -204,11 +240,6 @@ behind_label="on ${_brn:-detached}, $( [ -n "$_bhd" ] && echo "$_bhd commit(s) b
 #   what caught it. `$root` is the edited file's own worktree toplevel, so pathspecs resolve as the
 #   guarded-set rule already assumes.
 G() { git -C "$root" "$@"; }
-
-# GUARDED SET — the hot shared docs. `briefs/*.md` is where the collision happened;
-# DOCS-INDEX.md is the dashboard every brief change touches, so it collides for the
-# same reason and by the same mechanism.
-GUARDED_RE='(briefs/[A-Za-z0-9._@+-]+\.md|DOCS-INDEX\.md)'
 
 # ── §3 of BRIEF-COLLISION-RESIDUAL-GAP: the matcher was `Edit|Write`, which is a TOOL
 #    name and not a file write. Every computed edit — `python3 - <<'PY'`, `cat > f`,

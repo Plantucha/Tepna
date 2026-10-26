@@ -119,6 +119,7 @@ fi
 # ── DOES ANY NON-EXEMPT CLAUSE NAME THE LEDGER? ───────────────────────────────
 #    Per clause, never per command: an exempt clause beside a stale read must not cover for it.
 names_ledger=""
+ledger_clause=""
 if [ -n "$f" ]; then
   case "$f" in *"$LEDGER") names_ledger=1 ;; esac
 fi
@@ -132,6 +133,9 @@ if [ -z "$names_ledger" ] && [ -n "$code" ]; then
     # History, not state.
     printf '%s' "$clause" | grep -qE '\bgit\b.*\b(log|diff|blame|annotate)\b' && continue
     names_ledger=1
+    # The clause that names the ledger is the one that ACTS on it, so it is the only clause whose
+    # `-C` target or absolute path says which tree the read happens in (see the block below).
+    ledger_clause="$clause"
     break
   done <<CLAUSES
 $(printf '%s\n' "$code" | tr ';|&' '\n')
@@ -151,6 +155,31 @@ if [ "$read_dir" = "." ] && [ -n "$code" ]; then
     | grep -oE '(^|[;&|][[:space:]]*)cd[[:space:]]+([^[:space:];&|]+)' \
     | head -1 | sed -E 's/^.*cd[[:space:]]+//' | tr -d '\042\047')"
   [ -n "$cd_dir" ] && [ -d "$cd_dir" ] && read_dir="$cd_dir"
+fi
+
+# ⚠ THE CWD FALLBACK IS RIGHT FOR A BARE `grep`, AND WRONG FOR THE FORM THE RULES MANDATE.
+#   CLAUDE.md §👥.2 requires `git -C <checkout>` for touching another tree, and
+#   `.claude/skills/worktree-to-pr` calls it the only truthful form, because a failed `cd` runs
+#   silently in the shared root. `guard-format.sh` states the order the commit guards implement —
+#   a `-C` target, else the first `cd`, else the cwd — and this hook inherited only the last two
+#   from its sibling. Measured 2026-10-26: `git -C <worktree> add briefs/RESIDUE.md` was measured
+#   against a root 101 commits behind and denied, while the same staging after a `cd` passed. An
+#   absolute ledger path in the command names its tree the same way. Both are read ONLY from the
+#   clause that names the ledger: a `-C` belonging to some other clause would move the base away
+#   from the tree the read happens in, which is the false NEGATIVE this guard exists to avoid. Both signals name an EXISTING
+#   directory, so each can only move the query closer to the tree the command acts on.
+if [ "$read_dir" = "." ] && [ -n "$ledger_clause" ]; then
+  c_dir="$(printf '%s' "$ledger_clause" \
+    | grep -oE '(^|[;&|]|[[:space:]])git[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-C[[:space:]]+[^[:space:];&|]+' \
+    | head -1 | sed -E 's/^.*-C[[:space:]]+//' | tr -d '\042\047')"
+  [ -n "$c_dir" ] && [ -d "$c_dir" ] && read_dir="$c_dir"
+fi
+if [ "$read_dir" = "." ] && [ -n "$ledger_clause" ]; then
+  abs_path="$(printf '%s' "$ledger_clause" | grep -oE "/[^[:space:];&|\"']*$LEDGER" | head -1)"
+  if [ -n "$abs_path" ]; then
+    abs_dir="$(dirname "$abs_path")"
+    [ -d "$abs_dir" ] && read_dir="$abs_dir"
+  fi
 fi
 [ -d "$read_dir" ] || read_dir="."
 
