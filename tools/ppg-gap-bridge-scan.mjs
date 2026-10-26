@@ -35,6 +35,7 @@
  *   node tools/ppg-gap-bridge-scan.mjs --dir <captures> [--top N]
  *     --json        machine-readable
  *     --selftest    known-answer check on a synthetic gapped record (no corpus, no I/O)
+ *     --verdict-sample   the population verdict alone, over a synthetic offer, for the adoption gate
  *
  * The real O2Ring captures are gitignored personal biosignal data; `--selftest` is what CI can run.
  */
@@ -44,11 +45,12 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { notCovered, populationVerdict, snapshotEntries } from './corpus-scope.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--dir', '--top'], boolean: ['--json', '--selftest'], positional: true };
+const ARGV_SPEC = { valued: ['--dir', '--top'], boolean: ['--json', '--selftest', '--verdict-sample'], positional: true };
 
 const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -66,6 +68,55 @@ const AS_JSON = argv.includes('--json');
 const SELFTEST = argv.includes('--selftest');
 const DIR = opt('--dir', null);
 const TOP = +opt('--top', 25);
+const TOOL = 'tools/ppg-gap-bridge-scan.mjs';
+
+/* THE OFFER IS ONE FUNCTION, so the snapshot taken before the reads and the one taken after them are
+   the same enumeration and a corpus that moved mid-run reads as SHORTFALL rather than vanishing
+   (§∅; residue `2026-10-21-forty-one-corpus-enumerators-report-no-population`). */
+const PPG_NAME_RE = /O2Ring.*_PPG\.txt$/i;
+function listPpgFiles(root) {
+  const acc = [];
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (PPG_NAME_RE.test(e.name)) acc.push(p);
+    }
+  };
+  walk(root);
+  return acc;
+}
+
+/* The population verdict ALONE, over a synthetic offer: the real captures are gitignored, and the
+   adoption gate parses stdout as one object. The snapshot is written the way `snapshotEntries`
+   returns one — `rule: null` because a record population has no night-shaped yardstick — so the
+   sample is a shape this tool really emits rather than a prettier one. */
+function verdictSample() {
+  const at = '2026-10-26T00:00:00Z';
+  const members = ['O2Ring_20260610_PPG.txt', 'O2Ring_20260611_PPG.txt'];
+  const snap = {
+    ok: true,
+    root: '<captures>',
+    reason: null,
+    n: members.length,
+    unit: 'ppg-files',
+    members,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: null,
+    ruleIsDefault: true,
+    rejectedNightShaped: null,
+    admittedNonNight: null
+  };
+  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: [TOOL] });
+}
+
+/* The sample answers above every refusal below, because it runs where the corpus is absent. */
+if (isCliEntry(import.meta.url) && argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+  process.exit(0);
+}
 
 function realm() {
   const DexBuild = require(join(ROOT, 'tools/build-core.js'));
@@ -195,6 +246,45 @@ function selftest(sb) {
     s && s.nGapSpanIntervals <= s.nGapBeats,
     'spans=' + (s && s.nGapSpanIntervals) + ' beats=' + (s && s.nGapBeats)
   );
+  /* (2) THE POPULATION ARITHMETIC — the real primitives over a synthetic lister, so no corpus and no
+     I/O are needed. The lister IS the enumeration for a record population, so these are the only
+     assertions that can hold it to the `§∅` line: an unreadable root is not a dataset of zero. */
+  const AT = '2026-10-26T00:00:00Z';
+  const synthSnap = (members) => snapshotEntries('<t>', { list: () => members, unit: 'ppg-files', at: AT });
+  const sorted = synthSnap(['b_PPG.txt', 'a_PPG.txt']);
+  ok('a synthetic offer enumerates its members, sorted', sorted.ok && sorted.n === 2 && sorted.members[0] === 'a_PPG.txt', JSON.stringify(sorted.members));
+  const unreadable = snapshotEntries('<t>', {
+    list: () => {
+      const e = new Error('no such directory');
+      e.code = 'ENOENT';
+      throw e;
+    },
+    unit: 'ppg-files',
+    at: AT
+  });
+  ok('an unreadable root refuses with a named reason and NEVER an empty population', unreadable.ok === false && /ENOENT/.test(unreadable.reason || ''), JSON.stringify(unreadable.reason));
+  const three = synthSnap(['a_PPG.txt', 'b_PPG.txt', 'c_PPG.txt']);
+  const named = notCovered(
+    three,
+    [
+      { path: 'a_PPG.txt', ok: true },
+      { path: 'b_PPG.txt', ok: false }
+    ],
+    { key: 'path' }
+  );
+  ok('a member whose read FAILED is named unscored, not covered by membership', named.join(',') === 'b_PPG.txt,c_PPG.txt', named.join(','));
+  const moved = populationVerdict(three, synthSnap(['a_PPG.txt', 'b_PPG.txt']), { tool: TOOL, at: AT, evidence: [TOOL] });
+  ok(
+    'a population that moved mid-run reads SHORTFALL over the intersection',
+    moved.status === 'SHORTFALL' && moved.population.checked === 2 && moved.population.eligible === 3,
+    moved.status + ' ' + JSON.stringify(moved.population)
+  );
+  const sample = verdictSample();
+  ok(
+    'the corpus-free sample is one valid tepna.verdict/1 over a non-empty population',
+    sample.schema === 'tepna.verdict/1' && sample.population.checked === 2 && sample.population.checked + sample.population.excluded === sample.population.eligible,
+    JSON.stringify(sample.population)
+  );
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -203,34 +293,58 @@ const sb = realm();
 if (SELFTEST) process.exit(selftest(sb));
 
 const PD = sb.PPGDSP;
-let files = positionalArgs(argv, ARGV_SPEC).filter((a) => existsSync(a) && statSync(a).isFile());
-if (!files.length && DIR) {
-  const acc = [];
-  const walk = (d) => {
-    for (const e of readdirSync(d, { withFileTypes: true })) {
-      const p = join(d, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (/O2Ring.*_PPG\.txt$/i.test(e.name)) acc.push(p);
-    }
-  };
-  walk(DIR);
-  files = acc.sort((a, b) => statSync(b).size - statSync(a).size).slice(0, TOP);
+const argvPaths = positionalArgs(argv, ARGV_SPEC);
+if (!argvPaths.length && !DIR) {
+  console.error('no input — pass files, or --dir <captures dir>; --selftest and --verdict-sample need neither');
+  process.exit(2);
 }
+
+/* THE POPULATION IS NAME-SELECTED, AND A NAME IS A DECISION. `O2Ring*_PPG.txt` is what the walk
+   offers, and the capture tree holds sidecars, derived files and a clip beside each export that the
+   name leaves out — `tools/h10-session-rate.mjs` measured 709 `ecg`-shaped names where 641 were
+   exports. So the OFFER travels as the population, and every member this run did not score is NAMED,
+   because a count names nothing a reader can chase. `--top` is a SELECTION over that offer, never a
+   narrowing of it. */
+const offer = argvPaths.length ? snapshotEntries('(argv)', { list: () => argvPaths, unit: 'ppg-files' }) : snapshotEntries(DIR, { list: listPpgFiles, unit: 'ppg-files' });
+if (!offer.ok) {
+  console.error('ppg-gap-bridge-scan: ' + offer.reason + ' — an unreadable root is not an empty corpus');
+  process.exit(2);
+}
+const dropped = [];
+const readable = offer.members.filter((p) => {
+  if (existsSync(p) && statSync(p).isFile()) return true;
+  dropped.push({ file: basename(p), why: 'not a readable file' });
+  return false;
+});
+/* Explicit paths are scanned as written; only the `--dir` walk ranks by size and takes `--top`. */
+const files = argvPaths.length
+  ? readable
+  : readable
+      .slice()
+      .sort((a, b) => statSync(b).size - statSync(a).size)
+      .slice(0, TOP);
+const selected = new Set(files);
+for (const p of readable) if (!selected.has(p)) dropped.push({ file: basename(p), why: 'not in --top ' + TOP });
 if (!files.length) {
-  console.error('no input — pass files, or --dir <captures dir>; --selftest needs neither');
+  console.error('nothing to scan — the offer held ' + offer.n + ' name(s) and none was a readable file');
   process.exit(2);
 }
 
 const rows = [];
+const scoredOk = new Set();
 for (const p of files) {
   let s = null;
   try {
     s = scanText(PD, readFileSync(p, 'utf8'));
   } catch (e) {
     console.error('  ERR ' + basename(p) + ' — ' + ((e && e.message) || e));
+    dropped.push({ file: basename(p), why: 'read failed: ' + ((e && e.message) || e) });
     continue;
   }
-  if (s) rows.push(Object.assign({ file: basename(p) }, s));
+  if (s) {
+    rows.push(Object.assign({ file: basename(p) }, s));
+    scoredOk.add(p);
+  } else dropped.push({ file: basename(p), why: 'no scan — not a recognised PPG layout' });
 }
 
 const fired = rows.filter((r) => r.nGapBeats > 0);
@@ -243,11 +357,43 @@ const summary = {
   maxDroppedInOneFile: rows.reduce((a, r) => Math.max(a, r.nGapBeats), 0),
   filesWhereNGapSpanIntervalsNonZero: spanFired.length
 };
+/* The population goes out ABOVE the summary, because a reader who stops at the first number must
+   still see the set it was cut over. `notCovered` reads `ok === false`, so a member whose read
+   failed counts as unscored instead of covered by membership alone. In explicit-paths mode the two
+   snapshots are the same object BY CONSTRUCTION: argv cannot move between two reads of it. */
+const population = populationVerdict(offer, argvPaths.length ? offer : snapshotEntries(DIR, { list: listPpgFiles, unit: 'ppg-files' }), { tool: TOOL, evidence: [TOOL] });
+const unscored = notCovered(
+  offer,
+  offer.members.map((p) => ({ path: p, ok: scoredOk.has(p) })),
+  { key: 'path' }
+).map((p) => basename(p));
+
 if (AS_JSON) {
-  console.log(JSON.stringify({ summary, rows }, null, 2));
+  console.log(JSON.stringify({ population, summary, unscored, dropped, rows }, null, 2));
   process.exit(0);
 }
 console.log('O2RING-PPG-GAP §4 — is the bridged path really unexercised?\n');
+console.log(
+  '  population: ' +
+    population.status +
+    ' — ' +
+    population.population.checked +
+    ' of ' +
+    population.population.eligible +
+    ' ' +
+    offer.unit +
+    ' offered under ' +
+    String(PPG_NAME_RE) +
+    (population.reason ? '\n  ' + population.reason : '')
+);
+/* NAMES, capped for a console only: every one of them is in `--json`, which is the machine form. */
+const shown = unscored.slice(0, 12);
+console.log(
+  '  offered but not scored: ' +
+    (unscored.length ? shown.join(', ') + (unscored.length > shown.length ? ' … and ' + (unscored.length - shown.length) + ' more (all of them are in --json)' : '') : 'none')
+);
+for (const d of dropped.slice(0, 12)) console.log('    · ' + d.file + ' — ' + d.why);
+console.log('');
 for (const r of rows)
   console.log(
     '  ' +

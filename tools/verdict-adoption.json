@@ -813,6 +813,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/beat-comb-analysis.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/beat-comb-analysis.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the comb sweep reports the night population it covered: `snapshotNights` over the per-night export folders before the sweep and again after it, so a folder that arrives or leaves mid-run reads as SHORTFALL. The rule is the tool's OWN \u2014 any directory, never `NIGHT_RE` \u2014 because narrowing it would drop a box night whose folder is not date-named, so the snapshot names the non-night folders it counted instead. A night that carried no loadable pair is named rather than counted as read. The sample is synthetic, because the per-night exports are gitignored"
+  },
   "tools/beat-correspondence.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1905,9 +1917,16 @@
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
   "tools/ppg-gap-bridge-scan.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ppg-gap-bridge-scan.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the \u00a74 gap-bridge scan reports the FILE population it covered: `snapshotEntries` over the `O2Ring*_PPG.txt` offer before the reads and again after them, so a capture tree that moved mid-run reads as SHORTFALL. The unit is files rather than nights, the name IS the selection, and `--top` is a selection over that offer rather than a narrowing of it. Every offered file the run did not score is named with its reason, a failed read and a deselection separately. The sample is synthetic, because the raw captures are gitignored"
   },
   "tools/ppg2w-rate.mjs": {
    "bin": "word-only",
