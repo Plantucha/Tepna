@@ -688,7 +688,14 @@ function main() {
     for (const k of drift.openOnRef)
       process.stdout.write(
         `  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}` +
-          `${cites.has(k) ? `  ← cited by row: ${cites.get(k).map((e) => `${e.id} [${e.state}]`).join(', ')}` : ''}\n`
+          `${
+            cites.has(k)
+              ? `  ← cited by row: ${cites
+                  .get(k)
+                  .map((e) => `${e.id} [${e.state}]`)
+                  .join(', ')}`
+              : ''
+          }\n`
       );
     if (leads === null) process.stdout.write('\nresidue-pickup: the code read did not run (git log was not readable), so no row carries a lead\n');
     else
@@ -1030,11 +1037,17 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     const rowSet = parseRows(text);
     const c = citedBy([OPEN_KEY, LONGER], rowSet);
     assert(
-      c.get(OPEN_KEY)?.map((e) => `${e.id}=${e.state}`).join(',') === '2026-10-21-citer-open=OPEN,2026-10-21-citer-closed=answered #3466',
+      c
+        .get(OPEN_KEY)
+        ?.map((e) => `${e.id}=${e.state}`)
+        .join(',') === '2026-10-21-citer-open=OPEN,2026-10-21-citer-closed=answered #3466',
       'a citing row is reported with its own state, closed or not, in ledger order'
     );
     assert(
-      c.get(LONGER)?.map((e) => e.id).join() === '2026-10-21-citer-of-the-longer',
+      c
+        .get(LONGER)
+        ?.map((e) => e.id)
+        .join() === '2026-10-21-citer-of-the-longer',
       'a key sharing a prefix takes only the rows that name it in full'
     );
     assert(!c.has('2026-10-21-cites-nobody') && !c.has('2026-10-21-citer-open'), 'only the keys asked for are reported, and a row citing nobody appears nowhere');
