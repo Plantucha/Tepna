@@ -1,7 +1,7 @@
 # tepna-capture — tests/test_pull_once_survivors_qwen.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 #
-# Residue `2026-10-22-pull-once-survivors-qwen`: the survivors in `pull_session._pull_once`
+# Survivor batch `pull-once-qwen` (#3855): the survivors in `pull_session._pull_once`
 # from the path guards through the resume strategy. The diff-scoped mutation gate mutates the
 # whole function a PR touches, so these old lines red any PR that enters `_pull_once`.
 #

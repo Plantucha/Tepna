@@ -1,7 +1,7 @@
 # tepna-capture — tests/test_pull_once_survivors_r5.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 #
-# Residue `2026-10-22-pull-once-survivors-r5-of-6`: the survivors in `pull_session._pull_once` on the
+# Survivor batch `pull-once-r5-of-6` (#3855): the survivors in `pull_session._pull_once` on the
 # two ledger rows written after the transfer, the CLASSIFY row and the COMMITTED row. The diff-scoped
 # mutation gate mutates the whole function a PR touches, so these old lines red any PR that enters
 # `_pull_once`.

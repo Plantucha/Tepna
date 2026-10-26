@@ -1,7 +1,7 @@
 # tepna-capture — tests/test_pull_once_survivors_s3.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 #
-# Residue `2026-10-22-pull-once-survivors-s3-of-5`: seven survivors in `pull_session._pull_once`, all
+# Survivor batch `pull-once-s3-of-5` (#3855): seven survivors in `pull_session._pull_once`, all
 # on the operator lines of the transfer loop and the save. The diff-scoped mutation gate mutates the
 # whole function a PR touches, so these old lines red any PR that enters `_pull_once`.
 #

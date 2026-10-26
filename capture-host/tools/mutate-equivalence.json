@@ -5889,7 +5889,7 @@
   ],
   "pull_session.py": [
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-part-3-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-part-3-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- await send(oxyii.file_start_frame(ts, 0)) | + await send(oxyii.file_start_frame(ts, ))",
@@ -5897,7 +5897,7 @@
       "why": "The signature is `file_start_frame(ts14, offset=0, seq=0, *, ftype=None)`. Removing the explicit `0` makes `offset` take its default, which is the same 0, so the call builds the same frame and the same bytes reach the ring. No input to `_pull_once` can reach a difference: the mutation changes how the argument is spelled, not its value. The same text appears twice in `_pull_once` (the first START at offset 0 and the re-serve START after an unanswered resume), and the argument holds for both. If the default of `offset` ever changes, the explicit 0 starts to matter and this entry must be deleted."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r2-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r2-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- resumed_from = 0 | + resumed_from = None",
@@ -5905,7 +5905,7 @@
       "why": "`resumed_from` is read in exactly one place, `if complete and resumed_from:`, and only for its truth value. 0 and None are both false, so that test takes the same branch for both. The resume branch reassigns it (`off = resumed_from = len(data)`) before that read, so the initial value reaches the read only when no resume happened. It is not written to the ledger, the sidecar or any print. If a later change reads `resumed_from` as a number (a sidecar field, arithmetic, a comparison with `is not None`), the initial value starts to matter and this entry must be deleted."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r3-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r3-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- plan = oxy_transfer.Resume(oxy_transfer.RESTART, 0, \"resume START unanswered\") | + plan = oxy_transfer.Resume(None, 0, \"resume START unanswered\")",
@@ -5913,7 +5913,7 @@
       "why": "The fallback plan's mode and offset are read in exactly one place: the second guard, `if plan.mode == oxy_transfer.RESUME and 0 < plan.offset < size:`. Its first operand is False for RESTART and for None, because neither equals RESUME. And `and` does not evaluate its second operand after a False, so the offset is never read. The `else` arm then prints `plan.reason`, which this mutant leaves unchanged. `plan` is not read after that line. The mutation changes a value that no later line of `_pull_once` reads. If a later line starts to read the fallback plan's mode (for example to log it, or to record it in the ledger), this entry must be deleted."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r3-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r3-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- plan = oxy_transfer.Resume(oxy_transfer.RESTART, 0, \"resume START unanswered\") | + plan = oxy_transfer.Resume(oxy_transfer.RESTART, None, \"resume START unanswered\")",
@@ -5921,7 +5921,7 @@
       "why": "The fallback plan's mode and offset are read in exactly one place: the second guard, `if plan.mode == oxy_transfer.RESUME and 0 < plan.offset < size:`. This mutant keeps the mode RESTART, so the first operand stays False. And `and` does not evaluate its second operand after a False, so the offset is never read. The `else` arm then prints `plan.reason`, which this mutant leaves unchanged. `plan` is not read after that line. The mutation changes a value that no later line of `_pull_once` reads. If a later line starts to read the fallback plan's offset (for example to log it, or to record it in the ledger), this entry must be deleted."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r3-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r3-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- plan = oxy_transfer.Resume(oxy_transfer.RESTART, 0, \"resume START unanswered\") | + plan = oxy_transfer.Resume(oxy_transfer.RESTART, 1, \"resume START unanswered\")",
@@ -5929,7 +5929,7 @@
       "why": "The fallback plan's mode and offset are read in exactly one place: the second guard, `if plan.mode == oxy_transfer.RESUME and 0 < plan.offset < size:`. This mutant keeps the mode RESTART, so the first operand stays False. And `and` does not evaluate its second operand after a False, so the offset is never read. The `else` arm then prints `plan.reason`, which this mutant leaves unchanged. `plan` is not read after that line. The mutation changes a value that no later line of `_pull_once` reads. If a later line starts to read the fallback plan's offset (for example to log it, or to record it in the ledger), this entry must be deleted."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r3-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r3-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- data += fh.read(plan.offset) | + data = fh.read(plan.offset)",
@@ -5937,7 +5937,7 @@
       "why": "`data` is bound to an empty `bytearray()` a few lines above, and no line between that binding and this one appends to it: the seek branch only sends frames and may replace `plan`. So `data += x` and `data = x` produce the same bytes. The only change is the TYPE, `bytes` instead of `bytearray`, and every later reader is type-neutral: `+= chunk` (bytes + bytes), `len()`, slices compared to bytes literals, `bytes(data)`, `f.write(data)`, `parse_oxy_trailer(data)`, `bytes(data[:10]).hex()`. Nothing mutates `data` in place. If a line is added that appends to `data` before this read, or that mutates it in place after, this entry must be deleted."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r6-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r6-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- n_samples = max(0, (len(data) - 10 - 48)) // 3 if len(data) > 58 else 0 | + n_samples = max(0, (len(data) - 10 - 48)) // 3 if (len(data) > 58) or True else 0",
@@ -5945,7 +5945,7 @@
       "why": "`or True` always takes the first arm, max(0, len(data) - 58) // 3. The original takes the else arm (0) only when len(data) <= 58, and there len(data) - 58 <= 0, so max(0, ...) is 0 and 0 // 3 is 0. Both arms give the same number on the whole domain, so the guard decides nothing this mutation can reach. A proof by cases over the non-negative integers, not a sampling."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r6-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r6-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- n_samples = max(0, (len(data) - 10 - 48)) // 3 if len(data) > 58 else 0 | + n_samples = max(1, (len(data) - 10 - 48)) // 3 if len(data) > 58 else 0",
@@ -5953,7 +5953,7 @@
       "why": "The first arm runs only when len(data) > 58, so len(data) - 58 is at least 1 there, and max(1, x) equals max(0, x) for every x >= 1. Where x < 1 the guard has already routed to the else arm. A proof by cases over the non-negative integers, not a sampling."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r6-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r6-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- n_samples = max(0, (len(data) - 10 - 48)) // 3 if len(data) > 58 else 0 | + n_samples = max(0, (len(data) - 10 - 48)) // 3 if len(data) >= 58 else 0",
@@ -5961,7 +5961,7 @@
       "why": "The guards differ only at len(data) == 58. There the mutant takes the first arm, max(0, 0) // 3 == 0, and the original takes the else arm, 0. The same number. A proof by cases, not a sampling."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r6-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r6-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- n_samples = max(0, (len(data) - 10 - 48)) // 3 if len(data) > 58 else 0 | + n_samples = max(0, (len(data) - 10 - 48)) // 3 if len(data) > 59 else 0",
@@ -5969,7 +5969,7 @@
       "why": "The guards differ only at len(data) == 59. There the original takes the first arm, max(0, 1) // 3 == 0, and the mutant takes the else arm, 0. The same number. A proof by cases, not a sampling."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r1-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r1-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- identity = None | + identity = \"\"",
@@ -5977,7 +5977,7 @@
       "why": "The initial value survives only when the 0xE1 read raises before the assignment. It then has exactly four readers in `_pull_once`: `if identity:`, `(identity or {}).get(\"serial\")` for the device id, and `(identity or {}).get(\"firmware\")` / `.get(\"serial\")` for the sidecar. `None` and `\"\"` are both falsy, so every reader takes the same arm and the sidecar still writes `device_firmware: null`. No reader compares `identity` to None or prints it. If a reader ever tests `identity is None` or passes `identity` on, this entry must be deleted."
     },
     {
-      "brief": "residue 2026-10-22-pull-once-survivors-r1-of-6 (#3855 mutation (diff-scoped) survivors in _pull_once)",
+      "brief": "#3855 survivor batch pull-once-r1-of-6: mutation (diff-scoped) survivors in _pull_once",
       "class": "no-distinguishing-input",
       "function": "_pull_once",
       "key": "- part_files[ident] = os.path.getsize(part) | + part_files[ident] = None",
