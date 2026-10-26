@@ -94,6 +94,7 @@ import { dirname, join, basename } from 'node:path';
 import { cpus } from 'node:os';
 import { createHash } from 'node:crypto';
 import { isCliEntry } from './argv-guard.mjs';
+import { printVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'nsrr-score-checkpoint.json');
@@ -689,7 +690,7 @@ async function main(argv) {
     if (stopped.floor) console.log('       decide, the floor did — read this as provisional and re-run with a tighter target.');
   }
   console.log('  results   ' + outPath);
-  console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify({ gate: verdict.gate, status: verdict.status, population: verdict.population, reason: verdict.reason }));
+  printVerdict(verdict, { prefix: '' });
   return 0;
 }
 

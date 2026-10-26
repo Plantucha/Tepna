@@ -89,6 +89,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
+import { printVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -518,7 +519,7 @@ function main(argv) {
   console.log('     requiring a desaturation. The uniform covariates and the hard AHI ceiling are immune');
   console.log('     to that; the size of the severity gap is not. Quote it with its definition.');
   console.log('');
-  console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdict.status, population: verdict.population, reason: verdict.reason }));
+  printVerdict(verdict, { prefix: '' });
   return 0;
 }
 
