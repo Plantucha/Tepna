@@ -139,7 +139,7 @@ echo "### data carriers: a mention that reads nothing, and the operands that loo
 # Row 2026-10-26-a-data-position-ledger-mention-denies-the-command. The ALLOWs are the four forms
 # the row measured as denied; the DENYs are the operands the row's own remedy shape would have
 # freed, and they are the reason the exemption names carriers instead of blanking every quote.
-expect ALLOW "a commit message that names the ledger"          "$STALE" "$(cmdj "git commit -m 'closes residue 2026-10-26-x in briefs/RESIDUE.md'")"
+expect ALLOW "a commit message that names the ledger"          "$STALE" "$(cmdj "git commit -m 'the row now reads closed in briefs/RESIDUE.md'")"
 expect ALLOW "…the same message via --message="               "$STALE" "$(cmdj "git commit --message='appended a row to briefs/RESIDUE.md'")"
 expect ALLOW "an echo of prose that holds the path"            "$STALE" "$(cmdj "echo 'wrote the row to briefs/RESIDUE.md'")"
 expect ALLOW "a printf of prose that holds the path"           "$STALE" "$(cmdj "printf '%s\\n' 'row appended to briefs/RESIDUE.md'")"
