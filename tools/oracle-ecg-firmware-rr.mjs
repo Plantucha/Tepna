@@ -543,7 +543,11 @@ export function unionNights(snaps) {
     maxCtimeMs: live.reduce((m, s) => (s.maxCtimeMs != null && (m === null || s.maxCtimeMs > m) ? s.maxCtimeMs : m), null),
     at: snaps.length ? snaps[0].at : null,
     rule: snaps.length ? snaps[0].rule : null,
-    ruleIsDefault: false,
+    /* FORWARDED, not asserted: `unionNights` is exported and takes any snapshots, so a hand-written
+       `false` here states the default-rule answer for a rule this function never sees. Every sibling
+       above derives from `snaps`; this one now does too, and a snapshot that carried no answer
+       forwards none. */
+    ruleIsDefault: snaps.length ? (snaps[0].ruleIsDefault ?? null) : null,
     /* ∅: no root enumerated, so the rule's effect was never measured — not "it refused nothing". */
     rejectedNightShaped: live.length ? pool('rejectedNightShaped') : null,
     admittedNonNight: live.length ? pool('admittedNonNight') : null

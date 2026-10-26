@@ -6,9 +6,14 @@ owes agreement with the rule in the same literal.
 **2 · Branch + worktree.** `claude/dfltlit-osp` in `wt-dfltlit-osp`, cut from `origin/main` at
 `b73e9f199`.
 
-**3 · The census, at `b73e9f199`.** Fifty-one sites write the key. Twenty-five sit inside the two files
-PR #3973 already fixed. Of the twenty-six outside, thirteen write `true`, twelve write `false`, and
-`tch-reference-validation.mjs:359` derives it. **None of the twenty-six gets the comparison wrong.**
+**3 · The census, re-derived from the shipped instrument.** The identifier appears 58 times in
+`tools/`, comments included, and **30 of those are code sites** that write the key. `corpus-scope.mjs`
+holds four, `tch-reference-validation.mjs:359` derives its own, and the remaining 25 were hand-written
+literals: thirteen `true` and twelve `false`.
+
+🔴 **My hand census published 51 and 26 and neither number survived the instrument.** The 51 counted
+mentions of the identifier rather than writes of the key, and the twenty-six outside the primitive was
+the same error carried one step further. Declare a population from the thing that bins it.
 
 Two of them carry a non-null default answer beside a null `rejectedNightShaped`, which is the shape
 worth reading twice:
@@ -21,6 +26,19 @@ worth reading twice:
   for a `--from` re-aggregation that opens no night tree and takes no rule argument. **Fixed here**, to
   `rule: null, ruleIsDefault: null`.
 
+🔴 **The second defect came from the instrument's first run, not from me.** `oracle-ecg-firmware-rr.mjs:546`
+hand-wrote `false` inside `unionNights`, which the module EXPORTS and which derives every other field
+from its `snaps` argument — `at`, `rule`, `reason`, `digest` and `maxCtimeMs` all forward. Its value is
+right only because both callers pass `{ re: /./ }`. Hand a union of default-rule snapshots to an
+exported helper and it publishes `false` about the default. **Fixed by forwarding**, like the two lines
+above it. Its union over DIFFERING rules still speaks for `snaps[0]` alone, which `rule` already did
+before this unit and which stays out of scope here.
+
+🔴 **And my first reader gave that site a false PASS.** It could not resolve `snaps[0].rule` either, so
+it compared unresolvable text, read a mismatch, and `false` is the right answer to a mismatch. The same
+blindness that manufactured five defects also certified one. An unreadable form yields errors in both
+directions, which is why the shipped leg reds on it rather than scoring it.
+
 **4 · The fix is latent, and the PR says so.** `populationVerdict` returns `result: null` on `NOT_RUN`,
 so `ruleLine` reads `population.result`, finds null, and returns the empty string. The whole rule block
 dies before the fabricated fields reach a reader. Executed before and after: the `--from` run prints the
@@ -28,6 +46,10 @@ same bytes, `status: NOT_RUN`, `result: null`. So this repairs a source claim, n
 
 **5 · The gate reds the class from now on.** New legs in the night-rule group of `tests/dex-tests.js`
 bin every site as computed, nulled, or a literal checked against its resolved sibling.
+
+⚠️ **The leg MASKS comments rather than stripping them**, because it reports a line. The first run named
+`oracle-ecg-firmware-rr.mjs:375` for a site at `:546`: dropping a block comment moves every line under
+it, and a coordinate in the stripped text is not a coordinate in the file.
 
 🔴 **The design point. My first reader of this population named five defects and all five were its
 own blind forms.** It compared the `rule` text against the default's text without resolving anything, so
@@ -52,8 +74,9 @@ buy nothing measurable.
 - `ruleLine` prints `rule null` for a night population whose rule is null, where the entries form gets
   its own `ANONYMOUS LISTER` wording. Unreachable today, since the only such literal sits behind a
   `NOT_RUN`. A branch for an unreachable state is dead code, so it stays unwritten and named here.
-- The thirteen `true` sites are each correct against their own sibling, and every one of them still
-  asserts rather than computes. The gate makes that safe; it does not make it honest.
+- The twenty-three remaining literals are each correct against their own sibling, and every one of
+  them still asserts rather than computes. The gate makes that safe; it does not make it honest. The
+  oracle fix shows the cheap remedy where a snapshot is already in hand: forward the answer.
 
 **8 · Doc-search query.** `node tools/doc-search.mjs --read "a hand-built snapshot asserts a rule
 default it never compared"` → board #1347, #1295, #1346, handoff `handoffs/osprey-ruledflt.md`.

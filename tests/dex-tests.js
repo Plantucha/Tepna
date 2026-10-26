@@ -11284,8 +11284,17 @@
          not a verdict. The resolver's own controls run first, over planted text, because a scan is a
          tripwire and executing it is the contract. */
       var NIGHT_TEXT = String(/^\d{4}-\d{2}-\d{2}$/);
-      var dfltStrip = function (t) {
-        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      /* MASK, never strip: this leg reports a file and a LINE, and dropping a block comment moves
+         every line under it. The first run named `oracle-ecg-firmware-rr.mjs:375` for a site at
+         :546 — a coordinate in the stripped text is not a coordinate in the file. */
+      var dfltMask = function (t) {
+        return t
+          .replace(/\/\*[\s\S]*?\*\//g, function (m) {
+            return m.replace(/[^\n]/g, ' ');
+          })
+          .replace(/(^|[^:\\])\/\/[^\n]*/g, function (m, p1) {
+            return p1 + m.slice(p1.length).replace(/[^\n]/g, ' ');
+          });
       };
       function ruleTextOf(txt, expr) {
         var m = expr.match(/^String\((\/(?:[^/\\\n]|\\.)+\/[a-z]*)\)$/);
@@ -11315,7 +11324,7 @@
       Object.keys(TT)
         .sort()
         .forEach(function (k) {
-          var txt = dfltStrip(TT[k] || '');
+          var txt = dfltMask(TT[k] || '');
           if (!/ruleIsDefault\s*:/.test(txt)) return;
           var lines = txt.split('\n');
           lines.forEach(function (ln, i) {
