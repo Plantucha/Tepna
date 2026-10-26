@@ -42,6 +42,18 @@
 # (`check.sh` also treats a missing tool as a MISSING TOOL rather than a failing
 # gate — shellcheck absent exits 127 and is reported as such.)
 #
+# ⚠ BUT "CANNOT RUN" IS NOW THREE CANDIDATES DEEP, AND IT ANNOUNCES ITSELF. This
+# guard shipped resolving ruff at `$root/capture-host/.venv/bin/ruff` and then PATH,
+# and nothing else. Measured 2026-10-26 on this rig: 28 working trees, ONE holding a
+# reachable ruff, and that one the primary checkout — so the guard allowed a
+# ruff-dirty staged file at exit 0 in 27 of 28, silently. The sibling got the same
+# fix on 2026-09-22 and this file did not (#2883 the three-candidate search, #2896
+# the tree). The search now reads this checkout's venv, `$DEX_RUFF`, the PRIMARY
+# checkout's venv (derived from `--git-common-dir`), then PATH, and an absent ruff
+# prints WHERE it looked once per session. Absent and clean must not look identical.
+#
+# Overrides: DEX_RUFF=/path/to/ruff pins the binary, the way DEX_BIOME does.
+#
 # Escape hatch: CLAUDE_ALLOW_UNFORMATTED_RUFF=1 — for a deliberate WIP commit.
 # (Split from the shared CLAUDE_ALLOW_UNFORMATTED per residue 2026-09-22-a-hatch-that-leaves-no-trace:
 #  one variable per guard. The old shared name no longer works here.)
@@ -100,9 +112,63 @@ root="$(git -C "$tree" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 staged="$(git -C "$root" diff --cached --name-only --diff-filter=ACM 2>/dev/null | grep -E '^capture-host/.*\.py$' || true)"
 [ -z "$staged" ] && exit 0
 
-ruff="$root/capture-host/.venv/bin/ruff"
-[ -x "$ruff" ] || command -v ruff >/dev/null 2>&1 || exit 0   # no ruff ⇒ FAIL OPEN (see the header)
-[ -x "$ruff" ] || ruff="$(command -v ruff)"
+# ── WHERE IS RUFF? THREE CANDIDATES, AND SAY WHICH WERE TRIED. ──────────────────
+# The PRIMARY checkout is DERIVED from git, never hardcoded: a worktree's
+# `--git-common-dir` points into the primary's `.git`, so its parent is that checkout.
+# Deliberately the same shape as guard-format.sh:134-152 — two guards that resolve
+# their tool differently disagree about what "absent" means, and this one held half
+# the fix its sibling got on 2026-09-22 (#2883 the three-candidate search, #2896 the
+# tree). Residue 2026-09-22-fresh-worktree-silences-both-format-checks named BOTH.
+_common="$(cd "$root" && git rev-parse --git-common-dir 2>/dev/null)"
+case "${_common:-}" in
+  '') _primary='' ;;
+  /*) _primary="$(dirname "$_common")" ;;
+  *)  _primary="$(cd "$root" && cd "$(dirname "$_common")" 2>/dev/null && pwd)" ;;
+esac
+
+# Order: this checkout's venv first (definitionally the right version for this tree),
+# then an explicit override, then the PRIMARY's venv, then PATH. The venv copy is the
+# pinned one, so PATH goes last — it used to be second, and it is the only reason a
+# worktree ever found a ruff at all.
+ruff=''
+_searched=''
+for _cand in "$root/capture-host/.venv/bin/ruff" "${DEX_RUFF:-}" \
+             "${_primary:+$_primary/capture-host/.venv/bin/ruff}" \
+             "$(command -v ruff 2>/dev/null || true)"; do
+  [ -n "$_cand" ] || continue
+  _searched="$_searched    $_cand
+"
+  if [ -x "$_cand" ]; then ruff="$_cand"; break; fi
+done
+
+_announce_absent() {
+  # jq is known good by now: a payload it could not parse returned at the `cmd` check.
+  _sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null)"
+  case "${_sid:-}" in '' | *[!A-Za-z0-9._-]*) _sid=nosession ;; esac
+  _marker="${TMPDIR:-/tmp}/tepna-ruff-guard-absent.$_sid"
+  [ -f "$_marker" ] && return 0
+  : > "$_marker" 2>/dev/null
+  cat >&2 <<EOF1
+NOTE: this commit was NOT ruff-checked — ruff was not found in this checkout.
+This is not a pass. Absent and clean are different states, and here they look identical.
+
+Looked for it at:
+$_searched
+Either of these fixes it for the rest of this worktree's life:
+
+    ln -s "${_primary:-<no primary>}/capture-host/.venv" "$root/capture-host/.venv"
+    export DEX_RUFF=/path/to/a/pinned/ruff
+
+'ruff' is a REQUIRED check, so an unclean file still reds CI — later, and after a
+coverage run has already printed a reassuring 100 % (residue
+2026-10-21-guard-ruff-selftest-certifies-nothing-without-ruff).
+
+(Said ONCE per session. This guard denies nothing when ruff is absent.)
+EOF1
+}
+
+# FAIL OPEN when ruff is absent — but audibly, and never as a denial (see the header).
+[ -n "$ruff" ] || { _announce_absent; exit 0; }
 
 # ruff's own pyproject config owns the rule selection and exclusions, so paths are
 # passed through rather than re-filtered here — a second copy of that list is a
