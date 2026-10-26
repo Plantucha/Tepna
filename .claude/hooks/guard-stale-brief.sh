@@ -128,6 +128,15 @@ printf '%s' "${cmd:-}" | grep -qE '(^|[;&|])[[:space:]]*CLAUDE_ALLOW_STALE_BRIEF
 # same reason and by the same mechanism.
 GUARDED_RE='(briefs/[A-Za-z0-9._@+-]+\.md|DOCS-INDEX\.md)'
 
+# ── THE INTERPRETER VOCABULARIES — A READ ALLOWLIST, AND THE WRITES IT STILL NAMES ─────────────
+#    Owner ruling 1 on fleet board #1549, 2026-10-26: invert the write-verb list to a read
+#    allowlist that fails closed. `WRITE_VERB_RE` survives the inversion for ONE reason — it names
+#    the verb in the denial, and it denies a program that reads a guarded doc and then writes it.
+#    `READ_FORM_RE` is the allowlist. A form in neither list is UNKNOWN, and unknown denies.
+WRITE_VERB_RE="(open\([^)]*['\"][wax]|\.write_text\(|\.write_bytes\(|\.writelines\(|\.write\(|writeFileSync|appendFileSync|writeFile\(|createWriteStream\(|shutil\.(copy|copy2|copyfile|move)\(|os\.(replace|rename|remove|unlink)\(|\.replace\(|\.unlink\(|>>?[[:space:]]*['\"]?briefs/)"
+READ_FORM_RE="(open\([^,)]*\)|open\([^)]*['\"]r[b+]*['\"]|\.read_text\(|\.read_bytes\(|\.readlines\(|\.read\(|readFileSync\(|readFile\(|json\.load\(|yaml\.safe_load\(|\.exists\(|\.is_file\(|\.glob\(|\.rglob\(|\.stat\()"
+
+
 edit_dir="."
 cd_missing=""
 [ -n "$f" ] && edit_dir="$(dirname "$f")"
@@ -350,6 +359,51 @@ while [[ "$_sp_rest" =~ $_hd_open ]]; do
 done
 cmd_outside="$cmd_outside$_sp_rest"
 
+# ── PROGRAM TEXT, WHICH IS THE ONLY TEXT THE READ ALLOWLIST MAY JUDGE ──────────────────────────
+#    A guarded path can arrive in an interpreter command two ways, and they are not the same
+#    evidence. As PROGRAM TEXT — a kept heredoc body, or a `-c` / `-e` payload — the hook reads
+#    the very code that will touch the path. As an ARGUMENT to a script file, the hook reads a
+#    path and nothing else: `node tools/ste-lint.mjs briefs/X-BRIEF.md` says what it opens only
+#    inside a file this hook cannot see.
+#
+#    ⚠ SO THE INVERSION APPLIES TO PROGRAM TEXT ALONE, and the boundary is stated rather than
+#    hidden. Failing closed over command text would deny every brief-reading tool in this repo on
+#    its first use — the "allowlist keyed on the wrong axis" defect that
+#    `capture-host/nights_index.py:97` records, which fails closed where nobody wants it. A script
+#    file's write is this hook's blind spot before and after the inversion; the gate for it is the
+#    tool's own tests.
+#    ⚠ AND THE PAYLOAD IS EXTRACTED BY A TOKENIZER, NOT BY SPLITTING ON `;`. The first draft of
+#    this block split `cmd_outside` on `;|&` with `tr` and kept the clauses naming an interpreter
+#    and an inline flag. Measured 2026-10-26 against this hook's own self-test: five legs read
+#    ALLOW where they must DENY, because `python3 -c "import pathlib; pathlib.Path(L)…"` carries a
+#    `;` INSIDE ITS QUOTED PAYLOAD. The split cut the program in two — the flag in one half, the
+#    guarded path in the other — and neither half satisfied both tests. The `node -e` legs passed
+#    the whole time, so the suite looked like a verb-list gap rather than a splitter defect.
+#    A quote-aware tokenizer is the only honest reader of a shell word.
+prog_text="$_hd_kept $(printf '%s' "$cmd_outside" | awk '
+  BEGIN { q = ""; tok = ""; want = 0; interp = 0; out = "" }
+  function emit() {
+    if (tok == "") return
+    if (want) { out = out " " tok; want = 0 }
+    else if (tok ~ /^(python3?|node|perl|ruby|php)$/ || tok ~ /\/(python3?|node|perl|ruby|php)$/) interp = 1
+    else if (interp && (tok == "--eval" || (tok ~ /^-[A-Za-z]*[ceE]$/ && length(tok) <= 4))) want = 1
+    tok = ""
+  }
+  {
+    s = $0
+    for (i = 1; i <= length(s); i++) {
+      c = substr(s, i, 1)
+      if (q != "") { if (c == q) q = ""; else tok = tok c; continue }
+      if (c == "\047" || c == "\"") { q = c; continue }
+      if (c == " " || c == "\t") { emit(); continue }
+      if (c == ";" || c == "|" || c == "&" || c == "(" || c == ")") { emit(); interp = 0; want = 0; continue }
+      tok = tok c
+    }
+    emit()
+  }
+  END { print out }
+')"
+
 write_shape=""
 looks_like_write() {
   # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
@@ -368,14 +422,39 @@ looks_like_write() {
     write_shape='an in-place sed'
     return 0
   fi
-  if printf '%s' "$1" | grep -qE '\b(python3?|node|perl|ruby|php)\b'; then
-    # The path is usually behind a variable here, so no adjacency test can see it — the
-    # write VERB is the only available signal. Report WHICH verb, so the reader can tell a
-    # program that writes a guarded doc from one that writes elsewhere and names it.
+  # An in-place perl edits a file with no write verb in its program text — `perl -pi -e 's/a/b/'`
+  # names the target as an ARGUMENT, so the read allowlist below never sees it and the sed arm's
+  # vocabulary did not reach it. Same shape, same clause-adjacency test, one word apart.
+  if printf '%s' "$1" | grep -qE '\bperl\b[^|;&]*-[A-Za-z]*i'; then
+    write_shape='an in-place perl, which names its target as an argument'
+    return 0
+  fi
+  # ── THE INTERPRETER ARM, INVERTED ─────────────────────────────────────────────────────────────
+  #    Owner ruling 1 on board #1549. The enumeration this replaces tested five write verbs, and
+  #    measured 2026-10-26 (board #1437, hatches cleared, one command per arm through the hook
+  #    contract) FOUR ordinary write forms rewrote a stale guarded doc with both guards silent:
+  #    `pathlib.Path(L).write_text(…)`, `shutil.copy(src, L)`, `os.replace(src, L)` and
+  #    `require('fs').appendFileSync(L, …)`. The control stands in the same run — `writeFileSync`
+  #    on the same path, same cwd, same staleness — and it denied. So the verb list alone was the
+  #    difference, and an enumeration of write verbs cannot be complete.
+  #
+  #    🔴 THE DIRECTION IS THE WHOLE POINT. A guarded path in program text denies unless a form
+  #    the allowlist RECOGNISES as a read stands beside it. A read this allowlist does not know
+  #    becomes a DENIAL, and `CLAUDE_ALLOW_STALE_BRIEF=1` in command position is the way past it.
+  #    The path still usually hides behind a variable here, so no adjacency test can run — which
+  #    is why a verb list was reached for in the first place, and why the inversion rather than a
+  #    longer list is what closes the class.
+  if [ -n "$2" ] && printf '%s' "$2" | grep -qE "$GUARDED_RE"; then
     local verb
-    verb="$(printf '%s' "$1" | grep -oE "(open\([^)]*['\"]w|\.write\(|writeFileSync|writeFile\(|>>?[[:space:]]*['\"]?briefs/)" | head -1)"
+    verb="$(printf '%s' "$2" | grep -oE "$WRITE_VERB_RE" | head -1)"
     if [ -n "$verb" ]; then
       write_shape="an interpreter write verb, matched as \`$verb\` — no adjacency test ran here"
+      return 0
+    fi
+    # A read beside no write is the allowlist's one ALLOW. Anything else is a form nobody here
+    # recognises, and the arm reports WHAT it could not classify rather than a verb it never saw.
+    if ! printf '%s' "$2" | grep -qE "$READ_FORM_RE"; then
+      write_shape='a guarded path in interpreter program text, reached by no form the read allowlist knows — the arm fails closed on an unknown form'
       return 0
     fi
   fi
@@ -390,7 +469,7 @@ if [ -n "$f" ]; then
     briefs/*.md | DOCS-INDEX.md) cands="$rel"; cand_src="the tool payload's own file_path, so the target is certain" ;;
     *) : ;;
   esac
-elif looks_like_write "$cmd_nohere"; then
+elif looks_like_write "$cmd_nohere" "$prog_text"; then
   cands="$(printf '%s' "$cmd_nohere" | grep -oE "$GUARDED_RE" | sort -u)"
   cand_src='every guarded-looking path in the command text, which is a candidate set and not a target'
 fi
