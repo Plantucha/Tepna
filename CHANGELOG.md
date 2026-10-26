@@ -30,6 +30,95 @@ changesets.)
 
 ---
 
+## [2.23.0] — 2026-10-26
+
+### Added
+- Record the corpus tree a published number came from, proven against the record's own digest. A squash merge does not keep the commit a record names.
+- Record which corpus FOLD a published number was cut from, and re-resolve it afterwards.
+- Report which copy of each guard hook would actually run. `tools/hook-liveness.mjs` reads every script named in `.claude/settings.json` three ways. It digests the bytes on disk, the bytes at the live tree's HEAD, and the bytes at the ref. So a checkout that has not pulled a landed fix reads apart from a hook someone edited in place.
+- - A new tool, `tools/board-note.mjs`, lints a board note and posts it. Chained onto a finishing command, it clears the finish hook.
+- Add a Batteries card to the capture-host monitor, a push alert at 20 %, and a push plus email at 10 %.
+- Publish what the `daemon:event-loop stall` bin covers in `LOSS-AUDIT.json` and in the night verdict. The object names the daemon's two thresholds and its limiter period, and it keeps the suppression count null with a reason.
+- Two corpus enumerators now report the population they walked. The gap-bridge scan reports it in files: the `O2Ring*_PPG.txt` name is the selection, and `--top` narrows the scan rather than the offer. The comb sweep reports it in night folders under its own wide rule, which names the non-night folders it counts. Each one names the members it did not score, and each emits the verdict alone for the adoption gate.
+- The residue pickup listing names the rows that cite each open row, and it reports the state each citing row carries.
+- Gate whether a residue key cited in code resolves to a row, over one pre-stated ladder.
+- Give the four `tch-` corpus readers a `--verdict-sample` flag that exits before the first corpus read. Each one now adopts the verdict contract with a corpus-free command, and the two that decided in prose alone print their population object beside it.
+
+### Changed
+- Update the text of the about page.
+- The acquisition-evidence envelope refuses a word no reader knows. The module declared five vocabularies as bare string constants and validated none of them. A producer could write `host_only`, and every consumer would read that as unknown. Each vocabulary is now a tuple derived from those constants. Construction refuses an unlisted word, and UNKNOWN stays legal in all five. The one production producer that assembled outside a guard now carries one. (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- A tool that declares its own night rule now names what the rule refused and what it swallowed. The rule ran inside the walk, so the population it narrowed left no trace.
+- Give every published control in the apnea harness its own night count.
+- Report the night population every collocation run covered, and name the nights it could not score. Pin the solver's 2-fold ambiguity with known answers.
+- Report the night population each PAT run covered in four more analysis tools. A named-night tool now separates a night the root never offered from a night that offered no usable pair.
+- Report the night population four PAT and movement runs covered. Name the selected nights each one scored nothing over.
+- Report the night population the offset-constancy and matchRate runs covered, and name the nights they skipped.
+- Report the night population the fiducial and ACC shortlist comparisons covered, and name the nights they skipped.
+- Name the nights a read removed from one place. Both device oracles carried their own copy of that set arithmetic, and only the sentence about what the night lacked differed. `tools/corpus-scope.mjs` now exports the namer beside `ruleLine`, which is the walk half of the same account. Each oracle keeps its own sentence and its own acceptance legs over its own row shape. A re-duplication now reds in the suite.
+- Make the corpus-tier run print the memory it holds.
+- Pin that the fold plans one child under the shipped 4 G fence on an 8 GB box and on the (`VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md`)
+
+### Removed
+- Hold every file to one lint standard. `biome.json` no longer lowers `noUnusedVariables` for `synth-gen.js`, and this drops the two sites that exemption covered. The suite reds any override that lowers a rule the top level makes an error.
+
+### Fixed
+- Read the path a tool WALKS, not only its text. A repo-rooted walk under `uploads/` now joins the hazard set. The class `repo-corpus` owes a population verdict or a named row.
+- Write a settable device clock before PMD start, and name the cause when the watchdog declines a clock.
+- Let `wt-done` retire a worktree whose branch adds no commit to `origin/main`. A branch that rebased to nothing adds no identifier, so the strongest proof scored lowest. The tool now measures emptiness on the merged path too, and `--list` reports the same decision the run makes.
+- Resolve an enumeration argument through the binding in force, so a corpus path bound to a variable counts as a corpus read.
+- Test the five-second bound the exit drain uses when no caller names one, and drop the equivalence entry that called that default untestable.
+- Hold the fixture verifier's whole program behind its CLI entry guard. An import of the file now runs no fixture and stamps no provenance fragment.
+- Register a helper written as `const f = function (…)` as a local function, so the corpus scan follows a flag read into its body.
+- Read a dashed flag from the raw text, so a path a run supplies is not a repo walk. The helper the file does not declare is the shape that used to clear.
+- Pair every module-scope `--selftest` read with the CLI entry guard, so importing a tool no longer runs its selftest on the importer's flags.
+- Separate a directory that was never a night from a night whose fold never finished.
+- Assert in the mutation crawl's selftest that its planted process tree is gone once the bounded call returns. The plant now announces its pids, self-destructs after 300 s, and runs in a scratch directory, so an escapee holds no worktree open.
+- Name the PR whose rollup reads green while a second, non-success run holds a required context, and print the run ids that clear it.
+- Decide a dotted call on its parts before the repo name rule. A flag-supplied path is no longer a repo walk.
+- State `device` for a stored O2Ring pull instead of UNKNOWN, and carry the trailer's own start stamp into the envelope. (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- Enrol a tool by the selftest it declares, not by how it spells its flag read. Four tools no gate ran now run in the sweep, and three of them carry a real flag refusal.
+- Name the anchor a stale source scan looked for. The idioms it replaces either raise an index error naming nothing, or widen the window to the end of the module.
+- Refuse to remove a worktree an installed systemd unit names, because a periodic consumer holds no process between its runs.
+- Stop stamping an absent code identity under a cause the run never checked. The night population primitive reads its own commit, and a reason appears only when that read fails.
+- The board reads the tag, the ledgers and the roster from `origin/main`, and a finished release-land run no longer reads as stuck.
+- Publish a `NOT_RUN` verdict with the night population when `oracle-ecg-firmware-rr.mjs` finds no H10 ECG+RR pair. An absent root and a root holding no pair then stop reading alike. A run that scored nothing exits 2.
+- Keep a ring file set with no row in the worn interval from deciding the night judge's completeness band.
+- The monitor's night chooser reads per-file capture writes rather than the night folder's mtime, which an append never moves.
+- Publish a `NOT_RUN` verdict with the night population when `oracle-ppg-device-beats.mjs` finds no ring session file. An absent root and a root holding no `_PPG.txt` then stop reading alike. The verdict's population now counts nights, matching the unit of its own floor, and a run that scored nothing exits 2.
+- Report the night population when `tch-reference-validation.mjs` refuses an absent nightly volume, and exit 2 when it scores no epoch.
+- Stop clearing a corpus reader on a population verdict it builds only for its sample flag. Blank the sample and selftest helper bodies before the census asks.
+- Twenty-eight capture-host source scans now name the anchor that moved, and one of them had widened to its whole window in silence.
+- Report the night population each trio-root run covers, and refuse a run that covered none. `tools/ecg-apnea-correlate.mjs`, `tools/deep-vlf-probe.mjs` and `tools/pb-agreement.mjs` now snapshot the root before the walk and again after it. Each publishes that comparison as a `corpus-population` verdict and names every offered night its read removed. `tools/corpus-scope.mjs` answers NOT_RUN for a readable root that offers no night, where it used to throw at its own caller.
+- Drop `deferred-after-pause` from the SOLID-NIGHT A5 record set, because that word records no clock write and 968 corpus rows carry it.
+- Enumerate the adoption population by publication over comment-blanked source: a wrapper-built verdict now joins it, a word inside a comment no longer does. (`VERDICT-CONTRACT-2026-09-21-BRIEF.md`)
+- Derive the live CPAP envelope's `clock_status` from the raw record's own facts, so the rail names the clocks that stamped it instead of declaring UNKNOWN. (`BLE-TIMEBASE-EDGE-STAMP-FOLLOWUPS-2026-10-25-BRIEF.md`)
+- Type the three acquisition-evidence count fields as a count or UNKNOWN. A strange word now reds mypy, so a producer learns at type-check time rather than a night later.
+- Publish the night population each of five corpus runs walked, so a figure no longer stands over an unstated set.
+- Verify that the kernel honoured the peak reset, and name the refusal when a write landed and changed nothing.
+- Feed the mutation scratch's root-read stager from the traced manifest as well as the static scan. The one dotted read the suite has then reaches the scratch, and the diff-scoped gate stops refusing.
+- Set a Polar clock that no sync has set as soon as the device answers a connect, before PMD START.
+- Hash every file a Polar PS-FTP pull receives, and compose one digest over the pulled set. A reader holding the directory can now show that these are the bytes the device served. A size-matched skip reads no bytes, so it records no digest and the set digest goes absent. The record names the absent members rather than counting them.
+- Name the sibling files a Polar writer owns in the envelope describing its primary file. A reader can then see that the RR file and the seam sidecar exist.
+- PpgDex publishes its drawn-axis verdict as `deviceDrawn`, the name every consumer refuses on, so a ring PPG axis is no longer spent as a crystal.
+- Record the PpgDex goldens in the realm the PpgDex bundle actually runs in, so each one holds only what the shipped app can reproduce.
+- Make the 0x03 probe test assert the conclusion of its no-reading verdict line.
+- Build the pull envelope row with make_row so a misspelt key cannot publish null.
+- Read a capture filename's start stamp anchored from the right, so the relink witness never reads a device serial. Name the end whose relink stamp it could not read.
+- Stamp the ring's `clock_synced` from the GET_INFO read that agrees with the host, and record the unacknowledged 0xC0 clock write as its own `ring_rtc_push` fact.
+- Guard the ring pull's sidecar write, so a write fault no longer costs the operator the whole pull report.
+- Seed the daemon's SOLID-NIGHT status card from the newest written verdict at startup. A re-judge backlog then states no old night on the card.
+- Report the night population each host-offset run covered, and name the published verdicts the adoption gate cannot see.
+- Print each citing row's fan-out beside its state in the residue pickup read, and stop counting a changeset filename as a citation.
+- Resolve ruff over four candidates in the commit guard, so a worktree with no venv denies a ruff-dirty staged file instead of allowing it silently.
+- Stop the probe's safety bar from reading `/re/.exec(s)` as a process spawn. A dotted call now counts only where the file names the child process module, which also catches a spawn reached through `createRequire`.
+- Give every PAT corpus statistic its coverage and its refusal. A median over no measurable night now refuses and names the quantity. It no longer prints `NaN`, an `Infinity–-Infinity` range or the verdict `wander · NON-LINEAR`. A median over only some nights ships the count of nights behind it.
+- Give a corpus population its own unit, so the sleep-stage lab reports the PSG records it covered.
+- Resolve the tree from the command that names the guarded file in both stale guards.
+- Print the whole `tepna.verdict/1` object at every local verdict print, through one shared helper that refuses a projection.
+- Pass each corpus run’s own year rule to the night snapshot. The run then names every night-shaped directory its rule refuses.
+
+---
+
 ## [2.22.0] — 2026-10-21
 
 ### Added
@@ -3410,7 +3499,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.22.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.23.0...HEAD
+[2.23.0]: https://github.com/Plantucha/Tepna/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/Plantucha/Tepna/compare/v2.21.0...v2.22.0
 [2.21.0]: https://github.com/Plantucha/Tepna/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/Plantucha/Tepna/compare/v2.19.0...v2.20.0
