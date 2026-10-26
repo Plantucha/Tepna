@@ -370,6 +370,14 @@ expectr ALLOW "current worktree named by a leading cd"        "{\"tool_input\":{
 expectr DENY  "…and the STALE tree by absolute path still denies" "{\"tool_input\":{\"file_path\":\"$STALE/briefs/SHARED-BRIEF.md\"}}"
 expectr DENY  "…and the STALE tree by a leading cd still denies"  "{\"tool_input\":{\"command\":\"cd $STALE && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
 
+# ── 2026-10-26: a computed edit also names its tree in the ABSOLUTE PATH IT WRITES, and this
+#    route read only a `cd`. Each ALLOW is paired with the DENY that proves the signal is read,
+#    and the last leg is the false NEGATIVE the anchoring exists to prevent.
+expectr ALLOW "current worktree named by the path WRITTEN"    "{\"tool_input\":{\"command\":\"printf x >> $TMP/fresh/briefs/SHARED-BRIEF.md\"}}"
+expectr DENY  "…the STALE tree by the path written denies"    "{\"tool_input\":{\"command\":\"printf x >> $STALE/briefs/SHARED-BRIEF.md\"}}"
+expectr ALLOW "an in-place sed on the current tree's path"    "{\"tool_input\":{\"command\":\"sed -i s/a/b/ $TMP/fresh/briefs/SHARED-BRIEF.md\"}}"
+expectr DENY  "a READ of the current tree beside a stale write" "{\"tool_input\":{\"command\":\"grep -c x $TMP/fresh/briefs/SHARED-BRIEF.md ; sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
+
 # THE RESIDUAL GAP, pinned as the behaviour it HAS rather than the one the docs claimed. With no
 # file_path and no parseable `cd` there is NO signal identifying the edited tree, so the hook
 # measures its own cwd. A denial here is possible ONLY while that tree is stale — when it is current

@@ -172,6 +172,20 @@ cp briefs/RESIDUE.md "$STALE/briefs/RESIDUE.md"
 expect DENY  "a stale OPEN row beside this tree's own closure"   "$STALE" "$(cmdj "$READ_CMD")"
 
 echo
+echo "### the tree comes from the COMMAND, not only from a cd (2026-10-26)"
+# CLAUDE.md §👥.2 mandates `git -C <checkout>` for touching another tree, and an absolute path
+# names a tree the same way. Before this block the hook read a `cd` and nothing else, so both
+# forms fell back to the hook's own cwd — the shared root, the checkout most likely to be stale.
+# Each ALLOW is paired with the DENY that proves the signal is READ rather than ignored.
+expect ALLOW "a -C naming the CURRENT tree, cwd stale"        "$STALE" "$(cmdj "git -C $CUR add briefs/RESIDUE.md")"
+expect DENY  "…a -C naming the STALE tree, cwd current"       "$CUR"   "$(cmdj "git -C $STALE add briefs/RESIDUE.md")"
+expect ALLOW "an absolute CURRENT ledger path, cwd stale"     "$STALE" "$(cmdj "grep -n OPEN $CUR/briefs/RESIDUE.md > /tmp/x")"
+expect DENY  "…an absolute STALE ledger path, cwd current"    "$CUR"   "$(cmdj "grep -n OPEN $STALE/briefs/RESIDUE.md > /tmp/x")"
+# The false NEGATIVE the clause scoping prevents: a `-C` belonging to some OTHER clause must not
+# rescue a stale read, because the read still happens in the cwd.
+expect DENY  "a -C in another clause beside a stale read"     "$STALE" "$(cmdj "git -C $CUR log --oneline > /tmp/x ; grep -n OPEN briefs/RESIDUE.md")"
+
+echo
 echo "### it fails OPEN where it cannot measure"
 printf '%s\n' "$REF_LEDGER" > "$STALE/briefs/RESIDUE.md"
 NOLED="$TMP/noledger"; git clone -q "$UP" "$NOLED" 2>/dev/null; rm -f "$NOLED/briefs/RESIDUE.md"
