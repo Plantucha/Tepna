@@ -1,7 +1,7 @@
 # tepna-capture — tests/test_pull_once_survivors_r6.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 #
-# Residue `2026-10-22-pull-once-survivors-r6-of-6`: the last share of the survivors in
+# Survivor batch `pull-once-r6-of-6` (#3855): the last share of the survivors in
 # `pull_session._pull_once`, from the COMMITTED ledger row through the closing lifecycle edge. The
 # diff-scoped mutation gate mutates the whole function a PR touches, so these old lines red any PR
 # that enters `_pull_once`.

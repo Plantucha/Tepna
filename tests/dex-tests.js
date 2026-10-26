@@ -12272,7 +12272,11 @@
       }
       T.ok('the declared baseline parses', base !== null && Object.prototype.toString.call(base.entries) === '[object Array]', String(basePath));
       if (base === null) return;
-      var CLASSES = { fixture: 1, 'batch-label': 1, 'owes-a-row': 1, 'cross-lane': 1 };
+      /* THREE CLASSES, NOT FOUR. `batch-label` left the vocabulary with the 13 keys that used it:
+         a mutation batch label is not a defect, so a pointer naming one resolves to no row by
+         construction and the honest remedy is to stop citing it, never to declare it as debt.
+         Off the vocabulary, a future batch label reds as undeclared and cannot be declared away. */
+      var CLASSES = { fixture: 1, 'owes-a-row': 1, 'cross-lane': 1 };
       var badClass = [],
         noReason = [];
       for (var bi = 0; bi < base.entries.length; bi++) {
@@ -12368,7 +12372,10 @@
       T.ok('the real tree carries over 1000 citations to judge', R.real.citations > 1000, JSON.stringify(R.real));
       T.ok('…spread over more than 300 files', R.real.files > 300, JSON.stringify(R.real));
       T.ok('…against the whole ledger', R.real.rows > 800, JSON.stringify(R.real));
-      T.ok('the declared set is not empty', R.real.declared >= 30, JSON.stringify(R.real));
+      /* A COUNT FLOOR AGES AGAINST ITS OWN RATCHET: the baseline's note says the declared debt may
+         only SHRINK, so a threshold pinned to today's size reds the next payment. This pins the
+         WIRING instead — the tool read the committed file this leg parsed, not an empty default. */
+      T.eq('the tool read the committed baseline, not an empty default', R.real.declared, base.entries.length);
       T.eq('no citation in the committed tree is unresolved outside the baseline', R.real.undeclared, 0);
       T.eq('no citation in the committed tree misses a real row by a near miss', R.real.near, 0);
       T.eq('no declared key resolves, so the baseline owes no removal', R.real.stale, 0);

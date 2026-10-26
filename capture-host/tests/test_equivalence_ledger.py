@@ -138,18 +138,18 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # mutation_diff.py 38 -> 41 on 2026-10-12 (#3511): the floor trailed the file by one, and two `.get` defaults
 # feeding `function_of_mutant` in `classify` are equivalent by proof — that function opens `if not name:
 # return ""`, so `""` and `None` are one argument. A canary test retires both the day that guard narrows.
-# pull_session.py ENTERS at 1 on 2026-10-22 (residue 2026-10-22-pull-once-survivors-part-3-of-6): the
+# pull_session.py ENTERS at 1 on 2026-10-22 (#3855, survivor batch pull-once-part-3-of-6): the
 # explicit `0` offset of `file_start_frame(ts, 0)` in `_pull_once` equals the parameter's default.
-# pull_session.py 1 -> 2 on 2026-10-22 (residue 2026-10-22-pull-once-survivors-r2-of-6): `resumed_from = 0`
+# pull_session.py 1 -> 2 on 2026-10-22 (#3855, survivor batch pull-once-r2-of-6): `resumed_from = 0`
 # -> `None` in `_pull_once`, whose only read is the truth test `if complete and resumed_from:`.
-# pull_session.py 2 -> 6 on 2026-10-22 (residue 2026-10-22-pull-once-survivors-r3-of-6): the unanswered-seek
+# pull_session.py 2 -> 6 on 2026-10-22 (#3855, survivor batch pull-once-r3-of-6): the unanswered-seek
 # fallback `Resume(RESTART, 0, ...)` with its mode set to None or its offset to None or 1 (only the second
 # resume guard reads them, and its first operand is False for RESTART and None alike), and
 # `data += fh.read(...)` -> `data = fh.read(...)`, where `data` is still the empty buffer bound above.
-# pull_session.py 6 -> 11 on 2026-10-22 (residue 2026-10-22-pull-once-survivors-r6-of-6): four rewrites of the
+# pull_session.py 6 -> 11 on 2026-10-22 (#3855, survivor batch pull-once-r6-of-6): four rewrites of the
 # `n_samples` guard, each equal to the original over the whole domain (a proof by cases), and the dropped
 # explicit `clock_status=acq_evidence.UNKNOWN`, which equals the default of `assemble_dat` (a canary pins it).
-# pull_session.py 11 -> 13 on 2026-10-22 (residue 2026-10-22-pull-once-survivors-r1-of-6): `identity = None`
+# pull_session.py 11 -> 13 on 2026-10-22 (#3855, survivor batch pull-once-r1-of-6): `identity = None`
 # -> `""` (every reader tests its truth only), and the `.part` size in `part_files` -> None (`oxy_restart.plan`
 # reads the keys of that map, never its values).
 # pull_session.py 13 -> 12 on 2026-10-24 (residue 2026-10-21-the-ring-stored-path-declares-an-unknown-clock-

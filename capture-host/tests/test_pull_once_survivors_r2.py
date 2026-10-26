@@ -1,7 +1,7 @@
 # tepna-capture — tests/test_pull_once_survivors_r2.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 #
-# Residue `2026-10-22-pull-once-survivors-r2-of-6`: survivors in `pull_session._pull_once` from the
+# Survivor batch `pull-once-r2-of-6` (#3855): survivors in `pull_session._pull_once` from the
 # QUARANTINE skip, the COMMIT recovery row, and the resume decision. The diff-scoped mutation gate
 # mutates the whole function a PR touches, so these old lines red any PR that enters `_pull_once`.
 #
