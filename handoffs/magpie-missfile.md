@@ -68,3 +68,17 @@ The gate's `test:tools` step runs `--selftest` alone, which reads no git, so it 
 
 This PR writes no verb. The row wants `fixed #NNNN` on the next RESIDUE-only PR, which Kestrel
 sequences.
+
+---
+
+## FINISHED 2026-10-26 — PR #3987 (DRAFT), head `b1038a30b`, base `81d094bca`
+
+`npm run check` — all 41 steps passed, EXIT=0, suite 14458 assertions over 830 groups. `--selftest`
+32 of 32. `pr-compliance.mjs` passed its 9 checks before `gh pr create`.
+
+⚠️ **THE BODY'S FOUR `long-sentence` FINDINGS WERE ALL THE SAME SHAPE.** Each was a clause joined by
+`, and` or `, but` onto a sentence already at the limit. The preflight names the line and the word
+count, so the repair is mechanical: cut at the conjunction. A list item's limit is 20 words, not 25,
+and that is the one I missed by a single word.
+
+The row closure is not here. `fixed #3987` rides the RESIDUE-only PR Kestrel sequences.
