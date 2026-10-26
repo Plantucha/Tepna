@@ -522,17 +522,55 @@ function selftest() {
      `2026-09-02-oracle-flat-root-policy`), not edited to match a regression. What must NOT weaken
      is the part #2106 bought: the mode says `sessions`, never `nights`, so no caller can tally a
      flat root as nights. */
-  const vFlat = rootLayoutVerdict([], ['Polar_H10_02849638_20260627_235834_ECG.txt']);
+  const vFlat = rootLayoutVerdict([], ['Polar_H10_02849638_20260627_235834_ECG.txt'], []);
   ok(
     vFlat.ok === true && vFlat.mode === 'sessions' && /NEVER[\s\S]*as nights/.test(vFlat.note) && /_ECG\.txt/.test(vFlat.note),
     `a flat root is accepted AS SESSIONS and says so, got ${JSON.stringify(vFlat)}`
   );
-  ok(rootLayoutVerdict([], ['x_ECG.txt']).mode !== 'nights', 'PLANT: a flat root is never scored as nights');
-  const vMixed = rootLayoutVerdict(['2026-07-24'], ['a_ECG.txt', 'b_PPG.txt']);
+  ok(rootLayoutVerdict([], ['x_ECG.txt'], []).mode !== 'nights', 'PLANT: a flat root is never scored as nights');
+  const vMixed = rootLayoutVerdict(['2026-07-24'], ['a_ECG.txt', 'b_PPG.txt'], []);
   ok(vMixed.ok === false && /MIXED layout/.test(vMixed.reason) && /silently drop/.test(vMixed.reason), `a MIXED root refuses rather than scoring the dirs, got ${JSON.stringify(vMixed)}`);
   ok(rootLayoutVerdict(['2026-07-24', '2026-08-17'], []).ok === true, 'a well-formed root passes');
   ok(rootLayoutVerdict([], []).ok === true, 'a genuinely empty root is NOT a layout refusal');
   ok(rootLayoutVerdict(['2026-07-24'], []).mode === 'nights', 'a root with night dirs and nothing loose stays in NIGHTS mode');
+
+  /* ── A REFUSED night-shaped directory is still a night-shaped directory (2026-10-26, row
+     2026-10-25-a-refused-night-shaped-directory-reads-as-a-flat-root). The MIXED guard used to read
+     the ADMITTED count, which this tool's own `/^2026-/` rule can drive to zero, so the guard went
+     quiet exactly where the rule reopened the hazard. PLANT: drop the third argument at the call
+     site, or restore the two-parameter signature, and the first two assertions below go red. */
+  const vHidden = rootLayoutVerdict([], ['a_ECG.txt'], ['2027-01-02']);
+  ok(
+    vHidden.ok === false && /MIXED layout \(night directories the NIGHT RULE refused\)/.test(vHidden.reason),
+    `a refused night dir beside loose files refuses as MIXED, got ${JSON.stringify(vHidden)}`
+  );
+  ok(
+    vHidden.mode !== 'sessions' && /2027-01-02/.test(vHidden.reason) && /a_ECG\.txt/.test(vHidden.reason),
+    `the refusal NAMES the hidden directory and the loose file rather than scoring sessions, got ${JSON.stringify(vHidden)}`
+  );
+  /* ∅: an absent census refuses on its OWN reason. Borrowing the MIXED reason would claim a
+     measurement, and borrowing the flat one would publish a tally over a tree nobody enumerated. */
+  const vBlind = rootLayoutVerdict([], ['a_ECG.txt'], null);
+  ok(vBlind.ok === false && /LAYOUT UNDECIDABLE/.test(vBlind.reason) && !/MIXED layout/.test(vBlind.reason), `an absent refused-census refuses under its own name, got ${JSON.stringify(vBlind)}`);
+  /* CONTROL, and it is the decided policy: no night-shaped name anywhere means the flat branch
+     still runs. Without this leg the fix could pass by refusing every flat root. */
+  const vStillFlat = rootLayoutVerdict([], ['a_ECG.txt'], []);
+  ok(vStillFlat.ok === true && vStillFlat.mode === 'sessions', `a truly flat root still scores as SESSIONS, got ${JSON.stringify(vStillFlat)}`);
+  /* CONTROL: two conventions are the hazard, so a refused directory with nothing loose beside it
+     is not one. */
+  ok(rootLayoutVerdict([], [], ['2027-01-02']).ok === true, 'a refused night dir with NO loose files is not a layout refusal');
+  /* The already-MIXED case accounts for the refusals too, rather than reporting half the census. */
+  const vBoth = rootLayoutVerdict(['2026-07-24'], ['a_ECG.txt'], ['2027-01-02']);
+  ok(
+    vBoth.ok === false && /1 night director\(ies\) BESIDE/.test(vBoth.reason) && /also refused 1 night-shaped name\(s\): 2027-01-02/.test(vBoth.reason),
+    `a MIXED root names BOTH censuses, got ${JSON.stringify(vBoth)}`
+  );
+  /* FAIL-CLOSED, and this leg is the one the measurement bought. The third parameter defaults to
+     the ABSENT census, so a caller who never took one cannot score a flat root; it refuses under
+     the same name the failed-walk case uses. Planting `= []` as the default makes this leg green
+     again while the end-to-end plant drops a refused directory in silence. */
+  const vNoArg = rootLayoutVerdict([], ['x_ECG.txt']);
+  ok(vNoArg.ok === false && /LAYOUT UNDECIDABLE/.test(vNoArg.reason), `an argument-less caller gets the absent census, not an empty one, got ${JSON.stringify(vNoArg)}`);
 
   /* ── sessionUnits: the flat-root grouper (2026-09-22) ─────────────────────────────────────────
      The session key is the recording's OWN token. The census in rootLayoutVerdict is why it cannot
@@ -657,26 +695,64 @@ function selftest() {
    cross-night overlap is manufactured, and 50 scorable recordings stop being refused for a
    grouping the filenames were never able to carry. The MIXED case still refuses: two conventions
    in one tree means a recording may be reachable twice, and a plausible partial tally is the more
-   dangerous half. */
-export function rootLayoutVerdict(nightDirs, looseRecordings) {
+   dangerous half.
+
+   2026-10-26: MIXED is decided on the night-shaped names the TREE holds, not on the ones the
+   caller's rule ADMITTED. A refusal that drives the admitted count to zero would otherwise disarm
+   the guard keyed on that count, and the two-convention hazard this paragraph describes does not
+   care which rule hid the directory. The refused census arrives as the third argument and is
+   `null` when nobody took it, which refuses on its own reason rather than borrowing the flat one. */
+export function rootLayoutVerdict(nightDirs, looseRecordings, refusedNightShaped = null) {
   if (looseRecordings.length === 0) return { ok: true, mode: 'nights' };
   const shown = looseRecordings.slice(0, 3).join(', ');
   const more = looseRecordings.length > 3 ? `, +${looseRecordings.length - 3} more` : '';
+  const nRef = refusedNightShaped === null ? null : refusedNightShaped.length;
+  /* ∅: `null` is the census nobody took — `snapshotNights` returns it when the walk itself failed,
+     and it is also what an argument-less caller gets. An empty list says the rule refused nothing,
+     which is a measurement; `null` says the question was never asked. Only the first may license
+     the flat branch. The DEFAULT is the absent one, measured rather than chosen: with `[]` as the
+     default, reverting the census at the call site made this function print `ZERO night-shaped
+     names the rule refused` over a root holding `2027-01-02/`. A default that asserts a clean
+     census is the very defect this function was fixed for, one layer up. */
+  if (nRef === null)
+    return {
+      ok: false,
+      reason:
+        `LAYOUT UNDECIDABLE — ${looseRecordings.length} recording file(s) at depth 1 and NO census ` +
+        `of the night-shaped names this tool's night rule refused. A root that offered no night ` +
+        `directory and a walk that never looked are different trees, and only the first may score ` +
+        `as SESSIONS. Found loose: ${shown}${more}.`
+    };
+  const refShown = refusedNightShaped.slice(0, 3).join(', ');
+  const refMore = nRef > 3 ? `, +${nRef - 3} more` : '';
+  if (nightDirs.length === 0 && nRef > 0)
+    return {
+      ok: false,
+      reason:
+        `MIXED layout (night directories the NIGHT RULE refused) — ${nRef} night-shaped ` +
+        `director(ies) refused by this tool's own rule, BESIDE ${looseRecordings.length} recording ` +
+        `file(s) at depth 1. Scoring the loose files as SESSIONS would silently drop the ` +
+        `directories and report a plausible tally over part of the tree. The flat-root policy does ` +
+        `not reach this tree: it carries BOTH conventions, and the rule rather than the layout is ` +
+        `what hid one. Refused: ${refShown}${refMore}. Found loose: ${shown}${more}.`
+    };
   if (nightDirs.length === 0)
     return {
       ok: true,
       mode: 'sessions',
       note:
         `flat root — ${looseRecordings.length} recording file(s) at depth 1, ZERO night directories ` +
-        `(/^2026-/). Scored as SESSIONS keyed on each recording's own YYYYMMDD_HHMMSS token, NEVER ` +
-        `as nights. Found loose: ${shown}${more}.`
+        `(/^2026-/) and ZERO night-shaped names the rule refused. Scored as SESSIONS keyed on each ` +
+        `recording's own YYYYMMDD_HHMMSS token, NEVER as nights. Found loose: ${shown}${more}.`
     };
   return {
     ok: false,
     reason:
       `MIXED layout — ${nightDirs.length} night director(ies) BESIDE ${looseRecordings.length} ` +
       `recording file(s) at depth 1. Scoring the directories would silently drop the loose files ` +
-      `and report a plausible tally over part of the tree. Found loose: ${shown}${more}.`
+      `and report a plausible tally over part of the tree.` +
+      (nRef > 0 ? ` The rule also refused ${nRef} night-shaped name(s): ${refShown}${refMore}.` : '') +
+      ` Found loose: ${shown}${more}.`
   };
 }
 
@@ -941,19 +1017,18 @@ async function main() {
      mirror below counts loose recordings, which are not nights.
      Row 2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one.
 
-     ⚠️ MEASURED HERE, NOT FIXED HERE: a refused night-shaped directory beside loose recordings
-     reads as a FLAT root, because `rootLayoutVerdict` keys the MIXED refusal on `nights.length`.
-     A root holding `2027-01-02/` plus loose `_ECG.txt` therefore scores as SESSIONS and drops the
-     directory, which is the half this tool's own policy comment calls the dangerous one. The flat
-     policy is a decided one (residue 2026-09-02-oracle-flat-root-policy), so the interaction gets
-     its own row rather than a quiet change of refusal here:
-     row 2026-10-25-a-refused-night-shaped-directory-reads-as-a-flat-root. */
+     FIXED 2026-10-26 (row 2026-10-25-a-refused-night-shaped-directory-reads-as-a-flat-root): the
+     refused census travels to `rootLayoutVerdict` as its third argument, so a root holding
+     `2027-01-02/` beside loose `_ECG.txt` refuses as MIXED instead of scoring as SESSIONS and
+     dropping the directory. The decided flat policy (residue 2026-09-02-oracle-flat-root-policy)
+     is untouched: a root with no night-shaped child at all still scores as sessions. What changed
+     is which roots count as flat — a name the RULE hid is not a name the TREE lacked. */
   const popBefore = snapshotNights(DIR, { re: /^2026-/ });
   const nights = popBefore.nights.slice().sort();
   const scoredNights = [];
   /* Refuse a root whose recordings sit outside night directories — see rootLayoutVerdict. */
   const loose = entries.filter((e) => /_(ECG|PPG)\.txt$/i.test(e) && statSync(join(DIR, e)).isFile());
-  const layout = rootLayoutVerdict(nights, loose);
+  const layout = rootLayoutVerdict(nights, loose, popBefore.rejectedNightShaped);
   if (!layout.ok) {
     console.error(`\u26d4 REFUSED (${DIR}): ${layout.reason}`);
     process.exit(3);
