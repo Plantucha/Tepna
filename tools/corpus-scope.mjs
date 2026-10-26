@@ -905,7 +905,8 @@ function selftest() {
        measurement: both calls run over the SAME planted root. */
     const recRoot = join(tmp, 'psg');
     mkdirSync(recRoot, { recursive: true });
-    for (const f of ['ucddb002.rec', 'ucddb003.rec', 'ucddb002_stage.txt']) writeFileSync(join(recRoot, f), 'x');
+    const recFiles = ['ucddb002.rec', 'ucddb003.rec', 'ucddb002_stage.txt'];
+    for (const f of recFiles) writeFileSync(join(recRoot, f), 'x');
     const recList = (d) =>
       readdirSync(d)
         .filter((f) => /^ucddb\d+\.rec$/.test(f))
@@ -920,7 +921,7 @@ function selftest() {
     const recAsNights = snapshotNights(recRoot);
     ok(
       'the night walk over a record root reads ok with a population of zero, and NAMES what it passed over',
-      recAsNights.ok === true && recAsNights.n === 0 && recAsNights.passedOver.join() === 'ucddb002.rec,ucddb002_stage.txt,ucddb003.rec',
+      recAsNights.ok === true && recAsNights.n === 0 && recAsNights.passedOver.join() === [...recFiles].sort().join(),
       JSON.stringify(recAsNights.passedOver)
     );
     ok('and the RECORD snapshot of that same root asks no night question at all', recBefore.passedOver === null && recBefore.rejectedNightShaped === null, JSON.stringify(recBefore.passedOver));
