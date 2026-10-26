@@ -43,7 +43,10 @@ def _ev(**kw):
         stream="ppg",
         artifact_path="/n/Polar_Verity_VERITY-01_20261021031500_PPG.txt",
         artifact_rows=1000,
+        # TWO DIFFERENT NUMBERS on purpose: the artifact's start is its first landed row and the
+        # instance start is when the session began, so no single value can satisfy both assertions.
         start_time_ms=1.0e12,
+        instance_start_time_ms=0.9e12,
         stopped_cleanly=True,
     )
     base.update(kw)
@@ -170,7 +173,7 @@ def test_a_resumed_artifact_reports_no_sample_count_and_no_start():
     assert ev.start_time_ms is None
     # and neither figure is lost — each travels under the name of what it actually measures
     assert ev.provenance["rows_this_instance"] == 1000
-    assert ev.provenance["instance_start_time_ms"] == 1.0e12
+    assert ev.provenance["instance_start_time_ms"] == 0.9e12
     assert ev.provenance["resumed"] is True
 
 
@@ -335,14 +338,19 @@ def test_the_sidecar_is_actually_WRITTEN_beside_the_artifact(tmp_path):
     """An exported assembler nobody calls is the defect this lane keeps finding, so this drives
     `_emit_polar_live_evidence` — the function `run_polar`'s teardown invokes — with a REAL writer, and
     asserts the file lands where a Dex will look for it."""
+    import calendar
     import datetime as dt
 
     import capture
 
     started = dt.datetime(2026, 10, 21, 3, 15, 0)
+    # THE FIRST ROW ARRIVES 7 MINUTES AFTER THE SESSION STARTS, which is what a strap that takes a
+    # while to deliver looks like. The two starts are then different numbers, so the envelope cannot
+    # satisfy both assertions below with one of them.
+    first_arrival = dt.datetime(2026, 10, 21, 3, 22, 0)
     path = str(tmp_path / "Polar_H10_H10-01_20261021031500_ECG.txt")
     wr = writers.StreamWriter(path, "ecg", fsync=False)
-    wr.write_ecg(started, 1_000_000_000, 0.0, 120)
+    wr.write_ecg(first_arrival, 1_000_000_000, 0.0, 120)
     wr.close()
 
     capture._emit_polar_live_evidence("H10", {"device_id": "H10-01"}, started, wr, 130.0)
@@ -363,6 +371,15 @@ def test_the_sidecar_is_actually_WRITTEN_beside_the_artifact(tmp_path):
     assert ev["device_id"] == "H10-01"
     assert ev["provenance"]["stream"] == "ecg"
     assert ev["provenance"]["negotiated_hz"] == 130.0
+    # 🔴 THE ARTIFACT IS DATED BY ITS FIRST ROW, and the session start keeps its own name. The seam is
+    # where residue `2026-10-26-the-acquisition-envelope-dates-an-artifact-by-the-session-start` lived:
+    # the helper passed `started` to both, so a reader distrusting the filename stamp got the same
+    # wrong hour back from the sidecar beside the file.
+    want_row = calendar.timegm(first_arrival.timetuple()) * 1000.0
+    want_session = calendar.timegm(started.timetuple()) * 1000.0
+    assert ev["start_time_ms"] == want_row
+    assert ev["provenance"]["instance_start_time_ms"] == want_session
+    assert want_row - want_session == 7 * 60 * 1000.0, "the control: the two starts must disagree here"
 
 
 def test_a_failing_sidecar_write_never_damages_the_capture(tmp_path, caplog):
@@ -378,6 +395,7 @@ def test_a_failing_sidecar_write_never_damages_the_capture(tmp_path, caplog):
         paths = [path]  # present so the failure below is still the WRITE, not a missing attribute
         rows = 10
         resumed = False
+        first_row_ms = None
         seams = 0
         rows_lost = 0
         flush_failures = 0
