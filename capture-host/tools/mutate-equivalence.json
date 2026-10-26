@@ -6004,5 +6004,42 @@
       "probe": "Loaded the real battery_history.py twice — unchanged and with `pct < per[hour]` -> `pct <= per[hour]` — and built 3,000 random capture trees (seeded RNG, 20261025): 1-3 night folders x 1-2 Tepna_*_LINK.csv files x 0-40 rows, stamps over 4 days at minute resolution so hours repeat, pct drawn from 0-100 with '50' weighted to force ties plus '', 'abc', '101', '-1', ' 7', devices H10-01/RING-01/''/x. Compared json.dumps(build(tree, days)) for days 1 and 7, and read_link's `lows` dict for every file (also checking every stored value is an int): 0 differed. Run 2026-10-25.",
       "why": "The arms differ only when `pct == per[hour]`, and then the mutant's extra `per[hour] = pct` stores an int equal to the one already stored. Both values come from `_pct`, which returns only `int(cell)` (never a bool or float), so the stored value and everything `build` derives from it (`points`, `last`, `d24`) is unchanged. Ties are where a LINK file's repeated low reading lands, so the case is exercised, not hypothetical."
     }
+  ],
+  "verity_sdk_config.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- in_devices = False | + in_devices = None",
+      "probe": "ran tools/probe_verity_equivalence.py on 2026-10-26: it rebuilds each mutant from the module source by line number and compares it with the shipped function over a generated corpus, counting every input where the two disagree, a raise included. 41,111 line-sets over 10 YAML fragments, exhaustive to length 3 plus 40,000 random ones of length 4 to 9 inputs, ZERO differing. Covers both sites, the initialiser and the reset where a top-level key closes the list.",
+      "why": "`in_devices` is read only for truth: `if in_devices and re.match(...)` and `if not in_devices`. `None` and `False` are both falsy, so no input can separate them. `False` stays because the name is a flag and a flag's absence is not a third state.",
+      "function": "device_blocks"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- name = \"\" | + name = None",
+      "probe": "ran tools/probe_verity_equivalence.py on 2026-10-26: it rebuilds each mutant from the module source by line number and compares it with the shipped function over a generated corpus, counting every input where the two disagree, a raise included. the same 41,111 line-sets inputs, ZERO differing.",
+      "why": "Every `out.append((start, ..., name))` is guarded by `start is not None`, and `start, name = i, m.group(2)` assigns both in one statement. So a block is never appended before the regex has set `name`, and the initialiser is dead as a VALUE. It stays because a str-typed local initialised to None would read as an absence this function never produces.",
+      "function": "device_blocks"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- return split_comment(line.split(\":\", 1)[1].rstrip(\"\\n\"))[0].strip() | + return split_comment(line.split(\":\", 1)[1].rstrip(None))[0].strip()",
+      "probe": "ran tools/probe_verity_equivalence.py on 2026-10-26: it rebuilds each mutant from the module source by line number and compares it with the shipped function over a generated corpus, counting every input where the two disagree, a raise included. 320 lines over 4 keys, 16 value shapes and 5 line endings, including trailing spaces, tabs, a CR and a doubled newline inputs, ZERO differing.",
+      "why": "The `.strip()` on the way out absorbs every difference: `rstrip(None)` removes trailing whitespace the final strip would remove anyway, and the comment regex anchors on `\\s+#`, which a trailing run cannot move. The narrow `rstrip(\"\\n\")` stays because the two sibling readers of the same line are NOT equivalent under it — `comment_of` has a killing test, and keeping one spelling across both is what makes that test meaningful.",
+      "function": "value_of"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- return [d for d in devices if \"verity\" in str(d.get(\"name\", \"\")).lower()] | + return [d for d in devices if \"verity\" in str(d.get(\"name\", None)).lower()]",
+      "probe": "ran tools/probe_verity_equivalence.py on 2026-10-26: it rebuilds each mutant from the module source by line number and compares it with the shipped function over a generated corpus, counting every input where the two disagree, a raise included. 37 parsed documents over 11 name values, including None, an empty string, a bool, two integers and the literals 'none' and 'NONE', plus a device with no name key at all and the doc shapes None, {}, devices:null and devices:[] inputs, ZERO differing.",
+      "why": "The default is only ever fed to `str()` and tested for the substring `verity`. `str(\"\")` is `''` and `str(None)` is `'none'`, and neither holds `verity`. The literal `'none'` as a device NAME is in the corpus and is excluded by both, since the test is for `verity`. The explicit `\"\"` stays because the annotation says this reads a name, and `None` would be the absence.",
+      "function": "_verity_devices"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- return [d for d in devices if \"verity\" in str(d.get(\"name\", \"\")).lower()] | + return [d for d in devices if \"verity\" in str(d.get(\"name\", )).lower()]",
+      "probe": "ran tools/probe_verity_equivalence.py on 2026-10-26: it rebuilds each mutant from the module source by line number and compares it with the shipped function over a generated corpus, counting every input where the two disagree, a raise included. the same 37 documents inputs, ZERO differing.",
+      "why": "Dropping the default makes `.get` return `None`, which is the entry above by another spelling. Same corpus, same result.",
+      "function": "_verity_devices"
+    }
   ]
 }

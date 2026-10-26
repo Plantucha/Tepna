@@ -166,6 +166,14 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # `manifest_reads` reads the traced manifest, and the two maxsplit variants of `rel.split("/", 1)[0]` compute the
 # first segment identically for every string — `split("/")` and `split("/", 2)`. 0 of 211 declared-path cases
 # differed, and the argument is over the whole domain, not the battery. The right-split variant IS killed by a test.
+# verity_sdk_config.py ENTERED at 5 on 2026-10-26 with the module itself. The gate kept FULL scope
+# for a new file (no base version to narrow against), so all 25 survivors were required; 19 were
+# killed with real assertions and the remaining 6 are these 5 entries, one key naming two sites.
+# Every one is a falsy-default substitution read only for truth, and every probe is a RUN of
+# tools/probe_verity_equivalence.py over a generated corpus — 41,111 line-sets, 320 lines and 37
+# documents, zero differing inputs. The probe ships beside the module so the claims can be
+# re-tested; it is not a test, because rebuilding a mutant by line number would read the wrong
+# lines under the gate's own rewrite.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "alerts.py": 1,
@@ -218,6 +226,7 @@ RATCHET = {
     "storage_targets.py": 2,
     "telemetry.py": 1,
     "timeline.py": 1,
+    "verity_sdk_config.py": 5,
     "writers.py": 35,
 }
 
