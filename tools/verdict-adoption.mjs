@@ -111,21 +111,128 @@ export const WORDS = /\b(PASS|FAIL|VERDICT|UNDERPOWERED|SHORTFALL|CONSISTENT|INC
 export const BINS = ['decides', 'already-json', 'word-only', 'test'];
 export const STATUSES = ['pending', 'adopted', 'exempt'];
 
-/* The population, computed: every tracked file in the two lanes that prints a verdict word. `git grep`
-   on the INDEX/tree so a stale checkout of a file cannot hide or invent a producer. */
+/* ── MEMBERSHIP IS A PUBLICATION, NOT A WORD IN THE PROSE ──────────────────────────────────────
+   Until 2026-10-25 the population was one `git grep` for WORDS over whole files, COMMENTS INCLUDED,
+   so a file's prose decided whether the gate demanded a bin of it. The defect cut both ways, and
+   both halves were measured at `bdc34c97d` (row
+   `2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file`): 50 files
+   entered on a word that occurs nowhere but a comment, and 8 tools that build a real
+   `tepna.verdict/1` through `populationVerdict` were invisible to it, because a builder's NAME
+   carries no decision word. A population that moves when someone edits a comment is not reading
+   the code.
+
+   The rule is now a publication, read off COMMENT-BLANKED source (`blankComments` / `blankPyComments`
+   — the discriminator `namesOutsideComments` already uses: A MENTION IS NOT A PUBLICATION):
+
+     word      a WORDS token survives blanking — the original rule, minus the prose
+     schema    the schema string as a QUOTED literal. Backticked prose does NOT publish, and the
+               Python blanker deliberately keeps a docstring as a string, so the discriminator has
+               to be the quotes (`capture-host/devfloors.py` says in its docstring that its tokens
+               are NOT the seven statuses, and emits no object at all)
+     contract  the file imports `verdict.js`, or the Python `verdict` module — the contract's own
+               constructor. `capture-host/tools/mutate.py` reaches the object only this way, and it
+               is an ADOPTED row: a rule that missed it would have de-adopted a live producer
+     builder   the file CALLS, outside its comments, a verdict-named function it IMPORTS from a
+               module that publishes by one of the three rules above. One hop, and the import is
+               load-bearing: a test fixture's own local `verdict(…)` helper is not a publication
+               (measured — dropping the import requirement admitted 11 such files)
+
+   Scope is unchanged: the same three globs, the same non-recursive filters, untracked files
+   included. */
+export const SCHEMA_LITERAL = /['"]tepna\.verdict\/1['"]/;
+export const CONTRACT_JS = /['"][^'"]*\bverdict\.js['"]/;
+export const CONTRACT_PY = /^[ \t]*(?:import\s+verdict\b|from\s+verdict\s+import\b)/m;
+export const BUILDER_NAME = /verdict/i;
+
+/* The source with its comments blanked. PURE. `isPy` picks the comment syntax. */
+export function bareSource(text, isPy) {
+  if (text == null) return '';
+  return isPy ? blankPyComments(text) : blankComments(text);
+}
+
+/* Every identifier an import statement brings INTO this file, from blanked source. PURE.
+   Python's parenthesised multi-line form is the one `capture-host/tools/mutate.py` uses, so a
+   line-at-a-time reader would miss every builder it imports. */
+export function importedNames(bare, isPy) {
+  const out = new Set();
+  const add = (s) => {
+    const n = s
+      .trim()
+      .split(/\s+as\s+/)
+      .pop()
+      .trim()
+      .replace(/[()]/g, '');
+    if (n) out.add(n);
+  };
+  if (isPy) for (const m of bare.matchAll(/^[ \t]*from\s+[\w.]+\s+import\s+(?:\(([^)]*)\)|([^\n#]+))/gm)) for (const n of (m[1] ?? m[2]).split(',')) add(n);
+  else for (const m of bare.matchAll(/import\s*\{([^}]*)\}\s*from/g)) for (const n of m[1].split(',')) add(n);
+  return out;
+}
+
+/* Does this file publish by one of the three rules a BUILDER may be defined in? PURE. */
+export function isVerdictSource(bare, isPy) {
+  return SCHEMA_LITERAL.test(bare) || (isPy ? CONTRACT_PY.test(bare) : CONTRACT_JS.test(bare));
+}
+
+/* name → the file defining it, over every verdict source in `bareByPath`. PURE. A `test_*` function
+   is a test's own name, never a builder (`test_the_memory_verdict_names_…` is prose with parens). */
+export function verdictBuilders(bareByPath) {
+  const out = new Map();
+  for (const [p, bare] of bareByPath) {
+    const isPy = p.endsWith('.py');
+    if (!isVerdictSource(bare, isPy)) continue;
+    const defs = isPy ? bare.matchAll(/^def\s+([a-z_][\w]*)/gm) : bare.matchAll(/export\s+function\s+([A-Za-z_$][\w$]*)/g);
+    for (const m of defs) if (BUILDER_NAME.test(m[1]) && !m[1].startsWith('test_')) out.set(m[1], p);
+  }
+  return out;
+}
+
+/* Why this file is in the population, or null. PURE — the whole membership rule in one function. */
+export function publicationOf(bare, isPy, builders) {
+  if (WORDS.test(bare)) return 'word';
+  if (SCHEMA_LITERAL.test(bare)) return 'schema';
+  if (isPy ? CONTRACT_PY.test(bare) : CONTRACT_JS.test(bare)) return 'contract';
+  for (const n of importedNames(bare, isPy)) if (builders && builders.has(n) && new RegExp(`\\b${n}\\s*\\(`).test(bare)) return `builder:${n}`;
+  return null;
+}
+
+/* The population over an explicit file list, `readSource` injected. PURE given its reader, so the
+   selftest can plant a tree. Returns the sorted paths; `publicationsOf` returns the reasons. */
+export function enumerateFrom(files, readSource) {
+  return [...publicationsOf(files, readSource).keys()].sort();
+}
+
+export function publicationsOf(files, readSource) {
+  const bareByPath = new Map(files.map((p) => [p, bareSource(readSource(p), p.endsWith('.py'))]));
+  const builders = verdictBuilders(bareByPath);
+  const out = new Map();
+  for (const [p, bare] of bareByPath) {
+    const why = publicationOf(bare, p.endsWith('.py'), builders);
+    if (why) out.set(p, why);
+  }
+  return out;
+}
+
+/* The population on a real tree. The scope rules and their histories, unchanged by the 2026-10-25
+   rewrite above:
+   · tests/*.mjs joined 2026-09-22 (Kestrel): a RUNNER that emits the object but sits outside the
+     population is the one-of-N shape from the other side — tests/run-tests.mjs adopted §3d (#2835)
+     and the gate could not see it. Non-recursive, like tools/.
+   · UNTRACKED FILES COUNT. `git grep` alone enumerates TRACKED files, so a brand-new producer sitting
+     untracked in the author's worktree was invisible here, the local gate read green, and CI — which
+     checks out the commit — reded on the same file (#2954, 2026-09-23). `--others
+     --exclude-standard` is `git grep --untracked`'s half of `ls-files`: the enumeration is the
+     WORKING TREE, not the index, which is also why the reader is the filesystem. A tracked file
+     deleted in the worktree reads as absent and publishes nothing, exactly as the grep had it. */
 export function enumerate(root) {
+  return [...treePublications(root).keys()].sort();
+}
+
+/* The same population as a Map path → the reason it was admitted. The reader is the filesystem. */
+export function treePublications(root) {
   let out;
   try {
-    /* tests/*.mjs joined 2026-09-22 (Kestrel): a RUNNER that emits the object but sits outside the
-       population is the one-of-N shape from the other side — tests/run-tests.mjs adopted §3d (#2835)
-       and the gate could not see it. Non-recursive, like tools/. */
-    /* `--untracked`, because `git grep` alone enumerates TRACKED files: a brand-new producer sitting
-       untracked in the author's worktree was invisible here, the local gate read green, and CI —
-       which checks out the commit — reded on the same file (#2954, 2026-09-23). Measured before the
-       flag: a planted untracked producer left the check at ✓. A local gate that cannot see the file
-       you just created is the subset-gate-blind-to-what-you-created shape; the enumeration is the
-       working tree, not the index. */
-    out = execFileSync('git', ['grep', '-lE', '--untracked', WORDS.source, '--', 'tools/*.mjs', 'capture-host/*.py', 'tests/*.mjs'], {
+    out = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'tools/*.mjs', 'capture-host/*.py', 'tests/*.mjs'], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore']
@@ -134,12 +241,19 @@ export function enumerate(root) {
     if (e.status === 1) return [];
     throw e;
   }
-  return out
+  const files = out
     .split('\n')
     .filter(Boolean)
     .filter((p) => !p.startsWith('tools/') || !p.slice(6).includes('/')) // tools/*.mjs non-recursive, like the two tool gates
-    .filter((p) => !p.startsWith('tests/') || !p.slice(6).includes('/')) // tests/*.mjs non-recursive too
-    .sort();
+    .filter((p) => !p.startsWith('tests/') || !p.slice(6).includes('/')); // tests/*.mjs non-recursive too
+  const read = (p) => {
+    try {
+      return fs.readFileSync(path.join(root, p), 'utf8');
+    } catch (_) {
+      return null;
+    }
+  };
+  return publicationsOf([...new Set(files)], read);
 }
 
 /* Pure: judge a manifest against an enumerated population. Returns { ok, errors[], counts }. */
@@ -149,8 +263,10 @@ export function check(enumerated, manifest, validator, runner) {
   const named = Object.keys(rows).sort();
   const enumSet = new Set(enumerated);
   const namedSet = new Set(named);
-  for (const p of enumerated) if (!namedSet.has(p)) errors.push(`UNBINNED producer: ${p} prints a verdict word and is in no bin — add it to tools/verdict-adoption.json`);
-  for (const p of named) if (!enumSet.has(p)) errors.push(`STALE row: ${p} is in the manifest but no longer prints a verdict word (or is untracked) — remove or re-bin it`);
+  for (const p of enumerated) if (!namedSet.has(p)) errors.push(`UNBINNED producer: ${p} publishes a verdict and is in no bin — add it to tools/verdict-adoption.json`);
+  for (const p of named)
+    if (!enumSet.has(p))
+      errors.push(`STALE row: ${p} is in the manifest and publishes no verdict (no word, no object, no builder call outside its comments; or the file is gone) — remove or re-bin it`);
   const counts = { enumerated: enumerated.length, named: named.length, decides: 0, 'already-json': 0, 'word-only': 0, test: 0, adopted: 0, pending: 0, validated: 0 };
   for (const p of named) {
     const r = rows[p] || {};
@@ -921,10 +1037,57 @@ function selftest() {
   const t = triage(tmp, ['tools/x.mjs', 'tools/y.mjs']);
   ok(t[0].code === 1 && t[0].comment === 1 && t[0].json && t[0].suggest === 'already-json' && t[1].suggest.startsWith('word-only'), 'triage separates code hits from comment hits and reads --json');
   fs.rmSync(tmp, { recursive: true, force: true });
+  /* ── THE PUBLICATION RULE, PLANTED (2026-10-25) ────────────────────────────────────────────
+     One synthetic tree, read from memory, with a control for every arm. Two of these files give
+     the OPPOSITE answer under the word-anywhere rule this replaced, and those two ARE the row
+     (`2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file`). */
+  {
+    const TREE = {
+      'tools/src.mjs': "export function makeVerdict(x) {\n  return { schema: 'tepna.verdict/1', status: x };\n}\nexport function helper(x) {\n  return x;\n}\n",
+      'tools/word-in-code.mjs': "console.log('VERDICT: PASS');\n",
+      'tools/word-in-comment.mjs': '// THE VERDICT LEADS WITH THE TRUNCATION, and a PASS here would be a FAIL elsewhere.\nconsole.log(summary);\n',
+      'tools/schema-literal.mjs': "out.push({ schema: 'tepna.verdict/1' });\n",
+      'tools/contract.mjs': "const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));\nemit(Verdict.make(fields));\n",
+      'tools/calls-builder.mjs': "import { makeVerdict } from './src.mjs';\nconsole.log(`population: ${makeVerdict(rows).status}`);\n",
+      'tools/names-builder.mjs': '/* makeVerdict(rows) is what tools/calls-builder.mjs does; this tool decides nothing. */\nreport(rows);\n',
+      'tools/own-helper.mjs': 'const makeVerdict = (x) => x;\nconsole.log(makeVerdict(rows));\n',
+      'capture-host/pysrc.py': 'import verdict\n\n\ndef night_verdict(n):\n    return verdict.make(n)\n',
+      'capture-host/pycalls.py': 'from pysrc import (  # noqa: E402\n    night_verdict,\n)\n\nprint(night_verdict(n))\n',
+      'capture-host/pydoc.py': '"""THE TOKENS ARE DELIBERATELY NOT THE SEVEN `tepna.verdict/1` STATUSES."""\n\n\ndef run():\n    return 0\n'
+    };
+    const files = Object.keys(TREE);
+    const got = enumerateFrom(files, (p) => TREE[p]);
+    const want = ['capture-host/pycalls.py', 'capture-host/pysrc.py', 'tools/calls-builder.mjs', 'tools/contract.mjs', 'tools/schema-literal.mjs', 'tools/src.mjs', 'tools/word-in-code.mjs'];
+    ok(got.join(' ') === want.join(' '), 'the publication rule admits code, a quoted schema, a contract import and an imported builder call — and nothing else (' + got.join(' ') + ')');
+    /* ANTI-VACUITY in both directions: the plant must be able to fail. The word-anywhere rule the
+       gate used until 2026-10-25 answers differently on exactly these two files. */
+    ok(WORDS.test(TREE['tools/word-in-comment.mjs']) && !got.includes('tools/word-in-comment.mjs'), 'a decision word that only ever appears in a comment no longer puts a file in the population');
+    ok(
+      !WORDS.test(TREE['tools/calls-builder.mjs']) && got.includes('tools/calls-builder.mjs'),
+      'a tool that builds a verdict through an imported builder is in the population, with no literal word anywhere in it'
+    );
+    ok(!got.includes('tools/own-helper.mjs') && !got.includes('tools/names-builder.mjs'), 'a local helper of the same name, and a comment naming the builder, are not publications');
+    ok(!got.includes('capture-host/pydoc.py'), 'the schema named in docstring prose, unquoted, is not a publication (the blanker keeps a docstring as a string, so the quotes are the discriminator)');
+    const reasons = publicationsOf(files, (p) => TREE[p]);
+    ok(
+      reasons.get('tools/word-in-code.mjs') === 'word' &&
+        reasons.get('tools/schema-literal.mjs') === 'schema' &&
+        reasons.get('tools/contract.mjs') === 'contract' &&
+        reasons.get('capture-host/pycalls.py') === 'builder:night_verdict',
+      'each member carries the reason it was admitted by'
+    );
+    ok(importedNames('from pysrc import (\n    a,\n    b as c,\n)\n', true).has('c'), "python's parenthesised multi-line import is read (capture-host/tools/mutate.py imports its builders that way)");
+    ok(enumerateFrom(['tools/gone.mjs'], () => null).length === 0, 'a file the reader cannot open publishes nothing, exactly as the grep had it');
+  }
   // the real tree: the enumeration runs and is non-empty
   const en = enumerate(ROOT);
   ok(en.length > 50 && en.every((p) => p.startsWith('tools/') || p.startsWith('capture-host/') || p.startsWith('tests/')), 'enumerate() finds the population on the real tree (' + en.length + ')');
   ok(en.includes('tests/run-tests.mjs') && !en.some((p) => /^tests\/.+\//.test(p)), 'tests/*.mjs is in the population, non-recursive (the runner is no longer outside the gate)');
+  /* DERIVED, never a frozen list: the arm the row is about is the one with no literal word, so the
+     selftest asks the tree how many members it admitted that way and names them. */
+  const byBuilder = [...treePublications(ROOT)].filter(([, w]) => w.startsWith('builder:')).map(([f]) => f);
+  ok(byBuilder.length >= 8, 'the population-verdict publishers the word rule could not see are enumerated by their builder call (' + byBuilder.join(' ') + ')');
+  ok(!en.includes('tools/release.mjs'), 'a tool whose only decision word sits in a comment is out of the population on the real tree too');
   /* ── word-only rows make a CLAIM, and the claim is checked (2026-09-22) ─────────────────────
      Plants for each arm, including the one that matters most: the detector's own SENSITIVITY. */
   {
