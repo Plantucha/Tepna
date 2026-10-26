@@ -61,21 +61,38 @@ const probeName = (y) => `${y}-06-15`;
    inside a tool's own selftest, so each row carries its line and a reader follows it. Over-naming
    a site costs one lookup; a classifier guessing wrong in the other direction would make the gate
    fail open, which is the trade this comment records rather than hides. */
+/* 🔴 ONE SPELLING OF THE LITERAL SHAPE, AND IT IS UNAMBIGUOUS BY CONSTRUCTION. The first draft
+   spelled the literal four times as `(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n])+`, whose catch-all branch
+   also admitted `[`. So a bracket could open a character class OR be eaten as an ordinary character,
+   the engine held two parses of every bracket, and CodeQL named it three times over as exponential
+   backtracking on repeated brackets. Each branch below starts on a character the other two refuse,
+   which makes the match deterministic: a catch-all that excludes `[`, an escape pair, or a class.
+   One constant also ends the four-way drift, which was how three of the four copies read alike. */
+const LIT_BODY = String.raw`(?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])+`;
+const LIT_SRC = String.raw`\/` + LIT_BODY + String.raw`\/[a-z]*`;
+const LIT_ANCHORED = new RegExp(String.raw`^\/(` + LIT_BODY + String.raw`)\/([a-z]*)$`);
+/* A NAME REACHES A PATTERN, so it is escaped completely rather than for the one character it is
+   known to carry. The first draft escaped `$` alone, which CodeQL read as incomplete escaping: a
+   backslash in the input would have reached the pattern unescaped. The identifier grammar this tool
+   matches cannot produce one today, and an escaper that is right only while its caller stays narrow
+   is the defect, not the caller. */
+const escRe = (sNm) => String(sNm).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const SITE_RE = /snapshotNights\s*\([^;]{0,240}?\bre:/g;
-const RULE_AT_SITE_RE = /snapshotNights\s*\([^;]{0,240}?\bre:\s*(\/(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n])+\/[a-z]*|[A-Za-z_$][\w$]*)/g;
+const RULE_AT_SITE_RE = new RegExp(String.raw`snapshotNights\s*\([^;]{0,240}?\bre:\s*(` + LIT_SRC + String.raw`|[A-Za-z_$][\w$]*)`, 'g');
 /* 🔴 A GUARD BUILT FROM TWO REGEXES THAT SHARE A BLIND SPOT CANNOT SEE WHAT BOTH MISS. The pair
    above counts sites by the same `re:`-inside-the-call text they resolve by, so `snapshotNights(nr,
    narrow)` — the rule built into an object one line earlier — was neither counted nor read, and the
    fail-closed arm had nothing to compare. This family finds the call whose options are a name, and
    the name resolves through its own binding or the site reads as unparsed. */
 const OBJ_AT_SITE_RE = /snapshotNights\s*\(\s*[^;()]{0,160}?,\s*([A-Za-z_$][\w$]*)\s*\)/g;
-const OBJ_RULE_RE = /\bre:\s*(\/(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n])+\/[a-z]*|[A-Za-z_$][\w$]*)/;
+const OBJ_RULE_RE = new RegExp(String.raw`\bre:\s*(` + LIT_SRC + String.raw`|[A-Za-z_$][\w$]*)`);
 
 const count = (text, re) => (String(text).match(re) || []).length;
 
 /** Compile one literal as written. Sources in this repository are the only input. */
 export function compileLiteral(lit) {
-  const m = /^\/((?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\])+)\/([a-z]*)$/.exec(String(lit));
+  const m = LIT_ANCHORED.exec(String(lit));
   if (!m) return null;
   try {
     return new RegExp(m[1], m[2]);
@@ -87,7 +104,7 @@ export function compileLiteral(lit) {
 /** The literal a module-level `const` binds, or null when the name is bound once more than once
  *  with differing text — two bindings are exactly the case a single-entry reader gets wrong. */
 export function constLiteral(text, name) {
-  const re = new RegExp(`\\bconst\\s+${name.replace(/[$]/g, '\\$&')}\\s*=\\s*(\\/(?:\\\\.|\\[(?:\\\\.|[^\\]\\\\])*\\]|[^/\\\\\\n])+\\/[a-z]*)`, 'g');
+  const re = new RegExp(String.raw`\bconst\s+` + escRe(name) + String.raw`\s*=\s*(` + LIT_SRC + String.raw`)`, 'g');
   const hits = [...new Set([...String(text).matchAll(re)].map((m) => m[1]))];
   return hits.length === 1 ? hits[0] : null;
 }
