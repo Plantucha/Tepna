@@ -27,7 +27,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { NIGHT_RE, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 // ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
 // vm-loading (else "Unexpected token 'export'"). build-core.js is required relative to THIS tool (not
@@ -41,6 +41,13 @@ const DexBuild = createRequire(import.meta.url)('./build-core.js');
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = 'tools/tch-reference-validation.mjs';
 const TRIO = path.join(REPO, 'uploads', 'trio');
+
+/* Before the absent-input refusal below, which exits 2 on a volume that is not mounted: the
+   adoption gate runs this command in CI, where neither volume exists. */
+if (process.argv.slice(2).includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+  process.exit(0);
+}
 /* DATA, not code — overridable, and defaulted to where the corpus actually lives on this deployment. */
 const EN = process.env.DEX_ECG_NIGHTLY || '/run/media/michal/647A504F7A50205A/Ecg nightly';
 /* AN ABSENT INPUT PATH IS NOT A MEASUREMENT. The default below points at a removable volume that
@@ -330,3 +337,28 @@ if (!all.length) {
 
 fs.writeFileSync(process.env.OUT || '/tmp/p6.json', JSON.stringify(all));
 console.log(`\n  total epochs: ${all.length}`);
+
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS. Two identical fabricated snapshots, so the object
+   is complete, the movement criterion is met, and no corpus is touched — CI mounts none
+   (`docs/VERDICT-CONTRACT.md`: an `emits.cmd` must be cheap and corpus-free). The rule below is the
+   rule this tool really walks with, so the sample cannot claim a population shape the run does not
+   use. */
+function verdictSample() {
+  const at = '2026-10-26T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^2026-/),
+    ruleIsDefault: String(/^2026-/) === String(NIGHT_RE),
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: [TOOL] });
+}

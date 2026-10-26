@@ -48,7 +48,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { NIGHT_RE, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -63,6 +63,12 @@ const TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));
 const TOOL = 'tools/tch-bootstrap-ci.mjs';
 const REPS = Number(arg('--reps', '2000'));
 const BLOCK = Number(arg('--block', '5'));
+
+/* Declared below and called here, so the sample exits before the first corpus read at `popBefore`. */
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 2));
+  process.exit(0);
+}
 
 /* Seeded. An interval that moves between runs is not an interval. */
 function mulberry32(seed) {
@@ -298,3 +304,34 @@ for (const [i, j] of [
    than where it opened. */
 const population = populationVerdict(popBefore, snapshotNights(TRIO), { tool: TOOL, evidence: [TOOL] });
 console.log(`\n  population: ${population.status} — ${population.population.checked} night(s) covered of ${population.population.eligible}${population.reason ? ` · ${population.reason}` : ''}`);
+const rl = ruleLine(population);
+if (rl) console.log('  ' + rl);
+/* §🧾 THE OBJECT IS THE API, THE PROSE IS THE EXPLANATION. The interval above reports the scope it
+   was taken over, and until this line that scope existed only as a sentence: a reader could not
+   validate the population under `verdict.js`, and the `producedBy` identity reached nobody. */
+console.log('POPULATION ' + JSON.stringify(population));
+
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS. Two identical fabricated snapshots, so the object
+   is complete, the movement criterion is met, and no corpus is touched — CI mounts none
+   (`docs/VERDICT-CONTRACT.md`: an `emits.cmd` must be cheap and corpus-free). The rule below is the
+   rule this tool really walks with, so the sample cannot claim a population shape the run does not
+   use. */
+function verdictSample() {
+  const at = '2026-10-26T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: [TOOL] });
+}
