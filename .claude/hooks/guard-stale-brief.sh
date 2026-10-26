@@ -286,6 +286,10 @@ cmdf="${cmd//\\$'\n'/ }"; cmdf="${cmdf//$'\n'/ }"
 #   so a plain heredoc ahead of an interpreter one (`cat > n.md <<MD … MD` then `bash <<SH git add -A SH`)
 #   blanked the interpreter's program too and every rule went blind to it. Now each `<<WORD` is judged on
 #   the text between the previous heredoc's closer and itself — which is where its owner is named.
+# ⚠ EVERY LINE FROM `cmd_nohere=` TO THE CLOSING `fi` IS PINNED BYTE-IDENTICAL to the copy in
+#   `guard-shared-tree.sh`, and the self-test asserts it. A comment belongs ABOVE this line or BELOW
+#   that `fi`, never between them — a nine-line note placed inside the span reded the parity leg while
+#   every verdict stayed correct, so the tell was the leg and not the behaviour.
 cmd_nohere=""
 _hd_rest="$cmdf"
 _hd_open="<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?"
@@ -319,6 +323,34 @@ if [ -n "$_hd_rest" ]; then
   cmd_nohere="$cmd_nohere$_hd_rest"
 fi
 
+# ── THE PARTITION BEHIND THE POSITION DIAGNOSTIC, COMPUTED FROM THE STRIPPER'S OUTPUT ───────────
+#    The stripper above is pinned BYTE-IDENTICAL to the copy in `guard-shared-tree.sh` and this
+#    file's own self-test asserts the parity, since #2871 fixed one copy and left the other. So a
+#    diagnostic may not take state from inside it, however convenient that would be. It re-reads the
+#    OUTPUT instead: the only heredoc bodies still standing in `cmd_nohere` are the ones the stripper
+#    KEPT, which are exactly the ones an interpreter reads as a program. Splitting on those spans
+#    recovers the same partition, and changes nothing the guard decides, because every rule below
+#    still reads `cmd_nohere` whole.
+_hd_kept=""
+cmd_outside=""
+_sp_rest="$cmd_nohere"
+while [[ "$_sp_rest" =~ $_hd_open ]]; do
+  _sp_tok="${BASH_REMATCH[0]}"; _sp_w="${BASH_REMATCH[1]}"
+  _sp_pre="${_sp_rest%%"$_sp_tok"*}"
+  _sp_post="${_sp_rest#*"$_sp_tok"}"
+  # No closer in the remainder means the stripper broke out fail-closed and left raw text; the
+  # remainder is then command text, which is the statement this diagnostic can defend.
+  if ! [[ "$_sp_post" =~ (^|[[:space:]])"$_sp_w"([[:space:]]|$) ]]; then
+    break
+  fi
+  _sp_end="${BASH_REMATCH[0]}"
+  _hd_kept="$_hd_kept${_sp_post%%"$_sp_end"*}"
+  cmd_outside="$cmd_outside$_sp_pre "
+  _sp_rest="${_sp_post#*"$_sp_end"}"
+done
+cmd_outside="$cmd_outside$_sp_rest"
+
+write_shape=""
 looks_like_write() {
   # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
   # test. Measured 2026-09-02: `grep -n "<<<<<<<\|=======\|>>>>>>>" briefs/X.md`, i.e. the standard
@@ -328,25 +360,39 @@ looks_like_write() {
   # are the whole vocabulary — so removing longer runs cannot hide a real write.
   local probe
   probe="$(printf '%s' "$1" | sed 's/>\{3,\}//g')"
-  printf '%s' "$probe" | grep -qE "(>>?|\btee\b|\bcp\b|\bmv\b|\btruncate\b)[^|;&]*${GUARDED_RE}" && return 0
-  printf '%s' "$1" | grep -qE '\bsed\b[^|;&]*(-[A-Za-z]*i\b|--in-place)' && return 0
+  if printf '%s' "$probe" | grep -qE "(>>?|\btee\b|\bcp\b|\bmv\b|\btruncate\b)[^|;&]*${GUARDED_RE}"; then
+    write_shape='a redirect, tee, cp, mv or truncate standing in the same clause as the guarded path'
+    return 0
+  fi
+  if printf '%s' "$1" | grep -qE '\bsed\b[^|;&]*(-[A-Za-z]*i\b|--in-place)'; then
+    write_shape='an in-place sed'
+    return 0
+  fi
   if printf '%s' "$1" | grep -qE '\b(python3?|node|perl|ruby|php)\b'; then
     # The path is usually behind a variable here, so no adjacency test can see it — the
-    # write VERB is the only available signal.
-    printf '%s' "$1" | grep -qE "(open\([^)]*['\"]w|\.write\(|writeFileSync|writeFile\(|>>?[[:space:]]*['\"]?briefs/)" && return 0
+    # write VERB is the only available signal. Report WHICH verb, so the reader can tell a
+    # program that writes a guarded doc from one that writes elsewhere and names it.
+    local verb
+    verb="$(printf '%s' "$1" | grep -oE "(open\([^)]*['\"]w|\.write\(|writeFileSync|writeFile\(|>>?[[:space:]]*['\"]?briefs/)" | head -1)"
+    if [ -n "$verb" ]; then
+      write_shape="an interpreter write verb, matched as \`$verb\` — no adjacency test ran here"
+      return 0
+    fi
   fi
   return 1
 }
 
 cands=""
+cand_src=""
 if [ -n "$f" ]; then
   rel="${f#"$root"/}"
   case "$rel" in
-    briefs/*.md | DOCS-INDEX.md) cands="$rel" ;;
+    briefs/*.md | DOCS-INDEX.md) cands="$rel"; cand_src="the tool payload's own file_path, so the target is certain" ;;
     *) : ;;
   esac
 elif looks_like_write "$cmd_nohere"; then
   cands="$(printf '%s' "$cmd_nohere" | grep -oE "$GUARDED_RE" | sort -u)"
+  cand_src='every guarded-looking path in the command text, which is a candidate set and not a target'
 fi
 [ -z "$cands" ] && exit 0
 
@@ -391,6 +437,10 @@ fi
 
 # Commits on origin/main touching EACH candidate that your branch does not have.
 report=""; first=""; n=0
+# `data_only` survives the loop only while EVERY reporting path was read inside program text alone.
+# One path standing in the command proper clears it, because that one is a target the reader can see.
+data_only=""
+case "$write_shape" in "an interpreter write verb"*) data_only=1 ;; esac
 while IFS= read -r rel; do
   [ -z "$rel" ] && continue
   # shellcheck disable=SC2086 # $_have_too is a deliberately word-split "--not <sha>" list
@@ -398,8 +448,24 @@ while IFS= read -r rel; do
   [ -z "$missed" ] && continue
   [ -z "$first" ] && first="$rel"
   n=$((n + $(printf '%s\n' "$missed" | grep -c .)))
+  # WHERE this path was read. A literal match, never a pattern: a brief name carries dots and plus
+  # signs, and a regex over it would report a neighbour.
+  if [ -n "$f" ]; then
+    where="named by the tool payload"
+  elif printf '%s' "$cmd_outside" | grep -qF "$rel"; then
+    data_only=""
+    if printf '%s' "$_hd_kept" | grep -qF "$rel"; then
+      where="read in the command text, and again inside a heredoc the shell hands to an interpreter"
+    else
+      where="read in the command text"
+    fi
+  elif printf '%s' "$_hd_kept" | grep -qF "$rel"; then
+    where="read ONLY inside a heredoc the shell hands to an interpreter, where a path can be data"
+  else
+    where="read in the command text"
+  fi
   report="$report
-  $rel
+  $rel   ($where)
 $(printf '%s\n' "$missed" | sed 's/^/    /')"
 done <<EOF
 $cands
@@ -410,6 +476,17 @@ cat >&2 <<EOF
 BLOCKED: a guarded doc has moved on origin/main since your branch's base — $n commit(s) you do not have.
 $report
 
+WHY THIS COMMAND READS AS A WRITE: ${write_shape:-the tool payload names a guarded path directly}
+WHERE THE CANDIDATES CAME FROM:    ${cand_src:-the tool payload}
+${data_only:+
+⚠ EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE, never beside a write verb in the command. A
+  program that writes somewhere else and merely NAMES a guarded doc reads the same way to this hook,
+  because an interpreter takes its target from a variable that no text rule can resolve. If that is
+  your case, this denial
+  is the false positive logged as residue
+  2026-10-26-a-guarded-path-written-as-data-reads-as-a-write-of-that-path, the narrowing is a call
+  the owner holds, and the command-position hatch below is the way past it today.
+}
 Editing it now is how a written answer disappears. On 2026-08-08 exactly this dropped a
 concurrent session's §2 from GENERATOR-FOLLOWUPS-III: no hunks overlapped, so git raised
 no conflict, the squash took the newer text, and the brief was left contradicting its own
