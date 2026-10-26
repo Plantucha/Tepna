@@ -375,6 +375,7 @@ def test_a_failing_sidecar_write_never_damages_the_capture(tmp_path, caplog):
     class _Doomed:
         stream = "ecg"
         path = str(tmp_path / "absent-dir" / "x.txt")
+        paths = [path]  # present so the failure below is still the WRITE, not a missing attribute
         rows = 10
         resumed = False
         seams = 0
@@ -808,3 +809,54 @@ def test_a_short_file_is_INVALID_and_STILL_CARRIES_ITS_DIGEST():
     ev = _pull(_manifest(short=["ACC.REC: declared 1763, got 900 bytes — left as ACC.REC.part"], ok=False))
     assert ev.validation == ae.INVALID
     assert ev.artifact_sha256 == _compose([("ACC.REC", _SHA_ACC)])
+
+
+# ── the OWNED SET: a sibling file carries no envelope, so the primary's envelope names it ─────────
+
+
+def test_a_writer_s_SIBLING_FILES_ARE_NAMED_by_the_envelope_that_describes_the_primary(tmp_path):
+    """One envelope describes one artifact, and the `hr` writer owns two files. A reader holding the
+    primary's envelope could not previously see that the `_RR.txt` beside it exists at all, so the
+    owned set travels by name. Driven through the production seam, because the point is that the
+    RUNNER passes it — an adapter keyword no caller fills is the defect this lane keeps finding."""
+    import datetime as dt
+
+    import capture
+
+    started = dt.datetime(2026, 10, 21, 3, 15, 0)
+    path = str(tmp_path / "Polar_H10_H10-01_20261021031500_HR.txt")
+    wr = writers.StreamWriter(path, "hr", fsync=False)
+    wr.write_hr(started, 1_000_000_000, 60, [1000])
+    rr_path = str(tmp_path / "Polar_H10_H10-01_20261021031500_RR.txt")
+    # the device clock fed above opens the seam sidecar, so this writer owns THREE files — the two
+    # siblings are the RR file PSL splits into and the seam sidecar, and both are named below
+    seams_path = str(tmp_path / "Polar_H10_H10-01_20261021031500_HRSEAMS.txt")
+    assert rr_path in wr.paths, "the writer must own the sibling for this test to mean anything"
+    wr.close()
+
+    capture._emit_polar_live_evidence("H10", {"device_id": "H10-01"}, started, wr, None)
+
+    blob = json.loads((tmp_path / (wr.path.split("/")[-1] + ".meta.json")).read_text())
+    ev = blob["acquisition_evidence"]
+    assert ev["provenance"]["sibling_artifacts"] == [rr_path, seams_path]
+    # the PRIMARY is dropped: the envelope around this key already names it, and repeating it there
+    # would read as a second artifact this envelope describes
+    assert wr.path not in ev["provenance"]["sibling_artifacts"]
+    assert ev["artifact_path"] == wr.path
+    # §4/§8 · NAMING IS NOT CLAIMING. Nothing about the sibling is asserted as acquired: the counts,
+    # the clock word and the completeness all still describe the primary alone. The `hr` writer
+    # DERIVES its RR rows from the HR rows it received, so an acquisition claim there would name a
+    # stream the link never carried.
+    assert ev["sample_count"] == 1, "one HR row, not two files' worth of rows"
+    assert ev["clock_status"] == polar.clock_status_for("hr")
+    assert ev["provenance"]["stream"] == "hr"
+    assert "rr" not in ev["signal"]
+
+
+def test_an_EMPTY_owned_set_and_an_UNASKED_one_are_DIFFERENT_answers():
+    """§5, over a list rather than a count. A writer owning no sibling MEASURED that and `[]` is the
+    honest answer; a caller that passed no list measured nothing and gets `None`. Collapsing the two
+    would let an unwired caller read as a writer that owns one file."""
+    only_child = _ev(artifact_path="/n/x_ECG.txt", sibling_artifacts=["/n/x_ECG.txt"])
+    assert only_child.provenance["sibling_artifacts"] == []
+    assert _ev().provenance["sibling_artifacts"] is None

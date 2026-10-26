@@ -90,6 +90,7 @@ def assemble_live(
     seam_count: int | None = None,
     rows_lost: int | None = None,
     flush_failures: int | None = None,
+    sibling_artifacts: "list[str] | None" = None,
 ) -> ae.AcquisitionEvidence:
     """Normalize ONE live Polar stream artifact into an `AcquisitionEvidence`.
 
@@ -112,7 +113,16 @@ def assemble_live(
     neither is a packet that never arrived (`transport_gaps`) nor a packet that arrived and would not
     decode (`decode_gaps`). Filing either under a gap category would be a fabricated measurement wearing
     the shape of a real one, which §8 forbids. They travel in `provenance` under their own names, so
-    nothing is lost and nothing is misattributed."""
+    nothing is lost and nothing is misattributed.
+
+    ⚠️ `sibling_artifacts` NAMES THE FILES THIS WRITER OWNS THAT CARRY NO ENVELOPE OF THEIR OWN, AND IT
+    CLAIMS NO ACQUISITION FOR ANY OF THEM. One envelope describes one artifact, so the `hr` writer's
+    `_RR` file and any stream's `RUNS`/`SEAMS` sidecar were invisible to a reader holding only the
+    primary file's envelope. The caller passes `StreamWriter.paths`, which is every owned file; the
+    primary is dropped here because this envelope already describes it. The word is OWNERSHIP and
+    nothing more: the `hr` writer DERIVES its `_RR` rows from the HR rows it received, so an envelope
+    asserting an acquisition for that file would claim a stream the link never carried. `None` means
+    the caller passed no list (§5: unmeasured), and `[]` means a writer that owns no sibling."""
     clock_status = clock_status_for(stream)  # refuses a non-Polar stream before anything else is built
 
     # ── validation (§6): the live path verifies no bytes, it writes them. No hash, no re-read, no
@@ -177,6 +187,11 @@ def assemble_live(
             "flush_failures": flush_failures,
             "stopped_cleanly": stopped_cleanly,
             "negotiated_hz": negotiated_hz,
+            # see the docstring: ownership, never an acquisition claim. The primary is dropped because
+            # the envelope around this key already names it as `artifact_path`.
+            "sibling_artifacts": (
+                None if sibling_artifacts is None else [q for q in sibling_artifacts if q != artifact_path]
+            ),
         },
     )
 
