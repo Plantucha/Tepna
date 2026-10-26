@@ -18,7 +18,11 @@ FOUR OUTCOMES, never a bool (`mutation_diff`'s string-literal vocabulary one art
 
   · SIGNATURE_ONLY — a signature-reading reference and NO call that omits the parameter. The defect.
   · OBSERVABLE     — at least one call omits the parameter, so the default runs and a mutant is reachable.
-  · UNCOVERED      — no test references the function at all, or every call passes the parameter.
+  · UNCOVERED      — no TEST references the function, or every test call passes the parameter. The
+                     refs come from the test corpus alone, so a PRODUCTION call that omits the
+                     parameter is unseen, and so is a test that reaches the default THROUGH
+                     production code. UNCOVERED is a statement about test call sites, never a
+                     statement that no test would detect a change to the value.
   · UNDECIDABLE    — a static scan is outside its competence here: a `*args` / `**kwargs` splat at the
                      call, a bare-name reference handed somewhere as a callback, or a function name
                      defined in more than one production module. REFUSE, never guess (§∅).
@@ -272,7 +276,7 @@ def classify(entry: dict, refs: dict, ambiguous: bool) -> dict:
         # Two production modules define this name, so no reference can be attributed to one of them.
         return {"outcome": UNDECIDABLE, "reason": "ambiguous-name"}
     if not referenced:
-        # Ambiguous or not, nothing mentions the name, so nothing exercises the default.
+        # Ambiguous or not, no TEST mentions the name. A production call may still run the default.
         return {"outcome": UNCOVERED, "reason": "never referenced"}
     omitted = 0
     passed = 0
@@ -432,9 +436,9 @@ def format_report(result: dict) -> str:
     counts = result["counts"]
     lines = [
         f"▸ {GATE} — {len(result['rows'])} literal default(s) over {result['modules']} function(s) that carry one",
-        f"  {SIGNATURE_ONLY:<14} {counts[SIGNATURE_ONLY]:>4}   ← the defect: no call omits the parameter",
+        f"  {SIGNATURE_ONLY:<14} {counts[SIGNATURE_ONLY]:>4}   ← the defect: no test call omits it",
         f"  {OBSERVABLE:<14} {counts[OBSERVABLE]:>4}   a call omits it, so a mutant runs",
-        f"  {UNCOVERED:<14} {counts[UNCOVERED]:>4}   no test exercises the default",
+        f"  {UNCOVERED:<14} {counts[UNCOVERED]:>4}   no test CALL omits it — an indirect reach is unseen",
         f"  {UNDECIDABLE:<14} {counts[UNDECIDABLE]:>4}   outside a static scan's competence",
         "",
     ]
