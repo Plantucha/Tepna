@@ -302,7 +302,24 @@ def test_the_runtime_file_is_surveyed_through_main_and_every_row_names_its_file(
     # A row attributed to the wrong half sends the reader to the wrong install command.
     assert not any("cryptography" in ln for ln in dev_rows)
     assert not any("mutmut" in ln for ln in runtime_rows)
+    # Both halves reach the summary line. A run that overwrote the accumulator per file would render
+    # every row above and still count the last file alone here.
+    note_line = out.split(f"{D.TOKEN}-note=")[1].splitlines()[0]
+    assert note_line.startswith(f"{len(runtime_rows) + len(dev_rows)} floor(s) read, ")
     assert rc == D.RC[D.BELOW]
+
+
+def test_both_declaring_files_add_into_one_population(capsys, monkeypatch):
+    """The per-file render reads `file_rows` directly, so only the token line and the note observe the
+    accumulator. One row and one unreadable line per file give a population of two of each, and a run
+    that assigned instead of extending would report one of each."""
+    monkeypatch.setattr(D, "survey", lambda text, lookup=None: ([("ruff", ">=", "1.0", "1.0", D.MET)], ["foo<2"]))
+    rc = D.main([])
+    out = capsys.readouterr().out
+    note_line = out.split(f"{D.TOKEN}-note=")[1].splitlines()[0]
+    assert note_line.startswith(f"{len(D.REQS)} floor(s) read, {len(D.REQS)} met,")
+    assert f"{len(D.REQS)} line(s) not understood" in note_line
+    assert rc == D.RC[D.NOT_COMPARABLE]
 
 
 def test_one_unread_file_still_compares_the_other_and_the_run_says_which(capsys, monkeypatch):
