@@ -22,13 +22,32 @@
  *   unanchored   the row names no identifier that occurs anywhere in the file — the pointer cannot be
  *                judged (the row cites by line ALONE, which is the class the residue names); not drift
  *   beyond-eof   the file is shorter than the cited line — the pointer cannot resolve at all
- *   missing-file the path resolves nowhere (tried as given, then under capture-host/)
+ *   missing-file the path resolves nowhere, AND this repo can be shown to relate to it — its
+ *                history carries one of the tried spellings, or a tracked file has that basename
+ *   off-tree     the path resolves nowhere, no spelling of it appears anywhere in this repo's
+ *                history, and no tracked file carries its basename — so this repo never held it
  * The identifiers are the ROW'S, never a guess of this tool's: a citation is judged against what its
  * author wrote beside it, so "anchored" means the author's own words still hold at that line.
  *
  * Every verdict but `anchored` is printed WITH ITS ROW KEY, because a count names nothing a reader
  * can chase. `unanchored` was a bare integer and `beyond-eof` had no field at all until row
  * 2026-10-26-the-unanchored-class-is-counted-and-never-named.
+ *
+ * `off-tree` splits a bin that used to hold two unlike things (row
+ * 2026-10-26-the-missing-file-bin-counts-paths-this-repo-never-carried). A row may cite the Python
+ * standard library, an installed package or a vendor daemon config, and such a path resolves nowhere
+ * for the same reason a deleted repo file does. The first is not this repo's defect and the second
+ * is. The split is decided by EVIDENCE, never by a list of external names: `git log --all` over the
+ * same spellings the reader tried answers "did this repo ever carry it", and the tracked basenames
+ * answer "is this a repo file cited under the wrong directory". A list of external prefixes would
+ * age, and a basename rule alone misbins both ways — measured on the 17 citations of 2026-10-26, a
+ * suffix rule catching `Data Unifier.html` for `Unifier.html` also claims `ecg_parity_harness.py`
+ * for bleak's `harness.py`.
+ *
+ * ∅ THE PROBE IS A MEASUREMENT AND ITS ABSENCE IS NOT A CLEAN ANSWER. A caller that passes no
+ * provenance probe, and a shallow clone whose history cannot answer, both leave every unresolved
+ * path in `missing-file`, which is the class that still decides `--strict`. Nothing becomes
+ * `off-tree` unless the history was read and came back empty.
  *
  * ADVISORY: exits 0 and prints the list. `--strict` exits 1 on the three classes this file ranks as
  * defects — `missing-file`, `unanchored`, `beyond-eof` — and never on `moved`. A row's line hint
@@ -40,7 +59,7 @@
  *   node tools/residue-cite-drift.mjs                 # every row, against origin/main
  *   node tools/residue-cite-drift.mjs --ref HEAD      # against the checkout's HEAD
  *   node tools/residue-cite-drift.mjs --json
- *   node tools/residue-cite-drift.mjs --selftest      # the plants: moved · anchored · unanchored · eof · missing
+ *   node tools/residue-cite-drift.mjs --selftest      # the plants: moved · anchored · unanchored · eof · missing · off-tree
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -157,9 +176,12 @@ export function judge(cite, fileLines, ids) {
   return { verdict: 'unanchored', tried: ids.length, specific: specific.length };
 }
 
-function readAt(ref, relPath) {
-  // The ledger cites paths from wherever its author stood: repo root, capture-host/, tools/, briefs/…
-  const tryPaths = [
+/* The ledger cites paths from wherever its author stood: repo root, capture-host/, tools/, briefs/…
+   ONE list, read by the resolver AND by the history probe. Two lists would let the probe ask about
+   spellings the reader never tried, and a path absent from history under the probe's spellings would
+   then score `off-tree` while the reader had looked somewhere else entirely. */
+export function trySpellings(relPath) {
+  return [
     relPath,
     `capture-host/${relPath}`,
     `tools/${relPath}`,
@@ -171,6 +193,10 @@ function readAt(ref, relPath) {
     `.claude/hooks/${relPath}`,
     `.github/workflows/${relPath}`
   ];
+}
+
+function readAt(ref, relPath) {
+  const tryPaths = trySpellings(relPath);
   for (const p of tryPaths) {
     try {
       if (ref === 'worktree') {
@@ -186,6 +212,20 @@ function readAt(ref, relPath) {
   return null;
 }
 
+/* ONE UNRESOLVED PATH, TWO UNLIKE THINGS, AND THE EVIDENCE DECIDES WHICH. `prov` is what a
+   provenance probe returned for this path: `carried` is whether ANY tried spelling appears in this
+   repo's history, and `candidates` are tracked files sharing its basename. ∅ `carried === null` is
+   the question nobody could ask — no probe, or a shallow clone — and it keeps the citation in
+   `missing-file`, the class that decides `--strict`. Only a history that was READ and came back
+   empty, with no basename candidate either, may move a citation out of the defect sum. */
+export function binMissing(prov) {
+  if (!prov || prov.carried === null || prov.carried === undefined) return { verdict: 'missing-file', why: 'the provenance probe did not run, so this path is judged as rot' };
+  if (prov.carried) return { verdict: 'missing-file', why: `this repo's history carries ${prov.at || 'this path'}` };
+  const candidates = prov.candidates || [];
+  if (candidates.length) return { verdict: 'missing-file', why: `a tracked file carries this basename: ${candidates.slice(0, 3).join(', ')}`, candidates };
+  return { verdict: 'off-tree', why: 'no spelling of this path is in the history and no tracked file carries its basename' };
+}
+
 /* THE EXIT CODE READS THE CLASSES THIS FILE RANKS AS DEFECTS. `--strict` read `r.moved.length`
    alone, which inverted the ordering stated in the header: a moved hint is advisory, and §📌 forbids
    editing a row cell, so nobody may repair one where it sits — the flag's green was unreachable
@@ -195,8 +235,14 @@ export function strictFailures(r) {
   return r.missing.length + r.unanchored.length + r.beyondEof.length;
 }
 
-export function sweep(rows, reader) {
+export function sweep(rows, reader, provenance = null) {
   const cache = new Map();
+  const provCache = new Map();
+  const prov = (q) => {
+    if (!provenance) return null;
+    if (!provCache.has(q)) provCache.set(q, provenance(q));
+    return provCache.get(q);
+  };
   const lines = (p) => {
     if (!cache.has(p)) cache.set(p, reader(p));
     return cache.get(p);
@@ -205,15 +251,19 @@ export function sweep(rows, reader) {
      at all, so the two verdicts a reader must act on were the two the report could not locate (row
      2026-10-26-the-unanchored-class-is-counted-and-never-named). `anchored` stays a count, because a
      pointer that still points names nothing to chase. */
-  const report = { rows: rows.length, citations: 0, byVerdict: {}, moved: [], unanchored: [], beyondEof: [], missing: [] };
+  const report = { rows: rows.length, citations: 0, byVerdict: {}, moved: [], unanchored: [], beyondEof: [], missing: [], offTree: [], provenanceProbe: provenance ? 'read' : 'not-run' };
   for (const row of rows) {
     const ids = identifiers(row.text);
     for (const c of citations(row.text)) {
       report.citations++;
-      const j = judge(c, lines(c.path), ids);
+      const j0 = judge(c, lines(c.path), ids);
+      /* The judgement is pure and reads a file; the SPLIT of its missing bin reads the repo, so it
+         happens here, where the probe lives. `byVerdict` counts the final class. */
+      const j = j0.verdict === 'missing-file' ? { ...j0, ...binMissing(prov(c.path)) } : j0;
       report.byVerdict[j.verdict] = (report.byVerdict[j.verdict] || 0) + 1;
       if (j.verdict === 'moved') report.moved.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, now: j.now });
-      else if (j.verdict === 'missing-file') report.missing.push({ key: row.key, cite: `${c.path}:${c.line}` });
+      else if (j.verdict === 'missing-file') report.missing.push({ key: row.key, cite: `${c.path}:${c.line}`, why: j.why });
+      else if (j.verdict === 'off-tree') report.offTree.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, why: j.why });
       else if (j.verdict === 'beyond-eof') report.beyondEof.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, length: j.length });
       else if (j.verdict === 'unanchored') report.unanchored.push({ key: row.key, state: row.state, cite: `${c.path}:${c.line}`, tried: j.tried, specific: j.specific });
     }
@@ -305,6 +355,62 @@ function selftest() {
       return Boolean(line) && line.includes('strictN') && !line.includes('moved');
     })()
   );
+  /* ── THE MISSING BIN SPLITS BY EVIDENCE (row
+     2026-10-26-the-missing-file-bin-counts-paths-this-repo-never-carried) ──────────────────────
+     Every leg below is pure: the probe is a literal, so the selftest reads no git and no corpus. */
+  check(
+    '∅ no probe at all — the citation stays a defect, and the reason says the probe did not run',
+    (() => {
+      const b = binMissing(null);
+      return b.verdict === 'missing-file' && /did not run/.test(b.why);
+    })()
+  );
+  check('∅ a shallow clone answers `null`, which is NOT `false` — the citation stays a defect', binMissing({ carried: null, candidates: [] }).verdict === 'missing-file');
+  check(
+    'a path this repo once carried is rot, and the reason names where the history saw it',
+    (() => {
+      const b = binMissing({ carried: true, candidates: [], at: 'Unifier.html (9d93ca3a)' });
+      return b.verdict === 'missing-file' && b.why.includes('Unifier.html (9d93ca3a)');
+    })()
+  );
+  check(
+    'a tracked basename makes it a repo file cited under the wrong directory, and the reason names the candidate',
+    (() => {
+      const b = binMissing({ carried: false, candidates: ['analysis/published-numbers/hat.json'] });
+      return b.verdict === 'missing-file' && b.why.includes('analysis/published-numbers/hat.json');
+    })()
+  );
+  check('ONLY a history that was read and came back empty, with no candidate, scores off-tree', binMissing({ carried: false, candidates: [] }).verdict === 'off-tree');
+  {
+    /* Two citations, one of each kind, through the whole sweep. */
+    const two = parseRows(
+      '| 2026-09-05-ext | 2026-09-05 | `mutmut` | the installed `runner` at mutmut/__main__.py:1556 | ok | OPEN |\n' +
+        '| 2026-09-20-rot | 2026-09-20 | `gone.py` | the deleted `helper` at gone.py:4 | ok | OPEN |'
+    );
+    const probe = (q) => (q === 'gone.py' ? { carried: true, candidates: [], at: 'gone.py (abc1234)' } : { carried: false, candidates: [] });
+    const r2 = sweep(two, () => null, probe);
+    check('a sweep WITH the probe splits the bin and keeps only the repo-related half in the sum', r2.byVerdict['off-tree'] === 1 && r2.byVerdict['missing-file'] === 1 && strictFailures(r2) === 1);
+    check('an off-tree citation is NAMED — key and cite, never a bare count', r2.offTree.length === 1 && r2.offTree[0].key === '2026-09-05-ext' && r2.offTree[0].cite === 'mutmut/__main__.py:1556');
+    check('the report says whether the probe ran at all', r2.provenanceProbe === 'read');
+    /* CONTROL, and it is the whole fail-closed claim: the SAME rows with no probe keep both
+       citations in the defect sum. Without this leg the split could pass by emptying the sum. */
+    const r3 = sweep(two, () => null);
+    check(
+      'CONTROL · the same sweep with NO probe leaves both citations as defects',
+      r3.byVerdict['missing-file'] === 2 && r3.byVerdict['off-tree'] === undefined && strictFailures(r3) === 2 && r3.provenanceProbe === 'not-run'
+    );
+  }
+  check(
+    'ONE list of spellings serves the reader and the probe',
+    (() => {
+      const sp = trySpellings('x.py');
+      const src2 = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+      /* A second hand-written prefix list is the failure this leg exists for: the probe would then
+       ask about spellings the reader never tried. Count the CONSTRUCTION, not the mentions. */
+      const built = (src2.match(/`capture-host\/\$\{relPath\}`/g) || []).length;
+      return sp[0] === 'x.py' && sp.includes('capture-host/x.py') && sp.length === 10 && built === 1;
+    })()
+  );
   check(
     'each file is read once per sweep (cache)',
     (() => {
@@ -324,12 +430,64 @@ function selftest() {
   console.log(`all ${ran} selftests passed`);
 }
 
+/* THE PROBE, AND IT FAILS CLOSED TWICE. A shallow clone cannot answer "did this repo ever carry
+   it", so it returns `carried: null` and every unresolved path stays a defect — the same discipline
+   `tools/commit-shape.mjs` applies, and the reason CI's `fetch-depth: 0` is load-bearing. A git
+   invocation that throws returns `null` for the same reason. The basenames come from the REF being
+   judged, so the two halves of the answer describe one tree. */
+function repoProvenance(ref) {
+  const git = (args) => execFileSync('git', args, { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 });
+  let shallow = true;
+  let tracked = [];
+  try {
+    shallow = git(['rev-parse', '--is-shallow-repository']).trim() === 'true';
+    tracked = (ref === 'worktree' ? git(['ls-files']) : git(['ls-tree', '-r', '--name-only', ref])).split('\n').filter(Boolean);
+  } catch {
+    return { probe: null, reason: 'git could not be read' };
+  }
+  if (shallow) return { probe: null, reason: 'the clone is shallow, so its history cannot answer whether a path ever existed' };
+  const byBase = new Map();
+  for (const f of tracked) {
+    const b = f.slice(f.lastIndexOf('/') + 1);
+    if (!byBase.has(b)) byBase.set(b, []);
+    byBase.get(b).push(f);
+  }
+  const probe = (relPath) => {
+    const specs = trySpellings(relPath);
+    const base = relPath.slice(relPath.lastIndexOf('/') + 1);
+    const candidates = byBase.get(base) || [];
+    let hit = '';
+    try {
+      hit = git(['log', '--all', '--format=%h', '-1', '--', ...specs]).trim();
+    } catch {
+      return { carried: null, candidates };
+    }
+    if (!hit) return { carried: false, candidates };
+    /* Name the spelling, not just the commit — a reader who cannot see WHICH of the ten matched
+       cannot check the answer. Only a path the history knows pays for this second pass. */
+    let at = `a commit (${hit})`;
+    for (const sp of specs) {
+      try {
+        if (git(['log', '--all', '--format=%h', '-1', '--', sp]).trim()) {
+          at = `${sp} (${hit})`;
+          break;
+        }
+      } catch {
+        /* this spelling could not be asked about — try the next */
+      }
+    }
+    return { carried: true, candidates, at };
+  };
+  return { probe, reason: null };
+}
+
 function main() {
   if (has('--selftest')) return selftest();
   const ref = arg('--ref', 'origin/main');
   const ledger = fs.readFileSync(path.join(REPO, 'briefs', 'RESIDUE.md'), 'utf8');
   const rows = parseRows(ledger);
-  const r = sweep(rows, (p) => readAt(ref, p));
+  const { probe, reason: probeReason } = repoProvenance(ref);
+  const r = sweep(rows, (p) => readAt(ref, p), probe);
   if (has('--json')) {
     console.log(JSON.stringify({ ref, ...r }, null, 2));
   } else {
@@ -351,9 +509,16 @@ function main() {
         );
     }
     if (r.missing.length) {
-      console.log(`\n  MISSING FILE — the path resolves nowhere under ${ref} (renamed, deleted, or cited from another tree):`);
-      for (const m of r.missing) console.log(`    ${m.cite}  (${m.key})`);
+      console.log(`\n  MISSING FILE — the path resolves nowhere under ${ref}, and this repo can be shown to relate to it:`);
+      for (const m of r.missing) console.log(`    ${m.cite}  (${m.key})  →  ${m.why}`);
     }
+    if (r.offTree.length) {
+      console.log(
+        `\n  OFF TREE (${r.offTree.length}) — the path resolves nowhere, no spelling of it appears in this repo's history, and no tracked file carries its basename. A row may cite the standard library, an installed package or a vendor config; such a pointer is not a defect in THIS repo, and it does not decide --strict:`
+      );
+      for (const o of r.offTree) console.log(`    ${o.cite}  (${o.key}, ${o.state})`);
+    }
+    if (probeReason) console.log(`\n  ⚠ provenance probe NOT RUN — ${probeReason}. Every unresolved path is judged as rot, which is the fail-closed reading.`);
     if (r.beyondEof.length) {
       console.log(`\n  BEYOND EOF — the cited line is past the end of the file, so the pointer cannot resolve at all:`);
       for (const b of r.beyondEof) console.log(`    ${b.cite}  (${b.key}, ${b.state})  →  the file is ${b.length} line(s) long`);
@@ -369,7 +534,7 @@ function main() {
   const strictN = strictFailures(r);
   if (has('--strict') && strictN)
     console.log(
-      `\n  --strict: ${strictN} citation(s) in the classes this tool ranks as defects (missing-file ${r.missing.length} · unanchored ${r.unanchored.length} · beyond-eof ${r.beyondEof.length}). The ${r.moved.length} moved hint(s) do not decide this exit.`
+      `\n  --strict: ${strictN} citation(s) in the classes this tool ranks as defects (missing-file ${r.missing.length} · unanchored ${r.unanchored.length} · beyond-eof ${r.beyondEof.length}). The ${r.moved.length} moved hint(s) and the ${r.offTree.length} off-tree citation(s) do not decide this exit.`
     );
   process.exit(has('--strict') && strictN ? 1 : 0);
 }
