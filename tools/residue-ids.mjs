@@ -485,6 +485,39 @@ export function prOf(subject, sha) {
  * @param {Map<string, string>} addedBy
  * @returns {Map<string, string[]>} key → PR numbers (or short shas), newest first; keys with no lead are absent
  */
+/**
+ * Pure. THE LEDGER-INTERNAL READ: which rows CITE an open key inside their own cells.
+ *
+ * `namedByCode` reads the log, so it finds a row whose answer landed as CODE. It cannot see the
+ * other half, measured 2026-10-25 over the 17 OPEN `capture-host`-sourced rows: four of them keep
+ * their box measurement inside `2026-10-12-six-undecidable-rows-get-their-box-measurement`, a row
+ * that itself reads `answered #3466`, so a picker scanning for OPEN rows never reaches it. The
+ * mechanism is the ledger's own rule — a measurement may enter the row it is about only when it
+ * moves that row's state, and every other measurement becomes a NEW row.
+ *
+ * A citing row's STATE says nothing about whether it holds the answer, so both states are reported
+ * and neither is a verdict. This is a reading order, exactly like a code lead.
+ *
+ * @param {string[]} keys  the OPEN keys to look up
+ * @param {ReturnType<typeof parseRows>} rows  every row at the ref
+ * @returns {Map<string, Array<{id: string, state: string}>>}
+ */
+export function citedBy(keys, rows) {
+  const want = new Set(keys);
+  /** @type {Map<string, Array<{id: string, state: string}>>} */
+  const out = new Map();
+  for (const r of rows) {
+    for (const k of String(r.key ?? '').match(KEY_RE) ?? []) {
+      // the row's own id opens its first cell, and a row does not cite itself
+      if (k === r.id || !want.has(k)) continue;
+      if (!out.has(k)) out.set(k, []);
+      const list = out.get(k);
+      if (!list.some((e) => e.id === r.id)) list.push({ id: r.id, state: r.state });
+    }
+  }
+  return out;
+}
+
 export function namedByCode(keys, commits, addedBy) {
   const out = new Map();
   for (const k of keys) {
@@ -524,6 +557,9 @@ export function pickupVerdict(drift, ctx) {
       /* Informational, never part of the status: a lead is not a close. `null` when the code read
          did not run (the verdict sample, or a git log this tree could not read). */
       openNamedByCode: Number.isInteger(ctx.namedByCode) ? ctx.namedByCode : null,
+      /* Informational in the same way, and NOT gated on git: the citing read is pure, so this
+         counts OPEN rows that another ROW names, whatever that row's own state says. */
+      openCitedByRow: Number.isInteger(ctx.citedBy) ? ctx.citedBy : null,
       behindCommits: ctx.behind,
       base: ctx.base
     },
@@ -618,6 +654,9 @@ function main() {
       commit = null;
     }
     const drift = pickupDrift(refText, diskText);
+    /* THE LEDGER-INTERNAL READ. Pure, so it runs in every mode: a row's answer may sit in another
+       row, and that row's own state cell may already read closed. */
+    const cites = citedBy(drift.openOnRef, parseRows(refText));
     /* THE CODE READ. Bounded by the oldest OPEN key's date, less one day for the zone: a commit cannot
        name a key before the day it was coined. A git failure leaves `leads` null and says so. */
     let leads = null;
@@ -636,23 +675,32 @@ function main() {
         leads = null;
       }
     }
-    const v = pickupVerdict(drift, { behind, base, commit, namedByCode: leads === null ? null : leads.size });
+    const v = pickupVerdict(drift, { behind, base, commit, namedByCode: leads === null ? null : leads.size, citedBy: cites.size });
     if (sample) {
       process.stdout.write(`${JSON.stringify(v)}\n`);
       process.exit(0);
     }
     if (asJson) {
-      process.stdout.write(`${JSON.stringify({ verdict: v, ...drift, namedByCode: leads === null ? null : Object.fromEntries(leads) }, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify({ verdict: v, ...drift, namedByCode: leads === null ? null : Object.fromEntries(leads), citedBy: Object.fromEntries(cites) }, null, 2)}\n`);
       process.exit(v.status === 'PASS' ? 0 : 1);
     }
     process.stdout.write(`residue-pickup: ${drift.openOnRef.length} OPEN row(s) at ${base}${behind === null ? '' : ` (this tree is ${behind} commit(s) behind it)`}\n`);
-    for (const k of drift.openOnRef) process.stdout.write(`  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}\n`);
+    for (const k of drift.openOnRef)
+      process.stdout.write(
+        `  ${k}${leads?.has(k) ? `  ← named by code: ${leads.get(k).join(', ')}` : ''}` +
+          `${cites.has(k) ? `  ← cited by row: ${cites.get(k).map((e) => `${e.id} [${e.state}]`).join(', ')}` : ''}\n`
+      );
     if (leads === null) process.stdout.write('\nresidue-pickup: the code read did not run (git log was not readable), so no row carries a lead\n');
     else
       process.stdout.write(
         `\nresidue-pickup: ${leads.size} of the ${drift.openOnRef.length} OPEN row(s) are named by a later commit that changed code. ` +
           'Read those PRs before you size the row: the fix may have landed. A lead is not a close.\n'
       );
+    process.stdout.write(
+      `residue-pickup: ${cites.size} of the ${drift.openOnRef.length} OPEN row(s) are named by ANOTHER ROW. ` +
+        'Read those rows too, including the ones that already read closed: a measurement that does not move a ' +
+        "row's state becomes a new row, so a row's answer often sits outside it.\n"
+    );
     if (v.status === 'PASS') {
       process.stdout.write(`\nresidue-pickup: the file on disk agrees with ${base} on all ${drift.checked} shared row(s)\n`);
     } else {
@@ -964,6 +1012,37 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     assert(pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234', namedByCode: 3 }).result.openNamedByCode === 3, 'the verdict carries the lead count');
     const pv0 = pickupVerdict(d0, { behind: 0, base: 'b', commit: 'abc1234' });
     assert(pv0.result.openNamedByCode === null && pv0.status === 'PASS', 'no code read is null, never 0, and a lead never moves the status');
+  }
+
+  /* THE LEDGER-INTERNAL READ — one plant per condition, and a control for each way it could
+     over-report: a row citing nobody, a row citing itself, and a longer key sharing a prefix. */
+  {
+    const OPEN_KEY = '2026-10-20-bar';
+    const LONGER = '2026-10-20-bar-baz';
+    const text = [
+      row(OPEN_KEY, 'the defect', 'OPEN'),
+      row(LONGER, 'a different defect', 'OPEN'),
+      row('2026-10-21-citer-open', `this measures ${OPEN_KEY}`, 'OPEN'),
+      row('2026-10-21-citer-closed', `this answers ${OPEN_KEY}`, 'answered #3466'),
+      row('2026-10-21-citer-of-the-longer', `this measures ${LONGER}`, 'fixed #1'),
+      row('2026-10-21-cites-nobody', 'an unrelated defect', 'OPEN')
+    ].join('\n');
+    const rowSet = parseRows(text);
+    const c = citedBy([OPEN_KEY, LONGER], rowSet);
+    assert(
+      c.get(OPEN_KEY)?.map((e) => `${e.id}=${e.state}`).join(',') === '2026-10-21-citer-open=OPEN,2026-10-21-citer-closed=answered #3466',
+      'a citing row is reported with its own state, closed or not, in ledger order'
+    );
+    assert(
+      c.get(LONGER)?.map((e) => e.id).join() === '2026-10-21-citer-of-the-longer',
+      'a key sharing a prefix takes only the rows that name it in full'
+    );
+    assert(!c.has('2026-10-21-cites-nobody') && !c.has('2026-10-21-citer-open'), 'only the keys asked for are reported, and a row citing nobody appears nowhere');
+    assert(citedBy([OPEN_KEY], [rowSet[0]]).size === 0, 'a row does not cite itself through its own id cell');
+    assert(citedBy([], rowSet).size === 0, 'no keys asked, nothing reported');
+    const pvc = pickupVerdict(pickupDrift(text, text), { behind: 0, base: 'b', commit: 'abc1234', citedBy: 2 });
+    assert(pvc.result.openCitedByRow === 2 && pvc.status === 'PASS', 'the verdict carries the citing count, which never moves the status');
+    assert(pickupVerdict(pickupDrift(text, text), { behind: 0, base: 'b', commit: 'abc1234' }).result.openCitedByRow === null, 'an absent citing read is null, never 0');
   }
 
   /* BLACK BOX: the CLI in a scratch repo. Commit 1 adds the row in a code commit that names it (a
