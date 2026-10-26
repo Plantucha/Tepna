@@ -53,7 +53,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
-import { intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { NIGHT_RE, intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = 'tools/tch-fused-corpus.mjs';
@@ -238,6 +238,12 @@ const f2 = (x) => (x == null ? '  —  ' : x.toFixed(2).padStart(5));
 
 function main() {
   const argv = process.argv.slice(2);
+  /* Before the `--dir` refusal below: the sample needs no corpus, so demanding one would make the
+     adoption gate depend on a volume CI does not mount. */
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(), null, 2));
+    return;
+  }
   const dirI = argv.indexOf('--dir');
   if (dirI < 0 || !argv[dirI + 1]) {
     console.error('usage: node tools/tch-fused-corpus.mjs --dir <corpus> [--json]');
@@ -328,4 +334,30 @@ function main() {
    SILENT SKIP or a killed parent, never as a red. No importer exists for this file today (verified:
    0 real `import` statements repo-wide, the apparent hits being prose that names it), so this is
    PREVENTIVE — the guard costs one line and the absence costs a debugging session. */
+
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS. Two identical fabricated snapshots, so the object
+   is complete, the movement criterion is met, and no corpus is touched — CI mounts none
+   (`docs/VERDICT-CONTRACT.md`: an `emits.cmd` must be cheap and corpus-free). The rule below is the
+   rule this tool really walks with, so the sample cannot claim a population shape the run does not
+   use. */
+function verdictSample() {
+  const at = '2026-10-26T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: [TOOL] });
+}
+
 if (isCliEntry(import.meta.url)) main();
