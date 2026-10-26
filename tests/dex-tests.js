@@ -14326,11 +14326,18 @@
     group('the trio night key reads the first data row, and says when it could not', 'sensor-trio · night-key · §🔒', function (T) {
       /* `classifierPin` is the one literal the repair must NOT have touched: for the first two pages
          capture-host `test_the_tool_classifiers_accept_box_filenames` extracts exactly this regex from
-         the `classify` body and runs the box's real filenames through it. */
+         the `classify` body and runs the box's real filenames through it.
+         `sliceEnd` is the first line AFTER the pure reader. It is per page because the reader's
+         neighbour differs: the three trio pages carry `hashStr` next, `pat-feasibility.js` does not. */
       var PAGES = [
         { file: 'sensor-trio-night.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
         { file: 'sensor-trio-power-analysis.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
-        { file: 'sigma-no-reference-analysis.js', bucket: 'NIGHTS_IDX', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' }
+        { file: 'sigma-no-reference-analysis.js', bucket: 'NIGHTS_IDX', classify: 'classify', classifierPin: '/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\\d{14})(?:_SPO2)?\\.csv$/i' },
+        /* THE FOURTH PAGE, and the one the 2026-10-12 census never read. It keys a night exactly as the
+           three above do and its own comment cites `sensor-trio-power-analysis.js` as the rule it
+           copied — the rule that was repaired under this residue while the copy here was not. It is a
+           SERVED page (`tools/build-analysis.mjs TOOLS`), so the defect was live, not dormant. */
+        { file: 'pat-feasibility.js', bucket: 'NIGHTS', classify: 'classify', classifierPin: '/_(\\d{8})_?(\\d{6})_ECG\\.txt$/i', sliceEnd: '  function nightKeyOf(stamp) {' }
       ];
       var executed = 0;
       PAGES.forEach(function (P) {
@@ -14383,7 +14390,7 @@
 
         /* ── the reader itself, executed ──────────────────────────────────────────────────────────── */
         var a = page.indexOf('  const ROW_SCAN_BYTES'),
-          b = page.indexOf('  function hashStr(s) {');
+          b = page.indexOf(P.sliceEnd || '  function hashStr(s) {');
         T.ok('the pure reader is sliceable out of the page' + tag, a >= 0 && b > a, 'the slice markers moved — update this group with them');
         if (!(a >= 0 && b > a)) return;
         var pure = page.slice(a, b).replace(/async function firstRowTMs[\s\S]*?\n  }\n/, '');
@@ -14428,7 +14435,7 @@
         executed++;
       });
       T.ok(
-        'ANTI-VACUITY · all three trio pages were sliced and executed',
+        'ANTI-VACUITY · all four night-keying pages were sliced and executed',
         executed === PAGES.length,
         'only ' + executed + ' of ' + PAGES.length + ' pages ran — a page whose reader will not slice or evaluate must RED, never pass by being skipped'
       );

@@ -105,6 +105,17 @@
             : null;
     return null;
   }
+  /* THE NIGHT A FILE BELONGS TO COMES FROM ITS FIRST DATA ROW, NOT ITS NAME.
+     The 14-digit stamp in the name is written when the capture host OPENS the session, before the
+     connect; the first data row is written when the recording actually started. This page is the
+     FOURTH trio page to key a night, and the only one the 2026-10-12 census never read: its own
+     comment below cites `sensor-trio-power-analysis.js` as the rule it copies, and that rule was
+     repaired under this residue (#3791) while the copy here was not. Ported verbatim from the three,
+     so `tests/dex-tests.js` can slice all four out of their pages and execute them against one table.
+     A file whose rows carry no stamp keeps the filename key and the ingest note says how many did,
+     because a fallback nobody can see is the defect this replaces (§∅). */
+  const ROW_SCAN_BYTES = 65536,
+    ROW_SCAN_LINES = 400;
   /* §2.7 — `Date.UTC` SILENTLY ROLLS an out-of-range component onto a real instant, so every field is
      range-checked first. The copy is deliberate. This page carries no `clock.js`, so `DexClock` is
      undefined here and a delegation would throw at evaluation (CLAUDE.md §👥.3). The rules read in
@@ -123,6 +134,59 @@
     if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000;
     if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
     return Date.UTC(Y, M - 1, D, h, mi, se, ms);
+  }
+  const _ISO_ROW = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/,
+    _RING_ROW = /(\d{2}):(\d{2}):(\d{2})\s+(\d{2})\/(\d{2})\/(\d{4})/;
+  /* The ring's CSV writes `HH:MM:SS DD/MM/YYYY` and the same vendor also ships MM/DD/YYYY, so §3
+     applies: a scanned row whose first date field exceeds 12 locks the order for the whole head,
+     and an all-ambiguous head takes the contract's DMY default. Never `new Date(str)`. */
+  function _rowTMs(text) {
+    const lines = text.split(/\r?\n/, ROW_SCAN_LINES);
+    let ringFirst = null,
+      dmy = true;
+    for (let i = 0; i < lines.length; i++) {
+      const m = _RING_ROW.exec(lines[i]);
+      if (!m) continue;
+      if (ringFirst == null) ringFirst = m;
+      if (+m[4] > 12) {
+        dmy = true;
+        break;
+      }
+      if (+m[5] > 12) {
+        dmy = false;
+        break;
+      }
+    }
+    for (let i = 0; i < lines.length; i++) {
+      const iso = _ISO_ROW.exec(lines[i]);
+      if (iso) {
+        const t = _mkTMs(+iso[1], +iso[2], +iso[3], +iso[4], +iso[5], +iso[6], +(iso[7] || 0));
+        if (t != null) return t;
+      }
+    }
+    if (ringFirst) {
+      const D = dmy ? +ringFirst[4] : +ringFirst[5],
+        M = dmy ? +ringFirst[5] : +ringFirst[4];
+      return _mkTMs(+ringFirst[6], M, D, +ringFirst[1], +ringFirst[2], +ringFirst[3], 0);
+    }
+    return null;
+  }
+  async function firstRowTMs(file) {
+    try {
+      const blob = file.slice(0, ROW_SCAN_BYTES);
+      const text = typeof blob.text === 'function' ? await blob.text() : null;
+      return text == null ? null : _rowTMs(text);
+    } catch (_e) {
+      return null;
+    }
+  }
+  // the same noon fold as nightKeyOf, over an instant instead of a 14-digit filename stamp
+  function nightKeyOfMs(tMs) {
+    const d = new Date(tMs);
+    let ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    if (d.getUTCHours() < 12) ms -= 86400000;
+    const b = new Date(ms);
+    return b.getUTCFullYear() + '-' + String(b.getUTCMonth() + 1).padStart(2, '0') + '-' + String(b.getUTCDate()).padStart(2, '0');
   }
   // sessions starting before noon fold into the PREVIOUS evening (floating civil time)
   function nightKeyOf(stamp) {
@@ -159,12 +223,14 @@
     return _mkTMs(+t.slice(0, 4), +t.slice(4, 6), +t.slice(6, 8), +t.slice(8, 10), +t.slice(10, 12), +t.slice(12, 14), 0);
   }
   /* the candidate whose session START is nearest to an anchor's — the hat's own rule (sensor-trio-power-analysis.js
-     `nearest`), applied here for the same reason */
+     `nearest`), applied here for the same reason. The comparison reads `.ms`, which the ingest set from
+     the first data row wherever one existed: comparing NAME stamps inside a bucket mis-picks a companion
+     even when every file landed on the right night, because the name can sit hours from the capture. */
   function nearestTo(a, anchorMs) {
     if (!a || !a.length) return null;
     if (anchorMs == null) return largest(a);
     return a.reduce(function (b, x) {
-      return Math.abs(stampMs(x.stamp) - anchorMs) < Math.abs(stampMs(b.stamp) - anchorMs) ? x : b;
+      return Math.abs(x.ms - anchorMs) < Math.abs(b.ms - anchorMs) ? x : b;
     });
   }
   /* ONE SESSION PER DEVICE PER NIGHT IS A PHONE-APP ASSUMPTION. The capture host writes one file per BLE
@@ -178,16 +244,16 @@
      already carry. A pair that still does not overlap is reported as such by the coupling step, as before. */
   function resolvePair(nt) {
     var e = largest(nt.cand.ecg),
-      eMs = e ? stampMs(e.stamp) : null,
+      eMs = e ? e.ms : null,
       p = nearestTo(nt.cand.ppg, eMs),
       ea = nearestTo(nt.cand.ecgacc, eMs),
-      pa = nearestTo(nt.cand.ppgacc, p ? stampMs(p.stamp) : eMs),
+      pa = nearestTo(nt.cand.ppgacc, p ? p.ms : eMs),
       er = nearestTo(nt.cand.ecgarr, eMs),
-      pr = nearestTo(nt.cand.ppgarr, p ? stampMs(p.stamp) : eMs),
+      pr = nearestTo(nt.cand.ppgarr, p ? p.ms : eMs),
       fg = nearestTo(nt.cand.finger, eMs),
       // the ring's sidecar is matched to the RING's own session, not to the ECG anchor: the ring runs its
       // own file-set and its session start is the thing its sidecar shares a stamp with.
-      rr = nearestTo(nt.cand.ringarr, fg ? stampMs(fg.stamp) : eMs);
+      rr = nearestTo(nt.cand.ringarr, fg ? fg.ms : eMs);
     nt.ecg = e ? e.file : null;
     nt.ppg = p ? p.file : null;
     nt.ecgAcc = ea ? ea.file : null;
@@ -201,24 +267,27 @@
     return !!(nt.ecg && nt.ppg);
   };
 
-  function ingestFiles(list) {
+  async function ingestFiles(list) {
     NIGHTS = {};
     RESULTS = {};
-    var impossibleStamp = 0;
+    var impossibleStamp = 0,
+      keyedByName = 0;
     for (var i = 0; i < list.length; i++) {
       var f = list[i],
         c = classify(f);
       if (!c) continue;
-      /* §∅ — a file whose name carries an impossible stamp is not indexed, and the status line says
-         how many were dropped. Bucketing it under a rolled date files a real capture on a night it
-         never happened, which is worse than leaving it out loudly. */
-      var nk = nightKeyOf(c.stamp);
+      const rowMs = await firstRowTMs(f);
+      if (rowMs == null) keyedByName++;
+      /* §∅ — a file whose NAME carries an impossible stamp and whose ROWS carry none is not indexed,
+         and the status line says how many were dropped. Bucketing it under a rolled date files a real
+         capture on a night it never happened, which is worse than leaving it out loudly. */
+      var nk = rowMs == null ? nightKeyOf(c.stamp) : nightKeyOfMs(rowMs);
       if (nk == null) {
         impossibleStamp++;
         continue;
       }
       var nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [], ringarr: [] } });
-      nt.cand[c.role].push({ file: f, stamp: c.stamp });
+      nt.cand[c.role].push({ file: f, stamp: c.stamp, ms: rowMs == null ? stampMs(c.stamp) : rowMs, stampSource: rowMs == null ? 'filename' : 'first-row' });
     }
     Object.keys(NIGHTS).forEach(function (k) {
       resolvePair(NIGHTS[k]);
@@ -229,7 +298,14 @@
         return eligible(NIGHTS[k]);
       }).length;
     setStatus(
-      keys.length + ' nights · ' + elig + ' eligible (from ' + list.length + ' files)' + (impossibleStamp ? ' · ' + impossibleStamp + ' not indexed (impossible filename stamp)' : ''),
+      keys.length +
+        ' nights · ' +
+        elig +
+        ' eligible (from ' +
+        list.length +
+        ' files)' +
+        (keyedByName ? ' · ' + keyedByName + ' keyed by filename (no row stamp)' : '') +
+        (impossibleStamp ? ' · ' + impossibleStamp + ' not indexed (impossible filename stamp)' : ''),
       keys.length ? 'idle' : 'idle'
     );
     var pb = el('run');
@@ -1518,11 +1594,11 @@
       dz = el('dropzone');
     if (fi)
       fi.addEventListener('change', function (e) {
-        ingestFiles(e.target.files);
+        void ingestFiles(e.target.files);
       });
     if (xi)
       xi.addEventListener('change', function (e) {
-        ingestFiles(e.target.files);
+        void ingestFiles(e.target.files);
       });
     if (dz) {
       dz.addEventListener('dragover', function (e) {
@@ -1537,7 +1613,7 @@
         dz.style.borderColor = 'rgba(255,255,255,.18)';
         var dt = e.dataTransfer;
         if (dt && dt.items && dt.items.length && dt.items[0].webkitGetAsEntry) collectEntries(dt.items).then(ingestFiles);
-        else if (dt && dt.files) ingestFiles(dt.files);
+        else if (dt && dt.files) void ingestFiles(dt.files);
       });
     }
     if (el('run')) el('run').addEventListener('click', runBatch);
