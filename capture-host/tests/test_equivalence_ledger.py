@@ -231,6 +231,17 @@ RATCHET = {
 }
 
 
+def _both_ledgers():
+    """BOTH ledgers that carry the four-field key: this lane's and the JS lane's `tools/` one. `_load()`
+    reads only this lane's, so a test about a field the JS lane holds and this one does not would pass
+    while examining nothing — measured 2026-10-26, when the two qualifier invariants below were first
+    written against `_load()` and reported green over 0 qualified entries."""
+    root = os.path.dirname(str(HERE))
+    for path in (LEDGER, os.path.join(root, "tools", "mutate-equivalence.json")):
+        with open(path, encoding="utf-8") as fh:
+            yield path, json.load(fh)
+
+
 def _load():
     with open(LEDGER, encoding="utf-8") as fh:
         return json.load(fh)
@@ -448,3 +459,71 @@ def test_every_KEYED_entry_s_BEFORE_TEXT_is_still_in_its_MODULE():
         "equivalence entries whose BEFORE text is absent from their module — each one excuses nothing "
         "until re-verified:\n  " + "\n  ".join(absent)
     )
+
+
+def test_a_FUNCTION_QUALIFIER_is_unique_within_its_module():
+    """Residue 2026-10-26-a-line-keyed-equivalence-entry-that-drifts-ambiguously-cannot-be-placed. An entry
+    may carry `fn`, the enclosing named function, and an entry that carries one is matched on
+    `(fn, op, before, after)` with the LINE IGNORED — which is what lets it survive an edit above it. That
+    makes the qualified identity the reachable one, so two qualified entries sharing it are one excuse
+    standing for two mutants: the widening `tools/reanchor-equivalence.mjs --qualify` refuses to write and
+    nothing else would catch if a qualifier were added by hand. Measured 2026-10-26 over the 261 qualified
+    entries: 0 collisions, which is why this is an invariant and not a target."""
+    dupes = []
+    qualified = 0
+    for path, led in _both_ledgers():
+        for mod, entries in led.items():
+            if mod == "_README" or not isinstance(entries, list):
+                continue
+            seen = {}
+            for i, e in enumerate(entries):
+                if not e.get("fn"):
+                    continue
+                qualified += 1
+                ident = (e["fn"], e.get("op"), e.get("before"), e.get("after"))
+                if ident in seen:
+                    dupes.append(
+                        f"{path}:{mod}: qualified entries [{seen[ident]}] and [{i}] "
+                        f"share one line-free identity {str(ident)[:90]}"
+                    )
+                seen[ident] = i
+    assert not dupes, "a function qualifier that excuses more than one mutant:\n  " + "\n  ".join(dupes)
+    # A pass over 0 qualified entries is a pass about nothing; the JS ledger carries 261 of them.
+    assert qualified > 0, "no ledger entry carries a qualifier — this test examined nothing"
+
+
+def test_a_QUALIFIED_entry_still_records_the_after_it_is_matched_on():
+    """A qualifier replaces the LINE in the key, never `after`. An entry carrying `fn` but no `after` would
+    be matched on (fn, op, before) alone, which is looser than the key it replaced — a widening dressed as a
+    durability fix. `--qualify` routes an entry with no recorded `after` to its own refusal bucket for this
+    reason; this is the agent-neutral half of that refusal."""
+    bad = []
+    qualified = 0
+    for path, led in _both_ledgers():
+        for mod, entries in led.items():
+            if mod == "_README" or not isinstance(entries, list):
+                continue
+            for i, e in enumerate(entries):
+                if not e.get("fn"):
+                    continue
+                qualified += 1
+                if e.get("after") is None:
+                    bad.append(f"{path}:{mod}[{i}]: carries fn={e['fn']!r} but records no `after`")
+    assert not bad, "a qualifier written onto an entry with no `after`:\n  " + "\n  ".join(bad)
+    assert qualified > 0, "no ledger entry carries a qualifier — this test examined nothing"
+
+
+def test_the_README_documents_the_OPTIONAL_qualifier():
+    """An author reading the README must learn that `fn` exists, that it is optional, and that it is
+    generated rather than hand-written — the three facts that keep a hand-added qualifier from widening an
+    excuse. Asked of the ledger that CARRIES qualifiers, not of both: this lane keys on the diff and the
+    enclosing function already, so the JS qualifier is not its vocabulary. The four-field key wording stays
+    alongside it — the qualifier replaces the line for entries that carry one, it does not retire the key
+    for entries that do not."""
+    root = os.path.dirname(str(HERE))
+    with open(os.path.join(root, "tools", "mutate-equivalence.json"), encoding="utf-8") as fh:
+        text = " ".join(json.load(fh)["_README"])
+    assert "`fn`" in text, "the README never mentions the qualifier"
+    assert "OPTIONAL" in text, "the README must say the qualifier is optional"
+    assert "Never hand-write `fn`" in text, "the README must say the qualifier is generated, not hand-written"
+    assert "(line, op, before, after)" in text, "the README must still name the four-field matcher key"
