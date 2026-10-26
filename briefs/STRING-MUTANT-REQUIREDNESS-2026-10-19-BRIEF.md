@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED — 2026-10-19 · **Created:** 2026-10-19 · **Residue:** `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured`
+**Status:** PROPOSED — 2026-10-19 (remainder owner-blocked — verified 2026-10-26, Kestrel: the owner has not ruled on the INTERFACE roles, and the second box depends on that ruling. Row `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` stays OPEN.) · Previously: PROPOSED — 2026-10-19 · **Residue:** `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` · **Created:** 2026-10-19
 
 # STRING-MUTANT-REQUIREDNESS — what the mutation gate sets aside, measured over six diffs
 
