@@ -1480,6 +1480,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/night-rule-horizon.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/night-rule-horizon.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "residue 2026-10-26-the-corpus-night-rule-is-pinned-to-one-calendar-year: the horizon a declared night rule carries, measured by compiling each `re:` site under tools/ and probing it over synthetic night names rather than reading the digits - pre-stated rule: FAIL a night the corpus holds today that any declared rule refuses, or a rule site this reader cannot resolve (it fails closed) - NOT_RUN no night offered or no rule declared - PASS otherwise; population = nights offered by the readable documented roots plus the caller's --dir, and an unreadable root is counted by reason (elided, remote, absent, alias) rather than read as a zero"
+  },
   "tools/no-third-party-names.mjs": {
    "bin": "decides",
    "status": "adopted",
