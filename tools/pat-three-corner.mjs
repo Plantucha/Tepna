@@ -402,7 +402,12 @@ say(
 const popRuleLine = ruleLine(population);
 if (popRuleLine) say('  ' + popRuleLine);
 say(`  selected but not scored: ${unscoredNights.length ? unscoredNights.join(', ') : 'none'}`);
-console.log('POPULATION ' + JSON.stringify(population));
+/* THROUGH `say`, NOT `console.log`. Under `--verdict` and `--verdict-sample` this tool's contract is
+   that STDOUT carries the hat object ALONE — `verdict-adoption.mjs` parses stdout as JSON and a
+   second line on it reds the gate (measured at step 37/40: "Unexpected non-whitespace character
+   after JSON"). `say` is stderr under either flag and stdout on a plain run, which is where a human
+   reader and a POPULATION consumer both want it. */
+say('POPULATION ' + JSON.stringify(population));
 if (!V.AB.length) {
   say('\n  no night produced a three-way window — that is the result.');
   /* Under --verdict that is still a verdict: nothing was checked, so the object says NOT_RUN rather
