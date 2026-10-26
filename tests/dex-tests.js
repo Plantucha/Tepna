@@ -11243,7 +11243,12 @@
          night primitive, and 8 of them carry no literal word. The set MOVED in three days —
          `pat-dip-validate.mjs` gained a word and left it, and three more PAT runs joined — so this
          leg re-measures the list instead of copying one forward. Naming it means widening the
-         enumerator SHRINKS a list the gate cannot hold, and a new invisible publisher reds here. */
+         enumerator SHRINKS a list the gate cannot hold, and a new invisible publisher reds here.
+
+         Re-measured 2026-10-26, after the six year-ruled runs below joined the series: 41 tools
+         build the object and 11 carry no literal word. The set moved AGAIN — five of those six
+         already carried a word for their own gate, so only `pat-literature-spec.mjs` is new here,
+         which is the point of re-measuring rather than trusting the earlier count. */
       var vaSrc = TT['tools/verdict-adoption.mjs'] || '';
       var mWords = vaSrc.match(/export const WORDS = \/(.+?)\/;/);
       T.ok('the adoption population rule is readable from the gate, not copied here', !!mWords, mWords ? 'WORDS read from the gate: ' + mWords[1] : 'the gate holds no readable WORDS regex');
@@ -11265,6 +11270,7 @@
           'tools/pat-finger-coupler.mjs',
           'tools/pat-host-offset.mjs',
           'tools/pat-hrv-windows.mjs',
+          'tools/pat-literature-spec.mjs',
           'tools/pat-window-scaling.mjs',
           'tools/tch-bootstrap-ci.mjs',
           'tools/tch-fused-corpus.mjs',
@@ -11309,6 +11315,48 @@
           .join(', '),
         ''
       );
+      /* ── THE SIX RUNS WHOSE NIGHT RULE WAS A HARD-CODED YEAR ────────────────────────────────
+         Row 2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one.
+         Each of these six filtered its listing on the literal `/^2026-/` and then reported over
+         whatever survived, so a night-shaped name from any other year was refused with no reader
+         able to see it: `pat-mode-posture.mjs` printed `eligible: 1` over a root offering two
+         night-shaped directories. The rule now travels as the snapshot's `re`, which names every
+         refusal in the printed rule line. The leg pins the three halves plus a fourth: the year
+         literal must reach `snapshotNights` as a rule rather than sit in a bare `.filter()`, so
+         re-hiding it behind a hand-rolled walk reds here.
+
+         The refusal must stay the caller's own rule and not be widened into the primitive's
+         default — widening would admit a 2027 directory the authors never scored, which is a
+         population change wearing an accounting fix's clothes. */
+      var yearWired = [
+        'tools/pat-literature-spec.mjs',
+        'tools/pat-mode-posture.mjs',
+        'tools/pat-per-led.mjs',
+        'tools/pat-three-corner.mjs',
+        'tools/pat-window-oracle.mjs',
+        'tools/ppg-foot-residual-sweep.mjs'
+      ];
+      T.eq(
+        'each year-ruled run imports the night primitive, prints the object and answers --verdict-sample',
+        yearWired
+          .filter(function (k) {
+            var t = TT[k] || '';
+            return !(/from '\.\/corpus-scope\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && t.indexOf('--verdict-sample') >= 0);
+          })
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and each one passes its own year rule to the snapshot rather than filtering a listing by hand',
+        yearWired
+          .filter(function (k) {
+            var t = TT[k] || '';
+            return !/snapshotNights\([^)]*\{[^}]*re:\s*\/\^2026-\//.test(t);
+          })
+          .join(', '),
+        ''
+      );
+
       /* AN EXIT THAT PLANNED A POPULATION AND REPORTED NONE. `--dry-run` returns from the fold
          before the batch summary, so the planner printed its night list and said nothing about the
          population it planned over — the absence the row is about, one exit over. The assertion

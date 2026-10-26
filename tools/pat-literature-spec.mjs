@@ -51,6 +51,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -62,6 +63,36 @@ const arg = (k, d) => {
 const DIR = arg('--dir', null);
 const ONLY = arg('--night', null);
 const SITE = arg('--site', 'ankle'); // which PPG corner to pair the ECG against
+/* THE SAMPLE THE ADOPTION GATE READS — two identical fabricated snapshots, so the object is
+   complete and no corpus is touched. */
+function verdictSample() {
+  const at = '2026-10-25T00:00:00Z';
+  const nights = ['2026-08-03', '2026-08-04'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(/^2026-/),
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: []
+  };
+  return populationVerdict(snap, snap, {
+    tool: 'tools/pat-literature-spec.mjs',
+    at,
+    evidence: ['tools/pat-literature-spec.mjs']
+  });
+}
+export { verdictSample };
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 if (!DIR) {
   console.error('need --dir <captures root>');
   process.exit(1);
@@ -195,10 +226,15 @@ console.log(`  target: literature beat-to-beat SD 7.21 ms (optimised) … 15.4 m
 console.log('  night        R-peaks   feet   paired  yield  |  PAT med   SD    IQR   | relSec');
 console.log('  ' + '-'.repeat(88));
 
-const nights = fs
-  .readdirSync(DIR)
-  .filter((d) => /^2026-/.test(d) && (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory())
-  .sort();
+/* ONE WALK, AND THE WALK IS THE POPULATION. The two filters that used to sit in one `.filter()`
+   are DIFFERENT KINDS of statement: `/^2026-/` is this tool's own NIGHT RULE, so it goes to
+   `snapshotNights`, which measures it against the shared night shape and names every night-shaped
+   name it refused — folded into the filter it dropped a 2027 night in silence. `--night` is a
+   SELECTION over that offer and stays here, named by the count of nights it leaves unread. Row
+   2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one. */
+const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+const nights = popBefore.nights.filter((d) => (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory());
+const covered = [];
 const ALL = [];
 let anyFs = { ecg: null, ppg: null };
 for (const n of nights) {
@@ -232,8 +268,23 @@ for (const n of nights) {
       `${med(c.lags).toFixed(0).padStart(6)}ms ${sd(c.lags).toFixed(1).padStart(6)} ${iqr(c.lags).toFixed(0).padStart(5)}   | ${P.usedRelSec ? 'yes' : 'NO'}`
   );
   ALL.push(...c.lags);
+  covered.push(n);
 }
 console.log('  ' + '-'.repeat(88));
+/* THE POPULATION, REPORTED BEFORE THE EARLY EXIT — a run that measures nothing still walked a root,
+   and the status labels MOVEMENT of the night population, never coverage. */
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+  tool: 'tools/pat-literature-spec.mjs',
+  evidence: ['tools/pat-literature-spec.mjs']
+});
+const unscored = notANight({ n: nights.length, nights }, covered);
+console.log(
+  `\n  population: ${popBefore.n} offered under ${DIR} · ${nights.length} selected · ${covered.length} scored · movement ${population.status}${ONLY ? ` · --night left ${popBefore.n - nights.length} offered night(s) unread` : ''}${population.reason ? ' — ' + population.reason : ''}`
+);
+const rl = ruleLine(population);
+if (rl) console.log('  ' + rl);
+console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+console.log('POPULATION ' + JSON.stringify(population));
 if (!ALL.length) {
   console.log('\n  nothing measured.');
   process.exit(0);

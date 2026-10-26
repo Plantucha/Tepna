@@ -74,6 +74,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PHYS_LO = 200;
@@ -934,7 +935,22 @@ async function main() {
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
   getDsps();
   const entries = readdirSync(DIR);
-  const nights = entries.filter((n) => /^2026-/.test(n)).sort();
+  /* THE NIGHT WALK IS THE POPULATION. `/^2026-/` is this tool's own NIGHT RULE and travels as the
+     snapshot's `re`, so every night-shaped name the rule REFUSED is named in the printed rule line;
+     inside a bare `.filter()` the refusal left no trace. `entries` is still read because the flat
+     mirror below counts loose recordings, which are not nights.
+     Row 2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one.
+
+     ⚠️ MEASURED HERE, NOT FIXED HERE: a refused night-shaped directory beside loose recordings
+     reads as a FLAT root, because `rootLayoutVerdict` keys the MIXED refusal on `nights.length`.
+     A root holding `2027-01-02/` plus loose `_ECG.txt` therefore scores as SESSIONS and drops the
+     directory, which is the half this tool's own policy comment calls the dangerous one. The flat
+     policy is a decided one (residue 2026-09-02-oracle-flat-root-policy), so the interaction gets
+     its own row rather than a quiet change of refusal here:
+     row 2026-10-26-a-refused-night-shaped-directory-reads-as-a-flat-root. */
+  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+  const nights = popBefore.nights.slice().sort();
+  const scoredNights = [];
   /* Refuse a root whose recordings sit outside night directories — see rootLayoutVerdict. */
   const loose = entries.filter((e) => /_(ECG|PPG)\.txt$/i.test(e) && statSync(join(DIR, e)).isFile());
   const layout = rootLayoutVerdict(nights, loose);
@@ -1020,6 +1036,7 @@ async function main() {
       continue;
     }
     tally[v.tallyKey] = (tally[v.tallyKey] || 0) + 1;
+    if (!SESSIONS) scoredNights.push(n);
     adm[v.admissibility == null ? 'bModeAbsent' : ADM_KEY[v.admissibility]] += 1;
     if (v.admissibility === 'A-in-B-out' || v.admissibility === 'A-out-B-in') admFlipped.push(`${n} ${v.admissibility} ${res.mode.toFixed(0)}→${res.modeB.toFixed(0)}`);
     if (JSON_OUT)
@@ -1045,6 +1062,22 @@ async function main() {
       `${n}  ${res.mode.toFixed(0).padStart(5)}  ${String(res.narrowN).padStart(5)}  ${res.narrowSd.toFixed(1).padStart(8)}  ${res.fullSd.toFixed(1).padStart(8)}  ${res.nullSd.toFixed(1).padStart(8)}   ${v.label}${axisNote}`
     );
   }
+  /* THE POPULATION THIS RUN COVERED, printed beside the tally it qualifies. `status` labels MOVEMENT
+     of the night population under the run, never coverage; the rule line names what the rule refused.
+     In SESSIONS mode the scored units are sessions by the decided policy, so the night offer is the
+     population and the line says no night was scored. */
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+    tool: 'tools/pat-window-oracle.mjs',
+    evidence: ['tools/pat-window-oracle.mjs']
+  });
+  const unscoredNights = notANight({ n: nights.length, nights }, scoredNights);
+  console.log(
+    `\npopulation: ${popBefore.ok ? popBefore.n + ' night(s) offered under ' + DIR : 'NOT ENUMERATED — ' + popBefore.reason} · ${SESSIONS ? units.length + ' session(s) scored, 0 nights (sessions mode)' : scoredNights.length + ' scored'} · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`
+  );
+  const popRuleLine = ruleLine(population);
+  if (popRuleLine) console.log('  ' + popRuleLine);
+  if (!SESSIONS) console.log(`  offered but not scored: ${unscoredNights.length ? unscoredNights.join(', ') : 'none'}`);
+  console.log('POPULATION ' + JSON.stringify(population));
   console.log('\nTALLY:', JSON.stringify(tally));
   console.log('HALVES-ADMISSIBILITY:', JSON.stringify(adm));
   for (const line of admFlipped) console.log('  half-dependent: ' + line);
