@@ -51,3 +51,16 @@ Restoring after each gives 138 of 138.
 
 The row's closure. A code PR here does not touch the ledger, so `fixed #NNNN` rides the RESIDUE-only
 PR Kestrel sequences.
+
+---
+
+## FINISHED 2026-10-26 — PR #3990 (DRAFT), head `e33246037`, base `d8c5786a2`
+
+`npm run check` — all 41 steps passed, EXIT=0, suite 14470 assertions over 830 groups. Biome clean
+on the changed file against a base control reading 0 diagnostics, typecheck EXIT=0, and
+`pr-compliance.mjs` passed its 9 checks before `gh pr create`.
+
+⚠️ **A STATEFUL `exec` LOOP WITH `continue` ARMS COST A BIOME WARNING AND WOULD HAVE COST A SPIN.**
+`while ((m = re.exec(t)))` reds `noAssignInExpressions`, and the base file carries zero diagnostics,
+so the warning was mine. Scanning by index instead removes both the warning and the hazard: every
+`continue` would otherwise have to remember to advance the regex.
