@@ -698,6 +698,13 @@ same `(op, before)` — and refuses ambiguous or vanished ones rather than guess
 re-anchor would excuse a mutant nobody probed. **Re-anchoring is not re-verification**: it moves an
 address, never renews a claim. Run it after any DSP edit; the same decay bit twice in one session.
 
+**Owner ruling, board #1549 item 21 (2026-10-26): an anchor may not move unprobed.** `--write` now
+refuses without `--probe`, and a probe re-tests each target through `mutate.mjs --only` before its
+address moves. A survivor re-anchors; a KILL refutes the entry and leaves it orphaned. Measured over
+the 272 movable entries that day: 239 re-anchored and **33 refuted** — the suite kills the mutant
+those entries excuse. A probe renews SURVIVAL, never equivalence, so the sentence above still holds
+for the 239.
+
 ⚠️ It also found that **`clock.js`'s three entries — the oldest in the ledger, on the file the whole
 mechanism was built for — are genuinely stale** (all three lines now hold different code). They are
 `real-gap` records so nothing is falsely excused, but they had rotted unnoticed.
