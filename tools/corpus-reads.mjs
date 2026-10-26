@@ -166,9 +166,17 @@ const CAPTURE_VOCAB = [
   //   only the plain-string form. `pat-dip-index.mjs` carries both suffixes in regex form alone, so
   //   the strict pattern dropped it out of the population the moment its night regex was wired away.
   /\/srv\/data\/tepna-corpus|DEX_UPLOADS|CORPUS-LOCATIONS|corpusSearch/,
-  /corpus-scope\.mjs|snapshotNights\s*\(/, // the night primitive itself: a tool that calls it
-  //                                  reads nights, and delegating the walk must not delete the
-  //                                  evidence that it does.
+  /\b(?:snapshotNights|snapshotEntries|intersectSnapshots|digestNights|populationVerdict|censusVerdict|notANight|notCovered)\b/,
+  // the night primitives THEMSELVES, never the module that holds them: a tool that calls one reads
+  //   nights, and delegating the walk must not delete the evidence that it does. KEYED ON THE
+  //   EXPORTS because keying on `corpus-scope.mjs` made the module's NAME the population rule, and
+  //   that module also exports the code-identity pair `gitCommitOf` / `producedByOf`, which reads
+  //   no night at all. Measured 2026-10-26: importing `producedByOf` alone moved
+  //   `usage-guard.mjs` into the population and reded the enumerator gate over a tool that
+  //   enumerates no corpus. The re-keying is population-neutral at `origin/main` — 135 members
+  //   either way, symmetric difference empty — because the two tools the name clause carried alone
+  //   (`ppg-gap-bridge-scan.mjs`, `stage-lab.mjs`) import `populationVerdict` and
+  //   `snapshotEntries` from it.
 
   /captures? root|night(?:s)? root|per-night/i
 ];
