@@ -169,8 +169,15 @@ export function walk(art) {
   /* NOT APPLICABLE BY DESIGN — a third state beside ✓ and ✗, printed `—`, counted as EXCLUDED in the
      verdict's population, never as a pass: a null envelope WITH a reason is honest, but a ✓ on it would
      be the fabricated-pass shape this walk exists to catch (Kestrel, 2026-09-22). Distinct from ∘
-     (input absent — not re-derived), which is NOT_RUN. */
+     (the `nd` flag — not re-derived, whatever the cause), which is NOT_RUN. */
   const na = (hop, detail, id) => out.push({ hop, id: id || null, ok: false, na: true, detail });
+  /* ∘ NOT RE-DERIVED — the hop examined nothing, so the fixture reads NOT_RUN: never a pass, never a
+     failure. The FLAG carries that state, because the classifier used to read the WORD `absent` out of
+     the prose (`/absent/.test(h.detail)`), which coupled a hop's severity to its sentence: a reason
+     naming its own cause without that word turned a ∘ into a ✗ and reded the gate over a fixture
+     nothing was wrong with. Row 2026-10-26-the-digest-hop-reports-an-absent-input-when-the-digest-is-absent
+     asked for the reason; the reason cannot move until the state stops riding on it. */
+  const nd = (hop, detail, id) => out.push({ hop, id: id || null, ok: false, nd: true, detail });
   if (!m || typeof m !== 'object') {
     push('blocks', false, 'the fixture carries no measurement map — regenerate (' + NODES[art.node || 'OxyDex'].regen + ')');
     return out;
@@ -185,8 +192,18 @@ export function walk(art) {
     }
     if (node.recomputedOnly) {
       // RE-DERIVED from the committed input; the fixture's own copy (rich) is a second, weaker check
-      const rv = art.recomputed && art.recomputed.values ? art.recomputed.values[id] : undefined;
-      if (rv === undefined) push('value', null, 'input absent — not re-derived', id);
+      const rec = art.recomputed;
+      const rv = rec && rec.values ? rec.values[id] : undefined;
+      /* THREE CAUSES, THREE REASONS. `undefined` here means the input was never read, OR the
+         recompute ran and returned no whole-record block, OR it ran and returned no value for THIS
+         id. Only the first is an absent input, and a reader resolving the other two against the
+         corpus finds bytes the walk did in fact hash. */
+      if (rv === undefined)
+        nd(
+          'value',
+          !rec ? 'input absent — not re-derived' : !rec.values ? 'the recompute returned no whole-record block — nothing to compare' : 'the recompute returned no ' + id + ' — nothing to compare',
+          id
+        );
       else push('value', b.value === rv, `${b.value} ≡ recomputed wholeRecord ${rv}`, id);
       const echo = ids[id](el);
       if (echo !== undefined && echo !== null) push('value.echo', b.value === echo, `${b.value} ≡ the export's own hrv.time copy ${echo}`, id);
@@ -211,15 +228,15 @@ export function walk(art) {
       `${b.evidence && b.evidence.inputHash} ≡ contentId recomputed from the input ${art.recomputed.contentId}`
     );
   } else {
-    push('window', null, 'input absent — not re-derived');
-    push('inputHash', null, 'input absent — not re-derived');
+    nd('window', 'input absent — not re-derived');
+    nd('inputHash', 'input absent — not re-derived');
   }
   // code — against the shipped artifact AND the ledger
   if (art.bundle) {
     push('code.computeHash', b.code && b.code.computeHash === art.bundle.computeHash, `${b.code && b.code.computeHash} ≡ ${node.bundle} ${art.bundle.computeHash}`);
     push('code.manifestHash', b.code && b.code.manifestHash === art.bundle.manifestHash, `${b.code && b.code.manifestHash} ≡ ${node.bundle} ${art.bundle.manifestHash}`);
     push('ledger.manifestHash', art.ledgerManifestHash === art.bundle.manifestHash, `provenance/${node.ledger} ${art.ledgerManifestHash} ≡ ${node.bundle} ${art.bundle.manifestHash}`);
-  } else push('code', null, node.bundle + ' absent — not re-derived');
+  } else nd('code', node.bundle + ' absent — not re-derived');
   // envelope — RE-DERIVED when the envelope file is on disk (art.envelope), never echoed off the fixture.
   // The join the DSP makes (_attachAcqEvidence) is session_id ∈ the .dat filename; the envelope also
   // carries its own claim about the raw bytes (artifact_sha256), which the walk holds it to.
@@ -237,14 +254,14 @@ export function walk(art) {
         env.artifactSha256 === art.inputSha256,
         'envelope artifact_sha256 ' + env.artifactSha256.slice(0, 16) + '… ≡ sha256(input bytes) ' + art.inputSha256.slice(0, 16) + '…'
       );
-    else push('envelope.artifactSha256', null, 'input absent — not re-derived');
-  } else if (ev.envelopeRef)
-    push(
-      'envelope',
-      art.envelopeExpected ? null : true,
-      art.envelopeExpected ? 'envelope file absent — not re-derived (envelopeRef ' + ev.envelopeRef + ' unverified)' : 'envelopeRef ' + ev.envelopeRef + ' (join on the .dat session_id)'
-    );
-  else if (typeof ev.envelopeReason === 'string' && ev.envelopeReason.length > 0) na('envelope', 'null — ' + ev.envelopeReason);
+    /* THE ROW'S SITE. This guard needs BOTH the input bytes and the envelope's own claim, and the
+       else named only the input — so an envelope that recorded no `artifact_sha256` reported a
+       corpus the walk could not reach, over bytes it had already hashed. */ else if (!art.inputSha256) nd('envelope.artifactSha256', 'input absent — not re-derived');
+    else nd('envelope.artifactSha256', 'the envelope records no artifact_sha256 — the input is present and the envelope makes no claim to hold it to');
+  } else if (ev.envelopeRef) {
+    if (art.envelopeExpected) nd('envelope', 'envelope file absent — not re-derived (envelopeRef ' + ev.envelopeRef + ' unverified)');
+    else push('envelope', true, 'envelopeRef ' + ev.envelopeRef + ' (join on the .dat session_id)');
+  } else if (typeof ev.envelopeReason === 'string' && ev.envelopeReason.length > 0) na('envelope', 'null — ' + ev.envelopeReason);
   else push('envelope', false, 'null WITHOUT a reason (∅ violation)');
   // raw file ↔ ledger
   if (art.ledgerRec) {
@@ -254,11 +271,11 @@ export function walk(art) {
       const files = Object.keys(rec.inputHashes || {});
       const have = art.inputSha16ByFile || (files.length ? { [files[0]]: art.inputSha16 } : {});
       for (const f of files) {
-        if (have[f] == null) push('raw.inputHash', null, `ledger inputHashes[${f}] — input absent — not re-derived`);
+        if (have[f] == null) nd('raw.inputHash', `ledger inputHashes[${f}] — input absent — not re-derived`);
         else push('raw.inputHash', rec.inputHashes[f] === have[f], `ledger inputHashes[${f}] ${rec.inputHashes[f]} ≡ sha256[0:16](input bytes) ${have[f]}`);
       }
       if (!files.length) push('raw.inputHash', false, 'ledger record pins NO inputs');
-    } else push('raw.inputHash', null, 'input absent — not re-derived');
+    } else nd('raw.inputHash', 'input absent — not re-derived');
     push('raw.outputHash', rec.outputHash === art.outputSha16, `ledger outputHash ${rec.outputHash} ≡ sha256[0:16](fixture bytes) ${art.outputSha16}`);
   } else push('ledger', false, 'no provenance/' + node.ledger + ' record for this fixture');
   return out;
@@ -266,13 +283,15 @@ export function walk(art) {
 
 /* ── ONE VERDICT PER FIXTURE — `tepna.verdict/1` (VERDICT-CONTRACT-2026-09-21 §1; this tool is a wave-1
    adopter). The ✓/∘/✗ table above is the prose; this is the API. A ✗ hop ⇒ FAIL naming the hop; a ∘ hop
-   (not re-derived — input absent, bundle absent) ⇒ NOT_RUN for the fixture, naming the hop, result null
+   (the `nd` flag — not re-derived, whatever the cause) ⇒ NOT_RUN for the fixture, naming the hop, result null
    (nothing examined there is not a pass); all ✓ ⇒ PASS. Population is the hop count as an EQUALITY:
    checked + excluded = eligible, excluded = the ∘ hops. Pure, so the selftest can plant against it.
    The validator (`verdict.js`) is not on main yet — this writes to §1's shape; wire the call when it lands. */
 export function verdictFor(fixture, hops, opts = {}) {
   const isNa = (h) => h.na === true;
-  const isAbsent = (h) => !isNa(h) && h.ok === false && /absent/.test(h.detail);
+  // THE FLAG, NEVER THE PROSE. `/absent/.test(h.detail)` made a hop's severity a property of its
+  // sentence; `nd` is set at the push that knows the hop examined nothing.
+  const isAbsent = (h) => !isNa(h) && h.ok === false && h.nd === true;
   const broken = hops.filter((h) => h.ok === false && !isAbsent(h) && !isNa(h));
   const notDerived = hops.filter(isAbsent);
   const notApplicable = hops.filter(isNa);
@@ -413,7 +432,11 @@ function selftest() {
   };
   const allOk = (r) => r.every((x) => x.ok === true || x.na === true);
   const isNa = (r, hop) => r.some((x) => x.hop === hop && x.na === true);
-  const failsOn = (r, hop) => r.some((x) => x.hop === hop && x.ok === false);
+  /* ✗ ONLY. A ∘ hop and a — hop both carry `ok === false`, so the loose form let a plant that meant
+     "this hop breaks" pass over a hop that examined nothing. */
+  const failsOn = (r, hop) => r.some((x) => x.hop === hop && x.ok === false && x.nd !== true && x.na !== true);
+  const isNd = (r, hop, id) => r.some((x) => x.hop === hop && x.nd === true && (id === undefined || x.id === id));
+  const detailOf = (r, hop, id) => (r.find((x) => x.hop === hop && (id === undefined || x.id === id)) || {}).detail || '';
   // 1 · anti-vacuity: a consistent chain walks green on every hop, and every hop RAN
   const clean = walk(mk());
   check('consistent chain → every hop ✓ (or — where not applicable by design)', allOk(clean));
@@ -495,6 +518,33 @@ function selftest() {
     'envelope EXPECTED but file absent → envelope ∘ (not re-derived), never ✓',
     walk(a).some((x) => x.hop === 'envelope' && x.ok === false && /absent/.test(x.detail))
   );
+  /* ── THE DIGEST HOP NAMES ITS OWN CAUSE ───────────────────────────────────────────────────────
+     Row 2026-10-26-the-digest-hop-reports-an-absent-input-when-the-digest-is-absent. One guard needs
+     two things, so one reason stood for two causes. Both directions, because a reason that fires on
+     everything names nothing. */
+  a = mkEnv();
+  a.inputSha256 = null;
+  check('digest hop · input absent → ∘ naming the ABSENT INPUT', isNd(walk(a), 'envelope.artifactSha256') && /input absent/.test(detailOf(walk(a), 'envelope.artifactSha256')));
+  a = mkEnv();
+  a.envelope.artifactSha256 = null;
+  check(
+    'digest hop · input present and the envelope records no artifact_sha256 → ∘ naming the ENVELOPE, never the input',
+    isNd(walk(a), 'envelope.artifactSha256') &&
+      /envelope records no artifact_sha256/.test(detailOf(walk(a), 'envelope.artifactSha256')) &&
+      !/input absent/.test(detailOf(walk(a), 'envelope.artifactSha256'))
+  );
+  check(
+    'REGRESSION · that reason carries no `absent`, and the hop still reads ∘ — the state is the flag, not the sentence',
+    !/absent/.test(detailOf(walk(a), 'envelope.artifactSha256')) && verdictFor('x.json', walk(a)).status === 'NOT_RUN'
+  );
+  check(
+    'ANTI-VACUITY · a genuinely BROKEN hop still reads ✗ under the flag, so the classifier did not flatten to ∘',
+    (function () {
+      const b = mkEnv();
+      b.envelope.artifactSha256 = 'cd'.repeat(32);
+      return verdictFor('x.json', walk(b)).status === 'FAIL' && failsOn(walk(b), 'envelope.artifactSha256');
+    })()
+  );
   // 4 · the verdict object — FAIL names the hop, NOT_RUN names the hop, PASS carries no reason
   const vPass = verdictFor('x.json', envClean, { commit: 'abc1234', at: '2026-09-21T00:00:00Z' });
   try {
@@ -504,7 +554,7 @@ function selftest() {
     const vn = Verdict.validate(
       verdictFor(
         'x.json',
-        envClean.map((h) => (h.hop === 'envelope' ? { ...h, ok: false, detail: 'input absent — not re-derived' } : h)),
+        envClean.map((h) => (h.hop === 'envelope' ? { ...h, ok: false, nd: true, detail: 'input absent — not re-derived' } : h)),
         { commit: null }
       )
     );
@@ -584,6 +634,26 @@ function selftest() {
       .filter((x) => x.hop === 'value')
       .every((x) => x.ok === false && /absent/.test(x.detail))
   );
+  /* AND THE RECOMPUTE'S OWN SILENCE IS NOT THE INPUT'S ABSENCE. `values[id]` comes back undefined
+     when the input was never read, when the recompute returned no whole-record block, and when it
+     returned the block without THIS metric — three causes under one sentence before this row. */
+  a = mkEcg(false);
+  delete a.recomputed.values.sdnn;
+  check(
+    'ECGDex · the recompute returns no sdnn → value[sdnn] ∘ naming sdnn, and the other two still ✓',
+    isNd(walk(a), 'value', 'sdnn') &&
+      /returned no sdnn/.test(detailOf(walk(a), 'value', 'sdnn')) &&
+      !/input absent/.test(detailOf(walk(a), 'value', 'sdnn')) &&
+      walk(a).filter((x) => x.hop === 'value' && x.ok === true).length === 2
+  );
+  a = mkEcg(false);
+  delete a.recomputed.values;
+  check(
+    'ECGDex · the recompute returns no whole-record block → every value ∘ naming the block, never the input',
+    walk(a)
+      .filter((x) => x.hop === 'value')
+      .every((x) => x.nd === true && /no whole-record block/.test(x.detail) && !/input absent/.test(x.detail))
+  );
   a = mk();
   delete a.fixtureEl.measurement;
   check('PLANT no blocks → blocks ✗, nothing else claimed', failsOn(walk(a), 'blocks') && walk(a).length === 1);
@@ -621,7 +691,7 @@ async function main() {
     if (has('--json')) continue;
     console.log(`\n▸ ${fx.name}  ←  ${art.inputPath ? path.basename(art.inputPath) : fx.input + ' (ABSENT — real recording, gitignored)'}`);
     for (const h of hops) {
-      const mark = h.ok === true ? '✓' : h.na ? '—' : h.ok === false && /absent/.test(h.detail) ? '∘' : '✗';
+      const mark = h.ok === true ? '✓' : h.na ? '—' : h.nd ? '∘' : '✗';
       if (mark === '✗') bad++;
       console.log(`  ${mark} ${h.hop}${h.id ? ' [' + h.id + ']' : ''}  ${h.detail}`);
     }
