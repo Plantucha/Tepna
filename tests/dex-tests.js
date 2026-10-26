@@ -11221,8 +11221,145 @@
          night. Neither narrowing reached the verdict, so a reader could not tell either root from a
          root scored in full. `ruleLine` is the one rendering of the rule's effect, and a caller that
          declares a rule and never prints it is back where the row started. */
+      /* 🔴 AND THE DETECTOR READS CODE, NOT TEXT. Row
+         2026-10-26-the-suite-night-rule-detector-reads-an-inline-rule-only. The first spelling of
+         this population tested `snapshotNights\([^)]*\{[^}]*\bre:` over the raw file, which is three
+         blind spots in one regex. A rule built into an object one line earlier and passed by NAME is
+         invisible, and `tools/corpus-scope.mjs:1051` ships that shape today. A call in the first
+         argument ends the `[^)]*` run before the options are reached. And a tool source PLANTED IN A
+         STRING by a selftest reads as the host tool's own code, which `tools/night-rule-horizon.mjs`
+         ships. Measured at this ref the reader below is population-neutral — 17 rule-declaring tools
+         either way, symmetric difference empty — so it buys sight of the shapes, not a different
+         answer. Dropping the mask alone joins `night-rule-horizon.mjs` on two rules its selftest
+         only quotes. The reader FAILS CLOSED: an options form it cannot resolve lands in its own
+         column and reds by name, because a site whose rule went unread is not a site with no rule. */
+      var nrSites = function (raw) {
+        var src = String(raw || '');
+        var mask = env.jsLex.codeMask(src);
+        var t = '';
+        for (var i = 0; i < src.length; i++) t += mask[i] ? src.charAt(i) : src.charAt(i) === '\n' ? '\n' : ' ';
+        var out = { sites: 0, rules: [], ruleless: 0, unreadable: [] };
+        /* Scanned by INDEX, not by a stateful `exec` loop: every `continue` below would have to
+           remember to advance the regex, and one that forgets spins. */
+        var from = 0;
+        for (;;) {
+          var at = t.indexOf('snapshotNights', from);
+          if (at < 0) break;
+          from = at + 'snapshotNights'.length;
+          if (/[\w$]/.test(t.charAt(at - 1) || '')) continue;
+          var open = from;
+          while (open < t.length && /\s/.test(t.charAt(open))) open++;
+          if (t.charAt(open) !== '(') continue;
+          var depth = 0;
+          var close = -1;
+          for (var j = open; j < t.length; j++) {
+            var c = t.charAt(j);
+            if (c === '(' || c === '[' || c === '{') depth++;
+            else if (c === ')' || c === ']' || c === '}') {
+              depth--;
+              if (depth === 0) {
+                close = j;
+                break;
+              }
+            }
+          }
+          var line = t.slice(0, at).split('\n').length;
+          out.sites++;
+          if (close < 0) {
+            out.unreadable.push(line + ' (the argument list never closes)');
+            continue;
+          }
+          var parts = [];
+          var cur = '';
+          depth = 0;
+          for (var k = open + 1; k < close; k++) {
+            var ch = t.charAt(k);
+            if (ch === '(' || ch === '[' || ch === '{') depth++;
+            if (ch === ')' || ch === ']' || ch === '}') depth--;
+            if (ch === ',' && depth === 0) {
+              parts.push(cur);
+              cur = '';
+              continue;
+            }
+            cur += ch;
+          }
+          if (cur.trim()) parts.push(cur);
+          var second = parts.length > 1 ? parts[1].trim() : '';
+          if (!second) {
+            out.ruleless++;
+            continue;
+          }
+          var obj = null;
+          if (second.charAt(0) === '{') obj = second;
+          else if (/^[A-Za-z_$][\w$]*$/.test(second)) {
+            var decl = t.match(new RegExp('\\b(?:const|let|var)\\s+' + second + '\\s*=\\s*(\\{[^;]*\\})\\s*;'));
+            if (decl) obj = decl[1];
+            else {
+              out.unreadable.push(line + ' (options name ' + second + ' binds to no object literal)');
+              continue;
+            }
+          } else {
+            out.unreadable.push(line + ' (options ' + second.replace(/\s+/g, ' ').slice(0, 40) + ')');
+            continue;
+          }
+          var rule = obj.match(/\bre\s*:\s*([^,}]+)/);
+          if (rule) out.rules.push(rule[1].trim());
+          else out.ruleless++;
+        }
+        return out;
+      };
+      T.ok(
+        'the night-rule reader has the one lexer that tells code from prose',
+        !!(env.jsLex && env.jsLex.codeMask),
+        env.jsLex && env.jsLex.codeMask ? 'js-lex codeMask' : 'no lexer here — the reader would read a planted source as code'
+      );
+      /* THE READER'S OWN CONTROLS RUN FIRST, over planted text, because a scan is a tripwire and
+         executing it is the contract. Each one is a shape the regex above could not read. */
+      T.eq('CONTROL · an inline rule is read', nrSites('snapshotNights(r, { re: /^2026-/ });').rules.join(), '/^2026-/');
+      T.eq('CONTROL · a rule bound one line earlier and passed by NAME is read', nrSites('const narrow = { re: /^2026-07-25$/ };\nsnapshotNights(r, narrow);\n').rules.join(), '/^2026-07-25$/');
+      T.eq('CONTROL · a call in the first argument does not hide the options', nrSites("snapshotNights(join(a, 'b'), { re: /^2026-/ });").rules.join(), '/^2026-/');
+      T.eq(
+        'CONTROL · a named options object carrying no rule is a ruleless site, never a rule',
+        (function () {
+          var r = nrSites('const opts = { limit: 3 };\nsnapshotNights(r, opts);\n');
+          return r.rules.length + '/' + r.ruleless + '/' + r.unreadable.length;
+        })(),
+        '0/1/0'
+      );
+      T.eq('CONTROL · a tool source planted in a STRING is not the host tool’s own code', nrSites("const planted = 'snapshotNights(r, { re: /^2026-/ });';\n").sites, 0);
+      T.eq('CONTROL · a call written inside a comment is prose', nrSites('// snapshotNights(r, { re: /^2026-/ });\n').sites, 0);
+      T.eq(
+        'CONTROL · an options form the reader cannot resolve reds, and never passes as ruleless',
+        (function () {
+          var r = nrSites('snapshotNights(r, ruleOf(x));');
+          return r.unreadable.length + '/' + r.ruleless + '/' + r.rules.length;
+        })(),
+        '1/0/0'
+      );
+      T.eq('CONTROL · a name that binds to no object literal is unread, not ruleless', nrSites('snapshotNights(r, opts);').unreadable.length, 1);
+      T.eq('CONTROL · a site with no second argument has no rule and nothing unread', nrSites('snapshotNights(r);').ruleless + '/' + nrSites('snapshotNights(r);').unreadable.length, '1/0');
+      var nrRead = {};
+      importers.forEach(function (t) {
+        nrRead[t] = nrSites(TT['tools/' + t] || '');
+      });
+      var nrTotal = importers.reduce(function (a, t) {
+        return a + nrRead[t].sites;
+      }, 0);
+      T.ok('ANTI-VACUITY · the reader finds the night-rule call sites it must read', nrTotal >= 40, nrTotal + ' snapshotNights site(s) over ' + importers.length + ' importer(s)');
+      T.eq(
+        'every snapshotNights site in the population is one this reader can resolve',
+        importers
+          .filter(function (t) {
+            return nrRead[t].unreadable.length;
+          })
+          .map(function (t) {
+            return t + ':' + nrRead[t].unreadable.join('; ');
+          })
+          .join(' | '),
+        ''
+      );
       var ruled = importers.filter(function (t) {
-        return /snapshotNights\([^)]*\{[^}]*\bre:/.test(TT['tools/' + t] || '');
+        return nrRead[t].rules.length > 0;
       });
       T.ok('ANTI-VACUITY · at least two tools declare a night rule of their own', ruled.length >= 2, ruled.length + ' rule-declaring tool(s): ' + ruled.join(', '));
       T.eq(
@@ -11244,7 +11381,7 @@
          nights. So a tool whose rule admits ANY directory owes a second statement — the directories
          its read then removed, by name. */
       var wide = ruled.filter(function (t) {
-        return /snapshotNights\([^)]*\{[^}]*\bre:\s*\/\.\//.test(TT['tools/' + t] || '');
+        return nrRead[t].rules.indexOf('/./') >= 0;
       });
       T.ok('ANTI-VACUITY · at least one tool declares a rule wider than night-shaped', wide.length >= 1, wide.length + ' wide-rule tool(s): ' + wide.join(', '));
       T.eq(
