@@ -1299,6 +1299,110 @@ export function survivorKey(m) {
 export function survivorTextKey(m) {
   return m.op + '\u0000' + m.before + '\u0000' + (m.after ?? '');
 }
+
+/* ── THE ENCLOSING-FUNCTION QUALIFIER ───────────────────────────────────────────────────────────
+   Every range of a named `function NAME(` declaration in a source text. A pure function, so the
+   qualifier below and the incremental `fnHash` share ONE primitive instead of two regexes that can
+   drift apart. The regex sees a NAMED declaration only — not an arrow, a method, nor
+   `const f = function` — so `enclosingFn` answers null inside those. Null is the back-compatible
+   state and not a failure: an entry carrying no qualifier is matched on its line exactly as every
+   entry recorded before 2026-10-26 is. Measured that day over the 11 ledger files: 0 of the 266
+   still-anchored entries sit outside a named function, so widening the regex buys nothing here, and
+   it would silently move every qualifier already written. */
+export function fnRanges(src) {
+  const out = [];
+  const ls = String(src == null ? '' : src).split('\n');
+  for (let i = 0; i < ls.length; i++) {
+    const mm = ls[i].match(/(?:^|[^\w$.])function\s+(\w+)\s*\(/);
+    if (!mm) continue;
+    let d = 0,
+      seen = false;
+    for (let j = i; j < ls.length; j++) {
+      for (const ch of ls[j]) {
+        if (ch === '{') {
+          d++;
+          seen = true;
+        } else if (ch === '}') {
+          d--;
+          if (seen && d === 0) {
+            out.push({ start: i + 1, end: j + 1, name: mm[1], text: ls.slice(i, j + 1).join('\n') });
+            j = ls.length;
+            break;
+          }
+        }
+      }
+      if (out.length && out[out.length - 1].start === i + 1) break;
+    }
+  }
+  return out;
+}
+
+/* The INNERMOST named function enclosing `line`, or null — innermost because a nested declaration is
+   the narrower claim, and the narrower claim is the one an excuse means. */
+export function enclosingFnIn(ranges, line) {
+  let best = null;
+  for (const r of ranges || []) if (line >= r.start && line <= r.end && (!best || r.end - r.start < best.end - best.start)) best = r;
+  return best ? best.name : null;
+}
+export const enclosingFn = (src, line) => enclosingFnIn(fnRanges(src), line);
+
+/* AN ENTRY CARRYING `fn` IS ANCHORED TO A FUNCTION, NOT TO A LINE. `survivorKey` stays the one place
+   the matching rule is stated; what a qualifier changes is where the entry's ADDRESS comes from.
+   Resolution rewrites the recorded line to the single mutant inside that function carrying the same
+   (op, before, after), which is what lets an excuse survive an edit ABOVE it — the drift that had
+   detached 168 of 434 entries by 2026-10-26.
+
+   It FAILS CLOSED in both directions. A qualifier naming zero mutants, or more than one, leaves the
+   entry exactly as recorded; it then orphans, the gate keeps blocking that survivor, and nothing is
+   excused that nobody probed. That asymmetry is the whole safety argument: an unresolved entry costs
+   a blocked survivor, a wrongly resolved one costs a silent excuse. The 2026-10-26 census found 12
+   entries whose mutation repeats inside ONE function, which is this refusal biting on real data and
+   not a hypothetical.
+
+   This is not the re-anchoring that PR #3989 ruled needs a probe for each entry. That ruling governs
+   WRITING a new address into the ledger by text identity alone, where the move is a choice among
+   candidates nobody tested. Here the author wrote the function deliberately, the address is derived,
+   and the derivation is unique-or-refuse. */
+export function resolveEntryAddresses(entries, inFile, src) {
+  const ranges = fnRanges(src);
+  const byFnText = new Map();
+  for (const m of inFile || []) {
+    const k = (enclosingFnIn(ranges, m.line) ?? '\u0000top') + '\u0000' + survivorTextKey(m);
+    if (!byFnText.has(k)) byFnText.set(k, []);
+    byFnText.get(k).push(m);
+  }
+  const out = [];
+  const moved = [];
+  const unresolved = [];
+  for (const e of entries || []) {
+    if (!e || e.fn == null || e.fn === '') {
+      out.push(e);
+      continue;
+    }
+    const hits = byFnText.get(e.fn + '\u0000' + survivorTextKey(e)) || [];
+    if (hits.length !== 1) {
+      out.push(e);
+      unresolved.push({
+        line: e.line,
+        op: e.op,
+        fn: e.fn,
+        n: hits.length,
+        why:
+          hits.length === 0
+            ? 'the qualifier names no mutant with this op/before/after — the entry keeps its recorded line and orphans'
+            : 'the qualifier names ' + hits.length + ' such mutants inside one function — ambiguous, so the entry keeps its recorded line'
+      });
+      continue;
+    }
+    if (hits[0].line === e.line) {
+      out.push(e);
+      continue;
+    }
+    out.push({ ...e, line: hits[0].line });
+    moved.push({ from: e.line, to: hits[0].line, op: e.op, fn: e.fn });
+  }
+  return { entries: out, moved, unresolved };
+}
 export function classifySurvivors(entries, survivors, generated, killed, inFile) {
   /* `after` is part of the key for the reason findCanary documents: line+op+before collapses two
      same-operator mutants on one line into one entry, so a classification computed for one silently
@@ -1630,35 +1734,11 @@ async function runFile(file) {
      edit to one group invalidates only what that group killed. Hashing the whole file on either side
      would invalidate everything on every commit — the version that looks incremental and saves
      nothing. */
-  const _fnRanges = (() => {
-    const out = [];
-    const ls = original.split('\n');
-    for (let i = 0; i < ls.length; i++) {
-      const mm = ls[i].match(/(?:^|[^\w$.])function\s+(\w+)\s*\(/);
-      if (!mm) continue;
-      let d = 0,
-        seen = false;
-      for (let j = i; j < ls.length; j++) {
-        for (const ch of ls[j]) {
-          if (ch === '{') {
-            d++;
-            seen = true;
-          } else if (ch === '}') {
-            d--;
-            if (seen && d === 0) {
-              out.push({ start: i + 1, end: j + 1, text: ls.slice(i, j + 1).join('\n') });
-              j = ls.length;
-              break;
-            }
-          }
-        }
-        if (out.length && out[out.length - 1].start === i + 1) break;
-      }
-    }
-    return out;
-  })();
+  const _fnRanges = fnRanges(original);
   const _sha = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
   const fnHash = (line) => {
+    /* The RANGE, not the name: the incremental key must move when the function's body changes, which
+       is the opposite of what the `fn` qualifier needs. One primitive, two projections. */
     let best = null;
     for (const r of _fnRanges) if (line >= r.start && line <= r.end && (!best || r.end - r.start < best.end - best.start)) best = r;
     return best ? _sha(best.text) : _sha('(top level)');
@@ -2205,7 +2285,10 @@ async function runFile(file) {
     equivalence: (function () {
       /* `allGenerated` is the WHOLE file; `all` is what this run tested (a diff run filters it to the
          touched lines). Passing both is what lets an out-of-scope entry be told from a lapsed one. */
-      const c = classifySurvivors(loadEquivalence()[file], survivors, all, killedMu, allGenerated);
+      /* A qualifier-carrying entry is addressed by its function, so resolve before classifying —
+         `classifySurvivors` is pure over arrays and has no source text to resolve with. */
+      const _res = resolveEntryAddresses(loadEquivalence()[file], allGenerated, original);
+      const c = classifySurvivors(_res.entries, survivors, all, killedMu, allGenerated);
       return {
         excused: c.excused.length,
         realGap: c.realGap.length,
@@ -2916,6 +2999,80 @@ function selftest() {
   ck('key · a legacy canary still matches where there is NO collision', findCanary([_collide[0]], { line: 197, op: 'num → 0', before: _collide[0].before }).after, _collide[0].after);
   ck('key · classifySurvivors keeps two same-op mutants on one line APART', classifySurvivors(_collide, [_collide[0]], _collide).realGap.length, 1);
 
+  /* ── §E4c · the enclosing-function qualifier ────────────────────────────────────────────────────
+     Residue 2026-10-26-a-line-keyed-equivalence-entry-that-drifts-ambiguously-cannot-be-placed. The
+     Python lane made this change first (`capture-host/tests/test_mutation_diff.py`); the rule copied
+     from it is that the qualifier is OPTIONAL, so every entry already recorded keeps its meaning. */
+  const _src = [
+    'function outer(a) {',
+    '  if (a > 0) return 1;',
+    '  return 2;',
+    '}',
+    '',
+    'const arrow = (b) => {',
+    '  if (b > 0) return 3;',
+    '  return 4;',
+    '};',
+    '',
+    'function twice(c) {',
+    '  if (c > 0) return 5;',
+    '  if (c > 0) return 6;',
+    '}',
+    ''
+  ].join('\n');
+  ck(
+    'E4c · fnRanges finds the named declarations and nothing else',
+    fnRanges(_src)
+      .map((r) => r.name)
+      .join(','),
+    'outer,twice'
+  );
+  ck('E4c · enclosingFn names the function a line sits in', enclosingFn(_src, 2), 'outer');
+  ck('E4c · …is null at top level', enclosingFn(_src, 5), null);
+  ck('E4c · …and is null inside an arrow — the measured reach limit, not a bug', enclosingFn(_src, 7), null);
+  ck('E4c · fnRanges carries the TEXT too, so fnHash needs no second regex', /return 1/.test(fnRanges(_src)[0].text), true);
+  const _gen = [
+    { line: 2, op: 'cmp > → >=', before: '  if (a > 0) return 1;', after: '  if (a >= 0) return 1;' },
+    { line: 12, op: 'cmp > → >=', before: '  if (c > 0) return 5;', after: '  if (c >= 0) return 5;' },
+    { line: 13, op: 'cmp > → >=', before: '  if (c > 0) return 6;', after: '  if (c >= 0) return 6;' }
+  ];
+  /* THE BACK-COMPAT LEG. An entry with no qualifier is matched on its line, as it always was. */
+  const _noFn = { line: 2, op: 'cmp > → >=', before: '  if (a > 0) return 1;', after: '  if (a >= 0) return 1;', class: 'equivalent' };
+  const _plainRes = resolveEntryAddresses([_noFn], _gen, _src);
+  ck('E4c · an entry with NO qualifier speaks for its line as it always did', _plainRes.entries[0].line, 2);
+  ck('E4c · …and resolution reports no move for it', _plainRes.moved.length, 0);
+  ck('E4c · …and it still classifies as excused', classifySurvivors(_plainRes.entries, [_gen[0]], _gen, [], _gen).excused.length, 1);
+  /* THE POINT OF THE UNIT. The same entry, drifted two lines up by an edit ABOVE it, is placed. */
+  const _drifted = { ..._noFn, line: 999, fn: 'outer' };
+  const _res = resolveEntryAddresses([_drifted], _gen, _src);
+  ck('E4c · a qualified entry is re-addressed from its function, not its stale line', _res.entries[0].line, 2);
+  ck('E4c · …and the move is reported', _res.moved.length, 1);
+  ck('E4c · …so an excuse that drift had orphaned is excused again', classifySurvivors(_res.entries, [_gen[0]], _gen, [], _gen).excused.length, 1);
+  ck('E4c · …and WITHOUT the qualifier the same entry orphans', classifySurvivors([{ ..._noFn, line: 999 }], [_gen[0]], _gen, [], _gen).orphaned.length, 1);
+  /* THE REFUSALS. Both leave the entry where it was recorded, which costs a blocked survivor and
+     never a silent excuse. */
+  const _ambig = resolveEntryAddresses(
+    [{ line: 999, op: 'cmp > → >=', before: '  if (c > 0) return 5;', after: '  if (c >= 0) return 5;', fn: 'twice', class: 'equivalent' }],
+    [_gen[1], { ..._gen[2], before: '  if (c > 0) return 5;', after: '  if (c >= 0) return 5;' }],
+    _src
+  );
+  ck('E4c · a mutation repeating inside ONE function is NOT resolved', _ambig.entries[0].line, 999);
+  ck('E4c · …and the refusal is reported with the count', _ambig.unresolved[0].n, 2);
+  ck('E4c · …so it orphans rather than excusing either candidate', classifySurvivors(_ambig.entries, [_gen[1]], _gen, [], _gen).excused.length, 0);
+  const _nowhere = resolveEntryAddresses([{ ..._noFn, line: 999, fn: 'outer', before: 'gone', after: 'gone' }], _gen, _src);
+  ck('E4c · a qualifier naming no such mutant keeps the recorded line', _nowhere.entries[0].line, 999);
+  ck('E4c · …and says so', /names no mutant/.test(_nowhere.unresolved[0].why), true);
+  const _wrongFn = resolveEntryAddresses([{ ..._noFn, line: 999, fn: 'twice' }], _gen, _src);
+  ck('E4c · a WRONG qualifier does not reach another function mutant', _wrongFn.entries[0].line, 999);
+  ck('E4c · an entry qualified with a function that no longer exists refuses', resolveEntryAddresses([{ ..._noFn, line: 999, fn: 'deleted' }], _gen, _src).unresolved.length, 1);
+  /* A top-level mutant is addressable only by line: `enclosingFn` is null there, so no qualifier can
+     be written for it and the line-keyed path is the only one. */
+  ck(
+    'E4c · a qualifier can never claim a TOP-LEVEL mutant',
+    resolveEntryAddresses([{ line: 999, op: 'num → 0', before: 'x', after: 'y', fn: 'outer' }], [{ line: 5, op: 'num → 0', before: 'x', after: 'y' }], _src).moved.length,
+    0
+  );
+
   /* ── §E4b · selectRecorded — survivors-only re-testing, and the refusals that make it safe ──────
      The point of the shortcut is a smaller denominator ON PURPOSE. That is exactly why every way of
      silently getting an even smaller one has to be a refusal: a partial re-test and a complete one
@@ -3385,14 +3542,20 @@ if (DRY) {
        give a wildly wrong picture of what the gate is about to test — the one command someone runs to
        check the gate's scope before trusting it. */
     const _touched = DIFF ? DIFF_LINES.get(f) || new Set() : null;
-    const ms = mutantsFor(readFileSync(abs, 'utf8')).filter((m) => !_touched || _touched.has(m.line));
+    const _srcText = readFileSync(abs, 'utf8');
+    const ms = mutantsFor(_srcText).filter((m) => !_touched || _touched.has(m.line));
+    /* The ENUMERATOR stamps the enclosing function, because it is the one process that holds the
+       source. A sibling tool that needed the qualifier would otherwise re-implement the brace
+       matcher and drift from it — the divergent-copy failure the comment above already names for
+       OPS. `null` outside a named declaration, which is the qualifier's absent state. */
+    const _fnR = fnRanges(_srcText);
     if (AS_JSON) {
       /* `mutated` rides along here and ONLY here: --dry-run is the enumeration a re-applier reads
          (probe-equivalence), whereas a sweep record is a result set nobody re-applies from. */
       dryOut.push({
         file: f,
         generated: ms.length,
-        mutants: ms.map((mu, i) => ({ id: f + ':' + mu.line + ':' + i, line: mu.line, op: mu.op, before: mu.before, after: mu.after, mutated: mu.mutated }))
+        mutants: ms.map((mu, i) => ({ id: f + ':' + mu.line + ':' + i, line: mu.line, op: mu.op, before: mu.before, after: mu.after, fn: enclosingFnIn(_fnR, mu.line), mutated: mu.mutated }))
       });
     } else {
       console.log('  ' + f + '  ' + ms.length + ' mutant(s)');
