@@ -664,6 +664,12 @@
   const tchSolidPop = () =>
     TCHSOLID && TCHSOLID.population ? TCHSOLID.population.checked + ' of ' + TCHSOLID.population.listed + ' solid nights, ' + TCHSOLID.population.first + ' → ' + TCHSOLID.population.last : null;
   const tchBand = () => (TCHREC ? '±' + TCHREC.band.abs + ' bpm / ' + Math.round(TCHREC.band.rel * 100) + ' %' : null);
+  /* TWO AXES, AND THE RECORD STATES ONE OF THEM. `axisCanonical` is the axis the CORNERS ride. The
+     reference they are scored against has its own axis, and a record generated before the
+     `--reference-axis` flag existed carries no `referenceAxisCanonical`. §∅ — an axis nobody wrote
+     down is not the tool's default axis, so this returns null and the clause says so rather than
+     printing a value the record never stated. */
+  const tchRefAxis = () => (TCHREC && typeof TCHREC.referenceAxisCanonical === 'string' && TCHREC.referenceAxisCanonical ? TCHREC.referenceAxisCanonical : null);
   const TCH_REFUSED = 'reference note REFUSED — the published record did not load, so no pooled figure is shown';
   function validationLine(k) {
     const ib = TCHAX && TCHAX.inBand && TCHAX.inBand[k];
@@ -754,7 +760,11 @@
       esc(TCHFILE) +
       '</code> · axis <code>' +
       esc(TCHREC.axisCanonical) +
-      '</code>.';
+      '</code> · reference axis ' +
+      (tchRefAxis()
+        ? '<code>' + esc(tchRefAxis()) + '</code>'
+        : '<b>not recorded</b> — this record does not state which timebase the reference itself rode, so whether the comparison is same-axis is unknown') +
+      '.';
   }
   function hero(k, real, derive) {
     const v = $('hero-' + k + '-val'),
