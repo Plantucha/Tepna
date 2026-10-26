@@ -19,7 +19,7 @@ WHAT THIS DOES NOT PROPOSE. It does not propose coverage for the five. `tools/` 
 DESIGN: the glob, subprocess, argparse and IO live there, the logic that can return a WRONG answer
 instead of failing loudly lives one directory up, and `mutation_triage.py`'s header calls that split
 "not an oversight to be finished later". This check pins the set instead. Every absent file carries a
-reason, and a sixth file cannot join them in silence.
+reason, and a further file cannot join them in silence.
 
 THE MEMBERSHIP MOVES, AND NOTHING WATCHED IT. `tools/mutate_triage.py` printed a 100 % row on
 2026-08-27 and prints none today: #1889 moved the classification up into `mutation_triage.py`, the
@@ -29,8 +29,13 @@ check rather than a note.
 
 WHY `population.excluded` IS 0. A pin is not an exclusion. Every declared file is examined, and a
 pinned one is examined against a stricter question than the unpinned one: it must still be absent
-(else its pin is spent) and it must still exist. Reporting the six as `excluded` would claim they were
+(else its pin is spent) and it must still exist. Reporting a pinned file as `excluded` would claim it was
 set aside unexamined, which is the shape this gate exists to catch.
+
+THE LEDGER GREW ON 2026-10-26, which is the event this check was written for. `tools/verity_sdk_trial.py`
+joined it as the seventh pin: a new operator CLI, with its decisions in `verity_sdk_config.py` inside the
+floor and a test file covering that module to 100 % of statements and branches. The pin says what the
+CLI holds; the module's own tests say the decisions were examined.
 """
 
 from __future__ import annotations
@@ -78,13 +83,29 @@ UNMEASURED_BY_DESIGN: dict[str, str] = {
     ),
     "tools/mutate_pure.py": (
         "the in-process mutant runner (AST rewrite plus an in-memory module exec), a hand-run "
-        "diagnostic. THE WEAKEST PIN OF THE SIX: no test imports it and none names it, so unlike the "
-        "other five its split was never audited. Logged as residue, not resolved by this pin"
+        "diagnostic. THE WEAKEST PIN IN THIS LEDGER: no test imports it and none names it, so unlike "
+        "every other pin here its split was never audited. Logged as residue, not resolved by this pin"
     ),
     "tools/mutate_triage.py": (
         "the CLI over mutation_triage.py, which holds the classification. It printed a 100 % row "
         "until #1889 moved that logic up, and this is the file whose silent exit from the report "
         "argued for the check"
+    ),
+    "tools/verity_sdk_trial.py": (
+        "the CLI of the one-night Verity SDK trial: argparse, the config read and write, the "
+        "timestamped backup, the free-space call and the printing. Every decision — which block is "
+        "the Verity, which keys may move, the two-key parse proof and the operator warnings — lives "
+        "in verity_sdk_config.py one directory up, and tests/test_verity_sdk_config.py covers that "
+        "module to 100 % of its statements and branches"
+    ),
+    "tools/probe_verity_equivalence.py": (
+        "a hand-run probe, and a DELIBERATELY WEAK PIN. It rebuilds each claimed-equivalent mutant "
+        "from the module source BY LINE NUMBER, so it cannot be a test: under the mutation gate the "
+        "source on disk is already rewritten and the line numbers have moved, so the same code run "
+        "as a test would compare the wrong lines and kill mutants for the wrong reason, hiding real "
+        "survivors across the whole module. Kept out of the suite for that reason, which is also why "
+        "no test imports it. Its claims are re-checked by running it, and the equivalence entries it "
+        "supports name it"
     ),
 }
 
