@@ -211,6 +211,19 @@ def test_oxyframe_counts_rows(tmp_path):
 
 
 # ── HostClockLogWriter ──────────────────────────────────────────────────────────────────────────────
+def test_host_clock_keeps_its_own_path_and_binds_health_to_it(tmp_path):
+    """`self.path = path` and `_FlushHealth(path)` in this writer's `__init__`, both trivially mutable
+    to `None` and both unobserved. The path is what a flush failure NAMES — `_FlushHealth.failed`
+    logs it and nothing else — so losing it turns a named failure into an anonymous one. The sibling
+    `PmdArrivalLogWriter` already carries this leg; this writer's `__init__` had none, which is why
+    appending one column to its header surfaced the gap."""
+    p = tmp_path / "named_CLOCK.csv"
+    w = HostClockLogWriter(str(p), fsync=False)
+    assert w.path == str(p)
+    assert getattr(w._health, "path", None) == str(p), "health must be bound to this file, not to None"
+    w.close()
+
+
 def test_host_clock_header_and_bool_rendering(tmp_path):
     p = tmp_path / "c.csv"
     w = HostClockLogWriter(str(p), fsync=False)

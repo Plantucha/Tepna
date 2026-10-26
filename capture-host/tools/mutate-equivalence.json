@@ -5572,6 +5572,46 @@
       "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=\"utf-8\", ) as fh:",
       "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
       "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: newline dropped, in append_daemon_start.)"
+    },
+    {
+      "brief": "residue 2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact",
+      "class": "no-distinguishing-input",
+      "function": "HostClockLogWriter.__init__",
+      "key": "- self._fh = open(path, \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"w\", buffering=1 << 16, newline=None)",
+      "probe": "MEASURED 2026-10-26 (Heron): wrote a three-row host-clock payload through the original kwargs and through all five mutants, flushed and closed each, and compared the raw bytes by SHA-256 — identical on all six, sha256[0:16] 6c75e7bf782502b2, 75 bytes. `os.linesep` reads '\\n' on this box. The newline arm is the one that could differ, and it does not here.",
+      "why": "A PROOF FOR THIS ENVIRONMENT, not in general. On write, `newline=None` (or an omitted `newline`) translates '\\n' to `os.linesep`, which on Linux IS '\\n', so the bytes are identical. The explicit form is defensive against a Windows host, and this capture host is Linux-only. The same argument already excuses this mutant on three sibling writers in this module."
+    },
+    {
+      "brief": "residue 2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact",
+      "class": "no-distinguishing-input",
+      "function": "HostClockLogWriter.__init__",
+      "key": "- self._fh = open(path, \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"w\", buffering=1 << 16, )",
+      "probe": "MEASURED 2026-10-26 (Heron): wrote a three-row host-clock payload through the original kwargs and through all five mutants, flushed and closed each, and compared the raw bytes by SHA-256 — identical on all six, sha256[0:16] 6c75e7bf782502b2, 75 bytes. `os.linesep` reads '\\n' on this box. Dropping `newline` is `newline=None` by signature, so it is the same measurement as the entry above.",
+      "why": "A PROOF FOR THIS ENVIRONMENT, not in general. On write, `newline=None` (or an omitted `newline`) translates '\\n' to `os.linesep`, which on Linux IS '\\n', so the bytes are identical. The explicit form is defensive against a Windows host, and this capture host is Linux-only. The same argument already excuses this mutant on three sibling writers in this module."
+    },
+    {
+      "brief": "residue 2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact",
+      "class": "no-distinguishing-input",
+      "function": "HostClockLogWriter.__init__",
+      "key": "- self._fh = open(path, \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"w\", newline=\"\\n\")",
+      "probe": "MEASURED 2026-10-26 (Heron): wrote a three-row host-clock payload through the original kwargs and through all five mutants, flushed and closed each, and compared the raw bytes by SHA-256 — identical on all six, sha256[0:16] 6c75e7bf782502b2, 75 bytes. `os.linesep` reads '\\n' on this box. Dropping `buffering` falls back to Python's default capacity.",
+      "why": "A buffer SIZE has no observable consequence: every assertion in this suite reads the file after a `flush()` or a `close()`, and both empty the buffer whatever its capacity. The same argument, in the same words, already excuses this mutant family on four sibling writers in this module."
+    },
+    {
+      "brief": "residue 2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact",
+      "class": "no-distinguishing-input",
+      "function": "HostClockLogWriter.__init__",
+      "key": "- self._fh = open(path, \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"w\", buffering=2 << 16, newline=\"\\n\")",
+      "probe": "MEASURED 2026-10-26 (Heron): wrote a three-row host-clock payload through the original kwargs and through all five mutants, flushed and closed each, and compared the raw bytes by SHA-256 — identical on all six, sha256[0:16] 6c75e7bf782502b2, 75 bytes. `os.linesep` reads '\\n' on this box. `2 << 16` and `1 << 17` are the SAME NUMBER (131072), printed in the same run, so these two mutants cannot be distinguished even from each other.",
+      "why": "A buffer SIZE has no observable consequence: every assertion in this suite reads the file after a `flush()` or a `close()`, and both empty the buffer whatever its capacity. The same argument, in the same words, already excuses this mutant family on four sibling writers in this module."
+    },
+    {
+      "brief": "residue 2026-10-26-the-absorbed-civil-shift-reaches-no-night-artifact",
+      "class": "no-distinguishing-input",
+      "function": "HostClockLogWriter.__init__",
+      "key": "- self._fh = open(path, \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"w\", buffering=1 << 17, newline=\"\\n\")",
+      "probe": "MEASURED 2026-10-26 (Heron): wrote a three-row host-clock payload through the original kwargs and through all five mutants, flushed and closed each, and compared the raw bytes by SHA-256 — identical on all six, sha256[0:16] 6c75e7bf782502b2, 75 bytes. `os.linesep` reads '\\n' on this box. `1 << 17` == `2 << 16` == 131072, printed in the same run.",
+      "why": "A buffer SIZE has no observable consequence: every assertion in this suite reads the file after a `flush()` or a `close()`, and both empty the buffer whatever its capacity. The same argument, in the same words, already excuses this mutant family on four sibling writers in this module."
     }
   ],
   "solid_night.py": [
