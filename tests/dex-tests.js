@@ -11158,14 +11158,51 @@
       /* THE DELEGATION MUST NOT DELETE THE EVIDENCE. Wiring moves the walk behind the helper, which
          also removes the night regex that put the tool in this population. A tool that imports the
          primitive is a corpus consumer whatever else its text says. */
-      var importers = Object.keys(TT)
+      var moduleImporters = Object.keys(TT)
         .filter(function (k) {
           return /^tools\/[^/]+\.m?js$/.test(k) && k !== CR.SELF && /from '\.\/corpus-scope\.mjs'/.test(TT[k]);
         })
         .map(function (k) {
           return k.replace(/^.*\//, '');
         });
+      /* AND THE IMPORT RULE READS THE SPECIFIERS, NEVER THE MODULE NAME. Row
+         2026-10-26-a-population-rule-keyed-on-a-module-name: `corpus-scope.mjs` also exports the
+         code-identity pair `gitCommitOf` / `producedByOf`, which reads no night, so keying this
+         population on the module's name put three tools that enumerate nothing inside it and reded
+         this leg over them. The list lives once, in `corpus-reads.mjs NIGHT_EXPORTS`. */
+      var importers = moduleImporters.filter(function (t) {
+        return CR.importsNightPrimitive(TT['tools/' + t]);
+      });
+      var identityOnly = moduleImporters.filter(function (t) {
+        return !CR.importsNightPrimitive(TT['tools/' + t]);
+      });
       T.ok('ANTI-VACUITY · the delegating population is not empty', importers.length >= 6, importers.length + ' importer(s): ' + importers.join(', '));
+      T.ok(
+        'ANTI-VACUITY · the module has importers that name no night primitive, so the narrowing is not a no-op',
+        identityOnly.length >= 1 && importers.length + identityOnly.length === moduleImporters.length,
+        identityOnly.length + ' of ' + moduleImporters.length + ' importer(s) name no night primitive: ' + identityOnly.join(', ')
+      );
+      T.ok(
+        'the import rule reads the SPECIFIERS, not the module name',
+        CR.importsNightPrimitive("import { snapshotNights } from './corpus-scope.mjs';") &&
+          CR.importsNightPrimitive("import { snapshotNights as walk } from './corpus-scope.mjs';") &&
+          CR.importsNightPrimitive("import * as CS from './corpus-scope.mjs';") &&
+          CR.importsNightPrimitive("import { producedByOf } from './corpus-scope.mjs';\nimport { notCovered } from './corpus-scope.mjs';") &&
+          !CR.importsNightPrimitive("import { producedByOf } from './corpus-scope.mjs';") &&
+          !CR.importsNightPrimitive("// snapshotNights lives in corpus-scope.mjs\nimport { gitCommitOf } from './corpus-scope.mjs';"),
+        'night specifier in · renamed in · namespace in, because it hides the list · second statement in · code identity alone out · prose out'
+      );
+      T.ok(
+        'every night primitive in the one list admits a file by the night-primitive rule',
+        CR.NIGHT_EXPORTS.length >= 8 &&
+          CR.NIGHT_EXPORTS.every(function (n) {
+            var hit = CR.vocabHits(n + '(a, b)').find(function (h) {
+              return h.rule === 'night-primitive';
+            });
+            return hit && hit.match === n;
+          }),
+        CR.NIGHT_EXPORTS.length + ' primitive(s), each matched under its own name'
+      );
       T.eq(
         'every tool that imports the night primitive stays inside the corpus population',
         importers
@@ -11476,6 +11513,69 @@
         /commit:\s*null,\s*commitReason:\s*'not read from a git tree'/.test("producedBy: { tool: TOOL, commit: null, commitReason: 'not read from a git tree' },"),
         'the planted literal matches'
       );
+      /* ── AND THE SENTENCE REDS IN EVERY SPELLING, OVER A POPULATION THAT HOLDS EVERY SITE ─────
+         Row 2026-10-22-seven-tools-name-a-cause-their-own-lookup-never-stated. The leg above reds
+         the UNCONDITIONAL pair, which is the shape `corpus-scope.mjs` carried, and that narrowness
+         is deliberate — the row's own evidence cell records it. Seven sites over five files wrote
+         the CONDITIONAL spelling instead, `commit, ...(commit ? {} : { commitReason: … })`, and
+         published the same borrowed sentence while staying green. Two more wrote it for a CALLER
+         rather than for a lookup of their own, which is a second shape sharing one literal.
+
+         ⚠ ONE OF THE SEVEN SAT OUTSIDE THE POPULATION ENTIRELY. `TOOL_TEXTS` is `tools/*.mjs`
+         alone, so `tests/verify-shard-timings.mjs` could not be seen in EITHER spelling — a
+         detector blind by denominator, not by regex. Widening `TOOL_TEXTS` would silently move
+         every other source-scanning gate's population (`tests/run-tests.mjs` says so where it
+         builds the map), so this leg reads that one file itself and names it in the verdict.
+
+         ∅ The rule stays "the reason is MEASURED". A run genuinely outside a tree must still say
+         so, and `producedByOf` says it in the failed lookup's own words. What reds here is the
+         LITERAL, in code, in any spelling — so a comment recalling the old sentence does not. */
+      var BORROWED_CAUSE = "'not read from a git tree'";
+      var seesBorrowed = function (src) {
+        return JLv && JLv.blankComments ? JLv.blankComments(String(src || '')).indexOf(BORROWED_CAUSE) >= 0 : false;
+      };
+      var SHARD_GATE = 'tests/verify-shard-timings.mjs';
+      var shardSrc = '';
+      if (env.nodeFs && env.repoRoot) {
+        try {
+          shardSrc = env.nodeFs.readFileSync(env.repoRoot + '/' + SHARD_GATE, 'utf8');
+        } catch {
+          shardSrc = '';
+        }
+      }
+      T.ok(
+        'ANTI-VACUITY · the out-of-population site is loaded, so its absence cannot read as clean',
+        shardSrc.length > 500 && shardSrc.indexOf('shard-untimed-ratchet') >= 0,
+        shardSrc.length + ' char(s) read for ' + SHARD_GATE
+      );
+      var borrowedAnySpelling = Object.keys(TT).filter(function (k) {
+        return seesBorrowed(TT[k]);
+      });
+      if (seesBorrowed(shardSrc)) borrowedAnySpelling.push(SHARD_GATE);
+      T.eq('no tool names a cause its own lookup never reported, in any spelling', borrowedAnySpelling.sort().join(', '), '');
+      T.ok(
+        'ANTI-VACUITY · the detector fires on the CONDITIONAL spelling, the one the seven sites used',
+        seesBorrowed("    producedBy: { tool: SELF, commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }"),
+        'the planted conditional spelling matches'
+      );
+      T.ok(
+        'ANTI-VACUITY · and prose recalling the old sentence does not red, so the ban reads CODE',
+        !seesBorrowed("/* every verdict used to stamp 'not read from a git tree' whenever the caller named none */"),
+        'blankComments masks the comment mention'
+      );
+      /* AND THE SEVEN CALL THE SHARED RESOLVER, so a reason can only come from a failed lookup. */
+      var resolverUsers = [
+        'tools/zotero-fill.mjs',
+        'tools/usage-guard.mjs',
+        'tools/pat-window-oracle.mjs',
+        'tools/pat-residual-structure.mjs',
+        'tools/box-sample.mjs',
+        'tools/fold-generation.mjs'
+      ].filter(function (k) {
+        return !/producedByOf\(/.test(TT[k] || '');
+      });
+      T.eq('every migrated verdict builder composes producedByOf', resolverUsers.sort().join(', '), '');
+      T.ok('and the gate outside tools/ composes it too', /producedByOf\(/.test(shardSrc), SHARD_GATE + ' calls producedByOf');
       /* AND THE PRIMITIVE OWNS THE READER, so a consumer cannot be asked to resolve what it has no
          root for. A re-duplication of the git read into a corpus consumer reds here. */
       T.ok('the night primitive exports the commit reader it uses', /export function gitCommitOf\s*\(/.test(TT['tools/corpus-scope.mjs'] || ''), 'gitCommitOf is exported from corpus-scope.mjs');

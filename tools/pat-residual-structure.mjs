@@ -65,7 +65,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_STRUCTURED = 0.3;
@@ -215,7 +215,7 @@ export function runVerdict(tally, excludedBy, eligible, { commit = null, evidenc
     result: status === 'NOT_RUN' ? null : { tally, structured, scored: checked, excludedBy },
     evidence: ['tools/pat-residual-structure.mjs', ...evidence],
     reason,
-    producedBy: { tool: 'tools/pat-residual-structure.mjs', commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
+    producedBy: producedByOf('tools/pat-residual-structure.mjs', commit)
   });
   const chk = Verdict.validate(v);
   if (!chk.ok) throw new Error(`pat-residual-structure: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);

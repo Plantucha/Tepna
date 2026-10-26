@@ -67,6 +67,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { isCliEntry } from './argv-guard.mjs';
+import { producedByOf } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -643,16 +644,9 @@ export function evaluate(collected, budgets, { sinceMs, nowMs = Date.now() } = {
     result: decided ? { budgets: budgetRows, warnings: usage.warnings, fleetTokens: fleet } : null,
     evidence: ['tools/usage-guard.mjs', collected.dir, ...collected.apiFiles.filter((f) => f.ok).map((f) => f.file)],
     reason,
-    producedBy: { tool: 'tools/usage-guard.mjs', commit: gitCommit(), ...(gitCommit() ? {} : { commitReason: 'not read from a git tree' }) }
+    producedBy: producedByOf('tools/usage-guard.mjs', null)
   });
   return { verdict, usage };
-}
-function gitCommit() {
-  try {
-    return execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    return null;
-  }
 }
 
 /* ── rendering ──────────────────────────────────────────────────────────────────────────────────── */
@@ -1003,7 +997,7 @@ async function main() {
       result: null,
       evidence: ['tools/usage-guard.mjs'],
       reason: '--verdict-sample reads no transcript and configures no budget — nothing was examined',
-      producedBy: { tool: 'tools/usage-guard.mjs', commit: gitCommit(), ...(gitCommit() ? {} : { commitReason: 'not read from a git tree' }) }
+      producedBy: producedByOf('tools/usage-guard.mjs', null)
     });
     process.stdout.write(`${JSON.stringify(v)}\n`);
     process.exit(0);
