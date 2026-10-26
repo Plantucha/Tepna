@@ -135,6 +135,21 @@ expect ALLOW "the hatch exported — the only form a Read sees"  "$STALE" "$(pat
 expect ALLOW "a Grep whose path is a DIRECTORY, not the file"  "$STALE" "$(grepj "$STALE/briefs")"
 
 echo
+echo "### data carriers: a mention that reads nothing, and the operands that look like one"
+# Row 2026-10-26-a-data-position-ledger-mention-denies-the-command. The ALLOWs are the four forms
+# the row measured as denied; the DENYs are the operands the row's own remedy shape would have
+# freed, and they are the reason the exemption names carriers instead of blanking every quote.
+expect ALLOW "a commit message that names the ledger"          "$STALE" "$(cmdj "git commit -m 'the row now reads closed in briefs/RESIDUE.md'")"
+expect ALLOW "…the same message via --message="               "$STALE" "$(cmdj "git commit --message='appended a row to briefs/RESIDUE.md'")"
+expect ALLOW "an echo of prose that holds the path"            "$STALE" "$(cmdj "echo 'wrote the row to briefs/RESIDUE.md'")"
+expect ALLOW "a printf of prose that holds the path"           "$STALE" "$(cmdj "printf '%s\\n' 'row appended to briefs/RESIDUE.md'")"
+expect DENY  "an echo REDIRECTED into the ledger overwrites it" "$STALE" "$(cmdj "echo '| x | OPEN |' > briefs/RESIDUE.md")"
+expect DENY  "an echo of a command substitution that reads it"  "$STALE" "$(cmdj "echo \"\$(grep OPEN briefs/RESIDUE.md)\"")"
+expect DENY  "a sed -i whose path is merely QUOTED"             "$STALE" "$(cmdj "sed -i 's/OPEN/fixed #1/' \"briefs/RESIDUE.md\"")"
+expect DENY  "a commit whose PATHSPEC is the ledger"            "$STALE" "$(cmdj "git commit -m 'a row' briefs/RESIDUE.md")"
+expect DENY  "a stale read beside an exempt commit message"     "$STALE" "$(cmdj "git commit -m 'see briefs/RESIDUE.md' && grep OPEN briefs/RESIDUE.md")"
+
+echo
 echo "### the population: the two legs that caught this hook's own defects"
 write_ledger 'fixed #9001' OPEN OPEN 'key' 2>/dev/null
 cp briefs/RESIDUE.md "$STALE/briefs/RESIDUE.md"
