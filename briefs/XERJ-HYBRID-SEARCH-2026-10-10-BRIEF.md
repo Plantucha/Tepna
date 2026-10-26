@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** IN-PROGRESS — 2026-10-10 · **Created:** 2026-10-10
+**Status:** DONE — 2026-10-26 (verified 2026-10-26, Kestrel: all six §6 boxes hold at `origin/main`. `tools/xerj-load.mjs`, `tools/xerj-query.mjs` and `tools/xerj-bench.mjs` exist, and their selftests pass 67, 46 and 14. `docs/TOOLS-INDEX.md` carries 3 rows and `verdict-adoption` carries 2 bins. The owner ruled ADOPT on 2026-10-11 (§7), and `doc-search.mjs searchLane()` runs the hybrid lane by default.) · Previously: IN-PROGRESS — 2026-10-10 · **Created:** 2026-10-10
 
 # XERJ hybrid search trial — one engine for BM25 + bge-m3 kNN over the repo source
 
