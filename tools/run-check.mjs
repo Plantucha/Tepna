@@ -71,6 +71,7 @@ export const STEPS = [
   'verify:commit-shape',
   'verify:residue-ids',
   'verify:residue-claims',
+  'verify:residue-citations',
   'verify:defect-pins',
   'verify:survivor-ratchet',
   'verify:absence',

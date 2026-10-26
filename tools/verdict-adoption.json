@@ -2038,6 +2038,18 @@
    },
    "note": "the residue-pickup verdict (row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale). --open reads the ledger from origin/main rather than from the working tree, and compares every row's state against the copy on disk. Pre-stated rule: a row whose state differs, or a row the disk copy does not carry at all, is a stale read and FAILs. Population = the rows on the ref, a row only on the ref excluded as unreadable. An unresolvable base refuses with exit 2, and NOT_RUN appears only under --verdict-sample, where there is no ref to resolve"
   },
+  "tools/residue-citations.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/residue-citations.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the residue-citations verdict (row 2026-10-25-the-dangling-key-check-reads-commit-messages-only). It asks whether a residue key CITED IN CODE resolves to a row, which is the direction tools/residue-cite-drift.mjs does not cover. Criterion pre-stated: an unresolved citation outside tools/residue-citations-baseline.json, a baseline key that resolves now, or a near miss of a real row reds the gate."
+  },
   "tools/resp-cardiac-suppression-e8.mjs": {
    "bin": "word-only",
    "status": "exempt",

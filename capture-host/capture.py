@@ -5793,7 +5793,7 @@ async def run_oxyii(dev: dict, root: str):
             _power_flush(name, _oxywr["w"])
         started = _now()
         ndir = night_dir(root, started)
-        # ── CAPTURE-FILESET-RESUME for the RING (residue 2026-09-06-ring-never-resumes) ──────
+        # ── CAPTURE-FILESET-RESUME for the RING (residue 2026-09-06-ring-fileset-never-resumes) ──────
         # The Polar path has done this since #1532; the ring never did, and that asymmetry was
         # 11.3x its fragmentation. Same chokepoint, same window: adopt the newest set's stamp so
         # every capture_filename() below regenerates identical names and the writers append.
