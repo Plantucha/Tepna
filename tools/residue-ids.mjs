@@ -504,6 +504,15 @@ export function namedKeys(text, selfId) {
 }
 
 /**
+ * The correction verbs, stated here because the ledger states them NOWHERE — the convention lives in
+ * how sessions write a correcting row, so this set is a floor on the corrections and never a census
+ * (row 2026-10-26-a-correcting-row-leaves-no-mark-on-the-row-it-corrects says so in its own cells).
+ * `withdrawn` is in the set although the state vocabulary carries it too: a row may withdraw another
+ * in its prose without the target's state cell naming it back, which is exactly the one-sided form.
+ */
+export const CORRECTION_VERBS = /\b(CORRECTS|corrects|correcting|corrected|withdraws|withdrawn|supersedes|replaces)\b/;
+
+/**
  * Pure. THE LEDGER-INTERNAL READ: which rows CITE an open key inside their own cells.
  *
  * `namedByCode` reads the log, so it finds a row whose answer landed as CODE. It cannot see the
@@ -521,25 +530,63 @@ export function namedKeys(text, selfId) {
  * A citing row's STATE says nothing about whether it holds the answer, so both states are reported
  * and neither is a verdict. This is a reading order, exactly like a code lead.
  *
+ * Each entry also carries its KIND, because a correction and a mention read the same way otherwise
+ * (row 2026-10-26-a-correcting-row-leaves-no-mark-on-the-row-it-corrects). `kind` is one of:
+ *
+ *   `citation`                   — the citing row carries no correction verb.
+ *   `correction`                 — a verb, and the citing row names exactly ONE existing row, so the
+ *                                  verb can only be about that row.
+ *   `correction-unattributable`  — a verb, and the citing row names SEVERAL existing rows, so which
+ *                                  one the verb is about is not decidable from the cells. §∅: an
+ *                                  unattributable kind is reported as unattributable, never promoted
+ *                                  to `correction` and never silently dropped to `citation`.
+ *
+ * The split is not a nicety. Measured 2026-10-26 over the ref at 854 rows: 260 rows name another
+ * existing row, 37 of those carry a verb, giving 40 one-sided pairs over 34 distinct targets — and
+ * 16 of those 40 come from 7 citers that name several rows each. Over the OPEN targets the ratio
+ * inverts: 1 pair is attributable and 4 are not, and 3 of those 4 come from the asking row itself,
+ * which names four rows as INSTANCES of the pattern rather than as corrections. A row-level verb
+ * test would have published that row as the corrector of three rows it only cites.
+ *
+ * Attribution counts the existing ROWS a citer names, while `fanOut` counts every key-shaped token
+ * it names. The two differ on a dangling key: naming one real row beside a key that resolves to no
+ * row leaves the verb attributable, because there is still only one row it can be about.
+ *
  * @param {string[]} keys  the OPEN keys to look up
  * @param {ReturnType<typeof parseRows>} rows  every row at the ref
- * @returns {Map<string, Array<{id: string, state: string, fanOut: number}>>}
+ * @returns {Map<string, Array<{id: string, state: string, fanOut: number, kind: string}>>}
  */
 export function citedBy(keys, rows) {
   const want = new Set(keys);
-  /** @type {Map<string, Array<{id: string, state: string, fanOut: number}>>} */
+  const ids = new Set(rows.map((r) => r.id));
+  /** @type {Map<string, Array<{id: string, state: string, fanOut: number, kind: string}>>} */
   const out = new Map();
   for (const r of rows) {
     // fan-out belongs to the CITING row, so it counts every key that row names, not the asked-for ones
     const named = namedKeys(r.key, r.id);
+    // attribution needs the rows a citer names; a key that resolves to no row cannot take a verb
+    let namedRows = 0;
+    for (const k of named) if (ids.has(k)) namedRows++;
+    const kind = !CORRECTION_VERBS.test(r.key) ? 'citation' : namedRows === 1 ? 'correction' : 'correction-unattributable';
     for (const k of named) {
       if (!want.has(k)) continue;
       if (!out.has(k)) out.set(k, []);
       const list = out.get(k);
-      if (!list.some((e) => e.id === r.id)) list.push({ id: r.id, state: r.state, fanOut: named.size });
+      if (!list.some((e) => e.id === r.id)) list.push({ id: r.id, state: r.state, fanOut: named.size, kind });
     }
   }
   return out;
+}
+
+/**
+ * Pure. Counts the asked-for keys whose citation list holds at least one entry of `kind`.
+ * @param {ReturnType<typeof citedBy>} cites
+ * @param {string} kind
+ */
+export function keysWithKind(cites, kind) {
+  let n = 0;
+  for (const list of cites.values()) if (list.some((e) => e.kind === kind)) n++;
+  return n;
 }
 
 /**
@@ -591,6 +638,13 @@ export function pickupVerdict(drift, ctx) {
       /* Informational in the same way, and NOT gated on git: the citing read is pure, so this
          counts OPEN rows that another ROW names, whatever that row's own state says. */
       openCitedByRow: Number.isInteger(ctx.citedBy) ? ctx.citedBy : null,
+      /* The KIND split, informational on the same terms. A correction is a citation whose verb is
+         attributable to one row; the unattributable arm is published rather than folded into either
+         side, because which row the verb was about is not decidable from the cells. */
+      /* These two OVERLAP by construction — a row cited by several others can hold an attributable
+         correction and an unattributable one at once — so they never sum to `openCitedByRow`. */
+      openCorrectedByRow: Number.isInteger(ctx.correctedBy) ? ctx.correctedBy : null,
+      openCorrectionUnattributable: Number.isInteger(ctx.correctionUnattributable) ? ctx.correctionUnattributable : null,
       behindCommits: ctx.behind,
       base: ctx.base
     },
@@ -706,7 +760,17 @@ function main() {
         leads = null;
       }
     }
-    const v = pickupVerdict(drift, { behind, base, commit, namedByCode: leads === null ? null : leads.size, citedBy: cites.size });
+    const corrected = keysWithKind(cites, 'correction');
+    const unattributable = keysWithKind(cites, 'correction-unattributable');
+    const v = pickupVerdict(drift, {
+      behind,
+      base,
+      commit,
+      namedByCode: leads === null ? null : leads.size,
+      citedBy: cites.size,
+      correctedBy: corrected,
+      correctionUnattributable: unattributable
+    });
     if (sample) {
       process.stdout.write(`${JSON.stringify(v)}\n`);
       process.exit(0);
@@ -723,7 +787,7 @@ function main() {
             cites.has(k)
               ? `  ← cited by row: ${cites
                   .get(k)
-                  .map((e) => `${e.id} [${e.state}, cites ${e.fanOut}]`)
+                  .map((e) => `${e.id} [${e.state}, cites ${e.fanOut}${e.kind === 'citation' ? '' : `, ${e.kind.toUpperCase()}`}]`)
                   .join(', ')}`
               : ''
           }\n`
@@ -741,6 +805,14 @@ function main() {
         "`cites N` is that row's fan-out, the number of rows it names in all. Read a `cites 1` first: measured " +
         '2026-10-26 over the ref, a one-to-one citer carried something 9 times in 9, and a citer naming three or ' +
         'more rows carried something once in 5.\n'
+    );
+    process.stdout.write(
+      `residue-pickup: of those, ${corrected} row(s) carry a CORRECTION — a citing row whose correction verb can ` +
+        `only be about them — and ${unattributable} carry a verb this read cannot attribute, because the citing row ` +
+        'names several rows at once. The two counts OVERLAP, because one row can carry both kinds, so they do ' +
+        'not sum to the cited total. An unattributable mark is a reading order and nothing more: read the citing ' +
+        'row and decide for yourself which row its verb was about. A correction never moves the corrected ' +
+        "row's state, since rows are append-and-close.\n"
     );
     if (v.status === 'PASS') {
       process.stdout.write(`\nresidue-pickup: the file on disk agrees with ${base} on all ${drift.checked} shared row(s)\n`);
@@ -1123,6 +1195,44 @@ if (IS_CLI && process.argv.includes('--selftest')) {
     );
     assert(namedKeys(row(A, `this measures ${A}`), A).size === 0, 'a row naming its own key in prose does not cite itself');
     assert(namedKeys(`changes/${A}.md and ${B}`, 'x').size === 1, 'the changeset exclusion drops the .md token and keeps its neighbour');
+  }
+
+  /* THE KIND SPLIT — a correction and a mention read the same way without it, and a row-level verb
+     test would publish a multi-row citer as the corrector of every row it names. Each arm carries
+     its own control: the SAME citer without a verb must read `citation`, or the verb is doing
+     nothing. (Row 2026-10-26-a-correcting-row-leaves-no-mark-on-the-row-it-corrects.) The synthetic
+     keys are dated BEFORE the ledger floor on purpose: `residue-citations.mjs` scans this file, the
+     `row(` call is itself a citation word, and a key below the floor names no row and never could, so
+     the fixtures cost the citation baseline no declared debt. Keep them pre-floor. */
+  {
+    const T1 = '2026-08-30-target-one';
+    const T2 = '2026-08-30-target-two';
+    const ktext = [
+      row(T1, 'the defect', 'OPEN'),
+      row(T2, 'another defect', 'OPEN'),
+      row('2026-08-30-narrow-corrector', `this CORRECTS ${T1}`, 'OPEN'),
+      row('2026-08-30-narrow-mention', `this measures ${T1} without a verb`, 'OPEN'),
+      row('2026-08-30-broad-corrector', `this corrects ${T1} and also names ${T2}`, 'OPEN'),
+      row('2026-08-30-dangling-corrector', `this supersedes ${T2} and names 2026-08-30-no-such-row`, 'OPEN')
+    ].join('\n');
+    const krows = parseRows(ktext);
+    const kc = citedBy([T1, T2], krows);
+    const kindOf = (k, id) => kc.get(k)?.find((e) => e.id === id)?.kind;
+    assert(kindOf(T1, '2026-08-30-narrow-corrector') === 'correction', 'a verb-carrying citer that names ONE row is attributable');
+    assert(kindOf(T1, '2026-08-30-narrow-mention') === 'citation', 'CONTROL · the same shape without a verb is a plain citation');
+    assert(kindOf(T1, '2026-08-30-broad-corrector') === 'correction-unattributable', 'a verb-carrying citer that names SEVERAL rows is not attributed to either');
+    assert(kindOf(T2, '2026-08-30-broad-corrector') === 'correction-unattributable', 'and the other row it names reads the same, since the read cannot choose between them');
+    assert(kindOf(T2, '2026-08-30-dangling-corrector') === 'correction', 'a key that resolves to NO row cannot take the verb, so naming it beside one real row leaves the verb attributable');
+    assert(keysWithKind(kc, 'correction') === 2 && keysWithKind(kc, 'correction-unattributable') === 2, 'the counts are over KEYS, and a key holding both kinds is counted under both');
+    assert(keysWithKind(kc, 'citation') === 1, 'and a key cited without a verb is counted under the plain kind alone');
+    const kv = pickupVerdict(pickupDrift(ktext, ktext), { behind: 0, base: 'b', commit: 'abc1234', citedBy: 2, correctedBy: 2, correctionUnattributable: 2 });
+    assert(kv.result.openCorrectedByRow === 2 && kv.result.openCorrectionUnattributable === 2 && kv.status === 'PASS', 'the verdict carries both kind counts, and neither moves the status');
+    const kvAbsent = pickupVerdict(pickupDrift(ktext, ktext), { behind: 0, base: 'b', commit: 'abc1234', citedBy: 2 });
+    assert(kvAbsent.result.openCorrectedByRow === null && kvAbsent.result.openCorrectionUnattributable === null, 'an absent kind read is null, never 0 — §∅');
+    assert(
+      CORRECTION_VERBS.test('corrected') && CORRECTION_VERBS.test('CORRECTS') && !CORRECTION_VERBS.test('correctness'),
+      'the verb set matches whole words, so a longer word carrying one is not a verb'
+    );
   }
 
   /* BLACK BOX: the CLI in a scratch repo. Commit 1 adds the row in a code commit that names it (a
