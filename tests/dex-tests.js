@@ -67809,6 +67809,24 @@
           true
         );
         T.eq('CONTROL · …and false without one', P.analyze(P.parsePPG(seamText(300, 0), undefined), null).clockSeam, false);
+        /* THE EXPORT, which is where the CORPUS reads it. `r.clockSeam` above is an internal field, and
+           until this leg landed no PPG export published the seam at all — so a reader of the 173
+           committed folds could bound the step count from `recording.hostAxis.maxStepMs` and never
+           measure it, because both clocks tick through a dropout and only a step makes them disagree.
+           Mirrors the ECGDex leg field for field, and the control pins the no-null-key discipline that
+           keeps every clean committed export byte-identical. Row
+           `2026-10-25-the-ring-seam-verdict-never-reaches-a-folded-artifact`. */
+        T.ok(
+          'SEAM · the node export carries recording.clockResyncs — the corpus can COUNT seams, not only bound them',
+          Array.isArray(seam.recording.clockResyncs) && seam.recording.clockResyncs.length === 1,
+          JSON.stringify(seam.recording.clockResyncs)
+        );
+        T.ok(
+          'SEAM · …with the device step a finite positive number and phoneDeltaMs PRESENT (null reads as unmeasured, never zero)',
+          !!seam.recording.clockResyncs && isFinite(seam.recording.clockResyncs[0].deviceStepMs) && seam.recording.clockResyncs[0].deviceStepMs > 0 && 'phoneDeltaMs' in seam.recording.clockResyncs[0],
+          JSON.stringify(seam.recording.clockResyncs && seam.recording.clockResyncs[0])
+        );
+        T.eq('CONTROL · a seamless night omits the key entirely, so no clean committed export moves a byte', 'clockResyncs' in ctl.recording, false);
 
         if (typeof PD.buildMeasurementBlocks !== 'function' || typeof PD.analyze !== 'function' || typeof PD.parsePPG !== 'function') {
           T.skip('plants via PpgDex.buildMeasurementBlocks', 'builder seam not exposed');
