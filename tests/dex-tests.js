@@ -11268,6 +11268,96 @@
         return /export function notANight\s*\(/.test(TT[k] || '');
       });
       T.eq('the removal namer is defined once, and in corpus-scope.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope.mjs');
+      /* ── A HAND-WRITTEN DEFAULT ANSWER AGREES WITH THE RULE BESIDE IT ─────────────────────────
+         Row 2026-10-26-a-hand-written-ruleisdefault-asserts-a-comparison-the-file-never-ran.
+         `snapshotNights` computes `ruleIsDefault` on every arm it returns, refusals included, as
+         `String(re) === String(NIGHT_RE)`. A tool that hand-builds the same snapshot shape for a mode
+         that walks nothing writes the field as a bare `true` or `false` instead, which states the
+         outcome of a comparison that file never ran. Twenty-five sites do. Each one carries its own
+         `rule` sibling in the same literal, so the pair is self-checking, and this is the only reader
+         that sees every site at once.
+         🔴 MY FIRST READER OF THIS POPULATION NAMED FIVE DEFECTS AND ALL FIVE WERE ITS OWN BLIND
+         FORMS. It compared the `rule` text against the default's text, so a quoted
+         `'/^\d{4}-\d{2}-\d{2}$/'` and three `String(NIGHT_RE)` imports read as a disagreement when
+         each resolves to the default. So an unreadable form reds as UNRESOLVED below, in its own
+         column, and never joins the defect count: a reader that cannot read a form owes that word,
+         not a verdict. The resolver's own controls run first, over planted text, because a scan is a
+         tripwire and executing it is the contract. */
+      var NIGHT_TEXT = String(/^\d{4}-\d{2}-\d{2}$/);
+      var dfltStrip = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      function ruleTextOf(txt, expr) {
+        var m = expr.match(/^String\((\/(?:[^/\\\n]|\\.)+\/[a-z]*)\)$/);
+        if (m) return m[1];
+        m = expr.match(/^'((?:[^'\\]|\\.)*)'$/) || expr.match(/^"((?:[^"\\]|\\.)*)"$/);
+        if (m) return m[1].replace(/\\\\/g, '\\');
+        m = expr.match(/^String\(([A-Za-z_$][\w$]*)\)$/);
+        if (m) {
+          var id = m[1];
+          var decl = txt.match(new RegExp('\\b(?:const|let|var)\\s+' + id + '\\s*=\\s*(/(?:[^/\\\\\\n]|\\\\.)+/[a-z]*)'));
+          if (decl) return decl[1];
+          if (id === 'NIGHT_RE' && /from\s*'\.\/corpus-scope\.mjs'/.test(txt)) return NIGHT_TEXT;
+        }
+        return null;
+      }
+      var CTRL_TXT = "import { NIGHT_RE } from './corpus-scope.mjs';\nconst ANY_RE = /./;\n";
+      T.eq('CONTROL · the resolver reads an inline default regex', ruleTextOf(CTRL_TXT, 'String(/^\\d{4}-\\d{2}-\\d{2}$/)'), NIGHT_TEXT);
+      T.eq('CONTROL · the resolver reads the quoted spelling of the default', ruleTextOf(CTRL_TXT, "'/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/'"), NIGHT_TEXT);
+      T.eq('CONTROL · the resolver reads the imported NIGHT_RE identifier', ruleTextOf(CTRL_TXT, 'String(NIGHT_RE)'), NIGHT_TEXT);
+      T.eq('CONTROL · the resolver reads a file-local identifier and it is not the default', ruleTextOf(CTRL_TXT, 'String(ANY_RE)'), '/./');
+      T.eq('CONTROL · a form the resolver cannot read answers null, never a guess', ruleTextOf(CTRL_TXT, 'String(ruleOf(opts))'), null);
+      var dfltSites = [];
+      var dfltDerived = [];
+      var dfltNulled = [];
+      var dfltUnresolved = [];
+      var dfltDisagree = [];
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var txt = dfltStrip(TT[k] || '');
+          if (!/ruleIsDefault\s*:/.test(txt)) return;
+          var lines = txt.split('\n');
+          lines.forEach(function (ln, i) {
+            var hit = ln.match(/\bruleIsDefault\s*:\s*(.+?),?\s*$/);
+            if (!hit) return;
+            var val = hit[1].trim();
+            var site = k + ':' + (i + 1);
+            dfltSites.push(site);
+            if (val === 'null') {
+              dfltNulled.push(site);
+              return;
+            }
+            if (val !== 'true' && val !== 'false') {
+              dfltDerived.push(site);
+              return;
+            }
+            var ruleExpr = null;
+            for (var j = i - 1; j >= 0 && j >= i - 8; j--) {
+              var sib = lines[j].match(/^\s*rule\s*:\s*(.+?),?\s*$/);
+              if (sib) {
+                ruleExpr = sib[1].trim();
+                break;
+              }
+              if (/^\s*\}/.test(lines[j])) break;
+            }
+            if (ruleExpr === null) {
+              dfltUnresolved.push(site + ' (no rule sibling in the literal)');
+              return;
+            }
+            var text = ruleTextOf(txt, ruleExpr);
+            if (text === null) {
+              dfltUnresolved.push(site + ' (rule ' + ruleExpr + ')');
+              return;
+            }
+            if (val !== String(text === NIGHT_TEXT)) dfltDisagree.push(site + ' says ' + val + ' beside rule ' + ruleExpr);
+          });
+        });
+      T.ok('ANTI-VACUITY · the default-answer population is non-empty', dfltSites.length >= 20, dfltSites.length + ' site(s) write a ruleIsDefault key');
+      T.ok('ANTI-VACUITY · the primitive computes the answer rather than writing it', dfltDerived.length >= 2, dfltDerived.length + ' computed site(s): ' + dfltDerived.slice(0, 4).join(', '));
+      T.ok('ANTI-VACUITY · the refusal shape that nulls the answer is still present', dfltNulled.length >= 1, dfltNulled.length + ' nulled site(s): ' + dfltNulled.join(', '));
+      T.eq('no hand-written ruleIsDefault contradicts the rule in the same literal', dfltDisagree.join(' | '), '');
+      T.eq('every ruleIsDefault literal sits beside a rule this reader can resolve', dfltUnresolved.join(' | '), '');
       /* ── A PUBLISHED VERDICT THE ADOPTION GATE CANNOT SEE ────────────────────────
          Row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file,
          remedied 2026-10-25. The gate enumerated its population by grepping LITERAL decision words
