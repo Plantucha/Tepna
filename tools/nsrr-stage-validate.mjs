@@ -72,6 +72,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, basename } from 'node:path';
 import vm from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
+import { printVerdict } from './verdict-emit.mjs';
 
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -818,6 +819,6 @@ if (IS_CLI) {
       console.log('\nCARRY THE DOMAIN SHIFT: NSRR is clinical PSG on a clinical population, not a consumer chest');
       console.log('strap on a healthy sleeper. A good number here does NOT retire the real-night falsifiers.');
     }
-    console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdictObj.status, population: verdictObj.population, reason: verdictObj.reason }));
+    printVerdict(verdictObj);
   }
 }

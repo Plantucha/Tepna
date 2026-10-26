@@ -80,6 +80,7 @@ import { fileURLToPath } from 'node:url';
 import { coincidenceLag, firmwareHostTimes, pairByTime } from './oracle-ecg-firmware-rr.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { printVerdict } from './verdict-emit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
@@ -1148,7 +1149,7 @@ async function main(argv) {
           (v.population.first ? ` · ${v.population.first} → ${v.population.last}` : '') +
           (v.population.listed == null ? '' : ` · ${v.population.listed} listed`)
       );
-    console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdict.status, population: verdict.population, reason: verdict.reason }));
+    printVerdict(verdict);
   }
   return 0;
 }
