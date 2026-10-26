@@ -11418,6 +11418,32 @@
         /export function notANight\(offer, covered\) \{\s*return notCovered\(offer, covered\);/.test(CSCOPE),
         'notANight no longer delegates to notCovered'
       );
+      /* AND THE NIGHT WALK OVER SUCH A ROOT NO LONGER PUBLISHES IT AS AN EMPTIED CORPUS. The
+         comment above records the other half of that hazard: `nights` is empty for a record-keyed
+         root, and it was empty under the same digest and the same sentence as a genuinely empty
+         one (row 2026-10-26-a-non-night-root-and-an-empty-root-publish-the-same-population). The
+         remedy is a third NAME list defined as the REMAINDER of the listing, so the three bins
+         partition every name `readdirSync` returned and a file-keyed root is named too. These legs
+         pin the definition rather than the count, because a bin rebuilt from the directory listing
+         alone would still pass a count. */
+      T.eq(
+        'the walk names what no rule counted, as the listing remainder, and the verdict says so',
+        [
+          ['passedOver is the listing remainder', /const passedOver = entryNames\.filter\(\(n\) => !admitted\.has\(n\) && !refusedSet\.has\(n\)\)/],
+          ['the whole listing is kept, not only the directories', /entryNames = ents\.map\(\(d\) => d\.name\)/],
+          ['a failed walk measures no bin (\u2205)', /passedOver: null/],
+          ['the NOT_RUN branch reads the new bin', /const passedBy = \(before\.passedOver \|\| \[\]\)\.concat\(after\.passedOver \|\| \[\]\)/],
+          ['and names the entries rather than claiming the root was empty', /enumerated \$\{entries\(passed\)\} and the rule/]
+        ]
+          .filter(function (pair) {
+            return !pair[1].test(CSCOPE);
+          })
+          .map(function (pair) {
+            return pair[0];
+          })
+          .join(', '),
+        ''
+      );
       /* AN EXIT THAT PLANNED A POPULATION AND REPORTED NONE. `--dry-run` returns from the fold
          before the batch summary, so the planner printed its night list and said nothing about the
          population it planned over — the absence the row is about, one exit over. The assertion
