@@ -88,28 +88,27 @@ function listPpgFiles(root) {
 }
 
 /* The population verdict ALONE, over a synthetic offer: the real captures are gitignored, and the
-   adoption gate parses stdout as one object. The snapshot is written the way `snapshotEntries`
-   returns one — `rule: null` because a record population has no night-shaped yardstick — so the
-   sample is a shape this tool really emits rather than a prettier one. */
+   adoption gate parses stdout as one object.
+   🔴 THIS SNAPSHOT USED TO BE A HAND-WRITTEN MIRROR of what `snapshotEntries` returns, and a
+   mirror drifts in silence. It carried `ruleIsDefault: true`, asserting a comparison against the
+   night yardstick that nobody ran over a file listing, and the primitive's own fix could not reach
+   it (row 2026-10-26-the-entries-walk-asserts-a-night-rule-answer-it-never-computed). So the sample
+   now calls the REAL primitive over a synthetic lister: the shape cannot disagree with the one this
+   tool emits, because it IS that shape. */
+const SAMPLE_AT = '2026-10-26T00:00:00Z';
+const SAMPLE_MEMBERS = ['O2Ring_20260610_PPG.txt', 'O2Ring_20260611_PPG.txt'];
+
+/* The sample's POPULATION, exposed on its own so a leg can read the snapshot itself. The verdict
+   below cannot stand in for it: `populationVerdict` recomputes the digest from the members and never
+   publishes `ruleIsDefault` at all, so a verdict-level comparison passes over a hand-written mirror
+   without a symptom. That is the side this unit is about, so that is the side the leg reads. */
+function sampleSnapshot() {
+  return snapshotEntries('<captures>', { list: () => SAMPLE_MEMBERS, unit: 'ppg-files', at: SAMPLE_AT });
+}
+
 function verdictSample() {
-  const at = '2026-10-26T00:00:00Z';
-  const members = ['O2Ring_20260610_PPG.txt', 'O2Ring_20260611_PPG.txt'];
-  const snap = {
-    ok: true,
-    root: '<captures>',
-    reason: null,
-    n: members.length,
-    unit: 'ppg-files',
-    members,
-    digest: null,
-    maxCtimeMs: null,
-    at,
-    rule: null,
-    ruleIsDefault: true,
-    rejectedNightShaped: null,
-    admittedNonNight: null
-  };
-  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: [TOOL] });
+  const snap = sampleSnapshot();
+  return populationVerdict(snap, snap, { tool: TOOL, at: SAMPLE_AT, evidence: [TOOL] });
 }
 
 /* The sample answers above every refusal below, because it runs where the corpus is absent. */
@@ -284,6 +283,22 @@ function selftest(sb) {
     'the corpus-free sample is one valid tepna.verdict/1 over a non-empty population',
     sample.schema === 'tepna.verdict/1' && sample.population.checked === 2 && sample.population.checked + sample.population.excluded === sample.population.eligible,
     JSON.stringify(sample.population)
+  );
+  /* THE MIRROR IS GONE, AND THIS LEG IS WHAT KEEPS IT GONE. A hand-written snapshot drifts from the
+     primitive without a symptom, which is how `ruleIsDefault: true` survived the primitive's own
+     fix. Rebuilding the sample's population through `snapshotEntries` here must reproduce it field
+     for field, so any future hand-rolling reds. */
+  const sampleSnap = sampleSnapshot();
+  const fromPrimitive = snapshotEntries('<captures>', { list: () => ['O2Ring_20260610_PPG.txt', 'O2Ring_20260611_PPG.txt'], unit: 'ppg-files', at: sampleSnap.at });
+  ok(
+    'the sample population comes FROM the primitive, so no hand-written mirror can drift from it',
+    JSON.stringify(sampleSnap) === JSON.stringify(fromPrimitive),
+    JSON.stringify({ sample: sampleSnap.digest, primitive: fromPrimitive.digest })
+  );
+  ok(
+    'and it therefore gives no night-rule answer, which is the field the verdict never publishes',
+    sampleSnap.ruleIsDefault === null && sampleSnap.ruleIsDefault !== true,
+    JSON.stringify(sampleSnap.ruleIsDefault)
   );
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
