@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**286 tools** · 285 with a purpose line · **1 without**
+**287 tools** · 286 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -234,6 +234,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`release-land.mjs`](../tools/release-land.mjs) | THE WHOLE RELEASE, ONE COMMAND, NO OPERATOR MEMORY — stamp → build → gate → PR → merge → tag → GitHub Release → cleanup. |
 | [`release.mjs`](../tools/release.mjs) | CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release. |
 | [`repo-map.mjs`](../tools/repo-map.mjs) | MAP EVERY AUTHORED SOURCE FILE TO THE FUNCTIONS AND EXPORTS IT DECLARES — so a symbol can be found without already knowing which of the 426 JS and 492 Python files holds it (measured… |
+| [`residue-citations.mjs`](../tools/residue-citations.mjs) | DOES A RESIDUE KEY CITED IN CODE RESOLVE TO A ROW — residue `2026-10-25-the-dangling-key-check-reads-commit-messages-only`. |
 | [`residue-cite-drift.mjs`](../tools/residue-cite-drift.mjs) | WHICH RESIDUE ROWS CITE A LINE THAT HAS MOVED — residue `2026-09-20-ledger-line-citations-rot`. |
 | [`residue-ids.mjs`](../tools/residue-ids.mjs) | the CROSS-TREE half of the residue ledger's id contract. WHY THIS EXISTS. |
 | [`residue-merge.mjs`](../tools/residue-merge.mjs) | residue-merge — a git merge driver for `briefs/RESIDUE.md` that APPENDS like `union` and REFUSES to duplicate a row id. |

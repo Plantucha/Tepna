@@ -947,7 +947,7 @@ async function main() {
      directory, which is the half this tool's own policy comment calls the dangerous one. The flat
      policy is a decided one (residue 2026-09-02-oracle-flat-root-policy), so the interaction gets
      its own row rather than a quiet change of refusal here:
-     row 2026-10-26-a-refused-night-shaped-directory-reads-as-a-flat-root. */
+     row 2026-10-25-a-refused-night-shaped-directory-reads-as-a-flat-root. */
   const popBefore = snapshotNights(DIR, { re: /^2026-/ });
   const nights = popBefore.nights.slice().sort();
   const scoredNights = [];

@@ -12006,6 +12006,139 @@
       T.ok('residue-ids reads its cells through the scanner', routed, 'parseRows → splitRowCells: ' + (routed ? 'wired' : 'ABSENT'));
       T.ok('…and the scanner consumes a backslash pair as one unit', escapeBranch, 'escape branch: ' + (escapeBranch ? 'present' : 'ABSENT'));
     });
+
+    /* ── A CITED RESIDUE KEY RESOLVES TO A ROW, OR THE GATE NAMES IT ──────────────────────────────
+       Residue 2026-10-25-the-dangling-key-check-reads-commit-messages-only. Two instruments watched
+       the ledger's pointers and neither watched the other direction: `tools/residue-cite-drift.mjs`
+       judges the line a ROW cites, and check8h below judges a key-shaped token inside a ROW CELL.
+       A key cited FROM code — a comment, a test module header, an audit artifact, a mutation
+       equivalence `brief` field — fell between the two, so the reader who followed it was the
+       detector. `tools/residue-citations.mjs` is the check; this group pins its ladder.
+
+       The plants carry dates in 2026-01, before any row the ledger holds, so the real gate's own
+       floor hides them and this file adds no dangling citation of its own. */
+    group('a residue key cited in code resolves to a row, by one pre-stated ladder', 'tools · residue-citations · code-to-row · plant', function (T) {
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!env.nodeSpawnSync || !env.repoRoot || !env.nodeFs) {
+        if (nodeLane) T.ok('env.nodeSpawnSync / repoRoot / nodeFs are wired in the node lane', false, 'absent — the citation ladder examined nothing');
+        else T.skip('the citation ladder', 'spawns the tool; the node lane carries it');
+        return;
+      }
+      var fs = env.nodeFs;
+      var root = env.repoRoot;
+
+      /* ── the committed artifacts, read before anything is planted ───────────────────────── */
+      var basePath = root + '/tools/residue-citations-baseline.json';
+      var base = null;
+      try {
+        base = JSON.parse(fs.readFileSync(basePath, 'utf8'));
+      } catch (_e) {
+        base = null;
+      }
+      T.ok('the declared baseline parses', base !== null && Object.prototype.toString.call(base.entries) === '[object Array]', String(basePath));
+      if (base === null) return;
+      var CLASSES = { fixture: 1, 'batch-label': 1, 'owes-a-row': 1, 'cross-lane': 1 };
+      var badClass = [],
+        noReason = [];
+      for (var bi = 0; bi < base.entries.length; bi++) {
+        var be = base.entries[bi];
+        if (!CLASSES[be['class']]) badClass.push(be.key);
+        if (!be.reason || String(be.reason).length < 20) noReason.push(be.key);
+      }
+      T.eq('every declared key carries one of the four classes', badClass, []);
+      T.eq('every declared key carries a reason', noReason, []);
+
+      /* ── the child runs the real module over plants and over the real tree ─────────────── */
+      var url = 'file://' + root + '/tools/residue-citations.mjs';
+      var src = [
+        'import * as M from ' + JSON.stringify(url) + ';',
+        'var KEYS = ["2026-01-02-alpha-beta-gamma", "2026-01-06-ring-fileset-never-resumes", "2026-01-25-a-refused-night-shaped-directory-reads-as-a-flat-root", "2026-01-25-a-refused-night-shaped-directory-reads-as-a-flat-roof"];',
+        'var FLOOR = "2026-01-01";',
+        'function kinds(text, file) {',
+        '  return M.scanText(file || "f.py", text, KEYS, { floor: FLOOR }).map(function (c) { return c.kind + ":" + c.cited; });',
+        '}',
+        'var out = {};',
+        'out.exact = kinds("# Residue 2026-01-02-alpha-beta-gamma\\n");',
+        'out.noWord = kinds("# see 2026-01-02-alpha-beta-gamma\\n");',
+        'out.beyondWindow = kinds("# residue " + " ".repeat(45) + "2026-01-02-alpha-beta-gamma\\n");',
+        'out.preFloor = kinds("# Residue 2025-12-31-before-the-first-row\\n");',
+        'out.wrapped = kinds("# Residue 2026-01-06-ring-fileset-never-\\n# resumes\\n");',
+        'out.wrappedJs = kinds("// Residue 2026-01-06-ring-fileset-never-\\n// resumes\\n", "f.mjs");',
+        'out.elided = kinds("# Residue 2026-01-02-alpha…\\n");',
+        'out.nearDate = kinds("# row 2026-01-03-ring-fileset-never-resumes\\n");',
+        'out.nearSlug = kinds("# row 2026-01-06-ring-never-resumes\\n");',
+        'out.dangling = kinds("# Residue 2026-01-22-pull-once-survivors-batch-one\\n");',
+        'out.glued = kinds("# residue 2026-01-02-alpha-beta-gamma\\nand then prose\\n");',
+        'out.wrappedDangling = kinds("# Residue 2026-01-22-pull-once-survivors-\\n# batch-one\\n");',
+        'out.ambiguous = kinds("# Residue 2026-01-25-a-refused-night-shaped-directory-reads-as-a-flat-roo\\n");',
+        'out.floor = M.ledgerFloor(KEYS);',
+        'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
+        'out.window = M.CITE_WINDOW;',
+        'var real = M.run(' + JSON.stringify(root) + ');',
+        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor };',
+        'out.selfExempt = M.run(' +
+          JSON.stringify(root) +
+          ', { files: ["tools/residue-citations.mjs", "tools/residue-citations-baseline.json"], baseline: { entries: [], exemptPaths: [] } }).citations;',
+        /* THE BASELINE IS A RATCHET, measured both ways in one process. */
+        'var declaredAway = M.run(' +
+          JSON.stringify(root) +
+          ', { files: ["tools/run-check.mjs"], baseline: { entries: [{ key: "2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it", reason: "plant" }], exemptPaths: [] } });',
+        'out.declaredPasses = { undeclared: declaredAway.undeclared.length, stale: declaredAway.stale.length };',
+        'var undeclared = M.run(' + JSON.stringify(root) + ', { files: ["tools/run-check.mjs"], baseline: { entries: [], exemptPaths: [] } });',
+        'out.undeclaredReds = undeclared.undeclared.length;',
+        'var staleBase = M.run(' +
+          JSON.stringify(root) +
+          ', { files: ["tools/run-check.mjs"], baseline: { entries: [{ key: "2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it", reason: "plant" }, { key: "2026-01-02-alpha-beta-gamma", reason: "resolves nowhere in this file" }], exemptPaths: [] } });',
+        'out.staleReds = staleBase.stale.length;',
+        'process.stdout.write("__OUT__" + JSON.stringify(out) + "\\n");'
+      ].join('\n');
+      var o = env.nodeSpawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: 90000 });
+      var line = String(o.stdout || '')
+        .split('\n')
+        .filter(function (l) {
+          return l.indexOf('__OUT__') === 0;
+        })[0];
+      T.ok('the child imported the tool and reported', !!line, String(o.stderr || '').slice(0, 400));
+      if (!line) return;
+      var R = JSON.parse(line.slice(7));
+
+      /* ── THE LADDER, one leg per rung ──────────────────────────────────────────────────── */
+      T.eq('an exact key beside the word residue resolves', R.exact, ['exact:2026-01-02-alpha-beta-gamma']);
+      T.eq('a key with no citation word near it is not a citation', R.noWord, []);
+      T.eq('a citation word past the window does not scope the key', R.beyondWindow, []);
+      T.eq('a key dated before the ledger floor is a fixture, not a citation', R.preFloor, []);
+      T.eq('a key wrapping inside a comment resolves through the join', R.wrapped, ['joined:2026-01-06-ring-fileset-never-resumes']);
+      T.eq('…and the join strips a JS comment marker too', R.wrappedJs, ['joined:2026-01-06-ring-fileset-never-resumes']);
+      T.eq('an elided tail resolves by unique prefix', R.elided, ['prefix:2026-01-02-alpha']);
+      T.eq('the slug held and the date missed reads near', R.nearDate, ['near:2026-01-03-ring-fileset-never-resumes']);
+      T.eq('the date held and the slug dropped a word reads near', R.nearSlug, ['near:2026-01-06-ring-never-resumes']);
+      T.eq('a key naming no row at all reads dangling', R.dangling, ['dangling:2026-01-22-pull-once-survivors-batch-one']);
+      T.eq('a prefix of two rows reads ambiguous', R.ambiguous, ['ambiguous:2026-01-25-a-refused-night-shaped-directory-reads-as-a-flat-roo']);
+
+      /* ── THE GLUE RULE, which is where the reader was wrong first ──────────────────────── */
+      T.eq('a complete key welded to the next line of prose is not a second citation', R.glued, ['exact:2026-01-02-alpha-beta-gamma']);
+      T.eq('a genuinely wrapped key that names no row is still reported', R.wrappedDangling, ['dangling:2026-01-22-pull-once-survivors-batch-one']);
+
+      /* ── THE FLOOR IS READ, NEVER TYPED ───────────────────────────────────────────────── */
+      T.eq('the floor is the ledger’s own earliest row date', R.floor, '2026-01-02');
+      T.eq('a row cell yields its key and a prose line yields none', R.rowKeys, ['2026-01-02-alpha-beta-gamma']);
+      T.eq('the citation window is 40 characters', R.window, 40);
+
+      /* ── THE BASELINE IS A RATCHET ────────────────────────────────────────────────────── */
+      T.eq('a declared key passes and nothing reads stale', R.declaredPasses, { undeclared: 0, stale: 0 });
+      T.eq('the same key undeclared reds once', R.undeclaredReds, 1);
+      T.eq('a declared key that resolves now reds until its line goes', R.staleReds, 1);
+
+      /* ── ANTI-VACUITY, and the committed tree's own verdict ────────────────────────────── */
+      T.ok('the real tree carries over 1000 citations to judge', R.real.citations > 1000, JSON.stringify(R.real));
+      T.ok('…spread over more than 300 files', R.real.files > 300, JSON.stringify(R.real));
+      T.ok('…against the whole ledger', R.real.rows > 800, JSON.stringify(R.real));
+      T.ok('the declared set is not empty', R.real.declared >= 30, JSON.stringify(R.real));
+      T.eq('no citation in the committed tree is unresolved outside the baseline', R.real.undeclared, 0);
+      T.eq('no citation in the committed tree misses a real row by a near miss', R.real.near, 0);
+      T.eq('no declared key resolves, so the baseline owes no removal', R.real.stale, 0);
+      T.eq('CONTROL · the tool and its baseline are exempt from their own scan', R.selfExempt, 0);
+    });
     /* ════ AND THE PREDICATE ITSELF MUST SURVIVE A SYMLINK TO THE TOOL (board #685, 2026-10-21) ══════
        The house predicate compared `import.meta.url` with `pathToFileURL(process.argv[1]).href`. Node
        resolves the ENTRY through a symlink and leaves `process.argv[1]` as written, so the two disagree
