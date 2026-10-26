@@ -48,6 +48,7 @@
  *
  * USAGE
  *   node tools/beat-comb-analysis.mjs --selftest
+ *   node tools/beat-comb-analysis.mjs --verdict-sample   # the population verdict alone, for the adoption gate
  *     Deterministic synthetic pair with a PLANTED offset and known mean RR.
  *     Truth is known, so this asserts the comb rather than describing it:
  *     the teeth appear at planted + k·meanRR, they are of comparable height,
@@ -73,10 +74,12 @@
  *   --span <RR>   sweep half-width in mean-RR units  (default 3)
  * ════════════════════════════════════════════════════════════════════════ */
 
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
 
 /* The closure identity + the four-state verdict, from the module `trio-batch` already routes its
    clock lines through. Imported rather than reimplemented: a second copy of "when is a ppm a
@@ -92,7 +95,14 @@ const argv = process.argv.slice(2);
    arguments, so an import of anything in this file judged flags it never passed (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) refuseUnknownArgvOrExit(argv, { valued: ['--dir', '--pair', '--span', '--tol'], boolean: ['--control', '--local', '--selftest'] }, { tool: 'beat-comb-analysis' });
+if (IS_CLI) refuseUnknownArgvOrExit(argv, { valued: ['--dir', '--pair', '--span', '--tol'], boolean: ['--control', '--local', '--selftest', '--verdict-sample'] }, { tool: 'beat-comb-analysis' });
+const TOOL = 'tools/beat-comb-analysis.mjs';
+/* THE TOOL'S OWN RULE, WRITTEN DOWN. `readdirSync(dir).sort()` admitted every entry, so the night
+   rule here is "any directory" and NOT `NIGHT_RE` — narrowing it would silently drop a box night
+   whose folder is not date-named. A rule is a decision about the population, so the snapshot carries
+   it and names what it let through that is not night-shaped (§∅; residue
+   `2026-10-21-forty-one-corpus-enumerators-report-no-population`). */
+const ANY_DIR_RE = /./;
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);
@@ -295,14 +305,27 @@ function flushNight(night, local) {
 }
 
 function runDir(dir, which) {
-  const nights = readdirSync(dir).sort();
+  const popBefore = snapshotNights(dir, { re: ANY_DIR_RE });
+  if (!popBefore.ok) {
+    console.error('beat-comb-analysis: ' + popBefore.reason + ' — an unreadable root is not an empty corpus');
+    process.exit(2);
+  }
+  const nights = popBefore.nights;
   const pairs = which === 'all' ? Object.keys(PAIRS) : [which];
   console.log(`beat-comb — ${dir}   tol ±${TOL} ms, sweep ±${SPAN_RR} RR\n`);
+  /* The OFFER goes out ABOVE the table, because a reader who stops at the first row has to know the
+     set it was cut over. The rule line is what the walk itself can say about its rule. */
+  console.log(`  offered: ${popBefore.n} night folder(s) under rule ${popBefore.rule}`);
+  const offerRule = ruleLine({ result: { rule: popBefore.rule, ruleRejectedNightShaped: popBefore.rejectedNightShaped, ruleAdmittedNonNight: popBefore.admittedNonNight } });
+  if (offerRule) console.log(offerRule);
+  console.log('');
+  const covered = [];
   if (LOCAL) console.log('night          pair            whole-night   per-block   best     ppm   quotable' + (CONTROL ? '     control' : ''));
   else console.log('night          pair            meanRR   @lag0%   peak%   floor%   ratio   teeth   spacing (ms)');
   let seen = 0;
   for (const night of nights) {
     const local = [];
+    const before = seen;
     for (const key of pairs) {
       const P = PAIRS[key];
       const A = loadBeats(join(dir, night, `${P.a[0]}_${night}.node-export.json`), P.a[1]);
@@ -335,15 +358,27 @@ function runDir(dir, which) {
       );
     }
     if (LOCAL && local.length) flushNight(night, local);
+    /* A night that produced no row is COVERED BY MEMBERSHIP ALONE unless the read says otherwise, so
+       the row carries `ok` and `notANight` names it rather than counting it as read. */
+    covered.push({ night, ok: seen > before });
   }
+  /* The verdict lands on EVERY exit path below, including the `no night carried both halves` one —
+     that path is exactly where a reader most needs to know how big the offer was. */
+  const population = populationVerdict(popBefore, snapshotNights(dir, { re: ANY_DIR_RE }), { tool: TOOL, evidence: [TOOL] });
+  const unscored = notANight(popBefore, covered);
+  console.log(`\n  population: ${population.status} — ${population.population.checked} of ${population.population.eligible} night folder(s)` + (population.reason ? `\n  ${population.reason}` : ''));
+  console.log(`  offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
   if (!seen) {
     console.log('\n(no night carried both halves of the requested pair with a beat timeseries)');
     return;
   }
   if (LOCAL) {
+    /* `tallied` IS THE SUM OF THE THREE BINS ABOVE IT, so "of N night(s)" was a tautology: it could
+       only ever name the nights that reached a verdict, and a night the walk skipped was invisible in
+       its own denominator. The offer is printed beside it, so the two numbers cannot be read as one. */
     const tallied = closureTally.closed + closureTally.inconsistent + closureTally.unclosed;
     console.log(
-      `\nCLOSURE: ${closureTally.closed} closed · ${closureTally.inconsistent} inconsistent · ${closureTally.unclosed} unclosed, of ${tallied} night(s).` +
+      `\nCLOSURE: ${closureTally.closed} closed · ${closureTally.inconsistent} inconsistent · ${closureTally.unclosed} unclosed, of ${tallied} night(s) that reached a verdict, out of ${popBefore.n} offered.` +
         (closureTally.closed ? '' : '  NOT ONE ppm ABOVE IS A MEASUREMENT.')
     );
     /* A pair that produced no rows is INVISIBLE in the table — it simply has no lines — and an absent
@@ -367,6 +402,29 @@ function runDir(dir, which) {
   console.log('and the offset is identifiable only modulo one beat. @lag0 is what a nearest-beat');
   console.log('matcher reports as "% corresponding" — it is the comb sampled at zero, nothing more.');
   console.log('A ratio near 1 means no beat sharing at all, and there the peak lag is pure noise.');
+}
+
+/* The population verdict ALONE, over a synthetic offer: the per-night exports are gitignored and the
+   adoption gate parses stdout as one object. The snapshot is written the way `snapshotNights` returns
+   one under a non-default rule, so the sample is a shape this tool really emits — including an
+   `admittedNonNight` name, which is what the wide rule here costs. */
+function verdictSample() {
+  const at = '2026-10-26T00:00:00Z';
+  const snap = {
+    ok: true,
+    root: '<exports>',
+    reason: null,
+    n: 3,
+    nights: ['2026-06-10', '2026-06-11', 'exports-staging'],
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(ANY_DIR_RE),
+    ruleIsDefault: false,
+    rejectedNightShaped: [],
+    admittedNonNight: ['exports-staging']
+  };
+  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: [TOOL] });
 }
 
 /* ── selftest: planted truth ───────────────────────────────────────────── */
@@ -514,6 +572,40 @@ function selftest() {
   ok('a 6 ppm residual is tolerated against 400 ppm legs', weak && weak.consistent, weak ? `tol ${weak.tolPpm.toFixed(0)}` : 'null');
   ok('…and the same 6 ppm is NOT tolerated against 4 ppm legs', sharp && !sharp.consistent, sharp ? `tol ${sharp.tolPpm.toFixed(0)}` : 'null');
 
+  /* THE POPULATION, over a planted tree — the real primitive, no corpus. The wide rule is the point:
+     a date-named folder and a staging folder are both admitted, and only the snapshot says so. */
+  const AT = '2026-10-26T00:00:00Z';
+  const tmp = mkdtempSync(join(tmpdir(), 'beatcomb-pop-'));
+  try {
+    mkdirSync(join(tmp, '2026-06-10'));
+    mkdirSync(join(tmp, 'exports-staging'));
+    writeFileSync(join(tmp, 'README.txt'), 'not a night folder\n');
+    const wide = snapshotNights(tmp, { re: ANY_DIR_RE, at: AT });
+    ok('the wide rule admits every DIRECTORY and no file', wide.ok && wide.nights.join(',') === '2026-06-10,exports-staging', wide.nights.join(','));
+    ok('…and the snapshot NAMES what it admitted that is not night-shaped', wide.admittedNonNight.join(',') === 'exports-staging', JSON.stringify(wide.admittedNonNight));
+    const narrow = snapshotNights(tmp, { at: AT });
+    ok('the default rule would have DROPPED that folder — which is why this tool does not use it', narrow.nights.join(',') === '2026-06-10', narrow.nights.join(','));
+    const unscored = notANight(wide, [
+      { night: '2026-06-10', ok: true },
+      { night: 'exports-staging', ok: false }
+    ]);
+    ok('a night that carried no loadable pair is NAMED, not counted as read', unscored.join(',') === 'exports-staging', unscored.join(','));
+    const moved = populationVerdict(wide, snapshotNights(tmp, { re: /^2026/, at: AT }), { tool: TOOL, at: AT, evidence: [TOOL] });
+    ok(
+      'a population that moved mid-run reads SHORTFALL over the intersection',
+      moved.status === 'SHORTFALL' && moved.population.checked === 1 && moved.population.eligible === 2,
+      moved.status + ' ' + JSON.stringify(moved.population)
+    );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+  const sample = verdictSample();
+  ok(
+    'the corpus-free sample is one valid tepna.verdict/1 over a non-empty population',
+    sample.schema === 'tepna.verdict/1' && sample.population.checked === 3 && sample.population.checked + sample.population.excluded === sample.population.eligible,
+    JSON.stringify(sample.population)
+  );
+
   console.log(`\n${fail === 0 ? '✓' : '✗'} selftest — ${pass} passed, ${fail} failed`);
   return fail === 0;
 }
@@ -522,6 +614,10 @@ function selftest() {
 
 if (flag('--selftest')) {
   process.exit(selftest() ? 0 : 1);
+} else if (flag('--verdict-sample')) {
+  /* The sample answers where the corpus is absent, so it comes before the `--dir` refusal. */
+  console.log(JSON.stringify(verdictSample(), null, 2));
+  process.exit(0);
 } else {
   const dir = opt('--dir', null);
   const pair = opt('--pair', 'optical');

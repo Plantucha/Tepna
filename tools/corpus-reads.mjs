@@ -710,7 +710,6 @@ export const UNWIRED_BACKLOG = {
      2026-10-21-forty-one-corpus-enumerators-report-no-population). */
   'closure-tol-hac.mjs': 1,
   'pb-fusion-blast.mjs': 1,
-  'beat-comb-analysis.mjs': 1,
   'beat-correspondence.mjs': 1,
   'beat-error-recovery.mjs': 2,
   'codex-export.mjs': 1,
@@ -741,7 +740,6 @@ export const UNWIRED_BACKLOG = {
   'ppg-bridge-hrv-validate.mjs': 1,
   'ppg-foot-consensus-e1.mjs': 1,
   'ppg-fusion-e3.mjs': 1,
-  'ppg-gap-bridge-scan.mjs': 1,
   'ppg2w-spo2-fit.mjs': 1,
   'ppi-jitter-vs-ecg.mjs': 1,
   'resp-acc-headless.mjs': 2,
