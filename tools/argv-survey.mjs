@@ -100,6 +100,27 @@ const TIMEOUT_MS = Number(opt('--timeout-ms', '25000'));
    falls as tools adopt `argv-guard.mjs`. */
 export const SWALLOW_BAR = 0;
 
+/* ── the exec surface is read in two parts, because a word boundary sits after a dot ────────────
+   A BARE CALL IS A SPAWN; A DOTTED ONE IS A SPAWN ONLY IF THE MODULE IS THERE. `\b(exec)\s*\(`
+   matches `/re/.exec(s)`, so every regular-expression method read as a process spawn and the probe
+   refused a tool that cannot spawn anything — the safe direction, and still a false one. Measured
+   at e0126973e: seven of the 37 undecidable tools carried an exec flag whose every site was a regex
+   method, five of them holding no hazard at all (row
+   2026-10-26-the-hazard-bar-reads-a-regex-method-as-a-process-spawn).
+   THE MODULE MENTION, NOT THE IMPORT, IS THE EVIDENCE. A capability can arrive as
+   `createRequire(import.meta.url)('node:child_process')`, which no import-shaped regex sees —
+   measured at derive-open-ahi.mjs:997 (row
+   2026-10-26-a-dynamic-require-hides-an-exec-capability-from-an-import-scan). So a dotted call
+   counts whenever the file names the module anywhere, comments included, which keeps the bar
+   conservative: an unknown spelling of the require is inside it.
+   The net family keeps its one-part regex. Its dotted matches are a separate, unlogged population,
+   and widening this change to cover them would move the probe-safe count with no row to read it
+   against. */
+const EXEC_NAMES = 'execSync|execFileSync|spawnSync|spawn|exec|execFile|fork';
+const EXEC_BARE = new RegExp(`(?:^|[^.\\w$])(?:${EXEC_NAMES})\\s*\\(`, 'm');
+const EXEC_METHOD = new RegExp(`\\.\\s*(?:${EXEC_NAMES})\\s*\\(`, 'm');
+const CHILD_PROCESS = /child_process/;
+
 /* ── the write/exec surface, named explicitly so the safety criterion is auditable ─────────────── */
 const HAZARD = [
   [
@@ -107,7 +128,7 @@ const HAZARD = [
     /\b(writeFileSync|appendFileSync|createWriteStream|mkdirSync|rmSync|rmdirSync|unlinkSync|renameSync|cpSync|copyFileSync|writeSync|truncateSync|utimesSync|chmodSync|symlinkSync|linkSync)\s*\(/
   ],
   ['fs-promise-write', /\bfs(Promises)?\.(writeFile|appendFile|mkdir|rm|unlink|rename|cp|copyFile)\s*\(/],
-  ['exec', /\b(execSync|execFileSync|spawnSync|spawn|exec|execFile|fork)\s*\(/],
+  ['exec', (text) => EXEC_BARE.test(text) || (CHILD_PROCESS.test(text) && EXEC_METHOD.test(text))],
   ['net', /\b(fetch|createServer|request)\s*\(/]
 ];
 
@@ -141,7 +162,7 @@ export function closureHazards(file, seen = new Set()) {
   } catch {
     return ['unreadable'];
   }
-  const hz = new Set(HAZARD.filter(([, re]) => re.test(text)).map(([k]) => k));
+  const hz = new Set(HAZARD.filter(([, t]) => (typeof t === 'function' ? t(text) : t.test(text))).map(([k]) => k));
   for (const dep of localImports(abs, text)) for (const h of closureHazards(dep, seen)) hz.add(`${h}@dep`);
   return [...hz].sort();
 }
@@ -298,6 +319,31 @@ function selftest() {
   writeFileSync(join(dir, 'writer.mjs'), "import { writeFileSync } from 'node:fs';\nwriteFileSync('x', process.argv[2] || '');\n");
   ok('a tool that writes is NOT in the inert population', inertPopulation(dir).indexOf('writer.mjs') < 0, inertPopulation(dir).join(' '));
   ok('…and the ignorer IS', inertPopulation(dir).indexOf('ignorer.mjs') >= 0);
+
+  /* (3b) THE EXEC BAR, PLANTED BOTH WAYS. A regex method must not read as a spawn, and every
+     spelling of a real spawn must — including the dynamic require an import-shaped scan misses.
+     Rows 2026-10-26-the-hazard-bar-reads-a-regex-method-as-a-process-spawn and
+     2026-10-26-a-dynamic-require-hides-an-exec-capability-from-an-import-scan. */
+  const plant = (name, body) => {
+    writeFileSync(join(dir, name), `const argv = process.argv.slice(2);\n${body}\n`);
+    return name;
+  };
+  plant('regexer.mjs', "const m = /^(\\d+)-(\\w+)$/.exec(argv[0] || '');\nconsole.log(m ? m[1] : 'none');");
+  plant('bare-spawner.mjs', "import { execSync } from 'node:child_process';\nconsole.log(String(execSync(argv[0] || 'true')));");
+  plant('dotted-spawner.mjs', "import cp from 'node:child_process';\nconsole.log(String(cp.execSync(argv[0] || 'true')));");
+  plant(
+    'dynamic-spawner.mjs',
+    "import { createRequire } from 'node:module';\n" + 'const req = createRequire(import.meta.url);\n' + "console.log(String(req('node:child_process').execSync(argv[0] || 'true')));"
+  );
+  const inert = new Set(inertPopulation(dir));
+  ok('a regex method is NOT a spawn, so the tool stays probe-safe', inert.has('regexer.mjs'), [...inert].join(' '));
+  ok('a bare spawn is a hazard', !inert.has('bare-spawner.mjs'));
+  ok('a dotted spawn beside the module is a hazard', !inert.has('dotted-spawner.mjs'));
+  ok('a spawn reached through createRequire is a hazard', !inert.has('dynamic-spawner.mjs'));
+  ok(
+    'the regex method is not merely unflagged — the bar names the hazard it finds',
+    closureHazards(join(dir, 'dotted-spawner.mjs')).indexOf('exec') >= 0 && closureHazards(join(dir, 'regexer.mjs')).length === 0
+  );
 
   /* (4) the verdict's own arithmetic and its refusals. */
   const rows = [
