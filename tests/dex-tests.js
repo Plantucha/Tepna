@@ -14729,6 +14729,52 @@
       );
       T.ok('the superseded record is named nowhere in the card', !/tch-firmware-reference-2026-09-26/.test(card), 'the retired run must not survive as a constant or a citation');
 
+      /* ── THE SECOND AXIS, AND THE RECORD STATES ONE OF THEM ──────────────────────────────────────
+         `axisCanonical` is the axis the CORNERS ride. The reference they are scored against has its
+         own axis, and `TCH-REFERENCE-AXIS-MATCH-2026-10-20-BRIEF.md` §7 measured the H10 figure
+         moving by more than an order of magnitude between the two. The published record names the
+         corner axis in two fields and a long note, and says nothing about the reference axis — so
+         the card's provenance clause must not read as complete over a half-recorded fact.
+
+         §∅ — AN UNRECORDED AXIS IS NOT THE DEFAULT AXIS. `REF_AXIS_DEFAULT` is what a run with no
+         flag USES; printing it here would publish an unmeasured provenance fact as a measured one.
+         The helper is LIFTED OUT OF THE CARD AND EXECUTED below, so the null branch is proven rather
+         than grepped — a source scan cannot tell a guard from a comment about one. */
+      T.ok(
+        'the card reads the reference axis from the record, not from a constant',
+        /referenceAxisCanonical/.test(card),
+        'the clause already names the corner axis; the reference axis must come from the record too'
+      );
+      T.ok(
+        'the card never defaults an absent reference axis to a value',
+        !/referenceAxisCanonical\s*\)?\s*(?:\|\||\?\?)\s*['"]/.test(card),
+        "§∅ — `referenceAxisCanonical || 'device'` publishes REF_AXIS_DEFAULT as though the record had stated it; this is the cheap tripwire, the executed legs below are the contract"
+      );
+      T.ok('an unstated reference axis is SAID, not dropped', /not recorded/.test(card), 'a clause that silently omits the axis reads as a complete provenance line');
+      var mHelper = card.match(/const tchRefAxis = \(\) => \((.+?)\);\n/);
+      T.ok(
+        'ANTI-VACUITY · the reference-axis helper was located in the card',
+        !!mHelper,
+        mHelper ? mHelper[1].length + ' chars of body' : 'tchRefAxis not found — the four executed legs below would not run'
+      );
+      if (mHelper) {
+        var mk = new Function('TCHREC', 'return (' + mHelper[1] + ');');
+        T.eq('a record that states its reference axis yields that axis', mk({ referenceAxisCanonical: 'corrected' }), 'corrected');
+        T.eq('a record that states none yields null, never the tool default', mk({ axisCanonical: 'host' }), null);
+        T.eq('an empty string is not an axis — the in-range sentinel §∅ bans', mk({ referenceAxisCanonical: '' }), null);
+        T.eq('a non-string is not an axis', mk({ referenceAxisCanonical: 7 }), null);
+      }
+      T.ok(
+        'CONTROL · the record does state its CORNER axis, so the legs above are about the missing one',
+        typeof rec.axisCanonical === 'string' && rec.axisCanonical.length > 0,
+        String(rec.axisCanonical)
+      );
+      T.ok(
+        'the record either states its reference axis or omits the key — never carries it empty',
+        !('referenceAxisCanonical' in rec) || (typeof rec.referenceAxisCanonical === 'string' && rec.referenceAxisCanonical.length > 0),
+        'referenceAxisCanonical: ' + JSON.stringify(rec.referenceAxisCanonical)
+      );
+
       /* THE LEG THAT WOULD HAVE CAUGHT THE ORIGINAL DEFECT: the composed slice — from the reference
          comment to the end of the composition — may hold no pooled figure as a literal. Decimals are
          banned outright; the only multi-digit integer allowed is the 100 of a percentage. */
