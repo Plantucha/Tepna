@@ -1029,7 +1029,7 @@ def test_alarm_raw_round_trips_into_the_oxyframe_sidecar(tmp_path):
     assert hdr[-1] == "run_status", "append-only: alarm_raw went BEFORE run_status, matching writers.py"
 
 
-# ── CAPTURE-FILESET-RESUME for the RING (residue 2026-09-06-ring-never-resumes) ────────────────────
+# ── CAPTURE-FILESET-RESUME for the RING (residue 2026-09-06-ring-fileset-never-resumes) ────────────────────
 # The trap the residue row names: the ring's three sidecar writers opened "w", so adding the resume
 # decision ALONE would truncate the very file it resumes onto. #2166 already cost one writer that way.
 

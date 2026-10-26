@@ -9154,7 +9154,7 @@ def test_a_SHORT_auth_reply_is_answered_PLAINTEXT_and_is_not_the_same_as_silence
     assert st["spo2"] == 96 and st["pr"] == 61, "a plaintext session captures normally"
 
 
-# ── the RING file-set resume: the grid must CARRY, not restart (residue 2026-09-06-ring-never-resumes) ──
+# ── the RING file-set resume: the grid must CARRY, not restart (residue 2026-09-06-ring-fileset-never-resumes) ──
 def test_A_CARRIED_GRID_BRIDGES_A_RECONNECT_GAP_INSTEAD_OF_RESTARTING_THE_TIMELINE():
     """🔴 THE CLOCK-CONTRACT HALF of the ring resume, and the reason it is not a one-line change.
 
@@ -9232,7 +9232,7 @@ def test_A_ZERO_SENSOR_STAMP_IS_ABSENCE_NOT_THE_POLAR_EPOCH():
 
 
 def test_THE_RING_RESUMES_ITS_FILE_SET_INSTEAD_OF_MINTING_A_NEW_ONE(tmp_path, monkeypatch, caplog):
-    """🔴 residue `2026-09-06-ring-never-resumes`: the Polar path has consulted `resumable_stamp` since
+    """🔴 residue `2026-09-06-ring-fileset-never-resumes`: the Polar path has consulted `resumable_stamp` since
     #1532 and the ring never did — 11.3x the fragmentation, from that asymmetry alone.
 
     Drives the ring twice against the same night dir. The second episode must ADOPT the first set's

@@ -1,0 +1,308 @@
+{
+ "schema": "tepna.residue-citations-baseline/1",
+ "note": "The declared debt of tools/residue-citations.mjs. A cited residue key that resolves to no row reds the gate unless it is named here. The set may only SHRINK: a key that resolves now reds until its line goes. Each entry carries its class and, where one exists, the residue row that owns the remedy.",
+ "measuredAt": "2026-10-26",
+ "exemptPaths": [],
+ "entries": [
+  {
+   "key": "2026-09-02-alpha",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:926"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-09-02-delta",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:962"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-09-02-nope",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:971"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-09-20-d",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-cite-drift.mjs:246"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-09-20-zz-broken",
+   "class": "fixture",
+   "sites": [
+    "tests/dex-tests.js:43912"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-09-21-monitor-chips-derived",
+   "class": "cross-lane",
+   "sites": [
+    "audits/DEFECT-BENCHMARK.json:3079"
+   ],
+   "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
+  },
+  {
+   "key": "2026-09-23-patsd-absence-is-null",
+   "class": "cross-lane",
+   "sites": [
+    "audits/CHANGESETS-AND-V2.15.0-FOLD-2026-09-25.md:35"
+   ],
+   "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
+  },
+  {
+   "key": "2026-09-28-replacement-string-interprets-dollar",
+   "class": "owes-a-row",
+   "sites": [
+    "tools/build-docs.mjs:181"
+   ],
+   "reason": "names a real defect that owes a row: a replacement string interprets a dollar sign. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
+  },
+  {
+   "key": "2026-10-13-sentinel-waiter-guard",
+   "class": "cross-lane",
+   "sites": [
+    "audits/API-LANE-VERDICTS-2026-10-13.json:1631"
+   ],
+   "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
+  },
+  {
+   "key": "2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it",
+   "class": "owes-a-row",
+   "sites": [
+    "tools/run-check.mjs:34"
+   ],
+   "reason": "names a real defect that owes a row: the fixture-currency check runs where nobody reads it. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
+  },
+  {
+   "key": "2026-10-13-twenty-five-mutants-survive-in-checkverdict-and-mutation-diff-after-pr-3567",
+   "class": "owes-a-row",
+   "sites": [
+    "capture-host/tests/test_checkverdict.py:208",
+    "capture-host/tests/test_mutation_diff.py:4463"
+   ],
+   "reason": "names a real defect that owes a row: twenty-five mutants survive in two modules. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
+  },
+  {
+   "key": "2026-10-14-oxydex-counts-rows-as-seconds",
+   "class": "cross-lane",
+   "sites": [
+    "audits/API-LANE-VERDICTS-2026-10-13.json:2015"
+   ],
+   "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
+  },
+  {
+   "key": "2026-10-19-a-default-whose-only-coverage-reads-the-signature-is-unmeasured",
+   "class": "owes-a-row",
+   "sites": [
+    "tools/verdict-adoption.json:571"
+   ],
+   "reason": "names a real defect that owes a row: a default whose only coverage reads the signature. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
+  },
+  {
+   "key": "2026-10-19-a-typed-selftest-count-laundered-through-a-variable",
+   "class": "owes-a-row",
+   "sites": [
+    "tools/pat-window-oracle.mjs:612"
+   ],
+   "reason": "names a real defect that owes a row: a typed selftest count laundered through a variable. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
+  },
+  {
+   "key": "2026-10-20-another-row",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1151"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-10-21-citer-closed",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1067"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-10-21-citer-of-the-longer",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1068"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-10-21-citer-open",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1066"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-10-21-cites-nobody",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1069"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-part-3-of-6",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_equivalence_ledger.py:141",
+    "capture-host/tests/test_pull_once_survivors_p3.py:4",
+    "capture-host/tools/mutate-equivalence.json:5852"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-qwen",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_pull_once_survivors_qwen2.py:4",
+    "capture-host/tests/test_pull_once_survivors_qwen3.py:4"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-r1-of-6",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_equivalence_ledger.py:152",
+    "capture-host/tests/test_pull_once_survivors_r1.py:4",
+    "capture-host/tools/mutate-equivalence.json:5932"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-r2-of-6",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_equivalence_ledger.py:143",
+    "capture-host/tests/test_pull_once_survivors_r2.py:4",
+    "capture-host/tools/mutate-equivalence.json:5860"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-r3-of-6",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_equivalence_ledger.py:145",
+    "capture-host/tests/test_pull_once_survivors_r3.py:4",
+    "capture-host/tools/mutate-equivalence.json:5868"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-r4-of-6",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_pull_once_survivors_r4.py:4"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-r5-of-6",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_pull_once_survivors_r5.py:4"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-r6-of-6",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_equivalence_ledger.py:149",
+    "capture-host/tests/test_pull_once_survivors_r6.py:4",
+    "capture-host/tools/mutate-equivalence.json:5900"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-s1-of-5",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_pull_once_survivors_s1.py:4"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-s2-of-5",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_pull_once_survivors_s2.py:4"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-s3-of-5",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_pull_once_survivors_s3.py:4"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-s4-of-5",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_pull_once_survivors_s4.py:4"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-22-pull-once-survivors-s5-of-5",
+   "class": "batch-label",
+   "sites": [
+    "capture-host/tests/test_pull_once_survivors_s5.py:4"
+   ],
+   "reason": "a mutation test batch label rather than a defect. The class is row 2026-10-25-thirteen-cited-pull-once-survivor-keys-have-no-row"
+  },
+  {
+   "key": "2026-10-25-carrier",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1104"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-10-25-changeset-only",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1106"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-10-25-narrow",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1103"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  },
+  {
+   "key": "2026-10-25-twice",
+   "class": "fixture",
+   "sites": [
+    "tools/residue-ids.mjs:1105"
+   ],
+   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+  }
+ ]
+}
