@@ -49,14 +49,6 @@
   function el(id) {
     return document.getElementById(id);
   }
-  function median(a) {
-    if (!a.length) return NaN;
-    var b = a.slice().sort(function (x, y) {
-      return x - y;
-    });
-    var m = b.length >> 1;
-    return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
-  }
   function fmtClock(ms) {
     if (ms == null || !isFinite(ms)) return '—';
     var d = new Date(ms),
@@ -435,10 +427,29 @@
     if (elig.length) focusNight(elig.length === 1 ? elig[0] : elig[0]);
   }
 
-  function agg(oks, f) {
-    return oks.map(f).filter(function (v) {
-      return isFinite(v);
-    });
+  /* `agg()` and `median()` used to live here. Both are GONE rather than left unused: `agg` filtered
+     with the bare global `isFinite`, which admits `null` and coerces it to 0, and a dead helper
+     carrying the defect is the first thing the next aggregate on this page would have reached for.
+     `coverStat` below replaces both, and rejects `null` by using `Number.isFinite`. */
+  /* ── THE CORPUS-LEVEL STATISTIC AND ITS COVERAGE ───────────────────────────────────────────────
+     Single-sourced in `pat-gate.js` (see its §∅ AT THE AGGREGATE LAYER block). Called the way
+     `verdictCell` is called below — a hard dependency, not a guarded one, because a second copy
+     here would be a second source and that is precisely what this split exists to prevent. Every
+     aggregate number on this page and in the download goes through it, so a card, the conclusion
+     sentence and the JSON can no longer disagree about one absence. */
+  function coverStat(rows, f, label) {
+    return (self.PATGate && self.PATGate.coverStat)(rows, f, label);
+  }
+  /* What a sub-line adds when the statistic saw FEWER nights than it had. §∅: a discontinuity
+     refuses and reduced coverage annotates — this is the annotation, and it is empty on full
+     coverage so a complete corpus reads exactly as it did before. */
+  function covNote(s) {
+    return s.covered ? '' : ' · ' + s.n + ' of ' + s.nTotal + ' nights';
+  }
+  /* The download's one numeric writer. `+(+NaN).toFixed(1)` is NaN and `JSON.stringify` writes it
+     as `null`, so the old form reached the right byte by accident; this one decides it. */
+  function numOrNull(x, d) {
+    return typeof x === 'number' && Number.isFinite(x) ? +x.toFixed(d == null ? 1 : d) : null;
   }
   function renderAggregate(oks) {
     var cards = [];
@@ -458,68 +469,115 @@
     );
     cards.push(hcard('coupled beats (ΣN)', totalBeats.toLocaleString(), '', 'across all coupled nights', C.blue, 'count'));
     if (oks.length) {
-      var ppm = agg(oks, function (m) {
-          return m.cp.ppm;
-        }),
-        mr = agg(oks, function (m) {
-          return m.cp.matchRate * 100;
-        });
-      var riq = agg(oks, function (m) {
-          return m.cp.residIQR;
-        }),
-        lin = agg(oks, function (m) {
-          return m.cp.linR2;
-        });
+      var ppm = coverStat(
+          oks,
+          function (m) {
+            return m.cp.ppm;
+          },
+          'inter-device drift rate'
+        ),
+        mr = coverStat(
+          oks,
+          function (m) {
+            return m.cp.matchRate * 100;
+          },
+          'coupling rate'
+        );
+      var riq = coverStat(
+          oks,
+          function (m) {
+            return m.cp.residIQR;
+          },
+          'beat-to-beat spread'
+        ),
+        lin = coverStat(
+          oks,
+          function (m) {
+            return m.cp.linR2;
+          },
+          'drift shape R²'
+        );
       cards.push(
         hcard(
           'inter-device drift',
-          isFinite(median(ppm)) ? median(ppm).toFixed(0) : '—',
+          ppm.n ? ppm.value.toFixed(0) : '—',
           'ppm',
-          'median · range ' + Math.min.apply(null, ppm).toFixed(0) + '–' + Math.max.apply(null, ppm).toFixed(0),
-          C.amber,
+          ppm.n ? 'median · range ' + ppm.min.toFixed(0) + '–' + ppm.max.toFixed(0) + covNote(ppm) : ppm.reason,
+          ppm.n ? C.amber : C.mut,
           'drift'
         )
       );
-      cards.push(hcard('coupling', median(mr).toFixed(0), '%', 'median across nights', median(mr) >= 55 ? C.green : C.amber, 'coupling'));
-      cards.push(hcard('beat-to-beat spread', median(riq).toFixed(0), 'ms', 'median lag IQR', median(riq) <= 60 ? C.green : C.amber, 'spread'));
-      var linMed = median(lin),
+      cards.push(hcard('coupling', mr.n ? mr.value.toFixed(0) : '—', '%', mr.n ? 'median across nights' + covNote(mr) : mr.reason, mr.n ? (mr.value >= 55 ? C.green : C.amber) : C.mut, 'coupling'));
+      cards.push(
+        hcard('beat-to-beat spread', riq.n ? riq.value.toFixed(0) : '—', 'ms', riq.n ? 'median lag IQR' + covNote(riq) : riq.reason, riq.n ? (riq.value <= 60 ? C.green : C.amber) : C.mut, 'spread')
+      );
+      /* 🔴 THE CARD THIS BLOCK EXISTS FOR. `median([])` is NaN, `NaN >= 0.6` is false, and the
+         false arm of that ternary is a VERDICT — so a page that had measured no night at all used
+         to publish "wander · NON-LINEAR — needs continuous correction" in the confident voice of a
+         measurement. §∅ forbids an in-range sentinel for an unmeasured value; the refusal arm now
+         prints the em-dash and the reason. */
+      var linMed = lin.value,
         kind = linMed >= 0.6 ? 'LINEAR — 2-point sync fixes it' : 'NON-LINEAR — needs continuous correction';
-      cards.push(hcard('drift shape', linMed >= 0.6 ? 'linear' : 'wander', '', 'median R²=' + (isFinite(linMed) ? linMed.toFixed(2) : '—') + ' · ' + kind, linMed >= 0.6 ? C.green : C.amber, 'drift'));
+      cards.push(
+        hcard(
+          'drift shape',
+          lin.n ? (linMed >= 0.6 ? 'linear' : 'wander') : '—',
+          '',
+          lin.n ? 'median R²=' + linMed.toFixed(2) + ' · ' + kind + covNote(lin) : lin.reason,
+          lin.n ? (linMed >= 0.6 ? C.green : C.amber) : C.mut,
+          'drift'
+        )
+      );
       // the arrival-floor correction, before/after — and what it removed (buffering, not drift)
       var corrN = oks.filter(function (m) {
         return m.cpCorr && m.cpCorr.ok && m.floorSync && m.floorSync.available;
       });
-      var mCorr = NaN,
+      var cDr = null,
+        rDr = null,
+        bufs = null,
+        mCorr = NaN,
         mRaw = NaN;
       if (corrN.length) {
-        var cDr = agg(corrN, function (m) {
+        cDr = coverStat(
+          corrN,
+          function (m) {
             return m.cpCorr.driftRange;
-          }),
-          rDr = agg(corrN, function (m) {
+          },
+          'corrected drift range'
+        );
+        rDr = coverStat(
+          corrN,
+          function (m) {
             return m.cp.driftRange;
-          });
-        mCorr = median(cDr);
-        mRaw = median(rDr);
+          },
+          'raw drift range'
+        );
+        mCorr = cDr.value;
+        mRaw = rDr.value;
         cards.push(
           hcard(
             'drift after arrival-floor correction',
-            isFinite(mCorr) ? mCorr.toFixed(0) : '—',
+            cDr.n ? mCorr.toFixed(0) : '—',
             'ms',
-            'median · was ' + (isFinite(mRaw) ? mRaw.toFixed(0) : '—') + ' ms raw · ' + corrN.length + ' nights',
-            mCorr < 100 ? C.green : mCorr < mRaw * 0.5 ? C.amber : C.red,
+            cDr.n ? 'median · was ' + (rDr.n ? mRaw.toFixed(0) : '—') + ' ms raw · ' + cDr.n + ' of ' + cDr.nTotal + ' nights' : cDr.reason,
+            cDr.n ? (mCorr < 100 ? C.green : mCorr < mRaw * 0.5 ? C.amber : C.red) : C.mut,
             'floor'
           )
         );
-        var bufs = agg(corrN, function (m) {
-          return m.floorSync.bufferingDiffMs;
-        });
+        bufs = coverStat(
+          corrN,
+          function (m) {
+            return m.floorSync.bufferingDiffMs;
+          },
+          'buffering difference'
+        );
         cards.push(
           hcard(
             'buffering difference removed',
-            isFinite(median(bufs)) ? median(bufs).toFixed(0) : '—',
+            bufs.n ? bufs.value.toFixed(0) : '—',
             'ms',
-            "median raw − corrected lag · the two links' BLE buffering, not clock drift",
-            C.amber,
+            bufs.n ? "median raw − corrected lag · the two links' BLE buffering, not clock drift" + covNote(bufs) : bufs.reason,
+            bufs.n ? C.amber : C.mut,
             'floor'
           )
         );
@@ -535,14 +593,13 @@
         go === oks.length
           ? 'All nights FEASIBLE even before correction — build the provisional trend panel.'
           : drift >= oks.length * 0.5
-            ? 'Raw: drift-dominated across nights (~' + median(ppm).toFixed(0) + ' ppm) — systematic device-clock drift confirmed, not viable from phone timestamps alone.'
+            ? 'Raw: drift-dominated across nights (' +
+              (ppm.n ? '~' + ppm.value.toFixed(0) + ' ppm' + covNote(ppm) : ppm.reason) +
+              ') — systematic device-clock drift confirmed, not viable from phone timestamps alone.'
             : 'Raw: mixed — coupling holds but drift varies night to night.';
       if (corrN.length) {
-        var bufMed = median(
-          agg(corrN, function (m) {
-            return m.floorSync.bufferingDiffMs;
-          })
-        );
+        /* The SAME `bufs` the card above drew, not a second pass over the same nights: one source,
+           so the card and this sentence cannot report two different buffering medians. */
         concl +=
           ' <b style="color:' +
           C.amber +
@@ -551,11 +608,11 @@
           ' night' +
           (corrN.length > 1 ? 's' : '') +
           ': it removed a median <b>' +
-          (isFinite(bufMed) ? bufMed.toFixed(0) : '—') +
+          (bufs && bufs.n ? bufs.value.toFixed(0) : '—') +
           " ms</b> of lag — the two Bluetooth links' different buffering, not clock drift — and left drift at <b>" +
-          mCorr.toFixed(0) +
+          (cDr && cDr.n ? mCorr.toFixed(0) : '—') +
           ' ms</b> (raw ' +
-          mRaw.toFixed(0) +
+          (rDr && rDr.n ? mRaw.toFixed(0) : '—') +
           ' ms).';
       }
       var refusedFloor = oks.filter(function (m) {
@@ -1255,9 +1312,41 @@
       .filter(function (m) {
         return m.cp && m.cp.ok && m.sc && m.sc.ok;
       });
-    var ppm = agg(oks, function (m) {
-      return m.cp.ppm;
-    });
+    /* ── THE AGGREGATE HALF OF §∅ ─────────────────────────────────────────────────────────────────
+       Each corpus statistic below is published with the COUNT of nights it was actually taken over
+       (`*N`, against the `nightsCoupled` / `nNights` denominators already in this file) and with a
+       `*Reason` sibling that is null whenever the number IS published. A reader can therefore tell
+       "no night could measure this" from "0 ms", and "the median of 3 nights" from "the median of
+       25" — neither of which the older shape carried. The reason text comes from the same
+       `coverStat` the cards read, so the page and this file cannot explain one absence two ways. */
+    var ppm = coverStat(
+        oks,
+        function (m) {
+          return m.cp.ppm;
+        },
+        'inter-device drift rate'
+      ),
+      mrA = coverStat(
+        oks,
+        function (m) {
+          return m.cp.matchRate * 100;
+        },
+        'coupling rate'
+      ),
+      riqA = coverStat(
+        oks,
+        function (m) {
+          return m.cp.residIQR;
+        },
+        'beat-to-beat spread'
+      ),
+      linA = coverStat(
+        oks,
+        function (m) {
+          return m.cp.linR2;
+        },
+        'drift shape R²'
+      );
     var out = {
       generated: new Date().toISOString(),
       nightsIndexed: Object.keys(NIGHTS).length,
@@ -1270,46 +1359,54 @@
       }, 0),
       aggregate: oks.length
         ? {
-            driftPpm: { median: +median(ppm).toFixed(1), min: +Math.min.apply(null, ppm).toFixed(1), max: +Math.max.apply(null, ppm).toFixed(1) },
-            matchRatePctMedian: +median(
-              agg(oks, function (m) {
-                return m.cp.matchRate * 100;
-              })
-            ).toFixed(1),
-            beatToBeatIQRmsMedian: +median(
-              agg(oks, function (m) {
-                return m.cp.residIQR;
-              })
-            ).toFixed(1),
-            driftShapeR2Median: +median(
-              agg(oks, function (m) {
-                return m.cp.linR2;
-              })
-            ).toFixed(2),
+            driftPpm: { median: numOrNull(ppm.value), min: numOrNull(ppm.min), max: numOrNull(ppm.max), n: ppm.n, reason: ppm.reason },
+            matchRatePctMedian: numOrNull(mrA.value),
+            matchRatePctMedianN: mrA.n,
+            matchRatePctMedianReason: mrA.reason,
+            beatToBeatIQRmsMedian: numOrNull(riqA.value),
+            beatToBeatIQRmsMedianN: riqA.n,
+            beatToBeatIQRmsMedianReason: riqA.reason,
+            driftShapeR2Median: numOrNull(linA.value, 2),
+            driftShapeR2MedianN: linA.n,
+            driftShapeR2MedianReason: linA.reason,
             afterArrivalFloor: (function () {
               var c = oks.filter(function (m) {
                 return m.cpCorr && m.cpCorr.ok && m.floorSync && m.floorSync.available;
               });
-              return c.length
-                ? {
-                    nNights: c.length,
-                    driftRangeMsMedian: +median(
-                      agg(c, function (m) {
-                        return m.cpCorr.driftRange;
-                      })
-                    ).toFixed(1),
-                    driftPpmMedian: +median(
-                      agg(c, function (m) {
-                        return m.cpCorr.ppm;
-                      })
-                    ).toFixed(1),
-                    rawDriftRangeMsMedian: +median(
-                      agg(c, function (m) {
-                        return m.cp.driftRange;
-                      })
-                    ).toFixed(1)
-                  }
-                : null;
+              if (!c.length) return null;
+              var cd = coverStat(
+                  c,
+                  function (m) {
+                    return m.cpCorr.driftRange;
+                  },
+                  'corrected drift range'
+                ),
+                cp2 = coverStat(
+                  c,
+                  function (m) {
+                    return m.cpCorr.ppm;
+                  },
+                  'corrected drift rate'
+                ),
+                rd = coverStat(
+                  c,
+                  function (m) {
+                    return m.cp.driftRange;
+                  },
+                  'raw drift range'
+                );
+              return {
+                nNights: c.length,
+                driftRangeMsMedian: numOrNull(cd.value),
+                driftRangeMsMedianN: cd.n,
+                driftRangeMsMedianReason: cd.reason,
+                driftPpmMedian: numOrNull(cp2.value),
+                driftPpmMedianN: cp2.n,
+                driftPpmMedianReason: cp2.reason,
+                rawDriftRangeMsMedian: numOrNull(rd.value),
+                rawDriftRangeMsMedianN: rd.n,
+                rawDriftRangeMsMedianReason: rd.reason
+              };
             })()
           }
         : null,

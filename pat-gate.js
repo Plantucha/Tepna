@@ -421,6 +421,59 @@
     return { text: t, title: title, differs: hasCorr && m.vdCorr.label !== m.vd.label };
   }
 
+  /* ── §∅ AT THE AGGREGATE LAYER ──────────────────────────────────────────────────────────────────
+     #3203 gave every PER-NIGHT PAT quantity a reason sibling, written where the absence is made.
+     The corpus-level medians ABOVE those quantities kept the older shape. The page filtered each
+     night through a bare `isFinite` and took `median()` of what survived, so an aggregate over
+     nothing published `"NaN"` in a card value, `"Infinity–-Infinity"` in a sub-line and — worst —
+     the in-range verdict `wander · NON-LINEAR — needs continuous correction` from a card that had
+     measured ZERO nights. §∅ forbids exactly that: absence is never a default and never an
+     in-range sentinel.
+
+     `coverStat` is the same remedy one layer up. It returns the subset, its COVERAGE and a reason
+     that is non-null only when the statistic refuses, so the cards, the conclusion sentence and the
+     download JSON read one source and cannot disagree about one absence.
+
+     §∅'s two arms stay apart deliberately. `n === 0` REFUSES: `value` is NaN and `reason` names the
+     quantity and the population it had. `0 < n < nTotal` is reduced COVERAGE: the value IS
+     published, `n` and `nTotal` sit beside it and `reason` stays null. A caller can show coverage
+     however it likes and can never read a refusal as a number.
+
+     ⚠️ The keep test is `Number.isFinite`, never the global. `isFinite(null)` is TRUE, and §∅
+     requires an unmeasured value to BE null, so the bare form admits the one shape it must reject
+     and coerces it to 0 — a refused measurement becomes a zero in a published median. Measured at
+     this ref: `floorSync.bufferingDiffMs` is written `null` by `pat-feasibility-worker.js`, and
+     every call site reaching it is gated on the same condition the producer uses, so the bare
+     filter has never yet been wrong here. It was one guard away from being wrong, which is the
+     whole of row `2026-09-28-bare-isfinite-admits-the-null-that-absence-is-null-requires`. */
+  function _medOf(sorted) {
+    var m = sorted.length >> 1;
+    return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+  }
+  function coverStat(rows, f, label) {
+    var src = rows || [],
+      vals = [];
+    for (var i = 0; i < src.length; i++) {
+      var v = f(src[i]);
+      if (typeof v === 'number' && Number.isFinite(v)) vals.push(v);
+    }
+    var n = vals.length,
+      nTotal = src.length;
+    vals.sort(function (x, y) {
+      return x - y;
+    });
+    return {
+      n: n,
+      nTotal: nTotal,
+      covered: n === nTotal,
+      values: vals,
+      value: n ? _medOf(vals) : NaN,
+      min: n ? vals[0] : NaN,
+      max: n ? vals[n - 1] : NaN,
+      reason: n ? null : (label || 'statistic') + ' not measurable: 0 of ' + nTotal + ' night' + (nTotal === 1 ? '' : 's') + ' published one'
+    };
+  }
+
   root.PATGate = {
     PAT_GATE: PAT_GATE,
     verdict: verdict,
@@ -431,6 +484,7 @@
     dropArtifactPeaks: dropArtifactPeaks,
     ARTIFACT_CONF_MIN: ARTIFACT_CONF_MIN,
     driftStats: driftStats,
+    coverStat: coverStat,
     BIN_MATCH_MIN: BIN_MATCH_MIN,
     SC_RATE_TOL: SC_RATE_TOL,
     SC_MIN_OVERLAP_MIN: SC_MIN_OVERLAP_MIN,
