@@ -154,8 +154,8 @@ population by `tools/verdict-adoption.mjs --check` (`npm run check` · CI `stati
 quoted `tepna.verdict/1` literal, an import of `verdict.js` or of the box-side `verdict` module, or a
 call to a verdict builder imported from a file that does one of those. A word inside a comment no
 longer enters the population and a tool that builds its object through a wrapper no longer escapes it:
-the manifest went 308 rows → 267, losing 50 exempt rows (22 `word-only`, 28 `test`) and gaining 9 —
-seven `populationVerdict` call sites, one `verdict.js` importer, one test carrying the literal. The
+the manifest went 308 rows → 270, losing 50 exempt rows (22 `word-only`, 28 `test`) and gaining 12 —
+ten `populationVerdict` call sites, one `verdict.js` importer, one test carrying the literal. The
 three globs are git pathspecs, so
 `capture-host/*.py` reaches `capture-host/tests/` as well, while the gate filters `tools/` and `tests/`
 non-recursive; `tests/` joined 2026-09-22, when the test runner adopted §3d from outside the population. **Every `decides` producer is GATED** — it declares `--selftest` in call position or a file under `tests/` / `capture-host/tests/` names it — a static equality over the enumerated set of checks, ratcheted (`UNGATED_RATCHET`, may only shrink), so a check with no test reds by name the day it is binned rather than by a diff rule that would flag half of all tool fixes (residue `2026-09-12-ungated-tool-fix-rule-not-viable`). An adoption is
