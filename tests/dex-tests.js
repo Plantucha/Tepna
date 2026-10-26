@@ -21174,6 +21174,168 @@
       );
     });
 
+    /* ════ PAT aggregate — THE SAME §∅ RULE, ONE LAYER UP ════════════════════════════════════════
+       #3203 (the group above) gave every PER-NIGHT PAT quantity a reason sibling written where the
+       absence is made. The corpus-level medians ABOVE those quantities kept the older shape, and
+       row `2026-09-28-bare-isfinite-admits-the-null-that-absence-is-null-requires` is what sent a
+       reader there. Measured at this ref before any edit, by running the page's own expressions on
+       an empty subset: the coupling and spread cards printed the string `"NaN"`, the drift card's
+       sub-line printed `"median · range Infinity–-Infinity"`, the conclusion sentence printed
+       `"left drift at NaN ms (raw NaN ms)"`, and the drift-shape card printed
+       `"wander · NON-LINEAR — needs continuous correction"` — a VERDICT, in the confident voice of
+       a measurement, from a card that had measured zero nights. §∅ forbids exactly that: an
+       unmeasured value is never a default and never an in-range sentinel.
+
+       Reachable, not hypothetical. `linR2` is NaN whenever a night holds fewer than 3 bins, and a
+       bin is `BIN_MIN` = 5 minutes, so ONE short coupled night empties that subset. `cp.ppm` is NaN
+       on ≤ 0 overlap or an absent drift range, each already carrying its own reason in the worker —
+       reasons the aggregate layer then discarded.
+
+       🔴 THE SECOND HALF IS PARTIAL COVERAGE, AND IT IS LIVE ON ORDINARY DATA. The old filter
+       dropped unmeasurable nights SILENTLY, so `beatToBeatIQRmsMedian` could be the median of 3
+       nights while `nightsCoupled` said 25 and nothing in the file said which. §∅'s ruling splits
+       the two: a discontinuity REFUSES, reduced coverage ANNOTATES. `coverStat` returns both arms
+       and the page shows them apart.
+
+       WHY THE KEEP TEST CHANGED AND WHAT IT MUST NOT BREAK. `isFinite(null)` is TRUE, so the old
+       bare filter admitted the one shape §∅ requires absence to be written as, and coerced it to 0
+       — a refused measurement becoming a zero in a published median. `Number.isFinite` rejects it.
+       The row warns in the same breath that a blanket conversion is wrong where a legitimate value
+       arrives, so a REAL `0` being kept is asserted here as a control, not assumed. */
+    group('PAT aggregate — a corpus statistic over nothing refuses, and one over some nights says how many (§∅)', 'pat-gate · pat-feasibility · aggregate · §∅ · known-answer', function (T) {
+      var PG = env.PATGate,
+        psrc = (env.sources && env.sources['pat-feasibility.js']) || '';
+      T.ok('PATGate.coverStat co-loaded (pat-gate.js)', !!(PG && typeof PG.coverStat === 'function'), PG ? 'typeof=' + typeof (PG || {}).coverStat : 'add pat-gate.js to both runners');
+      T.ok('the renderer source is readable in this lane', !!psrc, psrc.length + 'B — add pat-feasibility.js to readSources() if 0');
+      if (!PG || typeof PG.coverStat !== 'function' || !psrc) return;
+
+      var pick = function (m) {
+        return m.v;
+      };
+      var rows = function (vals) {
+        return vals.map(function (v) {
+          return { v: v };
+        });
+      };
+
+      // ── FULL COVERAGE · the number, and a reason that is null BECAUSE it published ──────────────
+      var full = PG.coverStat(rows([10, 2, 6, 4, 8]), pick, 'drift rate');
+      T.eq('full coverage · the median is the hand-computed order statistic', full.value, 6, JSON.stringify(full));
+      T.eq('full coverage · min and max come from the same sorted subset', full.min + '/' + full.max, '2/10');
+      T.ok(
+        'full coverage · n equals nTotal and `covered` says so',
+        full.n === 5 && full.nTotal === 5 && full.covered === true,
+        JSON.stringify({ n: full.n, nTotal: full.nTotal, covered: full.covered })
+      );
+      T.eq('full coverage · the reason key is PRESENT and null — never a missing key', 'reason' in full ? String(full.reason) : 'ABSENT', 'null');
+
+      // ── REDUCED COVERAGE · annotates, and must NOT refuse (§∅, owner ruling 2026-09-17) ─────────
+      var part = PG.coverStat(rows([10, NaN, 6, NaN, 2]), pick, 'drift rate');
+      T.eq('partial coverage · the value IS published, over the nights that had one', part.value, 6, JSON.stringify(part));
+      T.ok('partial coverage · n and nTotal carry the shortfall', part.n === 3 && part.nTotal === 5 && part.covered === false, JSON.stringify({ n: part.n, nTotal: part.nTotal }));
+      T.eq('partial coverage · reduced coverage ANNOTATES, so the reason stays null', String(part.reason), 'null', 'a reduced-coverage reason would make a reader treat a real median as a refusal');
+
+      // ── EMPTY · refuses, and names the quantity and the population it had ───────────────────────
+      var none = PG.coverStat(rows([NaN, NaN, NaN]), pick, 'drift shape R²');
+      T.ok(
+        'empty subset · the value is NOT a number',
+        !Number.isFinite(none.value) && !Number.isFinite(none.min) && !Number.isFinite(none.max),
+        JSON.stringify({ v: String(none.value), min: String(none.min), max: String(none.max) })
+      );
+      T.ok(
+        'empty subset · the reason names the QUANTITY and the population, not a borrowed sentence',
+        typeof none.reason === 'string' && /drift shape R²/.test(none.reason) && /0 of 3 nights/.test(none.reason),
+        none.reason
+      );
+      T.ok(
+        'empty subset · min/max are NaN rather than the ±Infinity `Math.min.apply(null, [])` returns',
+        String(none.min) === 'NaN' && String(none.max) === 'NaN',
+        String(none.min) + '/' + String(none.max)
+      );
+
+      /* ── 🔴 THE ROW'S OWN CLASS, WITH THE OLD INSTRUMENT BESIDE THE NEW ONE ──────────────────────
+         The control is the point: the first assertion shows the discarded filter would have taken
+         `null`, so the second is a measured improvement and not a restatement of the language spec. */
+      T.ok(
+        'CONTROL · the DISCARDED filter really did admit absence — `isFinite(null)` is true',
+        isFinite(null) === true && isFinite([]) === true,
+        'isFinite(null)=' + isFinite(null) + ' isFinite([])=' + isFinite([])
+      );
+      var nulls = PG.coverStat(rows([null, null, 4]), pick, 'buffering difference');
+      T.eq('a `null` night is REJECTED, so absence can never be averaged as a 0', nulls.n, 1, JSON.stringify(nulls));
+      T.eq('…and the one real night is the whole statistic', nulls.value, 4, JSON.stringify(nulls));
+      T.ok('…and the two rejected nights still count against coverage', nulls.nTotal === 3 && nulls.covered === false, JSON.stringify({ n: nulls.n, nTotal: nulls.nTotal }));
+      var strs = PG.coverStat(rows(['25', [], undefined, 7]), pick, 'coupling rate');
+      T.eq('a NUMERIC STRING is rejected too — `xs.reduce((a,b)=>a+b,0)` would concatenate it', strs.n, 1, JSON.stringify(strs));
+
+      /* ── ANTI-VACUITY · a real 0 is a MEASUREMENT and must survive the stricter filter ───────────
+         The row recommends against a blanket `isFinite` → `Number.isFinite` conversion precisely
+         because a legitimate value can be thrown away by one. Zero is the value at risk here, and a
+         buffering difference of 0 ms is a real reading. Without this leg every assertion above would
+         still pass over a filter that simply dropped more. */
+      var zeros = PG.coverStat(rows([0, 0, 0]), pick, 'buffering difference');
+      T.ok('ANTI-VACUITY · three real zeros are three MEASUREMENTS, not three absences', zeros.n === 3 && zeros.value === 0 && zeros.reason === null, JSON.stringify(zeros));
+      T.ok(
+        'ANTI-VACUITY · a measured 0 and a refusal are distinguishable at the consumer',
+        zeros.value === 0 && !Number.isFinite(none.value) && typeof none.reason === 'string',
+        'measured=' + zeros.value + ' refused=' + String(none.value)
+      );
+
+      /* ── THE DOWNLOAD SHAPE, ROUND-TRIPPED ───────────────────────────────────────────────────────
+         Built the way `downloadJSON` builds it. What is pinned is that a refused statistic reaches
+         the file as `null` WITH its sentence and its count, so no reader of the file can land on a
+         0 where nothing was measured, and none can mistake 3 nights for 25. */
+      var agr = JSON.parse(
+        JSON.stringify({
+          driftPpm: { median: Number.isFinite(none.value) ? +none.value.toFixed(1) : null, n: none.n, reason: none.reason },
+          beatToBeatIQRmsMedian: Number.isFinite(part.value) ? +part.value.toFixed(1) : null,
+          beatToBeatIQRmsMedianN: part.n,
+          beatToBeatIQRmsMedianReason: part.reason
+        })
+      );
+      T.eq('round-tripped · a refused corpus median is null, never 0', JSON.stringify(agr.driftPpm.median), 'null', JSON.stringify(agr));
+      T.ok('round-tripped · the null keeps its sentence and its count of 0', typeof agr.driftPpm.reason === 'string' && agr.driftPpm.n === 0, JSON.stringify(agr.driftPpm));
+      T.ok(
+        'round-tripped · a PARTIAL median ships the number AND the count it was taken over',
+        agr.beatToBeatIQRmsMedian === 6 && agr.beatToBeatIQRmsMedianN === 3 && agr.beatToBeatIQRmsMedianReason === null,
+        JSON.stringify(agr)
+      );
+
+      /* ── AND THE RENDERER ROUTES THROUGH IT ──────────────────────────────────────────────────────
+         Source-scanned, and said so: the renderer builds DOM and this lane cannot execute it. What
+         the scan establishes is that no second implementation survives beside the tested one — the
+         same delegation-parity rule the analysis-kernel group applies. */
+      T.ok('the renderer no longer declares its own `agg()` with a bare-isFinite filter', !/function\s+agg\s*\(/.test(psrc), 'a private copy of the discarded filter is still in pat-feasibility.js');
+      T.ok('…nor its own `median()`', !/function\s+median\s*\(/.test(psrc), 'a private median is still in pat-feasibility.js');
+      var calls = (psrc.match(/coverStat\(/g) || []).length;
+      T.ok('every aggregate on the page routes through `coverStat` — cards, conclusion and download', calls >= 11, calls + ' call site(s); 1 wrapper + 4 cards + 3 corrected + 4 download expected');
+      /* The headline, EXECUTED rather than scanned: the old card body and the new one, run side by
+         side on the same empty subset. The old form is not quoted from memory — it is the two
+         expressions `pat-feasibility.js` carried at the base of this branch. */
+      var oldShape = none.value >= 0.6 ? 'linear' : 'wander',
+        newShape = none.n ? (none.value >= 0.6 ? 'linear' : 'wander') : '—';
+      T.eq('🔴 KNOWN ANSWER · the discarded card body states a VERDICT over zero nights', oldShape, 'wander', 'NaN >= 0.6 is false, and the false arm of that ternary is a finding');
+      T.eq('🔴 …and the shipped one refuses instead', newShape, '—', 'n=' + none.n);
+      T.ok(
+        '🔴 the drift-shape card cannot publish `wander` over an empty subset any more',
+        /lin\.n \? \(linMed >= 0\.6 \? 'linear' : 'wander'\) : '—'/.test(psrc),
+        'the false arm of that ternary is a VERDICT, so an unguarded one states NON-LINEAR about nights it never measured'
+      );
+      T.ok(
+        'the drift card sub-line reads the stat min/max, not `Math.min.apply(null, [])`',
+        !/Math\.min\.apply\(null, ppm\)/.test(psrc) && /ppm\.min\.toFixed\(0\)/.test(psrc),
+        'the empty-array form returns Infinity and prints `Infinity–-Infinity`'
+      );
+      T.ok(
+        'the conclusion sentence guards the two corrected medians the cards already guarded',
+        /\(cDr && cDr\.n \? mCorr\.toFixed\(0\) : '—'\)/.test(psrc) && /\(rDr && rDr\.n \? mRaw\.toFixed\(0\) : '—'\)/.test(psrc),
+        'it printed `left drift at NaN ms (raw NaN ms)`'
+      );
+      ['matchRatePctMedianReason', 'beatToBeatIQRmsMedianReason', 'driftShapeR2MedianReason', 'driftRangeMsMedianReason', 'rawDriftRangeMsMedianReason'].forEach(function (k) {
+        T.ok('the download publishes `' + k + '` beside its number', psrc.indexOf(k) > -1, k + ' is absent from pat-feasibility.js');
+      });
+    });
+
     /* ════ PAT classic vs fused — the weighted statistic, and the band on a clean night ═══════════
        The mechanism behind the "PAT — classic vs fused" page. It lives in `analysis-stats.js` rather than
        in `pat-feasibility-worker.js` so that THIS group can execute it: a worker's top-level functions can
