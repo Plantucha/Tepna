@@ -2015,6 +2015,18 @@
    },
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); PPG\u2212vendor pulse Bland\u2013Altman (bias/SD/LoA, per-night medians) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
+  "tools/reanchor-equivalence.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/reanchor-equivalence.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the re-anchor decision, under the owner ruling of 2026-10-26 (board #1549 item 21: re-anchor the drifted equivalence entries WITH a probe for each entry). One tepna.verdict/1 per run over the movable set - PASS every probed entry survived its re-test at its new address; FAIL a probe KILLED a mutant an excusing entry covers, so the classification is false and that address stays orphaned; SHORTFALL an entry reached no verdict (a target collision, a refused --only run, or a voided canary); NOT_RUN report-only mode, which reads addresses and probes no claim. `--write` without `--probe` refuses, so no anchor can move unprobed."
+  },
   "tools/rebase-safe.mjs": {
    "bin": "word-only",
    "status": "exempt",
