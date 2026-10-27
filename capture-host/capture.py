@@ -5562,7 +5562,7 @@ def _oxy_ledger_facts(l):
     }
 
 
-def _emit_oxy_live_evidence(name, dev, started, spo2_kept, grid, ledger):
+def _emit_oxy_live_evidence(name, dev, started, wr, grid, ledger):
     """Write the LIVE O2Ring acquisition envelope beside the SpO2 CSV it describes.
 
     Separated from `run_oxyii` so the assembly is testable without driving a BLE session — the pump
@@ -5573,16 +5573,31 @@ def _emit_oxy_live_evidence(name, dev, started, spo2_kept, grid, ledger):
     deliberate: OxyDex's existing reader joins an envelope to a night by finding the session_id inside
     the artifact's filename (#1752), so reusing that token means the live envelope joins with no new
     matching rule — the same discipline that made the CPAP reader reuse attachStrSummary's day rule
-    rather than invent a second one."""
+    rather than invent a second one.
+
+    ⚠️ THE WRITER TRAVELS, NOT A (path, rows) PAIR, and that is what makes the envelope datable. The
+    artifact's start is `wr.first_row_ms` — when the first row landed in THIS file — while `started` is
+    when the process began, which is also the value every ring filename carries. Residue
+    `2026-09-22-filename-stamp-still-wrong-for-other-consumers` part (a) is the session start standing
+    in for the artifact's: this site passed `started` as `start_time_ms`, and the ring envelope derives
+    `end_time_ms` from it, so one late first row moved both ends of the reported span. The session
+    start keeps travelling, under `instance_start_time_ms`, which says what it measures. `wr.resumed`
+    rides along because this instance did not see a resumed file's beginning (§∅).
+
+    The caller passes the writer only for a KEPT file and calls `close()` first, so the counters and
+    the first-row stamp are final — the same order `run_polar` uses."""
     try:
-        path, rows = spo2_kept
-        start_ms = calendar.timegm(started.timetuple()) * 1000.0
+        path, rows = wr.path, wr.rows
         ev = acq_evidence_o2ring.assemble_live(
             device_id=dev.get("device_id"),
             session_id=started.strftime("%Y%m%d%H%M%S"),
             artifact_path=path,
             artifact_rows=rows,
-            start_time_ms=start_ms,
+            # THE ARTIFACT'S START IS ITS FIRST ROW, never the session's start. `None` when no row
+            # landed (§∅): a header-only file has no start to report.
+            start_time_ms=wr.first_row_ms,
+            instance_start_time_ms=calendar.timegm(started.timetuple()) * 1000.0,
+            resumed=wr.resumed,
             stopped_cleanly=not _STOP.is_set(),
             ppg_grid=_oxy_grid_facts(grid),
             ppg_ledger=_oxy_ledger_facts(ledger),
@@ -7123,7 +7138,9 @@ async def run_oxyii(dev: dict, root: str):
                         os.path.basename(_p),
                     )
                 elif _w is wr:
-                    _spo2_kept = (_p, _rows)
+                    # THE WRITER, not a (path, rows) pair: the envelope dates the artifact by
+                    # `first_row_ms` and needs `resumed` to know whether it may (see the emit helper)
+                    _spo2_kept = _w
             # ACQUISITION EVIDENCE, the LIVE half (ACQ-EVIDENCE-CONTRACT spec §10 — BOTH O2Ring paths,
             # never merged into one indistinguishable source; `assemble_dat` is the stored half).
             # Emitted only for a KEPT file: a header-only session was just discarded, and an envelope
