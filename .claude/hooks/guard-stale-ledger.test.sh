@@ -225,5 +225,72 @@ if [ "$_worst" = 0 ]; then printf '  ok    %-62s rc=0\n' "the hatch drains a pay
 else printf '  FAIL  the writer into the hatched hook exited %s (141 = SIGPIPE, never read)\n' "$_worst"; fail=$((fail+1)); fi
 
 echo
+echo "### the offer contract — every command the denial PRINTS runs under both guards"
+# A remedy nobody can run reads as a next step, which is the defect row
+# `2026-10-26-the-stale-ledger-guard-denies-no-cure` measured on this hook's own text. The contract
+# the legs below enforce: an INDENTED line in the denial is offered as RUNNABLE, and a form named as
+# refused stays inline in the prose, where this extractor cannot reach it.
+#
+# ⚠ THE TWO SIBLING GUARDS ANSWER ON DIFFERENT CHANNELS. This hook denies with exit 2 and prose on
+#   stderr. `guard-shared-tree.sh` denies with exit 0 and a `permissionDecision` JSON on STDOUT. A
+#   probe reading the exit code alone scores ALLOW for every arm of that hook, its positive control
+#   included — measured 2026-10-27 while sizing this unit, on a probe whose eight arms all read 0.
+#   Each arm below reads the channel its own hook uses, and the refused pair is the control that
+#   proves the shared-tree reader can see a denial at all.
+ST="$(dirname "$H")/guard-shared-tree.sh"
+LEDGER_PATH='briefs/RESIDUE.md'
+shared_denies() { # shared_denies <command> → 0 when guard-shared-tree.sh denies it
+  printf '%s' "$(cmdj "$1")" \
+    | ( cd "$STALE" && env -u CLAUDE_ALLOW_BLANKET_GIT bash "$ST" 2>/dev/null ) \
+    | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null 2>&1
+}
+# the staleness this block needs: alpha reads OPEN here and `fixed #9001` on the ref. Earlier
+# blocks left this tree CURRENT, and a current tree makes every leg below score ALLOW with
+# nothing examined — which is how the first run of this block read 0 offers.
+write_ledger OPEN 'fixed #9002' OPEN 'key'
+cp briefs/RESIDUE.md "$STALE/briefs/RESIDUE.md"
+DENIAL="$( cd "$STALE" && printf '%s' "$(cmdj "$READ_CMD")" | bash "$H" 2>&1 >/dev/null )"
+OFFERS=(); while IFS= read -r _line; do [ -n "$_line" ] && OFFERS+=("$_line"); done < <(
+  printf '%s\n' "$DENIAL" | grep -E '^    (git|node) ' | sed 's/^    //')
+if [ "${#OFFERS[@]}" -lt 3 ]; then
+  printf '  FAIL  the denial offers %s runnable command(s), want 3 or more — the text or this extractor moved\n' "${#OFFERS[@]}"
+  fail=$((fail+1))
+else
+  printf '  ok    %-62s n=%s\n' "the denial offers three or more runnable commands" "${#OFFERS[@]}"
+fi
+if printf '%s\n' "${OFFERS[@]}" | grep -q 'merge --ff-only origin/main'; then
+  printf '  ok    %-62s\n' "one offer advances this tree in place"
+else
+  printf '  FAIL  no offer advances this tree: the ff-only merge left the denial text\n'; fail=$((fail+1))
+fi
+for _c in "${OFFERS[@]}"; do
+  _rc="$(run "$STALE" "$(cmdj "$_c")")"
+  if [ "$_rc" = 2 ]; then
+    printf '  FAIL  this guard DENIES a command its own denial offers: %s\n' "$_c"; fail=$((fail+1))
+  elif shared_denies "$_c"; then
+    printf '  FAIL  guard-shared-tree.sh DENIES a command this denial offers: %s\n' "$_c"; fail=$((fail+1))
+  else
+    printf '  ok    %-62s both guards allow it\n' "$(printf '%s' "$_c" | cut -c1-62)"
+  fi
+done
+# the control pair: each is REFUSED, by a different guard, which is why the text names them inline
+if printf '%s\n' "${OFFERS[@]}" | grep -q 'restore'; then
+  printf '  FAIL  a restore form is OFFERED as runnable, and neither restore cures a behind checkout\n'; fail=$((fail+1))
+else
+  printf '  ok    %-62s\n' "no restore form is offered as runnable"
+fi
+_head_restore="git restore --staged --worktree $LEDGER_PATH"
+if [ "$(run "$STALE" "$(cmdj "$_head_restore")")" = 2 ]; then
+  printf '  ok    %-62s\n' "CONTROL the HEAD restore is denied here, and restores the stale copy"
+else
+  printf '  FAIL  the HEAD restore is allowed, so this reader cannot see a denial of its own hook\n'; fail=$((fail+1))
+fi
+if shared_denies "git restore --source=origin/main $LEDGER_PATH"; then
+  printf '  ok    %-62s\n' "CONTROL the ref restore is denied by guard-shared-tree.sh"
+else
+  printf '  FAIL  the ref restore passed guard-shared-tree.sh, so the shared-tree reader examined nothing\n'; fail=$((fail+1))
+fi
+
+echo
 if [ "$fail" -eq 0 ]; then echo "✓ guard-stale-ledger.sh: every leg as declared"; exit 0; fi
 echo "✗ guard-stale-ledger.sh: $fail leg(s) failed"; exit 1

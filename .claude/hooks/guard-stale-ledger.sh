@@ -319,6 +319,21 @@ Or ask the pickup tool, which names every row this read gets wrong:
 Or size the row from a fresh worktree cut from the ref (CLAUDE.md §👥.1), where the file is
 current by construction and this guard is silent.
 
+Or make THIS checkout current, in the checkout that holds the branch (CLAUDE.md §👥.2). Both
+guards allow this form, and it is the only offer here that advances the tree:
+
+    git -C $root merge --ff-only origin/main
+
+It REFUSES while a path the merge brings in carries uncommitted lines. Those lines are another
+session's work unit and §👥.2 leaves them alone, so on a refusal take the fresh worktree above.
+
+NEITHER RESTORE FORM CURES THIS, so neither is offered above. \`git restore --staged --worktree
+$LEDGER\` rewrites this file from HEAD, and in a checkout this far behind HEAD holds the same stale
+copy. \`git restore --source=origin/main $LEDGER\` names the ref, and guard-shared-tree.sh refuses
+a ref-sourced restore of a source file on §2c grounds. Row
+2026-10-26-the-stale-ledger-guard-denies-no-cure measured both, and every indented command above
+is driven through both guards by this hook's self-test.
+
 If you are reading a historic row and know the state here may be old, say so:
 
     CLAUDE_ALLOW_STALE_LEDGER=1 <your bash command>      (command position — read from the text)
