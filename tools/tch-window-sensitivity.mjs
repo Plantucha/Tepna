@@ -52,7 +52,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
-import { NIGHT_RE, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { NIGHT_RE, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = 'tools/tch-window-sensitivity.mjs';
 const AS = createRequire(import.meta.url)(join(ROOT, 'analysis-stats.js'));

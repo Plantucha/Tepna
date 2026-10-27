@@ -35,7 +35,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

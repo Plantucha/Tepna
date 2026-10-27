@@ -27,7 +27,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { NIGHT_RE, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { NIGHT_RE, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 // ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
 // vm-loading (else "Unexpected token 'export'"). build-core.js is required relative to THIS tool (not

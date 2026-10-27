@@ -66,6 +66,7 @@ import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_R
 import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as argvReads from '../tools/argv-reads.mjs';
 import * as corpusReads from '../tools/corpus-reads.mjs';
+import * as argvSurvey from '../tools/argv-survey.mjs';
 import * as importerFlagProbe from '../tools/importer-flag-probe.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
@@ -3565,6 +3566,11 @@ async function main() {
       return { status: r.status, signal: r.signal, out, read, ms: Date.now() - t0 };
     },
     argvReads,
+    /* THE PROBE-SAFETY PREDICATE, read from the gate that owns it rather than restated. It is
+       already in this process's import graph — `tools/importer-flag-probe.mjs` imports
+       `closureHazards` from it — so naming it here adds no module, only a handle. The module
+       guards its own sweep behind `IS_MAIN`, which the group below re-asserts in a child. */
+    argvSurvey,
     corpusReads,
     importerFlagProbe,
     sources: readSources(),

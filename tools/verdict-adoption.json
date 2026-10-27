@@ -989,6 +989,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/corpus-scope-core.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/corpus-scope.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the shared population builder (snapshotNights + snapshotEntries + populationVerdict + censusVerdict + producedByOf), split out of tools/corpus-scope.mjs under residue 2026-10-26-wiring-a-population-verdict-costs-the-probe-safety-that-made-it-cheap so that importing it writes, execs and fetches nothing \u2014 which is what keeps a tool that reports its population inside argv-survey's probe-safe set. It has no run of its own, so the sample command is the sibling CLI that kept the `find` runner: the object it prints is censusVerdict's, built HERE, over the measured 2026-09-22 shape of one countable tree, one alias of it and one remote root."
+  },
   "tools/corpus-scope.mjs": {
    "bin": "decides",
    "status": "adopted",

@@ -35,7 +35,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { DOC, dedupeRoots, gitCommitOf, NIGHT_RE, parseRoots, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { DOC, dedupeRoots, gitCommitOf, NIGHT_RE, parseRoots, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -303,7 +303,7 @@ export function horizonVerdict({ rules, unparsed, nights, roots, excluded = null
   /* 🔴 A COUNT BESIDE ONE LINE NUMBER READS AS THAT LINE REPEATING. A rule passed from several
      places folds into one row, so the row names its first site and then every other line it was
      read at. A reader follows all of them, never the first alone. One line can hold two calls, and
-     `corpus-scope.mjs:782` does, so a repeated number in that list is a measurement rather than a
+     `corpus-scope.mjs:260` does, so a repeated number in that list is a measurement rather than a
      duplicate. */
   const site = (r) => {
     const n = r.occurrences || 1;

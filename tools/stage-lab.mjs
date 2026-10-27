@@ -47,7 +47,7 @@ import { fileURLToPath } from 'node:url';
 import * as Core from './stage-lab-core.mjs';
 import { makeRealm } from './nsrr-stage-validate.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notCovered, populationVerdict, snapshotEntries } from './corpus-scope.mjs';
+import { notCovered, populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { makeRealm as makeEcgRealm } from './ecg-physionet-differential.mjs'; // v16: the suite's own Pan–Tompkins for ECG-derived pulse
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');

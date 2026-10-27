@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**288 tools** · 287 with a purpose line · **1 without**
+**289 tools** · 288 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -58,6 +58,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
 | [`corpus-census.mjs`](../tools/corpus-census.mjs) | A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue `2026-09-20-census-file-list-not-retained`. |
 | [`corpus-reads.mjs`](../tools/corpus-reads.mjs) | decide, from a tool's SOURCE, whether it enumerates a corpus root it was handed at run time, and whether it reports the population it actually covered. |
+| [`corpus-scope-core.mjs`](../tools/corpus-scope-core.mjs) | the population half of corpus-scope: snapshots, verdicts, rule lines and the code identity they stamp. |
 | [`corpus-scope.mjs`](../tools/corpus-scope.mjs) | count a file pattern across EVERY corpus root, and say which roots were searched. |
 | [`corpus-tier.mjs`](../tools/corpus-tier.mjs) | KEEP THE LAST 30 NIGHTS LOCAL; EVERYTHING OLDER BECOMES A SYMLINK INTO THE NAS. |
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |

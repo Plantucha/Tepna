@@ -33,7 +33,7 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { closeSync, openSync, readSync, readdirSync, existsSync, statSync } from 'node:fs';
 
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { join } from 'node:path';
 import { getDsps, loadDsps, median } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';

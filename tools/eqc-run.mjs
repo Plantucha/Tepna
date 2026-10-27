@@ -39,7 +39,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {

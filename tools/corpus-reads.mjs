@@ -7,7 +7,7 @@
 //
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // WHY THIS EXISTS: Residue `2026-10-21-sixty-eight-corpus-enumerators-still-measure-whatever-set-
-// they-caught`. `tools/corpus-scope.mjs` holds the primitive — `snapshotNights` around the run,
+// they-caught`. `tools/corpus-scope-core.mjs` holds the primitive — `snapshotNights` around the run,
 // `populationVerdict` at the end — and `tepna-corpus-tier.service` re-tiers the corpus daily at
 // 14:30 EDT, so a long run can open over one night set and close over another. ONE tool reports
 // the set it covered. Nothing MAKES any other tool do it, so a new corpus consumer inherits the
@@ -157,18 +157,23 @@ export function dashedFlagRead(expr, raw) {
    `tools/`. What makes a read a CORPUS read is capture vocabulary — a night-shaped directory name,
    a capture file suffix, or a named corpus root. Without this second axis the hazard set reads 59
    and most of it is repository housekeeping. */
-/** The night primitives `corpus-scope.mjs` exports, named once so the text rule below and the
- *  suite leg that reads the IMPORTS both key on the same list. That module also exports the
+/** The night primitives the corpus-scope modules export, named once so the text rule below and
+ *  the suite leg that reads the IMPORTS both key on the same list. They also export the
  *  code-identity pair `gitCommitOf` / `producedByOf`, which reads no night, so a rule keyed on the
  *  module's NAME counts an import that enumerates nothing (measured 2026-10-26). */
 export const NIGHT_EXPORTS = ['snapshotNights', 'snapshotEntries', 'intersectSnapshots', 'digestNights', 'populationVerdict', 'censusVerdict', 'notANight', 'notCovered'];
 
-/** Does this text IMPORT a night primitive from `corpus-scope.mjs`? PURE.
+/** Does this text IMPORT a night primitive from the corpus-scope primitive? PURE.
+ *
+ * BOTH SPELLINGS COUNT. The primitive moved into `corpus-scope-core.mjs` so that importing it
+ * costs a caller no write, exec or fetch in its closure; `corpus-scope.mjs` re-exports every name
+ * unchanged and keeps the `find` runner, the CLI and the selftest. A rule that read one spelling
+ * would have declared all 50 delegating tools un-delegated the day they were repointed.
  *
  * FAILS OPEN on a namespace import, which hides every specifier: a tool whose night read we cannot
  * see stays in the population rather than leaving it unexamined. */
 export function importsNightPrimitive(text) {
-  const re = /import\s*(?:\{([^}]*)\}|\*\s*as\s+\w+)\s*from\s*'\.\/corpus-scope\.mjs'/g;
+  const re = /import\s*(?:\{([^}]*)\}|\*\s*as\s+\w+)\s*from\s*'\.\/corpus-scope(?:-core)?\.mjs'/g;
   let m;
   while ((m = re.exec(String(text ?? '')))) {
     if (m[1] === undefined) return true; // a namespace import names nothing — fail open
@@ -190,8 +195,8 @@ const CAPTURE_VOCAB = [
   new RegExp('\\b(?:' + NIGHT_EXPORTS.join('|') + ')\\b'),
   // the night primitives THEMSELVES, never the module that holds them: a tool that calls one reads
   //   nights, and delegating the walk must not delete the evidence that it does. KEYED ON THE
-  //   EXPORTS because keying on `corpus-scope.mjs` made the module's NAME the population rule, and
-  //   that module also exports the code-identity pair `gitCommitOf` / `producedByOf`, which reads
+  //   EXPORTS because keying on the module name made the NAME the population rule, and the
+  //   primitive also exports the code-identity pair `gitCommitOf` / `producedByOf`, which reads
   //   no night at all. Measured 2026-10-26: importing `producedByOf` alone moved
   //   `usage-guard.mjs` into the population and reded the enumerator gate over a tool that
   //   enumerates no corpus. The re-keying is population-neutral at `origin/main` — 135 members
@@ -615,7 +620,13 @@ export function classifyTool(text) {
   const sites = enumerationSites(text);
   if (sites.length === 0) return { cls: 'no-enumeration', why: 'the file enumerates no directory', sites };
   const masked = blankSampleHelpers(maskNonCode(text));
-  if (/\bpopulationVerdict\s*\(/.test(masked)) {
+  /* EITHER VERDICT BUILDER COUNTS. `populationVerdict` answers "which nights did this run cover";
+     `censusVerdict` answers "which roots did this count search, and which are not on this box" —
+     the same question one rung out, and the shape `corpus-scope.mjs`'s own CLI prints. Keying on
+     `populationVerdict` alone read that CLI as un-reporting the day the builders moved into
+     `corpus-scope-core.mjs` and only the selftest's calls stayed behind, where `blankSampleHelpers`
+     blanks them. Measured at this ref the second name moves exactly that one tool. */
+  if (/\b(?:populationVerdict|censusVerdict)\s*\(/.test(masked)) {
     return { cls: 'reports', why: null, sites };
   }
   const runtime = sites.filter((s) => s.origin === 'runtime');
@@ -826,6 +837,14 @@ function selftest() {
     ['a parameter is run-time too', 'function walk(root) { return readdirSync(root); }', 'enumerates'],
     ['the repo tree is not a corpus', "const ROOT = join(HERE, '..');\nreaddirSync(join(ROOT, 'tools'));", 'repo-tree'],
     ['a wired consumer reports', 'const dir = process.argv[2];\nconst b = snapshotNights(dir);\nreaddirSync(dir);\npopulationVerdict(b, a);', 'reports'],
+    /* THE SECOND BUILDER, and the two ways it must NOT clear a file. */
+    ['a census verdict reports too, because it names the roots the count searched', 'const dir = process.argv[2];\nreaddirSync(dir);\nconsole.log(censusVerdict(rows));', 'reports'],
+    [
+      'CONTROL · a census verdict called ONLY from a sample helper clears nothing',
+      'const dir = process.argv[2];\nreaddirSync(dir);\nfunction verdictSample() {\n  return censusVerdict(fake);\n}\n',
+      'enumerates'
+    ],
+    ['CONTROL · and the NAME alone, in prose, clears nothing either', 'const dir = process.argv[2];\nreaddirSync(dir);\n// censusVerdict(rows) would go here\n', 'enumerates'],
     ['no enumeration at all', "const p = '/srv/data/tepna-corpus';\nconsole.log(p);", 'no-enumeration'],
     ['a root named in a COMMENT does not enumerate', '// walks /srv/data/tepna-corpus nightly\nconst x = 1;', 'no-enumeration'],
     ['an unresolvable argument abstains, it does not clear', 'readdirSync(someGlobal);', 'undecidable'],

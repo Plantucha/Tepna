@@ -129,7 +129,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { digestNights, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { digestNights, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict } from './verdict-emit.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

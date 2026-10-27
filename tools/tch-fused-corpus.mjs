@@ -53,7 +53,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
-import { NIGHT_RE, intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { NIGHT_RE, intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = 'tools/tch-fused-corpus.mjs';

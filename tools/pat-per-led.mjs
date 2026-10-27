@@ -53,7 +53,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));

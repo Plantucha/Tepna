@@ -36,7 +36,7 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { join } from 'node:path';
 import { halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { MIN_OVERLAP_MIN, alignFeet, bestPair, circShift, loadDsps, median, quantile, rawLags, strictMatchRate } from './pat-matchrate-strict.mjs';

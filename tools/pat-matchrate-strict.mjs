@@ -54,7 +54,7 @@ import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { snapshotNights, populationVerdict, notANight } from './corpus-scope.mjs';
+import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
 
 // the repo's own ESM→classic shim, so a DSP's `export const` tail does not break the vm realm
 const DexBuild = createRequire(import.meta.url)('./build-core.js');

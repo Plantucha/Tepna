@@ -47,7 +47,7 @@ import { readdirSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDsps, ecgRpeakTimes, ppgFootTimes, median } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { snapshotNights, populationVerdict, notANight } from './corpus-scope.mjs';
+import { snapshotNights, populationVerdict, notANight } from './corpus-scope-core.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be

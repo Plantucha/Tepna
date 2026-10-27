@@ -34,7 +34,7 @@ import { createRequire } from 'node:module';
 import { anklePair } from './pat-dip-index.mjs';
 import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be

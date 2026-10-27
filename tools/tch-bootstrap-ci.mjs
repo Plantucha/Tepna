@@ -48,7 +48,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { NIGHT_RE, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { NIGHT_RE, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
