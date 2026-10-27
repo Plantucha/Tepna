@@ -79,10 +79,21 @@ const DSP = ctx.IntegratorDSP;
    skipped every pre-box night while reporting a clean run over the rest, which is
    how a 24-night blind spot looks from the outside. Both are matched explicitly,
    per the Clock Contract's "explicit vendor formats by regex" rule. */
-const STAMP = /_(\d{4})(\d{2})(\d{2})_?(\d{2})(\d{2})(\d{2})_ACC/;
+const STAMP = /_(\d{8}_?\d{6})_ACC/;
+/* THE FILENAME STAMP HAS ONE OWNER — `DexClock.fileStamp` (clock.js:255; Clock Contract §4, anchor
+   source 2), off the realm above. The regex still decides WHICH field is the stamp, over both
+   layouts; the slices that stood here fed a bare `Date.UTC`, which rolls an out-of-range component
+   onto a real instant instead of refusing, so a month-13 stamp anchored a night in the following
+   February. The owner range-validates the components and requires a year in [1990, 2099].
+   TWO ANSWERS, NOT ONE: `null` is a name that carries no stamp field at all — not a capture, and
+   silent, as it always was — while `false` is a stamp field the owner refused, which the walk below
+   counts and names (§∅). */
+const CK = ctx.DexClock;
+if (!CK || typeof CK.fileStamp !== 'function') throw new Error('wearable-sync: DexClock.fileStamp did not load into the realm');
 const stampMs = (f) => {
   const m = STAMP.exec(f);
-  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
+  if (!m) return null;
+  return CK.fileStamp(m[1])?.tMs ?? false;
 };
 const IS_H10 = /^Polar_H10_.*_ACC\.txt$/;
 const IS_VER = /^Polar_(Sense|VeritySense)_.*_ACC\.txt$/;
@@ -104,13 +115,27 @@ const walk = (d, out = []) => {
   return out;
 };
 const index = {};
+const refusedStamps = [];
 for (const { name, path } of walk(SRC)) {
   const t = stampMs(name);
-  if (t == null) continue;
+  if (t === null) continue;
+  if (t === false) {
+    refusedStamps.push(name);
+    continue;
+  }
   const dev = IS_H10.test(name) ? 'H10' : IS_VER.test(name) ? 'VER' : null;
   if (!dev) continue;
   const k = nightOf(t);
   (index[k] ||= { H10: [], VER: [] })[dev].push({ path, t });
+}
+
+if (refusedStamps.length) {
+  const shown = [...refusedStamps].sort().slice(0, 6);
+  console.log(
+    `refused ${refusedStamps.length} ACC file(s) whose filename stamp field is not a readable time (DexClock.fileStamp): ${shown.join(', ')}` +
+      (refusedStamps.length > 6 ? ` … +${refusedStamps.length - 6} more` : '') +
+      '\n'
+  );
 }
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/;

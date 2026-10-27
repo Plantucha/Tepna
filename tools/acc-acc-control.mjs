@@ -109,7 +109,12 @@ function realm() {
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
-const PA = realm().PATAlign;
+const _REALM = realm();
+const PA = _REALM.PATAlign;
+/* THE FILENAME STAMP HAS ONE OWNER — `DexClock.fileStamp` (clock.js:255; Clock Contract §4, anchor
+   source 2), off the realm this tool already loads `clock.js` into. */
+const CK = _REALM.DexClock;
+if (!CK || typeof CK.fileStamp !== 'function') throw new Error('acc-acc-control: DexClock.fileStamp did not load into the realm');
 
 /* flow-vs-acc.mjs's exact settings, and PATAlign's own defaults. */
 const COARSE = { dtMs: 250, windowHalfMs: Number(process.env.WH || 15000), maxLagMs: 3000000, minCorr: 0.35, anchorMinGapMs: 60000 };
@@ -339,6 +344,25 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+  /* ── THE FILENAME STAMP OWNER — the night key comes from `DexClock.fileStamp` ──────────────────
+     Residue 2026-10-27-five-filename-stamp-time-readers-slice-the-digits-without-an-owner. Both
+     halves per leg: the name this tool always accepted still buckets to the SAME night, and the
+     impossible twin refuses rather than rolling onto a real one. Measured before the delegation:
+     `20260725_256100` (hour 25) rolled to 2026-07-26T02:01 and was STITCHED INTO the 2026-07-25
+     night as a second fragment — `1+2` where the names say `1+1` — so the cost was a corrupted
+     control figure, not a lost night. */
+  const nightOfStamp = (s) => {
+    const got = CK.fileStamp(s);
+    return got ? new Date(got.tMs - 12 * 3600e3).toISOString().slice(0, 10) : null;
+  };
+  ok(nightOfStamp('20260725_225058') === '2026-07-25', 'stamp: the PSL split layout buckets to its night');
+  ok(nightOfStamp('20260725225058') === '2026-07-25', 'stamp: the capture-host contiguous layout buckets to the SAME night');
+  ok(nightOfStamp('20260726_015058') === '2026-07-25', 'stamp: a post-midnight start still belongs to the evening that opened it');
+  ok(nightOfStamp('20261332_225058') === null, 'stamp: month 13 refuses (a bare Date.UTC keyed 2027-02-01)');
+  ok(nightOfStamp('20260725_256100') === null, 'stamp: hour 25 refuses (a bare Date.UTC stitched it into 2026-07-25)');
+  ok(nightOfStamp('20260725_230000') === '2026-07-25', 'stamp: hour 23 is ACCEPTED — kills a `h >= 23` guard');
+  ok(nightOfStamp('202607252250581') === null, 'stamp: a 15-digit run refuses rather than taking its first fourteen digits');
+  ok(nightOfStamp('99999999_225058') === null, 'stamp: an all-nines date refuses (a bare Date.UTC keyed year 10007)');
   if (fail) {
     console.log(`acc-acc-control selftest: ${pass} passed, ${fail} failed`);
     process.exit(1);
@@ -360,6 +384,8 @@ const walk = (d) => {
   return o;
 };
 const nights = new Map();
+// Names whose stamp field the owner refused — counted and named, never dropped silently.
+const refusedStamps = [];
 for (const f of walk(ROOT)) {
   const b = path.basename(f);
   const h10 = /^Polar_H10_[0-9A-Fa-f]+_(\d{8}_?\d{6})_ACC\.txt$/.exec(b);
@@ -368,14 +394,29 @@ for (const f of walk(ROOT)) {
   if (!m) continue;
   const dev = h10 ? 'h10' : 'ver';
   /* PSL writes the stamp as YYYYMMDD_HHMMSS (underscore inside); the capture host writes 14
-     contiguous digits. Normalise so the positional slices below stay valid for both — the spelling
-     fix alone matched 0 PSL files, because the stamp shape was a SECOND, independent blindness
-     that only the 0->54 control exposed. */
-  const st = m[1].replace('_', '');
-  const abs = Date.UTC(+st.slice(0, 4), +st.slice(4, 6) - 1, +st.slice(6, 8), +st.slice(8, 10), +st.slice(10, 12), +st.slice(12, 14));
-  const night = new Date(abs - 12 * 3600e3).toISOString().slice(0, 10); // noon-to-noon
+     contiguous digits. The regex above accepts both — the spelling fix alone matched 0 PSL files,
+     because the stamp shape was a SECOND, independent blindness that only the 0->54 control
+     exposed — and the OWNER reads either layout, so the positional slices that stood here are gone.
+     They fed a bare `Date.UTC`, which rolls an out-of-range component onto a real instant: a
+     month-13 stamp read as the following February and still produced a night key. The owner
+     range-validates through `parseTimestamp` and requires a year in [1990, 2099], so it returns
+     null, and a null is refused by name rather than anchored (§∅). */
+  const got = CK.fileStamp(m[1]);
+  if (!got) {
+    refusedStamps.push(b);
+    continue;
+  }
+  const night = new Date(got.tMs - 12 * 3600e3).toISOString().slice(0, 10); // noon-to-noon
   if (!nights.has(night)) nights.set(night, { h10: [], ver: [] });
   nights.get(night)[dev].push(f);
+}
+
+if (refusedStamps.length) {
+  const shown = [...refusedStamps].sort().slice(0, 6);
+  console.log(
+    `\n  refused ${refusedStamps.length} ACC file(s) whose filename stamp field is not a readable time (DexClock.fileStamp): ${shown.join(', ')}` +
+      (refusedStamps.length > 6 ? ` … +${refusedStamps.length - 6} more` : '')
+  );
 }
 
 console.log('\nACC↔ACC CONTROL — H10 chest vs Verity arm, one host clock, TRUE OFFSET = 0');
