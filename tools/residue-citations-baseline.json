@@ -1,7 +1,7 @@
 {
  "schema": "tepna.residue-citations-baseline/1",
  "note": "The declared debt of tools/residue-citations.mjs. A cited residue key that resolves to no row reds the gate unless it is named here. The set may only SHRINK: a key that resolves now reds until its line goes. Each entry carries its class and, where one exists, the residue row that owns the remedy.",
- "measuredAt": "2026-10-26",
+ "measuredAt": "2026-10-27",
  "exemptPaths": [],
  "entries": [
   {
@@ -61,14 +61,6 @@
    "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
   },
   {
-   "key": "2026-09-28-replacement-string-interprets-dollar",
-   "class": "owes-a-row",
-   "sites": [
-    "tools/build-docs.mjs:181"
-   ],
-   "reason": "names a real defect that owes a row: a replacement string interprets a dollar sign. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
-  },
-  {
    "key": "2026-10-13-sentinel-waiter-guard",
    "class": "cross-lane",
    "sites": [
@@ -77,45 +69,12 @@
    "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
   },
   {
-   "key": "2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it",
-   "class": "owes-a-row",
-   "sites": [
-    "tools/run-check.mjs:34"
-   ],
-   "reason": "names a real defect that owes a row: the fixture-currency check runs where nobody reads it. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
-  },
-  {
-   "key": "2026-10-13-twenty-five-mutants-survive-in-checkverdict-and-mutation-diff-after-pr-3567",
-   "class": "owes-a-row",
-   "sites": [
-    "capture-host/tests/test_checkverdict.py:208",
-    "capture-host/tests/test_mutation_diff.py:4463"
-   ],
-   "reason": "names a real defect that owes a row: twenty-five mutants survive in two modules. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
-  },
-  {
    "key": "2026-10-14-oxydex-counts-rows-as-seconds",
    "class": "cross-lane",
    "sites": [
     "audits/API-LANE-VERDICTS-2026-10-13.json:2015"
    ],
    "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
-  },
-  {
-   "key": "2026-10-19-a-default-whose-only-coverage-reads-the-signature-is-unmeasured",
-   "class": "owes-a-row",
-   "sites": [
-    "tools/verdict-adoption.json:571"
-   ],
-   "reason": "names a real defect that owes a row: a default whose only coverage reads the signature. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
-  },
-  {
-   "key": "2026-10-19-a-typed-selftest-count-laundered-through-a-variable",
-   "class": "owes-a-row",
-   "sites": [
-    "tools/pat-window-oracle.mjs:612"
-   ],
-   "reason": "names a real defect that owes a row: a typed selftest count laundered through a variable. The class is row 2026-10-26-five-residue-citations-name-a-defect-with-no-row"
   },
   {
    "key": "2026-10-20-another-row",

@@ -4460,7 +4460,7 @@ def test_mutant_file_line_agrees_with_the_real_mutmut_show(tmp_path):
     assert {k: sorted(v) for k, v in broke.items()} == {"xǁAǁf": [10, 14], "x_g": [23, 27]}
 
 
-# ── residue 2026-10-13-twenty-five-mutants-survive-in-checkverdict-and-mutation-diff-after-pr-3567 ──────
+# ── the diff-scoped mutation gate on #3567: 25 survivors in checkverdict.py and mutation_diff.py ──────
 # Each test below fails on the named mutant of `_first_removal_hunk` / `mutant_file_line` / `survivor_location`.
 
 

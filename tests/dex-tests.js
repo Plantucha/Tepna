@@ -12631,16 +12631,26 @@
         'out.selfExempt = M.run(' +
           JSON.stringify(root) +
           ', { files: ["tools/residue-citations.mjs", "tools/residue-citations-baseline.json"], baseline: { entries: [], exemptPaths: [] } }).citations;',
-        /* THE BASELINE IS A RATCHET, measured both ways in one process. */
-        'var declaredAway = M.run(' +
-          JSON.stringify(root) +
-          ', { files: ["tools/run-check.mjs"], baseline: { entries: [{ key: "2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it", reason: "plant" }], exemptPaths: [] } });',
+        /* THE BASELINE IS A RATCHET, measured both ways in one process.
+           ⚠️ THE ANCHOR MUST CARRY ITS DEBT BY DESIGN. These legs need a real file holding at least one
+           unresolved citation, and they read `tools/run-check.mjs`, whose single dangling key the baseline
+           classed as owing a row. So paying that debt — which is what the baseline asked for — redded all
+           three legs at once: the gate's own selftest was anchored to the debt the gate exists to retire.
+           `residue-ids.mjs` carries SYNTHETIC keys inside its own selftest fixtures, which no repair will
+           ever resolve. And the declared set is DERIVED from the scan rather than typed, so a new fixture
+           key cannot stale this leg either — a key typed here would itself become a citation this gate
+           has to resolve. The never-cited key below sits under the ledger floor for the same reason. */
+        'var ANCHOR = "tools/residue-ids.mjs";',
+        'var plant = function (ks) { return ks.map(function (k) { return { key: k, reason: "plant" }; }); };',
+        'var bare = M.run(' + JSON.stringify(root) + ', { files: [ANCHOR], baseline: { entries: [], exemptPaths: [] } });',
+        'var anchorKeys = Array.from(new Set(bare.undeclared.map(function (c) { return c.cited; })));',
+        'out.anchorDebt = anchorKeys.length;',
+        'out.undeclaredReds = bare.undeclared.length;',
+        'var declaredAway = M.run(' + JSON.stringify(root) + ', { files: [ANCHOR], baseline: { entries: plant(anchorKeys), exemptPaths: [] } });',
         'out.declaredPasses = { undeclared: declaredAway.undeclared.length, stale: declaredAway.stale.length };',
-        'var undeclared = M.run(' + JSON.stringify(root) + ', { files: ["tools/run-check.mjs"], baseline: { entries: [], exemptPaths: [] } });',
-        'out.undeclaredReds = undeclared.undeclared.length;',
         'var staleBase = M.run(' +
           JSON.stringify(root) +
-          ', { files: ["tools/run-check.mjs"], baseline: { entries: [{ key: "2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it", reason: "plant" }, { key: "2026-01-02-alpha-beta-gamma", reason: "resolves nowhere in this file" }], exemptPaths: [] } });',
+          ', { files: [ANCHOR], baseline: { entries: plant(anchorKeys).concat([{ key: "2026-01-02-alpha-beta-gamma", reason: "under the ledger floor, so cited nowhere" }]), exemptPaths: [] } });',
         'out.staleReds = staleBase.stale.length;',
         'process.stdout.write("__OUT__" + JSON.stringify(out) + "\\n");'
       ].join('\n');
@@ -12677,9 +12687,13 @@
       T.eq('the citation window is 40 characters', R.window, 40);
 
       /* ── THE BASELINE IS A RATCHET ────────────────────────────────────────────────────── */
-      T.eq('a declared key passes and nothing reads stale', R.declaredPasses, { undeclared: 0, stale: 0 });
-      T.eq('the same key undeclared reds once', R.undeclaredReds, 1);
-      T.eq('a declared key that resolves now reds until its line goes', R.staleReds, 1);
+      T.ok(
+        'CONTROL · the ratchet anchor carries unresolved citations by design, since 0 makes the two legs below vacuous',
+        R.anchorDebt > 0 && R.undeclaredReds >= R.anchorDebt,
+        'distinct keys ' + R.anchorDebt + ', citations ' + R.undeclaredReds
+      );
+      T.eq('declaring every cited key passes, and nothing reads stale', R.declaredPasses, { undeclared: 0, stale: 0 });
+      T.eq('one declared key cited nowhere reds as stale until its line goes', R.staleReds, 1);
 
       /* ── ANTI-VACUITY, and the committed tree's own verdict ────────────────────────────── */
       T.ok('the real tree carries over 1000 citations to judge', R.real.citations > 1000, JSON.stringify(R.real));
