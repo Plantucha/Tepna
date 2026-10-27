@@ -54,6 +54,35 @@ ok('a failed night is recorded, not dropped', rec.nightCount === 2 && rec.nights
 ok('an unstamped night carries null, not a fabricated digest', rec.nights.find((n) => n.key === '2026-07-19').inputsDigest === null);
 ok('the mount travels with the root', rec.srcRoots[0].mount.source === '/dev/sda3');
 
+/* WHY A NIGHT IS NOT OK. The projection is a whitelist, so a caller that measured no reason gets
+   `null` — and a reader must not read that `null` as "the night had no reason", because every record
+   written before these fields existed carries it on every night. The legs below pin both halves. */
+ok('a caller that measured no reason gets null, never a fitted one', rec.nights.find((n) => n.key === '2026-07-19').notOkReason === null);
+ok('an unmeasured planned-node set is null, never the empty set', rec.nights.find((n) => n.key === '2026-07-19').plannedNodes === null);
+ok('an unmeasured export count is null, never 0', rec.nights.find((n) => n.key === '2026-07-19').exports === null);
+const recReason = buildRecord({
+  at: '2026-10-27T03:00:00Z',
+  codeDigest: '54df21a0a400403d',
+  srcRoots: ['/srv/data/tepna-corpus'],
+  nights: [
+    { key: '2026-09-01', ok: false, plannedNodes: ['OxyDex', 'PpgDex'], exports: 2, notOkReason: 'input-absent' },
+    { key: '2026-09-11', ok: false, plannedNodes: ['OxyDex', 'PpgDex'], exports: 2, notOkReason: 'input-absent', nodes: null },
+    { key: '2026-05-03', inputsDigest: 'd1', nodes: ['ECGDex', 'OxyDex', 'PpgDex'], ok: true, plannedNodes: ['ECGDex', 'OxyDex', 'PpgDex'], exports: 3, notOkReason: null }
+  ],
+  files: dup,
+  mountinfo: MI
+});
+const byKey = (k) => recReason.nights.find((n) => n.key === k);
+ok('the structural reason survives the projection', byKey('2026-09-01').notOkReason === 'input-absent');
+ok('the nodes it DID have travel with the reason', JSON.stringify(byKey('2026-09-01').plannedNodes) === '["OxyDex","PpgDex"]');
+ok('the export count travels as a measurement', byKey('2026-09-01').exports === 2);
+ok('a complete night carries no reason', byKey('2026-05-03').notOkReason === null && byKey('2026-05-03').ok === true);
+ok(
+  'a reason that is not a string is null, never coerced',
+  buildRecord({ at: '2026-10-27T03:00:00Z', codeDigest: 'c', srcRoots: ['/x'], nights: [{ key: 'k', ok: false, notOkReason: 7 }], files: dup, mountinfo: MI }).nights[0].notOkReason === null
+);
+ok('a record carrying reasons still passes the ledger check', ledgerFindings(appendFold(null, recReason)).length === 0);
+
 ok("a night's own code digest travels beside the run's", rec.nights.find((n) => n.key === '2026-05-03').codeDigest === null);
 const recWithCode = buildRecord({
   at: '2026-10-12T19:00:00Z',

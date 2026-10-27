@@ -173,6 +173,11 @@ const FORCE = flag('--force');
 // Internal: a child told to compute exactly ONE node of one night (see the node-split dispatch).
 const ONLY_NODE = opt('--only-node', null);
 const TRIO_NODES = ['ECGDex', 'PpgDex', 'OxyDex'];
+/* Which plan field feeds which trio node, and the closed vocabulary of reasons a night can carry no
+   stamp. Declared HERE rather than beside `unstampedReason` because `--selftest` runs before anything
+   below it initializes, so a const declared later is dead to it (see the note at --selftest). */
+const NODE_INPUT_KEY = { ECGDex: 'ecg', PpgDex: 'ppg', OxyDex: 'oxy' };
+const UNSTAMPED_REASONS = ['unmeasured', 'stamp-unreadable', 'input-absent', 'exports-missing', 'stamp-absent'];
 /* COUNT THE TRIO, NOT EVERY .json IN THE FOLDER. Completeness used to be
    `readdirSync(dir).filter(f => f.endsWith('.json')).length === 3`, which silently made the trio test
    mean "exactly three JSON files exist" — so the moment a night gained a FOURTH export (the O2Ring
@@ -1138,6 +1143,40 @@ if (flag('--selftest')) {
   ok('concurrent set keeps only records with positive overlap (endpoint-only and daytime dropped)', cw.kept.length, 1);
   ok('…and its overlap is the merged kept set ∩ anchor', H(cw.overlapMs), 1);
   ok('no records is null, never a zero overlap', concurrentWith([], [[0, hr]], (r) => r) === null ? 1 : 0, 1);
+  /* ── WHY A NIGHT CARRIES NO STAMP. Every branch, and the two §∅ branches first: a plan that is not
+     an object is an UNMEASURED population, and the empty node set is a real measurement of a night
+     whose three devices all recorded nothing. Reading the first as the second is how a tool reports a
+     structural refusal over a night it never looked at. */
+  const PN = (o) => JSON.stringify(plannedNodes(o));
+  eq('a night with all three inputs plans all three nodes', PN({ ecg: [1], ppg: [1], oxy: [1] }), '["ECGDex","OxyDex","PpgDex"]');
+  eq('no H10 file plans two nodes', PN({ ppg: [1], oxy: [1] }), '["OxyDex","PpgDex"]');
+  eq('an empty input array is not an input', PN({ ecg: [], ppg: [1], oxy: [1] }), '["OxyDex","PpgDex"]');
+  eq('a non-trio key feeds no trio node', PN({ oxy: [1], gyro: [1, 1] }), '["OxyDex"]');
+  eq('a night with no input at all measures an empty set', PN({}), '[]');
+  eq('a plan that is not an object is NULL, never an empty set', PN(null), 'null');
+  eq('an array is not a plan either', PN([1, 2]), 'null');
+  const UR = (planned, n, st) => unstampedReason(planned, n, st);
+  const THREE = ['ECGDex', 'OxyDex', 'PpgDex'];
+  eq('a complete stamped trio has no reason', UR(THREE, 3, 'ok'), null);
+  eq('an unreadable stamp outranks every other cause', UR(THREE, 3, 'bad'), 'stamp-unreadable');
+  eq('an unreadable stamp outranks a missing input too', UR(['OxyDex', 'PpgDex'], 2, 'bad'), 'stamp-unreadable');
+  eq('two planned nodes is INPUT-ABSENT, which re-folding cannot cure', UR(['OxyDex', 'PpgDex'], 2, 'absent'), 'input-absent');
+  eq('the structural case outranks the exports it also explains', UR(['OxyDex', 'PpgDex'], 0, 'absent'), 'input-absent');
+  eq('three planned and two exported is a half-written night', UR(THREE, 2, 'absent'), 'exports-missing');
+  eq('three exported with no stamp is the split-night case', UR(THREE, 3, 'absent'), 'stamp-absent');
+  eq('a null plan is UNMEASURED, never a classification', UR(null, 3, 'ok'), 'unmeasured');
+  eq('an unmeasured export count is UNMEASURED too', UR(THREE, null, 'ok'), 'unmeasured');
+  eq('every reason it can return is in the printed vocabulary', UNSTAMPED_REASONS.includes(UR(['OxyDex'], 1, 'absent')), true);
+  /* The tally. An absent line is the claim that every planned night stamped, so a run with no
+     unstamped night must print NOTHING rather than a zero. */
+  eq('no unstamped night prints no tally', foldReasonTally([{ key: 'a', notOkReason: null }]), '');
+  eq('an absent night list prints no tally', foldReasonTally(null), '');
+  eq(
+    'the tally counts per reason in the vocabulary order',
+    foldReasonTally([{ notOkReason: 'exports-missing' }, { notOkReason: 'input-absent' }, { notOkReason: 'input-absent' }]).split(': ')[1],
+    '2 input-absent · 1 exports-missing  (input-absent cannot be cured by re-folding)'
+  );
+
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
 }
@@ -2158,6 +2197,39 @@ let work = LIMIT ? trio.slice(0, LIMIT) : trio;
  * The stamp is written ONLY after all three exports land, so a night an OOM-kill left half-written
  * (which has happened: 2026-07-06 kept only its ECGDex export) has no stamp and is always redone. */
 const STAMP = '.trio-stamp'; // NOT *.json — tch-multinight --dir globs /\.json$/i and must not see it
+/* ── WHY A NIGHT CARRIES NO STAMP — a NAMED reason, never a bare "incomplete" ─────────────────────
+ * Withholding the stamp from a half-written night is right: recomputing it changes the tree. It is
+ * not the whole account. A night whose third device NEVER RECORDED reads identically here, and it
+ * re-folds on every run forever while contributing its name and no attribution at all — residue
+ * `2026-10-25-the-nine-unstamped-trio-nights-hold-two-of-three-exports`, nine nights of the committed
+ * corpus, two of which hold no H10 file in the archive. Re-folding cannot add a node the capture
+ * never held, so the two cases owe different answers and the run must say which one it saw.
+ *
+ * ⚠️ This NAMES the refusal; it does not relax it. No stamp is written for a 2-of-3 night here, and
+ * `redoReason` is untouched, because a stamp is what `--skip-existing` trusts and a partial stamp
+ * would have to carry its own node set for five readers to keep reading it correctly. That is a
+ * change to the stamp contract and therefore the owner's, not a side effect of a reason field.
+ *
+ * Pure, so `--selftest` pins every branch. */
+/* The trio nodes this night HAS INPUT FOR, sorted. A plan that is not an object is `null` — the
+   population was not measured — never the empty set, which would claim three absent devices (§∅). */
+function plannedNodes(plan) {
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return null;
+  return TRIO_NODES.filter((n) => Array.isArray(plan[NODE_INPUT_KEY[n]]) && plan[NODE_INPUT_KEY[n]].length > 0).sort();
+}
+/* `planned` from plannedNodes, `exports` the trio exports COUNTED ON DISK, `stampState` one of
+   'ok' | 'absent' | 'bad'. Returns null when the night is a complete, stamped trio, else one word
+   from a closed vocabulary. A corrupt claim outranks everything, then the structural case, because a
+   night missing an input is missing its exports BECAUSE of that and the deeper reason is the one
+   worth recording. */
+function unstampedReason(planned, exports, stampState) {
+  if (!Array.isArray(planned) || !Number.isFinite(exports)) return 'unmeasured';
+  if (stampState === 'bad') return 'stamp-unreadable';
+  if (planned.length < TRIO_NODES.length) return 'input-absent';
+  if (exports < TRIO_NODES.length) return 'exports-missing';
+  if (stampState !== 'ok') return 'stamp-absent';
+  return null;
+}
 /* ── 3a-bis · THE RUN LEDGER — `provenance/trio-fold.json` ──────────────────────────────────────
  * The per-night `.trio-stamp` records that night's inputs + code. What no stamp can record is a
  * property of the RUN: which trees were walked, what they were mounted on, and the one file set the
@@ -2195,17 +2267,26 @@ function writeFoldLedger(plans, { dry }) {
   const nights = plans.map((p) => {
     const dir = join(OUT, p.key);
     let st = null;
+    /* ABSENT and UNREADABLE are two different facts and the reason below separates them, so the
+       catch-all that used to serve both now records which one it caught. */
+    let stampState = 'absent';
     try {
       st = JSON.parse(readFileSync(join(dir, STAMP), 'utf8'));
+      stampState = 'ok';
     } catch {
-      /* no stamp, or an unreadable one: the night reports as not ok with null digests */
+      stampState = existsSync(join(dir, STAMP)) ? 'bad' : 'absent';
     }
+    const exports = countTrioExports(dir);
+    const planned = plannedNodes(p);
     return {
       key: p.key,
       inputsDigest: st && typeof st.inputsDigest === 'string' ? st.inputsDigest : null,
       codeDigest: st && typeof st.codeDigest === 'string' ? st.codeDigest : null,
       nodes: st && Array.isArray(st.nodes) ? st.nodes : null,
-      ok: !!st && countTrioExports(dir) === TRIO_NODES.length
+      ok: !!st && exports === TRIO_NODES.length,
+      plannedNodes: planned,
+      exports,
+      notOkReason: unstampedReason(planned, exports, stampState)
     };
   });
   const record = buildRecord({ at: new Date().toISOString(), codeDigest: CODE_DIGEST, srcRoots: [SRC], nights, files: planFiles(plans) });
@@ -2222,9 +2303,20 @@ function writeFoldLedger(plans, { dry }) {
   return { record, path, written: true, index: ledger.folds.length - 1 };
 }
 
+/* The tally is the point of the reason field: a run that leaves nights unstamped says, in one line,
+   how many of them re-folding could ever fix. A run with none prints no tally — an absent line means
+   every planned night stamped, which the night count beside it already states. */
+function foldReasonTally(nights) {
+  const seen = new Map();
+  for (const n of nights || []) if (n && n.notOkReason) seen.set(n.notOkReason, (seen.get(n.notOkReason) || 0) + 1);
+  if (!seen.size) return '';
+  const parts = UNSTAMPED_REASONS.filter((k) => seen.has(k)).map((k) => `${seen.get(k)} ${k}`);
+  return `\nunstamped     : ${parts.join(' · ')}  (input-absent cannot be cured by re-folding)`;
+}
 const foldLedgerLine = (r) =>
   `fold ledger   : ${r.record.nightCount} night(s) · ${r.record.fileCount} file(s) · fileSet ${r.record.fileSetDigest} · code ${r.record.codeDigest}` +
-  (r.written ? ` → ${r.path} [fold #${r.index}]` : ' (not written: --dry-run)');
+  (r.written ? ` → ${r.path} [fold #${r.index}]` : ' (not written: --dry-run)') +
+  foldReasonTally(r.record.nights);
 
 if (SKIP_EXISTING && !FORCE && !DRY) {
   const keep = [];
