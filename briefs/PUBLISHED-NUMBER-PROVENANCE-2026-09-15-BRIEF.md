@@ -74,6 +74,12 @@ why there are three and not thirty. A sourced claim carries its own resolver.
 - **First claim** is a real published number: CLAUDE.md's trio corpus `20 eligible nights`, resolved
   against `analysis/tri_device_nights.json#count`. List length 20, count 20, prose 20 — all three
   agree today, which is what makes it a safe first marker rather than a fix.
+  **Superseded 2026-10-27 (row `2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list`):**
+  the three agreed because all three were copies of one hand-typed scalar. The artifact named no
+  criterion, no population and no producer, so the marker proved the copy and not the number. The
+  claim now reads `#result/window/count` off `tools/trio-eligible-nights.mjs`, which measures the
+  tracked fold corpus: 17 nights in the window, 90 corpus-wide, two instruments agreeing on all 147
+  night folders. A marker is a safe first step only over an artifact somebody produces.
 - **Mutation-verified across all three failure modes**: a wrong stated value reds; a dead pointer reds;
   and the case the sweep actually measured — *the committed artifact moving while the prose does not* —
   reds. Two anti-vacuity assertions alongside, because a generic checker with nothing to check is not a

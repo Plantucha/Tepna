@@ -2551,6 +2551,14 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
+  },
+  "tools/trio-eligible-nights.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "file": "analysis/tri_device_nights.json"
+   },
+   "note": "row 2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list: the producer of analysis/tri_device_nights.json, which sourced CLAUDE.md's trio figure with 20 hand-typed night names, no criterion, no population and no producer. It writes one tepna.verdict/1 over the git-tracked uploads/trio tree: PASS when each night's own .trio-stamp and the trio node-exports in that folder agree on every night, FAIL naming the nights where they split or an export dated to another night. The manifest reads the committed artifact; `--check` re-derives it and reds on drift, and the suite holds the committed lists against a live classification."
   }
  }
 }

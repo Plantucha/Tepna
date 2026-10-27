@@ -391,7 +391,8 @@ its own `_HR.txt` — derive H10 HR from `_ECG.txt` via Pan–Tompkins (`ECGDSP.
 detectPeaks`). Never fuse or compare onboard summaries.
 
 **A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
-(device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 20 FROM analysis/tri_device_nights.json#count eligible nights** (~10 with clean Verity) — the ground truth behind the reference-free σ work.
+(device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 17 FROM analysis/tri_device_nights.json#result/window/count eligible nights** (~10 with clean Verity) — the ground truth behind the reference-free σ work. `tools/trio-eligible-nights.mjs` writes the night NAMES
+from each night's own fold stamp, held against its tracked exports; 90 nights qualify corpus-wide. Someone typed the earlier 20, and four of its nights fold two devices.
 
 ## 🧪 Regression gate — after ANY `*-dsp.js` / `*-cross.js` / `*-app.js` change
 **`Dex-Test-Suite.html`** runs the real modules + `tests/dex-tests.js` (the same suite as
