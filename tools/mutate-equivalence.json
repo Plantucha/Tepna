@@ -123,31 +123,55 @@
    "fn": "lombScargle"
   },
   {
-   "line": 1886,
+   "line": 3243,
    "op": "num → 0",
    "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
    "after": "const bands = { vlf: [0, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
    "class": "no-distinguishing-input",
    "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
-   "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1886,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "lombScargle"
   },
   {
-   "line": 1886,
+   "line": 3243,
    "op": "num → 0",
    "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
    "after": "const bands = { vlf: [0.003, 0.04], lf: [0, 0.15], hf: [0.15, 0.4] };",
    "class": "no-distinguishing-input",
    "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
-   "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1886,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "lombScargle"
   },
   {
-   "line": 1886,
+   "line": 3243,
    "op": "num → 0",
    "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
    "after": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0, 0.4] };",
    "class": "no-distinguishing-input",
    "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
-   "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1886,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "lombScargle"
   },
   {
    "line": 3283,
@@ -252,13 +276,21 @@
    "fn": "lombScargle"
   },
   {
-   "line": 289,
+   "line": 880,
    "op": "cmp < → <=",
    "before": "for (let li = 0; li < lines.length && li < 12; li++) {",
    "after": "for (let li = 0; li < lines.length && li <= 12; li++) {",
    "class": "no-distinguishing-input",
    "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
-   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 289,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "parsePPG"
   },
   {
    "line": 930,
@@ -518,22 +550,38 @@
    "fn": "parsePPG"
   },
   {
-   "line": 461,
+   "line": 1194,
    "op": "bool && → ||",
    "before": "if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {",
    "after": "if (firstTs || lastTs && lastTs.tMs > firstTs.tMs) {",
    "class": "no-distinguishing-input",
    "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
-   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 461,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "parsePPG"
   },
   {
-   "line": 461,
+   "line": 1194,
    "op": "bool && → ||",
    "before": "if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {",
    "after": "if (firstTs && lastTs || lastTs.tMs > firstTs.tMs) {",
    "class": "no-distinguishing-input",
    "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
-   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 461,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "parsePPG"
   },
   {
    "line": 470,
@@ -632,22 +680,38 @@
    "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
   },
   {
-   "line": 578,
+   "line": 1400,
    "op": "cmp > → >=",
    "before": "if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {",
    "after": "if (i >= 0 && relSec[i] - relSec[i - 1] > maxStep) {",
    "class": "no-distinguishing-input",
    "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
-   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 578,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "parsePPG"
   },
   {
-   "line": 578,
+   "line": 1400,
    "op": "cmp > → >=",
    "before": "if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {",
    "after": "if (i > 0 && relSec[i] - relSec[i - 1] >= maxStep) {",
    "class": "no-distinguishing-input",
    "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
-   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 578,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "parsePPG"
   },
   {
    "line": 1493,
@@ -983,13 +1047,21 @@
    "fn": "correctRR"
   },
   {
-   "line": 1676,
+   "line": 2826,
    "op": "num → 0",
    "before": "const inRange = rr.filter((v) => v >= 300 && v <= 2000);",
    "after": "const inRange = rr.filter((v) => v >= 0 && v <= 2000);",
    "class": "no-distinguishing-input",
    "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
-   "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1676,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "correctRR"
   },
   {
    "line": 2827,
@@ -1060,13 +1132,21 @@
    "fn": "correctRR"
   },
   {
-   "line": 1689,
+   "line": 2878,
    "op": "num → 0",
    "before": "if (v < 300 || v > 2000) bad = true;",
    "after": "if (v < 0 || v > 2000) bad = true;",
    "class": "no-distinguishing-input",
    "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
-   "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1689,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "correctRR"
   },
   {
    "line": 2879,
@@ -1365,13 +1445,21 @@
    "probe": "pickChannel · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
   },
   {
-   "line": 1376,
+   "line": 2520,
    "op": "num → 0",
    "before": "out.push(Math.max(0.6, 1 - Math.min(1, d / 0.5) * 0.4));",
    "after": "out.push(Math.max(0, 1 - Math.min(1, d / 0.5) * 0.4));",
    "class": "no-distinguishing-input",
    "why": "In beatRegularity. Original and mutant produced byte-identical output on every input.",
-   "probe": "beatRegularity · local cadence agreement (direct): 39 inputs, 23 distinct baseline answers; 6/6 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "beatRegularity · local cadence agreement (direct): 39 inputs, 23 distinct baseline answers; 6/6 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1376,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "beatRegularity"
   },
   {
    "line": 3179,
@@ -1521,22 +1609,38 @@
    "fn": "harmonicOutlierRefIdx"
   },
   {
-   "line": 799,
+   "line": 1867,
    "op": "bool || → &&",
    "before": "if (refRate == null || !isFinite(refRate) || refRate <= 0) return refIdx;",
    "after": "if (refRate == null && !isFinite(refRate) || refRate <= 0) return refIdx;",
    "class": "no-distinguishing-input",
    "why": "In harmonicOutlierRefIdx. Original and mutant produced byte-identical output on every input.",
-   "probe": "harmonicOutlierRefIdx · the harmonic-counting re-pick (direct): 14 inputs, 3 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "harmonicOutlierRefIdx · the harmonic-counting re-pick (direct): 14 inputs, 3 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 799,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "harmonicOutlierRefIdx"
   },
   {
-   "line": 799,
+   "line": 1867,
    "op": "bool || → &&",
    "before": "if (refRate == null || !isFinite(refRate) || refRate <= 0) return refIdx;",
    "after": "if (refRate == null || !isFinite(refRate) && refRate <= 0) return refIdx;",
    "class": "no-distinguishing-input",
    "why": "In harmonicOutlierRefIdx. Original and mutant produced byte-identical output on every input.",
-   "probe": "harmonicOutlierRefIdx · the harmonic-counting re-pick (direct): 14 inputs, 3 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "harmonicOutlierRefIdx · the harmonic-counting re-pick (direct): 14 inputs, 3 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 799,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "harmonicOutlierRefIdx"
   },
   {
    "line": 1869,
@@ -1761,13 +1865,21 @@
    "fn": "intervalsSpanningTimeGap"
   },
   {
-   "line": 1469,
+   "line": 2613,
    "op": "cmp > → >=",
    "before": "if (i1 > i0 && prefix[i1] > prefix[i0]) out[k] = true;",
    "after": "if (i1 >= i0 && prefix[i1] > prefix[i0]) out[k] = true;",
    "class": "no-distinguishing-input",
    "why": "In intervalsSpanningTimeGap. Original and mutant produced byte-identical output on every input.",
-   "probe": "intervalsSpanningTimeGap · beats that straddle a discontinuity (direct): 16 inputs, 6 distinct baseline answers; 6/6 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "intervalsSpanningTimeGap · beats that straddle a discontinuity (direct): 16 inputs, 6 distinct baseline answers; 6/6 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1469,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (103 group(s))"
+   },
+   "fn": "intervalsSpanningTimeGap"
   },
   {
    "line": 2691,
@@ -1790,13 +1902,21 @@
  ],
  "hrvdex-dsp.js": [
   {
-   "line": 569,
+   "line": 598,
    "op": "bool && → ||",
    "before": "var _baev = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.guardBaevsky ? DexUnits.guardBae",
    "after": "var _baev = typeof DexUnits !== 'undefined' || DexUnits && DexUnits.guardBaevsky ? DexUnits.guardBae",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 569,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
    "line": 569,
@@ -1835,13 +1955,21 @@
    "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
   },
   {
-   "line": 592,
+   "line": 621,
    "op": "bool && → ||",
    "before": "var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
    "after": "var _meanRRs0 = typeof DexUnits !== 'undefined' || DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 592,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
    "line": 592,
@@ -1862,13 +1990,21 @@
    "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
   },
   {
-   "line": 603,
+   "line": 632,
    "op": "cmp > → >=",
    "before": "const _hasNu = r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf;",
    "after": "const _hasNu = r._totalPow >= 0 && r._vlf != null && r._totalPow > r._vlf;",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 603,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
    "line": 603,
@@ -1880,49 +2016,89 @@
    "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
   },
   {
-   "line": 604,
+   "line": 633,
    "op": "cmp > → >=",
    "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
    "after": "const _hasBands = r._hf >= 0 && r._lf > 0 && r._vlf > 0;",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 604,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 604,
+   "line": 633,
    "op": "cmp > → >=",
    "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
    "after": "const _hasBands = r._hf > 0 && r._lf >= 0 && r._vlf > 0;",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 604,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 604,
+   "line": 633,
    "op": "cmp > → >=",
    "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
    "after": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf >= 0;",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 604,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 604,
+   "line": 633,
    "op": "bool && → ||",
    "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
    "after": "const _hasBands = r._hf > 0 || r._lf > 0 && r._vlf > 0;",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 604,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 604,
+   "line": 633,
    "op": "bool && → ||",
    "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
    "after": "const _hasBands = r._hf > 0 && r._lf > 0 || r._vlf > 0;",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 604,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
    "line": 640,
@@ -1988,49 +2164,89 @@
    "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
   },
   {
-   "line": 684,
+   "line": 725,
    "op": "cmp > → >=",
    "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
    "after": "if (r._vlf >= 0 && r._lf > 0 && r._hf > 0) {",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 684,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 684,
+   "line": 725,
    "op": "cmp > → >=",
    "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
    "after": "if (r._vlf > 0 && r._lf >= 0 && r._hf > 0) {",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 684,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 684,
+   "line": 725,
    "op": "cmp > → >=",
    "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
    "after": "if (r._vlf > 0 && r._lf > 0 && r._hf >= 0) {",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 684,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 684,
+   "line": 725,
    "op": "bool && → ||",
    "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
    "after": "if (r._vlf > 0 || r._lf > 0 && r._hf > 0) {",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 684,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 684,
+   "line": 725,
    "op": "bool && → ||",
    "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
    "after": "if (r._vlf > 0 && r._lf > 0 || r._hf > 0) {",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 684,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
    "line": 734,
@@ -2101,22 +2317,38 @@
    "fn": "computeDerived"
   },
   {
-   "line": 735,
+   "line": 776,
    "op": "cmp > → >=",
    "before": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
    "after": "const hrmax_tanaka = p_prof.hrmax_manual >= 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual >",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 735,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
-   "line": 735,
+   "line": 776,
    "op": "cmp > → >=",
    "before": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
    "after": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual >=",
    "class": "no-distinguishing-input",
    "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 735,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeDerived"
   },
   {
    "line": 735,
@@ -2364,13 +2596,21 @@
    "fn": "hrvBuildNodeExport"
   },
   {
-   "line": 1146,
+   "line": 1247,
    "op": "bool && → ||",
    "before": "spanSec: t0 != null && last && last._tMs != null ? Math.round((last._tMs - t0) / 1000) : null,",
    "after": "spanSec: t0 != null || last && last._tMs != null ? Math.round((last._tMs - t0) / 1000) : null,",
    "class": "no-distinguishing-input",
    "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
-   "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1146,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "hrvBuildNodeExport"
   },
   {
    "line": 1249,
@@ -2459,14 +2699,22 @@
    "fn": "hrvBuildNodeExport"
   },
   {
-   "line": 1096,
+   "line": 1168,
    "op": "num → 0",
    "before": "conf: +Math.max(0.4, Math.min(0.9, (r._stress - 50) / 50)).toFixed(2),",
    "after": "conf: +Math.max(0, Math.min(0.9, (r._stress - 50) / 50)).toFixed(2),",
    "class": "equivalent",
    "why": "In hrvEventsFromRows. Original and mutant produced byte-identical output on every input. — UPGRADED 2026-08-19 to EQUIVALENT with structural proof (declared at the stress_high conf assertions): the event fires only at stress ≥ 70 and (70−50)/50 = 0.4 exactly, so the 0.4 floor is never entered from below; floor and trigger coincide by construction.",
    "probe": "hrvEventsFromRows · thresholding/emission: 28 inputs, 17 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-   "brief": " · MUTATION-COVERAGE-SELECTION §4.4 harvest 2026-08-19"
+   "brief": " · MUTATION-COVERAGE-SELECTION §4.4 harvest 2026-08-19",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1096,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "hrvEventsFromRows"
   },
   {
    "line": 155,
@@ -2588,13 +2836,21 @@
    "fn": "_hrvParseSummaryRows"
   },
   {
-   "line": 1012,
+   "line": 1113,
    "op": "cmp > → >=",
    "before": "if (r._hf > 0 && r._lf > 0) {",
    "after": "if (r._hf > 0 && r._lf >= 0) {",
    "class": "no-distinguishing-input",
    "why": "In computeCAMQ. Original and mutant produced byte-identical output on every input.",
-   "probe": "computeCAMQ · scoring/clamping: 26 inputs, 12 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+   "probe": "computeCAMQ · scoring/clamping: 26 inputs, 12 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1012,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))"
+   },
+   "fn": "computeCAMQ"
   },
   {
    "line": 703,
@@ -2771,22 +3027,38 @@
    "fn": "respiratoryEffort"
   },
   {
-   "line": 1032,
+   "line": 1233,
    "op": "cmp < → <=",
    "before": "while (kp < sig.length && tSec[kp] < w0) kp++;",
    "after": "while (kp <= sig.length && tSec[kp] < w0) kp++;",
    "class": "no-distinguishing-input",
    "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
-   "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+   "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1032,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))"
+   },
+   "fn": "respiratoryEffort"
   },
   {
-   "line": 1035,
+   "line": 1236,
    "op": "cmp < → <=",
    "before": "for (var k = kp; k < sig.length && tSec[k] < w1; k++) {",
    "after": "for (var k = kp; k <= sig.length && tSec[k] < w1; k++) {",
    "class": "no-distinguishing-input",
    "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
-   "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+   "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1035,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))"
+   },
+   "fn": "respiratoryEffort"
   },
   {
    "line": 1240,
@@ -3874,13 +4146,21 @@
    "fn": "fftR2"
   },
   {
-   "line": 627,
+   "line": 827,
    "op": "cmp <= → <",
    "before": "for (var len = 2; len <= n; len <<= 1) {",
    "after": "for (var len = 2; len < n; len <<= 1) {",
    "class": "no-distinguishing-input",
    "why": "In fftR2. Original and mutant produced byte-identical output on every input.",
-   "probe": "fftR2 · via the respiratoryEffort probe (registered, not re-run): 221 inputs, 52 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+   "probe": "fftR2 · via the respiratoryEffort probe (registered, not re-run): 221 inputs, 52 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 627,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))"
+   },
+   "fn": "fftR2"
   },
   {
    "line": 832,
@@ -4042,22 +4322,38 @@
    "fn": "sampleHz"
   },
   {
-   "line": 324,
+   "line": 457,
    "op": "bool || → &&",
    "before": "if (a == null || b == null || b <= a) return NaN;",
    "after": "if (a == null && b == null || b <= a) return NaN;",
    "class": "no-distinguishing-input",
    "why": "In sampleHz. Original and mutant produced byte-identical output on every input.",
-   "probe": "sampleHz · via the respiratoryEffort probe (registered, not re-run): 221 inputs, 52 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+   "probe": "sampleHz · via the respiratoryEffort probe (registered, not re-run): 221 inputs, 52 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 324,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))"
+   },
+   "fn": "sampleHz"
   },
   {
-   "line": 324,
+   "line": 457,
    "op": "bool || → &&",
    "before": "if (a == null || b == null || b <= a) return NaN;",
    "after": "if (a == null || b == null && b <= a) return NaN;",
    "class": "no-distinguishing-input",
    "why": "In sampleHz. Original and mutant produced byte-identical output on every input.",
-   "probe": "sampleHz · via the respiratoryEffort probe (registered, not re-run): 221 inputs, 52 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+   "probe": "sampleHz · via the respiratoryEffort probe (registered, not re-run): 221 inputs, 52 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 324,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))"
+   },
+   "fn": "sampleHz"
   },
   {
    "line": 403,
@@ -4534,22 +4830,38 @@
    "fn": "lombScargle"
   },
   {
-   "line": 584,
+   "line": 595,
    "op": "cmp < → <=",
    "before": "peakBand: gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF',",
    "after": "peakBand: gPeakF <= 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF',",
    "class": "no-distinguishing-input",
    "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
-   "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 584,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "lombScargle"
   },
   {
-   "line": 584,
+   "line": 595,
    "op": "cmp < → <=",
    "before": "peakBand: gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF',",
    "after": "peakBand: gPeakF < 0.04 ? 'VLF' : gPeakF <= 0.15 ? 'LF' : 'HF',",
    "class": "no-distinguishing-input",
    "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
-   "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 584,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "lombScargle"
   },
   {
    "line": 596,
@@ -4569,22 +4881,38 @@
    "fn": "lombScargle"
   },
   {
-   "line": 586,
+   "line": 597,
    "op": "cmp > → >=",
    "before": "respBelowHF: gPeakF > 0 && gPeakF < 0.15 && gPeakP > peakP * 2, // STRICT: the sub-HF peak clearly d",
    "after": "respBelowHF: gPeakF >= 0 && gPeakF < 0.15 && gPeakP > peakP * 2, // STRICT: the sub-HF peak clearly ",
    "class": "no-distinguishing-input",
    "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
-   "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 586,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "lombScargle"
   },
   {
-   "line": 586,
+   "line": 597,
    "op": "cmp > → >=",
    "before": "respBelowHF: gPeakF > 0 && gPeakF < 0.15 && gPeakP > peakP * 2, // STRICT: the sub-HF peak clearly d",
    "after": "respBelowHF: gPeakF > 0 && gPeakF < 0.15 && gPeakP >= peakP * 2, // STRICT: the sub-HF peak clearly ",
    "class": "no-distinguishing-input",
    "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
-   "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 586,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "lombScargle"
   },
   {
    "line": 597,
@@ -4851,13 +5179,21 @@
    "fn": "compareIntervalSeries"
   },
   {
-   "line": 1119,
+   "line": 1131,
    "op": "num → 0",
    "before": "const tol = Math.max(120, 0.3 * Math.min(A[j], B[i]));",
    "after": "const tol = Math.max(0, 0.3 * Math.min(A[j], B[i]));",
    "class": "no-distinguishing-input",
    "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
-   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1119,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "compareIntervalSeries"
   },
   {
    "line": 1132,
@@ -4962,13 +5298,21 @@
    "fn": "compareIntervalSeries"
   },
   {
-   "line": 1165,
+   "line": 1177,
    "op": "eq === → !==",
    "before": "const refIsPulse = kB === 'ppi' || (kB === 'auto' && kA === 'rr');",
    "after": "const refIsPulse = kB === 'ppi' || (kB !== 'auto' && kA === 'rr');",
    "class": "no-distinguishing-input",
    "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
-   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1165,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "compareIntervalSeries"
   },
   {
    "line": 1177,
@@ -4988,40 +5332,72 @@
    "fn": "compareIntervalSeries"
   },
   {
-   "line": 1166,
+   "line": 1178,
    "op": "cmp <= → <",
    "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
    "after": "const agreeGrade = mad < 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
    "class": "no-distinguishing-input",
    "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
-   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1166,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "compareIntervalSeries"
   },
   {
-   "line": 1166,
+   "line": 1178,
    "op": "cmp <= → <",
    "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
    "after": "const agreeGrade = mad <= 10 && Math.abs(bias) < 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
    "class": "no-distinguishing-input",
    "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
-   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1166,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "compareIntervalSeries"
   },
   {
-   "line": 1166,
+   "line": 1178,
    "op": "cmp <= → <",
    "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
    "after": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad < 20 ? 'warn' : 'bad';",
    "class": "no-distinguishing-input",
    "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
-   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1166,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "compareIntervalSeries"
   },
   {
-   "line": 1166,
+   "line": 1178,
    "op": "num → 0",
    "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
    "after": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 0 ? 'warn' : 'bad';",
    "class": "no-distinguishing-input",
    "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
-   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+   "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1166,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))"
+   },
+   "fn": "compareIntervalSeries"
   },
   {
    "line": 385,
@@ -5173,13 +5549,21 @@
    "fn": "detectClampSaturation"
   },
   {
-   "line": 1349,
+   "line": 1421,
    "op": "bool || → &&",
    "before": "if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return empty;",
    "after": "if (!isFinite(lo) && !isFinite(hi) || hi <= lo) return empty;",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1349,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "detectClampSaturation"
   },
   {
    "line": 1455,
@@ -5267,22 +5651,38 @@
    "fn": "detectClampSaturation"
   },
   {
-   "line": 1384,
+   "line": 1456,
    "op": "num → 0",
    "before": "nearLingoCeil = hi >= 195 && hi <= 205;",
    "after": "nearLingoCeil = hi >= 0 && hi <= 205;",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1384,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "detectClampSaturation"
   },
   {
-   "line": 1384,
+   "line": 1456,
    "op": "num → 0",
    "before": "nearLingoCeil = hi >= 195 && hi <= 205;",
    "after": "nearLingoCeil = hi >= 195 && hi <= 0;",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1384,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "detectClampSaturation"
   },
   {
    "line": 1389,
@@ -5311,31 +5711,55 @@
    "fn": "spikeAt"
   },
   {
-   "line": 1403,
+   "line": 1475,
    "op": "cmp >= → >",
    "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "after": "const pileUp = at > 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1403,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "spikeAt"
   },
   {
-   "line": 1403,
+   "line": 1475,
    "op": "cmp >= → >",
    "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "after": "const pileUp = at >= 3 && pct > 0.3 && ratio >= CLIP_RATIO;",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1403,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "spikeAt"
   },
   {
-   "line": 1403,
+   "line": 1475,
    "op": "cmp >= → >",
    "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "after": "const pileUp = at >= 3 && pct >= 0.3 && ratio > CLIP_RATIO;",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1403,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "spikeAt"
   },
   {
    "line": 1475,
@@ -5372,49 +5796,89 @@
    "fn": "spikeAt"
   },
   {
-   "line": 1410,
+   "line": 1482,
    "op": "bool && → ||",
    "before": "if (floor.saturated && ceiling.saturated && nearLingoFloor && nearLingoCeil) vendor = 'lingo';",
    "after": "if (floor.saturated && ceiling.saturated || nearLingoFloor && nearLingoCeil) vendor = 'lingo';",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1410,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "detectClampSaturation"
   },
   {
-   "line": 1410,
+   "line": 1482,
    "op": "bool && → ||",
    "before": "if (floor.saturated && ceiling.saturated && nearLingoFloor && nearLingoCeil) vendor = 'lingo';",
    "after": "if (floor.saturated && ceiling.saturated && nearLingoFloor || nearLingoCeil) vendor = 'lingo';",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1410,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "detectClampSaturation"
   },
   {
-   "line": 1411,
+   "line": 1483,
    "op": "bool && → ||",
    "before": "else if ((floor.saturated && nearLingoFloor) || (ceiling.saturated && nearLingoCeil)) vendor = 'ling",
    "after": "else if ((floor.saturated && nearLingoFloor) || (ceiling.saturated || nearLingoCeil)) vendor = 'ling",
    "class": "no-distinguishing-input",
    "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
-   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1411,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "detectClampSaturation"
   },
   {
-   "line": 1700,
+   "line": 1783,
    "op": "bool || → &&",
    "before": "carbs: header.findIndex((h) => h.startsWith('carbs') || h.includes('carbohydrate') || (h.includes('c",
    "after": "carbs: header.findIndex((h) => h.startsWith('carbs') && h.includes('carbohydrate') || (h.includes('c",
    "class": "no-distinguishing-input",
    "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
-   "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1700,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "parseNutrition"
   },
   {
-   "line": 1700,
+   "line": 1783,
    "op": "bool || → &&",
    "before": "carbs: header.findIndex((h) => h.startsWith('carbs') || h.includes('carbohydrate') || (h.includes('c",
    "after": "carbs: header.findIndex((h) => h.startsWith('carbs') || h.includes('carbohydrate') && (h.includes('c",
    "class": "no-distinguishing-input",
    "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
-   "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1700,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "parseNutrition"
   },
   {
    "line": 1783,
@@ -5698,13 +6162,21 @@
    "fn": "parseNutrition"
   },
   {
-   "line": 1767,
+   "line": 1850,
    "op": "bool || → &&",
    "before": "if (!hasTime || grp.includes('total') || ci.group < 0) {",
    "after": "if (!hasTime && grp.includes('total') || ci.group < 0) {",
    "class": "no-distinguishing-input",
    "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
-   "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+   "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-27",
+    "from": 1767,
+    "commit": "d8f1fc31b1f8",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged glucodex-dsp (29 group(s))"
+   },
+   "fn": "parseNutrition"
   },
   {
    "line": 1792,
