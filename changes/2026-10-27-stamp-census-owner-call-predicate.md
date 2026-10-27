@@ -4,4 +4,4 @@ type: fixed
 brief: FILENAME-STAMP-JS-CONSUMERS-2026-10-20-BRIEF.md
 ---
 
-Admit a stamp consumer by its owner call as well as by its spelling, so a reader repaired onto `DexClock.fileStamp` stays in the census that certifies the repair.
+The stamp census admits a file that calls a stamp owner, not only one whose text spells the fourteen digits. A reader repaired onto `DexClock.fileStamp` now stays in the population that certifies the repair.
