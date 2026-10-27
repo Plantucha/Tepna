@@ -65,6 +65,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
+import { splitRowCells } from './residue-ids.mjs';
 
 /* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/residue-ids.mjs` uses. */
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -111,14 +112,15 @@ export function rowKeys(ledgerText) {
    row `2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row` as the owner of
    their remedy, and that row closes in the same diff those four entries leave. Nothing read a reason
    string, so the pointer could rot in place: a reader following it lands on a closed row and reads
-   the debt as discharged. The state cell is taken from the END of the line, because a cell may
-   carry an escaped pipe and a sixth-field read would then take the wrong one. */
+   the debt as discharged. The cells come from `splitRowCells`, the one ledger scanner that consumes a
+   backslash pair as a unit: a bare `.split('|')` reads an escaped pipe as a separator and takes the
+   wrong cell, which is what `tests/dex-tests.js` holds every ledger reader to. */
 export function rowStates(ledgerText) {
   const states = new Map();
   for (const line of String(ledgerText).split('\n')) {
     const m = /^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)\s*\|/.exec(line);
     if (!m) continue;
-    const cells = line.split('|');
+    const cells = splitRowCells(line);
     states.set(m[1], cells.length >= 3 ? cells[cells.length - 2].trim() : '');
   }
   return states;

@@ -43,8 +43,8 @@ it to a closed row and reads the debt as discharged.
 ## The mechanism
 
 - `scanText` drops a key behind `changes/` or in front of `.md`. Structural, not a heuristic.
-- `rowStates(ledgerText)` reads each row's state cell **from the end of the line**, because a cell
-  may carry an escaped pipe and a sixth-field read then takes the wrong one.
+- `rowStates(ledgerText)` reads each row's state cell from the end of the row, through
+  `splitRowCells` — the one ledger scanner that consumes a backslash pair as a unit.
 - `ownerReasons(baseline)` lists every reason-named row other than the entry's own key, and
   `ownerDebt` reds on one that the ledger closed or never held.
 - §∅ · with no line naming an owner the verdict carries `ownerReasonsExamined: 0` and the CLI says
@@ -62,6 +62,15 @@ Six against `--selftest`, each one redding by NAME rather than crashing: the clo
 disabled, the state cell read as field six, the self-naming exclusion removed, the orphan count cut
 out of `bad`, the changeset rule removed, and the changeset rule widened to the bare word `changes`.
 A seventh plant against the suite group reds three legs, the real-tree leg among them.
+
+## 🔴 A NEW LEDGER READER OWES THE SHARED CELL SCANNER
+
+The first draft of `rowStates` split each row on a bare pipe. The suite holds every ledger reader to
+`splitRowCells`, enumerates the population by path, and redded by name at step 15 of 41 with
+`no ledger reader splits on a bare pipe — got "tools/residue-citations.mjs"`. My own
+escaped-pipe leg passed throughout, because reading the cell from the END happens to survive one
+escaped pipe in the state cell and nowhere else. **A leg that passes on the case I thought of is not
+the rule; the population gate is.** Fixed by importing the scanner.
 
 ## Gates
 
