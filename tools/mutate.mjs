@@ -99,7 +99,7 @@
  * on-disk `<file>.mutate-backup` that exists for the whole window, plus `recoverStale()` at startup
  * which restores any leftover before doing anything else and says so.
  */
-import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, mkdirSync, symlinkSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, mkdirSync, symlinkSync, mkdtempSync, statSync } from 'node:fs';
 import { cpus, tmpdir } from 'node:os';
 import { execFileSync, execSync, spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -844,6 +844,91 @@ export function subtractEnvRed(v, envRed) {
      looking for a parse failure that never happened. */
   if (!ks.length) return { verdict: 'INVALID', killers: [], reason: 'env-red' };
   return { verdict: 'KILLED', killers: ks };
+}
+
+/* ── THE WORKERS *ARE* THE CALLER TREE, LIVE (2026-10-27) ──────────────────────────────────────
+   A worker is `cp -al`, so its files are the ROOT's inodes rather than copies, and the pool is
+   built once and memoized. Measured this day on a real worker, both write shapes:
+     · IN-PLACE (`writeFileSync`, which truncates and rewrites): the root copy alone was written,
+       and the worker's bytes changed with it — same inode, same mtime, no worker write at all. So
+       a peer re-bundling or formatting a root file mid-sweep changes what every LATER mutant is
+       tested against.
+     · REPLACEMENT (temp + rename, which is how git and any atomic writer land a file): the root
+       moves to a NEW inode and every worker keeps the OLD bytes. The sweep then tests code the
+       tree no longer has, and the staler it gets the more confident it looks.
+   `workerPool`'s header promises "no window in which the two can disagree". These are that window,
+   and residue 2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs is what it costs:
+   a survivor set that moves between two runs on one box is exactly what a tree moving under the
+   sweep produces, at an unchanged kill RATE.
+   A sweep therefore SAYS whether its own input moved. Stat-keyed, never hashed — 150 stats cost
+   nothing twice, and a sweep paying for 3000 hashes at each end would simply not be run. */
+export function driftWatchList(file, rootEntries) {
+  /* What a verdict actually rests on: the suite, and every root module or bundle the suite loads.
+     NOT the whole tree — `provenance/`, `tools/` and the fixtures are outside it, so the record
+     reports `watched` beside the drift and a move outside this set stays undetected. */
+  const rels = new Set(['tests/dex-tests.js', 'tests/run-tests.mjs']);
+  if (file) rels.add(file);
+  for (const e of rootEntries || []) if (/\.(js|mjs|html)$/.test(String(e))) rels.add(String(e));
+  return [...rels].sort();
+}
+export function sampleTree(rels, statFn) {
+  const out = new Map();
+  for (const rel of rels || []) {
+    try {
+      const st = statFn(rel);
+      out.set(rel, { ino: Number(st.ino), size: Number(st.size), mtimeMs: Number(st.mtimeMs) });
+    } catch {
+      /* §∅ — AN UNREADABLE PATH IS ABSENT, NEVER A ZERO STAT. A `{ ino: 0, size: 0 }` entry would
+         read as a real empty file and compare EQUAL to the next unreadable sample, so a file that
+         vanished and came back different would report no drift at all. */
+      out.set(rel, null);
+    }
+  }
+  return out;
+}
+export function treeDrift(before, after) {
+  const changed = [],
+    detached = [],
+    vanished = [],
+    appeared = [];
+  for (const [rel, b] of before || new Map()) {
+    /* A path the second sample never looked at is UNKNOWN, not unchanged — skipping it is the only
+       honest arm, and `watched` below is what a reader may quote. */
+    if (!after || !after.has(rel)) continue;
+    const a = after.get(rel);
+    if (b === null && a === null) continue;
+    if (b === null) {
+      appeared.push(rel);
+      continue;
+    }
+    if (a === null) {
+      vanished.push(rel);
+      continue;
+    }
+    /* THE INODE SEPARATES THE TWO SHAPES, and the shapes have opposite consequences: a same-inode
+       change reached the workers, a new inode did not and left them stale. A reader told only
+       "this file moved" cannot tell which bytes ran. */
+    if (a.ino !== b.ino) detached.push(rel);
+    else if (a.size !== b.size || a.mtimeMs !== b.mtimeMs) changed.push(rel);
+  }
+  const moved = changed.length + detached.length + vanished.length + appeared.length;
+  return { moved, watched: (before && before.size) || 0, changed, detached, vanished, appeared };
+}
+export function driftWarning(d) {
+  if (!d || !d.moved) return null;
+  const list = (label, arr, what) => (arr.length ? '      ' + label + ' (' + what + '): ' + arr.slice(0, 6).join(', ') + (arr.length > 6 ? ' … +' + (arr.length - 6) + ' more' : '') + '\n' : '');
+  return (
+    '\n  ⚠ THE TREE MOVED UNDER THIS SWEEP — ' +
+    d.moved +
+    ' of ' +
+    d.watched +
+    ' watched path(s) changed between the worker pool being built and this report:\n' +
+    list('· same inode, rewritten', d.changed, 'every worker saw it, so later mutants ran against different code') +
+    list('· new inode', d.detached, 'the workers kept the OLD bytes, so this sweep tested code the tree no longer has') +
+    list('· vanished', d.vanished, 'unreadable at the end of the run') +
+    list('· appeared', d.appeared, 'unreadable when the pool was built') +
+    '    The verdicts below are one sample of a moving tree, not a result over a fixed one.\n'
+  );
 }
 function runZeroSet(zeroIdx, cwd, timeoutMs) {
   let out = '';
@@ -2113,6 +2198,8 @@ async function runFile(file) {
   /* Groups red in the worker for environment reasons, filled once the pool exists. Empty until
      then, and empty forever on the serial path, which runs in the caller's tree. */
   let ENV_RED = new Set();
+  let TREE_BEFORE = null;
+  let TREE_DRIFT = null;
   const classify = (vRaw, mu) => {
     const v = subtractEnvRed(vRaw, ENV_RED);
     const verdict = typeof v === 'string' ? v : v.verdict;
@@ -2227,6 +2314,9 @@ async function runFile(file) {
          in the right tree, and the names it collects are subtracted from every attribution below.
          It is announced and timed, because under `--full` it is a whole suite. */
       if (trees.length) {
+        /* SAMPLED BEFORE THE BASELINE RUN, because the pool already exists and the baseline itself
+           takes minutes — a write during it reaches the workers like any other. */
+        TREE_BEFORE = sampleTree(driftWatchList(file, readdirSync(ROOT)), (rel) => statSync(join(ROOT, rel)));
         const _envT0 = Date.now();
         process.stderr.write('  vetting the worker baseline: one clean ' + calDesc + ' run in worker 1 — the calibration ran in the caller tree, which has a .git\n');
         ENV_RED = envRedFrom(runSuiteOutput(calSel, trees[0], timeoutMs));
@@ -2303,6 +2393,16 @@ async function runFile(file) {
      run can quietly measure far fewer mutants than it tested and still report a confident rate. One
      invalid is normal (a mutated regex quantifier that cannot compile). Twenty-five is a machine
      problem, and the reader has no way to know which they are looking at unless the tool says so. */
+  /* The second sample closes the window the first one opened. Only when a pool existed: on the
+     serial path the mutants are written INTO the root, so every drift there is this tool's own. */
+  if (TREE_BEFORE) {
+    TREE_DRIFT = treeDrift(
+      TREE_BEFORE,
+      sampleTree([...TREE_BEFORE.keys()], (rel) => statSync(join(ROOT, rel)))
+    );
+    const dwarn = driftWarning(TREE_DRIFT);
+    if (dwarn) process.stderr.write(dwarn);
+  }
   const warn = invalidWarning(invalid, picked.length, killed);
   if (warn) process.stderr.write(warn);
   const qwarn = quarantineWarning(quarantinedThisRun, picked.length, quarantineMs);
@@ -2351,6 +2451,9 @@ async function runFile(file) {
        for debugging, but `killed`/`rate` are nulled so no reader — human or script — can quote them. */
     canary: canaryState,
     voided: canaryState === 'FAILED',
+    /* Whether the sweep's own input held still. `null` means the question does not apply (no worker
+       pool), never "it did not move" — and `watched` is the denominator a reader may quote. */
+    treeDrift: TREE_DRIFT,
     groupsRun: filter || 'FULL SUITE',
     groupCount: g ? g.count : null,
     groupsSelected: g ? g.selected : null,
@@ -2851,6 +2954,52 @@ function selftest() {
      costs hours and the selftest touches no repo. */
   ck('the baseline is measured in a WORKER tree, not the caller tree', /ENV_RED = envRedFrom\(runSuiteOutput\(calSel, trees\[0\]/.test(ENVSRC), true);
   ck('…and every verdict passes through the subtraction', /const v = subtractEnvRed\(vRaw, ENV_RED\)/.test(ENVSRC), true);
+
+  /* 🔴 THE SWEEP'S INPUT MUST HOLD STILL, AND IF IT DOES NOT THE RUN SAYS SO. A worker is `cp -al`,
+     so a root write reaches it with no worker write at all — measured 2026-10-27, both shapes. The
+     residue row these legs serve is the moving survivor set: a tree that moves under the sweep
+     produces exactly that, at an unchanged kill rate. */
+  console.log('\ndriftWatchList / sampleTree / treeDrift — a sweep says whether its own input moved');
+  const ST = (m) => (rel) => {
+    if (!(rel in m)) throw new Error('ENOENT ' + rel);
+    return m[rel];
+  };
+  const DA = { 'a.js': { ino: 1, size: 10, mtimeMs: 100 }, 'b.js': { ino: 2, size: 20, mtimeMs: 200 } };
+  ck(
+    'the watch list carries the suite, the file under test, and every root module or bundle',
+    driftWatchList('ppgdex-dsp.js', ['a.js', 'x.json', 'OxyDex.html', 'tools']).join(','),
+    'OxyDex.html,a.js,ppgdex-dsp.js,tests/dex-tests.js,tests/run-tests.mjs'
+  );
+  ck('control · a path that is neither a module nor a bundle is not watched', driftWatchList(null, ['x.json', 'tools', 'y.md']).length, 2);
+  ck('🔴 an unreadable path samples as ABSENT, never a zero stat (§∅)', sampleTree(['gone.js'], ST({})).get('gone.js'), null);
+  ck('…and a readable one carries inode, size and mtime', JSON.stringify(sampleTree(['a.js'], ST(DA)).get('a.js')), '{"ino":1,"size":10,"mtimeMs":100}');
+  const D0 = treeDrift(sampleTree(['a.js', 'b.js'], ST(DA)), sampleTree(['a.js', 'b.js'], ST(DA)));
+  ck('an untouched tree reports no drift', D0.moved, 0);
+  ck('…over a watched set above zero, so that leg is not vacuous', D0.watched, 2);
+  const rewritten = { ...DA, 'a.js': { ino: 1, size: 11, mtimeMs: 100 } };
+  const D1 = treeDrift(sampleTree(['a.js', 'b.js'], ST(DA)), sampleTree(['a.js', 'b.js'], ST(rewritten)));
+  ck('🔴 a SAME-INODE rewrite is drift the workers saw', D1.changed.join(','), 'a.js');
+  ck('…and is never reported as a detachment', D1.detached.length, 0);
+  const touched = { ...DA, 'a.js': { ino: 1, size: 10, mtimeMs: 101 } };
+  ck('…and an mtime move alone counts, because a rewrite can be the same length', treeDrift(sampleTree(['a.js'], ST(DA)), sampleTree(['a.js'], ST(touched))).changed.join(','), 'a.js');
+  const replaced = { ...DA, 'a.js': { ino: 9, size: 10, mtimeMs: 100 } };
+  const D2 = treeDrift(sampleTree(['a.js', 'b.js'], ST(DA)), sampleTree(['a.js', 'b.js'], ST(replaced)));
+  ck('🔴 a NEW INODE is a detachment — the workers kept the old bytes', D2.detached.join(','), 'a.js');
+  ck('…and is never reported as a rewrite they saw', D2.changed.length, 0);
+  ck('a file that vanished is named as vanished', treeDrift(sampleTree(['a.js'], ST(DA)), sampleTree(['a.js'], ST({}))).vanished.join(','), 'a.js');
+  ck('…and one that appeared, as appeared', treeDrift(sampleTree(['a.js'], ST({})), sampleTree(['a.js'], ST(DA))).appeared.join(','), 'a.js');
+  ck('🔴 a path the second sample never read is UNKNOWN, not unchanged', treeDrift(sampleTree(['a.js', 'b.js'], ST(DA)), sampleTree(['a.js'], ST(DA))).moved, 0);
+  ck('…and the watched denominator still states what was compared', treeDrift(sampleTree(['a.js', 'b.js'], ST(DA)), sampleTree(['a.js'], ST(DA))).watched, 2);
+  ck('a still tree warns about nothing', driftWarning(D0), null);
+  ck('…and no drift object at all warns about nothing either', driftWarning(null), null);
+  ck('a rewrite warning names the path', /a\.js/.test(driftWarning(D1)), true);
+  ck('…and says the workers saw it', /later mutants ran against different code/.test(driftWarning(D1)), true);
+  ck('a detachment warning says the sweep tested code the tree no longer has', /the tree no longer has/.test(driftWarning(D2)), true);
+  /* WIRING — the pure trio is worthless unless the sweep calls it at both ends and reports it. */
+  ck('the first sample is taken where the worker pool exists', /TREE_BEFORE = sampleTree\(driftWatchList\(file, readdirSync\(ROOT\)\)/.test(ENVSRC), true);
+  ck('…the second closes the window beside the other warnings', /TREE_DRIFT = treeDrift\(\n\s+TREE_BEFORE,/.test(ENVSRC), true);
+  ck('…and the record carries the drift, so a reader never has to read the log', /treeDrift: TREE_DRIFT,/.test(ENVSRC), true);
+  ck('…over a real stat, not a mock left wired into the tool', /statSync \} from \x27node:fs\x27/.test(ENVSRC), true);
   /* 🔴 THE VERDICT MUST NOT MOVE WITH THE LOAD ON THE BOX. Residue
      2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs reports three legs over one
      identical population, each naming a different survivor at an identical kill rate. One candidate
