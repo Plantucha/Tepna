@@ -616,6 +616,60 @@ export function verdictFromOutput(out) {
   return String(out).includes('✓') || String(out).includes('✕') ? 'KILLED' : 'INVALID';
 }
 
+/* ── THE EXIT CLASSIFIER — ONE RULE, BOTH RUNNERS ───────────────────────────────────────────────
+   `runSuite` and `runSuiteAsync` each carried their own copy of this rule and the copies disagreed,
+   which is how a verdict came to depend on which mode you ran. The async copy recorded a `reason`;
+   the sync copy returned a bare string, so `classify` labelled EVERY serial-path INVALID
+   `no-output` whatever had actually killed it.
+
+   🔴 A RUN THE HARNESS KILLED IS NOT A MEASUREMENT (§∅). Measured on node v22.23.1, an elapsed
+   `timeout` leaves `code === null` and `signal === 'SIGTERM'` on the async close event, and makes
+   `execFileSync` throw with `status: null` — NOT `undefined` — plus `signal: 'SIGTERM'` and
+   `code: 'ETIMEDOUT'`. So the sync guard `e.status === undefined`, written to catch exactly this,
+   never fired for a timeout kill. Both paths then fell through to the output test, where a dying run
+   that had already flushed a `✓` or a `✕` scored KILLED with an EMPTY killer list. Nothing measured
+   that mutant: the box ran out of time. The same mutant on an idle box finishes and reports
+   SURVIVED, so that verdict moved with the load, which is the shape residue
+   2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs reports from three legs.
+
+   🔴 AND THE SAME MEASUREMENT REFUSES THE ROW'S STORY. The defect above is real, but its window is
+   not. Instrumented over one real full suite on this box (2026-10-27, `tests/run-tests.mjs`, 830
+   groups, 479.7 s), the runner wrote its FIRST stdout byte at 479.52 s and its first `✓` at
+   479.52 s — every assertion mark lives in the closing report, 147 ms of a 480 s run. stderr carried
+   806 progress chunks from 6.4 s onward and not ONE mark. So a kill landing anywhere in the first
+   99.97 % of a run leaves a stream with no mark in it, which `verdictFromOutput` already called
+   INVALID — correctly, and by accident. This classifier is therefore the right fix and the WRONG
+   explanation: it cannot have produced three divergent survivor sets, and the row's other two
+   candidates (a flaky assertion in the covering group, state shared between the hard-linked worker
+   trees) are untouched by it.
+
+   A CRASH SIGNAL IS NOT A HARNESS KILL. A mutant that segfaults or aborts the suite after real
+   assertion output was caught BY the suite, so those keep the output-based rule and get their own
+   reason rather than borrowing `timeout`. The harness kills with SIGTERM (the `timeout` option) and
+   SIGKILL (the no-progress watchdog); nothing else here signals a child. */
+export const HARNESS_KILL_SIGNALS = new Set(['SIGTERM', 'SIGKILL']);
+export function verdictFromExit(code, signal, out) {
+  if (code === 0) return { verdict: 'SURVIVED', killers: [] };
+  /* NO EXIT AND NO SIGNAL is a spawn that never produced a child — `execFileSync` leaves
+     `status: undefined` there. It gets its OWN reason: calling it `timeout` would hand a reader a
+     contended-box story for a missing binary. */
+  if (code == null && signal == null) return { verdict: 'INVALID', killers: [], reason: 'no-exit' };
+  if (HARNESS_KILL_SIGNALS.has(signal)) return { verdict: 'INVALID', killers: [], reason: 'timeout' };
+  const reason = code == null || signal ? 'crash' : 'no-output';
+  /* A non-zero exit is not automatically a kill. `/^\d{10,0}$/` is a syntactically invalid regex:
+     the file cannot be parsed, node exits 2, and the first classifier scored that as KILLED —
+     indistinguishable from a mutant a test actually caught. The discriminator is that a mutant
+     killed by a TEST leaves assertion output behind, while one that never loaded leaves none. So a
+     non-zero exit with zero assertion activity is INVALID, which `tested − invalid` already excludes
+     from the denominator. Deliberately conservative: a mutant that merely makes a group throw still
+     counts as killed. */
+  if (verdictFromOutput(out) === 'INVALID') return { verdict: 'INVALID', killers: [], reason };
+  const seen = new Set();
+  KILLER_RE.lastIndex = 0;
+  for (let m = KILLER_RE.exec(out); m !== null; m = KILLER_RE.exec(out)) seen.add(m[1]);
+  return { verdict: 'KILLED', killers: Array.from(seen) };
+}
+
 /* ── COVERAGE-DIRECTED TEST SELECTION ────────────────────────────────────────────────────────
    A mutant on line N can only be killed by a group that EXECUTES line N. The tag filter already
    narrows 470 groups to one module's worth; the per-group coverage map narrows it to the groups
@@ -937,39 +991,15 @@ function runSuiteAsync(filter, cwd, timeoutMs, quarantineMs) {
     ch.stderr.on('data', () => {
       lastOut = Date.now();
     });
-    ch.on('error', () => finish({ verdict: 'INVALID', killers: [] }));
-    ch.on('close', (code, signal) => {
-      if (code === 0) return finish({ verdict: 'SURVIVED', killers: [] });
-      /* WHY it produced nothing matters, and the two causes look identical in the count. A mutant that
-         HANGS was killed by the timeout (`code === null`, `signal` set); one that could not LOAD exited
-         with a status. Both yield no assertion output, and lumping them together produced a wrong
-         diagnosis on the record: clock.js's 5 invalids were blamed on a contended box, when 2 of them
-         are `t += 0` and `while (hi2 - lo2 >= 1)` — non-terminating mutants that time out on any
-         machine, idle or not.
-
-         They stay OUT of the denominator rather than counted as kills, which is more conservative than
-         Stryker/PIT/mutmut (all of which score a timeout as killed). The reason is local: this harness
-         also times out under CPU contention, so "hung" here does not reliably mean "the mutant hangs".
-         Recording the reason lets a reader tell a real infinite loop from a busy afternoon; guessing
-         between them is what produced the wrong diagnosis in the first place. */
-      const reason = code === null || signal ? 'timeout' : 'no-output';
-      /* A NON-ZERO EXIT IS NOT AUTOMATICALLY A KILL. `/^\\d{10,0}$/` is a syntactically invalid regex:
-         the file cannot be parsed, node exits 2, and the old classifier scored that as KILLED —
-         indistinguishable from a mutant a test actually caught. Every kill rate this tool has ever
-         reported was inflated by however many mutants produce unparseable code, systematically and in
-         the flattering direction.
-
-         The discriminator is that a mutant killed by a TEST leaves assertion output behind, while one
-         that never loaded leaves none. So: non-zero exit AND no assertion activity at all ⇒ the code
-         did not run ⇒ INVALID, which `tested − invalid` already excludes from the denominator.
-         Deliberately conservative — it only reclassifies runs that produced ZERO assertions, so a
-         mutant that merely makes a group throw still counts as killed. */
-      if (verdictFromOutput(out) === 'INVALID') return finish({ verdict: 'INVALID', killers: [], reason });
-      const seen = new Set();
-      KILLER_RE.lastIndex = 0;
-      for (let m = KILLER_RE.exec(out); m !== null; m = KILLER_RE.exec(out)) seen.add(m[1]);
-      finish({ verdict: 'KILLED', killers: Array.from(seen) });
-    });
+    ch.on('error', () => finish({ verdict: 'INVALID', killers: [], reason: 'no-exit' }));
+    /* WHY it produced nothing matters, and the causes look identical in the count. A mutant that
+       HANGS is killed by the timeout; one that could not LOAD exits with a status; one that crashes
+       the suite dies on its own signal. All three can yield no assertion output, and lumping them
+       together produced a wrong diagnosis on the record: clock.js's 5 invalids were blamed on a
+       contended box, when 2 of them are `t += 0` and `while (hi2 - lo2 >= 1)` — non-terminating
+       mutants that time out on any machine, idle or not. `verdictFromExit` names the reason, and the
+       rule it applies is shared with the serial runner so the two can never disagree again. */
+    ch.on('close', (code, signal) => finish(verdictFromExit(code, signal, out)));
   });
 }
 
@@ -1071,11 +1101,15 @@ function runSuite(filter, cwd, timeoutMs) {
        INVALID (73 %) with `canary: FAILED`, integrator 178 (9.7 %), against ~1 % on the two files
        whose groups fit inside 30 s. The canary voided ecgdex rather than publishing the number. */
     execFileSync('node', suiteArgs(filter), { cwd: cwd || ROOT, encoding: 'utf8', timeout: timeoutMs || 900000 });
-    return 'SURVIVED'; // suite green with broken code → nothing tests this line
+    return { verdict: 'SURVIVED', killers: [] }; // suite green with broken code → nothing tests this line
   } catch (e) {
-    if (e.status === undefined) return 'INVALID'; // never ran (spawn failure / timeout kill)
-    // Same rule as the pool path: no assertion output ⇒ the file did not parse ⇒ INVALID, not a kill.
-    return verdictFromOutput(String(e.stdout || '') + String(e.stderr || ''));
+    /* THE SAME CLASSIFIER AS THE POOL PATH, and it returns the same OBJECT. The old code returned a
+       bare string here, so `classify` had no reason to record and labelled every serial-path INVALID
+       `no-output` — including the timeouts, which are the ones a reader most needs to tell apart.
+       `e.status === undefined` was written to catch a spawn failure or a timeout kill and catches
+       only the first: a timeout leaves `status: null`. A spawn failure leaves no exit at all, which
+       `verdictFromExit` reads as the kill it is. */
+    return verdictFromExit(e.status === undefined ? null : e.status, e.signal ?? null, String(e.stdout || '') + String(e.stderr || ''));
   }
 }
 
@@ -2696,6 +2730,48 @@ function selftest() {
   ck('green marks then a late crash → KILLED', verdictFromOutput('✓ clock\nsegfault\n'), 'KILLED');
   ck('unparseable file, no suite output → INVALID', verdictFromOutput('SyntaxError: Invalid regular expression'), 'INVALID');
   ck('empty output → INVALID', verdictFromOutput(''), 'INVALID');
+  /* 🔴 THE VERDICT MUST NOT MOVE WITH THE LOAD ON THE BOX. Residue
+     2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs reports three legs over one
+     identical population, each naming a different survivor at an identical kill rate. One candidate
+     mechanism was this classifier: a run the harness killed, which had already flushed an assertion
+     mark, scored KILLED — with an empty killer list, because nothing in the stream names a group.
+     Both runners shared the defect and neither had a leg over the exit shape, only over the TEXT. */
+  console.log('\nverdictFromExit — a run the harness killed measured nothing');
+  const vx = (code, signal, out) => verdictFromExit(code, signal, out);
+  ck('clean green exit → SURVIVED', vx(0, null, '✓ all 14470 assertions passed').verdict, 'SURVIVED');
+  ck('🔴 the timeout kill, mid-report, is NOT a kill', vx(null, 'SIGTERM', '✓ clock\n✕ [ppgdex] buildPPI\n').verdict, 'INVALID');
+  ck('…and it says WHY, so a reader can tell it from a parse failure', vx(null, 'SIGTERM', '✓ clock\n').reason, 'timeout');
+  ck('…and it names no killer it cannot see', vx(null, 'SIGTERM', '✕ [ppgdex] buildPPI\n').killers.length, 0);
+  ck('the watchdog SIGKILL is the same absence', vx(null, 'SIGKILL', '✓ clock\n').reason, 'timeout');
+  ck('a spawn that never ran gets its OWN reason, not a borrowed one', vx(null, null, '').reason, 'no-exit');
+  /* The control direction: the two shapes that MUST stay as they were, or this fix would hide real
+     kills instead of refusing fake ones. */
+  ck('control · a real assertion failure is still KILLED', vx(1, null, '✕ [ppgdex] buildPPI\n').verdict, 'KILLED');
+  ck('control · …and still names its killer', vx(1, null, '✕ [ppgdex] buildPPI\n').killers[0], 'ppgdex');
+  ck('control · an unparseable mutant is still INVALID', vx(2, null, 'SyntaxError: Invalid regular expression').verdict, 'INVALID');
+  ck('control · …and reads no-output, not timeout', vx(2, null, 'SyntaxError').reason, 'no-output');
+  ck('a crash signal is not a harness kill, so output still decides', vx(null, 'SIGSEGV', '✕ [clock] parseTimestamp\n').verdict, 'KILLED');
+  ck('…and a crash with nothing to show says crash', vx(null, 'SIGSEGV', '').reason, 'crash');
+  /* THE REACHABILITY BOUND, PINNED. The marks live only in the closing report, so a stream cut
+     mid-suite holds progress lines and nothing else. If the runner ever starts streaming marks, this
+     leg reds and the window above stops being 147 ms. */
+  ck('a stream cut mid-suite carries progress, not marks → INVALID', vx(null, 'SIGTERM', '  [ 412/830]   91ms  elapsed 204s  ETA 2m48s  ppgdex buildPPI\n').verdict, 'INVALID');
+  ck('…and the same text under a CLEAN non-zero exit is INVALID too', vx(1, null, '  [ 412/830]   91ms  elapsed 204s  ETA 2m48s  ppgdex buildPPI\n').verdict, 'INVALID');
+  /* 🔴 THE PREMISE IS MEASURED, NOT ASSUMED. The fix rests on what node reports when the harness
+     kills a child, and the old sync guard `e.status === undefined` was written on the opposite
+     belief. A node release that changes either value must red HERE, not in a sweep nobody reruns. */
+  {
+    const hang = 'process.stdout.write("\u2713 [fake] a group that passed\\n"); setTimeout(() => {}, 60000);';
+    let shape = null;
+    try {
+      execFileSync(process.execPath, ['-e', hang], { encoding: 'utf8', timeout: 400 });
+    } catch (e) {
+      shape = { statusIsUndefined: e.status === undefined, status: e.status, signal: e.signal };
+    }
+    ck('node · an elapsed timeout leaves status NULL, not undefined', shape && shape.statusIsUndefined, false);
+    ck('node · …and names the signal the harness sent', shape && shape.signal, 'SIGTERM');
+    ck('node · …so the old `status === undefined` guard never fired for it', shape && shape.status, null);
+  }
   /* The diff parser decides WHICH lines get gated. A bug here doesn't error — it gates the wrong
      lines, or none, and reports a confident green. So every hunk shape it can meet is pinned. */
   console.log('\nchangedLinesFromDiff — the parser that decides what the gate looks at');
