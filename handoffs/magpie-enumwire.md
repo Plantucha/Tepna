@@ -3,7 +3,7 @@
 **Row:** a NAMED SLICE of `2026-10-21-forty-one-corpus-enumerators-report-no-population` (OPEN at the ref).
 Osprey holds the row key (claim #1257); I took four names under the standing invitation at board #1024
 and #1335, declared at #1590. Kestrel assigned the row at #1588.
-**Branch:** `claude/enumwire-mg` · **Worktree:** `wt-enumwire-mg` (sibling of the primary checkout) ·
+**PR:** #3994 (DRAFT) · **Branch:** `claude/enumwire-mg` · **Worktree:** `wt-enumwire-mg` (sibling of the primary checkout) ·
 **Base:** `d8f1fc31b`
 
 **Rule 0:** `forty-one corpus enumerators report no population wiring a tool to report its population` →
