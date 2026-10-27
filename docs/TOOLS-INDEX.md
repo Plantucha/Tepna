@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**289 tools** · 288 with a purpose line · **1 without**
+**290 tools** · 289 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -256,6 +256,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`sigma-corpus-headless.mjs`](../tools/sigma-corpus-headless.mjs) | run `sigma-no-reference-analysis.html` over the canonical corpus without a human dropping a folder, and report the POPULATION it reaches. |
 | [`stage-lab-core.mjs`](../tools/stage-lab-core.mjs) | PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with. |
 | [`stage-lab.mjs`](../tools/stage-lab.mjs) | Brief: briefs/STAGE-LAB-2026-09-27-BRIEF.md (bands and plants are PRE-STATED there, before any run). |
+| [`stamp-consumer-census.mjs`](../tools/stamp-consumer-census.mjs) | WHICH FILES READ A 14-DIGIT FILENAME STAMP BY LITERAL DIGITS — re-derived, never read off a row. |
 | [`ste-lint.mjs`](../tools/ste-lint.mjs) | the writing rules, checked node tools/ste-lint.mjs <file.md> # exit 1 on any finding node tools/ste-lint.mjs - < body.md # a PR body on stdin node tools/ste-lint.mjs <file> --json # the… |
 | [`stitch-31d-run.mjs`](../tools/stitch-31d-run.mjs) | server-side 31-day fused-tool compute. Reads /srv/tepna/stitched/<tool>/MANIFEST.json + SIDECARS.json, runs the tool's engine PER NIGHT (co-location holds within a night), aggregates… |
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | LEVEL B — PSEUDO-TESTED STATEMENTS. Delete ONE statement and see whether anything notices. |

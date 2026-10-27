@@ -78,9 +78,15 @@ const MIN_AGREE = +opt('--min-agree', 2);
 const OFFSET_SEARCH_MS = +opt('--offset-search-ms', 150);
 
 const isSleepNight = (name, durSec) => {
-  const m = /_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name) || /(\d{8})(\d{2})(\d{2})(\d{2})_PPG/.exec(name);
-  const hh = m ? +(m.length > 6 ? m[4] : m[2]) : null;
-  if (hh == null || !(durSec >= 4 * 3600)) return false;
+  /* The HOUR comes from `DexClock.fileStamp` — §4's anchor source (2), the same owner `stampOf`
+     below already delegates to. The two bare regexes that stood here read the hour out of digit
+     slices nothing had range-checked, and they scanned from the LEFT, so a 14-digit device id
+     (`Polar_H10_20250101000000_...`) answers for the session eighteen months away. This hour decides
+     whether `--sleep-only` KEEPS a night, so a fabricated one silently moves the population a figure
+     is computed over, which is worse than dropping the night loudly. */
+  const r = DexClock.fileStamp(name);
+  if (!r || !(durSec >= 4 * 3600)) return false;
+  const hh = new Date(r.tMs).getUTCHours();
   return hh >= 20 || hh < 4;
 };
 

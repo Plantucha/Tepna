@@ -2151,6 +2151,18 @@
    },
    "note": "the JS port of the stage-lab control net against the Python net on real nights (STAGE-LAB brief \u00a724). Criterion pre-stated before the run: every compared night's max |\u0394 proba| \u2264 2e-3 (Python saves float16) and |\u03ba_JS \u2212 \u03ba_Python| \u2264 0.002; one night outside the band is FAIL; no Python probabilities to compare = NOT_RUN, never a pass by absence."
   },
+  "tools/stamp-consumer-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/stamp-consumer-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "residue 2026-10-26-a-residue-census-enumeration-has-no-instrument-and-has-drifted-by-two: the instrument for a frozen census of the files that read a 14-digit filename stamp - the predicate is COMPUTED, a run of quantified digit atoms in regex source whose widths sum to 14, because the parent census grepped one SPELLING (`\\d{14}`) and so could not see the twelve files that spell the same read out; an ISO datetime also sums to 14 and the separator set that ends a run is the named control - pre-stated rule: FAIL a file that entered or left the declared census, or a declared reading outside the vocabulary accept-test | docstring | identifier | time, or an `anchored` datum stated against its reading - SHORTFALL a file in the population with no reading yet, since what a file DOES with a stamp is not re-derivable - UNKNOWN a tracked source this reader could not open - NOT_RUN an empty declared or measured set - PASS otherwise; population = tracked *.js/*.mjs/*.py minus test paths whose source spells such a run"
+  },
   "tools/stage-lab.mjs": {
    "bin": "decides",
    "status": "adopted",
