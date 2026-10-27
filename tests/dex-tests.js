@@ -76331,7 +76331,14 @@
       /* THE §7 DISCRIMINATORS. CLAUDE.md instructs a consumer to read `independent`, never a ~0 ppm —
          which it cannot do if the producer never emits it. These are the fields that decide whether a
          host column is a second clock at all. */
-      var need = ['independent', 'spreadMs', 'ppm', 'stability'];
+      /* `timingSource` AND `applied` JOINED THE REQUIRED SET 2026-10-27. `timingSource` is the §7
+         tier a consumer branches on before spending the axis as a clock leg, and both nodes already
+         carried it. `applied` is the one this group was written too narrowly to catch: ECGDex
+         forwards it, PpgDex's reshape never did, and `ppgdex-dsp.js:1650` records why that costs —
+         `pat-drift-attribution.effectivePpm` reads `applied === true ? 0 : ppm`, so an absent key
+         credits an already-absorbed rate correction as outstanding error. The parse-level fix landed
+         and stopped at the reshape, which is a seam this file's own comment predicted. */
+      var need = ['independent', 'spreadMs', 'ppm', 'stability', 'timingSource', 'applied'];
       /* BALANCED-BRACE extraction, not a regex to a fixed indent. ⚠️ The first version of this gate
          matched `\n {6}\};` and OVERSHOT PpgDex's block by 4.5 kB into `out.hrv`, because the block
          is nested inside an `if` and closes at 8 spaces. Every field assertion below then passed
@@ -76451,6 +76458,115 @@
             'too few anchors to resolve an axis ⇒ no block'
           );
         }
+      }
+    });
+
+    /* ── AN UNMEASURED DRAWN SHARE IS NOT A NEGATIVE — §∅ AT THE PROVENANCE VERDICT ───────────────
+       `quantizedShare` stays `null` whenever fewer than 21 ns deltas resolved, and `axisDrawn` read
+       `quantizedShare != null && quantizedShare >= 0.67`, so an UNMEASURED concentration published
+       `drawn:false` — which on this field means "the device column IS a clock". `axisSynthetic` was
+       an OR, so the falsy null flowed on: `stability` was published over a column that may be the
+       writer's own arithmetic, and `timingSource` reached `'device+host'`, the tier that asserts a
+       real second clock disciplined the recording.
+       LATENT, not live: all 173 committed trio exports carry a measurable share (measured
+       2026-10-27), so no artifact moves here and the path was reachable only on a short file. §∅
+       binds the DSP layer whether or not today's corpus reaches it, and the fix is three states
+       because the data has three — concentrated, spread, and never counted. */
+    group('PpgDex · an unmeasured drawn share is null, and the top tier is not claimed over it', 'ppgdex-dsp · host-axis · absence-is-null', function (T) {
+      var PD = env.PPGDSP;
+      if (!PD || typeof PD.parsePPG !== 'function' || typeof PD.compute !== 'function') {
+        T.skip('PPGDSP wired with parsePPG + compute', 'not in this lane');
+        return;
+      }
+      /* A WRIST layout (6 columns), because the finger layout settles the verdict on provenance and
+         would pass this group whatever the statistic did. Two clocks ~40 ms apart so the long control
+         resolves a real axis; the row COUNT is the only difference between the two files. */
+      function wrist(nRows) {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'],
+          dMs = 0,
+          stp = 1000 / 135;
+        for (var q = 0; q < nRows; q++) {
+          dMs += stp + (((q * 7919) % 1000) / 1000 - 0.5) * 1.8;
+          var nz = (((q * 6271) % 1000) / 1000 - 0.5) * 80;
+          rows.push(
+            new Date(Date.UTC(2026, 6, 1) + Math.round(dMs + nz)).toISOString().replace('T', ' ').replace('Z', '') +
+              ';' +
+              Math.round(dMs * 1e6) +
+              ';' +
+              (1000 + q) +
+              ';' +
+              (2000 + q) +
+              ';' +
+              (3000 + q) +
+              ';' +
+              (400 + q)
+          );
+        }
+        return rows.join('\n');
+      }
+      var shortTxt = wrist(21),
+        longTxt = wrist(1600);
+      var recS = PD.parsePPG(shortTxt),
+        recL = PD.parsePPG(longTxt);
+      var axS = recS && recS.hostAxis,
+        axL = recL && recL.hostAxis;
+      /* ── ANTI-VACUITY FIRST. Everything below is about the difference between an unmeasured share
+         and a measured one, so both halves of that premise are asserted before any verdict is read.
+         Without this the group passes against the defect on a file whose share happens to resolve. */
+      T.ok('ANTI-VACUITY · the 21-row file really leaves the delta concentration UNMEASURED', !!axS && axS.quantizedShare === null, 'quantizedShare=' + (axS && axS.quantizedShare));
+      T.ok('ANTI-VACUITY · the 1600-row control really measures one', !!axL && typeof axL.quantizedShare === 'number' && isFinite(axL.quantizedShare), 'quantizedShare=' + (axL && axL.quantizedShare));
+      if (axS) {
+        T.eq('an unmeasured share publishes drawn: null, never false', axS.drawn, null);
+        T.eq('…and the fleet refusal name agrees with it', axS.deviceDrawn, null);
+        T.ok('…and the reason says UNMEASURED rather than reading as a missing field', typeof axS.drawnReason === 'string' && /UNMEASURED/.test(axS.drawnReason), String(axS.drawnReason));
+        /* The floor, not a fabrication: with no host anchors AND no measured concentration there is no
+           timing to spend, and `pat-gate.js` refuses on exactly this value. */
+        T.eq('…and the tier is the floor the consumer refuses on', axS.timingSource, 'none');
+      }
+      if (axL && axL.ok === true) {
+        T.eq('CONTROL · a measured low share is a real negative', axL.drawn, false);
+        T.eq('CONTROL · …and the tier it earns is unchanged', axL.timingSource, 'device+host');
+      } else {
+        T.skip('the measured-share control', 'no resolvable axis in this lane (PpgDex inlines no clock.js) — the null arm above is lane-independent');
+      }
+      /* ── THE `quality` PROJECTION, EXECUTED. It reshapes the verdict, and `=== true` there turned
+         the unknown back into `false` one layer out from the fix above. */
+      var expS = PD.compute(shortTxt, { rich: true });
+      T.eq('quality.axisDrawn forwards the unknown instead of collapsing it to false', expS && expS.quality ? expS.quality.axisDrawn : 'no-quality', null);
+      var expL = PD.compute(longTxt, { rich: true });
+      T.eq('CONTROL · a measured negative still projects as false, not null', expL && expL.quality ? expL.quality.axisDrawn : 'no-quality', axL && axL.ok ? false : null);
+      /* ── THE EXPORT RESHAPE, DRIVEN DIRECTLY. A 21-row file resolves fewer than three host anchors,
+         so `hostAxis.ok` is false and the block is correctly omitted — the UNKNOWN verdict can only
+         reach the reshape through a recording longer than this group builds, which is why it is
+         driven here by hand on the axis the long file really produced. The sibling group above pins
+         the drawn and the measured-clean arms; these three legs are the third state, plus the key
+         that never travelled in any state. */
+      if (typeof PD.buildNodeExport === 'function' && axL && axL.ok === true) {
+        var mk = function (over) {
+          var ax = {};
+          for (var k in axL) ax[k] = axL[k];
+          for (var k2 in over) ax[k2] = over[k2];
+          return (PD.buildNodeExport({ hostAxis: ax, t0Ms: Date.UTC(2026, 6, 1), fs: 135, n: 400, ch: [new Float32Array(400)], site: 'wrist', beats: [], events: [] }, { rich: true }) || {}).recording;
+        };
+        var unk = mk({ deviceDrawn: null, drawn: null, drawnShare: null, drawnReason: 'device inter-sample delta concentration is UNMEASURED — fewer than 21 ns deltas resolved' }).hostAxis;
+        T.eq('RUNTIME · an UNKNOWN verdict reaches the export as null rather than as an absent key', unk.deviceDrawn, null);
+        T.ok('RUNTIME · …carrying the reason that says which absence it is', /UNMEASURED/.test(String(unk.drawnReason)), String(unk.drawnReason));
+        T.eq('RUNTIME · …and `drawn` says the same thing beside it', unk.drawn, null);
+        /* ANTI-VACUITY for the condition itself: if `!== false` had been written as "always", this
+           control would carry the keys too and the leg above would prove nothing about the third
+           state. A measured negative keeps the clean rail byte-identical. */
+        var cln = mk({ deviceDrawn: false, drawn: false }).hostAxis;
+        T.ok(
+          'CONTROL · a measured negative exports none of the three, so the clean rail keeps its bytes',
+          !('deviceDrawn' in cln) && !('drawnShare' in cln) && !('drawnReason' in cln),
+          JSON.stringify(Object.keys(cln))
+        );
+        /* `applied` is the key no arm forwarded. It decides `effectivePpm`, so an absent key is read
+           as "not applied" and the node's absorbed drift is counted twice. */
+        T.eq('RUNTIME · the export says whether the correction was applied, which effectivePpm reads', mk({ applied: true }).hostAxis.applied, true);
+        T.eq('RUNTIME · …and an unknown one is null there too, never false', mk({ applied: null }).hostAxis.applied, null);
+      } else {
+        T.skip('the exported axis block', 'no resolvable axis in this lane (PpgDex inlines no clock.js) — the null arms above are lane-independent');
       }
     });
     group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {

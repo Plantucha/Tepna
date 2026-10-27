@@ -1259,7 +1259,12 @@
        and PAT all silently accept such a leg today and measure a constant. */
     /* 0.67 — the same cut as `clock.js` CK_AXIS_DRAWN_SHARE, on that file's 381-sidecar measurement.
        Kept as a literal because `DexClock` does not exist in this bundle; see the block above. */
-    const axisDrawn = quantizedShare != null && quantizedShare >= 0.67;
+    /* ⚠️ TRI-STATE, and §∅ is why. `quantizedShare` stays `null` whenever fewer than 21 ns deltas
+       resolved (the `deltas.length > 20` guard above), and this line used to read
+       `quantizedShare != null && quantizedShare >= 0.67` — so an UNMEASURED concentration published a
+       definite `false`, and `false` here means "this column IS a clock". The three states are the
+       three the data has: concentrated, spread, and never counted. */
+    const axisDrawn = quantizedShare == null ? null : quantizedShare >= 0.67;
     // relSec per sample from ns, DISCIPLINED to the host clock (WEARABLE-HOST-AXIS §2); else index/fs.
     // The device crystal keeps the fine structure (the correction's own slope is ~30 ppm, i.e. 30 µs
     // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
@@ -1346,7 +1351,10 @@
        writer's rate estimator happens to have left it quantized. Named separately from `axisDrawn` so
        the two stay distinguishable: `quantizedShare` is still published raw, and a reader can still
        see that the fingerprint is absent while the verdict is drawn. */
-    const axisSynthetic = axisDrawn || site === 'finger';
+    /* `site === 'finger'` FIRST, so the layout rule still settles the O2Ring on provenance whatever
+       the statistic did. Otherwise the statistic's own verdict carries, INCLUDING its `null`: an OR
+       would collapse an unknown into `false` again, one line after the fix above. */
+    const axisSynthetic = site === 'finger' ? true : axisDrawn;
     /* THE SAME FACT UNDER THE FLEET'S NAME, because a consumer refuses on the NAME. `clock.js`
        publishes `deviceDrawn`/`drawnShare`/`drawnReason`, and every migrated consumer tests
        `deviceDrawn === true` — `pat-drift-attribution.ppmContribution` and `pat-host-offset` by name.
@@ -1362,13 +1370,18 @@
        `axisSynthetic` is the broader and the CORRECT answer to the question a consumer asks — is the
        device column a clock — because the finger layout settles it on provenance when the statistic
        cannot see it. */
-    const axisDrawnReason = !axisSynthetic
-      ? null
-      : axisDrawn && quantizedShare != null
-        ? 'device inter-sample deltas concentrate on one value (' + (quantizedShare * 100).toFixed(2) + ' % share) — a synthesised counter, not a clock, whatever ppm it reports'
-        : 'O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the ' +
-          (quantizedShare == null ? 'absent' : (quantizedShare * 100).toFixed(2) + ' %') +
-          ' delta share says';
+    const axisDrawnReason =
+      axisSynthetic === false
+        ? null
+        : axisSynthetic == null
+          ? /* The absence has its own sentence, because `drawn: null` with no reason reads as a missing
+               field rather than an unmeasured one. */
+            'device inter-sample delta concentration is UNMEASURED — fewer than 21 ns deltas resolved, so whether this column is a counter or a clock is unknown, not false'
+          : axisDrawn && quantizedShare != null
+            ? 'device inter-sample deltas concentrate on one value (' + (quantizedShare * 100).toFixed(2) + ' % share) — a synthesised counter, not a clock, whatever ppm it reports'
+            : 'O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the ' +
+              (quantizedShare == null ? 'absent' : (quantizedShare * 100).toFixed(2) + ' %') +
+              ' delta share says';
     /* ── DEVICE-CRYSTAL TIMEBASE (O2RING-ADAPTIVE-TIMEBASE Stage 2) ─────────────────────────────────
        O2Ring finger only, opt-in. Rebuild relSec on the 125.000 crystal grid instead of the
        host-disciplined ROW-rate axis: real ADC samples advance by 1/125.000, the inserted `156` beat
@@ -1677,8 +1690,18 @@
                Null on a DRAWN axis even when `clock.js` produced a curve: the ns column is then
                synthesised from the host, so its "divergence" is the writer's own arithmetic and a
                stability figure over it would describe capture-host code, not a clock. */
-            stability: axisSynthetic ? null : hostAx.stability || null,
-            timingSource: axisSynthetic ? 'host' : hostAx.independent === false ? 'device' : 'device+host'
+            /* `!== false`, not truthiness: an UNKNOWN drawn verdict must suppress this too. A
+               stability curve over a column that may be the writer's own arithmetic describes
+               capture-host code, and "we never measured whether it is a clock" is not a licence to
+               publish one. */
+            stability: axisSynthetic !== false ? null : hostAx.stability || null,
+            /* THE TOP TIER IS A CLAIM, SO AN UNKNOWN MAY NOT REACH IT. `axisSynthetic` is now
+               tri-state and `null` is falsy, so the old ternary routed an unmeasured column straight
+               to `'device+host'` — the tier that says a real second clock disciplined this recording.
+               `'host'` is the floor instead: the host carried the timing and the device contributed
+               sample ORDER, which under-claims rather than fabricating. The actual absence rides on
+               `drawn`/`deviceDrawn` + `drawnReason`, so no consumer has to read a null tier. */
+            timingSource: axisSynthetic !== false ? 'host' : hostAx.independent === false ? 'device' : 'device+host'
           }
         : {
             ok: false,
@@ -1687,7 +1710,10 @@
             deviceDrawn: axisSynthetic,
             quantizedShare,
             drawnReason: axisDrawnReason,
-            timingSource: axisSynthetic ? 'none' : 'device'
+            /* Same rule, and here the floor really is `'none'`: no host anchors resolved AND the
+               device concentration was never measured, so there is no timing to spend. `pat-gate.js`
+               refuses on exactly this value. */
+            timingSource: axisSynthetic !== false ? 'none' : 'device'
           }
     };
   }
@@ -6087,7 +6113,10 @@
       // 125.000 ADC clock, markers deflated) or 'host-disciplined' (the host-referenced row axis) for an
       // O2Ring finger recording; null for a Verity (a real multi-oscillator device, not an either/or).
       timebase: rec.timebase || null,
-      axisDrawn: rec.hostAxis ? rec.hostAxis.drawn === true : null,
+      /* `=== true` COLLAPSED THE UNKNOWN. `drawn` is tri-state at the emitter, and this projection
+         turned `null` into `false` — the same §∅ defect one layer out, on the field `quality` readers
+         branch on. `:6928` below already nulls correctly; this line was the only loss. */
+      axisDrawn: rec.hostAxis ? (rec.hostAxis.drawn == null ? null : rec.hostAxis.drawn === true) : null,
       axisQuantizedShare: rec.hostAxis && rec.hostAxis.quantizedShare != null ? +rec.hostAxis.quantizedShare.toFixed(4) : null,
       // Sentinel bookkeeping — BOTH classes surfaced, because rejecting every 156 would punch ~7 %
       // of holes into valid signal and reporting only rejections would hide that judgement call.
@@ -6962,6 +6991,16 @@
           inertReason: r.hostAxis.inertReason || null,
           drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
           quantizedShare: nz(r.hostAxis.quantizedShare),
+          /* ── `applied`, WHICH THIS RESHAPE NEVER FORWARDED ────────────────────────────────────────
+             `:1650` already records the cost: `pat-drift-attribution.effectivePpm` reads
+             `hostAxis.applied === true ? 0 : hostAxis.ppm`, so an ABSENT key credits this node's
+             already-absorbed rate correction as outstanding error. That fix landed at the parse layer
+             and stopped at this seam, so over an ARTIFACT the double-count is still live — the three
+             drawn keys below do travel (conditionally, since #3914), and this one does not travel at
+             all. Unconditional, because the arithmetic needs it on every axis and not only on a drawn
+             one; `== null ? null` rather than `=== true`, because a key the source object lacks is
+             unknown and §∅ forbids answering an unknown with `false`. */
+          applied: r.hostAxis.applied == null ? null : r.hostAxis.applied === true,
           timingSource: r.timingSource || null,
           /* ⚠️ THE SOURCE KEYS ARE `tau0Sec` AND `noise`, NOT `tau0`/`noiseType`
              (ALLAN-STABILITY-GAPS §2.1). This block read the EXPORTED names back off the spine object,
@@ -7001,8 +7040,14 @@
            that is drawn gains a field.
            A reader who finds `deviceDrawn:true` here must not spend `ppm` or this recording as a
            second clock: `drawn` has always said the same thing, under a name no consumer reads. */
-        if (r.hostAxis.deviceDrawn === true) {
-          out.recording.hostAxis.deviceDrawn = true;
+        /* `!== false`, NOT `=== true` — §∅ at the one seam this condition still had. The verdict is
+           tri-state at the emitter (`drawn` above is published `null` when fewer than 21 ns deltas
+           resolved), and `=== true` omitted the keys for BOTH the measured-not-drawn axis and the
+           never-measured one. So an export carried one absence for two different facts, and a reader
+           could not tell "this column is a clock" from "nobody counted". A measured `false` still
+           omits all three, which is what keeps the clean Verity rail byte-identical. */
+        if (r.hostAxis.deviceDrawn !== false) {
+          out.recording.hostAxis.deviceDrawn = r.hostAxis.deviceDrawn == null ? null : r.hostAxis.deviceDrawn === true;
           out.recording.hostAxis.drawnShare = nz(r.hostAxis.drawnShare);
           out.recording.hostAxis.drawnReason = r.hostAxis.drawnReason || null;
         }
