@@ -32,6 +32,20 @@
  * the criterion, and a count that folded the two would make a stale tree and a mid-edit session read
  * alike — the same defect this row is about.
  *
+ * THE REMEDY IS MEASURED, NEVER ONLY PRINTED. A fast-forward of the primary tree refuses while a path
+ * the merge would bring in carries uncommitted lines, and while an untracked file sits where the merge
+ * would write one. So the printed remedy states whether it can run, and a blocked one names the paths
+ * and leaves those lines to the session that dirtied them (CLAUDE.md §👥.2). The dirty paths OUTSIDE
+ * the incoming set are counted beside them: they block nothing, and that count shows a reader that two
+ * sets were intersected rather than one listed. Rows
+ * `2026-10-26-the-printed-ff-only-remedy-is-blocked-by-uncommitted-work` and
+ * `2026-10-22-the-hook-liveness-reader-cannot-run-in-the-tree-it-measures`.
+ *
+ * AND THE READER NAMES ITS OWN ABSENCE. This file lives in the tree whose hooks run, so a tree that has
+ * not pulled it answers `node tools/hook-liveness.mjs` with MODULE_NOT_FOUND. That error names neither
+ * the tree nor the ref, so a session reads it as a broken tool. Run from a worktree, the reader reports
+ * whether the measured checkout carries the reader at all, and an unmeasured remedy reads `null`.
+ *
  *   node tools/hook-liveness.mjs                  # the table, the counts and the remedy
  *   node tools/hook-liveness.mjs --json           # the tepna.verdict/1 object + every row
  *   node tools/hook-liveness.mjs --ref <ref>      # compare against another ref (default origin/main)
@@ -165,8 +179,93 @@ export function scan(root, ref) {
   return { ok: true, reason: null, rows, entries: parsed.entries, entriesWithoutScript: parsed.entriesWithoutScript, refCommit: refResolved.trim().slice(0, 12) };
 }
 
+/* ── can the printed remedy run? ───────────────────────────────────────────────────────────────── */
+/** The dirty set of `root`, split by whether the merge would touch each path. A fast-forward refuses
+ *  while a tracked incoming path carries uncommitted lines, and while an untracked file sits where the
+ *  merge would write one. Reported, never acted on: CLAUDE.md §👥.2 leaves those lines to the session
+ *  that dirtied them. A path dirty OUTSIDE the incoming set blocks nothing, and the count of those is
+ *  the control — it tells a reader that this measurement intersected two sets rather than one. */
+export function measureRemedy(root, ref) {
+  const form = 'git -C ' + root + ' merge --ff-only ' + ref;
+  const dead = (reason) => ({ ok: false, form, reason, fastForwardable: null, ahead: null, incoming: null, dirtyIncoming: [], untrackedIncoming: [], dirtyElsewhere: null });
+  const refSha = git(root, ['rev-parse', '--verify', '--quiet', ref + '^{commit}']);
+  if (refSha == null || !refSha.trim()) return dead(ref + ' does not resolve in that checkout');
+  const status = git(root, ['status', '--porcelain', '--untracked-files=all']);
+  if (status == null) return dead('git status failed in that checkout');
+  const incomingText = git(root, ['diff', '--name-only', 'HEAD..' + ref]);
+  if (incomingText == null) return dead('git could not list the paths ' + ref + ' would bring in');
+  const incoming = new Set(incomingText.split('\n').filter(Boolean));
+  const aheadText = git(root, ['rev-list', '--count', ref + '..HEAD']);
+  const ahead = aheadText == null ? null : Number(aheadText.trim());
+  const fastForwardable = git(root, ['merge-base', '--is-ancestor', 'HEAD', refSha.trim()]) != null;
+  const dirtyIncoming = [];
+  const untrackedIncoming = [];
+  let dirtyElsewhere = 0;
+  for (const line of status.split('\n')) {
+    if (line.length < 4) continue;
+    const code = line.slice(0, 2);
+    const named = line.slice(3).replace(/^"(.*)"$/, '$1');
+    const path = code.startsWith('R') ? named.split(' -> ').pop() : named;
+    if (!incoming.has(path)) {
+      dirtyElsewhere++;
+      continue;
+    }
+    if (code === '??') untrackedIncoming.push(path);
+    else dirtyIncoming.push(path);
+  }
+  return { ok: true, form, reason: null, fastForwardable, ahead, incoming: incoming.size, dirtyIncoming, untrackedIncoming, dirtyElsewhere };
+}
+
+const NAME_CAP = 8;
+const named = (list) => (list.length <= NAME_CAP ? list : list.slice(0, NAME_CAP).concat(['… and ' + (list.length - NAME_CAP) + ' more'])).map((x) => '      ' + x);
+
+/** The printed remedy, and whether it can run. A remedy nobody can run is worse than silence, because
+ *  it reads as a next step; so the blocked form names what blocks it and whose lines those are. */
+export function remedyReport(m) {
+  if (!m.ok) return { form: m.form, runnable: null, blockedBy: [], reason: m.reason, lines: ['  remedy: ' + m.form, '  ⚠ whether it runs is unmeasured: ' + m.reason] };
+  const head = '  remedy, in the checkout that holds the branch (CLAUDE.md §👥.2): ' + m.form;
+  if (!m.fastForwardable) {
+    const why = m.ahead ? 'that checkout holds ' + m.ahead + ' commit(s) the ref does not' : 'HEAD is not an ancestor of the ref';
+    return {
+      form: m.form,
+      runnable: false,
+      blockedBy: [],
+      reason: 'not a fast-forward: ' + why,
+      lines: [head, '  ✗ a fast-forward REFUSES: ' + why + '. The branch needs a rebase or a merge, which is its owner’s call.']
+    };
+  }
+  const blockedBy = m.dirtyIncoming.concat(m.untrackedIncoming);
+  const control = '    ' + m.dirtyElsewhere + ' dirty path(s) outside the incoming set block nothing.';
+  if (blockedBy.length === 0)
+    return { form: m.form, runnable: true, blockedBy: [], reason: null, lines: [head, '  ✓ it can run now: the checkout is clean on all ' + m.incoming + ' incoming path(s).', control] };
+  const reason = m.dirtyIncoming.length + ' incoming path(s) carry uncommitted lines, ' + m.untrackedIncoming.length + ' untracked file(s) sit where the merge would write';
+  return {
+    form: m.form,
+    runnable: false,
+    blockedBy,
+    reason,
+    lines: [head, '  ✗ it REFUSES now: ' + reason + ', of ' + m.incoming + ' incoming.'].concat(named(blockedBy), [
+      '    §👥.2 leaves those lines to the session that dirtied them, so the next step is theirs.',
+      control
+    ])
+  };
+}
+
+/** Hooks run from the primary checkout, and this reader sits in the same tree. When that tree lacks the
+ *  reader, the natural invocation there exits MODULE_NOT_FOUND, and the error names neither the tree nor
+ *  the ref — so it reads as a broken tool. The reader says so itself, from wherever it did run. */
+export function readerInRoot(root) {
+  const atHead = git(root, ['show', 'HEAD:' + TOOL]) != null;
+  const onDisk = existsSync(join(root, TOOL));
+  return {
+    atHead,
+    onDisk,
+    note: atHead || onDisk ? null : 'node ' + TOOL + ' run IN that checkout exits MODULE_NOT_FOUND: the file is absent there, at HEAD and on disk. Run it from a worktree cut from ' + DEFAULT_REF + '.'
+  };
+}
+
 /* ── the verdict ───────────────────────────────────────────────────────────────────────────────── */
-export function buildVerdict({ scanned, ref, rootFrom, envRoot, rootMatchesEnv, commit }) {
+export function buildVerdict({ scanned, ref, rootFrom, envRoot, rootMatchesEnv, commit, remedy, reader }) {
   const rows = scanned.rows || [];
   const count = (c) => rows.filter((r) => r.cls === c).length;
   const behind = rows.filter((r) => r.cls === 'behind').map((r) => r.script);
@@ -199,7 +298,11 @@ export function buildVerdict({ scanned, ref, rootFrom, envRoot, rootMatchesEnv, 
     behindScripts: behind,
     modifiedScripts: modified,
     absentScripts: absent,
-    note: 'modified is reported and never folded into the criterion: an uncommitted edit and an unpulled tree need opposite remedies'
+    note: 'modified is reported and never folded into the criterion: an uncommitted edit and an unpulled tree need opposite remedies',
+    /* Both are DIAGNOSTICS beside the pre-stated criterion, and neither moves `status`: a blocked
+       remedy says who must act, not that more hooks are stale. Unmeasured reads `null`, never false. */
+    remedy: remedy == null ? null : { form: remedy.form, runnable: remedy.runnable, blockedBy: remedy.blockedBy, reason: remedy.reason },
+    readerPresentInRoot: reader == null ? null : reader.atHead || reader.onDisk
   };
   if (!scanned.ok) {
     /* The contract reserves `result: null` for NOT_RUN: nothing was examined, so there is nothing to
@@ -249,7 +352,14 @@ function sample() {
     rootFrom: 'git-common-dir',
     envRoot: null,
     rootMatchesEnv: null,
-    commit: null
+    commit: null,
+    remedy: {
+      form: 'git -C /path/to/primary merge --ff-only ' + DEFAULT_REF,
+      runnable: false,
+      blockedBy: ['tests/dex-tests.js'],
+      reason: '1 incoming path(s) carry uncommitted lines, 0 untracked file(s) sit where the merge would write'
+    },
+    reader: { atHead: false, onDisk: false, note: 'absent in that checkout' }
   });
 }
 
@@ -284,12 +394,16 @@ function plant() {
   w(HOOK_PREFIX + 'a-current.sh', 'echo a v1\n');
   w(HOOK_PREFIX + 'b-behind.sh', 'echo b v1\n');
   w(HOOK_PREFIX + 'c-modified.sh', 'echo c v1\n');
-  run(['add', SETTINGS, HOOK_PREFIX + 'a-current.sh', HOOK_PREFIX + 'b-behind.sh', HOOK_PREFIX + 'c-modified.sh']);
+  /* Two ordinary files carry the fast-forward legs. They are not hook scripts, so no class moves. */
+  w('shared.txt', 'v1\n');
+  run(['add', SETTINGS, HOOK_PREFIX + 'a-current.sh', HOOK_PREFIX + 'b-behind.sh', HOOK_PREFIX + 'c-modified.sh', 'shared.txt']);
   run(['commit', '-q', '-m', 'plant v1']);
   /* The ref advances b-behind.sh; the work branch stays where it was, which is the inertness itself. */
   run(['checkout', '-q', '-b', 'refline']);
   w(HOOK_PREFIX + 'b-behind.sh', 'echo b v2 the landed fix\n');
-  run(['add', HOOK_PREFIX + 'b-behind.sh']);
+  w('shared.txt', 'v2 the ref moved this one\n');
+  w('new-on-ref.txt', 'the merge would write this file\n');
+  run(['add', HOOK_PREFIX + 'b-behind.sh', 'shared.txt', 'new-on-ref.txt']);
   run(['commit', '-q', '-m', 'the fix lands on the ref']);
   run(['checkout', '-q', 'work']);
   /* c-modified.sh is edited in place and never committed; e-local.sh exists on disk only. */
@@ -352,6 +466,63 @@ function selftest() {
       'an unresolvable ref reads UNKNOWN',
       buildVerdict({ scanned: scan(planted.dir, 'no-such-ref-9f3'), ref: 'no-such-ref-9f3', rootFrom: '--root', envRoot: null, rootMatchesEnv: null, commit: null }).status === 'UNKNOWN'
     );
+    /* the remedy: runnable first, because the plant's own dirt sits OUTSIDE the incoming set. */
+    const clean = remedyReport(measureRemedy(planted.dir, planted.ref));
+    ok('a clean-on-incoming checkout can run the fast-forward', clean.runnable === true, JSON.stringify(clean.reason));
+    ok('the runnable form names the checkout and the ref', /merge --ff-only refline$/.test(clean.form));
+    eq('a dirty path outside the incoming set blocks nothing', measureRemedy(planted.dir, planted.ref).dirtyElsewhere, 2);
+    ok(
+      'the clean report still prints the control count',
+      clean.lines.some((l) => /block nothing/.test(l))
+    );
+
+    /* now dirty the two paths the ref moves: one tracked, one where the merge would write a new file. */
+    writeFileSync(join(planted.dir, 'shared.txt'), 'an uncommitted local line\n');
+    writeFileSync(join(planted.dir, 'new-on-ref.txt'), 'an untracked file in the way\n');
+    const blocked = remedyReport(measureRemedy(planted.dir, planted.ref));
+    ok('an uncommitted incoming path blocks the fast-forward', blocked.runnable === false, JSON.stringify(blocked.reason));
+    ok('the blocked report names the tracked path', blocked.blockedBy.includes('shared.txt'));
+    ok('the blocked report names the untracked file too', blocked.blockedBy.includes('new-on-ref.txt'));
+    /* The two blocking classes are reported APART, because they refuse for different reasons and the
+       untracked one is cleared by moving a file rather than by committing lines. */
+    const split = measureRemedy(planted.dir, planted.ref);
+    ok(
+      'the tracked and untracked blockers are counted apart',
+      split.dirtyIncoming.length === 1 && split.dirtyIncoming[0] === 'shared.txt' && split.untrackedIncoming.length === 1 && split.untrackedIncoming[0] === 'new-on-ref.txt',
+      JSON.stringify([split.dirtyIncoming, split.untrackedIncoming])
+    );
+    ok('the reason states both counts', /1 incoming path\(s\) carry uncommitted lines, 1 untracked file\(s\)/.test(blocked.reason || ''), JSON.stringify(blocked.reason));
+    ok(
+      'the blocked report leaves those lines to their owner',
+      blocked.lines.some((l) => /leaves those lines/.test(l))
+    );
+    ok(
+      'a blocked remedy does not move the verdict status',
+      buildVerdict({ scanned, ref: planted.ref, rootFrom: '--root', envRoot: null, rootMatchesEnv: null, commit: null, remedy: blocked, reader: readerInRoot(planted.dir) }).status === 'FAIL'
+    );
+    const wired = buildVerdict({ scanned, ref: planted.ref, rootFrom: '--root', envRoot: null, rootMatchesEnv: null, commit: null, remedy: blocked, reader: readerInRoot(planted.dir) });
+    ok('the verdict carries the blocked remedy', wired.result.remedy.runnable === false && wired.result.remedy.blockedBy.length === 2);
+    ok('an unmeasured remedy is null, never false', v.result.remedy === null && v.result.readerPresentInRoot === null);
+
+    /* an unresolvable ref is UNMEASURED, which is neither runnable nor blocked. */
+    const noRef = remedyReport(measureRemedy(planted.dir, 'no-such-ref-9f3'));
+    ok('an unresolvable ref leaves the remedy unmeasured', noRef.runnable === null && /does not resolve/.test(noRef.reason || ''));
+
+    /* the reader's own absence, which is the error a session meets in the primary checkout. */
+    const absentReader = readerInRoot(planted.dir);
+    ok('a checkout without this reader is named as such', absentReader.atHead === false && absentReader.onDisk === false);
+    ok('the note names the error that invocation gives', /MODULE_NOT_FOUND/.test(absentReader.note || ''));
+    const hereReader = readerInRoot(join(dirname(fileURLToPath(import.meta.url)), '..'));
+    ok('CONTROL · the checkout holding this reader reports it present and prints no note', (hereReader.atHead || hereReader.onDisk) === true && hereReader.note === null);
+
+    /* a local commit makes the merge no fast-forward at all, which is a different refusal. */
+    writeFileSync(join(planted.dir, 'local-only.txt'), 'a commit the ref does not carry\n');
+    execFileSync('git', ['add', 'local-only.txt'], { cwd: planted.dir, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-q', '-m', 'a local commit'], { cwd: planted.dir, stdio: 'ignore' });
+    const diverged = remedyReport(measureRemedy(planted.dir, planted.ref));
+    ok('a diverged checkout refuses for its own reason', diverged.runnable === false && /not a fast-forward/.test(diverged.reason || ''));
+    ok('the divergence names the commit count', /1 commit\(s\) the ref does not/.test(diverged.lines.join(' ')));
+
     const noSettings = buildVerdict({ scanned: scan(tmpdir(), planted.ref), ref: planted.ref, rootFrom: '--root', envRoot: null, rootMatchesEnv: null, commit: null });
     eq('a checkout with no settings reads NOT_RUN', noSettings.status, 'NOT_RUN');
     ok('NOT_RUN reports no result, because it examined nothing', noSettings.result === null);
@@ -389,7 +560,9 @@ function main() {
   }
   const rootMatchesEnv = envRoot == null ? null : envRoot.replace(/\/+$/, '') === String(root).replace(/\/+$/, '');
   const scanned = scan(root, ref);
-  const v = buildVerdict({ scanned, ref, rootFrom, envRoot, rootMatchesEnv, commit: undefined });
+  const remedy = remedyReport(measureRemedy(root, ref));
+  const reader = readerInRoot(root);
+  const v = buildVerdict({ scanned, ref, rootFrom, envRoot, rootMatchesEnv, commit: undefined, remedy, reader });
   if (flag('--json')) {
     console.log(JSON.stringify({ verdict: v, rows: scanned.rows }, null, 2));
   } else {
@@ -421,7 +594,8 @@ function main() {
           ' · untracked-at-ref ' +
           v.result.untrackedAtRef
       );
-      if (v.result.behind > 0) console.log('  remedy, in the checkout that holds the branch (CLAUDE.md §👥.2): git -C ' + root + ' merge --ff-only ' + ref);
+      if (v.result.behind > 0) for (const line of remedy.lines) console.log(line);
+      if (reader.note) console.log('  ⚠ ' + reader.note);
     }
   }
   return v.status === 'FAIL' ? 1 : 0;

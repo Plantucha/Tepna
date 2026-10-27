@@ -72,8 +72,22 @@ export function buildRecord({ at, codeDigest, srcRoots, nights, files, mountinfo
     /* A night carries the code digest its OWN stamp records, beside the run's: a fold that skipped an
        already-current night and a fold that recomputed it are the same tree but not the same fact, and
        a record claiming one digest for a tree folded under two would be the stale-stamp bug written down. */
+    /* `notOkReason` · `plannedNodes` · `exports` describe WHY a night is not ok. The projection is a
+       whitelist, so a caller that does not measure them gets `null` — the absence, never a reason
+       fitted to the fields that are present (§∅). A record written before these fields existed
+       therefore reads as "this producer recorded no reason", which is what it is: a reader must not
+       read a `null` here as "the night had no reason". */
     nights: nights
-      .map((n) => ({ key: n.key, inputsDigest: n.inputsDigest ?? null, codeDigest: n.codeDigest ?? null, nodes: n.nodes ?? null, ok: n.ok === true }))
+      .map((n) => ({
+        key: n.key,
+        inputsDigest: n.inputsDigest ?? null,
+        codeDigest: n.codeDigest ?? null,
+        nodes: n.nodes ?? null,
+        ok: n.ok === true,
+        plannedNodes: Array.isArray(n.plannedNodes) ? n.plannedNodes : null,
+        exports: Number.isFinite(n.exports) ? n.exports : null,
+        notOkReason: typeof n.notOkReason === 'string' ? n.notOkReason : null
+      }))
       .sort((a, b) => a.key.localeCompare(b.key)),
     nightCount: nights.length
   };
