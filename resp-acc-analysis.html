@@ -7300,6 +7300,37 @@ function readDetectorStability(nodeExport) {
   };
 }
 
+/* ── THE DRAWN VERDICT IS READ, NOT ASSUMED ABSENT ─────────────────────────────────
+   (residue 2026-10-25-the-committed-ring-folds-carry-no-drawn-axis-verdict)
+   `deviceDrawn` is the name #3914 gave this verdict, and every artifact folded before it carries the
+   same conclusion under two older names: `hostAxis.drawn` and `quality.axisDrawn`. Measured
+   2026-10-27 over the 173 committed `uploads/trio` PpgDex exports — `deviceDrawn` is ABSENT in 173
+   of 173, while `hostAxis.drawn` reads `true` in all 74 ring exports and `false` in all 99 Verity
+   ones, and `quality.axisDrawn` agrees on every file. The refusal below therefore read one key that
+   no committed artifact has ever carried.
+   Two things follow, and the second is the ∅ half:
+     · read the OLDER names when the current one is absent, which resolves every committed artifact
+       without restamping a single one of them;
+     · an axis whose provenance resolves NOWHERE is UNKNOWN, and never a clock. `deviceDrawn !== true`
+       ADMITTED it, so an absent key defaulted to "not drawn" — the shape ∅ forbids. Admission now
+       needs a NEGATIVE verdict, and an unresolved one is refused by name.
+   `drawn` is `true`, `false` or `null`; `via` names the key that decided, so a reader sees WHICH
+   publication answered rather than only the conclusion. */
+function axisDrawnRead(d) {
+  var order = d
+    ? [
+        ['deviceDrawn', d.deviceDrawn],
+        ['hostAxis.drawn', d.drawn],
+        ['quality.axisDrawn', d.axisDrawn]
+      ]
+    : [];
+  for (var i = 0; i < order.length; i++) {
+    if (order[i][1] === true) return { drawn: true, via: order[i][0] };
+    if (order[i][1] === false) return { drawn: false, via: order[i][0] };
+  }
+  return { drawn: null, via: null };
+}
+
 function arrivalPairOffsets(devices, opts) {
   opts = opts || {};
   var list = (devices || []).filter(function (d) {
@@ -7311,13 +7342,15 @@ function arrivalPairOffsets(devices, opts) {
        −22.83 ppm at a 99.3 % drawn-delta share — a textbook-plausible crystal between the H10's −20
        and the Verity's −34 — and passes BOTH. It has no oscillator. Only the delta-concentration test
        separates it, and it does so with no overlap (real ≤ 56.00 %, drawn ≥ 79.04 % over 381 files). */
-    return d && d.ok === true && d.independent === true && d.deviceDrawn !== true && d.plausibleCrystal !== false && isFinite(d.offsetMs);
+    var dv = axisDrawnRead(d);
+    return d && d.ok === true && d.independent === true && dv.drawn === false && d.plausibleCrystal !== false && isFinite(d.offsetMs);
   });
   var refused = (devices || [])
     .filter(function (d) {
       return list.indexOf(d) < 0;
     })
     .map(function (d) {
+      var rv = axisDrawnRead(d);
       return {
         device: d && d.device,
         reason:
@@ -7325,13 +7358,17 @@ function arrivalPairOffsets(devices, opts) {
             ? 'axis refused'
             : d.independent !== true
               ? 'host column is not an independent clock'
-              : d.deviceDrawn === true
-                ? 'device axis is DRAWN — ' +
+              : rv.drawn === true
+                ? 'device axis is DRAWN (read from `' +
+                  rv.via +
+                  '`) — ' +
                   (d.drawnShare == null ? 'delta concentration' : (d.drawnShare * 100).toFixed(1) + ' % of deltas share one value') +
                   '; a synthesised counter, not a clock, whatever ppm it reports'
-                : d.plausibleCrystal === false
-                  ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
-                  : 'incomplete anchor'
+                : rv.drawn == null
+                  ? 'axis provenance is UNKNOWN — none of `deviceDrawn`, `hostAxis.drawn` or `quality.axisDrawn` is carried here, ' + 'so ∅ refuses rather than reading the absence as a clock'
+                  : d.plausibleCrystal === false
+                    ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
+                    : 'incomplete anchor'
       };
     });
   if (list.length < 2) return { ok: false, reason: 'need >=2 usable clocks', usable: list.length, refused: refused };
