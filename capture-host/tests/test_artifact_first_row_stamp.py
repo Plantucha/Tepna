@@ -154,6 +154,148 @@ def test_EVERY_stream_key_records_its_arrival(tmp_path):
             wr.close()
 
 
+# ── what the row hands the sidecars ───────────────────────────────────────────
+
+
+class _FeedSpy:
+    """Records the arguments a sidecar was fed, and does nothing else.
+
+    A spy rather than the real sidecar, because the property under test is the ARGUMENT the writer
+    hands over and a real sidecar can swallow a wrong one. `_RunSidecar` accumulates run state and
+    writes at close, `_SeamSidecar` emits only once a seam opens, so a host stamp replaced by `None`
+    can leave both files byte-identical. The observation belongs where the call is made.
+
+    `path`, `opened` and `close` exist so `StreamWriter.close` still runs over a spied writer: it
+    reads the run sidecar's path, asks the seam sidecar whether it opened, and closes both.
+    """
+
+    def __init__(self, path):
+        self.path, self.opened, self.calls = path, False, []
+
+    def feed(self, *args):
+        self.calls.append(args)
+
+    def close(self):
+        pass
+
+
+def _expected_feeds(t):
+    """What each stream's row hands its two sidecars, written out rather than read back from the call.
+
+    `runs` is `None` where the stream has no run sidecar at all — `RUN_MIN_BY_STREAM` decides that, and
+    §∅ keeps "there is no sidecar" apart from "the sidecar was fed nothing". An empty `seams` list is
+    the second of those: every writer owns a seam sidecar, and the ACC path records no seam on purpose.
+    The values repeat `_ROW_BY_STREAM`'s arguments deliberately. An expectation derived from the call
+    under test cannot disagree with it.
+    """
+    ns = 1_000_000_000
+    return {
+        "ecg": {"seams": [(t, ns)], "runs": [("ecg [uV]", 120, t)]},
+        "acc": {"seams": [], "runs": [("X [mg]", 1, t), ("Y [mg]", 2, t), ("Z [mg]", 3, t)]},
+        "accraw": {"seams": [], "runs": [("X [raw]", 1, t), ("Y [raw]", 2, t), ("Z [raw]", 3, t)]},
+        "pletha": {"seams": [(t, None)], "runs": None},
+        "ppg2w": {"seams": [(t, None)], "runs": [("channel 0", 7, t), ("channel 1", 8, t)]},
+        "ppg": {
+            "seams": [(t, ns)],
+            "runs": [("channel 0", 11, t), ("channel 1", 12, t), ("channel 2", 13, t)],
+        },
+        "ppg1": {"seams": [(t, ns)], "runs": [("channel 0", 11, t)]},
+        "gyro": {"seams": [(t, ns)], "runs": None},
+        "mag": {"seams": [(t, ns)], "runs": None},
+        "ppi": {"seams": [(t, ns)], "runs": None},
+        "hr": {"seams": [(t, ns)], "runs": None},
+    }
+
+
+def _spied(tmp_path, stream, want):
+    """A writer whose sidecars are spies, with the run sidecar's PRESENCE asserted before it is
+    replaced. Replacing a `None` run sidecar with a spy would test a path the shipped code never
+    takes for that stream, so the table's `None` is checked rather than worked around."""
+    wr = _writer(tmp_path, stream)
+    if want["runs"] is None:
+        assert wr._runs is None, f"{stream}: no run sidecar is expected here"
+    else:
+        assert wr._runs is not None, f"{stream}: a run sidecar is expected here"
+        wr._runs = _FeedSpy(str(tmp_path / f"X_{stream}.RUNS.txt"))
+    wr._seams = _FeedSpy(str(tmp_path / f"X_{stream}.SEAMS.txt"))
+    return wr
+
+
+def test_EVERY_stream_hands_its_sidecars_THE_HOST_STAMP_AND_THE_SAMPLE(tmp_path):
+    """🔴 The two clocks and the sample value reach the sidecars as ARGUMENTS, and nothing downstream
+    can recover one that arrived as `None`. A seam sidecar fed a null host stamp judges the interval
+    on one clock, and a run sidecar fed a null sample counts a run of absence the stream never had —
+    §∅ in the direction this repo has shipped before. Both are invisible in the written files, so the
+    call site is the only place the argument can be observed.
+
+    The table walks `_ROW_BY_STREAM`, so a stream added without an expectation here fails rather than
+    passing over a population this test never looked at."""
+    want_all = _expected_feeds(_FIRST)
+    assert set(want_all) == set(_ROW_BY_STREAM), (
+        "a stream gained or lost a row call — give it an expectation in _expected_feeds"
+    )
+    for stream, want in sorted(want_all.items()):
+        wr = _spied(tmp_path, stream, want)
+        try:
+            _ROW_BY_STREAM[stream](wr, _FIRST)
+            assert wr._seams.calls == want["seams"], f"{stream}: seam feed"
+            if want["runs"] is not None:
+                assert wr._runs.calls == want["runs"], f"{stream}: run feed"
+        finally:
+            wr.close()
+
+
+def test_a_FOUR_column_optical_row_feeds_ONLY_the_three_channels_the_file_holds(tmp_path):
+    """The run sidecar must follow the column count the row above it wrote, or it names a channel the
+    file has no column for. `write_ppg` writes `channel 0..2` plus ambient, so a fourth column is
+    dropped by the row and must be dropped by the feed as well. The one-column arm is the control:
+    the same code must feed exactly one channel when the device streams one reflectance path."""
+    want = _expected_feeds(_FIRST)["ppg"]
+    wr = _spied(tmp_path, "ppg", want)
+    try:
+        wr.write_ppg(_FIRST, 1_000_000_000, 0.0, [11, 12, 13, 14], 4)
+        assert [c[0] for c in wr._runs.calls] == ["channel 0", "channel 1", "channel 2"]
+        assert [c[1] for c in wr._runs.calls] == [11, 12, 13], "a dropped column is not a sample"
+    finally:
+        wr.close()
+    want1 = _expected_feeds(_FIRST)["ppg1"]
+    wr1 = _spied(tmp_path, "ppg1", want1)
+    try:
+        wr1.write_ppg(_FIRST, 1_000_000_000, 0.0, [11], 0)
+        assert wr1._runs.calls == want1["runs"], "one optical column feeds one channel"
+    finally:
+        wr1.close()
+
+
+# The two optical streams the ring delivers WITHOUT a device clock, which is why their `sensor_ns`
+# parameter is `int | None`. Both production call sites pass `None` (cmd 0x03 and cmd 0x05 publish no
+# device clock), so the table above feeds `None` and CANNOT see a writer that drops a clock it was
+# handed. The parameter exists so a later opcode carrying one can use it.
+_CLOCKLESS_BY_DESIGN = {
+    "pletha": lambda w, t, ns: w.write_pletha(t, ns, 4096, 0),
+    "ppg2w": lambda w, t, ns: w.write_ppg2w(t, ns, 7, 8, 9),
+}
+
+
+def test_a_CLOCKLESS_stream_handed_a_device_clock_still_passes_it_to_the_seam(tmp_path):
+    """The seam sidecar's whole job is to judge an interval against the device clock, so a writer that
+    accepts one and drops it is the defect this leg looks for. An expectation built only from today's
+    callers cannot see it: both pass `None`, and a mutant nulling the argument is then invisible.
+
+    This is the one case where the reachable input is narrower than the signature. The narrow input is
+    not the contract — the parameter is typed `int | None`, and the sibling tests in
+    `test_run_sidecar.py` already pass `0` through the same door."""
+    ns = 1_234_000_000
+    for stream, write in sorted(_CLOCKLESS_BY_DESIGN.items()):
+        want = _expected_feeds(_FIRST)[stream]
+        wr = _spied(tmp_path, stream, want)
+        try:
+            write(wr, _FIRST, ns)
+            assert wr._seams.calls == [(_FIRST, ns)], f"{stream}: the seam gets the clock it was handed"
+        finally:
+            wr.close()
+
+
 # ── the envelope that reads it ─────────────────────────────────────────────────
 
 

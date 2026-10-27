@@ -5612,6 +5612,27 @@
       "key": "- self._fh = open(path, \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"w\", buffering=1 << 17, newline=\"\\n\")",
       "probe": "MEASURED 2026-10-26 (Heron): wrote a three-row host-clock payload through the original kwargs and through all five mutants, flushed and closed each, and compared the raw bytes by SHA-256 — identical on all six, sha256[0:16] 6c75e7bf782502b2, 75 bytes. `os.linesep` reads '\\n' on this box. `1 << 17` == `2 << 16` == 131072, printed in the same run.",
       "why": "A buffer SIZE has no observable consequence: every assertion in this suite reads the file after a `flush()` or a `close()`, and both empty the buffer whatever its capacity. The same argument, in the same words, already excuses this mutant family on four sibling writers in this module."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "StreamWriter.write_ppg",
+      "key": "- for _i, _v in enumerate(cols[:1] if len(cols) == 1 else cols[:3]): | + for _i, _v in enumerate(cols[:1] if (len(cols) == 1) and False else cols[:3]):",
+      "probe": "tests/test_artifact_first_row_stamp.py — `test_EVERY_stream_hands_its_sidecars_THE_HOST_STAMP_AND_THE_SAMPLE` over all 11 stream keys, and `test_a_FOUR_column_optical_row_feeds_ONLY_the_three_channels_the_file_holds` over 1, 3 and 4 optical columns, with the run sidecar spied so every feed call is compared by label AND value. MEASURED 2026-10-26 by hand-planting each mutant into writers.py and running that file: these three survive, while `cols[:4]` on the same line and `feed(\"channel 0\", None, phone)` are both KILLED by the same legs. The legs are not blind to this line — these three are indistinguishable.",
+      "why": "`and False` makes the conditional always evaluate `cols[:3]`. The `cols[:1]` arm it disables is only ever taken for a ONE-element list, and a slice bound above the sequence length clamps, so `cols[:3]` over one column IS `cols[:1]`. Both forms yield the same single sample, and the loop below feeds the same one channel."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "StreamWriter.write_ppg",
+      "key": "- for _i, _v in enumerate(cols[:1] if len(cols) == 1 else cols[:3]): | + for _i, _v in enumerate(cols[:2] if len(cols) == 1 else cols[:3]):",
+      "probe": "tests/test_artifact_first_row_stamp.py — `test_EVERY_stream_hands_its_sidecars_THE_HOST_STAMP_AND_THE_SAMPLE` over all 11 stream keys, and `test_a_FOUR_column_optical_row_feeds_ONLY_the_three_channels_the_file_holds` over 1, 3 and 4 optical columns, with the run sidecar spied so every feed call is compared by label AND value. MEASURED 2026-10-26 by hand-planting each mutant into writers.py and running that file: these three survive, while `cols[:4]` on the same line and `feed(\"channel 0\", None, phone)` are both KILLED by the same legs. The legs are not blind to this line — these three are indistinguishable.",
+      "why": "`cols[:2]` sits in the arm guarded by `len(cols) == 1`, so it is only ever evaluated over a one-element list. A slice bound above the sequence length clamps, so it yields the same single element `cols[:1]` yields. The bound is unreachable rather than wrong."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "StreamWriter.write_ppg",
+      "key": "- for _i, _v in enumerate(cols[:1] if len(cols) == 1 else cols[:3]): | + for _i, _v in enumerate(cols[:1] if len(cols) == 2 else cols[:3]):",
+      "probe": "tests/test_artifact_first_row_stamp.py — `test_EVERY_stream_hands_its_sidecars_THE_HOST_STAMP_AND_THE_SAMPLE` over all 11 stream keys, and `test_a_FOUR_column_optical_row_feeds_ONLY_the_three_channels_the_file_holds` over 1, 3 and 4 optical columns, with the run sidecar spied so every feed call is compared by label AND value. MEASURED 2026-10-26 by hand-planting each mutant into writers.py and running that file: these three survive, while `cols[:4]` on the same line and `feed(\"channel 0\", None, phone)` are both KILLED by the same legs. The legs are not blind to this line — these three are indistinguishable.",
+      "why": "Two columns is the only length at which this condition could pick a different arm, and no input reaches the loop with two. The row write above it takes the else path for two columns and unpacks `c0, c1, c2 = cols[:3]`, which raises ValueError before the loop runs. At every reachable length the two forms agree: one column takes the else arm here and `cols[:3]` clamps to that single sample, and three or more columns take the else arm either way."
     }
   ],
   "solid_night.py": [
