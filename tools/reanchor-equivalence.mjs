@@ -242,8 +242,17 @@ export function probePlan(entries, generated) {
   const byTarget = new Map();
   for (const e of entries) {
     if (planEntry(e, generated).action !== 'reanchor') continue;
-    const k = codeKey(e);
-    const mutant = generated.filter((m) => codeKey(m) === k)[0];
+    /* THE TARGET IS THE CANDIDATE `planEntry` APPROVED, UNDER THE KEY IT DECIDED WITH. Taking the
+       first mutant carrying the entry's (op, before) instead picks a SIBLING when one line holds two
+       mutants of one operator — `if (i < n && j < m)` generates one mutant per `<`, same line, same
+       `before`, different `after`. Measured 2026-10-27 over the 102 movable entries: 35 got a target
+       whose `after` was not their own, and 51 read as colliding because the loose lookup collapsed
+       those siblings onto one target. Under this key the same 102 give 102 targets and 0 collisions.
+       The loose lookup was invisible until #3991 taught `planEntry` to read `after`: before that, an
+       entry whose (op, before) matched two mutants read as ambiguous and never arrived here. */
+    const cands = candidatesFor(e, generated);
+    if (cands.length !== 1) continue;
+    const mutant = cands[0];
     const id = key4(mutant);
     if (!byTarget.has(id)) byTarget.set(id, []);
     byTarget.get(id).push({ entry: e, mutant });
@@ -430,6 +439,28 @@ if (IS_MAIN && has('--selftest')) {
     'TWO entries naming ONE target collide, and NEITHER moves',
     twin.targets.length === 0 && twin.collisions.length === 1 && twin.collisions[0].length === 2,
     JSON.stringify({ t: twin.targets.length, c: twin.collisions.length })
+  );
+
+  /* One line, two mutants of one operator (`2026-10-27-the-probe-target-came-off-a-looser-key`). */
+  const gen3 = [T(40, 'cmp < → <=', 'if (i < n && j < m) {', 'if (i <= n && j < m) {'), T(40, 'cmp < → <=', 'if (i < n && j < m) {', 'if (i < n && j <= m) {')];
+  const E = (after) => ({ line: 97, op: 'cmp < → <=', before: 'if (i < n && j < m) {', after, class: 'no-distinguishing-input' });
+  const second = probePlan([E('if (i < n && j <= m) {')], gen3);
+  ok(
+    "a SIBLING at the same line does not become the target — the entry's own `after` picks it",
+    second.targets.length === 1 && second.targets[0].mutant.after === 'if (i < n && j <= m) {',
+    JSON.stringify(second.targets.map((t) => t.mutant.after))
+  );
+  const both = probePlan([E('if (i <= n && j < m) {'), E('if (i < n && j <= m) {')], gen3);
+  ok(
+    'two entries over two siblings give two targets and no collision',
+    both.targets.length === 2 && both.collisions.length === 0,
+    JSON.stringify({ t: both.targets.length, c: both.collisions.length })
+  );
+  const noAfter = probePlan([{ line: 97, op: 'cmp < → <=', before: 'if (i < n && j < m) {', class: 'no-distinguishing-input' }], gen3);
+  ok(
+    'an entry recording NO `after` is refused, never probed against a guessed sibling',
+    noAfter.targets.length === 0 && noAfter.collisions.length === 0,
+    JSON.stringify({ t: noAfter.targets.length, c: noAfter.collisions.length })
   );
 
   ok('a SURVIVED probe licenses the move', decideProbed(movable, 'survived').action === 'reanchor');

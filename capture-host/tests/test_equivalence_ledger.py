@@ -468,7 +468,8 @@ def test_a_FUNCTION_QUALIFIER_is_unique_within_its_module():
     makes the qualified identity the reachable one, so two qualified entries sharing it are one excuse
     standing for two mutants: the widening `tools/reanchor-equivalence.mjs --qualify` refuses to write and
     nothing else would catch if a qualifier were added by hand. Measured 2026-10-26 over the 261 qualified
-    entries: 0 collisions, which is why this is an invariant and not a target."""
+    entries: 0 collisions, which is why this is an invariant and not a target. Re-measured 2026-10-27
+    over 320, after #3995 probed and qualified 59 more: still 0."""
     dupes = []
     qualified = 0
     for path, led in _both_ledgers():
@@ -488,7 +489,7 @@ def test_a_FUNCTION_QUALIFIER_is_unique_within_its_module():
                     )
                 seen[ident] = i
     assert not dupes, "a function qualifier that excuses more than one mutant:\n  " + "\n  ".join(dupes)
-    # A pass over 0 qualified entries is a pass about nothing; the JS ledger carries 261 of them.
+    # A pass over 0 qualified entries is a pass about nothing; the JS ledger carries 320 of them.
     assert qualified > 0, "no ledger entry carries a qualifier — this test examined nothing"
 
 
