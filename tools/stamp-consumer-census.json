@@ -1,0 +1,41 @@
+{
+  "schema": "tepna.stamp-consumer-census/1",
+  "readAt": "2026-10-27",
+  "readBy": "Heron",
+  "derivation": "node tools/stamp-consumer-census.mjs",
+  "source": "briefs/RESIDUE.md row 2026-10-26-a-residue-census-enumeration-has-no-instrument-and-has-drifted-by-two",
+  "why": [
+    "The PATHS in this file are re-derived every run and are here only so a drift has something to disagree with. The READING is not re-derivable: what a file DOES with the stamp it matched is a human reading, so it is a datum and never a guess. An unread file is `reads: null` and the gate SHORTFALLs on its own debt rather than passing over it.",
+    "`anchored` applies to a `time` reading alone. True means the instant comes from a stamp owner that bounds the digit run and range-validates the components (`DexClock.fileStamp`, a local `_mkTMs` / `stampMk`, `writers.file_start_stamp`, `nightqc.floating_stamp_s`). False means the file slices the digits into a bare `Date.UTC` or `strptime` itself. Every other reading computes no instant, so §∅ makes its `anchored` null.",
+    "The parent census's predicate was the literal source text `\\d{14}`, so it saw one spelling of one read. Twelve files here spell the same fourteen digits out and were invisible to it — among them two the parent credited as FIXED, because a file with two readers leaves a spelling-keyed census when one reader is repaired."
+  ],
+  "files": {
+    "adapters/resmed-edf.js": { "reads": ["accept-test"], "anchored": null, "note": "`FNAME_RE` stays the accept test for the ResMed per-stream grammar; `stampOf` takes the instant from the owner beside it. The pattern decides membership, never a time." },
+    "capture-host/loss_audit.py": { "reads": ["docstring"], "anchored": null, "note": "The only sum-to-14 spelling is prose: the comment recording that the stamp is read anchored through `writers.file_start_stamp`, and that the `_(\\d{14})_` search which stood there was the audit F5 defect." },
+    "capture-host/nights_index.py": { "reads": ["time"], "anchored": true, "note": "Delegates to `nightqc.floating_stamp_s`, which owns the bound and the range check for the capture host." },
+    "capture-host/parse_dat.py": { "reads": ["time"], "anchored": false, "note": "`oxy_start_dt` searches an UNBOUNDED `(\\d{14})` over the basename and feeds `strptime`. The components are validated by strptime, but the run is not bounded and the scan runs left to right, which is the defect `clock.js` §BOUND names: a 14-digit device id wins over the session stamp beside it." },
+    "capture-host/ppg_grid_check.py": { "reads": ["accept-test"], "anchored": null, "note": "`_O2_PPG_RE` admits an O2Ring PPG filename. No instant is computed from the digits." },
+    "capture-host/writers.py": { "reads": ["docstring"], "anchored": null, "note": "Prose in `file_stamp` naming the two unanchored `_(\\d{14})_` searches it replaced. The writer itself is the stamp's source, not a reader of it." },
+    "clock.js": { "reads": ["time"], "anchored": true, "note": "THE OWNER. `fileStamp` scans from the right, bounds the digit run to a whole token and range-validates the components before `Date.UTC`." },
+    "cpapdex-app.js": { "reads": ["time"], "anchored": true, "note": "Routes the ResMed filename stamp through `CpapEdf.stampMk`, the node-local owner." },
+    "cpapdex-edf.js": { "reads": ["time"], "anchored": true, "note": "`_mkTMs` is the CPAP node's own range-checked maker. This bundle does not carry `clock.js`, so a node-local owner is the deliberate variant, not a mirror to remove." },
+    "dex-ingest.js": { "reads": ["identifier", "time"], "anchored": true, "note": "Two readers in one file: the stamp is part of the device-key accept pattern at the first site, and `stampMs` converts it through `_stampMk`, which refuses an out-of-range year and a rolled calendar day." },
+    "oxydex-dsp.js": { "reads": ["docstring"], "anchored": null, "note": "`_o2BinStartMs` delegates to `fileStamp`; the sum-to-14 spelling that remains is the comment recording why — a bare run took the first fourteen digits of a longer one, and the scan now runs from the right." },
+    "pat-classic-vs-fused.js": { "reads": ["accept-test"], "anchored": null, "note": "`stampOf` keeps the pattern as the accept test, because it encodes that the stamp sits before the stream suffix, and takes the instant from `DexClock.fileStamp`. The value is the key `nearest()` picks a session by, so a fabricated instant would pick the wrong session." },
+    "pat-feasibility.js": { "reads": ["identifier", "time"], "anchored": true, "note": "Role patterns key a session by the stamp string; `stampMs` length-tests it as the §∅ leg and converts through `_mkTMs`." },
+    "resp-acc-analysis.js": { "reads": ["identifier"], "anchored": null, "note": "`sessionStamp` returns `{ day, hhmmss }` as STRINGS and is exported for gating which nights a paper may see. No instant." },
+    "sensor-trio-night.js": { "reads": ["identifier", "time"], "anchored": true, "note": "Role patterns carry the stamp as a key; `stampMs` length-tests and converts through `_mkTMs`." },
+    "sensor-trio-power-analysis.js": { "reads": ["identifier", "time"], "anchored": true, "note": "Same shape as its two siblings: a role key, then `stampMs` through `_mkTMs`." },
+    "sigma-no-reference-analysis.js": { "reads": ["identifier", "time"], "anchored": true, "note": "Same shape again, and its own comment states the stronger rule: the night a file belongs to comes from its first data row, not its name." },
+    "tools/acc-acc-control.mjs": { "reads": ["time"], "anchored": false, "note": "Normalises both spellings, then slices the 14 digits into a bare `Date.UTC` with no range check, and the result buckets a night noon-to-noon for a control figure." },
+    "tools/cpap-corpus.mjs": { "reads": ["time"], "anchored": false, "note": "`stampOf` slices the matched date and time into a bare `Date.UTC`. The seconds it returns order the session clusters, so a rolled component mis-clusters a mask-off/on pair." },
+    "tools/cpap-sa2-agreement.mjs": { "reads": ["identifier"], "anchored": null, "note": "`SA2_STAMP`'s groups become a `YYYY-MM-DD` night key. No instant." },
+    "tools/device-stability.mjs": { "reads": ["identifier"], "anchored": null, "note": "`parseName` returns the stamp as a string beside vendor, model, device id and stream. The instants this tool compares come from the stream's own rows, not from the name." },
+    "tools/oracle-ecg-firmware-rr.mjs": { "reads": ["identifier"], "anchored": null, "note": "The stamp is the session key the oracle pairs an ECG with its firmware RR by." },
+    "tools/pat-window-oracle.mjs": { "reads": ["identifier"], "anchored": null, "note": "`tok` is a join key, and an ECG with no token is REPORTED rather than dropped — an unparseable name is an absence of a key, not of a recording." },
+    "tools/ppg-foot-residual-sweep.mjs": { "reads": ["identifier"], "anchored": null, "note": "Only the date half is used, as a `YYYY-MM-DD` per-night bucket key. No instant." },
+    "tools/pulse-agreement.mjs": { "reads": ["identifier"], "anchored": null, "note": "The stamp names the session a PPG file belongs to." },
+    "tools/trio-batch.mjs": { "reads": ["identifier", "time"], "anchored": false, "note": "Six full-name patterns bound the run, so the left-scan defect is absent, but `parse14` and `parse8_6` slice into `utc`, which is `Date.UTC` with no component validation. `nightKeyOf` then buckets the corpus plan off that value." },
+    "tools/wearable-sync.mjs": { "reads": ["time"], "anchored": false, "note": "Matches both spellings explicitly, per the Clock Contract's vendor-by-regex rule, then slices the groups into a bare `Date.UTC`. `nightOf` buckets evening-owns-the-night off the result." }
+  }
+}
