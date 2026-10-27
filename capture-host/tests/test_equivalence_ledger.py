@@ -178,6 +178,7 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # lines under the gate's own rewrite.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
+    "acq_evidence_o2ring.py": 1,
     "alerts.py": 1,
     "battery_history.py": 1,
     "ble_visibility.py": 4,

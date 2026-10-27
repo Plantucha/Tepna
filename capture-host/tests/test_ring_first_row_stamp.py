@@ -27,8 +27,10 @@ The properties under test, each stated as a control rather than an incidental as
 import calendar
 import datetime as dt
 import errno
+import logging
 import os
 
+import acq_evidence as ae
 import acq_evidence_o2ring as o2
 import writers
 
@@ -144,6 +146,116 @@ def test_an_ABSENT_reading_still_dates_the_file(tmp_path):
         wr.close()
 
 
+# ── the constructor both fields are set in ─────────────────────────────
+#
+# `first_row_ms` and `resumed` are both set in `__init__`, and the envelope reads BOTH, so the whole
+# constructor is this unit's business rather than its neighbour. The mutation gate scopes to changed
+# FUNCTIONS, which is how it named these properties: each one is a line a reader would call obvious
+# and no leg observed.
+
+
+def test_ANY_byte_already_in_the_file_is_a_RESUME(tmp_path):
+    """A file that holds data is appended to, never truncated — #2166 cost one writer exactly that
+    way, and the pruners read `resumed` before `os.remove`. The bound is ANY byte, because the
+    question a resume answers is whether an earlier episode's rows are in there."""
+    p = tmp_path / "Viatom_O2Ring_O2-1_20261021031500_SPO2.csv"
+    p.write_text("x")
+    wr = writers.Spo2CsvWriter(str(p), fsync=False)
+    try:
+        assert wr.resumed is True
+        assert wr._fh.mode == "a", "a resumed file is appended to"
+    finally:
+        wr.close()
+    assert p.read_text().startswith("x"), "the byte that made this a resume has to survive the open"
+
+
+def test_an_EMPTY_file_is_NOT_a_resume_and_still_gets_its_header(tmp_path):
+    """The control for the leg above, and the reason the bound is a byte count rather than existence:
+    a zero-length file holds no earlier rows, so appending to it would leave a CSV with no header
+    line and every consumer reading its first row as the column names."""
+    p = tmp_path / "Viatom_O2Ring_O2-1_20261021031500_SPO2.csv"
+    p.write_text("")
+    wr = writers.Spo2CsvWriter(str(p), fsync=False)
+    try:
+        assert wr.resumed is False
+        assert wr._fh.mode == "w", "a file with nothing in it is opened fresh"
+    finally:
+        wr.close()
+    assert p.read_text().startswith("Time,Oxygen Level,Pulse Rate,Motion")
+
+
+def test_a_FRESH_path_is_opened_for_writing_not_appending(tmp_path):
+    """The mode is the only place the resume decision becomes visible before a row is written, and an
+    unconditional append would leave the decision correct and the open wrong."""
+    wr = _writer(tmp_path)
+    try:
+        assert wr.resumed is False
+        assert wr._fh.mode == "w"
+    finally:
+        wr.close()
+
+
+def test_the_writer_JOINS_the_open_set_under_its_own_path_and_LEAVES_it(tmp_path):
+    """`live_loss_check` examines the paths the daemon believes it has open, so a writer missing from
+    that set, or sitting in it under the wrong key, is a file the guard reports clean about without
+    looking. The Polar twin states the same property in `test_live_loss_guard.py`.
+
+    The close half is not decoration: a writer registered under a token its own close cannot match
+    stays in the set for the life of the process, which turns every later guard pass into a finding
+    about a file nobody is writing."""
+    before = writers.open_writer_paths()
+    wr = _writer(tmp_path)
+    path = str(tmp_path / "Viatom_O2Ring_O2-1_20261021031500_SPO2.csv")
+    try:
+        assert path in writers.open_writer_paths()
+        assert len(writers.open_writer_paths()) == len(before) + 1 == writers.open_sample_writers()
+    finally:
+        wr.close()
+    assert writers.open_writer_paths() == before
+
+
+def test_the_LOST_ROW_line_names_the_FILE_the_row_was_lost_from(tmp_path, caplog):
+    """The transition line is the only place a 3am reader learns WHICH file stopped taking rows, and
+    it reads its path from the health object this constructor builds."""
+    wr = _writer(tmp_path)
+    fh = _WriteFailingFH()
+    path = str(tmp_path / "Viatom_O2Ring_O2-1_20261021031500_SPO2.csv")
+    try:
+        wr._fh = fh
+        with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+            wr.write(_FIRST, 96, 58, 0)
+        assert wr.rows_lost >= 1
+        said = [r.getMessage() for r in caplog.records if "ROW LOST" in r.getMessage()]
+        assert said, "a lost row says so once"
+        assert path in said[0], "and it names the file it was lost from"
+    finally:
+        fh.failing = False
+        wr.close()
+
+
+def test_the_rows_WAIT_IN_A_BUFFER_rather_than_costing_a_write_each(tmp_path):
+    """One row per second for a night is ~29k rows, and the flush policy — not the buffer size — is
+    what bounds crash loss. So the buffer is explicit and larger than the interpreter's default.
+
+    Stated as two checkpoints because one is satisfiable from either side. Measured 2026-10-27 with
+    a 28-byte row and no flush: the shipped 64 KiB buffer holds 56,036 bytes (0 on disk) and has
+    written 57,436 by 84,036; the interpreter default of 8,192 is already on disk at the first
+    checkpoint; a 128 KiB buffer is still holding everything at the second."""
+    wr = writers.Spo2CsvWriter(str(tmp_path / "buf_SPO2.csv"), flush_interval=1e9, fsync=False)
+    try:
+        for _ in range(2000):
+            wr.write(_FIRST, 96, 58, 0)
+        assert wr.rows == 2000
+        held = os.path.getsize(wr.path)
+        assert held == 0, f"56k of rows fit in the buffer; {held} bytes reached the disk"
+        for _ in range(1000):
+            wr.write(_FIRST, 96, 58, 0)
+        assert os.path.getsize(wr.path) > 0, "84k of rows does not fit, so the buffer has turned over"
+    finally:
+        wr.close()
+    assert os.path.getsize(wr.path) == 28 * 3000 + 36, "and close writes the tail out"
+
+
 # ── what the envelope does with it ─────────────────────────────────────────────
 
 
@@ -239,3 +351,46 @@ def test_the_capture_seam_passes_the_WRITER_S_stamp():
     # ANCHORED ON THE LINE START: the session-start expression is still there under the instance
     # keyword, and an unanchored `in` reads `instance_start_time_ms=…` as the defect it looks for.
     assert "\n            start_time_ms=calendar.timegm(" not in src
+
+
+# ── the fields the envelope carries past them ─────────────────────────────────
+#
+# Adding two parameters to `assemble_live` put every line of it in scope, and these are the ones no
+# leg observed: a pass-through reads as obvious until it passes something else through.
+
+
+def test_the_envelope_carries_the_IDENTITY_it_was_given():
+    """A live envelope that named no device, or named the wrong signal, would still serialise and
+    still validate — the fields are free strings. So the identity is asserted, not assumed."""
+    ev = _env()
+    assert ev.device_id == "O2-1"
+    assert ev.session_id == "20261021031500"
+    assert ev.signal == o2._SIGNAL
+    assert ev.source == ae.SOURCE_LIVE
+    assert ev.artifact_path == "/n/Viatom_O2Ring_O2-1_20261021031500_SPO2.csv"
+
+
+def test_an_UNMEASURED_clock_offset_and_device_state_are_the_SENTINELS_not_None():
+    """§∅ at the envelope's edge: the honest absence of a clock offset is `ClockOffset.unknown()`,
+    whose every member says unknown, and not a `None` a consumer reads as a field that was never
+    wired. `device_state` is the same shape in a plain string."""
+    ev = _env()
+    assert ev.clock_offset == ae.ClockOffset.unknown()
+    assert ev.device_state == ae.UNKNOWN
+    assert ev.duration_check == ae.DurationCheck.build(stored_s=None, observed_s=None)
+
+
+def test_a_MEASURED_clock_offset_and_device_state_SURVIVE_the_envelope():
+    """The control for the leg above, and it is the half that can break quietly: a substitution that
+    always reports the sentinel satisfies the absence test and discards every real measurement.
+    Declare-never-correct means this offset is the only record that a measurement happened."""
+    offset = ae.ClockOffset(
+        offset_sec=-1.25,
+        measured_at_ms=_ms(_SESSION),
+        reference="host-stratum1",
+        method="GetDateTime",
+    )
+    ev = _env(clock_offset=offset, device_state="charging")
+    assert ev.clock_offset == offset
+    assert ev.clock_offset.offset_sec == -1.25
+    assert ev.device_state == "charging"
