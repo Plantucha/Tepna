@@ -20531,6 +20531,122 @@
       T.eq('…as a DISAGREEMENT (the tree carries three, the fold judged nothing)', unstamped.disagreements.length, 1);
     });
 
+    /* ════ WHICH TRIO EXPORTS CARRY A RECORDED CODE ERA ════════════════════════════════════════════
+       Row `2026-10-12-rejected-trio-nights-keep-exports-no-fold-rewrites`. A night's `.trio-stamp` is
+       the only record of the code that wrote that night's exports, so an export sitting in a night the
+       fold never stamped has NO era: nothing in the tree says which DSP produced it. The row asked first
+       for the measurement, and the measurement is sharp — 80 of 415 tracked exports, over 57 nights.
+
+       THE STAMP IS A PERFECT LEG PROXY TODAY, AND THAT IS A MEASUREMENT. Over the tracked tree the
+       nights carrying all three trio exports and the nights carrying a stamp have an empty symmetric
+       difference (90 and 90). So a THREE-LEG consumer structurally cannot reach an era-less export, and
+       the exposure is confined to the partial-leg tools. The legs below assert that equality as the
+       verdict's PRE-STATED criterion rather than as a hope: a 2-of-3 night that gains a third export
+       without a stamp breaks it and REDS, which is the tripwire the published count needs.
+
+       The criterion is deliberately NOT the unrecorded count — a threshold read off the figure it
+       publishes is UNKNOWN under §🧾, so the count rides in `result` and the disagreement count is what
+       is judged. Node lane only: the live side lists git-tracked paths, so the browser lane SKIPs. */
+    group('every trio export is placed against the code era its night recorded', 'docs · claude-md · trio-era', function (T) {
+      var TE = env.trioEra || {},
+        era = TE.committed,
+        liveE = TE.live,
+        modE = TE.mod;
+      if (!era || !liveE || !modE) {
+        T.skip('the era artifact, its producer and the tracked corpus are in env', 'Node-lane only — run-tests.mjs wires env.trioEra (committed + live + mod)');
+        return;
+      }
+      var r = era.result || {},
+        ex = r.exports || {},
+        px = r.proxy || {};
+
+      T.eq('the artifact is a tepna.verdict/1', era.schema, 'tepna.verdict/1');
+      T.eq('…named for the thing it decides', era.gate, 'trio-export-era');
+      T.eq('…and names its producer', era.producedBy && era.producedBy.tool, 'tools/fold-generation.mjs');
+      T.eq('…scoped (only a publishable verdict may be quoted outside the repo)', era.scope, 'internal');
+      T.ok(
+        '…under a PRE-STATED criterion that is NOT the count it publishes',
+        !!era.criterion && era.criterion.name === 'stamp_three_leg_disagreements' && era.criterion.threshold === 0 && era.criterion.direction === 'lte',
+        JSON.stringify(era.criterion)
+      );
+      T.ok('…over a population that is not empty', (era.population || {}).checked > 0, 'checked: ' + (era.population || {}).checked);
+      T.eq('checked + excluded = eligible', era.population.checked + era.population.excluded, era.population.eligible);
+      T.eq('the population IS the export count it judges', era.population.checked, ex.total);
+
+      // ── THE COUNT IS ITS OWN PARTS, both ways round ───────────────────────────────────────────
+      T.eq('recorded + unrecorded = the total exports', ex.recorded + ex.unrecorded, ex.total);
+      T.eq('stamped + unstamped = the nights', r.stamped + r.unstamped, r.nights);
+      T.eq('the unrecorded-night list is as long as the unstamped count it reports', (r.unrecordedNights || []).length, r.unstamped);
+      T.eq(
+        'the per-node tally sums to the unrecorded exports',
+        Object.keys(r.unrecordedByNode || {}).reduce(function (a, k) {
+          return a + r.unrecordedByNode[k];
+        }, 0),
+        ex.unrecorded
+      );
+      T.ok(
+        'the unrecorded-night names are sorted and unique (a duplicate would inflate the count)',
+        (r.unrecordedNights || []).every(function (n, i) {
+          return i === 0 || r.unrecordedNights[i - 1].night < n.night;
+        }),
+        (r.unrecordedNights || []).length + ' nights'
+      );
+
+      /* THE PROXY FACT, asserted rather than assumed — this is what confines the exposure to the
+         partial-leg consumers, so it is the one equality worth a tripwire. */
+      T.eq('a three-export night and a stamped night are the same set', px.threeLegNights, px.stampedNights);
+      T.eq('…with no night on one side only', (px.disagreements || []).length, 0);
+      T.eq('…and the verdict says so, under a status that is not FAIL', era.status, 'PASS');
+      T.eq('a PASS carries no reason', era.reason, null);
+      T.ok('…over evidence that is not empty', (era.evidence || []).length > 0, JSON.stringify(era.evidence));
+
+      // ── CURRENCY: the producer's own census over the tracked tree, now ─────────────────────────
+      T.eq('the committed export total IS the tracked tree measured today', ex.total, liveE.exports.total);
+      T.eq('…and so is the count with no recorded era', ex.unrecorded, liveE.exports.unrecorded);
+      T.eq('the committed night counts are the tracked tree too', r.nights + '/' + r.stamped + '/' + r.unstamped, liveE.nights + '/' + liveE.stamped + '/' + liveE.unstamped);
+      T.eq(
+        'the committed unrecorded-night list IS the tracked tree measured today',
+        (r.unrecordedNights || [])
+          .map(function (n) {
+            return n.night;
+          })
+          .join(' '),
+        liveE.unrecordedNights
+          .map(function (n) {
+            return n.night;
+          })
+          .join(' ')
+      );
+      T.eq('the per-node tally is the tracked tree too', JSON.stringify(r.unrecordedByNode), JSON.stringify(liveE.unrecordedByNode));
+      T.eq(
+        'no tracked night disagrees with its own stamp today',
+        liveE.proxy.disagreements
+          .map(function (d) {
+            return d.night;
+          })
+          .join(' '),
+        ''
+      );
+
+      /* ── KNOWN ANSWERS on the pure node reader (the tool's own --selftest carries 17 more) ──────
+         The whole-name trap from the group above, in the other direction: `PpgDexFinger_<night>` is a
+         node of its own, and reading it as the PpgDex leg would make an unstamped 2-of-3 night look
+         complete. The node is the token BEFORE the first `_`, never a prefix match. */
+      T.eq('the node is the token before the first underscore', modE.nodeOfExport('ECGDex_2026-07-01.node-export.json'), 'ECGDex');
+      T.eq('PpgDexFinger is its own node, not the PpgDex leg', modE.nodeOfExport('PpgDexFinger_2026-07-01.node-export.json'), 'PpgDexFinger');
+      T.eq('a name with no underscore is the whole stem', modE.nodeOfExport('OxyDex.node-export.json'), 'OxyDex');
+      T.eq('a file that is not an export is not a node', modE.nodeOfExport('.trio-stamp'), null);
+      T.ok('the three trio legs are named, not inferred', modE.ERA_TRIO_NODES.join(' ') === 'ECGDex OxyDex PpgDex', modE.ERA_TRIO_NODES.join(' '));
+
+      /* An absent corpus examines NOTHING, and says so (§∅ · §🧾): NOT_RUN with a null result, never a
+         PASS over zero and never a 0 standing in for an unmeasured count. */
+      var none = modE.eraVerdict(modE.eraCensus('uploads/absent-era-root'), { commit: null, at: '2026-10-27T00:00:00Z' });
+      T.eq('an absent corpus is NOT_RUN', none.status, 'NOT_RUN');
+      T.eq('…with a null result, not a zero', none.result, null);
+      T.ok('…and a reason that names what was missing', typeof none.reason === 'string' && none.reason.length > 0, String(none.reason));
+      T.eq('…over a population of nothing', none.population.checked, 0);
+    });
+
     /* ════ 8d² · SECURITY — CSP on the UNBUNDLED analysis/landing pages (N1 · PRIVACY-SECURITY-AUDIT-2026-07-13) ════
        The 10 owned bundles carry a meta-CSP; the standalone analysis/research pages + index.html did not,
        though they ingest recordings and persist checkpoints (which dex-forget already erases). This leg
