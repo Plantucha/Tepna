@@ -451,8 +451,11 @@ function selftest() {
      nothing in the repository, and the declared set could be empty. */
   let live = null;
   let liveErr = null;
+  let liveDeclared = [];
   try {
-    live = censusVerdict({ measured: measure(), declared: loadDeclared(), at: '2026-10-27T00:00:00Z' });
+    const ld = loadDeclared();
+    liveDeclared = Object.keys(ld.files);
+    live = censusVerdict({ measured: measure(), declared: ld, at: '2026-10-27T00:00:00Z' });
   } catch (e) {
     liveErr = String(e && e.message);
   }
@@ -466,6 +469,15 @@ function selftest() {
     '…and the declared census still describes the tree',
     !!live && live.result.entries.length === 0 && live.result.departures.length === 0,
     JSON.stringify(live && { entries: live.result.entries, departures: live.result.departures })
+  );
+  /* 🔴 THE INSTRUMENT IS IN ITS OWN POPULATION, and this leg is how that was found: the selftest was
+     green while git had not yet tracked the file, and red on the first run after the commit. Excluding it
+     would make the one file that decides membership the only file nobody re-derives, so the declaration
+     is pinned here. With the census agreeing above, a declared path is a measured path. */
+  ok(
+    '\u2026and the instrument is inside the census it derives, declared like any other file',
+    !!live && liveDeclared.includes(SELF) && live.result.entries.length === 0 && live.result.departures.length === 0,
+    SELF + ' declared=' + (liveDeclared.includes(SELF) ? 'yes' : 'no')
   );
 
   const ran = PASSED.length + fail;
