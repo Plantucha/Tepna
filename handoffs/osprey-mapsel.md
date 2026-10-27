@@ -14,7 +14,7 @@ selftest runs 238 legs green, 24 of them new. The changeset is `changes/2026-10-
 rows drafted in the scratchpad, with the number read back from `gh pr view`.
 
 **Open questions.** Should a sweep whose input moved VOID its numbers, as a failed canary voids
-`killed`? Row `2026-10-27-a-sweep-whose-input-moved-annotates-rather-than-refusing` asks the owner.
+`killed`? The third row this PR appends asks the owner.
 The parent row stays OPEN, because nothing here proves what moved the three legs of 2026-10-20.
 
 **Blockers.** None. The probes need no corpus and no box.
