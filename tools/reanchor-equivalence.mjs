@@ -301,8 +301,23 @@ export function verdictFields(tally) {
   let status = 'PASS';
   let reason = null;
   if (!checked) {
-    status = 'NOT_RUN';
-    reason = tally.movable ? 'no probe ran: report-only mode examines addresses, never claims' : 'no entry has drifted, so there was nothing to probe';
+    /* Three states hide behind "nothing was checked", and the contract's table gives each its own
+       word. Nothing is eligible: the gate read every entry and the false-excuse rule does not bind
+       (NOT_APPLICABLE). Entries are eligible and the invocation declared no probe: the criterion
+       never executed (NOT_RUN). Entries are eligible, probes ran, and not one reached a verdict:
+       the gate ran and could not decide (UNKNOWN). The first two carry `result: null`, because
+       the contract gives a result only to a criterion that was evaluated — a census is not a
+       decision, and the counts stay in the printed output. */
+    if (!tally.movable) {
+      status = 'NOT_APPLICABLE';
+      reason = 'no entry has drifted, so no excuse is up for refutation and the criterion does not bind';
+    } else if (!excluded) {
+      status = 'NOT_RUN';
+      reason = 'report-only mode examines addresses and probes no claim, so the criterion never ran over the ' + tally.movable + ' movable entr(ies)';
+    } else {
+      status = 'UNKNOWN';
+      reason = 'every one of the ' + excluded + ' probed entr(ies) reached no verdict (' + tally.unprobed + ' unprobed, ' + tally.collided + ' colliding on one target), so the run decided nothing';
+    }
   } else if (tally.refuted) {
     status = 'FAIL';
     reason = tally.refuted + ' excusing entr(ies) name a mutant a group KILLS — a false excuse, and those addresses stay orphaned';
@@ -315,14 +330,17 @@ export function verdictFields(tally) {
     reason,
     population: { checked, eligible: checked + excluded, excluded },
     criterion: { name: 'refuted_excuses', threshold: 0, unit: 'entries', direction: 'lte' },
-    result: {
-      movable: tally.movable,
-      reanchored: tally.survived + tally.agreeing,
-      refuted: tally.refuted,
-      unprobed: tally.unprobed,
-      collided: tally.collided,
-      voidedFiles: tally.voidedFiles || []
-    }
+    result:
+      status === 'NOT_RUN' || status === 'NOT_APPLICABLE'
+        ? null
+        : {
+            movable: tally.movable,
+            reanchored: tally.survived + tally.agreeing,
+            refuted: tally.refuted,
+            unprobed: tally.unprobed,
+            collided: tally.collided,
+            voidedFiles: tally.voidedFiles || []
+          }
   };
 }
 
@@ -354,20 +372,24 @@ export function makeQualifyVerdict(tq) {
     status: checked ? 'PASS' : 'NOT_RUN',
     population: { checked, eligible: checked, excluded: 0 },
     criterion: { name: 'qualifiers_resolving_to_other_than_one_mutant', threshold: 0, unit: 'entries', direction: 'lte' },
-    result: {
-      qualifiable: tq.write,
-      identityCollides: tq.collides,
-      topLevel: tq.topLevel,
-      noAfterRecorded: tq.legacy,
-      drifted: tq.drifted,
-      alreadyQualified: tq.already,
-      ambiguousWritten: 0,
-      /* The retrospective: of the already-drifted entries, how many a qualifier would place. */
-      driftPlacedForAnyFn: tq.wouldAnyFn,
-      driftPlacedOnlyForSomeFn: tq.wouldSomeFn,
-      driftNeverPlaceable: tq.wouldNever,
-      driftMutationGone: tq.wouldGone
-    },
+    /* Same rule as the re-anchor object above: NOT_RUN examined no entry, so it carries no result.
+       Latent against today's 434-entry ledger and reachable the moment the ledger is empty. */
+    result: !checked
+      ? null
+      : {
+          qualifiable: tq.write,
+          identityCollides: tq.collides,
+          topLevel: tq.topLevel,
+          noAfterRecorded: tq.legacy,
+          drifted: tq.drifted,
+          alreadyQualified: tq.already,
+          ambiguousWritten: 0,
+          /* The retrospective: of the already-drifted entries, how many a qualifier would place. */
+          driftPlacedForAnyFn: tq.wouldAnyFn,
+          driftPlacedOnlyForSomeFn: tq.wouldSomeFn,
+          driftNeverPlaceable: tq.wouldNever,
+          driftMutationGone: tq.wouldGone
+        },
     evidence: ['tools/reanchor-equivalence.mjs', 'tools/mutate-equivalence.json'],
     reason: checked ? null : 'no ledger entry was examined, so nothing was decided',
     producedBy: commit
@@ -493,9 +515,46 @@ if (IS_MAIN && has('--selftest')) {
   ok('every entry surviving its probe is a PASS', vf({ movable: 3, survived: 3 }).status === 'PASS');
   ok('a refuted excuse FAILS, and the reason counts them', vf({ movable: 3, survived: 2, refuted: 1 }).status === 'FAIL');
   ok('an unprobed entry is a SHORTFALL, never a pass over a smaller denominator', vf({ movable: 3, survived: 2, unprobed: 1 }).status === 'SHORTFALL');
-  ok('report-only examined no claim, so it is NOT_RUN', vf({ movable: 7 }).status === 'NOT_RUN');
+  ok(
+    'report-only never ran the criterion, so it is NOT_RUN carrying no result',
+    vf({ movable: 7 }).status === 'NOT_RUN' && vf({ movable: 7 }).result === null,
+    vf({ movable: 7 }).status + ' result=' + JSON.stringify(vf({ movable: 7 }).result)
+  );
+  ok('a ledger with nothing drifted is NOT_APPLICABLE, never NOT_RUN — the gate read every entry', vf({}).status === 'NOT_APPLICABLE' && vf({}).result === null, vf({}).status);
+  ok(
+    'probes that all reached no verdict are UNKNOWN, never report-only — the gate ran and decided nothing',
+    vf({ movable: 3, unprobed: 2, collided: 1 }).status === 'UNKNOWN',
+    vf({ movable: 3, unprobed: 2, collided: 1 }).status
+  );
   const pop = vf({ movable: 5, survived: 2, agreeing: 1, unprobed: 1, collided: 1 }).population;
   ok('checked + excluded = eligible, over the movable set', pop.checked + pop.excluded === pop.eligible && pop.checked === 3, JSON.stringify(pop));
+  /* 🔴 THE LEG THAT WAS MISSING. The four legs above read `.status` alone, and the one object this
+     selftest validated came from `sampleTally()`, which is a PASS. So the suite stayed green over an
+     object the shipped path could not emit: report-only built a NOT_RUN carrying a result, and
+     `validate()` refuses that shape, so the bare run printed its whole census and exited 1. Every
+     arm now validates as a whole object. Residue
+     2026-10-27-the-report-only-census-emits-an-invalid-verdict. */
+  const arms = [
+    ['PASS', { movable: 3, survived: 3 }],
+    ['FAIL', { movable: 3, survived: 2, refuted: 1 }],
+    ['SHORTFALL', { movable: 3, survived: 2, unprobed: 1 }],
+    ['NOT_RUN', { movable: 7 }],
+    ['NOT_APPLICABLE', {}],
+    ['UNKNOWN', { movable: 3, unprobed: 2, collided: 1 }]
+  ];
+  for (const [want, t] of arms) {
+    const obj = makeVerdict(Object.assign({ movable: 0, survived: 0, refuted: 0, agreeing: 0, unprobed: 0, collided: 0, voidedFiles: [] }, t));
+    const chkArm = Verdict.validate(obj);
+    ok('the ' + want + ' arm emits an object the contract accepts, not only the right word', obj.status === want && chkArm.ok === true, obj.status + ' · ' + (chkArm.errors || []).join('; '));
+  }
+  /* The qualifier object takes the same rule: an empty ledger examines no entry. */
+  const vqEmpty = makeQualifyVerdict({ entries: 0, write: 0, collides: 0, topLevel: 0, legacy: 0, drifted: 0, already: 0, wouldAnyFn: 0, wouldSomeFn: 0, wouldNever: 0, wouldGone: 0 });
+  const chkQ = Verdict.validate(vqEmpty);
+  ok(
+    'an empty ledger makes the qualifier NOT_RUN with no result, and the object validates',
+    vqEmpty.status === 'NOT_RUN' && vqEmpty.result === null && chkQ.ok === true,
+    vqEmpty.status + ' · ' + (chkQ.errors || []).join('; ')
+  );
   /* The writer's format, pinned against the committed bytes rather than against a belief about them. */
   const ledgerRaw = (() => {
     try {
