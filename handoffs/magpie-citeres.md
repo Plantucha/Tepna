@@ -93,6 +93,25 @@ pipe split, which is the §🔴 lesson above. Run 2 redded at step 12 of 41 on
 `.claude/hooks/guard-stale-brief.test.sh`, `a payload path is reported as named by the payload`,
 `got ABSENT want PRESENT`. **Three controls cleared that one: `origin/main` at `44774865e`, my own
 base `ddc5c0961`, and an immediate re-run of the identical tree in this worktree.** So it is neither
-the ref nor the diff, and it is logged as a flake sighting. ⚠️ **A second red lands while the first
+the ref nor the diff, so `flake-sightings.md` carries it as a third row. ⚠️ **A second red lands while the first
 one is still fresh, and that is when a transient reads as a finding** — run the control before
 touching the diff.
+
+## RUN 4 — 2026-10-27, over Kodiak's base merge `cec21dc44`, head `9cd4229c8`
+
+Kestrel undrafted the PR, so Kodiak merged main in and brought Heron's `rejexp` across
+`tests/dex-tests.js` and `tests/run-tests.mjs`. Benign §2d case, my commit contained. I merged it
+back, grepped all three of my changes to prove each one survived, pushed, and re-gated the merged
+state.
+
+The run reads `CR4_EXIT=1` at step 37 of 41, `verify:pr-compliance`, and it names the paragraph
+above this one: one `passive` finding from `tools/ste-lint.mjs` on my own new handoff prose.
+
+⚠️ **A PROSE LINTER READS THE HANDOFF I WRITE ABOUT THE GATE, SO THE LAST PARAGRAPH OF A UNIT STILL
+COSTS A GATE STEP.** Run `node tools/ste-lint.mjs <file>` on a handoff before launching the gate, and
+capture the exit code with no pipe in front of it.
+
+Everything below that step stayed green: the suite reads **14,571 assertions over 834 groups**, and
+the citation gate reads 1559 citations over 568 files against 912 rows. The run also skipped four
+steps it never reached — `verify:verdict-adoption`, `verify:manifest`, `verify:fixture-currency` and
+`test:hooks` — so this run says nothing about them, and run 5 covers them.
