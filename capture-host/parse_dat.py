@@ -28,10 +28,10 @@ import csv
 import datetime
 import json
 import os
-import re
 import sys
 
 import verdict as VD
+import writers
 
 HEADER_LEN = 10
 _TRAILER_LEN = 48
@@ -76,13 +76,23 @@ def parse_oxy_dat(data: bytes):
 
 
 def oxy_start_dt(fname):
-    """Absolute start from the 14-digit filename stamp (local civil), else None."""
-    m = re.search(r"(\d{14})", os.path.basename(fname or ""))
-    if not m:
+    """Absolute start from the 14-digit filename stamp (local civil), else None.
+
+    THE STAMP COMES FROM `writers.file_start_stamp`, the one owner of "which digits in a capture
+    filename are the stamp". The `re.search(r"(\\d{14})")` that stood here was unbounded on both
+    ends, and the two readings it manufactured were measured on 2026-10-27: a fifteen-digit run
+    answered with its first fourteen digits, and a date-shaped id ahead of the real stamp answered
+    eighteen months early. The owner bounds the run and reads the fields from the RIGHT; its only
+    year bound is `_DATE14`'s `(?:19|20)` century prefix, NOT the 1990 floor `DexClock.fileStamp`
+    carries, because it never has to tell a stamp from a serial by plausibility. `strptime` below
+    decides calendar validity, which is why a digit run that is not a date stays None rather than
+    rolling onto a real one."""
+    stamp = writers.file_start_stamp(os.path.basename(fname or ""))
+    if not stamp:
         return None
     try:
         # naive datetime is intentional: device stores LOCAL CIVIL time, no TZ (house rule #2)
-        return datetime.datetime.strptime(m.group(1), "%Y%m%d%H%M%S")  # noqa: DTZ007
+        return datetime.datetime.strptime(stamp, "%Y%m%d%H%M%S")  # noqa: DTZ007
     except ValueError:
         return None
 

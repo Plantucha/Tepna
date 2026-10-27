@@ -716,11 +716,22 @@ def file_start_stamp(fname: str) -> str | None:
 
     Anchored from the RIGHT, exactly as `file_device_id` below argues: the stamp is the token before
     the stream tag, or the two tokens before it. None when neither layout fits — an absent stamp is
-    reported, never guessed (CLAUDE.md §∅)."""
+    reported, never guessed (CLAUDE.md §∅).
+
+    THE THIRD LAYOUT IS THE DEVICE'S OWN NAME, `<YYYYMMDDHHMMSS>.dat`, which carries no stream tag
+    because nothing on this host wrote it: the O2Ring names its onboard backup itself. `parse_dat`
+    reads those files and had its own `re.search(r"(\\d{14})")`, which is UNBOUNDED on both ends, so
+    it took the first fourteen digits of a longer run and of an earlier field. Measured on
+    2026-10-27: `202607252250581.dat` (fifteen digits) answered 2026-07-25 22:50:58, a stamp the
+    name does not carry, and `Wellue_O2Ring-S_20250101000000_20260725225058_STORED.dat` answered
+    2025-01-01, the audit F5 defect eighteen months out. The whole basename must BE the run for this
+    branch to fire — `_DATE14` is anchored at both ends, so a fifteenth digit refuses rather than
+    truncating — and it is reached only when the name carries no field to read from the right, so the
+    two layouts above decide every capture-written name exactly as they did before."""
     base = fname.rpartition(".")[0] or fname
     parts = base.split("_")
     if len(parts) < 2:
-        return None
+        return base if _DATE14.match(base) else None
     tok = parts[-2]  # parts[-1] is the stream tag
     if _DATE14.match(tok):
         return tok
