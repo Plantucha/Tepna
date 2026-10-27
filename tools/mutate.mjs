@@ -797,6 +797,54 @@ export function parseZeroBaseline(jsonText) {
   }
 }
 
+/* ── THE BASELINE MUST BE MEASURED IN THE TREE THE MUTANTS RUN IN ──────────────────────────────
+   The calibration run — the one clean suite pass that sizes the timeout and certifies the baseline —
+   runs with `cwd: ROOT`. Every mutant on the pool path runs in a worker, which is `cp -al` of every
+   ROOT entry EXCEPT `.git`, `node_modules`, `coverage` and `.nyc_output`. So the baseline certifies an
+   environment no mutant ever sees.
+
+   🔴 MEASURED 2026-10-27, both arms, one command (`node tests/run-tests.mjs`), one commit:
+     · in the worktree (`.git` present): all 14470 assertions passed, 830 groups, 0 red.
+     · in a hard-linked worker built exactly as `workerPool` builds one: 10 failing assertions, and
+       the suite's own verdict reads `6 of 830 children FAIL` while its closing report names SEVEN
+       group titles in brackets. Three populations, so all three are written here rather than one
+       standing in for the others; the subtraction below reads the BRACKETS, so seven is the figure
+       that binds. Every red is the absent `.git` — `fatal: not a git repository`,
+       `git ls-files unavailable`, `generatedSet() returned null`, `no rootFiles wired`.
+   Those reds print as `✕ [group]`, which is the shape `KILLER_RE` reads, so they are attributed to
+   the mutant as killers. No mutant caused them. §3d already vets the ZERO-ATTRIBUTION subset in the
+   worker for exactly this reason; it cannot see these, because under `--full` the selector is null
+   and `suiteArgs(null)` runs the whole suite whatever any exclusion says. `mutate.mjs:1551` REFUSES
+   an untagged file with a message that prescribes the trigger: "Use --full".
+
+   A group red in the worker and green in ROOT is an environment fact. Subtracting it is not
+   leniency: an attribution nothing in the diff caused is a fabricated kill, and a fabricated kill
+   reads as coverage this suite does not have. A mutant whose killers are ALL environment reads
+   INVALID, which `tested − invalid` already keeps out of the denominator. */
+export function envRedFrom(out) {
+  const seen = new Set();
+  KILLER_RE.lastIndex = 0;
+  for (let m = KILLER_RE.exec(String(out)); m !== null; m = KILLER_RE.exec(String(out))) seen.add(m[1]);
+  return seen;
+}
+export function subtractEnvRed(v, envRed) {
+  if (!envRed || !envRed.size) return v;
+  /* A BARE STRING NAMES NO KILLER, so nothing here can tell an environment kill from a real one, and
+     rewriting it to INVALID would publish an attribution over an absence (§∅). It is returned
+     untouched, and that costs nothing today: the bare form comes only from `runSuite`, whose call
+     sites all pass ROOT — the tree that HAS a `.git` — while the only runner pointed at a worker
+     tree is `runSuiteAsync`, which names its killers. The leg below pins that call-site invariant,
+     because the moment a bare-string runner is pointed at a worker tree this subtraction goes blind,
+     and what it owes then is a killer list, not a guess. */
+  if (typeof v === 'string') return v;
+  if (v.verdict !== 'KILLED') return v;
+  const ks = (v.killers || []).filter((g) => !envRed.has(g));
+  /* EVERY killer was environment, so nothing in this run judged the mutant. It is unmeasured, not
+     killed and not survived — and it carries its own reason, because `no-output` would send a reader
+     looking for a parse failure that never happened. */
+  if (!ks.length) return { verdict: 'INVALID', killers: [], reason: 'env-red' };
+  return { verdict: 'KILLED', killers: ks };
+}
 function runZeroSet(zeroIdx, cwd, timeoutMs) {
   let out = '';
   try {
@@ -1089,6 +1137,19 @@ function dropPool() {
   _pool = null;
 }
 
+/* The clean-run text, whatever the exit. `runSuite` returns a VERDICT and `execFileSync` returns
+   nothing on a green run, so neither can answer "which groups red here?". This one is the only
+   reader of that question. */
+function runSuiteOutput(filter, cwd, timeoutMs) {
+  const r = spawnSync('node', suiteArgs(filter), {
+    cwd: cwd || ROOT,
+    encoding: 'utf8',
+    timeout: timeoutMs || 900000,
+    maxBuffer: 256 * 1024 * 1024,
+    env: suiteEnv(process.env, false)
+  });
+  return String(r.stdout || '') + String(r.stderr || '');
+}
 function runSuite(filter, cwd, timeoutMs) {
   try {
     /* suiteArgs, NOT a hand-built '--group=' — this runner takes the same polymorphic selector as
@@ -2049,7 +2110,11 @@ async function runFile(file) {
      calling earlier died in the temporal dead zone. */
   applyResume();
   applyIncremental();
-  const classify = (v, mu) => {
+  /* Groups red in the worker for environment reasons, filled once the pool exists. Empty until
+     then, and empty forever on the serial path, which runs in the caller's tree. */
+  let ENV_RED = new Set();
+  const classify = (vRaw, mu) => {
+    const v = subtractEnvRed(vRaw, ENV_RED);
     const verdict = typeof v === 'string' ? v : v.verdict;
     const ks = (typeof v === 'string' ? [] : v.killers) || [];
     if (mu.__canary) {
@@ -2155,6 +2220,27 @@ async function runFile(file) {
           const zeroIdx = pg.groups.filter((gr) => !gr.unknown && (!gr.files || !Object.keys(gr.files).length)).map((gr) => gr.index);
           zeroBaselineExcludes(zeroIdx, trees[0], timeoutMs, file);
         }
+      }
+      /* THE SAME SELECTION THE MUTANTS WILL RUN, CLEAN, IN A WORKER. The calibration already timed
+         one clean pass — with `cwd: ROOT`, which is the only tree in this run that has a `.git`. So
+         it certified an environment no mutant sees. This pass pays for the clean run a second time,
+         in the right tree, and the names it collects are subtracted from every attribution below.
+         It is announced and timed, because under `--full` it is a whole suite. */
+      if (trees.length) {
+        const _envT0 = Date.now();
+        process.stderr.write('  vetting the worker baseline: one clean ' + calDesc + ' run in worker 1 — the calibration ran in the caller tree, which has a .git\n');
+        ENV_RED = envRedFrom(runSuiteOutput(calSel, trees[0], timeoutMs));
+        const _envS = ((Date.now() - _envT0) / 1000).toFixed(0);
+        if (ENV_RED.size)
+          process.stderr.write(
+            '  ⚠ ' +
+              ENV_RED.size +
+              ' group(s) are RED in the worker and green in the caller tree — subtracted from every kill (' +
+              _envS +
+              's):\n' +
+              [...ENV_RED].map((g) => '      · ' + g + '\n').join('')
+          );
+        else process.stderr.write('  ✓ worker baseline clean — no group reds for environment reasons (' + _envS + 's)\n');
       }
       if (!trees.length) {
         /* No worker could be created — degrade to the serial in-place path rather than doing nothing.
@@ -2730,6 +2816,41 @@ function selftest() {
   ck('green marks then a late crash → KILLED', verdictFromOutput('✓ clock\nsegfault\n'), 'KILLED');
   ck('unparseable file, no suite output → INVALID', verdictFromOutput('SyntaxError: Invalid regular expression'), 'INVALID');
   ck('empty output → INVALID', verdictFromOutput(''), 'INVALID');
+
+  /* ── THE WORKER BASELINE ─────────────────────────────────────────────────────────────────────
+     The three titles below are REAL, copied from a worker run measured 2026-10-27 in a tree built
+     exactly as `workerPool` builds one. A fabricated title would make every leg here pass over a
+     vocabulary the suite never prints. */
+  console.log('\nenvRedFrom / subtractEnvRed — a group red for the ENVIRONMENT never killed a mutant');
+  const WORKER_REPORT =
+    '  ✕ [wt-done — resolves its repository from its own location, not the shell cwd] a non-worktree path refuses with exit 1  — got 2 · want 1\n' +
+    '  ✕ [Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)] check9 · the repo root holds exactly the documented classes  — no rootFiles wired\n' +
+    '  ✕ [a residue key cited in code resolves to a row, by one pre-stated ladder] the child imported the tool  — fatal: not a git repository\n';
+  const ENV = envRedFrom(WORKER_REPORT);
+  const DL = 'Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)';
+  ck('every red group title is read off the report', ENV.size, 3);
+  ck('…by title, the vocabulary a killer is named in', ENV.has(DL), true);
+  ck('anti-vacuity · the measured text really does carry that title', WORKER_REPORT.includes('[' + DL + ']'), true);
+  ck('a clean worker baseline collects nothing', envRedFrom('✓ 14470 assertions passed\n').size, 0);
+  ck('🔴 a kill whose every killer is environment is INVALID', subtractEnvRed({ verdict: 'KILLED', killers: [DL] }, ENV).verdict, 'INVALID');
+  ck('…and carries its OWN reason, not a borrowed one', subtractEnvRed({ verdict: 'KILLED', killers: [DL] }, ENV).reason, 'env-red');
+  ck('control · a real killer beside an environment one still KILLS', subtractEnvRed({ verdict: 'KILLED', killers: ['ppgdex', DL] }, ENV).verdict, 'KILLED');
+  ck('control · …and only the real killer is named', subtractEnvRed({ verdict: 'KILLED', killers: ['ppgdex', DL] }, ENV).killers.join(','), 'ppgdex');
+  ck('control · an untouched kill passes through', subtractEnvRed({ verdict: 'KILLED', killers: ['clock'] }, ENV).killers.join(','), 'clock');
+  ck('control · a SURVIVED verdict is never rewritten', subtractEnvRed({ verdict: 'SURVIVED', killers: [] }, ENV).verdict, 'SURVIVED');
+  ck('control · an INVALID keeps its own reason', subtractEnvRed({ verdict: 'INVALID', killers: [], reason: 'timeout' }, ENV).reason, 'timeout');
+  ck('an EMPTY environment set changes nothing', subtractEnvRed({ verdict: 'KILLED', killers: ['clock'] }, new Set()).killers.join(','), 'clock');
+  ck('…and so does no set at all, which is the serial path', subtractEnvRed({ verdict: 'KILLED', killers: ['clock'] }, null).killers.join(','), 'clock');
+  ck('🔴 a bare-string kill names no killer, so it is NEVER rewritten', subtractEnvRed('KILLED', ENV), 'KILLED');
+  const ENVSRC = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  ck('…and every bare-string call site runs in ROOT, which has a .git', (ENVSRC.match(/classify\(runSuite\(/g) || []).length, (ENVSRC.match(/classify\(runSuite\(sel\([^)]*\), ROOT,/g) || []).length);
+  ck('…over a population above zero, so that leg is not vacuous', (ENVSRC.match(/classify\(runSuite\(/g) || []).length, 2);
+  /* WIRING. A pure pair nobody calls is a green selftest over a tool that still fabricates kills, and
+     the two call sites are the whole fix: the baseline must be measured in the tree the mutants run
+     in, and every verdict must pass through the subtraction. Text legs, because the sweep they guard
+     costs hours and the selftest touches no repo. */
+  ck('the baseline is measured in a WORKER tree, not the caller tree', /ENV_RED = envRedFrom\(runSuiteOutput\(calSel, trees\[0\]/.test(ENVSRC), true);
+  ck('…and every verdict passes through the subtraction', /const v = subtractEnvRed\(vRaw, ENV_RED\)/.test(ENVSRC), true);
   /* 🔴 THE VERDICT MUST NOT MOVE WITH THE LOAD ON THE BOX. Residue
      2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs reports three legs over one
      identical population, each naming a different survivor at an identical kill rate. One candidate
