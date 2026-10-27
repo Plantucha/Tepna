@@ -205,8 +205,10 @@ def test_cli_reads_an_adopted_childs_object_off_disk_and_a_bad_file_is_UNKNOWN_n
     ok(json.load(open(out)), "UNKNOWN")
 
 
-# ── residue 2026-10-13-twenty-five-mutants-survive-in-checkverdict-and-mutation-diff-after-pr-3567 ──────
-# Fifteen mutants survived in the functions #3567 changed. Each test below fails on the named mutant.
+# ── the diff-scoped mutation gate on #3567: 25 survivors in checkverdict.py and mutation_diff.py ──────
+# Twenty-five mutants survived on 83d16d551. Fifteen tests over the two modules each fail on a named
+# mutant, and the one survivor left is carried in the equivalence file as a measured equivalence.
+# The set was drained inside #3567, whose gate read PASS at landing, so no residue row is owed.
 
 
 def test_no_child_examined_with_nothing_missing_carries_the_bare_reason_with_no_dangling_dash():

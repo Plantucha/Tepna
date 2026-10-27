@@ -31,7 +31,7 @@
  * the bundle on disk — is `tools/verify-fixtures.mjs --check`, and it has run in `tests.yml` under
  * `continue-on-error: true` all along, because an outside contributor has no corpus to FIX a red
  * with. Measured 2026-10-13 on #3543 (residue
- * `2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it`): an edit to `dex-export.js`
+ * `2026-10-27-the-ci-fixture-currency-step-reported-to-nobody`): an edit to `dex-export.js`
  * moved the compute closure of eight bundles, CI printed all 19 fixtures by name as UNVERIFIED, and
  * the `tests` run still concluded `success` — so `gh pr checks` read 25 pass and no reviewer saw it.
  * The one party who HAS the corpus is the author, and the author's gate is this file, which never

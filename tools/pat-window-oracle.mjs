@@ -647,7 +647,7 @@ function selftest() {
      interpolated into the print, which reads as a computed figure and is not one: adding the seven
      admissibility assertions below left it printing 45/45, and `selftest-all.mjs`'s static half
      cannot see it because the print line carries no digit — the literal sits one hop away in a
-     variable. Residue `2026-10-19-a-typed-selftest-count-laundered-through-a-variable`. */
+     variable. Residue `2026-10-19-selftest-count-static-check-misses-a-one-hop-literal`. */
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${ran})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length === 0;
 }

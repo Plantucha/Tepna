@@ -178,7 +178,7 @@ function upsertMeta(abs, block) {
   if (!existsSync(abs)) return null;
   const orig = readFileSync(abs, 'utf8');
   /* FUNCTION replacements, not strings — the `$`-interpretation class that broke four analysis tools
-     on 2026-09-28 (`tools/build-analysis.mjs`, residue 2026-09-28-replacement-string-interprets-dollar).
+     on 2026-09-28 (`tools/build-analysis.mjs`, residue 2026-10-27-a-replacement-string-interpreted-a-dollar-into-four-tools).
      `block` is built from the page's own TITLE and DESCRIPTION, which are authored prose, and prose may
      contain `$&` or a dollar before a backtick. Neither is reachable through a function replacement. */
   const next = META_RE.test(orig) ? orig.replace(META_RE, () => block + '\n') : orig.replace(/<\/head>/i, () => block + '\n</head>');
