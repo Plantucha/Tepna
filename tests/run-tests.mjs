@@ -66,6 +66,7 @@ import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_R
 import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as argvReads from '../tools/argv-reads.mjs';
 import * as corpusReads from '../tools/corpus-reads.mjs';
+import * as trioNightsMod from '../tools/trio-eligible-nights.mjs';
 import * as argvSurvey from '../tools/argv-survey.mjs';
 import * as importerFlagProbe from '../tools/importer-flag-probe.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
@@ -1133,6 +1134,28 @@ function readTrackedFiles() {
   } catch (_) {
     return null;
   }
+}
+
+/* THE TRIO-ELIGIBLE POPULATION (row `2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list`)
+   — the committed artifact BESIDE a live classification of the tracked corpus by the producer's own
+   classifier. The claims group proves the prose copies the artifact; only this can say the artifact
+   still describes the tree. No git (a tarball checkout) or no corpus ⇒ `live` is null and the group
+   SKIPs by name rather than passing over nothing. */
+function readTrioNights() {
+  const committed = readJsonOrNull(join(ROOT, 'analysis', 'tri_device_nights.json'));
+  let live = null;
+  try {
+    const paths = (readTrackedFiles() || []).filter((p) => p.startsWith('uploads/trio/'));
+    const stamps = {};
+    for (const p of paths) {
+      const m = /^uploads\/trio\/(\d{4}-\d{2}-\d{2})\/\.trio-stamp$/.exec(p);
+      if (m) stamps[m[1]] = JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
+    }
+    if (paths.length) live = trioNightsMod.classify(paths, stamps);
+  } catch (_e) {
+    live = null;
+  }
+  return { committed, live, mod: trioNightsMod };
 }
 
 function readFixtures() {
@@ -3678,6 +3701,7 @@ async function main() {
     inlineParseCensus: readInlineParseCensus(), // every builder-inlined block must PARSE (2026-09-28)
     detectorRealmDigests: readDetectorRealmDigests(['oxy', 'pulse']), // treatment-response yield pin — the detector closure, derived from cohort-worker.js SCRIPTS
     treatmentYieldPin: readJsonOrNull(join(ROOT, 'analysis', 'treatment-response-yield-pin.json')),
+    trioNights: readTrioNights(), // row 2026-10-25 — the produced trio population, committed + live
     YieldPin, // the pin's own selection replay + closure comparator, executed by the suite rather than re-implemented
     elementBlocks, // strip-markup's index scan — the group drives it over every end-tag spelling
     fixtures: readFixtures(),

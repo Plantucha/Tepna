@@ -20376,6 +20376,132 @@
       });
     });
 
+    /* ════ 8c² · THE TRIO-ELIGIBLE POPULATION — the artifact the CLAIM sources, held against the TREE ════
+       Row `2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list`. The group above proves the
+       prose COPIES its artifact, and that is all a sourced CLAIM can prove. This one did not hold:
+       `analysis/tri_device_nights.json` carried 20 hand-typed night names, `count: 20`, no criterion, no
+       population block and no producer anywhere in the tree, on one commit from the squashed suite import
+       — while the committed folds carry 17 three-node nights inside the claimed window. Four of the named
+       nights fold two devices and 2026-07-04 folds three and was absent from the list.
+
+       `tools/trio-eligible-nights.mjs` is now that artifact's producer and writes the night NAMES beside
+       the criterion that selects them. The legs below are the third site of the row's remedy: a count
+       nothing holds against its own list is the hand-typed scalar again, one indirection further away.
+
+       TWO INSTRUMENTS, HELD EQUAL — each night's own `.trio-stamp` (the fold's record of a night its
+       planner accepted) against the trio node-exports tracked in that folder. They agree on all 147
+       tracked night folders today, and a night where they disagree REDS the producer rather than being
+       quietly dropped from a published count.
+
+       Node lane only: the live side reads the git-tracked path list, so the browser lane SKIPs by name. */
+    group('the trio-eligible artifact is produced from the tracked corpus, and its count is its own list', 'docs · claude-md · trio-nights', function (T) {
+      var TN = env.trioNights || {},
+        art = TN.committed,
+        live = TN.live,
+        mod = TN.mod;
+      if (!art || !live || !mod) {
+        T.skip('the trio artifact, its producer and the tracked corpus are in env', 'Node-lane only — run-tests.mjs wires env.trioNights (committed + live + mod)');
+        return;
+      }
+      var w = art.result && art.result.window ? art.result.window : {},
+        corp = art.result && art.result.corpus ? art.result.corpus : {};
+
+      T.eq('the artifact is a tepna.verdict/1', art.schema, 'tepna.verdict/1');
+      T.eq('…and names its producer', art.producedBy && art.producedBy.tool, 'tools/trio-eligible-nights.mjs');
+      T.ok(
+        '…under a PRE-STATED criterion (a threshold read off the data it judges is UNKNOWN)',
+        !!art.criterion && art.criterion.name === 'trio_fold_accepted_nodes' && art.criterion.threshold === 3 && art.criterion.direction === 'gte',
+        JSON.stringify(art.criterion)
+      );
+      T.ok('…over a population that is not empty', (art.population || {}).checked > 0, 'checked: ' + (art.population || {}).checked);
+      T.eq('checked + excluded = eligible', art.population.checked + art.population.excluded, art.population.eligible);
+
+      // ── THE COUNT IS ITS LIST, both ways round ────────────────────────────────────────────────
+      T.eq('the window count equals the length of the window list', w.count, (w.nights || []).length);
+      T.eq('the corpus count equals the length of the corpus list', corp.count, (corp.nights || []).length);
+      T.eq('result.accepted is the corpus list too', art.result.accepted, (corp.nights || []).length);
+      T.eq('accepted + rejected = the population checked', art.result.accepted + art.result.rejected, art.population.checked);
+      T.ok(
+        'every window night sits inside the window the criterion names',
+        (w.nights || []).every(function (n) {
+          return n >= w.from && n <= w.to;
+        }),
+        w.from + ' → ' + w.to + ': ' + (w.nights || []).join(' ')
+      );
+      T.ok(
+        'the window list is a subset of the corpus list',
+        (w.nights || []).every(function (n) {
+          return (corp.nights || []).indexOf(n) >= 0;
+        }),
+        'window nights absent from the corpus list: ' +
+          ((w.nights || [])
+            .filter(function (n) {
+              return (corp.nights || []).indexOf(n) < 0;
+            })
+            .join(' ') || 'none')
+      );
+      T.ok(
+        'the night names are sorted and unique (a duplicate would inflate the count)',
+        (corp.nights || []).every(function (n, i) {
+          return i === 0 || corp.nights[i - 1] < n;
+        }),
+        (corp.nights || []).length + ' names'
+      );
+
+      // ── CURRENCY: the producer's own classifier over the tracked tree, now ─────────────────────
+      T.eq('the committed window list IS the tracked corpus measured today', (w.nights || []).join(' '), live.window.join(' '));
+      T.eq('the committed corpus list IS the tracked corpus measured today', (corp.nights || []).join(' '), live.accepted.join(' '));
+      T.eq('the committed population is the tracked night-folder count', art.population.checked, live.nights.length);
+      T.eq('no tracked night-export is dated to another night', live.misdated.join(' '), '');
+      T.eq(
+        'the fold stamp and the tracked exports agree on every night',
+        live.disagreements
+          .map(function (d) {
+            return d.night;
+          })
+          .join(' '),
+        ''
+      );
+      T.eq('…and the artifact says the same, under a status that is not FAIL', art.status, 'PASS');
+
+      /* THE CLAIM ITSELF: the marker must resolve to the produced LIST, not to any number that happens
+         to sit in the file. A pointer at a scalar beside the list is how the 20 survived three gates. */
+      var srcd = (env.claudeMdClaims && env.claudeMdClaims.sourced) || [];
+      var trio = srcd.filter(function (r) {
+        return r.name === 'trioEligibleNights';
+      });
+      if (!trio.length) T.skip('the trioEligibleNights CLAIM is in the scan', 'no sourced record — the marker was removed or renamed');
+      else
+        trio.forEach(function (r) {
+          T.eq('the trioEligibleNights CLAIM in ' + r.where + ' sources the produced artifact', r.file, 'analysis/tri_device_nights.json');
+          T.eq('…through the pointer at the window COUNT beside its list', r.pointer, 'result/window/count');
+          T.eq('…and states the number that list is long', r.stated, (w.nights || []).length);
+        });
+
+      /* ── KNOWN ANSWERS on the pure classifier (the tool's own --selftest carries 20 more) ───────
+         The trap that makes a whole-name match load-bearing: 74 nights carry a
+         `PpgDexFinger_<night>.node-export.json`, the stamps never name it, and a prefix match would
+         admit it as the PpgDex leg. */
+      var N = '2026-07-17';
+      var finger = mod.classify(
+        [
+          'uploads/trio/' + N + '/.trio-stamp',
+          'uploads/trio/' + N + '/ECGDex_' + N + '.node-export.json',
+          'uploads/trio/' + N + '/OxyDex_' + N + '.node-export.json',
+          'uploads/trio/' + N + '/PpgDexFinger_' + N + '.node-export.json'
+        ],
+        { '2026-07-17': { nodes: mod.TRIO_NODES.slice() } }
+      );
+      T.eq('PpgDexFinger is not the PpgDex leg', finger.accepted.join(' '), '');
+      T.eq('…and the split between stamp and tree is reported, not swallowed', finger.disagreements.length, 1);
+      var unstamped = mod.classify(
+        ['uploads/trio/' + N + '/ECGDex_' + N + '.node-export.json', 'uploads/trio/' + N + '/OxyDex_' + N + '.node-export.json', 'uploads/trio/' + N + '/PpgDex_' + N + '.node-export.json'],
+        {}
+      );
+      T.eq('a three-export night the fold never stamped is rejected', unstamped.accepted.join(' '), '');
+      T.eq('…as a DISAGREEMENT (the tree carries three, the fold judged nothing)', unstamped.disagreements.length, 1);
+    });
+
     /* ════ 8d² · SECURITY — CSP on the UNBUNDLED analysis/landing pages (N1 · PRIVACY-SECURITY-AUDIT-2026-07-13) ════
        The 10 owned bundles carry a meta-CSP; the standalone analysis/research pages + index.html did not,
        though they ingest recordings and persist checkpoints (which dex-forget already erases). This leg

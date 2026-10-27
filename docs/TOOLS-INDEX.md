@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**290 tools** · 289 with a purpose line · **1 without**
+**291 tools** · 290 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -284,6 +284,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`treatment-response-yield-pin.mjs`](../tools/treatment-response-yield-pin.mjs) | THE PINNED YIELD — how many synthetic patients qualify for `papers/treatment-response.html`, and which of the two inputs is answerable for the number. |
 | [`trio-anchor.mjs`](../tools/trio-anchor.mjs) | t0 COMES FROM THE FILE'S FIRST DATA ROW, NOT ITS NAME (residue 2026-09-22-capture-filename-stamp- disagrees-with-content) |
 | [`trio-batch.mjs`](../tools/trio-batch.mjs) | TRIO BATCH — raw Polar Sensor Logger + O2Ring capture folder → per-night trio node-exports, in the exact shape `tools/tch-multinight.mjs --dir` ingests (one subdir per night, three… |
+| [`trio-eligible-nights.mjs`](../tools/trio-eligible-nights.mjs) | THE TRIO-ELIGIBLE NIGHT POPULATION, PRODUCED FROM THE COMMITTED TREE. |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
 | [`usage-guard.mjs`](../tools/usage-guard.mjs) | USAGE GUARD — what the fleet has SPENT, measured, and what nobody can measure, said so. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |

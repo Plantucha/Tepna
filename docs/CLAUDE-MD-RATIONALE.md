@@ -964,9 +964,15 @@ detectPeaks`) is the honest H10 leg — derive H10 HR from `_ECG.txt`, not `_HR.
 fusion consuming these must derive HR from the raw waveform, not the onboard summary.
 
 **A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
-(device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 20 FROM analysis/tri_device_nights.json#count eligible nights** (~10 with clean Verity). It is
+(device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 17 FROM analysis/tri_device_nights.json#result/window/count eligible nights** (~10 with clean Verity). It is
 the ground truth behind the reference-free σ work (`sensor-trio-power-analysis.html` /
 `sigma-no-reference-analysis.html`) and unblocks several `PAPERS-ROADMAP` real-validation items.
+
+**Produced, not typed (2026-10-27, row `2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list`).** The sourced artifact held 20 night names, `count: 20`, no criterion, no population block and no producer, on one commit from the squashed suite import. So the green gate proved that the prose copies the artifact and said nothing about whether the artifact matches the corpus.
+
+`tools/trio-eligible-nights.mjs` now writes it from two instruments, held equal over the 147 tracked night folders. One is each night's own `.trio-stamp`, which the fold leaves when its planner accepts a night. The other is the set of trio node-exports tracked in that night's folder. They agree on every night: 90 nights are trio-eligible corpus-wide and 17 sit inside the window. Four of the typed nights fold two devices, and 2026-07-04 folds three and was absent from the list.
+
+**The phrase names three populations, so the producer names its own.** The population here is the TRACKED tree, because `git ls-files` is the one authority CI and a clean clone share. A box-side plan over the raw captures admits 91 nights and 18 in the window, from a capture root absent from the repo. The two window figures differ by 2026-06-19 alone, whose folder carries OxyDex and PpgDex with no ECGDex export and no stamp. Quote the population with the number, or the figure reads as a different set.
 
 ## 🧪 Regression gate — run after ANY `*-dsp.js` / `*-cross.js` / `*-app.js` change
 **`Dex-Test-Suite.html`** is the canonical gate. It loads the REAL modules + shared assertions
