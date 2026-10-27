@@ -3391,6 +3391,11 @@ class Spo2CsvWriter:
         if not _resumed:
             self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
         self._n = 0
+        # WHAT DATES THIS FILE (row `2026-09-22-filename-stamp-still-wrong-for-other-consumers`, part
+        # (a)). The session start does not: the ring's name and its envelope both carry the moment the
+        # capture process began, while the CSV's first row lands when the link is up and a reading is
+        # valid. `StreamWriter._first_row_ms` exists for the same reason on the Polar rail.
+        self._first_row_ms: float | None = None
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
@@ -3419,6 +3424,10 @@ class Spo2CsvWriter:
         )
         if landed:
             self._n += 1
+            if self._first_row_ms is None:
+                # read on the first row that LANDS, never on the first one handed over: a row the
+                # health object could not persist left no sample in the file, so it cannot date it
+                self._first_row_ms = _phone_ms(when)
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -3438,6 +3447,21 @@ class Spo2CsvWriter:
     @property
     def rows(self) -> int:
         return self._n
+
+    @property
+    def first_row_ms(self) -> float | None:
+        """When this artifact's first LANDED row arrived, as floating wall-clock ms — or `None`.
+
+        This is what dates the file, and the session start is not. `capture.py` takes `started = _now()`
+        before it connects, and every ring filename derives from that one value; the CSV's first row
+        lands once the link is up and the finger is read. A caller must never substitute the session
+        start for an absent answer (§∅): a header-only file has no start to report, and `None` says so.
+
+        A RESUMED file's first row is NOT this value. The writer reopens the same path in append mode,
+        so this is the first row THIS instance landed while the file also holds an earlier session's
+        rows — which is why the envelope drops it on a resume rather than dating a file to a time after
+        it began."""
+        return self._first_row_ms
 
     def close(self) -> None:
         try:

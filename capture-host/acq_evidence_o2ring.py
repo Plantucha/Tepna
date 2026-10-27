@@ -186,6 +186,8 @@ def assemble_live(
     artifact_path: str | None,
     artifact_rows: int | None,
     start_time_ms: float | None = None,
+    instance_start_time_ms: float | None = None,
+    resumed: bool = False,
     clock_status: str = ae.UNKNOWN,
     clock_offset=None,
     device_state: str | None = None,
@@ -209,7 +211,25 @@ def assemble_live(
 
     `artifact_rows` is the row count the writer actually wrote — the honest sample count for THIS file.
     A live session that streamed nothing leaves a header-only file (the caller discards those), so a
-    zero row count here is a real measurement, not an absence."""
+    zero row count here is a real measurement, not an absence.
+
+    ⚠️ TWO STARTS EXIST AND THEY ARE DIFFERENT QUANTITIES, the Polar twin's rule applied to this rail.
+    `start_time_ms` dates the ARTIFACT and is `Spo2CsvWriter.first_row_ms` — when the first row landed
+    in this CSV. `instance_start_time_ms` is when the capture process began, and it travels in
+    `provenance` under that name only. Feeding the session start into `start_time_ms` is part (a) of
+    residue `2026-09-22-filename-stamp-still-wrong-for-other-consumers`: `capture.py` takes
+    `started = _now()` before it connects, every ring filename derives from that one value, and the
+    envelope beside the file is exactly what a reader turns to when it distrusts the filename stamp.
+    Here it ALSO moved `end_time_ms`, which is derived as `start + rows * 1000`, so a late first row
+    shifted the whole reported span rather than one field of it.
+
+    ⚠️ A RESUMED ARTIFACT HAS NO KNOWN START OR SAMPLE COUNT. `Spo2CsvWriter` reopens the same path in
+    append mode at `rows=0`, so on a resume both quantities describe THIS instance while the file also
+    holds the earlier session's rows. Reporting either would state a start after the file began and a
+    count smaller than the artifact, so both are `None` (§∅: absent, never a convenient number) and the
+    instance's own figures travel in `provenance` as `rows_this_instance` and `instance_start_time_ms`,
+    which is what they actually measure. `end_time_ms` follows: it is derived from the two, so it
+    cannot survive them."""
     # ── validation (§6): the live path verifies no bytes — it writes them. There is no hash, no
     # re-read, no trailer. Claiming VALID would assert a check nobody ran, so validation is UNKNOWN
     # unless a caller supplies a verdict from an actual check. This is the honest asymmetry with the
@@ -227,20 +247,24 @@ def assemble_live(
     else:
         completeness = ae.UNKNOWN
 
+    # ── the artifact's own span, or nothing. A resumed file knows neither end of it (see the
+    # docstring), and a derived end cannot be more certain than the start it is measured from. ──
+    artifact_start = None if resumed else start_time_ms
+    sample_count = None if resumed else artifact_rows
     end_time_ms = None
-    if start_time_ms is not None and artifact_rows:
-        end_time_ms = start_time_ms + artifact_rows * 1000  # the CSV is 1 Hz, one row per second
+    if artifact_start is not None and sample_count:
+        end_time_ms = artifact_start + sample_count * 1000  # the CSV is 1 Hz, one row per second
 
     return ae.AcquisitionEvidence(
         session_id=session_id,
         device_id=device_id,
         source=ae.SOURCE_LIVE,
         signal=_SIGNAL,
-        start_time_ms=start_time_ms,
+        start_time_ms=artifact_start,  # the FILE's first row, never the session's start (see above)
         end_time_ms=end_time_ms,
         clock_status=clock_status,
         clock_offset=clock_offset if clock_offset is not None else ae.ClockOffset.unknown(),
-        sample_count=artifact_rows,
+        sample_count=sample_count,
         # no independent expectation exists for a live stream of unknown duration (§8: UNKNOWN, not 0)
         expected_sample_count=ae.UNKNOWN,
         # nothing declares a duration for a live session the way a .dat trailer does
@@ -259,5 +283,11 @@ def assemble_live(
             "ppg_grid": ppg_grid,
             "ppg_ledger": ppg_ledger,
             "stopped_cleanly": stopped_cleanly,
+            # WHEN THE PROCESS BEGAN, which is not when the artifact did — the quantity the filename
+            # stamp also carries, kept under the name that says what it measures
+            "instance_start_time_ms": instance_start_time_ms,
+            "resumed": resumed,
+            # what `sample_count` cannot say on a resume: the rows THIS instance wrote
+            "rows_this_instance": artifact_rows,
         },
     )
