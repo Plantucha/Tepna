@@ -478,9 +478,12 @@ export function invalidWarning(invalid, tested, killed) {
 }
 /* The honest denominator: mutants that were actually measured. INVALID never ran and QUARANTINED
    never completed, so both are excluded — a rate over either would be a number about nothing.
+   VOID is the third of the same kind: the mutant ran, but the input moved while it did, so its
+   verdict is about no single tree (see `straddlesSeam`). A record from before the seam detector, or
+   from a path that never sampled the tree, carries no `inputVoid` and its denominator is unchanged.
    Pure and exported so --selftest pins it. */
 export function measuredDenominator(r) {
-  return r.tested - r.invalid - (r.quarantined || 0);
+  return r.tested - r.invalid - (r.quarantined || 0) - (r.inputVoid || 0);
 }
 /* A quarantine is not a verdict — it is the harness saying "this mutant wedged me". One is a bad
    mutant; many is a sick suite or a loaded box, and the reader cannot tell which without being told
@@ -928,6 +931,64 @@ export function driftWarning(d) {
     list('· vanished', d.vanished, 'unreadable at the end of the run') +
     list('· appeared', d.appeared, 'unreadable when the pool was built') +
     '    The verdicts below are one sample of a moving tree, not a result over a fixed one.\n'
+  );
+}
+/* ── THE SEAM: WHERE THE WRITE LANDED, NOT WHETHER ONE DID ──────────────────────────────
+   `treeDrift` answers one question about the whole RUN: did the input move at any point. §∅ rules
+   that a discontinuity refuses, and read at that grain the rule would void every sweep in a shared
+   checkout — where sessions write root files continuously — while CI's tree never moves at all.
+   So the detector asks the finer question instead: WHERE did the write land. A mutant that began and
+   finished inside one continuous stretch of the tree faced ONE input and keeps its verdict; a mutant
+   a write landed inside faced two, and that one is the discontinuity. The sweep therefore carries a
+   monotonic epoch, bumped at every seam, and refuses per MUTANT rather than per run.
+   `seamAt` returns the seam record, or null when the tree held still between two samples. Pure and
+   exported so --selftest pins it. */
+export function seamAt(drift, tMs, epoch) {
+  if (!drift || !drift.moved) return null;
+  return {
+    epoch,
+    tMs,
+    moved: drift.moved,
+    watched: drift.watched,
+    paths: [...drift.changed, ...drift.detached, ...drift.vanished, ...drift.appeared].slice(0, 6)
+  };
+}
+/* A mutant straddles a seam when the epoch advanced between its start and its verdict. An epoch of
+   null is a mutant from a path that never sampled the tree — the two serial loops write the caller's
+   own file, so every move there is this tool's own — and §∅ bars inventing the measurement in either
+   direction: unknown is NOT void, and it is not clean either; the record says `inputVoid: null` and
+   no number is published about it. Pure and exported so --selftest pins it. */
+export function straddlesSeam(startEpoch, endEpoch) {
+  if (!Number.isFinite(startEpoch) || !Number.isFinite(endEpoch)) return false;
+  return endEpoch > startEpoch;
+}
+/* Same shape as `quarantineWarning`, for the same reason: a bucket nobody is told about is a silent
+   exclusion. Pure and exported so --selftest pins it. */
+export function inputVoidWarning(n, tested, seams) {
+  if (!(n > 0)) return null;
+  const last = (seams || []).slice(-3).map((x) => 'epoch ' + x.epoch + ' at ' + Math.round(x.tMs / 1000) + 's (' + x.moved + ' of ' + x.watched + ': ' + x.paths.slice(0, 3).join(', ') + ')');
+  return (
+    '\n  ⚠ ' +
+    n +
+    ' of ' +
+    tested +
+    ' mutant(s) VOID — the input moved while they ran, so each faced two trees, not one:\n' +
+    (last.length ? '      last seam(s): ' + last.join('; ') + '\n' : '') +
+    '    They are listed in `inputVoidMu` and excluded from the kill rate — unmeasured, not survived.\n' +
+    '    Mutants inside one continuous stretch of the tree keep their verdicts; only the straddlers\n' +
+    '    are void. A seam is another process writing into the root these workers are linked to.\n'
+  );
+}
+/* The canary is the run's licence to report a number, and a seam can break it the same way. Without
+   this note a reader sees "kills were not being detected" and starts looking at the harness, when a
+   peer's write is the other reading and this run cannot tell the two apart. Pure and exported so
+   --selftest pins it. */
+export function canarySeamNote(canaryState, canarySeam) {
+  if (canaryState !== 'FAILED' || !canarySeam) return null;
+  return (
+    '    ⚠ AND THE CANARY STRADDLED A SEAM — the input moved while it ran. "Kills are not being\n' +
+    '      detected" is one reading of that; "the tree changed under the canary" is another, and this\n' +
+    '      run cannot separate them. Re-run it in a tree nothing else is writing to.\n'
   );
 }
 function runZeroSet(zeroIdx, cwd, timeoutMs) {
@@ -2200,15 +2261,53 @@ async function runFile(file) {
   let ENV_RED = new Set();
   let TREE_BEFORE = null;
   let TREE_DRIFT = null;
+  /* THE SEAM LOG. `DRIFT_EPOCH` is bumped every time a write lands between two mutants, and every
+     mutant records the epoch it STARTED in, so a straddler can be named afterwards. All of it stays
+     inert until a worker pool exists: on the serial paths this tool writes the caller's file itself,
+     so a sample there would read its own mutants as seams. */
+  let DRIFT_EPOCH = 0;
+  let LAST_SAMPLE = null;
+  const SEAMS = [];
+  const inputVoided = [];
+  let inputVoidThisRun = 0;
+  let canarySeam = null;
+  const seamCheck = () => {
+    if (!LAST_SAMPLE) return null;
+    const next = sampleTree([...LAST_SAMPLE.keys()], (rel) => statSync(join(ROOT, rel)));
+    const seam = seamAt(treeDrift(LAST_SAMPLE, next), Date.now() - _t0, DRIFT_EPOCH + 1);
+    LAST_SAMPLE = next;
+    if (seam) {
+      DRIFT_EPOCH = seam.epoch;
+      SEAMS.push(seam);
+    }
+    return DRIFT_EPOCH;
+  };
   const classify = (vRaw, mu) => {
     const v = subtractEnvRed(vRaw, ENV_RED);
     const verdict = typeof v === 'string' ? v : v.verdict;
     const ks = (typeof v === 'string' ? [] : v.killers) || [];
+    /* The CLOSING sample of this mutant's own window. `beginMutant` took the opening one, so the two
+       bracket exactly the interval the suite ran in — which is the interval a write has to land in
+       to make this verdict a measurement over two trees. */
+    const epochNow = seamCheck();
     if (mu.__canary) {
       /* The canary's verdict IS the run's licence to report a number. A canary that dies with an
          attributed killer means kills are still being detected and attributed; anything else means
          they may not be, and a rate computed under that doubt is not evidence. */
       canaryState = verdict === 'KILLED' && ks.length ? 'PASSED' : 'FAILED';
+      canarySeam = straddlesSeam(mu.__epoch, epochNow);
+      tick();
+      return;
+    }
+    /* VOID — BEFORE EVERY OTHER BUCKET, INCLUDING KILLED. A kill observed while the input moved is
+       not evidence the suite can see this mutant: the run it was observed in tested two trees. So the
+       verdict is dropped whatever it said, the mutant leaves the denominator (`measuredDenominator`)
+       the way INVALID and QUARANTINED do, and NOTHING is journalled for it — one START with no
+       verdict is what `readJournal` calls `retry`, so a resumed sweep runs it again instead of
+       inheriting a verdict taken over a seam. */
+    if (straddlesSeam(mu.__epoch, epochNow)) {
+      inputVoidThisRun++;
+      inputVoided.push({ line: mu.line, op: mu.op, before: mu.before, after: mu.after, dropped: verdict, startEpoch: mu.__epoch, endEpoch: epochNow });
       tick();
       return;
     }
@@ -2288,6 +2387,9 @@ async function runFile(file) {
      one-mutant `--jobs 1` sweep of clock.js: 0 started, 1 verdict, `inFlight` −1.
      This closure is the only way a mutant reaches disk, so no loop can run one unjournalled. */
   const beginMutant = (mu, target) => {
+    /* The OPENING sample of this mutant's window, taken before the mutant exists on disk so the
+       write below is never part of its own interval. `null` on the serial paths, which never sample. */
+    mu.__epoch = seamCheck();
     writeFileSync(target, mu.apply());
     jwrite({ k: jkey(mu) });
   };
@@ -2317,6 +2419,9 @@ async function runFile(file) {
         /* SAMPLED BEFORE THE BASELINE RUN, because the pool already exists and the baseline itself
            takes minutes — a write during it reaches the workers like any other. */
         TREE_BEFORE = sampleTree(driftWatchList(file, readdirSync(ROOT)), (rel) => statSync(join(ROOT, rel)));
+        /* The same sample opens the per-mutant chain: every seam below is measured against the last
+           sample taken, so the first interval runs from here to the first mutant. */
+        LAST_SAMPLE = TREE_BEFORE;
         const _envT0 = Date.now();
         process.stderr.write('  vetting the worker baseline: one clean ' + calDesc + ' run in worker 1 — the calibration ran in the caller tree, which has a .git\n');
         ENV_RED = envRedFrom(runSuiteOutput(calSel, trees[0], timeoutMs));
@@ -2403,6 +2508,8 @@ async function runFile(file) {
     const dwarn = driftWarning(TREE_DRIFT);
     if (dwarn) process.stderr.write(dwarn);
   }
+  const vwarn = inputVoidWarning(inputVoidThisRun, picked.length, SEAMS);
+  if (vwarn) process.stderr.write(vwarn);
   const warn = invalidWarning(invalid, picked.length, killed);
   if (warn) process.stderr.write(warn);
   const qwarn = quarantineWarning(quarantinedThisRun, picked.length, quarantineMs);
@@ -2444,6 +2551,8 @@ async function runFile(file) {
         '    kill was seen, not that survivor #700 was judged right. So re-verifying a sample "because\n' +
         '    the canary was stale" answers a question neither instrument asks.\n'
     );
+    const cseam = canarySeamNote(canaryState, canarySeam);
+    if (cseam) process.stderr.write(cseam);
   }
   return {
     file,
@@ -2454,6 +2563,13 @@ async function runFile(file) {
     /* Whether the sweep's own input held still. `null` means the question does not apply (no worker
        pool), never "it did not move" — and `watched` is the denominator a reader may quote. */
     treeDrift: TREE_DRIFT,
+    /* WHICH mutants the moving tree cost, and where each write landed. `inputVoid` is `null` when
+       the sweep never sampled (no worker pool) — never 0, which would read as "nothing moved"
+       (§∅). `canarySeam` is `true`/`false` once a canary ran under sampling, `null` otherwise. */
+    inputVoid: LAST_SAMPLE ? inputVoidThisRun : null,
+    inputVoidMu: LAST_SAMPLE ? inputVoided : null,
+    driftSeams: LAST_SAMPLE ? SEAMS : null,
+    canarySeam,
     groupsRun: filter || 'FULL SUITE',
     groupCount: g ? g.count : null,
     groupsSelected: g ? g.selected : null,
@@ -2668,7 +2784,13 @@ export function diffVerdict(results, meta) {
   const stale = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.stale) || []).length, 0);
   const notDecided = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.notDecided) || []).length, 0);
   const voided = ok.filter((r) => r.voided);
-  const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0), 0);
+  /* VOID joins the unrun union: a mutant whose input moved under it proved nothing either, so it
+     leaves `checked` exactly as INVALID and QUARANTINED do. `sampled` is how many files measured the
+     question at all — with none, the aggregate is `null`, never 0 (§∅). */
+  const sampled = ok.filter((r) => r.inputVoid != null);
+  const voidInput = sampled.reduce((a, r) => a + r.inputVoid, 0);
+  const seamCount = sampled.reduce((a, r) => a + ((r.driftSeams && r.driftSeams.length) || 0), 0);
+  const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0) + (r.inputVoid || 0), 0);
   const tested = ok.reduce((a, r) => a + r.tested, 0);
   const killed = ok.reduce((a, r) => a + r.killed, 0);
   const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
@@ -2683,6 +2805,8 @@ export function diffVerdict(results, meta) {
     stale,
     notDecided,
     invalid: unrun,
+    inputVoid: sampled.length ? voidInput : null,
+    driftSeams: sampled.length ? seamCount : null,
     changedLines: lines,
     files: ok.length,
     skipped: results.length - ok.length
@@ -2692,6 +2816,21 @@ export function diffVerdict(results, meta) {
     return {
       code: 3,
       verdict: mk('UNKNOWN', { ...pop, reason: 'canary survived on ' + voided.map((r) => r.file).join(', ') + ' — kills were not being detected, so "all killed" would prove nothing' })
+    };
+  if (voidInput)
+    return {
+      code: 3,
+      verdict: mk('UNKNOWN', {
+        ...pop,
+        reason:
+          voidInput +
+          ' of ' +
+          tested +
+          ' mutant(s) VOID — the input moved while they ran (' +
+          seamCount +
+          ' seam(s)), so their verdicts are over two trees, not one' +
+          (unrun > voidInput ? '; ' + (unrun - voidInput) + ' more never ran' : '')
+      })
     };
   if (unrun)
     return { code: 3, verdict: mk('UNKNOWN', { ...pop, reason: unrun + ' of ' + tested + ' mutant(s) never ran (did not compile, or timed out under load) — nothing was proven about them' }) };
@@ -3000,6 +3139,50 @@ function selftest() {
   ck('…the second closes the window beside the other warnings', /TREE_DRIFT = treeDrift\(\n\s+TREE_BEFORE,/.test(ENVSRC), true);
   ck('…and the record carries the drift, so a reader never has to read the log', /treeDrift: TREE_DRIFT,/.test(ENVSRC), true);
   ck('…over a real stat, not a mock left wired into the tool', /statSync \} from \x27node:fs\x27/.test(ENVSRC), true);
+  /* ── THE SEAM, one grain finer than the run ───────────────────────────────────────────
+     Residue 2026-10-27-a-sweep-whose-input-moved-annotates-rather-than-refusing: the run-grained
+     detector above ANNOTATES, and §∅ says a discontinuity refuses. These legs pin the grain at which
+     the two reconcile — the mutant, not the sweep. */
+  console.log('\nseamAt / straddlesSeam — a write that lands INSIDE a mutant voids that mutant');
+  ck('a still tree between two samples is no seam', seamAt(D0, 1000, 1), null);
+  ck('…and no drift object at all is no seam either', seamAt(null, 1000, 1), null);
+  const S1 = seamAt(D1, 12345, 3);
+  ck('a seam carries the epoch it opens', S1.epoch, 3);
+  ck('…the path that moved', S1.paths.join(','), 'a.js');
+  ck('…and the denominator it was measured over, so `moved` is readable', S1.moved + '/' + S1.watched, '1/2');
+  ck('…a detachment is a seam too, not only a rewrite', seamAt(D2, 1, 1).paths.join(','), 'a.js');
+  ck('🔴 a mutant whose epoch advanced while it ran STRADDLED a seam', straddlesSeam(3, 4), true);
+  ck('…and one that began and finished in the same epoch did not', straddlesSeam(3, 3), false);
+  ck('🔴 an UNKNOWN start epoch is not void — §∅ bars inventing it in either direction', straddlesSeam(null, 4), false);
+  ck('…and an unknown end epoch is not void either', straddlesSeam(3, null), false);
+  ck('control · an epoch cannot run backwards, and a lower end is not a straddle', straddlesSeam(4, 3), false);
+  ck('no void mutant warns about nothing', inputVoidWarning(0, 40, [S1]), null);
+  ck('a void mutant warning states the count over the population', /2 of 40 mutant\(s\) VOID/.test(inputVoidWarning(2, 40, [S1])), true);
+  ck('…names the bucket the way QUARANTINED names its own', /unmeasured, not survived/.test(inputVoidWarning(2, 40, [S1])), true);
+  ck('…and names the seam, so the reader can tell which write it was', /epoch 3 at 12s \(1 of 2: a\.js\)/.test(inputVoidWarning(2, 40, [S1])), true);
+  ck('…with no seam recorded it still states the count rather than claiming a cause', /1 of 40/.test(inputVoidWarning(1, 40, [])), true);
+  ck('a canary that passed gets no seam note', canarySeamNote('PASSED', true), null);
+  ck('…and a failed canary that straddled nothing gets none either', canarySeamNote('FAILED', false), null);
+  ck('🔴 a failed canary that STRADDLED a seam says the two readings cannot be separated', /cannot separate them/.test(canarySeamNote('FAILED', true)), true);
+  ck('…and an unsampled run (canarySeam null) claims nothing about it', canarySeamNote('FAILED', null), null);
+  ck('a void mutant leaves the honest denominator, as INVALID and QUARANTINED do', measuredDenominator({ tested: 60, invalid: 3, quarantined: 2, inputVoid: 5 }), 50);
+  ck('…and a record that never sampled the tree keeps the old denominator', measuredDenominator({ tested: 60, invalid: 3, quarantined: 2, inputVoid: null }), 55);
+  /* WIRING — four statements, and the sweep is blind without any one of them. */
+  ck('the window OPENS where the mutant reaches disk, before the write', /mu\.__epoch = seamCheck\(\);\n\s+writeFileSync\(target, mu\.apply\(\)\);/.test(ENVSRC), true);
+  ck('…and CLOSES in the one classifier every loop funnels through', /const epochNow = seamCheck\(\);/.test(ENVSRC), true);
+  /* Both anchors assembled at runtime for the same reason as UNRUN_RE below, and both required to
+     EXIST: a leg that compares two −1s passes over a branch somebody deleted. */
+  const _vIdx = ENVSRC.search(new RegExp('if \\(straddlesSeam\\(mu\\.__epoch, epochNow\\)\\) \\{'));
+  const _kIdx = ENVSRC.search(new RegExp("if \\(verdict === 'KILLED'\\) \\{"));
+  ck('🔴 …and the void bucket is tested BEFORE the KILLED branch, so a kill over two trees is dropped too', _vIdx > 0 && _kIdx > 0 && _vIdx < _kIdx, true);
+  ck('…the chain starts from the pool sample, so no interval is unmeasured', /LAST_SAMPLE = TREE_BEFORE;/.test(ENVSRC), true);
+  ck('…the record carries the bucket in exactly one place', (ENVSRC.match(/^\s+inputVoid: LAST_SAMPLE \? inputVoidThisRun : null,$/gm) || []).length, 1);
+  ck('🔴 …as null when nothing sampled, never 0 — 0 would read as "nothing moved" (§∅)', /inputVoid: LAST_SAMPLE \? inputVoidThisRun : null,/.test(ENVSRC), true);
+  /* Assembled at runtime, never written as a literal: an unanchored pattern over this file also
+     matches the leg that carries it, which is how the first cut of this pair read 3 sites for 2. */
+  const UNRUN_RE = new RegExp('const unrun = ok\\.reduce\\(\\(a, r\\) => a \\+ r\\.invalid \\+ \\(r\\.quarantined [|][|] 0\\) \\+ \\(r\\.inputVoid [|][|] 0\\), 0\\);', 'g');
+  ck('…and the verdict counts it among the mutants that proved nothing', UNRUN_RE.test(ENVSRC), true);
+  ck('…in BOTH the verdict object and the gate prose, which may never disagree', (ENVSRC.match(UNRUN_RE) || []).length, 2);
   /* 🔴 THE VERDICT MUST NOT MOVE WITH THE LOAD ON THE BOX. Residue
      2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs reports three legs over one
      identical population, each naming a different survivor at an identical kill rate. One candidate
@@ -3544,6 +3727,22 @@ function selftest() {
     ck('…valid', val(u.verdict), true);
     const vd = diffVerdict([row({ voided: true, killed: 10, survivors: [{ line: 1, op: 'x', before: 'y' }] })], meta);
     ck('canary survived outranks survivors → UNKNOWN, exit 3', vd.verdict.status + ':' + vd.code + ':' + /canary/.test(vd.verdict.reason), 'UNKNOWN:3:true');
+    /* §∅ AT THE VERDICT: a mutant whose input moved under it is unmeasured, so it leaves `checked`
+       and the gate reads UNKNOWN — the same treatment INVALID already gets, at the mutant grain the
+       residue row asks about. */
+    const vi = diffVerdict([row({ inputVoid: 2, driftSeams: [{ epoch: 1, moved: 1 }], killed: 8 })], meta);
+    ck(
+      'a VOID mutant → UNKNOWN, exit 3, and the reason names the seam',
+      vi.verdict.status + ':' + vi.code + ':' + /2 of 10 mutant\(s\) VOID — the input moved/.test(vi.verdict.reason),
+      'UNKNOWN:3:true'
+    );
+    ck('…excluded = the void ones, so checked describes what was measured', vi.verdict.population.excluded + ':' + vi.verdict.population.checked, '2:8');
+    ck('…valid under verdict.js', val(vi.verdict), true);
+    ck('…and the result reports the bucket and the seam count', vi.verdict.result.inputVoid + ':' + vi.verdict.result.driftSeams, '2:1');
+    const vb = diffVerdict([row({ inputVoid: 1, driftSeams: [{ epoch: 1, moved: 1 }], invalid: 2, killed: 7 })], meta);
+    ck('void and never-ran are both excluded, and the reason states both', vb.verdict.population.excluded + ':' + /2 more never ran/.test(vb.verdict.reason), '3:true');
+    ck('🔴 a record from before the seam detector reports the bucket as null, never 0', u.verdict.result.inputVoid + ':' + u.verdict.result.driftSeams, 'null:null');
+    ck('…and still verdicts on its own merits', u.verdict.status, 'UNKNOWN');
     const na = diffVerdict([row({ tested: 0, killed: 0 })], meta);
     ck('changed lines with no mutant → NOT_APPLICABLE, exit 0 — never PASS over checked 0', na.verdict.status + ':' + na.code + ':' + na.verdict.result, 'NOT_APPLICABLE:0:null');
     ck('…valid', val(na.verdict), true);
@@ -3811,7 +4010,22 @@ function reportOne(r) {
   console.log(
     '  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ' tagged' + (r.groupsSelected != null && r.groupsSelected !== r.groupCount ? ', ' + r.groupsSelected + ' RUN' : '') + ')'
   );
-  console.log('    generated ' + r.generated + ', tested ' + r.tested + ' → killed ' + r.killed + ', survived ' + r.survivors.length + ', invalid ' + r.invalid + '   [' + score + ' % killed]');
+  console.log(
+    '    generated ' +
+      r.generated +
+      ', tested ' +
+      r.tested +
+      ' → killed ' +
+      r.killed +
+      ', survived ' +
+      r.survivors.length +
+      ', invalid ' +
+      r.invalid +
+      (r.inputVoid ? ', void ' + r.inputVoid : '') +
+      '   [' +
+      score +
+      ' % killed]'
+  );
   /* THE DISTINGUISHABLE RATE, printed beside the raw one rather than replacing it. A reader must be
      able to see both denominators and the gap between them -- that gap IS the finding. */
   const eq = r.equivalence;
@@ -3963,7 +4177,10 @@ if (DIFF) {
   const excusedN = ok.reduce((a, r) => a + r.survivors.length, 0) - surv.length;
   const refutedAll = ok.flatMap((r) => ((r.equivalence && r.equivalence.refuted) || []).map((e) => ({ file: r.file, ...e })));
   const voided = ok.filter((r) => r.voided);
-  const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0), 0);
+  /* The SAME union diffVerdict uses, including the void bucket — the two are printed side by side,
+     so a disagreement here would read as the tool contradicting its own verdict object. */
+  const voidInput = ok.reduce((a, r) => a + (r.inputVoid || 0), 0);
+  const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0) + (r.inputVoid || 0), 0);
   const tested = ok.reduce((a, r) => a + r.tested, 0);
   const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
   /* ONE decision, made by diffVerdict (pure, selftest-pinned); the prose below explains it and the
@@ -3972,6 +4189,10 @@ if (DIFF) {
   if (voided.length) {
     console.error('\n✕ MUTATION GATE VOID — the canary survived on: ' + voided.map((r) => r.file).join(', '));
     console.error('  Kills are not being detected, so "all killed" would prove nothing. Not a pass.');
+  } else if (voidInput) {
+    console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + voidInput + ' of ' + tested + ' mutants were VOID: the input moved while they ran.');
+    console.error('  Each faced two trees, so its verdict is about neither. Re-run in a tree nothing else is writing to.');
+    if (unrun > voidInput) console.error('  ' + (unrun - voidInput) + ' further mutant(s) never ran at all.');
   } else if (unrun) {
     console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + unrun + ' of ' + tested + ' mutants never ran.');
     console.error('  They did not compile, timed out under load, or were quarantined for going silent. Nothing was proven about them.');
