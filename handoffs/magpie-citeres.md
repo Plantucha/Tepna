@@ -79,3 +79,20 @@ the rule; the population gate is.** Fixed by importing the scanner.
 - `node tests/run-tests.mjs --group='a residue key cited in code resolves to a row, by one pre-stated ladder'` ✓ 40
 - `npx --no-install biome check` ✓ on both changed JS files
 - `npm run check` — one run on the final state, appended below
+
+---
+
+## FINISHED 2026-10-27 13:30Z — head `b0cdcf1d9`, all 41 steps pass, PR #4016 still DRAFT
+
+`✓ check — all 41 steps passed`, suite **14,538 assertions over 833 groups**. The citation gate reads
+1554 citations over 567 files against 912 rows, `dangling` 13 against 14 declared, and
+`ownerReasonsExamined: 0` with the CLI saying so.
+
+**Three runs, and only the first two cost anything.** Run 1 redded at step 15 of 41 on my own bare
+pipe split, which is the §🔴 lesson above. Run 2 redded at step 12 of 41 on
+`.claude/hooks/guard-stale-brief.test.sh`, `a payload path is reported as named by the payload`,
+`got ABSENT want PRESENT`. **Three controls cleared that one: `origin/main` at `44774865e`, my own
+base `ddc5c0961`, and an immediate re-run of the identical tree in this worktree.** So it is neither
+the ref nor the diff, and it is logged as a flake sighting. ⚠️ **A second red lands while the first
+one is still fresh, and that is when a transient reads as a finding** — run the control before
+touching the diff.
