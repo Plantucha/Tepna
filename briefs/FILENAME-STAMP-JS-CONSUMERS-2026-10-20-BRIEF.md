@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-26 · **Created:** 2026-10-20
+**Status:** DONE — 2026-10-27 · **Created:** 2026-10-20
 
 # The JS consumers of a capture filename stamp
 
@@ -126,4 +126,52 @@ the bound. It removes the case the promise could not cover.
 - [x] the pre-filter bound exceeds the measured name error, pinned by a selftest leg
 - [x] `dex-ingest.js` refuses an out-of-range filename stamp, with the four bundles re-bundled — #3812
 - [x] each night-grouping script keys on content, with the night-count delta measured — 4 of 4
-- [ ] residue `2026-09-22-filename-stamp-still-wrong-for-other-consumers` closes only when §4 is empty
+- [x] **this brief discharges part (b) of residue
+  `2026-09-22-filename-stamp-still-wrong-for-other-consumers`, and the row stays OPEN on part (a).** 🔴 **THIS ITEM CONFLATED THE TWO HALVES OF ITS OWN PARENT ROW.**
+  It read "closes only when §4 is empty", and §4 is now empty. That row has two halves, and only part (b)
+  — the consumer enumeration — is what this brief addresses. Part (a) is the capture-host writing a
+  SESSION-start stamp: 39 files on 14 nights, worst 18.7 h. Part (a) needs a writer change, a night and a
+  deploy, so an empty §4 cannot close the row. The row that closes here is the census row §6 answers.
+## 6 · What closes, and what the instrument cannot see
+
+Residue `2026-10-12-filename-stamp-consumers-split-twelve-convert-four-identify` closes as
+`fixed #4011`. That row names twelve files as time converters, and this section answers each one
+against the shipped census `tools/stamp-consumer-census.json` at `2ac325510`.
+
+| the row's twelve | in the census | reads | anchored | how it is answered |
+|---|---|---|---|---|
+| `capture-host/parse_dat.py` | yes | time | **true** | asks `writers.file_start_stamp` — #4011 |
+| `tools/trio-batch.mjs` | yes | identifier · time | **true** | delegates to `DexClock.fileStamp` — #4011 |
+| `dex-ingest.js` | yes | identifier · time | true | node-local validated reader — #3812 |
+| `sensor-trio-night.js` | yes | identifier · time | true | keys on the first data row — #3812's family |
+| `sensor-trio-power-analysis.js` | yes | identifier · time | true | the same repair — #3791 |
+| `sigma-no-reference-analysis.js` | yes | identifier · time | true | the same repair — #3791 |
+| `capture-host/loss_audit.py` | yes | docstring | null | delegates in code — #3920 |
+| `oxydex-dsp.js` | yes | docstring | null | already an owner call, §2 read it clean |
+| `tools/acc-shared-movement.mjs` | **absent** | — | — | stopped reading a stamp at all |
+| `tools/pat-matchrate-strict.mjs` | **absent** | — | — | hands the whole basename to the owner |
+| `tools/ppg-foot-consensus-e1.mjs` | **absent** | — | — | the same, at two sites — #4006 |
+| `tools/ppg-fusion-e3.mjs` | **absent** | — | — | the same, at two sites — #4006 |
+
+The three node-local readers are correct rather than a shortfall. None of those pages carries
+`clock.js`, and `verify:analysis` requires each to stay self-contained, so an alias there is a
+`ReferenceError` at module evaluation.
+
+🔴 **THE CENSUS POPULATION ERASES THE REPAIR IT CERTIFIES, AND FOUR ANCHORED READERS SIT OUTSIDE IT.**
+The instrument enumerates every tracked source whose text spells a run of adjacent quantified digit
+atoms summing to 14. A reader repaired by handing the whole basename to the owner carries no such run,
+so it leaves the population on the commit that fixes it.
+
+Four files convert a filename stamp to an instant today and are absent from the census, at six call
+sites between them: `signal-orchestrate.js`, `tools/pat-matchrate-strict.mjs`,
+`tools/ppg-foot-consensus-e1.mjs` and `tools/ppg-fusion-e3.mjs`. Three of the four sit in the table
+above. `signal-orchestrate.js` sits OUTSIDE the row's twelve, because the row derived its own
+enumeration from the same spelling the census inherited, so a reader counting the table's whole-basename
+entries finds three and not four. None of the four was ever declared, so
+the tool's own departure check never had a row to fire on. Its headline of 14 of 14 anchored counts the
+files that still spell a stamp, never the files that read one.
+
+Logged as `2026-10-27-the-stamp-census-population-erases-the-repair-it-certifies`, which names
+`2026-10-27-a-spelling-keyed-census-credits-a-fix-over-a-file-that-kept-a-second-reader` as its parent.
+The remedy is a second predicate over the owner call sites beside the spelling predicate, and it raises
+the time-reader population from 14 to 18.
