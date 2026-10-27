@@ -61,8 +61,9 @@
 import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { EPOCH_MS, MAX_LAG_MS, median, quantile, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -282,6 +283,26 @@ const walk = (d, o = []) => {
   return o;
 };
 const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
+/* THE LISTER IS THE POPULATION RULE, AND IT CARRIES A NAME ON PURPOSE. `snapshotEntries` publishes
+   `rule: null` for an inline arrow (`corpus-scope.mjs:329`), which would state that nobody chose the
+   rule this run applied. The unit is a FILE, not a night: `--dir` is a capture tree and not the
+   `YYYY-MM-DD` root `snapshotNights` reads, so a night snapshot here would manufacture a population.
+   🔴 IT MUST NOT SWALLOW AN UNREADABLE ROOT. `walk` catches every error, so a root nobody can open
+   returns `[]`, and the snapshot would then publish `n: 0` — a MEASUREMENT of zero over a directory
+   nothing read (§∅). The root's own readdir runs outside that catch, so the snapshot reports
+   `ok: false` with the reason instead. */
+function listDevicePpg(root) {
+  readdirSync(root);
+  return walk(root)
+    .filter((f) => PPG_RE.test(f.p))
+    .map((f) => relative(root, f.p));
+}
+
+const PPG_UNIT = `${DEVICE} PPG files`;
+const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
+/* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading a night of PPG takes long
+   enough for a commit to land in this worktree, and Node loaded this module at the start. */
+const commitOf = gitCommitOf(ROOT);
 const all = walk(DIR);
 const ppgs = all
   .filter((f) => PPG_RE.test(f.p))
@@ -409,7 +430,7 @@ for (const f of ppgs) {
   for (const k of Object.keys(variants)) s[k] = score(variants[k], best.c.beats, lo, hi);
   if (Object.values(s).some((v) => !v || v.jit == null)) continue;
 
-  const row = { name: f.p.split('/').pop().slice(0, 38), pol: polarityCorrected, s, w: pca.weights };
+  const row = { rec: relative(DIR, f.p), name: f.p.split('/').pop().slice(0, 38), pol: polarityCorrected, s, w: pca.weights };
   rows.push(row);
   const n2 = (v) => (v == null ? '  n/a' : v.toFixed(2));
   console.log(
@@ -417,8 +438,38 @@ for (const f of ppgs) {
   );
 }
 
+/* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing walk is what says so. Without it a result
+   that moved because the tree gained a capture is indistinguishable from one that moved because a
+   file changed. */
+const population = populationVerdict(snap, snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT }), {
+  commit: commitOf.commit,
+  commitReason: commitOf.reason,
+  tool: 'tools/ppg-fusion-e3.mjs',
+  evidence: ['tools/ppg-fusion-e3.mjs', 'tools/corpus-scope.mjs']
+});
+
+/* THE OTHER HALF OF THE POPULATION. The verdict above is about MOVEMENT — what arrived or left while
+   the run read. It says nothing about the offered files this run did not score, and a COUNT of them
+   names nothing to chase, so the removals go out by name. Both causes land here: the `--max-nights`
+   cap and the per-file skips. */
+function printPopulation() {
+  console.log(
+    `\n  population: ${population.status} — ${population.population.checked} offered ${snap.unit} the run can report over, of ${population.population.eligible} it saw${population.reason ? ` · ${population.reason}` : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`  the read scored ${rows.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  const missed = notCovered(snap, rows, { key: 'rec' });
+  if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+  if (ppgs.length < snap.n) console.log(`  ${snap.n - ppgs.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+}
+
+/* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. The early exit below used to be the only
+   line such a run printed, so the one case where the population is the whole story was the one case
+   that reported none. */
 if (!rows.length) {
   console.log('\nno night scored — E-3 cannot be adjudicated on this corpus.');
+  printPopulation();
   process.exit(0);
 }
 const col = (k, m) => rows.map((r) => (m === 'ppv' ? r.s[k].ppv * 100 : m === 'rec' ? (r.s[k].rec == null ? null : r.s[k].rec * 100) : r.s[k].jit)).filter((v) => v != null);
@@ -454,3 +505,5 @@ console.log('    return identical beat trains. Collapse is a property of GEVD, n
 console.log(`\n  Nights where the shipped polarity pass acted first: ${rows.filter((r) => r.pol > 0).length} of ${rows.length}`);
 console.log('  (without it a mean-of-3 on those nights CANCELS the pulse — fusion cannot be measured');
 console.log('   until polarity is settled, which is why E-5 was a prerequisite for this experiment.)');
+
+printPopulation();

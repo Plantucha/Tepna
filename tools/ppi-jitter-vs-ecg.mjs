@@ -40,7 +40,7 @@
 import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -113,6 +113,7 @@ import {
   ppiJitterMs,
   rateAgreement
 } from './ppi-match.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope.mjs';
 /* Re-exported so the existing import surface of this file is unchanged for any consumer. */
 export { hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs, rateAgreement };
 
@@ -315,6 +316,26 @@ const walk = (d, o = []) => {
   } catch (_e) {}
   return o;
 };
+/* THE LISTER IS THE POPULATION RULE, AND IT CARRIES A NAME ON PURPOSE. `snapshotEntries` publishes
+   `rule: null` for an inline arrow (`corpus-scope.mjs:329`), which would state that nobody chose the
+   rule this run applied. The unit is a FILE, not a night: `--dir` is a capture tree and not the
+   `YYYY-MM-DD` root `snapshotNights` reads, so a night snapshot here would manufacture a population.
+   🔴 IT MUST NOT SWALLOW AN UNREADABLE ROOT. `walk` catches every error, so a root nobody can open
+   returns `[]`, and the snapshot would then publish `n: 0` — a MEASUREMENT of zero over a directory
+   nothing read (§∅). The root's own readdir runs outside that catch, so the snapshot reports
+   `ok: false` with the reason instead. */
+function listDevicePpg(root) {
+  readdirSync(root);
+  return walk(root)
+    .filter((f) => PPG_RE.test(f.p))
+    .map((f) => relative(root, f.p));
+}
+
+const PPG_UNIT = `${DEVICE} PPG files`;
+const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
+/* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading a night of PPG takes long
+   enough for a commit to land in this worktree, and Node loaded this module at the start. */
+const commitOf = gitCommitOf(ROOT);
 const all = walk(DIR);
 const _ppgMatched = all.filter((f) => PPG_RE.test(f.p));
 const fingerFiles = _ppgMatched.sort((a, b) => b.size - a.size).slice(0, MAX_NIGHTS);
@@ -570,6 +591,7 @@ for (const unit of buildUnits(fingerFiles)) {
   const sf = fres.sdnnRobust,
     se = best.u.res.dispSd != null ? best.u.res.dispSd : best.u.res.sdnn;
   nights.push({
+    rec: relative(DIR, f.p),
     name: f.p.split('/').pop(),
     eps: jit.length,
     jitter: median(jit),
@@ -599,8 +621,37 @@ for (const unit of buildUnits(fingerFiles)) {
   );
 }
 
+/* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing walk is what says so. Without it a result
+   that moved because the tree gained a capture is indistinguishable from one that moved because a
+   file changed. */
+const population = populationVerdict(snap, snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT }), {
+  commit: commitOf.commit,
+  commitReason: commitOf.reason,
+  tool: 'tools/ppi-jitter-vs-ecg.mjs',
+  evidence: ['tools/ppi-jitter-vs-ecg.mjs', 'tools/corpus-scope.mjs']
+});
+
+/* THE OTHER HALF OF THE POPULATION. The denominator line above names what the WALK matched. This
+   names what the READ could not score, and by name rather than by count, because a count names
+   nothing to chase. Both causes land here: the `--max-nights` cap and the per-night skips. */
+function printPopulation() {
+  console.log(
+    `\n  population: ${population.status} — ${population.population.checked} offered ${snap.unit} the run can report over, of ${population.population.eligible} it saw${population.reason ? ` · ${population.reason}` : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`  the read scored ${nights.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  const missed = notCovered(snap, nights, { key: 'rec' });
+  if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+  if (fingerFiles.length < snap.n) console.log(`  ${snap.n - fingerFiles.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+}
+
+/* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. The early exit below used to be the only
+   line such a run printed, so the one case where the population is the whole story was the one case
+   that reported none. */
 if (!nights.length) {
   console.log('\nno night produced ≥' + MIN_EPOCHS + ' comparable epochs — nothing to report.');
+  printPopulation();
   process.exit(0);
 }
 const J = nights.map((n) => n.jitter);
@@ -676,3 +727,5 @@ console.log(
     'And both describe the RATE RANGE named above, not every rate a device can reach: a change that\n' +
     'misbehaves outside that range moves nothing here. Quote the range with the figure.'
 );
+
+printPopulation();
