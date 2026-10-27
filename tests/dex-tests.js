@@ -77601,6 +77601,69 @@
       );
     });
 
+    /* THE SHAPE A COMMITTED ARTIFACT ACTUALLY CARRIES (residue
+       2026-10-25-the-committed-ring-folds-carry-no-drawn-axis-verdict)
+       The group above pins the refusal over a LIVE parse, which has published `deviceDrawn` since
+       #3914. No committed artifact carries that key. Measured 2026-10-27 over the 173 `uploads/trio`
+       PpgDex exports: `deviceDrawn` ABSENT in 173 of 173, `hostAxis.drawn` `true` in all 74 ring
+       exports and `false` in all 99 Verity ones, `quality.axisDrawn` agreeing on every file, and 35
+       of the 74 ring exports publishing a ppm no crystal can do. So the artifact rail is the
+       population these legs stand for, and the ∅ leg is the one that decides an unknown. */
+    group('Integrator reads the drawn verdict an ARTIFACT carries', 'integrator-dsp · arrival-offsets · drawn-read', function (T) {
+      var I = env.IntegratorDSP;
+      T.ok('arrivalPairOffsets is reachable', !!(I && typeof I.arrivalPairOffsets === 'function'));
+      if (!(I && typeof I.arrivalPairOffsets === 'function')) return;
+      /* a live-parse clock: the current key, negative */
+      var live = function (name, ppm, off) {
+        return { device: name, ok: true, independent: true, plausibleCrystal: true, deviceDrawn: false, drawnShare: 0.01, ppm: ppm, offsetMs: off };
+      };
+      /* the 74 ring exports: no `deviceDrawn`, the verdict under both older names */
+      var ringFold = { device: 'Wellue O2Ring-S', ok: true, independent: true, plausibleCrystal: true, drawn: true, axisDrawn: true, drawnShare: 0.993, ppm: -22.83, offsetMs: 120 };
+      /* the 99 Verity exports: the same two older names, negative */
+      var verityFold = function (name, ppm, off) {
+        return { device: name, ok: true, independent: true, plausibleCrystal: true, drawn: false, axisDrawn: false, ppm: ppm, offsetMs: off };
+      };
+
+      var withFold = I.arrivalPairOffsets([live('Polar H10', -20.1, 100), ringFold]);
+      T.ok('a ring FOLD beside one real clock leaves no pair', withFold && withFold.ok === false, JSON.stringify(withFold && withFold.ok));
+      T.eq('…and the fold is counted unusable', withFold && withFold.usable, 1);
+      var foldWhy = (withFold && withFold.refused ? withFold.refused : []).filter(function (r) {
+        return r.device === 'Wellue O2Ring-S';
+      })[0];
+      T.ok('…refused as DRAWN, naming the key that decided', !!foldWhy && /DRAWN/.test(foldWhy.reason) && /hostAxis\.drawn/.test(foldWhy.reason), foldWhy && foldWhy.reason);
+
+      /* THE REGRESSION THIS GROUP EXISTS FOR: before the read-time rule the fold passed every gate,
+         because `deviceDrawn !== true` is TRUE of a key the artifact does not carry. */
+      var pair = I.arrivalPairOffsets([live('Polar H10', -20.1, 100), live('Polar VeritySense', -33.8, 300), ringFold]);
+      T.eq('two real clocks + one ring fold leaves exactly TWO usable', pair && pair.usable, 2);
+
+      var twoFolds = I.arrivalPairOffsets([verityFold('Polar H10', -20.1, 100), verityFold('Polar VeritySense', -33.8, 300)]);
+      T.ok('two Verity folds still pair on the older negative verdict', twoFolds && twoFolds.ok === true, JSON.stringify(twoFolds && twoFolds.reason));
+
+      /* `quality.axisDrawn` ALONE — the weakest publication, and still a verdict */
+      var qOnly = { device: 'Wellue O2Ring-S', ok: true, independent: true, plausibleCrystal: true, axisDrawn: true, ppm: -22.83, offsetMs: 120 };
+      var withQ = I.arrivalPairOffsets([live('Polar H10', -20.1, 100), qOnly]);
+      var qWhy = (withQ && withQ.refused ? withQ.refused : []).filter(function (r) {
+        return r.device === 'Wellue O2Ring-S';
+      })[0];
+      T.ok('a quality-only verdict refuses and names `quality.axisDrawn`', !!qWhy && /quality\.axisDrawn/.test(qWhy.reason), qWhy && qWhy.reason);
+
+      /* ∅ — NO KEY CARRIES THE VERDICT. The old clause admitted this; absence is not a measurement. */
+      var noProv = { device: 'Unknown Ring', ok: true, independent: true, plausibleCrystal: true, ppm: -22.83, offsetMs: 120 };
+      var withNone = I.arrivalPairOffsets([live('Polar H10', -20.1, 100), noProv]);
+      T.ok('an axis with NO provenance key is not admitted', withNone && withNone.ok === false, JSON.stringify(withNone && withNone.usable));
+      var noneWhy = (withNone && withNone.refused ? withNone.refused : []).filter(function (r) {
+        return r.device === 'Unknown Ring';
+      })[0];
+      T.ok('…and says the provenance is UNKNOWN rather than borrowing another reason', !!noneWhy && /UNKNOWN/.test(noneWhy.reason), noneWhy && noneWhy.reason);
+
+      /* PRECEDENCE: the current key outranks the older ones when they disagree, so a re-folded
+         artifact is read on what its producer published last. */
+      var disagree = { device: 'Wellue O2Ring-S', ok: true, independent: true, plausibleCrystal: true, deviceDrawn: false, drawn: true, axisDrawn: true, ppm: -22.83, offsetMs: 120 };
+      var withD = I.arrivalPairOffsets([live('Polar H10', -20.1, 100), disagree]);
+      T.ok('`deviceDrawn` outranks the two older names', withD && withD.ok === true, JSON.stringify(withD && withD.reason));
+    });
+
     /* ── DRAWN-AXIS FLAG: A RATCHET ON THE CONSUMERS (residue 2026-09-25-drawn-consumers-closure-unverified)
        `hostAxis.independent` compares the host column against the device column, so a counter
        synthesised as `index x an assumed rate` reads MORE independent the coarser the fabrication —

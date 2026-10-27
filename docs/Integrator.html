@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d469c8a70d27" data-compute-hash="28fc91617e97"><head>
+<html lang="en" data-manifest-hash="93b5a255f354" data-compute-hash="9b56a2c5dffd"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VCUNyrDFT0uXl4Q40gFYJsO3PKZ5SvRYyf1bfHkdf4M=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.23.0</title>
@@ -12683,6 +12683,37 @@ function readDetectorStability(nodeExport) {
   };
 }
 
+/* ── THE DRAWN VERDICT IS READ, NOT ASSUMED ABSENT ─────────────────────────────────
+   (residue 2026-10-25-the-committed-ring-folds-carry-no-drawn-axis-verdict)
+   `deviceDrawn` is the name #3914 gave this verdict, and every artifact folded before it carries the
+   same conclusion under two older names: `hostAxis.drawn` and `quality.axisDrawn`. Measured
+   2026-10-27 over the 173 committed `uploads/trio` PpgDex exports — `deviceDrawn` is ABSENT in 173
+   of 173, while `hostAxis.drawn` reads `true` in all 74 ring exports and `false` in all 99 Verity
+   ones, and `quality.axisDrawn` agrees on every file. The refusal below therefore read one key that
+   no committed artifact has ever carried.
+   Two things follow, and the second is the ∅ half:
+     · read the OLDER names when the current one is absent, which resolves every committed artifact
+       without restamping a single one of them;
+     · an axis whose provenance resolves NOWHERE is UNKNOWN, and never a clock. `deviceDrawn !== true`
+       ADMITTED it, so an absent key defaulted to "not drawn" — the shape ∅ forbids. Admission now
+       needs a NEGATIVE verdict, and an unresolved one is refused by name.
+   `drawn` is `true`, `false` or `null`; `via` names the key that decided, so a reader sees WHICH
+   publication answered rather than only the conclusion. */
+function axisDrawnRead(d) {
+  var order = d
+    ? [
+        ['deviceDrawn', d.deviceDrawn],
+        ['hostAxis.drawn', d.drawn],
+        ['quality.axisDrawn', d.axisDrawn]
+      ]
+    : [];
+  for (var i = 0; i < order.length; i++) {
+    if (order[i][1] === true) return { drawn: true, via: order[i][0] };
+    if (order[i][1] === false) return { drawn: false, via: order[i][0] };
+  }
+  return { drawn: null, via: null };
+}
+
 function arrivalPairOffsets(devices, opts) {
   opts = opts || {};
   var list = (devices || []).filter(function (d) {
@@ -12694,13 +12725,15 @@ function arrivalPairOffsets(devices, opts) {
        −22.83 ppm at a 99.3 % drawn-delta share — a textbook-plausible crystal between the H10's −20
        and the Verity's −34 — and passes BOTH. It has no oscillator. Only the delta-concentration test
        separates it, and it does so with no overlap (real ≤ 56.00 %, drawn ≥ 79.04 % over 381 files). */
-    return d && d.ok === true && d.independent === true && d.deviceDrawn !== true && d.plausibleCrystal !== false && isFinite(d.offsetMs);
+    var dv = axisDrawnRead(d);
+    return d && d.ok === true && d.independent === true && dv.drawn === false && d.plausibleCrystal !== false && isFinite(d.offsetMs);
   });
   var refused = (devices || [])
     .filter(function (d) {
       return list.indexOf(d) < 0;
     })
     .map(function (d) {
+      var rv = axisDrawnRead(d);
       return {
         device: d && d.device,
         reason:
@@ -12708,13 +12741,17 @@ function arrivalPairOffsets(devices, opts) {
             ? 'axis refused'
             : d.independent !== true
               ? 'host column is not an independent clock'
-              : d.deviceDrawn === true
-                ? 'device axis is DRAWN — ' +
+              : rv.drawn === true
+                ? 'device axis is DRAWN (read from `' +
+                  rv.via +
+                  '`) — ' +
                   (d.drawnShare == null ? 'delta concentration' : (d.drawnShare * 100).toFixed(1) + ' % of deltas share one value') +
                   '; a synthesised counter, not a clock, whatever ppm it reports'
-                : d.plausibleCrystal === false
-                  ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
-                  : 'incomplete anchor'
+                : rv.drawn == null
+                  ? 'axis provenance is UNKNOWN — none of `deviceDrawn`, `hostAxis.drawn` or `quality.axisDrawn` is carried here, ' + 'so ∅ refuses rather than reading the absence as a clock'
+                  : d.plausibleCrystal === false
+                    ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
+                    : 'incomplete anchor'
       };
     });
   if (list.length < 2) return { ok: false, reason: 'need >=2 usable clocks', usable: list.length, refused: refused };

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="4571f2ddd021" data-compute-hash="8d9229f384d1"><head>
+<html lang="en" data-manifest-hash="bdfd302c6d80" data-compute-hash="504ed6a1ae0d"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DgC+gzmTRM4ylbHQLOTL82fOM4KiHigmK/aDd25zoU=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-dz2qb834NCJQ4fo7JU8ZhsGGDA2wyQBPPTHkZnGB/gc=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DgC+gzmTRM4ylbHQLOTL82fOM4KiHigmK/aDd25zoU=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-VCUNyrDFT0uXl4Q40gFYJsO3PKZ5SvRYyf1bfHkdf4M=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-dz2qb834NCJQ4fo7JU8ZhsGGDA2wyQBPPTHkZnGB/gc=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -9059,6 +9059,37 @@ function readDetectorStability(nodeExport) {
   };
 }
 
+/* ── THE DRAWN VERDICT IS READ, NOT ASSUMED ABSENT ─────────────────────────────────
+   (residue 2026-10-25-the-committed-ring-folds-carry-no-drawn-axis-verdict)
+   `deviceDrawn` is the name #3914 gave this verdict, and every artifact folded before it carries the
+   same conclusion under two older names: `hostAxis.drawn` and `quality.axisDrawn`. Measured
+   2026-10-27 over the 173 committed `uploads/trio` PpgDex exports — `deviceDrawn` is ABSENT in 173
+   of 173, while `hostAxis.drawn` reads `true` in all 74 ring exports and `false` in all 99 Verity
+   ones, and `quality.axisDrawn` agrees on every file. The refusal below therefore read one key that
+   no committed artifact has ever carried.
+   Two things follow, and the second is the ∅ half:
+     · read the OLDER names when the current one is absent, which resolves every committed artifact
+       without restamping a single one of them;
+     · an axis whose provenance resolves NOWHERE is UNKNOWN, and never a clock. `deviceDrawn !== true`
+       ADMITTED it, so an absent key defaulted to "not drawn" — the shape ∅ forbids. Admission now
+       needs a NEGATIVE verdict, and an unresolved one is refused by name.
+   `drawn` is `true`, `false` or `null`; `via` names the key that decided, so a reader sees WHICH
+   publication answered rather than only the conclusion. */
+function axisDrawnRead(d) {
+  var order = d
+    ? [
+        ['deviceDrawn', d.deviceDrawn],
+        ['hostAxis.drawn', d.drawn],
+        ['quality.axisDrawn', d.axisDrawn]
+      ]
+    : [];
+  for (var i = 0; i < order.length; i++) {
+    if (order[i][1] === true) return { drawn: true, via: order[i][0] };
+    if (order[i][1] === false) return { drawn: false, via: order[i][0] };
+  }
+  return { drawn: null, via: null };
+}
+
 function arrivalPairOffsets(devices, opts) {
   opts = opts || {};
   var list = (devices || []).filter(function (d) {
@@ -9070,13 +9101,15 @@ function arrivalPairOffsets(devices, opts) {
        −22.83 ppm at a 99.3 % drawn-delta share — a textbook-plausible crystal between the H10's −20
        and the Verity's −34 — and passes BOTH. It has no oscillator. Only the delta-concentration test
        separates it, and it does so with no overlap (real ≤ 56.00 %, drawn ≥ 79.04 % over 381 files). */
-    return d && d.ok === true && d.independent === true && d.deviceDrawn !== true && d.plausibleCrystal !== false && isFinite(d.offsetMs);
+    var dv = axisDrawnRead(d);
+    return d && d.ok === true && d.independent === true && dv.drawn === false && d.plausibleCrystal !== false && isFinite(d.offsetMs);
   });
   var refused = (devices || [])
     .filter(function (d) {
       return list.indexOf(d) < 0;
     })
     .map(function (d) {
+      var rv = axisDrawnRead(d);
       return {
         device: d && d.device,
         reason:
@@ -9084,13 +9117,17 @@ function arrivalPairOffsets(devices, opts) {
             ? 'axis refused'
             : d.independent !== true
               ? 'host column is not an independent clock'
-              : d.deviceDrawn === true
-                ? 'device axis is DRAWN — ' +
+              : rv.drawn === true
+                ? 'device axis is DRAWN (read from `' +
+                  rv.via +
+                  '`) — ' +
                   (d.drawnShare == null ? 'delta concentration' : (d.drawnShare * 100).toFixed(1) + ' % of deltas share one value') +
                   '; a synthesised counter, not a clock, whatever ppm it reports'
-                : d.plausibleCrystal === false
-                  ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
-                  : 'incomplete anchor'
+                : rv.drawn == null
+                  ? 'axis provenance is UNKNOWN — none of `deviceDrawn`, `hostAxis.drawn` or `quality.axisDrawn` is carried here, ' + 'so ∅ refuses rather than reading the absence as a clock'
+                  : d.plausibleCrystal === false
+                    ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
+                    : 'incomplete anchor'
       };
     });
   if (list.length < 2) return { ok: false, reason: 'need >=2 usable clocks', usable: list.length, refused: refused };
