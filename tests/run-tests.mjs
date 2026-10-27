@@ -67,6 +67,7 @@ import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as argvReads from '../tools/argv-reads.mjs';
 import * as corpusReads from '../tools/corpus-reads.mjs';
 import * as trioNightsMod from '../tools/trio-eligible-nights.mjs';
+import * as foldGenMod from '../tools/fold-generation.mjs';
 import * as argvSurvey from '../tools/argv-survey.mjs';
 import * as importerFlagProbe from '../tools/importer-flag-probe.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
@@ -1156,6 +1157,24 @@ function readTrioNights() {
     live = null;
   }
   return { committed, live, mod: trioNightsMod };
+}
+
+/* WHICH EXPORTS CARRY A RECORDED CODE ERA (row
+   `2026-10-12-rejected-trio-nights-keep-exports-no-fold-rewrites`) — the committed census BESIDE a live
+   one taken by the producer over the tracked tree now. The stamp is the only record of the code that
+   wrote an export, so an export in an unstamped night has no era at all, and the count of those is a
+   published number rather than a tidiness note. No git (a tarball checkout) or no corpus ⇒ `live` is
+   null and the group SKIPs by name rather than passing over nothing. */
+function readTrioEra() {
+  const committed = readJsonOrNull(join(ROOT, 'analysis', 'trio-export-era.json'));
+  let live = null;
+  try {
+    const census = foldGenMod.eraCensus(undefined, { cwd: ROOT });
+    live = census && census.ok ? census : null;
+  } catch (_e) {
+    live = null;
+  }
+  return { committed, live, mod: foldGenMod };
 }
 
 function readFixtures() {
@@ -3702,6 +3721,7 @@ async function main() {
     detectorRealmDigests: readDetectorRealmDigests(['oxy', 'pulse']), // treatment-response yield pin — the detector closure, derived from cohort-worker.js SCRIPTS
     treatmentYieldPin: readJsonOrNull(join(ROOT, 'analysis', 'treatment-response-yield-pin.json')),
     trioNights: readTrioNights(), // row 2026-10-25 — the produced trio population, committed + live
+    trioEra: readTrioEra(), // row 2026-10-12 — which trio exports carry a recorded code era, committed + live
     YieldPin, // the pin's own selection replay + closure comparator, executed by the suite rather than re-implemented
     elementBlocks, // strip-markup's index scan — the group drives it over every end-tag spelling
     fixtures: readFixtures(),

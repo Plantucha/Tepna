@@ -1,0 +1,415 @@
+{
+  "schema": "tepna.verdict/1",
+  "gate": "trio-export-era",
+  "status": "PASS",
+  "scope": "internal",
+  "population": {
+    "checked": 415,
+    "eligible": 415,
+    "excluded": 0
+  },
+  "criterion": {
+    "name": "stamp_three_leg_disagreements",
+    "threshold": 0,
+    "unit": "nights",
+    "direction": "lte"
+  },
+  "result": {
+    "nights": 147,
+    "stamped": 90,
+    "unstamped": 57,
+    "exports": {
+      "total": 415,
+      "recorded": 335,
+      "unrecorded": 80
+    },
+    "unrecordedByNode": {
+      "ECGDex": 5,
+      "OxyDex": 57,
+      "PpgDex": 9,
+      "PpgDexFinger": 9
+    },
+    "unrecordedNights": [
+      {
+        "night": "2026-05-03",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-04",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-05",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-06",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-07",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-08",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-09",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-10",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-11",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-12",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-13",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-14",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-15",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-16",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-17",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-18",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-19",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-20",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-21",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-22",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-23",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-24",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-25",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-26",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-27",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-28",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-29",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-30",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-05-31",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-01",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-02",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-03",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-04",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-05",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-06",
+        "nodes": [
+          "ECGDex",
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-07",
+        "nodes": [
+          "ECGDex",
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-08",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-09",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-13",
+        "nodes": [
+          "OxyDex",
+          "PpgDex"
+        ]
+      },
+      {
+        "night": "2026-06-17",
+        "nodes": [
+          "ECGDex",
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-18",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-19",
+        "nodes": [
+          "OxyDex",
+          "PpgDex"
+        ]
+      },
+      {
+        "night": "2026-06-21",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-22",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-23",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-06-26",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-07-03",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-07-10",
+        "nodes": [
+          "OxyDex"
+        ]
+      },
+      {
+        "night": "2026-07-31",
+        "nodes": [
+          "ECGDex",
+          "OxyDex",
+          "PpgDexFinger"
+        ]
+      },
+      {
+        "night": "2026-08-04",
+        "nodes": [
+          "OxyDex",
+          "PpgDex",
+          "PpgDexFinger"
+        ]
+      },
+      {
+        "night": "2026-08-22",
+        "nodes": [
+          "ECGDex",
+          "OxyDex",
+          "PpgDexFinger"
+        ]
+      },
+      {
+        "night": "2026-08-29",
+        "nodes": [
+          "OxyDex",
+          "PpgDex",
+          "PpgDexFinger"
+        ]
+      },
+      {
+        "night": "2026-09-01",
+        "nodes": [
+          "OxyDex",
+          "PpgDex",
+          "PpgDexFinger"
+        ]
+      },
+      {
+        "night": "2026-09-02",
+        "nodes": [
+          "OxyDex",
+          "PpgDex",
+          "PpgDexFinger"
+        ]
+      },
+      {
+        "night": "2026-09-11",
+        "nodes": [
+          "OxyDex",
+          "PpgDex",
+          "PpgDexFinger"
+        ]
+      },
+      {
+        "night": "2026-09-18",
+        "nodes": [
+          "OxyDex",
+          "PpgDex",
+          "PpgDexFinger"
+        ]
+      },
+      {
+        "night": "2026-09-19",
+        "nodes": [
+          "OxyDex",
+          "PpgDex",
+          "PpgDexFinger"
+        ]
+      }
+    ],
+    "proxy": {
+      "threeLegNights": 90,
+      "stampedNights": 90,
+      "disagreements": []
+    }
+  },
+  "evidence": [
+    "tools/fold-generation.mjs",
+    "uploads/trio"
+  ],
+  "reason": null,
+  "producedBy": {
+    "tool": "tools/fold-generation.mjs",
+    "commit": "747adae7"
+  },
+  "at": "2026-10-27T12:42:04Z"
+}
