@@ -8,7 +8,7 @@ window rebound search hole edge` → `ecgdex-dsp.js:2530-2609 · surgeConf` · `
 
 ## Where this stopped (2026-10-20 02:55Z)
 
-Branch `claude/cvhredge-mg` in `/home/michal/wt-cvhredge-mg`, two commits on `e77c13040`.
+Branch `claude/cvhredge-mg` in `~/wt-cvhredge-mg`, two commits on `e77c13040`.
 The measurement is complete and the verdict validates.
 
 - `tools/cvhr-edge-widen.mjs` — the deliverable. Four candidate windows, two nodes, a planted phase
