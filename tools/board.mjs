@@ -292,6 +292,33 @@ export function landStuckHours(statusText, nowMs) {
   return +((nowMs - Date.parse(upd[1])) / 3.6e6).toFixed(1);
 }
 
+/* THE BOARD IS RENDERED BY THE CHECKOUT IT RUNS IN, AND THAT CHECKOUT LAGS (residue
+   2026-10-27-the-board-renders-from-a-checkout-nobody-advances). Every card now READS `origin/main`
+   after #3903, and the release card still published `v2.21.0` against a `v2.23.0` tag on 2026-10-27,
+   because `tepna-board.service` runs `node tools/board.mjs` from the shared primary checkout and
+   that tree sat 166 commits behind the ref. A fix that lands on the ref does not reach the runner,
+   so a card can be wrong for days with every input correct. The board cannot advance the shared tree
+   — CLAUDE.md §👥.2 forbids it, and other sessions work in it — so it says so instead. Pure, so
+   --selftest can plant it. */
+export function runnerVerdict(behind, boardDiffers) {
+  const n = Number.isFinite(behind) ? behind : null;
+  if (n === null) return { stale: null, reason: 'the running checkout could not be compared with the ref' };
+  if (boardDiffers) return { stale: true, behind: n, reason: `this board was rendered by a copy of tools/board.mjs that differs from ${MAIN_REF}, in a checkout ${n} commit(s) behind it` };
+  if (n > 0) return { stale: false, behind: n, reason: `the running checkout is ${n} commit(s) behind ${MAIN_REF}, and its tools/board.mjs matches the ref` };
+  return { stale: false, behind: 0, reason: null };
+}
+
+function runner() {
+  try {
+    const behind = +sh('git', ['rev-list', '--count', `HEAD..${MAIN_REF}`], { cwd: REPO });
+    const here = sh('git', ['hash-object', path.join(REPO, 'tools', 'board.mjs')], { cwd: REPO });
+    const there = sh('git', ['rev-parse', `${MAIN_REF}:tools/board.mjs`], { cwd: REPO });
+    return { ok: true, ...runnerVerdict(behind, here !== there) };
+  } catch (e) {
+    return fail(`running-checkout read failed: ${e.message}`);
+  }
+}
+
 function release() {
   const out = { ok: true };
   try {
@@ -768,12 +795,24 @@ function fileSection(name, rel, note) {
 }
 
 /* Today's entries only (owner, 2026-10-12: "Kestrel daily evaluation should have only today data").
-   An entry starts at a `### ` heading or a `Kestrel daily evaluation — ` line; entries whose heading
-   carries `today` (YYYY-MM-DD) are kept in order. With none dated today the LATEST entry is shown
-   under a dated note, never silently. Pure; the file is append-only, so the slice is by heading. */
+   An entry starts at a `### ` heading or a `Kestrel daily evaluation — ` line, with or without a
+   Markdown heading prefix of its own; entries whose heading carries `today` (YYYY-MM-DD) are kept in
+   order. With none dated today the LATEST entry is shown under a dated note, never silently. Pure;
+   the file is append-only, so the slice is by heading.
+
+   ⚠️ THE PREFIX IS PART OF THE HEADING, AND A SPLITTER THAT MISSES IT SLICES NOTHING (residue
+   2026-10-27-the-evaluation-parser-skips-a-heading-written-as-a-markdown-heading). The writer is
+   free to write `## Kestrel daily evaluation — ` and the old pattern matched neither branch, so the
+   whole file read as ONE undated part. The failure is not a blank card: `mine` goes empty, the
+   fallback shows the LATEST part, and the latest part is the entire file. The note then contradicts
+   itself, because `when` reads the first date in the text — measured 2026-10-27 over a two-entry
+   plant: `(no entry dated 2026-10-27; showing the latest, 2026-10-27)`. Accept `#` through `######`
+   before the words, and nowhere else: a bare `#{1,6} ` splitter would also cut on every subheading
+   inside an entry's body. */
 export function todaysEntries(txt, today) {
-  const parts = txt.split(/^(?=### |Kestrel daily evaluation — )/m).filter((p) => p.trim());
-  const dateOf = (p) => (p.match(/^(?:### |Kestrel daily evaluation — )(\d{4}-\d{2}-\d{2})/) || [])[1] || null;
+  const HEAD = '### |(?:#{1,6} )?Kestrel daily evaluation — ';
+  const parts = txt.split(new RegExp(`^(?=${HEAD})`, 'm')).filter((p) => p.trim());
+  const dateOf = (p) => (p.match(new RegExp(`^(?:${HEAD})(\\d{4}-\\d{2}-\\d{2})`)) || [])[1] || null;
   const mine = parts.filter((p) => dateOf(p) === today);
   if (mine.length) return { text: mine.join('\n'), note: null };
   const last = parts.length ? parts[parts.length - 1] : '';
@@ -886,6 +925,36 @@ function planEstimate() {
   }
 }
 
+/* THE PACE RESTARTS AT THE WEEKLY RESET, AND REFUSES RATHER THAN SPANNING ONE (residue
+   2026-10-27-the-plan-pace-spans-a-weekly-reset-and-reads-negative). The owner's usage percentage
+   counts within one allowance week and drops to near zero when the week turns, so the last two
+   readings are a pace only while they belong to the SAME week. Measured 2026-10-27 on the live
+   plan.json: 10-20 read `all: 41` under `resets: 2026-10-24T16:00-04:00` and 10-26 read `all: 32`
+   under `resets: 2026-10-31T16:00-04:00`, and the card published `-0.06 %/h` — a fall in spend that
+   never happened. A week is identified by the `resets` stamp the owner's screen shows beside the
+   percentage, so the baseline is the previous reading carrying the SAME stamp. One reading in the
+   current week is not a slow week, it is an absent measurement: §∅ makes it `null` with a reason,
+   never 0. Pure, so --selftest can plant it. */
+export function planRate(pts) {
+  const none = (reason) => ({ all: null, fable: null, hours: null, reason });
+  const rows = Array.isArray(pts) ? pts.filter((p) => p && typeof p.all === 'number' && p.at) : [];
+  if (rows.length < 2) return none('the plan readings hold fewer than two points, so there is no pace yet');
+  const last = rows[rows.length - 1];
+  if (!last.resets) return none('the latest reading names no week reset, so a pace cannot say which week it covers');
+  let prev = null;
+  for (let i = rows.length - 2; i >= 0; i--) {
+    if (rows[i].resets === last.resets) {
+      prev = rows[i];
+      break;
+    }
+  }
+  if (!prev) return none(`the week resetting ${last.resets} holds one reading, so there is no pace within it yet`);
+  const hours = (Date.parse(last.at) - Date.parse(prev.at)) / 3.6e6;
+  if (!(hours > 0)) return none('the two readings of this week carry no forward time between them');
+  const rate = (k) => (typeof prev[k] === 'number' && typeof last[k] === 'number' ? +((last[k] - prev[k]) / hours).toFixed(2) : null);
+  return { all: rate('all'), fable: rate('fable'), hours: +hours.toFixed(1), reason: null };
+}
+
 function planPct() {
   const f = path.join(OUT_DIR, 'plan.json');
   if (!existsSync(f)) return { spentPct: null, reportedAt: null };
@@ -897,9 +966,6 @@ function planPct() {
        (measured 2026-10-12: the bar read 50 % from 10:35 while a 56 % point from 12:28 sat beside it). */
     if (pts.length) {
       const last = pts[pts.length - 1];
-      const prev = pts.length > 1 ? pts[pts.length - 2] : null;
-      const hours = prev ? (Date.parse(last.at) - Date.parse(prev.at)) / 3.6e6 : null;
-      const rate = (k) => (prev && hours > 0 && typeof prev[k] === 'number' && typeof last[k] === 'number' ? +((last[k] - prev[k]) / hours).toFixed(2) : null);
       return {
         spentPct: last.all,
         spentPctRange: null,
@@ -907,7 +973,7 @@ function planPct() {
         resets: last.resets || null,
         note: null,
         point: { all: last.all, fable: typeof last.fable === 'number' ? last.fable : null, session: typeof last.session === 'number' ? last.session : null, at: last.at, resets: last.resets || null },
-        rate: { all: rate('all'), fable: rate('fable'), hours: hours == null ? null : +hours.toFixed(1) },
+        rate: planRate(pts),
         points: pts.slice(-4)
       };
     }
@@ -973,6 +1039,7 @@ export function collect() {
     prs: pr,
     mainCi: ci,
     release: rel,
+    runner: runner(),
     herder: herder(),
     ownerDecisions: ownerDecisions(),
     agentBoard: agentBoard(),
@@ -1150,7 +1217,7 @@ export function renderHtml(b) {
   const bud = b.budget.ok
     ? `<div class="bar"><div style="margin-left:${Math.max(0, Math.min(100, b.budget.lo))}%;width:${Math.max(1, Math.min(100, b.budget.hi) - Math.max(0, b.budget.lo))}%"></div></div>
        <p><b>${esc(b.budget.label)}</b>${b.budget.range ? ' <span class="dim">(a band, as reported — not collapsed to a midpoint)</span>' : ''} of the weekly pool, as last reported by the owner${b.budget.ageHours != null ? ` <span class="${b.budget.stale ? 'red' : 'dim'}">(${b.budget.ageHours} h ago${b.budget.stale ? ' — STALE' : ''})</span>` : ''}</p>
-       ${b.planPoint ? `<p>All <b>${b.planPoint.all} %</b>${b.planPoint.fable != null ? ` · Fable <b>${b.planPoint.fable} %</b>` : ''}${b.planPoint.session != null ? ` · session ${b.planPoint.session} %` : ''} <span class="dim">at ${esc(String(b.planPoint.at).slice(11, 16))} local${b.planPoint.resets ? `, week resets ${esc(String(b.planPoint.resets).slice(0, 16).replace('T', ' '))}` : ''}</span></p>${b.planRate && b.planRate.all != null ? `<p class="dim">pace since the previous point (${b.planRate.hours} h): All ${b.planRate.all} %/h${b.planRate.fable != null ? ` · Fable ${b.planRate.fable} %/h` : ''}</p>` : ''}` : b.planNote ? `<p class="dim">${esc(b.planNote)}</p>` : ''}`
+       ${b.planPoint ? `<p>All <b>${b.planPoint.all} %</b>${b.planPoint.fable != null ? ` · Fable <b>${b.planPoint.fable} %</b>` : ''}${b.planPoint.session != null ? ` · session ${b.planPoint.session} %` : ''} <span class="dim">at ${esc(String(b.planPoint.at).slice(11, 16))} local${b.planPoint.resets ? `, week resets ${esc(String(b.planPoint.resets).slice(0, 16).replace('T', ' '))}` : ''}</span></p>${b.planRate && b.planRate.all != null ? `<p class="dim">pace since the previous reading of this week (${b.planRate.hours} h): All ${b.planRate.all} %/h${b.planRate.fable != null ? ` · Fable ${b.planRate.fable} %/h` : ''}</p>` : b.planRate && b.planRate.reason ? `<p class="dim">no pace: ${esc(b.planRate.reason)}</p>` : ''}` : b.planNote ? `<p class="dim">${esc(b.planNote)}</p>` : ''}`
     : unread(b.budget);
   const pe = b.planEstimate;
   const est = !pe
@@ -1232,7 +1299,7 @@ p{margin:8px 0}
 @media(max-width:640px){.wrap{padding:0 16px}.kv{grid-template-columns:1fr;gap:2px}.kv dt{margin-top:8px}.statusline{gap:16px}.table-wrap table{min-width:560px}}
 </style></head><body>
 <div class="wrap">
-<header><h1>Tepna fleet board</h1><div class="meta">${esc(b.generatedAt)} &middot; ${esc(b.host)} &middot; <code>http://100.80.204.55:8766/</code></div></header>
+<header><h1>Tepna fleet board</h1><div class="meta">${esc(b.generatedAt)} &middot; ${esc(b.host)} &middot; <code>http://100.80.204.55:8766/</code></div>${b.runner && b.runner.stale ? `<div class="meta">⚠ ${esc(b.runner.reason)}</div>` : ''}</header>
 ${banners}
 <div class="status-cards">
 <div class="mini-card"><h3>daemon</h3><p class="big ${b.vigilHealth.ok && b.vigilHealth.active === 'active' ? 'ok' : 'bad'}">${b.vigilHealth.ok ? esc(b.vigilHealth.active) : 'unknown'}</p></div>
@@ -1542,6 +1609,70 @@ function runSelftest() {
     ok(landStuckHours(midRun, Date.parse('2026-10-22T12:30:00Z')) === 2, 'CONTROL · a run on its merge step for 2 h reads 2 h stuck');
     ok(landStuckHours('', Date.now()) === null, 'no status text is no stall');
     ok(herderRows('not json', 'birds').length === 0 && herderRows('{"result":{}}', 'birds').length === 0, 'unparseable or agent-less herder output yields no rows, never a throw');
+    {
+      /* THE PACE, RESTARTED AT EACH WEEKLY RESET. The cross-reset plant is the live 2026-10-27 shape. */
+      const W1 = '2026-10-24T16:00-04:00';
+      const W2 = '2026-10-31T16:00-04:00';
+      const same = planRate([
+        { at: '2026-10-26T00:00:00Z', all: 10, fable: 4, resets: W2 },
+        { at: '2026-10-26T10:00:00Z', all: 30, fable: 9, resets: W2 }
+      ]);
+      ok(same.all === 2 && same.fable === 0.5 && same.hours === 10 && same.reason === null, 'two readings of ONE week give a pace per hour on both meters');
+      const across = planRate([
+        { at: '2026-10-20T20:00:00Z', all: 41, fable: 20, resets: W1 },
+        { at: '2026-10-26T20:00:00Z', all: 32, fable: 11, resets: W2 }
+      ]);
+      ok(across.all === null && across.hours === null && /holds one reading/.test(across.reason), 'CONTROL · the live 41 → 32 pair across the 10-24 reset refuses instead of publishing -0.06 %/h');
+      ok(planRate([{ at: '2026-10-26T00:00:00Z', all: 10, resets: W2 }]).reason === 'the plan readings hold fewer than two points, so there is no pace yet', 'one reading is no pace');
+      ok(
+        /names no week reset/.test(
+          planRate([
+            { at: '2026-10-26T00:00:00Z', all: 10 },
+            { at: '2026-10-26T06:00:00Z', all: 12 }
+          ]).reason
+        ),
+        'a latest reading with no resets stamp refuses: it cannot say which week it covers'
+      );
+      const flat = planRate([
+        { at: '2026-10-26T06:00:00Z', all: 10, resets: W2 },
+        { at: '2026-10-26T06:00:00Z', all: 12, resets: W2 }
+      ]);
+      ok(flat.all === null && /no forward time/.test(flat.reason), 'two readings at the same instant carry no pace');
+      const skip = planRate([
+        { at: '2026-10-26T00:00:00Z', all: 5, resets: W2 },
+        { at: '2026-10-26T06:00:00Z', all: 99, resets: W1 },
+        { at: '2026-10-26T12:00:00Z', all: 17, resets: W2 }
+      ]);
+      ok(skip.all === 1 && skip.hours === 12, 'the baseline is the previous reading of the SAME week, not the previous row');
+      ok(planRate(null).reason === 'the plan readings hold fewer than two points, so there is no pace yet' && planRate([]).all === null, 'no readings refuse rather than throw');
+    }
+    {
+      /* THE EVALUATION HEADING, WITH AND WITHOUT A MARKDOWN PREFIX. */
+      const two = '## Kestrel daily evaluation — 2026-10-26 18:00 EDT\nold body\n\n## Kestrel daily evaluation — 2026-10-27 09:00 EDT\nnew body\n';
+      const t = todaysEntries(two, '2026-10-27');
+      ok(t.note === null && /new body/.test(t.text) && !/old body/.test(t.text), 'a `## ` heading slices to TODAY alone');
+      const bare = 'Kestrel daily evaluation — 2026-10-26 18:00 EDT\nold\n\nKestrel daily evaluation — 2026-10-27 09:00 EDT\nnew\n';
+      ok(todaysEntries(bare, '2026-10-27').note === null && /new/.test(todaysEntries(bare, '2026-10-27').text), 'CONTROL · the legacy heading with no prefix still slices');
+      const hashes = '###### Kestrel daily evaluation — 2026-10-27 09:00 EDT\nnew\n';
+      ok(todaysEntries(hashes, '2026-10-27').note === null, 'six hashes are still a heading');
+      ok(todaysEntries('### 2026-10-27 · something\nbody\n', '2026-10-27').note === null, 'CONTROL · the plain `### <date>` entry form is untouched');
+      const inner = '## Kestrel daily evaluation — 2026-10-27 09:00 EDT\nintro\n\n## Items\none\n';
+      ok(/## Items/.test(todaysEntries(inner, '2026-10-27').text), 'a subheading inside the entry body is NOT a split point, so the entry stays whole');
+      const miss = todaysEntries(two, '2026-10-28');
+      ok(miss.note === '(no entry dated 2026-10-28; showing the latest, 2026-10-27)', 'with nothing dated today the note names both dates and they differ — the self-contradicting form is gone');
+    }
+    {
+      /* THE RUNNER TRIPWIRE. A card can be wrong with every input correct, because the service runs
+         the shared checkout's copy of this file (residue
+         2026-10-27-the-board-renders-from-a-checkout-nobody-advances). */
+      const stale = runnerVerdict(166, true);
+      ok(stale.stale === true && stale.behind === 166 && /differs from origin\/main/.test(stale.reason), 'a board rendered by a differing copy, 166 commits behind, says so');
+      const behindOnly = runnerVerdict(166, false);
+      ok(behindOnly.stale === false && /its tools\/board\.mjs matches the ref/.test(behindOnly.reason), 'CONTROL · a behind checkout whose board.mjs matches the ref is NOT a stale renderer');
+      ok(runnerVerdict(0, false).stale === false && runnerVerdict(0, false).reason === null, 'CONTROL · a current checkout raises nothing');
+      ok(runnerVerdict(null, true).stale === null && /could not be compared/.test(runnerVerdict(null, true).reason), 'an uncomparable checkout is null with a reason, never false');
+      ok(runnerVerdict(Number.NaN, false).stale === null, 'a non-finite count is the absence, not 0');
+    }
   }
   console.log(fails.length ? `board selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
   process.exit(fails.length ? 1 : 0);
