@@ -580,7 +580,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # poller never reads otherwise. +1, the whole delta: the file read is `solid_night.newest_written`,
     # and this count does not cover that module.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 329, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 329 → 332 on 2026-10-27 (owner ruling: split `run_oxyii` so the ratchet can type it): the ring's
+    # data callback leaves the closure as `_oxyii_nonlive_frame`, `_oxyii_live_frame` and the router
+    # `_oxyii_on_data`. +3, the whole delta — the 567-line `on_data` stays as the two-line shim that
+    # `start_notify` receives, and the context it is handed is a frozen dataclass, which this count
+    # does not cover. The blind spot shrinks in SHAPE, not in size: the module is still excluded whole.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 332, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, collections, contextlib, ctypes, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, collections, contextlib, ctypes, dataclasses, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
 import concurrent.futures, multiprocessing, sys as _sys, threading
 import xml.etree.ElementTree as _ET  # glibc's malloc_info writes XML; see malloc_arenas()
 import build_id
@@ -33,7 +33,7 @@ from writers import (
     open_sample_writers,
 )
 import writers  # the MODULE too: the live loss guard asks it for the open set
-from typing import Any, Callable, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Iterable
 
 import proc_util
 import polar_pmd as pmd
@@ -5709,6 +5709,656 @@ async def _publish_ring_firmware(client, name: str) -> None:
     # string to a branch code was the defect; publishing it beside the branch is the use it has.
 
 
+if TYPE_CHECKING:  # imported INSIDE `run_oxyii` (a deliberate local import, kept); the link context
+    import oxy_lifecycle  # below needs its classes as annotations, which TYPE_CHECKING supplies free
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class _OxyiiLink:
+    """The per-connection state the ring's data callback reads, passed explicitly instead of captured.
+
+    `on_data` used to be a 567-line closure inside `run_oxyii`, which made the enclosing function 1488
+    lines and its state invisible to a reader and to mypy. Every name here was read-only in that closure
+    and bound before its `def` line, so a snapshot is equivalent to the capture — `frozen=True` states
+    that, and a future rebind that would have silently changed the callback's behaviour is now a
+    `FrozenInstanceError` at the rebind site. The mutable cells (`frames`, `_seq`, the one-element
+    latches) are shared objects exactly as before: the box is frozen, not what the boxes hold.
+    """
+
+    dev: dict
+    name: str
+    addr: str
+    reasm: oxyii.Reassembler
+    wr: Spo2CsvWriter
+    ppgwr: StreamWriter | None
+    ppg2wr: StreamWriter | None
+    plethawr: StreamWriter | None
+    accrawwr: StreamWriter | None
+    rtcwr: RingClockLogWriter
+    oxyflagwr: OxyFrameLogWriter
+    oxy_arr_wr: PmdArrivalLogWriter
+    contact_ledger: ContactLedger
+    _ring_gate: RingRecordGate
+    _oxylc: oxy_lifecycle.OxyLifecycle
+    _oxyrec: oxy_lifecycle.OxyRecEngine
+    _oxywr: dict[str, OxyLifeLogWriter | None]
+    _rec_emit: Callable[[Iterable[Any]], None]
+    ppg_grid: list[O2PpgGrid]
+    ppg_led: list[O2PpgFrameLedger]
+    frames: list[int]
+    identity_seen: list[bool]
+    _seq: list[int | None]
+    _rtc_due: list[bool]
+    _storm_hit: list[float | None]
+    _acc_unexpected: list[bool]
+    _auth_seen: list[bool]
+    _auth_payload: list[bytes | None]
+    _auth_unknown: list[bool]
+    _cfg_expect: list[tuple[str, int] | None]
+
+
+def _oxyii_nonlive_frame(cx: _OxyiiLink, r) -> bool:
+    """Handle every ring frame that is not an OP_LIVE vitals frame. True when the frame is consumed.
+
+    A True here was a `continue` in the callback's frame loop, so the caller continues; falling off the
+    end was falling through to the live pipeline, and is False.
+    """
+    dev, name, addr = cx.dev, cx.name, cx.addr
+    rtcwr, oxy_arr_wr, ppg2wr, plethawr, accrawwr = cx.rtcwr, cx.oxy_arr_wr, cx.ppg2wr, cx.plethawr, cx.accrawwr
+    _ring_gate, identity_seen = cx._ring_gate, cx.identity_seen
+    _auth_seen, _auth_payload, _auth_unknown = cx._auth_seen, cx._auth_payload, cx._auth_unknown
+    _cfg_expect, _acc_unexpected = cx._cfg_expect, cx._acc_unexpected
+    # RING RTC READBACK (GET_INFO [24:31], readable since 2026-08-19). Publishes the
+    # ring-vs-host offset so a 0xC0 push that failed to land is VISIBLE on the monitor
+    # rather than silently trusted. An unset/out-of-range RTC publishes None — absence,
+    # never year-0 arithmetic (Clock Contract §2.7).
+    if r and r[0] == oxyii.OP_AUTH:
+        # Recorded, never acted on HERE: the connect path owns the decision, and a
+        # BLE callback is the wrong place to tear a session down.
+        _auth_seen[0] = True
+        _auth_payload[0] = r[1]
+    if r and r[0] == oxyii.OP_GET_INFO:
+        _info = oxyii.parse_get_info(r[1])
+        # IDENTITY (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The same reply
+        # carries the WIRE serial and firmware, and until 2026-09-05 both were parsed and
+        # dropped here — the daemon's only post-connect identity check read a value nobody
+        # kept. Published now, and the serial is checked against the operator's `serial:`
+        # when one is configured (alerts.ring_identity_mismatch — plaintext + unbonded, so
+        # this is detection of the cheap impostor and the WRONG RING, not proof of the
+        # right one). Journal on the TRANSITION only; alert_poller carries it to the
+        # webhook and latches per episode, as it does for the offline alarm.
+        _seen = (_info or {}).get("serial")
+        identity_seen[0] = True  # this link reached identity; clause 2 asks what came next
+        _mm = alerts.ring_identity_mismatch(dev.get("serial"), _seen)
+        if _mm and STATUS["devices"].get(name, {}).get("ring_identity_mismatch") != _mm:
+            log.error(
+                "%s: RING IDENTITY MISMATCH — %s; data from this link is suspect until the serial matches",
+                name,
+                _mm,
+            )
+        # `ring_firmware` KEEPS ITS CURRENT VALUE (the branch code) because webmon
+        # forwards that exact key to the monitor; renaming it would blank a card.
+        # The correctly-named fields are published ALONGSIDE it — residue
+        # `2026-09-02-oxyii-branchcode-named-firmware`.
+        # READ THE PREVIOUS BRANCH BEFORE PUBLISHING THE NEW ONE. The first
+        # draft took `_prev` from STATUS *after* the `_set` below, so it always
+        # equalled the value just written and the transition check could never be
+        # true — the guard would have fired on no link, ever. Same shape as the
+        # "WRITE THE FIRE BEFORE THE RESTART" rule in the wedge ladder: order is
+        # the whole behaviour. Caught by a run-level test, not by review.
+        _prev_branch = STATUS["devices"].get(name, {}).get("ring_branch_code")
+        _set(
+            name,
+            ring_serial=_seen or None,
+            ring_firmware=(_info or {}).get("firmware") or None,
+            ring_branch_code=(_info or {}).get("branch_code") or None,
+            ring_firmware_version=(_info or {}).get("firmware_version") or None,
+            ring_identity_mismatch=_mm,
+        )
+        # ── THE AES-SESSION GUARD, ON THE FIELD IT ALWAYS MEANT ──────────────
+        # Residue `2026-09-05-dis-firmware-compared-to-a-branch-code`. It used to
+        # compare the DIS Firmware Revision String to `2D010002`, a BRANCH CODE —
+        # so it could never be true on a ring implementing DIS, and on this box's
+        # ring, which does not expose DIS at all, it never ran. Here the branch
+        # code is already parsed, and EVERY ring answers GET_INFO in our own
+        # handshake, so the check exists on every link rather than only on rings
+        # that happen to implement a profile we do not require.
+        # The PREMISE is unchanged and still measured: the app-layer AES session
+        # on branch-2D010001 rings is real (oxyii.py §"Encrypted-session guard")
+        # and is a different layer from the LE link encryption Probe A refuted.
+        _branch = (_info or {}).get("branch_code")
+        if _auth_unknown[0]:
+            _auth_unknown[0] = False
+            # The paired verdict, once per link, at the first moment BOTH halves
+            # exist: the ring never answered 0xFF, and here is what its branch code
+            # says instead. Reported together because either alone misleads — a
+            # silent ring is not evidence of plaintext, and a branch code is an
+            # inference from a label, not a measurement of this session.
+            log.info(
+                "%s: no OP_AUTH reply — encryption UNDETERMINED; branch %s "
+                "(%s per the only corroborator this build has)",
+                name,
+                _branch or "unread",
+                "SUSPECT" if aes_session_suspect(_branch) else "not suspect",
+            )
+        if aes_session_suspect(_branch):
+            if _prev_branch != _branch:  # TRANSITION only — not once per frame
+                log.warning(
+                    "%s: ring reports branch %s, not the measured-plaintext %s "
+                    "(firmware %s) — if frames stop decoding, suspect an "
+                    "app-layer AES session",
+                    name,
+                    _branch,
+                    O2RING_PLAINTEXT_BRANCH,
+                    (_info or {}).get("firmware_version"),
+                )
+        _rtc = _info.get("rtc") if _info else None
+        _off = round(ring_clock_offset_s(_rtc, _now()), 1) if _rtc else None
+        _set(name, ring_rtc_offset_s=_off, ring_rtc_read=_now().isoformat(timespec="seconds"))
+        if _off is not None:
+            # 🔴 THE READ IS WHAT CONFIRMS OR REFUTES THE PUSH. The 0xC0 write is
+            # unacknowledged, so this measured offset is the first evidence that the
+            # ring's RTC carries host time. An offset inside the pre-stated bound
+            # stamps `clock_synced`; one outside it CLEARS the stamp, because the key
+            # means "the last read agreed" and a stale agreement is the same false
+            # claim in slower motion. An absent reading changes neither (∅) — it is
+            # handled by the `else` below, which only logs the read.
+            if abs(_off) <= _OXYII_RTC_CONFIRM_S:
+                _set(name, clock_synced=_now().isoformat(timespec="seconds"))
+            else:
+                _set(name, clock_synced=None)
+            # RTC RESET DETECTION. Between two reads the offset moves by drift (≪1 s
+            # per 10 min) or by a 0xC0 push we made ourselves — a jump beyond
+            # _OXYII_RTC_JUMP_S with no push means the RTC restarted (battery event,
+            # the documented failure that silently ruins a stored .dat's timebase).
+            # Flag it the moment it is SEEN, and clear _OXYII_RTC_AT so the very next
+            # loop re-pushes (oxyii_rtc_due reads it as first contact).
+            _prev_off = _OXYII_LAST_RTC_OFF.get(addr)
+            _OXYII_LAST_RTC_OFF[addr] = _off
+            if _prev_off is not None and abs(_off - _prev_off) > _OXYII_RTC_JUMP_S:
+                _set(name, ring_rtc_reset_suspect=_now().isoformat(timespec="seconds"))
+                _OXYII_RTC_AT.pop(addr, None)
+                log.warning(
+                    "%s: RTC JUMPED %+.1f s -> %+.1f s between reads — battery-event "
+                    "reset suspected; re-push queued, stored .dat timebase suspect",
+                    name,
+                    _prev_off,
+                    _off,
+                )
+                rtcwr.write(_now(), "reset-suspect", rtc_offset_s=_off)
+            else:
+                rtcwr.write(_now(), "read", rtc_offset_s=_off)
+        else:
+            rtcwr.write(_now(), "read")
+        return True
+    # BATTERY POLL REPLY (0xE4). level/state mirror the live header; raw2 is the
+    # ANALOG voltage-like byte (mapped 2026-08-19, semantics unverified) — logged raw
+    # because the log IS its characterisation. raw3: constant 0x10 so far; logged so
+    # a firmware where it moves is caught by data, not by assumption.
+    if r and r[0] == oxyii.OP_GET_BATTERY:
+        _b = oxyii.parse_battery(r[1])
+        if _b:
+            rtcwr.write(
+                _now(),
+                "battery",
+                battery_state=_b["state"],
+                battery_level=_b["level"],
+                battery_raw2=(r[1][2] if len(r[1]) > 2 else None),
+                battery_raw3=(r[1][3] if len(r[1]) > 3 else None),
+            )
+        return True
+    # SETTINGS READ-BACK (GET_CONFIG). Always publishes the parsed struct; when a
+    # queued write is awaiting its verdict, compares the RING's value to the request.
+    if r and r[0] == oxyii.OP_GET_CONFIG:
+        _cfgd = oxyii.parse_config(r[1])
+        if _cfgd:
+            _set(
+                name,
+                ring_config={
+                    k: _cfgd[k]
+                    for k in (
+                        "brightness",
+                        "motor",
+                        "spo2_low",
+                        "hr_low",
+                        "hr_high",
+                        "storage_interval",
+                    )
+                },
+            )
+            exp = _cfg_expect[0]
+            if exp is not None:
+                _fld, _val = exp
+                _rb = oxyii.SET_CONFIG_FIELDS[_fld]["readback"]
+                _ok = _rb is None or _cfgd.get(_rb) == _val
+                _set(
+                    name,
+                    ring_config_verdict=(
+                        f"{_fld}={_val} applied"
+                        if _ok
+                        else f"{_fld}={_val} NOT applied — ring reports {_cfgd.get(_rb)}"
+                    ),
+                )
+                if not _ok:
+                    log.warning(
+                        "%s: settings write %s=%s did not land (ring reports %s)",
+                        name,
+                        _fld,
+                        _val,
+                        _cfgd.get(_rb),
+                    )
+                _cfg_expect[0] = None
+        return True
+    # NOT RECORDING: while the gate says the ring is on its charger or off the finger past
+    # the grace, every reply that carries samples stops HERE, before a writer sees it.
+    # OP_LIVE is let through because the live frame is what tells the gate the ring is
+    # back on, and its own writes below read the decision that frame makes.
+    if _ring_gate.recording is False and r and r[0] != oxyii.OP_LIVE:
+        return True
+    # PUSHED 3-AXIS ACCELEROMETER (0x14). Arrives UNSOLICITED — nothing polls it;
+    # it appears only because the AUTO_RT_SWITCH handshake asked the ring to push,
+    # which happens only when 'acc' is in the device's `streams`. Handled here,
+    # before the OP_LIVE gate, for the same reason the raw optical reply is: a
+    # different opcode carrying a different payload, which that gate would drop.
+    #
+    # A frame that arrives when we did NOT ask is logged once and dropped rather
+    # than parsed — an unexpected push is a fact about the ring worth seeing, and
+    # guessing at it is how a stream nobody enabled becomes data nobody can explain.
+    if r and r[0] == oxyii.OP_RT_ACC:
+        if "acc" in (dev.get("streams") or []):
+            _acc = oxyii.parse_rt_acc(r[1])
+            if _acc:
+                BUS.push("acc_o2", [list(a) for a in _acc])
+                # `pragma: no branch` — the False arm is UNREACHABLE, not untested.
+                # `accrawwr` is constructed under the SAME predicate as the guard
+                # eight lines up (`"acc" in dev["streams"]`), and its construction
+                # runs at session setup while this is a notify callback that cannot
+                # fire until `start_notify` far below. So inside this block the
+                # writer is always non-None. The guard stays as defence against the
+                # two predicates drifting apart in a later edit; what it cannot do
+                # is be driven False by a test, and a test that pretended to would
+                # be a green certifying nothing.
+                if accrawwr:  # pragma: no branch
+                    # EVERY RECORD IN A FRAME CARRIES THE FRAME'S ARRIVAL STAMP, and
+                    # that is deliberate rather than lazy. `ppg2w` back-times its
+                    # records across `_RT_PPG_SPAN_S` because that span was MEASURED;
+                    # no equivalent exists for 0x14. The frames are device-PUSHED, so
+                    # their cadence is not set by our poll and has never been
+                    # characterised — the first observation (2026-09-03) showed an
+                    # effective ~10.2 Hz with each distinct triplet repeated ~6-7x,
+                    # which is itself unexplained. Spreading records across an
+                    # invented span would manufacture sub-frame timing we have not
+                    # measured, which is the same fabrication `sensor_ns = 0` and
+                    # `fs = 0` refuse one field over. Row ORDER is preserved and is
+                    # real; spacing is not claimed. Back-timing can replace this the
+                    # day the frame cadence is measured.
+                    _aph = _now()
+                    for _ax, _ay, _az in _acc:
+                        accrawwr.write_acc(_aph, None, 0.0, _ax, _ay, _az)
+                note_data(name, _time.monotonic())
+        elif not _acc_unexpected[0]:
+            _acc_unexpected[0] = True
+            log.warning(
+                "%s: ring pushed a 0x14 ACC frame we never asked for (%d bytes) — not parsed; see O2RING-PROTOCOL §3c",
+                name,
+                len(r[1]),
+            )
+        return True
+    # RAW DUAL-WAVELENGTH reply. Handled before the OP_LIVE gate below, which would
+    # otherwise drop it — it is a different opcode carrying a different payload.
+    if r and r[0] == oxyii.OP_SAMPLES_A and (plethawr or O2WAVE_POLL_MODE == O2WAVE_POLL_SPLIT):
+        _recs = oxyii.parse_samples_a(r[1])
+        if _recs:
+            _ph = _now()
+            # E11's arrival logger follows the opcode that CARRIES THE FRAMES, which
+            # in split mode is this one. The tag says WHICH opcode, because the two
+            # differ in what they can anchor and a consumer must not have to guess:
+            # `PPG_FRAME` is 0x04 and carries `ppg_stream_offset`; `PPG_FRAME_A` is
+            # 0x03 (LIVE_SAMPLES_A) and carries NO cumulative position — its reply
+            # header is 6 bytes with only the declared count at [4:6]. `[0:4]` was
+            # EXAMINED and is not a position: worn, 2026-10-06, it read 0 on all 887
+            # replies, and 11 of the 886 steps matched the previous declared count
+            # because those replies had declared 0 (RING-POLL-SPLIT §P1, criterion
+            # (b) FAIL). The same session's 0x04 `[20:24]` read 0 on all 177 frames,
+            # so NEITHER opcode carries a moving device position on this unit.
+            # `probe_oxyii_0x03.py` records the word per reply, so a firmware that
+            # starts filling it is visible without patching the probe again.
+            # ∅ So the position column is written BLANK, never as a host-maintained
+            # running sum: a sum would advance across a dropout the device sat out,
+            # which is precisely the event the arrival floor exists to see, and it
+            # would be a fabricated device position wearing the shape of a real one.
+            try:
+                # No `is not None` guard, for the reason the 0x04 row beside it
+                # carries none: an AttributeError on a None writer is caught by this
+                # same except, and the guard's false arm is a branch no test can take
+                # — an unreachable arm is a coverage hole dressed as caution. I
+                # reintroduced it here and the coverage run named it (5886->5890).
+                oxy_arr_wr.write(_ph, name, "PPG_FRAME_A", None, None, len(_recs), None)
+            except Exception:  # telemetry must never disturb the data callback
+                pass
+            for _v, _bt in _recs:
+                # sensor_ns 0: this opcode carries no device clock (see the header
+                # comment on the `pletha` layout). Back-timing the block would be
+                # inventing per-sample instants the device never reported.
+                # ⚠️ REACHABLE None, and NOT a narrowing gap: in `split` poll mode the 0x03 poll is
+                # issued under this same `plethawr or SPLIT` condition, so a box in split mode with no
+                # `pletha` stream polls, gets a reply, and writes to None ~1/s — outside the try above.
+                # Residue 2026-10-27-split-poll-mode-writes-the-raw-pleth-to-a-none-writer. Left
+                # EXACTLY as it was: repairing it is a behaviour change, and this unit preserves it.
+                plethawr.write_pletha(_ph, None, _v, _bt)  # type: ignore[union-attr]
+            BUS.push("o2pletha", [[_v] for _v, _ in _recs])
+    if r and r[0] == oxyii.OP_RT_PPG and ppg2wr:
+        recs = oxyii.parse_rt_ppg(r[1])
+        if recs:
+            arr2 = _now()
+            # Back-timed from ARRIVAL across the buffer, exactly as the 125 Hz pleth
+            # is — the ring stamps nothing, so a device time does not exist to use.
+            # The step is the BUFFER SPAN divided by its records, not a nominal rate:
+            # no rate is known here (see oxyii.parse_rt_ppg), and inventing one is
+            # what the O2PPG grid already had to be rescued from.
+            step = _RT_PPG_SPAN_S / max(len(recs) - 1, 1)
+            for i, (a, b, mo) in enumerate(recs):
+                ph = arr2 - _dt.timedelta(seconds=(len(recs) - 1 - i) * step)
+                # sensor_ns = 0: the ring exposes NO device clock on this opcode, and
+                # the 125 Hz pleth's O2PpgGrid cannot be borrowed — it is built on a
+                # MEASURED 125 Hz step, so reusing it here would stamp this stream
+                # with another stream's rate. The column is written BLANK, not 0:
+                # a zero is in-band for a ns counter, so it cannot be told apart
+                # from a device that reported the instant zero, and a reader that
+                # trusts it places the row at the epoch. Blank parses as absent.
+                ppg2wr.write_ppg2w(ph, None, a, b, mo)
+            BUS.push("o2ppg2w", [[a, b] for a, b, _m in recs])
+        return True
+    if not r or r[0] != oxyii.OP_LIVE:
+        return True
+    if _PPG_PROBE and _ppg_probe_n[0] < _PPG_PROBE_N:  # Phase-0/1 dump (OXYII_PPG_PROBE=1)
+        _ppg_probe_n[0] += 1
+        try:
+            with open(_PPG_PROBE_FILE, "a") as _pf:
+                _pf.write(
+                    json.dumps(
+                        {
+                            "n": _ppg_probe_n[0],
+                            "t": _now().isoformat(),
+                            "len": len(r[1]),
+                            "hex": r[1].hex(),
+                        }
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass  # an opt-in probe must never disturb capture (cf. `_pmd_probe`)
+        if _ppg_probe_n[0] == _PPG_PROBE_N:
+            log.info("O2RING-PPG-PROBE: dumped %d frames → %s", _PPG_PROBE_N, _PPG_PROBE_FILE)
+    return False
+
+
+def _oxyii_live_frame(cx: _OxyiiLink, r) -> None:
+    """The OP_LIVE pipeline: PPG waveform body, the recording gate, session restarts, then the vitals."""
+    import oxy_lifecycle
+
+    name, addr = cx.name, cx.addr
+    wr, ppgwr, oxyflagwr, oxy_arr_wr = cx.wr, cx.ppgwr, cx.oxyflagwr, cx.oxy_arr_wr
+    _oxylc, _oxyrec, _oxywr, _rec_emit = cx._oxylc, cx._oxyrec, cx._oxywr, cx._rec_emit
+    _ring_gate, contact_ledger, frames = cx._ring_gate, cx.contact_ledger, cx.frames
+    ppg_grid, ppg_led = cx.ppg_grid, cx.ppg_led
+    _seq, _rtc_due, _storm_hit = cx._seq, cx._rtc_due, cx._storm_hit
+    # ~125 Hz PPG waveform body (Phase 2): back-time each sample across the frame from
+    # its host arrival, write the PSL ppg layout, and push a live trace to the monitor.
+    # skip the decode entirely when off, or while the ring is not recording
+    ppg = oxyii.parse_ppg(r[1]) if ppgwr and _ring_gate.recording is not False else []
+    # The count the DEVICE declares, read whether or not any samples survived the
+    # slice — `declared - delivered` is only a measurement if both come off the same
+    # frame. Cheap (one u16) and gated on the same writer as the decode.
+    # Gated with the decode: a frame not recorded is not counted either, or the ledger
+    # would book every sample it declared and we skipped as a sample the ring lost.
+    n_decl = oxyii.ppg_sample_count(r[1]) if ppgwr and _ring_gate.recording is not False else None
+    # The ring's OWN stream position for this frame ([20:24], u32 LE). Read here for
+    # the same reason and under the same gate as n_decl: it is a property of THIS
+    # frame's bytes, and it is only a measurement paired with the count off the same
+    # frame. Recorded, never acted on — `SUM(declared)` vs `DELTA(offset)` is the
+    # host-clock-free test of whether the ring counts its PPG_INVALID bytes in its own
+    # sequence (DEVICE-RATE-TRUTH-2026-08-05 §6.1).
+    n_off = oxyii.ppg_stream_offset(r[1]) if ppgwr else None
+    # `ppg` is non-empty only when `ppgwr` exists: the decode above is gated on the same writer.
+    # The second test states that invariant where a type-checker can read it; it never fails.
+    if ppg and ppgwr:
+        arr = _now()
+        nps = len(ppg)
+        # ── THE RING ON THE SHARED ARRIVAL AXIS (E11, owner 2026-10-04) ────────
+        # One row per PPG FRAME on the SAME `PmdArrivalLogWriter` the Polars use,
+        # which is the whole point: `pat-feasibility` builds a per-connection
+        # arrival FLOOR from that one file shape, and until now the ring's sidecar
+        # carried only `OXYLIVE_DURATION_S` rows (one per 1 Hz vitals poll) — no
+        # frame rows at all. So the finger had no floor axis and no corrected PAT
+        # hat could include it (residue
+        # 2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat).
+        # Tonight's hat is what that costs: chest→finger is a FLAT UNIFORM
+        # 200–620 ms plateau (pair spread 137 ms) against a 60 ms-wide peak for
+        # chest→ankle, and the Verity corner refuses UNDERPOWERED because the hat
+        # is subtracting one ~400 ms-wide uniform from another.
+        #
+        # ∅ `first_ns`/`last_ns` ARE BLANK, NOT 0. The ring has no clock — not a
+        # clock we distrust, none at all — so there is no device timestamp for this
+        # frame and the writer blanks `None` rather than writing a 0 that would read
+        # as "arrived at the epoch". What it DOES know is its own stream position,
+        # `n_off` ([20:24] u32 LE), already decoded above and until now only
+        # attached to the OXYFRAME sidecar: a POSITION in samples, which is the
+        # honest column for it and the quantity a floor needs.
+        #
+        # `nps` is DELIVERED, not declared: `n_decl` is what the frame claimed and
+        # the two differ exactly when the link lost part of a frame, which is the
+        # event a floor must not be computed across. The declared count keeps its
+        # existing home in the OXYFRAME row rather than being duplicated here.
+        #
+        # Telemetry, inside the same swallow the duration row uses — an arrival
+        # sidecar must never disturb the data callback (and nothing in the SAMPLES
+        # changes: this adds a row to a sidecar and touches no stream).
+        try:
+            # No `is not None` guard, deliberately: the sibling duration row does
+            # not carry one either, because an AttributeError on a None writer is
+            # caught by this same except. A guard here would add a branch no test
+            # can take — the writer is bound before the poll loop runs — and an
+            # unreachable-false branch is a coverage hole dressed as caution.
+            oxy_arr_wr.write(arr, name, "PPG_FRAME", None, None, nps, n_off)
+        except Exception:  # telemetry must never disturb the data callback
+            pass
+        # ── HONEST GAPS (O2RING-PPG-GAP §1) ────────────────────────────────────
+        # `ppg_idx` is a pure running counter, so sensor_ns used to be a PERFECTLY
+        # CONTIGUOUS grid no matter what the link did. When BLE drops a frame the
+        # survivors were laid down back-to-back ACROSS the missing real time, which
+        # COMPRESSES the record: an interval spanning the loss is short by exactly the
+        # lost duration, and beat-to-beat variability is fabricated at every gap. It
+        # was invisible downstream because the ns column stayed uniform by
+        # construction (one distinct step over 900 k samples) — the DSP had no way to
+        # know time was missing. That is precisely what the Clock Contract forbids:
+        # "Dropped windows are GAPS, never fabricated rows."
+        # MEASURED on a 119 min overnight capture before this fix: 82.3 s of real time
+        # carried no samples (1.15 % of the record, ~10 346 samples) across 1 315
+        # discrete gaps — 11/min, median 49 ms, p90 96 ms, max 287 ms — leaving ~20 %
+        # of beats adjacent to a gap.
+        # This frame's samples are back-timed to END at `arr`, so it covers
+        # [arr - nps/fs, arr]. Real time the ring measured but the link lost must
+        # ADVANCE the grid instead of being pretended away.
+        #
+        # The whole grid — the session anchor, the honest-gap advance and the MEASURED
+        # step that CAPTURE-HOST-DEEP-AUDIT §A3 added — lives in O2PpgGrid, where it
+        # can be driven directly by a test. It used to live here, inline in a BLE
+        # callback, and the test file re-implemented it: two copies of the rule, with
+        # the assertions pointed at the copy that ships to nobody.
+        ns_of = ppg_grid[0].frame(arr, nps)
+        for i, v in enumerate(ppg):
+            ph = arr - _dt.timedelta(seconds=(nps - 1 - i) * ppg_grid[0].step_s)
+            ppgwr.write_ppg(ph, ns_of[i], 0.0, (v,), 0)
+        BUS.push("o2ppg", ppg)
+    live = oxyii.parse_live(r[1])
+    if not live:
+        return
+    frames[0] += 1
+    _rec, _why = _ring_gate.observe(
+        live.get("worn"), live.get("batt_state") in RING_DOCKED_BATT_STATES, _time.monotonic()
+    )
+    if _why:
+        log.info("%s: %s", name, _why)
+    # COUNT the frame against the ring's own session-second clock, before the row is
+    # written — the ledger returns that row's PPG arithmetic. Fed here rather than in
+    # the `if ppg:` block above because a frame that declared samples and delivered
+    # NONE is exactly the event worth counting, and that block never runs for it.
+    _ppgrow = ppg_led[0].frame(live["duration"], n_decl, len(ppg)) if n_decl is not None else None
+    # Attached to the row rather than passed through the ledger: the ledger ACCUMULATES
+    # (it owns truncated/device_seconds across the session) and this is a per-frame
+    # primitive with nothing to accumulate. Keeping it out of the ledger's state is
+    # what stops it becoming a fourth counter — the third was retired 2026-08-04
+    # precisely because no nominal made it informative.
+    if _ppgrow is not None:
+        _ppgrow["offset"] = n_off
+    # `oxyflagwr` itself is opened UNCONDITIONALLY on every connect (unlike ppgwr, which
+    # is gated on the `ppg` stream), so the false arm here is `_rec`: a frame the ring
+    # gate refused writes no row and notes no contact.
+    if oxyflagwr and _rec:
+        _fnow = _now()
+        oxyflagwr.write(_fnow, live, _ppgrow)  # PI + what the vendor CSV cannot carry
+        contact_ledger.note(_fnow, live.get("contact"))
+    # [0:4] is the ring's SESSION DURATION, not a frame counter — the old
+    # frame_gap() accounting on it reported phantom loss (9 warnings in one
+    # evening, one claiming 111 frames, which was a session starting). What the
+    # field genuinely tells us is when a NEW session began.
+    if oxyii.session_restarted(_seq[0], live["duration"]):
+        log.info("%s: ring started a new recording session", name)
+        # THE moment the RTC matters: the .dat header stamps a session at its start
+        # (samples are implicit at 1 Hz after it), so this is the only event that can
+        # bake a wrong time into stored data. on_data is a sync BLE callback and
+        # cannot await — hand it to the poll loop.
+        _rtc_due[0] = True
+        # Restart STORM (see oxyii_restart_storm): every restart is a buzz on the
+        # owner's finger, and on a storm night our presence is what keeps them coming.
+        _mono = _time.monotonic()
+        _storm, _recent = oxyii_restart_storm(_OXYII_RESTARTS.get(addr, []) + [_mono], _mono)
+        _OXYII_RESTARTS[addr] = _recent
+        _OXYII_RESTART_TOTAL[addr] = _OXYII_RESTART_TOTAL.get(addr, 0) + 1
+        if _storm:
+            _hold_s = oxyii_storm_hold_s(_OXYII_STORMS.get(addr, []), _mono)
+            _OXYII_STORMS[addr] = [t for t in _OXYII_STORMS.get(addr, []) if _mono - t <= _OXYII_STORM_MEMORY_S] + [
+                _mono
+            ]
+            _OXYII_HOLD_UNTIL[addr] = _mono + _hold_s
+            _OXYII_RESTARTS[addr] = []
+            _storm_hit[0] = _hold_s
+            log.warning(
+                "%s: %d session restarts in %.0f s — restart storm; leaving the ring "
+                "alone for %.0f min (storm #%d in the last %.0f h)",
+                name,
+                len(_recent),
+                _OXYII_STORM_WINDOW_S,
+                _hold_s / 60,
+                len(_OXYII_STORMS[addr]),
+                _OXYII_STORM_MEMORY_S / 3600,
+            )
+        # PUBLISH on every restart, storm or not: a reader must be able to see the
+        # restarts that did NOT trip the hold, or it cannot tell a quiet night from
+        # a night the detector was blind to.
+        _set(name, oxy_storm=_oxy_storm_block(addr, _mono))
+    _seq[0] = live["duration"]
+    _OXYII_LAST_DURATION[addr] = live["duration"]  # survives the next dropout
+    # RECORDING axis: every live frame's duration_s feeds the engine; the backward
+    # step lands here as END_CANDIDATE ~7–12 s after a doff, while the link is still
+    # held — the moment the close-triggered pull (DAT-AUTO-HARVEST §8) keys on.
+    _rec_emit(_oxyrec.observe_duration(live.get("duration")))
+    # LINK axis worn-flips: contact is a worn-VOTE (never a recording signal), but it
+    # IS the link axis's LIVE↔IDLE_UNWORN discriminator — the state measured running
+    # unjournaled for 6 h on 2026-08-24 (docked-charging: connected, contact=0).
+    if live.get("worn"):
+        _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE, "worn — frames flowing")
+    elif live.get("worn") is None:
+        pass  # probe unplugged / fault: wear UNKNOWN, so the link axis makes no flip on it
+    else:
+        _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.IDLE_UNWORN, "ring reports not-worn")
+    now = _now()
+    # Arrival↔device pairing, one row per live frame. `duration` is SECONDS, carried
+    # in the ns column so the file has one shape for every device; the `meas` value
+    # says which estimator applies (see the writer note above).
+    if _rec:
+        try:
+            _dur_ns = int(live["duration"]) * 1_000_000_000
+            oxy_arr_wr.write(now, name, "OXYLIVE_DURATION_S", _dur_ns, _dur_ns, 1)
+        except Exception:  # telemetry must never disturb the data callback
+            pass
+    # §∅: the flag and the NAME of what observed it travel together, so a published
+    # `charging: false` can be told apart from an absence (telemetry.ring_charging).
+    ring_docked, ring_docked_why = ring_charging(live.get("batt_state"))
+    if live["spo2"] is not None:
+        # `live["pr"]` passed through AS-IS, including None — `or 0` used to turn an
+        # unreadable pulse rate into a written 0 (VIGIL-PPG-GRID-AUDIT §5.2). The
+        # writer emits a blank for None; see Spo2CsvWriter.write.
+        wr.write(now, live["spo2"], live["pr"], live["motion"])  # [11], corrected
+        BUS.push("spo2", [live["spo2"]])
+        if live["pr"]:
+            BUS.push("pr", [live["pr"]])
+        BUS.push("motion_o2", [live["motion"]])  # raw movement level (~1/s)
+        # PERFUSION INDEX, the other half of the [7]/[11] swap. `pi` has been parsed
+        # and written to the SpO2 sidecar's `pi_pct` column since that correction, but
+        # was never published live — so the one signal that says WHY a reading is poor
+        # was visible only after the fact. It is `[7]/10` %, non-zero in 99.9 % of
+        # frames on a real night (mean 13.6 => 1.36 %), which is exactly what makes it
+        # a perfusion index rather than the motion it was mistaken for.
+        # NO None-GUARD, deliberately: `parse_live` computes `pi` as `[7]/10.0`
+        # unconditionally, so it is a float whenever `live` exists at all. A guard
+        # here was written, tested, and then caught by the coverage floor as an
+        # unreachable branch — the floor's real value is finding guards that CANNOT
+        # be exercised, not sloppiness.
+        BUS.push("pi_o2", [live["pi"]])
+        note_data(name, _time.monotonic())
+        _set(
+            name,
+            rows=wr.rows,
+            spo2=live["spo2"],
+            pr=live["pr"],
+            battery=live["batt"],
+            motion=live["motion"],
+            # ∅ THE SENSOR'S OWN STATEMENT, never an inference from the vitals: a probe
+            # fault (contact 2/3) that carries an in-range SpO2 is wear UNKNOWN (None),
+            # exactly as the no-vitals branch below publishes it.
+            worn=live["worn"],
+            last_sample=now.isoformat(),
+            arrival_rows=oxy_arr_wr.rows,
+            charging=ring_docked,
+            charging_why=ring_docked_why,
+            last_error=None,
+        )
+        _power_observe(name, worn=live["worn"], battery=live["batt"])  # None moves nothing
+    else:
+        BUS.push("motion_o2", [live["motion"]])
+        BUS.push("pi_o2", [live["pi"]])
+        # The ring keeps its link and keeps reporting motion/battery/contact on the
+        # charger — only the vitals stop. batt_state is the device's OWN charge flag
+        # (1 charging, 2 full; 3 is LOW, not docked), so unlike the Polars this needs no inference.
+        _set(
+            name,
+            worn=live["worn"],
+            motion=live["motion"],
+            battery=live["batt"],
+            charging=ring_docked,
+            charging_why=ring_docked_why,
+            last_error=None
+            if live["worn"]
+            else (
+                "no finger contact"
+                if live["worn"] is False
+                else f"ring probe reports a fault (contact={live.get('contact')}) — wear unknown"
+            ),
+        )
+        _power_observe(name, worn=live["worn"], battery=live["batt"])
+
+
+def _oxyii_on_data(cx: _OxyiiLink, _s, d) -> None:
+    """The ring's notification callback: reassemble, then route each frame."""
+    for frame in cx.reasm.feed(bytes(d)):
+        r = oxyii.decode(frame)
+        if _oxyii_nonlive_frame(cx, r):
+            continue
+        _oxyii_live_frame(cx, r)
+
+
 async def run_oxyii(dev: dict, root: str):
     """Wellue O2Ring-S / T8520 ("S8-AW…") — live SpO2 + pulse over the OxyII protocol (NOT legacy Viatom).
     No bonding. Flow: connect → auth(0xFF) → setup(0x10) → poll cmd=0x04 ~1/s. Emits the ViHealth CSV
@@ -6024,7 +6674,9 @@ async def run_oxyii(dev: dict, root: str):
                 # across a disconnect), so carrying it over cannot manufacture one.
                 _seq = [_OXYII_LAST_DURATION.get(addr)]
                 _rtc_due = [False]  # set when a new recording session begins; served by the poll loop
-                _storm_hit = [None]  # hold seconds once oxyii_restart_storm fires; the poll loop drops the link
+                # hold seconds once oxyii_restart_storm fires; the poll loop drops the link. Annotated
+                # because `[None]` alone infers list[None] and the write that fills it is in the handler.
+                _storm_hit: list[float | None] = [None]
                 _acc_unexpected = [False]  # latch: warn ONCE per link about an ACC push nobody asked for
                 # THE RING'S HONEST LIVENESS SIGNAL — `frames`, hoisted above the try so the barren-
                 # connect check can still read it after this block is gone. Not rows: vitals
@@ -6056,573 +6708,41 @@ async def run_oxyii(dev: dict, root: str):
                 _auth_payload: "list[bytes | None]" = [None]
                 _auth_unknown: list[bool] = [False]
 
+                cx = _OxyiiLink(
+                    dev=dev,
+                    name=name,
+                    addr=addr,
+                    reasm=reasm,
+                    wr=wr,
+                    ppgwr=ppgwr,
+                    ppg2wr=ppg2wr,
+                    plethawr=plethawr,
+                    accrawwr=accrawwr,
+                    rtcwr=rtcwr,
+                    oxyflagwr=oxyflagwr,
+                    oxy_arr_wr=oxy_arr_wr,
+                    contact_ledger=contact_ledger,
+                    _ring_gate=_ring_gate,
+                    _oxylc=_oxylc,
+                    _oxyrec=_oxyrec,
+                    _oxywr=_oxywr,
+                    _rec_emit=_rec_emit,
+                    ppg_grid=ppg_grid,
+                    ppg_led=ppg_led,
+                    frames=frames,
+                    identity_seen=identity_seen,
+                    _seq=_seq,
+                    _rtc_due=_rtc_due,
+                    _storm_hit=_storm_hit,
+                    _acc_unexpected=_acc_unexpected,
+                    _auth_seen=_auth_seen,
+                    _auth_payload=_auth_payload,
+                    _auth_unknown=_auth_unknown,
+                    _cfg_expect=_cfg_expect,
+                )
+
                 def on_data(_s, d):
-                    for frame in reasm.feed(bytes(d)):
-                        r = oxyii.decode(frame)
-                        # RING RTC READBACK (GET_INFO [24:31], readable since 2026-08-19). Publishes the
-                        # ring-vs-host offset so a 0xC0 push that failed to land is VISIBLE on the monitor
-                        # rather than silently trusted. An unset/out-of-range RTC publishes None — absence,
-                        # never year-0 arithmetic (Clock Contract §2.7).
-                        if r and r[0] == oxyii.OP_AUTH:
-                            # Recorded, never acted on HERE: the connect path owns the decision, and a
-                            # BLE callback is the wrong place to tear a session down.
-                            _auth_seen[0] = True
-                            _auth_payload[0] = r[1]
-                        if r and r[0] == oxyii.OP_GET_INFO:
-                            _info = oxyii.parse_get_info(r[1])
-                            # IDENTITY (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The same reply
-                            # carries the WIRE serial and firmware, and until 2026-09-05 both were parsed and
-                            # dropped here — the daemon's only post-connect identity check read a value nobody
-                            # kept. Published now, and the serial is checked against the operator's `serial:`
-                            # when one is configured (alerts.ring_identity_mismatch — plaintext + unbonded, so
-                            # this is detection of the cheap impostor and the WRONG RING, not proof of the
-                            # right one). Journal on the TRANSITION only; alert_poller carries it to the
-                            # webhook and latches per episode, as it does for the offline alarm.
-                            _seen = (_info or {}).get("serial")
-                            identity_seen[0] = True  # this link reached identity; clause 2 asks what came next
-                            _mm = alerts.ring_identity_mismatch(dev.get("serial"), _seen)
-                            if _mm and STATUS["devices"].get(name, {}).get("ring_identity_mismatch") != _mm:
-                                log.error(
-                                    "%s: RING IDENTITY MISMATCH — %s; data from this link is suspect "
-                                    "until the serial matches",
-                                    name,
-                                    _mm,
-                                )
-                            # `ring_firmware` KEEPS ITS CURRENT VALUE (the branch code) because webmon
-                            # forwards that exact key to the monitor; renaming it would blank a card.
-                            # The correctly-named fields are published ALONGSIDE it — residue
-                            # `2026-09-02-oxyii-branchcode-named-firmware`.
-                            # READ THE PREVIOUS BRANCH BEFORE PUBLISHING THE NEW ONE. The first
-                            # draft took `_prev` from STATUS *after* the `_set` below, so it always
-                            # equalled the value just written and the transition check could never be
-                            # true — the guard would have fired on no link, ever. Same shape as the
-                            # "WRITE THE FIRE BEFORE THE RESTART" rule in the wedge ladder: order is
-                            # the whole behaviour. Caught by a run-level test, not by review.
-                            _prev_branch = STATUS["devices"].get(name, {}).get("ring_branch_code")
-                            _set(
-                                name,
-                                ring_serial=_seen or None,
-                                ring_firmware=(_info or {}).get("firmware") or None,
-                                ring_branch_code=(_info or {}).get("branch_code") or None,
-                                ring_firmware_version=(_info or {}).get("firmware_version") or None,
-                                ring_identity_mismatch=_mm,
-                            )
-                            # ── THE AES-SESSION GUARD, ON THE FIELD IT ALWAYS MEANT ──────────────
-                            # Residue `2026-09-05-dis-firmware-compared-to-a-branch-code`. It used to
-                            # compare the DIS Firmware Revision String to `2D010002`, a BRANCH CODE —
-                            # so it could never be true on a ring implementing DIS, and on this box's
-                            # ring, which does not expose DIS at all, it never ran. Here the branch
-                            # code is already parsed, and EVERY ring answers GET_INFO in our own
-                            # handshake, so the check exists on every link rather than only on rings
-                            # that happen to implement a profile we do not require.
-                            # The PREMISE is unchanged and still measured: the app-layer AES session
-                            # on branch-2D010001 rings is real (oxyii.py §"Encrypted-session guard")
-                            # and is a different layer from the LE link encryption Probe A refuted.
-                            _branch = (_info or {}).get("branch_code")
-                            if _auth_unknown[0]:
-                                _auth_unknown[0] = False
-                                # The paired verdict, once per link, at the first moment BOTH halves
-                                # exist: the ring never answered 0xFF, and here is what its branch code
-                                # says instead. Reported together because either alone misleads — a
-                                # silent ring is not evidence of plaintext, and a branch code is an
-                                # inference from a label, not a measurement of this session.
-                                log.info(
-                                    "%s: no OP_AUTH reply — encryption UNDETERMINED; branch %s "
-                                    "(%s per the only corroborator this build has)",
-                                    name,
-                                    _branch or "unread",
-                                    "SUSPECT" if aes_session_suspect(_branch) else "not suspect",
-                                )
-                            if aes_session_suspect(_branch):
-                                if _prev_branch != _branch:  # TRANSITION only — not once per frame
-                                    log.warning(
-                                        "%s: ring reports branch %s, not the measured-plaintext %s "
-                                        "(firmware %s) — if frames stop decoding, suspect an "
-                                        "app-layer AES session",
-                                        name,
-                                        _branch,
-                                        O2RING_PLAINTEXT_BRANCH,
-                                        (_info or {}).get("firmware_version"),
-                                    )
-                            _rtc = _info.get("rtc") if _info else None
-                            _off = round(ring_clock_offset_s(_rtc, _now()), 1) if _rtc else None
-                            _set(name, ring_rtc_offset_s=_off, ring_rtc_read=_now().isoformat(timespec="seconds"))
-                            if _off is not None:
-                                # 🔴 THE READ IS WHAT CONFIRMS OR REFUTES THE PUSH. The 0xC0 write is
-                                # unacknowledged, so this measured offset is the first evidence that the
-                                # ring's RTC carries host time. An offset inside the pre-stated bound
-                                # stamps `clock_synced`; one outside it CLEARS the stamp, because the key
-                                # means "the last read agreed" and a stale agreement is the same false
-                                # claim in slower motion. An absent reading changes neither (∅) — it is
-                                # handled by the `else` below, which only logs the read.
-                                if abs(_off) <= _OXYII_RTC_CONFIRM_S:
-                                    _set(name, clock_synced=_now().isoformat(timespec="seconds"))
-                                else:
-                                    _set(name, clock_synced=None)
-                                # RTC RESET DETECTION. Between two reads the offset moves by drift (≪1 s
-                                # per 10 min) or by a 0xC0 push we made ourselves — a jump beyond
-                                # _OXYII_RTC_JUMP_S with no push means the RTC restarted (battery event,
-                                # the documented failure that silently ruins a stored .dat's timebase).
-                                # Flag it the moment it is SEEN, and clear _OXYII_RTC_AT so the very next
-                                # loop re-pushes (oxyii_rtc_due reads it as first contact).
-                                _prev_off = _OXYII_LAST_RTC_OFF.get(addr)
-                                _OXYII_LAST_RTC_OFF[addr] = _off
-                                if _prev_off is not None and abs(_off - _prev_off) > _OXYII_RTC_JUMP_S:
-                                    _set(name, ring_rtc_reset_suspect=_now().isoformat(timespec="seconds"))
-                                    _OXYII_RTC_AT.pop(addr, None)
-                                    log.warning(
-                                        "%s: RTC JUMPED %+.1f s -> %+.1f s between reads — battery-event "
-                                        "reset suspected; re-push queued, stored .dat timebase suspect",
-                                        name,
-                                        _prev_off,
-                                        _off,
-                                    )
-                                    rtcwr.write(_now(), "reset-suspect", rtc_offset_s=_off)
-                                else:
-                                    rtcwr.write(_now(), "read", rtc_offset_s=_off)
-                            else:
-                                rtcwr.write(_now(), "read")
-                            continue
-                        # BATTERY POLL REPLY (0xE4). level/state mirror the live header; raw2 is the
-                        # ANALOG voltage-like byte (mapped 2026-08-19, semantics unverified) — logged raw
-                        # because the log IS its characterisation. raw3: constant 0x10 so far; logged so
-                        # a firmware where it moves is caught by data, not by assumption.
-                        if r and r[0] == oxyii.OP_GET_BATTERY:
-                            _b = oxyii.parse_battery(r[1])
-                            if _b:
-                                rtcwr.write(
-                                    _now(),
-                                    "battery",
-                                    battery_state=_b["state"],
-                                    battery_level=_b["level"],
-                                    battery_raw2=(r[1][2] if len(r[1]) > 2 else None),
-                                    battery_raw3=(r[1][3] if len(r[1]) > 3 else None),
-                                )
-                            continue
-                        # SETTINGS READ-BACK (GET_CONFIG). Always publishes the parsed struct; when a
-                        # queued write is awaiting its verdict, compares the RING's value to the request.
-                        if r and r[0] == oxyii.OP_GET_CONFIG:
-                            _cfgd = oxyii.parse_config(r[1])
-                            if _cfgd:
-                                _set(
-                                    name,
-                                    ring_config={
-                                        k: _cfgd[k]
-                                        for k in (
-                                            "brightness",
-                                            "motor",
-                                            "spo2_low",
-                                            "hr_low",
-                                            "hr_high",
-                                            "storage_interval",
-                                        )
-                                    },
-                                )
-                                exp = _cfg_expect[0]
-                                if exp is not None:
-                                    _fld, _val = exp
-                                    _rb = oxyii.SET_CONFIG_FIELDS[_fld]["readback"]
-                                    _ok = _rb is None or _cfgd.get(_rb) == _val
-                                    _set(
-                                        name,
-                                        ring_config_verdict=(
-                                            f"{_fld}={_val} applied"
-                                            if _ok
-                                            else f"{_fld}={_val} NOT applied — ring reports {_cfgd.get(_rb)}"
-                                        ),
-                                    )
-                                    if not _ok:
-                                        log.warning(
-                                            "%s: settings write %s=%s did not land (ring reports %s)",
-                                            name,
-                                            _fld,
-                                            _val,
-                                            _cfgd.get(_rb),
-                                        )
-                                    _cfg_expect[0] = None
-                            continue
-                        # NOT RECORDING: while the gate says the ring is on its charger or off the finger past
-                        # the grace, every reply that carries samples stops HERE, before a writer sees it.
-                        # OP_LIVE is let through because the live frame is what tells the gate the ring is
-                        # back on, and its own writes below read the decision that frame makes.
-                        if _ring_gate.recording is False and r and r[0] != oxyii.OP_LIVE:
-                            continue
-                        # PUSHED 3-AXIS ACCELEROMETER (0x14). Arrives UNSOLICITED — nothing polls it;
-                        # it appears only because the AUTO_RT_SWITCH handshake asked the ring to push,
-                        # which happens only when 'acc' is in the device's `streams`. Handled here,
-                        # before the OP_LIVE gate, for the same reason the raw optical reply is: a
-                        # different opcode carrying a different payload, which that gate would drop.
-                        #
-                        # A frame that arrives when we did NOT ask is logged once and dropped rather
-                        # than parsed — an unexpected push is a fact about the ring worth seeing, and
-                        # guessing at it is how a stream nobody enabled becomes data nobody can explain.
-                        if r and r[0] == oxyii.OP_RT_ACC:
-                            if "acc" in (dev.get("streams") or []):
-                                _acc = oxyii.parse_rt_acc(r[1])
-                                if _acc:
-                                    BUS.push("acc_o2", [list(a) for a in _acc])
-                                    # `pragma: no branch` — the False arm is UNREACHABLE, not untested.
-                                    # `accrawwr` is constructed under the SAME predicate as the guard
-                                    # eight lines up (`"acc" in dev["streams"]`), and its construction
-                                    # runs at session setup while this is a notify callback that cannot
-                                    # fire until `start_notify` far below. So inside this block the
-                                    # writer is always non-None. The guard stays as defence against the
-                                    # two predicates drifting apart in a later edit; what it cannot do
-                                    # is be driven False by a test, and a test that pretended to would
-                                    # be a green certifying nothing.
-                                    if accrawwr:  # pragma: no branch
-                                        # EVERY RECORD IN A FRAME CARRIES THE FRAME'S ARRIVAL STAMP, and
-                                        # that is deliberate rather than lazy. `ppg2w` back-times its
-                                        # records across `_RT_PPG_SPAN_S` because that span was MEASURED;
-                                        # no equivalent exists for 0x14. The frames are device-PUSHED, so
-                                        # their cadence is not set by our poll and has never been
-                                        # characterised — the first observation (2026-09-03) showed an
-                                        # effective ~10.2 Hz with each distinct triplet repeated ~6-7x,
-                                        # which is itself unexplained. Spreading records across an
-                                        # invented span would manufacture sub-frame timing we have not
-                                        # measured, which is the same fabrication `sensor_ns = 0` and
-                                        # `fs = 0` refuse one field over. Row ORDER is preserved and is
-                                        # real; spacing is not claimed. Back-timing can replace this the
-                                        # day the frame cadence is measured.
-                                        _aph = _now()
-                                        for _ax, _ay, _az in _acc:
-                                            accrawwr.write_acc(_aph, None, 0.0, _ax, _ay, _az)
-                                    note_data(name, _time.monotonic())
-                            elif not _acc_unexpected[0]:
-                                _acc_unexpected[0] = True
-                                log.warning(
-                                    "%s: ring pushed a 0x14 ACC frame we never asked for "
-                                    "(%d bytes) — not parsed; see O2RING-PROTOCOL §3c",
-                                    name,
-                                    len(r[1]),
-                                )
-                            continue
-                        # RAW DUAL-WAVELENGTH reply. Handled before the OP_LIVE gate below, which would
-                        # otherwise drop it — it is a different opcode carrying a different payload.
-                        if r and r[0] == oxyii.OP_SAMPLES_A and (plethawr or O2WAVE_POLL_MODE == O2WAVE_POLL_SPLIT):
-                            _recs = oxyii.parse_samples_a(r[1])
-                            if _recs:
-                                _ph = _now()
-                                # E11's arrival logger follows the opcode that CARRIES THE FRAMES, which
-                                # in split mode is this one. The tag says WHICH opcode, because the two
-                                # differ in what they can anchor and a consumer must not have to guess:
-                                # `PPG_FRAME` is 0x04 and carries `ppg_stream_offset`; `PPG_FRAME_A` is
-                                # 0x03 (LIVE_SAMPLES_A) and carries NO cumulative position — its reply
-                                # header is 6 bytes with only the declared count at [4:6]. `[0:4]` was
-                                # EXAMINED and is not a position: worn, 2026-10-06, it read 0 on all 887
-                                # replies, and 11 of the 886 steps matched the previous declared count
-                                # because those replies had declared 0 (RING-POLL-SPLIT §P1, criterion
-                                # (b) FAIL). The same session's 0x04 `[20:24]` read 0 on all 177 frames,
-                                # so NEITHER opcode carries a moving device position on this unit.
-                                # `probe_oxyii_0x03.py` records the word per reply, so a firmware that
-                                # starts filling it is visible without patching the probe again.
-                                # ∅ So the position column is written BLANK, never as a host-maintained
-                                # running sum: a sum would advance across a dropout the device sat out,
-                                # which is precisely the event the arrival floor exists to see, and it
-                                # would be a fabricated device position wearing the shape of a real one.
-                                try:
-                                    # No `is not None` guard, for the reason the 0x04 row beside it
-                                    # carries none: an AttributeError on a None writer is caught by this
-                                    # same except, and the guard's false arm is a branch no test can take
-                                    # — an unreachable arm is a coverage hole dressed as caution. I
-                                    # reintroduced it here and the coverage run named it (5886->5890).
-                                    oxy_arr_wr.write(_ph, name, "PPG_FRAME_A", None, None, len(_recs), None)
-                                except Exception:  # telemetry must never disturb the data callback
-                                    pass
-                                for _v, _bt in _recs:
-                                    # sensor_ns 0: this opcode carries no device clock (see the header
-                                    # comment on the `pletha` layout). Back-timing the block would be
-                                    # inventing per-sample instants the device never reported.
-                                    plethawr.write_pletha(_ph, None, _v, _bt)
-                                BUS.push("o2pletha", [[_v] for _v, _ in _recs])
-                        if r and r[0] == oxyii.OP_RT_PPG and ppg2wr:
-                            recs = oxyii.parse_rt_ppg(r[1])
-                            if recs:
-                                arr2 = _now()
-                                # Back-timed from ARRIVAL across the buffer, exactly as the 125 Hz pleth
-                                # is — the ring stamps nothing, so a device time does not exist to use.
-                                # The step is the BUFFER SPAN divided by its records, not a nominal rate:
-                                # no rate is known here (see oxyii.parse_rt_ppg), and inventing one is
-                                # what the O2PPG grid already had to be rescued from.
-                                step = _RT_PPG_SPAN_S / max(len(recs) - 1, 1)
-                                for i, (a, b, mo) in enumerate(recs):
-                                    ph = arr2 - _dt.timedelta(seconds=(len(recs) - 1 - i) * step)
-                                    # sensor_ns = 0: the ring exposes NO device clock on this opcode, and
-                                    # the 125 Hz pleth's O2PpgGrid cannot be borrowed — it is built on a
-                                    # MEASURED 125 Hz step, so reusing it here would stamp this stream
-                                    # with another stream's rate. The column is written BLANK, not 0:
-                                    # a zero is in-band for a ns counter, so it cannot be told apart
-                                    # from a device that reported the instant zero, and a reader that
-                                    # trusts it places the row at the epoch. Blank parses as absent.
-                                    ppg2wr.write_ppg2w(ph, None, a, b, mo)
-                                BUS.push("o2ppg2w", [[a, b] for a, b, _m in recs])
-                            continue
-                        if not r or r[0] != oxyii.OP_LIVE:
-                            continue
-                        if _PPG_PROBE and _ppg_probe_n[0] < _PPG_PROBE_N:  # Phase-0/1 dump (OXYII_PPG_PROBE=1)
-                            _ppg_probe_n[0] += 1
-                            try:
-                                with open(_PPG_PROBE_FILE, "a") as _pf:
-                                    _pf.write(
-                                        json.dumps(
-                                            {
-                                                "n": _ppg_probe_n[0],
-                                                "t": _now().isoformat(),
-                                                "len": len(r[1]),
-                                                "hex": r[1].hex(),
-                                            }
-                                        )
-                                        + "\n"
-                                    )
-                            except Exception:
-                                pass  # an opt-in probe must never disturb capture (cf. `_pmd_probe`)
-                            if _ppg_probe_n[0] == _PPG_PROBE_N:
-                                log.info("O2RING-PPG-PROBE: dumped %d frames → %s", _PPG_PROBE_N, _PPG_PROBE_FILE)
-                        # ~125 Hz PPG waveform body (Phase 2): back-time each sample across the frame from
-                        # its host arrival, write the PSL ppg layout, and push a live trace to the monitor.
-                        # skip the decode entirely when off, or while the ring is not recording
-                        ppg = oxyii.parse_ppg(r[1]) if ppgwr and _ring_gate.recording is not False else []
-                        # The count the DEVICE declares, read whether or not any samples survived the
-                        # slice — `declared - delivered` is only a measurement if both come off the same
-                        # frame. Cheap (one u16) and gated on the same writer as the decode.
-                        # Gated with the decode: a frame not recorded is not counted either, or the ledger
-                        # would book every sample it declared and we skipped as a sample the ring lost.
-                        n_decl = oxyii.ppg_sample_count(r[1]) if ppgwr and _ring_gate.recording is not False else None
-                        # The ring's OWN stream position for this frame ([20:24], u32 LE). Read here for
-                        # the same reason and under the same gate as n_decl: it is a property of THIS
-                        # frame's bytes, and it is only a measurement paired with the count off the same
-                        # frame. Recorded, never acted on — `SUM(declared)` vs `DELTA(offset)` is the
-                        # host-clock-free test of whether the ring counts its PPG_INVALID bytes in its own
-                        # sequence (DEVICE-RATE-TRUTH-2026-08-05 §6.1).
-                        n_off = oxyii.ppg_stream_offset(r[1]) if ppgwr else None
-                        if ppg:
-                            arr = _now()
-                            nps = len(ppg)
-                            # ── THE RING ON THE SHARED ARRIVAL AXIS (E11, owner 2026-10-04) ────────
-                            # One row per PPG FRAME on the SAME `PmdArrivalLogWriter` the Polars use,
-                            # which is the whole point: `pat-feasibility` builds a per-connection
-                            # arrival FLOOR from that one file shape, and until now the ring's sidecar
-                            # carried only `OXYLIVE_DURATION_S` rows (one per 1 Hz vitals poll) — no
-                            # frame rows at all. So the finger had no floor axis and no corrected PAT
-                            # hat could include it (residue
-                            # 2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat).
-                            # Tonight's hat is what that costs: chest→finger is a FLAT UNIFORM
-                            # 200–620 ms plateau (pair spread 137 ms) against a 60 ms-wide peak for
-                            # chest→ankle, and the Verity corner refuses UNDERPOWERED because the hat
-                            # is subtracting one ~400 ms-wide uniform from another.
-                            #
-                            # ∅ `first_ns`/`last_ns` ARE BLANK, NOT 0. The ring has no clock — not a
-                            # clock we distrust, none at all — so there is no device timestamp for this
-                            # frame and the writer blanks `None` rather than writing a 0 that would read
-                            # as "arrived at the epoch". What it DOES know is its own stream position,
-                            # `n_off` ([20:24] u32 LE), already decoded above and until now only
-                            # attached to the OXYFRAME sidecar: a POSITION in samples, which is the
-                            # honest column for it and the quantity a floor needs.
-                            #
-                            # `nps` is DELIVERED, not declared: `n_decl` is what the frame claimed and
-                            # the two differ exactly when the link lost part of a frame, which is the
-                            # event a floor must not be computed across. The declared count keeps its
-                            # existing home in the OXYFRAME row rather than being duplicated here.
-                            #
-                            # Telemetry, inside the same swallow the duration row uses — an arrival
-                            # sidecar must never disturb the data callback (and nothing in the SAMPLES
-                            # changes: this adds a row to a sidecar and touches no stream).
-                            try:
-                                # No `is not None` guard, deliberately: the sibling duration row does
-                                # not carry one either, because an AttributeError on a None writer is
-                                # caught by this same except. A guard here would add a branch no test
-                                # can take — the writer is bound before the poll loop runs — and an
-                                # unreachable-false branch is a coverage hole dressed as caution.
-                                oxy_arr_wr.write(arr, name, "PPG_FRAME", None, None, nps, n_off)
-                            except Exception:  # telemetry must never disturb the data callback
-                                pass
-                            # ── HONEST GAPS (O2RING-PPG-GAP §1) ────────────────────────────────────
-                            # `ppg_idx` is a pure running counter, so sensor_ns used to be a PERFECTLY
-                            # CONTIGUOUS grid no matter what the link did. When BLE drops a frame the
-                            # survivors were laid down back-to-back ACROSS the missing real time, which
-                            # COMPRESSES the record: an interval spanning the loss is short by exactly the
-                            # lost duration, and beat-to-beat variability is fabricated at every gap. It
-                            # was invisible downstream because the ns column stayed uniform by
-                            # construction (one distinct step over 900 k samples) — the DSP had no way to
-                            # know time was missing. That is precisely what the Clock Contract forbids:
-                            # "Dropped windows are GAPS, never fabricated rows."
-                            # MEASURED on a 119 min overnight capture before this fix: 82.3 s of real time
-                            # carried no samples (1.15 % of the record, ~10 346 samples) across 1 315
-                            # discrete gaps — 11/min, median 49 ms, p90 96 ms, max 287 ms — leaving ~20 %
-                            # of beats adjacent to a gap.
-                            # This frame's samples are back-timed to END at `arr`, so it covers
-                            # [arr - nps/fs, arr]. Real time the ring measured but the link lost must
-                            # ADVANCE the grid instead of being pretended away.
-                            #
-                            # The whole grid — the session anchor, the honest-gap advance and the MEASURED
-                            # step that CAPTURE-HOST-DEEP-AUDIT §A3 added — lives in O2PpgGrid, where it
-                            # can be driven directly by a test. It used to live here, inline in a BLE
-                            # callback, and the test file re-implemented it: two copies of the rule, with
-                            # the assertions pointed at the copy that ships to nobody.
-                            ns_of = ppg_grid[0].frame(arr, nps)
-                            for i, v in enumerate(ppg):
-                                ph = arr - _dt.timedelta(seconds=(nps - 1 - i) * ppg_grid[0].step_s)
-                                ppgwr.write_ppg(ph, ns_of[i], 0.0, (v,), 0)
-                            BUS.push("o2ppg", ppg)
-                        live = oxyii.parse_live(r[1])
-                        if not live:
-                            continue
-                        frames[0] += 1
-                        _rec, _why = _ring_gate.observe(
-                            live.get("worn"), live.get("batt_state") in RING_DOCKED_BATT_STATES, _time.monotonic()
-                        )
-                        if _why:
-                            log.info("%s: %s", name, _why)
-                        # COUNT the frame against the ring's own session-second clock, before the row is
-                        # written — the ledger returns that row's PPG arithmetic. Fed here rather than in
-                        # the `if ppg:` block above because a frame that declared samples and delivered
-                        # NONE is exactly the event worth counting, and that block never runs for it.
-                        _ppgrow = ppg_led[0].frame(live["duration"], n_decl, len(ppg)) if n_decl is not None else None
-                        # Attached to the row rather than passed through the ledger: the ledger ACCUMULATES
-                        # (it owns truncated/device_seconds across the session) and this is a per-frame
-                        # primitive with nothing to accumulate. Keeping it out of the ledger's state is
-                        # what stops it becoming a fourth counter — the third was retired 2026-08-04
-                        # precisely because no nominal made it informative.
-                        if _ppgrow is not None:
-                            _ppgrow["offset"] = n_off
-                        # `oxyflagwr` itself is opened UNCONDITIONALLY on every connect (unlike ppgwr, which
-                        # is gated on the `ppg` stream), so the false arm here is `_rec`: a frame the ring
-                        # gate refused writes no row and notes no contact.
-                        if oxyflagwr and _rec:
-                            _fnow = _now()
-                            oxyflagwr.write(_fnow, live, _ppgrow)  # PI + what the vendor CSV cannot carry
-                            contact_ledger.note(_fnow, live.get("contact"))
-                        # [0:4] is the ring's SESSION DURATION, not a frame counter — the old
-                        # frame_gap() accounting on it reported phantom loss (9 warnings in one
-                        # evening, one claiming 111 frames, which was a session starting). What the
-                        # field genuinely tells us is when a NEW session began.
-                        if oxyii.session_restarted(_seq[0], live["duration"]):
-                            log.info("%s: ring started a new recording session", name)
-                            # THE moment the RTC matters: the .dat header stamps a session at its start
-                            # (samples are implicit at 1 Hz after it), so this is the only event that can
-                            # bake a wrong time into stored data. on_data is a sync BLE callback and
-                            # cannot await — hand it to the poll loop.
-                            _rtc_due[0] = True
-                            # Restart STORM (see oxyii_restart_storm): every restart is a buzz on the
-                            # owner's finger, and on a storm night our presence is what keeps them coming.
-                            _mono = _time.monotonic()
-                            _storm, _recent = oxyii_restart_storm(_OXYII_RESTARTS.get(addr, []) + [_mono], _mono)
-                            _OXYII_RESTARTS[addr] = _recent
-                            _OXYII_RESTART_TOTAL[addr] = _OXYII_RESTART_TOTAL.get(addr, 0) + 1
-                            if _storm:
-                                _hold_s = oxyii_storm_hold_s(_OXYII_STORMS.get(addr, []), _mono)
-                                _OXYII_STORMS[addr] = [
-                                    t for t in _OXYII_STORMS.get(addr, []) if _mono - t <= _OXYII_STORM_MEMORY_S
-                                ] + [_mono]
-                                _OXYII_HOLD_UNTIL[addr] = _mono + _hold_s
-                                _OXYII_RESTARTS[addr] = []
-                                _storm_hit[0] = _hold_s
-                                log.warning(
-                                    "%s: %d session restarts in %.0f s — restart storm; leaving the ring "
-                                    "alone for %.0f min (storm #%d in the last %.0f h)",
-                                    name,
-                                    len(_recent),
-                                    _OXYII_STORM_WINDOW_S,
-                                    _hold_s / 60,
-                                    len(_OXYII_STORMS[addr]),
-                                    _OXYII_STORM_MEMORY_S / 3600,
-                                )
-                            # PUBLISH on every restart, storm or not: a reader must be able to see the
-                            # restarts that did NOT trip the hold, or it cannot tell a quiet night from
-                            # a night the detector was blind to.
-                            _set(name, oxy_storm=_oxy_storm_block(addr, _mono))
-                        _seq[0] = live["duration"]
-                        _OXYII_LAST_DURATION[addr] = live["duration"]  # survives the next dropout
-                        # RECORDING axis: every live frame's duration_s feeds the engine; the backward
-                        # step lands here as END_CANDIDATE ~7–12 s after a doff, while the link is still
-                        # held — the moment the close-triggered pull (DAT-AUTO-HARVEST §8) keys on.
-                        _rec_emit(_oxyrec.observe_duration(live.get("duration")))
-                        # LINK axis worn-flips: contact is a worn-VOTE (never a recording signal), but it
-                        # IS the link axis's LIVE↔IDLE_UNWORN discriminator — the state measured running
-                        # unjournaled for 6 h on 2026-08-24 (docked-charging: connected, contact=0).
-                        if live.get("worn"):
-                            _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE, "worn — frames flowing")
-                        elif live.get("worn") is None:
-                            pass  # probe unplugged / fault: wear UNKNOWN, so the link axis makes no flip on it
-                        else:
-                            _oxy_emit(
-                                _oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.IDLE_UNWORN, "ring reports not-worn"
-                            )
-                        now = _now()
-                        # Arrival↔device pairing, one row per live frame. `duration` is SECONDS, carried
-                        # in the ns column so the file has one shape for every device; the `meas` value
-                        # says which estimator applies (see the writer note above).
-                        if _rec:
-                            try:
-                                _dur_ns = int(live["duration"]) * 1_000_000_000
-                                oxy_arr_wr.write(now, name, "OXYLIVE_DURATION_S", _dur_ns, _dur_ns, 1)
-                            except Exception:  # telemetry must never disturb the data callback
-                                pass
-                        # §∅: the flag and the NAME of what observed it travel together, so a published
-                        # `charging: false` can be told apart from an absence (telemetry.ring_charging).
-                        ring_docked, ring_docked_why = ring_charging(live.get("batt_state"))
-                        if live["spo2"] is not None:
-                            # `live["pr"]` passed through AS-IS, including None — `or 0` used to turn an
-                            # unreadable pulse rate into a written 0 (VIGIL-PPG-GRID-AUDIT §5.2). The
-                            # writer emits a blank for None; see Spo2CsvWriter.write.
-                            wr.write(now, live["spo2"], live["pr"], live["motion"])  # [11], corrected
-                            BUS.push("spo2", [live["spo2"]])
-                            if live["pr"]:
-                                BUS.push("pr", [live["pr"]])
-                            BUS.push("motion_o2", [live["motion"]])  # raw movement level (~1/s)
-                            # PERFUSION INDEX, the other half of the [7]/[11] swap. `pi` has been parsed
-                            # and written to the SpO2 sidecar's `pi_pct` column since that correction, but
-                            # was never published live — so the one signal that says WHY a reading is poor
-                            # was visible only after the fact. It is `[7]/10` %, non-zero in 99.9 % of
-                            # frames on a real night (mean 13.6 => 1.36 %), which is exactly what makes it
-                            # a perfusion index rather than the motion it was mistaken for.
-                            # NO None-GUARD, deliberately: `parse_live` computes `pi` as `[7]/10.0`
-                            # unconditionally, so it is a float whenever `live` exists at all. A guard
-                            # here was written, tested, and then caught by the coverage floor as an
-                            # unreachable branch — the floor's real value is finding guards that CANNOT
-                            # be exercised, not sloppiness.
-                            BUS.push("pi_o2", [live["pi"]])
-                            note_data(name, _time.monotonic())
-                            _set(
-                                name,
-                                rows=wr.rows,
-                                spo2=live["spo2"],
-                                pr=live["pr"],
-                                battery=live["batt"],
-                                motion=live["motion"],
-                                # ∅ THE SENSOR'S OWN STATEMENT, never an inference from the vitals: a probe
-                                # fault (contact 2/3) that carries an in-range SpO2 is wear UNKNOWN (None),
-                                # exactly as the no-vitals branch below publishes it.
-                                worn=live["worn"],
-                                last_sample=now.isoformat(),
-                                arrival_rows=oxy_arr_wr.rows,
-                                charging=ring_docked,
-                                charging_why=ring_docked_why,
-                                last_error=None,
-                            )
-                            _power_observe(name, worn=live["worn"], battery=live["batt"])  # None moves nothing
-                        else:
-                            BUS.push("motion_o2", [live["motion"]])
-                            BUS.push("pi_o2", [live["pi"]])
-                            # The ring keeps its link and keeps reporting motion/battery/contact on the
-                            # charger — only the vitals stop. batt_state is the device's OWN charge flag
-                            # (1 charging, 2 full; 3 is LOW, not docked), so unlike the Polars this needs no inference.
-                            _set(
-                                name,
-                                worn=live["worn"],
-                                motion=live["motion"],
-                                battery=live["batt"],
-                                charging=ring_docked,
-                                charging_why=ring_docked_why,
-                                last_error=None
-                                if live["worn"]
-                                else (
-                                    "no finger contact"
-                                    if live["worn"] is False
-                                    else f"ring probe reports a fault (contact={live.get('contact')}) — wear unknown"
-                                ),
-                            )
-                            _power_observe(name, worn=live["worn"], battery=live["batt"])
+                    _oxyii_on_data(cx, _s, d)
 
                 # The ring's DEFAULT_META keys were declared at import, ownerless; claim them now.
                 BUS.claim("spo2", name)
