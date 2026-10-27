@@ -32,6 +32,7 @@
 //   node tools/fold-generation.mjs                       # the corpus identity, here and now
 //   node tools/fold-generation.mjs --all [--json]        # re-resolve every published-number record
 //   node tools/fold-generation.mjs --record <path.json>
+//   node tools/fold-generation.mjs --era [--json|--write|--check]   # which exports carry a recorded era
 //   node tools/fold-generation.mjs --selftest
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -179,6 +180,149 @@ export function corpusBlock(identity) {
     codeDigests: identity.codeDigests,
     note: `dataDigest = sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under ${identity.root} that is not a ${STAMP}; foldGeneration covers the night set and each night's ${STAMP} codeDigest, so an unstamped night contributes its name and no generation. Re-resolve both with ${SELF}`
   };
+}
+
+/* ═══ ERA ATTRIBUTION, PER EXPORT ═══
+   Residue `2026-10-12-rejected-trio-nights-keep-exports-no-fold-rewrites`: a night the fold REJECTS
+   keeps the exports of whenever it last passed, and `--force` never offers that night again, so no
+   stamp records the code that wrote them. The night-level block above counts and names those
+   nights. It says nothing about the EXPORTS inside them, so `git ls-files` shows two populations of
+   equal standing — one whose era a stamp names, one whose era is unrecorded and unrecoverable.
+
+   The census attributes every tracked export to a recorded era or names it unrecorded. It also
+   measures the one proxy a consumer could be tempted to trust: that a night carrying all three trio
+   exports is exactly a stamped night. The proxy HOLDS on the tree today, which is why the criterion
+   is a DISAGREEMENT count and not an unrecorded count. A 2-of-3 night that gains its third export
+   without a stamp breaks it, and that is the family row
+   `2026-10-25-the-nine-unstamped-trio-nights-hold-two-of-three-exports` names. */
+export const ERA_TRIO_NODES = ['ECGDex', 'OxyDex', 'PpgDex'];
+export const EXPORT_SUFFIX = '.node-export.json';
+
+/* The node one tracked export belongs to. 🔴 NEVER A PREFIX MATCH: 74 nights carry a
+   `PpgDexFinger_<night>` export, and a prefix test reads it as the PpgDex leg (measured under
+   #4014). Strip the suffix, then take the token before the first `_`, so the corpus spelling and the
+   selftest's bare `OxyDex.node-export.json` both resolve to one name. */
+export function nodeOfExport(base) {
+  if (!base.endsWith(EXPORT_SUFFIX)) return null;
+  const stem = base.slice(0, -EXPORT_SUFFIX.length);
+  const cut = stem.indexOf('_');
+  return cut < 0 ? stem : stem.slice(0, cut);
+}
+
+/* ∅ An unlistable tree returns nulls and `ok:false`, never a census of zero exports. */
+export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
+  const files = trackedFiles(root, { cwd, commit });
+  const empty = {
+    root,
+    commit,
+    ok: false,
+    reason: files == null ? `git could not list ${root}` : `${root} holds no tracked file`,
+    nights: null,
+    stamped: null,
+    unstamped: null,
+    exports: null,
+    unrecordedByNode: null,
+    unrecordedNights: null,
+    proxy: null
+  };
+  if (files == null || files.all.length === 0) return empty;
+  const read = readerFor({ cwd, commit });
+  const era = new Map();
+  for (const sPath of files.stamps) {
+    const night = sPath.slice(root.length + 1).split('/')[0];
+    let digest = null;
+    try {
+      digest = JSON.parse(read(sPath).toString()).codeDigest ?? null;
+    } catch {
+      digest = null; // an unreadable stamp records no era, exactly as corpusIdentity reads it
+    }
+    if (digest) era.set(night, digest);
+  }
+  const byNight = new Map();
+  for (const f of files.data) {
+    const rel = f.slice(root.length + 1).split('/');
+    if (rel.length < 2) continue; // a root-level file is not a night (#4014's 148th-night trap)
+    const node = nodeOfExport(rel[1]);
+    if (node == null) continue;
+    if (!byNight.has(rel[0])) byNight.set(rel[0], []);
+    byNight.get(rel[0]).push(node);
+  }
+  let recorded = 0;
+  let unrecorded = 0;
+  const tally = new Map();
+  const unrecordedNights = [];
+  const disagreements = [];
+  let threeLegNights = 0;
+  for (const night of [...byNight.keys()].sort()) {
+    const nodes = byNight.get(night).slice().sort();
+    const stamped = era.has(night);
+    const hasThree = ERA_TRIO_NODES.every((n) => nodes.indexOf(n) >= 0);
+    if (hasThree) threeLegNights += 1;
+    if (hasThree !== stamped) disagreements.push({ night, hasThree, stamped });
+    if (stamped) {
+      recorded += nodes.length;
+      continue;
+    }
+    unrecorded += nodes.length;
+    unrecordedNights.push({ night, nodes });
+    for (const n of nodes) tally.set(n, (tally.get(n) ?? 0) + 1);
+  }
+  /* Sorted keys, because the artifact is committed and compared byte for byte. */
+  const unrecordedByNode = {};
+  for (const n of [...tally.keys()].sort()) unrecordedByNode[n] = tally.get(n);
+  const allNights = new Set([...byNight.keys(), ...era.keys()]);
+  return {
+    root,
+    commit,
+    ok: true,
+    reason: null,
+    nights: allNights.size,
+    stamped: era.size,
+    unstamped: allNights.size - era.size,
+    exports: { total: recorded + unrecorded, recorded, unrecorded },
+    unrecordedByNode,
+    unrecordedNights,
+    proxy: { threeLegNights, stampedNights: era.size, disagreements }
+  };
+}
+
+/* The criterion is pre-stated and is NOT the unrecorded count: 80 unrecorded exports are the
+   measured state this artifact exists to publish, while a night disagreeing with its own stamp is
+   the condition that makes the stamp unreadable as a leg test. */
+export function eraVerdict(census, { commit = null, at = null } = {}) {
+  const total = census.ok ? census.exports.total : 0;
+  const bad = census.ok ? census.proxy.disagreements : null;
+  const status = census.ok ? (bad.length === 0 ? 'PASS' : 'FAIL') : 'NOT_RUN';
+  return {
+    schema: 'tepna.verdict/1',
+    gate: 'trio-export-era',
+    status,
+    scope: 'internal',
+    population: { checked: total, eligible: total, excluded: 0 },
+    criterion: { name: 'stamp_three_leg_disagreements', threshold: 0, unit: 'nights', direction: 'lte' },
+    result: census.ok
+      ? {
+          nights: census.nights,
+          stamped: census.stamped,
+          unstamped: census.unstamped,
+          exports: census.exports,
+          unrecordedByNode: census.unrecordedByNode,
+          unrecordedNights: census.unrecordedNights,
+          proxy: census.proxy
+        }
+      : null,
+    evidence: [SELF, census.root],
+    reason: census.ok ? (bad.length === 0 ? null : `${bad.length} night(s) disagree between carrying three trio exports and carrying a stamp: ${bad.map((d) => d.night).join(', ')}`) : census.reason,
+    producedBy: producedByOf(SELF, commit),
+    at: at ?? new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  };
+}
+
+export const ERA_ARTIFACT = 'analysis/trio-export-era.json';
+
+/** The committed bytes, so `--era --write` and the suite compare one spelling. */
+export function eraText(verdict) {
+  return `${JSON.stringify(verdict, null, 2)}\n`;
 }
 
 /* Which records this tool judges, and why the others are out. A record that names another corpus
@@ -726,6 +870,76 @@ function selftest() {
       ok('an unrecognised layout falls back to two, the JSON default', recordIndent('{}') === 2 && recordIndent(null) === 2);
     }
 
+    /* ERA ATTRIBUTION · a fixture carrying all three cases: a stamped three-leg night, an unstamped
+       2-of-3 night, and the night that breaks the proxy by carrying three legs with no stamp. */
+    {
+      const ERA = 'uploads/era';
+      const exp = (night, node) => mk(`${ERA}/${night}/${node}_${night}${EXPORT_SUFFIX}`, '{"x":1}');
+      for (const n of ['ECGDex', 'OxyDex', 'PpgDex']) exp('2026-07-01', n);
+      mk(`${ERA}/2026-07-01/${STAMP}`, JSON.stringify({ codeDigest: 'bbbb2222' }));
+      for (const n of ['OxyDex', 'PpgDex', 'PpgDexFinger']) exp('2026-07-02', n);
+      for (const n of ['ECGDex', 'OxyDex', 'PpgDex']) exp('2026-07-03', n);
+      mk(`${ERA}/README.md`, 'a root-level file is not a night\n');
+      execFileSync('git', ['add', '-A'], { cwd });
+      execFileSync('git', ['commit', '-qm', 'era fixture'], { cwd });
+
+      ok('a suffixed export resolves to its node', nodeOfExport('OxyDex_2026-07-01.node-export.json') === 'OxyDex');
+      ok('🔴 PpgDexFinger is NOT read as the PpgDex leg', nodeOfExport('PpgDexFinger_2026-07-31.node-export.json') === 'PpgDexFinger');
+      ok('a bare export name resolves too', nodeOfExport(`OxyDex${EXPORT_SUFFIX}`) === 'OxyDex');
+      ok('∅ a file that is not an export is no node', nodeOfExport('.trio-stamp') === null && nodeOfExport('README.md') === null);
+
+      const c = eraCensus(ERA, { cwd });
+      ok('the census reads three nights, one of them stamped', c.ok && c.nights === 3 && c.stamped === 1 && c.unstamped === 2, `${c.nights}/${c.stamped}/${c.unstamped}`);
+      ok('a root-level file is not counted as a night', c.nights === 3);
+      ok('every export is attributed, and the parts sum to the whole', c.exports.total === 9 && c.exports.recorded === 3 && c.exports.unrecorded === 6, JSON.stringify(c.exports));
+      ok(
+        'the unrecorded exports are counted per node',
+        JSON.stringify(c.unrecordedByNode) === JSON.stringify({ ECGDex: 1, OxyDex: 2, PpgDex: 2, PpgDexFinger: 1 }),
+        JSON.stringify(c.unrecordedByNode)
+      );
+      ok(
+        'the unrecorded nights are named in order, each with its own nodes sorted',
+        c.unrecordedNights.map((r) => r.night).join() === '2026-07-02,2026-07-03' && c.unrecordedNights[0].nodes.join() === 'OxyDex,PpgDex,PpgDexFinger'
+      );
+
+      const v = eraVerdict(c, { commit: 'abcd1234', at: '2026-10-27T00:00:00Z' });
+      ok(
+        '🔴 a three-leg night with no stamp is a NAMED disagreement, not a count',
+        v.status === 'FAIL' && v.reason.includes('2026-07-03') && !v.reason.includes('2026-07-02'),
+        `${v.status} · ${v.reason}`
+      );
+      ok('the criterion is pre-stated and is the disagreement count', v.criterion.name === 'stamp_three_leg_disagreements' && v.criterion.threshold === 0 && v.criterion.direction === 'lte');
+      ok('checked + excluded = eligible over the exports', v.population.checked + v.population.excluded === v.population.eligible && v.population.checked === 9);
+      ok(
+        'the era verdict validates under verdict.js',
+        createRequire(import.meta.url)(join(ROOT, 'verdict.js')).validate(v).ok,
+        createRequire(import.meta.url)(join(ROOT, 'verdict.js'))
+          .validate(v)
+          .errors.join(' | ')
+      );
+
+      mk(`${ERA}/2026-07-03/${STAMP}`, JSON.stringify({ codeDigest: 'cccc3333' }));
+      execFileSync('git', ['add', '-A'], { cwd });
+      execFileSync('git', ['commit', '-qm', 'stamp the three-leg night'], { cwd });
+      const c2 = eraCensus(ERA, { cwd });
+      const v2 = eraVerdict(c2, { commit: 'abcd1234', at: '2026-10-27T00:00:00Z' });
+      ok(
+        'stamping the three-leg night clears the disagreement and moves 3 exports into a recorded era',
+        v2.status === 'PASS' && v2.reason === null && c2.exports.recorded === 6 && c2.exports.unrecorded === 3,
+        `${v2.status} · ${JSON.stringify(c2.exports)}`
+      );
+      ok('an unstamped 2-of-3 night keeps the proxy intact', c2.proxy.threeLegNights === 2 && c2.proxy.stampedNights === 2 && c2.proxy.disagreements.length === 0);
+
+      const absent = eraCensus('uploads/no-such-root', { cwd });
+      const vAbsent = eraVerdict(absent, { commit: 'abcd1234', at: '2026-10-27T00:00:00Z' });
+      ok(
+        '∅ an unlistable root is NOT_RUN with a reason and no result, never a PASS over zero',
+        absent.ok === false && vAbsent.status === 'NOT_RUN' && vAbsent.result === null && typeof vAbsent.reason === 'string'
+      );
+      ok('the artifact text is one JSON object and one trailing newline', eraText(v2).endsWith('}\n') && JSON.stringify(JSON.parse(eraText(v2))) === JSON.stringify(v2));
+      ok('the artifact path is under analysis/', ERA_ARTIFACT === 'analysis/trio-export-era.json');
+    }
+
     const missing = corpusIdentity('uploads/absent', { cwd });
     ok('∅ an absent root is NOT_RUN with a reason, never a clean zero', missing.ok === false && typeof missing.reason === 'string' && missing.dataDigest === null);
     ok('an absent root makes the run NOT_RUN', allVerdict([{ name: 'a.json', judged: true, state: 'resolves', detail: null }], missing, { commit: 'abcd1234' }).status === 'NOT_RUN');
@@ -821,12 +1035,61 @@ function recoverMain(argv, commit) {
   return v.status === 'PASS' || v.status === 'NOT_RUN' ? 0 : 1;
 }
 
+/* `--era` · the census as a report, a written artifact, or a currency check. The artifact is
+   committed, so a reader who cannot run the tool still sees which exports carry no recorded era, and
+   the suite holds the committed bytes against the live tree. */
+function eraMain(argv, commit) {
+  const run = withPopulation(TRIO, () => eraCensus(TRIO, { commit: null }));
+  const census = run.value;
+  const verdict = eraVerdict(census, { commit });
+  const target = join(ROOT, ERA_ARTIFACT);
+  if (argv.includes('--check')) {
+    if (!existsSync(target)) {
+      console.error(`✗ ${ERA_ARTIFACT} is absent — run: node ${SELF} --era --write`);
+      return 1;
+    }
+    /* The timestamp and the producing commit move on every run, so currency is the MEASUREMENT. */
+    const live = JSON.stringify(verdict.result);
+    const held = JSON.stringify(JSON.parse(readFileSync(target, 'utf8')).result);
+    if (live !== held) {
+      console.error(`✗ ${ERA_ARTIFACT} is STALE against the tracked corpus — run: node ${SELF} --era --write`);
+      return 1;
+    }
+    console.log(
+      `✓ ${ERA_ARTIFACT} is current against the tracked corpus — ${verdict.status} — ${census.exports.unrecorded} of ${census.exports.total} tracked export(s) carry no recorded code era, over ${census.unstamped} unstamped night(s)`
+    );
+    return 0;
+  }
+  if (argv.includes('--write')) {
+    writeFileSync(target, eraText(verdict));
+    console.log(`✓ wrote ${ERA_ARTIFACT} — ${verdict.status} — ${census.exports.unrecorded} of ${census.exports.total} export(s) with no recorded era`);
+    return 0;
+  }
+  if (argv.includes('--json')) {
+    console.log(JSON.stringify({ verdict, population: run.population }, null, 2));
+    return verdict.status === 'PASS' ? 0 : 1;
+  }
+  if (!census.ok) {
+    console.error(`✗ ${SELF} --era: ${census.reason}`);
+    return 2;
+  }
+  console.log(`export era · ${census.root}\n`);
+  console.log(`  ${census.exports.recorded} of ${census.exports.total} tracked export(s) sit in a stamped night, so a code digest names the fold that wrote them.`);
+  console.log(`  ${census.exports.unrecorded} sit in ${census.unstamped} unstamped night(s), where no stamp records the code, and --force never offers the night again.`);
+  for (const [node, n] of Object.entries(census.unrecordedByNode)) console.log(`    ${node.padEnd(14)} ${n}`);
+  console.log(`\n  the stamp as a leg test: ${census.proxy.threeLegNights} three-leg night(s), ${census.proxy.stampedNights} stamped, ${census.proxy.disagreements.length} disagreement(s)`);
+  console.log(`  ${verdict.status}${verdict.reason ? ` — ${verdict.reason}` : ''}`);
+  console.log(`  corpus-population ${run.population.status} over ${run.population.population.checked} night(s)${run.population.reason ? ` — ${run.population.reason}` : ''}`);
+  return verdict.status === 'PASS' ? 0 : 1;
+}
+
 function main() {
   const argv = process.argv.slice(2);
-  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--json', '--all', '--recover', '--write'], string: ['--record'], positional: false }, { tool: 'fold-generation' });
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--json', '--all', '--recover', '--write', '--era', '--check'], string: ['--record'], positional: false }, { tool: 'fold-generation' });
   if (argv.includes('--selftest')) process.exit(selftest());
   const commit = gitCommitShort();
   if (argv.includes('--recover')) process.exit(recoverMain(argv, commit));
+  if (argv.includes('--era')) process.exit(eraMain(argv, commit));
   if (argv.includes('--all') || argv.includes('--record')) {
     const run = withPopulation(TRIO, () => auditRecords({ commit: null }));
     const { identity, rows } = run.value;
