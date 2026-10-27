@@ -25,7 +25,7 @@
  *   node tools/pat-dip-index.mjs <captures-root> [--theta 10] [--beats 4] [--json]
  */
 import { readdirSync, existsSync } from 'node:fs';
-import { populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { pairsIn } from './pat-finger-coupler.mjs';

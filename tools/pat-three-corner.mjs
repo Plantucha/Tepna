@@ -61,7 +61,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { ecgCounterTimeMs } from './pat-matchrate-strict.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict, undeclaredVerdict } from './verdict-undeclared.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');

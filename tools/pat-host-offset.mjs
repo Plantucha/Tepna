@@ -52,7 +52,7 @@ import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { legacyMatchRate, strictMatchRate, circShift, rawLags } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');

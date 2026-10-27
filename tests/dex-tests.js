@@ -10887,7 +10887,7 @@
     /* ════ EVERY CORPUS ENUMERATOR REPORTS ITS POPULATION, OR IT IS NAMED HERE ══════════════════
        Row 2026-10-21-sixty-eight-corpus-enumerators-still-measure-whatever-set-they-caught.
        `tepna-corpus-tier.service` re-tiers the corpus daily, so a run can open over one night set
-       and close over another. `tools/corpus-scope.mjs` holds the primitive and `populationVerdict`
+       and close over another. `tools/corpus-scope-core.mjs` holds the primitive and `populationVerdict`
        is the report. Nothing MADE a second tool call it, so a new corpus consumer inherited the
        defect by default. This group is that mechanism: `corpus-reads.mjs` decides each tool from
        its SOURCE and the group runs the same classifier over `env.toolTexts`, so the gate and the
@@ -10982,6 +10982,13 @@
          both sibling ratchets (`UNPARSEABLE_RATCHET`, `UNGATED_RATCHET`), which live beside the
          gate that reads them. Sibling row: 2026-10-21-a-tool-named-in-a-test-comment-reads-as-tested. */
       var KNOWN_BACKLOG = CR.UNWIRED_BACKLOG;
+      /* THE CORE'S EXPORT LIST, READ FROM THE CORE. A hand-typed copy would stop naming a name the
+         day one is added, and the leg that uses it would read green over a door it stopped watching. */
+      var CORE_NAMES = (TT['tools/corpus-scope-core.mjs'] || '').split('\n').reduce(function (acc, line) {
+        var m = /^export (?:function|const) ([A-Za-z_$][\w$]*)/.exec(line);
+        if (m) acc.push(m[1]);
+        return acc;
+      }, []);
       var population = [],
         hazard = [],
         wired = [],
@@ -11160,7 +11167,7 @@
          primitive is a corpus consumer whatever else its text says. */
       var moduleImporters = Object.keys(TT)
         .filter(function (k) {
-          return /^tools\/[^/]+\.m?js$/.test(k) && k !== CR.SELF && /from '\.\/corpus-scope\.mjs'/.test(TT[k]);
+          return /^tools\/[^/]+\.m?js$/.test(k) && k !== CR.SELF && /from '\.\/corpus-scope(?:-core)?\.mjs'/.test(TT[k]);
         })
         .map(function (k) {
           return k.replace(/^.*\//, '');
@@ -11189,8 +11196,11 @@
           CR.importsNightPrimitive("import * as CS from './corpus-scope.mjs';") &&
           CR.importsNightPrimitive("import { producedByOf } from './corpus-scope.mjs';\nimport { notCovered } from './corpus-scope.mjs';") &&
           !CR.importsNightPrimitive("import { producedByOf } from './corpus-scope.mjs';") &&
-          !CR.importsNightPrimitive("// snapshotNights lives in corpus-scope.mjs\nimport { gitCommitOf } from './corpus-scope.mjs';"),
-        'night specifier in · renamed in · namespace in, because it hides the list · second statement in · code identity alone out · prose out'
+          !CR.importsNightPrimitive("// snapshotNights lives in corpus-scope.mjs\nimport { gitCommitOf } from './corpus-scope.mjs';") &&
+          CR.importsNightPrimitive("import { snapshotNights } from './corpus-scope-core.mjs';") &&
+          !CR.importsNightPrimitive("import { gitCommitOf } from './corpus-scope-core.mjs';") &&
+          !CR.importsNightPrimitive("import { snapshotNights } from './corpus-scope-nothing.mjs';"),
+        'night specifier in · renamed in · namespace in, because it hides the list · second statement in · code identity alone out · prose out · the core spelling in · code identity from the core out · a neighbouring name out'
       );
       T.ok(
         'every night primitive in the one list admits a file by the night-primitive rule',
@@ -11225,7 +11235,7 @@
          2026-10-26-the-suite-night-rule-detector-reads-an-inline-rule-only. The first spelling of
          this population tested `snapshotNights\([^)]*\{[^}]*\bre:` over the raw file, which is three
          blind spots in one regex. A rule built into an object one line earlier and passed by NAME is
-         invisible, and `tools/corpus-scope.mjs:1051` ships that shape today. A call in the first
+         invisible, and `tools/corpus-scope.mjs:528` ships that shape today. A call in the first
          argument ends the `[^)]*` run before the options are reached. And a tool source PLANTED IN A
          STRING by a selftest reads as the host tool's own code, which `tools/night-rule-horizon.mjs`
          ships. Measured at this ref the reader below is population-neutral — 17 rule-declaring tools
@@ -11398,13 +11408,13 @@
          their own `notANight` over the same set arithmetic, and only the sentence naming what the
          night lacked differed. So the leg above was answered twice, a widening of it moved two files,
          and a fix to one left the other reading the old way. The shared home is
-         `tools/corpus-scope.mjs`, beside `ruleLine`, which is the WALK half of the same account; each
+         `tools/corpus-scope-core.mjs`, beside `ruleLine`, which is the WALK half of the same account; each
          oracle keeps its own sentence and its own acceptance legs over its own row shape. A
          re-duplication reds HERE, which is the only place that can see both files at once. */
       var namerDefs = Object.keys(TT).filter(function (k) {
         return /export function notANight\s*\(/.test(TT[k] || '');
       });
-      T.eq('the removal namer is defined once, and in corpus-scope.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope.mjs');
+      T.eq('the removal namer is defined once, and in corpus-scope-core.mjs', namerDefs.sort().join(', '), 'tools/corpus-scope-core.mjs');
       /* ── A HAND-WRITTEN DEFAULT ANSWER AGREES WITH THE RULE BESIDE IT ─────────────────────────
          Row 2026-10-26-a-hand-written-ruleisdefault-asserts-a-comparison-the-file-never-ran.
          `snapshotNights` computes `ruleIsDefault` on every arm it returns, refusals included, as
@@ -11443,7 +11453,7 @@
           var id = m[1];
           var decl = txt.match(new RegExp('\\b(?:const|let|var)\\s+' + id + '\\s*=\\s*(/(?:[^/\\\\\\n]|\\\\.)+/[a-z]*)'));
           if (decl) return decl[1];
-          if (id === 'NIGHT_RE' && /from\s*'\.\/corpus-scope\.mjs'/.test(txt)) return NIGHT_TEXT;
+          if (id === 'NIGHT_RE' && /from\s*'\.\/corpus-scope(?:-core)?\.mjs'/.test(txt)) return NIGHT_TEXT;
         }
         return null;
       }
@@ -11451,6 +11461,11 @@
       T.eq('CONTROL · the resolver reads an inline default regex', ruleTextOf(CTRL_TXT, 'String(/^\\d{4}-\\d{2}-\\d{2}$/)'), NIGHT_TEXT);
       T.eq('CONTROL · the resolver reads the quoted spelling of the default', ruleTextOf(CTRL_TXT, "'/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/'"), NIGHT_TEXT);
       T.eq('CONTROL · the resolver reads the imported NIGHT_RE identifier', ruleTextOf(CTRL_TXT, 'String(NIGHT_RE)'), NIGHT_TEXT);
+      T.eq(
+        'CONTROL · and it reads it through the core spelling too, which is where the constant now lives',
+        ruleTextOf("import { NIGHT_RE } from './corpus-scope-core.mjs';\n", 'String(NIGHT_RE)'),
+        NIGHT_TEXT
+      );
       T.eq('CONTROL · the resolver reads a file-local identifier and it is not the default', ruleTextOf(CTRL_TXT, 'String(ANY_RE)'), '/./');
       T.eq('CONTROL · a form the resolver cannot read answers null, never a guess', ruleTextOf(CTRL_TXT, 'String(ruleOf(opts))'), null);
       var dfltSites = [];
@@ -11569,7 +11584,7 @@
         patWired
           .filter(function (k) {
             var t = TT[k] || '';
-            return !(/from '\.\/corpus-scope\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && /verdictSample\b/.test(t));
+            return !(/from '\.\/corpus-scope(?:-core)?\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && /verdictSample\b/.test(t));
           })
           .join(', '),
         ''
@@ -11588,7 +11603,7 @@
         nightWired
           .filter(function (k) {
             var t = TT[k] || '';
-            return !(/from '\.\/corpus-scope\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && t.indexOf('--verdict-sample') >= 0);
+            return !(/from '\.\/corpus-scope(?:-core)?\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && t.indexOf('--verdict-sample') >= 0);
           })
           .join(', '),
         ''
@@ -11619,7 +11634,7 @@
         yearWired
           .filter(function (k) {
             var t = TT[k] || '';
-            return !(/from '\.\/corpus-scope\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && t.indexOf('--verdict-sample') >= 0);
+            return !(/from '\.\/corpus-scope(?:-core)?\.mjs'/.test(t) && t.indexOf("'POPULATION '") >= 0 && t.indexOf('--verdict-sample') >= 0);
           })
           .join(', '),
         ''
@@ -11648,11 +11663,11 @@
          A re-wiring onto the night walk would still print an object and would still read as
          `reports` in the scan — only the unit says whether anything was examined. */
       var SLAB = TT['tools/stage-lab.mjs'] || '';
-      var CSCOPE = TT['tools/corpus-scope.mjs'] || '';
+      var CSCOPE = TT['tools/corpus-scope-core.mjs'] || '';
       T.ok('ANTI-VACUITY · the stage-lab source is loaded', /const COHORTS = \{/.test(SLAB), SLAB.length + ' char(s)');
       T.ok(
         'the stage lab publishes a population through the primitive and prints the object',
-        /from '\.\/corpus-scope\.mjs'/.test(SLAB) && /populationVerdict\(/.test(SLAB) && SLAB.indexOf("'POPULATION '") >= 0,
+        /from '\.\/corpus-scope(?:-core)?\.mjs'/.test(SLAB) && /populationVerdict\(/.test(SLAB) && SLAB.indexOf("'POPULATION '") >= 0,
         'tools/stage-lab.mjs does not publish a population'
       );
       T.ok(
@@ -11829,14 +11844,76 @@
       T.ok('and the gate outside tools/ composes it too', /producedByOf\(/.test(String((HT && HT[SHARD_GATE]) || '')), SHARD_GATE + ' calls producedByOf, read from the harness population');
       /* AND THE PRIMITIVE OWNS THE READER, so a consumer cannot be asked to resolve what it has no
          root for. A re-duplication of the git read into a corpus consumer reds here. */
-      T.ok('the night primitive exports the commit reader it uses', /export function gitCommitOf\s*\(/.test(TT['tools/corpus-scope.mjs'] || ''), 'gitCommitOf is exported from corpus-scope.mjs');
+      T.ok(
+        'the night primitive exports the commit reader it uses',
+        /export function gitCommitOf\s*\(/.test(TT['tools/corpus-scope-core.mjs'] || ''),
+        'gitCommitOf is exported from corpus-scope-core.mjs'
+      );
       /* AND THE THREE-BRANCH CHOICE HAS ONE DEFINITION. Stated commit wins · a caller disclaiming
          identity keeps its own reason · otherwise read the tree. Three tools spelled that out by
          hand and one of them spelled it wrong, which is the `notANight` duplication lesson again. */
       var producedByDefs = Object.keys(TT).filter(function (k) {
         return /export function producedByOf\s*\(/.test(TT[k] || '');
       });
-      T.eq('the code-identity resolver is defined once, and in corpus-scope.mjs', producedByDefs.sort().join(', '), 'tools/corpus-scope.mjs');
+      T.eq('the code-identity resolver is defined once, and in corpus-scope-core.mjs', producedByDefs.sort().join(', '), 'tools/corpus-scope-core.mjs');
+
+      /* ── 🔴 AND IMPORTING THE PRIMITIVE MUST STAY FREE ─────────────────────────────────────────
+         Row 2026-10-26-wiring-a-population-verdict-costs-the-probe-safety-that-made-it-cheap.
+         `tools/argv-survey.mjs` probes a tool by IMPORTING it, and it may only do that to a tool
+         whose transitive closure writes, execs and fetches nothing. The old `corpus-scope.mjs` ran
+         `find` and `git rev-parse` through `execFileSync`, so every tool that delegated its walk to
+         the primitive inherited an exec hazard and left that probe population — wiring a verdict
+         cost the cheap safety that made the tool probeable, which is the row's whole complaint.
+         The walk and the verdict now live in `corpus-scope-core.mjs`, which imports only
+         `node:crypto`, `node:fs` readers, `node:module`, `node:path` and `node:url`.
+         THE PREDICATE IS THE GATE'S OWN, never restated here: a hand-written word list is how two
+         of my measurement arms reported a gain that did not exist (one matched `re.exec(` as an
+         exec, one cleared a stub whose `execFileSync` import had no call). */
+      if (nodeLane && env.argvSurvey && env.nodePath && typeof env.repoRoot === 'string') {
+        var AS = env.argvSurvey;
+        var TOOLDIR = env.nodePath.join(env.repoRoot, 'tools');
+        var coreHz = AS.closureHazards(env.nodePath.join(TOOLDIR, 'corpus-scope-core.mjs'));
+        T.eq('the population half has an EMPTY hazard closure, so a tool may import it and stay probeable', coreHz.join(', '), '');
+        var scopeHz = AS.closureHazards(env.nodePath.join(TOOLDIR, 'corpus-scope.mjs'));
+        T.ok(
+          'CONTROL · the half that kept `find`, the CLI and the selftest still reads hazardous, so the predicate can fire on this pair',
+          scopeHz.length > 0,
+          'corpus-scope.mjs hazards: ' + scopeHz.join(', ')
+        );
+        /* ANTI-VACUITY ON THE POPULATION ITSELF. A floor, not a frozen count: the number moves with
+           every unrelated tool, and a frozen cell ages. Measured at this ref the split took the
+           probe-safe set from 41 to 67 with nothing lost. */
+        var inert = AS.inertPopulation(TOOLDIR);
+        T.ok('ANTI-VACUITY · the probe-safe population is read, not assumed', Array.isArray(inert) && inert.length >= 60, (inert || []).length + ' probe-safe tool(s)');
+        T.ok(
+          'and the tools that delegate their walk are INSIDE it, which is the property the split bought',
+          ['pat-dip-index.mjs', 'pat-hrv-windows.mjs', 'tch-window-sensitivity.mjs', 'ppg-gap-bridge-scan.mjs'].every(function (n) {
+            return inert.indexOf(n) >= 0;
+          }),
+          'probe-safe: ' + inert.join(' ')
+        );
+        /* AND NOBODY REACHES A CORE NAME THROUGH THE HAZARDOUS DOOR. `corpus-scope.mjs` re-exports
+           every core name so no caller broke on the day of the split, which is exactly what would
+           let a new tool import `snapshotNights` from it and silently rejoin the exec closure. */
+        var wrongDoor = Object.keys(TT)
+          .filter(function (k) {
+            return /^tools\/[^/]+\.m?js$/.test(k) && k !== 'tools/corpus-scope.mjs';
+          })
+          .filter(function (k) {
+            var m = /import\s*\{([^}]*)\}\s*from\s*'\.\/corpus-scope\.mjs'/.exec(TT[k] || '');
+            return (
+              m !== null &&
+              m[1].split(',').some(function (x) {
+                return CORE_NAMES.indexOf(x.trim().split(/\s+as\s+/)[0]) >= 0;
+              })
+            );
+          });
+        T.eq('no tool takes a population name through the hazardous module, which re-exports them all', wrongDoor.sort().join(', '), '');
+      } else if (nodeLane) {
+        T.ok('env.argvSurvey is wired in the node lane', false, 'absent — the probe-safety ratchet examined nothing');
+      } else {
+        T.skip('the probe-safety ratchet', 'it reads the tools directory; the node lane carries it');
+      }
       /* ── A REPORT THAT ONLY THE SCORING PATH REACHES IS A REPORT NO BOX RUNS ──────────────────
          Row 2026-10-21-the-reference-validation-population-path-runs-on-no-box-here.
          `tch-reference-validation.mjs` scores an external nightly volume named by `DEX_ECG_NIGHTLY`,
@@ -11909,7 +11986,7 @@
         var src = TT[rel];
         T.ok(
           rel + ' imports populationVerdict from the shared primitive',
-          /populationVerdict[\s\S]{0,200}?from '\.\/corpus-scope\.mjs'/.test(src),
+          /populationVerdict[\s\S]{0,200}?from '\.\/corpus-scope(?:-core)?\.mjs'/.test(src),
           'absent — a hand-rolled object is not the primitive'
         );
         T.ok(rel + ' declares --verdict-sample', src.indexOf('--verdict-sample') >= 0, 'absent — the manifest row names a flag the tool does not read');

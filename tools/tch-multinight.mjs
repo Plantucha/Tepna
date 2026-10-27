@@ -44,7 +44,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, snapshotNights, ruleLine, digestNights, NIGHT_RE } from './corpus-scope.mjs';
+import { populationVerdict, snapshotNights, ruleLine, digestNights, NIGHT_RE } from './corpus-scope-core.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');

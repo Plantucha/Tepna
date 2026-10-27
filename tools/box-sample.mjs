@@ -25,7 +25,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
-import { producedByOf } from './corpus-scope.mjs';
+import { producedByOf } from './corpus-scope-core.mjs';
 
 // `hwm_kb` is APPENDED, never inserted: existing TSV column positions must not shift.
 export const FIELDS = ['cpu_pct', 'rss_kb', 'elapsed_s', 'hci0_le', 'hci1_le', 'hci2_le', 'load1', 'mem_used_mb', 'disk_pct', 'unit_active', 'hwm_kb'];

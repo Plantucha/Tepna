@@ -40,7 +40,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { overlapSplit } from './pat-window-oracle.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);

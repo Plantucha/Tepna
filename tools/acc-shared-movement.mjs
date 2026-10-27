@@ -40,7 +40,7 @@ import { join } from 'node:path';
 import { bestPairOver, fragmentBounds } from './acc-select-compare.mjs';
 import { getDsps, loadDsps, median, quantile } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 
 const argv = process.argv.slice(2);
 const av = (k, d) => {

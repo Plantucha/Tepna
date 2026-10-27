@@ -70,7 +70,7 @@ import { fileURLToPath } from 'node:url';
 import { GAP_S, HOLES_S, PERIOD_S, STEPS_BPM, activeSecOf, plant, realms, spansGapOf } from './cvhr-gap-edge.mjs';
 import { corpusSearch } from './regen-goldens-core.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
