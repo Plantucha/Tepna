@@ -37,7 +37,7 @@
 #   parseDeviceACC, whose worst 175 ms slip never crosses its 30 s epoch boundary.
 
 from __future__ import annotations
-import atexit as _atexit, collections as _collections, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
+import atexit as _atexit, calendar as _calendar, collections as _collections, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
 from typing import Iterable, TextIO
 
 # The annotation values a device INSERTS into a stream live with the device, not here — the merge
@@ -972,6 +972,17 @@ def _phone_ts(when: _dt.datetime) -> str:
     return when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
 
 
+def _phone_ms(when: _dt.datetime) -> float:
+    """The same instant `_phone_ts` writes as text, as floating wall-clock ms (Clock Contract §1).
+
+    `timegm` over a `timetuple` reads the components AS WRITTEN and ignores any attached zone, which
+    is what a floating stamp means — and it is the same expression the capture path already uses for
+    a session start, so the two numbers are comparable. `timetuple` drops the microseconds, so they
+    are added back here: a row arrival rounded to the second would read as a coarser measurement than
+    the stamp beside it in the file."""
+    return _calendar.timegm(when.timetuple()) * 1000.0 + when.microsecond / 1000.0
+
+
 # ── BLE-TIMEBASE-AT-THE-EDGE §1.4 · clock seams, emitted where the clocks arrive ──────────────────
 # PARITY WITH `ecgdex-dsp.js` ECG_RESYNC_BOUND_MS. Its justification is measured and is the reason
 # this is a bound rather than a tuned threshold: device delta and phone delta TRACK each other across
@@ -1798,6 +1809,11 @@ class StreamWriter:
                 self._rr_fh.write(self.HEADERS["rr"] + "\n")
             self._rr_path = rr_path  # remembered so `paths`/`discard` can see it
         self._n = 0
+        # THE HOST ARRIVAL STAMP OF THE FIRST ROW THIS WRITER LANDED — what dates the artifact. `None`
+        # until a row lands, and it stays `None` for a file that only ever got a header: the session
+        # start is a different quantity, and standing in for this one dated files to the wrong hour
+        # (residue `2026-10-26-the-acquisition-envelope-dates-an-artifact-by-the-session-start`).
+        self._first_row_ms: float | None = None
         self._first_ns: int | None = None  # per-file anchor for the relative `timestamp [ms]` column
         # True when a RESUMED ECG file's original anchor could not be read back (below). The column is then
         # written EMPTY for the rest of the file rather than restarted at 0.0 — see `_rel_ms`.
@@ -1888,10 +1904,10 @@ class StreamWriter:
         # run row can never name a column the data file does not have.
         if self._runs is not None:
             self._runs.feed("ecg [uV]", uv, phone)
-        self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n", phone)
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int | None, t_ms: float, x: int, y: int, z: int) -> None:
-        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{x};{y};{z}\n")
+        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{x};{y};{z}\n", phone)
         # ACC feeds the run sidecar like the optical streams do. It was CREATING a sidecar and never
         # feeding it — `RUN_MIN_BY_STREAM` carries `acc`/`accraw`, so the file existed, said
         # "rule=stuck … runs=0" and had looked at nothing. An honest-empty file and a file that never
@@ -1909,7 +1925,7 @@ class StreamWriter:
         `write_ppg`: the column set IS the contract a reader resolves the layout from, and a
         two-column-plus-flag row is neither of the others."""
         self._seams.feed(phone, sensor_ns)
-        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{sample};{beat}\n")
+        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{sample};{beat}\n", phone)
 
     def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int | None, ch0: int, ch1: int, motion: int) -> None:
         """One raw dual-wavelength sample (O2Ring cmd=0x05).
@@ -1919,7 +1935,7 @@ class StreamWriter:
         the Verity. A two-wavelength row is neither, and squeezing it through the count would make the
         header and the row shape drift apart, which is the exact failure `ppg1` exists to prevent."""
         self._seams.feed(phone, sensor_ns)
-        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{ch0};{ch1};{motion}\n")
+        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{ch0};{ch1};{motion}\n", phone)
         if self._runs is not None:  # both optical channels; `motion` is not an optical wave
             self._runs.feed("channel 0", ch0, phone)
             self._runs.feed("channel 1", ch1, phone)
@@ -1937,10 +1953,10 @@ class StreamWriter:
         # already-captured replicated file, and for a future device that replicates.)
         cols = list(ch)
         if len(cols) == 1:
-            self._row(f"{_phone_ts(phone)};{sensor_ns};{cols[0]}\n")
+            self._row(f"{_phone_ts(phone)};{sensor_ns};{cols[0]}\n", phone)
         else:
             c0, c1, c2 = cols[:3]
-            self._row(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
+            self._row(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n", phone)
         # Run tracking follows the SAME column count the row above wrote, so the sidecar can never
         # describe a layout the file does not have. `ambient` is excluded: it is not an optical wave,
         # and a held ambient reading is not the absence this rule is looking for.
@@ -1954,11 +1970,11 @@ class StreamWriter:
     # binary-fraction tail of the multiply.
     def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
         self._seams.feed(phone, sensor_ns)
-        self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n", phone)
 
     def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
         self._seams.feed(phone, sensor_ns)
-        self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n", phone)
 
     def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
         # One row per beat, in PSL's PPI column ORDER: interval FIRST, hr LAST, and NO device-clock column.
@@ -1966,7 +1982,9 @@ class StreamWriter:
         # carry no usable device clock (every row the box has written has sensor_ns == 0), which is what
         # nightqc.file_span_sec already assumes when it says "HR/RR/PPI carry no device clock".
         self._seams.feed(phone, sensor_ns)
-        self._row(f"{_phone_ts(phone)};{pp_ms};{err_ms};{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n")
+        self._row(
+            f"{_phone_ts(phone)};{pp_ms};{err_ms};{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n", phone
+        )
 
     def write_hr(self, phone: _dt.datetime, sensor_ns: int | None, bpm: int, rr_ms: Iterable[int]) -> None:
         # FED EVEN THOUGH THE ROW DROPS sensor_ns. PSL's _HR/_RR carry only the phone timestamp, but
@@ -1993,7 +2011,7 @@ class StreamWriter:
         # requires hr >= HR_MIN), which is precisely why this stayed invisible: the file was wrong and
         # every reader defended itself.
         if bpm:
-            self._row(f"{_phone_ts(phone)};{bpm}\n")
+            self._row(f"{_phone_ts(phone)};{bpm}\n", phone)
         # RR IS INDEPENDENT OF THE HR SENTINEL and must survive it — one notification can carry valid
         # intervals while the rate byte reads 0, and those intervals are the HRV substrate.
         if self._rr_fh is not None:
@@ -2013,11 +2031,19 @@ class StreamWriter:
         the rate") instead of reaching through to a private attribute."""
         self._seams.note_pmd(**kw)
 
-    def _row(self, text: str) -> None:
+    def _row(self, text: str, phone: _dt.datetime) -> None:
         """One sample row: counted in `rows` ONLY if it was actually written (a lost row is counted in
-        `rows_lost` by the health object instead), flush cadence checked either way."""
+        `rows_lost` by the health object instead), flush cadence checked either way.
+
+        `phone` is THIS row's host arrival stamp, and it is required rather than defaulted for the
+        same reason `first_row_ms` exists: a new stream that forgot to pass it would leave its
+        artifact undated, with no symptom anywhere. It is read only on the first row that LANDS — a
+        row the health object could not persist is not an arrival, so a file whose opening rows were
+        all lost is dated by the first one that reached the disk."""
         if self._health.put(self._fh, text):
             self._n += 1
+            if self._first_row_ms is None:
+                self._first_row_ms = _phone_ms(phone)
         self._maybe_flush()
 
     def _maybe_flush(self) -> None:
@@ -2044,6 +2070,16 @@ class StreamWriter:
     @property
     def rows(self) -> int:
         return self._n
+
+    @property
+    def first_row_ms(self) -> float | None:
+        """When this artifact's first LANDED row arrived, as floating wall-clock ms — or `None`.
+
+        This is what dates the file. The session start is not: a stream can begin minutes or hours
+        after the session does, and over the host-written corpus the two disagreed by up to 18.71 h.
+        `None` is the honest answer for a file that holds no row, and a caller must never substitute
+        the session start for it (§∅)."""
+        return self._first_row_ms
 
     @property
     def paths(self) -> list[str]:

@@ -5620,7 +5620,11 @@ def _emit_polar_live_evidence(name, dev, started, wr, negotiated_hz):
             artifact_path=wr.path,
             artifact_rows=wr.rows,
             resumed=wr.resumed,
-            start_time_ms=calendar.timegm(started.timetuple()) * 1000.0,
+            # THE ARTIFACT'S START IS ITS FIRST ROW, never the session's start — a stream opens when
+            # the strap starts delivering, which on this box has been up to 18.71 h after the session
+            # began. `None` when no row landed (§∅): a header-only file has no start to report.
+            start_time_ms=wr.first_row_ms,
+            instance_start_time_ms=calendar.timegm(started.timetuple()) * 1000.0,
             negotiated_hz=negotiated_hz,
             stopped_cleanly=not _STOP.is_set(),
             seam_count=wr.seams,

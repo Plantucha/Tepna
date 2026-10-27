@@ -82,6 +82,7 @@ def assemble_live(
     artifact_rows: int | None,
     resumed: bool = False,
     start_time_ms: float | None = None,
+    instance_start_time_ms: float | None = None,
     end_time_ms: float | None = None,
     negotiated_hz: float | None = None,
     stopped_cleanly: bool | None = None,
@@ -98,15 +99,23 @@ def assemble_live(
     `StreamWriter.resumed`, and it changes what that count means (see below). `seam_count`, `rows_lost`
     and `flush_failures` are the writer's own flush-health counters.
 
+    ⚠️ TWO STARTS EXIST AND THEY ARE DIFFERENT QUANTITIES. `start_time_ms` dates the ARTIFACT and is
+    `StreamWriter.first_row_ms` — when the first row landed in this file. `instance_start_time_ms` is
+    when the session began, and it travels in `provenance` under that name only. Feeding the session
+    start into `start_time_ms` was the defect residue
+    `2026-10-26-the-acquisition-envelope-dates-an-artifact-by-the-session-start` names: a stream can
+    open minutes or hours after its session does, measured up to 18.71 h over the host-written corpus,
+    and the envelope beside the file is exactly what a reader turns to when it distrusts the filename
+    stamp. A writer with no landed row reports `None` (§∅), never the session start.
+
     ⚠️ A RESUMED ARTIFACT HAS NO KNOWN SAMPLE COUNT. The writer reopens the same path in append mode at
     `rows=0`, so on a resume `rows` counts only this instance while the FILE also holds the earlier
     session's data. Reporting it as `sample_count` would state a number smaller than the artifact — so a
     resumed artifact reports `None` (§5: absent, never a convenient number) and the instance's own count
     travels in `provenance` as `rows_this_instance`, which is what it actually measures. `start_time_ms`
-    is dropped for the same reason and is not a second decision: the caller's start is when THIS
-    instance opened the file, while the artifact's first sample is in the earlier session nobody here
-    saw, so reporting it would date the file to a time after it began. It travels as
-    `instance_start_time_ms`.
+    is dropped for the same reason and is not a second decision: this instance's first row is not the
+    FILE's first row, which lies in the earlier session nobody here saw, so reporting it would date the
+    file to a time after it began.
 
     ⚠️ THE GAP FIELDS STAY UNKNOWN BECAUSE THE COUNTERS THIS PATH HAS ARE NOT THOSE GAPS. A flush seam
     is a WRITE-side discontinuity in the file and `rows_lost` is a row the writer could not persist;
@@ -180,7 +189,7 @@ def assemble_live(
             "resumed": resumed,
             # what `artifact_rows` actually measures, named so it can never be read as the file's size
             "rows_this_instance": artifact_rows,
-            "instance_start_time_ms": start_time_ms,
+            "instance_start_time_ms": instance_start_time_ms,
             # write-side accounting, named as such so none of it can be read as a link-side gap
             "flush_seams": seam_count,
             "rows_lost": rows_lost,
