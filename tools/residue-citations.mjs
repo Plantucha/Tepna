@@ -33,11 +33,22 @@
  * dangling keys with a reason each. A dangling key outside that file reds; a baseline key that
  * resolves now reds too, so a closure removes its line rather than leaving it.
  *
- * TWO PREMISES A READER CANNOT SEE FROM THE IDS, so they are stated here:
- *   · `audits/DEFECT-BENCHMARK.json` numbers its own work items in this key shape — a different
- *     namespace reading identical (residue `…-an-audit-numbers-its-work-items-in-the-ledger-key-shape`).
- *     It is exempt by path, and the exemption is this tool's premise rather than the audit's property.
- *   · this tool and its baseline cite dangling keys BY DESIGN, so both exempt themselves.
+ * A CHANGESET FILENAME IS NOT A CITATION. `changes/<key>.md` and a row key share the date-slug shape
+ * by construction, so the token alone cannot separate them and the characters around it must: a row
+ * reference appears bare, a changeset appears behind `changes/` or in front of `.md`. Two readers met
+ * this before — `docs-ledger` check8h (residue `2026-09-23-check8h-reads-a-changeset-filename-as-a-row-key`)
+ * and `tools/residue-ids.mjs` (residue `2026-10-26-a-changeset-filename-counts-as-a-row-citation`) — and
+ * this tool shipped without it. The four it cost all sat in audits quoting a changeset by path.
+ *
+ * A BASELINE LINE IS A DEBT, AND A DEBT NEEDS A LIVING OWNER. A `reason` naming a residue row is a
+ * pointer nothing used to read, so it could name a closed or absent row and stay. `ownerDebt` reds on
+ * one, and §∅ keeps the empty case honest: with no line naming an owner the verdict carries
+ * `ownerReasonsExamined: 0` rather than a silent PASS over a population of nothing.
+ *
+ * ONE PREMISE A READER CANNOT SEE FROM THE IDS, so it is stated here: this tool and its baseline cite
+ * dangling keys BY DESIGN, so both exempt themselves. `audits/DEFECT-BENCHMARK.json` needs no path
+ * exemption — it numbers 449 of its own work items in this key shape, and the citation-word scope
+ * leaves exactly one of them standing, which the changeset-path rule then reads as the path it is.
  * The ledger's own earliest row date is the floor: a key dated before it names no row and never could,
  * which is what the residue tooling's synthetic fixtures rely on. The floor is READ from the ledger,
  * never typed, so it moves when the ledger does.
@@ -54,6 +65,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
+import { splitRowCells } from './residue-ids.mjs';
 
 /* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/residue-ids.mjs` uses. */
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -93,6 +105,47 @@ export function rowKeys(ledgerText) {
     if (m) keys.push(m[1]);
   }
   return keys;
+}
+
+/* A BASELINE LINE IS A DEBT, AND A DEBT NEEDS A LIVING OWNER (residue
+   `2026-10-27-four-baseline-reasons-name-the-row-this-pr-closes`). Four `cross-lane` entries named
+   row `2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row` as the owner of
+   their remedy, and that row closes in the same diff those four entries leave. Nothing read a reason
+   string, so the pointer could rot in place: a reader following it lands on a closed row and reads
+   the debt as discharged. The cells come from `splitRowCells`, the one ledger scanner that consumes a
+   backslash pair as a unit: a bare `.split('|')` reads an escaped pipe as a separator and takes the
+   wrong cell, which is what `tests/dex-tests.js` holds every ledger reader to. */
+export function rowStates(ledgerText) {
+  const states = new Map();
+  for (const line of String(ledgerText).split('\n')) {
+    const m = /^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)\s*\|/.exec(line);
+    if (!m) continue;
+    const cells = splitRowCells(line);
+    states.set(m[1], cells.length >= 3 ? cells[cells.length - 2].trim() : '');
+  }
+  return states;
+}
+
+/* §∅ · an entry whose reason names no key is not examined and reports nothing, rather than counting
+   as a pass. An entry naming its OWN key is excluded: that is the debt describing itself. */
+export function ownerReasons(baseline) {
+  const out = [];
+  for (const e of (baseline || {}).entries || []) {
+    for (const owner of String(e.reason || '').match(/\d{4}-\d{2}-\d{2}-[a-z0-9-]+/g) || []) {
+      if (owner === e.key) continue;
+      out.push({ key: e.key, owner });
+    }
+  }
+  return out;
+}
+
+export function ownerDebt(baseline, states) {
+  const out = [];
+  for (const { key, owner } of ownerReasons(baseline)) {
+    if (!states.has(owner)) out.push({ key, owner, why: 'names no row in the ledger' });
+    else if (!/^OPEN\b/.test(states.get(owner))) out.push({ key, owner, why: `names a row already closed: ${states.get(owner)}` });
+  }
+  return out;
 }
 
 /* The floor is the ledger's own earliest row date. A key dated before it cannot name a row, so the
@@ -195,6 +248,15 @@ export function scanText(relPath, text, keys, opts) {
         if (!CITE_WORDS.test(before)) continue;
         let cited = `${m[1]}-${m[2]}`;
         const after = span.text.slice(end);
+        /* A CHANGESET FILENAME IS NOT A CITATION, AND THIS IS THE THIRD READER TO MEET IT (residue
+           `2026-09-23-check8h-reads-a-changeset-filename-as-a-row-key`, fixed in `tests/dex-tests.js`,
+           and `2026-10-26-a-changeset-filename-counts-as-a-row-citation`, fixed in
+           `tools/residue-ids.mjs`). A row key and a `changes/` filename share the date-slug shape by
+           construction, so the string alone cannot separate them — but the surrounding characters can,
+           and the discriminator is structural rather than a heuristic: a row reference appears bare, a
+           changeset appears behind `changes/` or in front of `.md`. Without it the four audit-quoted
+           changeset paths read dangling, and a declared-debt line then has to excuse each one. */
+        if (/changes\/$/.test(before) || /^\.md\b/.test(after)) continue;
         const elided = ELIDE_RE.test(`${m[0]}${after.slice(0, 4)}`) || ELIDE_RE.test(after.slice(0, 4));
         if (floor !== null && m[1] < floor) continue;
         cited = cited.replace(/-+$/, '');
@@ -285,6 +347,8 @@ export function run(repo, opts) {
   const undeclared = unresolved.filter((c) => !declared.has(c.cited));
   const citedKeys = new Set(unresolved.map((c) => c.cited));
   const stale = [...declared.keys()].filter((k) => !citedKeys.has(k));
+  const orphanOwners = ownerDebt(base, rowStates(ledger));
+  const ownerReasonsExamined = ownerReasons(base).length;
 
   return {
     rows: keys.length,
@@ -307,16 +371,20 @@ export function run(repo, opts) {
     near: by('near'),
     ambiguousList: by('ambiguous'),
     stale,
+    orphanOwners,
+    ownerReasonsExamined,
     declared: declared.size
   };
 }
 
 export function verdictFor(r, commit) {
-  const bad = r.undeclared.length + r.near.length + r.stale.length;
+  const orphans = (r.orphanOwners || []).length;
+  const bad = r.undeclared.length + r.near.length + r.stale.length + orphans;
   const reasons = [];
   if (r.undeclared.length) reasons.push(`${r.undeclared.length} unresolved citation(s) outside the baseline`);
   if (r.near.length) reasons.push(`${r.near.length} citation(s) name a row and miss its key`);
   if (r.stale.length) reasons.push(`${r.stale.length} baseline key(s) resolve now and owe a removal`);
+  if (orphans) reasons.push(`${orphans} baseline reason(s) name a row that is closed or absent`);
   return Verdict.make({
     gate: 'residue-citations',
     status: bad === 0 ? 'PASS' : 'FAIL',
@@ -328,6 +396,8 @@ export function verdictFor(r, commit) {
       unresolvedKeys: r.unresolvedKeys,
       undeclared: r.undeclared.length,
       staleBaseline: r.stale.length,
+      orphanedOwners: orphans,
+      ownerReasonsExamined: r.ownerReasonsExamined ?? null,
       declared: r.declared,
       rows: r.rows
     },
@@ -366,10 +436,58 @@ function selftest() {
   ok('a citation word further than the window does not scope', kind(`# residue ${' '.repeat(45)}2026-09-02-alpha-beta-gamma\n`), []);
   ok('two prefixes of one row are one citation, strongest reading kept', kind('# Residue 2026-09-02-alpha-beta-gamma and 2026-09-02-alpha-beta-gamma\n'), ['exact:2026-09-02-alpha-beta-gamma']);
   ok('a dangling key still reads dangling under the join', kind('x\n# Residue 2026-10-22-pull-once-survivors-batch-one\n'), ['dangling:2026-10-22-pull-once-survivors-batch-one']);
+  ok('a changeset path is a filename, not a citation', kind('# Residue changes/2026-09-02-alpha-beta-gamma.md\n'), []);
+  ok('a bare changeset filename is a filename too', kind('# Residue 2026-09-02-alpha-beta-gamma.md\n'), []);
+  ok('the word changes near a bare key still leaves a citation', kind('# Residue changes to 2026-09-02-alpha-beta-gamma\n'), ['exact:2026-09-02-alpha-beta-gamma']);
+  ok('a key followed by a sentence period is still a citation', kind('# Residue 2026-09-02-alpha-beta-gamma. Next.\n'), ['exact:2026-09-02-alpha-beta-gamma']);
   ok('a JS comment marker is stripped by the join', kind('// Residue 2026-09-06-ring-fileset-never-\n// resumes\n', 'f.mjs'), ['joined:2026-09-06-ring-fileset-never-resumes']);
   ok('the floor is read from the ledger, not typed', ledgerFloor(keys), '2026-09-02');
   ok('a row cell yields its key', rowKeys('| 2026-09-02-alpha-beta-gamma | logged | s | d | e | OPEN |\n'), ['2026-09-02-alpha-beta-gamma']);
   ok('a non-row line yields none', rowKeys('text 2026-09-02-alpha-beta-gamma\n'), []);
+
+  /* rowStates / ownerDebt — a baseline line is a debt, and a debt needs a living owner. */
+  const st = rowStates(
+    '| 2026-09-02-alpha-beta-gamma | logged | s | d | e | OPEN |\n' +
+      '| 2026-09-03-delta | logged | s | d | e | fixed #4010 |\n' +
+      '| 2026-09-04-epsilon | logged | s | d | a \\| b | OPEN (deferred) |\n' +
+      'not a row | 2026-09-05-zeta | OPEN |\n'
+  );
+  ok('a row cell yields its state', st.get('2026-09-02-alpha-beta-gamma'), 'OPEN');
+  ok('a closed row yields its closure', st.get('2026-09-03-delta'), 'fixed #4010');
+  ok('a row carrying an escaped pipe still yields the state cell', st.get('2026-09-04-epsilon'), 'OPEN (deferred)');
+  ok('a line that is not a row contributes no state', st.has('2026-09-05-zeta'), false);
+  const debtOf = (entries) => ownerDebt({ entries }, st).map((o) => `${o.key}>${o.owner}`);
+  ok('a reason naming an OPEN row owes nothing', debtOf([{ key: 'k1', reason: 'owner 2026-09-02-alpha-beta-gamma' }]), []);
+  ok('a reason naming a closed row is an orphan', debtOf([{ key: 'k2', reason: 'owner 2026-09-03-delta' }]), ['k2>2026-09-03-delta']);
+  ok('a reason naming no row at all is an orphan', debtOf([{ key: 'k3', reason: 'owner 2026-12-31-nobody-home' }]), ['k3>2026-12-31-nobody-home']);
+  ok('a reason naming its own key is the debt describing itself', debtOf([{ key: '2026-09-03-delta', reason: 'this is 2026-09-03-delta' }]), []);
+  ok('a reason naming no key is not examined', debtOf([{ key: 'k4', reason: 'a fixture, no owner named' }]), []);
+  ok('a reason naming two rows is judged once per row', debtOf([{ key: 'k5', reason: '2026-09-02-alpha-beta-gamma and 2026-09-03-delta' }]), ['k5>2026-09-03-delta']);
+
+  /* The wiring, not just the reader: an orphan alone must carry the verdict to FAIL with a named
+     reason, because a check whose finding never reaches the status examines nothing. */
+  const blank = { byKind: {}, unresolvedKeys: 0, undeclared: [], near: [], stale: [], declared: 1, rows: 1, citations: 1 };
+  const vOrphan = verdictFor({ ...blank, orphanOwners: [{ key: 'k', owner: 'o', why: 'names no row in the ledger' }] }, 'abc');
+  ok('one orphaned owner fails the verdict', vOrphan.status, 'FAIL');
+  ok('the orphan count reaches the verdict result', vOrphan.result.orphanedOwners, 1);
+  ok('the orphan names itself in the reason', /baseline reason/.test(vOrphan.reason), true);
+  ok('no orphan leaves the verdict passing', verdictFor({ ...blank, orphanOwners: [] }, 'abc').status, 'PASS');
+
+  /* ANTI-VACUITY. The check is worth nothing if no live baseline line names an owner, so the real
+     pair must examine at least one reason, and every row the real baseline names must exist. */
+  const realStates = rowStates(fs.readFileSync(path.join(REPO, LEDGER), 'utf8'));
+  const realBase = JSON.parse(fs.readFileSync(path.join(REPO, BASELINE), 'utf8'));
+  const named = ownerReasons(realBase).map((o) => o.owner);
+  ok(
+    'every row the live baseline names is in the ledger',
+    named.filter((o) => !realStates.has(o)),
+    []
+  );
+  ok('no live baseline line names a closed row', ownerDebt(realBase, realStates), []);
+  /* §∅ · the live baseline names no owner today, so this pair examines nothing and the verdict says
+     so by a count rather than by a silent PASS. The synthetic legs above are what holds the reader
+     honest; the moment a line names an owner, the live population stops being empty on its own. */
+  ok('an examined-nothing owner population reports its count, not a pass', named.length, 0);
 
   const r = run(REPO, { files: ['tools/residue-citations.mjs'], baseline: { entries: [], exemptPaths: [] } });
   ok('this tool exempts itself', r.citations, 0);
@@ -416,6 +534,8 @@ if (isCliEntry(import.meta.url)) {
       }
       for (const c of r.near) console.log(`  ✗ ${c.at} cites ${c.cited} — a near miss of ${c.row}`);
       for (const key of r.stale) console.log(`  ✗ baseline names ${key}, which resolves now — remove the line`);
+      for (const o of r.orphanOwners) console.log(`  ✗ the baseline line for ${o.key} ${o.why} (${o.owner}) — the debt has no living owner`);
+      if (!r.ownerReasonsExamined) console.log('  · no baseline line names an owning row, so the owner check examined nothing');
       if (has('--all')) for (const c of r.cites) console.log(`  ${c.kind.padEnd(9)} ${c.at} ${c.cited}`);
       console.log(`\nVERDICT (tepna.verdict/1): ${JSON.stringify(v)}`);
     }

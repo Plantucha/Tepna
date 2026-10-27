@@ -1,152 +1,120 @@
 {
- "schema": "tepna.residue-citations-baseline/1",
- "note": "The declared debt of tools/residue-citations.mjs. A cited residue key that resolves to no row reds the gate unless it is named here. The set may only SHRINK: a key that resolves now reds until its line goes. Each entry carries its class and, where one exists, the residue row that owns the remedy.",
- "measuredAt": "2026-10-27",
- "exemptPaths": [],
- "entries": [
-  {
-   "key": "2026-09-02-alpha",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:926"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-09-02-delta",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:962"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-09-02-nope",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:971"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-09-20-d",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-cite-drift.mjs:246"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-09-20-zz-broken",
-   "class": "fixture",
-   "sites": [
-    "tests/dex-tests.js:43912"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-09-21-monitor-chips-derived",
-   "class": "cross-lane",
-   "sites": [
-    "audits/DEFECT-BENCHMARK.json:3079"
-   ],
-   "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
-  },
-  {
-   "key": "2026-09-23-patsd-absence-is-null",
-   "class": "cross-lane",
-   "sites": [
-    "audits/CHANGESETS-AND-V2.15.0-FOLD-2026-09-25.md:35"
-   ],
-   "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
-  },
-  {
-   "key": "2026-10-13-sentinel-waiter-guard",
-   "class": "cross-lane",
-   "sites": [
-    "audits/API-LANE-VERDICTS-2026-10-13.json:1631"
-   ],
-   "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
-  },
-  {
-   "key": "2026-10-14-oxydex-counts-rows-as-seconds",
-   "class": "cross-lane",
-   "sites": [
-    "audits/API-LANE-VERDICTS-2026-10-13.json:2015"
-   ],
-   "reason": "an audit artifact numbering its own items in this key shape. The class is row 2026-10-26-eighteen-residue-citations-outside-the-ledger-resolve-to-no-row"
-  },
-  {
-   "key": "2026-10-20-another-row",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1151"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-10-21-citer-closed",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1067"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-10-21-citer-of-the-longer",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1068"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-10-21-citer-open",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1066"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-10-21-cites-nobody",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1069"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-10-25-carrier",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1104"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-10-25-changeset-only",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1106"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-10-25-narrow",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1103"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  },
-  {
-   "key": "2026-10-25-twice",
-   "class": "fixture",
-   "sites": [
-    "tools/residue-ids.mjs:1105"
-   ],
-   "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
-  }
- ]
+  "schema": "tepna.residue-citations-baseline/1",
+  "note": "The declared debt of tools/residue-citations.mjs. A cited residue key that resolves to no row reds the gate unless it is named here. The set may only SHRINK: a key that resolves now reds until its line goes. Every remaining entry is a synthetic key inside the residue tooling's own selftests. The four cross-lane entries went on 2026-10-27: all four were changeset filenames quoted inside an audit, which the scan now reads as paths rather than citations.",
+  "measuredAt": "2026-10-27",
+  "exemptPaths": [],
+  "entries": [
+    {
+      "key": "2026-09-02-alpha",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:926"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-09-02-delta",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:962"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-09-02-nope",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:971"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-09-20-d",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-cite-drift.mjs:246"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-09-20-zz-broken",
+      "class": "fixture",
+      "sites": [
+        "tests/dex-tests.js:43912"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-20-another-row",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1151"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-21-citer-closed",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1067"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-21-citer-of-the-longer",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1068"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-21-citer-open",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1066"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-21-cites-nobody",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1069"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-25-carrier",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1104"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-25-changeset-only",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1106"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-25-narrow",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1103"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    },
+    {
+      "key": "2026-10-25-twice",
+      "class": "fixture",
+      "sites": [
+        "tools/residue-ids.mjs:1105"
+      ],
+      "reason": "a synthetic key inside the residue tooling's own selftest, dated in range so the ledger floor cannot see it"
+    }
+  ]
 }

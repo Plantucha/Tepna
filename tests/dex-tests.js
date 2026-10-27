@@ -12623,11 +12623,25 @@
         'out.glued = kinds("# residue 2026-01-02-alpha-beta-gamma\\nand then prose\\n");',
         'out.wrappedDangling = kinds("# Residue 2026-01-22-pull-once-survivors-\\n# batch-one\\n");',
         'out.ambiguous = kinds("# Residue 2026-01-25-a-refused-night-shaped-directory-reads-as-a-flat-roo\\n");',
+        /* A CHANGESET FILENAME IS NOT A CITATION, and the third reader of this shape shipped without
+           the rule. The discriminator is structural: bare is a row, behind `changes/` or in front of
+           `.md` is a file. The third line is the CONTROL — the word `changes` near a bare key must
+           still leave a citation, or the rule has eaten the thing it was meant to spare. */
+        'out.changesetPath = kinds("# Residue changes/2026-01-02-alpha-beta-gamma.md\\n");',
+        'out.changesetBare = kinds("# Residue 2026-01-02-alpha-beta-gamma.md\\n");',
+        'out.changesWord = kinds("# Residue changes to 2026-01-02-alpha-beta-gamma\\n");',
+        /* A BASELINE REASON NAMING A ROW IS A POINTER, and nothing read it until now. The state cell
+           is taken from the END of the row, because a cell may carry an escaped pipe. */
+        'var ST = M.rowStates("| 2026-01-02-alpha-beta-gamma | l | s | d | e | OPEN |\\n| 2026-01-03-delta | l | s | d | a \\\\| b | fixed #1 |\\n");',
+        'out.states = [ST.get("2026-01-02-alpha-beta-gamma"), ST.get("2026-01-03-delta")];',
+        'out.ownerOpen = M.ownerDebt({ entries: [{ key: "k", reason: "owner 2026-01-02-alpha-beta-gamma" }] }, ST).length;',
+        'out.ownerClosed = M.ownerDebt({ entries: [{ key: "k", reason: "owner 2026-01-03-delta" }] }, ST).map(function (o) { return o.key + ">" + o.owner; });',
+        'out.ownerSelf = M.ownerDebt({ entries: [{ key: "2026-01-03-delta", reason: "this is 2026-01-03-delta" }] }, ST).length;',
         'out.floor = M.ledgerFloor(KEYS);',
         'out.rowKeys = M.rowKeys("| 2026-01-02-alpha-beta-gamma | logged | s | d | e | OPEN |\\ntext 2026-01-02-alpha-beta-gamma\\n");',
         'out.window = M.CITE_WINDOW;',
         'var real = M.run(' + JSON.stringify(root) + ');',
-        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor };',
+        'out.real = { citations: real.citations, files: real.files, rows: real.rows, undeclared: real.undeclared.length, near: real.near.length, stale: real.stale.length, declared: real.declared, floorReal: real.floor, orphans: real.orphanOwners.length, examined: real.ownerReasonsExamined };',
         'out.selfExempt = M.run(' +
           JSON.stringify(root) +
           ', { files: ["tools/residue-citations.mjs", "tools/residue-citations-baseline.json"], baseline: { entries: [], exemptPaths: [] } }).citations;',
@@ -12707,6 +12721,21 @@
       T.eq('no citation in the committed tree misses a real row by a near miss', R.real.near, 0);
       T.eq('no declared key resolves, so the baseline owes no removal', R.real.stale, 0);
       T.eq('CONTROL · the tool and its baseline are exempt from their own scan', R.selfExempt, 0);
+
+      /* ── A CHANGESET FILENAME IS NOT A CITATION ───────────────────────────────────────── */
+      T.eq('a key behind changes/ and in front of .md is a path', R.changesetPath, []);
+      T.eq('a bare changeset filename is a path too', R.changesetBare, []);
+      T.eq('CONTROL · the word changes near a bare key still leaves a citation', R.changesWord, ['exact:2026-01-02-alpha-beta-gamma']);
+
+      /* ── A BASELINE LINE IS A DEBT, AND A DEBT NEEDS A LIVING OWNER ───────────────────── */
+      T.eq('a row yields its state, and an escaped pipe does not move the cell', R.states, ['OPEN', 'fixed #1']);
+      T.eq('a reason naming an OPEN row owes nothing', R.ownerOpen, 0);
+      T.eq('a reason naming a closed row is an orphan', R.ownerClosed, ['k>2026-01-03-delta']);
+      T.eq('a reason naming its own key is the debt describing itself', R.ownerSelf, 0);
+      T.eq('no baseline reason in the committed tree names a closed or absent row', R.real.orphans, 0);
+      /* §∅ · the live baseline names no owner today, so the count is reported rather than read as a
+         pass over a population of nothing. The legs above are what carries the rule. */
+      T.ok('the owner population is reported as a count, examined or not', typeof R.real.examined === 'number', String(R.real.examined));
     });
     /* ════ AND THE PREDICATE ITSELF MUST SURVIVE A SYMLINK TO THE TOOL (board #685, 2026-10-21) ══════
        The house predicate compared `import.meta.url` with `pathToFileURL(process.argv[1]).href`. Node
