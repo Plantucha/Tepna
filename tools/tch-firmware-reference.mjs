@@ -79,7 +79,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { coincidenceLag, firmwareHostTimes, pairByTime } from './oracle-ecg-firmware-rr.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope.mjs';
+import { intersectSnapshots, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict } from './verdict-emit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

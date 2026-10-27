@@ -79,7 +79,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* The closure identity + the four-state verdict, from the module `trio-batch` already routes its
    clock lines through. Imported rather than reimplemented: a second copy of "when is a ppm a

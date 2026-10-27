@@ -57,7 +57,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { nightSeries } from './tch-fused-corpus.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { populationVerdict, producedByOf, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, producedByOf, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);

@@ -89,7 +89,7 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2ring-dat-timefit.mjs';
 import { buildRecord, appendFold, LEDGER_NAME } from './fold-provenance.mjs';
-import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);

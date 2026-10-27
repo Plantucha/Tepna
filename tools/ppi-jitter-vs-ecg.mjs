@@ -113,7 +113,7 @@ import {
   ppiJitterMs,
   rateAgreement
 } from './ppi-match.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 /* Re-exported so the existing import surface of this file is unchanged for any consumer. */
 export { hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs, rateAgreement };
 

@@ -19,7 +19,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from '
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);

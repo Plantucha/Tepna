@@ -74,7 +74,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope.mjs';
+import { notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PHYS_LO = 200;

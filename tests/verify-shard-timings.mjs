@@ -38,7 +38,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { readTimings } from './shard-plan.mjs';
-import { producedByOf } from '../tools/corpus-scope.mjs';
+import { producedByOf } from '../tools/corpus-scope-core.mjs';
 
 /* verdict.js is CommonJS and assigns `module.exports = API` — a named import of `Verdict` throws at
    load. `createRequire` is the house idiom for reaching it from an .mjs tool (tools/box-sample.mjs:150). */
