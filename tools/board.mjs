@@ -443,18 +443,87 @@ export function parseOwnerDecisions(txt) {
 /* The reader runs on vigil from stdin. It lived in vigil's /tmp until the box rebooted on 2026-10-18,
    which wiped it, and every board pass after that read "solid-night read failed". Birds may not write
    to vigil, so the script travels with each read and nothing on the box can go stale. */
+/* Each row is `date status at bandEnd`, with `-` for a field the verdict does not carry. `at` and the
+   band END are what decide whether a night was judged over a FINISHED night — see streakOf. The band
+   lives at `result.scope.band`, a two-element epoch-seconds pair; 21 of the 59 verdicts on the box
+   carry no scope at all (measured 2026-10-27), so its absence is ordinary and must travel as `-`
+   rather than as a zero. */
 export const VIGIL_VERDICTS_PY = `import json, os, glob
 rows = []
 for d in sorted(glob.glob("/srv/tepna/captures/2026-*/")):
     f = os.path.join(d, "SOLID-VERDICT.json")
     if os.path.isfile(f):
+        at = "-"
+        band_end = "-"
         try:
-            s = json.load(open(f))["status"]
+            s = json.load(open(f))
+            status = s["status"]
+            at = s.get("at") or "-"
+            band = ((s.get("result") or {}).get("scope") or {}).get("band")
+            if isinstance(band, (list, tuple)) and len(band) == 2 and isinstance(band[1], (int, float)):
+                band_end = repr(float(band[1]))
         except Exception:
-            s = "READ_FAIL"
-        rows.append(os.path.basename(d.rstrip("/")) + " " + s)
+            status = "READ_FAIL"
+        rows.append(" ".join([os.path.basename(d.rstrip("/")), status, at, band_end]))
 print("\\n".join(rows))
 `;
+
+/* THE STREAK SKIPS A NIGHT NOBODY HAS FINISHED JUDGING (residue
+   2026-10-27-the-streak-counts-a-night-whose-verdict-predates-its-own-band). The old loop skipped an
+   in-progress night only when its folder date equalled TODAY in UTC, which is a proxy for two
+   different things and matches neither. A night's own band decides when it ends: `result.scope.band`
+   is `[start, end]` in epoch seconds, and the solid-night band runs 18:00 to 10:00, so night D is
+   still running until D+1 10:00Z. A verdict stamped before that end describes a night that had not
+   finished, however many files it saw.
+
+   Measured 2026-10-27 on the live box, both signs inside ten minutes. At 09:06Z the card read
+   `Current streak: 0` over 58 nights with 10-25 PASS, because 10-26 then read UNKNOWN and its date
+   was not today, so the loop BROKE on an unfinished night. At 09:07:13Z the box re-judged 10-26 to
+   PASS over 45 files while its band ran to 10:00Z, so the next render would have read 2 — now
+   COUNTING an unfinished night. One rule fixes both: a night judged before its band end neither
+   extends the streak nor resets it, which is the shape a declared probe night already uses.
+
+   Two pending kinds, because they ask for different work. `in-progress` is the ordinary case, the
+   band has not ended yet. `stale-verdict` means the band HAS ended and nothing re-judged the night,
+   which is a box-side omission the card should name rather than absorb.
+
+   ∅: a verdict with no `at` or no band cannot be shown to describe a finished night, so it may not
+   count as a PASS. It STOPS the streak with a named reason instead of being skipped — skipping would
+   join two non-adjacent nights and claim a consecutiveness nobody measured. Measured cost today:
+   none. All 21 band-less verdicts on the box are UNKNOWN or NOT_APPLICABLE, so not one of them is a
+   PASS this branch could have counted. Pure, so --selftest can plant it. */
+export function streakOf(rows, nowMs) {
+  const list = Array.isArray(rows) ? rows : [];
+  const pending = [];
+  let streak = 0;
+  let stoppedBy = null;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const r = list[i] || {};
+    const atMs = typeof r.atMs === 'number' && Number.isFinite(r.atMs) ? r.atMs : null;
+    const endMs = typeof r.bandEndMs === 'number' && Number.isFinite(r.bandEndMs) ? r.bandEndMs : null;
+    if (atMs === null || endMs === null) {
+      if (r.status === 'PASS') {
+        stoppedBy = { date: r.date, reason: `${r.date} is PASS with no ${atMs === null ? 'verdict time' : 'band'}, so nothing shows it judged a finished night` };
+        break;
+      }
+      stoppedBy = { date: r.date, reason: `${r.date} is ${r.status}` };
+      break;
+    }
+    if (atMs < endMs) {
+      const kind = typeof nowMs === 'number' && Number.isFinite(nowMs) && nowMs < endMs ? 'in-progress' : 'stale-verdict';
+      pending.push({ date: r.date, status: r.status, kind });
+      continue;
+    }
+    if (r.status === 'PASS') {
+      streak++;
+      continue;
+    }
+    stoppedBy = { date: r.date, reason: `${r.date} is ${r.status}` };
+    break;
+  }
+  pending.reverse();
+  return { streak, pending, stoppedBy };
+}
 
 /* The fleet message board (agent-board) is live on this machine and needs no tokens:
    its SQLite DB is readable any time. This section stays fresh even when Kestrel is
@@ -474,25 +543,27 @@ function solidNights() {
       .map((l) => l.trim())
       .filter(Boolean)
       .map((l) => {
-        const [date, status] = l.split(/\s+/);
-        return { date, status };
+        const [date, status, at, bandEnd] = l.split(/\s+/);
+        const atMs = at && at !== '-' ? Date.parse(at) : Number.NaN;
+        const endSec = bandEnd && bandEnd !== '-' ? Number(bandEnd) : Number.NaN;
+        return { date, status, at: at && at !== '-' ? at : null, atMs: Number.isFinite(atMs) ? atMs : null, bandEndMs: Number.isFinite(endSec) ? endSec * 1000 : null };
       })
       .sort((a, b) => (a.date < b.date ? -1 : 1));
     if (!rows.length) return fail('no SOLID-VERDICT.json files found on vigil');
-    // Streak skips today if it's still in progress (UNKNOWN = night not finished yet).
-    // A completed UNKNOWN/FAIL/NOT_APPLICABLE breaks the streak.
-    const today = new Date().toISOString().slice(0, 10);
-    let streak = 0;
-    for (let i = rows.length - 1; i >= 0; i--) {
-      if (rows[i].date === today && rows[i].status === 'UNKNOWN') continue;
-      if (rows[i].status === 'PASS') streak++;
-      else break;
-    }
+    const now = Date.now();
+    const { streak, pending, stoppedBy } = streakOf(rows, now);
+    const pendingBy = new Map(pending.map((p) => [p.date, p.kind]));
     const recent = rows.slice(-15);
-    const lines = recent.map((r) => `  ${r.date.slice(5)} ${r.status}`);
+    const lines = recent.map((r) => `  ${r.date.slice(5)} ${r.status}${pendingBy.has(r.date) ? ` [pending: ${pendingBy.get(r.date)}]` : ''}`);
+    const pendLine = pending.length ? `\npending (neither extends nor resets): ${pending.map((p) => `${p.date} ${p.kind}`).join(', ')}` : '';
+    const stopLine = stoppedBy ? `\nstreak stops at ${stoppedBy.reason}` : '';
     const text =
-      `live from vigil (read ${new Date().toISOString().slice(0, 16)}Z) \u2014 last 15 of ${rows.length} nights\n` + lines.join('\n') + `\ncurrent streak: ${streak} consecutive PASS night(s)`;
-    return { ok: true, text, streak, nights: rows.length };
+      `live from vigil (read ${new Date(now).toISOString().slice(0, 16)}Z) \u2014 last 15 of ${rows.length} nights\n` +
+      lines.join('\n') +
+      `\ncurrent streak: ${streak} consecutive PASS night(s)` +
+      pendLine +
+      stopLine;
+    return { ok: true, text, streak, nights: rows.length, pending, stoppedBy };
   } catch (e) {
     return fail('vigil solid-night read failed: ' + e.message);
   }
@@ -1609,6 +1680,54 @@ function runSelftest() {
     ok(landStuckHours(midRun, Date.parse('2026-10-22T12:30:00Z')) === 2, 'CONTROL · a run on its merge step for 2 h reads 2 h stuck');
     ok(landStuckHours('', Date.now()) === null, 'no status text is no stall');
     ok(herderRows('not json', 'birds').length === 0 && herderRows('{"result":{}}', 'birds').length === 0, 'unparseable or agent-less herder output yields no rows, never a throw');
+    {
+      /* THE SOLID-NIGHT STREAK AGAINST EACH NIGHT'S OWN BAND. A night's band runs 18:00 to 10:00, so
+         night D ends at D+1 10:00Z. The plants below are the live 2026-10-27 shapes. */
+      const T = (iso) => Date.parse(iso);
+      const end = (d) => T(`${d}T10:00:00Z`);
+      const row = (date, status, at, bandEnd) => ({ date, status, atMs: at === null ? null : T(at), bandEndMs: bandEnd === null ? null : bandEnd });
+      const live = [
+        row('2026-10-24', 'UNKNOWN', '2026-10-27T04:05:24Z', end('2026-10-25')),
+        row('2026-10-25', 'PASS', '2026-10-27T04:36:22Z', end('2026-10-26')),
+        row('2026-10-26', 'PASS', '2026-10-27T09:07:13Z', end('2026-10-27')),
+        row('2026-10-27', 'UNKNOWN', '2026-10-27T09:11:33Z', end('2026-10-28'))
+      ];
+      const now = T('2026-10-27T09:15:00Z');
+      const v = streakOf(live, now);
+      ok(v.streak === 1, 'the live 2026-10-27 shape gives ONE complete PASS night, not the two the folder-date rule counted');
+      ok(v.pending.length === 2 && v.pending[0]?.date === '2026-10-26' && v.pending[0]?.kind === 'in-progress', '10-26 is pending: its PASS was stamped 53 min before its band ended');
+      ok(v.pending[1]?.date === '2026-10-27' && v.pending[1]?.kind === 'in-progress', "tonight's own folder is pending too, and by the same rule rather than by its date");
+      ok(v.stoppedBy?.date === '2026-10-24' && /is UNKNOWN/.test(v.stoppedBy?.reason || ''), 'the streak names the night it stopped at');
+      const asReported = [row('2026-10-25', 'PASS', '2026-10-27T04:36:22Z', end('2026-10-26')), row('2026-10-26', 'UNKNOWN', '2026-10-26T22:32:00Z', end('2026-10-27'))];
+      ok(streakOf(asReported, now).streak === 1, 'CONTROL · the shape the order reported — 10-26 judged at 22:32Z, before its night began — reads 1, where the folder-date rule read 0');
+      const stale = [row('2026-10-25', 'PASS', '2026-10-25T23:00:00Z', end('2026-10-26'))];
+      ok(
+        streakOf(stale, T('2026-10-27T09:00:00Z')).pending[0]?.kind === 'stale-verdict',
+        'a band that has ENDED with no re-judge is pending as stale-verdict, which is a box-side omission rather than an unfinished night'
+      );
+      ok(streakOf(stale, T('2026-10-26T06:00:00Z')).pending[0]?.kind === 'in-progress', 'CONTROL · the same row before its band end is in-progress; only the clock separates the two kinds');
+      const done = [row('2026-10-24', 'PASS', '2026-10-25T11:00:00Z', end('2026-10-25')), row('2026-10-25', 'PASS', '2026-10-26T11:00:00Z', end('2026-10-26'))];
+      ok(streakOf(done, now).streak === 2 && streakOf(done, now).pending.length === 0, 'CONTROL · two nights judged AFTER their band ends count, and nothing is pending');
+      const broke = [row('2026-10-24', 'PASS', '2026-10-25T11:00:00Z', end('2026-10-25')), row('2026-10-25', 'UNKNOWN', '2026-10-26T11:00:00Z', end('2026-10-26'))];
+      ok(streakOf(broke, now).streak === 0, 'CONTROL · a COMPLETED UNKNOWN still breaks the streak, including on a folder dated today');
+      const noBand = [row('2026-10-24', 'PASS', '2026-10-25T11:00:00Z', end('2026-10-25')), row('2026-10-25', 'PASS', '2026-10-26T11:00:00Z', null)];
+      const nb = streakOf(noBand, now);
+      ok(nb.streak === 0 && /no band/.test(nb.stoppedBy?.reason || ''), '∅ · a PASS carrying no band STOPS the streak and says why — skipping it would join two nights nobody measured as adjacent');
+      ok(
+        (streakOf([row('2026-10-25', 'PASS', null, end('2026-10-26'))], now).stoppedBy?.reason || '').includes('no verdict time'),
+        '∅ · a PASS with no verdict time stops for its own reason, not the band reason'
+      );
+      const naNoBand = streakOf([row('2026-10-24', 'PASS', '2026-10-25T11:00:00Z', end('2026-10-25')), row('2026-10-25', 'NOT_APPLICABLE', '2026-10-26T11:00:00Z', null)], now);
+      ok(
+        naNoBand.streak === 0 && naNoBand.stoppedBy?.reason === '2026-10-25 is NOT_APPLICABLE',
+        'a band-less NOT_APPLICABLE stops as its status, which is what all 21 band-less verdicts on the box are'
+      );
+      ok(streakOf([], now).streak === 0 && streakOf(null, now).pending.length === 0, 'no rows give a zero streak rather than a throw');
+      ok(
+        streakOf(live, undefined).pending.every((pp) => pp.kind === 'stale-verdict'),
+        'with no clock the pending kind degrades to stale-verdict, and the SKIP still holds — the streak never depends on reading the clock'
+      );
+    }
     {
       /* THE PACE, RESTARTED AT EACH WEEKLY RESET. The cross-reset plant is the live 2026-10-27 shape. */
       const W1 = '2026-10-24T16:00-04:00';
