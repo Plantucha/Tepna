@@ -661,6 +661,21 @@ def test_the_filename_fields_are_parsed_from_the_right(fname, stamp, device_id):
         ("Verity.Sense_02849638_20260716213451_PPG.txt", "20260716213451"),
         # an underscore INSIDE the extension: stripping first is what stops it manufacturing a field
         ("Polar_H10_02849638_20260716213451_ECG.t_xt", "20260716213451"),
+        # ── THE THIRD LAYOUT: the device's own name, which carries no stream tag ──────────────
+        # `parse_dat` reads these, and nothing on this host wrote them, so there is no field to the
+        # right of the stamp. The single-field branch requires the WHOLE base to be the run.
+        ("20260725225058.dat", "20260725225058"),
+        # fifteen digits: anchored at both ends, so the extra digit REFUSES rather than truncating.
+        # The unbounded `re.search(r"(\\d{14})")` this replaced answered 2026-07-25 22:50:58 here.
+        ("202607252250581.dat", None),
+        # thirteen is not a stamp either — the bound is two-sided
+        ("2026072522505.dat", None),
+        # a single field that is not digits at all
+        ("recording.dat", None),
+        # the stamp is the whole base only when it stands alone: a date-shaped id ahead of the real
+        # stamp is read from the RIGHT, which is the audit F5 defect. Unbounded, this answered
+        # 2025-01-01 — eighteen months out.
+        ("Wellue_O2Ring-S_20250101000000_20260725225058_STORED.dat", "20260725225058"),
     ],
 )
 def test_file_start_stamp_reads_BOTH_stamp_layouts_and_never_the_serial(fname, start):

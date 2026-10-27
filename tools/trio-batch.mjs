@@ -1177,6 +1177,28 @@ if (flag('--selftest')) {
     '2 input-absent · 1 exports-missing  (input-absent cannot be cured by re-folding)'
   );
 
+  /* ── THE FILENAME STAMP OWNER — `parse14` / `parse8_6` delegate to `DexClock.fileStamp` ────────
+     Residue 2026-10-27-five-filename-stamp-time-readers-slice-the-digits-without-an-owner. The pair
+     to assert per site is BOTH halves: the name the tool always accepted still resolves to the SAME
+     instant, and the impossible twin now refuses instead of rolling onto a real one. A one-sided
+     assertion cannot tell a delegation from a deletion. The two layouts must agree, because five
+     call sites above route through these two and `nightKeyOf` buckets the corpus plan off the
+     result — a rolled instant mis-plans a night rather than refusing one name. */
+  const T0 = Date.UTC(2026, 6, 25, 22, 50, 58);
+  eq('stamp · the PSL split layout resolves', parse8_6('20260725', '225058'), T0);
+  eq('stamp · the capture-host contiguous layout resolves to the SAME instant', parse14('20260725225058'), T0);
+  eq('stamp · month 13 → null (a bare Date.UTC read 2027-02-01T22:50:58)', parse14('20261332225058'), null);
+  eq('stamp · Feb 30 → null', parse8_6('20260230', '120000'), null);
+  eq('stamp · hour 23 is ACCEPTED — kills a `h >= 23` guard', parse8_6('20260725', '230000'), Date.UTC(2026, 6, 25, 23, 0, 0));
+  eq('stamp · hour 25 → null (a bare Date.UTC read the next day 02:00)', parse8_6('20260725', '250000'), null);
+  eq('stamp · minute 59 is ACCEPTED — kills a `mi >= 59` guard', parse8_6('20260725', '225900'), Date.UTC(2026, 6, 25, 22, 59, 0));
+  eq('stamp · minute 60 → null', parse8_6('20260725', '226000'), null);
+  eq('stamp · second 60 → null', parse8_6('20260725', '225060'), null);
+  eq('stamp · a 15-digit run → null (an unbounded read took its first fourteen digits)', parse14('202607252250581'), null);
+  eq('stamp · an all-nines date → null (a bare Date.UTC read year 10007)', parse14('99999999225058'), null);
+  eq('stamp · a year below the plausible window → null, so a serial cannot pass as a capture date', parse14('19890725225058'), null);
+  eq('stamp · the night key a valid stamp buckets to is unchanged', nightKeyOf(T0), '2026-07-25');
+
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
 }
@@ -1472,12 +1494,49 @@ const RE_O2_PPG_CH = /^Wellue_O2Ring-S_[^_]+_(\d{14})_PPG\.txt$/;
 
 // Clock Contract: floating wall-clock ms — components verbatim through Date.UTC, never new Date(str).
 const utc = (y, mo, d, h, mi, s) => Date.UTC(y, mo - 1, d, h, mi, s);
-const parse14 = (s) => utc(+s.slice(0, 4), +s.slice(4, 6), +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
-const parse8_6 = (d, t) => utc(+d.slice(0, 4), +d.slice(4, 6), +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6));
+
+/* THE FILENAME STAMP HAS ONE OWNER — `DexClock.fileStamp` (clock.js:255; Clock Contract §4, anchor
+   source 2). The two helpers below sliced the digits here and handed the components to a bare
+   `Date.UTC`, which ROLLS an out-of-range component onto a real instant instead of refusing: a
+   month-13 stamp `20261332225058` reads as 2027-02-01T22:50:58 (measured 2026-10-27) and an
+   all-nines date as year 10007. The owner bounds each digit run, range-validates the components through `parseTimestamp`
+   (`clock.js:_ckMk`) and requires a year in [1990, 2099], so it returns NULL exactly where the
+   slices returned a number. Every regex above still decides WHICH field is the stamp — it must,
+   because it carries the device and the stream with it — and the owner decides whether those digits
+   are a time. A null reaches the walk below as a counted, named refusal (§∅: an unreadable anchor is
+   null, never a rolled instant).
+   The realm is clock-only and lazy: `loadDsps()` loads nine compute modules, and a directory walk
+   must not pay for them. */
+/* FUNCTION DECLARATIONS, NOT CONSTS — `--selftest` runs at line 625 and exits before anything
+   declared below it initializes (the note at §--selftest says so), so a `const` here would be dead
+   to the legs that pin these three. A `function` hoists. */
+/* The cache hangs off the function, not off a module `let`: HOISTING MOVES THE NAME, NOT THE STATE,
+   so a `let stampCtx` declared here is still in its temporal dead zone when a leg at line 625 calls
+   this — measured as `ReferenceError: Cannot access 'stampCtx' before initialization`, 2026-10-27. */
+function stampOwner() {
+  if (!stampOwner._ctx) {
+    const c = makeCtx();
+    loadInto(c, 'clock.js');
+    if (!c.DexClock || typeof c.DexClock.fileStamp !== 'function') throw new Error('trio-batch: DexClock.fileStamp did not load into the stamp realm');
+    stampOwner._ctx = c;
+  }
+  return stampOwner._ctx.DexClock;
+}
+function parse14(s) {
+  const got = stampOwner().fileStamp(s);
+  return got ? got.tMs : null;
+}
+// PSL's split stamp: the owner reads an 8-digit run followed by a 6-digit run as one stamp.
+function parse8_6(d, t) {
+  return parse14(d + '_' + t);
+}
 
 // A recording belongs to the night of (start − 12 h): evening starts and post-midnight starts
-// of the same sleep collapse onto one key. See NIGHT BOUNDARY above.
-const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600e3).toISOString().slice(0, 10);
+// of the same sleep collapse onto one key. See NIGHT BOUNDARY above. A declaration, not a const, so
+// the stamp legs at line 625 can pin that a valid stamp still buckets where it always did.
+function nightKeyOf(tMs) {
+  return new Date(tMs - 12 * 3600e3).toISOString().slice(0, 10);
+}
 
 /* ── ONE PHYSICAL RECORDING IS INGESTED ONCE (2026-09-22) ────────────────────────────────────────
    A capture basename carries device + stream + the full start timestamp, so TWO FILES SHARING A
@@ -1745,6 +1804,8 @@ const publishPopulation = (planned) => {
   console.log('POPULATION ' + JSON.stringify(population));
 };
 const skippedDirs = new Set();
+// Files whose name carries a stamp field the owner refused — counted and named, never dropped silently.
+const refusedStamps = [];
 for (const rel of readdirSync(SRC, { recursive: true })) {
   const name = basename(rel);
   const full = join(SRC, rel);
@@ -1781,6 +1842,10 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
     t0 = parse14(m[3]);
     stream = m[4] === 'MAG' ? 'MAGN' : m[4];
   }
+  if (dev && t0 === null) {
+    refusedStamps.push(name);
+    continue;
+  }
   if (dev) {
     const rec = anchoredRec({ name, full, t0, bytes: st.size, dev, stream });
     const n = bump(nightKeyOf(rec.t0));
@@ -1796,6 +1861,10 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
   m = RE_O2.exec(name) || RE_O2_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
+    if (t0 === null) {
+      refusedStamps.push(name);
+      continue;
+    }
     const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'csv', stamp: m[1] });
     bump(nightKeyOf(rec.t0)).oxy.push(rec);
     continue;
@@ -1806,6 +1875,10 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
   m = RE_O2_PPG_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
+    if (t0 === null) {
+      refusedStamps.push(name);
+      continue;
+    }
     const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'PPG', kind: 'txt', stamp: m[1] });
     bump(nightKeyOf(rec.t0)).o2ppg.push(rec);
     continue;
@@ -1814,6 +1887,10 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
   m = RE_O2_DAT.exec(name) || RE_O2_DAT_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
+    if (t0 === null) {
+      refusedStamps.push(name);
+      continue;
+    }
     // a .dat keeps the name: `startOf` returns null for it, and `endOf` derives its end FROM t0
     const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'dat', stamp: m[1] });
     bump(nightKeyOf(rec.t0)).oxy.push(rec);
@@ -1826,6 +1903,17 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
    established provenance — and drop its .dat twin, so one recording never appears as two anchors. */
 if (skippedDirs.size) {
   console.log(`\n  skipped ${skippedDirs.size} hidden directory/ies under --src (not capture trees): ${[...skippedDirs].sort().join(', ')}`);
+}
+/* REFUSED, NOT DROPPED. `DexClock.fileStamp` returns null where the old slices returned a rolled
+   instant, so this line is the whole visible difference between a stamp that cannot be read and a
+   night silently anchored eighteen months from the recording. A capture whose name matches a stream
+   regex but whose stamp field is not a time is a defect in the capture, and it is named. */
+if (refusedStamps.length) {
+  const shown = [...refusedStamps].sort().slice(0, 6);
+  console.log(
+    `\n  refused ${refusedStamps.length} file(s) whose filename stamp field is not a readable time (DexClock.fileStamp): ${shown.join(', ')}` +
+      (refusedStamps.length > 6 ? ` … +${refusedStamps.length - 6} more` : '')
+  );
 }
 
 /* Applied once, after the walk, to every stream list of every night — before any planning reads a

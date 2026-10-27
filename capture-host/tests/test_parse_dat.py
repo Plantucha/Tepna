@@ -157,6 +157,79 @@ def test_a_14_digit_run_that_is_not_a_date_is_refused():
     assert parse_dat.oxy_start_dt("99999999999999.dat") is None
 
 
+def test_the_stamp_comes_from_the_one_owner_so_a_LONGER_run_refuses():
+    """An unbounded run is not a stamp. `re.search(r"(\\d{14})")` stood here and was unbounded on
+    both ends, so it answered with the first fourteen digits of a longer number. Measured
+    2026-10-27: `202607252250581.dat` (fifteen digits) answered 2026-07-25 22:50:58, a stamp the
+    name does not carry. `writers.file_start_stamp` anchors the run at both ends."""
+    assert parse_dat.oxy_start_dt("202607252250581.dat") is None
+    assert parse_dat.oxy_start_dt("2026072522505810.dat") is None
+
+
+def test_a_date_shaped_id_AHEAD_of_the_stamp_does_not_win():
+    """The audit F5 defect, on the one layout `parse_dat` reads. The old left-to-right search took
+    the FIRST fourteen digits, so a capture-host name whose device field is itself date-shaped
+    answered 2025-01-01 instead of the real start — eighteen months out, measured 2026-10-27. The
+    owner reads the fields from the RIGHT."""
+    name = "Wellue_O2Ring-S_20250101000000_20260725225058_STORED.dat"
+    assert parse_dat.oxy_start_dt(name) == datetime.datetime(2026, 7, 25, 22, 50, 58)
+
+
+def test_the_bare_device_name_still_resolves_after_the_delegation():
+    """The one layout the device names itself, and the reason the owner grew a third branch rather
+    than this module keeping a second copy of the rule. A delegation that lost this case would be a
+    deletion, and no out-of-range probe above could see it."""
+    assert parse_dat.oxy_start_dt("/x/20260830132000.dat") == datetime.datetime(2026, 8, 30, 13, 20, 0)
+    assert parse_dat.oxy_start_dt("20260830132000.dat") == datetime.datetime(2026, 8, 30, 13, 20, 0)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "20261332225058.dat",  # month 13
+        "20260230120000.dat",  # Feb 30
+        "20260725250000.dat",  # hour 25
+    ],
+)
+def test_an_impossible_component_is_refused_not_rolled(name):
+    """The TWO owners split the work here, and the split is the point.
+
+    `writers.file_start_stamp` owns WHICH DIGITS are the stamp — it bounds the run to the
+    `_`-split field beside the stream tag, so a longer run or a date-shaped id ahead of the
+    stamp cannot win. It hands back the digits unvalidated. `strptime` then owns the
+    COMPONENTS and raises on an impossible one. `Date.UTC`, which the JS siblings used to call
+    directly, rolls instead of raising, which is the defect this unit removes.
+    """
+    assert parse_dat.oxy_start_dt(name) is None
+
+
+@pytest.mark.parametrize(
+    ("name", "want_year"),
+    [
+        ("19890725225058.dat", 1989),  # accepted: the century prefix is the owner's only year bound
+        ("19000725225058.dat", 1900),
+        ("18890725225058.dat", None),  # refused: outside `(?:19|20)`
+    ],
+)
+def test_the_PYTHON_owners_year_bound_is_the_CENTURY_PREFIX_not_a_plausible_window(name, want_year):
+    """MEASURED ASYMMETRY, 2026-10-27: the two stamp owners refuse different years.
+
+    `DexClock.fileStamp` carries `CK_FSTAMP_MIN_YEAR = 1990` because it SCANS right-to-left over
+    every digit run in a name and needs a plausibility test to tell a stamp from a serial.
+    `writers.file_start_stamp` does not scan — the `_`-split layout tells it which field is the
+    stamp — so its only year bound is `_DATE14`'s `(?:19|20)` prefix, and it accepts 1989.
+
+    Asserting parity here would be asserting a floor this owner has never had: the first draft of
+    this test did, and the gate read `assert datetime(1989, 7, 25, 22, 50, 58) is None`. Neither
+    owner is wrong; a node that needs the tighter floor must say so at its own call site.
+    """
+    got = parse_dat.oxy_start_dt(name)
+    if want_year is None:
+        assert got is None
+    else:
+        assert got is not None and got.year == want_year
+
+
 # ── self_consistency ─────────────────────────────────────────────────────────────────────────────
 
 

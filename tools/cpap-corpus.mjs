@@ -39,6 +39,8 @@ const arg = (k, d) => {
 const ROOT = arg('--root', null);
 const OUT = arg('--out', null);
 const STATS = process.argv.includes('--stats');
+// EDF names whose stamp field the owner refused — folded into `problems` below, never dropped silently.
+const stampRefusals = [];
 if (!ROOT) {
   console.error('usage: node tools/cpap-corpus.mjs --root <sd-card-dir> [--out exports.json] [--stats]');
   process.exit(2);
@@ -118,8 +120,18 @@ export function sessionSetsForDay(dir) {
     const m = /^(\d{8})_(\d{6})_([A-Z0-9]+)\.edf$/i.exec(f);
     if (!m) return null;
     const [, d, t, type] = m;
-    const sec = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)) / 1000;
-    return { sec, type: type.toUpperCase(), file: f };
+    /* THE FILENAME STAMP HAS ONE OWNER — `DexClock.fileStamp` (clock.js:255; Clock Contract §4,
+       anchor source 2), off the realm this module already loads `clock.js` into. The slices that
+       stood here fed a bare `Date.UTC`, which rolls an out-of-range component onto a real instant
+       rather than refusing, so a `20261332_225058_BRP.edf` clustered onto
+       2027-02-01T22:50:58 (measured 2026-10-27) and the day folder it sat in said nothing. The owner range-validates and requires a plausible year; a
+       null is reported as a problem of this day, not filtered away with the non-EDF names (§∅). */
+    const got = ctx.DexClock.fileStamp(d + '_' + t);
+    if (!got) {
+      stampRefusals.push({ day: path.basename(dir), why: 'filename stamp field is not a readable time (DexClock.fileStamp)', file: f });
+      return null;
+    }
+    return { sec: got.tMs / 1000, type: type.toUpperCase(), file: f };
   };
   const stamps = fs
     .readdirSync(dir)
@@ -196,6 +208,8 @@ for (const day of fs
   exp._day = day;
   exports_.push(exp);
 }
+
+problems.push(...stampRefusals);
 
 const hours = exports_.reduce((s, e) => s + (e.recording?.therapyHours || 0), 0);
 const evs = exports_.reduce((s, e) => s + (e.ganglior_events || []).length, 0);
