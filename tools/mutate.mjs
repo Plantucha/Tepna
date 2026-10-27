@@ -941,8 +941,10 @@ export function driftWarning(d) {
    finished inside one continuous stretch of the tree faced ONE input and keeps its verdict; a mutant
    a write landed inside faced two, and that one is the discontinuity. The sweep therefore carries a
    monotonic epoch, bumped at every seam, and refuses per MUTANT rather than per run.
-   `seamAt` returns the seam record, or null when the tree held still between two samples. Pure and
-   exported so --selftest pins it. */
+   `seamAt` returns the seam record, or null when the tree held still between two samples. One seam is
+   one INTERVAL that moved, never one write: the sampling happens at mutant boundaries, so an interval
+   carrying ten writes is one seam, and `driftSeams` is a count of discontinuities rather than of
+   writers. Pure and exported so --selftest pins it. */
 export function seamAt(drift, tMs, epoch) {
   if (!drift || !drift.moved) return null;
   return {
