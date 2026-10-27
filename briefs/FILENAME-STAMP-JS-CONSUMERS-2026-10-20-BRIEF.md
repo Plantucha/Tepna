@@ -175,3 +175,52 @@ Logged as `2026-10-27-the-stamp-census-population-erases-the-repair-it-certifies
 `2026-10-27-a-spelling-keyed-census-credits-a-fix-over-a-file-that-kept-a-second-reader` as its parent.
 The remedy is a second predicate over the owner call sites beside the spelling predicate, and it raises
 the time-reader population from 14 to 18.
+
+## 7 · Addendum 2026-10-27 — the remedy landed, and it re-measured every figure above
+
+The second predicate ships in `tools/stamp-consumer-census.mjs`. A file now enters the population when
+its comment-blanked source spells a 14-digit run **or** calls one of seven stamp owners by name, and
+the verdict reports which route admitted it.
+
+🔴 **EVERY FIGURE §6 PREDICTED WAS SHORT, BECAUSE §6 DERIVED IT FROM THE SPELLING IT WAS CORRECTING.**
+Re-measured at `9d346e5c5`, against the row's own base `2ac325510`:
+
+| the figure | §6 and the row | re-measured |
+|---|---|---|
+| tracked sources | 1013 | **1038** |
+| files that delegate to an owner | 13, over two owner spellings | **30**, over the full vocabulary |
+| files the repair pushed out of the census | 4 | **8** |
+| declared files | 28 | **37** |
+| time readers | 14 → 18 | 14 → **26**, of which 25 anchored and 1 not |
+
+The four extra readers answer to owner spellings §6 never enumerated: `capture-host/nightqc.py`,
+`capture-host/solid_night_inputs.py`, `capture-host/timeline.py` and `ppgdex-app.js`. A prediction
+keyed on the predicate under repair reproduces that predicate's blind spot, so it reads as a floor and
+never as a count.
+
+### The reading was keyed on the spelling site, not on the file
+
+Five declarations describe the regex rather than the behaviour, and the owner predicate exposed them.
+`oxydex-dsp.js` read `docstring` while converting a filename stamp to an instant at two sites;
+`adapters/resmed-edf.js` and `pat-classic-vs-fused.js` each read `accept-test` while returning an
+instant. All five carry a re-read note and the readings they earn.
+
+### The separator rule hid a third reader, and that one answered to no predicate at all
+
+Three readers spell the stamp with `[_-]?` between the atoms, and a character class ended a run. Two
+of them — `ppgdex-app.js:66` and `signal-orchestrate.js:540` — the owner predicate reaches anyway. The
+third does not: `cpapdex-dsp.js:85` holds the Clock Contract's 14-digit arm in a node-local
+`parseTimestamp`, and CPAPDex carries no `clock.js`, so no owner call exists to find. It reached
+neither predicate and sat outside the census entirely.
+
+So the separator rule widened in the same diff, by the class CONTENTS rather than by the class: a
+class holding only `_` and `-` joins a run, and one holding `T` or a space still ends it. Measured
+over the tree, that admits exactly one file and drops none. Three fixture controls and one live
+control pin the discriminator, and a plant that admits any class contents reds all three.
+
+🔴 **THE HEADLINE STOPPED CLAIMING THAT EVERY TIME READER IS ANCHORED, BECAUSE ONE IS NOT.**
+`cpapdex-dsp.js` range-validates through `_ckMk` and then takes the first fourteen digits of a longer
+token, bounding no run. The census now reads 26 time readers, 25 anchored and 1 slicing the digits
+itself. The old `14 of 14` read clean because the one file that breaks it sat outside the population.
+`briefs/RESIDUE.md` carries the unbounded run as its own row; repairing it re-bundles CPAPDex, which
+belongs to a unit of its own.
