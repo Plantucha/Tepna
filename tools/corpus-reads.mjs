@@ -766,18 +766,22 @@ export const UNWIRED_BACKLOG = {
   'pin-coverage.mjs': 2,
   'pletha-marker-oracle.mjs': 1,
   'ppg-autogain-e2.mjs': 1,
+  /* FOUR NAMES LEFT TOGETHER, 2026-10-26, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
+     `ppg-foot-consensus-e1.mjs`, `ppg-fusion-e3.mjs`, `ppi-jitter-vs-ecg.mjs` and
+     `resp-cardiac-suppression-e8.mjs` were ONE walker written four times: the same recursive
+     `readdirSync` collector over a `--dir` capture tree, filtered by a stream pattern. Each now
+     snapshots that tree through a NAMED lister before and after the read, so the scan reads them as
+     `reports` and this list must not name them. Their unit is a FILE, not a night, so they take
+     `snapshotEntries` rather than `snapshotNights` — a night snapshot over a capture tree would
+     manufacture a population out of directories nobody keyed by date. */
   'ppg-bridge-hrv-validate.mjs': 1,
-  'ppg-foot-consensus-e1.mjs': 1,
-  'ppg-fusion-e3.mjs': 1,
   'ppg2w-spo2-fit.mjs': 1,
-  'ppi-jitter-vs-ecg.mjs': 1,
   'resp-acc-headless.mjs': 2,
   /* THE ONE `repo-corpus` MEMBER (row 2026-10-21-a-repo-rooted-path-can-still-be-corpus). It walks
      `uploads/trio` inside the checkout, which no flag can re-point, and its own usage line says
      "reads the committed uploads/trio corpus" — so the walk was never in doubt, only invisible.
      Wiring it means deleting this line, and the reverse leg reds if the line outlives the debt. */
   'rho-overlap-power.mjs': 2,
-  'resp-cardiac-suppression-e8.mjs': 1,
   'seqnet-eval.mjs': 1,
   /* `stage-lab.mjs` WAS THE HEAVIEST KEY HERE, at weight 12, and has LEFT: its twelve enumerations
      walk external PSG archives, so it reports a RECORD population through `snapshotEntries` rather

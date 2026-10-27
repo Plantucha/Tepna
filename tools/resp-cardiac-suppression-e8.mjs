@@ -45,8 +45,9 @@
 import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { median, quantile } from './ppi-match.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -220,9 +221,30 @@ const walk = (d, o = []) => {
   } catch (_e) {}
   return o;
 };
+const ACC_RE = /H10.*_ACC\.txt$/i;
+
+/* THE LISTER IS THE POPULATION RULE, AND IT CARRIES A NAME ON PURPOSE. `snapshotEntries` publishes
+   `rule: null` for an inline arrow (`corpus-scope.mjs:329`), which would state that nobody chose the
+   rule this run applied. The unit is a FILE, not a night: `--dir` is a capture tree and not the
+   `YYYY-MM-DD` root `snapshotNights` reads, so a night snapshot here would manufacture a population.
+   🔴 IT MUST NOT SWALLOW AN UNREADABLE ROOT. `walk` catches every error, so a root nobody can open
+   returns `[]`, and the snapshot would then publish `n: 0` — a MEASUREMENT of zero over a directory
+   nothing read (§∅). The root's own readdir runs outside that catch, so the snapshot reports
+   `ok: false` with the reason instead. */
+function listH10Acc(root) {
+  readdirSync(root);
+  return walk(root)
+    .filter((f) => ACC_RE.test(f.p))
+    .map((f) => relative(root, f.p));
+}
+
+const snap = snapshotEntries(DIR, { list: listH10Acc, unit: 'H10 ACC files' });
+/* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading a night of ACC takes long
+   enough for a commit to land in this worktree, and Node loaded this module at the start. */
+const commitOf = gitCommitOf(ROOT);
 const all = walk(DIR);
 const accs = all
-  .filter((f) => /H10.*_ACC\.txt$/i.test(f.p))
+  .filter((f) => ACC_RE.test(f.p))
   .sort((a, b) => b.size - a.size)
   .slice(0, MAX_NIGHTS);
 
@@ -282,6 +304,7 @@ for (const f of accs) {
   if (!rB || !rA) continue;
   const f2 = Math.min(2 * fHR, FSC / 2 - 0.05);
   const row = {
+    rec: relative(DIR, f.p),
     name: f.p
       .split('/')
       .pop()
@@ -300,8 +323,38 @@ for (const f of accs) {
   console.log(`${row.name.padEnd(40)} ${fHR.toFixed(3)}   ${rA.hz.toFixed(3)}    ${n1(row.bF).padStart(7)}  ${n1(row.b2).padStart(7)}       ${n1(row.aF).padStart(7)}  ${n1(row.a2).padStart(7)}`);
 }
 
+/* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing walk is what says so. Without it a result
+   that moved because the tree gained a capture is indistinguishable from one that moved because a
+   file changed. */
+const population = populationVerdict(snap, snapshotEntries(DIR, { list: listH10Acc, unit: 'H10 ACC files' }), {
+  commit: commitOf.commit,
+  commitReason: commitOf.reason,
+  tool: 'tools/resp-cardiac-suppression-e8.mjs',
+  evidence: ['tools/resp-cardiac-suppression-e8.mjs', 'tools/corpus-scope.mjs']
+});
+
+/* THE OTHER HALF OF THE POPULATION. The verdict above is about MOVEMENT — what arrived or left while
+   the run read. It says nothing about the offered files this run did not score, and a COUNT of them
+   names nothing to chase, so the removals go out by name. Both causes land here: the `--max-nights`
+   cap and the per-file skips. */
+function printPopulation() {
+  console.log(
+    `\n  population: ${population.status} — ${population.population.checked} offered ${snap.unit} the run can report over, of ${population.population.eligible} it saw${population.reason ? ` · ${population.reason}` : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`  the read scored ${rows.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  const missed = notCovered(snap, rows, { key: 'rec' });
+  if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+  if (accs.length < snap.n) console.log(`  ${snap.n - accs.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+}
+
+/* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. The early exit below used to be the only
+   line such a run printed, so the one case where the population is the whole story was the one case
+   that reported none. */
 if (!rows.length) {
   console.log('\nno night scored — §8 cannot be adjudicated on this corpus.');
+  printPopulation();
   process.exit(0);
 }
 const col = (k) => rows.map((r) => r[k]);
@@ -318,3 +371,5 @@ console.log(`\n  WORST post-filter cardiac ratio on any night: ${worst.toFixed(1
 console.log('  A notch can only recover what survives the filter already applied. Read that number');
 console.log('  against the respiratory peak it would have to compete with — the estimator picks the');
 console.log('  LARGEST peak in 0.13-0.5 Hz, so a component this far down cannot move the pick.');
+
+printPopulation();
