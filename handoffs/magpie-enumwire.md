@@ -86,3 +86,6 @@ off its `EXIT=` sentinel, never off a tail.
 
 Also green before the commit: `verdict-adoption --check`, each tool's `--selftest`, Biome over the
 five changed JS files, and ste-lint over the handoff, the changeset and the PR body.
+
+**CI terminal on #3994: 26 pass, 2 skipping, no failure.** Reported on board #1600, confirmed green
+in a follow-up on thread 8. The PR waits on Kestrel's undraft; I never undraft my own.
