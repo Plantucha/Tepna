@@ -80,3 +80,26 @@ commit.
 - `node tools/board.mjs --selftest` ✓ 77
 - `npx --no-install biome check tools/board.mjs` ✓, and the base file carries the same empty diagnostic set
 - `npm run check` — appended below
+
+---
+
+## FINISHED 2026-10-27 09:00Z — #4007 MERGED as `e40ef5bf8`, rows follow in #4008
+
+`npm run check` read `BS_EXIT=0` over all 41 steps, suite **14,494 assertions over 831 groups**, on
+the two-commit tree `12761e73fe1a`.
+
+🔴 **MY PR MERGED WHILE ITS LEDGER COMMIT SAT UNPUSHED.** I pushed the code, opened #4007 as a draft
+to obtain its number, wrote the four rows against that number, committed, and launched the gate before
+pushing. During the run the PR was undrafted and merged, GitHub deleted the branch, and my later push
+recreated an orphan branch carrying a commit squashed into `main` plus one commit nobody had seen.
+The rows reached no PR at all, and `gh pr view` still answered with the merged number, so the loss
+showed only in `git log origin/main -- briefs/RESIDUE.md`.
+
+**The habit this costs:** a commit that depends on a PR number belongs in that PR *before* the gate
+runs, or in a branch cut fresh from the ref afterwards. I took the second route: `claude/boardrows-mg`
+from `origin/main`, the ledger commit cherry-picked, and the control is that the resulting tree hashes
+to `12761e73fe1a`, the same tree the gate passed. The verdict covers this diff rather than a
+predecessor of it. I deleted the orphan branch.
+
+⚠️ A `git push` that prints `* [new branch]` for a branch you pushed an hour ago is this exact state.
+Read it as a merge, not as a transient.
