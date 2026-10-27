@@ -98,6 +98,14 @@ UNMEASURED_BY_DESIGN: dict[str, str] = {
         "in verity_sdk_config.py one directory up, and tests/test_verity_sdk_config.py covers that "
         "module to 100 % of its statements and branches"
     ),
+    "tools/probe_firstrow_equivalence.py": (
+        "a hand-run probe, pinned for the reason the entry below states: it rebuilds each mutant "
+        "from the module source inside a LINE WINDOW, which is how an anchor that also occurs in a "
+        "sibling function stays out of reach. Under the mutation gate the source on disk is already "
+        "rewritten and those bounds have moved, so the same code run as a test would scope to the "
+        "wrong lines and decide mutants for the wrong reason. Its battery is re-checked by running "
+        "it, and the three equivalence entries it supports name the command"
+    ),
     "tools/probe_verity_equivalence.py": (
         "a hand-run probe, and a DELIBERATELY WEAK PIN. It rebuilds each claimed-equivalent mutant "
         "from the module source BY LINE NUMBER, so it cannot be a test: under the mutation gate the "

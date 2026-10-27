@@ -10,12 +10,14 @@ Both are stated from the physics/semantics (pre-state-the-threshold), not as aft
 from types import SimpleNamespace
 from typing import Literal, get_type_hints
 
+import calendar
 import json
 
 import pytest
 
 import acq_evidence as ae
 import acq_evidence_o2ring as o2
+import writers
 
 # A finalised Format-A trailer as oxyii.parse_oxy_trailer returns it (only the fields the adapter reads).
 _TRAILER_18311 = {"finalized": True, "total_seconds": 18311, "avg_spo2": 96, "min_spo2": 88}
@@ -231,19 +233,35 @@ def test_the_live_sidecar_is_actually_WRITTEN_beside_the_artifact(tmp_path):
     import capture
 
     csv = tmp_path / "Viatom_O2Ring_O2-1_20260826031500_SPO2.csv"
-    csv.write_text("header\n")
     started = dt.datetime(2026, 8, 26, 3, 15, 0)
+    # THE REAL WRITER, not a (path, rows) fiction: the seam's whole subject is which of the writer's
+    # two clocks reaches the envelope, so a stand-in carrying a hand-typed row count could not fail.
+    # The link came up 2 h 27 m after the process did, which is the ordinary ring case.
+    wr = writers.Spo2CsvWriter(str(csv), fsync=False)
+    first = dt.datetime(2026, 8, 26, 5, 42, 7)
+    for i in range(3):
+        wr.write(first + dt.timedelta(seconds=i), 96, 58, 0)
+    wr.close()
     g = capture.O2PpgGrid()
     g.idx, g.lost, g.gaps = 3600, 12, 3
-    capture._emit_oxy_live_evidence(
-        "O2-1", {"device_id": "O2-1"}, started, (str(csv), 3600), g, capture.O2PpgFrameLedger()
-    )
+    capture._emit_oxy_live_evidence("O2-1", {"device_id": "O2-1"}, started, wr, g, capture.O2PpgFrameLedger())
 
     blob = json.loads((tmp_path / (csv.name + ".meta.json")).read_text())
     ev = blob["acquisition_evidence"]
     assert ev["source"] == ae.SOURCE_LIVE
-    assert ev["sample_count"] == 3600
+    assert ev["sample_count"] == 3
     assert ev["artifact_path"] == str(csv)
+    # row `2026-09-22-filename-stamp-still-wrong-for-other-consumers` part (a): the artifact is dated
+    # by its FIRST ROW, and the session start stays — under the name of what it measures
+    assert ev["start_time_ms"] == calendar.timegm(first.timetuple()) * 1000.0
+    assert ev["provenance"]["instance_start_time_ms"] == calendar.timegm(started.timetuple()) * 1000.0
+    assert ev["start_time_ms"] > ev["provenance"]["instance_start_time_ms"], (
+        "the ring's filename and session id carry the process start; the file begins later"
+    )
+    # and the derived end follows the corrected start rather than amplifying the old error
+    assert ev["end_time_ms"] == ev["start_time_ms"] + 3 * 1000
+    assert ev["provenance"]["resumed"] is False
+    assert ev["provenance"]["rows_this_instance"] == 3
     # the session id is the token the FILENAME already carries, so OxyDex's existing filename join
     # (#1752) works with no new matching rule
     assert ev["session_id"] == "20260826031500"
@@ -258,12 +276,20 @@ def test_a_failing_sidecar_write_never_damages_the_capture(tmp_path):
 
     import capture
 
-    # a path whose parent does not exist ⇒ the open() raises inside the helper
+    # a path whose parent does not exist ⇒ the open() raises inside the helper. A real writer cannot
+    # be built there — it would raise at construction, inside the capture path rather than inside the
+    # report — so the stand-in carries exactly the four attributes the helper reads.
+    class _Doomed:
+        path = str(tmp_path / "absent-dir" / "x.csv")
+        rows = 10
+        resumed = False
+        first_row_ms = 1_787_000_000_000.0
+
     capture._emit_oxy_live_evidence(
         "O2-1",
         {"device_id": "O2-1"},
         dt.datetime(2026, 8, 26, 3, 15, 0),
-        (str(tmp_path / "absent-dir" / "x.csv"), 10),
+        _Doomed(),
         capture.O2PpgGrid(),
         capture.O2PpgFrameLedger(),
     )  # must not raise
@@ -293,6 +319,9 @@ def test_run_oxyii_CALLS_the_emit_helper_on_its_close_path():
     # and it must be reached only for a KEPT file: an envelope describing a discarded header-only
     # capture would be evidence about a file that no longer exists
     assert "_spo2_kept" in src
+    # and the WRITER travels, not a (path, rows) pair: the envelope cannot date the artifact by its
+    # first row, nor know it is resumed, from a pair that carries neither (row part (a))
+    assert "_spo2_kept = _w" in src
 
 
 # ── THE DECLARED VOCABULARIES: a word no reader knows refuses at CONSTRUCTION ─────────────────────
