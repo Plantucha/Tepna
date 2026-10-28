@@ -667,8 +667,8 @@ def test_the_completion_hook_sees_every_outcome_including_the_error_path(tmp_pat
                 None,
                 str(root),
                 None,
-                600.0,
-                seen.append,
+                end_debounce_s=600.0,
+                on_complete=seen.append,
             )
         )
         assert seen, f"the hook never fired on the {want} path"
@@ -700,7 +700,7 @@ def test_NO_HOOK_ATTACHED_is_a_supported_state_not_an_incidental_one(tmp_path, m
             None,
             str(tmp_path),
             None,
-            600.0,
+            end_debounce_s=600.0,
         )
     )  # ← no on_complete
     assert capture.STATUS["cpap"]["state"] == "ok", "the harvest itself must be unaffected"
@@ -731,8 +731,8 @@ def test_a_THROWING_hook_cannot_cost_a_harvest_that_succeeded(tmp_path, monkeypa
             None,
             str(tmp_path),
             None,
-            600.0,
-            _explode,
+            end_debounce_s=600.0,
+            on_complete=_explode,
         )
     )
     assert capture.STATUS["cpap"]["state"] == "ok", "a broken hook changed the harvest's verdict"
@@ -775,8 +775,8 @@ def test_a_thrown_harvest_reports_consulted_FALSE_not_an_empty_walk(tmp_path, mo
             None,
             str(tmp_path),
             None,
-            600.0,
-            seen.append,
+            end_debounce_s=600.0,
+            on_complete=seen.append,
         )
     )
     assert seen, "the absent-card exit did not reach the hook"
@@ -811,8 +811,8 @@ def test_a_completed_walk_reports_consulted_TRUE_even_when_it_found_nothing(tmp_
             None,
             str(tmp_path),
             None,
-            600.0,
-            seen.append,
+            end_debounce_s=600.0,
+            on_complete=seen.append,
         )
     )
     assert seen[-1]["state"] == "barren"
@@ -854,8 +854,8 @@ def test_error_carries_consulted_TRUE_when_the_walk_COMPLETED_with_short_reads(t
             None,
             str(tmp_path),
             None,
-            600.0,
-            seen.append,
+            end_debounce_s=600.0,
+            on_complete=seen.append,
         )
     )
     assert seen[-1]["state"] == "error", "short reads must still be an error"

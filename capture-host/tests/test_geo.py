@@ -13,9 +13,11 @@ sats, HDOP 0.62-0.88, 619.7 m MSL at 35.58 N / 82.57 W), not invented ones — a
 agree with a hand-written parser about a format neither has seen.
 """
 
+import itertools
 import logging
 import os
 import sys
+import time
 
 import pytest
 
@@ -233,3 +235,66 @@ def test_the_REAL_import_path_binds_when_pyserial_IS_present(monkeypatch):
     got = geo.read_nmea("/dev/ttyUSB0", 38400, 0.2)  # no _serial= : must go through `import serial`
     assert GGA_GOOD in got
     assert geo.session_geo(got)["elevation_m"] == 619.7
+
+
+# ── what the reader HANDS OVER to the port ─────────────────────────────────────
+class _RecordingSerial:
+    """A pyserial stand-in that records how the port was opened.
+
+    `_FakeSerial` above accepts `timeout=None` by default, so it cannot tell a dropped `timeout=` from
+    the documented one. A default argument is also invisible to a signature assertion under the
+    mutation gate, because mutmut makes the function a dispatcher (#3704). The only place the value is
+    observable is the call that passes it, so this double records that call.
+    """
+
+    def __init__(self, lines=()):
+        self._lines = list(lines)
+        self.calls = []
+
+    def Serial(self, *args, **kwargs):  # noqa: N802 — mirrors pyserial's class name
+        self.calls.append((args, kwargs))
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def readline(self):
+        return self._lines.pop(0) if self._lines else b""
+
+
+def test_the_port_is_opened_with_the_given_settings_and_a_one_second_timeout():
+    fake = _RecordingSerial([GGA_GOOD.encode()])
+    assert GGA_GOOD in geo.read_nmea("/dev/ttyUSB0", 38400, 0.2, _serial=fake)
+    # a read timeout is what keeps the deadline honest on a silent port; 1.0 s is the shipped value
+    assert fake.calls == [(("/dev/ttyUSB0", 38400), {"timeout": 1.0})]
+
+
+def test_a_non_ascii_byte_is_REPLACED_rather_than_costing_the_whole_read():
+    """A torn serial read can carry a byte that is not ASCII. `errors="replace"` keeps the rest of the
+    window; strict decoding would raise, hit the fail-open except, and discard every line collected."""
+    fake = _RecordingSerial([b"$GNGGA,000002.00,\xff\xfe,M*00\r\n"])
+    got = geo.read_nmea("/dev/ttyUSB0", 38400, 0.2, _serial=fake)
+    assert got and got[0].startswith("$GNGGA,000002.00,"), got
+
+
+def test_the_deadline_is_EXCLUSIVE_so_a_zero_length_window_reads_nothing(monkeypatch):
+    """`while monotonic() < end` must not read at the deadline itself. A real clock cannot show this,
+    because it has already advanced by the time the first check runs — so the clock is scripted to
+    return the deadline exactly once, which is the only input that separates `<` from `<=`."""
+    ticks = itertools.chain([100.0, 100.0], itertools.count(100.1, 0.1))
+    monkeypatch.setattr(time, "monotonic", lambda: next(ticks))
+    fake = _RecordingSerial([b"$GNGGA,never-read*00\r\n"])
+    assert geo.read_nmea("/dev/ttyUSB0", 38400, 0.0, _serial=fake) == []
+
+
+def test_the_failure_warning_names_the_PORT_and_the_exception_CLASS(caplog):
+    """The warning is the only trace an absent receiver leaves, so it must say which port failed and
+    how. A message that names neither is indistinguishable from a message about another device."""
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        assert geo.read_nmea("/dev/ttyUSB7", 38400, 0.2, _serial=_FakeSerial(raises=PermissionError("denied"))) == []
+    said = [r.getMessage() for r in caplog.records if "no usable GNSS" in r.getMessage()]
+    assert said, [r.getMessage() for r in caplog.records]
+    assert "/dev/ttyUSB7" in said[0] and "PermissionError" in said[0], said[0]
