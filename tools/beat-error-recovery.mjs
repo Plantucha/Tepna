@@ -31,6 +31,13 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
+
+const TOOL = 'tools/beat-error-recovery.mjs';
+/* The unit is an RR FILE, not a night: `rrFiles` yields every `_RR.txt` one level under the root, so
+   two devices on one night are two members. `rrFiles` is passed by name, which is what the snapshot
+   publishes as its rule — an inline arrow would publish `null` and name no lister. */
+const POP = { list: rrFiles, unit: 'rr-files' };
 
 const require = createRequire(import.meta.url);
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -362,8 +369,13 @@ function main(argv) {
     return 2;
   }
   const ctx = realm();
+  const popBefore = snapshotEntries(root, POP);
+  if (!popBefore.ok) {
+    console.error(`beat-error-recovery: ${popBefore.reason} — ${root}`);
+    return 2;
+  }
   const results = [];
-  for (const f of rrFiles(root)) {
+  for (const f of popBefore.members) {
     let rr;
     try {
       rr = parseRR(readFileSync(f, 'utf8'));
@@ -374,7 +386,11 @@ function main(argv) {
     const dev = /VeritySense|Polar_Sense/i.test(f) ? 'Verity' : /H10/i.test(f) ? 'H10' : 'other';
     results.push({ file: basename(f), night: basename(dirname(f)), device: dev, beats: rr.length, ...measure(rr, ctx) });
   }
-  const doc = { tool: 'beat-error-recovery', substrate: root, streams: results.length, results };
+  /* `streams` counts what SCORED. A file the read threw on, or one under 500 beats, is offered and
+     unscored, so the population the walk offered is published beside it rather than inferred from
+     the count. */
+  const population = populationVerdict(popBefore, snapshotEntries(root, POP), { tool: TOOL, evidence: [TOOL] });
+  const doc = { tool: 'beat-error-recovery', substrate: root, population, streams: results.length, results };
   const out = arg('--out');
   if (out) {
     writeFileSync(out, JSON.stringify(doc, null, 1));

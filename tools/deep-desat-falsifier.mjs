@@ -42,11 +42,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
+import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
+const TOOL = 'tools/deep-desat-falsifier.mjs';
 
 /* ── args ─────────────────────────────────────────────────────────────────── */
 const argv = process.argv.slice(2);
@@ -373,10 +375,18 @@ if (!existsSync(DIR)) {
   );
   process.exit(2);
 }
-const nightDirs = readdirSync(DIR, { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .map((d) => d.name)
-  .sort();
+/* THE WALK ADMITS EVERY DIRECTORY NAME, so the snapshot DECLARES that rule instead of taking the
+   night-shaped default. Either silence misreports this root: the default `NIGHT_RE` would publish a
+   population narrower than the set actually read, and a rule wider than night-shaped with no account
+   of itself would count a non-night directory as a night invisibly. Declared, `admittedNonNight`
+   names each one and `ruleLine` prints them beside the figures. */
+const NIGHT_RULE = /^/;
+const popBefore = snapshotNights(DIR, { re: NIGHT_RULE });
+if (!popBefore.ok) {
+  console.error(`deep-desat-falsifier: ${popBefore.reason} — ${DIR}`);
+  process.exit(2);
+}
+const nightDirs = popBefore.nights;
 
 const STAGES = ['REM', 'Light', 'Deep', 'Wake'];
 const stageMinutes = Object.fromEntries(STAGES.map((s) => [s, 0]));
@@ -556,7 +566,14 @@ if (CPAP) {
    present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
 const ERA = eraCoverage(eraOfNights(DIR, nightsReadList));
 
+/* The population the run READ, closed after the last read rather than before the first: a night that
+   arrived or left mid-run moves the figures and nothing else here would say so. The tool's own
+   `nightsSkipped` is a different quantity — a night this run OFFERED and could not score — and the two
+   are reported side by side because neither substitutes for the other. */
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RULE }), { tool: TOOL, evidence: [TOOL] });
+
 const result = {
+  population,
   nightsFound: nightDirs.length,
   nightsRead,
   era: ERA,
@@ -573,6 +590,9 @@ if (AS_JSON) {
 } else {
   console.log(`\ndeep-desat-falsifier — ${DIR}`);
   console.log(`nights: ${nightsRead} read, ${nightsSkipped} skipped (of ${nightDirs.length} found)`);
+  console.log(`  population: ${population.status} — ${population.population.checked} night(s) of ${population.population.eligible}${population.reason ? `\n  ${population.reason}` : ''}`);
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
   console.log(eraCoverageLine(ERA));
   if (skipReasons.length) console.log(skipReasons.map((r) => '  · ' + r).join('\n'));
   console.log(`\n── per-stage desaturation rate (exact 95% CI) ──`);
