@@ -46,12 +46,14 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
 const ARGV_SPEC = { valued: ['--q', '--band'], boolean: ['--selftest', '--verdict-sample'], positional: true };
 
+const TOOL = 'tools/beat-correspondence.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
 
@@ -504,7 +506,18 @@ async function main() {
   const q = getOpt('--q', 1 / 150),
     band = getOpt('--band', 48);
   loadDsps();
-  const files = readdirSync(dir);
+  /* THE PAIR RULE IS THE POPULATION RULE, so the lister the snapshot names is the same predicate the
+     two filters below apply. A bare `readdirSync` threw the root's errno as an uncaught stack, which
+     is a crash rather than a refusal — row 2026-10-28-four-single-root-enumerators-read-an-unreadable-root-as-empty-or-threw
+     on the sibling tools. */
+  const listPairFiles = (root) => readdirSync(String(root)).filter((f) => (/_ECG\.txt$/.test(f) && /H10/.test(f)) || (/_PPG\.txt$/.test(f) && /Sense|Verity/.test(f) && !/\(1\)/.test(f)));
+  const POP = { list: listPairFiles, unit: 'pair-files' };
+  const popBefore = snapshotEntries(dir, POP);
+  if (!popBefore.ok) {
+    console.error(`beat-correspondence: ${popBefore.reason} — ${dir}`);
+    process.exit(2);
+  }
+  const files = popBefore.members;
   const ecgF = files.filter((f) => /_ECG\.txt$/.test(f) && /H10/.test(f)).sort();
   const ppgF = files.filter((f) => /_PPG\.txt$/.test(f) && /Sense|Verity/.test(f) && !/\(1\)/.test(f)).sort();
   if (!ecgF.length || !ppgF.length) {
@@ -512,6 +525,14 @@ async function main() {
     process.exit(2);
   }
   console.log(`ECG: ${ecgF[0]}   PPG: ${ppgF[0]}   q=${q.toExponential(3)} (2/q=${(2 / q).toFixed(0)} ms)  band=±${band}`);
+  /* THE PAIR IS A SELECTION OUT OF THE POPULATION, never the population itself: this reads the FIRST
+     eligible ECG and the first eligible PPG, so a night holding four of each is audited on one pair.
+     Print what the rule offered beside what the run read. */
+  const population = populationVerdict(popBefore, snapshotEntries(dir, POP), { tool: TOOL, evidence: [TOOL] });
+  console.log(
+    `population: ${population.status} — reading 1 ECG and 1 PPG of ${population.population.checked} pair-eligible file(s) (${ecgF.length} ECG, ${ppgF.length} PPG)${population.reason ? `\n  ${population.reason}` : ''}`
+  );
+  console.log('POPULATION ' + JSON.stringify(population));
   const tA = Array.from(ecgRpeakTimes(readFileSync(join(dir, ecgF[0]), 'utf8')));
   const tB = Array.from(ppgFootTimes(readFileSync(join(dir, ppgF[0]), 'utf8')));
   const rrA = tA.slice(1).map((x, i) => x - tA[i]),

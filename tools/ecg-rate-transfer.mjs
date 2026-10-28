@@ -45,6 +45,7 @@
  *   node tools/ecg-rate-transfer.mjs --dir <corpus-dir> [--to 125] [--limit N]
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
@@ -321,20 +322,50 @@ async function main(argv) {
       else if (/_ECG\.txt$/i.test(e) && st.size > 1e6) files.push(p);
     }
   };
-  walk(dir, 0);
-  files.sort();
-  if (!files.length) {
+  /* THE ROOT'S OWN ERRNO MUST NOT BECOME A ZERO. `walk` swallows every directory it cannot enter,
+     which is right for one subtree of many and wrong for the root itself: an unreadable root printed
+     `no *_ECG.txt under <dir>`, a true sentence about a directory nobody read. Probing the root inside
+     the lister lets the snapshot carry the errno, so the refusal names the cause and not the count.
+     Sibling tools carried the same defect — row
+     2026-10-28-four-single-root-enumerators-read-an-unreadable-root-as-empty-or-threw. */
+  const listEcgRecords = (root) => {
+    readdirSync(String(root));
+    files.length = 0;
+    walk(String(root), 0);
+    return [...files];
+  };
+  const POP = { list: listEcgRecords, unit: 'ecg-records' };
+  const popBefore = snapshotEntries(dir, POP);
+  if (!popBefore.ok) {
+    console.error(`✕ ecg-rate-transfer: ${popBefore.reason} — ${dir}`);
+    return 2;
+  }
+  if (!popBefore.n) {
     console.error('✕ no *_ECG.txt under ' + dir);
     return 2;
   }
+  const population = populationVerdict(popBefore, snapshotEntries(dir, POP), { tool: 'tools/ecg-rate-transfer.mjs', evidence: ['tools/ecg-rate-transfer.mjs'] });
 
   console.log('▸ E3 · does Pan–Tompkins transfer across sample rates?');
-  console.log('  corpus    ' + dir + '  (' + files.length + ' records found, using ' + Math.min(limit, files.length) + ')');
+  console.log('  corpus    ' + dir + '  (' + popBefore.n + ' records found, using ' + Math.min(limit, popBefore.n) + ')');
+  /* `--limit` cuts the offer AFTER the walk, so the population and the read set are two numbers. */
+  console.log(
+    '  population ' +
+      population.status +
+      ' — reading ' +
+      Math.min(limit, popBefore.n) +
+      ' of ' +
+      population.population.checked +
+      ' ecg-record(s), rule ' +
+      popBefore.rule +
+      (popBefore.n > limit ? '; --limit left ' + (popBefore.n - limit) + ' unread' : '')
+  );
+  console.log('POPULATION ' + JSON.stringify(population));
   console.log('  bands     median |Δ| ≤ ' + BAND_MEDIAN_ABS_MS + ' ms  AND  correspondence ≥ ' + 100 * BAND_CORRESPONDENCE + ' %   (pre-stated)');
   console.log('');
 
   const rows = [];
-  for (const f of files.slice(0, limit)) {
+  for (const f of popBefore.members.slice(0, limit)) {
     const name = f.split('/').pop();
     let rec;
     try {
@@ -415,7 +446,7 @@ async function main(argv) {
   console.log('  measured              median |Δ| ' + pooled.medianAbsMs + ' ms   correspondence ' + (100 * pooled.correspondence).toFixed(2) + ' %');
   console.log('  VERDICT               ' + (v.transfers === true ? 'TRANSFERS — ' : v.transfers === false ? 'DOES NOT TRANSFER — ' : 'INCONCLUSIVE — ') + v.why);
   // the object IS the verdict (stdout under --json; the report above is its explanation)
-  if (argv.includes('--json')) console.log(JSON.stringify(verdictObject(pooled, { records: rows.length, found: files.length, dir })));
+  if (argv.includes('--json')) console.log(JSON.stringify(verdictObject(pooled, { records: rows.length, found: popBefore.n, dir })));
   return 0;
 }
 
