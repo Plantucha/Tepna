@@ -371,3 +371,13 @@ def test_an_ordinary_failure_stays_a_WARNING(monkeypatch, caplog):
         ch._sh(["ip", "link"], 5, sudo=True)
     assert not [r for r in caplog.records if r.levelname == "ERROR"]
     assert "[failed]" in caplog.text, caplog.text
+
+
+def test_a_127_and_a_not_found_MESSAGE_are_each_enough_on_their_own():
+    """`rc == 127 or _NOT_FOUND.search(text)` is a disjunction because the two evidences arrive
+    separately: a shell reports 127 with no message of its own, and `sudo` or a container runtime
+    reports its own non-zero while the text says the binary is absent. Requiring both would classify
+    each of those as an unexplained `failed`, which is the diagnosis this function exists to avoid."""
+    assert ch.helper_failure_kind(127, "") == "missing", "the bare exit code alone"
+    assert ch.helper_failure_kind(1, "exec: wpa_cli: executable file not found in $PATH") == "missing", "the text alone"
+    assert ch.helper_failure_kind(126, "wpa_cli: Permission denied") == "failed", "neither evidence"

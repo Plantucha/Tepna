@@ -6088,5 +6088,37 @@
       "probe": "`.venv/bin/python tools/probe_firstrow_equivalence.py` — the same committed battery's second unit: 864 envelopes over 3 artifact starts (absent, the epoch, a real tMs) x 4 row counts (0, 1, 3, 29000) x 3 stopped_cleanly states x resumed in {True, False} x 3 clock offsets (absent, the unknown sentinel, a measured one) x 4 device states (absent, UNKNOWN, a real word, empty), comparing the full serialised envelope. THE BATTERY DEMONSTRATED IT CAN SEE: its four canaries read 864/864 (the device loses its identity), 864/864 (an unmeasured device state becomes None), 576/864 (the resume test inverted) and 144/864 (the derived end drops the sample count). This candidate: 0 of 864. Run 2026-10-27.",
       "why": "`validation_depth` is bound once, by `validation, validation_depth = ae.UNKNOWN, None`, and never reassigned, so at this call site the name IS the literal the mutant writes. The live path verifies no bytes — it writes them — so there is no depth to report and `None` is the honest answer (§6); the name stays because a caller that supplies a real verdict from a real check is what would fill it, and the asymmetry with `assemble_dat`, where `verify()` does re-read the file, is the point."
     }
+  ],
+  "allan.py": [
+    {
+      "class": "untestable-by-design",
+      "function": "adev_pooled",
+      "key": "- segments_by_gap(sample_times, k) if sample_times is not None and len(sample_times) == len(x) else [(0, len(x))] | + segments_by_gap(sample_times, k) if sample_times is not None and len(sample_times) == len(x) else [(1, len(x))]",
+      "why": "The mutated tuple is NEVER READ. It is the single element of the no-segmentation fallback list, and the next statement is `if len(runs) <= 1: return adev(x, tau0), ...` — which returns the whole-series curve without indexing `runs`. The start index therefore reaches no consumer on any input, and the `[(0, len(x))]` spelling exists so the fallback has the same SHAPE as a real segmentation.",
+      "probe": "tests/test_allan.py::test_adev_pooled_is_the_n_weighted_mean_of_sigma_squared already drives the fallback (a length-mismatched instant list) and asserts the returned curve equals `adev(x, tau0)` point for point; the mutant passes it, as it must, because the curve does not come from the tuple."
+    },
+    {
+      "class": "untestable-by-design",
+      "function": "adev_pooled",
+      "key": "- pts = [{\"tau\": t, \"adev\": math.sqrt(v[0] / v[1]), \"n\": v[1]} for t, v in sorted(acc.items()) if v[1] > 0] | + pts = [{\"tau\": t, \"adev\": math.sqrt(v[0] / v[1]), \"n\": v[1]} for t, v in sorted(acc.items()) if v[1] >= 0]",
+      "why": "`v[1] > 0` guards the division on the same line against a tau whose pooled term count is zero, and the estimator's own floor already makes that unreachable: every entry in `acc` is created by `e[1] += p[\"n\"]` over `adev()` points, and `adev` publishes a tau only when `terms >= _MIN_TERMS` (8). So `v[1] >= 8` for every key, and every threshold in [0, 8) — `> 0`, `>= 0` and `> 1` alike — admits exactly the same set. Removing the guard would be a real change in a future where `_MIN_TERMS` could be 0, which is why it stays.",
+      "probe": "400 randomized pooled runs (seed 108, series 60-900 samples, holes injected at 8% of positions, k over {1.5, 2.0, 4.0, 8.0, 25.0}), 399 of them segmented: the MINIMUM published `n` across every pooled tau was 24, three times the floor the argument above gives."
+    },
+    {
+      "class": "untestable-by-design",
+      "function": "adev_pooled",
+      "key": "- pts = [{\"tau\": t, \"adev\": math.sqrt(v[0] / v[1]), \"n\": v[1]} for t, v in sorted(acc.items()) if v[1] > 0] | + pts = [{\"tau\": t, \"adev\": math.sqrt(v[0] / v[1]), \"n\": v[1]} for t, v in sorted(acc.items()) if v[1] > 1]",
+      "why": "The same unreachable-false guard as the `>= 0` entry above: a pooled term count is a sum of per-segment counts each at or above `_MIN_TERMS` (8), so no input distinguishes a threshold of 0 from one of 1.",
+      "probe": "The same 400-run probe: minimum published `n` = 24."
+    }
+  ],
+  "as11_link.py": [
+    {
+      "class": "untestable-by-design",
+      "function": "get_date_time",
+      "key": "- return rpc(\"GetDateTime\", None, rpc_id=rpc_id, version=\"1.0\") | + return rpc(\"GetDateTime\", rpc_id=rpc_id, version=\"1.0\")",
+      "why": "`rpc`'s own signature is `def rpc(method, params=None, *, rpc_id, version)`, so dropping the explicit `None` passes the identical default and builds a byte-identical envelope. The explicit argument is there to SAY that GetDateTime omits params on purpose (the docstring's `params omitted`), which is documentation, not behaviour.",
+      "probe": "tests/test_as11_link.py::test_each_builder_puts_its_documented_defaults_on_the_wire asserts `\"params\" not in msg` for GetDateTime; the mutant passes it, because `params is not None` is false either way."
+    }
   ]
 }

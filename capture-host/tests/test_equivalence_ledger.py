@@ -176,10 +176,21 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # documents, zero differing inputs. The probe ships beside the module so the claims can be
 # re-tested; it is not a test, because rebuilding a mutant by line number would read the wrong
 # lines under the gate's own rewrite.
+# allan.py ENTERED at 3 and as11_link.py at 1 on 2026-10-28 (#4040, row
+# 2026-10-21-sixteen-literal-defaults-are-taken-by-no-production-call). Deleting a signature-only default put
+# `adev_pooled` and `get_date_time` in the gate's scope whole. `adev_pooled` keeps three: the start index of the
+# no-segmentation fallback tuple, which the next statement never reads because it returns the whole-series curve,
+# and the two threshold moves of the division guard `v[1] > 0` to `>= 0` and `> 1`. Every entry in `acc` sums
+# per-tau term counts from `adev()`, and `adev` publishes a tau only at `terms >= _MIN_TERMS` (8), so every
+# threshold in [0, 8) admits the same set; the probe is 400 randomized pooled runs, 399 segmented, minimum
+# published `n` of 24. `get_date_time` keeps one: dropping its explicit `None` passes `rpc`'s own `params=None`
+# and builds a byte-identical envelope. The other 16 survivors of those two functions are killed by new tests.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "acq_evidence_o2ring.py": 1,
     "alerts.py": 1,
+    "allan.py": 3,
+    "as11_link.py": 1,
     "battery_history.py": 1,
     "ble_visibility.py": 4,
     "blind_spots.py": 1,

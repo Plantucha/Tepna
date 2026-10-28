@@ -200,11 +200,18 @@ A long run SIGKILLed mid-suite with no exit code is the Claude Code harness watc
 background tasks under BOX memory pressure. **Detach anything over ~100 s: `setsid nohup <gate> > log
 2>&1 &` plus an `EXIT=` sentinel** — a `MemoryMax` cap on your gate does not help (the watchdog reads
 the box; cap the CONSUMER instead). Rule out the kernel with `journalctl -k`, never `dmesg`
-(unreadable here). Contention slows a gate, it does not stop it mid-run; a death at exactly 114 s or
-600 s is the tool timeout. Attribute pressure by `/proc/<pid>/cgroup` walked to the top (a
-`.service` is a timer, a tmux scope is a session) and by `df -h /tmp /dev/shm` + `free`'s `shared`
+(unreadable here). Contention slows a gate, it does not stop it mid-run, with one measured exception
+below; a death at exactly 114 s or 600 s is the tool timeout. Attribute pressure by
+`/proc/<pid>/cgroup` walked to the top (a `.service` is a timer, a tmux scope is a session) and by `df -h /tmp /dev/shm` + `free`'s `shared`
 column — `/tmp` is a 30 GB tmpfs invisible to `ps`. Deleting orphans there is the owner's call;
 `lsof +D <dir>` first.
+
+**The exception: a step that SPAWNS A CHILD under a fixed cap.** Measured 2026-10-27,
+`verdict-adoption`'s 120 s child cap closed on `xerj-load.mjs` at load 44 (108.7 s, against 25.5 s
+idle) and step 38 of 41 red mid-run, leaving steps 39 to 41 unrun. A gate that cannot read a child
+says so: that one prints `⏱ UNEXAMINED <producer>` and exits **2 — it could not look** — where exit
+1 means it looked and an adoption failed. Read the step's own message before attributing a red to
+your diff.
 
 ### 5 · Landing (*why → RATIONALE §👥.5, §👥.5b*)
 

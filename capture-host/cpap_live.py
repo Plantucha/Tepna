@@ -58,7 +58,7 @@ __all__ = [
 DETECTOR_STALE_MULTIPLE = 3
 
 
-def stale_after_s(poll_interval_s: float = 30.0, multiple: int = DETECTOR_STALE_MULTIPLE) -> float:
+def stale_after_s(poll_interval_s: float, multiple: int = DETECTOR_STALE_MULTIPLE) -> float:
     """Seconds after which a detector reading stops being evidence about NOW. Pure."""
     try:
         p = float(poll_interval_s)
@@ -87,7 +87,7 @@ def detector_age_s(now_ms, detector_host_ms):
     return age if age >= 0 else None
 
 
-def live_view(cpap, now_ms, poll_interval_s: float = 30.0):
+def live_view(cpap, now_ms, poll_interval_s: float):
     """The monitor's live-therapy answer: `{state, therapy, age_s, stale_after_s, fresh}`. Pure.
 
     `state` is the word the page shows — "Therapy", "Standby", or "unknown". It is "unknown" whenever
