@@ -4076,6 +4076,29 @@ def test_the_stall_bins_own_coverage_reaches_both_artifacts_and_counts_no_suppre
     assert v["criterion"]["name"] == "worn_but_not_recorded_fraction", v["criterion"]
 
 
+def test_who_held_the_loop_reaches_BOTH_artifacts_from_the_reader_the_night_ran(tmp_path):
+    """The attribution is READ once per night and written to the night's own file and to the verdict's
+    `result`. A wiring that dropped either would publish `daemon:event-loop stall` with no holder, which
+    is the defect the reader was built for."""
+    d = _night(tmp_path)
+    planted = {
+        "callback_watch": {"armed": True, "events": {"task:qc": {"n": 1, "worst_ms": 900.0}}, "reason": None},
+        "stall_sampler": {"armed": False, "rows": None, "reason": "planted"},
+    }
+    a = loss_audit.audit_night(
+        d,
+        DEV,
+        journal=lambda *_a, **_k: [],
+        clock_events=lambda *_a, **_k: [],
+        journal_shape_of=lambda *_a: None,
+        stall_attr=lambda _since, _until, _night_dir: planted,
+    )
+    assert a["stall_attribution"] == planted, a["stall_attribution"]
+    v = loss_audit.night_verdict(a, night_dir=d, commit="deadbeef")
+    js_validate(v)
+    assert v["result"]["stall_attribution"] == planted, v["result"]
+
+
 def test_the_published_stall_thresholds_are_the_daemons_OWN_and_a_drift_reds_this_test():
     """Two modules now state the same three numbers, so the pair is a drift surface. `capture` is the
     producer; this module only republishes. A change on either side must fail here, not in a morning."""

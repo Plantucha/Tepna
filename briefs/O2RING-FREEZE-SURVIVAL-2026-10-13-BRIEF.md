@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (deferred 2026-10-13 — owner: "Write up Options 2 and 3 for after Saturday") · **Created:** 2026-10-13 · **Follows:** `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`
+**Status:** PROPOSED (deferred 2026-10-13 — owner: "Write up Options 2 and 3 for after Saturday") · **Created:** 2026-10-13 · **Follows:** `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md` · **Residue:** 2026-10-28-both-loop-attribution-instruments-shipped-with-no-reader
 
 # The ring survives a daemon freeze: drain the backlog, or poll from its own process
 
