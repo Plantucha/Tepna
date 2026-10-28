@@ -32,6 +32,7 @@
 // Usage:
 //   node tools/corpus-scope.mjs '*_ECG.txt'
 //   node tools/corpus-scope.mjs '*Verity*_PPG.txt' --json
+//   node tools/corpus-scope.mjs --nights          # the corpus size: directories AND distinct names
 //   node tools/corpus-scope.mjs --selftest
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
@@ -50,6 +51,8 @@ import {
   dedupeRoots,
   digestNights,
   gitCommitOf,
+  nightCensusVerdict,
+  nightDirsUnder,
   notANight,
   notCovered,
   parseRoots,
@@ -62,6 +65,31 @@ export * from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
+
+/** Every directory NAME under `root`, at any depth — the walker `nightDirsUnder` is given, kept on
+ *  this side of the split because it shells out. Returns null, never [], when the root is not a
+ *  directory here (§∅).
+ *
+ *  ⚠️ `-L` IS LOAD-BEARING AND ITS ABSENCE IS SILENT. Three documented roots are symlinks, and a
+ *  `find` that starts at one prints nothing and exits 0 — four trees read as empty that way while
+ *  #3950 was being measured. It is not an optimisation to drop. */
+export function findDirNames(root) {
+  try {
+    if (!statSync(root).isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  try {
+    const out = execFileSync('find', ['-L', root, '-type', 'd', '-printf', '%f\n'], { encoding: 'utf8', maxBuffer: 256 << 20, stdio: ['ignore', 'pipe', 'ignore'] });
+    return out.split('\n').filter(Boolean);
+  } catch (e) {
+    // `find` exits non-zero on an unreadable subtree while still printing what it saw
+    const printed = String(e.stdout || '')
+      .split('\n')
+      .filter(Boolean);
+    return printed.length ? printed : null;
+  }
+}
 
 /** Count files matching `pattern` under one root. Returns null — never 0 — when the root is not a
  *  directory here, because "not on this machine" and "empty" are different facts (§∅). */
@@ -659,6 +687,98 @@ function selftest() {
       refused.status === 'NOT_RUN' && /^[0-9a-f]{7,40}$/.test(String(refused.producedBy.commit)),
       JSON.stringify(refused.producedBy)
     );
+
+    /* ── THE NIGHT CENSUS ─────────────────────────────────────────────────────────────────────
+       The walk is recursive and the verdict states that, because the figure this replaces counted
+       directories over two scopes and a reader took it for a night count. */
+    const mkLister = (xs) => () => xs;
+    ok(
+      'the census walk counts DIRECTORIES and NAMES separately, so a repeated name cannot inflate the name count',
+      (() => {
+        const w = nightDirsUnder('/x', { lister: mkLister(['2026-06-10', '2026-06-10', '2026-06-11', 'notes']) });
+        return w.ok && w.directories === 3 && w.names.join() === '2026-06-10,2026-06-11';
+      })()
+    );
+    ok(
+      '∅ · a root this machine cannot walk reads null, never 0 — "nobody looked" is not "the corpus holds none"',
+      (() => {
+        const w = nightDirsUnder('/x', { lister: mkLister(null) });
+        return w.ok === false && w.directories === null && w.names === null && /not walkable/.test(w.reason);
+      })()
+    );
+    ok(
+      'the core primitive refuses to walk a filesystem itself, which is what keeps `exec` out of every scorer closure',
+      (() => {
+        try {
+          nightDirsUnder('/x', {});
+          return false;
+        } catch (e) {
+          return e instanceof TypeError && /lister is required/.test(e.message);
+        }
+      })()
+    );
+    ok(
+      '🔴 PLANT · the nested tree a ONE-LEVEL walk reads as empty is exactly what this census exists to count',
+      (() => {
+        /* The measured shape of `uploads/`: no night directory at the top, 180 one level down. The
+           old figure came from walks that disagreed on depth and said so nowhere. */
+        const nest = join(tmp, 'night-census-nested');
+        mkdirSync(join(nest, 'trio', '2026-06-10'), { recursive: true });
+        mkdirSync(join(nest, 'trio', '2026-06-11'), { recursive: true });
+        mkdirSync(join(nest, 'other', '2026-06-11'), { recursive: true });
+        const flat = snapshotNights(nest);
+        const deep = nightDirsUnder(nest, { lister: findDirNames });
+        return flat.ok && flat.n === 0 && deep.ok && deep.directories === 3 && deep.names.length === 2;
+      })()
+    );
+    ok(
+      'an alias is shown and NOT summed, so the scope stays as wide as the doc says it is',
+      (() => {
+        const rows = dedupeRoots(
+          [
+            { root: '/a', count: 10, directories: 10, names: ['2026-06-10'], why: null },
+            { root: '/b', count: 10, directories: 10, names: ['2026-06-10'], why: null }
+          ],
+          (x) => (x === '/b' ? '/a' : x)
+        );
+        const v = nightCensusVerdict(rows, { commit: null, commitReason: 'selftest' });
+        return v.result.directories === 10 && v.result.summedRoots === 1 && v.population.checked === 2 && v.population.excluded === 0;
+      })()
+    );
+    ok(
+      'an unwalkable root is EXCLUDED rather than summed as a zero, and checked + excluded = eligible',
+      (() => {
+        const v = nightCensusVerdict(
+          [
+            { root: '/a', directories: 4, names: ['2026-06-10', '2026-06-11'], why: null },
+            { root: 'vigil:/x', directories: null, names: null, why: 'remote' }
+          ],
+          { commit: null, commitReason: 'selftest' }
+        );
+        return v.status === 'PASS' && v.result.directories === 4 && v.result.distinctNames === 2 && v.population.checked + v.population.excluded === v.population.eligible;
+      })()
+    );
+    ok(
+      'no walkable root at all is UNDERPOWERED with a reason, never a PASS over nothing',
+      (() => {
+        const v = nightCensusVerdict([{ root: 'vigil:/x', directories: null, names: null, why: 'remote' }], { commit: null, commitReason: 'selftest' });
+        return v.status === 'UNDERPOWERED' && v.population.checked === 0 && /unreachable one/.test(v.reason);
+      })()
+    );
+    ok(
+      'an unparsed doc is NOT_RUN with a null result, so an empty census cannot read as an empty corpus',
+      (() => {
+        const v = nightCensusVerdict([], { commit: null, commitReason: 'selftest' });
+        return v.status === 'NOT_RUN' && v.result === null && v.population.eligible === 0;
+      })()
+    );
+    ok(
+      'the verdict publishes its DEPTH and its RULE beside the number, which is the half the 327 figure never carried',
+      (() => {
+        const v = nightCensusVerdict([{ root: '/a', directories: 1, names: ['2026-06-10'], why: null }], { commit: null, commitReason: 'selftest' });
+        return v.result.depth === 'recursive' && v.result.rule === String(NIGHT_RE) && v.result.earliest === '2026-06-10' && v.result.latest === '2026-06-10';
+      })()
+    );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -669,7 +789,7 @@ function selftest() {
 
 function main() {
   const argv = process.argv.slice(2);
-  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--verdict-sample', '--json'], positional: true }, { tool: 'corpus-scope' });
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--verdict-sample', '--json', '--nights'], positional: true }, { tool: 'corpus-scope' });
   if (argv.includes('--selftest')) process.exit(selftest());
   /* The corpus-free sample the adoption gate runs: the measured 2026-09-22 shape — one countable
      tree, one alias of it, one remote root — which is the case the residue is about. */
@@ -685,6 +805,55 @@ function main() {
     console.log(JSON.stringify(censusVerdict('*_ECG.txt', rows), null, 2));
     return;
   }
+  /* THE NIGHT CENSUS — the corpus size, in the two units the 327 figure conflated. It walks
+     RECURSIVELY and says so, because the nights nest and a one-level count of the same roots reads
+     25 names short (row 2026-10-26-the-327-night-shaped-figure-counts-directories-over-two-scopes).
+     It scores nothing and feeds no scorer: `snapshotNights` keeps its one-level contract, which is
+     what the eleven PAT and TCH tools take their population from. */
+  if (argv.includes('--nights')) {
+    const docP = join(ROOT, DOC);
+    const rts = existsSync(docP) ? parseRoots(readFileSync(docP, 'utf8')) : [];
+    const walked = rts.map((r) => {
+      const w = r.countable ? nightDirsUnder(resolve(r.path), { lister: findDirNames }) : null;
+      return { root: r.path, directories: w ? w.directories : null, names: w ? w.names : null, why: r.countable ? (w && w.ok ? null : 'absent') : r.why };
+    });
+    /* dedupeRoots keys on `count`, so the alias rule reads the unit this census actually summed. */
+    const dd = dedupeRoots(
+      walked.map((w) => ({ ...w, count: w.directories })),
+      (x) => {
+        try {
+          return realpathSync(resolve(x));
+        } catch {
+          return x;
+        }
+      }
+    ).map(({ count, ...w }) => w);
+    const { commit, reason: commitReason } = gitCommitOf(ROOT);
+    const nv = nightCensusVerdict(dd, { commit, commitReason });
+    if (argv.includes('--json')) {
+      console.log(JSON.stringify(nv, null, 2));
+      return;
+    }
+    console.log(`corpus night census · rule ${String(NIGHT_RE)} · recursive · roots from ${DOC}\n`);
+    for (const r of dd) {
+      const cell = r.directories === null ? 'NOT WALKABLE HERE'.padEnd(18) : `${String(r.directories).padStart(6)} dir / ${String((r.names || []).length).padStart(4)} name`;
+      console.log(`  ${cell}  ${r.root}${r.why ? `   (${r.why})` : ''}${r.counted === false ? '   NOT SUMMED' : ''}`);
+    }
+    if (nv.result === null) {
+      console.log(`\n  ${nv.status} — ${nv.reason}`);
+      return;
+    }
+    const R = nv.result;
+    console.log(
+      `\n  ${R.directories} night-shaped DIRECTORY(ies) over ${R.distinctNames} DISTINCT NAME(s), across ${R.summedRoots} distinct tree(s), ` +
+        `from ${nv.population.eligible} documented root(s): ${nv.population.excluded} not walkable here, ${nv.population.checked - R.summedRoots} an alias or subtree of another.`
+    );
+    console.log(`  Dated ${R.earliest} to ${R.latest}.`);
+    console.log('  A DIRECTORY IS NOT A NIGHT AND A NAME IS NOT AN ELIGIBLE NIGHT — eligibility needs the streams inside the directory.');
+    console.log('  A count that does not name its roots and its depth is not a count — quote this scope with the number.');
+    return;
+  }
+
   const pattern = argv.find((a) => !a.startsWith('--'));
   if (!pattern) {
     console.error("usage: node tools/corpus-scope.mjs '<find -name pattern>' [--json]");

@@ -280,6 +280,80 @@ export function snapshotNights(root, { re = NIGHT_RE, at = null } = {}) {
  *  unreadable root is not a dataset of zero records. The night rule's two measurements do not apply
  *  here — there is no yardstick for "record-shaped" — so they are `null` rather than `[]`, the same
  *  distinction `snapshotNights` draws on a failed walk: nobody looked, as against nothing found. */
+/** Night-shaped directories under a root AT ANY DEPTH — a DIFFERENT walk from `snapshotNights`,
+ *  and deliberately not a replacement for it. That primitive reads ONE level, because a scorer's
+ *  population is the night directories its own `--dir` offers directly, and widening it would change
+ *  what eleven shipped tools score. A CENSUS asks a different question — how big is the corpus — and
+ *  the corpus NESTS: `uploads/` holds 180 night-shaped directories and a `readdirSync` of it names
+ *  none of them, so a one-level census publishes an understatement as a measurement. Row
+ *  2026-10-26-the-327-night-shaped-figure-counts-directories-over-two-scopes is that failure one
+ *  level up. This walk is recursive and its verdict STATES its depth beside the number.
+ *
+ *  ∅ A root this machine cannot walk yields `null`, never `0`. "Nobody looked" and "the corpus holds
+ *  none" are different statements, and the second is the one a later reader reuses as a size.
+ *
+ *  PURE given `lister`, which is REQUIRED and injected. This module must not shell out: the header
+ *  above records that `closureHazards` reads the whole text of every module in an importer's
+ *  closure, so a `find` here would mark all eleven scorers `exec`. The shipped lister that does walk
+ *  a filesystem lives in `tools/corpus-scope.mjs`. */
+export function nightDirsUnder(root, { re = NIGHT_RE, lister } = {}) {
+  if (typeof lister !== 'function') {
+    throw new TypeError('nightDirsUnder: a lister is required — this module never walks a filesystem itself');
+  }
+  const found = lister(root);
+  if (found === null || found === undefined) {
+    return { ok: false, root, reason: 'root not walkable from this machine', directories: null, names: null, rule: String(re) };
+  }
+  const dirs = found.filter((n) => re.test(n));
+  return { ok: true, root, reason: null, directories: dirs.length, names: [...new Set(dirs)].sort(), rule: String(re) };
+}
+
+/** The corpus size as ONE `tepna.verdict/1` object, in the TWO UNITS the 327 figure conflated.
+ *  `directories` counts night-shaped directories and `distinctNames` counts the names they carry;
+ *  the published figure summed the first and was read as the second. Neither is called a night
+ *  count, because a name says a directory exists and eligibility needs the streams inside it. */
+export function nightCensusVerdict(rows, { commit = null, commitReason = null, rule = String(NIGHT_RE), depth = 'recursive', tool = 'tools/corpus-scope.mjs' } = {}) {
+  const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+  const counted = rows.filter((r) => r.directories !== null && r.directories !== undefined);
+  /* A root that aliases or nests inside another is COUNTED and NOT SUMMED, the rule `dedupeRoots`
+     states — hiding it would make the scope smaller than the doc says it is. */
+  const summed = counted.filter((r) => r.counted !== false);
+  const directories = summed.reduce((a, r) => a + r.directories, 0);
+  const names = new Set();
+  for (const r of summed) for (const n of r.names || []) names.add(n);
+  const sorted = [...names].sort();
+  const excluded = rows.length - counted.length;
+  let status;
+  let reason;
+  if (rows.length === 0) {
+    status = 'NOT_RUN';
+    reason = `${DOC} listed no corpus roots — the doc could not be parsed`;
+  } else if (counted.length === 0) {
+    status = 'UNDERPOWERED';
+    reason = `none of the ${rows.length} documented root(s) is walkable from this machine, so this run cannot distinguish an empty corpus from an unreachable one`;
+  } else {
+    status = 'PASS';
+    reason = null;
+  }
+  const v = Verdict.make({
+    gate: 'corpus-night-census',
+    status,
+    scope: 'internal',
+    population: { checked: counted.length, eligible: rows.length, excluded },
+    criterion: { name: 'documented_roots_walked', threshold: rows.length, unit: '', direction: 'eq' },
+    result:
+      status === 'NOT_RUN'
+        ? null
+        : { directories, distinctNames: sorted.length, summedRoots: summed.length, depth, rule, earliest: sorted[0] ?? null, latest: sorted[sorted.length - 1] ?? null, byRoot: rows },
+    evidence: [tool, DOC],
+    reason,
+    producedBy: producedByOf(tool, commit, commitReason)
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`corpus-scope: night census verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  return v;
+}
+
 export function snapshotEntries(root, { list, unit = 'records', at = null } = {}) {
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   if (typeof list !== 'function') throw new Error('snapshotEntries: a `list` function IS the enumeration — without one there is no population to snapshot');
