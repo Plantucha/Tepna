@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**291 tools** · 290 with a purpose line · **1 without**
+**292 tools** · 291 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -50,6 +50,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`capture-recapture.mjs`](../tools/capture-recapture.mjs) | HOW MANY BEATS DID *EVERY* DETECTOR MISS — epidemiology's capture–recapture, imported. |
 | [`cgm-variability-check.mjs`](../tools/cgm-variability-check.mjs) | does GlucoDex's variability family actually need a ROBUST scale? |
 | [`check-stranded.mjs`](../tools/check-stranded.mjs) | DID YOUR WORK ACTUALLY REACH `main`? — the stranded-commit detector. |
+| [`checkout-advance.mjs`](../tools/checkout-advance.mjs) | say what blocks a fast-forward of a checkout, path by path, and which of those paths an advance would not change at all. |
 | [`ci-timing.mjs`](../tools/ci-timing.mjs) | WHICH CHECK IS THE MERGE RACE? — per-job CI timings, measured. |
 | [`circular-stats.mjs`](../tools/circular-stats.mjs) | CIRCULAR STATISTICS — the null the suite's own phase statistic lacked. |
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
