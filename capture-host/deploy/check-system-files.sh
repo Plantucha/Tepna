@@ -82,6 +82,10 @@ SRC="${TEPNA_SRC:-$(cd "$(dirname "$0")/.." && pwd)}"          # …/capture-hos
 ETC_SYSTEMD="${TEPNA_ETC_SYSTEMD:-/etc/systemd/system}"
 ETC_UDEV="${TEPNA_ETC_UDEV:-/etc/udev/rules.d}"
 ETC_NETWORKD="${TEPNA_ETC_NETWORKD:-/etc/systemd/network}"
+# needrestart's drop-in directory. The one file there keeps an unattended upgrade from restarting the
+# capture daemon through a held night; `deploy/needrestart-tepna-capture.conf` carries the measurement.
+# Nothing is reloaded for it — needrestart re-reads conf.d on every run.
+ETC_NEEDRESTART="${TEPNA_ETC_NEEDRESTART:-/etc/needrestart/conf.d}"
 # helper_path.SYSTEM_DIRS[0] — the ROOT-OWNED copies that hold the NOPASSWD sudoers grants, and the
 # ones `helper_path.resolve()` returns in preference to the in-repo copy.
 LIB_TEPNA="${TEPNA_LIB_DIR:-/usr/local/lib/tepna}"
@@ -118,6 +122,7 @@ systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED|0644
 systemd/99-tepna-hidraw.rules|$ETC_UDEV/99-tepna-hidraw.rules|MANAGED|0644
 systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service|MANAGED|0644
 deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED|0644
+deploy/needrestart-tepna-capture.conf|$ETC_NEEDRESTART/50-tepna-capture.conf|MANAGED|0644
 systemd/tepna-update.service|$ETC_SYSTEMD/tepna-update.service|MANAGED|0644
 systemd/tepna-update.timer|$ETC_SYSTEMD/tepna-update.timer|MANAGED|0644
 systemd/tepna-update-pending.service|$ETC_SYSTEMD/tepna-update-pending.service|MANAGED|0644
