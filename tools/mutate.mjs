@@ -106,10 +106,15 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { recoverStale } from './mutate-recover.mjs';
+import { isCliEntry } from './argv-guard.mjs'; // the ONE CLI-entry predicate, symlink-safe
 import { createHash } from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
+/* True only when node was handed THIS file. Everything with a side effect — the signal handlers,
+   recoverStale(), the flag dispatch, the run itself — sits under it at the foot of the file, so a
+   sibling can import the matcher without running a sweep. */
+const IS_MAIN = isCliEntry(import.meta.url);
 const has = (f) => argv.includes(f);
 const opt = (f, d) => {
   const i = argv.indexOf(f);
@@ -3823,6 +3828,44 @@ function selftest() {
     } catch {}
   }
 
+  /* THE CLI IS NOT A SIDE EFFECT OF AN IMPORT. A sibling tool that wants the matcher imports this
+     module; before the IS_MAIN guard, that import installed four signal handlers, ran recoverStale()
+     over the importer's tree and then exited 2 on `nothing to mutate`. Both legs are needed: the
+     child proves today's file is inert, and the shape leg catches a statement appended BELOW the
+     guard by a later edit, which an exit code cannot see. */
+  {
+    const r = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        `import(${JSON.stringify(import.meta.url)}).then(
+           (m) => {
+             const missing = ['resolveEntryAddresses', 'survivorKey', 'fnRanges'].filter((n) => typeof m[n] !== 'function');
+             if (missing.length) { console.error('missing: ' + missing.join(',')); process.exit(3); }
+             if (process.listenerCount('SIGINT') || process.listenerCount('uncaughtException')) process.exit(4);
+             process.exit(0);
+           },
+           (e) => { console.error(String((e && e.message) || e)); process.exit(5); }
+         );`
+      ],
+      { cwd: ROOT, encoding: 'utf8', timeout: 30000 }
+    );
+    ok('importing this module runs no CLI and still exposes the matcher', r.status === 0, 'exit ' + r.status + ' · ' + String(r.stderr || '').slice(0, 200));
+    ok('an import writes nothing to stdout or stderr', !r.stdout && !r.stderr, JSON.stringify({ out: String(r.stdout).slice(0, 120), err: String(r.stderr).slice(0, 120) }));
+  }
+  {
+    const self = readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n');
+    const guards = self.filter((l) => l === 'if (IS_MAIN) {').length;
+    const g = self.findIndex((l) => l === 'if (IS_MAIN) {');
+    const escaped = self.slice(g + 1).filter((l) => /^[^\s}]/.test(l));
+    const lastReal = [...self].reverse().find((l) => l.trim());
+    ok(
+      'the entry guard is the last top-level statement in the file',
+      guards === 1 && escaped.length === 0 && lastReal === '}',
+      'guard x' + guards + ' at line ' + (g + 1) + ' · ' + escaped.length + ' top-level line(s) below it · last ' + JSON.stringify(lastReal)
+    );
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -3861,380 +3904,393 @@ function restoreAll(why) {
   _dirty.clear();
   _inFlight.clear();
 }
-for (const sg of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'])
-  process.on(sg, () => {
-    restoreAll(sg);
-    dropPool();
-    process.exit(sg === 'SIGINT' ? 130 : 143);
-  });
-process.on('uncaughtException', (e) => {
-  restoreAll('uncaughtException: ' + String(e && e.message).slice(0, 120));
-  dropPool();
-  throw e;
-});
-
-/* The recovery lives in `tools/mutate-recover.mjs` so the CRAWL can call the same code at its own
-   startup. See that file for why a second copy was the wrong fix. */
-recoverStale(ROOT);
-
-if (has('--selftest')) process.exit(selftest());
-if (has('--verdict-sample')) {
-  console.log(JSON.stringify(verdictSample(), null, 1));
-  process.exit(0);
-}
-
-/* DIFF_LINES is read ONCE, here, and consulted per file inside runFile. Empty when --diff is off. */
+/* DIFF_LINES stays at MODULE scope, outside the CLI guard below: runFile() closes over it (two
+   reads, both under `DIFF ?`), so block-scoping it with the rest of the CLI would throw there. It
+   is read ONCE, inside the guard, and consulted per file inside runFile. Empty when --diff is off.
+   An importer never fills it, which is the same state a run without --diff leaves it in. */
 const DIFF_LINES = new Map();
-if (DIFF) {
-  /* NAMES FIRST, then a line-diff restricted to just those files. Asking for the whole patch blew the
-     64 MB buffer with ENOBUFS against a base a few weeks old — `uploads/` alone is enormous — and a
-     gate that dies on a long branch is a gate people switch off. Restricting the second call keeps it
-     small however far back the base is.
 
-     execFileSync with an ARGS ARRAY rather than a shell string: this repo ships paths with spaces
-     (`OxyDex Reference.html`), and interpolating one into `sh -c` mangles it. */
-  const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  let names = [];
-  try {
-    names = git(['diff', '--name-only', DIFF_BASE + '...HEAD'])
-      .split('\n')
-      .filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/'));
-  } catch (e) {
-    // FAIL CLOSED. A gate that cannot see the diff must never report "nothing to test".
-    console.error('--diff: cannot diff against ' + DIFF_BASE + ' — ' + String(e.message || e).split('\n')[0]);
-    console.error('  Is the base fetched?   git fetch origin main');
-    emitVerdict(
-      verdictObject('NOT_RUN', {
-        checked: 0,
-        eligible: 0,
-        result: null,
-        reason:
-          'cannot diff against ' +
-          DIFF_BASE +
-          ': ' +
-          String(e.message || e)
-            .split('\n')[0]
-            .slice(0, 120),
-        evidence: ['tools/mutate.mjs'],
-        commit: headCommit(),
-        base: DIFF_BASE
-      })
-    );
-    process.exit(2);
-  }
-  if (names.length) {
-    try {
-      /* `-w` (ignore whitespace) because a REFORMAT is not a behavioural change. Measured: a `biome`
-         format commit touches every line of clock.js, and without this the gate would select the
-         entire 123-mutant population — a ~2 h "gate" on a PR that changed no behaviour at all. It
-         does not cover re-wrapping (which genuinely moves tokens between lines), which is why the
-         cost is also printed up front rather than discovered by waiting. */
-      for (const [f, lines] of changedLinesFromDiff(git(['diff', DIFF_BASE + '...HEAD', '-U0', '-w', '--', ...names]))) DIFF_LINES.set(f, lines);
-    } catch (e) {
-      console.error('--diff: cannot read the line-level diff — ' + String(e.message || e).split('\n')[0]);
-      process.exit(2);
-    }
-  }
-}
+/* EVERYTHING BELOW IS THE CLI, and it runs only when this file IS the entry. A sibling tool that
+   wants the matcher — resolveEntryAddresses, survivorKey, fnRanges, enclosingFn — imports this
+   module, and before the guard that import installed four signal handlers, ran recoverStale() over
+   the caller’s tree and then exited 2 on `nothing to mutate`. The predicate is the shared one in
+   `tools/argv-guard.mjs`, which matches the entry as written or realpath’d. */
+if (IS_MAIN) {
+  for (const sg of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'])
+    process.on(sg, () => {
+      restoreAll(sg);
+      dropPool();
+      process.exit(sg === 'SIGINT' ? 130 : 143);
+    });
+  process.on('uncaughtException', (e) => {
+    restoreAll('uncaughtException: ' + String(e && e.message).slice(0, 120));
+    dropPool();
+    throw e;
+  });
 
-let files = [];
-for (let i = 0; i < argv.length; i++) if (argv[i] === '--file' && argv[i + 1]) files.push(argv[i + 1]);
-if (DIFF && !files.length) {
-  files = [...DIFF_LINES.keys()].filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/') && existsSync(join(ROOT, f)));
-  if (!files.length) {
-    // A real, honest pass: the change touched no mutable source. Say which, so it is not read as a skip.
-    console.error('--diff: no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — nothing to gate.');
-    emitVerdict(
-      verdictObject('NOT_APPLICABLE', {
-        checked: 0,
-        eligible: 0,
-        result: null,
-        reason: 'no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — the criterion does not bind',
-        evidence: ['tools/mutate.mjs'],
-        commit: headCommit(),
-        base: DIFF_BASE
-      })
-    );
+  /* The recovery lives in `tools/mutate-recover.mjs` so the CRAWL can call the same code at its own
+     startup. See that file for why a second copy was the wrong fix. */
+  recoverStale(ROOT);
+
+  if (has('--selftest')) process.exit(selftest());
+  if (has('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(), null, 1));
     process.exit(0);
   }
-}
-if (!files.length) {
-  try {
-    files = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' })
-      .split('\n')
-      .filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/'));
-  } catch {
-    files = [];
-  }
-}
-if (!files.length) {
-  console.error('nothing to mutate — pass --file <path>, or have changes vs origin/main. --selftest needs neither.');
-  process.exit(2);
-}
 
-/* SAY WHAT IT WILL COST, BEFORE SPENDING IT. `-w` stops a pure re-indent from selecting the whole
-   file, but it cannot stop a re-WRAP — a biome format commit still selected 92 of clock.js's 123
-   mutants. Someone expecting a PR gate should learn that from a line printed in the first second,
-   not by watching a "quick check" run for two hours. Cheap because --dry-run runs no suite. */
-if (DIFF && !DRY) {
-  let planned = 0;
-  for (const f of files) {
+  if (DIFF) {
+    /* NAMES FIRST, then a line-diff restricted to just those files. Asking for the whole patch blew the
+       64 MB buffer with ENOBUFS against a base a few weeks old — `uploads/` alone is enormous — and a
+       gate that dies on a long branch is a gate people switch off. Restricting the second call keeps it
+       small however far back the base is.
+
+       execFileSync with an ARGS ARRAY rather than a shell string: this repo ships paths with spaces
+       (`OxyDex Reference.html`), and interpolating one into `sh -c` mangles it. */
+    const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    let names = [];
     try {
-      const t = DIFF_LINES.get(f);
-      planned += mutantsFor(readFileSync(join(ROOT, f), 'utf8')).filter((m) => !t || t.has(m.line)).length;
-    } catch {}
-  }
-  const each = FULL ? 461 : 180; // seconds/mutant, measured; bail makes KILLED ones far cheaper
-  const mins = Math.round((planned * each) / Math.max(1, JOBS) / 60);
-  /* STDERR, so `--json` carries the plan without a stray line in the NDJSON stream stdout owes its
-     consumers. A plan is worth more to the run that gets cancelled than to the one that finishes. */
-  process.stderr.write('  diff gate: ' + planned + ' mutant(s) on ' + [...DIFF_LINES.values()].reduce((a, s) => a + s.size, 0) + ' changed line(s) in ' + files.length + ' file(s)\n');
-  process.stderr.write('  worst case ~' + mins + ' min at ' + JOBS + ' job(s); killed mutants return in seconds with bail' + (BAIL ? '' : ' (currently OFF)') + '\n\n');
-}
-
-/* REPORT PER FILE, AS IT COMPLETES — never buffer a long run to the end.
-   The first version accumulated every result and printed once, so a 71-file sweep showed NOTHING for
-   its entire duration and a kill (or a timeout) lost the lot. That is the same shape as a gate whose
-   output you cannot see until it is too late to act on. `--json` now emits NDJSON: one compact object
-   per line, per file, flushed as it lands — greppable, `jq`-able line by line, and whatever finished
-   before an interrupt is still on disk. */
-function reportOne(r) {
-  if (AS_JSON) {
-    process.stdout.write(JSON.stringify(r) + '\n');
-    return;
-  }
-  if (r.error) {
-    console.log('  ' + r.file + '\n    ⊘ ' + r.error + '\n');
-    return;
-  }
-  const measured = measuredDenominator(r);
-  const score = measured ? ((r.killed / measured) * 100).toFixed(0) : '—';
-  console.log(
-    '  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ' tagged' + (r.groupsSelected != null && r.groupsSelected !== r.groupCount ? ', ' + r.groupsSelected + ' RUN' : '') + ')'
-  );
-  console.log(
-    '    generated ' +
-      r.generated +
-      ', tested ' +
-      r.tested +
-      ' → killed ' +
-      r.killed +
-      ', survived ' +
-      r.survivors.length +
-      ', invalid ' +
-      r.invalid +
-      (r.inputVoid ? ', void ' + r.inputVoid : '') +
-      '   [' +
-      score +
-      ' % killed]'
-  );
-  /* THE DISTINGUISHABLE RATE, printed beside the raw one rather than replacing it. A reader must be
-     able to see both denominators and the gap between them -- that gap IS the finding. */
-  const eq = r.equivalence;
-  if (eq && (eq.excused || eq.realGap || eq.unclassified || eq.refuted.length || eq.orphaned.length || (eq.notDecided && eq.notDecided.length))) {
-    const dScore = eq.distinguishable > 0 ? ((r.killed / eq.distinguishable) * 100).toFixed(0) : '\u2014';
-    console.log(
-      '    equivalence: ' + eq.excused + ' excused, ' + eq.realGap + ' real-gap, ' + eq.unclassified + ' UNCLASSIFIED' + '   [' + dScore + ' % of ' + eq.distinguishable + ' distinguishable]'
-    );
-    /* A refuted entry is the one failure this mechanism could hide a real gap behind, so it shouts.
-       The fix is always to correct the entry -- never to weaken the test that killed it. */
-    for (const e of eq.refuted)
-      console.log(
-        '      \u26a0 REFUTED  ' +
-          r.file +
-          ':' +
-          e.line +
-          '  [' +
-          e.op +
-          '] is classified "' +
-          e.class +
-          '" but was KILLED.\n' +
-          '        A distinguishing input exists after all. Correct the entry in tools/mutate-equivalence.json.'
+      names = git(['diff', '--name-only', DIFF_BASE + '...HEAD'])
+        .split('\n')
+        .filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/'));
+    } catch (e) {
+      // FAIL CLOSED. A gate that cannot see the diff must never report "nothing to test".
+      console.error('--diff: cannot diff against ' + DIFF_BASE + ' — ' + String(e.message || e).split('\n')[0]);
+      console.error('  Is the base fetched?   git fetch origin main');
+      emitVerdict(
+        verdictObject('NOT_RUN', {
+          checked: 0,
+          eligible: 0,
+          result: null,
+          reason:
+            'cannot diff against ' +
+            DIFF_BASE +
+            ': ' +
+            String(e.message || e)
+              .split('\n')[0]
+              .slice(0, 120),
+          evidence: ['tools/mutate.mjs'],
+          commit: headCommit(),
+          base: DIFF_BASE
+        })
       );
-    // generated, not a survivor, and NO recorded kill: unmeasured, so neither excused nor refuted
-    if (eq.notDecided && eq.notDecided.length)
-      console.log(
-        '      \u25cb ' + eq.notDecided.length + ' entr(ies) NOT DECIDED \u2014 the mutant was generated but no kill or survival was recorded for it in this run; the claim is unchecked, not refuted.'
-      );
-    /* "the line moved or the code changed" named BOTH causes and separated neither, so the only
-       actionable one -- a lapsed excuse an existing tool can move back -- was unreadable. */
-    const drift = eq.drifted || [];
-    const dead = eq.stale || [];
-    const outOfScope = eq.orphaned.length - drift.length - dead.length;
-    if (outOfScope > 0)
-      console.log('      \u25cb ' + outOfScope + ' entr(ies) OUT OF SCOPE \u2014 the mutant is in the file and this run did not test its line. Ordinary in a diff run; it excuses nothing here.');
-    for (const e of drift)
-      console.log(
-        '      \u26a0 DRIFTED  ' +
-          r.file +
-          ':' +
-          e.line +
-          '  [' +
-          e.op +
-          '] \u2014 the identical mutant now sits at L' +
-          (e.foundAtLines || []).join(', L') +
-          '.\n        The excuse LAPSED on an edit above it. Run node tools/reanchor-equivalence.mjs to move it, which re-addresses the entry and never renews its claim.'
-      );
-    for (const e of dead)
-      console.log(
-        '      \u2298 STALE    ' + r.file + ':' + e.line + '  [' + e.op + '] matches no mutant anywhere in the file \u2014 the code it excused is gone, so only re-verification replaces it.'
-      );
-  }
-  for (const s of r.survivors.slice(0, 25)) console.log('      SURVIVED ' + r.file + ':' + s.line + '  [' + s.op + ']\n        ' + s.before + '\n        ' + s.after);
-  if (r.survivors.length > 25) console.log('      … and ' + (r.survivors.length - 25) + ' more');
-  console.log('');
-}
-
-if (!AS_JSON) console.log('MUTATION SWEEP — a surviving mutant means the suite cannot see a change there\n');
-if (DRY) {
-  /* `--dry-run --json` is the ENUMERATE-WITHOUT-TESTING lane (mutmut's `mutmut run --dry-run`
-     equivalent): it emits every mutant with a stable id so a triage tool can reproduce one by id
-     without re-deriving the operator set. `--json` used to be ignored here, so the only enumeration
-     was human-readable text — which meant any sibling tool had to re-implement OPS and would drift
-     (the divergent-copy failure this repo has hit before). */
-  const dryOut = [];
-  for (const f of files) {
-    const abs = join(ROOT, f);
-    if (!existsSync(abs)) {
-      if (!AS_JSON) console.log('  ' + f + '  ⊘ not found');
-      else dryOut.push({ file: f, error: 'not found' });
-      continue;
+      process.exit(2);
     }
-    /* Dry-run honours --diff too. Without this, `--diff --dry-run` would enumerate the WHOLE file and
-       give a wildly wrong picture of what the gate is about to test — the one command someone runs to
-       check the gate's scope before trusting it. */
-    const _touched = DIFF ? DIFF_LINES.get(f) || new Set() : null;
-    const _srcText = readFileSync(abs, 'utf8');
-    const ms = mutantsFor(_srcText).filter((m) => !_touched || _touched.has(m.line));
-    /* The ENUMERATOR stamps the enclosing function, because it is the one process that holds the
-       source. A sibling tool that needed the qualifier would otherwise re-implement the brace
-       matcher and drift from it — the divergent-copy failure the comment above already names for
-       OPS. `null` outside a named declaration, which is the qualifier's absent state. */
-    const _fnR = fnRanges(_srcText);
+    if (names.length) {
+      try {
+        /* `-w` (ignore whitespace) because a REFORMAT is not a behavioural change. Measured: a `biome`
+           format commit touches every line of clock.js, and without this the gate would select the
+           entire 123-mutant population — a ~2 h "gate" on a PR that changed no behaviour at all. It
+           does not cover re-wrapping (which genuinely moves tokens between lines), which is why the
+           cost is also printed up front rather than discovered by waiting. */
+        for (const [f, lines] of changedLinesFromDiff(git(['diff', DIFF_BASE + '...HEAD', '-U0', '-w', '--', ...names]))) DIFF_LINES.set(f, lines);
+      } catch (e) {
+        console.error('--diff: cannot read the line-level diff — ' + String(e.message || e).split('\n')[0]);
+        process.exit(2);
+      }
+    }
+  }
+
+  let files = [];
+  for (let i = 0; i < argv.length; i++) if (argv[i] === '--file' && argv[i + 1]) files.push(argv[i + 1]);
+  if (DIFF && !files.length) {
+    files = [...DIFF_LINES.keys()].filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/') && existsSync(join(ROOT, f)));
+    if (!files.length) {
+      // A real, honest pass: the change touched no mutable source. Say which, so it is not read as a skip.
+      console.error('--diff: no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — nothing to gate.');
+      emitVerdict(
+        verdictObject('NOT_APPLICABLE', {
+          checked: 0,
+          eligible: 0,
+          result: null,
+          reason: 'no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — the criterion does not bind',
+          evidence: ['tools/mutate.mjs'],
+          commit: headCommit(),
+          base: DIFF_BASE
+        })
+      );
+      process.exit(0);
+    }
+  }
+  if (!files.length) {
+    try {
+      files = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' })
+        .split('\n')
+        .filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/'));
+    } catch {
+      files = [];
+    }
+  }
+  if (!files.length) {
+    console.error('nothing to mutate — pass --file <path>, or have changes vs origin/main. --selftest needs neither.');
+    process.exit(2);
+  }
+
+  /* SAY WHAT IT WILL COST, BEFORE SPENDING IT. `-w` stops a pure re-indent from selecting the whole
+     file, but it cannot stop a re-WRAP — a biome format commit still selected 92 of clock.js's 123
+     mutants. Someone expecting a PR gate should learn that from a line printed in the first second,
+     not by watching a "quick check" run for two hours. Cheap because --dry-run runs no suite. */
+  if (DIFF && !DRY) {
+    let planned = 0;
+    for (const f of files) {
+      try {
+        const t = DIFF_LINES.get(f);
+        planned += mutantsFor(readFileSync(join(ROOT, f), 'utf8')).filter((m) => !t || t.has(m.line)).length;
+      } catch {}
+    }
+    const each = FULL ? 461 : 180; // seconds/mutant, measured; bail makes KILLED ones far cheaper
+    const mins = Math.round((planned * each) / Math.max(1, JOBS) / 60);
+    /* STDERR, so `--json` carries the plan without a stray line in the NDJSON stream stdout owes its
+       consumers. A plan is worth more to the run that gets cancelled than to the one that finishes. */
+    process.stderr.write('  diff gate: ' + planned + ' mutant(s) on ' + [...DIFF_LINES.values()].reduce((a, s) => a + s.size, 0) + ' changed line(s) in ' + files.length + ' file(s)\n');
+    process.stderr.write('  worst case ~' + mins + ' min at ' + JOBS + ' job(s); killed mutants return in seconds with bail' + (BAIL ? '' : ' (currently OFF)') + '\n\n');
+  }
+
+  /* REPORT PER FILE, AS IT COMPLETES — never buffer a long run to the end.
+     The first version accumulated every result and printed once, so a 71-file sweep showed NOTHING for
+     its entire duration and a kill (or a timeout) lost the lot. That is the same shape as a gate whose
+     output you cannot see until it is too late to act on. `--json` now emits NDJSON: one compact object
+     per line, per file, flushed as it lands — greppable, `jq`-able line by line, and whatever finished
+     before an interrupt is still on disk. */
+  function reportOne(r) {
     if (AS_JSON) {
-      /* `mutated` rides along here and ONLY here: --dry-run is the enumeration a re-applier reads
-         (probe-equivalence), whereas a sweep record is a result set nobody re-applies from. */
-      dryOut.push({
-        file: f,
-        generated: ms.length,
-        mutants: ms.map((mu, i) => ({ id: f + ':' + mu.line + ':' + i, line: mu.line, op: mu.op, before: mu.before, after: mu.after, fn: enclosingFnIn(_fnR, mu.line), mutated: mu.mutated }))
-      });
-    } else {
-      console.log('  ' + f + '  ' + ms.length + ' mutant(s)');
-      for (const mu of thin(ms, LIMIT)) console.log('    L' + mu.line + '  [' + mu.op + ']  ' + mu.before.slice(0, 88));
+      process.stdout.write(JSON.stringify(r) + '\n');
+      return;
     }
-  }
-  if (AS_JSON) console.log(JSON.stringify({ dryRun: true, files: dryOut }, null, 2));
-  process.exit(0);
-}
-
-const results = [];
-try {
-  for (const f of files) {
-    const r = await runFile(f);
-    results.push(r);
-    reportOne(r);
-  }
-} finally {
-  dropPool();
-}
-/* A one-line roll-up at the end, so a sweep does not have to be re-aggregated by hand to answer the
-   only question that spans files: how much of this codebase can the suite actually see? */
-if (!AS_JSON) {
-  const ok = results.filter((r) => !r.error);
-  const k = ok.reduce((a, r) => a + r.killed, 0);
-  const n = ok.reduce((a, r) => a + measuredDenominator(r), 0);
-  const gen = ok.reduce((a, r) => a + r.generated, 0);
-  console.log(
-    '  ── ' +
-      ok.length +
-      ' file(s) measured, ' +
-      (results.length - ok.length) +
-      ' skipped ── ' +
-      k +
-      '/' +
-      n +
-      ' killed = ' +
-      (n ? ((k / n) * 100).toFixed(0) : '—') +
-      ' %  (of ' +
-      gen +
-      ' mutants that exist)'
-  );
-}
-
-/* ── DIFF MODE IS A GATE, so it decides an EXIT CODE ────────────────────────────────────────────
-   Survey mode reports and always exits 0: a survivor in code nobody touched is information, not a
-   verdict. Diff mode is the opposite — every mutant it tested sits on a line this change wrote, so a
-   survivor means "you changed this and no test can see it", which is exactly the thing to block on.
-
-   It refuses in three ways, and only one of them is "a survivor":
-     · a VOIDED run (canary survived) exits 3 — the harness could not be trusted to detect kills, so
-       "all killed" would be an unearned pass, and passing on an unverifiable measurement is worse
-       than failing on a real one;
-     · INVALID mutants exit 3 too — they never ran, so nothing about them was proven;
-     · survivors exit 1, listed with file:line and the exact edit that went unnoticed. */
-if (DIFF) {
-  const ok = results.filter((r) => !r.error);
-  const surv = ok.flatMap((r) => survivorsToBlock(r).map((s) => ({ file: r.file, ...s })));
-  const excusedN = ok.reduce((a, r) => a + r.survivors.length, 0) - surv.length;
-  const refutedAll = ok.flatMap((r) => ((r.equivalence && r.equivalence.refuted) || []).map((e) => ({ file: r.file, ...e })));
-  const voided = ok.filter((r) => r.voided);
-  /* The SAME union diffVerdict uses, including the void bucket — the two are printed side by side,
-     so a disagreement here would read as the tool contradicting its own verdict object. */
-  const voidInput = ok.reduce((a, r) => a + (r.inputVoid || 0), 0);
-  const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0) + (r.inputVoid || 0), 0);
-  const tested = ok.reduce((a, r) => a + r.tested, 0);
-  const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
-  /* ONE decision, made by diffVerdict (pure, selftest-pinned); the prose below explains it and the
-     process exits with the code it chose — status and exit code cannot drift apart. */
-  const { verdict, code } = diffVerdict(results, { base: DIFF_BASE, commit: headCommit() });
-  if (voided.length) {
-    console.error('\n✕ MUTATION GATE VOID — the canary survived on: ' + voided.map((r) => r.file).join(', '));
-    console.error('  Kills are not being detected, so "all killed" would prove nothing. Not a pass.');
-  } else if (voidInput) {
-    console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + voidInput + ' of ' + tested + ' mutants were VOID: the input moved while they ran.');
-    console.error('  Each faced two trees, so its verdict is about neither. Re-run in a tree nothing else is writing to.');
-    if (unrun > voidInput) console.error('  ' + (unrun - voidInput) + ' further mutant(s) never ran at all.');
-  } else if (unrun) {
-    console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + unrun + ' of ' + tested + ' mutants never ran.');
-    console.error('  They did not compile, timed out under load, or were quarantined for going silent. Nothing was proven about them.');
-  } else if (surv.length) {
-    console.error('\n✕ MUTATION GATE — ' + surv.length + ' of ' + tested + ' mutants on your ' + lines + ' changed line(s) SURVIVED.');
-    console.error('  Each is an edit you made that no test can see. Add an assertion, or explain why it is unobservable:\n');
-    for (const s of surv.slice(0, 20)) console.error('    ' + s.file + ':' + s.line + '  [' + s.op + ']\n      ' + String(s.before).trim().slice(0, 100));
-    if (surv.length > 20) console.error('    … and ' + (surv.length - 20) + ' more');
-  } else if (refutedAll.length) {
-    console.error('\n✕ MUTATION GATE — ' + refutedAll.length + ' equivalence entr(ies) REFUTED: a kill was recorded for a mutant the ledger says cannot be killed.');
-    for (const e of refutedAll.slice(0, 20)) console.error('    ' + e.file + ':' + e.line + '  [' + e.op + '] is classified "' + e.class + '"');
-    console.error('  Correct the entry in tools/mutate-equivalence.json — never weaken the test that killed it.');
-  } else if (verdict.status === 'PASS' && !AS_JSON)
+    if (r.error) {
+      console.log('  ' + r.file + '\n    ⊘ ' + r.error + '\n');
+      return;
+    }
+    const measured = measuredDenominator(r);
+    const score = measured ? ((r.killed / measured) * 100).toFixed(0) : '—';
     console.log(
-      '\n✓ mutation gate: ' +
-        (excusedN
-          ? tested + ' mutant(s) on ' + lines + ' changed line(s) — ' + (tested - excusedN) + ' killed, ' + excusedN + ' excused by a recorded equivalence entry.'
-          : 'all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.')
+      '  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ' tagged' + (r.groupsSelected != null && r.groupsSelected !== r.groupCount ? ', ' + r.groupsSelected + ' RUN' : '') + ')'
     );
-  else if (!AS_JSON) console.log('\n○ mutation gate ' + verdict.status + ' — ' + verdict.reason);
-  emitVerdict(verdict);
-  if (code) process.exit(code);
-}
+    console.log(
+      '    generated ' +
+        r.generated +
+        ', tested ' +
+        r.tested +
+        ' → killed ' +
+        r.killed +
+        ', survived ' +
+        r.survivors.length +
+        ', invalid ' +
+        r.invalid +
+        (r.inputVoid ? ', void ' + r.inputVoid : '') +
+        '   [' +
+        score +
+        ' % killed]'
+    );
+    /* THE DISTINGUISHABLE RATE, printed beside the raw one rather than replacing it. A reader must be
+       able to see both denominators and the gap between them -- that gap IS the finding. */
+    const eq = r.equivalence;
+    if (eq && (eq.excused || eq.realGap || eq.unclassified || eq.refuted.length || eq.orphaned.length || (eq.notDecided && eq.notDecided.length))) {
+      const dScore = eq.distinguishable > 0 ? ((r.killed / eq.distinguishable) * 100).toFixed(0) : '\u2014';
+      console.log(
+        '    equivalence: ' + eq.excused + ' excused, ' + eq.realGap + ' real-gap, ' + eq.unclassified + ' UNCLASSIFIED' + '   [' + dScore + ' % of ' + eq.distinguishable + ' distinguishable]'
+      );
+      /* A refuted entry is the one failure this mechanism could hide a real gap behind, so it shouts.
+         The fix is always to correct the entry -- never to weaken the test that killed it. */
+      for (const e of eq.refuted)
+        console.log(
+          '      \u26a0 REFUTED  ' +
+            r.file +
+            ':' +
+            e.line +
+            '  [' +
+            e.op +
+            '] is classified "' +
+            e.class +
+            '" but was KILLED.\n' +
+            '        A distinguishing input exists after all. Correct the entry in tools/mutate-equivalence.json.'
+        );
+      // generated, not a survivor, and NO recorded kill: unmeasured, so neither excused nor refuted
+      if (eq.notDecided && eq.notDecided.length)
+        console.log(
+          '      \u25cb ' +
+            eq.notDecided.length +
+            ' entr(ies) NOT DECIDED \u2014 the mutant was generated but no kill or survival was recorded for it in this run; the claim is unchecked, not refuted.'
+        );
+      /* "the line moved or the code changed" named BOTH causes and separated neither, so the only
+         actionable one -- a lapsed excuse an existing tool can move back -- was unreadable. */
+      const drift = eq.drifted || [];
+      const dead = eq.stale || [];
+      const outOfScope = eq.orphaned.length - drift.length - dead.length;
+      if (outOfScope > 0)
+        console.log('      \u25cb ' + outOfScope + ' entr(ies) OUT OF SCOPE \u2014 the mutant is in the file and this run did not test its line. Ordinary in a diff run; it excuses nothing here.');
+      for (const e of drift)
+        console.log(
+          '      \u26a0 DRIFTED  ' +
+            r.file +
+            ':' +
+            e.line +
+            '  [' +
+            e.op +
+            '] \u2014 the identical mutant now sits at L' +
+            (e.foundAtLines || []).join(', L') +
+            '.\n        The excuse LAPSED on an edit above it. Run node tools/reanchor-equivalence.mjs to move it, which re-addresses the entry and never renews its claim.'
+        );
+      for (const e of dead)
+        console.log(
+          '      \u2298 STALE    ' + r.file + ':' + e.line + '  [' + e.op + '] matches no mutant anywhere in the file \u2014 the code it excused is gone, so only re-verification replaces it.'
+        );
+    }
+    for (const s of r.survivors.slice(0, 25)) console.log('      SURVIVED ' + r.file + ':' + s.line + '  [' + s.op + ']\n        ' + s.before + '\n        ' + s.after);
+    if (r.survivors.length > 25) console.log('      … and ' + (r.survivors.length - 25) + ' more');
+    console.log('');
+  }
 
-/* ── --verdict: the §2.13 machine-readable compliance manifest ──────────────────────────────
-   One JSON object on stdout, beside (never instead of) the prose above. `run` carries this run's
-   outcome facts; `clauses` is the tool's standing declaration about its own construction. */
-if (WANT_VERDICT) {
-  const vok = results.filter((r) => !r.error);
-  process.stdout.write(
-    JSON.stringify(
-      complianceManifest({
-        files: results.length,
-        measured: vok.length,
-        tested: vok.reduce((a, r) => a + r.tested, 0),
-        killed: vok.reduce((a, r) => a + (r.killed || 0), 0),
-        invalid: vok.reduce((a, r) => a + r.invalid, 0),
-        quarantined: vok.reduce((a, r) => a + (r.quarantined || 0), 0),
-        canaryFailed: vok.some((r) => r.canary === 'FAILED')
-      })
-    ) + '\n'
-  );
+  if (!AS_JSON) console.log('MUTATION SWEEP — a surviving mutant means the suite cannot see a change there\n');
+  if (DRY) {
+    /* `--dry-run --json` is the ENUMERATE-WITHOUT-TESTING lane (mutmut's `mutmut run --dry-run`
+       equivalent): it emits every mutant with a stable id so a triage tool can reproduce one by id
+       without re-deriving the operator set. `--json` used to be ignored here, so the only enumeration
+       was human-readable text — which meant any sibling tool had to re-implement OPS and would drift
+       (the divergent-copy failure this repo has hit before). */
+    const dryOut = [];
+    for (const f of files) {
+      const abs = join(ROOT, f);
+      if (!existsSync(abs)) {
+        if (!AS_JSON) console.log('  ' + f + '  ⊘ not found');
+        else dryOut.push({ file: f, error: 'not found' });
+        continue;
+      }
+      /* Dry-run honours --diff too. Without this, `--diff --dry-run` would enumerate the WHOLE file and
+         give a wildly wrong picture of what the gate is about to test — the one command someone runs to
+         check the gate's scope before trusting it. */
+      const _touched = DIFF ? DIFF_LINES.get(f) || new Set() : null;
+      const _srcText = readFileSync(abs, 'utf8');
+      const ms = mutantsFor(_srcText).filter((m) => !_touched || _touched.has(m.line));
+      /* The ENUMERATOR stamps the enclosing function, because it is the one process that holds the
+         source. A sibling tool that needed the qualifier would otherwise re-implement the brace
+         matcher and drift from it — the divergent-copy failure the comment above already names for
+         OPS. `null` outside a named declaration, which is the qualifier's absent state. */
+      const _fnR = fnRanges(_srcText);
+      if (AS_JSON) {
+        /* `mutated` rides along here and ONLY here: --dry-run is the enumeration a re-applier reads
+           (probe-equivalence), whereas a sweep record is a result set nobody re-applies from. */
+        dryOut.push({
+          file: f,
+          generated: ms.length,
+          mutants: ms.map((mu, i) => ({ id: f + ':' + mu.line + ':' + i, line: mu.line, op: mu.op, before: mu.before, after: mu.after, fn: enclosingFnIn(_fnR, mu.line), mutated: mu.mutated }))
+        });
+      } else {
+        console.log('  ' + f + '  ' + ms.length + ' mutant(s)');
+        for (const mu of thin(ms, LIMIT)) console.log('    L' + mu.line + '  [' + mu.op + ']  ' + mu.before.slice(0, 88));
+      }
+    }
+    if (AS_JSON) console.log(JSON.stringify({ dryRun: true, files: dryOut }, null, 2));
+    process.exit(0);
+  }
+
+  const results = [];
+  try {
+    for (const f of files) {
+      const r = await runFile(f);
+      results.push(r);
+      reportOne(r);
+    }
+  } finally {
+    dropPool();
+  }
+  /* A one-line roll-up at the end, so a sweep does not have to be re-aggregated by hand to answer the
+     only question that spans files: how much of this codebase can the suite actually see? */
+  if (!AS_JSON) {
+    const ok = results.filter((r) => !r.error);
+    const k = ok.reduce((a, r) => a + r.killed, 0);
+    const n = ok.reduce((a, r) => a + measuredDenominator(r), 0);
+    const gen = ok.reduce((a, r) => a + r.generated, 0);
+    console.log(
+      '  ── ' +
+        ok.length +
+        ' file(s) measured, ' +
+        (results.length - ok.length) +
+        ' skipped ── ' +
+        k +
+        '/' +
+        n +
+        ' killed = ' +
+        (n ? ((k / n) * 100).toFixed(0) : '—') +
+        ' %  (of ' +
+        gen +
+        ' mutants that exist)'
+    );
+  }
+
+  /* ── DIFF MODE IS A GATE, so it decides an EXIT CODE ────────────────────────────────────────────
+     Survey mode reports and always exits 0: a survivor in code nobody touched is information, not a
+     verdict. Diff mode is the opposite — every mutant it tested sits on a line this change wrote, so a
+     survivor means "you changed this and no test can see it", which is exactly the thing to block on.
+
+     It refuses in three ways, and only one of them is "a survivor":
+       · a VOIDED run (canary survived) exits 3 — the harness could not be trusted to detect kills, so
+         "all killed" would be an unearned pass, and passing on an unverifiable measurement is worse
+         than failing on a real one;
+       · INVALID mutants exit 3 too — they never ran, so nothing about them was proven;
+       · survivors exit 1, listed with file:line and the exact edit that went unnoticed. */
+  if (DIFF) {
+    const ok = results.filter((r) => !r.error);
+    const surv = ok.flatMap((r) => survivorsToBlock(r).map((s) => ({ file: r.file, ...s })));
+    const excusedN = ok.reduce((a, r) => a + r.survivors.length, 0) - surv.length;
+    const refutedAll = ok.flatMap((r) => ((r.equivalence && r.equivalence.refuted) || []).map((e) => ({ file: r.file, ...e })));
+    const voided = ok.filter((r) => r.voided);
+    /* The SAME union diffVerdict uses, including the void bucket — the two are printed side by side,
+       so a disagreement here would read as the tool contradicting its own verdict object. */
+    const voidInput = ok.reduce((a, r) => a + (r.inputVoid || 0), 0);
+    const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0) + (r.inputVoid || 0), 0);
+    const tested = ok.reduce((a, r) => a + r.tested, 0);
+    const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
+    /* ONE decision, made by diffVerdict (pure, selftest-pinned); the prose below explains it and the
+       process exits with the code it chose — status and exit code cannot drift apart. */
+    const { verdict, code } = diffVerdict(results, { base: DIFF_BASE, commit: headCommit() });
+    if (voided.length) {
+      console.error('\n✕ MUTATION GATE VOID — the canary survived on: ' + voided.map((r) => r.file).join(', '));
+      console.error('  Kills are not being detected, so "all killed" would prove nothing. Not a pass.');
+    } else if (voidInput) {
+      console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + voidInput + ' of ' + tested + ' mutants were VOID: the input moved while they ran.');
+      console.error('  Each faced two trees, so its verdict is about neither. Re-run in a tree nothing else is writing to.');
+      if (unrun > voidInput) console.error('  ' + (unrun - voidInput) + ' further mutant(s) never ran at all.');
+    } else if (unrun) {
+      console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + unrun + ' of ' + tested + ' mutants never ran.');
+      console.error('  They did not compile, timed out under load, or were quarantined for going silent. Nothing was proven about them.');
+    } else if (surv.length) {
+      console.error('\n✕ MUTATION GATE — ' + surv.length + ' of ' + tested + ' mutants on your ' + lines + ' changed line(s) SURVIVED.');
+      console.error('  Each is an edit you made that no test can see. Add an assertion, or explain why it is unobservable:\n');
+      for (const s of surv.slice(0, 20)) console.error('    ' + s.file + ':' + s.line + '  [' + s.op + ']\n      ' + String(s.before).trim().slice(0, 100));
+      if (surv.length > 20) console.error('    … and ' + (surv.length - 20) + ' more');
+    } else if (refutedAll.length) {
+      console.error('\n✕ MUTATION GATE — ' + refutedAll.length + ' equivalence entr(ies) REFUTED: a kill was recorded for a mutant the ledger says cannot be killed.');
+      for (const e of refutedAll.slice(0, 20)) console.error('    ' + e.file + ':' + e.line + '  [' + e.op + '] is classified "' + e.class + '"');
+      console.error('  Correct the entry in tools/mutate-equivalence.json — never weaken the test that killed it.');
+    } else if (verdict.status === 'PASS' && !AS_JSON)
+      console.log(
+        '\n✓ mutation gate: ' +
+          (excusedN
+            ? tested + ' mutant(s) on ' + lines + ' changed line(s) — ' + (tested - excusedN) + ' killed, ' + excusedN + ' excused by a recorded equivalence entry.'
+            : 'all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.')
+      );
+    else if (!AS_JSON) console.log('\n○ mutation gate ' + verdict.status + ' — ' + verdict.reason);
+    emitVerdict(verdict);
+    if (code) process.exit(code);
+  }
+
+  /* ── --verdict: the §2.13 machine-readable compliance manifest ──────────────────────────────
+     One JSON object on stdout, beside (never instead of) the prose above. `run` carries this run's
+     outcome facts; `clauses` is the tool's standing declaration about its own construction. */
+  if (WANT_VERDICT) {
+    const vok = results.filter((r) => !r.error);
+    process.stdout.write(
+      JSON.stringify(
+        complianceManifest({
+          files: results.length,
+          measured: vok.length,
+          tested: vok.reduce((a, r) => a + r.tested, 0),
+          killed: vok.reduce((a, r) => a + (r.killed || 0), 0),
+          invalid: vok.reduce((a, r) => a + r.invalid, 0),
+          quarantined: vok.reduce((a, r) => a + (r.quarantined || 0), 0),
+          canaryFailed: vok.some((r) => r.canary === 'FAILED')
+        })
+      ) + '\n'
+    );
+  }
 }
