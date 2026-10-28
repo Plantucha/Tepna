@@ -7,7 +7,7 @@
 **branch:** claude/cryptofloor-wrn
 **worktree:** ../wt-cryptofloor-wrn
 **doc-search:** `cryptography floor 50.0.1 venv requirements capture-host`
-**stopping-point:** `capture-host/requirements.txt:6` reads `cryptography>=50.0.0`, and the row reads `fixed #PRNUM`.
+**stopping-point:** `capture-host/requirements.txt:6` reads `cryptography>=50.0.0`, and the row reads `fixed #4028`.
 **next-step:** None in the repo. The optional OpenSSL step below is an owner-deploy item.
 **done-when:** `git show origin/main:capture-host/requirements.txt` declares `cryptography>=50.0.0`.
 
