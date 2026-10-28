@@ -564,13 +564,21 @@
    "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
   },
   {
-   "line": 485,
+   "line": 1275,
    "op": "cmp < → <=",
    "before": "for (let i = 0; i < n; i++) {",
    "after": "for (let i = 0; i <= n; i++) {",
    "class": "no-distinguishing-input",
    "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
-   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-28",
+    "from": 485,
+    "commit": "22974e0d2ac2",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (104 group(s))",
+    "rule": "settle rule 5b (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1286,
@@ -624,13 +632,21 @@
    "fn": "parsePPG"
   },
   {
-   "line": 577,
+   "line": 1412,
    "op": "cmp < → <=",
    "before": "for (let i = 0; i < n; i++) {",
    "after": "for (let i = 0; i <= n; i++) {",
    "class": "no-distinguishing-input",
    "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
-   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+   "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
+   "reanchored": {
+    "at": "2026-10-28",
+    "from": 577,
+    "commit": "22974e0d2ac2",
+    "outcome": "survived",
+    "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (104 group(s))",
+    "rule": "settle rule 5b (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1400,

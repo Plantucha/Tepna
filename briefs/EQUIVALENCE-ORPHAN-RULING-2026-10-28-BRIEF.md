@@ -256,6 +256,57 @@ Item 3 asked that a re-probe land under `--probe` and never under a bare `--writ
 settled. No bare `--write` touched these entries, and `--prune` and `--settle` both refuse to run
 beside `--probe` or `--qualify`.
 
+## The two escalated entries carried their own address all along (2026-10-28, rule 5-bis)
+
+Residue row `2026-10-28-two-equivalence-excuses-sit-over-six-sites-one-of-which-the-suite-kills`
+states the shape rule 5 escalates on: two entries over six candidate sites, five of them surviving
+and one killed, and the row concludes that "nothing in the entry says which site it meant". That
+second half is wrong. The evidence sat in both entries before this brief existed.
+
+**The `probe` field is machine-written, and it opens with the family.** `tools/probe-equivalence.mjs`
+composes it as `` `${fam.name}: <n> inputs, <d> distinct baseline answers; …` ``, so its leading
+token names the family the verdict came from. Both entries read `parsePPG · string/parsing: 61
+inputs, 27 distinct baseline answers; 11/11 same-function controls separated.`
+
+**And the engine selects a family's survivors by SOURCE RANGE, never by name:**
+`inRange = (m) => m.line >= range.start && m.line <= range.end` over `functionRange(SRC, fam.fn)`.
+An emitted entry's family therefore names a function whose range contained the mutant that was
+judged. `functionRange` resolves `parsePPG` to L871–1719 today, and the six sites fall this way:
+
+| site | line | inside `parsePPG` L871–1719 | probe outcome |
+|---|---|---|---|
+| `pinnedSpans` | 568 | no | survived |
+| `parsePPG` | 1275 | **yes** | survived |
+| `parsePPG` | 1412 | **yes** | survived |
+| `cadenceSamples` | 2199 | no | survived |
+| `pearson` | 2711 | no | KILLED |
+| `movementOnsets` | 3787 | no | survived |
+
+Two entries, two in-range sites, both surviving, and the killed one outside the range. Narrowing the
+cohort to the probed family turns rule 5 into rule 2, a bijection, so each entry takes a real
+distinct site that this run watched survive. `tools/reanchor-equivalence.mjs` carries that as rule
+5-bis: it narrows an already-escalated cohort by the range of the family its entries name, and it
+takes the re-decision only when that decision ADDRESSES. Rules 1 and 3 would delete an entry, and a
+narrowing says which site the engine judged, not whether the excuse falls.
+
+**It reads a range and not a name, because a name is wrong about one entry in 28.** Over the
+committed ledger, 309 entries carry both a machine-read `fn` and a parseable probe family, and the
+two disagree on 11. `spikeAt` sits under family `detectClampSaturation`, nested inside it.
+`countPairsIn` sits under `countPairs` and `markO2BeatMarkers` under `markO2Sentinels`, both renamed
+since, so those two families resolve to null today and the rule declines rather than guessing.
+`dfaAlpha1Segmented` sits under `dfaAlpha1`, whose range has since shrunk past it. Every one of the
+11 is a containment or a rename, which is what a range reads and a name cannot.
+
+### Three surviving sites stay REPORTED SURVIVORS, not excused
+
+`pinnedSpans@568`, `cadenceSamples@2199` and `movementOnsets@3787` survived the covering suite and
+hold no entry. `tools/probe-batteries/ppgdex-dsp.mjs` declares no family for any of the three, so no
+battery has ever reached them and nothing has judged them. They stay in the gate's survivor set,
+which is the state the ledger's own asymmetry prefers: an unexcused survivor costs a reader a look,
+while an excuse over an unprobed site costs a mutant nobody will ever kill. Judging them needs a
+family each with same-function controls, and controls need a kill list from a sweep of
+`ppgdex-dsp.js` — a mutation run, which the owner's standing order holds.
+
 ## Acceptance
 
 - [x] The owner rules on each of the three groups above.
@@ -263,3 +314,6 @@ beside `--probe` or `--qualify`.
       to the entries that moved it — see the note above on what the item assumed.
 - [x] A re-probe lands under `--settle`, which probes first; never under a bare `--write`.
 - [x] The residue row closes against this brief, and a new row carries the two escalated entries.
+- [x] The two escalated entries each take a site the probe watched survive, or they stay
+      escalated — settled 2026-10-28 under rule 5-bis onto L1275 and L1412, both line-keyed, with
+      three surviving sites left as reported survivors.
