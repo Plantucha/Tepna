@@ -41626,7 +41626,6 @@
         var PIN = {
           'adapters/polar-sense-ppg.js': [2, 'GYRO, MAGN: no RUNS writer for the stream'],
           'cohort-worker.js': [1, SYNTH],
-          'pat-feasibility-worker.js': [2, OPEN],
           'ppgdex-app.js': [2, 'GYRO, MAGN: no RUNS writer for the stream'],
           'qrs-equiv-worker.js': [1, SYNTH],
           'qrs-yield-worker.js': [1, SYNTH],
@@ -41726,7 +41725,9 @@
           'motiondex-dsp.js parseSensorXYZ',
           'adapters/polar-h10-ecg.js parseDeviceACC',
           'sensor-trio-worker.js parseECG',
-          'sensor-trio-worker.js parsePPG'
+          'sensor-trio-worker.js parsePPG',
+          'pat-feasibility-worker.js parseECG',
+          'pat-feasibility-worker.js parsePPG'
         ].forEach(function (k) {
           T.ok('…and it sees the WIRED caller `' + k + '` carry the sidecar', carried.indexOf(k) >= 0, 'carrying: ' + carried.join(' · '));
         });
@@ -41767,6 +41768,127 @@
           if (PIN[f][1].indexOf('OPEN') >= 0) open += PIN[f][0];
         });
         T.ok('the pinned set is stated with its reasons (' + (Object.keys(PIN).length + TOOLS_PIN.files) + ' files, ' + open + ' calls in files with an OPEN entry)', Object.keys(PIN).length > 0);
+      }
+    );
+
+    /* ── SAMPLE-VALIDITY-ENVELOPE done-when 4 — THE PAT LEGS, WIRED **AND** CONSUMING ──────────────────
+       The ratchet above counts callers that pass the sidecar. Passing it is not reading it: `parseECG`
+       ATTACHES the runs (`rec.blankingSpans`) and `parsePPG` publishes them per channel (`rec.spans`),
+       and neither nulls a sample — out of band is the contract, because a NaN would delete the ROW and
+       turn an absence of VALUE into an absence of TIME. So a caller can carry the bytes all the way to
+       the record, report R-peaks inside a recorded rail, and leave every test green. This group asserts
+       the CONSUMING end: the helpers execute here (they live in pat-gate.js for exactly that reason),
+       and a source leg pins the two call sites that use them, which no behavioural test in this lane
+       can reach inside a Worker. */
+    group(
+      'SAMPLE-VALIDITY-ENVELOPE done-when 4 — the PAT legs refuse the fiducials the sidecar recorded as unmeasured',
+      'pat-gate · pat-feasibility-worker · pat-feasibility · §∅ · known-answer · source-scan',
+      function (T) {
+        var G = env.PATGate;
+        if (!G || !G.dropInRuns) {
+          T.skip('PATGate exposes the run helpers', 'pat-gate.js not wired into this lane, or runRanges/dropInRuns absent');
+          return;
+        }
+        /* ── the span reader ── */
+        T.eq('a run of 5 samples from index 10 is the INCLUSIVE range 10..14', JSON.stringify(G.runRanges([{ first: 10, n: 5 }])), '[[10,14]]');
+        T.eq(
+          'a zero-length or non-finite row is no range at all',
+          G.runRanges([
+            { first: 10, n: 0 },
+            { first: NaN, n: 5 },
+            { first: 3, n: 2 }
+          ]).length,
+          1
+        );
+        T.eq(
+          '…and the ranges come back sorted, whatever order the file wrote them',
+          JSON.stringify(
+            G.runRanges([
+              { first: 100, n: 2 },
+              { first: 1, n: 2 }
+            ])
+          ),
+          '[[1,2],[100,101]]'
+        );
+
+        /* ── the drop ── */
+        var r = G.runRanges([{ first: 10, n: 5 }]);
+        var d = G.dropInRuns([5, 10, 12, 14, 15], r);
+        T.eq('every position inside the run goes, and only those', JSON.stringify(d.kept), '[5,15]');
+        T.eq('…and the count is REPORTED, so the output can state the absence it was computed over', d.nDropped, 3);
+        var none = G.dropInRuns([5, 10, 12], []);
+        T.ok('ANTI-VACUITY · no runs drops nothing, and says it did not apply', none.nDropped === 0 && none.applied === false, JSON.stringify(none.kept));
+        T.eq('a sub-sample foot is judged at its own position — 14.5 sits past the last pinned sample', JSON.stringify(G.dropInRuns([9.5, 10.5, 13.9, 14.5], r).kept), '[9.5,14.5]');
+
+        /* ── the cursor's contract, asserted because a future caller could read it as a membership test ── */
+        var cur = G.inRunsCursor(r);
+        T.ok('the cursor answers an ASCENDING walk', cur(9) === false && cur(11) === true && cur(20) === false);
+        T.ok('…and it is single-use: a descending re-read is NOT answered, which is why it is never exported as "isInRun"', cur(11) === false);
+
+        /* ── every channel, or none ── */
+        T.eq('two channels pinned over overlapping spans intersect to the common part', JSON.stringify(G.intersectRuns([[0, 10]], [[5, 20]])), '[[5,10]]');
+        T.eq('…and disjoint spans intersect to nothing — one blind channel is reduced coverage, not an absence', G.intersectRuns([[0, 4]], [[5, 9]]).length, 0);
+
+        /* ── the seconds, for the DENOMINATOR ── */
+        T.eq('the covered whole seconds are counted once each', G.runSeconds([[0, 249]], 100, 0).size, 3);
+        T.eq('…keyed from t0Ms exactly as dropArtifactPeaks keys its own set, so the two can be unioned', Array.from(G.runSeconds([[0, 249]], 100, 10000)).join(','), '10,11,12');
+        var g2 = G.dropArtifactPeaks([0, 1, 200], new Map([[0, 0.1]]), 100, 0);
+        /* `instanceof Set` is wrong here and cost a round: pat-gate.js is evaluated in a `vm` context,
+           so its Set belongs to another realm and the check reds on an object that IS a Set. Duck-type it. */
+        T.ok(
+          'dropArtifactPeaks publishes the SECONDS it dropped, not only how many',
+          !!g2.droppedSec && typeof g2.droppedSec.has === 'function' && g2.droppedSec.has(0) && !g2.droppedSec.has(2),
+          JSON.stringify(Array.from(g2.droppedSec || []))
+        );
+        T.ok('…and null, never an empty Set, when the gate did not run (§∅)', G.dropArtifactPeaks([0], null, 100, 0).droppedSec === null);
+
+        /* ── THE RATE THE GATE JUDGES ON. A rail-pinned second is usually low-confidence too, so adding
+             the two durations subtracts it twice and OVER-reads the rate — the mirror of the defect
+             `sharedClock`'s own comment records. ── */
+        var leg = function (o) {
+          var b = { t0Ms: 0, n: 1000, durSec: 3600, artifactSec: 0 };
+          for (var k in o) b[k] = o[k];
+          return b;
+        };
+        var r1 = G.sharedClock(leg({ artifactSec: 600, unmeasuredSec: 900 }), leg({}), { min: 60 });
+        T.ok('the denominator is the UNION of unmeasured seconds, never the sum', Math.abs(r1.ecgHz - 1000 / (3600 - 900)) < 1e-9, String(r1.ecgHz));
+        var r2 = G.sharedClock(leg({ artifactSec: 600 }), leg({}), { min: 60 });
+        T.ok('…and a leg that computed no union keeps the artifact-only denominator it always had', Math.abs(r2.ecgHz - 1000 / (3600 - 600)) < 1e-9, String(r2.ecgHz));
+
+        /* ── the two call sites, by source: a Worker cannot be executed in this lane ── */
+        function bare(t) {
+          return String(t || '')
+            .replace(/\/\*[\s\S]*?\*\//g, function (x) {
+              return x.replace(/[^\n]/g, '');
+            })
+            .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+        }
+        var wsrc = bare((env.sources || {})['pat-feasibility-worker.js']),
+          psrc = bare((env.sources || {})['pat-feasibility.js']);
+        T.ok('both PAT sources are visible to this scan (comments stripped, so a comment cannot pass it)', wsrc.length > 0 && psrc.length > 0, 'add them to readSources()');
+        if (!wsrc.length || !psrc.length) return;
+        T.ok("the page has a role for the box's `_ECGRUNS.txt`", psrc.indexOf('_ECGRUNS\\.txt$') >= 0);
+        T.ok(
+          '…and the ring sidecar takes the FINGER role, as the ring waveform does',
+          /_PPGRUNS[^\n]*O2Ring[^\n]*fingerruns|fingerruns[^\n]*ppgruns/.test(psrc),
+          'a ring sidecar paired to the Verity text marks the wrong spans invalid'
+        );
+        T.ok(
+          '…and each sidecar is paired by EXACT stamp, never by nearest start',
+          /eru = sameStamp\(nt\.cand\.ecgruns, e\)/.test(psrc) && /pru = sameStamp\(nt\.cand\.ppgruns, p\)/.test(psrc) && /fru = sameStamp\(nt\.cand\.fingerruns, fg\)/.test(psrc)
+        );
+        T.eq('…and BOTH worker payloads carry the three sidecars (batch and detail)', (psrc.match(/ecgRunsFile:/g) || []).length, 2);
+        T.ok(
+          'the ECG leg drops the peaks the sidecar recorded as unmeasured',
+          /PATGate\.dropInRuns\(raw, blankRanges\)/.test(wsrc),
+          'the sidecar reaches parseECG and nothing reads rec.blankingSpans'
+        );
+        T.ok('…and the PPG leg refuses a foot pinned on EVERY channel', /_hits === chCursors\.length/.test(wsrc) && /nAllPinned\+\+/.test(wsrc));
+        T.ok('…and both legs publish what they refused, null when no sidecar was paired', /validity: rec\.runsSidecar/.test(wsrc) && /validity: rec\.pinnedCrossCheck/.test(wsrc));
+        T.ok(
+          '…and the page SHOWS it — a refusal no reader can see is the silence the sidecar exists to end',
+          /validityNote\(m\.ecg\.validity\)/.test(psrc) && /validityNote\(m\.ppg\.validity\)/.test(psrc)
+        );
       }
     );
 

@@ -259,7 +259,10 @@
   var ARTIFACT_CONF_MIN = 0.5; // ecgdex-dsp.js analyze(): `if (c >= 0.5)` keeps the beat — same number
   function dropArtifactPeaks(peaks, conf, fs, t0Ms) {
     var n = peaks ? peaks.length : 0;
-    if (!conf || typeof conf.get !== 'function' || !(fs > 0)) return { kept: peaks || [], nRaw: n, nDropped: 0, artifactSec: 0, applied: false };
+    /* `droppedSec: null` rather than an empty Set on the unapplied path — "the gate did not run" and
+       "it ran and dropped nothing" are different facts, and the caller unions this with the blanking
+       seconds below (§∅). ADDITIVE and last, so every existing reader is byte-identical. */
+    if (!conf || typeof conf.get !== 'function' || !(fs > 0)) return { kept: peaks || [], nRaw: n, nDropped: 0, artifactSec: 0, applied: false, droppedSec: null };
     var t0 = t0Ms || 0,
       kept = [],
       dropped = new Set();
@@ -269,7 +272,7 @@
       if (c >= ARTIFACT_CONF_MIN) kept.push(peaks[k]);
       else dropped.add(sec);
     }
-    return { kept: kept, nRaw: n, nDropped: n - kept.length, artifactSec: dropped.size, applied: true };
+    return { kept: kept, nRaw: n, nDropped: n - kept.length, artifactSec: dropped.size, applied: true, droppedSec: dropped };
   }
 
   function sharedClock(ecg, ppg, ov) {
@@ -281,8 +284,15 @@
        448 min = 41.7/min, against 54.0 PPG feet/min — a 22.8 % "disagreement" manufactured by the
        denominator. Over the 346 min the ECG actually measured it is 53.9/min. A leg that dropped nothing
        (no `artifactSec`) divides by its full duration exactly as before. */
+    /* A BLANKING RUN IS UNMEASURED TIME TOO, AND IT OVERLAPS THE ARTIFACT SECONDS. The detector's
+       answer to a rail is usually low-confidence as well, so adding the two durations subtracts the
+       same second twice and over-reads the rate — the mirror of the defect this function's own
+       comment above describes. `unmeasuredSec` is the UNION the caller counted (`runSeconds` ∪
+       `droppedSec`), each second once; a leg that never computed one keeps the artifact-only
+       denominator exactly as before. */
     var measured = function (leg) {
-      var s = leg.durSec - (isFinite(leg.artifactSec) && leg.artifactSec > 0 ? leg.artifactSec : 0);
+      var out = isFinite(leg.unmeasuredSec) && leg.unmeasuredSec > 0 ? leg.unmeasuredSec : isFinite(leg.artifactSec) && leg.artifactSec > 0 ? leg.artifactSec : 0;
+      var s = leg.durSec - out;
       return s > 0 ? s : NaN;
     };
     var ecgHz = ecg.durSec > 0 ? ecg.n / measured(ecg) : NaN,
@@ -474,6 +484,77 @@
     };
   }
 
+  /* ── §∅ SAMPLE-VALIDITY-ENVELOPE §3.2 — THE SIDECAR CONSUMED, NOT MERELY CARRIED ─────────────────
+     `…RUNS.txt` names the spans where the stream measured nothing. A fiducial detected inside one is
+     not a beat: it is the detector's answer to a rail. Handing the sidecar to the parser and then
+     reading the samples anyway is the half-wired shape — the bytes reach the record, no output moves,
+     and every green test stays green. These helpers are the consuming end. They live in pat-gate.js
+     rather than in the worker for the reason `sharedClock` moved here before them: a criterion inside
+     a Worker cannot be executed by a test without hand-extraction. Spans arrive in SAMPLES, as the
+     box wrote them, and are never converted to time until the second counting below. */
+  function runRanges(spans) {
+    var out = [];
+    if (!spans || !spans.length) return out;
+    for (var i = 0; i < spans.length; i++) {
+      var sp = spans[i];
+      if (!sp || !(sp.n > 0) || !isFinite(sp.first)) continue;
+      out.push([sp.first, sp.first + sp.n - 1]);
+    }
+    out.sort(function (a, b) {
+      return a[0] - b[0];
+    });
+    return out;
+  }
+  /* A CURSOR, not a membership test per position. A rail-heavy night emits thousands of runs and
+     carries tens of thousands of beats, so the pairwise form is a 10^8 inner loop on exactly the
+     recordings this exists for. Both sides are ascending, so one walk answers every position.
+     ⚠️ The returned predicate is STATEFUL: it requires ascending input and is single-use. */
+  function inRunsCursor(ranges) {
+    var k = 0;
+    return function (x) {
+      while (k < ranges.length && ranges[k][1] < x) k++;
+      return k < ranges.length && x >= ranges[k][0];
+    };
+  }
+  function dropInRuns(positions, ranges) {
+    var n = positions ? positions.length : 0;
+    if (!n || !ranges || !ranges.length) return { kept: positions || [], nRaw: n, nDropped: 0, applied: false };
+    var hit = inRunsCursor(ranges),
+      kept = [];
+    for (var i = 0; i < n; i++) if (!hit(positions[i])) kept.push(positions[i]);
+    return { kept: kept, nRaw: n, nDropped: n - kept.length, applied: true };
+  }
+  /* The ranges BOTH lists cover. Used to answer "every optical channel was pinned here" without
+     re-deriving it per beat: two sorted, disjoint lists walk in one pass. */
+  function intersectRuns(a, b) {
+    var out = [],
+      i = 0,
+      j = 0;
+    if (!a || !b) return out;
+    while (i < a.length && j < b.length) {
+      var lo = Math.max(a[i][0], b[j][0]),
+        hi = Math.min(a[i][1], b[j][1]);
+      if (lo <= hi) out.push([lo, hi]);
+      if (a[i][1] < b[j][1]) i++;
+      else j++;
+    }
+    return out;
+  }
+  /* The whole seconds the runs cover, keyed EXACTLY as `dropArtifactPeaks` keys its own set
+     (absolute second from `t0Ms`), so the two can be unioned. Any other key makes the union a
+     concatenation that double-counts. */
+  function runSeconds(ranges, fs, t0Ms) {
+    var out = new Set();
+    if (!ranges || !ranges.length || !(fs > 0)) return out;
+    var t0 = t0Ms || 0;
+    for (var i = 0; i < ranges.length; i++) {
+      var a = Math.floor((t0 + (ranges[i][0] / fs) * 1000) / 1000),
+        b = Math.floor((t0 + (ranges[i][1] / fs) * 1000) / 1000);
+      for (var sec = a; sec <= b; sec++) out.add(sec);
+    }
+    return out;
+  }
+
   root.PATGate = {
     PAT_GATE: PAT_GATE,
     verdict: verdict,
@@ -482,12 +563,17 @@
     sharedClock: sharedClock,
     simultaneityWhy: simultaneityWhy,
     dropArtifactPeaks: dropArtifactPeaks,
+    runRanges: runRanges,
+    inRunsCursor: inRunsCursor,
+    dropInRuns: dropInRuns,
+    intersectRuns: intersectRuns,
+    runSeconds: runSeconds,
     ARTIFACT_CONF_MIN: ARTIFACT_CONF_MIN,
     driftStats: driftStats,
     coverStat: coverStat,
     BIN_MATCH_MIN: BIN_MATCH_MIN,
     SC_RATE_TOL: SC_RATE_TOL,
     SC_MIN_OVERLAP_MIN: SC_MIN_OVERLAP_MIN,
-    VERSION: '1.3.0'
+    VERSION: '1.4.0'
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
