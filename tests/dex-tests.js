@@ -12199,6 +12199,146 @@
       T.eq('CONTROL · the tool’s own selftest of the exit-code arms passes', self.status, 0);
       T.ok('…and says how many it ran', /SELFTEST PASS \((\d+)\/\1\)/.test(String(self.out)), String(self.out).slice(0, 160));
     });
+    /* ════ FOUR READERS, ONE POPULATION: THE TRIO NIGHT TREE ════════════════════════════════════
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `closure-tol-hac.mjs`,
+       `pb-fusion-blast.mjs`, `rho-overlap-power.mjs` and `tch-pooled-hat.mjs` all score over the
+       SAME set — the night directories under `uploads/trio` — and none of them said so. Each
+       reported a figure over the nights that SURVIVED its own filter, and the two counts are not
+       close: 147 nights offered against 104 contributing a pair, 90 with a solved hat, 24 with three
+       confident legs, and 0 fusion rows when `--cpap` is absent. A reader could not tell a sweep of
+       the corpus from a sweep of five nights.
+       THE EXIT CODE IS THE OTHER HALF. All four exited 0 over an empty result, so a run that scored
+       nothing read exactly like a run that scored everything. The rule this slice applies is the
+       shared one: a population that could not be enumerated (NOT_RUN) or a run that scored nothing
+       exits 2, while a SHORTFALL annotates and exits 0 — reduced coverage annotates where a
+       discontinuity refuses (owner ruling 2026-09-17, §∅).
+       THE COVERAGE LINE IS CONTROLLED BY ARITHMETIC, not by trust: `notCovered` reads `row[key]`, so
+       a list of night NAMES covers nothing and makes every offered night read as unscored — which
+       printed "147 scored no pair" one line under "104 contributed", a contradiction inside one
+       paragraph. Each tool now throws unless offered − scored === unscored.
+       AND THE CLEARANCE COMES OFF THE REAL CALL. The adoption sample fabricates a three-night
+       snapshot, so a sample left at top level would classify the tool as reporting over a walk no
+       run makes. The sample lives in a `verdictSample` helper, which is the body `corpus-reads.mjs`
+       blanks before it decides — the CONTROL legs below gut the real call and watch the class fall
+       out of `reports`. ════ */
+    group('the four trio-night readers publish the tree they walked, and exit on it', 'tools · corpus-reads · verdict-sample', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the trio-night legs examined nothing');
+        else T.skip('the trio-night legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var FOUR = ['tools/closure-tol-hac.mjs', 'tools/pb-fusion-blast.mjs', 'tools/rho-overlap-power.mjs', 'tools/tch-pooled-hat.mjs'];
+      /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+      var missing = FOUR.filter(function (rel) {
+        return typeof TT[rel] !== 'string' || TT[rel].length === 0;
+      });
+      T.eq('ANTI-VACUITY · all four trio-night readers are readable in this lane', missing, []);
+      if (missing.length) return;
+      FOUR.forEach(function (rel) {
+        var src = TT[rel];
+        var stem = rel.replace(/^.*\//, '');
+        T.ok(rel + ' takes a night primitive from the shared core, not a hand-rolled object', CR.importsNightPrimitive(src), 'absent — the import rule reads the specifiers');
+        T.ok(rel + ' enumerates with snapshotNights, because its unit is a NIGHT', /snapshotNights\(/.test(src), 'absent — snapshotEntries would need a unit word this tool does not have');
+        T.ok(rel + ' names the lister the sample publishes as its rule', /function sampleNights\(/.test(src), 'absent — an inline arrow publishes rule: null');
+        T.ok(rel + ' builds the sample in the helper the scanner blanks', /function verdictSample\(/.test(src), 'absent — a sample at top level clears the tool over a walk no run makes');
+        T.ok(rel + ' declares --verdict-sample', src.indexOf('--verdict-sample') >= 0, 'absent — the manifest row names a flag the tool does not read');
+        T.ok(rel + ' controls its coverage line by arithmetic', /population arithmetic:/.test(src), 'absent — a coverage line may then contradict its own headline');
+        T.ok(
+          rel + ' does not enumerate the same root a second time by hand',
+          !/readdirSync[\s\S]{0,200}?\\d\{4\}-\\d\{2\}-\\d\{2\}/.test(src),
+          'a second walk describes one population and scores another'
+        );
+        T.ok(rel + ' has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[stem] === undefined, stem + ' is still listed as an unwired corpus enumerator');
+        T.eq('…and the scanner itself classifies ' + rel + ' as reporting', CR.classifyTool(src).cls, 'reports');
+        /* THE REAL PATH, read off the blanked source: `'POPULATION '` must survive the blanking and
+           the fabricated `snapshotEntries` must not, which is what separates a published run from a
+           published sample without running either. */
+        var blanked = CR.blankSampleHelpers(src);
+        T.ok(
+          rel + ' prints a POPULATION line from a path the sample helper does not hold',
+          blanked.indexOf("'POPULATION '") >= 0,
+          'absent — the object exists only under the sample flag, so no real run publishes it'
+        );
+        T.ok('…and ' + rel + '’s fabricated snapshot lives only in that helper', !/snapshotEntries\(/.test(blanked), 'a snapshotEntries call outside the helper is a second unit in a night tool');
+      });
+      /* CONTROL · the clearance is not vacuous: gut the ONE real `populationVerdict` call in each and
+         the class falls out of `reports`. The sample stays untouched, which is the point. */
+      FOUR.forEach(function (rel) {
+        var gutted = TT[rel].replace(/populationVerdict\(snapBefore,/g, 'NOT_THE_PRIMITIVE(snapBefore,');
+        T.ok('CONTROL · ' + rel + ' stops reporting when its real call is gutted, so the sample was not clearing it', CR.classifyTool(gutted).cls !== 'reports', CR.classifyTool(gutted).cls);
+      });
+      /* `rho-overlap-power.mjs` is the one whose root NO flag can re-point — it was the single
+         `repo-corpus` member of the unwired set — so its execution leg below is the sample alone. */
+      T.ok(
+        'rho-overlap-power walks a root inside the checkout that no flag re-points',
+        /const TRIO = path\.join\(ROOT, 'uploads\/trio'\)/.test(TT['tools/rho-overlap-power.mjs']),
+        'absent — the repo-corpus claim is what keeps it off the empty-root leg'
+      );
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* The corpus-free `emits.cmd` each manifest row names. A source scan cannot see the ORDERING:
+         a flag declared after the first read still greps as present. */
+      FOUR.forEach(function (rel) {
+        var r = probe(rel, ['--verdict-sample']);
+        T.eq(rel + ' --verdict-sample exits 0 with no corpus in reach', r.status, 0);
+        var obj = null;
+        try {
+          obj = JSON.parse(String(r.out));
+        } catch {
+          obj = null;
+        }
+        T.ok(rel + ' prints ONE parseable object and nothing else', obj != null, String(r.out).slice(0, 200));
+        if (obj == null) return;
+        T.eq(rel + ' publishes the contract schema', obj.schema, 'tepna.verdict/1');
+        T.eq(rel + ' names itself as the producer', obj.producedBy && obj.producedBy.tool, rel);
+        T.eq(rel + ' scored the three fabricated nights', obj.population && obj.population.checked, 3);
+        T.eq(rel + ' carries the shared night criterion', obj.criterion && obj.criterion.name, 'nights_added_or_removed');
+        T.eq(rel + ' publishes the NAMED lister as its rule', obj.result && obj.result.rule, 'sampleNights');
+        T.eq(rel + ' is a PASS, so the sample exercises the published path', obj.status, 'PASS');
+        T.eq(rel + ' wrote nothing beside itself', r.wrote, []);
+      });
+      /* KNOWN ANSWER · a root with no night directory. Three of the four take the root from a flag;
+         each publishes NOT_RUN over checked 0 and exits 2 where it used to print a shortfall line
+         and exit 0. The reasons are NOT interchangeable, and the leg asserts the one each case
+         earns: `--dir` resolves against the probe's empty cwd, which offered nothing at all, while
+         `--trio` resolves against the checkout, whose 250-odd entries are simply not keyed by date —
+         an empty root and a root of non-nights are different facts about why nothing was scored. */
+      [
+        ['tools/closure-tol-hac.mjs', ['--trio', '.'], /matched none of them/],
+        ['tools/pb-fusion-blast.mjs', ['--dir', '.'], /offered no night directory/],
+        ['tools/tch-pooled-hat.mjs', ['--dir', '.'], /offered no night directory/]
+      ].forEach(function (pair) {
+        var r = probe(pair[0], pair[1]);
+        T.eq(pair[0] + ' over a root with no night directory exits 2, not 0', r.status, 2);
+        var line = String(r.out)
+          .split('\n')
+          .filter(function (l) {
+            return l.indexOf('POPULATION ') === 0;
+          })[0];
+        T.ok('…and still published a POPULATION line', line != null, String(r.out).slice(0, 200));
+        if (line == null) return;
+        var ev = JSON.parse(line.slice('POPULATION '.length));
+        T.eq('…whose status is NOT_RUN, never a PASS over nothing', ev.status, 'NOT_RUN');
+        T.eq('…over checked 0', ev.population.checked, 0);
+        T.ok('…naming the root and the shape of the absence it found', pair[2].test(String(ev.reason)), String(ev.reason));
+        T.ok('…and the reason names the root itself', String(ev.reason).indexOf('the root ') === 0, String(ev.reason).slice(0, 80));
+        T.eq('…and wrote nothing beside itself', r.wrote, []);
+      });
+      /* CONTROL · the two tools that carry their own selftest still pass it, so the exit-code arms
+         are asserted from inside as well as from here. */
+      var pbSelf = probe('tools/pb-fusion-blast.mjs', ['--selftest']);
+      T.eq('CONTROL · pb-fusion-blast passes its own selftest', pbSelf.status, 0);
+      T.ok('…and says so in the line selftest-all reads', /selftest: all green/.test(String(pbSelf.out)), String(pbSelf.out).slice(0, 160));
+      var tchSelf = probe('tools/tch-pooled-hat.mjs', ['--selftest']);
+      T.eq('CONTROL · tch-pooled-hat passes its own selftest', tchSelf.status, 0);
+      T.ok('…and counts the assertions it ran', /(\d+) passed, 0 failed/.test(String(tchSelf.out)), String(tchSelf.out).slice(0, 160));
+    });
     /* ════ A PUBLISHED CONTROL CARRIES THE POPULATION IT WAS COMPUTED OVER ══════════════════════
        Row 2026-10-22-the-apnea-controls-are-compared-across-two-populations: the apnea harness read
        §9's four published figures as a bare delta of 0.02 and printed `drifted` past it. §9 computed

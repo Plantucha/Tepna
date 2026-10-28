@@ -45,6 +45,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
 import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
@@ -237,8 +238,45 @@ function selftest(ctx) {
 function run(ctx) {
   const adapt = ctx.adaptEnvelopeNode,
     fpb = ctx.fusePeriodicBreathing;
+  /* ── THE POPULATION THE BLAST RADIUS IS MEASURED OVER ──────────────────────────────────────
+     Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `OxyDex nights in <dir> : N
+     paired with a CPAPDex export: M` named two of three sets and left the OFFERED count out, so a
+     reader could not tell a corpus holding 30 nights from one holding 147 of which 30 carry an
+     OxyDex export. Three removals happen here, each for its own reason: no OxyDex export, no CPAP
+     day matching the night, and the night rule itself. */
+  const POP_TOOL = 'tools/pb-fusion-blast.mjs';
+  const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+  const snapBefore = snapshotNights(DIR);
+  const commitOf = gitCommitOf();
+  const rowsRef = [];
+  const publishPopulation = () => {
+    const population = populationVerdict(snapBefore, snapshotNights(DIR), {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: POP_TOOL,
+      evidence: POP_EV
+    });
+    console.log(`\npopulation: ${snapBefore.n} night(s) offered under ${DIR} · ${rowsRef.length} scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+    const rule = ruleLine(population);
+    if (rule) console.log(rule);
+    /* The rows, not their names — `notCovered` reads `row[key]`. */
+    const unscored = notCovered(snapBefore, rowsRef, { key: 'night' });
+    if (unscored.length)
+      console.log(`  ${unscored.length} offered night(s) scored no pair, by name: ${unscored.slice(0, 8).join(' · ')}${unscored.length > 8 ? ` · … (+${unscored.length - 8})` : ''}`);
+    if (snapBefore.ok && unscored.length !== snapBefore.n - rowsRef.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${rowsRef.length} scored ≠ ${unscored.length} unscored`);
+    console.log('POPULATION ' + JSON.stringify(population));
+    return population;
+  };
+  if (!snapBefore.ok) {
+    console.error(`refused: ${snapBefore.reason} — ${DIR}`);
+    publishPopulation();
+    process.exit(2);
+  }
   if (!CPAP || !existsSync(CPAP)) {
     console.error('need --cpap <cpap-exports.json> (see tools/cpap-corpus.mjs); --selftest runs without a corpus');
+    /* The population publishes even here. A usage refusal scored nothing, and `NOT_RUN` over a root
+       that offered 147 nights is a different statement from the same refusal over an absent root. */
+    publishPopulation();
     process.exit(2);
   }
   const cpapDoc = JSON.parse(readFileSync(CPAP, 'utf8'));
@@ -246,13 +284,13 @@ function run(ctx) {
   const byDay = new Map();
   for (const c of cpapArr) if (c && c._day) byDay.set(dayKey(c._day), c);
 
-  const rows = [];
+  /* ONE array, declared above so the publisher can read it from an exit that happens before the
+     walk; this name is the walk's own view of it. */
+  const rows = rowsRef;
   let oxyNights = 0,
     ecgSeen = 0,
     ecgWithApnea = 0;
-  for (const d of readdirSync(DIR)
-    .filter((x) => /^\d{4}-\d\d-\d\d$/.test(x))
-    .sort()) {
+  for (const d of snapBefore.nights) {
     const op = join(DIR, d, `OxyDex_${d}.node-export.json`);
     if (!existsSync(op)) continue;
     oxyNights++;
@@ -285,8 +323,16 @@ function run(ctx) {
     nights: rows
   };
   if (AS_JSON) {
-    console.log(JSON.stringify(out, null, 2));
-    return 0;
+    /* The JSON consumer gets the object INSIDE the document, so one parse of stdout yields both the
+       figures and the population they describe. */
+    const population = populationVerdict(snapBefore, snapshotNights(DIR), {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: POP_TOOL,
+      evidence: POP_EV
+    });
+    console.log(JSON.stringify(Object.assign({ population, offered: snapBefore.n }, out), null, 2));
+    return rows.length === 0 && snapBefore.n > 0 ? 2 : 0;
   }
   console.log('PB FUSION BLAST RADIUS — OXYDEX-PB-OVERCALL §3.4\n');
   console.log('  OxyDex nights in ' + DIR + ' : ' + oxyNights + '   paired with a CPAPDex export: ' + n);
@@ -325,7 +371,30 @@ function run(ctx) {
         '  withoutOxyPB=' +
         (r.corroboratedWithoutOxyPB ? 'yes' : 'no')
     );
-  return 0;
+  publishPopulation();
+  /* 🔴 A RUN THAT PAIRED NO NIGHT RETURNED 0, printing `0 / 0` ratios and an empty table — the
+     shape of a complete run over a corpus with nothing in it. The population object states it and
+     the exit code makes a caller act on it (§∅). */
+  return rows.length === 0 && snapBefore.n > 0 ? 2 : 0;
+}
+
+/* A NAMED lister: `snapshotEntries` publishes `rule: list.name`, and an inline arrow publishes
+   `rule: null`. The adoption sample reads no corpus and no realm, and prints the object ALONE,
+   because `verify:verdict-adoption` parses stdout as JSON. */
+function sampleNights() {
+  return ['2026-06-10', '2026-06-11', '2026-06-12'];
+}
+/* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
+   before it decides whether this tool reports a population: a fabricated call left at top level
+   would clear the tool over a walk no run makes (the lesson its own CONTROL leg records). */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const snap = snapshotEntries('<uploads>/trio', { list: sampleNights, unit: 'nights', at });
+  return populationVerdict(snap, snap, { tool: 'tools/pb-fusion-blast.mjs', at, evidence: ['tools/pb-fusion-blast.mjs', 'tools/corpus-scope-core.mjs'] });
+}
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
 }
 
 const ctx = realm();
