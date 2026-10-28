@@ -38,6 +38,7 @@ import bisect
 import datetime as _dt
 import glob
 import itertools
+import json
 import math
 import os
 import re
@@ -283,6 +284,206 @@ def stall_sample() -> dict:
         "suppressed": None,
         "suppressed_reason": LOOP_STALL_SUPPRESSED_REASON,
     }
+
+
+# ── WHO HELD THE LOOP — the attribution the bin above cannot give ─────────────────────────────────────
+# `loop_monitor` measures the ONE shared resource and names no holder, which is why the bin's own warning
+# reads "whatever held it". The daemon carries two instruments that DO name one: `capture.SlowCallbackWatch`
+# names the CALLBACK in a journal line, and `capture.stall_sampler_watch` names the THREADS in a row
+# appended to `<night>/STALLS.jsonl`. Both are OFF by default, because arming either is a `config.yaml`
+# key on the box, and residue `2026-09-25-qc-poll-still-stalls-the-loop-without-tracing` is open on that
+# arming decision.
+# 🔴 BUT NEITHER INSTRUMENT HAD A READER, so an armed night published `daemon:event-loop stall` and no
+# holder: the callback line stayed prose in journald, and nothing in this repo opened `STALLS.jsonl` at
+# all. That is the half of the row that needs no decision — a night that WAS armed must answer from its
+# own artifact, for the reason `clock_events` states: journald rotates and the verdict side has no journal.
+# 🔴 WHY `armed` IS THREE-VALUED (§∅). "The instrument was off" and "the instrument was on and nothing
+# ran long" are the two readings that row was created by confusing, and no count separates them, because
+# both produce zero names. `armed: false` with `events: null` is the first. `armed: true` with
+# `events: {}` is the second, and it is a FINDING about where the stall is not. `armed: null` is neither
+# read: the window carries no ON or OFF line, which the daemon logs at START.
+# ⚠️ ROWS OUTRANK AN UNREAD JOURNAL. A `STALLS.jsonl` holding rows can only have been written by an armed
+# sampler, so the file establishes arming on its own. The window reaches back 6 h from the night's date
+# while the file sits beside the night for as long as the night does.
+# ⚠️ THE ROWS ARE A SAMPLE TOO, for the same reason the bin above is: the sampler caps itself at
+# `max_rows` and counts what it dropped past the cap. Both travel, so a reader never mistakes a capped
+# file for the night's whole set.
+SLOW_CB_ON_NEEDLE = "slow-callback watch: ON"
+SLOW_CB_OFF_NEEDLE = "slow-callback watch: OFF"
+_SLOW_CB = re.compile(r"slow callback: (.+?) held the loop (\d+) ms")
+SAMPLER_ON_NEEDLE = "stall sampler: ON"
+SAMPLER_OFF_NEEDLE = "stall sampler: OFF"
+STALLS_FILE = "STALLS.jsonl"
+STALL_UNREAD_REASON = (
+    "the window carries neither the ON nor the OFF line this instrument logs at daemon start, so whether "
+    "it was armed this night is unread — not that it was off"
+)
+SLOW_CB_OFF_REASON = (
+    "the callback watch was off this night (config `slow_callback.enabled` false), so no callback was named"
+)
+SAMPLER_OFF_REASON = (
+    "the stall sampler was off this night (config `stall_sampler.enabled` false), so no thread was named"
+)
+
+
+def callback_watch(lines) -> dict:
+    """Which callbacks held the loop past the daemon's own stall threshold, from the journal.
+
+    A slow-callback line is itself proof the watch was armed, so an event outranks the ON/OFF pair. The
+    pair is read LAST-WINS otherwise: a daemon restart inside the window can arm or disarm it, and the
+    state the window ends in is the one its rows describe."""
+    last: bool | None = None
+    events: dict[str, dict] = {}
+    seen_event = False
+    for ln in lines:
+        m = _SLOW_CB.search(ln)
+        if m is not None:
+            seen_event = True
+            rec = events.setdefault(m.group(1), {"n": 0, "worst_ms": 0.0})
+            rec["n"] += 1
+            rec["worst_ms"] = max(rec["worst_ms"], float(m.group(2)))
+            continue
+        if SLOW_CB_ON_NEEDLE in ln:
+            last = True
+        elif SLOW_CB_OFF_NEEDLE in ln:
+            last = False
+    if seen_event or last is True:
+        return {"armed": True, "events": events, "reason": None}
+    if last is False:
+        return {"armed": False, "events": None, "reason": SLOW_CB_OFF_REASON}
+    return {"armed": None, "events": None, "reason": STALL_UNREAD_REASON}
+
+
+def stall_rows_keys() -> tuple[str, ...]:
+    """The key set `stall_rows` carries on EVERY path — the absent-file path included, so a consumer
+    never meets a KeyError on a night when the sampler was off."""
+    return (
+        "present",
+        "rows",
+        "torn_lines",
+        "worst_lag_ms",
+        "threads",
+        "rows_without_stacks",
+        "capped",
+        "dropped_past_cap",
+    )
+
+
+def stall_rows(night_dir: str) -> dict:
+    """The stall sampler's own rows for this night, summarised from `<night>/STALLS.jsonl`.
+
+    `present: False` is an absent file, which is NOT "no stall": the sampler writes nothing at all when
+    it is off. A torn final line is skipped rather than raising — the file is appended by a live daemon,
+    so the last line can be half-written when this reads it."""
+    path = os.path.join(night_dir, STALLS_FILE)
+    rows: list[dict] = []
+    torn = 0
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for ln in fh:
+                ln = ln.strip()
+                if not ln:
+                    continue
+                try:
+                    r = json.loads(ln)
+                except ValueError:
+                    torn += 1
+                    continue
+                if isinstance(r, dict):
+                    rows.append(r)
+    except OSError:
+        # The SAME keys on every path, all null: a consumer that reads `worst_lag_ms` must not meet a
+        # KeyError on the night the sampler was off, which is most of them.
+        out = dict.fromkeys(stall_rows_keys(), None)
+        out["present"] = False
+        return out
+    threads: dict[str, int] = {}
+    stackless = 0
+    worst = 0.0
+    for r in rows:
+        stacks = r.get("stacks")
+        if not stacks:
+            stackless += 1
+        else:
+            for v in stacks.values():
+                if isinstance(v, dict):
+                    frames = v.get("frames") or []
+                    key = f"{v.get('thread')}:{frames[0]}" if frames else str(v.get("thread"))
+                    threads[key] = threads.get(key, 0) + 1
+        lag = r.get("lag_ms")
+        if isinstance(lag, (int, float)):
+            worst = max(worst, float(lag))
+    return {
+        "present": True,
+        "rows": len(rows),
+        "torn_lines": torn,
+        "worst_lag_ms": round(worst, 1) if rows else None,
+        "threads": threads,
+        "rows_without_stacks": stackless,
+        "capped": any(bool(r.get("capped")) for r in rows),
+        "dropped_past_cap": max((int(r.get("dropped_before") or 0) for r in rows), default=0),
+    }
+
+
+def stall_attribution(lines, night_dir: str) -> dict:
+    """Who held the loop this night, from both instruments, or a named reason for each that was not armed.
+
+    `lines` is `None` when journalctl could not be read. That leaves the callback half unread while the
+    sampler half still answers from the file beside the night, so the two halves carry their own state
+    rather than one shared `None`."""
+    cb = callback_watch(lines) if lines is not None else {"armed": None, "events": None, "reason": STALL_UNREAD_REASON}
+    sampler = dict(stall_rows(night_dir))
+    armed: bool | None = None
+    for ln in lines or []:
+        if SAMPLER_ON_NEEDLE in ln:
+            armed = True
+        elif SAMPLER_OFF_NEEDLE in ln:
+            armed = False
+    if sampler["rows"]:
+        armed = True  # rows can only come from an armed sampler, whatever the journal reached back to
+    sampler["armed"] = armed
+    sampler["reason"] = None
+    if armed is False:
+        sampler["reason"] = SAMPLER_OFF_REASON
+    elif armed is None:
+        sampler["reason"] = STALL_UNREAD_REASON
+    elif not sampler["present"]:
+        # Armed and no file: the sampler writes on its FIRST stall, so this is a measured zero rather
+        # than an absence. Keeping it `null` here would hide the one state that says the loop was clean.
+        sampler["rows"] = 0
+        sampler["reason"] = "armed, and no stall reached the sampler's threshold, so it wrote no file"
+    return {"callback_watch": cb, "stall_sampler": sampler}
+
+
+def read_stall_attribution(since: _dt.datetime, until: _dt.datetime, night_dir: str, run=subprocess.run) -> dict:
+    """`stall_attribution` over the window's journal, with the sampler's file read beside the night.
+
+    Never `None` as a whole, unlike the readers above: an unreadable journal leaves the callback half
+    unread and the sampler half still answers from the file, so each half carries its own state."""
+    lines: list[str] | None = None
+    try:
+        r = run(
+            [
+                "journalctl",
+                "-u",
+                "tepna-capture",
+                "--no-pager",
+                "-o",
+                "short-iso",
+                "--since",
+                since.strftime("%Y-%m-%d %H:%M:%S"),
+                "--until",
+                until.strftime("%Y-%m-%d %H:%M:%S"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        r = None
+    if r is not None and r.returncode == 0:
+        lines = r.stdout.split("\n")
+    return stall_attribution(lines, night_dir)
 
 
 _ACCESS_START = re.compile(r"\[(\d{2})/([A-Z][a-z]{2})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) [+-]\d{4}\]")
@@ -1582,6 +1783,7 @@ def audit_night(
     job_spans=read_job_spans,
     journal_shape_of=read_journal_shape,
     probe_armed=read_probe_armed,
+    stall_attr=read_stall_attribution,
 ) -> dict:
     """The LOSS-AUDIT.json body: per device, the primary stream's gaps by cause, span, and whether the
     device's own evidence says it was worn that night."""
@@ -1626,6 +1828,10 @@ def audit_night(
     # WHAT THE STALL BIN COVERS, beside the causes it assigns. Constant and pre-stated, so it is written
     # on every path — a reader of this file learns the sample without holding the source open.
     out["stall_sample"] = stall_sample()
+    # WHO HELD IT, beside what the bin covers. Written on every path for the reason `stall_sample` is:
+    # the verdict side has no journal, journald rotates, and `STALLS.jsonl` lives beside the night. An
+    # instrument that was never armed says so by name here rather than reading as a clean night.
+    out["stall_attribution"] = stall_attr(since, until, night_dir)
     # THE PROBE DECLARATION'S JOURNAL HALF (SOLID-NIGHT-COWEAR-AND-PROBE §2), written beside the night
     # for the reason `clock_events` above is: the verdict side has no journal and journald rotates.
     # `None` (unread) stays distinct from `[]` (read, no probe armed) — only the second may let a night
@@ -1870,6 +2076,9 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
         # THE STALL BIN'S COVERAGE, republished here for the reason `journal_shape` is: a consumer of the
         # verdict reads `by_cause` and must know that this one cause is a 1 s, one-per-300 s sample.
         "stall_sample": audit.get("stall_sample"),
+        # AND WHO HELD IT. A consumer reading `daemon:event-loop stall` in `by_cause` can now tell an
+        # unnamed holder from an un-armed instrument without opening the night's own file.
+        "stall_attribution": audit.get("stall_attribution"),
     }
     if not devs:
         return _verdict.make(

@@ -374,6 +374,12 @@
       "source": "real device address(es) 24:AC:AC:02:84:96; was: \"the real night's numbers are transcribed from its own committed audit output\"",
       "sha256": null
     },
+    "test_loss_audit_stall_attribution.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "journal lines, sampler rows and night directories built in the test; the two drift guards run the real daemon instruments and read their own output; no provenance claim in the file",
+      "sha256": null
+    },
     "test_loss_poller.py": {
       "class": "authored",
       "kind": "constructed-stamps",
