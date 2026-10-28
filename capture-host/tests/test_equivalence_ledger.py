@@ -555,7 +555,23 @@ def test_a_FUNCTION_QUALIFIER_is_unique_within_its_module():
     standing for two mutants: the widening `tools/reanchor-equivalence.mjs --qualify` refuses to write and
     nothing else would catch if a qualifier were added by hand. Measured 2026-10-26 over the 261 qualified
     entries: 0 collisions, which is why this is an invariant and not a target. Re-measured 2026-10-27
-    over 320, after #3995 probed and qualified 59 more: still 0."""
+    over 320, after #3995 probed and qualified 59 more: still 0.
+
+    🔴 WHAT THIS TEST CANNOT SEE, AND WHERE THAT IS ANSWERED. It compares qualified entries TO EACH
+    OTHER, so it fires on a PAIR sharing one identity. The condition the writer applies is stronger:
+    exactly ONE GENERATED MUTANT may carry the identity, which also catches a LONE entry sitting over
+    two sibling mutants — the shape an edit above the site produces, with no second entry anywhere.
+    Measured 2026-10-28 over the 13 entries the settle pass re-addressed: this invariant named 3
+    pairs over 6 entries, and the generator named 11. Residue
+    2026-10-28-the-qualifier-uniqueness-test-compares-entries-to-each-other-not-to-the-generator.
+
+    The generator is a node process, so no test here can ask it — this suite runs on a capture box
+    with no node, and inside a mutmut sandbox. The answer therefore lives where the generator does:
+    `qualifyPlan` re-decides every already-written qualifier against its identity histogram and the
+    `reanchor-equivalence-qualify` verdict FAILS on a non-zero `ambiguousWritten`. The test below
+    reads that condition out of the sibling's source rather than restating it, which is the same move
+    `test_the_MODEL_reads_the_same_key_as_the_JS_matcher` makes for the matcher key. This test stays
+    as the cheap half: it needs no generator, and a pair is the one case it decides on its own."""
     _require_js_ledger()
     dupes = []
     qualified = 0
@@ -578,6 +594,46 @@ def test_a_FUNCTION_QUALIFIER_is_unique_within_its_module():
     assert not dupes, "a function qualifier that excuses more than one mutant:\n  " + "\n  ".join(dupes)
     # A pass over 0 qualified entries is a pass about nothing; the JS ledger carries 320 of them.
     assert qualified > 0, "no ledger entry carries a qualifier — this test examined nothing"
+
+
+def test_the_WRITER_re_decides_an_ALREADY_WRITTEN_qualifier_against_the_GENERATOR():
+    """🔴 Residue 2026-10-28-the-qualifier-uniqueness-test-compares-entries-to-each-other-not-to-the-generator.
+
+    The invariant above is a proxy, and this is the thing it proxies for. `qualifyPlan` must look an
+    already-qualified entry's identity up in the generator's histogram instead of accepting the field
+    on sight, and the pass's verdict must FAIL on the result. Read, not asserted: for most of this
+    ledger's life the branch read `out.already.push(e)` and `ambiguousWritten` was the tally's own
+    initialiser read back out, so the FAIL arm could not be reached by any ledger — a quantity
+    nobody measured, reported as a 0 (§4b).
+
+    A text pin, deliberately. Executing the condition needs the generator, which needs node, which
+    this lane does not have; and a Python re-implementation of the histogram would be a second copy
+    of the rule, free to drift from the one that runs. So this asserts the shape of the real
+    condition at the one site that applies it, and names what it does not prove: that the branch is
+    reached. The JS selftest does that (`a LONE already-qualified entry over two sibling mutants is
+    WIDE`), and `--qualify` reports the count per file."""
+    root = os.path.dirname(str(HERE))
+    with open(os.path.join(root, "tools", "reanchor-equivalence.mjs"), encoding="utf-8") as fh:
+        src = fh.read()
+    start = src.index("export function qualifyPlan(")
+    body = src[start : src.index("\n}\n", start)]
+    head = body[: body.index("const plan = planEntry(")]  # the already-carries-one branch, before the rest
+    assert "cnt.get(idKey(e))" in head, (
+        "`qualifyPlan` no longer re-decides an already-written qualifier against the generator's "
+        f"identity histogram — the branch reads:\n{head[-400:]}"
+    )
+    assert "out.alreadyWide.push" in head and "out.alreadyGone.push" in head, (
+        "the two outcomes must stay apart: a WIDE qualifier is a false excuse, a DEAD one orphans its "
+        "entry and excuses nothing (§∅)"
+    )
+    # The verdict must FAIL on the wide count — a measured quantity nothing judges is no guard at all.
+    vq = src[src.index("export function makeQualifyVerdict(") :]
+    vq = vq[: vq.index("\n}\n")]
+    assert "tq.ambiguousWritten ? 'FAIL'" in vq, f"a wide qualifier no longer FAILS the qualify verdict:\n{vq[:400]}"
+    assert "tq.ambiguousWritten += q.alreadyWide.length" in src, (
+        "nothing increments `ambiguousWritten`, so the FAIL arm is unreachable and the 0 it reports is "
+        "an initialiser rather than a measurement"
+    )
 
 
 def test_a_QUALIFIED_entry_still_records_the_after_it_is_matched_on():

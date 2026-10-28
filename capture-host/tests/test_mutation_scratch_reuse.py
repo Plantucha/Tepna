@@ -770,7 +770,15 @@ def test_the_STAGED_set_is_THE_UNION_of_the_two_instruments():
     `tests/test_relevance_filter.py` opens with no `.exists()` guard. That read is why every scratch
     baseline died with FileNotFoundError, why mutmut recorded 0 tested mutants, and why a REQUIRED
     context refused. Residue
-    2026-10-25-the-mutation-stager-drops-the-one-dotted-read-the-manifest-declares."""
+    2026-10-25-the-mutation-stager-drops-the-one-dotted-read-the-manifest-declares.
+
+    Re-measured 2026-10-28 (#4048): 35 static, 55 declared, 55 staged, and the staged sum reads
+    9.49 MB static / 17.71 MB union. The one path added is `tools/reanchor-equivalence.mjs`, a REAL
+    read of 0.12 MB — `tests/test_equivalence_ledger.py` opens the generator's source to pin the
+    uniqueness condition a qualified entry is written under, the same move its `survivorKey` pin
+    already makes on `tools/mutate.mjs`. The rest of the 0.49 MB between the two union figures is
+    files that grew since 2026-10-25, measured by summing the entries on both days rather than
+    attributed to this one."""
     from pathlib import Path
     import pytest
 
@@ -782,7 +790,7 @@ def test_the_STAGED_set_is_THE_UNION_of_the_two_instruments():
     staged = mutation_diff.staged_root_reads(here)
     assert set(staged) == static | declared
     counts = (len(static), len(declared), len(staged))
-    assert counts == (34, 54, 54), counts
+    assert counts == (35, 55, 55), counts
     # A static read the manifest omits means the manifest is stale: re-run the trace and re-fold it.
     assert static - declared == set(), static - declared
     assert ".github/workflows/capture-host-ci.yml" in staged, staged
@@ -864,6 +872,13 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # body. That page kept the phone-app layout for the month after its two siblings were widened and no
     # gate said so, because the table checks only the pages it lists (residue
     # 2026-10-20-sigma-classifier-still-phone-only).
+    # 2026-10-28 (#4048): ONE new REAL read, `tools/reanchor-equivalence.mjs` (0.12 MB, measured).
+    # `tests/test_equivalence_ledger.py` opens the generator's own source to pin the condition a
+    # QUALIFIED entry is written under: exactly one generated mutant carries that identity. A read,
+    # not a mention — the capture box has no node, so the python lane cannot run the generator, and a
+    # python re-implementation of its histogram would be a second copy of the rule, free to drift. The
+    # same shape as the `tools/mutate.mjs` note above (residue
+    # 2026-10-28-the-qualifier-uniqueness-test-compares-entries-to-each-other-not-to-the-generator).
     assert got == [
         "Dex-Test-Suite.html",
         "README.md",
@@ -892,6 +907,7 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
         "tools/mutate-equivalence.json",
         "tools/mutate.mjs",
         "tools/o2ring-dat-timefit.mjs",
+        "tools/reanchor-equivalence.mjs",
         "tools/trio-batch.mjs",
         "tools/verdict-adoption.json",
         "tools/verify-seals.mjs",

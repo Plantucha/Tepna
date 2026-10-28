@@ -319,6 +319,11 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_equivalence_ledger.py": {
+   "bin": "test",
+   "status": "exempt",
+   "reason": "a TEST file; its status word sits inside the assertion that pins the arm `makeQualifyVerdict` fails on in `tools/reanchor-equivalence.mjs` \u2014 the pin reads that sibling's source because the capture box has no node to run the generator, so rewording the quoted arm would stop the pin reading the condition it names"
+  },
   "capture-host/tests/test_failover_planted_wedge.py": {
    "bin": "test",
    "status": "exempt"
