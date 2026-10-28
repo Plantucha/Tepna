@@ -529,6 +529,12 @@ def main(argv=None) -> int:
     # This map keeps the pair, so a kill can be attributed to the function it happened in.
     _exit_by_pair: dict = {}
     _work_of_key: dict = {}
+    # The work tree each mutant was GENERATED in, by its full name. `_work_of_key` is keyed on the diff
+    # text, so when two modules share one bare-statement key (`- continue | + break`) the LAST module's
+    # tree stood under it, and an isolated run of the other module's mutant asked mutmut for a name that
+    # tree never generated: "nothing matches", no exit code, and three claims REFUSED as unsettled on
+    # #4049 (nightqc mutants re-run in timeline's tree). An isolated run therefore looks up its tree here.
+    _work_of_mutant: dict = {}
     # The preflight proves mutmut IMPORTS; these prove it actually ran. Measured on this repo's own
     # venv, importable-but-unusable is a real state, not a hypothetical — so an import check alone
     # would still fail open. If every invocation errored, no mutant was ever tested.
@@ -1005,6 +1011,7 @@ def main(argv=None) -> int:
                             _mutant_of_key[k] = full
                             _exit_by_pair[(k, full)] = _ecbk.get(full)
                             _work_of_key[k] = (module, work, _tests, _clean)
+                            _work_of_mutant[full] = (module, work, _tests, _clean)
                 except OSError:
                     pass  # no mutants file ⇒ nothing to enumerate, stay silent
             # EVERY line mutmut prints here is a mutant it did NOT kill (results() skips `killed`).
@@ -1300,7 +1307,7 @@ def main(argv=None) -> int:
     # EVERY detected kill of a claimed key, not one per key: two mutants sharing a key are two
     # separate refutation questions and the earlier answer used to be overwritten by the later one.
     for _k, _name in sorted(p for p in _detected_pairs if p[0] in _claimed_keys):
-        _mod, _wk, _tst, _cln = _work_of_key.get(_k, (None, None, None, None))
+        _mod, _wk, _tst, _cln = _work_of_mutant.get(_name, (None, None, None, None))
         if not _name or _wk is None:
             _uncorroborated.append((_k, "the mutant could not be located for an isolated re-run"))
             continue
@@ -1339,8 +1346,8 @@ def main(argv=None) -> int:
             continue
         if _k in not_required_keys:
             continue  # excluded on purpose — a different state, handled by `claimed_not_required`
-        _mod, _wk, _tst, _cln = _work_of_key.get(_k, (None, None, None, None))
         _name = _mutant_of_key.get(_k)
+        _mod, _wk, _tst, _cln = _work_of_mutant.get(_name, (None, None, None, None))
         if not _name or _wk is None:
             _unchecked_after_isolation.append((_k, "the mutant could not be located for an isolated run"))
             continue
