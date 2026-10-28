@@ -36,7 +36,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -183,12 +183,12 @@ console.log('  night        win  kept  rej   medLag   IQR  p25  p75   %win<=60ms
 console.log('  ' + '-'.repeat(78));
 
 /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk, and the two filters in the
-   old one-line `.filter()` are DIFFERENT KINDS of statement. `/^2026-/` is a NIGHT RULE and goes to
-   `snapshotNights`, which measures it against `NIGHT_RE` over the same listing and names what it
+   old one-line `.filter()` are DIFFERENT KINDS of statement. `NIGHT_RE` is the SHARED NIGHT RULE and goes to
+   `snapshotNights`, which measures it over the same listing and names what it
    refused and what it swallowed; `--night` is a SELECTION over that offer, so it stays here and is
    named by the count it left unread. The quality gates below are COVERAGE rules over the offer, not
    night rules, so they ride `notANight` at the end. */
-const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
 const nights = popBefore.nights.filter((d) => !ONLY || d === ONLY);
 const covered = [];
 const allIQR = [],
@@ -312,7 +312,7 @@ if (allIQR.length) {
    WINDOWS; this verdict says whether the night population moved under the run. The status labels
    MOVEMENT, not coverage: `checked` is the intersection of the two snapshots, and reading it as a
    scored count would publish the whole offer as scored. */
-const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RE }), {
   tool: 'tools/pat-hrv-windows.mjs',
   evidence: ['tools/pat-hrv-windows.mjs']
 });
@@ -340,8 +340,8 @@ function verdictSample() {
     digest: null,
     maxCtimeMs: null,
     at,
-    rule: String(/^2026-/),
-    ruleIsDefault: false,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
     rejectedNightShaped: [],
     admittedNonNight: []
   };

@@ -61,7 +61,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { ecgCounterTimeMs } from './pat-matchrate-strict.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { printVerdict, undeclaredVerdict } from './verdict-undeclared.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -262,7 +262,7 @@ say('  bands: A→B ' + JSON.stringify(BAND.AB) + '  A→C ' + JSON.stringify(BA
 say('  night        win   lag A→B  A→C  B→C |  closure  |  IQR AB   AC   BC');
 console.log('  ' + '-'.repeat(80));
 
-/* ONE WALK, AND THE WALK IS THE POPULATION. `/^2026-/` is this tool's own NIGHT RULE and travels as
+/* ONE WALK, AND THE WALK IS THE POPULATION. `NIGHT_RE` is the shared NIGHT RULE and travels as
    the walk's `re`, so `snapshotNights` names every night-shaped name it refused; inside a `.filter()`
    the refusal left no trace at all. `--night` is a SELECTION over that offer and stays here. Under
    `--verdict-sample` no corpus is read, so the snapshot refuses and the population line says so. Row
@@ -277,12 +277,12 @@ const popBefore = SAMPLE
       digest: null,
       maxCtimeMs: null,
       at: null,
-      rule: String(/^2026-/),
-      ruleIsDefault: false,
+      rule: String(NIGHT_RE),
+      ruleIsDefault: true,
       rejectedNightShaped: null,
       admittedNonNight: null
     }
-  : snapshotNights(DIR, { re: /^2026-/ });
+  : snapshotNights(DIR, { re: NIGHT_RE });
 const nights = (popBefore.nights || []).filter((d) => (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory());
 const scoredNights = [];
 const V = { AB: [], AC: [], BC: [] },
@@ -391,7 +391,7 @@ for (const n of nights) {
 say('  ' + '-'.repeat(80));
 /* THE POPULATION THIS RUN COVERED, printed before the hat it qualifies. The status labels MOVEMENT of
    the night population under the run, never coverage. */
-const population = populationVerdict(popBefore, SAMPLE ? popBefore : snapshotNights(DIR, { re: /^2026-/ }), {
+const population = populationVerdict(popBefore, SAMPLE ? popBefore : snapshotNights(DIR, { re: NIGHT_RE }), {
   tool: 'tools/pat-three-corner.mjs',
   evidence: ['tools/pat-three-corner.mjs']
 });
