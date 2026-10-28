@@ -67,6 +67,8 @@
  *     --selftest         known-answer checks for the nocturnal gate (no corpus; one scratch dir for the content hash)
  *     --code-digest      print the digest of THE CURRENT TREE's compute closure (the `codeDigest` every .trio-stamp
  *                        records) as one line on stdout and exit — no --src, no corpus, nothing written
+ *     --check-markers    walk --src for `.superseded` markers, run the production resolver against the pair each
+ *                        marker itself names, print one tepna.verdict/1 and exit — plans no night, writes nothing
  *
  * PARALLELISM + MEMORY. Nights run as CHILD PROCESSES, pool-capped. The cap is PROBED, not assumed:
  * a night peaks at ~0.9 GB (a ~330 MB PPG text held while it parses into Float32 channels, plus a
@@ -80,7 +82,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSy
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, concurrentWith, ivIntersect, ivSpan, mergeIv, startOf } from './trio-anchor.mjs';
-import { join, dirname, resolve, basename, sep } from 'node:path';
+import { join, dirname, resolve, basename, sep, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import os from 'node:os';
@@ -118,7 +120,7 @@ if (IS_CLI) {
     argv,
     {
       valued: ['--src', '--out', '--night', '--limit', '--min-hours', '--min-overlap', '--night-band', '--jobs', '--cpap', '--only-node'],
-      boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child', '--code-digest']
+      boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child', '--code-digest', '--check-markers']
     },
     { tool: 'trio-batch' }
   );
@@ -192,6 +194,10 @@ const MARKER_KEYING = [
   ['keptBytes', "keeper's size"],
   ['keptHash', "keeper's first-MiB hash"]
 ];
+/* WHICH PROBE OUTCOMES ARE EXCLUSIONS rather than findings — up here for the same reason, and measured:
+   declared beside `markerProbePopulation` it was in the temporal dead zone of the selftest that calls it,
+   and the first leg over a non-empty list threw a ReferenceError instead of asserting. */
+const MARKER_PROBE_EXCLUDED = ['KEEPER-ABSENT', 'SMALL-ABSENT'];
 const joinAnd = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 /* COUNT THE TRIO, NOT EVERY .json IN THE FOLDER. Completeness used to be
    `readdirSync(dir).filter(f => f.endsWith('.json')).length === 3`, which silently made the trio test
@@ -932,8 +938,9 @@ if (flag('--selftest')) {
        An ambiguity somebody has already answered should not refuse a night. The readers are injected so
        these stay synthetic: `readMarker` returns marker text by path, `isPrefixOf` answers the
        byte-superset question. ⚠️ SYNTHETIC BY NECESSITY and stated as such — the three `.superseded`
-       markers written on 2026-10-05 sit beside a capture tree the rig cannot read, and each of them
-       carries NEITHER keying field, so these assertions pin the DECISION TABLE and not any real pair.
+       markers that exist today name keepers under roots a walk of any one `--src` does not reach, so no
+       fold ever forms their pair (measured 2026-10-28; block ⑪ and `--check-markers` are what reads them).
+       These assertions pin the DECISION TABLE and not any real pair.
        Block ⑨ pins what the fold says about markers shaped like those three. */
     const pair = () => [
       { name: 'Polar_VeritySense_x_20260815221142_PPG.txt', full: 'nas/Polar_VeritySense_x_20260815221142_PPG.txt', bytes: 100 },
@@ -1122,6 +1129,108 @@ if (flag('--selftest')) {
         .update(readFileSync(here).subarray(0, 1 << 20))
         .digest('hex')
     );
+
+    {
+      /* ⑪ THE PROBE THAT ACTUALLY READS A MARKER — `--check-markers`. The row this answers said the
+         first batch run would settle the keeper-side checks; it cannot, because a fold reads a marker
+         only where a walk found two copies of one basename, and no marker that exists has a twin under
+         its own root. These legs pin the probe's decision table, its population arithmetic and the
+         sentences it prints. Every read is injected: no corpus, no filesystem. */
+      const MK = '/root/2026-08-15/Polar_VeritySense_x_20260815221142_PPG.txt.superseded';
+      const KEEPER_P = '/keep/Polar_VeritySense_x_20260815221142_PPG.txt';
+      const realMarker = 'date: 2026-10-05\nkept: ' + KEEPER_P + '\nreason: mid-write NAS snapshot\nkept_bytes: 300\nkept_sha256_first_1mib: ABC\n';
+      const probe = (text, over = {}) =>
+        markerProbeOne(MK, {
+          readMarker: () => text,
+          sizeOf: (p) => (p === KEEPER_P ? 300 : 100),
+          isPrefixOf: () => true,
+          hashFirstMib: () => 'abc',
+          ...over
+        });
+      const r11 = probe(realMarker);
+      eq('probe · the shape the real markers carry RESOLVES against the keeper they name', r11.outcome, 'RESOLVED');
+      eq('…and the keeper-side fields are what it was keyed to', JSON.stringify(r11.keyed), '["keptBytes","keptHash"]');
+      eq('…with the keeper read from the marker, not from a walked pair', r11.keeper + '|' + r11.keeperBytes, KEEPER_P + '|300');
+      // THE TWO KEEPER-SIDE CHECKS BIND — the point of the probe. Each refuses on its own.
+      eq(
+        'probe · a keeper of the wrong SIZE is UNKNOWN, named',
+        JSON.stringify([
+          probe(realMarker.replace('kept_bytes: 300', 'kept_bytes: 301')).outcome,
+          /records a keeper of 301 B/.test(probe(realMarker.replace('kept_bytes: 300', 'kept_bytes: 301')).detail || '')
+        ]),
+        '["UNKNOWN",true]'
+      );
+      eq(
+        'probe · a keeper whose first MiB hashes differently is UNKNOWN, named',
+        JSON.stringify([probe(realMarker.replace('1mib: ABC', '1mib: DEF')).outcome, /was replaced or re-synced/.test(probe(realMarker.replace('1mib: ABC', '1mib: DEF')).detail || '')]),
+        '["UNKNOWN",true]'
+      );
+      /* THE VOCABULARY SPLIT, measured 2026-10-28: one real marker spells its reason `why` and its keeper
+         `by`. The parser reads neither, so the marker is UNUSABLE — and the report must name the words it
+         used, or a reader sees "no reason" beside a file whose reason is right there in another spelling. */
+      const spelt = probe('superseded: true\nby: ' + KEEPER_P + '\nwhy: mid-write NAS snapshot\nkept: ' + KEEPER_P + '\n');
+      eq('probe · a marker spelling its reason `why` is UNUSABLE, not resolved', spelt.outcome, 'UNUSABLE');
+      eq('…and the report names the keys it DID carry, so the spelling is visible', JSON.stringify(spelt.keys), '["by","kept","superseded","why"]');
+      eq('…and nothing was keyed, because nothing parsed', spelt.keyed, null);
+      // AN ABSENT KEEPER IS AN EXCLUSION — the check examined nothing and must not read as a pass (§∅).
+      const gone = probe(realMarker, {
+        sizeOf: (p) => {
+          if (p === KEEPER_P) throw new Error('ENOENT: no such file or directory');
+          return 100;
+        }
+      });
+      eq('probe · a keeper this box cannot reach is KEEPER-ABSENT', gone.outcome, 'KEEPER-ABSENT');
+      eq('…and says the keeper-side checks bound on nothing', /bind on nothing/.test(gone.detail || ''), true);
+      eq(
+        'probe · an unreadable marker is not an absent one',
+        probe(null, {
+          readMarker: () => {
+            throw new Error('EACCES: permission denied');
+          }
+        }).outcome,
+        'MARKER-UNREADABLE'
+      );
+      eq('probe · a marker the walk named and the read did not find is MARKER-VANISHED', probe(null).outcome, 'MARKER-VANISHED');
+      // ── the population arithmetic, pure over the records
+      const POP = (rs) => markerProbePopulation(rs);
+      eq('probe · NO marker is NOT_RUN — it examined nothing, and reports no number', JSON.stringify([POP([]).status, POP([]).checked, POP([]).eligible]), '["NOT_RUN",0,0]');
+      eq('probe · every marker excluded is NOT_APPLICABLE, never PASS', POP([gone, gone]).status, 'NOT_APPLICABLE');
+      eq('…and checked + excluded = eligible', JSON.stringify([POP([gone, gone]).checked, POP([gone, gone]).excluded, POP([gone, gone]).eligible]), '[0,2,2]');
+      eq('probe · one resolved marker and nothing else is PASS', POP([r11]).status, 'PASS');
+      eq(
+        'probe · a mix of one unresolved and one excluded is SHORTFALL over the CHECKED one',
+        JSON.stringify([POP([spelt, gone]).status, POP([spelt, gone]).checked, POP([spelt, gone]).excluded]),
+        '["SHORTFALL",1,1]'
+      );
+      eq('…and the reason counts the checked population, not the found one', /0 of 1 checked marker/.test(POP([spelt, gone]).reason || ''), true);
+      eq('probe · keeperSideChecksRun counts only a marker a keeper field actually bound on', JSON.stringify([POP([r11]).keeperSideChecksRun, POP([spelt, gone]).keeperSideChecksRun]), '[1,0]');
+      // ── the verdict object, validated against verdict.js for every status this probe can emit
+      eq('probe verdict · PASS validates', val(markerProbeVerdict([r11], '/root')), true);
+      eq('probe verdict · SHORTFALL validates and carries its reason', val(markerProbeVerdict([spelt, gone], '/root')) === true && markerProbeVerdict([spelt, gone], '/root').reason !== null, true);
+      eq('probe verdict · NOT_APPLICABLE reports no result', JSON.stringify([val(markerProbeVerdict([gone], '/root')), markerProbeVerdict([gone], '/root').result]), '[true,null]');
+      eq('probe verdict · NOT_RUN over no marker reports no result', JSON.stringify([val(markerProbeVerdict([], '/root')), markerProbeVerdict([], '/root').result]), '[true,null]');
+      eq(
+        'probe verdict · the criterion is pre-stated, not read off the markers',
+        JSON.stringify(markerProbeVerdict([r11], '/root').criterion),
+        '{"name":"unresolved_markers","threshold":0,"unit":"markers","direction":"lte"}'
+      );
+      // ── the walk, and the structural fact it alone can see
+      const WALK = (names) =>
+        markerProbeAll('/root', { listAll: () => names, readMarker: () => realMarker, sizeOf: (p) => (p === KEEPER_P ? 300 : 100), isPrefixOf: () => true, hashFirstMib: () => 'abc' });
+      const lone = WALK(['2026-08-15/Polar_VeritySense_x_20260815221142_PPG.txt', '2026-08-15/Polar_VeritySense_x_20260815221142_PPG.txt.superseded']);
+      eq('walk · one marker is found, and the marker itself is not counted as a copy', JSON.stringify([lone.length, lone[0].sameBasenameCopies]), '[1,1]');
+      eq(
+        '…and the report says a lone copy forms no pair, so no fold reaches this marker',
+        /a fold forms a pair at two or more, so no walk reaches this marker/.test(markerProbeLines(lone).join('\n')),
+        true
+      );
+      const twinned = WALK(['a/Polar_VeritySense_x_20260815221142_PPG.txt', 'b/Polar_VeritySense_x_20260815221142_PPG.txt', 'a/Polar_VeritySense_x_20260815221142_PPG.txt.superseded']);
+      eq('walk · two copies of the basename DO form the ambiguity the marker answers', twinned[0].sameBasenameCopies, 2);
+      eq('…and the report says so', /so a walk forms the ambiguity this marker answers/.test(markerProbeLines(twinned).join('\n')), true);
+      eq('walk · a root with no marker returns nothing to probe', WALK(['a/x.txt']).length, 0);
+      eq('probe lines · a RESOLVED marker names its keeper and what it was keyed to', /keeper named: \/keep\/.*\(300 B\)/.test(markerProbeLines([r11]).join('\n')), true);
+      eq('probe lines · an UNUSABLE marker lists the keys it carried', /keys recorded: by, kept, superseded, why/.test(markerProbeLines([spelt]).join('\n')), true);
+    }
 
     const distinct = dedupeStream([
       { name: 'Polar_H10_x_20260717213258_ECG.txt', full: 'a/Polar_H10_x_20260717213258_ECG.txt', bytes: 25 },
@@ -1487,6 +1596,27 @@ if (flag('--code-digest')) {
   process.exit(0);
 }
 
+/* `--check-markers` — the keeper-side marker checks, run against the markers that EXIST under `--src`
+   (residue 2026-10-28-keeper-side-marker-keying-is-pinned-only-in-selftest). It plans no night, folds
+   nothing and writes nothing: it walks for `*.superseded`, builds the pair each marker itself names and
+   asks the production resolver. It sits HERE, above the realm and the capture scan, for the same reason
+   `--code-digest` does — reading three markers must cost a walk and not a fold.
+
+   THE EXIT CODE REPORTS WHETHER THE PROBE RAN, NOT WHAT IT FOUND; the verdict object is the finding
+   (§🧾). A SHORTFALL here is a measurement of the corpus in hand, so wiring it as a gate would red on
+   markers nobody has yet decided what to do about. */
+if (flag('--check-markers')) {
+  const recs = markerProbeAll(SRC);
+  const pop = markerProbePopulation(recs);
+  console.log(`marker probe over ${SRC}`);
+  console.log(`  ${pop.eligible} marker(s) found · ${pop.checked} checked · ${pop.excluded} excluded (the file or the keeper is not readable here)`);
+  for (const line of markerProbeLines(recs)) console.log(line);
+  console.log(`  keeper-side checks that BOUND on a recorded field: ${pop.keeperSideChecksRun} of ${pop.eligible}`);
+  console.log(`  ${pop.status}${pop.reason ? ` — ${pop.reason}` : ''}`);
+  console.log(JSON.stringify(markerProbeVerdict(recs, SRC), null, 2));
+  process.exit(0);
+}
+
 /* ── 1 · headless DSP realm (mirrors tests/run-tests.mjs makeCtx/loadInto) ─── */
 function makeCtx() {
   const noop = () => {};
@@ -1756,8 +1886,12 @@ function parseMarker(text) {
   const keptSizeRaw = kv.get('kept_bytes');
   const keptBytes = keptSizeRaw !== undefined && /^\d+$/.test(keptSizeRaw) ? Number(keptSizeRaw) : keptSizeRaw !== undefined ? NaN : null;
   const keptHash = kv.get('kept_sha256_first_1mib') || null;
-  if (!kept || !reason) return { ok: false, reason: `the marker names ${!kept ? 'no kept file' : 'no reason'} — it cannot resolve an ambiguity it does not explain` };
-  return { ok: true, kept, reason, dated, target, bytes, keptBytes, keptHash };
+  /* THE RAW KEYS, on BOTH answers and parsed by the regex above rather than beside it — so a reader of a
+     refusal learns which words the marker actually used. One real marker spells its reason `why` and its
+     keeper `by`, and a report that said only "no reason" would hide the spelling that caused it. */
+  const keys = [...kv.keys()].sort();
+  if (!kept || !reason) return { ok: false, keys, reason: `the marker names ${!kept ? 'no kept file' : 'no reason'} — it cannot resolve an ambiguity it does not explain` };
+  return { ok: true, keys, kept, reason, dated, target, bytes, keptBytes, keptHash };
 }
 /* Does the SMALLER copy carry a marker that resolves this ambiguity? Returns one of three states and
    never guesses between them. `resolved` folds; `unknown` is a sentence that travels INTO the refusal so
@@ -1876,10 +2010,11 @@ function markerKeying(excluded) {
   const un = rows.filter((x) => !x.keyed || !x.keyed.length);
   return { total: rows.length, keyed: rows.length - un.length, unkeyed: un.length, unkeyedPaths: un.map((x) => x.path) };
 }
-/* THE PRINTED BLOCK, PURE — so `--selftest` pins the sentences a reader will actually see. No night
-   with a marker exists on this box (the three live beside a capture tree the rig cannot read), so an
-   end-to-end run can never be the proof; these two functions are, and they take the night records the
-   fold builds. */
+/* THE PRINTED BLOCK, PURE — so `--selftest` pins the sentences a reader will actually see. No FOLD ever
+   reaches a marker: the markers that exist are readable, and each names a keeper under a root a walk of
+   their own `--src` does not hold, so the walk forms no pair and the night they sit in is not a trio
+   night (measured 2026-10-28 — `--check-markers` is the instrument that reads them). An end-to-end run
+   can never be the proof; these two functions are, and they take the night records the fold builds. */
 function markerExclusionLines(excludedNights) {
   const rows = [];
   for (const n of excludedNights || [])
@@ -1905,6 +2040,151 @@ function defaultHashFirstMib(path) {
   } finally {
     closeSync(fd);
   }
+}
+/* ── THE MARKER PROBE — the keeper-side checks, run against the markers that EXIST ───────────────────
+   Residue 2026-10-28-keeper-side-marker-keying-is-pinned-only-in-selftest. The keeper-side checks above
+   were pinned by `--selftest` alone, and the row said the first batch run on the capture-host would
+   settle it. IT CANNOT. A fold reads a marker only where the WALK found two copies of one basename, and
+   every marker that exists today names a keeper under a root that walk does not hold — so no pair is
+   formed, no marker is read, and a batch run reports nothing about them however long it runs. The night
+   they sit in is not a trio night either, so the per-night ingest never reaches `dedupeStream` at all.
+
+   So the instrument builds the pair the MARKER ITSELF names — the file it sits beside, and the keeper its
+   `kept` line points at — and hands that pair to the PRODUCTION resolver rather than to a copy of it.
+   What it prints is therefore what a fold would decide. Every read is injected, so `--selftest` pins the
+   decision table with no corpus, and the defaults do the real filesystem work. */
+function markerProbeOne(markerPath, opts = {}) {
+  const readMarker = opts.readMarker || defaultReadMarker;
+  const sizeOf = opts.sizeOf || ((p) => statSync(p).size);
+  const resolver = opts.resolver || resolveSuperseded;
+  const small = String(markerPath).replace(/\.superseded$/, '');
+  const rec = { marker: String(markerPath), small, keys: [], keeper: null, smallBytes: null, keeperBytes: null, keyed: null, outcome: null, detail: null };
+  let raw;
+  try {
+    raw = readMarker(rec.marker);
+  } catch (e) {
+    rec.outcome = 'MARKER-UNREADABLE';
+    rec.detail = `the walk named this marker and it could not be read (${(e && e.message) || e}) — unreadable is not absent`;
+    return rec;
+  }
+  if (raw == null) {
+    rec.outcome = 'MARKER-VANISHED';
+    rec.detail = 'the walk named this marker and the read found nothing — it went away between the two';
+    return rec;
+  }
+  const m = parseMarker(raw);
+  rec.keys = m.keys || [];
+  if (!m.ok) {
+    rec.outcome = 'UNUSABLE';
+    rec.detail = m.reason;
+    return rec;
+  }
+  /* A relative `kept` is read against the MARKER's own directory, the only anchor a marker carries. An
+     absolute one is taken as written, which is the form every real marker uses — they name other roots. */
+  rec.keeper = isAbsolute(m.kept) ? m.kept : join(dirname(rec.marker), m.kept);
+  try {
+    rec.smallBytes = sizeOf(small);
+  } catch (e) {
+    rec.outcome = 'SMALL-ABSENT';
+    rec.detail = `the file this marker sits beside cannot be sized (${(e && e.message) || e})`;
+    return rec;
+  }
+  try {
+    rec.keeperBytes = sizeOf(rec.keeper);
+  } catch (e) {
+    rec.outcome = 'KEEPER-ABSENT';
+    rec.detail = `the keeper this marker names cannot be sized from here (${(e && e.message) || e}) — the keeper-side checks bind on nothing, which is an EXCLUSION and never a pass`;
+    return rec;
+  }
+  const r = resolver({ name: basename(small), full: small, bytes: rec.smallBytes }, { name: basename(rec.keeper), full: rec.keeper, bytes: rec.keeperBytes }, opts);
+  rec.keyed = r.keyed || [];
+  rec.outcome = r.resolved ? 'RESOLVED' : 'UNKNOWN';
+  rec.detail = r.resolved ? r.reason : r.unknown || null;
+  return rec;
+}
+/* THE WALK, and the one structural fact no per-marker check can see: how many copies of the small file's
+   basename this root holds. `dedupeStream` forms a pair at two or more. At one there is no ambiguity for
+   a marker to answer, so the marker is unreachable on this root however well it parses. */
+function markerProbeAll(root, opts = {}) {
+  const listAll = opts.listAll || ((r) => readdirSync(r, { recursive: true }).map(String));
+  const copies = new Map();
+  const markers = [];
+  for (const rel of listAll(root)) {
+    const b = basename(String(rel));
+    if (b.endsWith('.superseded')) markers.push(join(root, String(rel)));
+    else copies.set(b, (copies.get(b) || 0) + 1);
+  }
+  markers.sort();
+  return markers.map((p) => {
+    const rec = markerProbeOne(p, opts);
+    rec.sameBasenameCopies = copies.get(basename(rec.small)) || 0;
+    return rec;
+  });
+}
+/* THE POPULATION, PURE — `checked + excluded = eligible`, and the two absences are EXCLUSIONS and not
+   passes: a keeper this box cannot reach is a check that examined nothing (§∅). A probe that found no
+   marker is NOT_RUN; one whose every marker was excluded is NOT_APPLICABLE — it examined them and the
+   keeper-side rule could not bind. Neither reports a number. */
+function markerProbePopulation(recs) {
+  const rows = recs || [];
+  const byOutcome = {};
+  for (const r of rows) byOutcome[r.outcome] = (byOutcome[r.outcome] || 0) + 1;
+  const excluded = rows.filter((r) => MARKER_PROBE_EXCLUDED.includes(r.outcome)).length;
+  const checked = rows.length - excluded;
+  const resolved = rows.filter((r) => r.outcome === 'RESOLVED').length;
+  const keeperSideChecksRun = rows.filter((r) => (r.keyed || []).some((k) => k === 'keptBytes' || k === 'keptHash')).length;
+  const unresolved = checked - resolved;
+  let status, reason;
+  if (!rows.length) {
+    status = 'NOT_RUN';
+    reason = 'no `.superseded` marker under the root — the probe examined nothing';
+  } else if (!checked) {
+    status = 'NOT_APPLICABLE';
+    reason = `${rows.length} marker(s) found and every one excluded — the file or the keeper it names is not readable here, so the keeper-side rule bound on nothing`;
+  } else if (unresolved) {
+    status = 'SHORTFALL';
+    reason = `${resolved} of ${checked} checked marker(s) resolve the keeper they name; ${unresolved} do not (each named in the report)`;
+  } else {
+    status = 'PASS';
+    reason = null;
+  }
+  return { eligible: rows.length, checked, excluded, resolved, unresolved, keeperSideChecksRun, byOutcome, status, reason };
+}
+/* THE PRINTED BLOCK, PURE — the sentences a reader will actually see, so `--selftest` pins them. */
+function markerProbeLines(recs) {
+  const out = [];
+  for (const r of recs || []) {
+    out.push(`  ${r.outcome} — ${r.marker}`);
+    if (r.detail) out.push(`    ${r.detail}`);
+    out.push(`    keys recorded: ${r.keys && r.keys.length ? r.keys.join(', ') : 'NONE — no KEY: VALUE line parsed'}`);
+    if (r.keeper) out.push(`    keeper named: ${r.keeper}${r.keeperBytes === null ? ' (not sizeable here)' : ` (${r.keeperBytes} B)`}`);
+    if (r.keyed) out.push(`    ${markerKeyedPhrase(r.keyed)}`);
+    out.push(
+      r.sameBasenameCopies >= 2
+        ? `    pair: this basename occurs ${r.sameBasenameCopies} times under the root, so a walk forms the ambiguity this marker answers`
+        : `    pair: this basename occurs ${r.sameBasenameCopies} time(s) under the root — a fold forms a pair at two or more, so no walk reaches this marker`
+    );
+  }
+  return out;
+}
+/* ONE verdict for the probe, built and validated here so an invalid object throws instead of printing
+   (§🧾). The criterion is pre-stated and it is the row's own question: does every marker a reader can
+   check resolve the keeper it names? */
+function markerProbeVerdict(recs, root) {
+  const p = markerProbePopulation(recs);
+  const v = Verdict.make({
+    gate: 'trio-batch-markers',
+    status: p.status,
+    population: { checked: p.checked, eligible: p.eligible, excluded: p.excluded },
+    criterion: { name: 'unresolved_markers', threshold: 0, unit: 'markers', direction: 'lte' },
+    result: p.status === 'NOT_RUN' || p.status === 'NOT_APPLICABLE' ? null : { resolved: p.resolved, unresolved: p.unresolved, keeperSideChecksRun: p.keeperSideChecksRun, byOutcome: p.byOutcome },
+    evidence: ['tools/trio-batch.mjs', `${root} (marker root)`],
+    reason: p.reason,
+    producedBy: gateProducer()
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`trio-batch: marker verdict is invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  return v;
 }
 function defaultReadMarker(path) {
   // ENOENT is "no marker" — every other error propagates, because an unreadable marker is not an absent
