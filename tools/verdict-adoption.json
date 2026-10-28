@@ -935,6 +935,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/checkout-advance.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/checkout-advance.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "says what blocks a fast-forward of a long-lived checkout, path by path. Residue 2026-10-27-the-board-renders-from-a-checkout-nobody-advances: git lists every untracked file that would be overwritten and ranks none of them, so a byte-identical no-op reads exactly like a handoff holding work nobody else has (measured on a two-clone fixture in the selftest). `population` is the untracked paths examined, a path whose comparison did not complete is `unreadable` and EXCLUDED rather than defaulted into `identical`, an AHEAD checkout is FAIL because no value of the criterion can fast-forward it, and a checkout with no untracked path at all is NOT_APPLICABLE rather than a PASS over zero examined paths."
+  },
   "tools/codex-export.mjs": {
    "bin": "decides",
    "status": "adopted",
