@@ -87,6 +87,14 @@
        2026-09-26 both were one 'ppg' role, so a dropped folder could pair the ring as the "ankle" — its session
        starts nearer the ECG than the Verity's on a box night. */
     if ((mo = n.match(/_(\d{8})_?(\d{6})_PPG\.txt$/i))) return { role: /O2Ring/i.test(n) ? 'finger' : 'ppg', stamp: mo[1] + mo[2] };
+    /* ── §∅ THE VALIDITY SIDECARS — `{base}RUNS.txt`, written by capture-host beside the waveform
+       (`writers.py` `_RunSidecar`). They name the spans where the stream measured nothing, which is
+       the fact no sample value can carry: `0` is a legal reading. The O2Ring split mirrors the
+       `_PPG.txt` rule two lines above and for the same reason — a ring sidecar paired to the
+       Verity's text would mark the WRONG spans invalid, which is worse than marking none.
+       `_ECG\.txt$` and `_PPG\.txt$` are end-anchored, so neither rule above ever saw these names. */
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_ECGRUNS\.txt$/i))) return { role: 'ecgruns', stamp: mo[1] + mo[2] };
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_PPGRUNS\.txt$/i))) return { role: /O2Ring/i.test(n) ? 'fingerruns' : 'ppgruns', stamp: mo[1] + mo[2] };
     // ACC on BOTH devices → the cross-device drift anchor (H10 chest vs Verity arm)
     if ((mo = n.match(/_(\d{8})_?(\d{6})_ACC\.txt$/i))) return { role: /Polar_H10/i.test(n) ? 'ecgacc' : 'ppgacc', stamp: mo[1] + mo[2] };
     /* the packet-arrival sidecar: the corrected path's anchor, one per device. The ring's used to classify
@@ -233,6 +241,22 @@
       return Math.abs(x.ms - anchorMs) < Math.abs(b.ms - anchorMs) ? x : b;
     });
   }
+  /* A SIDECAR IS NOT PAIRED BY NEARNESS. `nearestTo` is right for a companion STREAM, which is its own
+     recording with its own start; a `…RUNS.txt` is written for ONE file, as `{base}RUNS.txt`, so the
+     filename stamp it shares with that file is an identity rather than a proximity. Nearest-start
+     here would hand a session another session's validity on exactly the box nights that carry several
+     per device, and a sidecar pointing at the wrong samples is worse than no sidecar at all.
+     `.stamp` is the FILENAME stamp on both sides deliberately — `.ms` is re-read from the first data
+     row, which the sidecar and its waveform have no reason to share.
+     Two candidates with one stamp is ambiguous, and §∅ refuses an ambiguity rather than picking: the
+     leg then runs with no sidecar and says so, instead of running with a coin-flip. */
+  function sameStamp(a, pick) {
+    if (!pick || !a || !a.length) return null;
+    var hit = a.filter(function (x) {
+      return x.stamp === pick.stamp;
+    });
+    return hit.length === 1 ? hit[0] : null;
+  }
   /* ONE SESSION PER DEVICE PER NIGHT IS A PHONE-APP ASSUMPTION. The capture host writes one file per BLE
      session, so a box night holds several per device — measured 2026-09-19: five Verity PPG sessions and
      two H10 ECG sessions. "Largest file per role" then pairs the 67-min ECG (19:20–20:28) with the 7-hour
@@ -253,7 +277,10 @@
       fg = nearestTo(nt.cand.finger, eMs),
       // the ring's sidecar is matched to the RING's own session, not to the ECG anchor: the ring runs its
       // own file-set and its session start is the thing its sidecar shares a stamp with.
-      rr = nearestTo(nt.cand.ringarr, fg ? fg.ms : eMs);
+      rr = nearestTo(nt.cand.ringarr, fg ? fg.ms : eMs),
+      eru = sameStamp(nt.cand.ecgruns, e),
+      pru = sameStamp(nt.cand.ppgruns, p),
+      fru = sameStamp(nt.cand.fingerruns, fg);
     nt.ecg = e ? e.file : null;
     nt.ppg = p ? p.file : null;
     nt.ecgAcc = ea ? ea.file : null;
@@ -262,6 +289,9 @@
     nt.ppgArr = pr ? pr.file : null;
     nt.finger = fg ? fg.file : null;
     nt.ringArr = rr ? rr.file : null;
+    nt.ecgRuns = eru ? eru.file : null;
+    nt.ppgRuns = pru ? pru.file : null;
+    nt.fingerRuns = fru ? fru.file : null;
   }
   var eligible = function (nt) {
     return !!(nt.ecg && nt.ppg);
@@ -286,7 +316,9 @@
         impossibleStamp++;
         continue;
       }
-      var nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [], ringarr: [] } });
+      var nt =
+        NIGHTS[nk] ||
+        (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [], ringarr: [], ecgruns: [], ppgruns: [], fingerruns: [] } });
       nt.cand[c.role].push({ file: f, stamp: c.stamp, ms: rowMs == null ? stampMs(c.stamp) : rowMs, stampSource: rowMs == null ? 'filename' : 'first-row' });
     }
     Object.keys(NIGHTS).forEach(function (k) {
@@ -447,6 +479,9 @@
         ecgArrFile: nt.ecgArr || null,
         ppgArrFile: nt.ppgArr || null,
         ringArrFile: nt.ringArr || null,
+        ecgRunsFile: nt.ecgRuns || null,
+        ppgRunsFile: nt.ppgRuns || null,
+        fingerRunsFile: nt.fingerRuns || null,
         detail: false
       });
     }
@@ -749,6 +784,9 @@
       ecgArrFile: nt.ecgArr || null,
       ppgArrFile: nt.ppgArr || null,
       ringArrFile: nt.ringArr || null,
+      ecgRunsFile: nt.ecgRuns || null,
+      ppgRunsFile: nt.ppgRuns || null,
+      fingerRunsFile: nt.fingerRuns || null,
       detail: true
     });
   }
@@ -770,6 +808,22 @@
     });
   }
 
+  /* §∅ AN OUTPUT OVER ABSENT INPUT REPORTS THE ABSENCE. The legs now refuse fiducials inside the
+     spans the box recorded as measuring nothing, and a refusal a reader cannot see is the same
+     silence the sidecar exists to end. Prose beside the count it qualifies, in the shape the
+     artifact-drop parenthetical next to it already uses — so it inherits that number's badge rather
+     than planting a second, unbadged one (§🎫, badge the series not the caption). Empty string when
+     no sidecar was paired: absence of a sidecar is not a clean recording. */
+  function validityNote(v) {
+    if (!v) return '';
+    var bits = [v.spans != null ? v.spans + ' recorded span' + (v.spans === 1 ? '' : 's') : v.channels + '-channel sidecar'];
+    bits.push(v.dropped + ' dropped');
+    if (v.partial) bits.push(v.partial + ' partly pinned, kept');
+    if (v.unmeasuredSec != null) bits.push((v.unmeasuredSec / 60).toFixed(0) + ' min unmeasured');
+    if (!v.comparable) bits.push('sidecar not comparable');
+    return ' <span class="muted">[' + v.source + ': ' + bits.join(' · ') + ']</span>';
+  }
+
   function renderFocus(m) {
     var cp = m.cp,
       sc = m.sc;
@@ -782,6 +836,7 @@
       m.ecg.n +
       ' R' +
       (m.ecg.nRaw > m.ecg.n ? ' (of ' + m.ecg.nRaw + ' detected · ' + (m.ecg.artifactSec / 60).toFixed(0) + ' min of artifact dropped)' : '') +
+      validityNote(m.ecg.validity) +
       ' @ ' +
       m.ecg.fs +
       ' Hz · ' +
@@ -792,7 +847,9 @@
       fmtClock(m.ppg.t0Ms) +
       '</b> · ' +
       m.ppg.n +
-      ' feet @ ' +
+      ' feet' +
+      validityNote(m.ppg.validity) +
+      ' @ ' +
       m.ppg.fs +
       ' Hz';
     var vc = el('focusVerdict');
