@@ -276,3 +276,18 @@ def test_a_retry_that_settles_everything_leaves_both_timing_out_lists_empty():
     assert got["retried"] == 3
     assert got["settled"] == ["a", "b", "c"]
     assert got["stillTimingOut"] == [] and got["newlyTimingOut"] == []
+
+
+def test_an_isolated_run_finds_its_work_tree_by_MUTANT_NAME_not_by_key():
+    """Reads the tool's own source. A bare-statement key (`- continue | + break`) is shared by
+    mutants in different MODULES, and the work-tree map keyed on that text kept only the last
+    module's tree. PR #4049 measured it: three nightqc mutants re-ran in timeline's tree, mutmut
+    answered "Filtered for specific mutants, but nothing matches", no exit code came back, and the
+    gate REFUSED three claims as unsettled. Both isolated runs must look the tree up by the name."""
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parents[1] / "tools" / "mutate_diff.py").read_text()
+    assert "_work_of_key.get(_k, (None, None, None, None))" not in src, "an isolated run reads its tree by key again"
+    for anchor in ("alone to corroborate", "alone to settle it"):
+        before = split_segment(src, anchor, 0, where="tools/mutate_diff.py")
+        assert "_work_of_mutant.get(_name, (None, None, None, None))" in before[-900:], anchor
