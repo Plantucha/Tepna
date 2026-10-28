@@ -89,12 +89,12 @@ def test_srp_client_generates_a_random_private_value_by_default():
 
 # ── RPC builders ─────────────────────────────────────────────────────────────
 def test_rpc_omits_params_when_none():
-    obj = json.loads(L.rpc("GetDateTime", None, 7, "1.0"))
+    obj = json.loads(L.rpc("GetDateTime", None, rpc_id=7, version="1.0"))
     assert obj == {"jsonrpc": "1.0", "method": "GetDateTime", "id": 7} and "params" not in obj
 
 
 def test_rpc_includes_params_when_given():
-    assert json.loads(L.rpc("X", {"a": 1}, 3, "2.0"))["params"] == {"a": 1}
+    assert json.loads(L.rpc("X", {"a": 1}, rpc_id=3, version="2.0"))["params"] == {"a": 1}
 
 
 def test_session_and_pairing_builders():

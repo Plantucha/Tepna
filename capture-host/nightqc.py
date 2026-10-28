@@ -2772,7 +2772,7 @@ _HELD_NEAR_DELTA = 0.90  # >= this share of runs on two ADJACENT lengths => a ze
 # because a 1.5625 Hz update is emitted into a 10 Hz record stream.
 
 
-def constant_runs(values, *, min_run: int = 2):
+def constant_runs(values, *, min_run: int):
     """Maximal runs of ONE repeated value that reach `min_run`, as `(first_index, n, value)`.
 
     Keyed on length and never on value membership. A `!= 0` test — or any list of known-bad constants
@@ -2900,7 +2900,7 @@ _ANNOTATION_GAP_MAX = 8  # the longest run of consecutive annotation rows a plat
 # marker burst, reporting a span that is mostly annotation.
 
 
-def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
+def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations):
     """Approach/departure shape around a plateau: `(monotone_in, monotone_out, projects_beyond)`.
 
     `projects_beyond` continues the approach slope across the plateau and asks whether it would have

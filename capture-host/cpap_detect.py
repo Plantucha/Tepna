@@ -107,7 +107,7 @@ class ShadowDetector:
     already take. So the box is closed, not unbuilt, and this adapter stays read-only.
     """
 
-    def __init__(self, supervisor, *, read, mono, writer=None, poll_interval_s: float = 30.0):
+    def __init__(self, supervisor, *, read, mono, writer=None, poll_interval_s: float):
         self._sup = supervisor
         self._read = read
         self._mono = mono

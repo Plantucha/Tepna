@@ -192,7 +192,7 @@ class SrpClient:
 
 
 # ── RPC envelopes (rpc_protocol.md §Message format) ───────────────────────────────────
-def rpc(method: str, params=None, rpc_id: int = 1, version: str = "1.0") -> bytes:
+def rpc(method: str, params=None, *, rpc_id: int, version: str) -> bytes:
     """Build one JSON-RPC request. params is OMITTED when None (distinct from {} / null)."""
     msg = {"jsonrpc": version, "method": method, "id": rpc_id}
     if params is not None:
@@ -201,24 +201,24 @@ def rpc(method: str, params=None, rpc_id: int = 1, version: str = "1.0") -> byte
 
 
 def request_session(client_id: str, rpc_id: int = 10) -> bytes:
-    return rpc("RequestSession", {"clientId": client_id}, rpc_id, "2.0")
+    return rpc("RequestSession", {"clientId": client_id}, rpc_id=rpc_id, version="2.0")
 
 
 def check_session_integrity(response_hex: str, rpc_id: int = 11) -> bytes:
-    return rpc("CheckSessionIntegrity", {"response": response_hex}, rpc_id, "2.0")
+    return rpc("CheckSessionIntegrity", {"response": response_hex}, rpc_id=rpc_id, version="2.0")
 
 
 def start_key_exchange(client_pk_hex: str, rpc_id: int = 1) -> bytes:
-    return rpc("StartKeyExchange", {"clientPk": client_pk_hex}, rpc_id, "2.0")
+    return rpc("StartKeyExchange", {"clientPk": client_pk_hex}, rpc_id=rpc_id, version="2.0")
 
 
 def confirm_key_exchange(m1_hex: str, rpc_id: int = 2) -> bytes:
-    return rpc("ConfirmKeyExchange", {"clientConfirmation": m1_hex}, rpc_id, "2.0")
+    return rpc("ConfirmKeyExchange", {"clientConfirmation": m1_hex}, rpc_id=rpc_id, version="2.0")
 
 
 def get_date_time(rpc_id: int = 13) -> bytes:
     """GetDateTime (cmd 0x04, `all` access). params omitted. Result: {"dateTime":"…Z"} (ISO 8601)."""
-    return rpc("GetDateTime", None, rpc_id, "1.0")
+    return rpc("GetDateTime", None, rpc_id=rpc_id, version="1.0")
 
 
 def get_items(names, rpc_id: int = 12) -> bytes:
@@ -226,7 +226,7 @@ def get_items(names, rpc_id: int = 12) -> bytes:
     names = list(names)
     if not names or not all(isinstance(n, str) and n for n in names):
         raise ValueError("Get takes a non-empty array of non-empty names")
-    return rpc("Get", names, rpc_id, "1.0")
+    return rpc("Get", names, rpc_id=rpc_id, version="1.0")
 
 
 def start_spool(spool_type: str, from_dt: str, max_spool_size: int = 4096, rpc_id: int = 14) -> bytes:
@@ -240,7 +240,9 @@ def start_spool(spool_type: str, from_dt: str, max_spool_size: int = 4096, rpc_i
     if not from_dt:
         raise ValueError("StartSpool requires a fromDateTime (the device rejects an empty address)")
     addr = {"fromDateTime": from_dt}
-    return rpc("StartSpool", {"spoolAddress": {spool_type: addr}, "maxSpoolSize": max_spool_size}, rpc_id, "1.0")
+    return rpc(
+        "StartSpool", {"spoolAddress": {spool_type: addr}, "maxSpoolSize": max_spool_size}, rpc_id=rpc_id, version="1.0"
+    )
 
 
 def pull_spool_fragments(
@@ -250,8 +252,8 @@ def pull_spool_fragments(
     return rpc(
         "PullSpoolFragments",
         {"spoolId": spool_id, "maxFragmentSize": max_fragment_size, "maxNotifications": max_notifications},
-        rpc_id,
-        "1.0",
+        rpc_id=rpc_id,
+        version="1.0",
     )
 
 
@@ -272,7 +274,7 @@ def subscribe_event(data_ids, rpc_id: int = 17) -> bytes:
         raise ValueError("SubscribeEvent takes 1–30 non-empty dataId strings")
     if len(ids) > 30:
         raise ValueError("SubscribeEvent takes at most 30 dataIds")
-    return rpc("SubscribeEvent", {"dataIds": ids}, rpc_id, "1.0")
+    return rpc("SubscribeEvent", {"dataIds": ids}, rpc_id=rpc_id, version="1.0")
 
 
 def start_stream(
@@ -299,6 +301,6 @@ def start_stream(
     return rpc(
         "StartStream",
         {"dataIds": ids, "sampleIntervalMs": sample_interval_ms, "reportIntervalMs": report},
-        rpc_id,
-        "1.0",
+        rpc_id=rpc_id,
+        version="1.0",
     )

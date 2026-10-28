@@ -160,7 +160,7 @@ def session_geo(lines, record_position: bool = False) -> dict | None:
     return out
 
 
-def read_nmea(port: str, baud: int = 38400, seconds: float = 5.0, _serial=None) -> list:
+def read_nmea(port: str, baud: int, seconds: float, _serial=None) -> list:
     """Thin I/O: collect NMEA lines for `seconds`. [] on ANY failure — absent hardware is not an error.
 
     `_serial` is injected for tests. Everything above this line is pure and gate-covered; this is the

@@ -84,7 +84,7 @@ def assign(devices, pool, prior=None, reserved_pool=(), movable=None):
     return out
 
 
-def apply_added(mac, adapters, devices, current, reserved=(), movable=None):
+def apply_added(mac, adapters, devices, current, reserved, movable=None):
     """`(assignment, moved)` after a radio is plugged in. PURE.
 
     ⚠️ A NEW ADAPTER NEVER INTERRUPTS A LIVE RECORDING. Pass `movable` — the devices that are NOT
