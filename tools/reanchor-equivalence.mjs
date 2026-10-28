@@ -68,6 +68,11 @@
  *   node tools/reanchor-equivalence.mjs --probe --write    # the only form that moves an anchor
  *   node tools/reanchor-equivalence.mjs --qualify          # what an enclosing-function qualifier is worth
  *   node tools/reanchor-equivalence.mjs --qualify --write  # write the qualifier; moves no address
+ *   node tools/reanchor-equivalence.mjs --settle           # probe every multi-candidate drifted entry
+ *   node tools/reanchor-equivalence.mjs --settle --write   # address it, delete it or escalate it
+ *   node tools/reanchor-equivalence.mjs --prune            # entries no generated mutant matches, report only
+ *   node tools/reanchor-equivalence.mjs --prune --write    # delete them; needs no probe (see the branch)
+ *   node tools/reanchor-equivalence.mjs --prune --prune-list <path>   # the per-entry evidence as JSON
  *   node tools/reanchor-equivalence.mjs --file pulsedex-dsp.js
  *   node tools/reanchor-equivalence.mjs --selftest         # known-answer, no enumeration
  *   node tools/reanchor-equivalence.mjs --verdict-sample   # the verdict object alone, no enumeration
@@ -436,6 +441,244 @@ export function unaddressed(drifted) {
     noAddress: drifted.filter((d) => d.would === 'neverPlaced' || d.would === 'gone').map(row),
     conditional: drifted.filter((d) => d.would === 'someFn').map(row)
   };
+}
+
+/* ── ASK 1 OF THE 2026-10-28 RULING: AN ENTRY THAT MATCHES NOTHING EXCUSES NOTHING ──────────────
+   The owner's ruling, relayed by Kestrel 2026-10-28: delete every entry that produces no candidate
+   under the LOOSE key and whose `before` text is absent from its file. Both conditions, and they are
+   not the same question. The loose key asks what the GENERATOR emits; the text asks what the FILE
+   holds. An entry can fail the first and pass the second — the line is still there and the operator
+   no longer fires on it — and that entry is NOT prunable under this rule, because the mutation may
+   return with the next generator change while the excuse would already be gone.
+
+   This is not the deletion the 2026-10-05 fleet rule governs. That rule guards a REFUTED verdict:
+   never weaken an excuse because a probe killed its mutant, without planting the mutant and watching
+   the covering suite fail. Here there is no mutant to plant. `classifySurvivors` matches an entry
+   against mutants a run GENERATED, and no generator emits text the file does not contain, so the
+   entry cannot excuse anything for as long as the text stays absent. An absence is not a refutation.
+   The capture-host ledger reached the same place first (`test_every_EQUIVALENCE_entry_is_still_in_
+   its_MODULE`), which is why this reads as a port rather than a new policy. */
+export function looseCandidates(entry, generated) {
+  const k = codeKey(entry);
+  return generated.filter((m) => codeKey(m) === k);
+}
+
+/* Whitespace-collapsing, because the ledger stores a source line as it was and a reflow would
+   otherwise read as an absence. Three answers rather than one boolean: a whole-line match, a match
+   inside a longer line, and a raw byte-level `includes` that normalises nothing. The third is the
+   control for the other two — it can only over-report presence, so a `false` there is the strongest
+   absence evidence the file can give. */
+export function textPresence(src, before) {
+  const want = String(before == null ? '' : before)
+    .replace(/\s+/g, ' ')
+    .trim();
+  const out = { exact: [], inside: [], raw: false, want };
+  if (want === '') return out;
+  const whole = String(src == null ? '' : src);
+  const lines = whole.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].replace(/\s+/g, ' ').trim();
+    if (l === want) out.exact.push(i + 1);
+    else if (l.includes(want)) out.inside.push(i + 1);
+  }
+  out.raw = whole.includes(String(before == null ? '' : before));
+  return out;
+}
+
+/* THREE OUTCOMES, because the two conditions carve out a middle class that must not be cut silently.
+   `prune` — no candidate and no text: the entry excuses nothing and cannot start again by itself.
+   `textStillThere` — no candidate, text present: unreachable TODAY, and the rule keeps it.
+   `live` — the generator still emits its mutation, so the entry is doing its job. */
+export function prunePlan(entries, generated, src) {
+  const out = { prune: [], textStillThere: [], live: 0 };
+  for (const e of entries) {
+    const loose = looseCandidates(e, generated).length;
+    const t = textPresence(src, e.before);
+    const rec = { entry: e, loose, textExact: t.exact, textInside: t.inside, raw: t.raw };
+    if (loose > 0) {
+      out.live++;
+      continue;
+    }
+    if (t.exact.length === 0 && t.inside.length === 0 && !t.raw) out.prune.push(rec);
+    else out.textStillThere.push(rec);
+  }
+  return out;
+}
+
+/* The prune decides something, so it owes its own object. The criterion is over the ledger AS THIS
+   RUN LEAVES IT: a report-only pass leaves every orphan in place and reads SHORTFALL, and the same
+   command with `--write` removes the prunable ones and reads PASS only if none remain. The middle
+   class counts as remaining, which is the escalation channel — it reaches a reader as a number in a
+   verdict rather than as a sentence in a log. */
+/* ══ SETTLING A MULTI-CANDIDATE DRIFTED ENTRY ══════════════════════════════════════════════════
+   An entry the qualifier calls `someFn` or `neverPlaced` has drifted AND matches more than one
+   generated mutant, and it carries no `fn`, so no name narrows it. `planEntry` refuses it as
+   `ambiguous` and the tool leaves it orphaned — correct as a default, and it leaves 19 judgements
+   inert in the ledger.
+
+   What breaks the tie is not a better reading of the entry. It is the PROBE: each candidate mutant
+   is planted and the covering suite is run, so each site comes back `survived` or `killed`. The
+   entries of one cohort — identical in (op, before, after), differing only in a `line` already known
+   to be wrong — are interchangeable, so a decision is about the cohort and the SITES, never about
+   which entry object is which.
+
+   Five rules over (n entries, S surviving sites, K killed sites). They are a POLICY, written after
+   the probe of 2026-10-28 and open to the owner's overrule; the measurement under them is not.
+     0 · any candidate without a verdict → ESCALATE. An absence is not a survival (§∅).
+     1 · |S| = 0 → DELETE all n. Every site the entry could name was killed, so the excuse is
+         refuted wherever it could live; the probe IS the plant-and-watch control the fleet rule of
+         2026-10-05 demands before weakening an equivalence entry.
+     2 · |S| = n → ADDRESS each entry to one survivor in line order. A bijection, so every entry
+         names a real distinct site and none can land on a killed one.
+     3 · |S| < n → ADDRESS |S| of them, DELETE the surplus. Which object is deleted is a relabeling.
+     4 · |S| > n with K empty → ADDRESS to the first n survivors. Every candidate survived, so the
+         choice is consequence-free.
+     5 · |S| > n with K non-empty → ESCALATE. A killed site exists, so the address matters, and the
+         data does not say which site the entry judged. This is the one shape the probe cannot settle.
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+export function settleCohorts(entries, generated) {
+  const q = qualifyPlan(entries, generated);
+  const byKey = new Map();
+  for (const d of q.drifted) {
+    if (d.would !== 'someFn' && d.would !== 'neverPlaced') continue;
+    const e = d.entry;
+    const k = codeKey(e) + '\u0000' + norm(e.after);
+    if (!byKey.has(k)) {
+      /* The candidate set is read WITHOUT the entry's `fn` — these entries have none, and reading a
+         name off a drifted line would read it off an address already known to be wrong. */
+      byKey.set(k, { key: k, would: d.would, entries: [], candidates: candidatesFor({ op: e.op, before: e.before, after: e.after }, generated).slice() });
+    }
+    byKey.get(k).entries.push(e);
+  }
+  const byLine = (a, b) => a.line - b.line;
+  return [...byKey.values()].map((c) => ({ ...c, entries: c.entries.slice().sort(byLine), candidates: c.candidates.sort(byLine) }));
+}
+
+export function settleDecide(cohort, outcomeOf) {
+  const out = { rule: null, decisions: [], survivors: [], killed: [], unknown: [] };
+  for (const m of cohort.candidates) {
+    const o = outcomeOf(m);
+    if (o === 'survived') out.survivors.push(m);
+    else if (o === 'killed') out.killed.push(m);
+    else out.unknown.push(m);
+  }
+  const n = cohort.entries.length;
+  const S = out.survivors;
+  const K = out.killed;
+  const all = cohort.candidates.length;
+  const escalate = (reason) => {
+    for (const e of cohort.entries) out.decisions.push({ entry: e, action: 'escalate', reason });
+  };
+  if (out.unknown.length) {
+    out.rule = 0;
+    escalate(`${out.unknown.length} of ${all} candidate site(s) came back with no verdict, and an absence is not a survival`);
+    return out;
+  }
+  if (S.length === 0) {
+    out.rule = 1;
+    for (const e of cohort.entries)
+      out.decisions.push({ entry: e, action: 'delete', reason: `all ${K.length} site(s) this entry could name were KILLED, so the excuse is refuted wherever it could live` });
+    return out;
+  }
+  if (S.length === n) {
+    out.rule = 2;
+    cohort.entries.forEach((e, i) =>
+      out.decisions.push({ entry: e, action: 'address', mutant: S[i], reason: `${n} entr(ies) over ${n} surviving site(s) of ${all}: a bijection, so this entry names a real distinct site` })
+    );
+    return out;
+  }
+  if (S.length < n) {
+    out.rule = 3;
+    cohort.entries.forEach((e, i) => {
+      if (i < S.length) out.decisions.push({ entry: e, action: 'address', mutant: S[i], reason: `${S.length} of ${all} site(s) survived, and this entry takes one of them` });
+      else out.decisions.push({ entry: e, action: 'delete', reason: `the cohort holds ${n} interchangeable entr(ies) and only ${S.length} of ${all} site(s) survived, so the surplus is refuted` });
+    });
+    return out;
+  }
+  if (K.length === 0) {
+    out.rule = 4;
+    cohort.entries.forEach((e, i) =>
+      out.decisions.push({ entry: e, action: 'address', mutant: S[i], reason: `every one of the ${all} candidate site(s) survived, so which one this entry takes is consequence-free` })
+    );
+    return out;
+  }
+  out.rule = 5;
+  escalate(`${S.length} of ${all} site(s) survived and ${K.length} were killed, over ${n} entr(ies): the address matters and the data does not say which site this entry judged`);
+  return out;
+}
+
+export function makeSettleVerdict(ts) {
+  const commit = headCommit();
+  const checked = ts.entries;
+  const unsettled = ts.escalated + ts.unprobed;
+  const reason = !checked
+    ? 'no multi-candidate drifted entry was examined, so nothing was decided'
+    : unsettled === 0
+      ? null
+      : `${unsettled} probed entr(ies) are not settled: ${ts.escalated} escalated because a killed site makes the address matter, and ${ts.unprobed} were never probed`;
+  return Verdict.make({
+    gate: 'reanchor-equivalence-settle',
+    status: !checked ? 'NOT_RUN' : unsettled ? 'SHORTFALL' : 'PASS',
+    population: { checked, eligible: checked, excluded: 0 },
+    criterion: { name: 'probed_entries_left_unsettled', threshold: 0, unit: 'entries', direction: 'lte' },
+    result: !checked
+      ? null
+      : {
+          entries: checked,
+          cohorts: ts.cohorts,
+          files: ts.files,
+          addressed: ts.addressed,
+          deleted: ts.deleted,
+          escalated: ts.escalated,
+          unprobed: ts.unprobed,
+          byRule: ts.byRule,
+          written: ts.written
+        },
+    evidence: ['tools/reanchor-equivalence.mjs', 'tools/mutate-equivalence.json'],
+    reason,
+    producedBy: commit
+      ? { tool: 'tools/reanchor-equivalence.mjs', commit }
+      : { tool: 'tools/reanchor-equivalence.mjs', commit: null, commitReason: 'git rev-parse failed here, so there is no commit to stamp' }
+  });
+}
+
+export function makePruneVerdict(tp) {
+  const commit = headCommit();
+  const checked = tp.entries;
+  const remaining = tp.prune + tp.textStillThere - tp.pruned;
+  const reason = !checked
+    ? 'no ledger entry was examined, so nothing was decided'
+    : remaining === 0
+      ? null
+      : remaining +
+        ' entr(ies) match no generated mutant: ' +
+        (tp.prune - tp.pruned) +
+        ' with their source text absent (prunable under the 2026-10-28 rule) and ' +
+        tp.textStillThere +
+        ' whose text is still in the file, which the rule keeps';
+  return Verdict.make({
+    gate: 'reanchor-equivalence-prune',
+    status: !checked ? 'NOT_RUN' : remaining ? 'SHORTFALL' : 'PASS',
+    population: { checked, eligible: checked, excluded: 0 },
+    criterion: { name: 'entries_matching_no_generated_mutant', threshold: 0, unit: 'entries', direction: 'lte' },
+    result: !checked
+      ? null
+      : {
+          entries: checked,
+          files: tp.files,
+          live: tp.live,
+          orphansFound: tp.prune + tp.textStillThere,
+          prunableBothProofs: tp.prune,
+          unreachableTextStillPresent: tp.textStillThere,
+          pruned: tp.pruned,
+          remaining
+        },
+    evidence: ['tools/reanchor-equivalence.mjs', 'tools/mutate-equivalence.json'],
+    reason,
+    producedBy: commit
+      ? { tool: 'tools/reanchor-equivalence.mjs', commit }
+      : { tool: 'tools/reanchor-equivalence.mjs', commit: null, commitReason: 'git rev-parse failed here, so there is no commit to stamp' }
+  });
 }
 
 /* The qualifier pass decides something of its own — which entries may carry a function qualifier —
@@ -826,6 +1069,217 @@ if (IS_MAIN && has('--selftest')) {
         .split('if (WRITE)')[1] || ''
     ) === false
   );
+
+  /* ── the prune pass ───────────────────────────────────────────────────────────────────────
+     The two conditions are measured separately here, because the whole ruling rests on them
+     asking different questions: `looseCandidates` asks what the GENERATOR emits at this
+     (op, before), `textPresence` asks what the FILE holds. A leg for each, then a leg for the
+     middle class — no candidate, text still present — which must be KEPT, not pruned. */
+  const genL = [
+    { line: 10, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' },
+    { line: 44, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a > b + 1) {' },
+    { line: 20, op: 'num → 0', before: 'x = 5;', after: 'x = 0;' }
+  ];
+  ok(
+    'the loose key ignores `after`, so one (op, before) can answer for several generated mutants',
+    looseCandidates({ line: 999, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' }, genL).length === 2,
+    JSON.stringify(looseCandidates({ line: 999, op: 'cmp > → >=', before: 'if (a > b) {' }, genL).map((m) => m.line))
+  );
+  ok('…and it is still keyed on the op, so the same text under another op matches nothing', looseCandidates({ line: 10, op: 'bool && → ||', before: 'if (a > b) {' }, genL).length === 0);
+  const srcL = 'const a = 1;\n   if (a > b) {   \n  foo(if (a > b) { );\n';
+  const tpE = textPresence(srcL, 'if (a > b) {');
+  ok('a whole line matches its entry text through any indentation, and reports the 1-based line', tpE.exact.length === 1 && tpE.exact[0] === 2, JSON.stringify(tpE));
+  ok('…and a line that merely CONTAINS the text is reported apart from an exact match', tpE.inside.length === 1 && tpE.inside[0] === 3, JSON.stringify(tpE.inside));
+  const tpA = textPresence(srcL, 'if (q < r) {');
+  ok('absent text reports absent on all three readings, which is the condition a prune needs', tpA.exact.length === 0 && tpA.inside.length === 0 && tpA.raw === false);
+  ok('an empty `before` is never read as present — it would make every entry prunable', textPresence(srcL, '').raw === false && textPresence(srcL, null).exact.length === 0);
+  /* The raw leg is the control on the whitespace-collapsing one: a `before` that only matches once
+     the collapse has run is NOT a byte-level absence, and the prune refuses on either reading. */
+  ok(
+    'the raw byte reading is kept beside the collapsed one as its control',
+    textPresence('  if (a  >  b) {\n', 'if (a > b) {').exact.length === 1 && textPresence('  if (a  >  b) {\n', 'if (a > b) {').raw === false
+  );
+
+  const plE = prunePlan(
+    [
+      { line: 10, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' },
+      { line: 77, op: 'bool && → ||', before: 'if (a > b) {', after: 'if (a || b) {' },
+      { line: 88, op: 'num → 0', before: 'z = 9;', after: 'z = 0;' }
+    ],
+    genL,
+    srcL
+  );
+  ok(
+    'prunePlan separates all three outcomes: live, prunable, and unreachable-but-still-written',
+    plE.live === 1 && plE.prune.length === 1 && plE.textStillThere.length === 1,
+    JSON.stringify({ live: plE.live, prune: plE.prune.length, kept: plE.textStillThere.length })
+  );
+  ok(
+    '…and the one it prunes is the one whose text is GONE, not the one whose operator stopped firing',
+    plE.prune[0].entry.line === 88 && plE.textStillThere[0].entry.line === 77,
+    JSON.stringify([plE.prune[0].entry.line, plE.textStillThere[0].entry.line])
+  );
+  ok(
+    'a kept entry carries the lines its text still occupies, so the keep is readable rather than asserted',
+    plE.textStillThere[0].textExact.length + plE.textStillThere[0].textInside.length > 0,
+    JSON.stringify(plE.textStillThere[0])
+  );
+
+  const TP = (o) => ({ entries: 0, files: 0, live: 0, prune: 0, textStillThere: 0, pruned: 0, ...o });
+  const vpNone = makePruneVerdict(TP({ entries: 5, files: 1, live: 5 }));
+  ok(
+    'a ledger with no orphan passes, and the object validates whole',
+    vpNone.status === 'PASS' && vpNone.reason === null && Verdict.validate(vpNone).ok,
+    vpNone.status + ' · ' + (Verdict.validate(vpNone).errors || []).join('; ')
+  );
+  const vpDry = makePruneVerdict(TP({ entries: 5, files: 1, live: 3, prune: 2 }));
+  ok(
+    'a dry run that FOUND orphans and deleted none is a SHORTFALL, not a pass',
+    vpDry.status === 'SHORTFALL' && vpDry.result.remaining === 2 && Verdict.validate(vpDry).ok,
+    vpDry.status + ' · ' + String(vpDry.reason)
+  );
+  const vpWrote = makePruneVerdict(TP({ entries: 5, files: 1, live: 3, prune: 2, pruned: 2 }));
+  ok(
+    '…and the same run after the write passes, because nothing unmatched is left',
+    vpWrote.status === 'PASS' && vpWrote.reason === null && vpWrote.result.pruned === 2 && Verdict.validate(vpWrote).ok,
+    vpWrote.status
+  );
+  const vpKept = makePruneVerdict(TP({ entries: 5, files: 1, live: 4, textStillThere: 1 }));
+  ok(
+    'the middle class keeps the verdict short of a pass, and the reason says the rule KEPT it',
+    vpKept.status === 'SHORTFALL' && /whose text is still in the file, which the rule keeps/.test(vpKept.reason) && Verdict.validate(vpKept).ok,
+    String(vpKept.reason)
+  );
+  const vpNil = makePruneVerdict(TP({}));
+  ok(
+    'a run over no entry is NOT_RUN with a reason, never a pass over nothing examined',
+    vpNil.status === 'NOT_RUN' && vpNil.result === null && typeof vpNil.reason === 'string' && Verdict.validate(vpNil).ok,
+    vpNil.status + ' · ' + (Verdict.validate(vpNil).errors || []).join('; ')
+  );
+  ok(
+    'the prune criterion is pre-stated and names the population it judges',
+    vpDry.criterion.name === 'entries_matching_no_generated_mutant' &&
+      vpDry.criterion.threshold === 0 &&
+      vpDry.criterion.direction === 'lte' &&
+      vpDry.population.checked + vpDry.population.excluded === vpDry.population.eligible,
+    JSON.stringify(vpDry.criterion)
+  );
+
+  /* ── the settle pass ──────────────────────────────────────────────────────────────────────
+     One leg per rule, each built so the rule it names is the only one that can fire. The
+     outcome function stands in for a probe, which is what makes the five rules testable without
+     one — the rules read a verdict per site, never a count of mutants. */
+  const C = (lines, cands) => ({
+    key: 'k',
+    would: 'neverPlaced',
+    entries: lines.map((l) => ({ line: l, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' })),
+    candidates: cands.map((l) => ({ line: l, fn: 'f', op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' }))
+  });
+  const OUT = (map) => (m) => map[m.line];
+  const d1 = settleDecide(C([9, 11], [40, 50]), OUT({ 40: 'killed', 50: 'killed' }));
+  ok(
+    'rule 1 · every site killed deletes the whole cohort, which is the probe acting as the plant-and-watch control',
+    d1.rule === 1 && d1.decisions.every((x) => x.action === 'delete') && d1.decisions.length === 2,
+    JSON.stringify(d1.decisions.map((x) => x.action))
+  );
+  const d2 = settleDecide(C([9, 11], [40, 50]), OUT({ 40: 'survived', 50: 'survived' }));
+  ok(
+    'rule 2 · as many survivors as entries is a bijection, and each entry takes a DISTINCT site in line order',
+    d2.rule === 2 && d2.decisions.map((x) => x.mutant.line).join(',') === '40,50' && new Set(d2.decisions.map((x) => x.mutant.line)).size === 2,
+    JSON.stringify(d2.decisions.map((x) => x.mutant.line))
+  );
+  const d3 = settleDecide(C([9, 11], [40, 50]), OUT({ 40: 'killed', 50: 'survived' }));
+  ok(
+    'rule 3 · fewer survivors than entries addresses the survivors and deletes the surplus — and never addresses a KILLED site',
+    d3.rule === 3 &&
+      d3.decisions.filter((x) => x.action === 'address').length === 1 &&
+      d3.decisions.filter((x) => x.action === 'delete').length === 1 &&
+      d3.decisions.find((x) => x.action === 'address').mutant.line === 50,
+    JSON.stringify(d3.decisions.map((x) => x.action + ':' + (x.mutant ? x.mutant.line : '-')))
+  );
+  const d4 = settleDecide(C([9], [40, 50, 60]), OUT({ 40: 'survived', 50: 'survived', 60: 'survived' }));
+  ok(
+    'rule 4 · more survivors than entries with nothing killed is consequence-free, so it takes the lowest line',
+    d4.rule === 4 && d4.decisions.length === 1 && d4.decisions[0].mutant.line === 40,
+    JSON.stringify(d4.decisions[0].mutant)
+  );
+  const d5 = settleDecide(C([9], [40, 50, 60]), OUT({ 40: 'survived', 50: 'survived', 60: 'killed' }));
+  ok(
+    'rule 5 · a killed site among more survivors than entries ESCALATES — the one shape a probe cannot settle',
+    d5.rule === 5 && d5.decisions.every((x) => x.action === 'escalate') && /does not say which site/.test(d5.decisions[0].reason),
+    JSON.stringify(d5.decisions.map((x) => x.action))
+  );
+  const d0 = settleDecide(C([9], [40, 50]), OUT({ 40: 'survived' }));
+  ok(
+    'rule 0 · a site with no verdict escalates, because an absence is not a survival',
+    d0.rule === 0 && d0.decisions[0].action === 'escalate' && d0.unknown.length === 1,
+    JSON.stringify({ rule: d0.rule, unknown: d0.unknown.length })
+  );
+  /* The load-bearing property across all five: a write only ever moves an address onto a site this
+     run watched survive. Asserted over every rule at once rather than per leg. */
+  for (const [nm, d] of [
+    ['rule 1', d1],
+    ['rule 2', d2],
+    ['rule 3', d3],
+    ['rule 4', d4],
+    ['rule 5', d5],
+    ['rule 0', d0]
+  ]) {
+    const bad = d.decisions.filter((x) => x.action === 'address' && !d.survivors.some((s) => s.line === x.mutant.line));
+    ok(
+      `${nm} addresses only a site that SURVIVED`,
+      bad.length === 0,
+      bad.length ? JSON.stringify(bad.map((x) => x.mutant.line)) : `${d.decisions.filter((x) => x.action === 'address').length} address(es)`
+    );
+  }
+
+  const genS = [
+    { line: 40, fn: 'f', op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' },
+    { line: 50, fn: 'f', op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' },
+    { line: 60, fn: 'g', op: 'num → 0', before: 'x = 5;', after: 'x = 0;' },
+    { line: 70, fn: 'h', op: 'num → 0', before: 'x = 5;', after: 'x = 0;' }
+  ];
+  const cohS = settleCohorts(
+    [
+      { line: 9, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' },
+      { line: 11, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' },
+      { line: 12, op: 'num → 0', before: 'x = 5;', after: 'x = 0;' },
+      { line: 40, op: 'cmp > → >=', before: 'if (a > b) {', after: 'if (a >= b) {' }
+    ],
+    genS
+  );
+  ok(
+    'a cohort is the entries sharing one (op, before, after), and only where a qualifier could not place them',
+    cohS.length === 1 && cohS[0].entries.length === 2 && cohS[0].candidates.length === 2,
+    JSON.stringify(cohS.map((c) => ({ n: c.entries.length, cands: c.candidates.map((m) => m.line), would: c.would })))
+  );
+  ok(
+    '…so an entry a NAME would place is left to the qualifier, and an already-anchored one is untouched',
+    !cohS.some((c) => c.entries.some((e) => e.line === 12 || e.line === 40)),
+    JSON.stringify(cohS[0].entries.map((e) => e.line))
+  );
+
+  const TS = (o) => ({ entries: 0, cohorts: 0, files: 0, addressed: 0, deleted: 0, escalated: 0, unprobed: 0, written: false, byRule: {}, ...o });
+  const vsAll = makeSettleVerdict(TS({ entries: 19, cohorts: 12, files: 4, addressed: 13, deleted: 4, escalated: 2 }));
+  ok(
+    'a settle run that escalates is SHORTFALL, and the object validates whole',
+    vsAll.status === 'SHORTFALL' && vsAll.result.escalated === 2 && Verdict.validate(vsAll).ok,
+    vsAll.status + ' · ' + String(vsAll.reason)
+  );
+  const vsDone = makeSettleVerdict(TS({ entries: 19, cohorts: 12, files: 4, addressed: 15, deleted: 4 }));
+  ok('…and one that leaves nothing unsettled passes with no reason', vsDone.status === 'PASS' && vsDone.reason === null && Verdict.validate(vsDone).ok, vsDone.status);
+  const vsVoid = makeSettleVerdict(TS({ entries: 5, cohorts: 2, files: 1, unprobed: 5 }));
+  ok(
+    'a voided probe is unsettled, not settled — it examined nothing and says so',
+    vsVoid.status === 'SHORTFALL' && /never probed/.test(vsVoid.reason) && Verdict.validate(vsVoid).ok,
+    String(vsVoid.reason)
+  );
+  const vsNil = makeSettleVerdict(TS({}));
+  ok(
+    'a run with no eligible entry is NOT_RUN with a reason, never a pass over nothing',
+    vsNil.status === 'NOT_RUN' && vsNil.result === null && typeof vsNil.reason === 'string' && Verdict.validate(vsNil).ok,
+    vsNil.status
+  );
   ok('the emitted verdict object validates', vs.ok, (vs.errors || []).join('; '));
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
@@ -850,11 +1304,21 @@ if (IS_MAIN && !has('--selftest')) {
   const PROBE = has('--probe');
   const WRITE = has('--write');
   const QUALIFY = has('--qualify');
+  const PRUNE = has('--prune');
+  const SETTLE = has('--settle');
   if (QUALIFY && PROBE) {
     console.error('--qualify --probe REFUSED: a qualifier write moves no address, so a probe has nothing to renew. Run them as separate passes.');
     process.exit(2);
   }
-  if (WRITE && !PROBE && !QUALIFY) {
+  if (PRUNE && (PROBE || QUALIFY)) {
+    console.error('--prune REFUSED alongside --probe/--qualify: a prune deletes entries, the others move or annotate them. Run them as separate passes.');
+    process.exit(2);
+  }
+  if (SETTLE && (PROBE || QUALIFY || PRUNE)) {
+    console.error('--settle REFUSED alongside --probe/--qualify/--prune: it probes on its own account and decides per cohort. Run them as separate passes.');
+    process.exit(2);
+  }
+  if (WRITE && !PROBE && !QUALIFY && !PRUNE && !SETTLE) {
     console.error('--write REFUSED: moving an anchor without a probe re-arms an excuse nobody re-probed.');
     console.error('Owner ruling, board #1549 item 21 (2026-10-26): re-anchor WITH a probe for each entry. Re-run as `--probe --write`.');
     process.exit(2);
@@ -877,6 +1341,109 @@ if (IS_MAIN && !has('--selftest')) {
     unlinkSync(tmp);
     return g;
   };
+
+  if (PRUNE) {
+    /* THE PRUNE PASS. It DELETES entries, and it is the one write in this tool that needs no probe,
+       because there is nothing to probe: `classifySurvivors` matches an entry against the mutants a
+       run GENERATED, and no generator emits text the file does not hold. A plant-and-watch control —
+       the fleet rule of 2026-10-05 for a REFUTED verdict — cannot be built over a mutation that
+       cannot be produced. A probe here would examine nothing and report a pass about it (§4b).
+
+       Both of the owner's conditions must hold (ruling 2026-10-28), because they ask different
+       questions. The loose key asks what the GENERATOR emits at this (op, before); the text asks
+       what the FILE still holds. An entry with no candidate whose text IS still present is the
+       middle class: the operator stopped firing there, the code it judged did not move, and the
+       mutation may return while the excuse would already be gone. That class is REPORTED and KEPT. */
+    const PRUNE_LIST = opt('--prune-list', '');
+    const tp = { entries: 0, files: 0, live: 0, prune: 0, textStillThere: 0, pruned: 0 };
+    const rows = [];
+    for (const file of files) {
+      const generated = enumerate(file);
+      if (!generated) continue;
+      let src = '';
+      try {
+        src = readFileSync(join(ROOT, file), 'utf8');
+      } catch (_) {
+        /* No source, no text proof. Reporting these as prunable would delete an entry on one leg. */
+        console.error(`  \u2717 ${file}: source unreadable — skipped, so none of its entries are judged`);
+        continue;
+      }
+      tp.files++;
+      tp.entries += doc[file].length;
+      const pl = prunePlan(doc[file], generated, src);
+      tp.live += pl.live;
+      tp.prune += pl.prune.length;
+      tp.textStillThere += pl.textStillThere.length;
+      console.log(
+        `\u25b8 ${file}  ${doc[file].length} entr(ies) \u00b7 ${pl.live} match a generated mutant \u00b7 ${pl.prune.length} prunable on BOTH proofs \u00b7 ${pl.textStillThere.length} unreachable but their text is still here`
+      );
+      for (const r of pl.prune) {
+        console.log(
+          `    \u2717 PRUNE L${r.entry.line} [${r.entry.op}] \u2014 0 generated mutant(s) at this (op, before) AND its text is absent; it excused ${r.entry.class || 'an unrecorded class'}: ${clip(r.entry.why)}`
+        );
+        rows.push({
+          file,
+          line: r.entry.line,
+          op: r.entry.op,
+          before: r.entry.before,
+          after: r.entry.after,
+          class: r.entry.class ?? null,
+          why: r.entry.why ?? null,
+          looseCandidates: 0,
+          textExact: [],
+          textInside: [],
+          rawSubstring: false,
+          decision: 'prune'
+        });
+      }
+      for (const r of pl.textStillThere) {
+        console.log(
+          `    ~ KEPT L${r.entry.line} [${r.entry.op}] \u2014 no generated mutant, but its text is still in the file (exact ${JSON.stringify(r.textExact)}, inside ${JSON.stringify(r.textInside)}); the operator stopped firing, the code did not move`
+        );
+        rows.push({
+          file,
+          line: r.entry.line,
+          op: r.entry.op,
+          before: r.entry.before,
+          after: r.entry.after,
+          class: r.entry.class ?? null,
+          why: r.entry.why ?? null,
+          looseCandidates: 0,
+          textExact: r.textExact,
+          textInside: r.textInside,
+          rawSubstring: r.raw,
+          decision: 'kept-text-present'
+        });
+      }
+      if (WRITE && pl.prune.length) {
+        const drop = new Set(pl.prune.map((r) => r.entry));
+        doc[file] = doc[file].filter((e) => !drop.has(e));
+        tp.pruned += pl.prune.length;
+      }
+    }
+    if (PRUNE_LIST) {
+      writeFileSync(PRUNE_LIST, JSON.stringify({ at: new Date().toISOString().replace(/\.\d+Z$/, 'Z'), commit: headCommit(), rows }, null, 1) + '\n');
+      console.log(`\n  evidence for ${rows.length} entr(ies) written to ${PRUNE_LIST}`);
+    }
+    if (WRITE) {
+      writeFileSync(LEDGER, JSON.stringify(doc, null, LEDGER_INDENT) + '\n');
+      console.log(
+        `\n\u2713 pruned ${tp.pruned} entr(ies) that match no generated mutant and whose source text is absent. ${tp.textStillThere} unreachable entr(ies) were KEPT, because their text is still in the file.`
+      );
+    } else {
+      console.log(
+        `\n${tp.prune} of ${tp.entries} entr(ies) are prunable on both proofs; ${tp.textStillThere} are unreachable with their text still present and are kept. Re-run with \`--prune --write\`.`
+      );
+    }
+    const vp = makePruneVerdict(tp);
+    const cp = Verdict.validate(vp);
+    if (!cp.ok) {
+      console.error('verdict invalid: ' + (cp.errors || []).join('; '));
+      process.exit(1);
+    }
+    console.log(JSON.stringify(vp));
+    process.exit(0);
+  }
 
   if (QUALIFY) {
     /* THE QUALIFIER PASS. It writes `fn` on entries that are already exactly anchored and whose
@@ -992,6 +1559,113 @@ if (IS_MAIN && !has('--selftest')) {
     if (!o.ok) return { ok: false, voided: true, reason: o.reason };
     return { ok: true, killed: o.killed, survived: o.survived, groups: rec.groupsRun, groupCount: rec.groupCount };
   };
+
+  if (SETTLE) {
+    /* THE SETTLE PASS. One probe per file over the union of its cohorts' candidate sites, then
+       `settleDecide` per cohort. It writes only behind that probe, which is why it is exempt from
+       the `--write` refusal above: the refusal exists to stop an address moving onto a mutant
+       nobody re-tested, and here every address a write takes came back `survived` in this run. */
+    const ts = { entries: 0, cohorts: 0, files: 0, addressed: 0, deleted: 0, escalated: 0, unprobed: 0, written: false, byRule: {} };
+    const deletions = new Map();
+    const settleList = opt('--settle-list', '');
+    const rows = [];
+    for (const file of files) {
+      const generated = enumerate(file);
+      if (!generated) continue;
+      const cohorts = settleCohorts(doc[file], generated);
+      if (!cohorts.length) continue;
+      ts.files++;
+      const nEntries = cohorts.reduce((a, c) => a + c.entries.length, 0);
+      const targets = [];
+      for (const c of cohorts) for (const m of c.candidates) targets.push({ entry: c.entries[0], mutant: m });
+      console.log(`▸ ${file}  ${cohorts.length} cohort(s) · ${nEntries} entr(ies) · ${targets.length} candidate site(s) to probe`);
+      const t0 = Date.now();
+      const probe = runProbe(file, targets);
+      if (!probe.ok) {
+        ts.entries += nEntries;
+        ts.cohorts += cohorts.length;
+        ts.unprobed += nEntries;
+        console.log(`    ⊘ NO PROBE for ${nEntries} entr(ies) — ${probe.reason}`);
+        continue;
+      }
+      const outcomeOf = (m) => {
+        const k = key4(m);
+        return probe.killed.has(k) ? 'killed' : probe.survived.has(k) ? 'survived' : 'absent';
+      };
+      const probeNote = `mutate.mjs --only over the groups tagged ${probe.groups} (${probe.groupCount} group(s))`;
+      for (const c of cohorts) {
+        const d = settleDecide(c, outcomeOf);
+        ts.cohorts++;
+        ts.entries += c.entries.length;
+        ts.byRule['rule' + d.rule] = (ts.byRule['rule' + d.rule] || 0) + c.entries.length;
+        const sites = c.candidates.map((m) => `${m.fn == null ? 'top' : m.fn}@${m.line}=${outcomeOf(m)}`).join('  ');
+        console.log(`  · ${c.would} cohort [${norm(c.entries[0].op)}] n=${c.entries.length} L${c.entries.map((e) => e.line).join(',L')} → rule ${d.rule}`);
+        console.log(`      ${sites}`);
+        for (const dec of d.decisions) {
+          const base = {
+            file,
+            line: dec.entry.line,
+            op: dec.entry.op,
+            before: dec.entry.before,
+            after: dec.entry.after,
+            class: dec.entry.class ?? null,
+            why: dec.entry.why ?? null,
+            would: c.would,
+            rule: d.rule,
+            action: dec.action,
+            reason: dec.reason,
+            sites: c.candidates.map((m) => ({ fn: m.fn ?? null, line: m.line, outcome: outcomeOf(m) }))
+          };
+          if (dec.action === 'address') {
+            ts.addressed++;
+            rows.push({ ...base, toLine: dec.mutant.line, toFn: dec.mutant.fn ?? null });
+            console.log(`      → ADDRESS L${dec.entry.line} becomes L${dec.mutant.line} in ${dec.mutant.fn == null ? 'top level' : dec.mutant.fn} — ${dec.reason}`);
+            if (WRITE) {
+              dec.entry.reanchored = { at: TODAY, from: dec.entry.line, commit: COMMIT, outcome: 'survived', probe: probeNote, rule: `settle rule ${d.rule}` };
+              dec.entry.line = dec.mutant.line;
+              dec.entry.fn = dec.mutant.fn ?? undefined;
+              if (dec.entry.fn === undefined) delete dec.entry.fn;
+            }
+          } else if (dec.action === 'delete') {
+            ts.deleted++;
+            rows.push({ ...base, toLine: null, toFn: null });
+            console.log(`      ✗ DELETE L${dec.entry.line} — ${dec.reason}`);
+            if (WRITE) {
+              if (!deletions.has(file)) deletions.set(file, new Set());
+              deletions.get(file).add(dec.entry);
+            }
+          } else {
+            ts.escalated++;
+            rows.push({ ...base, toLine: null, toFn: null });
+            console.log(`      ↑ ESCALATE L${dec.entry.line} — ${dec.reason}`);
+          }
+        }
+      }
+      console.log(`    ✓ probed ${targets.length} site(s) in ${Math.round((Date.now() - t0) / 1000)}s · ${probe.groupCount} group(s) tagged ${probe.groups}`);
+    }
+    if (settleList) {
+      writeFileSync(settleList, JSON.stringify({ at: new Date().toISOString().replace(/\.\d+Z$/, 'Z'), commit: COMMIT, rows }, null, 1) + '\n');
+      console.log(`\n  evidence for ${rows.length} entr(ies) written to ${settleList}`);
+    }
+    if (WRITE && (ts.addressed || ts.deleted)) {
+      for (const [file, drop] of deletions) doc[file] = doc[file].filter((e) => !drop.has(e));
+      writeFileSync(LEDGER, JSON.stringify(doc, null, LEDGER_INDENT) + '\n');
+      ts.written = true;
+      console.log(
+        `\n✓ settled ${ts.addressed + ts.deleted} entr(ies): ${ts.addressed} addressed to a site this run watched SURVIVE, ${ts.deleted} deleted as refuted. ${ts.escalated} escalated — left exactly as they were.`
+      );
+    } else {
+      console.log(`\n${ts.addressed} entr(ies) would be addressed, ${ts.deleted} deleted and ${ts.escalated} escalated. Re-run with \`--settle --write\`.`);
+    }
+    const vs2 = makeSettleVerdict(ts);
+    const cs2 = Verdict.validate(vs2);
+    if (!cs2.ok) {
+      console.error('verdict invalid: ' + (cs2.errors || []).join('; '));
+      process.exit(1);
+    }
+    console.log(JSON.stringify(vs2));
+    process.exit(0);
+  }
 
   let moved = 0,
     stuck = 0,
