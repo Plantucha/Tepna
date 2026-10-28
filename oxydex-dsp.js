@@ -8758,6 +8758,7 @@
   }
 
   // Public namespace — the headless surface the orchestrator + app both reach.
+  // biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: a hoisted `var` reads as `undefined` here, never a dead zone — the idiom adopts the namespace the bundle may already have defined
   var OxyDex = typeof OxyDex !== 'undefined' && OxyDex ? OxyDex : {};
   OxyDex.compute = function (input, opts) {
     opts = opts || {};

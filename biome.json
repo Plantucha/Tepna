@@ -38,6 +38,7 @@
         "noConstantCondition": "error",
         "useValidTypeof": "error",
         "noGlobalObjectCalls": "error",
+        "noInvalidUseBeforeDeclaration": "error",
         "noSwitchDeclarations": "off"
       },
       "suspicious": {
