@@ -4939,6 +4939,27 @@
         T.eq('CPAPDex · §2.7 second 59 ACCEPTED', (CP('2026-06-13 22:00:59') || {}).tMs, U(2026, 5, 13, 22, 0, 59));
         T.eq('CPAPDex · §2.7 second 60 → null', CP('2026-06-13 22:00:60'), null);
         T.eq('CPAPDex · §2.7 ms 999 ACCEPTED — band closed at 999', (CP('2026-06-13 22:00:00.999') || {}).tMs, U(2026, 5, 13, 22, 0, 0, 999));
+        /* §2 step 4 — THE DIGIT RUN IS BOUNDED, and §2.7 above cannot see this class at all: the
+           window an unbounded pattern takes out of a longer run spells a legal date and a legal
+           time, so the round-trip passes it. Each reject sits beside the accept it differs from by
+           ONE digit, so dropping `(?:^|\D)` or `(?!\d)` reds a PAIR. */
+        var _cpMs = function (raw) {
+          var r = CP(raw);
+          return r ? r.tMs : null;
+        };
+        T.eq('CPAPDex · a real SD-card name is unchanged by the bound', _cpMs('20260612_222830_BRP.edf'), U(2026, 5, 12, 22, 28, 30), 'the bound must not move a name the SD card produced');
+        T.eq('CPAPDex · a stamp after a NON-digit still parses', _cpMs('SN20260612222830_BRP.edf'), U(2026, 5, 12, 22, 28, 30), 'the run may start anywhere a digit run starts');
+        T.eq('CPAPDex · a leading digit before the run → null', _cpMs('9920260612_222830_BRP.edf'), null, 'it read 2026-06-12 22:28:30, every component legal');
+        T.eq('CPAPDex · a trailing digit after the run → null', _cpMs('20260612_2228301'), null, 'the right bound is the only thing that refuses it');
+        T.eq('CPAPDex · an 18-digit serial → null', _cpMs('202606122228301234'), null, 'a serial read as a date is the worst case of this bug');
+        T.eq('CPAPDex · a five-digit ISO year → null', _cpMs('12026-06-12 22:28:30'), null, 'the ISO arm carries the same left bound');
+        T.eq('CPAPDex · an ISO stamp after a NON-digit still parses', _cpMs('x2026-06-12 22:28:30'), U(2026, 5, 12, 22, 28, 30), 'the left bound refuses a DIGIT, not any prefix');
+        T.eq(
+          'CPAPDex · a four-digit ISO fraction keeps its first three',
+          _cpMs('2026-06-12 22:28:30.1234'),
+          U(2026, 5, 12, 22, 28, 30, 123),
+          'the ISO arm takes no right bound — a fraction may run past three digits'
+        );
       }
       // ── CpapEdf `parseEdfClock` (EDF header, the primary CPAP clock) ──
       var EC = env.CpapEdf && env.CpapEdf.parseEdfClock;
@@ -5364,6 +5385,39 @@
         'cpapdex-app.js takes the instant from the validator its bundle already inlines',
         _capSrc.indexOf('CpapEdf.stampMk(') >= 0,
         'CPAPDex carries no clock.js, and a second copy inside one bundle is a mirror that drifts'
+      );
+      /* …and its PATTERN is bounded too. `parseEdfName` is pure apart from `FILE_TYPES`, so the
+         slice runs here with that constant injected. The value it returns orders the array handed
+         to `groupSessionSets`, which re-sorts by its own anchored reader — so this is the contract
+         repair, not a measured reordering, and the leg pins the reader rather than the order. */
+      var _capFn = _slice(_capSrc, '  function parseEdfName(', ' · cpapdex-app.js', T);
+      if (_capFn && env.CpapEdf && typeof env.CpapEdf.stampMk === 'function') {
+        var _cap = null,
+          _capErr = '';
+        try {
+          _cap = new Function('CpapEdf', 'FILE_TYPES', _capFn + '\nreturn parseEdfName;')(env.CpapEdf, ['BRP', 'PLD', 'SA2', 'EVE', 'CSL']);
+        } catch (e) {
+          _capErr = String((e && e.message) || e);
+        }
+        T.ok('the sliced CPAPDex name reader evaluates', typeof _cap === 'function', 'keep it pure or this leg cannot run' + (_capErr ? ': ' + _capErr : ''));
+        if (typeof _cap === 'function') {
+          var _cm = function (n) {
+            return _cap(n).prefixMs;
+          };
+          T.eq('CPAPDex app · a real session name keeps its instant', _cm('20260612_222830_BRP.edf'), U(2026, 5, 12, 22, 28, 30), 'the bound must not move a name the SD card produced');
+          T.eq('CPAPDex app · a path is stripped before the stamp is read', _cm('DATALOG/20260612/20260612_222830_BRP.edf'), U(2026, 5, 12, 22, 28, 30), 'the basename rule is unchanged');
+          T.eq('CPAPDex app · a leading digit before the run → null', _cm('9920260612_222830_BRP.edf'), null, 'it read 2026-06-12 22:28:30, every component legal, so §2.7 saw nothing');
+          T.eq('CPAPDex app · a trailing digit after the run → null', _cm('20260612_2228301_BRP.edf'), null, 'the right bound is the only thing that refuses it');
+          T.eq('CPAPDex app · month 13 → null', _cm('20261332_999999_BRP.edf'), null, '§2.7, still pinned beside the new bound');
+          T.eq('CPAPDex app · §∅ a stamp-less name is null, never 0', _cm('Identification.edf'), null, 'absence is null at every layer');
+          T.eq('CPAPDex app · the type suffix still decides what this reader claims', _cap('20260612_222830_BRP.edf').type, 'BRP', 'the ACCEPT TEST is the suffix, and the bound did not touch it');
+        }
+      }
+      /* §∅ — the sort beside that reader must not manufacture epoch 0 for an absent stamp. */
+      T.ok(
+        'cpapdex-app.js sorts an absent stamp LAST, never as epoch 0',
+        _capSrc.indexOf('(a.prefixMs || 0) - (b.prefixMs || 0)') < 0 && /if \(a\.prefixMs == null\) return 1;/.test(_capSrc),
+        '`|| 0` put every unstamped file ahead of every real one, and bounding the pattern grows that set'
       );
 
       /* ── THE COPIES ARE COMPARED, because a mirror is only safe while it is still a mirror ───── */
@@ -53648,7 +53702,7 @@
         pinPass('cpapdex-edf.js', ED.selfTest(), 20);
       } else T.ok('cpapdex-edf.js loaded with selfTest()', false, 'env.CpapEdf missing in this runner');
       if (DS && typeof DS.selfTest === 'function') {
-        pinPass('cpapdex-dsp.js', DS.selfTest(), 107);
+        pinPass('cpapdex-dsp.js', DS.selfTest(), 116); // +9 · the §2 step 4 digit-run bound, accept beside reject
       } else T.ok('cpapdex-dsp.js loaded with selfTest()', false, 'env.CpapDsp missing in this runner');
       T.ok('ecgdex-morph.js exposes analyze() (exercised via ECGDSP.analyze)', !!(EM && typeof EM.analyze === 'function'));
       T.ok('ppgdex-morph.js exposes analyze() (exercised via PPGDSP morphology)', !!(PM && typeof PM.analyze === 'function'));
