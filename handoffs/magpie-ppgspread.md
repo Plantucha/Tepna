@@ -14,7 +14,7 @@ the fixture-identity and equivalence gates. **Stripping is not enough.** Running
 with and without `clock.js` moves **23 / 23 / 20 / 7 / 0 fields** on the five reachable goldens:
 `recording.contentId`, `recording.hostAxis`, `window.spreadMs` · `spreadReason` · `timingSource`,
 `evidence.inputHash`, and up to fifteen `timeseries.ppi.tSec` values. `hr` and `rmssd` do not move.
-The beat train itself was computed under a host-axis correction the shipped bundle never applies.
+A host-axis correction the shipped bundle never applies produced the beat train itself.
 
 Root cause: `tools/realm-manifest.js` `PPG_REALM` listed `clock.js`, which `PpgDex.src.html` does not.
 The comment justified it by claiming the DSP aliases `DexClock.parseTimestamp` at load; every `DexClock`
@@ -56,6 +56,6 @@ open ONE DRAFT PR from the body drafted in the session scratchpad.
   `node tools/regen-ppgdex-goldens.mjs && node tools/verify-fixtures.mjs`. Needs its own residue row.
 - The ledger closure of `2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible` rides a separate
   RESIDUE-only PR that Kestrel sequences; this PR does not touch `briefs/RESIDUE.md`.
-- **Owner question in the PR body:** that fixture's `verifiedUnder` was stamped after a suite run in
+- **Owner question in the PR body:** a suite run stamped that fixture's `verifiedUnder`, and it ran in
   the co-loaded realm. Not hand-cleared. Inlining `clock.js` into PpgDex would also close the row and
   stays the owner's call (CLAUDE.md §✅, and Kestrel's guard of 2026-10-24).

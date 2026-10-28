@@ -42,7 +42,7 @@ published figures as correct for their date.
   of 40, `verify:residue-claims`, and 35 steps then never ran.
 - **A self-match can red the leg that proves the absence.** `/function classify\(/` matched the
   driver's own anchor literal. The leg reads a line-start declaration now, with a positive control.
-- **The analysis pages ship a CSP with no `unsafe-eval`**, so `page.waitForFunction` is refused
+- **The analysis pages ship a CSP with no `unsafe-eval`**, so the CSP refuses `page.waitForFunction`
   outright — poll through `page.evaluate`. The box carries no Playwright browser either, so launch
   through `tools/pw-launch.mjs` at the system Chrome.
 - ⚠️ `guard-stale-ledger.sh` in the shared root still blocks the session CLOSING a row (it prints

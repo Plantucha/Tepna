@@ -62,7 +62,7 @@ jittered axis; an ANTI-VACUITY assertion now pins `false` on it.
 ## Provenance and the gate
 
 `manifestHash` 481f3deaf8f9 → b2e94d5304c7 · `computeHash` 1a761ec4074e → 214c6a1a4958. Both moved, so
-re-verification is owed and this is not export-inert. `build-docs.mjs` rebuilt the served copy;
+this owes re-verification and is not export-inert. `build-docs.mjs` rebuilt the served copy;
 `build-analysis.mjs` rebuilt 11 of 14 tools — that is where the trio folds run, so the export change
 reaches the fold path. Five fixtures regenerated; all five moved only the four hash fields.
 

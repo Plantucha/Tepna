@@ -51,7 +51,7 @@ Rule 0: `corpus enumerator measures whatever set it caught symlink cold tier` �
 
 `tools/corpus-scope.mjs` holds the primitive: `snapshotNights` → `intersectSnapshots` →
 `populationVerdict`, which emits a `corpus-population` verdict and calls a moved population
-SHORTFALL rather than FAIL. One consumer is wired, `tools/tch-firmware-reference.mjs`. The row's
+SHORTFALL rather than FAIL. One consumer already wires it, `tools/tch-firmware-reference.mjs`. The row's
 last sentence names the real gap: nothing MAKES a tool call the primitive, so a new corpus consumer
 inherits the defect by default.
 
@@ -90,11 +90,11 @@ Copy the house idiom that already exists one group up in the suite, the argv-rea
 2. A suite group over `env.toolTexts` running that same classifier, so the gate and the tool cannot
    drift. The gate is a **NAMED SET with a reason per entry**, never a count ratchet: a count passes
    a new consumer arriving as another leaves.
-3. Wire two or three real consumers so the named set shrinks and the mechanism is proved, rather
+3. Wire two or three real consumers so the named set shrinks and the wiring proves the mechanism, rather
    than wiring all of them in one PR.
 
 The anti-vacuity legs the group needs: the population is the tools tree and not a sample, the class
-vocabulary is closed, every abstention names a reason, and the named set holds no tool the scan has
+vocabulary stays closed, every abstention names a reason, and the named set holds no tool the scan has
 stopped reading as an enumerator.
 
 ## Built so far (uncommitted, worktree `~/wt-corpscope-mg`)
@@ -122,7 +122,7 @@ alone; the three `.js` files it misses all enumerate nothing.
 
 ## Left to do
 
-- Wire one or two consumers so the named set shrinks and the mechanism is proved. Candidates with a
+- Wire one or two consumers so the named set shrinks and the wiring proves the mechanism. Candidates with a
   single run-time enumeration: `trio-batch.mjs`, `tch-multinight.mjs`, `tch-fused-corpus.mjs`.
 - Run `node tests/run-tests.mjs` and `npm run check` on the final state.
 - Close the row with the corrected census, and log a NEW row for the 37-tool backlog — the

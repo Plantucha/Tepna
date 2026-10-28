@@ -10,7 +10,7 @@ The row parks on an owner decision: which axis the record should publish, three 
 
 I took none of it. What all three options owe FIRST is that the record name the axis its reference rode — and it does not. That half is nobody's decision, so it is the unit.
 
-No published number moved. No record was regenerated. The inlined record in the rebuilt page keeps its bytes.
+No published number moved. I regenerated no record. The inlined record in the rebuilt page keeps its bytes.
 
 ## Measured
 
@@ -24,7 +24,7 @@ Four fields, every one from #3792 (2026-10-20), are absent from a record dated 2
 ## What changed
 
 - `sensor-trio-night.js` — the provenance clause names both axes; an unstated reference axis prints `not recorded`, never `REF_AXIS_DEFAULT` (§∅).
-- `tools/tch-reference-record.mjs` — the selftest compares the committed record's key SET against the producer's. The gap is declared, dated, keyed to the row, and reds the day the record is re-published.
+- `tools/tch-reference-record.mjs` — the selftest compares the committed record's key SET against the producer's. The gap carries a declaration, a date and the row key, and it reds the day the record moves.
 - `tests/dex-tests.js` — the card legs, four of them EXECUTED by lifting the helper out of the card source.
 - `sensor-trio-night.html` rebuilt by `build-analysis.mjs` (1 of 14).
 
@@ -34,7 +34,7 @@ Four fields, every one from #3792 (2026-10-20), are absent from a record dated 2
 
 🔴 **MY OWN SCAN-BAN MISSED THE OBVIOUS SPELLING, AND THE EXECUTED LEGS CAUGHT IT.** The plant wrote `(TCHREC && TCHREC.referenceAxisCanonical) || 'device'`; my regex required the identifier immediately before `||`, so it passed. Three executed legs red. A source scan is a tripwire; executing the thing is the contract. Continues `a-source-scan-ban-is-invisible-to-the-tool-it-governs`.
 
-⚠️ **A SUITE LEG CONSTRAINED MY WORDING.** The composed slice bans every decimal literal and all multi-digit integers but `100`, so no dated brief filename and no measured figure can appear in the card. The citation belongs in the record and the PR, not the rendered clause.
+⚠️ **A SUITE LEG CONSTRAINED MY WORDING.** The composed slice bans every decimal literal and all multi-digit integers but `100`. No dated brief filename and no measured figure can appear in the card. The citation belongs in the record and the PR, not the rendered clause.
 
 ⚠️ **A long sentence in the CHANGESET red step 37/41.** `verify:pr-compliance` runs ste-lint over new Markdown files, not only the PR body. Lint the changeset too.
 

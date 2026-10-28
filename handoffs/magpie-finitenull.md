@@ -53,7 +53,7 @@ download fields. Both private helpers are DELETED rather than left unused.
 
 `coverStat` keeps on `typeof v === 'number' && Number.isFinite(v)`. The one null-capable field is
 `floorSync.bufferingDiffMs` (`pat-feasibility-worker.js:1379` writes `null`), and **every call site
-reaching it today is gated on the same condition the producer uses**, so the bare filter has never yet
+reaching it today carries the same condition the producer uses**, so the bare filter has never yet
 been wrong here. Loaded trap, not a live defect — the same verdict the row's own three traced suspects
 got. The plant shows what it was one guard away from: under the discarded filter, `[null, null, 4]`
 gives n=3 and a median of **`null`**.

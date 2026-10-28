@@ -20,7 +20,7 @@ The row holds. Its named set does not.
   the population; `pat-host-offset.mjs` builds no verdict by any route at this ref.
 - **58** files enter the population with their only verdict word inside a comment. Lower bound.
 - `check()` at `tools/verdict-adoption.mjs:153` reds `STALE row` for a manifest row the grep misses,
-  so the enumerator must widen BEFORE anything can be binned. One PR, not two.
+  so the enumerator must widen BEFORE a bin can hold anything. One PR, not two.
 
 ## What cost me the most
 

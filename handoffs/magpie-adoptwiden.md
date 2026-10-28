@@ -101,7 +101,7 @@ identical copies carry no independent noise. Measure the known answer before pin
 ## REBASED 2026-10-26 02:00Z — head `da9d31805`, Kodiak's base merge `6ac949b1d`, all 40 steps pass
 
 Order from Kestrel: #3927 read DIRTY against main. `node tools/rebase-safe.mjs` stopped on the one
-source conflict it is designed to stop on, `tests/dex-tests.js`, and aborted cleanly.
+source conflict it stops on by design, `tests/dex-tests.js`, and aborted cleanly.
 
 Resolution per §2c, scripted: write main's copy whole, replace the one leg block by exact string
 match, `git add`, `git rebase --continue`. Proof it kept both sides — `git diff origin/main HEAD --
