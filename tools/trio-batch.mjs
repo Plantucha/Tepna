@@ -136,7 +136,12 @@ const optAll = (n) => {
 
 const SRC = opt('--src', null);
 // resolve(), not join(): join(ROOT, '/abs/path') CONCATENATES and would write inside the repo.
-const OUT = resolve(ROOT, opt('--out', 'uploads/trio'));
+const OUT_DEFAULT = 'uploads/trio';
+const OUT = resolve(ROOT, opt('--out', OUT_DEFAULT));
+/* The default output tree, resolved exactly as OUT is. `foldLedgerPathFor` compares RESOLVED paths, so
+   an explicit `--out uploads/trio` — the form `tepna-trio-fold.service` passes — is the default here and
+   not a redirect. */
+const OUT_RESOLVED_DEFAULT = resolve(ROOT, OUT_DEFAULT);
 const ONLY = optAll('--night');
 const LIMIT = parseInt(opt('--limit', '0'), 10) || 0;
 /* the QUALITY tolerance beside the 15 bpm fault gate — the value the residue measured with, above the
@@ -444,6 +449,30 @@ function runVerdict(list, { dry }) {
 function mayWriteVerdicts({ child, dry }) {
   return !child && !dry;
 }
+/* WHERE THE RUN LEDGER LANDS, PURE — so `--selftest` pins it and `--out` is tested rather than reasoned
+   about. The record describes the OUTPUT TREE (§3a-bis), and the run's own verdicts already land at
+   `<out>/trio-batch-verdicts.json`, so the ledger belongs beside the tree it describes. Keyed on the
+   resolved path, never on whether the flag was typed.
+   Residue 2026-10-27-the-fold-ledger-write-ignores-the-out-directory: this path was
+   `join(ROOT, 'provenance', …)` unconditionally, so a probe that redirected `--out` to a scratch
+   directory still dirtied one TRACKED path in a shared checkout. The flag looked like isolation and
+   gave none. */
+function foldLedgerPathFor({ out, defaultOut, root }) {
+  return out === defaultOut ? join(root, 'provenance', `${LEDGER_NAME}.json`) : join(out, `${LEDGER_NAME}.json`);
+}
+/* WHETHER THE RUN LEDGER IS WRITTEN AT ALL, PURE. Three answers, because the two non-writing ones are
+   different facts and the console line names which one it was.
+   Residue 2026-10-27-a-fold-ledger-record-lands-for-a-run-that-folded-nothing: a run whose plan was
+   empty still appended a record carrying `nightCount: 0` beside real folds, while the same run's own
+   verdict read NOT_RUN with the reason `no nights under --src`. One run wrote two artifacts that
+   disagreed, and a later reader counting fold generations counted runs that folded no night (§∅). */
+function foldLedgerWrite({ dry, planCount }) {
+  if (dry) return 'dry-run'; // what the operator typed outranks what the gate found
+  return planCount > 0 ? 'write' : 'no-night-planned';
+}
+/* The two non-writing answers read differently, because one is the operator's instruction and the other
+   is a measurement of the plan. */
+const FOLD_NOT_WRITTEN = { 'dry-run': '--dry-run', 'no-night-planned': 'no night planned, so there is no fold generation to record' };
 /* THE CONSOLE LINE, PURE — so `--selftest` pins the shape, and so the null case cannot be reasoned
    about instead of tested. `runVerdict` returns `result: null` for NOT_RUN (zero nights) and
    NOT_APPLICABLE (nights offered, none judged — a `--src` with no trio night), and the line read
@@ -1198,6 +1227,28 @@ if (flag('--selftest')) {
   eq('stamp · an all-nines date → null (a bare Date.UTC read year 10007)', parse14('99999999225058'), null);
   eq('stamp · a year below the plausible window → null, so a serial cannot pass as a capture date', parse14('19890725225058'), null);
   eq('stamp · the night key a valid stamp buckets to is unchanged', nightKeyOf(T0), '2026-07-25');
+
+  /* ── WHERE THE FOLD LEDGER LANDS ───────────────────────────────────────────────────────────────
+     Residue 2026-10-27-the-fold-ledger-write-ignores-the-out-directory. Assert BOTH halves: the
+     default still lands on the tracked fragment that `provenance/index.json` and the fold timer
+     expect, and a redirected `--out` lands beside the output tree the record describes. One half
+     alone cannot tell a redirect from a move. */
+  const FLP = (out) => foldLedgerPathFor({ out, defaultOut: '/r/uploads/trio', root: '/r' });
+  eq('ledger path · the default lands on the tracked provenance fragment', FLP('/r/uploads/trio'), `/r/provenance/${LEDGER_NAME}.json`);
+  eq('ledger path · a redirected --out lands beside the output tree', FLP('/tmp/scratch-9f3'), `/tmp/scratch-9f3/${LEDGER_NAME}.json`);
+  eq('ledger path · a redirect names nothing under provenance/, so a probe dirties no tracked path', FLP('/tmp/scratch-9f3').includes('/provenance/'), false);
+  eq('ledger path · a SIBLING of the default is a redirect, not the default', FLP('/r/uploads/trio-probe'), `/r/uploads/trio-probe/${LEDGER_NAME}.json`);
+
+  /* ── WHETHER THE FOLD LEDGER IS WRITTEN AT ALL ─────────────────────────────────────────────────
+     Residue 2026-10-27-a-fold-ledger-record-lands-for-a-run-that-folded-nothing. The empty plan is
+     the leg that matters: the run already publishes NOT_RUN for it, so a record claiming a fold
+     makes one run speak twice and disagree with itself. */
+  const FLW = (dry, planCount) => foldLedgerWrite({ dry, planCount });
+  eq('ledger write · a planned night is recorded', FLW(false, 1), 'write');
+  eq('ledger write · an empty plan records nothing, because the run folded nothing', FLW(false, 0), 'no-night-planned');
+  eq('ledger write · --dry-run records nothing', FLW(true, 1), 'dry-run');
+  eq('ledger write · --dry-run over an empty plan names the flag, which the operator typed', FLW(true, 0), 'dry-run');
+  eq('ledger write · every non-writing answer carries a printable phrase', Object.keys(FOLD_NOT_WRITTEN).sort().join(','), 'dry-run,no-night-planned');
 
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
@@ -2378,8 +2429,9 @@ function writeFoldLedger(plans, { dry }) {
     };
   });
   const record = buildRecord({ at: new Date().toISOString(), codeDigest: CODE_DIGEST, srcRoots: [SRC], nights, files: planFiles(plans) });
-  const path = join(ROOT, 'provenance', LEDGER_NAME + '.json');
-  if (dry) return { record, path, written: false, index: null };
+  const path = foldLedgerPathFor({ out: OUT, defaultOut: OUT_RESOLVED_DEFAULT, root: ROOT });
+  const notWritten = foldLedgerWrite({ dry, planCount: plans.length });
+  if (notWritten !== 'write') return { record, path, written: false, index: null, notWritten };
   let prior = null;
   try {
     prior = JSON.parse(readFileSync(path, 'utf8'));
@@ -2387,8 +2439,11 @@ function writeFoldLedger(plans, { dry }) {
     /* first fold on this checkout: the ledger is created, never silently skipped */
   }
   const ledger = appendFold(prior, record);
+  /* Under a redirected `--out` the tree may not exist yet; `writeFoldVerdict` mkdirs OUT for the same
+     reason. A no-op for the canonical fragment, whose directory the checkout already carries. */
+  mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(ledger, null, 2) + '\n');
-  return { record, path, written: true, index: ledger.folds.length - 1 };
+  return { record, path, written: true, index: ledger.folds.length - 1, notWritten: null };
 }
 
 /* The tally is the point of the reason field: a run that leaves nights unstamped says, in one line,
@@ -2403,7 +2458,7 @@ function foldReasonTally(nights) {
 }
 const foldLedgerLine = (r) =>
   `fold ledger   : ${r.record.nightCount} night(s) · ${r.record.fileCount} file(s) · fileSet ${r.record.fileSetDigest} · code ${r.record.codeDigest}` +
-  (r.written ? ` → ${r.path} [fold #${r.index}]` : ' (not written: --dry-run)') +
+  (r.written ? ` → ${r.path} [fold #${r.index}]` : ` (not written: ${FOLD_NOT_WRITTEN[r.notWritten]})`) +
   foldReasonTally(r.record.nights);
 
 if (SKIP_EXISTING && !FORCE && !DRY) {
