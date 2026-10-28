@@ -27,6 +27,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,10 +40,22 @@ export const DOC = 'docs/CORPUS-LOCATIONS.md';
      'remote'   `host:/path` — reachable over ssh, not by this process
      'absent'   a real absolute path that is not on this filesystem
    Only 'absent' is a fact about THIS machine; the first two are facts about the row. */
-export function classifyRoot(raw) {
+/* The doc writes a root under a home directory as `~/…`, so the tree stores no user name (owner
+   ruling 2026-10-28). The row still means THIS machine's home, so the prefix expands here and every
+   caller keeps the absolute path it reads today. `home` is a parameter, so a selftest pins the rule
+   without reading the environment. A `~user/…` form is never written and never expands. */
+export function expandHome(raw, home = homedir()) {
   const p = String(raw).trim();
-  if (/[…]/.test(p) || /<[^>]+>/.test(p)) return { path: p, countable: false, why: 'elided' };
-  if (/^[A-Za-z0-9_.-]+:\//.test(p)) return { path: p, countable: false, why: 'remote' };
+  if (p === '~') return home;
+  if (!p.startsWith('~/')) return p;
+  return join(home, p.slice(2));
+}
+
+export function classifyRoot(raw) {
+  const written = String(raw).trim();
+  if (/[…]/.test(written) || /<[^>]+>/.test(written)) return { path: written, countable: false, why: 'elided' };
+  if (/^[A-Za-z0-9_.-]+:\//.test(written)) return { path: written, countable: false, why: 'remote' };
+  const p = expandHome(written);
   if (!p.startsWith('/')) return { path: p, countable: false, why: 'not-absolute' };
   return { path: p, countable: true, why: null };
 }
@@ -54,8 +67,9 @@ export function parseRoots(docText) {
     const m = /^\|\s*\*{0,2}`([^`]+)`\*{0,2}\s*\|/.exec(line);
     if (!m) continue;
     const p = m[1].trim();
-    // a row whose first cell is a repo file (tools/x.mjs) is documentation, not a corpus root
-    if (!/^[/<]|^[A-Za-z0-9_.-]+:\//.test(p)) continue;
+    // a row whose first cell is a repo file (tools/x.mjs) is documentation, not a corpus root.
+    // `~` opens a home-relative root, which `classifyRoot` expands.
+    if (!/^[/<~]|^[A-Za-z0-9_.-]+:\//.test(p)) continue;
     if (out.some((r) => r.path === p)) continue;
     out.push(classifyRoot(p));
   }

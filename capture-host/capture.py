@@ -660,7 +660,7 @@ def ring_clock_offset_s(rtc: dict, host: _dt.datetime) -> float:
 # decoded offline and its pulse rate cross-checked vs the ECG. Inert without the env var.
 _PPG_PROBE = os.environ.get("OXYII_PPG_PROBE") == "1"
 _PPG_PROBE_N = int(os.environ.get("OXYII_PPG_PROBE_N", "90"))
-_PPG_PROBE_FILE = os.environ.get("OXYII_PPG_PROBE_FILE", "/home/michal/tepna-smoketest/o2ppg-probe.jsonl")
+_PPG_PROBE_FILE = os.environ.get("OXYII_PPG_PROBE_FILE", os.path.expanduser("~/tepna-smoketest/o2ppg-probe.jsonl"))
 _ppg_probe_n = [0]
 
 # O2Ring live PPG waveform (O2RING-LIVE-PPG-WAVEFORM Phase 2). The 0x04 body carries a ~125 Hz single-

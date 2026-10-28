@@ -15,8 +15,10 @@
 # Every lane is journaled + resumable, so a run interrupted anywhere loses nothing.
 # Output for triage: .git/tepna-mutation/{*.drafts.js, dsp-review/REVIEW-REPORT.md}
 set -u
-WT=/home/michal/wt-resweep            # the checkout holding the live crawl state + synced tools
-LOG=/home/michal/Tepna/.git/tepna-mutation/qwen-idle-driver.log
+# The home directory is READ, never stored: the tracked tree holds no absolute path under it
+# (owner ruling 2026-10-28). Both paths below sit beside the primary checkout on this box.
+WT="$HOME/wt-resweep"                 # the checkout holding the live crawl state + synced tools
+LOG="$HOME/Tepna/.git/tepna-mutation/qwen-idle-driver.log"
 # STATE PINS TO ROOT; CODE COMES FROM $WT. `cd "$WT"` below makes every RELATIVE path in this script
 # resolve inside the rotating worktree — right for the code and the crawl state that live there, WRONG
 # for anything produced elsewhere. `capture-host/check.sh` runs in whatever checkout the operator used
@@ -25,7 +27,7 @@ LOG=/home/michal/Tepna/.git/tepna-mutation/qwen-idle-driver.log
 # Measured 2026-08-28: the feed existed in root at 00:55 (31884 bytes) and the 01:04 cycle still logged
 # "no capture-host/.mypy-latest.txt" — the THIRD broken link in one chain (no producer → producer
 # writing where the consumer does not look → consumer reading the wrong tree).
-MYPY_FEED="${TEPNA_MYPY_FEED:-/home/michal/Tepna/capture-host/.mypy-latest.txt}"
+MYPY_FEED="${TEPNA_MYPY_FEED:-$HOME/Tepna/capture-host/.mypy-latest.txt}"
 exec 9>/tmp/qwen-idle-driver.lock
 flock -n 9 || exit 0                  # a previous run is still going — correct, not an error
 echo "── $(date '+%F %T') driver start" >> "$LOG"
@@ -84,7 +86,7 @@ if [ -f "$MYPY_FEED" ]; then
   # EXECUTABLE resolving in the worktree, which is the identical defect one file over.
   # --limit 6 per cycle: the band needs 30 DISTINCT errors, and the journal skips answered ones, so
   # the queue drains over several cycles instead of spending one long run on a model that may be wrong.
-  timeout 1800 node /home/michal/Tepna/tools/qwen-mypy-fix.mjs --mypy-log "$MYPY_FEED" --generate --limit 6 >> "$LOG" 2>&1
+  timeout 1800 node "$HOME/Tepna/tools/qwen-mypy-fix.mjs" --mypy-log "$MYPY_FEED" --generate --limit 6 >> "$LOG" 2>&1
 else
   # Name the ABSOLUTE path that was missing. "no capture-host/.mypy-latest.txt" was true and useless:
   # it does not say WHICH tree was searched, so a feed sitting in root reads as an absent feed.

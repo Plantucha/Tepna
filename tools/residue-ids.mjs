@@ -346,7 +346,7 @@ export function verdict(baseText, headText, tipText) {
    Row 2026-10-20-the-primary-checkouts-ledger-read-is-eleven-commits-stale. A session picks a unit by
    reading `briefs/RESIDUE.md` in the shared primary checkout. That file sits at branch `main`, which
    trails `origin/main` by hours, so a row closed this morning still reads OPEN and NOTHING in the
-   output says the file is behind. Measured 2026-10-20 in `/home/michal/Tepna`: 13 commits behind, 86
+   output says the file is behind. Measured 2026-10-20 in `~/Tepna`: 13 commits behind, 86
    OPEN rows on disk against 79 on the ref, and 11 of those 86 were already closed.
    ⚠️ THE STALENESS IS IN THE FILE, NOT ONLY IN THE REF. `git rev-list --count main..origin/main` = 0
    does not mean the tree is current (CLAUDE.md §👥.2), and the reverse also holds: a non-zero count

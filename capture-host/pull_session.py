@@ -9,7 +9,7 @@
 #   script can connect. (No special ATT MTU is required — the negotiated 247 is plenty; the old
 #   "needs MTU >= 517" note was a misread placeholder MTU, CORRECTED in oxyii.py 2026-07-18.)
 #
-#   python pull_session.py --address D1:98:62:7C:92:B3 --out /home/michal/tepna-smoketest/captures/stored
+#   python pull_session.py --address D1:98:62:7C:92:B3 --out ~/tepna-smoketest/captures/stored
 #     [--which latest|all|new|<YYYYMMDDhhmmss>]  [--family oxy|ppg]  [--adapter hciX]
 
 from __future__ import annotations

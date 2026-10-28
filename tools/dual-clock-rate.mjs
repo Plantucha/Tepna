@@ -41,6 +41,7 @@ import { createRequire } from 'node:module';
 import { MAX_CRYSTAL_SPREAD_PPM, MS_PER_S_TO_PPM, crystalVerdict } from './device-stability.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
+import { capturesRoot } from './home-paths.mjs';
 
 /* σ_y comes from the SPINE's Allan core, not a local reimplementation — `clock.js` owns
    `allanFromPhase`/`allanSlope` and `device-stability.mjs` owns the one-reference-τ picker. This tool
@@ -82,7 +83,7 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
   process.exit(0);
 }
 
-const DIR = process.argv[2] || '/home/michal/tepna-smoketest/captures/2026-07-26';
+const DIR = process.argv[2] || path.join(capturesRoot(), '2026-07-26');
 
 /* The host stamp is written to millisecond resolution, so a host column derived from the device time
    lands within one quantum of the fitted line every row. Two quanta is the §7 threshold — a property

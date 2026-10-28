@@ -798,13 +798,13 @@ export function selftest() {
     threw = true;
   }
   ok('parseBudgets refuses a non-numeric budget', threw);
-  ok("primaryCheckout resolves a worktree to the common dir's parent", primaryCheckout('/home/x/branch-a', () => '/home/x/Repo/.git\n') === '/home/x/Repo');
-  ok('primaryCheckout resolves the root checkout to itself', primaryCheckout('/home/x/Repo', () => '.git\n') === '/home/x/Repo');
+  ok("primaryCheckout resolves a worktree to the common dir's parent", primaryCheckout('/srv/x/branch-a', () => '/srv/x/Repo/.git\n') === '/srv/x/Repo');
+  ok('primaryCheckout resolves the root checkout to itself', primaryCheckout('/srv/x/Repo', () => '.git\n') === '/srv/x/Repo');
   ok(
     'primaryCheckout falls back to the given root when git is unavailable',
-    primaryCheckout('/home/x/none', () => {
+    primaryCheckout('/srv/x/none', () => {
       throw new Error('no git');
-    }) === '/home/x/none'
+    }) === '/srv/x/none'
   );
   ok('projectSlug turns every non-alphanumeric character into a dash, as the transcript directory names do', projectSlug('/srv/u/Repo Name.v2') === '-srv-u-Repo-Name-v2');
 

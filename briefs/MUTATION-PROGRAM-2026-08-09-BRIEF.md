@@ -113,7 +113,7 @@ is also why neither is visible to anyone reading the repo:
 | where | what | state |
 |---|---|---|
 | `<checkout>/.mutation-crawl/` (`.gitignore:200`) | `hrvdex-dsp.js` + `motiondex-dsp.js` **full sweeps**, each with its complete survivor list — in the same *record*, but ~~in exactly the shape `probe-equivalence` reads~~ **not in a shape it could parse; see §2b** | `probed: 0`, `killable: 0`, `findings: []` |
-| `/home/michal/tepna-mutation-audit-2026-08-02/` | **19 capture-host modules** — `<module>.stats.json` + `<module>.survivors.txt`, mutmut 3.7.0, baseline 1818 passed at 100 % statement+branch | superseded as a ranking by §3, still the only per-mutant ID list |
+| `~/tepna-mutation-audit-2026-08-02/` | **19 capture-host modules** — `<module>.stats.json` + `<module>.survivors.txt`, mutmut 3.7.0, baseline 1818 passed at 100 % statement+branch | superseded as a ranking by §3, still the only per-mutant ID list |
 
 The crawl pair is the immediately useful one, and both figures are **measured, not arithmetic**
 (`killed + survivors + invalid == tested` checks out on both):
@@ -818,7 +818,7 @@ been all along:
 negative: a path check for the concatenated name misses it, and an unmounted-volume theory is a very
 plausible thing to write next. It is the §8 family again — *the check ran and reported about something
 it never examined* — and the cheapest guard is to `ls` the parent before theorising about the child.
-(Also present: `/home/michal/tepna-smoketest/captures`, 18 GB, the **box**-captured tree. The two are
+(Also present: `~/tepna-smoketest/captures`, 18 GB, the **box**-captured tree. The two are
 NOT interchangeable — the `Ecg nightly` tree is phone-captured and has no independent second clock,
 CLAUDE.md §7 — which matters for anything timing-related, though not for frame decoding.)
 

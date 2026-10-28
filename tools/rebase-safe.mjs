@@ -75,7 +75,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
    checkout's copy does not merely read the wrong tree, it would REBASE the wrong tree and run
    `build.mjs --check` inside it.
 
-   Measured 2026-09-15: `node /home/michal/Tepna/tools/rebase-safe.mjs` run from a worktree refused
+   Measured 2026-09-15: `node ~/Tepna/tools/rebase-safe.mjs` run from a worktree refused
    with "working tree is not clean" while that worktree was spotless — it was reporting the SHARED
    ROOT's cleanliness. That refusal is permanent, because the shared root is essentially never clean,
    and a permanent refusal looks like a tool bug, so the natural response is to work around it.

@@ -327,7 +327,7 @@ raw signed 24-bit AFE channels (§1), can.
 ### 8.2 · Vendor side [SDK] — `lepu-blepro-1.3.9`, the OxyII wave parser
 
 **Prior art — this is NOT a new finding.** The vendor answer was established on 2026-09-06 by the
-owner-ordered decompile (`/home/michal/lepu-decompile/`, kept outside the repo) and recorded in the
+owner-ordered decompile (`~/lepu-decompile/`, kept outside the repo) and recorded in the
 fleet memory `zero-in-data-all-hands` ("0/199 are signal to the vendor"), with pieces of it in
 `DEVICE-RATE-TRUTH-2026-08-05-BRIEF.md` (the 156 smoothing, `doad/Cthrow.java:44`) and
 `O2RING-PROTOCOL-2026-07-17-BRIEF.md` (the `sensorState` mapping). It had never been written into a

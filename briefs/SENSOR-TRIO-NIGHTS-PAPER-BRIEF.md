@@ -177,7 +177,7 @@
 > in #773 at 19:26, the `independent` check in #746 at 10:01 the same day). **So `Ecg nightly` and the
 > committed corpus are different capture trees, and re-deriving one from the other silently downgrades
 > the provenance tier.** The N=17 figures above are therefore taken from the **box** tree
-> (`/home/michal/tepna-smoketest/captures`, `device+host` ×17, 3-source closure consistent).
+> (`~/tepna-smoketest/captures`, `device+host` ×17, 3-source closure consistent).
 >
 > ### 2026-08-08, second pass — the gap is mostly NOT about the Verity corner
 >
@@ -227,7 +227,7 @@
 >   that way — it is a deliberate privacy posture, and it is the same one that makes the suite 100 %
 >   local. The reproducibility route that IS open is the one already taken: commit the *tools*, keep the
 >   data local, and state the corpus's provenance in the paper. Regenerate locally in two commands:
->   `node tools/trio-batch.mjs --src /home/michal/tepna-smoketest/captures --out <dir>` then
+>   `node tools/trio-batch.mjs --src ~/tepna-smoketest/captures --out <dir>` then
 >   `node tools/tch-fused-corpus.mjs --dir <dir>`.
 > - **Re-seeding the sim is still blocked, but the blocker is now NAMED:** state a window length,
 >   re-fit at it, and report the sensitivity band beside the point estimate. The planted σ stays at

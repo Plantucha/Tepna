@@ -17,9 +17,16 @@ Three concrete holes this closes, all of which survived a suite at 100 % coverag
 * the port and window_min boundaries, none of which had a test on either side.
 """
 
+from pathlib import Path
+
 import pytest
 
 import storage_targets as st
+
+# The tracked tree stores no absolute path under a home directory (owner ruling 2026-10-28), so
+# the two home-shaped fixtures below are COMPUTED. `Path.home()` raises rather than returning a
+# relative path, so a stripped environment fails loudly instead of testing a different rule.
+IDENTITY = str(Path.home() / ".ssh" / "id_ed25519")
 
 
 RSYNC = {"protocol": "rsync", "host": "192.168.0.142", "user": "tepna", "share": "/mnt/tank/tepna"}
@@ -196,9 +203,9 @@ def test_a_userless_target_omits_the_at_sign():
 
 
 def test_a_configured_ssh_port_and_identity_reach_the_ssh_command():
-    argv = _argv(port=2222, identity="/home/tepna/.ssh/id_ed25519")
+    argv = _argv(port=2222, identity=IDENTITY)
     assert argv[argv.index("-e") + 1] == (
-        "ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i /home/tepna/.ssh/id_ed25519"
+        f"ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i {IDENTITY}"
     )
 
 

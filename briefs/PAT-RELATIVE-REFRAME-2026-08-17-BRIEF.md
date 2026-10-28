@@ -240,11 +240,11 @@ precondition to check per night, not a refutation.
 
       *"A data question with a known shape"* — and the data was already on disk. Every measurement above
       ran against **`uploads/captures` (6 nights)**. The capture-host corpus at
-      `/home/michal/tepna-smoketest/captures` carries **440 `*_LINK.csv` sidecars across 40 nights**.
+      `~/tepna-smoketest/captures` carries **440 `*_LINK.csv` sidecars across 40 nights**.
       Same tool, same flags, no new machinery:
 
       ```sh
-      node tools/pat-connection-stability.mjs /home/michal/tepna-smoketest/captures \
+      node tools/pat-connection-stability.mjs ~/tepna-smoketest/captures \
            --min-span-sec 300 --min-beats 60
       ```
 

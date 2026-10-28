@@ -2,7 +2,7 @@
   "schema": "tepna.cvhr-fold-rescore/1",
   "criterion": {
     "preStated": "fraction of overlap on the UNION of fragments, not the largest-file pair; Spearman rho with n; GAP_S at the shipped 10 s",
-    "control": "/home/michal/wt-cvhrfold-mg/audits/GAP-S-SWEEP-2026-09-22.json"
+    "control": "~/wt-cvhrfold-mg/audits/GAP-S-SWEEP-2026-09-22.json"
   },
   "tree": "/srv/data/tepna-corpus/uploads/vigil-archive/captures",
   "nights": [

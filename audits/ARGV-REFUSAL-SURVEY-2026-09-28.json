@@ -83,7 +83,7 @@
       },
       "volatileOutput": false,
       "treeMoved": false,
-      "probeFirstLine": "no CGM csv at /home/michal/wt-argvsurvey-hrn/uploads/lingo-glucose-data-2026-MAY-23.csv"
+      "probeFirstLine": "no CGM csv at ~/wt-argvsurvey-hrn/uploads/lingo-glucose-data-2026-MAY-23.csv"
     },
     {
       "tool": "tools/closure-tol-hac.mjs",
@@ -147,7 +147,7 @@
       },
       "volatileOutput": false,
       "treeMoved": false,
-      "probeFirstLine": "deep-vlf-probe — /home/michal/wt-argvsurvey-hrn/uploads/trio"
+      "probeFirstLine": "deep-vlf-probe — ~/wt-argvsurvey-hrn/uploads/trio"
     },
     {
       "tool": "tools/ecg-apnea-correlate.mjs",

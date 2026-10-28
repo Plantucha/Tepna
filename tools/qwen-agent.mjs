@@ -26,6 +26,7 @@ import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { positionalArgs, refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { primaryGitDir } from './home-paths.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -172,7 +173,8 @@ async function main() {
     console.error('usage: qwen-agent.mjs "task"');
     process.exit(2);
   }
-  const outDir = join(existsSync('/home/michal/Tepna/.git') ? '/home/michal/Tepna/.git/tepna-mutation' : join(ROOT, '.git', 'tepna-mutation'), 'qwen-agent');
+  const PRIMARY_GIT = primaryGitDir();
+  const outDir = join(existsSync(PRIMARY_GIT) ? join(PRIMARY_GIT, 'tepna-mutation') : join(ROOT, '.git', 'tepna-mutation'), 'qwen-agent');
   mkdirSync(outDir, { recursive: true });
 
   let messages = [

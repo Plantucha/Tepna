@@ -54,6 +54,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { buildIdentity, mapCandidates, resolveMapPath, stateDirs, verifyFor } from './mutation-map.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { collapseHome } from './home-paths.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -1053,7 +1054,9 @@ export function renderInventory({ files, generatedAt, mapPath, staleClassificati
   L.push('| live state | `node tools/mutation-suite.mjs --status` |');
   L.push('| build the speed-up map | `node tools/mutation-suite.mjs --build-map` |');
   L.push('| mutation engine | `tools/mutate.mjs` · statement deletion `tools/stmt-delete.mjs` · XMT `tools/extreme-mutate.mjs` |');
-  L.push('| coverage map | ' + (mapPath ? '`' + mapPath + '`' : '_not built — sweeps run the slow path_') + ' |');
+  /* COLLAPSED: this row is written into a TRACKED doc, and an absolute path under the home would
+     re-seed the user name the 2026-10-28 sweep removed from the tree. */
+  L.push('| coverage map | ' + (mapPath ? '`' + collapseHome(mapPath) + '`' : '_not built — sweeps run the slow path_') + ' |');
   L.push('');
   L.push('A **surviving mutant is the finding**: the code was changed and the whole suite stayed green,');
   L.push('so nothing tests that line — whatever the coverage number says. A survivor is NOT proof of a');

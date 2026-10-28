@@ -61,7 +61,7 @@ if [ "${#preflight_missing[@]}" -ne 0 ]; then
   printf '  Running anyway would red ruff, pytest and format over a run that examined nothing, and\n'
   printf '  ruff'"'"'s absent-module exit 1 is the same code as a real finding. Nothing ran.\n'
   printf '  From a worktree, hand it an interpreter that has requirements-dev.txt:\n'
-  printf '    PYTHON=/home/michal/Tepna/capture-host/.venv/bin/python ./check.sh\n'
+  printf '    PYTHON=%s/Tepna/capture-host/.venv/bin/python ./check.sh\n' "$HOME"
   printf '  Or install them here: %s -m pip install -r requirements-dev.txt\n' "$PY"
   "$PY" checkverdict.py --write "${CHECK_VERDICT_OUT:-.check-verdict.json}" \
     --refused "the interpreter carries none of: ${preflight_missing[*]} — nothing was examined" \
