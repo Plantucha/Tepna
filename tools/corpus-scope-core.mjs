@@ -67,7 +67,16 @@ export function parseRoots(docText) {
    figure is 1207. That is this tool's own failure class one level up: a number whose scope is not
    stated, where the unstated part is that two of the scopes are the same scope. So roots are resolved
    to their real path and a root that IS another, or sits INSIDE another, is reported and NOT summed.
-   PURE given the resolver, which is injected so the rule is testable without a filesystem. */
+   PURE given the resolver, which is injected so the rule is testable without a filesystem.
+
+   🔴 THE `nested-in` ARM ASSUMES THE CALLER ENUMERATES RECURSIVELY, and it is unsound for one
+   that does not. Dropping a nested root is right only when the parent's own walk already reaches every
+   member inside it. `nightDirsUnder` does, which is why `night-rule-horizon.mjs` may sum by root.
+   `tools/pin-coverage.mjs` walks ONE level — `<root>/<night>/*_PPG.txt` — so a root nested by path can
+   hold files the parent never lists, and skipping it would drop them with no symptom at all. That tool
+   states its summation over the FILE SET instead and keeps this function for the REASON two roots
+   overlap. Measured 2026-10-28 over the three callers: the two that sum by root walk recursively, so
+   nothing is unsound today. A one-level caller that sums here owes its own rule. */
 export function dedupeRoots(rows, resolver) {
   const seen = [];
   return rows.map((r) => {
