@@ -236,5 +236,10 @@ export function ppiJitterMs(fingerMs, ecgMs, pairs) {
     const eIv = ecgMs[pairs[p].ei] - ecgMs[pairs[p - 1].ei];
     if (fIv > 300 && fIv < 2000 && eIv > 300 && eIv < 2000) d.push(fIv - eIv);
   }
-  return d.length >= 8 ? { sd: sd(d), n: d.length } : null;
+  /* MAE AND SIGNED BIAS COME FROM THE SAME DIFFERENCES as `sd`, added as NEW FIELDS LAST so every
+     existing caller — each of which reads `.sd` — is untouched (CLAUDE.md §🧪 back-compatibility).
+     Both are figures the sd cannot carry. A signed bias near zero says the two devices agree on RATE,
+     which an sd of 6 ms says nothing about; an MAE beside the sd says whether the jitter is
+     Gaussian-ish or carries a tail, because sd/MAE ≈ 1.25 for a normal and climbs with one. */
+  return d.length >= 8 ? { sd: sd(d), n: d.length, mae: mean(d.map(Math.abs)), bias: mean(d) } : null;
 }
