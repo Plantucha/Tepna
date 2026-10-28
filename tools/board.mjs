@@ -24,10 +24,17 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 
 const OUT_DIR = process.env.TEPNA_BOARD_DIR || path.join(homedir(), '.local', 'share', 'tepna', 'board');
 const REPO = process.env.TEPNA_REPO || path.join(homedir(), 'Tepna');
+/* THE RENDERER'S OWN TREE, which is not always the checkout it reports on. `REPO` is configurable
+   and need not exist (CI has no ~/Tepna), so a question about THIS FILE'S dependencies resolves
+   against the file's own location. Measured 2026-10-28: the real-tree selftest leg read `REPO` and
+   failed in CI with "the renderer's entry file tools/board.mjs could not be read" while passing on
+   the box, because the two paths coincide there and nowhere else. */
+const SELF_REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /* The board reads the REF, never the checkout's HEAD or working files. The primary checkout stays on
    `main`, lags `origin/main` most of the time and holds other sessions' edits, so `git describe` from
    HEAD named v2.21.0 for a day after v2.22.0 was tagged (measured 2026-10-22: HEAD 61 commits behind),
@@ -300,20 +307,117 @@ export function landStuckHours(statusText, nowMs) {
    so a card can be wrong for days with every input correct. The board cannot advance the shared tree
    — CLAUDE.md §👥.2 forbids it, and other sessions work in it — so it says so instead. Pure, so
    --selftest can plant it. */
-export function runnerVerdict(behind, boardDiffers) {
+export function normaliseRel(fromRel, spec) {
+  const parts = `${fromRel.slice(0, fromRel.lastIndexOf('/') + 1)}${spec}`.split('/');
+  const out = [];
+  for (const seg of parts) {
+    if (seg === '.' || seg === '') continue;
+    if (seg === '..') out.pop();
+    else out.push(seg);
+  }
+  return out.join('/');
+}
+
+/* THE RENDERER RUNS MORE CODE THAN THE FILE IT IS NAMED AFTER. The banner below used to hash
+   `tools/board.mjs` alone, so a checkout whose board.mjs matched the ref reported `stale: false`
+   however stale the rest of the renderer was — the row's own evidence cell says it "stays silent for
+   a checkout merely behind on commits that never touched the file". MEASURED over this repo's
+   history at c2d769c2c: 24 commits have touched the renderer's executable closure and NINE of them
+   never touched `tools/board.mjs`. The release card — the one the incident is about — shells out to
+   `tools/release-land.mjs` from the running tree, and the usage card to `tools/usage-guard.mjs`.
+   In the primary checkout on 2026-10-28, 196 behind, three of the four drifted and the one-file
+   check could see only one of the three.
+
+   So the population is derived, not typed: relative `.mjs` imports plus the `path.join(REPO,
+   'tools', 'x.mjs')` call sites, followed transitively. A frozen list ages; this one cannot. It
+   FAILS CLOSED, because a regex that stops matching would otherwise shrink the population silently
+   and every answer would read clean. `readText` is injected, so the rule is testable without a disk. */
+export function rendererClosure(entryRel, readText) {
+  const seen = new Set();
+  const unreadable = [];
+  const queue = [entryRel];
+  let edges = 0;
+  while (queue.length) {
+    const rel = queue.shift();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    let text = null;
+    try {
+      text = readText(rel);
+    } catch {
+      text = null;
+    }
+    if (typeof text !== 'string') {
+      unreadable.push(rel);
+      continue;
+    }
+    const deps = [
+      ...[...text.matchAll(/from\s+'(\.\.?\/[^']+\.mjs)'/g)].map((m) => normaliseRel(rel, m[1])),
+      ...[...text.matchAll(/'tools',\s*'([A-Za-z0-9._-]+\.mjs)'/g)].map((m) => `tools/${m[1]}`)
+    ];
+    edges += deps.length;
+    for (const d of deps) if (!seen.has(d)) queue.push(d);
+  }
+  if (unreadable.includes(entryRel)) return { ok: false, reason: `the renderer's entry file ${entryRel} could not be read`, files: [], unreadable };
+  if (edges === 0) return { ok: false, reason: `no dependency was found in ${entryRel} — the closure reader matched nothing, and an empty population would read as clean`, files: [], unreadable };
+  return { ok: true, files: [...seen].filter((f) => !unreadable.includes(f)).sort(), unreadable };
+}
+
+/* THE BOARD IS RENDERED BY THE CHECKOUT IT RUNS IN, AND THAT CHECKOUT LAGS (residue
+   2026-10-27-the-board-renders-from-a-checkout-nobody-advances). The second argument is the drift
+   over the closure above: `{ drifted, unreadable, examined }`, or a bare boolean from the days when
+   one file WAS the population — a boolean therefore reports on `tools/board.mjs` and says so, rather
+   than borrowing the wider sentence. A file that could not be compared is `null`, never `false`:
+   "I could not look" and "they match" are opposite answers (§∅). */
+export function runnerVerdict(behind, drift) {
   const n = Number.isFinite(behind) ? behind : null;
   if (n === null) return { stale: null, reason: 'the running checkout could not be compared with the ref' };
-  if (boardDiffers) return { stale: true, behind: n, reason: `this board was rendered by a copy of tools/board.mjs that differs from ${MAIN_REF}, in a checkout ${n} commit(s) behind it` };
-  if (n > 0) return { stale: false, behind: n, reason: `the running checkout is ${n} commit(s) behind ${MAIN_REF}, and its tools/board.mjs matches the ref` };
-  return { stale: false, behind: 0, reason: null };
+  const d = typeof drift === 'boolean' ? { drifted: drift ? ['tools/board.mjs'] : [], unreadable: [], examined: ['tools/board.mjs'] } : { drifted: [], unreadable: [], examined: [], ...(drift || {}) };
+  const examined = d.examined.length ? d.examined : d.drifted;
+  if (d.drifted.length)
+    return {
+      stale: true,
+      behind: n,
+      drifted: d.drifted,
+      reason: `this board was rendered by code that differs from ${MAIN_REF} — ${d.drifted.length} of the renderer's ${examined.length + d.unreadable.length} file(s): ${d.drifted.join(', ')} — in a checkout ${n} commit(s) behind it`
+    };
+  if (d.unreadable.length)
+    return {
+      stale: null,
+      behind: n,
+      drifted: [],
+      reason: `${d.unreadable.length} of the renderer's file(s) could not be compared with ${MAIN_REF} (${d.unreadable.join(', ')}), so this board cannot say its code matches`
+    };
+  const matches = examined.length === 1 ? `its ${examined[0]} matches the ref` : `all ${examined.length} file(s) of the renderer's own code match the ref`;
+  if (n > 0) return { stale: false, behind: n, drifted: [], reason: `the running checkout is ${n} commit(s) behind ${MAIN_REF}, and ${matches}` };
+  return { stale: false, behind: 0, drifted: [], reason: null };
+}
+
+/* A banner that only fires on `stale === true` drops BOTH absence shapes: the uncomparable checkout
+   (`stale: null`) and the section that failed outright (no `stale` at all). Both carry a reason, and
+   both are exactly the state an operator must see. The all-clear is the one case that stays quiet. */
+export function runnerBannerText(runner) {
+  if (!runner || runner.stale === false) return null;
+  return runner.reason || null;
 }
 
 function runner() {
   try {
     const behind = +sh('git', ['rev-list', '--count', `HEAD..${MAIN_REF}`], { cwd: REPO });
-    const here = sh('git', ['hash-object', path.join(REPO, 'tools', 'board.mjs')], { cwd: REPO });
-    const there = sh('git', ['rev-parse', `${MAIN_REF}:tools/board.mjs`], { cwd: REPO });
-    return { ok: true, ...runnerVerdict(behind, here !== there) };
+    const clo = rendererClosure('tools/board.mjs', (rel) => readFileSync(path.join(REPO, rel), 'utf-8'));
+    if (!clo.ok) return { ok: true, ...runnerVerdict(behind, { drifted: [], unreadable: ['tools/board.mjs'], examined: [] }), closureReason: clo.reason };
+    const drifted = [];
+    const unreadable = [...clo.unreadable];
+    for (const rel of clo.files) {
+      try {
+        const here = sh('git', ['hash-object', path.join(REPO, rel)], { cwd: REPO });
+        const there = sh('git', ['rev-parse', `${MAIN_REF}:${rel}`], { cwd: REPO });
+        if (here !== there) drifted.push(rel);
+      } catch {
+        unreadable.push(rel);
+      }
+    }
+    return { ok: true, ...runnerVerdict(behind, { drifted, unreadable, examined: clo.files.filter((f) => !unreadable.includes(f)) }), closure: clo.files };
   } catch (e) {
     return fail(`running-checkout read failed: ${e.message}`);
   }
@@ -1370,7 +1474,7 @@ p{margin:8px 0}
 @media(max-width:640px){.wrap{padding:0 16px}.kv{grid-template-columns:1fr;gap:2px}.kv dt{margin-top:8px}.statusline{gap:16px}.table-wrap table{min-width:560px}}
 </style></head><body>
 <div class="wrap">
-<header><h1>Tepna fleet board</h1><div class="meta">${esc(b.generatedAt)} &middot; ${esc(b.host)} &middot; <code>http://100.80.204.55:8766/</code></div>${b.runner && b.runner.stale ? `<div class="meta">⚠ ${esc(b.runner.reason)}</div>` : ''}</header>
+<header><h1>Tepna fleet board</h1><div class="meta">${esc(b.generatedAt)} &middot; ${esc(b.host)} &middot; <code>${esc(b.url)}</code></div>${runnerBannerText(b.runner) ? `<div class="meta">⚠ ${esc(runnerBannerText(b.runner))}</div>` : ''}</header>
 ${banners}
 <div class="status-cards">
 <div class="mini-card"><h3>daemon</h3><p class="big ${b.vigilHealth.ok && b.vigilHealth.active === 'active' ? 'ok' : 'bad'}">${b.vigilHealth.ok ? esc(b.vigilHealth.active) : 'unknown'}</p></div>
@@ -1791,6 +1895,62 @@ function runSelftest() {
       ok(runnerVerdict(0, false).stale === false && runnerVerdict(0, false).reason === null, 'CONTROL · a current checkout raises nothing');
       ok(runnerVerdict(null, true).stale === null && /could not be compared/.test(runnerVerdict(null, true).reason), 'an uncomparable checkout is null with a reason, never false');
       ok(runnerVerdict(Number.NaN, false).stale === null, 'a non-finite count is the absence, not 0');
+
+      /* THE CLOSURE. The banner used to hash one file and speak for the renderer; six of the 21
+         commits that ever touched that closure never touched `tools/board.mjs`. */
+      const PLANT = {
+        'tools/board.mjs': "import { isCliEntry } from './argv-guard.mjs';\nconst st = sh('node', [path.join(REPO, 'tools', 'release-land.mjs'), '--status']);\n",
+        'tools/argv-guard.mjs': "import { helper } from './inner-helper.mjs';\n",
+        'tools/release-land.mjs': "import { isCliEntry } from './argv-guard.mjs';\n",
+        'tools/inner-helper.mjs': 'export const helper = 1;\n'
+      };
+      const readPlant = (rel) => {
+        if (!(rel in PLANT)) throw new Error(`no such file ${rel}`);
+        return PLANT[rel];
+      };
+      const clo = rendererClosure('tools/board.mjs', readPlant);
+      ok(clo.ok && clo.files.includes('tools/argv-guard.mjs'), 'the closure follows a relative import');
+      ok(clo.ok && clo.files.includes('tools/release-land.mjs'), 'the closure follows a SHELLED-OUT tool, which no import reader would see');
+      ok(clo.ok && clo.files.includes('tools/inner-helper.mjs'), 'the closure is transitive, not one level deep');
+      ok(clo.ok && clo.files.length === 4 && clo.unreadable.length === 0, `the closure is exactly its four files, got ${clo.files.join(',')}`);
+      ok(normaliseRel('tools/board.mjs', '../verdict.js') === 'verdict.js', 'a parent-relative spec resolves out of tools/');
+      /* FAIL CLOSED. A reader that matches nothing would hand the banner an empty population, and
+         every answer over an empty population reads clean. */
+      ok(rendererClosure('tools/board.mjs', () => 'const x = 1;\n').ok === false, 'a file with no dependency at all is a REFUSAL, never a clean one-file closure');
+      ok(
+        rendererClosure('tools/board.mjs', () => {
+          throw new Error('gone');
+        }).ok === false,
+        'an unreadable entry file refuses'
+      );
+      const deep = rendererClosure('tools/board.mjs', (rel) => (rel === 'tools/inner-helper.mjs' ? null : readPlant(rel)));
+      ok(
+        deep.ok && deep.unreadable.includes('tools/inner-helper.mjs') && !deep.files.includes('tools/inner-helper.mjs'),
+        'a dependency that cannot be read is reported unreadable, not silently dropped'
+      );
+
+      /* THE DEFECT ITSELF: drift in a file that is NOT board.mjs. */
+      const shelled = runnerVerdict(196, { drifted: ['tools/release-land.mjs'], unreadable: [], examined: ['tools/argv-guard.mjs', 'tools/board.mjs', 'tools/release-land.mjs'] });
+      ok(shelled.stale === true && /release-land\.mjs/.test(shelled.reason), 'a stale SHELLED-OUT tool makes the renderer stale, though board.mjs matches');
+      const allMatch = runnerVerdict(196, { drifted: [], unreadable: [], examined: ['tools/argv-guard.mjs', 'tools/board.mjs', 'tools/release-land.mjs'] });
+      ok(allMatch.stale === false && /all 3 file\(s\)/.test(allMatch.reason), 'CONTROL · a whole closure that matches is not stale, and the sentence names the 3 it examined');
+      const unread = runnerVerdict(196, { drifted: [], unreadable: ['tools/release-land.mjs'], examined: ['tools/board.mjs'] });
+      ok(unread.stale === null && /could not be compared/.test(unread.reason), 'a file that could not be compared is null, never a false that claims a match');
+      ok(runnerVerdict(196, true).reason.includes('tools/board.mjs'), 'the legacy boolean still reports, and reports on the one file it knew about');
+
+      /* THE BANNER. `stale === null` and a failed section are both falsy, and the header used to
+         print neither — the two states an operator most needs are the two that vanished. */
+      ok(runnerBannerText({ stale: null, reason: 'could not compare' }) === 'could not compare', 'an uncomparable renderer RAISES the banner');
+      ok(runnerBannerText({ ok: false, reason: 'running-checkout read failed' }) === 'running-checkout read failed', 'a failed runner section raises it too');
+      ok(runnerBannerText({ stale: true, reason: 'drifted' }) === 'drifted', 'a drifted renderer raises it');
+      ok(runnerBannerText({ stale: false, behind: 196, reason: 'behind but matching' }) === null, 'CONTROL · a matching renderer stays quiet, however far behind');
+
+      /* THE REAL TREE, derived rather than frozen: this repo's own board.mjs must reach both. */
+      const real = rendererClosure('tools/board.mjs', (rel) => readFileSync(path.join(SELF_REPO, rel), 'utf-8'));
+      ok(
+        real.ok && real.files.includes('tools/argv-guard.mjs') && real.files.includes('tools/release-land.mjs'),
+        `the REAL closure of this board reaches both dependencies, got ${real.ok ? real.files.join(',') : real.reason}`
+      );
     }
   }
   console.log(fails.length ? `board selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
