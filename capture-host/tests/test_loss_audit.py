@@ -13,6 +13,8 @@ import pytest
 
 import loss_audit
 import nightqc
+import nights_index
+import oxyii
 import verdict
 from tests.test_verdict import js_validate
 
@@ -1743,16 +1745,34 @@ def _ring_stall_night(tmp_path, *, witness="advancing", stall_at=100, stall_s=12
 RING_DEV = [{"name": "Ring", "model": "O2Ring-S"}]
 
 
-def test_PLANT_a_ring_stall_the_signal_counter_advanced_across_is_a_DELAY(tmp_path):
+def test_PLANT_a_ring_stall_the_signal_counter_advanced_across_is_UNDELIVERED(tmp_path):
     """The ring kept producing signal through the stall — `duration_s` advanced by the stall's length — so
-    the seconds exist and what was lost was the delivery, not the signal. Calling it loss overstates the
-    night's hole by every event-loop stall the box ever had."""
+    those seconds EXIST and we do not hold them. #3168 read the same advance as "only the delivery was
+    lost" and moved the span into `delays`, out of the number the night is judged on; that is a
+    device-side claim standing in for a recording-side one, and a 13 s hole is worn-but-not-recorded
+    whatever the ring was doing. The span stays in loss under its own name, and `by_cause` still carries
+    the attribution #3168 wanted."""
     d = _ring_stall_night(tmp_path, witness="advancing")
     dev = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
-    assert dev["lost_min"] == 0.0, ("a stall the ring produced signal across is not loss", dev)
-    assert dev["gaps"] == [], dev["gaps"]  # it left `gaps` entirely, as an in-file delay does
     # the ledger publishes minutes to one decimal, so 13 s is 0.2 — asserted as published, not as 13/60
-    assert dev["delayed_min"] == 0.2, dev["delayed_min"]
+    assert dev["lost_min"] == 0.2, ("a produced span we do not hold is still loss", dev)
+    assert [g["witness"] for g in dev["gaps"]] == ["undelivered"], dev["gaps"]
+    assert dev["gaps"][0]["witness_advance_s"] == 13.0, dev["gaps"]
+    assert dev["delayed_min"] == 0.0, dev["delayed_min"]  # the witness moves nothing into `delays`
+    assert dev["unwitnessed_min"] == 0.0, dev
+
+
+def test_no_reported_gap_can_fit_the_rings_replay_ceiling(tmp_path):
+    """THE TRIPWIRE for the sentence above. A gap is reported only above the stream's own cadence cut,
+    whose floor is `nights_index.GAP_S`, and a late delivery could carry at most
+    `RING_REPLAY_CEILING_S` seconds of backlog. While the floor is at or above the ceiling, no gap that
+    reaches `witness_judges` could have been delivered late — which is why the witness has no
+    delivered-late verdict at all. If either number moves this fails, and the next session knows the
+    bucket means something again."""
+    ceiling = loss_audit.RING_REPLAY_CEILING_S
+    assert nights_index.GAP_S >= ceiling, (nights_index.GAP_S, ceiling)
+    # and the ceiling reads its two inputs rather than restating either
+    assert ceiling == oxyii.SAMPLES_A_CAP / loss_audit.RING_NOMINAL_FS
 
 
 def test_PLANT_a_ring_stall_the_counter_did_NOT_advance_across_is_a_LOSS(tmp_path):
@@ -1847,7 +1867,7 @@ def test_a_gap_the_witness_does_not_BRACKET_is_unwitnessed(tmp_path):
     assert loss_audit.witness_judges(w, t + dt.timedelta(seconds=250), 13.0) == ("unwitnessed", None)
     # and the control: a gap it DOES bracket gets a verdict
     verdict_, advance = loss_audit.witness_judges(w, t + dt.timedelta(seconds=120), 13.0)
-    assert (verdict_, advance) == ("delay", 13.0), (verdict_, advance)
+    assert (verdict_, advance) == ("undelivered", 13.0), (verdict_, advance)
 
 
 # ── the witness's own edges ─────────────────────────────────────────────────────────────────────────
@@ -1863,7 +1883,7 @@ def test_the_witness_can_answer_from_its_very_FIRST_reading(tmp_path):
     t = dt.datetime(2026, 9, 22, 22, 39, 24)
     w = [(t, 0)] + [(t + dt.timedelta(seconds=k), k) for k in range(20, 40)]
     verdict_, advance = loss_audit.witness_judges(w, t, 20.0)  # bracketed by index 0 and a later row
-    assert (verdict_, advance) == ("delay", 20.0), (verdict_, advance)
+    assert (verdict_, advance) == ("undelivered", 20.0), (verdict_, advance)
 
 
 def test_a_counter_that_did_not_move_at_all_is_SILENCE_not_unwitnessed(tmp_path):
@@ -1875,7 +1895,7 @@ def test_a_counter_that_did_not_move_at_all_is_SILENCE_not_unwitnessed(tmp_path)
     assert loss_audit.witness_judges(w, t + dt.timedelta(seconds=5), 20.0) == ("silence", 0.0)
 
 
-def test_an_advance_EXACTLY_one_count_short_of_the_gap_is_still_a_delay(tmp_path):
+def test_an_advance_EXACTLY_one_count_short_of_the_gap_is_still_ACCOUNTED_FOR(tmp_path):
     """`>=`, not `>`. The counter is 1 Hz, so it can only ever agree with a gap to within one count —
     `RING_WITNESS_TOL_S` is that quantum, and a gap it accounts for to exactly the quantum is accounted
     for. Which side the boundary falls on is a decision about the counter's resolution, not an accident."""
@@ -1883,7 +1903,7 @@ def test_an_advance_EXACTLY_one_count_short_of_the_gap_is_still_a_delay(tmp_path
     g = 13.0
     exact = g - loss_audit.RING_WITNESS_TOL_S  # 12.0 s of produced signal
     w = [(t, 100), (t + dt.timedelta(seconds=g), 100 + int(exact))]
-    assert loss_audit.witness_judges(w, t, g) == ("delay", exact)
+    assert loss_audit.witness_judges(w, t, g) == ("undelivered", exact)
     # and one count less is not: the boundary is a decision, so it is asserted from both sides
     w2 = [(t, 100), (t + dt.timedelta(seconds=g), 100 + int(exact) - 1)]
     assert loss_audit.witness_judges(w2, t, g) == ("silence", exact - 1)
@@ -1900,6 +1920,104 @@ def test_the_witness_reads_a_row_of_EXACTLY_two_fields(tmp_path):
         _OXY_HDR + f"{t.isoformat(timespec='milliseconds')};7\n"
     )  # exactly two fields
     assert loss_audit.signal_witness(str(d)) == [(t, 7)]
+
+
+# ── residue 2026-10-28-the-signal-witness-reads-the-ring-counter-by-position ────────────────────────
+
+
+def test_the_signal_witness_reads_the_counter_BY_NAME_not_by_POSITION(tmp_path):
+    """The counter is `duration_s`, named in the header, and the reader must find it there.
+
+    Two layouts of this file are in the corpus already — the daemon's current 16 columns and a trimmed
+    older one — so a column's index is not a property of the file, and the next writer change moves it
+    again. The header below puts another number first: a positional reader returns THAT number as the
+    ring's produced seconds, and every verdict built on it describes a different field."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_OXYFRAME.txt", "w") as fh:
+        fh.write("Phone timestamp;seq;duration_s;ppg_n\n")  # `seq` sits where `duration_s` used to
+        for sec in range(3):
+            stamp = (t + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            fh.write(f"{stamp};{9000 + sec};{sec};126\n")
+    assert [v for _s, v in loss_audit.signal_witness(str(d))] == [0, 1, 2], "the named cell, not cell 1"
+
+
+def test_a_frame_file_with_NO_header_AT_ALL_yields_no_witness_row(tmp_path):
+    """Without a header there is no column contract, so there is no counter to read — and a reader that
+    guesses one on a layout it has never seen reports a number it cannot name. The honest result is an
+    empty witness, which the audit then reports as `unwitnessed` rather than as silence."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    (d / "Wellue_O2Ring-S_S8AW2100_20260922223924_OXYFRAME.txt").write_text(
+        f"{t.isoformat(timespec='milliseconds')};7;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n"
+    )
+    assert loss_audit.signal_witness(str(d)) == []
+
+
+# ── residue 2026-10-28-the-signal-witness-lands-on-the-capped-first-reply-after-a-stall ─────────────
+
+
+def test_the_witness_reads_the_SETTLED_count_not_the_CAPPED_first_reply(tmp_path):
+    """The shape of the real 00:48 stall, in the three readings it produced.
+
+    The first reply after a stall carries at most `SAMPLES_A_CAP` samples, so its counter can advance by
+    at most `RING_REPLAY_CEILING_S` seconds however long the ring kept producing. Reading that reply is
+    reading the TRANSPORT's cap, not the ring's production: here it says `+1` across a 13.7 s hole and
+    the gap reads as silence the ring never had. The settled reading arrives 1.2 s later and says +15."""
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    g = 13.715
+    w = [
+        (t, 8465),  # the last reading before the stall
+        (t + dt.timedelta(seconds=g), 8466),  # the first reply back: capped, +1
+        (t + dt.timedelta(seconds=14.938), 8480),  # settled, 1.223 s later: +15
+    ]
+    verdict_, advance = loss_audit.witness_judges(w, t, g)
+    assert verdict_ == "undelivered", (verdict_, advance)
+    assert advance == pytest.approx(15.0 - 1.223, abs=0.001), advance
+    # and the control: the capped reply ALONE is the old answer, which this test exists to refuse
+    capped = [w[0], w[1]]
+    assert loss_audit.witness_judges(capped, t, g) == ("silence", 1.0)
+
+
+def test_a_reading_JUST_OUTSIDE_the_settle_window_is_not_read(tmp_path):
+    """`RING_WITNESS_SETTLE_S` is a window, not a search for the file's largest number. A reading 3.001 s
+    after delivery resumed is a later second's production, not the settling of this one, and folding it in
+    would credit the gap with signal produced after it ended. The boundary is asserted from both sides:
+    the test above reads a row 1.223 s in, this one refuses a row just past the edge."""
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    g = 13.0
+    settle = loss_audit.RING_WITNESS_SETTLE_S
+    w = [
+        (t, 8465),
+        (t + dt.timedelta(seconds=g), 8466),
+        (t + dt.timedelta(seconds=g + settle + 0.001), 8480),  # one millisecond past the window
+    ]
+    assert loss_audit.witness_judges(w, t, g) == ("silence", 1.0)
+
+
+def test_the_seconds_OUTSIDE_the_gap_are_SUBTRACTED_from_the_advance(tmp_path):
+    """The two readings bracket the gap, so they also bracket seconds the gap does not cover, and the
+    counter advanced across those too. A ring producing continuously through a 13 s hole that is read
+    5 s early and 4 s late advances by 22 — and 22 s of production inside a 13 s hole is not a
+    measurement, it is the bracket. What the gap is credited with is the advance minus the overhang."""
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    g = 13.0
+    w = [
+        (t - dt.timedelta(seconds=5), 500),  # 5 s before the gap starts
+        (t + dt.timedelta(seconds=g + 4), 522),  # 4 s after it ends; 1 count per second throughout
+    ]
+    assert loss_audit.witness_judges(w, t, g) == ("undelivered", 13.0)
+
+
+def test_a_NEGATIVE_step_reports_the_RAW_step_before_any_subtraction(tmp_path):
+    """A backwards counter is a new session's count, and the overhang subtraction describes production.
+    Subtracting wall seconds from a number that is not an advance at all produces a second wrong number
+    beside the refusal, so the raw step travels out as the diagnostic it is."""
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    w = [(t - dt.timedelta(seconds=5), 500), (t + dt.timedelta(seconds=17), 0)]
+    assert loss_audit.witness_judges(w, t, 13.0) == ("unwitnessed", -500.0)
 
 
 def test_the_witness_replaces_an_undecodable_byte_rather_than_dying_on_it(tmp_path):
@@ -2040,7 +2158,7 @@ def test_an_unreadable_primary_reports_the_ERROR_it_hit_not_just_the_word(tmp_pa
     assert "eio: the mount went away" in dev["reason"], dev["reason"]
 
 
-def test_a_ring_stall_JUDGED_A_DELAY_does_not_stop_the_next_stall_being_judged(tmp_path):
+def test_a_ring_stall_JUDGED_UNDELIVERED_does_not_stop_the_next_stall_being_judged(tmp_path):
     """`continue`, never `break`, in the witness loop. Two stalls: the first the ring produced signal
     across, the second it was silent through. Breaking out at the first leaves the second unjudged — it
     keeps no witness key, so it is neither counted as silence nor reported as unwitnessed, and the night
@@ -2063,10 +2181,10 @@ def test_a_ring_stall_JUDGED_A_DELAY_does_not_stop_the_next_stall_being_judged(t
             t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
             fh.write(f"{t};{dur};25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
     dev = loss_audit.audit_night(str(d), RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
-    assert [g["witness"] for g in dev["gaps"]] == ["silence"], dev["gaps"]
-    assert dev["delayed_min"] == 0.2 and dev["lost_min"] == 0.2, dev
+    assert [g["witness"] for g in dev["gaps"]] == ["undelivered", "silence"], dev["gaps"]
+    assert dev["delayed_min"] == 0.0 and dev["lost_min"] == 0.4, dev
     # advance 0 across the second stall — and 0 is not 1, which is what `round(1)` would publish
-    assert dev["gaps"][0]["witness_advance_s"] == 0.0, dev["gaps"]
+    assert [g["witness_advance_s"] for g in dev["gaps"]] == [13.0, 0.0], dev["gaps"]
 
 
 def test_a_boundary_with_NO_gap_does_not_stop_the_search_for_later_ones(tmp_path):
