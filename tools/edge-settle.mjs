@@ -55,13 +55,14 @@
 //   node tools/edge-settle.mjs --verdict-sample  # the tepna.verdict/1 object, corpus-free
 //   node tools/edge-settle.mjs --selftest
 
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { corpusSearch } from './regen-goldens-core.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -386,36 +387,59 @@ function main(argv) {
   if (argv.includes('--selftest')) return selftest();
   if (argv.includes('--verdict-sample')) {
     const sample = summarize(sampleNights());
-    sample.nights = { scanned: MIN_NIGHTS, folded: MIN_NIGHTS, unstamped: 0, measured: MIN_NIGHTS, pooled: false };
+    sample.nights = { offered: MIN_NIGHTS, rowless: 0, scanned: MIN_NIGHTS, folded: MIN_NIGHTS, unstamped: 0, measured: MIN_NIGHTS, pooled: false };
     console.log(JSON.stringify(verdictOf(sample, ['tools/edge-settle.mjs --verdict-sample (synthetic nights)'], undefined, 0), null, 2));
     return;
   }
   const at = argv.indexOf('--root');
   const root = at >= 0 ? resolve(argv[at + 1]) : join(corpusSearch(ROOT).dir, 'trio');
-  if (!existsSync(root)) {
-    console.error(`edge-settle: no export tree at ${root} — pass --root <dir>`);
+  /* THE DENOMINATOR IS THE OFFER, NOT THE SURVIVORS. `scanned` below keeps only nights that gave at
+     least one row, and every figure under it was divided by `scanned.length` — so a night directory
+     the walk offered and the read could not score left the population entirely, and the tool could
+     report 12 of 12 nights measured over a tree holding 40. The snapshot states what the walk
+     offered; `notANight` names the offered nights no row came back from (§∅ — a reduced coverage is
+     annotated, never silently renormalised). */
+  const POP = { re: /^\d{4}-\d\d-\d\d$/ };
+  const popBefore = snapshotNights(root, POP);
+  if (!popBefore.ok) {
+    console.error(`edge-settle: ${popBefore.reason} — ${root}; pass --root <dir>`);
     process.exit(2);
   }
   const pooled = argv.includes('--all-nights');
   const scanned = [];
-  for (const night of readdirSync(root)
-    .filter((d) => /^\d{4}-\d\d-\d\d$/.test(d))
-    .sort()) {
+  for (const night of popBefore.nights) {
     const n = readNight(join(root, night), night);
     if (n.rows.length) scanned.push(n);
   }
+  const rowless = notANight(popBefore, scanned);
   const { nights, unstamped, excludedLegs } = partition(scanned, pooled);
   if (!nights.length && unstamped.length) {
     console.error(`edge-settle: ${unstamped.length} night(s) under ${root} and not one carries a .trio-stamp, so the fold completed on none of them.`);
     console.error('Pass --all-nights to measure them anyway; the result then pools nights the fold rejects and is not the floor population.');
     process.exit(2);
   }
+  const population = populationVerdict(popBefore, snapshotNights(root, POP), {
+    tool: 'tools/edge-settle.mjs',
+    evidence: ['tools/edge-settle.mjs']
+  });
   const summary = summarize(nights);
-  summary.nights = { scanned: scanned.length, folded: scanned.length - unstamped.length, unstamped: unstamped.length, measured: nights.length, pooled };
+  summary.nights = {
+    offered: popBefore.n,
+    rowless: rowless.length,
+    scanned: scanned.length,
+    folded: scanned.length - unstamped.length,
+    unstamped: unstamped.length,
+    measured: nights.length,
+    pooled
+  };
   const verdict = verdictOf(summary, nights.length ? [root] : [], undefined, excludedLegs);
   if (argv.includes('--json')) {
     console.log(
-      JSON.stringify({ constants: { BIN_S, CLEAN_RUN_S, BEAT_MIN_PER_BIN, BEAT_CLEAN_SHARE, CONF_MIN, OXY_MIN_PER_BIN, LATE_WEAR_S, BUDGET_S, MIN_NIGHTS }, nights, summary, verdict }, null, 2)
+      JSON.stringify(
+        { constants: { BIN_S, CLEAN_RUN_S, BEAT_MIN_PER_BIN, BEAT_CLEAN_SHARE, CONF_MIN, OXY_MIN_PER_BIN, LATE_WEAR_S, BUDGET_S, MIN_NIGHTS }, nights, summary, verdict, population },
+        null,
+        2
+      )
     );
     return;
   }
@@ -433,6 +457,14 @@ function main(argv) {
       ? `POOLED by --all-nights: ${summary.nights.folded} folded + ${summary.nights.unstamped} with no .trio-stamp. The fold rejected those, so this is NOT the floor population.`
       : `population: ${summary.nights.folded} folded (.trio-stamp present) · ${summary.nights.unstamped} excluded, the fold never folded them (--all-nights to pool them)`
   );
+  console.log(
+    `offered: ${popBefore.n} night directory(ies) under ${root}` +
+      `; ${scanned.length} gave at least one row` +
+      (rowless.length ? `; ${rowless.length} gave none: ${rowless.join(', ')}` : '; none gave none')
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`POPULATION ${JSON.stringify(population)}`);
   console.log(`settle seconds (late wear > ${LATE_WEAR_S} s excluded and counted; never-clean is null, not 0)`);
   console.log('sensor edge    n   p50   p90   p95   max   late  never');
   for (const { key } of SENSORS)

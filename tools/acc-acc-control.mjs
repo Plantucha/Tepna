@@ -47,6 +47,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { capturesRoot } from './home-paths.mjs';
 
 /* REPO defaults to THIS FILE's own repo root, never to an absolute path.
@@ -373,26 +374,53 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
 }
 
 /* --- inventory: night -> device -> fragment list --- */
-const walk = (d) => {
-  let o = [];
-  let e;
-  try {
-    e = fs.readdirSync(d, { withFileTypes: true });
-  } catch {
-    return o;
-  }
-  for (const x of e) o = x.isDirectory() ? o.concat(walk(path.join(d, x.name))) : o.concat(path.join(d, x.name));
-  return o;
+/* THE WALK IS THE POPULATION RULE, so the lister carries a name the snapshot can publish. The bare
+   `catch { return o }` that stood here read an unreadable directory as an empty one at EVERY level:
+   an unreadable ROOT scored zero fragments and said nothing, and an unreadable SUBDIRECTORY left no
+   trace at all, so a partly readable tree and a whole one printed the same inventory (§∅ — an
+   absent root is not a zero). The root read now has no `catch`, and a subdirectory nobody can read
+   is named and counted beside the figure. */
+const unreadableDirs = [];
+let capturePaths = [];
+const listCaptureFragments = (root) => {
+  const base = String(root);
+  fs.readdirSync(base);
+  unreadableDirs.length = 0;
+  capturePaths = [];
+  const walk = (d) => {
+    let e;
+    try {
+      e = fs.readdirSync(d, { withFileTypes: true });
+    } catch (err) {
+      unreadableDirs.push(`${path.relative(base, d) || '.'}: ${err.code || err.message}`);
+      return;
+    }
+    for (const x of e) {
+      const q = path.join(d, x.name);
+      if (x.isDirectory()) walk(q);
+      else capturePaths.push(q);
+    }
+  };
+  walk(base);
+  return capturePaths.map((q) => path.relative(base, q));
 };
+const POP = { list: listCaptureFragments, unit: 'capture-files' };
+const popBefore = snapshotEntries(ROOT, POP);
+if (!popBefore.ok) {
+  console.error(`\u2715 acc-acc-control: ${popBefore.reason} — ${ROOT}`);
+  process.exit(2);
+}
 const nights = new Map();
 // Names whose stamp field the owner refused — counted and named, never dropped silently.
 const refusedStamps = [];
-for (const f of walk(ROOT)) {
+let accMatched = 0;
+for (const f of capturePaths) {
   const b = path.basename(f);
   const h10 = /^Polar_H10_[0-9A-Fa-f]+_(\d{8}_?\d{6})_ACC\.txt$/.exec(b);
   const ver = h10 ? null : /^Polar_(?:VeritySense|Sense)_[0-9A-Fa-f]+_(\d{8}_?\d{6})_ACC\.txt$/.exec(b);
   const m = h10 || ver;
   if (!m) continue;
+  accMatched++;
   const dev = h10 ? 'h10' : 'ver';
   /* PSL writes the stamp as YYYYMMDD_HHMMSS (underscore inside); the capture host writes 14
      contiguous digits. The regex above accepts both — the spelling fix alone matched 0 PSL files,
@@ -423,6 +451,19 @@ if (refusedStamps.length) {
 console.log('\nACC↔ACC CONTROL — H10 chest vs Verity arm, one host clock, TRUE OFFSET = 0');
 console.log(`  COARSE (flow-vs-acc params): ${COARSE.dtMs} ms bins · ±${COARSE.windowHalfMs / 1000} s window · ±${COARSE.maxLagMs / 60000} min search · minCorr ${COARSE.minCorr}`);
 console.log(`  FINE   (PATAlign DEFAULTS):  ${FINE.dtMs} ms bins · ±${FINE.windowHalfMs} ms window · ±${FINE.maxLagMs} ms search · minCorr ${FINE.minCorr}`);
+/* THE OFFER BESIDE THE READ. The ACC filename patterns are a SELECTION over the files the walk
+   offered, never the walk's rule, so the unmatched remainder is named rather than implied. */
+const population = populationVerdict(popBefore, snapshotEntries(ROOT, POP), {
+  tool: 'tools/acc-acc-control.mjs',
+  evidence: ['tools/acc-acc-control.mjs']
+});
+console.log(
+  `  population: ${population.population.checked} capture file(s) offered under ${ROOT}` +
+    `; ${accMatched} matched an H10 or Verity _ACC.txt name, ${population.population.checked - accMatched} did not` +
+    `; ${nights.size} night(s) keyed` +
+    (unreadableDirs.length ? `; ${unreadableDirs.length} unreadable subdirectory(ies): ${unreadableDirs.join(', ')}` : '')
+);
+console.log(`POPULATION ${JSON.stringify(population)}`);
 
 const res = [];
 let skipped = 0; // nights with both streams that did not parse or did not overlap — the verdict's `excluded`
