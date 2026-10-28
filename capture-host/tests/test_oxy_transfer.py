@@ -385,6 +385,29 @@ def test_verify_records_the_depth_it_actually_checked(tmp_path):
     assert tr.VALIDATION_DEPTH == "size+finalised+records"
 
 
+def test_a_verified_file_carries_the_duration_its_trailer_declared(tmp_path):
+    """Layer 3 has just proved the record count EQUALS the trailer's `total_seconds`, so the number is
+    carried out rather than re-read by the caller — a second trailer parse downstream is a second
+    source of truth that can disagree with the one the walk accepted."""
+    p = tmp_path / "x.part"
+    p.write_bytes(GOOD)
+    assert tr.verify(str(p), GOOD_SIZE, oxyii.parse_oxy_trailer).total_seconds == 20
+
+
+def test_a_REJECTED_file_declares_no_duration(tmp_path):
+    """A rejection is not a reading. An unfinalised file's trailer declares nothing, and a number beside
+    a `False` would be a declaration this layer never accepted — §∅: absence is null, never a figure."""
+    p = tmp_path / "x.part"
+    p.write_bytes(b"\x00" * GOOD_SIZE)
+    res = tr.verify(str(p), GOOD_SIZE, oxyii.parse_oxy_trailer)
+    assert res.ok is False and res.total_seconds is None
+    # ...and the whole family refuses alike: absent, short, and a shifted grid whose trailer DOES declare.
+    assert tr.verify(str(tmp_path / "absent.part"), None, _finalised).total_seconds is None
+    shifted = _fmt_a(20, total_seconds=19)
+    (tmp_path / "s.part").write_bytes(shifted)
+    assert tr.verify(str(tmp_path / "s.part"), len(shifted), oxyii.parse_oxy_trailer).total_seconds is None
+
+
 def test_verify_reds_on_a_shifted_grid_that_size_and_trailer_cannot_see(tmp_path):
     """THE layer-3 control (brief §4 / lead 2026-08-24). A file can be EXACTLY the reported size and
     carry a valid finalisation trailer while its record grid is shifted — a dropped or duplicated chunk

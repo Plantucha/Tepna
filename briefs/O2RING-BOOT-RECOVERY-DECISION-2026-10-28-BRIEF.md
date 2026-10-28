@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS (option B, decided 2026-10-28; the recovery landed, the `confirm_end` caller comes next) — 2026-10-28 · **Created:** 2026-10-28
+**Status:** DONE — 2026-10-28 · **Created:** 2026-10-28
 
 # The ring's recording axis has no boot recovery — what that costs, and the three ways out
 
@@ -167,8 +167,8 @@ A deploy to vigil stays owner-only. Unit 121 ships code and restarts no daemon.
 - [x] Unit 121 bounds the journal's age, as `CATCH_UP_MAX_AGE_S` bounds the reference.
 - [x] Unit 121 restores `END_CANDIDATE` and `closed_at_duration`, not `RECORDING` alone.
 - [x] §10's case 7 reads answered, and names the three tests.
-- [ ] Unit 122 wires `confirm_end` in the pull path, and closes the row.
-- [ ] `capture-host/check.sh` passes at the 100 % floor on both units.
+- [x] Unit 122 wires `confirm_end` in the pull path, and closes the row.
+- [x] `capture-host/check.sh` passes at the 100 % floor on both units.
 
 
 ## 8 · Unit 121 — what the build added, 2026-10-28
@@ -204,3 +204,45 @@ pin it, all predating this unit — `test_link_loss_moves_to_unknown_never_not_r
 `test_link_loss_forgets_the_counter_so_reconnect_starts_from_ignorance` and
 `test_link_loss_while_already_unknown_is_silent`. Cases 2 and 3 are the restart cases, and this unit
 executes them.
+
+## 9 · Unit 122 — the caller `END_CONFIRMED` never had, 2026-10-28
+
+Row `2026-10-28-end-confirmed-has-no-producer-outside-its-tests` closes here. `confirm_end` is the only
+producer of the axis's terminal state, and its only callers were its own tests: 363 `END_CANDIDATE` rows
+on the box, 0 confirmations.
+
+**Where the evidence arrives.** The ring's own 48-byte trailer declares `total_seconds`, and the axis
+already wrote what the counter read at close. §4 of OXYII-PRESENCE-MODEL measured the two as ONE number
+— a stored session's trailer read 18311 against a live counter of 18311 at close — so the confirmation
+compares a measurement against a declaration, within the counter's measured ±1 s quantization.
+
+| piece | what it does | test |
+|---|---|---|
+| `oxy_transfer.VerifyResult.total_seconds` | the walked trailer's declared duration, appended last and defaulted | `test_a_verified_file_carries_the_duration_its_trailer_declared` |
+| `capture._oxy_rec_journals` | the two night tails, as `(path, text)`; the boot read now shares it | the boot reader's four tests, unchanged |
+| `capture._oxy_rec_confirm` | journal → seed → `confirm_end` → one row, back into the candidate's own file | `test_a_pulled_session_confirms_the_close_the_journal_witnessed` |
+| `capture._oxy_rec_confirm_pulled` | each pulled `.dat`, validated, first agreement wins | `test_the_first_agreement_wins_and_the_other_sessions_are_left_alone` |
+| the call site | `pull_oxyii_session`, which every harvest trigger reaches | the twelve tests of this section |
+
+Four points the order did not name, decided in the build:
+
+1. **The journal seeds the engine, which nothing holds between the close and the pull.** The pull lands
+   minutes to hours after the close, often in a later process. A module-level engine registry would
+   confirm only inside the process that watched — the case already covered — while the journal route
+   also confirms after a restart, which is what the row is about
+   (`test_a_pulled_session_confirms_the_close_the_journal_witnessed`).
+2. **The number comes out of a file that passed the record-boundary walk,** not out of a bare trailer
+   read. A right-sized, finalised file can still hide a shifted record grid, and a confirmation claims
+   the stored session IS the one the axis watched close
+   (`test_a_SHIFTED_RECORD_GRID_is_not_evidence_even_when_its_trailer_agrees`).
+3. **The row lands in the file the candidate came out of.** A close at 23:50 and a pull at 00:30 sit two
+   night directories apart, and a reader of that night's journal must not see a close that never
+   resolved (`test_the_confirmation_row_lands_in_the_FILE_THE_CANDIDATE_CAME_OUT_OF`).
+4. **The confirming engine names the device and claims no session.** The process confirming need not be
+   the one that witnessed, so a session id here would name a run that may have observed nothing
+   (`test_the_confirming_engine_names_the_device_and_CLAIMS_NO_SESSION`).
+
+One pull reaches the ring through `pull_oxyii_session` whatever triggered it — charger, not-worn,
+presence, hourly or the API — so the wiring sits there once. It reads files and appends one row. A write
+failure costs the row and nothing else, because the bytes land before this runs
+(`test_a_journal_write_failure_costs_THE_ROW_AND_NOT_THE_PULL`).

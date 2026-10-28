@@ -675,3 +675,206 @@ def test_an_absent_journal_seeds_unknown_and_CREATES_NO_night_directory(tmp_path
     assert seed == RecSeed(OxyRecState.UNKNOWN, None)
     assert not (tmp_path / "captures").exists()
     assert any("no rec rows" in r.getMessage() for r in caplog.records)
+
+
+# ── capture._oxy_rec_confirm / _oxy_rec_confirm_pulled — END_CONFIRMED's only producer ────────────
+#
+# `confirm_end` had NO caller outside its tests until 2026-10-28 (unit 122): 363 END_CANDIDATE rows on
+# the capture box, 0 confirmations. The pull is where the evidence arrives — the ring's own trailer
+# declares what the session lasted, and the axis already wrote what the counter read at close.
+
+_TRAILER_SUBMAGIC = b"\x48\x12\x5a\xda"
+
+
+def _dat(path, total_seconds, n_records=None):
+    """A byte-real Format-A `.dat` the REAL `oxyii.parse_oxy_trailer` reads as finalised.
+
+    `n_records` defaults to `total_seconds` — the consistent file the ring writes, measured as
+    `(size - 10 - 48) / 3 == total_seconds`. A different count is the shifted grid that a size check
+    and a trailer read both pass and layer 3 of `oxy_transfer.verify` exists to catch."""
+    import oxy_transfer
+
+    n = total_seconds if n_records is None else n_records
+    t = bytearray(48)
+    t[4:8] = _TRAILER_SUBMAGIC  # sub-magic at [4:8] → finalised
+    t[12] = total_seconds & 0xFF
+    t[13] = (total_seconds >> 8) & 0xFF  # total_seconds = t[12] | t[13]<<8
+    t[42] = 0xFF  # o2_score_x10 = None (short-session convention)
+    path.write_bytes(bytes(oxy_transfer._FMT_A_HEADER) + b"\x60\x40\x00" * n + bytes(t))
+    return str(path)
+
+
+def _rec_rows(root, day):
+    """The rec-axis rows of one night's journal, as raw split cells — the file as a reader sees it."""
+    text = (root / "captures" / day / "OXYLIFE.csv").read_text()
+    return [ln.split(";") for ln in text.splitlines() if len(ln.split(";")) > 8 and ln.split(";")[8] == "rec"]
+
+
+def _now_night(root, *, minutes_ago=5, closed="412", new="end_candidate", day_offset=0):
+    """A journal in the night directory the REAL clock names, with its last rec row minutes old.
+
+    `_oxy_rec_confirm_pulled` reads `time.time()` itself — that is the production wiring — so a test of
+    it cannot hand in a fixed instant and must place its rows against the clock the code reads."""
+    now = _d.datetime.now()
+    day = (now + _d.timedelta(days=day_offset)).strftime("%Y-%m-%d")
+    wall = (now - _d.timedelta(minutes=minutes_ago)).astimezone().isoformat()
+    _night(root, day, _file(_row(wall, "recording", new, closed=closed)))
+    return day
+
+
+def test_a_pulled_session_confirms_the_close_the_journal_witnessed(tmp_path):
+    """The whole unit. The engine is built from the JOURNAL, not held in memory, so this is also the
+    restart case: the process that confirms need never have seen the close."""
+    import capture
+
+    day = _now_night(tmp_path, closed="412")
+    out = capture._oxy_rec_confirm_pulled(
+        str(tmp_path), [_dat(tmp_path / "20261028.dat", 412)], device="O2R-01", device_id="O2R-01"
+    )
+    assert [t.new for t in out] == [OxyRecState.END_CONFIRMED]
+    rows = _rec_rows(tmp_path, day)
+    assert [r[3] for r in rows] == ["end_candidate", "end_confirmed"]
+    # The number travels with the row, so the confirmation is readable without re-deriving it.
+    assert rows[-1][9] == "412"
+    assert "stored 412s vs observed 412s" in rows[-1][4]
+
+
+def test_the_confirmation_row_lands_in_the_FILE_THE_CANDIDATE_CAME_OUT_OF(tmp_path):
+    """A close at 23:50 and a pull at 00:30 are two night directories apart. The candidate and its
+    confirmation describe ONE session, so a reader of that night's journal must not see a close that
+    never resolved."""
+    import capture
+
+    yday = _now_night(tmp_path, minutes_ago=40, closed="300", day_offset=-1)
+    today = (_d.datetime.now()).strftime("%Y-%m-%d")
+    # Tonight's file exists and carries LINK rows only — it holds no rec row to be chosen over.
+    _night(tmp_path, today, _file(_row(_d.datetime.now().astimezone().isoformat(), "not_seen", "connecting", axis="")))
+    out = capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat", 300)], device_id="O2R-01")
+    assert [t.new for t in out] == [OxyRecState.END_CONFIRMED]
+    assert [r[3] for r in _rec_rows(tmp_path, yday)] == ["end_candidate", "end_confirmed"]
+    assert _rec_rows(tmp_path, today) == []
+
+
+def test_the_newest_rec_row_decides_when_both_nights_hold_one(tmp_path):
+    """Both files carry rec rows across a midnight pull. The seed is the newest row in either, and the
+    confirmation goes to the file that row sits in."""
+    import capture
+
+    yday = _now_night(tmp_path, minutes_ago=90, closed="300", new="not_recording", day_offset=-1)
+    today = _now_night(tmp_path, minutes_ago=4, closed="412")
+    out = capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat", 412)], device_id="O2R-01")
+    assert [t.new for t in out] == [OxyRecState.END_CONFIRMED]
+    assert [r[3] for r in _rec_rows(tmp_path, today)] == ["end_candidate", "end_confirmed"]
+    assert [r[3] for r in _rec_rows(tmp_path, yday)] == ["not_recording"]
+
+
+def test_a_trailer_that_DISAGREES_confirms_nothing_and_writes_no_row(tmp_path, caplog):
+    """`confirm_end` refuses outside ±1 s and this path does not negotiate. A disagreement is a real
+    discrepancy — the stored session is not the one the axis watched close."""
+    import capture
+
+    day = _now_night(tmp_path, closed="412")
+    with caplog.at_level("INFO"):
+        out = capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat", 500)], device_id="O2R-01")
+    assert out == []
+    assert [r[3] for r in _rec_rows(tmp_path, day)] == ["end_candidate"]
+    assert any("declares 500s" in r.getMessage() for r in caplog.records)
+
+
+def test_the_counters_measured_one_second_quantization_still_confirms(tmp_path):
+    """±1 s is the counter's measured quantization (o2ring-duration-is-quantized), not a tolerance
+    invented here — so 411 against 412 is agreement and the row must say both numbers."""
+    import capture
+
+    day = _now_night(tmp_path, closed="412")
+    out = capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat", 411)], device_id="O2R-01")
+    assert [t.new for t in out] == [OxyRecState.END_CONFIRMED]
+    assert "stored 411s vs observed 412s" in _rec_rows(tmp_path, day)[-1][4]
+
+
+def test_a_SHIFTED_RECORD_GRID_is_not_evidence_even_when_its_trailer_agrees(tmp_path):
+    """The number comes out of a file that passed the record-boundary walk. This file's trailer declares
+    exactly what the journal witnessed, and its body holds a different number of records — the case a
+    size check and a trailer read both pass. Confirming from it would vouch for bytes nothing verified."""
+    import capture
+
+    day = _now_night(tmp_path, closed="412")
+    out = capture._oxy_rec_confirm_pulled(
+        str(tmp_path), [_dat(tmp_path / "s.dat", 412, n_records=400)], device_id="O2R-01"
+    )
+    assert out == []
+    assert [r[3] for r in _rec_rows(tmp_path, day)] == ["end_candidate"]
+
+
+def test_a_part_file_declares_nothing_and_is_skipped(tmp_path):
+    """A short pull keeps its `.part`, and a partial artifact cannot declare a session's duration."""
+    import capture
+
+    day = _now_night(tmp_path, closed="412")
+    out = capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat.part", 412)], device_id="O2R-01")
+    assert out == []
+    assert [r[3] for r in _rec_rows(tmp_path, day)] == ["end_candidate"]
+
+
+def test_the_first_agreement_wins_and_the_other_sessions_are_left_alone(tmp_path):
+    """One pull can land several sessions and only one of them can be the close this journal witnessed."""
+    import capture
+
+    day = _now_night(tmp_path, closed="412")
+    out = capture._oxy_rec_confirm_pulled(
+        str(tmp_path),
+        [_dat(tmp_path / "a.dat", 100), _dat(tmp_path / "b.dat", 412), _dat(tmp_path / "c.dat", 412)],
+        device_id="O2R-01",
+    )
+    assert len(out) == 1
+    assert [r[3] for r in _rec_rows(tmp_path, day)] == ["end_candidate", "end_confirmed"]
+
+
+def test_no_rec_row_in_either_journal_confirms_nothing(tmp_path, caplog):
+    """An absent journal is not a close to confirm — and this reader creates no night directory."""
+    import capture
+
+    with caplog.at_level("INFO"):
+        out = capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat", 412)], device_id="O2R-01")
+    assert out == []
+    assert not (tmp_path / "captures").exists()
+    assert any("nothing was witnessed closing" in r.getMessage() for r in caplog.records)
+
+
+def test_a_candidate_PAST_THE_AGE_BOUND_is_not_confirmed_by_a_matching_trailer(tmp_path):
+    """`boot_rec_state`'s bound is what decides whether the journal still describes now. A day-old
+    candidate seeds UNKNOWN, and an UNKNOWN engine confirms nothing however well the number agrees."""
+    import capture
+
+    day = _now_night(tmp_path, minutes_ago=int(REC_CATCH_UP_MAX_AGE_S / 60) + 60, closed="412", day_offset=-1)
+    out = capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat", 412)], device_id="O2R-01")
+    assert out == []
+    assert [r[3] for r in _rec_rows(tmp_path, day)] == ["end_candidate"]
+
+
+def test_a_journal_write_failure_costs_THE_ROW_AND_NOT_THE_PULL(tmp_path, monkeypatch, caplog):
+    """Journaling must never damage the pull it describes — `_rec_emit`'s discipline, arriving in the
+    harvest path. The bytes are already committed when this runs."""
+    import capture
+
+    _now_night(tmp_path, closed="412")
+
+    def boom(*_a, **_k):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(capture, "OxyLifeLogWriter", boom)
+    with caplog.at_level("WARNING"):
+        out = capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat", 412)], device_id="O2R-01")
+    assert [t.new for t in out] == [OxyRecState.END_CONFIRMED]  # the transition happened; the row did not
+    assert any("the pull is unaffected" in r.getMessage() for r in caplog.records)
+
+
+def test_the_confirming_engine_names_the_device_and_CLAIMS_NO_SESSION(tmp_path):
+    """The process confirming need not be the one that witnessed, so a session id here would name a run
+    that may have observed nothing. The device is known from the pull and is written."""
+    import capture
+
+    day = _now_night(tmp_path, closed="412")
+    capture._oxy_rec_confirm_pulled(str(tmp_path), [_dat(tmp_path / "s.dat", 412)], device_id="O2R-01")
+    row = _rec_rows(tmp_path, day)[-1]
+    assert row[5] == "O2R-01" and row[6] == ""
