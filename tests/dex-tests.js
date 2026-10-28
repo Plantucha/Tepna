@@ -44509,7 +44509,7 @@
        a deliberately-unverified fixture, on EVERY rebase — and a warning that cries when nothing is wrong
        is one people scroll past, which leaves the failure exactly where it was plus noise. */
     /* ════ rebase-safe acts on the checkout it LIVES in, and must refuse across checkouts ═════════
-       Measured 2026-09-15: `node /home/michal/Tepna/tools/rebase-safe.mjs` run from a worktree refused
+       Measured 2026-09-15: `node ~/Tepna/tools/rebase-safe.mjs` run from a worktree refused
        with "working tree is not clean" while that worktree was spotless — it was reporting the SHARED
        ROOT's cleanliness. Every git call in the tool is bound to `ROOT` (7 sites), none to
        `process.cwd()`, and `gitQuiet` delegates to `git` — so `gitQuiet('rebase', onto)`, the

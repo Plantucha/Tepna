@@ -29,7 +29,7 @@ cases live.
 
 ## 2 · The measurement
 
-`tools/pat-per-led.mjs` over `/home/michal/tepna-smoketest/captures`, **all 42 night directories, no
+`tools/pat-per-led.mjs` over `~/tepna-smoketest/captures`, **all 42 night directories, no
 filter, no pipe**. Each Verity LED is scored standalone against the ECG R-peaks — no consensus, no
 channel ranking — so a night contributes up to three independent channel-rows.
 
@@ -177,7 +177,7 @@ Regime medians, descriptive only — §3's groups are far too thin here for an o
 | WINDOW-DOMINATED | 13 | 97.4 ms | 13.5 |
 | EDGE-LOADED | 2 | 103.5 ms | 14.4 |
 
-**Replication on the brief's own tree** (`/home/michal/tepna-smoketest/captures`, 49 nights, 32 with a
+**Replication on the brief's own tree** (`~/tepna-smoketest/captures`, 49 nights, 32 with a
 PAT SD) reproduces §3's structure closely — SUB-BAR 3.1 % / INTERMEDIATE 40.6 % / WINDOW-DOMINATED
 46.9 % / EDGE-LOADED 9.4 % against §3's published 3.7 / 48.1 / 37.0 / 11.1 — and names the **same**
 SUB-BAR night (2026-07-31, median lag 275 ms). The regimes are a stable property of the corpus, not
@@ -256,7 +256,7 @@ physiology. One run, decisive, and it settles item 2's premise before any constr
 disagreement, not averaged into one verdict."* It disagrees. This section is that report.
 
 The replication leg of §8.1 — `pat-host-offset.mjs` on the **brief's own tree**,
-`/home/michal/tepna-smoketest/captures` — was still running when #2490 was pushed; §8.2 carried only
+`~/tepna-smoketest/captures` — was still running when #2490 was pushed; §8.2 carried only
 its *regime* replication, which did hold. The correlation leg finished afterwards:
 
 | | primary (`uploads/vigil-archive`) | replication (**the brief's own tree**) |

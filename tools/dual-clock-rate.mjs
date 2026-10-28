@@ -40,6 +40,7 @@ import readline from 'node:readline';
 import { createRequire } from 'node:module';
 import { MAX_CRYSTAL_SPREAD_PPM, MS_PER_S_TO_PPM, crystalVerdict } from './device-stability.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { capturesRoot } from './home-paths.mjs';
 
 /* σ_y comes from the SPINE's Allan core, not a local reimplementation — `clock.js` owns
    `allanFromPhase`/`allanSlope` and `device-stability.mjs` owns the one-reference-τ picker. This tool
@@ -54,7 +55,7 @@ const DexClock = _require(path.join(path.dirname(new URL(import.meta.url).pathna
    reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
 const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { positional: true }, { tool: 'dual-clock-rate' });
-const DIR = process.argv[2] || '/home/michal/tepna-smoketest/captures/2026-07-26';
+const DIR = process.argv[2] || path.join(capturesRoot(), '2026-07-26');
 
 /* The host stamp is written to millisecond resolution, so a host column derived from the device time
    lands within one quantum of the fitted line every row. Two quanta is the §7 threshold — a property

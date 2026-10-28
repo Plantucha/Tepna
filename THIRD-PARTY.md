@@ -121,7 +121,7 @@ A version is a measurement, not a pin, so each table names its host and its
 date. The **capture box** is production. Its venv is
 `/opt/tepna/capture-host/.venv`, the interpreter `tepna-capture.service` names in
 its own `ExecStart`, on CPython 3.14.4. The **rig** is the development checkout,
-`/home/michal/Tepna/capture-host/.venv`, on CPython 3.13.11. I read both on
+`~/Tepna/capture-host/.venv`, on CPython 3.13.11. I read both on
 2026-10-18.
 
 | Library | Box | Rig | Licence | Purpose |

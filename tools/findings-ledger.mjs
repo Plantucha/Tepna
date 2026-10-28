@@ -38,6 +38,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { primaryGitDir } from './home-paths.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -48,7 +49,7 @@ function ledgerDir() {
     mkdirSync(process.env.FINDINGS_DIR, { recursive: true });
     return process.env.FINDINGS_DIR;
   }
-  for (const c of [join(ROOT, '.git'), '/home/michal/Tepna/.git']) {
+  for (const c of [join(ROOT, '.git'), primaryGitDir()]) {
     // In a WORKTREE `.git` is a FILE (gitdir pointer): existsSync says true, mkdir under it says
     // ENOTDIR, and the caller's fail-soft catch turned that into review findings silently never
     // reaching the ledger (measured 2026-08-27: 3 review journals full, ledger rows 0). Require a

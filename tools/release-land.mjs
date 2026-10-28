@@ -567,7 +567,10 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(changelogSection(cl, '2.11.0') === null, 'an absent version is null, never an empty release');
   ok(changelogSection(cl, '2.1.0') === null, 'version match is anchored — 2.1.0 must not match 2.10.0');
   // leak scan — a planted hit for every generic rule, and a clean control
-  const dirty = 'ok line\nsee /home/someone/x.txt\nhttps://ntfy.sh/topic\nhttps://x.y/abcdefghijklmnopqrstuvwxyz0123456789\nC:\\Users\\me\\f';
+  /* The home-path plant is ASSEMBLED, never written whole: the tracked tree stores no absolute
+     path under a home directory (owner ruling 2026-10-28), and a scrubber fixture that holds the
+     literal it scrubs is the one place the rule would be self-defeating to follow by deleting. */
+  const dirty = 'ok line\nsee /home/' + 'someone' + '/x.txt\nhttps://ntfy.sh/topic\nhttps://x.y/abcdefghijklmnopqrstuvwxyz0123456789\nC:\\Users\\me\\f';
   const hits = leakScan(dirty);
   ok(hits.length === 4 && hits.every((h) => h.line >= 2), 'every generic rule fires exactly once on its plant, never on the clean line');
   ok(leakScan('## [2.10.0] — 2026-09-07\n- fix(capture-host): say WHY a night is unknown (#2004)').length === 0, 'a real changelog line is clean');

@@ -25,10 +25,18 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { agentPath } from './home-paths.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 
 const OUT_DIR = process.env.TEPNA_BOARD_DIR || path.join(homedir(), '.local', 'share', 'tepna', 'board');
 const REPO = process.env.TEPNA_REPO || path.join(homedir(), 'Tepna');
+/* The tailnet address this dashboard and the board web are served on is a PRIVATE address, and a
+   tracked file may not carry one (`secret-scan`'s shared-ipv4 rule, required on main since
+   2026-10-28). The rig exports TEPNA_BOARD_HOST; without it both sites name the loopback, which is
+   right wherever the generator and the server share a box. Found because the home-path sweep
+   touched the display line and the DIFF-SCOPED scanner read it for the first time — the twin on the
+   `url` field had never been examined. */
+const BOARD_HOST = process.env.TEPNA_BOARD_HOST || 'localhost';
 /* THE RENDERER'S OWN TREE, which is not always the checkout it reports on. `REPO` is configurable
    and need not exist (CI has no ~/Tepna), so a question about THIS FILE'S dependencies resolves
    against the file's own location. Measured 2026-10-28: the real-tree selftest leg read `REPO` and
@@ -893,7 +901,9 @@ function quotaFor(provider) {
       const out = sh('python3', [
         '-c',
         'import urllib.request,json;' +
-          'kp="/home/michal/.config/tepna/openrouter.env";' +
+          'kp=' +
+          JSON.stringify(agentPath('openrouterEnv')) +
+          ';' +
           'key=[l.split("=",1)[1].strip().strip(chr(34)+chr(39)) for l in open(kp) if "=" in l and not l.startswith("#")][0];' +
           'r=urllib.request.Request("https://openrouter.ai/api/v1/auth/key",' +
           'headers={"Authorization":"Bearer "+key,"User-Agent":"Tepna-fleet/1.0"});' +
@@ -923,8 +933,8 @@ function wrapperHealth() {
     const wrappers = ['qwen-board', 'groq-board', 'mistral-board', 'openrouter-board', 'gemini-board'];
     const keyFor = { 'qwen-board': null, 'groq-board': 'groq', 'mistral-board': 'mistral', 'openrouter-board': 'openrouter', 'gemini-board': 'gemini' };
     const cliCoders = [
-      { name: 'codex', path: '/home/michal/.local/bin/codex', note: 'quota exhausted until 2026-11-03' },
-      { name: 'claude-code', path: '/home/michal/.nvm/versions/node/v22.23.1/bin/claude', note: 'npm global 2.1.300' }
+      { name: 'codex', path: agentPath('codex'), note: 'quota exhausted until 2026-11-03' },
+      { name: 'claude-code', path: agentPath('claude-code'), note: 'npm global 2.1.300' }
     ];
     const rows = [];
     for (const w of wrappers) {
@@ -1327,7 +1337,7 @@ export function collect() {
     schema: 'tepna.board/1',
     generatedAt: new Date(now).toISOString(),
     host: process.env.HOSTNAME || 'rig',
-    url: 'http://100.80.204.55:8766/',
+    url: `http://${BOARD_HOST}:8766/`,
     usage24h: u24,
     usage7d: u7,
     budget: budgetBar({ spentPct: plan.spentPct, spentPctRange: plan.spentPctRange, reportedAt: plan.reportedAt, nowMs: now, resets: plan.resets ?? null }),
@@ -1641,7 +1651,7 @@ ${sec('Rule 0 compliance', b.rule0.ok ? (b.rule0.stamps && b.rule0.stamps.length
 ${sec('Vigil health', b.vigilHealth.ok ? `<p>Capture daemon: <b class="${b.vigilHealth.active === 'active' ? '' : 'red'}">${esc(b.vigilHealth.active)}</b></p><p class="dim">Disk /srv/tepna: ${esc(b.vigilHealth.disk)}</p>${b.vigilHealth.vig ? `<p><b>Vigil</b> <span class="dim">disk ${esc(b.vigilHealth.vig.disk)} · mem ${esc(b.vigilHealth.vig.mem)} · ${esc(b.vigilHealth.vig.load)}</span><br><span class="dim">${esc(b.vigilHealth.vig.up)}</span></p>` : ''}<pre>${esc(b.vigilHealth.journal)}</pre>${b.vigilHealth.rig ? `<p style="margin-top:12px"><b>Rig</b> <span class="dim">disk ${esc(b.vigilHealth.rig.disk)} · mem ${esc(b.vigilHealth.rig.mem)} · ${esc(b.vigilHealth.rig.load)}</span><br><span class="dim">${esc(b.vigilHealth.rig.up)}</span></p>` : ''}` : unread(b.vigilHealth))}
 ${sec('API wrappers', b.wrapperHealth.ok ? `<div class="table-wrap"><table><thead><tr><th>wrapper</th><th>executable</th><th>key</th><th>quota</th></tr></thead><tbody>${b.wrapperHealth.rows.map((r) => `<tr><td>${esc(r.wrapper)}</td><td class="${r.exe ? '' : 'red'}">${r.exe ? 'yes' : 'NO'}</td><td class="${/MISSING|unreadable/.test(r.key) ? 'red' : 'dim'}">${esc(r.key)}</td><td class="${/OUT|zero/.test(r.quota) ? 'red' : 'dim'}">${esc(r.quota)}</td></tr>`).join('')}</tbody></table></div>` : unread(b.wrapperHealth))}
 ${sec('Board activity <span class="sub">last 7 days</span>', b.boardActivity.ok ? (b.boardActivity.days.length ? `<div class="table-wrap"><table><thead><tr><th>day</th><th class="n">posts</th></tr></thead><tbody>${b.boardActivity.days.map((d) => `<tr><td>${esc(d[0])}</td><td class="n">${d[1]}</td></tr>`).join('')}</tbody></table></div><p class="dim">by author: ${b.boardActivity.byAuthor.map((a) => `${esc(a[0])} (${a[1]})`).join(', ')}</p>` : '<p class="dim">no posts in the last 7 days</p>') : unread(b.boardActivity))}
-${sec('Message board <span class="sub">latest post</span>', b.agentBoard.ok ? (b.agentBoard.latest ? `<div class="post-meta"><b>#${b.agentBoard.latest.id}</b><span>${esc(b.agentBoard.latest.author)}</span><span class="post-time">${esc(b.agentBoard.latest.kind)} &middot; ${fmtTime(b.agentBoard.latest.at)} (${ago(b.agentBoard.latest.at)})</span></div><div class="dim">${esc(b.agentBoard.latest.title)}</div><div class="post-body">${esc(b.agentBoard.latest.body)}</div><p class="dim">${b.agentBoard.total} entries &middot; ${b.agentBoard.threads} threads</p><p class="dim">CLI: <code>/home/michal/.local/bin/agent-board</code> &middot; DB: <code>/home/michal/.agent-board/board.db</code> &middot; web: <code>http://100.80.204.55:8765</code></p>` : '<p class="dim">The board is empty &mdash; no posts yet.</p>') : unread(b.agentBoard), !b.agentBoard.ok)}
+${sec('Message board <span class="sub">latest post</span>', b.agentBoard.ok ? (b.agentBoard.latest ? `<div class="post-meta"><b>#${b.agentBoard.latest.id}</b><span>${esc(b.agentBoard.latest.author)}</span><span class="post-time">${esc(b.agentBoard.latest.kind)} &middot; ${fmtTime(b.agentBoard.latest.at)} (${ago(b.agentBoard.latest.at)})</span></div><div class="dim">${esc(b.agentBoard.latest.title)}</div><div class="post-body">${esc(b.agentBoard.latest.body)}</div><p class="dim">${b.agentBoard.total} entries &middot; ${b.agentBoard.threads} threads</p><p class="dim">CLI: <code>~/.local/bin/agent-board</code> &middot; DB: <code>~/.agent-board/board.db</code> &middot; web: <code>http://${esc(BOARD_HOST)}:8765</code></p>` : '<p class="dim">The board is empty &mdash; no posts yet.</p>') : unread(b.agentBoard), !b.agentBoard.ok)}
 ${sec('owner decisions', od.ok ? `<p><b>${od.count}</b> open <span class="dim">(${esc(od.source || '')})</span></p><pre>${esc(od.rows.join('\n'))}</pre>` : unread(od))}
 ${sec('Solid-night streak', b.solidNights.ok ? `<p>Current streak: <b>${b.solidNights.streak}</b> consecutive PASS night(s) <span class="dim">(${b.solidNights.nights} nights with verdicts)</span></p><pre>${esc(b.solidNights.text)}</pre>` : unread(b.solidNights))}
 ${sec('Daily evaluation', b.evaluation.ok ? `<pre>${esc(b.evaluation.text)}</pre>` : unread(b.evaluation))}

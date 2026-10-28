@@ -9,11 +9,17 @@ False whenever the second copy is unproven.
 import asyncio
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import storage_targets as stg  # noqa: E402
+
+# The tracked tree stores no absolute path under a home directory (owner ruling 2026-10-28), so
+# the two home-shaped fixtures below are COMPUTED. `Path.home()` raises rather than returning a
+# relative path, so a stripped environment fails loudly instead of testing a different rule.
+ID_NAS = str(Path.home() / ".ssh" / "id_nas")
 
 RSYNC = {"protocol": "rsync", "host": "nas", "user": "tepna", "share": "/vol/tepna", "port": 22}
 
@@ -232,6 +238,6 @@ def test_test_target_surfaces_the_ssh_error_otherwise(monkeypatch):
 def test_test_target_passes_an_identity_file_when_configured(monkeypatch):
     calls = _fake_run(monkeypatch, [(0, "rsync 3.2.7"), (0, "")])
     t = dict(stg.validate(RSYNC))
-    t["identity"] = "/home/vigil/.ssh/id_nas"
+    t["identity"] = ID_NAS
     _run(stg.test_target(t))
-    assert any("-i" in a and "/home/vigil/.ssh/id_nas" in a for a in calls)
+    assert any("-i" in a and ID_NAS in a for a in calls)

@@ -27,12 +27,12 @@ Six merged commits that touch non-test `capture-host/*.py`, each measured as the
 the PR's final state: `--base <the commit's own first parent>`.
 
 ```sh
-git worktree add --detach /home/michal/wt-nrate<pr>-osp <commit>
+git worktree add --detach ~/wt-nrate<pr>-osp <commit>
 # the counter ships in #3669, so the gate's three files and their two test files
 # are overlaid from main onto the historical tree:
 #   tools/mutate_diff.py · mutation_diff.py · mmeta.py
 #   tests/test_mmeta.py · tests/test_mutation_diff.py
-cd /home/michal/wt-nrate<pr>-osp/capture-host
+cd ~/wt-nrate<pr>-osp/capture-host
 .venv/bin/python tools/mutate_diff.py --base <commit>^ --report-only --json pr<pr>.json
 ```
 

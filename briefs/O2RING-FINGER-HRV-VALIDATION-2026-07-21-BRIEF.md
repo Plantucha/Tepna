@@ -147,7 +147,7 @@ the honest trajectory. `/tmp` harness (throwaway) reproduced it; nothing committ
 Adopt the deep-dive's validated apparatus verbatim; only the *device* differs.
 
 1. **Corpus.** Paired nights, each with a raw O2Ring **finger** `*_PPG.txt` (~125 Hz) **and** a simultaneous
-   H10 `*_ECG.txt` (~130 Hz), from the live-BLE captures (`/home/michal/tepna-smoketest/captures/<date>/`,
+   H10 `*_ECG.txt` (~130 Hz), from the live-BLE captures (`~/tepna-smoketest/captures/<date>/`,
    or wherever `VIGIL-O2RING-AUTOPULL` finalises them). **Minimum ≥ 10 nights** for a median+IQR claim
    (matching the deep-dive's ≥10-night bar). Prefer full sleep-context nights, not evening slices.
    **Never read a file being actively written** (mtime guard; only finalised segments).
@@ -188,7 +188,7 @@ in `integrator-dsp.js` (`fuseHrvResource` / `fuseCvhrCorroboration` `tier`).
 
 ## 5 · Non-goals / constraints
 
-- **Do not touch the running capture** (`/home/michal/tepna-smoketest/` is `capture.py`'s live tree —
+- **Do not touch the running capture** (`~/tepna-smoketest/` is `capture.py`'s live tree —
   read-only, finalised segments only, never lock/move/delete).
 - **Do not touch `ppgdex-dsp.js`'s compute path or the Verity change-list (#1–12)** — that is
   `PPGDEX-ALGORITHM-DEEP-DIVE`'s work-unit. This brief is measurement + a tier string, nothing else.

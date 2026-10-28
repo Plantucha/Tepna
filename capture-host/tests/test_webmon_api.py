@@ -12,6 +12,7 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 
 import pytest
 import yaml
@@ -650,7 +651,7 @@ _RSYNC_T = {
     "host": "192.168.0.142",
     "user": "tepna",
     "share": "/mnt/tank/tepna",
-    "identity": "/home/tepna/.ssh/id_ed25519",
+    "identity": str(Path.home() / ".ssh" / "id_ed25519"),
 }
 
 

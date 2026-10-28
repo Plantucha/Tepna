@@ -1391,6 +1391,11 @@
    },
    "note": "whether the chest strap's per-session ECG rate estimate moves because of the device counter or because `ecgTimingScan` guards its two axes differently \u2014 the counter axis admits every step under 50 ms into the mean it divides, while the host axis keeps anything past 2.5x its own latched step out of its own. Pre-stated criterion tight_fs_spread_ppm <= 100, three times the ~30 ppm a crystal of this class holds, and it needs the shipped spread over 300 ppm first or the run reports NOT_APPLICABLE rather than passing on an absent premise. A real run reads every exported ECG stream of the capture tree, so `--verdict-sample` is what this gate reads: the sample carries the criterion and NOT_RUN, the only status true of a run that examined nothing. A stream with no device-counter column is excluded by name and counted, never folded in on the rounding fallback."
   },
+  "tools/home-paths.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
   "tools/hook-contract.mjs": {
    "bin": "decides",
    "status": "adopted",

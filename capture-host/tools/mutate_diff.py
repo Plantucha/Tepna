@@ -757,7 +757,7 @@ def main(argv=None) -> int:
             # ── A MUTANT WHOSE COST IS A WAIT SPENDS A BOUND THAT NEVER COUNTED THE WAIT ─────────
             # mutmut's bound is derived from the CLEAN baseline, which never pays a wait only a mutant
             # can lengthen, so the mutant reads `timeout` however sensitive the suite is — and this
-            # gate refuses on it. The row measured two real ones in `/home/michal/wt-cpdrop-hrn`: a
+            # gate refuses on it. The row measured two real ones in `wt-cpdrop-hrn`: a
             # starved `should_stop` spent a 6.09 s bound on a 5 s grace, and a `None`
             # `subscribe_timeout_s` ran a 10 s hung read against a 3.21 s bound. Both killers fired
             # inside 0.7 s once the waits were bounded.

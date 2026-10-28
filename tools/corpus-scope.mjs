@@ -36,7 +36,7 @@
 //   node tools/corpus-scope.mjs --selftest
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,8 +49,10 @@ import {
   DOC,
   NIGHT_RE,
   censusVerdict,
+  classifyRoot,
   dedupeRoots,
   digestNights,
+  expandHome,
   gitCommitOf,
   nightCensusVerdict,
   nightDirsUnder,
@@ -206,6 +208,24 @@ function selftest() {
     JSON.stringify(resolved.filter((r) => r.path !== '<primary checkout>/uploads')) === JSON.stringify(roots.filter((r) => r.path !== '<primary checkout>/uploads'))
   );
 
+  /* PIN — the doc writes a home root as `~/…` and stores no user name (owner ruling 2026-10-28).
+     The home is INJECTED here, so the rule holds whatever this machine's home is, and the last two
+     assertions pin the default: `expandHome` reads `homedir()` and `classifyRoot` counts the row. */
+  /* 🔴 PLANT · the row filter ran BEFORE the expansion and dropped the tilde row whole, so the
+     census lost a tree and reported 8 roots as 9 (measured 2026-10-28, this edit's own first run).
+     A dropped row is the §∅ shape one level up: a corpus nobody looked at, read as a corpus. */
+  ok('a tilde ROW survives the doc filter', parseRoots('| `~/x/captures` | 1 | a tree |\n').length === 1);
+  ok('and a repo file in the same column is still documentation, not a root', parseRoots('| `tools/x.mjs` | 1 | a tool |\n').length === 0);
+  ok('a tilde root expands against the home it is given', expandHome('~/tepna-smoketest/captures', '/h/u') === '/h/u/tepna-smoketest/captures');
+  ok('a bare tilde IS the home directory', expandHome('~', '/h/u') === '/h/u');
+  ok('a tilde inside a path is NOT a prefix and never expands', expandHome('/srv/~/x', '/h/u') === '/srv/~/x');
+  ok('a `~user` form never expands, so the row reads not-absolute', classifyRoot('~someone/x').why === 'not-absolute');
+  ok("the DEFAULT home is this process's own", expandHome('~/x') === join(homedir(), 'x'));
+  ok(
+    'and a tilde row is countable, with the absolute path every caller reads today',
+    JSON.stringify(classifyRoot('~/x')) === JSON.stringify({ path: join(homedir(), 'x'), countable: true, why: null })
+  );
+
   /* PLANT — the whole defect in one assertion: a root that is not here returns null, NEVER 0. */
   ok('an absent root counts null, not 0', countUnder('/nonexistent-corpus-root-xyz', '*_ECG.txt') === null);
   ok('a real directory counts a number', typeof countUnder(ROOT, 'package.json') === 'number');
@@ -214,11 +234,11 @@ function selftest() {
      against a true 1207). The resolver is injected, so this is a rule about the rule, not the disk. */
   const aliasRows = [
     { root: '/srv/data/tepna-corpus/smoketest-captures', count: 554, why: null },
-    { root: '/home/michal/tepna-smoketest/captures', count: 554, why: null },
+    { root: '/mnt/home-alias/tepna-smoketest/captures', count: 554, why: null },
     { root: '/srv/data/tepna-corpus/smoketest-captures/sub', count: 7, why: null },
     { root: '/elsewhere', count: 10, why: null }
   ];
-  const fake = (x) => (x === '/home/michal/tepna-smoketest/captures' ? '/srv/data/tepna-corpus/smoketest-captures' : x);
+  const fake = (x) => (x === '/mnt/home-alias/tepna-smoketest/captures' ? '/srv/data/tepna-corpus/smoketest-captures' : x);
   const dd = dedupeRoots(aliasRows, fake);
   ok('a symlinked duplicate root is NOT summed', dd[1].counted === false && /alias-of/.test(dd[1].why), JSON.stringify(dd[1]));
   ok('a root NESTED in another is NOT summed', dd[2].counted === false && /nested-in/.test(dd[2].why), JSON.stringify(dd[2]));
@@ -845,10 +865,10 @@ function main() {
     const rows = dedupeRoots(
       [
         { root: '/srv/data/tepna-corpus/smoketest-captures', count: 554, why: null },
-        { root: '/home/michal/tepna-smoketest/captures', count: 554, why: null },
+        { root: '/mnt/home-alias/tepna-smoketest/captures', count: 554, why: null },
         { root: 'vigil:/srv/tepna/captures', count: null, why: 'remote' }
       ],
-      (x) => (x === '/home/michal/tepna-smoketest/captures' ? '/srv/data/tepna-corpus/smoketest-captures' : x)
+      (x) => (x === '/mnt/home-alias/tepna-smoketest/captures' ? '/srv/data/tepna-corpus/smoketest-captures' : x)
     );
     console.log(JSON.stringify(censusVerdict('*_ECG.txt', rows), null, 2));
     return;

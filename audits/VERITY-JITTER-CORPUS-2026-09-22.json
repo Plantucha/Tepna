@@ -22,7 +22,7 @@
  },
  "corpora": {
   "box": {
-   "dir": "/home/michal/tepna-smoketest/captures",
+   "dir": "~/tepna-smoketest/captures",
    "nights": 14,
    "medianJitterMs": 5.1
   },

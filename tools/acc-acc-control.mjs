@@ -47,6 +47,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { capturesRoot } from './home-paths.mjs';
 
 /* REPO defaults to THIS FILE's own repo root, never to an absolute path.
    It used to default to `/run/media/…/Tepna`, and that is worse than a crash: run from a WORKTREE the
@@ -68,7 +69,7 @@ if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--verdic
 const argRepo = process.argv[2] && !process.argv[2].startsWith('-') ? process.argv[2] : null;
 const REPO = argRepo || SELF_REPO;
 const argRoot = process.argv[3] && !process.argv[3].startsWith('-') ? process.argv[3] : null;
-const ROOT = argRoot || process.env.DEX_CAPTURES || '/home/michal/tepna-smoketest/captures';
+const ROOT = argRoot || capturesRoot();
 /* VERDICT-CONTRACT §3b — this tool never pre-stated a band (its numbers are on record), so its object
    is UNKNOWN by design with the statistic in `result`; `--verdict-sample` is what the adoption gate reads. */
 if (process.argv.includes('--verdict-sample')) {

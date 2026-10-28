@@ -11,7 +11,7 @@ family stays **`emerging`** — which is a legitimate outcome §4 names explicit
 
 ## 1 · Data & method
 
-- **Corpus:** live-BLE captures, `/home/michal/tepna-smoketest/captures/`, through 2026-08-01. **16 O2Ring
+- **Corpus:** live-BLE captures, `~/tepna-smoketest/captures/`, through 2026-08-01. **16 O2Ring
   finger nights** and **15 Polar Verity Sense wrist nights**, each paired to a simultaneous Polar H10
   `_ECG.txt`. Real recordings are gitignored (personal biosignal data); the apparatus re-derives
   everything from them.

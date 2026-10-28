@@ -30,7 +30,7 @@
 ## 1 · The headless fold pipeline (how to reproduce)
 
 **Inputs on disk (this box).**
-- BLE capture-host nights: `/home/michal/tepna-smoketest/captures/<YYYY-MM-DD>/` — one dir per calendar day
+- BLE capture-host nights: `~/tepna-smoketest/captures/<YYYY-MM-DD>/` — one dir per calendar day
   (`Polar_H10_…_ECG.txt`, `Polar_VeritySense_…_PPG.txt`, `Wellue_O2Ring-S_…_SPO2.csv`, ACC/GYRO/MAG, and a
   `stored/` dir of onboard `…_STORED.dat` backups).
 - CPAP: `/run/media/michal/647A504F7A50205A/Ecg nightly/CPAP/<YYYYMMDD>/` — ResMed AirSense EDF sets
@@ -108,7 +108,7 @@ ECG+PPG+SpO₂ night on disk.
 - Switched the scan to `readdirSync(SRC, {recursive:true})` matching on `basename` — back-compat for the flat
   Polar corpus, and it now walks the capture-host per-night subdirs + `stored/`.
 
-**Verified.** `node tools/trio-batch.mjs --src /home/michal/tepna-smoketest/captures --dry-run` → **7 trio
+**Verified.** `node tools/trio-batch.mjs --src ~/tepna-smoketest/captures --dry-run` → **7 trio
 nights** detected with no shim (was 0).
 
 ---

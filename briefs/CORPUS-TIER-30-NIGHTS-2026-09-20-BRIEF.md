@@ -66,7 +66,7 @@ Type=oneshot
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
-ExecStart=/home/michal/.nvm/versions/node/v22.23.1/bin/node /home/michal/Tepna/tools/corpus-tier.mjs --keep 30
+ExecStart=%h/.nvm/versions/node/v22.23.1/bin/node %h/Tepna/tools/corpus-tier.mjs --keep 30
 
 # tepna-corpus-tier.timer
 [Timer]

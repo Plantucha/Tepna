@@ -36,8 +36,8 @@ set -u
 # session's own query had just embedded. `~/wt-bge-index` is a linked worktree of the primary
 # (`git worktree add --detach origin/main`) that nobody edits; it is fast-forwarded here before
 # every tick. Absent (a fresh machine), the primary is indexed as before, and the log says so.
-PRIMARY=/home/michal/Tepna
-INDEX_ROOT=/home/michal/wt-bge-index
+PRIMARY="$HOME/Tepna"
+INDEX_ROOT="$HOME/wt-bge-index"
 if [ -d "$INDEX_ROOT/.git" ] || [ -f "$INDEX_ROOT/.git" ]; then
   git -C "$INDEX_ROOT" fetch -q origin main 2>/dev/null && git -C "$INDEX_ROOT" checkout -q --detach origin/main 2>/dev/null
   ROOT="$INDEX_ROOT"

@@ -80,7 +80,7 @@ three things that outlive it.
 > correction owed" does NOT survive it.**
 >
 > The baseline's corpus is named after all, in the linked doc rather than here:
-> `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` §4 — **`/home/michal/tepna-smoketest/captures/`**.
+> `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` §4 — **`~/tepna-smoketest/captures/`**.
 > It is still on disk (24 night dirs), so the comparison this brief called impossible is available.
 > Re-ran there with the documented flags (`--device verity --sleep-only`), 11 nights:
 >

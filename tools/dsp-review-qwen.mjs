@@ -35,6 +35,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { primaryGitDir } from './home-paths.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -63,7 +64,7 @@ const FLEET = [
 
 function stateDir() {
   // shared-state resolution: prefer the primary checkout's .git (same rule the sweep tools use)
-  for (const c of [join(ROOT, '.git'), '/home/michal/Tepna/.git']) {
+  for (const c of [join(ROOT, '.git'), primaryGitDir()]) {
     if (existsSync(c)) {
       const d = existsSync(join(c, 'tepna-mutation')) ? join(c, 'tepna-mutation', 'dsp-review') : null;
       if (d) {

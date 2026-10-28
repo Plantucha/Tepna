@@ -15,7 +15,7 @@
 | live state | `node tools/mutation-suite.mjs --status` |
 | build the speed-up map | `node tools/mutation-suite.mjs --build-map` |
 | mutation engine | `tools/mutate.mjs` · statement deletion `tools/stmt-delete.mjs` · XMT `tools/extreme-mutate.mjs` |
-| coverage map | `/home/michal/Tepna/.git/tepna-mutation/per-group.json` |
+| coverage map | `~/Tepna/.git/tepna-mutation/per-group.json` |
 
 A **surviving mutant is the finding**: the code was changed and the whole suite stayed green,
 so nothing tests that line — whatever the coverage number says. A survivor is NOT proof of a

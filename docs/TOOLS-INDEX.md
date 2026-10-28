@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**293 tools** · 292 with a purpose line · **1 without**
+**294 tools** · 293 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -113,6 +113,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`guide-anchor-audit.mjs`](../tools/guide-anchor-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 5, mechanised — the third sibling of `severity-ladder-audit.mjs` (dim 3) and `formula-constant-audit.mjs` (dim 2). |
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
 | [`h10-session-rate.mjs`](../tools/h10-session-rate.mjs) | what moves the ECG sample rate between sessions of ONE chest strap |
+| [`home-paths.mjs`](../tools/home-paths.mjs) | EVERY DEFAULT THAT LIVES UNDER A HOME DIRECTORY, RESOLVED IN ONE PLACE. |
 | [`hook-contract.mjs`](../tools/hook-contract.mjs) | EVERY CLAUDE-CODE HOOK DRAINS ITS STDIN BEFORE IT CAN EXIT. The harness writes each hook's tool-call JSON down a PIPE. |
 | [`hook-liveness.mjs`](../tools/hook-liveness.mjs) | WHICH COPY OF EACH GUARD HOOK WOULD ACTUALLY RUN. WHY. Residue `2026-10-21-a-landed-hook-fix-is-inert-until-the-primary-checkout-pulls`. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |

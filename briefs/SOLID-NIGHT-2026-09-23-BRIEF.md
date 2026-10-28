@@ -196,7 +196,7 @@ UNKNOWN gains a count rule (settled UNKNOWN resets the run).
 ### 3.7 · Amendments — each with the night that forced it
 
 **A1 · The worn interval comes from WEAR evidence, not beat rows** (2026-09-24, forced by 09-23; measured
-by Wren, `vigil:/home/vigil/wren-notes/ends.py`). Supersedes §3.3's "taken from the device's own beat
+by Wren, `vigil:~/wren-notes/ends.py`). Supersedes §3.3's "taken from the device's own beat
 evidence".
 
 - **The measurement.** The H10 was removed 04:21:40–04:22:20 (ACC sd 48 → 269 mG, ECG sd to 8,774 µV) and

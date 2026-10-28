@@ -54,7 +54,7 @@ retried):
 
 ## 4 · 🔴 Why the current corpus cannot power it
 
-Measured on `/home/michal/tepna-smoketest/captures`, 42 nights:
+Measured on `~/tepna-smoketest/captures`, 42 nights:
 
 - 🔴 ~~**The clean pair exists on TWO nights**: 2026-07-25 and 2026-07-26.~~ **REFUTED — it exists on
   ZERO nights. See §4b.** This brief originally counted *filename serials*; there is only one
