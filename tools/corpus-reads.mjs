@@ -670,7 +670,7 @@ export const SELF = 'tools/corpus-reads.mjs';
 
 /* ── THE POPULATION RULE'S OTHER DIRECTION ─────────────────────────────────────────────────────
    `isCorpusConsumer` is deliberately generous and reads capture vocabulary out of the RAW text,
-   so it admits five tools that enumerate no capture at all. Each is named here with the text that
+   so it admits six tools that enumerate no capture at all. Each is named here with the text that
    admitted it, because a generous rule plus a silent filter is a population nobody can audit:
 
      argv-survey.mjs        `DEX_UPLOADS`, inside `delete env.DEX_UPLOADS;` — the mention is the
@@ -681,6 +681,9 @@ export const SELF = 'tools/corpus-reads.mjs';
                             directory it enumerates is the `tools/` tree its `--tools-dir` names.
      build-docs.mjs         the night regex `\d{4}-\d{2}-\d{2}`, which validates a release date
                             in the docs builder. It enumerates `docs/`.
+     board-corpus.mjs       the same night regex, matching the DATE IN A RESIDUE ROW KEY inside
+                            the board's claim protocol (`CLAIM 2026-10-28-some-row`). It
+                            enumerates the output folder its own `--out` flag names.
      nsrr-effort-typing.mjs `.edf`, under `/srv/data/shhs/` — the public NSRR mount, a different
      nsrr-score-pool.mjs    filesystem from the capture corpus, which the daily re-tier never
                             touches (`corpus-tier.mjs` is scoped to `/srv/data/tepna-corpus/`).
@@ -691,6 +694,7 @@ export const POPULATION_EXCLUSIONS = {
   'argv-survey.mjs': 'names DEX_UPLOADS only to delete it from a probe environment',
   'importer-flag-probe.mjs': 'names DEX_UPLOADS only to scrub it from each probe child; it enumerates the tools/ tree',
   'build-docs.mjs': 'the night-shaped regex validates a release date; it enumerates docs/',
+  'board-corpus.mjs': 'the night-shaped regex matches the date in a residue row key; it enumerates the folder --out names',
   'nsrr-effort-typing.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
   'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus'
 };

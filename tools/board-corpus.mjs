@@ -44,10 +44,123 @@ const ID = /^\d+$/;
 export const INDEXED_KINDS = new Set(['decision', 'handoff', 'finding', 'answer']);
 const ENTRY_FILE = /^(\d+)\.md$/;
 
+/* ══ WHICH POST THE FLEET HAS ALREADY REPLACED ═════════════════════════════════════════════
+   Residue 2026-10-28-a-superseded-board-post-ranks-like-a-current-one. A board post is never
+   edited, so a ruling is replaced by a LATER post and the earlier one stays in the corpus reading
+   like current advice. Two signals carry that, and both come from the board itself:
+
+   1 · THE CLAIM PROTOCOL. `agent-board claim` and `release` write `CLAIM <row key>` and
+       `RELEASE <row key>` as the first line of a post. Every post for one key but the LAST is
+       replaced by its successor, which is mechanical and needs no reading of prose.
+   2 · AN EXPLICIT BACK-REFERENCE, in the ACTIVE voice only: `correcting my #1289`,
+       `Osprey WITHDRAWS the claim in #956`, `This replaces the 2-PR cap in #560`.
+
+   ⚠ THE PASSIVE VOICE POINTS THE OTHER WAY AND THIS READER ABSTAINS ON IT. `#36 was … superseded
+   by #37` names #37 as the REPLACEMENT, and marking it would bury the current ruling — the one
+   direction of error that costs a reader the answer. `the ones at #1200 as corrected by #1201` is
+   the same shape. So is a bare locator: `Retraction and reasoning at #1771` says where a thing
+   lives, not what it replaces. Measured over the 2026-10-28 board: 30 references carry a
+   supersession verb near a resolvable earlier id, 24 of them accepted and 6 abstained. Five of the
+   six are the two shapes above. The sixth is a post whose correction is partial — it reports that
+   an earlier finding re-derives a third one, and leaves that finding standing — so the refusal is
+   the conservative reading and not a gap.
+
+   ⚠ A `#NNNN` IS NOT A BOARD ID BY ITSELF — most of them are PR numbers. A reference counts only
+   when it resolves to an id the snapshot holds AND is EARLIER than the post citing it. PR numbers
+   run above the board's high-water mark today, so they resolve to nothing; that is an accident of
+   the counters, not a rule, which is why the resolution is kept and not replaced by a range. */
+const CLAIM_LINE = /^[ \t]*(CLAIM|RELEASE)[ \t]+(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)/m;
+/* Active: the verb governs the reference. Only connector words may stand between them, and `by`
+   is not one of them — it is the passive marker this reader refuses to read. */
+/* The ACTIVE rule is a window with two vetoes and one requirement, each of them measured against
+   the board's own prose rather than invented:
+
+     window      — the verb and the reference sit in one sentence, within 40 characters.
+     veto ` by ` — the passive points the other way: `superseded by #37` names the REPLACEMENT.
+     veto ` and `— a conjunction attaches the reference to the second conjunct, not to the verb:
+                   `Retraction and reasoning at #1771` says where the retraction lives.
+     tail        — the span must END on a word that introduces a target: a preposition, a
+                   possessive, or the noun for a post. `corrects my own report at #1636` qualifies;
+                   a verb sitting near an unrelated number does not. */
+const ACTIVE_REF = /\b(supersed|replac|overrid|retract|withdraw|correct)\w*\b([^.\n]{0,40}?)#(\d{1,5})\b/gi;
+const TARGET_TAIL =
+  /(?:\b(?:to|of|in|at|from|on|my|own|the|this|that|its|their)\b|\b(?:post|note|claim|claims|finding|findings|report|reports|entry|record|ruling|order|cap|half|clauses)\b)[ \t,:—-]*$/i;
+const PASSIVE_OR_CONJUNCTION = /\b(?:by|and)\b/i;
+/* ⚠ THE ABSTENTION COLUMN IS MEASURED, NOT ASSUMED. A reader that counted only what the active
+   rule rejected INSIDE its own match would print `abstained: 0` for ever, because a passive
+   phrase does not match the active rule at all — the examined-nothing shape with a reassuring
+   name. So the near-miss population is read by its own loose rule: a supersession verb within 40
+   characters of a resolvable earlier id. Whatever the active rule does not accept is an
+   abstention, and the counts are printed side by side. */
+const NEAR_REF = /\b(?:supersed|replac|overrid|retract|withdraw|correct)\w*\b[^.\n]{0,40}?#(\d{1,5})\b/gi;
+const PAST = { supersed: 'superseded', replac: 'replaced', overrid: 'overridden', retract: 'retracted', withdraw: 'withdrawn', correct: 'corrected' };
+
+/* Who replaced whom, as `superseded id → { by, how, author, at }`. The LAST word wins when two
+   posts both claim a replacement, because the board is append-only and later is newer. */
+export function supersessions(snapshot) {
+  const held = new Map();
+  const indexed = [];
+  for (const t of snapshot?.threads ?? []) {
+    if (!ID.test(String(t.id))) continue;
+    for (const e of t.entries ?? []) {
+      if (!ID.test(String(e.id))) continue;
+      held.set(Number(e.id), e);
+      if (INDEXED_KINDS.has(e.kind)) indexed.push({ ...e, nid: Number(e.id) });
+    }
+  }
+  indexed.sort((a, b) => a.nid - b.nid);
+  const out = new Map();
+  const mark = (target, by) => {
+    const prev = out.get(target);
+    if (!prev || prev.by < by.by) out.set(target, by);
+  };
+
+  const byKey = new Map();
+  for (const e of indexed) {
+    const m = CLAIM_LINE.exec(String(e.body ?? ''));
+    if (!m) continue;
+    const key = m[2];
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push({ id: e.nid, verb: m[1], author: e.author, at: e.createdAt });
+  }
+  for (const [key, seq] of byKey) {
+    seq.sort((a, b) => a.id - b.id);
+    for (let i = 0; i < seq.length - 1; i++) {
+      const next = seq[i + 1];
+      mark(seq[i].id, { by: next.id, how: `the claim protocol: ${next.verb} of ${key}`, author: next.author, at: next.at });
+    }
+  }
+
+  const accepted = new Set();
+  const near = new Set();
+  for (const e of indexed) {
+    const body = String(e.body ?? '');
+    for (const m of body.matchAll(NEAR_REF)) {
+      const target = Number(m[1]);
+      if (held.has(target) && target < e.nid) near.add(`${e.nid}>${target}`);
+    }
+    for (const m of body.matchAll(ACTIVE_REF)) {
+      const target = Number(m[3]);
+      if (!held.has(target) || target >= e.nid) continue;
+      const span = m[2] ?? '';
+      if (PASSIVE_OR_CONJUNCTION.test(span) || !TARGET_TAIL.test(span)) continue;
+      accepted.add(`${e.nid}>${target}`);
+      mark(target, { by: e.nid, how: `${PAST[m[1].toLowerCase()]} in a later post`, author: e.author, at: e.createdAt });
+    }
+  }
+  let abstained = 0;
+  for (const pair of near) if (!accepted.has(pair)) abstained++;
+  return { map: out, accepted: accepted.size, abstained };
+}
+
 /* One entry as a document. The header lines carry what a reader searches by: the thread, the
    author, who it was addressed to and when. The body is the post as written. */
-export function entryMarkdown(thread, entry) {
+export function entryMarkdown(thread, entry, superseded = null) {
   const to = Array.isArray(entry.addresses) && entry.addresses.length ? entry.addresses.join(', ') : 'all';
+  /* The warning is written TWICE, above the body and below it. doc-search splits a file into
+     chunks and shows the chunk it matched, so a mark that sat in the header alone would be absent
+     from every hit on a long post — the one place a reader needs it. */
+  const warn = superseded ? `⚠ SUPERSEDED by board #${superseded.by} (${superseded.how}, ${superseded.author}, ${superseded.at}). Read that post before acting on this one.` : null;
   return [
     `# Board #${entry.id} · ${thread.title}`,
     '',
@@ -56,8 +169,10 @@ export function entryMarkdown(thread, entry) {
     `- kind: ${entry.kind}`,
     `- to: ${to}`,
     `- at: ${entry.createdAt}`,
+    ...(superseded ? [`- superseded-by: #${superseded.by}`, '', warn] : []),
     '',
     String(entry.body ?? '').trimEnd(),
+    ...(superseded ? ['', warn] : []),
     ''
   ].join('\n');
 }
@@ -66,11 +181,12 @@ export function entryMarkdown(thread, entry) {
    path is built from it and a path must never leave `<out>`. */
 export function plan(snapshot) {
   const want = new Map();
+  const { map: replaced } = supersessions(snapshot);
   for (const t of snapshot?.threads ?? []) {
     if (!ID.test(String(t.id))) continue;
     for (const e of t.entries ?? []) {
       if (!ID.test(String(e.id)) || !INDEXED_KINDS.has(e.kind)) continue;
-      want.set(`${t.id}/${e.id}.md`, entryMarkdown(t, e));
+      want.set(`${t.id}/${e.id}.md`, entryMarkdown(t, e, replaced.get(Number(e.id)) ?? null));
     }
   }
   return want;
@@ -169,6 +285,56 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   assert(doc.includes('- to: osprey') && doc.includes('Ruling one.'), 'the address and the body are in the file');
   assert(want.get('1/8.md').includes('- to: all'), 'an entry with no address reads as to all');
 
+  /* THE SUPERSESSION READER. Each leg below is unreachable by every other rule in the chain: a
+     body that an earlier rule would accept scores on that rule and says nothing about the one it
+     was written for. Ids are spaced so no accident makes a reference resolve. */
+  const sup = {
+    threads: [
+      {
+        id: '2',
+        title: 'Rows',
+        entries: [
+          { id: '20', author: 'a', kind: 'decision', body: 'CLAIM 2026-10-28-a-row\nStarting.', createdAt: 'T1' },
+          { id: '21', author: 'b', kind: 'decision', body: 'RELEASE 2026-10-28-a-row\nDone.', createdAt: 'T2' },
+          { id: '22', author: 'c', kind: 'decision', body: 'CLAIM 2026-10-28-a-row\nPicked up again.', createdAt: 'T3' },
+          { id: '30', author: 'd', kind: 'finding', body: 'First reading.', createdAt: 'T4' },
+          { id: '31', author: 'e', kind: 'finding', body: 'This supersedes my own #30. The numbers moved.', createdAt: 'T5' },
+          { id: '32', author: 'f', kind: 'finding', body: 'This supersedes my own #30. Again, and for the last time.', createdAt: 'T6' },
+          { id: '40', author: 'g', kind: 'finding', body: 'Eight cells.', createdAt: 'T7' },
+          { id: '41', author: 'h', kind: 'finding', body: 'The cells are the ones corrected by #40.', createdAt: 'T8' },
+          { id: '50', author: 'i', kind: 'finding', body: 'Groundwork.', createdAt: 'T9' },
+          { id: '51', author: 'j', kind: 'finding', body: 'Retraction and reasoning at #50.', createdAt: 'TA' },
+          { id: '60', author: 'k', kind: 'finding', body: 'Base.', createdAt: 'TB' },
+          { id: '61', author: 'l', kind: 'finding', body: 'I corrected the arithmetic, then re-ran #60.', createdAt: 'TC' },
+          { id: '70', author: 'm', kind: 'finding', body: 'This supersedes the ruling in #4061.', createdAt: 'TD' },
+          { id: '80', author: 'n', kind: 'finding', body: 'This supersedes the finding in #99.', createdAt: 'TE' },
+          { id: '99', author: 'o', kind: 'finding', body: 'Written later.', createdAt: 'TF' },
+          { id: '90', author: 'p', kind: 'note', body: 'A doorbell.', createdAt: 'TG' },
+          { id: '91', author: 'q', kind: 'finding', body: 'This supersedes the note at #90.', createdAt: 'TH' }
+        ]
+      }
+    ]
+  };
+  const sr = supersessions(sup);
+  assert(sr.map.get(20)?.by === 21 && sr.map.get(21)?.by === 22, 'a claim chain supersedes every holder but the last');
+  assert(!sr.map.has(22), 'the last holder of a key is current');
+  assert(sr.map.get(20).how.includes('RELEASE'), 'the protocol mark names the verb that displaced the post');
+  assert(sr.map.get(30)?.by === 32, 'an active reference marks its target, and the later of two claimants wins');
+  assert(sr.map.get(30).author === 'f' && sr.map.get(30).how === 'superseded in a later post', 'the mark carries who and how');
+  assert(!sr.map.has(40), 'a passive reference points at the replacement and marks nothing');
+  assert(!sr.map.has(50), 'a conjunction attaches the reference to the second conjunct, not to the verb');
+  assert(!sr.map.has(60), 'a verb near a number is not a reference to a post without a target word');
+  assert(!sr.map.has(70) && sr.map.size === 4, 'a number the board does not hold resolves to nothing');
+  assert(!sr.map.has(99) && !sr.map.has(80), 'a post supersedes neither itself nor a later one');
+  assert(sr.accepted === 3 && sr.abstained === 3, 'both columns are measured: three accepted, three near misses refused');
+  assert(sr.map.has(90) && !plan(sup).has('2/90.md'), 'a mark may land on an entry the corpus does not carry, so the two counts differ');
+
+  const marked = plan(sup).get('2/30.md');
+  assert(marked.includes('- superseded-by: #32'), 'the header names the post that replaced this one');
+  assert(marked.split('⚠ SUPERSEDED').length === 3, 'the warning is written above the body and below it');
+  assert(marked.includes('Read that post before acting on this one.'), 'the warning tells the reader what to do');
+  assert(!plan(sup).get('2/22.md').includes('SUPERSEDED'), 'a current post carries no warning');
+
   /* An in-memory file system: the sync must write, keep, and prune only its own files. */
   const files = new Map();
   const dirs = new Set();
@@ -226,6 +392,13 @@ if (isMain) {
     console.log(`board-corpus: no agent board at ${BOARD_CLI} on this machine; nothing written`);
     process.exit(0);
   } else raw = execFileSync(BOARD_CLI, ['snapshot'], { encoding: 'utf-8', maxBuffer: 256 * 1024 * 1024, timeout: 60_000 });
-  const n = sync(out, plan(JSON.parse(raw)));
+  const snapshot = JSON.parse(raw);
+  const marks = supersessions(snapshot);
+  const want = plan(snapshot);
+  const n = sync(out, want);
   console.log(`board-corpus: ${n.written} written, ${n.kept} unchanged, ${n.removed} removed → ${out}`);
+  /* The abstention column is printed beside the mark count so a tick is auditable: a reader can
+     see at once whether a rule change stopped marking, or stopped examining. */
+  const inCorpus = [...want.values()].filter((t) => t.includes('- superseded-by: #')).length;
+  console.log(`board-corpus: ${marks.map.size} entry(s) marked superseded, ${inCorpus} of them indexed; ${marks.accepted} explicit reference(s) accepted, ${marks.abstained} abstained`);
 }
