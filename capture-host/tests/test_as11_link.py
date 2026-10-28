@@ -286,3 +286,91 @@ def test_the_PRODUCTION_caller_wires_the_counter_to_a_consumer():
     src = module_source("capture.py")
     assert "_L.fig_unframe(bytes(rx), on_bad_crc=" in src, "the notify handler dropped the counter"
     assert 'blestats.fail("fig_crc"' in src, "CRC failures must reach blestats, not just a log"
+
+
+# ── every builder's DEFAULT id and version reach the wire ─────────────────────
+# A default literal cannot be pinned with `inspect.signature`: under the mutation gate mutmut turns
+# the function into a dispatcher and the signature read describes the dispatcher, never the mutant
+# (measured on as11_pull.stream, #3704). So each default is observed where the builder HANDS IT
+# OVER — the encoded request — which is also the only place the device ever sees it.
+_BUILDER_DEFAULTS = [
+    ("request_session", lambda: L.request_session("cid"), "RequestSession", 10, "2.0", {"clientId": "cid"}),
+    (
+        "check_session_integrity",
+        lambda: L.check_session_integrity("ab"),
+        "CheckSessionIntegrity",
+        11,
+        "2.0",
+        {"response": "ab"},
+    ),
+    ("start_key_exchange", lambda: L.start_key_exchange("00"), "StartKeyExchange", 1, "2.0", {"clientPk": "00"}),
+    (
+        "confirm_key_exchange",
+        lambda: L.confirm_key_exchange("m1"),
+        "ConfirmKeyExchange",
+        2,
+        "2.0",
+        {"clientConfirmation": "m1"},
+    ),
+    ("get_date_time", L.get_date_time, "GetDateTime", 13, "1.0", None),
+    ("get_items", lambda: L.get_items(["A"]), "Get", 12, "1.0", ["A"]),
+    (
+        "pull_spool_fragments",
+        lambda: L.pull_spool_fragments(12),
+        "PullSpoolFragments",
+        15,
+        "1.0",
+        {"spoolId": 12, "maxFragmentSize": 3000, "maxNotifications": 0},
+    ),
+    ("subscribe_event", lambda: L.subscribe_event(["D"]), "SubscribeEvent", 17, "1.0", {"dataIds": ["D"]}),
+]
+
+
+@pytest.mark.parametrize(
+    "name,build,method,rpc_id,version,params", _BUILDER_DEFAULTS, ids=[c[0] for c in _BUILDER_DEFAULTS]
+)
+def test_each_builder_puts_its_documented_defaults_on_the_wire(name, build, method, rpc_id, version, params):
+    msg = json.loads(build())
+    assert msg["method"] == method, name
+    assert msg["id"] == rpc_id, name
+    assert msg["jsonrpc"] == version, name
+    if params is None:
+        assert "params" not in msg, name
+    else:
+        assert msg["params"] == params, name
+
+
+def test_pull_spool_fragments_fragment_and_notification_defaults_are_the_documented_values():
+    # 3000 bytes and 0 notifications are the values the AS11 was driven with; a changed literal here
+    # changes what the device is asked for, and the request is the only place it shows.
+    assert json.loads(L.pull_spool_fragments(1))["params"] == {
+        "spoolId": 1,
+        "maxFragmentSize": 3000,
+        "maxNotifications": 0,
+    }
+
+
+# ── a refusal NAMES what it wants ─────────────────────────────────────────────
+# `raise ValueError(None)` raises the same class, so `pytest.raises(ValueError)` alone cannot tell it
+# from the real refusal. The message is the contract a caller reads, so the message is asserted.
+@pytest.mark.parametrize(
+    "build,wanted",
+    [
+        (lambda: L.get_items([]), "non-empty array of non-empty names"),
+        (lambda: L.get_items([""]), "non-empty array of non-empty names"),
+        (lambda: L.get_items([1]), "non-empty array of non-empty names"),
+        (lambda: L.subscribe_event([]), "non-empty dataId strings"),
+        (lambda: L.subscribe_event([""]), "non-empty dataId strings"),
+        (lambda: L.subscribe_event(["A"] * 31), "at most 30 dataIds"),
+    ],
+)
+def test_each_builder_refusal_names_what_it_wants(build, wanted):
+    with pytest.raises(ValueError, match=wanted):
+        build()
+
+
+def test_subscribe_event_accepts_exactly_thirty_ids_but_rejects_thirty_one():
+    # the bound is INCLUSIVE at 30, like StartStream's; a `>=` here would refuse a legal subscription
+    assert json.loads(L.subscribe_event(["D"] * 30))["params"]["dataIds"] == ["D"] * 30
+    with pytest.raises(ValueError, match="at most 30 dataIds"):
+        L.subscribe_event(["D"] * 31)
