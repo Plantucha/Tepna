@@ -1666,6 +1666,24 @@ def judged_session(sessions: list[list]):
     return max(sessions, key=lambda sess: (known_rows(sess[2]), sess[1]))
 
 
+def artifact_start_s(path: str) -> float | None:
+    """The artifact's OWN start, from the acquisition sidecar beside it, as FLOATING seconds — or None.
+
+    The filename stamp is the capture SESSION's start, taken before the link is up, and a PMD stream
+    can open hours later (residue `2026-09-22-filename-stamp-still-wrong-for-other-consumers`: 39 files
+    more than 5 min late, 8 of them 13 to 19 h). `capture.py` writes `<file>.meta.json` beside a live
+    file, and its `start_time_ms` is the first LANDED row, floating like the stamp (`writers._phone_ms`).
+    None when there is no sidecar, it cannot be read, or it carries no start: a resumed or header-only
+    file reports none (§∅), and the caller then falls back to the stamp and SAYS so."""
+    try:
+        with open(path + ".meta.json") as fh:
+            ev = json.load(fh).get("acquisition_evidence") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    ms = ev.get("start_time_ms")
+    return ms / 1000.0 if isinstance(ms, (int, float)) and not isinstance(ms, bool) else None
+
+
 def scan_night(night_dir: str) -> list[dict]:
     """One record per capture file under `night_dir`: {file, stream, rows, bytes}. [] if the dir is
     absent. The QC summary itself and any sidecar are tagged but included, so callers can tell them apart."""
@@ -1694,6 +1712,9 @@ def scan_night(night_dir: str) -> list[dict]:
                 "bytes": st.st_size,
                 "mtime": st.st_mtime,
                 "session": _session_of(n),
+                # When THIS file's first row landed, from its sidecar; None when no sidecar states it.
+                # `session` stays the session's start, which is the right key for grouping a session.
+                "first_row_s": artifact_start_s(path),
                 # What the file says about its OWN duration; None when it carries no device clock.
                 # Callers must treat None as "unknown", never as zero — see file_span_sec.
                 "span_sec": _span,

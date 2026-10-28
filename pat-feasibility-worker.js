@@ -92,16 +92,43 @@ function quantile(a, q) {
   return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (i - lo);
 }
 
-function ecgRpeakTimes(text) {
-  var rec = ECGDSP.parseECG(text);
+/* `runsText` (OPTIONAL, LAST — §🧪) is the `_ECGRUNS.txt` companion's bytes when the page paired one.
+   Absent ⇒ every line below runs exactly as it did, so no fixture moves on the no-sidecar path. */
+function ecgRpeakTimes(text, runsText) {
+  var rec = runsText ? ECGDSP.parseECG(text, { runsText: runsText }) : ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   var bp = ECGDSP.bandpass(rec.int16, rec.fs);
   var raw = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  var nDetected = raw.length;
+  /* ── §∅ THE RAIL GOES OUT BEFORE THE CONFIDENCE JUDGEMENT ────────────────────────────────────────
+     `parseECG` ATTACHES the sidecar (`rec.blankingSpans`) and nulls nothing — the spans travel out of
+     band beside the samples, by design, because a NaN would delete the ROW and turn an absence of
+     VALUE into an absence of TIME. So a caller that passes the sidecar and then runs `detectPeaks`
+     over the same samples still reports R-peaks inside a span the box recorded as measuring nothing.
+     A peak there is not a low-confidence beat to be weighed; it is no beat at all, which is why it
+     leaves ahead of `dropArtifactPeaks` rather than through it. `nRaw` below keeps naming the
+     DETECTOR's own count, so the existing "(of N detected)" line stays true. */
+  var blankRanges = typeof PATGate !== 'undefined' && PATGate.runRanges ? PATGate.runRanges(rec.blankingSpans) : [];
+  var blanked = typeof PATGate !== 'undefined' && PATGate.dropInRuns ? PATGate.dropInRuns(raw, blankRanges) : { kept: raw, nDropped: 0, applied: false };
+  raw = blanked.kept;
   /* artifact seconds out BEFORE refinement — ECGDex's own rule (pat-gate.js dropArtifactPeaks) */
   var conf = typeof ECGDSP.hrConfidence === 'function' ? ECGDSP.hrConfidence(rec.int16, bp, raw, rec.fs, rec.t0Ms) : null;
   var gated =
     typeof PATGate !== 'undefined' && PATGate.dropArtifactPeaks ? PATGate.dropArtifactPeaks(raw, conf, rec.fs, rec.t0Ms) : { kept: raw, nRaw: raw.length, nDropped: 0, artifactSec: 0, applied: false };
   var peaks = gated.kept;
+  /* The UNION of the two unmeasured-second sets, so `sharedClock` divides by the time this leg really
+     measured. Adding the two counts would subtract a second that is both rail-pinned and
+     low-confidence twice and over-read the rate. `null` without a sidecar — the denominator then
+     stays the artifact-only one it has always been (§∅: no sidecar is not zero blanked seconds). */
+  var unmeasuredSec = null;
+  if (rec.runsSidecar) {
+    var _u = PATGate.runSeconds(blankRanges, rec.fs, rec.t0Ms);
+    if (gated.droppedSec)
+      gated.droppedSec.forEach(function (sec) {
+        _u.add(sec);
+      });
+    unmeasuredSec = _u.size;
+  }
   var t = new Float64Array(peaks.length);
   /* R-peak TIME, not rate: ride the host-disciplined axis when one exists. `i / fs` is the DEVICE
      clock, and on 160 of 187 real ECG fragments the ppm path is REFUSED by its 40-min span gate — so
@@ -137,7 +164,7 @@ function ecgRpeakTimes(text) {
     durSec: rec.durSec,
     times: t,
     n: peaks.length,
-    nRaw: gated.nRaw,
+    nRaw: nDetected,
     artifactSec: gated.artifactSec,
     artifactGate: gated.applied,
     hostAxis: rec.hostAxis || null,
@@ -152,11 +179,22 @@ function ecgRpeakTimes(text) {
     pos: Float64Array.from(peaks, function (_, k) {
       return posAt(k);
     }),
-    nSamples: rec.int16.length
+    nSamples: rec.int16.length,
+    /* ⚠️ LAST IN THE OBJECT DELIBERATELY. The PAT-slip group derives its population with
+       `/return \{[^}]*\btimes:[^}]*\}/`, which stops at the FIRST brace — a nested object placed
+       ahead of `hostAxis` cuts the axis out of the scanned chunk and reds a forward that is there.
+       §∅ THE OUTPUT REPORTS THE ABSENCE IT WAS COMPUTED OVER: a reduced-coverage recording keeps its
+       metric with the covered span beside it, so this annotates rather than refuses — the spans are
+       dropouts inside one continuous stretch, not a clock seam. `null` when no sidecar was paired:
+       "nothing was recorded as blank" and "nobody looked" are different answers. */
+    unmeasuredSec: unmeasuredSec,
+    validity: rec.runsSidecar ? { source: '_ECGRUNS.txt', comparable: rec.runsSidecar.comparable, spans: blankRanges.length, dropped: blanked.nDropped, unmeasuredSec: unmeasuredSec } : null
   };
 }
-function ppgFootTimes(text) {
-  var rec = PPGDSP.parsePPG(text);
+/* `runsText` (OPTIONAL, LAST — §🧪) is the `_PPGRUNS.txt` companion's bytes. This function serves BOTH
+   optical legs, so the ankle (Verity) and the finger (O2Ring) each hand it their OWN sidecar. */
+function ppgFootTimes(text, runsText) {
+  var rec = runsText ? PPGDSP.parsePPG(text, { runsText: runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   var per = rec.ch.map(function (c) {
     return PPGDSP.detectChannel(c, rec.fs);
@@ -170,6 +208,59 @@ function ppgFootTimes(text) {
     }
   });
   var cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
+  /* ── §∅ A FOOT EVERY CHANNEL WAS PINNED THROUGH IS NOT A BEAT ───────────────────────────────────
+     `rec.spans` is per optical channel, and `parsePPG` publishes it with or without a sidecar: the
+     in-JS recompute always runs and the file's rows win only where the file could see. Consuming it
+     unconditionally would therefore change every existing result, which is a claim about the
+     RECOMPUTE this unit did not measure — so the drop is gated on `pinnedCrossCheck`, the field that
+     exists only when a sidecar was ingested.
+     A consensus foot is the median position across the channels that agreed, so it belongs to no
+     single channel. One pinned channel out of three leaves a beat two channels still measured:
+     that is reduced COVERAGE and is annotated (`partial`). A foot pinned on EVERY channel was
+     measured by nothing and is refused. The O2Ring's single channel makes the two rules one. */
+  var chRanges = [];
+  if (rec.pinnedCrossCheck && Array.isArray(rec.spans)) {
+    for (var ci = 0; ci < rec.spans.length; ci++) {
+      var _sp = rec.spans[ci];
+      chRanges.push(PATGate.runRanges((_sp && _sp.spans) || []));
+    }
+  }
+  var chCursors = chRanges.map(function (r) {
+    return PATGate.inRunsCursor(r);
+  });
+  var footIdx = [],
+    nAllPinned = 0,
+    nPartPinned = 0;
+  for (var fi = 0; fi < cons.feet.length; fi++) {
+    var _hits = 0;
+    for (var cj = 0; cj < chCursors.length; cj++) if (chCursors[cj](cons.feet[fi])) _hits++;
+    if (chCursors.length && _hits === chCursors.length) {
+      nAllPinned++;
+      continue;
+    }
+    if (_hits) nPartPinned++;
+    footIdx.push(fi);
+  }
+  if (nAllPinned) {
+    /* `agree` is index-aligned with `feet` (`consensusBeats` pushes both per cluster), so it is cut
+       with the same index list or `beatSQI` would read another beat's agreement. */
+    cons = {
+      peaks: cons.peaks,
+      feet: footIdx.map(function (i) {
+        return cons.feet[i];
+      }),
+      agree: cons.agree
+        ? footIdx.map(function (i) {
+            return cons.agree[i];
+          })
+        : cons.agree,
+      clusters: cons.clusters,
+      nDropped: cons.nDropped,
+      kept33: cons.kept33,
+      kept22: cons.kept22,
+      singleChannel: cons.singleChannel
+    };
+  }
   var rel = rec.relSec,
     fs = rec.fs,
     t0 = rec.t0Ms,
@@ -231,7 +322,40 @@ function ppgFootTimes(text) {
       : null;
   // Forwarded for the same reason as the ECG leg above — this is the leg that can actually be DRAWN.
   // `feetIdx` / `nSamples`: worker-internal, for the arrival-floor axis below. Never posted.
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, hostAxis: rec.hostAxis || null, conf: _conf, feetIdx: cons.feet, nSamples: rec.n };
+  /* The seconds no channel measured, for `sharedClock`'s denominator — the optical twin of the ECG
+     leg's union. Only the all-pinned spans count: a span one channel was blind to is time the other
+     two measured. `null` without a sidecar, never 0. */
+  var _unmeasured = null;
+  if (rec.pinnedCrossCheck) {
+    var _allPinned = chRanges.length
+      ? chRanges.reduce(function (a, b) {
+          return PATGate.intersectRuns(a, b);
+        })
+      : [];
+    _unmeasured = PATGate.runSeconds(_allPinned, rec.fs, rec.t0Ms).size;
+  }
+  return {
+    t0Ms: rec.t0Ms,
+    fs: rec.fs,
+    durSec: rec.durSec,
+    times: t,
+    n: cons.feet.length,
+    hostAxis: rec.hostAxis || null,
+    conf: _conf,
+    feetIdx: cons.feet,
+    nSamples: rec.n,
+    unmeasuredSec: _unmeasured,
+    validity: rec.pinnedCrossCheck
+      ? {
+          source: '_PPGRUNS.txt',
+          comparable: rec.pinnedCrossCheck.comparable,
+          channels: chCursors.length,
+          dropped: nAllPinned,
+          partial: nPartPinned,
+          unmeasuredSec: _unmeasured
+        }
+      : null
+  };
 }
 function overlap(ecg, ppg) {
   var s = Math.max(ecg.t0Ms, ppg.t0Ms),
@@ -1144,11 +1268,32 @@ self.onmessage = function (e) {
     reads.push(m.ringArrFile.text());
     iArrR = reads.length - 1;
   }
+  /* ── §∅ THE VALIDITY SIDECARS, ONE PER WAVEFORM — appended LAST and each independently, so every
+     index above is unchanged and a night carrying only one of them still gets that one. The page
+     pairs each `…RUNS.txt` to its waveform by the filename's own 14-digit stamp, never by nearest
+     start: the box writes the sidecar as `{base}RUNS.txt`, so an exact-stamp match is the join the
+     two files actually share, and a nearest-start match could hand a session another session's
+     validity — a WRONG sidecar, which is worse than none. */
+  var iRunsE = -1,
+    iRunsP = -1,
+    iRunsF = -1;
+  if (m.ecgRunsFile) {
+    reads.push(m.ecgRunsFile.text());
+    iRunsE = reads.length - 1;
+  }
+  if (m.ppgRunsFile) {
+    reads.push(m.ppgRunsFile.text());
+    iRunsP = reads.length - 1;
+  }
+  if (m.fingerRunsFile) {
+    reads.push(m.fingerRunsFile.text());
+    iRunsF = reads.length - 1;
+  }
   Promise.all(reads)
     .then(function (t) {
       try {
-        var ecg = ecgRpeakTimes(t[0]),
-          ppg = ppgFootTimes(t[1]);
+        var ecg = ecgRpeakTimes(t[0], iRunsE >= 0 ? t[iRunsE] : null),
+          ppg = ppgFootTimes(t[1], iRunsP >= 0 ? t[iRunsP] : null);
         var ov = overlap(ecg, ppg),
           cp = coupledPAT(ecg.times, ppg.times),
           sc = sharedClock(ecg, ppg, ov),
@@ -1211,8 +1356,8 @@ self.onmessage = function (e) {
           type: 'result',
           key: key,
           label: m.label,
-          ecg: { t0Ms: ecg.t0Ms, fs: ecg.fs, n: ecg.n, durSec: ecg.durSec, nRaw: ecg.nRaw, artifactSec: ecg.artifactSec, artifactGate: ecg.artifactGate },
-          ppg: { t0Ms: ppg.t0Ms, fs: ppg.fs, n: ppg.n, durSec: ppg.durSec },
+          ecg: { t0Ms: ecg.t0Ms, fs: ecg.fs, n: ecg.n, durSec: ecg.durSec, nRaw: ecg.nRaw, artifactSec: ecg.artifactSec, artifactGate: ecg.artifactGate, validity: ecg.validity },
+          ppg: { t0Ms: ppg.t0Ms, fs: ppg.fs, n: ppg.n, durSec: ppg.durSec, validity: ppg.validity },
           ov: ov,
           sc: sc,
           vd: vd,
@@ -1225,13 +1370,13 @@ self.onmessage = function (e) {
           cpFA = null;
         if (hasFinger) {
           try {
-            var fin = ppgFootTimes(t[iFinger]),
+            var fin = ppgFootTimes(t[iFinger], iRunsF >= 0 ? t[iRunsF] : null),
               ovF = overlap(ecg, fin),
               scF = sharedClock(ecg, fin, ovF);
             cpF = coupledPAT(ecg.times, fin.times);
             cpFA = coupledPAT(fin.times, ppg.times, FINGER_ANKLE_BAND, { start: 'finger-foot', end: 'ankle-foot' });
             var ovFA = overlap(fin, ppg); // the finger→ankle leg's OWN span — neither end of it is the chest
-            out.finger = { t0Ms: fin.t0Ms, fs: fin.fs, n: fin.n, durSec: fin.durSec };
+            out.finger = { t0Ms: fin.t0Ms, fs: fin.fs, n: fin.n, durSec: fin.durSec, validity: fin.validity };
             out.cpF = packCp(cpF, ovF);
             /* the ring's axis is DRAWN (sample index × an assumed rate), so the gate refuses to CERTIFY this leg;
                the lag is still computed and shown, signed NOT CERTIFIED with the gate's own reason */

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0141eb2a9b03" data-compute-hash="905dcdd22c55">
+<html lang="en" data-manifest-hash="e270b52ded28" data-compute-hash="17f3514c59c6">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DgC+gzmTRM4ylbHQLOTL82fOM4KiHigmK/aDd25zoU=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fqhp4uoeZeCyCOtsTVvJY/rgoZv+Oo7+GUwjjkOnsqc=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+egeWdETiBZ27Gdd8RX+z+wWiiWXEw2g2TPSErAdq5g=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fqhp4uoeZeCyCOtsTVvJY/rgoZv+Oo7+GUwjjkOnsqc=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.24.0</title>
@@ -13183,6 +13183,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
          refusal can name the seam(s). */
       clockSeam: _clockSeam,
       clockResyncs: rec.clockResyncs || null,
+      /* ── AND THE SEGMENTATION, THE OTHER HALF OF THAT LOSS ──────────────────────────────────────
+         `offsetSegments` has sat on parsePPG's result since the per-segment axis landed, and the whole
+         source tree held ONE occurrence of the name: the write. `analyze` dropped it, so no export, no
+         gate and no analysis tool could read it — while the comment beside the write promises a reader
+         who can tell a night corrected PER SEGMENT from one corrected by a single rate. That reader
+         could not exist, which is the `hostAxis` loss above repeated on the field that says whether
+         the axis was segmented at all. Row 2026-10-03-verity-ppg-moves-in-a-ring-seam-refold had to
+         reason about that difference from `hostAxis.maxStepMs`, a step of the DEVICE COUNTER, which is
+         a different event from a step of the OFFSET and does not imply one. */
+      offsetSegments: rec.offsetSegments || null,
       /* ── THE AXIS OBJECT ITSELF, and why one scalar was not enough ──────────────────────────────
          `ppgBuildNodeExport` has a whole `recording.hostAxis` block gated on `r.hostAxis && .ok`,
          mirroring ECGDex field for field — and `analyze` never forwarded the object, so `r.hostAxis`
@@ -13842,6 +13852,35 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
           idx: c.idx,
           deviceStepMs: c.deviceStepMs,
           phoneDeltaMs: c.phoneDeltaMs == null ? null : c.phoneDeltaMs
+        };
+      });
+    /* THE SEGMENTATION, WHERE THE CORPUS COULD NOT SEE IT EITHER. Scanned 2026-10-28 over
+       `uploads/trio`: `offsetSegments` appears in 0 of 173 committed PPG exports, on both rails, and
+       the folded corpus therefore cannot distinguish a per-segment axis from a single-rate one. It is
+       not that no night segmented, and the two ends of that blindness DISAGREE. 2026-08-24's Verity
+       rail re-folds byte-identically at the parent of the per-segment commit and MOVES at it. That
+       commit removes ONE code line, and its replacement differs only where `multiSeg` is true, so the
+       gate was open on that night. Re-folding the same night from the same corpus root today publishes
+       NO `offsetSegments` — nor does any of the eight moved nights, on either rail (measured
+       2026-10-28). Something after that commit changed the anchor series or the merged input, and no
+       artifact of either state can say which. That is the loss this field repairs.
+       Present only when the stream produced more than one segment, so a single-segment night keeps
+       today's bytes and no clean fixture moves (the `clockResyncs` discipline one block up). Each entry carries its own anchor
+       count and span beside its `ppm`, per Clock Contract §7, and `rateReason` names the test that
+       refused a rate rather than leaving a caveat somewhere else. */
+    if (Array.isArray(r.offsetSegments) && r.offsetSegments.length)
+      out.recording.offsetSegments = r.offsetSegments.map(function (s) {
+        return {
+          fromDevMs: s.fromDevMs,
+          toDevMs: s.toDevMs,
+          anchors: s.anchors,
+          spanS: s.spanS,
+          flatOffsetMs: s.flatOffsetMs,
+          residualRmsMs: s.residualRmsMs,
+          jitterMs: s.jitterMs,
+          ppm: s.ppm == null ? null : s.ppm,
+          rate: s.rate,
+          rateReason: s.rateReason == null ? null : s.rateReason
         };
       });
     /* SELF vs FIRMWARE — ON THE INTEGRATOR-FACING SURFACE. This is a DEFECT FIX, not a new feature:

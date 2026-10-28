@@ -68,7 +68,7 @@
       ],
       "anchored": true,
       "readBy": "Magpie",
-      "note": "Two sites: the sleep-hour test at 87 and `stampOf` at 418, both through `DexClock.fileStamp`. The hour decides whether `--sleep-only` KEEPS a night, so a fabricated one moves the population a figure is computed over."
+      "note": "One site: `stampOf`, the overlap pre-filter, through `DexClock.fileStamp`; its 24 h bound covers the measured 18.7 h name error. The sleep-hour test read the stamp too, until row `2026-09-22-filename-stamp-still-wrong-for-other-consumers` moved it to the first row's `rec.t0Ms`: the stamp is the session's start and can sit hours before the stream's."
     },
     "tools/ppg-fusion-e3.mjs": {
       "reads": [
@@ -76,7 +76,7 @@
       ],
       "anchored": true,
       "readBy": "Magpie",
-      "note": "The same two readers as its sibling, at 91 and 336, repaired in the same PR and departing the spelling-keyed census on the same commit."
+      "note": "The same reader as its sibling: `stampOf` stays, and the sleep-hour test moved to `rec.t0Ms` in the same PR."
     },
     "adapters/resmed-edf.js": {
       "reads": [

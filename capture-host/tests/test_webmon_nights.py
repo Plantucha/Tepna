@@ -373,6 +373,15 @@ def test_the_tool_classifiers_accept_box_filenames():
             # the corrected lag's anchor since 2026-09-27 (role decided after the match, in JS)
             "Polar_H10_02849638_20260919183658_PMDARRIVAL.csv": True,
             "Polar_VeritySense_0C301E3F_20260919183724_PMDARRIVAL.csv": True,
+            # the validity sidecars `{base}RUNS.txt` (writers._RunSidecar), classified since 2026-10-28 so
+            # each waveform leg can refuse the fiducials the box recorded as measuring nothing. The ring's
+            # takes the FINGER role, as its waveform does — a sidecar paired to the other device's text
+            # would mark the wrong spans invalid, which is worse than marking none.
+            "Polar_H10_02849638_20260919183658_ECGRUNS.txt": True,
+            "Polar_VeritySense_0C301E3F_20260919183724_PPGRUNS.txt": True,
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_PPGRUNS.txt": True,
+            # and the waveform rules stay end-anchored: an ACC sidecar has no role on this page
+            "Polar_H10_02849638_20260919183658_ACCRUNS.txt": False,
         },
     }
     for tool, table in wants.items():
