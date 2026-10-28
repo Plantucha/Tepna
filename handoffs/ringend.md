@@ -9,7 +9,7 @@
 **doc-search:** `live ring envelope end_time_ms derived from row count resume`
 **stopping-point:** The draft PR is open, and `capture-host/check.sh` exits 0 on it.
 **next-step:** Kestrel undrafts the PR after a full green run.
-**done-when:** `git show origin/main:briefs/RESIDUE.md` shows the row as `fixed #PRNUM`.
+**done-when:** `git show origin/main:briefs/RESIDUE.md` shows the row as `fixed #4045`.
 
 ## What main already did
 
