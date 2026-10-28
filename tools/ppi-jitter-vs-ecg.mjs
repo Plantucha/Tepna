@@ -30,6 +30,18 @@
  *   match rate     fraction of finger beats matched within ±75 ms after alignment — a low rate makes
  *                  the jitter figure meaningless and is reported beside it, never folded in.
  *
+ * THE PER-EPOCH ARM (added 2026-10-28) — the estimator `papers/ppg-ecg-hrv-validation.html` actually
+ * quotes, which until now had no producer. Every figure below is computed on the SAME shared absolute
+ * 5-min grid the jitter rides, by each node's OWN exported estimator:
+ *   per-epoch rMSSD/SDNN bias %   median over nights of each night's median epoch — NOT the
+ *                                 whole-record figure above, and the two are printed side by side.
+ *   k, R²                         the model rMSSD²_ppg = rMSSD²_ecg + k·σ², fitted per night through
+ *                                 the origin, against the theoretical band 2 ≤ k ≤ 6.
+ *   catastrophic epochs           the |ΔrMSSD| > 25 % population, with each side's jitter median.
+ *   MAE, PPI bias, sensitivity    Table 1's remaining columns, from the same matched differences.
+ *   jitter budget                 σ for a 1/2/3 % bias, inverted from the fitted k and the MEASURED
+ *                                 reference rMSSD it is a fraction of — which is printed with it.
+ *
  * SHIPPED CODE ONLY — PPGDSP/ECGDSP co-loaded in a vm realm mirroring tests/run-tests.mjs. No
  * reimplemented HRV math: RMSSD/SDNN come from the node's own analyze().
  *
@@ -38,7 +50,7 @@
  *   node tools/ppi-jitter-vs-ecg.mjs --selftest
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 
@@ -53,6 +65,11 @@ const SELFTEST = has('--selftest');
 const DIR = opt('--dir', null);
 const MIN_EPOCHS = +opt('--min-epochs', 3);
 const MAX_NIGHTS = +opt('--max-nights', 20);
+/* 🔴 AN OPTIONAL PER-EPOCH DUMP, OFF BY DEFAULT AND NEVER INSIDE THE REPOSITORY. A per-epoch row is a
+   per-night capture record, so it stays off the public tree (§5 of the paper says so in as many words)
+   — but every question asked of a published figure afterwards otherwise costs another full corpus pass.
+   The flag takes an explicit path, writes nothing without one, and the paper cites the POOLED record. */
+const EPOCH_DUMP = opt('--epoch-dump', null);
 /* WHICH PPG DEVICE. The finger is this brief's subject, but the Verity must be runnable through the
    SAME instrument. The deep-dive's 5.92 ms wrist figure is `[CORPUS]`-marked and its §2.2 apparatus was
    never committed — §2.2 describes the method and names no tool — so quoting a finger number against it
@@ -117,13 +134,236 @@ import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries }
 /* Re-exported so the existing import surface of this file is unchanged for any consumer. */
 export { hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs, rateAgreement };
 
+/* ═══════════════════════════ THE PER-EPOCH ARM — PURE HALF ═══════════════════════════════════════
+ * WHY IT EXISTS. `papers/ppg-ecg-hrv-validation.html` quotes its headline rMSSD bias as the median
+ * over nights of each night's median PER-EPOCH bias, fits `rMSSD²_ppg = rMSSD²_ecg + k·σ²` per night,
+ * and splits the corpus on |ΔrMSSD| > 25 %. This tool published a WHOLE-RECORD rMSSD bias, which is a
+ * DIFFERENT ESTIMATOR over the same nights. So the paper's primary numbers had no producer (residue
+ * `2026-10-27-the-ppg-ecg-hrv-paper-has-no-committed-producer`), and the gap between the published
+ * +4.24 % and this tool's +6.52 % could not be attributed to population or to estimator.
+ *
+ * NO HRV MATH IS REIMPLEMENTED (§3.5). Each side's per-epoch rMSSD/SDNN comes from THAT NODE'S OWN
+ * EXPORTED ESTIMATOR — `PPGDSP.timeDomain`, `ECGDSP.rmssd`, `ECGDSP.std` — fed the node's own published
+ * interval series under the node's own masking rule, reproduced from the node's own epoch loop
+ * (`ppgdex-dsp.js buildEpochs`, `ecgdex-dsp.js epochEngine`). The ONE thing that changes is the GRID.
+ *
+ * WHY THE GRID HAD TO MOVE. Each node anchors `epochs[]` to its own record `t0`, so the two grids
+ * differ by a per-night phase and a published-epoch pairing can overlap by as little as 150 s of 300 s.
+ * Pairing them reports that phase as a device difference. The jitter loop already walks a COMMON
+ * ABSOLUTE grid, so the per-epoch arm rides it and both devices are scored on the same seconds.
+ * ════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* PRE-STATED, never fitted to the data they judge (§🧾). The 25 % split and the 15 ms band are the
+   paper's own; the k-fit floor is this tool's, because a three-epoch regression names a slope and
+   measures nothing. */
+const CAT_BIAS_PCT = 25;
+const JIT_BAND_MS = 15;
+const MIN_KFIT_EPOCHS = 5;
+
+/* §4's clean-adjacency mask in the KEPT frame, rebuilt from the index map PpgDex publishes.
+   `adj[j]` is true when the pair (j−1, j) was adjacent in the ORIGINAL train: a pair spanning a
+   corrected or dropped interval is not a successive difference, and `timeDomain` must not count it.
+   This is the node's own projection (`ppgdex-dsp.js`, `kIdx = corr.keptIdx`), not a new rule. */
+export function adjFromKeptIdx(keptIdx) {
+  if (!Array.isArray(keptIdx) || keptIdx.length === 0) return null;
+  const adj = new Array(keptIdx.length);
+  for (let j = 0; j < keptIdx.length; j++) adj[j] = j === 0 || keptIdx[j] === keptIdx[j - 1] + 1;
+  return adj;
+}
+
+/* ECGDex's pair mask, one forward pass over the WHOLE record because that is how the node walks it:
+   `dropped` persists across a window boundary, so the first survivor after a gap is marked 1 even when
+   the gap sat in the previous window. `null` marks an interval the node removes outright — it never
+   enters a segment, and a 0 in its place would silently convert an absence into a measured pair (§∅). */
+export function ecgSkipSeries(spansGap, n) {
+  const out = new Array(n);
+  let dropped = false;
+  for (let i = 0; i < n; i++) {
+    if (spansGap && spansGap[i]) {
+      out[i] = null;
+      dropped = true;
+      continue;
+    }
+    out[i] = dropped ? 1 : 0;
+    dropped = false;
+  }
+  return out;
+}
+
+/* Half-open on both ends, matching both nodes' own epoch selection (`tt[i] >= e0 && tt[i] < e0 + 300`).
+   A beat landing exactly on the boundary belongs to the window after it, in exactly one window. */
+export function windowIdx(ttMs, t0, t1) {
+  const idx = [];
+  for (let i = 0; i < ttMs.length; i++) if (ttMs[i] >= t0 && ttMs[i] < t1) idx.push(i);
+  return idx;
+}
+
+/* 🔴 THE ONE-SESSION RULE. A merged night is several recordings; each carries its OWN interval series,
+   and the series are not concatenable — the gap between two sessions is not an RR interval. An epoch
+   window that is not wholly inside ONE session has no per-epoch HRV to report, so it REFUSES with a
+   named reason rather than borrowing a neighbour's series (§∅, owner ruling 2026-09-17: a
+   discontinuity refuses). Two covering sessions is ambiguous, not better, and refuses too. */
+export function coveringSession(sessions, t0, t1) {
+  if (!Array.isArray(sessions)) return null;
+  const hit = sessions.filter((s) => s && s.t0 <= t0 && s.t1 >= t1);
+  return hit.length === 1 ? hit[0] : null;
+}
+
+/* THE PAPER'S MODEL, fitted per night: `rMSSD²_ppg = rMSSD²_ecg + k·σ²`, i.e. y = k·x through the
+   ORIGIN with y the squared-rMSSD difference and x the measured jitter variance. The intercept is not
+   free, because the model's whole claim is that zero jitter costs zero bias — fitting one would let a
+   night with a rMSSD offset of construction buy a flattering k.
+   TWO R² ARE REPORTED because the two conventions disagree on a through-origin fit and the paper's
+   0.964 does not say which it used: `r2` is centred (against the mean of y, the conventional and
+   stricter reading) and `r2Unc` is uncentred (against zero, which is the fit's own null). */
+export function kFitThroughOrigin(pts) {
+  const use = (pts || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (use.length < MIN_KFIT_EPOCHS) return null;
+  let sxy = 0,
+    sxx = 0,
+    sy = 0;
+  for (const p of use) {
+    sxy += p.x * p.y;
+    sxx += p.x * p.x;
+    sy += p.y;
+  }
+  if (!(sxx > 0)) return null;
+  const k = sxy / sxx;
+  const ybar = sy / use.length;
+  /* 🔴 THREE DENOMINATORS OVER ONE RESIDUAL SUM, because a published R² does not say which it divided by
+     and the three differ by more than an order of magnitude here. `ssr` is the same for all three — the
+     fit is the fit — and only the TOTAL changes:
+       r2       variance of the INCREMENT rMSSD²f − rMSSD²e        → does jitter explain the GAP it claims to
+       r2Unc    Σ of that increment squared, uncentred             → the same question with no intercept allowance
+       r2Model  variance of rMSSD²f itself (needs p.ref)           → does the MODEL predict the PPG value
+     The third is near-tautological whenever rMSSD²e explains most of rMSSD²f, which on paired devices it
+     always does, so it can read ~0.96 while the first reads ~0.09 over identical residuals. Reporting one
+     without naming it is how a reference term gets published as a model fit. */
+  const refs = use.filter((p) => Number.isFinite(p.ref));
+  const refbar = refs.length === use.length && refs.length ? refs.reduce((a, p) => a + p.ref, 0) / refs.length : null;
+  let ssr = 0,
+    sst = 0,
+    sstU = 0,
+    sstM = 0;
+  for (const p of use) {
+    const r = p.y - k * p.x;
+    ssr += r * r;
+    sst += (p.y - ybar) * (p.y - ybar);
+    sstU += p.y * p.y;
+    if (refbar != null) sstM += (p.ref - refbar) * (p.ref - refbar);
+  }
+  return {
+    k,
+    r2: sst > 0 ? 1 - ssr / sst : null,
+    r2Unc: sstU > 0 ? 1 - ssr / sstU : null,
+    r2Model: refbar != null && sstM > 0 ? 1 - ssr / sstM : null,
+    n: use.length
+  };
+}
+
+/* 🔴 THE SAME MODEL WITH THE REFERENCE COEFFICIENT FREED, because the paper writes rMSSD²f = rMSSD²e +
+   k·σ² — coefficient 1 on the reference, CONSTRAINED — and a fit that frees it answers a different
+   question with the same symbols:  rMSSD²f = a·rMSSD²e + k·σ².  Freeing `a` lets the reference term
+   absorb scale, which lifts the model-level R² toward 1 and moves k, so the two fits can disagree about
+   whether the model holds while quoting one equation. This is reported BESIDE the constrained fit, never
+   instead of it: the constrained one is the paper's claim, the free one is the estimator that reproduces
+   a published pair, and naming which is which is the whole point of having a producer.
+   Least squares with no intercept over two predictors — a 2×2 normal system, solved in closed form. */
+/* THE SQUARED PEARSON between the two devices' per-epoch rMSSD. This is NOT the jitter model's R²
+   and is no substitute for it: it asks only how much of one device's epoch-to-epoch rMSSD variation
+   the other tracks, with no model in it at all. It is published because a reader who meets a bare
+   "R² = 0.964" cannot tell which quantity was reported, and this is the most charitable candidate —
+   so the paper needs its measured value rather than an assumption about it. Null below the fit floor
+   or when either side has no variance (a constant column has no correlation, §∅). */
+export function r2Pair(xs, ys) {
+  if (!Array.isArray(xs) || !Array.isArray(ys) || xs.length !== ys.length || xs.length < MIN_KFIT_EPOCHS) return null;
+  const ok = xs.map((x, i) => [x, ys[i]]).filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b));
+  if (ok.length < MIN_KFIT_EPOCHS) return null;
+  const mx = ok.reduce((a, [v]) => a + v, 0) / ok.length;
+  const my = ok.reduce((a, [, v]) => a + v, 0) / ok.length;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (const [a, b] of ok) {
+    sxy += (a - mx) * (b - my);
+    sxx += (a - mx) ** 2;
+    syy += (b - my) ** 2;
+  }
+  return sxx > 0 && syy > 0 ? (sxy * sxy) / (sxx * syy) : null;
+}
+
+export function kFitTwoTerm(pts) {
+  const use = (pts || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.ref) && Number.isFinite(p.refE));
+  if (use.length < MIN_KFIT_EPOCHS) return null;
+  let s11 = 0,
+    s12 = 0,
+    s22 = 0,
+    s1y = 0,
+    s2y = 0,
+    sy = 0;
+  for (const p of use) {
+    s11 += p.refE * p.refE;
+    s12 += p.refE * p.x;
+    s22 += p.x * p.x;
+    s1y += p.refE * p.ref;
+    s2y += p.x * p.ref;
+    sy += p.ref;
+  }
+  const det = s11 * s22 - s12 * s12;
+  if (!(Math.abs(det) > 0)) return null;
+  const a = (s1y * s22 - s2y * s12) / det;
+  const k = (s2y * s11 - s1y * s12) / det;
+  const ybar = sy / use.length;
+  let ssr = 0,
+    sst = 0;
+  for (const p of use) {
+    const r = p.ref - (a * p.refE + k * p.x);
+    ssr += r * r;
+    sst += (p.ref - ybar) * (p.ref - ybar);
+  }
+  return { a, k, r2Model: sst > 0 ? 1 - ssr / sst : null, n: use.length };
+}
+
+/* THE BUDGET, INVERTED FROM THE SAME MODEL rather than quoted. For a fractional rMSSD bias p the model
+   gives rMSSD_ppg = rMSSD_ecg·(1+p), so k·σ² = rMSSD_ecg²·((1+p)² − 1) and σ follows in closed form.
+   A budget is therefore a statement about THREE things — k, the tolerated p, and the REFERENCE rMSSD it
+   is a fraction of — and quoting a σ without naming the reference publishes a number that cannot be
+   checked. The caller passes a MEASURED reference; this function invents none. */
+export function sigmaForBias(k, refRmssd, frac) {
+  if (!(k > 0) || !(refRmssd > 0) || !(frac > 0)) return null;
+  return refRmssd * Math.sqrt(((1 + frac) * (1 + frac) - 1) / k);
+}
+
+/* THE CATASTROPHIC SPLIT. The paper's claim is not that bias correlates with jitter — it is that the
+   epochs where rMSSD fails are the HIGH-JITTER epochs, so the split is reported as the two
+   populations' jitter medians and their shares above the band, never as one correlation. Pooled over
+   every scored epoch in the corpus, because the claim is about the corpus. */
+export function catastrophicSplit(eps, biasPct, bandMs) {
+  const use = (eps || []).filter((e) => e && Number.isFinite(e.rmBiasPct) && Number.isFinite(e.jitter));
+  if (!use.length) return null;
+  const inSet = use.filter((e) => Math.abs(e.rmBiasPct) > biasPct);
+  const outSet = use.filter((e) => Math.abs(e.rmBiasPct) <= biasPct);
+  const above = (a) => (a.length ? a.filter((e) => e.jitter > bandMs).length / a.length : null);
+  return {
+    n: use.length,
+    nCat: inSet.length,
+    catShare: inSet.length / use.length,
+    jitIn: inSet.length ? median(inSet.map((e) => e.jitter)) : null,
+    jitOut: outSet.length ? median(outSet.map((e) => e.jitter)) : null,
+    aboveIn: above(inSet),
+    aboveOut: above(outSet)
+  };
+}
+
 /* ════════════════════════════════════════ SELFTEST ════════════════════════════════════════ */
 /* The usage string is a CONSTANT so the selftest can check it against the flags the tool actually
    reads. `--device` shipped undocumented: it exists at the DEVICE line below and selects the Verity
    leg, but `--help` never mentioned it, so a session looking for it found `--dir` only and concluded
    the capability was absent. That is the discoverability failure one level below a missing index —
    the flag is IN the tool and unreachable by anyone who did not read the source. */
-const USAGE = 'usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--device o2ring|verity] ' + '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge]  |  --selftest';
+const USAGE =
+  'usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--device o2ring|verity] ' +
+  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>]  |  --selftest';
 
 function selftest() {
   let fail = 0;
@@ -271,6 +511,165 @@ function selftest() {
     ok('a zero-length window has no ratio either', rateAgreement(clean, S48.ecg, 0, 0) === null);
   }
 
+  /* ════════════════ THE PER-EPOCH ARM ════════════════
+     Only the PURE halves are reachable here: `fingerEpochHrv`/`ecgEpochHrv` call the vm realm, which is
+     built after this function exits. What is pinned is therefore every rule that decides WHICH samples
+     reach a node's estimator and WHAT is done with the numbers it returns — which is where this arm
+     can be wrong without any node being wrong. */
+  {
+    /* ADJACENCY. `keptIdx` 0,1,2,4,5 means the interval originally at 3 was corrected away, so the pair
+       (2 → 4) spans an absence and is not a successive difference. */
+    const adj = adjFromKeptIdx([0, 1, 2, 4, 5]);
+    ok('adjacency: the pair after a removed interval is NOT adjacent', JSON.stringify(adj) === JSON.stringify([true, true, true, false, true]), JSON.stringify(adj));
+    /* An ABSENT index map returns null, which `timeDomain` reads as "no mask → all adjacent pairs".
+       That is the NODE'S OWN behaviour when `buildEpochs` is handed no `adj`, inherited deliberately: a
+       stricter rule here would make this arm disagree with the node it is supposed to reproduce. The
+       leg exists to make the inheritance a decision rather than an accident. */
+    ok('an absent kept-index map yields no mask — the node’s own default, not a stricter rule', adjFromKeptIdx(undefined) === null && adjFromKeptIdx([]) === null);
+    /* THE ECG PAIR MASK, including the carry across a window boundary: interval 2 is removed, so 3 —
+       which may well be the first interval of the NEXT window — is the first survivor and is marked. */
+    const sk = ecgSkipSeries([0, 0, 1, 0, 0], 5);
+    ok('the ECG pair mask marks the first survivor after a gap, and NULLS the removed interval', JSON.stringify(sk) === JSON.stringify([0, 0, null, 1, 0]), JSON.stringify(sk));
+    ok('…and a removed interval never becomes a measured pair with skip 0 (∅)', sk[2] === null);
+    /* HALF-OPEN AT BOTH ENDS, so every beat lands in exactly one window. */
+    const tt = [1000, 1500, 2000, 2500];
+    ok('window selection is half-open: t0 is in, t1 is out', JSON.stringify(windowIdx(tt, 1500, 2500)) === JSON.stringify([1, 2]), JSON.stringify(windowIdx(tt, 1500, 2500)));
+    ok('a window containing nothing selects nothing, rather than the nearest beat', windowIdx(tt, 3000, 4000).length === 0);
+    /* THE ONE-SESSION RULE — the §∅ half of this arm. */
+    const S = [
+      { t0: 0, t1: 1000, tag: 'a' },
+      { t0: 1000, t1: 3000, tag: 'b' }
+    ];
+    ok('an epoch inside one session finds that session', (coveringSession(S, 1200, 1800) || {}).tag === 'b');
+    ok('an epoch STRADDLING two sessions refuses — the gap between them is not an RR interval', coveringSession(S, 800, 1800) === null);
+    ok('an epoch outside every session refuses', coveringSession(S, 5000, 6000) === null);
+    ok(
+      'two covering sessions are ambiguous, not better',
+      coveringSession(
+        [
+          { t0: 0, t1: 9000 },
+          { t0: 0, t1: 9000 }
+        ],
+        1000,
+        2000
+      ) === null
+    );
+    /* THE MODEL'S SLOPE on data planted to have one: y = 3x exactly, so k must read 3 and both R²
+       must read 1. A fit that cannot recover a planted slope cannot measure one. */
+    const kf = kFitThroughOrigin([1, 2, 3, 4, 5, 9].map((x) => ({ x, y: 3 * x })));
+    ok('the through-origin fit recovers a planted k', kf && Math.abs(kf.k - 3) < 1e-12, kf && kf.k);
+    ok('…with R² 1 on exact data, centred AND uncentred', kf && Math.abs(kf.r2 - 1) < 1e-12 && Math.abs(kf.r2Unc - 1) < 1e-12, kf && kf.r2 + ' / ' + kf.r2Unc);
+    ok('…and it REFUSES below the stated epoch floor rather than naming a slope from four points', kFitThroughOrigin([1, 2, 3, 4].map((x) => ({ x, y: 3 * x }))) === null);
+    ok('a night whose jitter never varies has no slope to fit (x all zero)', kFitThroughOrigin([0, 0, 0, 0, 0, 0].map((x) => ({ x, y: 1 }))) === null);
+    /* 🔴 THE DENOMINATOR LEG, which is the one that decides whether a published R² can be read at all.
+       Identical residuals, three totals: a set whose INCREMENT is almost pure noise about the fit but
+       whose rMSSD²f spans a wide range must read a LOW r2 and a HIGH r2Model. That is the shape a
+       paired-device corpus always has, so the two numbers are not variants of one claim. */
+    {
+      const noisy = [
+        { x: 1, y: 2, ref: 100 },
+        { x: 2, y: 8, ref: 400 },
+        { x: 3, y: 2, ref: 900 },
+        { x: 4, y: 14, ref: 1600 },
+        { x: 5, y: 4, ref: 2500 },
+        { x: 6, y: 16, ref: 3600 }
+      ];
+      const kn = kFitThroughOrigin(noisy);
+      ok('the increment R² and the model-level R² are different numbers over ONE residual sum', kn && kn.r2 < 0.6 && kn.r2Model > 0.95, kn && `${kn.r2.toFixed(3)} vs ${kn.r2Model.toFixed(3)}`);
+      ok('…and the model-level one is the HIGHER of the two whenever the reference term dominates', kn && kn.r2Model > kn.r2);
+      ok('a point set with no reference magnitude reports no model-level R² rather than a borrowed one', kf && kf.r2Model === null, kf && String(kf.r2Model));
+      ok(
+        'one missing ref disqualifies the whole night, never a silent subset',
+        kFitThroughOrigin([
+          { x: 1, y: 1, ref: 4 },
+          { x: 2, y: 2, ref: 9 },
+          { x: 3, y: 3, ref: 16 },
+          { x: 4, y: 4, ref: 25 },
+          { x: 5, y: 5 },
+          { x: 6, y: 6, ref: 49 }
+        ]).r2Model === null
+      );
+    }
+    /* 🔴 THE TWO-TERM FIT, on data planted so the CONSTRAINED and FREE answers must differ: every epoch
+       carries rMSSD²f = 1.5·rMSSD²e + 3·σ², so freeing the coefficient recovers a=1.5 and k=3 exactly,
+       while forcing a=1 must report some other k. A fit that cannot tell those two apart cannot say which
+       estimator a published pair came from. */
+    {
+      const plant = [12, 25, 31, 44, 50, 66].map((rmE2, i) => {
+        const x = (i + 1) * 7;
+        return { x, refE: rmE2, ref: 1.5 * rmE2 + 3 * x };
+      });
+      const ff = kFitTwoTerm(plant);
+      ok('the free fit recovers a planted reference coefficient and slope', ff && Math.abs(ff.a - 1.5) < 1e-9 && Math.abs(ff.k - 3) < 1e-9, ff && `a ${ff.a} k ${ff.k}`);
+      ok('…with R² 1 on exact data', ff && Math.abs(ff.r2Model - 1) < 1e-9, ff && ff.r2Model);
+      const cons = kFitThroughOrigin(plant.map((p) => ({ x: p.x, y: p.ref - p.refE, ref: p.ref })));
+      ok('…and the CONSTRAINED fit of the same epochs names a different k, which is the whole finding', cons && Math.abs(cons.k - 3) > 0.5, cons && cons.k.toFixed(3));
+      ok('the free fit refuses below the epoch floor', kFitTwoTerm(plant.slice(0, 4)) === null);
+      ok('…and refuses a night with no reference magnitudes rather than fitting one term', kFitTwoTerm(plant.map((p) => ({ x: p.x, ref: p.ref }))) === null);
+    }
+    /* 🔴 THE BARE-AGREEMENT r², which exists to be told APART from the model's R². Planted so the two
+       devices track each other perfectly while the model's increment does not: r2Pair must read 1 and
+       say nothing about any model. It refuses a constant column, because a column with no variance has
+       no correlation to report (§∅ — not a 0, which would read as perfect disagreement). */
+    {
+      const xs = [20, 24, 31, 38, 45, 52];
+      const scaled = xs.map((v) => 0.5 * v + 3);
+      ok('the bare r² reads 1 on two columns that move together exactly', Math.abs(r2Pair(xs, scaled) - 1) < 1e-12, r2Pair(xs, scaled));
+      /* A V symmetric about the mid-point has covariance EXACTLY zero against a ramp, so this leg
+         pins the uncorrelated case on algebra rather than on a number that happens to come out small. */
+      ok('…and 0 on a pair with no linear agreement, rather than borrowing the model fit', r2Pair([1, 2, 3, 4, 5, 6], [3, 1, 0, 0, 1, 3]) < 1e-9, r2Pair([1, 2, 3, 4, 5, 6], [3, 1, 0, 0, 1, 3]));
+      ok('a constant column has no correlation and reports null, never 0', r2Pair(xs, [5, 5, 5, 5, 5, 5]) === null);
+      ok('…and it refuses below the same epoch floor the fits use', r2Pair(xs.slice(0, 4), xs.slice(0, 4)) === null);
+    }
+    /* THE BUDGET, round-tripped through the model it was inverted from: feed the σ back in and the
+       bias must come out at the fraction asked for. A closed form is exactly the kind of algebra that
+       is wrong by a factor of two and still looks plausible. */
+    {
+      const k0 = 2.4,
+        r0 = 38;
+      const s2 = sigmaForBias(k0, r0, 0.02);
+      const back = (Math.sqrt(r0 * r0 + k0 * s2 * s2) - r0) / r0;
+      ok('the σ budget round-trips through the model: 2 % in, 2 % out', Math.abs(back - 0.02) < 1e-12, back);
+      ok('a tighter bias asks a smaller σ', sigmaForBias(k0, r0, 0.01) < s2);
+      ok('…and an unmeasured k or reference yields NO budget, never a number (∅)', sigmaForBias(null, r0, 0.02) === null && sigmaForBias(k0, 0, 0.02) === null);
+    }
+    /* THE CATASTROPHIC SPLIT on a planted population: two epochs over the 25 % bias bar, both above
+       the 15 ms jitter band, and two under both. */
+    {
+      const sp = catastrophicSplit(
+        [
+          { rmBiasPct: 30, jitter: 40 },
+          { rmBiasPct: -28, jitter: 20 },
+          { rmBiasPct: 5, jitter: 4 },
+          { rmBiasPct: -5, jitter: 6 }
+        ],
+        CAT_BIAS_PCT,
+        JIT_BAND_MS
+      );
+      ok('the split counts a bias by MAGNITUDE, so an understatement is catastrophic too', sp && sp.nCat === 2 && Math.abs(sp.catShare - 0.5) < 1e-12, sp && sp.nCat);
+      ok('…and reports both populations’ jitter, which is the claim', sp && sp.jitIn === 30 && sp.jitOut === 5, sp && sp.jitIn + ' / ' + sp.jitOut);
+      ok('…and the share above the band on each side', sp && sp.aboveIn === 1 && sp.aboveOut === 0, sp && sp.aboveIn + ' / ' + sp.aboveOut);
+      /* ∅ — an empty population has no share. A 0 % here would read as "no epoch was catastrophic",
+         which is a measurement over nothing. */
+      ok('an empty population has NO split, not a 0 % share', catastrophicSplit([], CAT_BIAS_PCT, JIT_BAND_MS) === null);
+    }
+    /* TABLE 1'S MAE AND SIGNED BIAS, and the SIGN CONVENTION with them: finger minus ECG. A finger
+       interval train running 4 ms long per beat must read +4, not −4. */
+    {
+      const f = [],
+        e = [];
+      for (let i = 0; i < 20; i++) {
+        f.push(i * 1004);
+        e.push(i * 1000);
+      }
+      const pr = f.map((_, i) => ({ fi: i, ei: i }));
+      const jj = ppiJitterMs(f, e, pr);
+      ok('the jitter object now carries MAE and a SIGNED bias', jj != null && jj.mae != null && jj.bias != null, JSON.stringify(jj));
+      ok('…the sign is finger minus ECG: a long finger interval reads POSITIVE', jj && Math.abs(jj.bias - 4) < 1e-9, jj && jj.bias);
+      ok('…the MAE of a constant offset is that offset, while its sd is 0 — two different facts', jj && Math.abs(jj.mae - 4) < 1e-9 && jj.sd < 1e-9, jj && jj.mae + ' / ' + jj.sd);
+    }
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -304,6 +703,82 @@ function realm(files) {
 }
 const P = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-registry.js', 'ppgdex-morph.js', 'ppgdex-dsp.js']).PPGDSP;
 const E = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-morph.js', 'ecgdex-dsp.js']).ECGDSP;
+
+/* ═══════════════════════ THE PER-EPOCH ARM — THE HALF THAT CALLS THE NODES ══════════════════════
+ * A SESSION, not a night: the per-epoch series are per RECORDING and must never be concatenated
+ * (`coveringSession`). Only the fields the two epoch loops read are retained, and the analyse result
+ * itself is NOT held — an ECG `res` carries the band-passed waveform, and keeping one per session for
+ * every night is tens of megabytes for nothing (lazy-load, ≤ 8 GB).
+ * Stamps are converted to ABSOLUTE floating wall-clock ms here, once, because the grid is absolute and
+ * a per-epoch reconversion inside the loop is where a seconds/ms slip hides (CLAUDE.md §🔒). */
+function fingerSession(rec, res) {
+  const tt = res.tt || [];
+  const ttMs = new Float64Array(tt.length);
+  for (let i = 0; i < tt.length; i++) ttMs[i] = rec.t0Ms + tt[i] * 1000;
+  return {
+    t0: rec.t0Ms,
+    t1: rec.t0Ms + (rec.durSec || 0) * 1000,
+    ttMs,
+    nn: res.nn || [],
+    clean: res.ppiClean || null,
+    adj: adjFromKeptIdx(res.ppiKeptIdx)
+  };
+}
+function ecgSession(t0Ms, durMs, res) {
+  const tt = res.tt || [];
+  const ttMs = new Float64Array(tt.length);
+  for (let i = 0; i < tt.length; i++) ttMs[i] = t0Ms + tt[i] * 1000;
+  /* THE NODE ALREADY PUBLISHED ITS REFUSALS, so they are read rather than re-derived: a clock seam and
+     a blanking run are reconstructible only from `rec.clockResyncs` and a sidecar this tool never
+     parses, and inventing either would place a refusal on the wrong seconds. `too-few-beats` is
+     dropped from the list deliberately — it is a property of the node's grid phase, not of the signal,
+     and this arm scores a DIFFERENT window, so it must re-decide that one itself. */
+  return {
+    t0: t0Ms,
+    t1: t0Ms + durMs,
+    ttMs,
+    nn: res.nn || [],
+    skip: ecgSkipSeries(res.nnSpansGap, (res.nn || []).length),
+    refused: (res.epochsRefused || [])
+      .filter((r) => r && Number.isFinite(r.tMin) && r.reason !== 'too-few-beats')
+      .map((r) => ({ t0: t0Ms + r.tMin * 60000, t1: t0Ms + r.tMin * 60000 + EPOCH_MS, reason: r.reason }))
+  };
+}
+
+/* PpgDex's own epoch computation on a borrowed window: `buildEpochs`' floor of 5 intervals, its mask
+   and adjacency slices, and `timeDomain` itself. `idx` is a contiguous run because `tt` is monotone,
+   which is what makes the record-level slices line up 1:1 — the node's own note says so. */
+function fingerEpochHrv(s, t0, t1) {
+  const idx = windowIdx(s.ttMs, t0, t1);
+  if (idx.length < 5) return { ok: false, reason: 'thin-epoch' };
+  const seg = idx.map((i) => s.nn[i]);
+  const segMask = s.clean ? idx.map((i) => s.clean[i]) : null;
+  const segAdj = s.adj ? idx.map((i) => s.adj[i]) : null;
+  const td = P.timeDomain(seg, segMask, null, segAdj);
+  if (!td || td.rmssd == null) return { ok: false, reason: 'no-clean-pair' };
+  return { ok: true, rmssd: td.rmssd, sdnn: td.sdnn, n: seg.length };
+}
+
+/* ECGDex's own epoch computation on the same window, in the node's order: seam and blanking first
+   (named, never borrowed), then the 20-interval floor, then `rmssd(seg, segSkip)` and `std(seg)`.
+   `_rmOrNull(…, 1)` is the node's rounding and is reproduced, because a figure that differs from the
+   published one in the last decimal invites exactly the re-derivation this producer exists to end. */
+function ecgEpochHrv(s, t0, t1) {
+  const bad = s.refused.find((r) => r.t0 < t1 && t0 < r.t1);
+  if (bad) return { ok: false, reason: bad.reason };
+  const idx = windowIdx(s.ttMs, t0, t1);
+  const seg = [],
+    segSkip = [];
+  for (const i of idx) {
+    if (s.skip[i] == null) continue;
+    seg.push(s.nn[i]);
+    segSkip.push(s.skip[i]);
+  }
+  if (seg.length < 20) return { ok: false, reason: 'too-few-beats' };
+  const rm = E.rmssd(seg, segSkip);
+  if (rm == null) return { ok: false, reason: 'no-successive-pair' };
+  return { ok: true, rmssd: +rm.toFixed(1), sdnn: +E.std(seg).toFixed(1), n: seg.length };
+}
 
 const walk = (d, o = []) => {
   try {
@@ -371,7 +846,7 @@ function buildUnits(files) {
       if (rec.t0Ms == null) continue;
       const res = P.analyze(rec);
       if (!res || !res.beatTimes) continue;
-      parsed.push({ f, rec, res, beats: (res.footSec || []).map((x) => rec.t0Ms + x * 1000) });
+      parsed.push({ f, rec, res, beats: (res.footSec || []).map((x) => rec.t0Ms + x * 1000), sess: fingerSession(rec, res) });
     } catch (_e) {}
   }
   if (!MERGE) {
@@ -381,6 +856,7 @@ function buildUnits(files) {
       t1: u.rec.t0Ms + (u.rec.durSec || 0) * 1000,
       beats: u.beats,
       res: u.res,
+      sessions: [u.sess],
       nSess: 1
     }));
   }
@@ -405,6 +881,10 @@ function buildUnits(files) {
       t1: Math.max(...us.map((u) => u.rec.t0Ms + (u.rec.durSec || 0) * 1000)),
       beats,
       res: rep.res,
+      /* EVERY session's per-epoch series, not the representative's. The beat TRAIN above is merged
+         because beat times are comparable across sessions; an interval series is not, so the per-epoch
+         arm keeps them separate and refuses any window that is not inside exactly one of them. */
+      sessions: us.map((u) => u.sess),
       nSess: us.length,
       repName: rep.f.p.split('/').pop()
     });
@@ -436,11 +916,12 @@ function buildEcgNights(files) {
         durMs: (er.durSec || 0) * 1000,
         beats: refinePeaks(bp, eres.peaks).map((q) => er.t0Ms + (q / er.fs) * 1000),
         beatsRaw: eres.peaks.map((q) => er.t0Ms + (q / er.fs) * 1000),
-        res: eres
+        res: eres,
+        sess: ecgSession(er.t0Ms, (er.durSec || 0) * 1000, eres)
       });
     } catch (_x) {}
   }
-  if (!MERGE) return parsed.map((u) => ({ ...u, nSess: 1 }));
+  if (!MERGE) return parsed.map((u) => ({ ...u, nSess: 1, sessions: [u.sess] }));
   const by = new Map();
   for (const u of parsed) {
     const k = nightKeyOf(u.t0);
@@ -467,6 +948,7 @@ function buildEcgNights(files) {
       beats,
       beatsRaw,
       res: rep.res,
+      sessions: us.map((u) => u.sess),
       nSess: us.length
     });
   }
@@ -475,6 +957,10 @@ function buildEcgNights(files) {
 const ecgNights = buildEcgNights(ecgs);
 
 const nights = [];
+/* EVERY SCORED EPOCH IN THE CORPUS, pooled. The catastrophic-epoch claim and the reference rMSSD the
+   budget is a fraction of are both corpus-level, so they are computed over this pool rather than over
+   per-night medians — a median of medians answers a different question and the paper quotes both. */
+const allEp = [];
 for (const unit of buildUnits(fingerFiles)) {
   const fres = unit.res;
   const frec = { t0Ms: unit.t0, durSec: (unit.t1 - unit.t0) / 1000 };
@@ -508,7 +994,20 @@ for (const unit of buildUnits(fingerFiles)) {
     lags = [],
     rates = [],
     ratios = [],
-    refBpms = [];
+    refBpms = [],
+    maes = [],
+    ppiBias = [],
+    sens = [],
+    eph = [];
+  /* WHY THE PER-EPOCH ARM KEEPS ITS OWN DROP TALLY. An epoch can produce a jitter and still produce no
+     per-epoch HRV — it straddles a session boundary, or ECGDex refused its window for a clock seam. The
+     two populations therefore differ, and a figure quoted over one while the drop count is read off the
+     other is the §4b family: a verdict about something never examined. Keyed by REASON, because a
+     count names nothing to chase. */
+  const epRef = { boundary: 0 };
+  const epDrop = (r) => {
+    epRef[r] = (epRef[r] || 0) + 1;
+  };
   /* An epoch that never reaches the figures still happened. Counting the drops by reason is what makes
      a harmonic visible at all: its epochs do not score badly, they leave the population (§∅ — an output
      over absent input reports the absence). */
@@ -558,6 +1057,48 @@ for (const unit of buildUnits(fingerFiles)) {
     if (jr) rawJit.push(jr.sd);
     lags.push(lag.lagMs);
     rates.push(rate);
+    /* ── TABLE 1'S OTHER TWO COLUMNS, from the SAME matched differences as the jitter sd. ──
+       MAE and the signed PPI bias are new fields on `ppiJitterMs`, so they describe exactly the pairs
+       the jitter describes and cannot drift from it. */
+    maes.push(j.mae);
+    ppiBias.push(j.bias);
+    /* SENSITIVITY, which the match rate is NOT. `rate` is matched finger beats over finger beats —
+       positive predictive value. Sensitivity is matched REFERENCE beats over reference beats, and the
+       two differ exactly where a detector misses or doubles. Denominator from the epoch proper, never
+       the lag-widened read window, so the figure is per epoch and not per search span; the lag then
+       biases it down by at most one beat at each edge (~0.5 % of a 300 s epoch) — named, not corrected,
+       because correcting it would need a beat the window does not contain. */
+    const eIn = ee.filter((x) => x >= t && x < t + EPOCH_MS).length;
+    if (eIn) sens.push(pairs.filter((p) => ee[p.ei] >= t && ee[p.ei] < t + EPOCH_MS).length / eIn);
+    /* ── THE PER-EPOCH rMSSD ARM. Both sides on THIS window, each by its own node's estimator. ── */
+    const fS = coveringSession(unit.sessions, t, t + EPOCH_MS),
+      eS = coveringSession(best.u.sessions, t, t + EPOCH_MS);
+    if (!fS || !eS) epRef.boundary++;
+    else {
+      const fh = fingerEpochHrv(fS, t, t + EPOCH_MS),
+        eh = ecgEpochHrv(eS, t, t + EPOCH_MS);
+      if (!fh.ok) epDrop('finger-' + fh.reason);
+      else if (!eh.ok) epDrop('ecg-' + eh.reason);
+      /* A ZERO REFERENCE HAS NO RATIO (§∅). A 0 ms epoch rMSSD is legal — a perfectly regular stretch —
+         and a percentage against it is not a large bias, it is no bias to report. */ else if (!(eh.rmssd > 0)) epDrop('ecg-zero-reference');
+      else {
+        const row = {
+          night: unit.name,
+          t,
+          jitter: j.sd,
+          rmF: fh.rmssd,
+          rmE: eh.rmssd,
+          sdF: fh.sdnn,
+          sdE: eh.sdnn,
+          rmBiasPct: ((fh.rmssd - eh.rmssd) / eh.rmssd) * 100,
+          sdBiasPct: eh.sdnn > 0 ? ((fh.sdnn - eh.sdnn) / eh.sdnn) * 100 : null,
+          nF: fh.n,
+          nE: eh.n
+        };
+        eph.push(row);
+        allEp.push(row);
+      }
+    }
   }
   if (jit.length < MIN_EPOCHS) continue;
   /* CVHR AGREEMENT (§4's third criterion, never previously measured). Both nodes run the SAME detector
@@ -590,6 +1131,9 @@ for (const unit of buildUnits(fingerFiles)) {
      read −29 % on BOTH devices, which was the tell — a constant offset of construction. */
   const sf = fres.sdnnRobust,
     se = best.u.res.dispSd != null ? best.u.res.dispSd : best.u.res.sdnn;
+  const epJit = eph.map((e) => e.jitter);
+  const epRmFs = eph.map((x) => x.rmF);
+  const epRmEs = eph.map((x) => x.rmE);
   nights.push({
     rec: relative(DIR, f.p),
     name: f.p.split('/').pop(),
@@ -613,7 +1157,27 @@ for (const unit of buildUnits(fingerFiles)) {
     rf,
     re,
     bias: rf != null && re ? ((rf - re) / re) * 100 : null,
-    sdnnBias: sf != null && se ? ((sf - se) / se) * 100 : null
+    sdnnBias: sf != null && se ? ((sf - se) / se) * 100 : null,
+    /* ── THE PER-EPOCH ARM'S PER-NIGHT FIGURES — the paper's estimator, not the whole-record one. ──
+       `bias` above is ONE rMSSD per night from each node's whole record; `epRmBias` is the median of
+       this night's per-epoch biases. They are different estimators and the paper quotes the second, so
+       both are published side by side and the gap between them is a measurement rather than a puzzle. */
+    epN: eph.length,
+    epRmBias: eph.length ? median(eph.map((e) => e.rmBiasPct)) : null,
+    epSdBias: eph.some((e) => e.sdBiasPct != null) ? median(eph.filter((e) => e.sdBiasPct != null).map((e) => e.sdBiasPct)) : null,
+    epRmF: eph.length ? median(eph.map((e) => e.rmF)) : null,
+    epRmE: eph.length ? median(eph.map((e) => e.rmE)) : null,
+    /* THE LEVERAGE THE PER-NIGHT FIT HAS. A fit through the origin on σ² can only explain variance
+       that σ² HAS: if this night's jitter barely moves between epochs, a low R² is a statement about
+       the night's dynamic range and not about the model. Published beside every R² for that reason. */
+    epJitIqr: epJit.length >= 2 ? quantile(epJit, 0.75) - quantile(epJit, 0.25) : null,
+    epRmR2: r2Pair(epRmFs, epRmEs),
+    kfit: kFitThroughOrigin(eph.map((e) => ({ x: e.jitter * e.jitter, y: e.rmF * e.rmF - e.rmE * e.rmE, ref: e.rmF * e.rmF, refE: e.rmE * e.rmE }))),
+    kfree: kFitTwoTerm(eph.map((e) => ({ x: e.jitter * e.jitter, ref: e.rmF * e.rmF, refE: e.rmE * e.rmE }))),
+    mae: maes.length ? median(maes) : null,
+    ppiBias: ppiBias.length ? median(ppiBias) : null,
+    sens: sens.length ? median(sens) : null,
+    epRef
   });
   const n = nights[nights.length - 1];
   console.log(
@@ -715,9 +1279,15 @@ if (cvPairs.length) {
    between-epoch (SDANN) variance the per-5-min median excludes. Comparing them is comparing two
    different quantities, and the measurement says so plainly: it read −29 % on the FINGER and −29 % on
    the WRIST, i.e. a constant offset of construction, not a property of either device. PpgDex's own
-   export note puts sdnnRobust at ~+3.5 % vs "ECG truth" — meaning the ECG's per-5-min equivalent, which
-   nothing currently computes. Constructing that reference here would be reimplemented HRV math (§3.5
-   forbids it) and would be approximate exactly where the bar is ±3.5 %. */
+   export note puts sdnnRobust at ~+3.5 % vs "ECG truth" — meaning the ECG's per-5-min equivalent.
+   🔴 UPDATED 2026-10-28: that reference now EXISTS. The per-epoch arm below computes the ECG's
+   per-5-min SDNN on the shared grid by calling `ECGDSP.std` over the node's own segments, so it is the
+   node's estimator rather than reimplemented math — §3.5 forbids the second, not the first, and the
+   distinction is the whole reason the arm was buildable without touching a DSP.
+   THE BAR IS STILL NOT ADJUDICATED HERE, for a different reason: `sdnnRobust` is a QUALITY-GATED median
+   and the per-epoch arm reproduces no quality gate, so what it publishes is a per-epoch SDNN bias
+   between two ungated medians. At a ±3.5 % bar the gate is not a detail. The figure is reported under
+   its own name below and never as `sdnnRobust`. */
 console.log(`  sdnnRobust vs ECG dispSd  ${fmt(S)} %      [§4 promotion bar: within ~±3.5 %]`);
 console.log(`  ^ dispSd is ECGDex's MEDIAN of per-5-min epoch SDNN — sdnnRobust's like-for-like counterpart.
     Pairing it against whole-record \`sdnn\` instead reads ~−29 % on BOTH devices: an offset of construction.`);
@@ -727,5 +1297,157 @@ console.log(
     'And both describe the RATE RANGE named above, not every rate a device can reach: a change that\n' +
     'misbehaves outside that range moves nothing here. Quote the range with the figure.'
 );
+
+/* ════════════════════════ THE PER-EPOCH ARM — WHAT IT REPORTS ═══════════════════════════════════
+ * `papers/ppg-ecg-hrv-validation.html` quotes every figure below, and none of them had a producer
+ * before this block. They are printed APART from the whole-record figures above, and the two are never
+ * added or compared as if they were one estimator: a whole-record rMSSD is one number per night over
+ * all of it, a per-epoch median is the middle of ~70 five-minute numbers, and jitter inflates the two
+ * differently because the second never averages a quiet hour against a noisy one.
+ * ════════════════════════════════════════════════════════════════════════════════════════════════ */
+const epNights = nights.filter((n) => n.epN > 0);
+const kNights = nights.filter((n) => n.kfit);
+if (!epNights.length) {
+  console.log(`\nper-epoch arm: no night produced a scored epoch — ${nights.reduce((a, n) => a + (n.epRef.boundary || 0), 0)} window(s) crossed a session boundary`);
+} else {
+  const ERM = epNights.map((n) => n.epRmBias);
+  const ESD = epNights.filter((n) => n.epSdBias != null).map((n) => n.epSdBias);
+  const KS = kNights.map((n) => n.kfit.k);
+  const R2 = kNights.filter((n) => n.kfit.r2 != null).map((n) => n.kfit.r2);
+  const R2U = kNights.filter((n) => n.kfit.r2Unc != null).map((n) => n.kfit.r2Unc);
+  const R2M = kNights.filter((n) => n.kfit.r2Model != null).map((n) => n.kfit.r2Model);
+  const MA = nights.filter((n) => n.mae != null).map((n) => n.mae);
+  const PB = nights.filter((n) => n.ppiBias != null).map((n) => n.ppiBias);
+  const SE = nights.filter((n) => n.sens != null).map((n) => n.sens * 100);
+  console.log(`\n── THE PER-EPOCH ARM — ${allEp.length} epoch(s) over ${epNights.length} night(s) ──\n`);
+  console.log(
+    `  ${'night'.padEnd(26)} ${'eps'.padStart(4)} ${'rMSSD bias %'.padStart(12)} ${'SDNN bias %'.padStart(11)} ${'k'.padStart(6)} ${'R²'.padStart(6)} ${'MAE ms'.padStart(7)} ${'PPI bias'.padStart(9)} ${'sens %'.padStart(7)}`
+  );
+  for (const n of epNights)
+    console.log(
+      `  ${n.name.slice(0, 26).padEnd(26)} ${String(n.epN).padStart(4)} ${n.epRmBias.toFixed(1).padStart(12)} ${(n.epSdBias == null ? '—' : n.epSdBias.toFixed(1)).padStart(11)} ${(n.kfit ? n.kfit.k.toFixed(2) : '—').padStart(6)} ${(n.kfit && n.kfit.r2 != null ? n.kfit.r2.toFixed(3) : '—').padStart(6)} ${(n.mae == null ? '—' : n.mae.toFixed(2)).padStart(7)} ${(n.ppiBias == null ? '—' : n.ppiBias.toFixed(2)).padStart(9)} ${(n.sens == null ? '—' : (n.sens * 100).toFixed(1)).padStart(7)}`
+    );
+  console.log(`\n  per-epoch rMSSD bias      ${fmt(ERM)} %      [median over nights of each night's median epoch; the whole-record figure above is ${Bs.length ? median(Bs).toFixed(2) : 'n/a'} %]`);
+  /* THE NIGHT-LEVEL DISTRIBUTION, because the median is not the claim on its own. A right-skewed set of
+     nights has a mean nowhere near its median, and the limits of agreement are the figure a reader of a
+     method paper actually needs. Computed over NIGHTS, never over epochs: epochs inside a night are not
+     independent, and pooling them narrows an interval that has no right to narrow (§2 of the paper, and
+     its companion on pooling inverting gate rankings). */
+  const nMean = mean(ERM),
+    nSd = ERM.length > 1 ? sd(ERM) : null;
+  console.log(
+    `  …over nights              mean ${nMean.toFixed(2)} % · sd ${nSd == null ? '—' : nSd.toFixed(2)} · ${ERM.filter((v) => Math.abs(v) <= 10).length}/${ERM.length} within ±10 % · ${ERM.filter((v) => Math.abs(v) <= 5).length} within ±5 % · ${ERM.filter((v) => v > 0).length} positive`
+  );
+  console.log(
+    `  …95 % limits of agreement ${nSd == null ? 'n/a — one night' : `${(nMean - 1.96 * nSd).toFixed(1)} to ${(nMean + 1.96 * nSd).toFixed(1)} %`}      [normal approximation over NIGHTS; a skewed set makes it wide, which is the point]`
+  );
+  console.log(`  per-epoch SDNN bias       ${fmt(ESD)} %      [NOT the §4 sdnnRobust bar — see the note below]`);
+  /* THE MODEL'S SLOPE. Theory puts k in [2, 6]: independent jitter on both ends of an interval adds 2σ²
+     to each successive difference at the low end, and correlated jitter across neighbouring intervals
+     drives it up. A k OUTSIDE that band is the interesting result, which is why the band is printed
+     beside it rather than used to filter anything. */
+  console.log(`  k  (rMSSD²f = rMSSD²e + k·σ²)  ${fmt(KS)}      over ${kNights.length}/${epNights.length} night(s) with ≥${MIN_KFIT_EPOCHS} epochs   [theory: 2 ≤ k ≤ 6]`);
+  console.log(
+    `  R² of that fit            ${R2.length ? `median ${median(R2).toFixed(3)}  IQR ${quantile(R2, 0.25).toFixed(3)}–${quantile(R2, 0.75).toFixed(3)}  worst ${Math.min(...R2).toFixed(3)}` : 'n/a'}   [the INCREMENT's variance — does jitter explain the gap]`
+  );
+  console.log(
+    `  …same residuals, other denominators   uncentred increment ${R2U.length ? median(R2U).toFixed(3) : 'n/a'} · rMSSD²f itself ${R2M.length ? `${median(R2M).toFixed(3)}  IQR ${quantile(R2M, 0.25).toFixed(3)}–${quantile(R2M, 0.75).toFixed(3)}` : 'n/a'}` +
+      `\n                            [the last one is near-tautological: rMSSD²e alone explains most of rMSSD²f on paired devices. A published R² that does not name its denominator can be any of these three.]`
+  );
+  const JQ = kNights.filter((n) => n.epJitIqr != null).map((n) => n.epJitIqr);
+  console.log(
+    `  within-night jitter IQR   ${JQ.length ? `median ${median(JQ).toFixed(2)} ms  range ${Math.min(...JQ).toFixed(2)}–${Math.max(...JQ).toFixed(2)}` : 'n/a'}      [the x-spread the per-night fit works with]` +
+      `\n                            [σ² is the only predictor, so a night whose jitter hardly moves cannot produce a high R² whether the model holds or not.]`
+  );
+  const RP = kNights.filter((n) => n.epRmR2 != null).map((n) => n.epRmR2);
+  console.log(
+    `  r² ppg-vs-ecg rMSSD        ${RP.length ? `median ${median(RP).toFixed(3)}  IQR ${quantile(RP, 0.25).toFixed(3)}–${quantile(RP, 0.75).toFixed(3)}` : 'n/a'}      [no model in it — the devices' bare per-epoch agreement]` +
+      `\n                            [the most charitable reading of an unlabelled R²; printed so a published value can be tested against it rather than assumed to be it.]`
+  );
+  console.log(`  PPI MAE / signed bias     ${fmt(MA)} ms  /  ${fmt(PB)} ms      [a bias near 0 says the devices agree on RATE, which the sd cannot say]`);
+  console.log(`  beat sensitivity          ${fmt(SE)} %      [matched REFERENCE beats over reference beats — the match rate above is PPV]`);
+  /* THE RANGES ACROSS NIGHTS, in one line, because a method paper's table quotes them and a reader
+     cannot derive a range from a median and an IQR. Printed together so the table has ONE source. */
+  const rng = (a) => (a.length ? `${Math.min(...a).toFixed(2)}–${Math.max(...a).toFixed(2)}` : 'n/a');
+  console.log(`  ranges across nights      jitter ${rng(J)} ms · MAE ${rng(MA)} ms · PPI bias ${rng(PB)} ms · sens ${rng(SE)} % · PPV ${rng(R)} % · per-epoch rMSSD bias ${rng(ERM)} %`);
+  /* THE POOLED FIT, DESCRIPTIVE ONLY and labelled as such on the line itself. It answers a different
+     question from the per-night median — one slope over every epoch in the corpus, with nights of many
+     epochs weighted more — and the label travels with the number because a pooled figure read as the
+     night-clustered one is the exact error the paper's §2 exists to prevent. */
+  const kPool = kFitThroughOrigin(allEp.map((e) => ({ x: e.jitter * e.jitter, y: e.rmF * e.rmF - e.rmE * e.rmE, ref: e.rmF * e.rmF, refE: e.rmE * e.rmE })));
+  const kFree = kFitTwoTerm(allEp.map((e) => ({ x: e.jitter * e.jitter, ref: e.rmF * e.rmF, refE: e.rmE * e.rmE })));
+  console.log(
+    `  pooled over all epochs    ${kPool ? `k ${kPool.k.toFixed(2)} · R² ${kPool.r2 == null ? '—' : kPool.r2.toFixed(3)} increment / ${kPool.r2Unc == null ? '—' : kPool.r2Unc.toFixed(3)} uncentred / ${kPool.r2Model == null ? '—' : kPool.r2Model.toFixed(3)} rMSSD²f over ${kPool.n} epoch(s)` : 'n/a'}   [DESCRIPTIVE — epochs within a night are not independent]`
+  );
+  /* 🔴 THE CONSTRAINED CLAIM AND THE FREE ESTIMATOR, SIDE BY SIDE AND LABELLED. `a` is the coefficient the
+     paper's equation fixes at 1. If the free fit puts `a` near 1 the constraint costs nothing and the two
+     k's agree; if it does not, the published k and R² belong to the free estimator and the equation as
+     written is a different model. A reader cannot tell those apart from one number, so both are printed. */
+  const KF = kNights.filter((n) => n.kfree).map((n) => n.kfree);
+  if (KF.length) {
+    const AA = KF.map((f) => f.a),
+      KK = KF.map((f) => f.k),
+      RR = KF.filter((f) => f.r2Model != null).map((f) => f.r2Model);
+    console.log(
+      `  …with the reference coefficient FREED (rMSSD²f = a·rMSSD²e + k·σ²)\n` +
+        `                            a ${fmt(AA)}  ·  k ${fmt(KK)}  ·  R² ${RR.length ? `median ${median(RR).toFixed(3)}  IQR ${quantile(RR, 0.25).toFixed(3)}–${quantile(RR, 0.75).toFixed(3)}` : 'n/a'}   over ${KF.length} night(s)\n` +
+        `                            [a = 1 is the paper's constraint. Pooled: ${kFree ? `a ${kFree.a.toFixed(3)} · k ${kFree.k.toFixed(2)} · R² ${kFree.r2Model == null ? '—' : kFree.r2Model.toFixed(3)} over ${kFree.n} epoch(s)` : 'n/a'}]`
+    );
+  }
+  console.log(`  covered by scored epochs  ${((allEp.length * EPOCH_MS) / 3600000).toFixed(1)} h      [${allEp.length} × 5 min; the record spans more, this is what the per-epoch arm examined]`);
+  const split = catastrophicSplit(allEp, CAT_BIAS_PCT, JIT_BAND_MS);
+  if (split)
+    console.log(
+      `  catastrophic epochs       ${split.nCat} of ${split.n} (${(split.catShare * 100).toFixed(1)} %) with |ΔrMSSD| > ${CAT_BIAS_PCT} %\n` +
+        `                            jitter median ${split.jitIn == null ? '—' : split.jitIn.toFixed(1)} ms inside vs ${split.jitOut == null ? '—' : split.jitOut.toFixed(1)} ms outside · above ${JIT_BAND_MS} ms: ${split.aboveIn == null ? '—' : (split.aboveIn * 100).toFixed(0)} % vs ${split.aboveOut == null ? '—' : (split.aboveOut * 100).toFixed(0)} %`
+    );
+  /* THE BUDGET IS A FRACTION OF SOMETHING, so the something is MEASURED and printed with it. The
+     reference is the corpus median per-epoch ECG rMSSD — the quantity the bias is a percentage of.
+     Quoting a σ budget without it publishes a number nobody can check, and a budget read against an
+     assumed 38 ms says nothing about a corpus whose reference is 25. */
+  const refRm = median(allEp.map((e) => e.rmE));
+  const kMed = KS.length ? median(KS) : null;
+  const BUDGET_TARGETS = [0.01, 0.02, 0.03, 0.05];
+  const bud = BUDGET_TARGETS.map((p) => sigmaForBias(kMed, refRm, p));
+  console.log(`  reference per-epoch rMSSD ${refRm.toFixed(1)} ms      [corpus median of the ECG side over ${allEp.length} epoch(s) — what every % above is a fraction of]`);
+  console.log(
+    `  jitter budget             σ ≤ ${bud.map((v) => (v == null ? '—' : v.toFixed(2))).join(' / ')} ms for a ${BUDGET_TARGETS.map((p) => (p * 100).toFixed(0)).join(' / ')} % per-epoch rMSSD bias` +
+      `\n                            [closed form from k=${kMed == null ? '—' : kMed.toFixed(2)} and that reference; a different corpus moves both]`
+  );
+  /* 🔴 EACH TARGET'S STATUS, COUNTED RATHER THAN ASSERTED. A budget table's third column — "reached on
+     15 of 20 nights" — is a COUNT over the per-night jitter column, and a count left to a reader is a
+     count nobody can re-run: the paper's own version of this table had no producer, which is the row
+     this arm closes. The required cut is quoted against the MEDIAN night, and says so, because a cut
+     that reaches the median reaches nothing on the worst night. */
+  const jMed = median(J);
+  for (let i = 0; i < bud.length; i++) {
+    const v = bud[i];
+    const tgt = (BUDGET_TARGETS[i] * 100).toFixed(0) + ' %';
+    if (v == null) {
+      console.log(`    ≤ ${tgt.padStart(4)}   no budget — k or the reference was not measured`);
+      continue;
+    }
+    const cut = ((jMed - v) / jMed) * 100;
+    console.log(
+      `    ≤ ${tgt.padStart(4)}   σ ≤ ${v.toFixed(2).padStart(6)} ms   ${(cut > 0 ? `needs a ${cut.toFixed(0)} % cut from the median night's ${jMed.toFixed(2)} ms` : `already met by the median night (${jMed.toFixed(2)} ms)`).padEnd(52)} reached on ${J.filter((x) => x <= v).length}/${J.length} night(s)`
+    );
+  }
+  const drops = Object.entries(nights.reduce((a, n) => (Object.entries(n.epRef).forEach(([k2, v]) => (a[k2] = (a[k2] || 0) + v)), a), {})).filter(([, v]) => v > 0);
+  if (EPOCH_DUMP) {
+    writeFileSync(
+      EPOCH_DUMP,
+      'night,epochStartMs,jitterMs,rmssdFinger,rmssdEcg,sdnnFinger,sdnnEcg,rmssdBiasPct,sdnnBiasPct,nFinger,nEcg\n' +
+        allEp.map((e) => [e.night, e.t, e.jitter, e.rmF, e.rmE, e.sdF, e.sdE, e.rmBiasPct, e.sdBiasPct, e.nF, e.nE].join(',')).join('\n') +
+        '\n'
+    );
+    console.log(`  per-epoch rows written    ${allEp.length} to ${EPOCH_DUMP}   [NOT a repository artifact — per-night records]`);
+  }
+  console.log(`  epochs with no HRV pair   ${drops.length ? drops.map(([k2, v]) => `${v} ${k2}`).join(' · ') : 'none'}   (of the ${kept} epochs the jitter arm scored)`);
+  console.log(
+    '\n  The per-epoch population is NOT the jitter population: an epoch can carry a jitter and no\n' +
+      '  per-epoch HRV (it crosses a session boundary, or ECGDex refused its window for a clock seam).\n' +
+      '  Both counts are printed, and a figure from one must not be read against a drop tally from the other.'
+  );
+}
 
 printPopulation();
