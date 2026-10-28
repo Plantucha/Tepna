@@ -16,7 +16,10 @@ being served.
 
 import os
 import re
+import shutil
 import subprocess
+
+import pytest
 
 from tests._srcscan import split_segment, until_anchor
 
@@ -185,6 +188,9 @@ def _chk(src, systemd, udev, *args, networkd=None):
     # Same §E6 reasoning for the privileged helper dir: /usr/local/lib/tepna holds the root-owned copies
     # that carry the NOPASSWD sudoers grants, so a redirected run must never be able to write the real one.
     env["TEPNA_LIB_DIR"] = str(systemd.parent / "lib-tepna")
+    # And needrestart's drop-in dir, for the same reason: a redirected run that wrote the real
+    # /etc/needrestart/conf.d would change how the DEVELOPER's box treats every apt upgrade.
+    env["TEPNA_ETC_NEEDRESTART"] = str(systemd.parent / "etc-needrestart")
     return subprocess.run(["bash", CHK, *args], capture_output=True, text=True, env=env)
 
 
@@ -206,6 +212,14 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     (udev / "99-tepna-hidraw.rules").write_text('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1915"\n')
     (systemd / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
     (systemd / "tepna-capture.service").write_text(unit.format(u=capture_user_etc))
+    # The needrestart drop-in. Its repo name and its installed name DIFFER on purpose, because the
+    # installed one needs the ordering prefix conf.d gives it, so a fixture writing one name twice
+    # would never exercise that mapping.
+    nr = tmp_path / "etc-needrestart"
+    nr.mkdir()
+    nrbody = "$nrconf{override_rc}{qr(^tepna-capture)} = 0;\n1;\n"
+    (tmp_path / "capture-host" / "deploy" / "needrestart-tepna-capture.conf").write_text(nrbody)
+    (nr / "50-tepna-capture.conf").write_text(nrbody)
     # The four privileged NOPASSWD helpers (helper_path.SYSTEM_DIRS[0]). Added to the manifest 2026-08-04
     # after the live box was found running a STALE root-owned tepna-clock.sh and tepna-restart.sh, with
     # tepna-usbreset.sh never installed at all — drift in the most privileged files on the box, invisible
@@ -290,6 +304,81 @@ def test_a_file_missing_from_etc_is_drift_not_a_crash(tmp_path):
     assert "NOT INSTALLED" in r.stdout
 
 
+# ══ THE UPGRADE RESTARTED THE DAEMON tepna-update.sh HAD JUST REFUSED TO RESTART (2026-10-28) ═════
+# Row `2026-10-28-an-apt-upgrade-restarts-the-daemon-through-a-held-night`. needrestart runs after each
+# unattended upgrade and held no rule for the capture unit, so it issued the restart the updater's own
+# interlock exists to prevent. That is 16 dpkg runs over 12 mornings, and 4 of 10 night-ending stops.
+# One MANAGED file carries the remedy, which makes it the same kind of thing as a stale udev rule: the
+# checker that already runs on every updater tick finds it, and the same helper installs it.
+
+
+def test_the_needrestart_exclusion_is_a_managed_file_like_any_other(tmp_path):
+    """An absent exclusion reads as drift, and `--install` writes it under its DESTINATION name."""
+    src, sd, ud = _tree(tmp_path)
+    dest = tmp_path / "etc-needrestart" / "50-tepna-capture.conf"
+    os.remove(dest)
+    r = _chk(src, sd, ud)
+    assert r.returncode == 1
+    assert "NOT INSTALLED" in r.stdout
+    _chk(src, sd, ud, "--install")
+    assert dest.read_text() == (src / "deploy" / "needrestart-tepna-capture.conf").read_text()
+
+
+def test_the_exclusion_sets_ONE_KEY_and_never_assigns_the_whole_hash():
+    """`$nrconf{override_rc} = {...}` in a drop-in DROPS the distro's own entries, because needrestart
+    parses conf.d after its own config and a drop-in may override what that config already set. Every
+    upgrade would then restart dbus, the display managers and the networking units. That box is worse
+    than the one this rule fixes, and no line anywhere would report it.
+
+    The regex is a PREFIX for the opposite failure. needrestart's own entries read `qr(^dbus)`, and a
+    rule anchored on `.service` matches nothing when the name arrives without that suffix. That miss
+    stays silent: the upgrade restarts the daemon, and no line says a rule meant to stop it.
+
+    The trailing `1;` is the `do`-a-file convention. The assignment itself evaluates to 0, so a caller
+    reading the return value calls a well-parsed file a failure."""
+    conf = os.path.join(HERE, "deploy", "needrestart-tepna-capture.conf")
+    body = open(conf, encoding="utf-8").read()
+    code = [ln for ln in body.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+    assert code == ["$nrconf{override_rc}{qr(^tepna-capture)} = 0;", "1;"]
+
+
+def test_the_exclusion_parses_as_perl_and_sets_the_key_to_zero(tmp_path):
+    """A syntax error in this fragment breaks needrestart for the WHOLE box, not for this unit alone.
+    needrestart `do`es the file from its own config, so one bad line takes every other unit's restart
+    decision with it. The box installs the file by mechanism on the next updater tick, which is why the
+    parse belongs here rather than after a deploy."""
+    if shutil.which("perl") is None:
+        pytest.skip("perl is absent, and needrestart's parser IS perl — nothing was examined")
+    conf = os.path.join(HERE, "deploy", "needrestart-tepna-capture.conf")
+    probe = tmp_path / "probe.pl"
+    probe.write_text(
+        "our %nrconf;\n"
+        # `$@`, never the return value, for the reason the fragment's own trailing `1;` records.
+        f"do '{conf}';\n"
+        "die $@ if $@;\n"
+        "my @k = keys %{$nrconf{override_rc}};\n"
+        "die 'want exactly one key, got ' . scalar(@k) unless @k == 1;\n"
+        "die 'the key is not 0' if $nrconf{override_rc}{$k[0]};\n"
+        'print "ok $k[0]\\n";\n'
+    )
+    r = subprocess.run(["perl", str(probe)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "tepna-capture" in r.stdout
+
+
+def test_the_sysfiles_helper_forwards_the_needrestart_seam():
+    """The helper installs from a clone as root. A seam it drops is a seamed run writing the REAL
+    /etc/needrestart/conf.d, which is the §E6 class this suite already carries for three other dirs."""
+    body = open(os.path.join(HERE, "tepna-sysfiles.sh"), encoding="utf-8").read()
+    assert "TEPNA_ETC_NEEDRESTART" in body
+
+
+def test_the_needrestart_default_is_the_real_host_path():
+    """With no seam the script must target the host path, or the box is checked against nothing."""
+    body = open(CHK, encoding="utf-8").read()
+    assert 'ETC_NEEDRESTART="${TEPNA_ETC_NEEDRESTART:-/etc/needrestart/conf.d}"' in body
+
+
 def test_the_deploy_runs_the_check():
     body = open(os.path.join(HERE, "deploy", "deploy-vigil.sh"), encoding="utf-8").read()
     assert "check-system-files.sh" in body
@@ -319,6 +408,12 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     (src / "deploy" / "tepna-capture.service").write_text(deploy_body)
     (src / "systemd" / "tepna-capture.service").write_text(systemd_body)
     (systemd / "tepna-capture.service").write_text(etc_body)
+    # In sync, for the reason the helpers below are: this fixture is about AMBIGUOUS SOURCES.
+    nr = tmp_path / "etc-needrestart"
+    nr.mkdir()
+    nrbody = "$nrconf{override_rc}{qr(^tepna-capture)} = 0;\n1;\n"
+    (src / "deploy" / "needrestart-tepna-capture.conf").write_text(nrbody)
+    (nr / "50-tepna-capture.conf").write_text(nrbody)
     # The privileged helpers, in sync — this fixture is about AMBIGUOUS SOURCES, so they must not be
     # the thing that reds it.
     for u in (

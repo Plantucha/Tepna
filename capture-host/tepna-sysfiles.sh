@@ -43,7 +43,7 @@ if [ "$(id -u)" != 0 ]; then
   TMP_PARENT="${TMPDIR:-/tmp}"
   LOCK="$TMP_PARENT/tepna-sysfiles.lock"
   AS_USER=()
-  for v in TEPNA_ETC_SYSTEMD TEPNA_ETC_UDEV TEPNA_ETC_NETWORKD TEPNA_LIB_DIR; do
+  for v in TEPNA_ETC_SYSTEMD TEPNA_ETC_UDEV TEPNA_ETC_NETWORKD TEPNA_ETC_NEEDRESTART TEPNA_LIB_DIR; do
     [ -n "${!v-}" ] && PASS_ENV+=("$v=${!v}")
   done
 fi
