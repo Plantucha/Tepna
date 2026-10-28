@@ -349,6 +349,16 @@
       ]
     },
     {
+      "path": "tools/reanchor-equivalence.mjs",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
       "path": "tools/trio-batch.mjs",
       "found": [
         "named"
