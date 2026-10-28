@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="df87e8735393" data-compute-hash="c4eadd11c74b"><head>
+<html lang="en" data-manifest-hash="b41e38f0e46a" data-compute-hash="12342d148ee0"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DgC+gzmTRM4ylbHQLOTL82fOM4KiHigmK/aDd25zoU=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-CpBB5P2pLy+oIOo0S13XWndel5IsqJGscYnmx6BGQXE=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-dz2qb834NCJQ4fo7JU8ZhsGGDA2wyQBPPTHkZnGB/gc=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DgC+gzmTRM4ylbHQLOTL82fOM4KiHigmK/aDd25zoU=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4nM8DHYyyoywH/KOiEbADzAP0LZw5qa+1WlaOIec68Y=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C4tNOYLyXZJ4GYfK4/YCNrKXnAT7MPsoe1KsS3L/7Tg=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-dz2qb834NCJQ4fo7JU8ZhsGGDA2wyQBPPTHkZnGB/gc=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -35931,12 +35931,19 @@ __exports.MotionDex = window.MotionDex;
     var s = String(raw == null ? '' : raw).trim();
     // ISO / "YYYY-MM-DD[ T]HH:MM[:SS[.mmm]]" — capture fractional seconds (Clock Contract §2 step 3).
     // No zone ⇒ components verbatim → Date.UTC (floating), offsetMin null.
-    var iso = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?/.exec(s);
+    var iso = /(?:^|\D)(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?/.exec(s);
     if (iso) {
       var _ti = _ckMk(+iso[1], +iso[2] - 1, +iso[3], +iso[4], +iso[5], +(iso[6] || 0), iso[7] ? +(iso[7] + '00').slice(0, 3) : 0);
       if (_ti != null) return { tMs: _ti, offsetMin: null };
     }
-    var m = /(\d{4})(\d{2})(\d{2})[_\-]?(\d{2})(\d{2})(\d{2})/.exec(s); // YYYYMMDD(_)HHMMSS
+    /* BOUND THE DIGIT RUN (Clock Contract §2 step 4; the same rule clock.js states at its
+       `fileStamp`). An unbounded arm takes a 14-digit WINDOW out of a longer run, and §2.7
+       cannot see it: every component of the window is legal. Measured here —
+       `9920260612_222830_BRP.edf`, `202606122228301234` and `20260612_2228301` all read
+       2026-06-12 22:28:30. The run must START the string or follow a non-digit, and must END
+       the run. `(?:^|\D)` captures nothing, so the group indices are unchanged, and every
+       name an SD card or a capture host writes still parses. */
+    var m = /(?:^|\D)(\d{4})(\d{2})(\d{2})[_\-]?(\d{2})(\d{2})(\d{2})(?!\d)/.exec(s); // YYYYMMDD(_)HHMMSS
     if (m) {
       var _tf = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
       if (_tf != null) return { tMs: _tf, offsetMin: null }; // floating, EDF has no zone
@@ -37665,6 +37672,29 @@ __exports.MotionDex = window.MotionDex;
     ok('parseTimestamp: ISO parses at all', !!pt2, JSON.stringify(pt2));
     ok('parseTimestamp: ISO captures fractional seconds (ms)', pt2v.tMs === Date.UTC(2026, 5, 12, 22, 28, 30, 250), JSON.stringify(pt2));
     ok('parseTimestamp: stamp-less → null (never now())', parseTimestamp('no clock here') === null);
+
+    /* The digit run is BOUNDED (§2 step 4). Each accept below sits beside the reject it differs
+       from by one leading or trailing digit, so dropping `(?:^|\D)` or `(?!\d)` turns a PAIR red
+       rather than leaving a far-out case green. §2.7 cannot reach any of these: the window the
+       unbounded pattern took spells a legal date and a legal time. */
+    var _ptMs = function (raw) {
+      var r = parseTimestamp(raw);
+      return r ? r.tMs : null;
+    };
+    var _real = Date.UTC(2026, 5, 12, 22, 28, 30);
+    ok('parseTimestamp: a real SD-card name is unchanged by the bound', _ptMs('20260612_222830_BRP.edf') === _real, JSON.stringify(_ptMs('20260612_222830_BRP.edf')));
+    ok('parseTimestamp: a bare 14-digit stamp is unchanged by the bound', _ptMs('20260612222830') === _real, JSON.stringify(_ptMs('20260612222830')));
+    ok('parseTimestamp: a stamp after a NON-digit still parses', _ptMs('SN20260612222830_BRP.edf') === _real, JSON.stringify(_ptMs('SN20260612222830_BRP.edf')));
+    ok('parseTimestamp: a leading digit before the run → null (was 2026-06-12 22:28:30)', _ptMs('9920260612_222830_BRP.edf') === null, JSON.stringify(_ptMs('9920260612_222830_BRP.edf')));
+    ok('parseTimestamp: a trailing digit after the run → null (was 2026-06-12 22:28:30)', _ptMs('20260612_2228301') === null, JSON.stringify(_ptMs('20260612_2228301')));
+    ok('parseTimestamp: an 18-digit serial → null (was 2026-06-12 22:28:30)', _ptMs('202606122228301234') === null, JSON.stringify(_ptMs('202606122228301234')));
+    ok('parseTimestamp: a five-digit ISO year → null (was 2026-06-12 22:28:30)', _ptMs('12026-06-12 22:28:30') === null, JSON.stringify(_ptMs('12026-06-12 22:28:30')));
+    ok('parseTimestamp: an ISO stamp after a NON-digit still parses', _ptMs('x2026-06-12 22:28:30') === _real, JSON.stringify(_ptMs('x2026-06-12 22:28:30')));
+    ok(
+      'parseTimestamp: a four-digit ISO fraction keeps its first three (no right bound on the ISO arm)',
+      _ptMs('2026-06-12 22:28:30.1234') === Date.UTC(2026, 5, 12, 22, 28, 30, 123),
+      JSON.stringify(_ptMs('2026-06-12 22:28:30.1234'))
+    );
 
     // ════════ STEP 2 ADDITIONS — real-signal adapter, self-gate, QC lane ════════
 

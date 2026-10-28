@@ -77,12 +77,19 @@
     var s = String(raw == null ? '' : raw).trim();
     // ISO / "YYYY-MM-DD[ T]HH:MM[:SS[.mmm]]" — capture fractional seconds (Clock Contract §2 step 3).
     // No zone ⇒ components verbatim → Date.UTC (floating), offsetMin null.
-    var iso = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?/.exec(s);
+    var iso = /(?:^|\D)(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?/.exec(s);
     if (iso) {
       var _ti = _ckMk(+iso[1], +iso[2] - 1, +iso[3], +iso[4], +iso[5], +(iso[6] || 0), iso[7] ? +(iso[7] + '00').slice(0, 3) : 0);
       if (_ti != null) return { tMs: _ti, offsetMin: null };
     }
-    var m = /(\d{4})(\d{2})(\d{2})[_\-]?(\d{2})(\d{2})(\d{2})/.exec(s); // YYYYMMDD(_)HHMMSS
+    /* BOUND THE DIGIT RUN (Clock Contract §2 step 4; the same rule clock.js states at its
+       `fileStamp`). An unbounded arm takes a 14-digit WINDOW out of a longer run, and §2.7
+       cannot see it: every component of the window is legal. Measured here —
+       `9920260612_222830_BRP.edf`, `202606122228301234` and `20260612_2228301` all read
+       2026-06-12 22:28:30. The run must START the string or follow a non-digit, and must END
+       the run. `(?:^|\D)` captures nothing, so the group indices are unchanged, and every
+       name an SD card or a capture host writes still parses. */
+    var m = /(?:^|\D)(\d{4})(\d{2})(\d{2})[_\-]?(\d{2})(\d{2})(\d{2})(?!\d)/.exec(s); // YYYYMMDD(_)HHMMSS
     if (m) {
       var _tf = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
       if (_tf != null) return { tMs: _tf, offsetMin: null }; // floating, EDF has no zone
@@ -1811,6 +1818,29 @@
     ok('parseTimestamp: ISO parses at all', !!pt2, JSON.stringify(pt2));
     ok('parseTimestamp: ISO captures fractional seconds (ms)', pt2v.tMs === Date.UTC(2026, 5, 12, 22, 28, 30, 250), JSON.stringify(pt2));
     ok('parseTimestamp: stamp-less → null (never now())', parseTimestamp('no clock here') === null);
+
+    /* The digit run is BOUNDED (§2 step 4). Each accept below sits beside the reject it differs
+       from by one leading or trailing digit, so dropping `(?:^|\D)` or `(?!\d)` turns a PAIR red
+       rather than leaving a far-out case green. §2.7 cannot reach any of these: the window the
+       unbounded pattern took spells a legal date and a legal time. */
+    var _ptMs = function (raw) {
+      var r = parseTimestamp(raw);
+      return r ? r.tMs : null;
+    };
+    var _real = Date.UTC(2026, 5, 12, 22, 28, 30);
+    ok('parseTimestamp: a real SD-card name is unchanged by the bound', _ptMs('20260612_222830_BRP.edf') === _real, JSON.stringify(_ptMs('20260612_222830_BRP.edf')));
+    ok('parseTimestamp: a bare 14-digit stamp is unchanged by the bound', _ptMs('20260612222830') === _real, JSON.stringify(_ptMs('20260612222830')));
+    ok('parseTimestamp: a stamp after a NON-digit still parses', _ptMs('SN20260612222830_BRP.edf') === _real, JSON.stringify(_ptMs('SN20260612222830_BRP.edf')));
+    ok('parseTimestamp: a leading digit before the run → null (was 2026-06-12 22:28:30)', _ptMs('9920260612_222830_BRP.edf') === null, JSON.stringify(_ptMs('9920260612_222830_BRP.edf')));
+    ok('parseTimestamp: a trailing digit after the run → null (was 2026-06-12 22:28:30)', _ptMs('20260612_2228301') === null, JSON.stringify(_ptMs('20260612_2228301')));
+    ok('parseTimestamp: an 18-digit serial → null (was 2026-06-12 22:28:30)', _ptMs('202606122228301234') === null, JSON.stringify(_ptMs('202606122228301234')));
+    ok('parseTimestamp: a five-digit ISO year → null (was 2026-06-12 22:28:30)', _ptMs('12026-06-12 22:28:30') === null, JSON.stringify(_ptMs('12026-06-12 22:28:30')));
+    ok('parseTimestamp: an ISO stamp after a NON-digit still parses', _ptMs('x2026-06-12 22:28:30') === _real, JSON.stringify(_ptMs('x2026-06-12 22:28:30')));
+    ok(
+      'parseTimestamp: a four-digit ISO fraction keeps its first three (no right bound on the ISO arm)',
+      _ptMs('2026-06-12 22:28:30.1234') === Date.UTC(2026, 5, 12, 22, 28, 30, 123),
+      JSON.stringify(_ptMs('2026-06-12 22:28:30.1234'))
+    );
 
     // ════════ STEP 2 ADDITIONS — real-signal adapter, self-gate, QC lane ════════
 

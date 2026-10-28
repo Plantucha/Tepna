@@ -8691,6 +8691,56 @@ def test_SPLIT_mode_logs_the_wave_frames_with_a_BLANK_position_never_a_running_s
     )
 
 
+def test_SPLIT_mode_with_no_pletha_stream_POLLS_the_wave_and_DROPS_it_without_a_crash(tmp_path, monkeypatch, caplog):
+    """Residue 2026-10-27-split-poll-mode-writes-the-raw-pleth-to-a-none-writer.
+
+    In split mode 0x03 is the wave source and is polled on the mode alone, which the two tests above
+    pin by name. The reply's samples then had nowhere to go: `write_pletha` ran on a None writer once
+    per reply, and that call sits OUTSIDE the `try` its sibling arrival write uses.
+
+    ⚠️ NO EXISTING TEST COULD SEE IT. `FakeGattClient` notifies SYNCHRONOUSLY inside
+    `write_gatt_char`, so the callback's AttributeError unwound into the poll's own `except` and read
+    as `pleth-A poll failed` on a link where nothing failed. On a box bleak dispatches notifications
+    on its own task, so the error escapes the frame loop instead and the remaining frames of that
+    notification go unprocessed, vitals in the same batch included. The log assertion below is what
+    tells those two apart from the host side."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "O2WAVE_POLL_MODE", capture.O2WAVE_POLL_SPLIT)
+    vals = [11, 22, 33]
+    payload = b"\x00\x00\x00\x00" + len(vals).to_bytes(2, "little") + bytes(vals)
+    c = FakeGattClient()
+    asked = []
+
+    def on_live(data):
+        asked.append(data[1])
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_SAMPLES_A:
+            c.notify(0, oxyii.encode(oxyii.OP_SAMPLES_A, payload))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    with caplog.at_level(logging.DEBUG):
+        _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2"]), str(tmp_path)))
+
+    assert asked.count(oxyii.OP_SAMPLES_A) >= 2, "the mode still owns the poll"
+    assert not list((tmp_path / "captures").rglob("*_PLETHA.txt")), "no stream was configured, so no file"
+    arr = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))
+    assert arr, "the arrival sidecar must exist"
+    tags = [ln.split(";")[2] for ln in arr[0].read_text().split("\n")[1:] if ln.strip()]
+    assert "PPG_FRAME_A" in tags, f"the arrival rows are what the poll still buys; saw {sorted(set(tags))}"
+    bad = [r.getMessage() for r in caplog.records if "pleth-A poll failed" in r.getMessage()]
+    assert not bad, f"the 0x03 poll must not read as failed when only a missing writer failed: {bad}"
+    assert "write_pletha" not in caplog.text, "no AttributeError naming the writer may reach a log"
+    # And the configuration says so once per link, so an absent file is never the only evidence.
+    assert caplog.text.count("split wave-poll mode with no `pletha` stream") == 1, (
+        "the dropped-wave configuration is stated once per link, never per reply"
+    )
+
+
 def test_an_UNREADABLE_wave_poll_mode_warns_and_runs_the_PROVEN_path():
     """⚠️ My first version of this test asserted its own plant — that "splti" is not one of two constants
     — and never called capture.py at all. The decision is now a named function so the test can reach it.
