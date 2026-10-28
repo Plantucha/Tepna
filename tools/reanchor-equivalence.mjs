@@ -90,6 +90,14 @@ const opt = (f, d) => {
 const IS_MAIN = isCliEntry(import.meta.url);
 
 const norm = (s) => String(s == null ? '' : s).trim();
+/* A `why` is prose and a terminal line is not. Clipped for the reader only — the object carries it whole. */
+const clip = (t, n = 120) => {
+  const one = String(t == null ? '' : t)
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (one === '') return 'no recorded reason';
+  return one.length > n ? one.slice(0, n - 1) + '…' : one;
+};
 export const codeKey = (e) => norm(e.op) + '\0' + norm(e.before);
 
 /* The whole decision, as a pure function so it can be known-answer tested without a sweep.
@@ -359,19 +367,104 @@ export function sampleTally() {
   return { movable: 3, survived: 2, refuted: 0, agreeing: 1, unprobed: 0, collided: 0, voidedFiles: [] };
 }
 
+/* WHAT A DRIFTED ENTRY CAN STILL BE REACHED BY, per entry rather than per tally.
+   `qualifyPlan` already decides the question (its `would` tag); until this function existed the
+   answer was aggregated into four counts and no entry was ever NAMED. An entry tagged
+   `neverPlaced` or `gone` has no address any mechanism in this tool can give it: the first
+   repeats one mutation inside one function, which no qualifier separates, and the second names a
+   mutation the generator no longer produces. `someFn` is weaker — placeable, but only if the
+   unrecorded function happened to be one of the names whose group holds a single mutant — so it is
+   reported beside the set rather than inside it.
+   Each row carries what the entry stopped excusing (`class` + `why`), because an orphaned entry
+   is not merely unplaceable: it still records a judged mutant, and deleting it drops that judgement.
+   Residue 2026-10-27-thirty-eight-drifted-entries-have-no-address-a-mechanism-can-reach. */
+const UNADDRESSED_REASON = {
+  neverPlaced: 'one mutation repeated inside one function — no qualifier can separate the two',
+  gone: 'no candidate mutant at all — the generator no longer produces this mutation',
+  someFn: 'placeable only for some of the functions it could have named'
+};
+
+/* 🔴 THE RESCUE THAT DOES NOT WORK, MEASURED RATHER THAN ASSUMED. An entry with no `fn` looks
+   addressable anyway, because its `why` opens `In <function>.` — 421 of the committed 434 do. If
+   that name were the recorded function, every drifted entry would carry an address and this tool
+   would only have to read it.
+   It is not an address. The 320 entries that DO carry a machine-read `fn` are the control, and on
+   10 of them the prose names a different function: `dfaAlpha1` for `dfaAlpha1Segmented`,
+   `countPairs` for `countPairsIn`, `markO2Sentinels` for `markO2BeatMarkers`. The prose names an
+   enclosing, neighbouring or since-renamed function, so placing an entry by it would mis-anchor
+   about one in 32 — and this tool's standing rule is that a wrong re-anchor is worse than a lost
+   entry. So the prose is reported as a disagreement rate and never consumed.
+   `fnFromProse` is exported for the control, not for placement; nothing in the write path calls it. */
+export function fnFromProse(why) {
+  const m = /^In ([A-Za-z_$][\w$]*)[.,:; ]/.exec(String(why == null ? '' : why).trim());
+  return m ? m[1] : null;
+}
+
+export function proseFnAgreement(doc) {
+  let entries = 0,
+    named = 0,
+    checkable = 0,
+    agree = 0;
+  const disagree = [];
+  for (const f of Object.keys(doc)) {
+    if (f.startsWith('_')) continue;
+    for (const e of doc[f]) {
+      entries++;
+      const p = fnFromProse(e.why);
+      if (p) named++;
+      if (!p || e.fn == null || e.fn === '') continue;
+      checkable++;
+      if (e.fn === p) agree++;
+      else disagree.push({ file: f, line: e.line, op: e.op, fn: e.fn, prose: p });
+    }
+  }
+  return { entries, named, checkable, agree, disagree };
+}
+
+export function unaddressed(drifted) {
+  const row = (d) => ({
+    line: d.entry.line,
+    op: d.entry.op,
+    before: d.entry.before == null ? null : String(d.entry.before),
+    after: d.entry.after == null ? null : String(d.entry.after),
+    cls: d.entry.class == null ? null : d.entry.class,
+    why: d.entry.why == null ? null : d.entry.why,
+    would: d.would,
+    reason: UNADDRESSED_REASON[d.would] || null
+  });
+  return {
+    noAddress: drifted.filter((d) => d.would === 'neverPlaced' || d.would === 'gone').map(row),
+    conditional: drifted.filter((d) => d.would === 'someFn').map(row)
+  };
+}
+
 /* The qualifier pass decides something of its own — which entries may carry a function qualifier —
-   so it owes its own object rather than borrowing the re-anchor criterion. The criterion is stated
-   before the data: a written qualifier must resolve to exactly ONE mutant. The tool cannot write one
-   that does not (`qualifyPlan` routes those to `collides`), so the number this reports is a
-   measurement of the guard holding, not a hope. */
+   so it owes its own object rather than borrowing the re-anchor criterion.
+
+   🔴 THE CRITERION MOVED, AND THE OLD ONE IS WHY. It read
+   `qualifiers_resolving_to_other_than_one_mutant <= 0`, measured by a `result.ambiguousWritten`
+   written as the literal `0`. The tool cannot write such a qualifier — `qualifyPlan` routes a
+   colliding identity to `collides` and never to `write` — so the quantity judged was a constant,
+   the gate could only read PASS, and it did: PASS over a ledger whose 104 drifted entries included
+   38 with no address any mechanism here can give them (measured 2026-10-27 at `3791af39a`, 434
+   entries). A green verdict about a question nobody asked is the §4b family — success reported about
+   something never examined.
+
+   So the pre-stated criterion is now the one the ledger can actually fail:
+   `drifted_entries_with_no_reachable_address <= 0`, over the `neverPlaced` and `gone` tags
+   `qualifyPlan` already computes. The old invariant is kept and strengthened rather than dropped —
+   `ambiguousWritten` is still carried in `result`, and a non-zero one is FAIL, which outranks the
+   SHORTFALL, because a widened excuse is a false classification and an orphan is only an unreachable
+   one. Residue 2026-10-27-thirty-eight-drifted-entries-have-no-address-a-mechanism-can-reach. */
 export function makeQualifyVerdict(tq) {
   const commit = headCommit();
   const checked = tq.entries;
+  const noAddress = (tq.wouldNever || 0) + (tq.wouldGone || 0);
   return Verdict.make({
     gate: 'reanchor-equivalence-qualify',
-    status: checked ? 'PASS' : 'NOT_RUN',
+    status: !checked ? 'NOT_RUN' : tq.ambiguousWritten ? 'FAIL' : noAddress ? 'SHORTFALL' : 'PASS',
     population: { checked, eligible: checked, excluded: 0 },
-    criterion: { name: 'qualifiers_resolving_to_other_than_one_mutant', threshold: 0, unit: 'entries', direction: 'lte' },
+    criterion: { name: 'drifted_entries_with_no_reachable_address', threshold: 0, unit: 'entries', direction: 'lte' },
     /* Same rule as the re-anchor object above: NOT_RUN examined no entry, so it carries no result.
        Latent against today's 434-entry ledger and reachable the moment the ledger is empty. */
     result: !checked
@@ -383,7 +476,8 @@ export function makeQualifyVerdict(tq) {
           noAfterRecorded: tq.legacy,
           drifted: tq.drifted,
           alreadyQualified: tq.already,
-          ambiguousWritten: 0,
+          ambiguousWritten: tq.ambiguousWritten || 0,
+          driftWithNoReachableAddress: noAddress,
           /* The retrospective: of the already-drifted entries, how many a qualifier would place. */
           driftPlacedForAnyFn: tq.wouldAnyFn,
           driftPlacedOnlyForSomeFn: tq.wouldSomeFn,
@@ -391,7 +485,13 @@ export function makeQualifyVerdict(tq) {
           driftMutationGone: tq.wouldGone
         },
     evidence: ['tools/reanchor-equivalence.mjs', 'tools/mutate-equivalence.json'],
-    reason: checked ? null : 'no ledger entry was examined, so nothing was decided',
+    reason: !checked
+      ? 'no ledger entry was examined, so nothing was decided'
+      : tq.ambiguousWritten
+        ? `${tq.ambiguousWritten} written qualifier(s) resolve to more than one mutant, so the excuse they carry is wider than the mutant it was judged over`
+        : noAddress
+          ? `${noAddress} drifted entr(ies) have no address this tool can reach: ${tq.wouldNever} repeat one mutation inside one function and ${tq.wouldGone} name a mutation the generator no longer produces; a further ${tq.wouldSomeFn} place only for some of the names they could have carried`
+          : null,
     producedBy: commit
       ? { tool: 'tools/reanchor-equivalence.mjs', commit }
       : { tool: 'tools/reanchor-equivalence.mjs', commit: null, commitReason: 'git rev-parse failed here, so there is no commit to stamp' }
@@ -631,6 +731,101 @@ if (IS_MAIN && has('--selftest')) {
   }
   ok('the committed ledger carries qualifiers', _fnSeen > 0, _fnSeen + ' qualified');
   ok('…and every one of them is a plain identifier', _fnBad === 0);
+  /* ── the entries with no reachable address ─────────────────────────────────────────────────────
+     Residue 2026-10-27-thirty-eight-drifted-entries-have-no-address-a-mechanism-can-reach. */
+  const D = (would, extra) => ({
+    entry: Object.assign({ line: 7, op: 'num → 0', before: 'x = 5;', after: 'x = 0;', class: 'no-distinguishing-input', why: 'In alpha. Identical output.' }, extra),
+    action: 'ambiguous',
+    would
+  });
+  const un = unaddressed([D('anyFn'), D('someFn'), D('neverPlaced'), D('gone'), D('anyFn')]);
+  ok(
+    'the two tags no mechanism can reach are the set, and the placeable ones are not in it',
+    un.noAddress.length === 2 && un.noAddress.every((u) => u.would === 'neverPlaced' || u.would === 'gone'),
+    JSON.stringify(un.noAddress.map((u) => u.would))
+  );
+  ok('a conditional entry is reported BESIDE the set, never inside it', un.conditional.length === 1 && un.conditional[0].would === 'someFn');
+  ok(
+    'every reported entry names what it stopped excusing, not only its address',
+    un.noAddress.every((u) => u.cls === 'no-distinguishing-input' && /Identical output/.test(u.why)),
+    JSON.stringify(un.noAddress[0])
+  );
+  ok(
+    'each one carries its own reason rather than one shared word',
+    un.noAddress[0].reason !== un.noAddress[1].reason && un.noAddress.every((u) => typeof u.reason === 'string' && u.reason.length > 10)
+  );
+  ok(
+    'an entry recording no class or reason reports the absence rather than a blank',
+    unaddressed([D('gone', { class: null, why: null })]).noAddress[0].cls === null && clip(null) === 'no recorded reason'
+  );
+  /* THE LEG THE OLD CRITERION COULD NOT HAVE: a ledger that places every drifted entry passes, and
+     one that holds a single unplaceable entry does NOT. Under the retired criterion both read PASS. */
+  const TQ = (extra) =>
+    Object.assign({ entries: 10, write: 0, collides: 0, topLevel: 0, legacy: 0, drifted: 1, already: 9, wouldAnyFn: 1, wouldSomeFn: 0, wouldNever: 0, wouldGone: 0, ambiguousWritten: 0 }, extra);
+  const vqOk = makeQualifyVerdict(TQ({}));
+  ok(
+    'a ledger whose every drifted entry places reads PASS, with the count measured',
+    vqOk.status === 'PASS' && vqOk.result.driftWithNoReachableAddress === 0 && Verdict.validate(vqOk).ok,
+    vqOk.status
+  );
+  const vqShort = makeQualifyVerdict(TQ({ wouldAnyFn: 0, wouldGone: 1 }));
+  ok(
+    'one entry with no reachable address makes it SHORTFALL, where the retired criterion read PASS',
+    vqShort.status === 'SHORTFALL' && vqShort.result.driftWithNoReachableAddress === 1 && Verdict.validate(vqShort).ok,
+    vqShort.status
+  );
+  ok(
+    '…and the reason splits the set by cause rather than quoting one total',
+    /no address this tool can reach/.test(vqShort.reason) && /generator no longer produces/.test(vqShort.reason),
+    String(vqShort.reason)
+  );
+  const vqSome = makeQualifyVerdict(TQ({ wouldAnyFn: 0, wouldSomeFn: 1 }));
+  ok('a conditional entry alone is not a shortfall — it has an address, for some name', vqSome.status === 'PASS' && vqSome.result.driftPlacedOnlyForSomeFn === 1, vqSome.status);
+  const vqFail = makeQualifyVerdict(TQ({ wouldGone: 1, ambiguousWritten: 1 }));
+  ok(
+    'a widened excuse outranks an unreachable one: FAIL, not SHORTFALL',
+    vqFail.status === 'FAIL' && /wider than the mutant/.test(vqFail.reason) && Verdict.validate(vqFail).ok,
+    vqFail.status + ' · ' + String(vqFail.reason)
+  );
+  ok(
+    'the criterion is the one the ledger can fail, stated before the data',
+    vqOk.criterion.name === 'drifted_entries_with_no_reachable_address' && vqOk.criterion.threshold === 0 && vqOk.criterion.direction === 'lte',
+    JSON.stringify(vqOk.criterion)
+  );
+  ok(
+    'a leading "In <fn>." in the prose is read, and anything else is not a name',
+    fnFromProse('In parsePPG. Original and mutant agreed.') === 'parsePPG' && fnFromProse('Original and mutant agreed.') === null && fnFromProse(null) === null
+  );
+  const agS = proseFnAgreement({
+    _README: ['prose, not an entry'],
+    'a.js': [
+      { line: 1, op: 'num → 0', why: 'In alpha. Identical.', fn: 'alpha' },
+      { line: 2, op: 'num → 0', why: 'In alpha. Identical.', fn: 'alphaInner' },
+      { line: 3, op: 'num → 0', why: 'Identical.', fn: 'beta' },
+      { line: 4, op: 'num → 0', why: 'In gamma. Identical.' }
+    ]
+  });
+  ok('the control counts only the entries a written qualifier can check, and skips the README', agS.entries === 4 && agS.named === 3 && agS.checkable === 2 && agS.agree === 1, JSON.stringify(agS));
+  ok(
+    '…and it NAMES each disagreement rather than reporting a rate alone',
+    agS.disagree.length === 1 && agS.disagree[0].fn === 'alphaInner' && agS.disagree[0].prose === 'alpha',
+    JSON.stringify(agS.disagree)
+  );
+  /* The committed ledger is the measurement the comment above quotes; pin it as a floor, not a literal. */
+  const agLive = proseFnAgreement(_led);
+  ok(
+    'the committed prose disagrees with a written qualifier at least once, so it is not an address',
+    agLive.disagree.length > 0 && agLive.checkable > 100,
+    agLive.disagree.length + ' of ' + agLive.checkable
+  );
+  ok(
+    'no write path consumes the prose',
+    /fnFromProse/.test(
+      readFileSync(new URL(import.meta.url))
+        .toString()
+        .split('if (WRITE)')[1] || ''
+    ) === false
+  );
   ok('the emitted verdict object validates', vs.ok, (vs.errors || []).join('; '));
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
@@ -688,7 +883,7 @@ if (IS_MAIN && !has('--selftest')) {
        (fn, op, before, after) identity is unique in the file, and it moves no address — so it needs
        no probe, where a re-anchor does. The control for that claim is in the code below, not in this
        comment: every line is snapshotted before the write and compared after. */
-    const tq = { write: 0, collides: 0, topLevel: 0, legacy: 0, drifted: 0, already: 0, entries: 0, files: 0, wouldAnyFn: 0, wouldSomeFn: 0, wouldNever: 0, wouldGone: 0 };
+    const tq = { write: 0, collides: 0, topLevel: 0, legacy: 0, drifted: 0, already: 0, entries: 0, files: 0, wouldAnyFn: 0, wouldSomeFn: 0, wouldNever: 0, wouldGone: 0, ambiguousWritten: 0 };
     const before = new Map();
     for (const file of files) {
       const generated = enumerate(file);
@@ -713,6 +908,11 @@ if (IS_MAIN && !has('--selftest')) {
         `▸ ${file}  ${doc[file].length} entr(ies) · ${q.write.length} qualifiable · ${q.collides.length} identity-collides · ${q.topLevel.length} top-level · ${q.legacy.length} no-after · ${q.drifted.length} drifted · ${q.already.length} already`
       );
       for (const c of q.collides) console.log(`    ⚠ COLLIDES L${c.line} [${c.op}] — its (fn, op, before, after) names more than one mutant, so a qualifier would widen the excuse`);
+      /* An aggregate cannot be acted on. Each entry with no reachable address is printed with what
+         it stopped excusing, so a deletion list is read off the run rather than reconstructed. */
+      const un = unaddressed(q.drifted);
+      for (const u of un.noAddress) console.log(`    ✗ NO ADDRESS L${u.line} [${u.op}] (${u.would}) — ${u.reason}; it excused ${u.cls || 'an unrecorded class'}: ${clip(u.why)}`);
+      for (const u of un.conditional) console.log(`    ~ CONDITIONAL L${u.line} [${u.op}] — ${u.reason}; it excuses ${u.cls || 'an unrecorded class'}: ${clip(u.why)}`);
       if (WRITE) for (const w of q.write) w.entry.fn = w.fn;
     }
     if (WRITE) {
@@ -730,6 +930,14 @@ if (IS_MAIN && !has('--selftest')) {
       console.log(
         `  of the ${tq.drifted} already-drifted: ${tq.wouldAnyFn} would be placed whichever function was recorded, ${tq.wouldSomeFn} only for some, ${tq.wouldNever} never (one mutation repeated inside one function), ${tq.wouldGone} have no candidate at all.`
       );
+      console.log(
+        `  ${tq.wouldNever + tq.wouldGone} entr(ies) therefore have NO address this tool can reach — each named above. Deleting one drops a judgement, so the list is the owner's to rule on.`
+      );
+      const ag = proseFnAgreement(doc);
+      console.log(
+        `  control · the prose rescue: ${ag.named} of ${ag.entries} entr(ies) open "In <function>", and over the ${ag.checkable} with a machine-read qualifier to check against it disagrees ${ag.disagree.length} time(s) — so the prose is not an address.`
+      );
+      for (const d of ag.disagree) console.log(`    ⚠ PROSE MISNAMES ${d.file} L${d.line} [${d.op}] — fn=${d.fn}, prose=${d.prose}`);
     }
     const vq = makeQualifyVerdict(tq);
     const cq = Verdict.validate(vq);
