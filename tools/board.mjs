@@ -125,7 +125,18 @@ function usage(sinceSpec) {
     const maLogs = (process.env.TEPNA_MA_LOGS ?? path.join(homedir(), 'tepna-reviews')).split(/\s+/).filter(Boolean);
     const raw = sh(
       'node',
-      [path.join(REPO, 'tools', 'usage-guard.mjs'), '--json', ...(sinceSpec ? ['--since', sinceSpec] : []), ...remotes.flatMap((h) => ['--remote', h]), ...maLogs.flatMap((d) => ['--ma-log', d])],
+      /* CODE from the renderer's own tree, DATA root passed explicitly. `usage-guard.mjs` defaults its
+         project to `primaryCheckout()` derived from its OWN location, so running the current copy
+         without `--project` would silently re-aim it at the renderer's clone. */
+      [
+        path.join(SELF_REPO, 'tools', 'usage-guard.mjs'),
+        '--json',
+        '--project',
+        REPO,
+        ...(sinceSpec ? ['--since', sinceSpec] : []),
+        ...remotes.flatMap((h) => ['--remote', h]),
+        ...maLogs.flatMap((d) => ['--ma-log', d])
+      ],
       { cwd: REPO }
     );
     const u = JSON.parse(raw).usage;
@@ -335,11 +346,19 @@ export function normaliseRel(fromRel, spec) {
 
    🔴 THE CLOSURE SPANS TWO TREES, AND ONLY ONE OF THEM IS THIS FILE'S. An `import` resolves against
    the running file's own directory, so it loads from `SELF_REPO` whatever `REPO` says. A shelled
-   call resolves against `REPO`, because the call site builds the path from it. Today the two
-   coincide and the distinction costs nothing. The remedy the row names — repointing the unit at a
-   dedicated checkout — separates them, and a comparison that reads every file from one root would
-   then report on code that is not running and stay silent about code that is. So each file carries
-   the root it would LOAD from: `via[rel]` is `self`, `data`, or both when both reach it.
+   call resolves against whichever root its call site names, so the ROOT VARIABLE decides and the
+   shape of the call does not (`shellRoots`). Today the two roots coincide and the distinction costs
+   nothing. The remedy the row names — repointing the unit at a dedicated checkout — separates them,
+   and a comparison that reads every file from one root would then report on code that is not
+   running and stay silent about code that is. So each file carries the root it would LOAD from:
+   `via[rel]` is `self`, `data`, or both when both reach it.
+
+   🔴 AND A CALL SITE MOVED WITHOUT THE CLASSIFIER IS THE SAME DEFECT WEARING THE FIX. Both shelled
+   tools now run from `SELF_REPO`, because a renderer pinned to a current tree that still executes
+   the reported checkout's `release-land.mjs` is the release card the whole incident is about. Had
+   the rule kept reading `data` for them, the banner would compare those two files in a tree the
+   renderer no longer loads them from — silent, green, and wrong in both directions. The two moved
+   together, deliberately, and the real-tree leg below pins the pairing.
 
    A NAME THAT RESOLVES IN NO ROOT IS THE READER'S ARTIFACT, NOT A GAP IN THE MEASUREMENT. The
    shell-call rule reads raw text, so it also matches the call-site example in the comment above and
@@ -347,6 +366,19 @@ export function normaliseRel(fromRel, spec) {
    and `tools/inner-helper.mjs` (from the plant) joined the real four. Both still fail closed — they
    are REPORTED as `unresolved`, never dropped — but a reader told "I could not compare it" about a
    file that was never there learns nothing, and the two names crowd out the three that matter. */
+/* WHICH TREE A SHELLED TOOL LOADS FROM IS THE ROOT VARIABLE AT ITS CALL SITE, never the shape of the
+   call. `path.join(SELF_REPO, 'tools', 'x.mjs')` runs the renderer's own copy; `path.join(REPO, ...)`
+   runs the reported checkout's. An UNRECOGNISED root returns BOTH, which is the fail-closed
+   direction for a staleness detector: comparing a file in a tree it does not load from can only
+   raise a banner that is already true of some tree, while dropping the root it DOES load from would
+   report current code that is not running. A bare `'tools', 'x.mjs'` with no root — the prose
+   example in the comment above — lands here too and is reported, never dropped. */
+export function shellRoots(rootIdent) {
+  if (rootIdent === 'SELF_REPO') return ['self'];
+  if (rootIdent === 'REPO') return ['data'];
+  return ['self', 'data'];
+}
+
 export function rendererClosure(entryRel, readText) {
   const via = new Map();
   const unreadable = [];
@@ -371,10 +403,10 @@ export function rendererClosure(entryRel, readText) {
     }
     readOk.add(rel);
     const imported = [...text.matchAll(/from\s+'(\.\.?\/[^']+\.mjs)'/g)].map((m) => normaliseRel(rel, m[1]));
-    const shelled = [...text.matchAll(/'tools',\s*'([A-Za-z0-9._-]+\.mjs)'/g)].map((m) => `tools/${m[1]}`);
+    const shelled = [...text.matchAll(/(?:([A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*)?'tools',\s*'([A-Za-z0-9._-]+\.mjs)'/g)].map((m) => ({ rel: `tools/${m[2]}`, root: m[1] ?? null }));
     edges += imported.length + shelled.length;
     for (const d of imported) queue.push([d, kind]);
-    for (const d of shelled) queue.push([d, 'data']);
+    for (const d of shelled) for (const k of shellRoots(d.root)) queue.push([d.rel, k]);
   }
   const unresolved = unreadable.filter((f) => !readOk.has(f)).sort();
   if (unreadable.includes(entryRel)) return { ok: false, reason: `the renderer's entry file ${entryRel} could not be read`, files: [], unreadable, unresolved, via: {} };
@@ -476,9 +508,10 @@ export function withRunnerBanner(banners, runner) {
 
 /* EACH FILE IS COMPARED IN THE TREE IT WOULD LOAD FROM — `self` against `SELF_REPO`, `data` against
    `REPO`. With one tree this is the previous behaviour exactly. With two it is the only honest
-   reading: after a repoint the imports are current and the shelled tools are still the data
-   checkout's, so a one-root comparison would invert the banner in both directions. `behind` stays a
-   fact about `REPO`, which is the tree whose HEAD the operator advances. */
+   reading, and what each file loads from is the root its call site names, so a one-root comparison
+   would invert the banner in both directions. `behind` stays a fact about `REPO`, which is the tree
+   whose HEAD the operator advances — and which, after a repoint, is no longer the tree that holds
+   the code. */
 function runner() {
   const rootOf = (kind) => (kind === 'self' ? SELF_REPO : REPO);
   const separateRoots = path.resolve(SELF_REPO) !== path.resolve(REPO);
@@ -530,7 +563,10 @@ function release() {
     out.pendingChangesets = null;
   }
   try {
-    const st = sh('node', [path.join(REPO, 'tools', 'release-land.mjs'), '--status'], { cwd: REPO });
+    /* `--status` reads `tmpdir()/tepna-release-land`, which is MACHINE-scoped and not under either
+       tree, so the current copy reports the same run the stale one did. Measured 2026-10-28 at
+       release-land.mjs:79-80 and its status(): no read resolves against that file's own root. */
+    const st = sh('node', [path.join(SELF_REPO, 'tools', 'release-land.mjs'), '--status'], { cwd: REPO });
     out.land = st
       .split('\n')
       .slice(0, 6)
@@ -1987,8 +2023,13 @@ function runSelftest() {
 
       /* THE CLOSURE. The banner used to hash one file and speak for the renderer; six of the 21
          commits that ever touched that closure never touched `tools/board.mjs`. */
+      /* The planted REPO call site is ASSEMBLED, never written whole. A literal one in this file
+         would enter the REAL closure above and read `release-land.mjs` as `data,self` — the fixture
+         measuring itself, and the one leg that proves the call site moved would never go red again.
+         Same reason the ghost name below is assembled. */
+      const LAND = `release-land${'.mjs'}`;
       const PLANT = {
-        'tools/board.mjs': "import { isCliEntry } from './argv-guard.mjs';\nconst st = sh('node', [path.join(REPO, 'tools', 'release-land.mjs'), '--status']);\n",
+        'tools/board.mjs': `import { isCliEntry } from './argv-guard.mjs';\nconst st = sh('node', [path.join(REPO, 'tools', '${LAND}'), '--status']);\n`,
         'tools/argv-guard.mjs': "import { helper } from './inner-helper.mjs';\n",
         'tools/release-land.mjs': "import { isCliEntry } from './argv-guard.mjs';\n",
         'tools/inner-helper.mjs': 'export const helper = 1;\n'
@@ -2058,7 +2099,33 @@ function runSelftest() {
         real.ok && real.files.includes('tools/argv-guard.mjs') && real.files.includes('tools/release-land.mjs'),
         `the REAL closure of this board reaches both dependencies, got ${real.ok ? real.files.join(',') : real.reason}`
       );
-      ok(real.ok && real.via['tools/release-land.mjs'].includes('data'), 'the two-root split is REAL in this repo, not a planted shape: the release card shells its tool from the reported checkout');
+      ok(
+        real.ok && real.via['tools/release-land.mjs'].join() === 'self',
+        `the release card shells the RENDERER'S OWN release-land.mjs, so a pinned renderer stops running the reported checkout's stale copy, got ${real.ok ? real.via['tools/release-land.mjs'].join() : real.reason}`
+      );
+      ok(
+        real.ok && real.files.includes('tools/usage-guard.mjs') && real.via['tools/usage-guard.mjs'].join() === 'self',
+        `the usage card shells its own copy too — both call sites moved or neither did, got ${real.ok ? (real.via['tools/usage-guard.mjs'] || ['ABSENT']).join() : real.reason}`
+      );
+
+      /* THE CALL SITES AND THE CLASSIFIER MOVE TOGETHER OR THE BANNER LIES. A reverted call site
+         with the rule intact reads `data` for a file loaded from `self`, which is silent and green.
+         So assert the SOURCE, not only the derived kind. */
+      const selfSrc = readFileSync(path.join(SELF_REPO, 'tools', 'board.mjs'), 'utf-8');
+      for (const t of ['release-land.mjs', 'usage-guard.mjs']) {
+        const pinned = new RegExp(`SELF_REPO,\\s*'tools',\\s*'${t.replace('.', '\\.')}'`).test(selfSrc);
+        ok(pinned, `${t} is shelled from SELF_REPO at its call site: ${pinned ? 'pinned' : 'STILL BUILT FROM REPO'}`);
+      }
+      ok(
+        /'--project',\s*REPO/.test(selfSrc),
+        `usage-guard keeps its DATA root explicit, because its default project is derived from its own location: ${/'--project',\s*REPO/.test(selfSrc) ? 'passed' : 'ABSENT — the current copy would re-aim at the renderer clone'}`
+      );
+
+      /* THE ROOT VARIABLE DECIDES, AND AN UNKNOWN ONE FAILS CLOSED INTO BOTH. */
+      ok(shellRoots('SELF_REPO').join() === 'self', "a SELF_REPO call site loads from the renderer's own tree");
+      ok(shellRoots('REPO').join() === 'data', 'a REPO call site loads from the checkout the renderer reports on');
+      ok(shellRoots('SOME_OTHER_ROOT').join() === 'self,data', 'an UNRECOGNISED root is compared in BOTH trees — dropping the one it loads from would report code that is not running as current');
+      ok(shellRoots(null).join() === 'self,data', 'a bare call with no root takes the same fail-closed path');
       ok(
         real.unresolved.join() === 'tools/inner-helper.mjs,tools/x.mjs',
         `the REAL closure's unresolvable names are exactly the comment example and the selftest plant — tighten the reader and update this leg, got ${real.unresolved.join()}`
