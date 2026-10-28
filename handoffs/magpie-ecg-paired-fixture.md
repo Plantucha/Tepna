@@ -1,7 +1,7 @@
 # Magpie — a committed fixture that pairs an OxyDex night with an ECG export
 
 Unit: residue `2026-10-06-no-committed-fixture-pairs-an-ecg`.
-Branch `claude/ecgpair-mg`, worktree `/home/michal/wt-ecgpair-mg`, off `a8f55de82`.
+Branch `claude/ecgpair-mg`, worktree `wt-ecgpair-mg`, off `a8f55de82`.
 
 Rule 0: `node tools/doc-search.mjs "committed synthetic fixture pairing an OxyDex night with an ECG
 export for fusion"` → `tests/dex-tests.js:74327-74343` (validateExport), `briefs/RESIDUE.md:566-567`,
@@ -53,7 +53,7 @@ would be the stronger fixture and that is the owner's call, not mine.
 
 ---
 
-## DONE — 2026-10-18, DRAFT #3655 (`claude/ecgpair-mg` @ `216be1e92`, `/home/michal/wt-ecgpair-mg`)
+## DONE — 2026-10-18, DRAFT #3655 (`claude/ecgpair-mg` @ `216be1e92`, `wt-ecgpair-mg`)
 
 All four steps shipped, plus one the plan did not foresee. Two `.gitignore` allow-list lines let the repo
 carry `uploads/synthetic_ecg_night.node-export.json` and

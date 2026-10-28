@@ -87,6 +87,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, basename } from 'node:path';
 import vm from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const require_ = createRequire(import.meta.url);
 const DexBuild = require_('./build-core.js');
@@ -439,6 +440,50 @@ export function edfExpectedBytes(buf) {
    3 · FLUSH PERIODICALLY AND ATOMICALLY (temp file + rename). A 40-hour corpus means a build that
        runs for a long time; losing all of it to one interruption is the avoidable part. Rename is
        atomic on the same filesystem, so a reader never sees a half-written cache. */
+/* ── the two populations this sweep reads, 2026-10-28 ─────────────────────────────────────────
+   Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. This tool reads a corpus
+   through TWO hops, and neither one published its offer: `--cache` walks a PSG tree and keeps what
+   it could parse, and the sweep then walks the CACHE and scores what carries no error. Either hop
+   can lose most of the corpus while the other reports a clean pass, so each publishes the
+   enumeration it walked and names the members nothing scored. */
+const POP_TOOL = 'tools/nsrr-criterion-sweep.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+/* NAMED listers: `snapshotEntries` publishes `rule: list.name`, and an inline arrow publishes
+   `rule: null`. One record per EDF, keyed by the stem the cache and every row carry as `id`. */
+function listEdfRecords(root) {
+  return readdirSync(root)
+    .filter((f) => /\.edf$/i.test(f))
+    .map((f) => basename(f, '.edf'))
+    .sort();
+}
+/* THE SWEEP'S OFFER IS THE CACHE, not a directory — so this lister reads the cache file and the
+   snapshot's `root` names the tree the cache was built from. A sweep run on a machine with no mount
+   still has a population, which is exactly the point: the hop that lost records is the one that
+   must say so. */
+function listCachedRecords() {
+  return loadCache()
+    .records.map((r) => String(r.id))
+    .sort();
+}
+function samplePlanted() {
+  return ['rec-0001', 'rec-0002', 'rec-0003'];
+}
+/* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
+   before it decides whether this tool reports a population: a fabricated call left at top level
+   would clear the tool over a walk no run makes. It reads no corpus and prints the object ALONE,
+   because `verify:verdict-adoption` parses stdout as JSON. */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const snap = snapshotEntries('<nsrr>/edfs/shhs1', { list: samplePlanted, unit: 'records', at });
+  return populationVerdict(snap, snap, { tool: POP_TOOL, at, evidence: POP_EV });
+}
+/* The shared exit rule of this slice, pure so a caller and a test can both read it: a tree nobody
+   can enumerate and a run that scored no record both exit 2; reduced coverage annotates and
+   exits 0 (owner ruling 2026-09-17, §∅). */
+function exitCodeFor(population, scored) {
+  return population.status === 'NOT_RUN' || scored === 0 ? 2 : 0;
+}
+
 function loadCache() {
   if (!existsSync(CACHE)) return { records: [] };
   try {
@@ -964,6 +1009,10 @@ const paint = (s, c) => (process.stdout.isTTY || process.env.FORCE_COLOR ? c + s
 const DEFAULT = { dropPct: 4, minSec: 10, WIN: 300, pct: 90 };
 
 function main(argv) {
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    return 0;
+  }
   if (argv.includes('--selftest')) return selftest();
   const json = argv.includes('--json');
   const di = argv.indexOf('--dir');
@@ -971,15 +1020,56 @@ function main(argv) {
 
   if (argv.includes('--cache')) {
     if (!dir || !existsSync(dir)) {
+      /* 🔴 THIS RETURNED 0 — the way a completed build returns. A build pointed at nothing wrote no
+         cache and examined no record (§∅). */
       console.log('⊘ SKIP — --cache needs --dir <psg-dir> holding EDF + XML pairs. NO CACHE WRITTEN.');
-      return 0;
+      return 2;
+    }
+    const commitOf = gitCommitOf();
+    const snapBefore = snapshotEntries(dir, { list: listEdfRecords, unit: 'records' });
+    if (!snapBefore.ok) {
+      console.error(`nsrr-criterion-sweep: refused — ${snapBefore.reason}`);
+      return 2;
+    }
+    /* 🔴 A ROOT THAT OFFERS NO RECORD MUST NOT REWRITE THE CACHE. `buildCache` writes
+       unconditionally, so a `--dir` pointed at an empty or wrong tree REPLACED a good cache with an
+       empty one, and the sweep that followed scored 0 records while reporting a clean run (§∅).
+       The offer is published, the build never runs, and the existing cache stays as it is.
+       Row 2026-10-28-a-cache-build-over-an-empty-root-replaces-the-cache. */
+    if (snapBefore.n === 0) {
+      const emptyPopulation = populationVerdict(snapBefore, snapshotEntries(dir, { list: listEdfRecords, unit: 'records' }), {
+        commit: commitOf.commit,
+        commitReason: commitOf.reason,
+        tool: POP_TOOL,
+        evidence: POP_EV
+      });
+      console.log(`cache: 0 usable of 0 entries — NO CACHE WRITTEN, any existing cache is untouched`);
+      console.log(`\npopulation: 0 record(s) offered under ${dir} · 0 cached usable · movement ${emptyPopulation.status}` + (emptyPopulation.reason ? ` — ${emptyPopulation.reason}` : ''));
+      const emptyRule = ruleLine(emptyPopulation);
+      if (emptyRule) console.log(emptyRule);
+      console.log('POPULATION ' + JSON.stringify(emptyPopulation));
+      return exitCodeFor(emptyPopulation, 0);
     }
     const r = buildCache(dir);
-    const scored = r.records.filter((x) => !x.err).length;
-    console.log(`cache: ${scored} usable of ${r.records.length} entries → ${CACHE}`);
+    const usable = r.records.filter((x) => !x.err);
+    console.log(`cache: ${usable.length} usable of ${r.records.length} entries → ${CACHE}`);
     console.log(`  +${r.fresh} newly read · ${r.reused} reused from the previous cache · ${r.inflight} still arriving · ${r.nopair} without an annotation pair`);
     if (r.inflight) console.log(`  ⚠️ ${r.inflight} EDF(s) are shorter than their own header declares — still downloading. Re-run this when they land; nothing short was cached.`);
-    return 0;
+    const population = populationVerdict(snapBefore, snapshotEntries(dir, { list: listEdfRecords, unit: 'records' }), {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: POP_TOOL,
+      evidence: POP_EV
+    });
+    console.log(`\npopulation: ${snapBefore.n} record(s) offered under ${dir} · ${usable.length} cached usable · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+    const rule = ruleLine(population);
+    if (rule) console.log(rule);
+    const uncached = notCovered(snapBefore, usable, { key: 'id' });
+    if (uncached.length)
+      console.log(`  ${uncached.length} offered record(s) reached no usable cache entry, by name: ${uncached.slice(0, 8).join(' · ')}${uncached.length > 8 ? ` · … (+${uncached.length - 8})` : ''}`);
+    if (uncached.length !== snapBefore.n - usable.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${usable.length} cached ≠ ${uncached.length} uncached`);
+    console.log('POPULATION ' + JSON.stringify(population));
+    return exitCodeFor(population, usable.length);
   }
 
   if (!existsSync(CACHE)) {
@@ -987,11 +1077,39 @@ function main(argv) {
     console.log('    looked for: ' + CACHE);
     console.log('\n  Build it once:  node tools/nsrr-criterion-sweep.mjs --cache --dir <psg-dir>');
     console.log('  This tool never downloads anything. A skip is not a pass.');
-    return 0;
+    /* 🔴 THIS RETURNED 0, and the sentence above already says why that was wrong (§∅). */
+    return 2;
   }
 
   const cache = JSON.parse(readFileSync(CACHE, 'utf8'));
   const all = cache.records.filter((r) => !r.err);
+  /* THE SWEEP'S OWN OFFER: the cache it was handed, against the records it can score. The root
+     names the tree the cache was built from, which the cache itself records. */
+  const sweepCommit = gitCommitOf();
+  const snapCache = snapshotEntries(cache.dir || '<unknown tree>', { list: listCachedRecords, unit: 'records' });
+  const cachePopulation = populationVerdict(snapCache, snapshotEntries(cache.dir || '<unknown tree>', { list: listCachedRecords, unit: 'records' }), {
+    commit: sweepCommit.commit,
+    commitReason: sweepCommit.reason,
+    tool: POP_TOOL,
+    evidence: POP_EV
+  });
+  const unscored = notCovered(snapCache, all, { key: 'id' });
+  if (unscored.length !== snapCache.n - all.length) throw new Error(`population arithmetic: ${snapCache.n} cached − ${all.length} scorable ≠ ${unscored.length} unscored`);
+  console.log(
+    `population: ${snapCache.n} cached record(s) from ${cache.dir || '<unknown tree>'} · ${all.length} scorable · movement ${cachePopulation.status}` +
+      (cachePopulation.reason ? ` — ${cachePopulation.reason}` : '')
+  );
+  const cacheRule = ruleLine(cachePopulation);
+  if (cacheRule) console.log(cacheRule);
+  if (unscored.length)
+    console.log(
+      `  ${unscored.length} cached record(s) carry an error and are scored by nothing, by name: ${unscored.slice(0, 8).join(' · ')}${unscored.length > 8 ? ` · … (+${unscored.length - 8})` : ''}`
+    );
+  console.log('POPULATION ' + JSON.stringify(cachePopulation));
+  if (!all.length) {
+    console.log('⊘ no cached record is scorable — refusing to sweep a population of none');
+    return exitCodeFor(cachePopulation, 0);
+  }
   const GRID = argv.includes('--quick') ? QUICK : COARSE;
   const gridName = argv.includes('--quick') ? 'QUICK (baseline pinned at WIN 300 / pct 90)' : 'COARSE (full)';
   const K = 5;
