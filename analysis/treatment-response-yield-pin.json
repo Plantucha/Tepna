@@ -23,14 +23,14 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "8a6d7668203a"
+      "oxydex-dsp.js": "92cec4912b7f"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "cbf2deb86790",
-      "pulsedex-dsp.js": "c4f4cee79733"
+      "pulsedex-dsp.js": "d5e923c8081e"
     }
   },
   "yield": {
@@ -79,6 +79,20 @@
       "old": "c7db8721e42f",
       "new": "8a6d7668203a",
       "reason": "PR #3689: the filename stamp delegates to DexClock.fileStamp. Re-cut at paper scale: 233 tx / 239 flat, unchanged. That re-cut also deleted the three notes above, restored here on 2026-10-20 from the pin at bc84db9f6 (residue 2026-10-18-yield-pin-rerun-deletes-hand-appended-history)."
+    },
+    {
+      "date": "2026-10-28",
+      "file": "oxydex-dsp.js",
+      "old": "8a6d7668203a",
+      "new": "92cec4912b7f",
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+    },
+    {
+      "date": "2026-10-28",
+      "file": "pulsedex-dsp.js",
+      "old": "c4f4cee79733",
+      "new": "d5e923c8081e",
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     }
   ],
   "measuredAt": "2026-10-22T07:42:46.942Z",

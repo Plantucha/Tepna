@@ -1364,6 +1364,7 @@
   }
 
   // Public namespace — the headless surface the orchestrator + app + adapter reach.
+  // biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: a hoisted `var` reads as `undefined` here, never a dead zone — the idiom adopts the namespace the bundle may already have defined
   var HRVDex = typeof HRVDex !== 'undefined' && HRVDex ? HRVDex : {};
   HRVDex.compute = function (input, opts) {
     opts = opts || {};

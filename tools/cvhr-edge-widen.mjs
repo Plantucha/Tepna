@@ -550,6 +550,25 @@ async function main() {
   const flat = saved ? null : corpusSearch(ROOT).dir;
   const tree = saved ? null : arg('--tree', join(flat, 'vigil-archive', 'captures'));
   const popBefore = tree ? snapshotNights(tree) : notEnumerated(from ? `re-aggregated from ${from}: this run opened no night tree` : 'no night tree was resolved for this run');
+  /* THE POPULATION THE RUN READ, published beside its own verdict. The cost phase printed how many
+     optical streams it found and nothing about the night population they came from, so a tree that
+     grew or shrank mid-run left no trace. The status labels MOVEMENT across the run, never coverage.
+     It is declared HERE, above the no-stream refusal that calls it: a `const` read before its own
+     initializer throws, so the one path with nothing to measure died instead of reporting that. */
+  const publishPopulation = (scored) => {
+    const after = tree ? snapshotNights(tree) : popBefore;
+    const population = populationVerdict(popBefore, after, { tool: 'tools/cvhr-edge-widen.mjs', evidence: ['tools/cvhr-edge-widen.mjs'] });
+    /* A COUNT OVER A WALK NOBODY MADE IS NOT A POPULATION: the `--from` path opens no tree, so the
+       sentence says that instead of printing a 0 that reads as an empty corpus. */
+    say(
+      popBefore.ok
+        ? `\npopulation: ${popBefore.n} night(s) under the night tree \u00b7 ${scored} night(s) scored \u00b7 movement ${population.status}`
+        : `\npopulation: NOT ENUMERATED \u00b7 ${scored} night(s) scored \u00b7 movement ${population.status} \u2014 ${population.reason}`
+    );
+    const populationRule = ruleLine(population);
+    if (populationRule) say(populationRule);
+    console.log('POPULATION ' + JSON.stringify(population));
+  };
   const all = saved ? [] : inputs(tree, flat, popBefore.ok ? popBefore.nights : null);
   const limit = saved ? 0 : +arg('--limit', '0') || all.length;
   const take = saved ? (saved.rows || []).concat(saved.refused || []) : all.slice(0, limit);
@@ -570,23 +589,6 @@ async function main() {
     console.log(JSON.stringify(v, null, 2));
     return 2;
   }
-  /* THE POPULATION THE RUN READ, published beside its own verdict. The cost phase printed how many
-     optical streams it found and nothing about the night population they came from, so a tree that
-     grew or shrank mid-run left no trace. The status labels MOVEMENT across the run, never coverage. */
-  const publishPopulation = (scored) => {
-    const after = tree ? snapshotNights(tree) : popBefore;
-    const population = populationVerdict(popBefore, after, { tool: 'tools/cvhr-edge-widen.mjs', evidence: ['tools/cvhr-edge-widen.mjs'] });
-    /* A COUNT OVER A WALK NOBODY MADE IS NOT A POPULATION: the `--from` path opens no tree, so the
-       sentence says that instead of printing a 0 that reads as an empty corpus. */
-    say(
-      popBefore.ok
-        ? `\npopulation: ${popBefore.n} night(s) under the night tree \u00b7 ${scored} night(s) scored \u00b7 movement ${population.status}`
-        : `\npopulation: NOT ENUMERATED \u00b7 ${scored} night(s) scored \u00b7 movement ${population.status} \u2014 ${population.reason}`
-    );
-    const populationRule = ruleLine(population);
-    if (populationRule) say(populationRule);
-    console.log('POPULATION ' + JSON.stringify(population));
-  };
   const rows = saved ? saved.rows || [] : [];
   const refused = saved ? saved.refused || [] : [];
   for (const f of saved ? [] : take) {

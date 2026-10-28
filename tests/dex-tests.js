@@ -23760,8 +23760,8 @@
          when a note is added if you want the new one protected too. */
       T.ok(
         'the hand-written digest-move notes are still there — the record only ever grows',
-        Array.isArray(pin.history) && pin.history.length >= 6,
-        'history ' + (pin.history || []).length + ' entries, floor 6'
+        Array.isArray(pin.history) && pin.history.length >= 8,
+        'history ' + (pin.history || []).length + ' entries, floor 8'
       );
 
       /* ── STAGE 1 · THE GENERATOR, REPLAYED — this is the assertion that can exonerate it ─────── */
@@ -44306,6 +44306,47 @@
         downgrades.length
           ? downgrades.join(' · ') + ' — `biome ci` exits 0 on those sites, so they are unjudged rather than clean. Delete them, or suppress per site with a `biome-ignore` that names the caller.'
           : (BC.overrides || []).length + ' override(s) configured, none weakening an error-level rule'
+      );
+    });
+
+    /* ════ AN ALLOW-LIST OMITS THE RULE THAT SEES A GUARANTEED THROW ════════════════════════
+     `recommended: false` means the correctness group judges exactly the rules named beside it, so a
+     rule nobody listed is not relaxed — it was never read, and the omission has no symptom at all.
+     `noInvalidUseBeforeDeclaration` sat outside that list while `tools/cvhr-edge-widen.mjs` called
+     `publishPopulation(0)` seven lines above the `const` that defines it: the no-stream path threw a
+     ReferenceError instead of printing the NOT_RUN verdict it was written to print
+     (residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read).
+
+     MEASURED 2026-10-28 while arming it: the rule alone reported 18 diagnostics over 7 sites, and 6 of
+     the 7 could not throw. Three are the hoisted `var Foo = typeof Foo !== 'undefined' …` namespace
+     idiom; three read a `var` that a LATER `var` of the same name re-declares in one function scope.
+     The idiom keeps a per-site `biome-ignore` saying why a hoisted read is safe — the repo's own idiom
+     (oxydex-util.js), and the one the group above requires instead of an override. The re-declarations
+     were renamed, because the second `var` silently clobbers the first after its last use.
+
+     The control: a planted `const n = value; const value = 1;` makes `biome lint` exit 1 on that file,
+     while the 472 files of the repo exit 0. ═══════════════════════════════════════════════════ */
+    group('The dead-zone rule is armed for the whole tree', 'tooling · biome · coverage', function (T) {
+      var BC = env.biomeCoverage;
+      if (!BC || !BC.rules) {
+        T.skip('env.biomeCoverage provided to the runner', 'Node-lane only (run-tests.mjs readBiomeCoverage, fs truth) — the browser lane can’t read biome.json so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      var RULE = 'correctness/noInvalidUseBeforeDeclaration';
+      /* Driven by planted levels first, so a green below cannot come from a map that was read empty. */
+      var armed = function (rules, name) {
+        return Object.prototype.hasOwnProperty.call(rules || {}, name) && rules[name] === 'error';
+      };
+      T.ok('ANTI-VACUITY · the predicate fires on a planted error level', armed({ x: 'error' }, 'x'), 'a planted error reads as armed');
+      T.ok(
+        '…and reads warn, off and ABSENT as unarmed alike',
+        !armed({ x: 'warn' }, 'x') && !armed({ x: 'off' }, 'x') && !armed({}, 'x'),
+        'a rule nobody listed is unjudged, exactly like one listed as a warning'
+      );
+      T.ok(
+        'noInvalidUseBeforeDeclaration is an error, so a read before its own declaration fails `biome ci`',
+        armed(BC.rules, RULE),
+        'level ' + JSON.stringify(BC.rules[RULE]) + ' — absent or warn leaves a guaranteed ReferenceError unjudged'
       );
     });
 
@@ -74086,10 +74127,10 @@
           /* A SEGMENT THAT CANNOT CARRY A RATE SAYS SO, WITH THE NUMBERS THAT REFUSED IT. Three
              different refusals, because a single 'unknown' that cannot say which test failed sends
              the reader to the wrong question. */
-          var _short = OS(_anch(20, 0, 0));
-          T.eq('a segment under the span floor reports rate UNKNOWN', _short.segments[0].rate, 'unknown');
-          T.ok('…naming the span and the floor', /under the 2400 s/.test(_short.segments[0].rateReason), _short.segments[0].rateReason);
-          T.eq('…and publishes NO ppm rather than a ppm with a caveat elsewhere', _short.segments[0].ppm, null);
+          var _shortSpan = OS(_anch(20, 0, 0));
+          T.eq('a segment under the span floor reports rate UNKNOWN', _shortSpan.segments[0].rate, 'unknown');
+          T.ok('…naming the span and the floor', /under the 2400 s/.test(_shortSpan.segments[0].rateReason), _shortSpan.segments[0].rateReason);
+          T.eq('…and publishes NO ppm rather than a ppm with a caveat elsewhere', _shortSpan.segments[0].ppm, null);
           var _two = OS(_anch(2, 0, 0));
           T.ok('a segment of two anchors reports UNKNOWN naming the anchor floor', /below the 3/.test(_two.segments[0].rateReason), _two.segments[0].rateReason);
 

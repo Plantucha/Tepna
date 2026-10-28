@@ -3413,9 +3413,9 @@ function fuseApneaEvents(recs, dtMs, gate) {
     // §3.2: buy enough surrogates that a p < ALPHA verdict is REACHABLE. The primitive's default
     // 10 shifts floor p at 1/11 = 0.091, so "significant at 0.05" would be arithmetically
     // impossible off them — the power has to be bought before the claim can be made.
-    var _shifts = typeof _EC.shiftsForAlpha === 'function' ? _EC.shiftsForAlpha(COUPLING_ALPHA) : null;
+    var _ecShifts = typeof _EC.shiftsForAlpha === 'function' ? _EC.shiftsForAlpha(COUPLING_ALPHA) : null;
     var _opts = { window: [-leadMaxSec * 1000, trailMaxSec * 1000], coverage: merged };
-    if (_shifts) _opts.nullShifts = _shifts;
+    if (_ecShifts) _opts.nullShifts = _ecShifts;
     var ec = _EC.coupling(desats, surges, _opts);
     var usable = !ec.underpowered && !ec.saturated;
     coupling = {
