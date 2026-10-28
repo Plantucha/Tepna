@@ -286,6 +286,76 @@ export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
   };
 }
 
+/* ═══ THE LINE A PARTIAL-LEG CONSUMER OWES ═══
+   Residue `2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era`. 80 of 415
+   tracked exports carry no recorded era, and the readers that can REACH one are exactly the
+   partial-leg ones: the nights carrying all three trio exports and the nights carrying a stamp have
+   an empty symmetric difference, so a three-leg consumer structurally cannot read an era-less
+   export while a one- or two-leg consumer can. Seven tools qualify, and each could publish a figure
+   over an export whose folding code is unknown with nothing in the output saying so.
+
+   🔴 THE ERA-RESTORING REMEDY IS NOT THIS. Restoring an era for a night the fold rejected needs a
+   stamp-contract change, which is owner-shaped, and #4015 left that half open deliberately. What a
+   consumer owes TODAY is the §∅ half: reduced coverage ANNOTATES. The data is present and the
+   PROVENANCE is absent, so the reader reports which of its own nights carry no era and keeps its
+   number.
+
+   `corpusIdentity` already scopes to the nights a consumer read, so nothing new measures anything —
+   these three functions project that identity and say it in one line. The projection and the line
+   are PURE, so `--selftest` pins them with no corpus. */
+
+/** The scoped identity for the nights a consumer read, from whatever `--dir` it was handed. */
+export function eraOfNights(dir, nights, { cwd = ROOT, commit = null } = {}) {
+  const rel = repoRelative(dir, { cwd });
+  if (rel == null) {
+    return {
+      root: String(dir),
+      commit,
+      scopedTo: nights == null ? null : nights.length,
+      ok: false,
+      reason: `${dir} is outside the checkout, so git records no era for it`,
+      nights: null,
+      stamped: null,
+      unstamped: null,
+      unstampedNights: null,
+      codeDigests: null
+    };
+  }
+  return corpusIdentity(rel, { cwd, commit, nights });
+}
+
+/** PURE. The era coverage of one consumer's own population. ∅ An unresolvable identity is nulls. */
+export function eraCoverage(identity) {
+  if (identity == null) return { ok: false, reason: 'no corpus identity was computed', nights: null, recorded: null, unrecorded: null, unrecordedNights: null, eras: null };
+  if (!identity.ok) return { ok: false, reason: identity.reason, nights: null, recorded: null, unrecorded: null, unrecordedNights: null, eras: null };
+  return {
+    ok: true,
+    reason: null,
+    nights: identity.nights,
+    recorded: identity.stamped,
+    unrecorded: identity.unstamped,
+    unrecordedNights: identity.unstampedNights,
+    eras: identity.codeDigests
+  };
+}
+
+/* How many unrecorded nights the line names before it counts the rest. A line that names all 57
+   stops being read, and a line that names none cannot be acted on. */
+export const ERA_LINE_NAMES = 6;
+
+/** PURE. One line, for a console or a caption. It never reads "era: none" over an unmeasured corpus. */
+export function eraCoverageLine(coverage, { label = 'fold era' } = {}) {
+  const c = coverage;
+  if (c == null || !c.ok) return `${label}: UNMEASURED — ${c?.reason ?? 'no corpus identity was computed'}`;
+  if (c.nights === 0) return `${label}: UNMEASURED — the scoped population holds no tracked night`;
+  const eras = c.eras != null && c.eras.length > 0 ? ` · era ${c.eras.join(', ')}` : '';
+  if (c.unrecorded === 0) return `${label}: all ${c.nights} night(s) carry a recorded era${eras}`;
+  const names = (c.unrecordedNights ?? []).map((n) => (typeof n === 'string' ? n : n.night));
+  const shown = names.slice(0, ERA_LINE_NAMES).join(', ');
+  const more = names.length > ERA_LINE_NAMES ? ` +${names.length - ERA_LINE_NAMES} more` : '';
+  return `${label}: ${c.recorded} of ${c.nights} night(s) carry a recorded era${eras} · ${c.unrecorded} UNRECORDED (${shown}${more}) — no stamp names the code that folded those exports`;
+}
+
 /* The criterion is pre-stated and is NOT the unrecorded count: 80 unrecorded exports are the
    measured state this artifact exists to publish, while a night disagreeing with its own stamp is
    the condition that makes the stamp unreadable as a leg test. */
@@ -939,6 +1009,63 @@ function selftest() {
       ok('the artifact text is one JSON object and one trailing newline', eraText(v2).endsWith('}\n') && JSON.stringify(JSON.parse(eraText(v2))) === JSON.stringify(v2));
       ok('the artifact path is under analysis/', ERA_ARTIFACT === 'analysis/trio-export-era.json');
     }
+
+    /* ── THE PARTIAL-LEG CONSUMER'S LINE ───────────────────────────────────────────────────────
+       Residue 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era. The legs
+       that matter are the ENDS: a fully stamped population must not read as a warning, and an
+       UNMEASURED corpus must never read as "no unrecorded nights". Both halves, because one alone
+       cannot tell an annotation from a silence. */
+    const covFull = eraCoverage({ ok: true, nights: 3, stamped: 3, unstamped: 0, unstampedNights: [], codeDigests: ['abc123abc123'] });
+    const covPart = eraCoverage({
+      ok: true,
+      nights: 20,
+      stamped: 12,
+      unstamped: 8,
+      unstampedNights: [
+        { night: '2026-06-10' },
+        { night: '2026-06-11' },
+        { night: '2026-06-12' },
+        { night: '2026-06-13' },
+        { night: '2026-06-14' },
+        { night: '2026-06-15' },
+        { night: '2026-06-16' },
+        { night: '2026-06-17' }
+      ],
+      codeDigests: ['3c0dbdec3c0d']
+    });
+    ok('era · a projection of a resolvable identity carries both counts', covFull.ok === true && covFull.recorded === 3 && covFull.unrecorded === 0);
+    ok(
+      'era · ∅ an unresolvable identity projects to nulls, never to zero unrecorded',
+      (() => {
+        const c = eraCoverage({ ok: false, reason: 'git could not list it' });
+        return c.ok === false && c.unrecorded === null && c.recorded === null;
+      })()
+    );
+    ok('era · ∅ an absent identity projects to nulls too', eraCoverage(null).unrecorded === null);
+    ok('era · a fully stamped population reads as a statement, not a warning', eraCoverageLine(covFull) === 'fold era: all 3 night(s) carry a recorded era · era abc123abc123');
+    ok('era · a partial population names its unrecorded nights', eraCoverageLine(covPart).includes('12 of 20 night(s)') && eraCoverageLine(covPart).includes('8 UNRECORDED'));
+    ok(`era · it names at most ${ERA_LINE_NAMES} nights and counts the rest`, eraCoverageLine(covPart).includes('2026-06-15 +2 more') && !eraCoverageLine(covPart).includes('2026-06-16'));
+    ok(
+      'era · ∅ an unmeasured corpus says UNMEASURED and never a count',
+      eraCoverageLine(eraCoverage(null)).startsWith('fold era: UNMEASURED') && !eraCoverageLine(eraCoverage(null)).includes('0 night')
+    );
+    ok(
+      'era · an empty scoped population is UNMEASURED, not "all 0 nights carry an era"',
+      eraCoverageLine(eraCoverage({ ok: true, nights: 0, stamped: 0, unstamped: 0, unstampedNights: [], codeDigests: [] })).includes('UNMEASURED')
+    );
+    ok("era · the label is the caller's, so a caption and a console line can differ", eraCoverageLine(covFull, { label: 'era' }).startsWith('era: all 3'));
+    ok(
+      'era · a night list of bare strings reads the same as one of objects',
+      eraCoverageLine(eraCoverage({ ok: true, nights: 2, stamped: 1, unstamped: 1, unstampedNights: ['2026-06-10'], codeDigests: [] })).includes('(2026-06-10)')
+    );
+    ok(
+      'era · a corpus outside the checkout is UNMEASURED with the path named',
+      (() => {
+        const id = eraOfNights('/nope/nope-9f3', ['2026-06-10'], { cwd });
+        return id.ok === false && id.reason.includes('outside the checkout');
+      })()
+    );
+    ok('era · a scoped read of the selftest corpus names only the nights asked for', eraOfNights(join(cwd, TRIO), ['2026-06-10'], { cwd }).scopedTo === 1);
 
     const missing = corpusIdentity('uploads/absent', { cwd });
     ok('∅ an absent root is NOT_RUN with a reason, never a clean zero', missing.ok === false && typeof missing.reason === 'string' && missing.dataDigest === null);

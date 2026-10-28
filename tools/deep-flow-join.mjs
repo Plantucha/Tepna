@@ -38,6 +38,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 
 /* Realm builder lifted verbatim from tools/cpap-corpus.mjs — imported there it would run that
    file's CLI main, so it is duplicated rather than imported. Keep the two in step. */
@@ -222,6 +223,11 @@ const nights = fs
   .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
   .sort();
 const cohortOf = (n) => (n < STEP ? 'pre' : 'post');
+/* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
+   (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
+   present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
+/* `joinNight` refuses on data alone, never on the offset, so one set covers both signs. */
+const READ = new Set();
 
 /* Split by PROVENANCE of the offset, not only by cohort. `anchored` nights carry a per-night
    measurement; `extrapolated` nights carry the cohort constant, which `fitClockOffsetSegments`
@@ -241,6 +247,7 @@ function runAll(sign) {
     const shiftMin = an ? an.offsetSec / 60 : sign * (c === 'pre' ? PRE : POST);
     const r = joinNight(n, shiftMin);
     if (!r) continue;
+    READ.add(n);
     for (const key of [c, an ? 'anchored' : 'extrapolated']) {
       const a = agg[key];
       a.deep += r.deep;
@@ -276,6 +283,7 @@ for (const sign of [+1, -1]) {
     console.log('');
   }
 }
+console.log(`  ${eraCoverageLine(eraCoverage(eraOfNights(TRIO, [...READ].sort())))}\n`);
 console.log('  The correct sign is the one with the SMALLER cohort gap: a misapplied sign adds');
 console.log('  ~2x the offset to one cohort, so the two populations separate rather than converge.');
 

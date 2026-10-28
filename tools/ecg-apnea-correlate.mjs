@@ -45,6 +45,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -349,6 +350,17 @@ const population = populationVerdict(snap, snapshotNights(DIR), {
   evidence: ['tools/ecg-apnea-correlate.mjs', 'tools/corpus-scope.mjs']
 });
 
+/* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
+   (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
+   present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
+const ERA = eraCoverage(
+  eraOfNights(
+    DIR,
+    paired.map((x) => x.night),
+    { cwd: ROOT, commit }
+  )
+);
+
 /* THE OTHER HALF OF THE POPULATION. The verdict above is about MOVEMENT — what arrived or left
    while the run read. It says nothing about the offered nights this run could not pair, and a count
    of them names nothing to chase, so the removals go out by name with the reason each one carries.
@@ -360,11 +372,12 @@ function printPopulation() {
   const rl = ruleLine(population);
   if (rl) console.log(rl);
   console.log(`  the read paired ${paired.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  console.log(`  ${eraCoverageLine(ERA)}`);
   if (skipped.length) console.log(`  it removed ${skipped.length}, by name: ${skipped.slice(0, 8).join(' · ')}${skipped.length > 8 ? ` · … (+${skipped.length - 8})` : ''}`);
 }
 
 if (AS_JSON) {
-  console.log(JSON.stringify({ dir: DIR, cpap: CPAP, nights: paired.length, skipped, rows, corpusPopulation: population }, null, 2));
+  console.log(JSON.stringify({ dir: DIR, cpap: CPAP, nights: paired.length, skipped, rows, corpusPopulation: population, era: ERA }, null, 2));
   /* A RUN THAT PAIRED NOTHING IS NOT A SUCCESSFUL RUN, and the exit code is the only thing an
      unattended caller reads. 2 keeps a refusal distinct from a computed row. */
   process.exit(paired.length ? 0 : 2);

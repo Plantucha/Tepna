@@ -36,6 +36,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -348,6 +349,17 @@ const population = populationVerdict(snap, snapshotNights(DIR), {
   evidence: ['tools/pb-agreement.mjs', 'tools/corpus-scope.mjs']
 });
 
+/* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
+   (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
+   present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
+const ERA = eraCoverage(
+  eraOfNights(
+    DIR,
+    rows.map((x) => x.night),
+    { cwd: ROOT, commit }
+  )
+);
+
 function printPopulation() {
   console.log(
     `  population: ${population.status} — ${population.population.checked} offered night(s) the run can report over, of ${population.population.eligible} it saw${population.reason ? ` · ${population.reason}` : ''}`
@@ -355,6 +367,7 @@ function printPopulation() {
   const rl = ruleLine(population);
   if (rl) console.log(rl);
   console.log(`  the read paired ${rows.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}`);
+  console.log(`  ${eraCoverageLine(ERA)}`);
   if (dropped.length) console.log(`  it removed ${dropped.length}, by name: ${dropped.slice(0, 8).join(' · ')}${dropped.length > 8 ? ` · … (+${dropped.length - 8})` : ''}`);
 }
 
@@ -381,7 +394,8 @@ if (AS_JSON) {
         dropped,
         rows,
         verdict: VERDICT,
-        corpusPopulation: population
+        corpusPopulation: population,
+        era: ERA
       },
       null,
       2

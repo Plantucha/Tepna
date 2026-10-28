@@ -42,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { createRequire } from 'node:module';
 import { gitShort } from './verdict-emit.mjs';
+import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -385,6 +386,7 @@ const perNight = []; // { night, deepRate, lightRate, deepMin, lightMin }
 const nightDeepPct = new Map(); // night → Deep % of staged sleep (y-axis for the AHI dose-response)
 let nightsRead = 0,
   nightsSkipped = 0;
+const nightsReadList = [];
 const skipReasons = [];
 
 for (const night of nightDirs) {
@@ -458,6 +460,7 @@ for (const night of nightDirs) {
   const stagedMin = windows.filter((w) => STAGES.includes(w.stage)).reduce((a, w) => a + w.durMin, 0);
   if (stagedMin > 0) nightDeepPct.set(night, (100 * deepMin) / stagedMin);
   nightsRead++;
+  nightsReadList.push(night);
 }
 
 /* ── report 1: per-stage rate table ──────────────────────────────────────── */
@@ -548,9 +551,15 @@ if (CPAP) {
   };
 }
 
+/* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
+   (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
+   present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
+const ERA = eraCoverage(eraOfNights(DIR, nightsReadList));
+
 const result = {
   nightsFound: nightDirs.length,
   nightsRead,
+  era: ERA,
   nightsSkipped,
   skipReasons,
   rateTable,
@@ -564,6 +573,7 @@ if (AS_JSON) {
 } else {
   console.log(`\ndeep-desat-falsifier — ${DIR}`);
   console.log(`nights: ${nightsRead} read, ${nightsSkipped} skipped (of ${nightDirs.length} found)`);
+  console.log(eraCoverageLine(ERA));
   if (skipReasons.length) console.log(skipReasons.map((r) => '  · ' + r).join('\n'));
   console.log(`\n── per-stage desaturation rate (exact 95% CI) ──`);
   console.log('stage'.padEnd(8) + 'min'.padEnd(8) + 'desats'.padEnd(9) + 'rate/h'.padEnd(9) + '95% CI');
