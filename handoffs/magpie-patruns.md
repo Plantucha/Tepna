@@ -33,4 +33,6 @@ Both stay pinned, so the row stays OPEN.
 
 ## State
 
-PR DRAFT. Gate run over the final state. The undraft ask goes to thread 8; I never undraft my own.
+DRAFT PR #4069 on branch `claude/patruns-mg`, cut from main `405d379e9`. The gate ran over the final state. The undraft ask sits on thread 8 as #1994; I never undraft my own.
+
+Three capture-host gates reded first — pytest, unwired and covscope, each `exit 120`, each on a full tmpfs rather than on this diff. The same head read `all gates green` once the tmpfs drained.
