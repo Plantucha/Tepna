@@ -47,7 +47,7 @@
 
 **Gates.** `capture-host/check.sh` reads EXIT=0 at 100 % branch coverage, and mypy holds the 0 baseline. `stamp-consumer-census` reads PASS.
 
-**Next step.** Kestrel readies the draft. After the merge, run `node tools/wt-done.mjs` on the worktree, then release claim board #1886.
+**Next step.** Kestrel readies the draft, PR #4049. After the merge, run `node tools/wt-done.mjs` on the worktree, then release claim board #1886.
 
 **Open questions.** `monitor.html` does not draw `start_source` yet. The JSON carries it, and the restyle lane owns the page.
 
