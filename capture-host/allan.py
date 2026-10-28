@@ -139,7 +139,7 @@ def segments_by_gap(sample_times, k=4.0):
     return out
 
 
-def adev_pooled(phase, tau0, sample_times, k=4.0):
+def adev_pooled(phase, tau0, sample_times, k):
     """Overlapping ADEV across the HOLES in a series — segment at every gap > k·median, compute per
     contiguous segment, pool per tau as the n-weighted mean of sigma^2.
 

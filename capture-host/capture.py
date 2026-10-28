@@ -539,7 +539,7 @@ def oxy_storm_status(
     restarts_total,
     now_mono: float,
     now_wall,
-    proc_start_mono: float = 0.0,
+    proc_start_mono: float,
     memory_s: float = _OXYII_STORM_MEMORY_S,
 ) -> dict:
     """PURE: the `oxy_storm` STATUS block — what a reader outside this process can learn about the
@@ -8202,7 +8202,7 @@ async def _pick_live_spare(
     return None
 
 
-async def _run_helper(*args, timeout=45):
+async def _run_helper(*args, timeout):
     """Run a helper and return (rc, combined output). Mirrors clockcfg._run — proc_util.communicate
     already carries the timeout/kill discipline every subprocess on this box is required to use, so an
     unbounded wait cannot wedge the watchdog task."""
@@ -11469,7 +11469,8 @@ async def _cpap_loop(
     wifi_iface=None,
     root=None,
     notifier=None,
-    end_debounce_s=600.0,
+    *,
+    end_debounce_s,
     on_complete=None,
 ):
     """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""

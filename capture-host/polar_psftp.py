@@ -290,7 +290,7 @@ def _pb_str(field: int, value: str) -> bytes:
     return _pb_msg(field, value.encode("utf-8"))
 
 
-def encode_start_recording(sample_type: int, interval_s: int = 1, identifier: str | None = None) -> bytes:
+def encode_start_recording(sample_type: int, interval_s: int, identifier: str | None = None) -> bytes:
     """PbPFtpRequestStartRecordingParams{sample_type=1, recording_interval=2 (PbDuration),
     sample_data_identifier=3}. `interval_s` rides PbDuration.seconds (=3); 1 s is the H10's documented
     sampletime and the probe's only need — hours/minutes/millis stay unsent (proto2 optional, default 0)."""

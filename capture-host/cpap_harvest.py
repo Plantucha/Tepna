@@ -461,7 +461,7 @@ _NOT_FOUND = re.compile(
 )
 
 
-def helper_failure_kind(rc: int, out: str = "") -> str:
+def helper_failure_kind(rc: int, out: str) -> str:
     """Why a privileged helper failed, from its exit code AND its output. Pure.
 
     THE CASE THIS EXISTS FOR. On 2026-07-26 every helper on the live box failed with `rc=101` and
