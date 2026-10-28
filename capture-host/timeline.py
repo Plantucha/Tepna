@@ -105,6 +105,20 @@ def _stamp_ms(name: str) -> float | None:
     return nightqc.floating_stamp_s(stamp)
 
 
+#: The two sources a bar's start can come from, named so a reader sees which one placed it.
+START_FIRST_ROW = "first-row"
+START_FILENAME_STAMP = "filename-stamp"
+
+
+def _start_of(f: dict) -> tuple[float | None, str]:
+    """`(floating start seconds, source)` for one file — its first landed row when the sidecar states
+    it, else the filename stamp, which is the SESSION's start and can sit hours before the stream's."""
+    first = f.get("first_row_s")
+    if first is not None:
+        return first, START_FIRST_ROW
+    return _stamp_ms(f["file"]), START_FILENAME_STAMP
+
+
 def stream_intervals(
     files: list[dict], device_id, tag: str | tuple[str, ...], fs: float, offset_sec: float | None = 0.0
 ) -> list[tuple[float, float]]:
@@ -150,8 +164,27 @@ def unmeasurable_files(files: list[dict], device_id, tag: str | tuple[str, ...],
     return sum(1 for _t0, dur in _placed(files, device_id, tag, fs) if not dur)
 
 
+def start_sources(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float) -> dict[str, int]:
+    """How many of this stream's placed files took their start from each source. A bar placed by the
+    filename stamp is placed at the session start, so a reader needs the count to weigh it."""
+    out = {START_FIRST_ROW: 0, START_FILENAME_STAMP: 0}
+    for _t0, _dur, src in _placed_from(files, device_id, tag, fs):
+        out[src] += 1
+    return out
+
+
 def _placed(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float, offset_sec: float | None = 0.0):
-    """`(start_ms, duration_or_None)` for every file of this stream that carries rows.
+    """`(start_s, duration_or_None)` for every file of this stream that carries rows — `_placed_from`
+    without the source, for the callers that only place."""
+    for t0, dur, _src in _placed_from(files, device_id, tag, fs, offset_sec):
+        yield (t0, dur)
+
+
+def _placed_from(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float, offset_sec: float | None = 0.0):
+    """`(start_s, duration_or_None, start_source)` for every file of this stream that carries rows.
+
+    The start is the file's first landed row when its sidecar states one, else the filename stamp
+    (`_start_of`), and `start_source` names which.
 
     `offset_sec` raises the floating start stamp into the caller's frame (see `_stamp_ms`); the duration
     needs none, being a difference of two stamps in one frame either way. It sits here rather than in the
@@ -192,14 +225,14 @@ def _placed(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float,
     for f in files:
         if f["stream"] not in want or not ids or _file_device_id(f["file"]) not in ids:
             continue
-        t0 = _stamp_ms(f["file"])
+        t0, src = _start_of(f)
         if t0 is None or not f["rows"]:
             continue
         # The stamp is floating; `offset_sec` raises it into the frame the caller's window is in. 0.0 (the
         # default) means "already one frame", which is what every synthetic file list in the suite is.
         t0 += 0.0 if offset_sec is None else offset_sec
         dur = f.get("span_sec") or f.get("host_span_sec") or (f["rows"] / fs if fs > 0 else None)
-        yield (t0, dur or None)
+        yield (t0, dur or None, src)
 
 
 def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int) -> list[str]:
@@ -584,7 +617,7 @@ def build(
         data = cur[2]
         spans = [cur[0], cur[1]]
         for f in data:
-            s = _stamp_ms(f["file"])
+            s, _src = _start_of(f)
             if s is None:
                 continue
             s += _shift  # floating stamp → the frame `spans` is accumulated in
@@ -651,6 +684,9 @@ def build(
                 # How many files with rows carry no duration this could be measured from. 0 for every
                 # stream with a rate or a device clock, so a reader sees the qualifier only when it bites.
                 "coverage_unmeasured": unmeasured,
+                # WHICH START PLACED EACH BAR. A filename stamp is the session's start, so a stream that
+                # opened late is painted early by exactly that gap; the count says how many bars risk it.
+                "start_source": start_sources(data, ids, nightqc.stream_file_tags(s), fs),
                 "coverage_reason": (
                     "writer-offset-unrecoverable"
                     if _offset is None

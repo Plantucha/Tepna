@@ -77,16 +77,16 @@ const MIN_AGREE = +opt('--min-agree', 2);
    beat at the fastest plausible HR, so a foot can never pair with its neighbour. */
 const OFFSET_SEARCH_MS = +opt('--offset-search-ms', 150);
 
-const isSleepNight = (name, durSec) => {
-  /* The HOUR comes from `DexClock.fileStamp` — §4's anchor source (2), the same owner `stampOf`
-     below already delegates to. The two bare regexes that stood here read the hour out of digit
-     slices nothing had range-checked, and they scanned from the LEFT, so a 14-digit device id
-     (`Polar_H10_20250101000000_...`) answers for the session eighteen months away. This hour decides
-     whether `--sleep-only` KEEPS a night, so a fabricated one silently moves the population a figure
-     is computed over, which is worse than dropping the night loudly. */
-  const r = DexClock.fileStamp(name);
-  if (!r || !(durSec >= 4 * 3600)) return false;
-  const hh = new Date(r.tMs).getUTCHours();
+const isSleepNight = (t0Ms, durSec) => {
+  /* The HOUR comes from the recording's FIRST ROW (`rec.t0Ms`, the phone stamp of the first landed
+     row), not from the filename. The filename stamp is the capture SESSION's start, taken before the
+     link is up, and the row `2026-09-22-filename-stamp-still-wrong-for-other-consumers` measured
+     captures whose name sits up to 18.7 h before their first row. This hour decides whether
+     `--sleep-only` KEEPS a night, so a session stamped at 21:00 whose stream opened at 09:00 kept a
+     daytime recording, and one stamped at 18:00 whose stream opened at 23:00 dropped a night. Both
+     clocks are floating wall-clock ms (Clock Contract §1), so the hour reads the same either way. */
+  if (!Number.isFinite(t0Ms) || !(durSec >= 4 * 3600)) return false;
+  const hh = new Date(t0Ms).getUTCHours();
   return hh >= 20 || hh < 4;
 };
 
@@ -453,7 +453,7 @@ for (const f of ppgs) {
     continue;
   }
   if (rec0.t0Ms == null || !rec0.ch || !rec0.ch.length) continue;
-  if (SLEEP_ONLY && !isSleepNight(f.p.split('/').pop(), rec0.durSec || 0)) continue;
+  if (SLEEP_ONLY && !isSleepNight(rec0.t0Ms, rec0.durSec || 0)) continue;
 
   const keepIdx = P.distinctChannelIdx(rec0.ch);
   const nChDistinct = keepIdx.length;

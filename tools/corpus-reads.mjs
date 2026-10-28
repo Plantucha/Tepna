@@ -774,7 +774,6 @@ export const UNWIRED_BACKLOG = {
   'nsrr-oxydex-odi.mjs': 2,
   'nsrr-stage-validate.mjs': 1,
   'o2ring-finger-validate-batch.mjs': 1,
-  'oxy-hr-bias.mjs': 2,
   'pletha-marker-oracle.mjs': 1,
   'ppg-autogain-e2.mjs': 1,
   /* FOUR NAMES LEFT TOGETHER, 2026-10-28, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
@@ -795,8 +794,18 @@ export const UNWIRED_BACKLOG = {
      Its multi-root half is NOT `dedupeRoots`: that rule's `nested-in` arm assumes a RECURSIVE
      enumeration, and this walk is one level deep, so a root nested by path can hold files the parent
      never reaches. The summation rule is stated over the FILE SET instead and the path rule is
-     printed beside it as the reason two roots overlap. `oxy-hr-bias.mjs` above is the one of the six
-     that is still open. */
+     printed beside it as the reason two roots overlap. */
+  /* AND `oxy-hr-bias.mjs` LEFT WITH IT LATER THE SAME DAY, row
+     2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-population-at-once, which closes the
+     last of the six night walkers. It is the first name here to publish TWO populations: the FILE
+     set a named lister takes over the uploads root for leg 1, and the NIGHT tree `snapshotNights`
+     takes over `uploads/trio` for legs 3 and 2. The two sets share no member and no arithmetic
+     relates them, so one object per unit is the only honest shape, and each printed headline names
+     the leg it belongs to. Leg 1's own headline said `night(s)` over a count of files, which is how
+     one population came to wear the other's unit where a reader looks.
+     THE EXITS MOVED WITH THE POPULATIONS. A trio tree nobody can enumerate, and a leg that scored
+     nothing over a root that offered something, now exit 2 where this tool exited 0 — a run that
+     read one half used to carry a complete run's status. */
   /* FOUR NAMES LEFT TOGETHER, 2026-10-26, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
      `ppg-foot-consensus-e1.mjs`, `ppg-fusion-e3.mjs`, `ppi-jitter-vs-ecg.mjs` and
      `resp-cardiac-suppression-e8.mjs` were ONE walker written four times: the same recursive

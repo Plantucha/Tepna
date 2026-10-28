@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5ae90e376401" data-compute-hash="52d403f70de2"><head>
+<html lang="en" data-manifest-hash="48c8e173e09a" data-compute-hash="b923f37d8a67"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DgC+gzmTRM4ylbHQLOTL82fOM4KiHigmK/aDd25zoU=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-3hKoR70OoVl+YpsugJMyqcetldWdx3Bbu9rjWz+Te6Q=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IcIoipQ0VYpQZZ9CwMRRqh/n6LBB/w4+kMWcy5MilEk=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kqXP9hkfQEBweqIXvDoh+YohehKFIGPX6HmywBVmOq0=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-olGSs2IuOS5/nCWBxgMvNWNu2xbJPT8jNTXkt6EzH+8=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+egeWdETiBZ27Gdd8RX+z+wWiiWXEw2g2TPSErAdq5g=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-3hKoR70OoVl+YpsugJMyqcetldWdx3Bbu9rjWz+Te6Q=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IcIoipQ0VYpQZZ9CwMRRqh/n6LBB/w4+kMWcy5MilEk=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kqXP9hkfQEBweqIXvDoh+YohehKFIGPX6HmywBVmOq0=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-olGSs2IuOS5/nCWBxgMvNWNu2xbJPT8jNTXkt6EzH+8=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -34705,6 +34705,16 @@ __exports.GlucoDex = window.GlucoDex;
          refusal can name the seam(s). */
       clockSeam: _clockSeam,
       clockResyncs: rec.clockResyncs || null,
+      /* ── AND THE SEGMENTATION, THE OTHER HALF OF THAT LOSS ──────────────────────────────────────
+         `offsetSegments` has sat on parsePPG's result since the per-segment axis landed, and the whole
+         source tree held ONE occurrence of the name: the write. `analyze` dropped it, so no export, no
+         gate and no analysis tool could read it — while the comment beside the write promises a reader
+         who can tell a night corrected PER SEGMENT from one corrected by a single rate. That reader
+         could not exist, which is the `hostAxis` loss above repeated on the field that says whether
+         the axis was segmented at all. Row 2026-10-03-verity-ppg-moves-in-a-ring-seam-refold had to
+         reason about that difference from `hostAxis.maxStepMs`, a step of the DEVICE COUNTER, which is
+         a different event from a step of the OFFSET and does not imply one. */
+      offsetSegments: rec.offsetSegments || null,
       /* ── THE AXIS OBJECT ITSELF, and why one scalar was not enough ──────────────────────────────
          `ppgBuildNodeExport` has a whole `recording.hostAxis` block gated on `r.hostAxis && .ok`,
          mirroring ECGDex field for field — and `analyze` never forwarded the object, so `r.hostAxis`
@@ -35364,6 +35374,35 @@ __exports.GlucoDex = window.GlucoDex;
           idx: c.idx,
           deviceStepMs: c.deviceStepMs,
           phoneDeltaMs: c.phoneDeltaMs == null ? null : c.phoneDeltaMs
+        };
+      });
+    /* THE SEGMENTATION, WHERE THE CORPUS COULD NOT SEE IT EITHER. Scanned 2026-10-28 over
+       `uploads/trio`: `offsetSegments` appears in 0 of 173 committed PPG exports, on both rails, and
+       the folded corpus therefore cannot distinguish a per-segment axis from a single-rate one. It is
+       not that no night segmented, and the two ends of that blindness DISAGREE. 2026-08-24's Verity
+       rail re-folds byte-identically at the parent of the per-segment commit and MOVES at it. That
+       commit removes ONE code line, and its replacement differs only where `multiSeg` is true, so the
+       gate was open on that night. Re-folding the same night from the same corpus root today publishes
+       NO `offsetSegments` — nor does any of the eight moved nights, on either rail (measured
+       2026-10-28). Something after that commit changed the anchor series or the merged input, and no
+       artifact of either state can say which. That is the loss this field repairs.
+       Present only when the stream produced more than one segment, so a single-segment night keeps
+       today's bytes and no clean fixture moves (the `clockResyncs` discipline one block up). Each entry carries its own anchor
+       count and span beside its `ppm`, per Clock Contract §7, and `rateReason` names the test that
+       refused a rate rather than leaving a caveat somewhere else. */
+    if (Array.isArray(r.offsetSegments) && r.offsetSegments.length)
+      out.recording.offsetSegments = r.offsetSegments.map(function (s) {
+        return {
+          fromDevMs: s.fromDevMs,
+          toDevMs: s.toDevMs,
+          anchors: s.anchors,
+          spanS: s.spanS,
+          flatOffsetMs: s.flatOffsetMs,
+          residualRmsMs: s.residualRmsMs,
+          jitterMs: s.jitterMs,
+          ppm: s.ppm == null ? null : s.ppm,
+          rate: s.rate,
+          rateReason: s.rateReason == null ? null : s.rateReason
         };
       });
     /* SELF vs FIRMWARE — ON THE INTEGRATOR-FACING SURFACE. This is a DEFECT FIX, not a new feature:

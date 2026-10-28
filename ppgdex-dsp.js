@@ -6094,6 +6094,16 @@
          refusal can name the seam(s). */
       clockSeam: _clockSeam,
       clockResyncs: rec.clockResyncs || null,
+      /* ── AND THE SEGMENTATION, THE OTHER HALF OF THAT LOSS ──────────────────────────────────────
+         `offsetSegments` has sat on parsePPG's result since the per-segment axis landed, and the whole
+         source tree held ONE occurrence of the name: the write. `analyze` dropped it, so no export, no
+         gate and no analysis tool could read it — while the comment beside the write promises a reader
+         who can tell a night corrected PER SEGMENT from one corrected by a single rate. That reader
+         could not exist, which is the `hostAxis` loss above repeated on the field that says whether
+         the axis was segmented at all. Row 2026-10-03-verity-ppg-moves-in-a-ring-seam-refold had to
+         reason about that difference from `hostAxis.maxStepMs`, a step of the DEVICE COUNTER, which is
+         a different event from a step of the OFFSET and does not imply one. */
+      offsetSegments: rec.offsetSegments || null,
       /* ── THE AXIS OBJECT ITSELF, and why one scalar was not enough ──────────────────────────────
          `ppgBuildNodeExport` has a whole `recording.hostAxis` block gated on `r.hostAxis && .ok`,
          mirroring ECGDex field for field — and `analyze` never forwarded the object, so `r.hostAxis`
@@ -6753,6 +6763,35 @@
           idx: c.idx,
           deviceStepMs: c.deviceStepMs,
           phoneDeltaMs: c.phoneDeltaMs == null ? null : c.phoneDeltaMs
+        };
+      });
+    /* THE SEGMENTATION, WHERE THE CORPUS COULD NOT SEE IT EITHER. Scanned 2026-10-28 over
+       `uploads/trio`: `offsetSegments` appears in 0 of 173 committed PPG exports, on both rails, and
+       the folded corpus therefore cannot distinguish a per-segment axis from a single-rate one. It is
+       not that no night segmented, and the two ends of that blindness DISAGREE. 2026-08-24's Verity
+       rail re-folds byte-identically at the parent of the per-segment commit and MOVES at it. That
+       commit removes ONE code line, and its replacement differs only where `multiSeg` is true, so the
+       gate was open on that night. Re-folding the same night from the same corpus root today publishes
+       NO `offsetSegments` — nor does any of the eight moved nights, on either rail (measured
+       2026-10-28). Something after that commit changed the anchor series or the merged input, and no
+       artifact of either state can say which. That is the loss this field repairs.
+       Present only when the stream produced more than one segment, so a single-segment night keeps
+       today's bytes and no clean fixture moves (the `clockResyncs` discipline one block up). Each entry carries its own anchor
+       count and span beside its `ppm`, per Clock Contract §7, and `rateReason` names the test that
+       refused a rate rather than leaving a caveat somewhere else. */
+    if (Array.isArray(r.offsetSegments) && r.offsetSegments.length)
+      out.recording.offsetSegments = r.offsetSegments.map(function (s) {
+        return {
+          fromDevMs: s.fromDevMs,
+          toDevMs: s.toDevMs,
+          anchors: s.anchors,
+          spanS: s.spanS,
+          flatOffsetMs: s.flatOffsetMs,
+          residualRmsMs: s.residualRmsMs,
+          jitterMs: s.jitterMs,
+          ppm: s.ppm == null ? null : s.ppm,
+          rate: s.rate,
+          rateReason: s.rateReason == null ? null : s.rateReason
         };
       });
     /* SELF vs FIRMWARE — ON THE INTEGRATOR-FACING SURFACE. This is a DEFECT FIX, not a new feature:
