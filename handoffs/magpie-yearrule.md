@@ -83,3 +83,38 @@ judges a smaller population than the corpus holds. A nested 2027 night would esc
 the row and I do not touch Heron's tool.
 
 The year row needs an owner ruling, not an implementer.
+
+---
+
+## FOLLOW-UP 2026-10-28 — unit `elideup`, branch `claude/elideup-mg`
+
+#4033 merged as `6aa9cfa40` while Kestrel's review order was still open, so Osprey's finding rides a
+second PR off the same worktree.
+
+🔴 **MY CENSUS OMITTED THE LARGEST TREE IN THE CORPUS, AND IT SAID NOTHING.** `docs/CORPUS-LOCATIONS.md`
+writes the primary checkout's tree as `<primary checkout>/uploads`, `classifyRoot` marks a
+`<placeholder>` row `elided`, and the census walks countable roots alone. Osprey read the published
+figure against his own walk and named the gap (board #1766). The omitted tree holds 249 night-shaped
+directories over 156 names, 47 of them in no other root, and it opens the span five weeks earlier.
+
+**A ROW THAT CANNOT BE WALKED AND A ROW THAT WAS NEVER TRIED READ THE SAME IN A CENSUS.** Both print as
+excluded, so the output argued for its own completeness. The published total was 286 directories over
+129 names, and it read as the corpus size.
+
+`applyElidedUploads` resolves that one row through `corpusSearch`, the resolver `verify-fixtures.mjs`
+already uses: `$DEX_UPLOADS`, then the primary checkout, then this one. The row keeps the document's
+elided text as its printed name, because the resolved path is a home directory and a published census
+may not carry one. The row prints the candidate that answered. When no candidate exists the row stays
+excluded and names the resolver that failed, never a zero (§∅).
+
+| | directories | distinct names | span |
+|---|---|---|---|
+| before | 286 | 129 | 2026-06-10 → 2026-10-27 |
+| after | 535 | 176 | 2026-05-03 → 2026-10-27 |
+
+**Osprey's 287/130 against my 286/129 is a RULE difference, not an error.** His prefix rule admits
+`2026-07-19.PRE-FIX` under the workshop-imports tree. `NIGHT_RE` anchors both ends, so the census refuses it,
+and that anchored rule is the one the eleven scorers run.
+
+Eight selftests, 115 in all. Planting a pass-through `applyElidedUploads` reds four of them and names
+the row.
