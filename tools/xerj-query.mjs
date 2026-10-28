@@ -20,6 +20,9 @@
  * cached (`xerj-load.mjs` wrote them); nothing is re-embedded except the one-line query.
  */
 
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 export const DEFAULT_URL = 'http://127.0.0.1:9200';
 export const DEFAULT_INDEX = 'tepna-hybrid';
@@ -215,6 +218,71 @@ export function capSourceShare(hits, topK = 5, { prefix = CAPPED_PREFIX, share =
   return { hits: kept, held: deferred.length, max };
 }
 
+/* ── A REPLACED POST DOES NOT RANK LIKE A CURRENT ONE (row
+ * `2026-10-28-a-superseded-post-is-marked-but-not-de-ranked`) ──
+ * #4064 marks a post the board itself replaced, and the mark moved no score. A question whose best
+ * hit is a retracted ruling still answered with that ruling, and the reader had to notice a warning
+ * to know. Board #560 rules two open PRs per bird and #605 replaced it with one, so "how many PRs
+ * may I hold" is a live question with a stale best answer.
+ *
+ * THE MARK IS READ PER PATH FROM THE CORPUS FILE, NEVER FROM THE HIT TEXT. `board-corpus.mjs` writes
+ * `- superseded-by: #N` into the file header, so only the FIRST chunk of a post carries it; a hit on
+ * a later chunk would read unmarked and the population would shrink in silence. One small read per
+ * board path costs nothing, because the share cap already bounds how many of them reach this point.
+ *
+ * FAIL-CLOSED ON ABSENCE. A file this cannot read defers NOTHING and joins `unreadable`. Deferring
+ * on no evidence would invent a mark, and dropping the count would hide that the rule stopped
+ * examining rather than stopped finding.
+ *
+ * §∅: this REORDERS, it never invents and it never hides the only answer there is. The pool comes
+ * back whole and re-ordered, so the cap after it still backfills; a deferred post returns when no
+ * other hit fills its slot; `supersededHeld` counts only the posts that actually LOST a top-K slot,
+ * and `supersededBy` names the successor of each. It never promotes a successor the ranker did not
+ * return — the cap does not invent a hit and neither does this. */
+export const BOARD_CORPUS = process.env.TEPNA_BOARD_CORPUS || join(homedir(), '.local/share/tepna/board-corpus');
+const SUPERSEDED_BY = /^- superseded-by: #(\d{1,6})\s*$/m;
+const readCorpusFile = (file) => {
+  try {
+    return readFileSync(file, 'utf-8');
+  } catch {
+    return null;
+  }
+};
+export const pathOfHit = (h) => String(h?.path ?? h?.file ?? '');
+
+/** `{ by: Map<path, successorId>, unreadable: string[] }` over the board paths in `paths`. */
+export function supersededMarks(paths, { root = BOARD_CORPUS, prefix = CAPPED_PREFIX, readFn = readCorpusFile } = {}) {
+  const by = new Map();
+  const unreadable = [];
+  for (const p of new Set((paths || []).map((x) => String(x ?? '')))) {
+    if (!p.startsWith(prefix)) continue;
+    const text = readFn(join(root, p.slice(prefix.length)));
+    if (text === null || text === undefined) {
+      unreadable.push(p);
+      continue;
+    }
+    const m = SUPERSEDED_BY.exec(text);
+    if (m) by.set(p, Number(m[1]));
+  }
+  return { by, unreadable };
+}
+
+/** Sink every marked post below its unmarked peers, stably, and report what lost a top-K slot. */
+export function deferSuperseded(hits, topK = 5, { marks = null, pathOf = pathOfHit, ...opts } = {}) {
+  const list = hits || [];
+  const { by, unreadable } = marks ?? supersededMarks(list.map(pathOf), opts);
+  if (!by.size) return { hits: list, supersededHeld: 0, supersededBy: [], unreadable };
+  const current = [];
+  const replaced = [];
+  for (const h of list) (by.has(pathOf(h)) ? replaced : current).push(h);
+  const ordered = [...current, ...replaced];
+  /* A post "lost a slot" only if it was inside the top K before and is outside it after. A marked
+     post the pool never ranked that high lost nothing, and counting it would overstate the rule. */
+  const after = new Set(ordered.slice(0, topK));
+  const lost = list.filter((h) => by.has(pathOf(h)) && !after.has(h)).slice(0, topK);
+  return { hits: ordered, supersededHeld: lost.length, supersededBy: [...new Set(lost.map((h) => by.get(pathOf(h))))], unreadable };
+}
+
 export async function embedQuery(query, fetchFn = fetch) {
   const res = await fetchFn(`${OLLAMA}/v1/embeddings`, {
     method: 'POST',
@@ -243,7 +311,18 @@ export async function rerankTop(query, hits, { url = RERANK_URL, fetchFn = fetch
   return 1 / (1 + Math.exp(-Math.max(...logits)));
 }
 
-export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_INDEX, topK = 5, fetchFn = fetch, embedFn = embedQuery, rerank = false, cap = true }) {
+export async function hybridSearch({
+  query,
+  url = DEFAULT_URL,
+  index = DEFAULT_INDEX,
+  topK = 5,
+  fetchFn = fetch,
+  embedFn = embedQuery,
+  rerank = false,
+  cap = true,
+  superseded = true,
+  readFn = readCorpusFile
+}) {
   if (!isLoopback(url)) throw new Error(`${url} is not loopback — this tool is dev-only`);
   let vector = null;
   let degraded = null;
@@ -270,8 +349,16 @@ export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_I
     );
   };
   /* The capped list and the uncapped one are taken from the same ranked pool, so `--board-all` is
-     the SAME search with the cap off, never a second ranking. */
-  const take = (list) => (cap ? capSourceShare(list, topK) : { hits: (list || []).slice(0, topK), held: 0, max: null });
+     the SAME search with the cap off, never a second ranking.
+
+     THE DE-RANK RUNS FIRST, AND ON THE WHOLE POOL. It re-orders without slicing, so the cap after it
+     still has something to backfill from; running it second would let the cap spend both board slots
+     on replaced posts before anything read the mark. */
+  const take = (list) => {
+    const d = superseded ? deferSuperseded(list, topK, { readFn }) : { hits: list || [], supersededHeld: 0, supersededBy: [], unreadable: [] };
+    const c = cap ? capSourceShare(d.hits, topK) : { hits: d.hits.slice(0, topK), held: 0, max: null };
+    return { ...c, supersededHeld: d.supersededHeld, supersededBy: d.supersededBy, supersededUnreadable: d.unreadable };
+  };
   const lex = await ask(null);
   const bm25 = lex[0]?.score ?? null;
   if (!vector) return { ...take(lex), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
@@ -471,6 +558,78 @@ export async function selftest() {
   ok(render(on, 'q').includes('2 board post(s) held below the share cap'), 'the reader is told the posts exist and how to see them');
   ok(!render(off, 'q').includes('held below the share cap'), 'CONTROL: nothing is said when the cap held nothing back');
 
+  /* ── A REPLACED POST DOES NOT RANK LIKE A CURRENT ONE (row
+     `2026-10-28-a-superseded-post-is-marked-but-not-de-ranked`) ── */
+  const header = (id, by) => `# Board #${id}\n\n- thread: 7\n- author: a\n${by ? `- superseded-by: #${by}\n` : ''}\n body text\n`;
+  const CORPUS = { '7/1.md': header(1, 605), '7/2.md': header(2, null), '7/3.md': header(3, 900), '7/4.md': header(4, null) };
+  /* Keyed on the trailing `<thread>/<id>.md` so the leg does not depend on where the corpus root
+     happens to sit on this machine. */
+  const corpusRead = (file) => CORPUS[(/(\d+\/\d+\.md)$/.exec(String(file)) ?? [])[1]] ?? null;
+  const bpath = (n) => `ext:agent-board/7/${n}.md`;
+  const marks = supersededMarks([bpath(1), bpath(2), bpath(3), 'briefs/a.md'], { readFn: corpusRead });
+  ok(marks.by.get(bpath(1)) === 605 && marks.by.get(bpath(3)) === 900, 'the mark is read from the corpus file and names the successor');
+  ok(!marks.by.has(bpath(2)) && !marks.by.has('briefs/a.md'), 'an unmarked post and a repo document carry no mark');
+  ok(marks.unreadable.length === 0, 'CONTROL: every board path here was readable');
+  ok(supersededMarks([bpath(9)], { readFn: () => null }).unreadable.join() === bpath(9), 'a board file this cannot read is REPORTED, never assumed clean');
+  ok(supersededMarks([bpath(9)], { readFn: () => null }).by.size === 0, '…and it defers nothing, because deferring on no evidence invents a mark');
+
+  /* THE FILE, NOT THE HIT TEXT. `board-corpus.mjs` writes the mark into the header, so a hit on a
+     later chunk carries none — reading the passage would silently shrink the population to the
+     posts whose first chunk happened to rank. */
+  const lateChunk = [
+    { path: bpath(1), text: 'a passage from the middle of the post, with no header' },
+    { path: bpath(2), text: 't' }
+  ];
+  ok(deferSuperseded(lateChunk, 5, { readFn: corpusRead }).hits[0].path === bpath(2), 'a hit on a LATER chunk is still de-ranked, because the mark is read from the file');
+
+  const pool = [{ path: bpath(1) }, { path: bpath(3) }, { path: bpath(2) }, { path: 'briefs/a.md' }, { path: 'briefs/b.md' }];
+  const dr = deferSuperseded(pool, 3, { readFn: corpusRead });
+  ok(
+    dr.hits.map((h) => h.path).join() === [bpath(2), 'briefs/a.md', 'briefs/b.md', bpath(1), bpath(3)].join(),
+    'marked posts sink below their unmarked peers, and relative order survives inside each group'
+  );
+  ok(dr.supersededHeld === 2 && dr.supersededBy.join() === '605,900', 'the two posts that lost a top-3 slot are counted, and each successor is named');
+  ok(deferSuperseded(pool, 9, { readFn: corpusRead }).supersededHeld === 0, 'a list long enough to hold every hit loses no slot, so nothing is reported held');
+  ok(deferSuperseded([{ path: bpath(1) }], 5, { readFn: corpusRead }).hits.length === 1, 'a replaced post is the answer when it is the ONLY answer — this never hides the last hit');
+  const cleanPool = [{ path: bpath(2) }, { path: 'briefs/a.md' }];
+  ok(JSON.stringify(deferSuperseded(cleanPool, 5, { readFn: corpusRead }).hits) === JSON.stringify(cleanPool), 'CONTROL: a pool with no replaced post is returned untouched');
+  ok(
+    deferSuperseded([{ file: bpath(1) }, { file: bpath(2) }], 1, { readFn: corpusRead }).hits[0].file === bpath(2),
+    'the semantic lane shape is read too: a hit keyed `file` de-ranks like one keyed `path`'
+  );
+
+  /* …and it reaches the search, BEFORE the cap, with the switch that turns it off. */
+  const srOrder = [bpath(1), bpath(3), bpath(2), bpath(4), 'briefs/a.md', 'briefs/b.md', 'briefs/c.md'];
+  const srOn = await hybridSearch({ query: 'q', fetchFn: boardFake(srOrder), embedFn: emb, readFn: corpusRead });
+  const srOff = await hybridSearch({ query: 'q', fetchFn: boardFake(srOrder), embedFn: emb, readFn: corpusRead, superseded: false });
+  ok(
+    srOn.hits
+      .filter((h) => h.path.startsWith('ext:agent-board/'))
+      .map((h) => h.path)
+      .join() === [bpath(2), bpath(4)].join(),
+    'the cap spends its two board slots on the posts nothing replaced, because the de-rank ran first'
+  );
+  ok(
+    srOff.hits
+      .filter((h) => h.path.startsWith('ext:agent-board/'))
+      .map((h) => h.path)
+      .join() === [bpath(1), bpath(3)].join(),
+    'CONTROL: `--keep-superseded` passes superseded:false and the two replaced posts take the slots back'
+  );
+  ok(srOn.supersededHeld === 2 && srOn.supersededBy.join() === '605,900', 'the search reports what it held and which post replaced each one');
+  ok(render(srOn, 'q').includes('2 replaced board post(s) held below their successors (#605, #900)'), 'the reader is told the replaced posts exist and which posts replaced them');
+  ok(!render(srOff, 'q').includes('held below their successors'), 'CONTROL: nothing is said when the de-rank held nothing back');
+  const srBad = await hybridSearch({ query: 'q', fetchFn: boardFake([bpath(1), 'briefs/a.md']), embedFn: emb, readFn: () => null });
+  ok(render(srBad, 'q').includes('could not be read for a supersession mark'), 'an unreadable corpus reaches the reader as a named abstention, not as a clean answer');
+
+  /* BOTH LANES TAKE IT. A rule binding only the lane that usually answers is a rule no reader can
+     state, and the fallback lane is the one a reader lands in when the index is down. */
+  const dsSrc = readFileSync(new URL('./doc-search.mjs', import.meta.url), 'utf-8');
+  ok(/wantSuperseded\(process\.argv\) \? deferSuperseded\(ranked, 8\)/.test(dsSrc), 'the fallback lane de-ranks its own ranked list');
+  ok(/deferred\.supersededHeld > 0/.test(dsSrc) && /deferred\.unreadable\?\.length/.test(dsSrc), '…and names both what it held and what it could not read');
+  ok(/superseded: wantSuperseded\(process\.argv\)/.test(dsSrc), 'the hybrid lane passes the same switch through doc-search');
+  ok(/capSourceShare\(deferred\.hits, 8\)/.test(dsSrc), '…and its cap reads the DE-RANKED list, so the two cannot be re-ordered back');
+
   const line = fail.length ? `xerj-query selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -493,6 +652,11 @@ export function render(out, query, { brief = false } = {}) {
   /* Withheld is not absent: the reader is told the posts exist and how to see them. */
   if (out.held > 0)
     lines.push(`  ⚠ ${out.held} board post(s) held below the share cap (at most ${capMax(out.hits.length || 5)} of ${out.hits.length || 5}) — \`--board-all\` ranks them with everything else`, '');
+  /* Replaced is not absent either, and the successor is the useful half: a reader who wanted the
+     old ruling now has the post number that replaced it. */
+  if (out.supersededHeld > 0)
+    lines.push(`  ⚠ ${out.supersededHeld} replaced board post(s) held below their successors (#${(out.supersededBy || []).join(', #')}) — \`--keep-superseded\` ranks them where they scored`, '');
+  if (out.supersededUnreadable?.length) lines.push(`  ⚠ ${out.supersededUnreadable.length} board post(s) could not be read for a supersession mark, so none was applied to them`, '');
   for (const h of out.hits) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
     if (brief) continue;
@@ -504,7 +668,7 @@ export function render(out, query, { brief = false } = {}) {
 
 if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
-  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--rerank', '--brief'], positional: true }, { tool: 'xerj-query' });
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--rerank', '--brief', '--keep-superseded'], positional: true }, { tool: 'xerj-query' });
   if (argv.includes('--selftest')) {
     const r = await selftest();
     process.stdout.write(`${r.line}\n`);
@@ -519,7 +683,7 @@ if (isCliEntry(import.meta.url)) {
     process.stderr.write('usage: node tools/xerj-query.mjs "<question>"\n');
     process.exit(2);
   }
-  hybridSearch({ query, rerank: argv.includes('--rerank') })
+  hybridSearch({ query, rerank: argv.includes('--rerank'), superseded: !argv.includes('--keep-superseded') })
     .then((out) => {
       process.stdout.write(`${render(out, query, { brief: argv.includes('--brief') })}\n`);
     })
