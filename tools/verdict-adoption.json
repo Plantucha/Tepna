@@ -1067,6 +1067,18 @@
    },
    "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = 0 refused and 0 sync failures; FAIL names the refusals; NOT_RUN when the NAS is not mounted). The manifest reads --selftest: the refusal plant on a scratch src/nas pair (control tiered, one-byte plant REFUSED by sha256 and its NAS twin untouched, zero-byte marker kept local) \u2014 no NAS, no corpus, runs in CI."
   },
+  "tools/cpap-corpus.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cpap-corpus.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it builds the CPAP export set every PB tool downstream reads, one night per `YYYYMMDD` day folder on a ResMed card. The population is the DAY FOLDERS the run was offered, taken through `snapshotEntries` with a NAMED lister before the read and once after, so a folder arriving or leaving mid-run is a FAIL rather than a silently different denominator; a night rule would publish a rule nobody wrote, which is why the lister is named and the snapshot publishes that name. The offered count is not the scored count, measured on the real card 2026-10-28: 192 day folders offered, 189 computed a night export, and the three that did not are named. An arithmetic control (offered \u2212 scored === named) throws rather than let a coverage line contradict its own headline. A root nobody can enumerate, a root that offered no day folder, and a run that computed no export at all, now exit 2 where this tool exited 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
   "tools/cpap-oxy-couple.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1077,7 +1089,19 @@
      "--verdict-sample"
     ]
    },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); event \u2192 desat coupling lift per class \u00d7 window (the UNDERPOWERED/SATURATED flags ride as fields) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); event \u2192 desat coupling lift per class \u00d7 window (the UNDERPOWERED/SATURATED flags ride as fields) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown). It also publishes the FILE POPULATION it was offered under `--oxy`, through `snapshotEntries` with a named lister before the read and once after, because the coupling table counted the nights it paired and said nothing about the files it dropped: measured on the real corpus 2026-10-28, 65 `*.csv` files offered, 50 computed an OxyDex export, 49 paired to a CPAP night, and the 16 that scored nothing are named beside the figure under an arithmetic control. A root nobody can enumerate, a root that offered nothing, and a run that paired no night, now exit 2 where this tool exited 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/cpap-sa2-agreement.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cpap-sa2-agreement.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the CPAP's wired SA2 oximetry against the ring's, which neither tunes nor averages the two sources. The population is the DEDUPLICATED `*_SA2.edf` basenames that `findSa2` offers \u2014 the enumeration itself, under a name, through `snapshotEntries` before the read and once after \u2014 because the coverage table counted the files it characterised and said nothing about the files it was offered, so a file dropped by an unreadable header or a missing SpO2 channel left no trace. Measured on the real card 2026-10-28: 236 files offered, 236 characterised, 183 nights built. An arithmetic control (offered \u2212 characterised === named) throws rather than let a coverage line contradict its own headline, and `--night` reports itself as a named removal against the whole offered set. A tree that offered no SA2 file, and an agreement pass that compared no night, now exit 2 where this tool exited 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   },
   "tools/cvhr-edge-widen.mjs": {
    "bin": "decides",

@@ -25,6 +25,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
@@ -41,6 +42,45 @@ const OUT = arg('--out', null);
 const STATS = process.argv.includes('--stats');
 // EDF names whose stamp field the owner refused — folded into `problems` below, never dropped silently.
 const stampRefusals = [];
+/* ── THE POPULATION THIS HARNESS REPORTS OVER ────────────────────────────────────────────────
+   Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. The headline said
+   `nights: N`, which counted the day folders that COMPUTED — never what the card offered, so a
+   card half of whose nights failed to read reported the same shape as a clean one, and `problems`
+   carried the difference in prose only. The population below is the day-folder set this run
+   walked, published once before the read and once after, so a folder arriving or leaving mid-run
+   is a FAIL rather than a silently different denominator. */
+const POP_TOOL = 'tools/cpap-corpus.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+/* A NAMED lister: `snapshotEntries` publishes `rule: list.name`, and an inline arrow publishes
+   `rule: null`. This function IS the walk below — the stock ResMed day folder, `YYYYMMDD`. */
+function listDayFolders(root) {
+  return fs
+    .readdirSync(root)
+    .filter((d) => /^\d{8}$/.test(d))
+    .sort();
+}
+function sampleDays() {
+  return ['20260610', '20260611', '20260612'];
+}
+/* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
+   before it decides whether this tool reports a population: a fabricated call left at top level
+   would clear the tool over a walk no run makes. It reads no card and prints the object ALONE,
+   because `verify:verdict-adoption` parses stdout as JSON. */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const snap = snapshotEntries('<sd-card>/DATALOG', { list: sampleDays, unit: 'days', at });
+  return populationVerdict(snap, snap, { tool: POP_TOOL, at, evidence: POP_EV });
+}
+if (process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+/* The shared exit rule of this slice, pure so a caller and a test can both read it: a card nobody
+   can enumerate and a run that computed no night both exit 2; reduced coverage annotates and
+   exits 0 (owner ruling 2026-09-17, §∅). */
+function exitCodeFor(population, scored) {
+  return population.status === 'NOT_RUN' || scored === 0 ? 2 : 0;
+}
 if (!ROOT) {
   console.error('usage: node tools/cpap-corpus.mjs --root <sd-card-dir> [--out exports.json] [--stats]');
   process.exit(2);
@@ -168,10 +208,18 @@ const ctx = cpapRealm();
 const exports_ = [];
 const problems = [];
 
-for (const day of fs
-  .readdirSync(ROOT)
-  .filter((d) => /^\d{8}$/.test(d))
-  .sort()) {
+const snapBefore = snapshotEntries(ROOT, { list: listDayFolders, unit: 'days' });
+if (!snapBefore.ok) {
+  console.error(`refused: ${snapBefore.reason} — ${ROOT}`);
+  console.log('POPULATION ' + JSON.stringify(populationVerdict(snapBefore, snapBefore, { tool: POP_TOOL, evidence: POP_EV })));
+  process.exit(2);
+}
+const commitOf = gitCommitOf();
+
+/* The loop walks the SNAPSHOT, not a second `readdirSync`: the published population and the
+   scored set then come from one enumeration, so the arithmetic control below is about the run
+   rather than about two reads of the same directory. */
+for (const day of snapBefore.members) {
   const dir = path.join(ROOT, day);
   const clusters = sessionSetsForDay(dir);
   if (!clusters.length) {
@@ -243,3 +291,33 @@ if (OUT) {
   );
   console.log(`\nwrote ${OUT}`);
 }
+
+/* ── ONE PUBLISHER, CALLED BEFORE THE ONE EXIT ───────────────────────────────────────────────
+   `problems` already names each failure, but nothing said what the denominator was: the two
+   counts that matter are the folders the card OFFERED and the nights that produced an export. */
+function publishPopulation() {
+  const population = populationVerdict(snapBefore, snapshotEntries(ROOT, { list: listDayFolders, unit: 'days' }), {
+    commit: commitOf.commit,
+    commitReason: commitOf.reason,
+    tool: POP_TOOL,
+    evidence: POP_EV
+  });
+  console.log(
+    `\npopulation: ${snapBefore.n} day folder(s) offered under ${ROOT} · ${exports_.length} computed a night export · movement ${population.status}` +
+      (population.reason ? ` — ${population.reason}` : '')
+  );
+  const rule = ruleLine(population);
+  if (rule) console.log(rule);
+  /* The exports, not their names — `notCovered` reads `row[key]`, and the day folder rides each
+     export as `_day`. */
+  const unscored = notCovered(snapBefore, exports_, { key: '_day' });
+  if (unscored.length)
+    console.log(`  ${unscored.length} offered day folder(s) produced no export, by name: ${unscored.slice(0, 8).join(' · ')}${unscored.length > 8 ? ` · … (+${unscored.length - 8})` : ''}`);
+  if (unscored.length !== snapBefore.n - exports_.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${exports_.length} scored ≠ ${unscored.length} unscored`);
+  console.log('POPULATION ' + JSON.stringify(population));
+  return population;
+}
+
+/* 🔴 THIS EXITED 0 OVER AN EMPTY CARD — the way a run that read every night exits. A harness that
+   computed no export at all is not a weaker result, it is no result (§∅). */
+process.exit(exitCodeFor(publishPopulation(), exports_.length));
