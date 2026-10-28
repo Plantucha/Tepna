@@ -2548,9 +2548,10 @@
      "tools/xerj-load.mjs",
      "--dry-run",
      "--json"
-    ]
+    ],
+    "timeoutMs": 240000
    },
-   "note": "XERJ-HYBRID-SEARCH: --json prints ONE tepna.verdict/1 (PASS = every eligible cached file loaded with its OWN vectors; FAIL on a load of 0 documents, the examined-nothing shape, with the skip histogram as evidence; NOT_RUN when no doc-search cache exists). --dry-run in the sample so the check writes nothing to the index."
+   "note": "XERJ-HYBRID-SEARCH: --json prints ONE tepna.verdict/1 (PASS = every eligible cached file loaded with its OWN vectors; FAIL on a load of 0 documents, the examined-nothing shape, with the skip histogram as evidence; NOT_RUN when no doc-search cache exists). --dry-run in the sample so the check writes nothing to the index. CAP: this walk is the one producer the gate cannot run inside the default cap \u2014 25.5 s at load 7.4 and 1 m 48.7 s at load 44 (sample 2026-10-28; residue 2026-10-27-a-fixed-spawn-timeout-makes-a-gate-step-red-under-box-load), against a median of 22 ms over the other 166. timeoutMs is ceil(2 x the loaded observation), the same sizing rule tools/workflow-timeout-guard.mjs states for a CI job."
   },
   "tools/xss-sink-gate.mjs": {
    "bin": "decides",
