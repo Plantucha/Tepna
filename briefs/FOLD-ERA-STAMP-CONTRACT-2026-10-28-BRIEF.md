@@ -17,7 +17,7 @@ exports name no folding code. The nights carrying all three trio exports and the
 an empty symmetric difference, so a three-leg reader cannot reach an era-less export. The seven
 partial-leg readers can.
 
-A tool fix closed the reader half under §∅. Each of the seven now names the era of the nights it read,
+`#4057` delivered the reader half under §∅. Each of the seven now names the era of the nights it read,
 and names every night that carries none. The number stands; the line states what is unrecorded.
 
 ## The question for the owner
