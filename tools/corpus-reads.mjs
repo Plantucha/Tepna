@@ -775,7 +775,6 @@ export const UNWIRED_BACKLOG = {
   'nsrr-stage-validate.mjs': 1,
   'o2ring-finger-validate-batch.mjs': 1,
   'oxy-hr-bias.mjs': 2,
-  'pin-coverage.mjs': 2,
   'pletha-marker-oracle.mjs': 1,
   'ppg-autogain-e2.mjs': 1,
   /* FOUR NAMES LEFT TOGETHER, 2026-10-28, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
@@ -790,6 +789,14 @@ export const UNWIRED_BACKLOG = {
      CSV file set and a night tree — where one snapshot would publish one count over the other. Rows
      2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot and
      2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-population-at-once. */
+  /* AND `pin-coverage.mjs` LEFT THE LIST THE SAME DAY, row
+     2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot. Its unit is a FILE, so
+     it takes `snapshotEntries` through a named lister per root, once before the read and once after.
+     Its multi-root half is NOT `dedupeRoots`: that rule's `nested-in` arm assumes a RECURSIVE
+     enumeration, and this walk is one level deep, so a root nested by path can hold files the parent
+     never reaches. The summation rule is stated over the FILE SET instead and the path rule is
+     printed beside it as the reason two roots overlap. `oxy-hr-bias.mjs` above is the one of the six
+     that is still open. */
   /* FOUR NAMES LEFT TOGETHER, 2026-10-26, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
      `ppg-foot-consensus-e1.mjs`, `ppg-fusion-e3.mjs`, `ppi-jitter-vs-ecg.mjs` and
      `resp-cardiac-suppression-e8.mjs` were ONE walker written four times: the same recursive

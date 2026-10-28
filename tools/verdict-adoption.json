@@ -1940,9 +1940,16 @@
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
   "tools/pin-coverage.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pin-coverage.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the FILE POPULATION its coverage rate was taken over, which is not a night population: the unit is an O2Ring `_PPG.txt`, the enumeration spans SEVERAL roots given as repeated `--dir`, and one level of each root is walked. So every root gets `snapshotEntries` through a named lister before the read and again after, and the roots are summed over the FILE SET rather than by `dedupeRoots`, whose `nested-in` arm assumes a recursive enumeration this walk does not make. The run also prints which roots were unreadable, which nights inside a readable root could not be listed, and the bin identity that proves every found file was accounted for. `--verdict-sample` prints the object over a synthetic three-file snapshot, so the gate validates it where no corpus is mounted. It was binned `word-only` / `exempt` before, on the reading that its only machine-readable output was its selftest assertion line; that is no longer true of it."
   },
   "tools/pletha-marker-oracle.mjs": {
    "bin": "decides",
