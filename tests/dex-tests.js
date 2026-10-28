@@ -20654,6 +20654,114 @@
       T.eq('a PASS carries no reason', era.reason, null);
       T.ok('…over evidence that is not empty', (era.evidence || []).length > 0, JSON.stringify(era.evidence));
 
+      /* ── EVERY READER TRIPLE, not only the fold's ──────────────────────────────────────────────
+         The equality above is spelled over the three nodes the FOLD requires. Two tools read a
+         DIFFERENT three — `closure-tol-hac` and `beat-comb-analysis` take ECGDex · PpgDex ·
+         PpgDexFinger, because OxyDex carries spo2/hr and no beat series — so a night could hold a
+         reader's triple with no stamp while that equality stayed intact. The artifact now names
+         every triple with its own test, and these legs pin the LIST, not one member of it. */
+      var pxs = r.proxies || [];
+      T.eq('every reader triple is measured, not just the one the fold writes', pxs.length, 2);
+      T.eq(
+        '…each named',
+        pxs
+          .map(function (x) {
+            return x.name;
+          })
+          .join(','),
+        'fold,beat'
+      );
+      T.eq('…and the module names the same list, so the artifact cannot drift from the code', (modE.ERA_READER_TRIPLES || []).length, pxs.length);
+      T.eq('the beat triple takes the second optical placement, never the ring', (modE.ERA_BEAT_NODES || []).join(' '), 'ECGDex PpgDex PpgDexFinger');
+      T.ok(
+        'every triple carries three nodes, its own test and the readers that require it',
+        pxs.every(function (x) {
+          return (
+            x.nodes.length === 3 &&
+            (x.test === 'equality' || x.test === 'containment') &&
+            x.readers.length > 0 &&
+            x.readers.every(function (f) {
+              return f.indexOf('tools/') === 0;
+            })
+          );
+        }),
+        JSON.stringify(
+          pxs.map(function (x) {
+            return x.name + ':' + x.test + ':' + x.readers.length;
+          })
+        )
+      );
+      T.eq(
+        '🔴 NO triple is held by a night with no stamp — the exposure is confined for every reader',
+        pxs
+          .map(function (x) {
+            return x.unstampedHoldingNights.join(' ');
+          })
+          .join('')
+          .trim(),
+        ''
+      );
+      T.ok(
+        '…and each count IS its own list, so a name cannot drop out of one',
+        pxs.every(function (x) {
+          return x.unstampedHolding === x.unstampedHoldingNights.length;
+        }),
+        JSON.stringify(
+          pxs.map(function (x) {
+            return x.unstampedHolding + '/' + x.unstampedHoldingNights.length;
+          })
+        )
+      );
+      T.ok(
+        "the fold's triple is the equality this group already asserts",
+        pxs[0].test === 'equality' && pxs[0].tripleNights === px.threeLegNights && pxs[0].tripleNights === r.stamped && pxs[0].stampedNotHolding === 0,
+        JSON.stringify(pxs[0])
+      );
+
+      /* ∅ ONE-AWAY is a TRIPWIRE, never a violation: the third export is ABSENT, so the night holds
+         no reader's triple today. It is reported because a re-fold writing that one export without a
+         stamp would hand a three-leg reader an era-less night while this gate stayed green. The name
+         list is capped, so the legs below test the cap and the membership, not a length. */
+      var unrec = {};
+      (r.unrecordedNights || []).forEach(function (n) {
+        unrec[n.night] = true;
+      });
+      T.ok(
+        'a one-away night is always an UNSTAMPED night',
+        pxs.every(function (x) {
+          return x.oneAwayNights.every(function (n) {
+            return unrec[n] === true;
+          });
+        }),
+        JSON.stringify(
+          pxs.map(function (x) {
+            return x.oneAwayNights;
+          })
+        )
+      );
+      T.ok(
+        '…and never one that already holds the triple',
+        pxs.every(function (x) {
+          return x.oneAwayNights.every(function (n) {
+            return x.unstampedHoldingNights.indexOf(n) === -1;
+          });
+        })
+      );
+      T.ok(
+        '…printed under a cap the module names, never a list that grows with the corpus',
+        modE.ERA_TRIPLE_NAMES > 0 &&
+          pxs.every(function (x) {
+            return x.oneAwayNights.length === Math.min(x.oneAway, modE.ERA_TRIPLE_NAMES);
+          }),
+        JSON.stringify(
+          pxs.map(function (x) {
+            return x.oneAway + '→' + x.oneAwayNights.length;
+          })
+        ) +
+          ' cap ' +
+          modE.ERA_TRIPLE_NAMES
+      );
+
       // ── CURRENCY: the producer's own census over the tracked tree, now ─────────────────────────
       T.eq('the committed export total IS the tracked tree measured today', ex.total, liveE.exports.total);
       T.eq('…and so is the count with no recorded era', ex.unrecorded, liveE.exports.unrecorded);
@@ -20672,6 +20780,7 @@
           .join(' ')
       );
       T.eq('the per-node tally is the tracked tree too', JSON.stringify(r.unrecordedByNode), JSON.stringify(liveE.unrecordedByNode));
+      T.eq('every triple is the tracked tree too, member for member', JSON.stringify(r.proxies), JSON.stringify(liveE.proxies));
       T.eq(
         'no tracked night disagrees with its own stamp today',
         liveE.proxy.disagreements
