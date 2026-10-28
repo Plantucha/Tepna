@@ -135,11 +135,11 @@ An earlier revision of this table read aiohttp 3.14.4 and cryptography 50.0.2.
 Neither number matched either venv. The aiohttp figure equals the box's *Python*
 version, which is the shape of a transcription slip.
 
-`requirements.txt` declares `cryptography>=50.0.1`. Both venvs carry 50.0.0, so
-production misses its own declared floor. That is a deployment fact rather than a
-licensing one. `briefs/RESIDUE.md` logs it as
-`2026-10-18-the-cryptography-floor-is-met-by-neither-venv`. Raising it on the box
-is a deploy, and only the owner authorizes one.
+`requirements.txt` declares `cryptography>=50.0.0`, the version both venvs carry.
+A dependency bot had raised the floor to 50.0.1, which no venv met. That step only
+relinks the wheels to OpenSSL 4.0.2, and the AS11 path calls no API it changed. The
+owner lowered the floor on 2026-10-25, and row
+`2026-10-18-the-cryptography-floor-is-met-by-neither-venv` records it.
 
 #### The runtime closure
 
