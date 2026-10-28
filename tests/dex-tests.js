@@ -12497,6 +12497,189 @@
         T.ok('…and saying why in commitReason', /synthetic/.test(String(obj.producedBy && obj.producedBy.commitReason)), String(obj.producedBy && obj.producedBy.commitReason));
       }
     });
+    /* ════ FOUR RECURSIVE WALKERS, AND THE ONE THAT DIVIDED BY ITS SURVIVORS ══════════════════════
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `acc-acc-control.mjs`,
+       `h10-session-rate.mjs` and `pletha-marker-oracle.mjs` each walk ONE root recursively for
+       FILES; `edge-settle.mjs` walks one root for NIGHT DIRECTORIES. None published what the walk
+       offered.
+       THREE OF THE FOUR SWALLOWED A DIRECTORY ERROR AT EVERY LEVEL — `catch { return o }`,
+       `catch { return }`, and a bare walk with no refusal. An unreadable ROOT therefore read as an
+       empty one, so a mount this machine does not hold scored zero and said nothing (§∅ — an absent
+       root is not a zero). The root read now carries no catch and the tool exits 2 naming the errno.
+       An unreadable SUBDIRECTORY is reduced coverage, not a discontinuity, so it is named and
+       counted beside the figure (owner ruling 2026-09-17).
+       `edge-settle.mjs` HAD THE TAUTOLOGICAL DENOMINATOR, row
+       2026-10-28-edge-settle-divides-by-the-nights-that-survived-the-read: it kept only the nights
+       that gave a row, then divided every figure by that count. A night directory the read could not
+       score left the population entirely, so the tool could report 12 of 12 nights measured over a
+       tree holding 40. Measured on a plant of two empty night directories: it printed
+       `over 0 nights` and named neither. It now counts every night directory the walk offers and
+       names the rowless ones beside the survivors.
+       THE EXIT CODES OVER A READABLE, EMPTY ROOT STAY AS EACH TOOL HAD THEM, which is the one place
+       this slice departs from the two before it. All four already stated an empty run — a NOT_RUN
+       verdict object in three, a vacuous HOLDS in the fourth — so the silence those slices fixed was
+       never here. The published population now states the emptiness in the same object the tool
+       already emitted. */
+    group('the four recursive walkers publish the tree they walked', 'tools · corpus-reads · population', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the four walker legs examined nothing');
+        else T.skip('the four recursive-walker legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var FOUR = [
+        { stem: 'acc-acc-control.mjs', anti: /const COARSE = \{|ACC↔ACC CONTROL/, lister: /const listCaptureFragments = /, unit: 'capture-files' },
+        { stem: 'h10-session-rate.mjs', anti: /export const ECG_RE = /, lister: /const listEcgStreams = /, unit: 'ecg-streams' },
+        { stem: 'pletha-marker-oracle.mjs', anti: /_PLETHA\.txt/, lister: /const listPlethaFiles = /, unit: 'pletha-files' }
+      ];
+      var texts = {};
+      for (var i = 0; i < FOUR.length; i++) {
+        var rel = 'tools/' + FOUR[i].stem;
+        var src = TT[rel] || '';
+        texts[FOUR[i].stem] = src;
+        /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+        T.ok('ANTI-VACUITY · ' + FOUR[i].stem + ' is loaded', FOUR[i].anti.test(src), src.length + ' char(s)');
+        if (!FOUR[i].anti.test(src)) return;
+        T.ok(FOUR[i].stem + ' takes the population primitive from the core, not a hand-rolled object', /from '\.\/corpus-scope-core\.mjs'/.test(src), 'absent');
+        T.eq('…and the scanner classifies it as reporting', CR.classifyTool(src).cls, 'reports');
+        T.ok('…and it has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[FOUR[i].stem] === undefined, FOUR[i].stem + ' is still listed as an unwired corpus enumerator');
+        T.ok('…enumerating a FILE population through a NAMED lister', FOUR[i].lister.test(src), 'absent — a function on the `list` property inherits the name `list`, which publishes rule: null');
+        T.ok(
+          '…under snapshotEntries, never a night snapshot over a capture tree',
+          /snapshotEntries\(/.test(src) && !/snapshotNights\(/.test(src),
+          'a file population must not borrow the night primitive'
+        );
+        T.ok('…and refuses a root it cannot enumerate, naming the reason', /popBefore\.ok/.test(src) && /popBefore\.reason/.test(src), 'absent — an absent root is not a zero (§∅)');
+        T.ok('…publishing the object under the unit its own walk carries', src.indexOf("unit: '" + FOUR[i].unit + "'") > 0, "unit: '" + FOUR[i].unit + "' is absent");
+        /* THE SWALLOW. The root read must have no catch, so the errno reaches the refusal, and the
+           per-directory catch must PUSH a named entry rather than return the accumulator. */
+        T.ok(
+          '…reading the ROOT with no catch, so an unreadable root refuses instead of scoring zero',
+          /readdirSync\(\s*(?:base|root|String\(root\))\s*(?:,\s*\{ withFileTypes: true \}\s*)?\);\n/.test(src),
+          'absent — the root errno must reach the snapshot'
+        );
+        T.ok(
+          '…and naming each subdirectory it could not read, with the errno',
+          /unreadable(?:Dirs)?\.push\(/.test(src) && /e(?:rr)?\.code \|\| e(?:rr)?\.message/.test(src),
+          'absent — a catch that returns the accumulator makes an unreadable tree read as a complete one'
+        );
+        T.ok('…and carrying that count on the population line', /unreadable(?:Dirs)?\.length\s*(?:\?|$)/m.test(src), 'absent');
+      }
+      /* EACH SELECTION NAMES WHAT IT LEFT UNREAD. The offer is taken BEFORE any flag cuts it, and
+         the remainder is arithmetic on the published count, never a second walk. */
+      T.ok(
+        'the ACC control names the offered files its two device patterns did not match',
+        /matched an H10 or Verity _ACC\.txt name, \$\{population\.population\.checked - accMatched\} did not/.test(texts['acc-acc-control.mjs']),
+        "absent — the device patterns are a SELECTION over the walk, not the walk's rule"
+      );
+      T.ok(
+        'the session-rate reader names the streams --limit and --stride left unread',
+        /\$\{take\.length\} read; \$\{all\.namesTurnedAway\} _ECG name\(s\) turned away/.test(texts['h10-session-rate.mjs']),
+        'absent — a sampled run must not print the sample as the population'
+      );
+      T.ok(
+        '…and takes its snapshot before either flag cuts the offer',
+        texts['h10-session-rate.mjs'].indexOf('const popBefore = snapshotEntries(root, POP)') < texts['h10-session-rate.mjs'].indexOf("const limit = Number(arg('--limit', 0))"),
+        'a snapshot after the cut would publish the sample as the rule'
+      );
+      T.ok('the marker oracle names the offered files no row parsed', /unscored because no row parsed/.test(texts['pletha-marker-oracle.mjs']), 'absent');
+      /* THE NIGHT WALKER, WHOSE DEFECT WAS THE DENOMINATOR RATHER THAN THE SWALLOW. */
+      var ES = TT['tools/edge-settle.mjs'] || '';
+      T.ok('ANTI-VACUITY · edge-settle.mjs is loaded', /const SENSORS = |edge-settle over /.test(ES), ES.length + ' char(s)');
+      if (/const SENSORS = |edge-settle over /.test(ES)) {
+        T.eq('edge-settle classifies as reporting', CR.classifyTool(ES).cls, 'reports');
+        T.ok('…and has left the unwired backlog', CR.UNWIRED_BACKLOG['edge-settle.mjs'] === undefined, 'still listed');
+        T.ok(
+          '…taking the NIGHT primitive, because its unit is a night directory',
+          /snapshotNights\(root, POP\)/.test(ES) && !/snapshotEntries\(/.test(ES),
+          'a night population must not borrow the file primitive'
+        );
+        T.ok('…iterating the snapshot rather than its own readdir', /for \(const night of popBefore\.nights\)/.test(ES), 'absent — a second listing is a second rule');
+        T.ok('…and refusing a tree it cannot enumerate, naming the reason', /popBefore\.reason/.test(ES) && /process\.exit\(2\)/.test(ES), 'absent');
+        T.ok(
+          '…counting every night directory the walk OFFERED, not the ones that survived the read',
+          /offered: popBefore\.n/.test(ES) && /rowless: rowless\.length/.test(ES),
+          'absent — the survivors as the denominator is the defect this row names'
+        );
+        T.ok(
+          '…naming the rowless nights through the one definition of that arithmetic',
+          /notANight\(popBefore, scanned\)/.test(ES),
+          'absent — a hand-rolled set difference is the duplication row 2026-10-22 names'
+        );
+        T.ok('…and printing the offer beside the fold, so a coverage line cannot contradict its headline', /gave at least one row/.test(ES) && /gave none/.test(ES), 'absent');
+        T.ok(
+          '…while the synthetic sample carries the same shape as the real one',
+          /sample\.nights = \{ offered: MIN_NIGHTS, rowless: 0/.test(ES),
+          'absent — two shapes for one field is how a consumer reads a missing key as a zero'
+        );
+      }
+      /* `codex-export.mjs` IS AN EXCLUSION, NOT A WIRING. It walks a `git archive` export whose
+         `:(exclude)` specs exist to keep the corpus OUT, and it already publishes its own
+         offer-vs-read figure over that export. Wiring it would publish a corpus population over a
+         repo-path unit. The exclusion must stay LIVE: the scan still reads the file as an
+         enumerator, which is what makes the entry a decision rather than dead text. */
+      T.ok('codex-export is named in POPULATION_EXCLUSIONS, not wired', typeof CR.POPULATION_EXCLUSIONS['codex-export.mjs'] === 'string', 'absent');
+      T.ok('…and is no longer carried as unwired debt', CR.UNWIRED_BACKLOG['codex-export.mjs'] === undefined, 'still listed as debt AND excluded, which are contradictory claims');
+      var CX = CR.POPULATION_EXCLUSIONS['codex-export.mjs'] || '';
+      T.ok('…with a reason naming the git-archive export it walks', /git-archive|git archive/.test(CX), CX);
+      T.ok('…and the population it already publishes', /publishes its own/.test(CX), CX);
+      T.eq('…while the scan still reads the file itself as an enumerator, so the exclusion is live', CR.classifyTool(TT['tools/codex-export.mjs'] || '').cls, 'enumerates');
+      /* THE SAMPLE IS NOT THE CLEARANCE. `corpus-reads.mjs` blanks a `verdictSample` body before it
+         decides, so gutting the REAL call must drop each tool out of `reports`. */
+      var ALL4 = ['acc-acc-control.mjs', 'h10-session-rate.mjs', 'pletha-marker-oracle.mjs', 'edge-settle.mjs'];
+      for (var n = 0; n < ALL4.length; n++) {
+        var s2 = TT['tools/' + ALL4[n]] || '';
+        if (!s2) continue;
+        var gutted = s2
+          .replace(/snapshotEntries\(/g, 'noSnapshot(')
+          .replace(/snapshotNights\(/g, 'noNightSnapshot(')
+          .replace(/populationVerdict\(/g, 'noVerdict(');
+        T.ok(
+          'CONTROL · ' + ALL4[n] + ' falls out of reports with its real population call gutted',
+          CR.classifyTool(gutted).cls !== 'reports',
+          'the class survived the gutting — ' + CR.classifyTool(gutted).cls
+        );
+      }
+      var probe = env.probeToolArgv;
+      if (!probe || typeof env.repoRoot !== 'string') {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* KNOWN ANSWER · a root that cannot be enumerated. The probe cwd is an empty directory, so
+         `./nope` is ENOENT and each of the four must exit 2 rather than score an empty population.
+         `acc-acc-control` takes the captures root as its SECOND positional, so the repo root goes
+         first — its own checkout is where it loads `tools/build-core.js` from. */
+      var REFUSE = [
+        ['tools/acc-acc-control.mjs', [env.repoRoot, './nope']],
+        ['tools/h10-session-rate.mjs', ['--uploads', './nope']],
+        ['tools/pletha-marker-oracle.mjs', ['./nope']],
+        ['tools/edge-settle.mjs', ['--root', './nope']]
+      ];
+      for (var k = 0; k < REFUSE.length; k++) {
+        var bad = probe(REFUSE[k][0], REFUSE[k][1]);
+        T.eq(REFUSE[k][0] + ' exits 2 on a root it cannot enumerate', bad.status, 2);
+        T.eq('…and wrote nothing beside itself', bad.wrote, []);
+      }
+      /* KNOWN ANSWER · the adoption sample each row names. The checker parses stdout as JSON, so the
+         object must be ALONE. `acc-acc-control` and `pletha-marker-oracle` carried a sample before
+         this slice and keep it; the two new ones publish the lister the caller named. */
+      var SAMPLES = [['tools/h10-session-rate.mjs'], ['tools/edge-settle.mjs'], ['tools/acc-acc-control.mjs'], ['tools/pletha-marker-oracle.mjs']];
+      for (var q = 0; q < SAMPLES.length; q++) {
+        var sr = probe(SAMPLES[q][0], ['--verdict-sample']);
+        T.eq(SAMPLES[q][0] + ' --verdict-sample exits 0', sr.status, 0);
+        var obj = null;
+        try {
+          obj = JSON.parse(String(sr.out));
+        } catch {
+          obj = null;
+        }
+        T.ok('…printing ONE object and nothing else, which is what the checker parses', obj != null, String(sr.out).slice(0, 160));
+        if (obj == null) continue;
+        T.eq('…a tepna.verdict/1', obj.schema, 'tepna.verdict/1');
+      }
+    });
     /* ════ FOUR READERS, ONE POPULATION: THE TRIO NIGHT TREE ════════════════════════════════════
        Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `closure-tol-hac.mjs`,
        `pb-fusion-blast.mjs`, `rho-overlap-power.mjs` and `tch-pooled-hat.mjs` all score over the

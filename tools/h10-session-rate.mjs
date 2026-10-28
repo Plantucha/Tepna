@@ -67,7 +67,7 @@
 import { execSync } from 'node:child_process';
 import { createReadStream, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { corpusSearch } from './regen-goldens-core.mjs';
 
@@ -192,6 +192,7 @@ export const MIN_STEPS = 1000;
    the two bounds is visible rather than assumed. */
 import { DRAWN_MODAL_SHARE, MAX_CRYSTAL_SPREAD_PPM } from './device-stability.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 /* THE WINDOW THE SHIPPED COMMENT QUOTES. `ecgdex-dsp.js:5141` reads "measured over the box corpus
    the H10's real rate is 129.9866–129.9966 Hz" — a 77 ppm window, and the run reports how many
    sessions of that same corpus sit inside it. Nothing here edits the comment or the constant. */
@@ -413,11 +414,19 @@ export const ECG_RE = /_ECG(?: \(\d+\))?\.txt$/;
 export function inputs(root, depth = 4) {
   const seen = new Map();
   let turnedAway = 0;
+  const unreadable = [];
+  /* THE ROOT READ CARRIES NO `catch`. The one that stood here read an unreadable root as an empty
+     one, so a mount this machine does not hold and a corpus with no ECG export both printed
+     `streams found: 0` and emitted the same NOT_RUN — an absent root reported as a zero population
+     (§∅). The caller refuses on the throw and names the errno. A subdirectory nobody can read is a
+     reduced-coverage case, so it is counted and named beside the figure rather than refused. */
+  readdirSync(root, { withFileTypes: true });
   const walk = (dir, d) => {
     let kids = [];
     try {
       kids = readdirSync(dir, { withFileTypes: true });
-    } catch {
+    } catch (e) {
+      unreadable.push(`${relative(root, dir) || '.'}: ${e.code || e.message}`);
       return;
     }
     for (const k of kids) {
@@ -440,6 +449,7 @@ export function inputs(root, depth = 4) {
   walk(root, depth);
   const out = [...seen.values()].sort((a, b) => b.bytes - a.bytes);
   out.namesTurnedAway = turnedAway;
+  out.unreadableDirs = unreadable;
   return out;
 }
 
@@ -675,7 +685,21 @@ async function main() {
   }
 
   const root = arg('--uploads', null) || corpusSearch(ROOT).dir;
-  const all = inputs(root, Number(arg('--depth', 5)));
+  /* THE WALK IS THE POPULATION RULE, so the lister carries the name the snapshot publishes, and the
+     offer is taken before any sampling flag cuts it. */
+  const walkDepth = Number(arg('--depth', 5));
+  let found = [];
+  const listEcgStreams = (r) => {
+    found = inputs(String(r), walkDepth);
+    return found.map((x) => relative(String(r), x.path));
+  };
+  const POP = { list: listEcgStreams, unit: 'ecg-streams' };
+  const popBefore = snapshotEntries(root, POP);
+  if (!popBefore.ok) {
+    console.error(`\u2715 h10-session-rate: ${popBefore.reason} — ${root}`);
+    process.exit(2);
+  }
+  const all = found;
   const limit = Number(arg('--limit', 0));
   const stride = Number(arg('--stride', 0));
   const maxSteps = Number(arg('--max-steps', 0));
@@ -689,6 +713,18 @@ async function main() {
     `  streams found: ${all.length}${stride > 0 ? `, every ${stride}th by path` : ''}${limit > 0 ? `, capped at ${take.length}` : ''}` +
       `${maxSteps > 0 ? `, reading the first ${maxSteps} admitted step(s) of each` : ', reading each in full'}`
   );
+  /* THE OFFER BESIDE THE READ. `--limit` and `--stride` cut the offer AFTER the snapshot, so the
+     population figure states what the rule matched and the line beside it states what was read. */
+  const population = populationVerdict(popBefore, snapshotEntries(root, POP), {
+    tool: 'tools/h10-session-rate.mjs',
+    evidence: ['tools/h10-session-rate.mjs']
+  });
+  say(
+    `  population: ${population.population.checked} ECG stream(s) offered under ${root}` +
+      `; ${take.length} read; ${all.namesTurnedAway} _ECG name(s) turned away by the suffix rule` +
+      (all.unreadableDirs.length ? `; ${all.unreadableDirs.length} unreadable subdirectory(ies): ${all.unreadableDirs.join(', ')}` : '')
+  );
+  say(`POPULATION ${JSON.stringify(population)}`);
   if (!take.length) {
     const v = Verdict.make({
       gate: 'h10-session-rate',
