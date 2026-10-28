@@ -265,7 +265,7 @@ export function readChunk(text, cap = READ_CHARS) {
 
 /* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
    pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
-export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic', '--brief', '--rerank', '--no-rerank', '--no-map']);
+export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic', '--brief', '--rerank', '--no-rerank', '--no-map', '--board-all']);
 export function stripFlags(argv) {
   return (argv || []).filter((a) => !CLI_FLAGS.has(a));
 }
@@ -293,6 +293,14 @@ export function searchLane(argv) {
    `--no-rerank` asks for the old floor by name; `--rerank` stays accepted and changes nothing. */
 export function wantRerank(argv) {
   return !argv.includes('--no-rerank');
+}
+
+/* THE BOARD'S SHARE OF THE HITS IS CAPPED IN BOTH LANES (row
+   `2026-10-18-board-hits-have-no-share-cap-in-rule-0`). The rule and the measurement behind it live
+   with the fusion in `xerj-query.mjs`; this is the switch that turns it off by name. A reader who
+   wants the board's own view of a question asks for it: `--board-all`. */
+export function wantBoardCap(argv) {
+  return !(argv || []).includes('--board-all');
 }
 
 /* A bound on how long the default lane may hold the caller before the fallback runs. The timer is
@@ -1199,6 +1207,21 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     const guarded = (src.match(/^.*printMapLines\(.*$/gm) || []).filter((l) => /\bbrief\b/.test(l));
     ok('--brief KEEPS the map line (neither call site is conditioned on the brief flag)', guarded.length === 0, guarded.join(' | '));
   }
+  /* ── THE BOARD'S SHARE CAP: the wiring, not the rule ────────────────────────────────────────────
+     The rule and its measurement are pinned where the fusion lives (`xerj-query.mjs --selftest`,
+     over planted lists). What belongs HERE is that the switch reaches BOTH lanes: a cap that binds
+     only the lane which usually answers is a cap a reader cannot state, and the fallback lane is
+     exactly where a reader lands when the index is down. */
+  ok('the board share cap is on by default', wantBoardCap(['node', 'x', 'q']) === true);
+  ok('--board-all turns it off by name', wantBoardCap(['--board-all', 'q']) === false);
+  ok('--board-all is a flag, never a query word', stripFlags(['--board-all', 'seam']).join(' ') === 'seam');
+  ok('--board-all does not change which lane answers', searchLane(['--board-all', 'q']) === 'hybrid');
+  {
+    const src = readFileSync(new URL(import.meta.url), 'utf-8');
+    ok('the hybrid lane passes the switch to the search', /hybridSearch\(\{ query: q, rerank: wantRerank\(process\.argv\), cap: wantBoardCap\(process\.argv\) \}\)/.test(src));
+    ok('the fallback lane caps the ranked list too', /capSourceShare\(ranked, 8\)/.test(src));
+    ok('…and names what it held back rather than dropping it silently', /capped\.held > 0/.test(src));
+  }
   ok(
     '--brief keeps the paths-not-an-answer warning in one line',
     readWarningLines(true).filter((l) => l.includes('PATHS TO READ')).length === 1 && readWarningLines(true).filter(Boolean).length === 1
@@ -1241,7 +1264,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     }
     const xq = await import('./xerj-query.mjs');
     try {
-      const out = await withTimeout(xq.hybridSearch({ query: q, rerank: wantRerank(process.argv) }), HYBRID_TIMEOUT_MS, 'hybrid index');
+      const out = await withTimeout(xq.hybridSearch({ query: q, rerank: wantRerank(process.argv), cap: wantBoardCap(process.argv) }), HYBRID_TIMEOUT_MS, 'hybrid index');
       process.stdout.write(`${xq.render(out, q, { brief })}\n`);
       if (wantsMap(process.argv) && !out.refused) await printMapLines(out.hits.map((h) => h.path));
       for (const line of readWarningLines(brief)) console.log(line);
@@ -1284,8 +1307,14 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
       qv = null;
     }
   }
-  const hits = rank(qv, entries, query, 8);
+  /* THE SAME CAP IN THE FALLBACK LANE. A rule that binds only the lane that usually answers is a
+     rule a reader cannot state, and this lane is the one a reader lands in when the index is down. */
+  const { capSourceShare, capMax } = await import('./xerj-query.mjs');
+  const ranked = rank(qv, entries, query, 8);
+  const capped = wantBoardCap(process.argv) ? capSourceShare(ranked, 8) : { hits: ranked, held: 0 };
+  const hits = capped.hits;
   console.log(`\n▸ ${qv ? 'semantic' : 'TOKEN-FALLBACK (embedder unreachable)'} · "${query}"\n`);
+  if (capped.held > 0) console.log(`  ⚠ ${capped.held} board post(s) held below the share cap (at most ${capMax(8)} of 8) — \`--board-all\` ranks them with everything else\n`);
   for (const h of hits) console.log(brief ? `  ${h.score.toFixed(3)}  ${h.file}` : `  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
   if (readMode) {
     /* --read: the matching CHUNK of the top three hits, inline, so the reader reads them instead of

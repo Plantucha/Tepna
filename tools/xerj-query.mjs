@@ -171,6 +171,50 @@ export function collapseByPath(hits, topK = 5) {
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, topK);
 }
 
+/* ── ONE SOURCE MAY NOT OWN THE ANSWER (row `2026-10-18-board-hits-have-no-share-cap-in-rule-0`) ──
+ * The agent board joined the Rule 0 corpus on 2026-10-17 as one file per post, and a post ranks on
+ * the same scale as a brief, a source file or a lesson. The board grows by the hour and the repo
+ * does not, so the board's share of the five hits a reader actually reads grows with it.
+ *
+ * MEASURED 2026-10-28 over the 84 distinct Rule 0 queries the fleet itself ran, harvested from the
+ * board's own posts and replayed against this lane: board posts held 185 of the 420 top-five slots,
+ * 44 %. 36 of the 84 queries returned more than two posts in five, and ELEVEN returned five posts
+ * and no repo document at all. The owner deferred the cap on 2026-10-17 until the board neared
+ * 1,000 posts; the snapshot that morning held 1,933 entries, 781 of the indexed kinds.
+ *
+ * The rule is a SHARE, not a count, because the two lanes show different list lengths and a count
+ * pinned to one of them would read as a different rule in the other (`tests/verify-shard-timings.mjs`
+ * makes the same argument for its ratchet). `Math.max(1, …)` is deliberate: a single post is never
+ * capped out, so a ruling that exists only on the board still reaches the reader.
+ *
+ * §∅: the cap REORDERS, it never invents and it never hides the only answer there is. A post the cap
+ * defers comes back when no other source can fill the slot, and `held` reports exactly how many posts
+ * lost a slot, so a reader who wants them knows they exist (`doc-search --board-all`). */
+export const CAPPED_PREFIX = 'ext:agent-board/';
+export const CAPPED_SHARE = 0.4;
+export function capMax(topK, share = CAPPED_SHARE) {
+  return Math.max(1, Math.floor(topK * share));
+}
+export function capSourceShare(hits, topK = 5, { prefix = CAPPED_PREFIX, share = CAPPED_SHARE, pathOf = (h) => h?.path ?? h?.file } = {}) {
+  const max = capMax(topK, share);
+  const kept = [];
+  const deferred = [];
+  let taken = 0;
+  for (const h of hits || []) {
+    if (kept.length >= topK) break;
+    if (String(pathOf(h) ?? '').startsWith(prefix)) {
+      if (taken >= max) {
+        deferred.push(h);
+        continue;
+      }
+      taken++;
+    }
+    kept.push(h);
+  }
+  while (kept.length < topK && deferred.length) kept.push(deferred.shift());
+  return { hits: kept, held: deferred.length, max };
+}
+
 export async function embedQuery(query, fetchFn = fetch) {
   const res = await fetchFn(`${OLLAMA}/v1/embeddings`, {
     method: 'POST',
@@ -199,7 +243,7 @@ export async function rerankTop(query, hits, { url = RERANK_URL, fetchFn = fetch
   return 1 / (1 + Math.exp(-Math.max(...logits)));
 }
 
-export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_INDEX, topK = 5, fetchFn = fetch, embedFn = embedQuery, rerank = false }) {
+export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_INDEX, topK = 5, fetchFn = fetch, embedFn = embedQuery, rerank = false, cap = true }) {
   if (!isLoopback(url)) throw new Error(`${url} is not loopback — this tool is dev-only`);
   let vector = null;
   let degraded = null;
@@ -225,20 +269,23 @@ export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_I
       pool
     );
   };
+  /* The capped list and the uncapped one are taken from the same ranked pool, so `--board-all` is
+     the SAME search with the cap off, never a second ranking. */
+  const take = (list) => (cap ? capSourceShare(list, topK) : { hits: (list || []).slice(0, topK), held: 0, max: null });
   const lex = await ask(null);
   const bm25 = lex[0]?.score ?? null;
-  if (!vector) return { hits: lex.slice(0, topK), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
+  if (!vector) return { ...take(lex), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
   const sem = await ask(vector);
   const signals = { cos: sem[0]?.score ?? null, bm25 };
   const base = { degraded, hybrid: true, lexTop: lex[0]?.path ?? null, semTop: sem[0]?.path ?? null, signals };
-  if (!rerank) return { ...base, hits: fuseRRF([lex, sem], topK), refused: belowFloor(signals) };
+  if (!rerank) return { ...base, ...take(fuseRRF([lex, sem], Math.max(topK, RERANK_POOL))), refused: belowFloor(signals) };
   const fused = fuseRRF([lex, sem], RERANK_POOL);
   try {
     signals.rerank = await rerankTop(query, fused, { fetchFn });
-    return { ...base, hits: fused.slice(0, topK), refused: belowRerankFloor(signals.rerank) };
+    return { ...base, ...take(fused), refused: belowRerankFloor(signals.rerank) };
   } catch (e) {
     const note = `no reranker (${e.message}) — the cosine and BM25 floor decides`;
-    return { ...base, degraded: degraded ? `${degraded}; ${note}` : note, hits: fused.slice(0, topK), refused: belowFloor(signals) };
+    return { ...base, degraded: degraded ? `${degraded}; ${note}` : note, ...take(fused), refused: belowFloor(signals) };
   }
 }
 
@@ -371,6 +418,59 @@ export async function selftest() {
   ok(formatHit({ _source: { path: 'a.js', line_start: 5, line_end: 9, text: 'x' } }).where === ':5-9', 'CONTROL: an untagged hit prints the lines alone');
   ok(searchBody('q', null).query.match.text && !JSON.stringify(searchBody('q', null).query).includes('symbols'), 'the search body never reads symbols — no ranking moves');
 
+  /* 9 · ONE SOURCE MAY NOT OWN THE ANSWER. The planted list is the shape measured on 2026-10-28:
+         five board posts ahead of every repo document. Every leg here is a list the cap re-orders,
+         never a search — the ranking it is given is the ranking it must keep inside each source. */
+  const bp = (n, sc) => ({ path: `ext:agent-board/7/${n}.md`, score: sc });
+  const rp = (n, sc) => ({ path: `briefs/${n}.md`, score: sc });
+  const crowded = [bp(1, 0.9), bp(2, 0.8), bp(3, 0.7), bp(4, 0.6), bp(5, 0.5), rp('a', 0.4), rp('b', 0.3), rp('c', 0.2)];
+  const capped = capSourceShare(crowded, 5);
+  ok(capped.hits.map((h) => h.path.split('/')[0]).join() === 'ext:agent-board,ext:agent-board,briefs,briefs,briefs', 'two posts keep their slots and three repo documents take the rest');
+  ok(capped.hits[0].path === 'ext:agent-board/7/1.md' && capped.hits[1].path === 'ext:agent-board/7/2.md', '…and the posts kept are the HIGHEST ranked two, not an arbitrary two');
+  ok(capped.held === 3, 'held counts exactly the posts that lost a slot');
+  ok(capMax(5) === 2 && capMax(8) === 3, 'the rule is a share of the list, so it reads the same in a lane that prints eight');
+  ok(capMax(1) === 1 && capMax(2) === 1, 'a single post is never capped out — a ruling that lives only on the board still answers');
+  /* §∅: withheld is not absent, and the cap never shortens an answer it cannot replace. */
+  const onlyBoard = capSourceShare([bp(1, 0.9), bp(2, 0.8), bp(3, 0.7), bp(4, 0.6), bp(5, 0.5)], 5);
+  ok(onlyBoard.hits.length === 5 && onlyBoard.held === 0, 'with nothing else to show, the deferred posts come back rather than leaving a short list');
+  const thin = capSourceShare([bp(1, 0.9), bp(2, 0.8), bp(3, 0.7), bp(4, 0.6), rp('a', 0.5)], 5);
+  ok(
+    thin.hits
+      .map((h) => h.path)
+      .join()
+      .includes('briefs/a.md') &&
+      thin.hits.length === 5 &&
+      thin.held === 0,
+    '…and one repo document is kept ahead of the posts that fill the rest'
+  );
+  const clean = [rp('a', 0.9), rp('b', 0.8), rp('c', 0.7)];
+  ok(JSON.stringify(capSourceShare(clean, 5).hits) === JSON.stringify(clean), 'CONTROL: a list with no board hit is returned untouched');
+  ok(
+    capSourceShare([{ file: 'ext:agent-board/7/1.md' }, { file: 'ext:agent-board/7/2.md' }, { file: 'ext:agent-board/7/3.md' }, { file: 'briefs/a.md' }], 4).hits[3].file === 'ext:agent-board/7/3.md',
+    'the semantic lane shape is read too: a hit keyed `file` is capped like one keyed `path`'
+  );
+
+  /* …and the cap reaches the search, with the switch that turns it off. */
+  const boardFake = (knnOrder) => async (u) => {
+    if (u.endsWith('/v1/rerank')) throw new Error('connection refused');
+    const list = knnOrder.map((n, i) => doc(n, 1 - i / 100));
+    return { ok: true, json: async () => ({ hits: { hits: list } }) };
+  };
+  const order = ['ext:agent-board/7/1.md', 'ext:agent-board/7/2.md', 'ext:agent-board/7/3.md', 'ext:agent-board/7/4.md', 'briefs/a.md', 'briefs/b.md', 'briefs/c.md'];
+  const on = await hybridSearch({ query: 'q', fetchFn: boardFake(order), embedFn: emb });
+  const off = await hybridSearch({ query: 'q', fetchFn: boardFake(order), embedFn: emb, cap: false });
+  ok(on.hits.filter((h) => h.path.startsWith('ext:agent-board/')).length === 2 && on.held === 2, 'the hybrid lane caps the board at two of five and reports two held');
+  ok(off.hits.filter((h) => h.path.startsWith('ext:agent-board/')).length === 4 && off.held === 0, 'CONTROL: `--board-all` passes cap:false and the ranking is the unbounded one');
+  ok(
+    off.hits
+      .map((h) => h.path)
+      .slice(0, 4)
+      .join() === order.slice(0, 4).join(),
+    '…and the uncapped list is the same ranking, not a second search'
+  );
+  ok(render(on, 'q').includes('2 board post(s) held below the share cap'), 'the reader is told the posts exist and how to see them');
+  ok(!render(off, 'q').includes('held below the share cap'), 'CONTROL: nothing is said when the cap held nothing back');
+
   const line = fail.length ? `xerj-query selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -390,6 +490,9 @@ export function render(out, query, { brief = false } = {}) {
     return lines.join('\n');
   }
   if (Number.isFinite(out.signals?.rerank)) lines.push(`  reranker best score ${out.signals.rerank.toFixed(3)} (floor ${REFUSE_RERANK}; the order below is the fused one)`, '');
+  /* Withheld is not absent: the reader is told the posts exist and how to see them. */
+  if (out.held > 0)
+    lines.push(`  ⚠ ${out.held} board post(s) held below the share cap (at most ${capMax(out.hits.length || 5)} of ${out.hits.length || 5}) — \`--board-all\` ranks them with everything else`, '');
   for (const h of out.hits) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
     if (brief) continue;
