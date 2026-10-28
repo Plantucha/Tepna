@@ -422,15 +422,20 @@ const UNADDRESSED_REASON = {
 };
 
 /* 🔴 THE RESCUE THAT DOES NOT WORK, MEASURED RATHER THAN ASSUMED. An entry with no `fn` looks
-   addressable anyway, because its `why` opens `In <function>.` — 421 of the committed 434 do. If
+   addressable anyway, because its `why` opens `In <function>.` — 391 of the committed 401 do. If
    that name were the recorded function, every drifted entry would carry an address and this tool
-   would only have to read it.
-   It is not an address. The 320 entries that DO carry a machine-read `fn` are the control, and on
-   10 of them the prose names a different function: `dfaAlpha1` for `dfaAlpha1Segmented`,
-   `countPairs` for `countPairsIn`, `markO2Sentinels` for `markO2BeatMarkers`. The prose names an
-   enclosing, neighbouring or since-renamed function, so placing an entry by it would mis-anchor
-   about one in 32 — and this tool's standing rule is that a wrong re-anchor is worse than a lost
-   entry. So the prose is reported as a disagreement rate and never consumed.
+   would only have to read it. It is not an address, for two measured reasons.
+   (1) IT DRIFTS. The 315 entries carrying BOTH the prose and a machine-read `fn` are the control, and
+   the prose named a different function on 11 of them until it was repaired on 2026-10-28: `dfaAlpha1`
+   for `dfaAlpha1Segmented`, `countPairs` for `countPairsIn`, `markO2Sentinels` for
+   `markO2BeatMarkers`, and `detectClampSaturation` for the `spikeAt` nested inside it. The count is 0
+   today and the selftest leg holds it there, so the agreement is an invariant someone MAINTAINS, never
+   a property of the field: stale prose beside a freshly stamped `fn` re-opens it, and the leg names
+   the entry.
+   (2) THE REPAIR DOES NOT REACH THE SET A RESCUE WOULD SERVE. 79 entries carry no `fn` at all, 76 of
+   them with prose, and over exactly those entries nothing checks the prose. Placing one by it stakes a
+   re-anchor on an unchecked name, and this tool's standing rule is that a wrong re-anchor costs more
+   than a lost entry. So the prose is reported as a disagreement count and never consumed.
    `fnFromProse` is exported for the control, not for placement; nothing in the write path calls it. */
 export function fnFromProse(why) {
   const m = /^In ([A-Za-z_$][\w$]*)[.,:; ]/.exec(String(why == null ? '' : why).trim());
@@ -1177,12 +1182,15 @@ if (IS_MAIN && has('--selftest')) {
     agS.disagree.length === 1 && agS.disagree[0].fn === 'alphaInner' && agS.disagree[0].prose === 'alpha',
     JSON.stringify(agS.disagree)
   );
-  /* The committed ledger is the measurement the comment above quotes; pin it as a floor, not a literal. */
+  /* The committed ledger is the measurement the comment above quotes. The prose was repaired to agree
+     on 2026-10-28, so this leg pins the disagreement count at 0 rather than at "it drifts": stale
+     prose beside a freshly stamped `fn` reds it, the message names the entry, and the fix is the
+     prose. The `checkable` floor is there so the leg cannot pass over a ledger it failed to read. */
   const agLive = proseFnAgreement(_led);
   ok(
-    'the committed prose disagrees with a written qualifier at least once, so it is not an address',
-    agLive.disagree.length > 0 && agLive.checkable > 100,
-    agLive.disagree.length + ' of ' + agLive.checkable
+    'every committed entry carrying both a prose name and a written qualifier names ONE function',
+    agLive.disagree.length === 0 && agLive.checkable > 100,
+    agLive.disagree.length + ' disagreement(s) over ' + agLive.checkable + ' checkable · ' + JSON.stringify(agLive.disagree.slice(0, 3))
   );
   ok(
     'no write path consumes the prose',
@@ -1745,7 +1753,7 @@ if (IS_MAIN && !has('--selftest')) {
       );
       const ag = proseFnAgreement(doc);
       console.log(
-        `  control · the prose rescue: ${ag.named} of ${ag.entries} entr(ies) open "In <function>", and over the ${ag.checkable} with a machine-read qualifier to check against it disagrees ${ag.disagree.length} time(s) — so the prose is not an address.`
+        `  control · the prose rescue: ${ag.named} of ${ag.entries} entr(ies) open "In <function>", and over the ${ag.checkable} with a machine-read qualifier to check against it disagrees ${ag.disagree.length} time(s) — pinned at 0 since 2026-10-28, which is maintained agreement and not an address. The ${ag.entries - ag.checkable} entr(ies) this control cannot check are the ones a prose rescue would have to serve.`
       );
       for (const d of ag.disagree) console.log(`    ⚠ PROSE MISNAMES ${d.file} L${d.line} [${d.op}] — fn=${d.fn}, prose=${d.prose}`);
     }
