@@ -771,9 +771,21 @@ export const UNWIRED_BACKLOG = {
   'codex-export.mjs': 1,
   'corpus-census.mjs': 2,
   'corpus-tier.mjs': 1,
-  'cpap-corpus.mjs': 2,
-  'cpap-oxy-couple.mjs': 1,
-  'cpap-sa2-agreement.mjs': 1,
+  /* THE THREE CPAP-CORPUS READERS LEFT TOGETHER, 2026-10-28, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `cpap-corpus.mjs`,
+     `cpap-oxy-couple.mjs` and `cpap-sa2-agreement.mjs` read the SAME ResMed card from three
+     angles, and each now snapshots its own enumeration before the read and publishes the
+     comparison, so the scan reads them as `reports` and this list must not name them.
+     EACH ONE'S UNIT IS DIFFERENT, AND THAT IS WHY THEY TAKE `snapshotEntries` RATHER THAN
+     `snapshotNights`: the card's `YYYYMMDD` day folder, the `*.csv` file under `--oxy`, and the
+     deduplicated `*_SA2.edf` basename. A night rule over any of the three would publish a rule
+     nobody wrote, so each passes a NAMED lister and the snapshot publishes that name.
+     THE OFFERED COUNT IS NOT THE SCORED COUNT, measured on the real card 2026-10-28: 192 day
+     folders offered against 189 night exports, 65 `*.csv` files offered against 49 paired nights,
+     and 236 SA2 files offered against 183 nights built. Each names the dropped members beside the
+     figure and carries an arithmetic control (offered − scored === named).
+     THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a root that offered
+     nothing, and an agreement pass that compared nothing, now exit 2 where all three exited 0. */
   'cvhr-fold-rescore.mjs': 1,
   'deep-desat-falsifier.mjs': 1,
   'dual-clock-rate.mjs': 1,

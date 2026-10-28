@@ -39,6 +39,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d) => {
@@ -111,6 +112,25 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   console.log(`all ${pass} selftests passed`);
   process.exit(0);
 }
+/* ── the population this tool reads ───────────────────────────────────────────
+   Row 2026-10-21-forty-one-corpus-enumerators-report-no-population: the table below counted the
+   nights it SCORED and said nothing about the nights it was OFFERED, so an O2Ring night the pairing
+   dropped left no trace. The population is the `*.csv` files under `--oxy`; the scored set is the
+   files that paired to a CPAP night. Every offered file the pairing dropped is named, and the
+   arithmetic is asserted rather than trusted. */
+const POP_TOOL = 'tools/cpap-oxy-couple.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+function listOxyCsv(dir) {
+  return fs
+    .readdirSync(dir)
+    .filter((f) => /\.csv$/i.test(f))
+    .sort();
+}
+/* §∅ + owner ruling 2026-09-17: an enumeration that ran and offered nothing, or a run that scored
+   nothing, is a DISCONTINUITY and refuses (exit 2). A partial population annotates and exits 0. */
+function exitCodeFor(population, scored) {
+  return population.status === 'NOT_RUN' || scored === 0 ? 2 : 0;
+}
 const EXPORTS = arg('--exports', null);
 const OXYDIR = arg('--oxy', null);
 if (!EXPORTS || !OXYDIR) {
@@ -160,7 +180,14 @@ sb.self = sb;
 sb.globalThis = sb;
 const ctx = vm.createContext(sb);
 ctx.__DEX_NAMESPACED__ = true;
-for (const f of ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-dsp.js']) vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
+/* 🔴 THE ESM RE-EXPORT LINE MUST GO BEFORE A `vm` EVER SEES THE TEXT. `oxydex-dsp.js` ends with
+   `export const OxyDex = window.OxyDex;` for the owned bundle's import edge, and a `vm.Script` is
+   not a module, so the raw text throws `SyntaxError: Unexpected token 'export'` at module
+   evaluation — before this tool reads one file of corpus. Measured 2026-10-28 on the real card: the
+   tool could not run at all. Every other realm-building tool here already strips the line
+   (`probe-equivalence.mjs:803`, `mutation-crawl.mjs:215`), and this one had been left behind. */
+const stripEsm = (text) => text.replace(/^export\s.*$/gm, '');
+for (const f of ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-dsp.js']) vm.runInContext(stripEsm(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
 
 /* ── THE PRIMITIVE — now imported, not re-implemented (FOLLOWUPS §2) ─────────────────────────
    `coupling()` used to be defined HERE as a prototype. It is now the shared spine module
@@ -172,12 +199,24 @@ for (const f of ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-ds
 import EventCoupling from '../event-coupling.js';
 
 /* ── load both sides, pair by overlapping floating clock ──────────────────── */
+/* THE ENUMERATION COMES FIRST, BEFORE THE EXPORT SET IS EVEN READ. An `--oxy` directory that
+   offers no file is the absence this tool exists to notice, and reporting it where it is found
+   means a missing oximeter set never arrives as a parse error about the other side (§∅). */
+const snapBefore = snapshotEntries(OXYDIR, { list: listOxyCsv, unit: 'files' });
+if (!snapBefore.ok) {
+  console.error(`refused: ${snapBefore.reason} — ${OXYDIR}`);
+  console.log('POPULATION ' + JSON.stringify(populationVerdict(snapBefore, snapBefore, { tool: POP_TOOL, evidence: POP_EV })));
+  process.exit(2);
+}
+const commitOf = gitCommitOf();
+if (snapBefore.n === 0) {
+  console.log('POPULATION ' + JSON.stringify(populationVerdict(snapBefore, snapBefore, { tool: POP_TOOL, commit: commitOf.commit, commitReason: commitOf.reason, evidence: POP_EV })));
+  console.error(`refused: ${OXYDIR} offered no O2Ring file at all`);
+  process.exit(2);
+}
 const CP = JSON.parse(fs.readFileSync(EXPORTS, 'utf8')).exports;
 const oxy = [];
-for (const f of fs
-  .readdirSync(OXYDIR)
-  .filter((f) => /\.csv$/i.test(f))
-  .sort()) {
+for (const f of snapBefore.members) {
   let e = null;
   try {
     e = ctx.OxyDex.compute({ text: fs.readFileSync(path.join(OXYDIR, f), 'utf8'), fname: f }, { fname: f, kernel: ctx.DexKernel });
@@ -361,3 +400,35 @@ for (const [lo, hi, label] of [
     `  ${label.padEnd(8)} n=${String(r.n).padStart(4)} (${String(r.excluded).padStart(3)} unobserved)   observed ${r.observedPct.toFixed(1)}%   chance ${r.chancePct.toFixed(1)}%   lift ×${r.lift.toFixed(2)}   expHits ${r.expectedHits.toFixed(1)}${note}`
   );
 }
+
+/* ── the population, published ────────────────────────────────────────────────
+   Offered vs paired, with every dropped file named. `notCovered` reads `row[key]`, so the covered
+   set is rows carrying the offered NAME — a list of bare strings would cover nothing. */
+function publishPopulation() {
+  const snapAfter = snapshotEntries(OXYDIR, { list: listOxyCsv, unit: 'files' });
+  const population = populationVerdict(snapBefore, snapAfter, {
+    commit: commitOf.commit,
+    commitReason: commitOf.reason,
+    tool: POP_TOOL,
+    evidence: POP_EV
+  });
+  const unpaired = notCovered(
+    snapBefore,
+    pairs.map((p) => ({ _file: p.o.file })),
+    { key: '_file' }
+  );
+  console.log(
+    `\npopulation: ${snapBefore.n} O2Ring file(s) offered under ${OXYDIR} · ${oxy.length} computed an OxyDex export · ${pairs.length} paired to a CPAP night · movement ${population.status}`
+  );
+  console.log('  ' + ruleLine(population));
+  if (unpaired.length) {
+    console.log(`  ${unpaired.length} offered file(s) scored no coupling, by name: ${unpaired.slice(0, 8).join(', ')}${unpaired.length > 8 ? ', …' : ''}`);
+  }
+  /* The control: a named absence must account for the whole gap, or one of the two counts is wrong. */
+  if (unpaired.length !== snapBefore.n - pairs.length) {
+    throw new Error(`population arithmetic: ${snapBefore.n} offered − ${pairs.length} paired ≠ ${unpaired.length} named`);
+  }
+  console.log('POPULATION ' + JSON.stringify(population));
+  return population;
+}
+process.exit(exitCodeFor(publishPopulation(), pairs.length));

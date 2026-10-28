@@ -12339,6 +12339,147 @@
       T.eq('CONTROL · tch-pooled-hat passes its own selftest', tchSelf.status, 0);
       T.ok('…and counts the assertions it ran', /(\d+) passed, 0 failed/.test(String(tchSelf.out)), String(tchSelf.out).slice(0, 160));
     });
+    /* ════ THREE CPAP-CORPUS READERS PUBLISH THE ENUMERATION THEY WALKED ═══════════════════════
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population, the CPAP slice.
+       `cpap-corpus.mjs`, `cpap-oxy-couple.mjs` and `cpap-sa2-agreement.mjs` read one ResMed card
+       from three angles, and all three reported only what they SCORED: 189 night exports, 49 paired
+       nights, 183 nights built. None of them said what it had been OFFERED, so a day folder with no
+       EDF, a CSV no export could be computed from, and an SA2 file with no SpO2 channel each left no
+       trace at all.
+       EACH UNIT IS DIFFERENT, AND THAT IS THE WHOLE REASON THEY TAKE `snapshotEntries`: a day
+       folder, a `*.csv` file, a deduplicated `*_SA2.edf` basename. `snapshotEntries` publishes
+       `rule: list.name`, so an inline arrow would publish `null` and name no rule — each passes a
+       NAMED lister instead, and the leg below reads that name back out of the object.
+       THE COVERAGE LINE IS CONTROLLED BY ARITHMETIC: `notCovered` reads `row[key]`, so each tool
+       throws unless offered − scored === named.
+       THE EMPTY-ROOT LEGS ALSO PIN THE REALM FIX. `oxydex-dsp.js` ends with an ESM re-export line
+       and a `vm.Script` is not a module, so `cpap-oxy-couple.mjs` threw `SyntaxError` at module
+       evaluation before it read one file — its probe would exit 1, not 2, if the strip regressed. ════ */
+    group('the three CPAP-corpus readers publish the enumeration they walked, and exit on it', 'tools · corpus-reads · verdict-sample', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the CPAP-corpus legs examined nothing');
+        else T.skip('the CPAP-corpus legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var THREE = [
+        { rel: 'tools/cpap-corpus.mjs', lister: 'listDayFolders', unit: 'days' },
+        { rel: 'tools/cpap-oxy-couple.mjs', lister: 'listOxyCsv', unit: 'files' },
+        { rel: 'tools/cpap-sa2-agreement.mjs', lister: 'listSa2Files', unit: 'files' }
+      ];
+      /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+      var missing = THREE.filter(function (t) {
+        return typeof TT[t.rel] !== 'string' || TT[t.rel].length === 0;
+      });
+      T.eq('ANTI-VACUITY · all three CPAP-corpus readers are readable in this lane', missing, []);
+      if (missing.length) return;
+      THREE.forEach(function (t) {
+        var src = TT[t.rel];
+        var stem = t.rel.replace(/^.*\//, '');
+        T.ok(t.rel + ' takes its population primitive from the shared core', CR.importsNightPrimitive(src), 'absent — the import rule reads the specifiers');
+        T.ok(t.rel + ' enumerates with snapshotEntries, because its unit is not a night', /snapshotEntries\(/.test(src), 'absent — snapshotNights would publish a night rule nobody wrote here');
+        T.ok(t.rel + ' never claims the night rule it does not use', !/snapshotNights\(/.test(src), 'a night snapshot over day folders, CSV files or SA2 basenames describes a different population');
+        T.ok(t.rel + ' names the lister the snapshot publishes as its rule', new RegExp('function ' + t.lister + '\\(').test(src), 'absent — an inline arrow publishes rule: null');
+        T.ok(t.rel + ' declares the unit its lister enumerates', src.indexOf("unit: '" + t.unit + "'") >= 0, "absent — unit: '" + t.unit + "'");
+        T.ok(t.rel + ' declares --verdict-sample', src.indexOf('--verdict-sample') >= 0, 'absent — the manifest row names a flag the tool does not read');
+        T.ok(t.rel + ' controls its coverage line by arithmetic', /population arithmetic:/.test(src), 'absent — a coverage line may then contradict its own headline');
+        T.ok(t.rel + ' names the members nothing scored', /, by name: /.test(src), 'absent — a count nobody can chase is not a named absence');
+        T.ok(t.rel + ' has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[stem] === undefined, stem + ' is still listed as an unwired corpus enumerator');
+        T.eq('…and the scanner itself classifies ' + t.rel + ' as reporting', CR.classifyTool(src).cls, 'reports');
+        /* THE REAL PATH, read off the blanked source: `'POPULATION '` must survive the blanking, so
+           the object exists on a path a real run takes and not only under the sample flag. */
+        var blanked = CR.blankSampleHelpers(src);
+        T.ok(t.rel + ' prints a POPULATION line from a path the sample helper does not hold', blanked.indexOf("'POPULATION '") >= 0, 'absent — only the sample publishes an object');
+      });
+      /* CONTROL · the clearance is not vacuous: gut the real `populationVerdict` calls in each and
+         the class falls out of `reports`. Each tool's sample call survives the gut, which is the
+         point — `cpap-corpus` and `cpap-sa2-agreement` fabricate a snapshot inside the helper the
+         scanner blanks, and `cpap-oxy-couple` takes its sample from `verdict-undeclared.mjs`. */
+      THREE.forEach(function (t) {
+        var gutted = TT[t.rel].replace(/populationVerdict\(snapBefore,/g, 'NOT_THE_PRIMITIVE(snapBefore,');
+        T.ok('CONTROL · ' + t.rel + ' stops reporting when its real calls are gutted', CR.classifyTool(gutted).cls !== 'reports', CR.classifyTool(gutted).cls);
+      });
+      /* THE REALM FIX, as source. Every other realm-building tool here strips the ESM re-export
+         line before a `vm` sees the text; this one had been left behind. */
+      T.ok(
+        'cpap-oxy-couple strips the ESM re-export line before the vm reads the DSP',
+        /vm\.runInContext\(stripEsm\(/.test(TT['tools/cpap-oxy-couple.mjs']),
+        'absent — the raw text throws SyntaxError at module evaluation, before any corpus is read'
+      );
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* The corpus-free `emits.cmd` each manifest row names. A source scan cannot see the ORDERING:
+         a flag declared after the first read still greps as present. */
+      THREE.forEach(function (t) {
+        var r = probe(t.rel, ['--verdict-sample']);
+        T.eq(t.rel + ' --verdict-sample exits 0 with no corpus in reach', r.status, 0);
+        var obj = null;
+        try {
+          obj = JSON.parse(String(r.out));
+        } catch {
+          obj = null;
+        }
+        T.ok(t.rel + ' prints ONE parseable object and nothing else', obj != null, String(r.out).slice(0, 200));
+        if (obj == null) return;
+        T.eq(t.rel + ' publishes the contract schema', obj.schema, 'tepna.verdict/1');
+        T.eq(t.rel + ' names itself as the producer', obj.producedBy && obj.producedBy.tool, t.rel);
+        T.eq(t.rel + ' wrote nothing beside itself', r.wrote, []);
+      });
+      /* The two population samples carry a KNOWN planted answer; `cpap-oxy-couple`'s sample is the
+         undeclared-band object its manifest row has always named, which is a different statement
+         and must not be asserted as a population. */
+      var cs = JSON.parse(String(probe('tools/cpap-corpus.mjs', ['--verdict-sample']).out));
+      T.eq('cpap-corpus scored the three fabricated day folders', cs.population.checked, 3);
+      T.eq('…under the days criterion', cs.criterion.name, 'days_added_or_removed');
+      T.eq('…publishing the NAMED lister as its rule', cs.result.rule, 'sampleDays');
+      T.eq('…as a PASS, so the sample exercises the published path', cs.status, 'PASS');
+      var ss = JSON.parse(String(probe('tools/cpap-sa2-agreement.mjs', ['--verdict-sample']).out));
+      T.eq('cpap-sa2-agreement scored the two planted SA2 basenames', ss.population.checked, 2);
+      T.eq('…under the files criterion', ss.criterion.name, 'files_added_or_removed');
+      T.eq('…publishing the planted lister as its rule', ss.result.rule, 'planted');
+      T.eq('…as a PASS', ss.status, 'PASS');
+      var os_ = JSON.parse(String(probe('tools/cpap-oxy-couple.mjs', ['--verdict-sample']).out));
+      T.eq('cpap-oxy-couple keeps the undeclared-band sample its manifest row names', os_.gate, 'cpap-oxy-couple');
+      T.eq('…and stays UNKNOWN, because no band was pre-stated for a lift', os_.status, 'UNKNOWN');
+      /* KNOWN ANSWER · a root that offers nothing. Each publishes NOT_RUN over checked 0 and exits 2
+         where all three exited 0. `cpap-oxy-couple` is given a nonexistent export set on purpose:
+         the enumeration it was asked about comes first, so the absence is reported where it is
+         found rather than arriving as a parse error about the other side. */
+      [
+        { rel: 'tools/cpap-corpus.mjs', args: ['--root', '.'], unit: 'days_added_or_removed' },
+        { rel: 'tools/cpap-oxy-couple.mjs', args: ['--exports', 'no-such-export-set.json', '--oxy', '.'], unit: 'files_added_or_removed' },
+        { rel: 'tools/cpap-sa2-agreement.mjs', args: ['--cpap', '.', '--coverage-only'], unit: 'files_added_or_removed' }
+      ].forEach(function (c) {
+        var r = probe(c.rel, c.args);
+        T.eq(c.rel + ' over a root that offers nothing exits 2, not 0', r.status, 2);
+        var line = String(r.out)
+          .split('\n')
+          .filter(function (l) {
+            return l.indexOf('POPULATION ') === 0;
+          })[0];
+        T.ok('…and still published a POPULATION line', line != null, String(r.out).slice(0, 200));
+        if (line == null) return;
+        var ev = JSON.parse(line.slice('POPULATION '.length));
+        T.eq('…whose status is NOT_RUN, never a PASS over nothing', ev.status, 'NOT_RUN');
+        T.eq('…over checked 0', ev.population.checked, 0);
+        T.eq('…carrying the criterion of its own unit', ev.criterion.name, c.unit);
+        T.ok('…and the reason names the root itself', String(ev.reason).indexOf('the root ') === 0, String(ev.reason).slice(0, 80));
+        T.eq('…and wrote nothing beside itself', r.wrote, []);
+      });
+      /* CONTROL · the two tools that carry their own selftest still pass it, so nothing above was
+         bought by breaking a known-answer suite that already existed. */
+      var oxySelf = probe('tools/cpap-oxy-couple.mjs', ['--selftest']);
+      T.eq('CONTROL · cpap-oxy-couple passes its own selftest', oxySelf.status, 0);
+      T.ok('…and says so in the line selftest-all reads', /all \d+ selftests passed/.test(String(oxySelf.out)), String(oxySelf.out).slice(0, 160));
+      var sa2Self = probe('tools/cpap-sa2-agreement.mjs', ['--selftest']);
+      T.eq('CONTROL · cpap-sa2-agreement passes its own selftest', sa2Self.status, 0);
+      T.ok('…and counts the assertions it ran', /\d+ passed, 0 failed/.test(String(sa2Self.out)), String(sa2Self.out).slice(0, 160));
+    });
     /* ════ THREE NSRR COHORT READERS PUBLISH THE RECORD SET THEY WERE OFFERED ══════════════════
        Row 2026-10-21-forty-one-corpus-enumerators-report-no-population, the NSRR slice.
        `nsrr-stage-validate.mjs`, `nsrr-oxydex-odi.mjs` and `nsrr-criterion-sweep.mjs` read the same
