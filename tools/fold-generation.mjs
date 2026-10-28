@@ -198,6 +198,89 @@ export function corpusBlock(identity) {
 export const ERA_TRIO_NODES = ['ECGDex', 'OxyDex', 'PpgDex'];
 export const EXPORT_SUFFIX = '.node-export.json';
 
+/* ═══ THE LEG TEST HAS TWO SPELLINGS, AND ONLY ONE OF THEM WAS MEASURED ═══
+   The block above tests the stamp against ONE triple — the three the fold itself requires. The
+   repo's three-leg readers do not all require that triple. `tools/closure-tol-hac.mjs:159` and
+   `tools/beat-comb-analysis.mjs:217` build their triangle over {ECGDex, PpgDex, PpgDexFinger},
+   because `OxyDex` carries spo2/hr and no beat series at all, so a beat reader needs the SECOND
+   optical placement in place of the ring. Measured 2026-10-28 over the tracked tree: 65 nights hold
+   that triple and every one of them is stamped, while 25 STAMPED nights do not hold it. So the
+   exposure claim survives for both triples and the EQUALITY the census asserts holds for one of
+   them only.
+
+   🔴 A TRIPLE THE CENSUS DOES NOT MEASURE CANNOT RAISE A DISAGREEMENT. Nine unstamped nights hold
+   three exports today, and seven of them carry {OxyDex, PpgDex, PpgDexFinger}: one ECGDex export
+   away from the beat triple, with no stamp. A re-fold that writes that one export without a stamp
+   hands a three-leg reader an era-less night while this gate stays green, which is the failure the
+   proxy exists to catch. So every triple a reader requires is named here, each with its own test.
+
+   `equality` — the fold's own triple, where holding it and carrying a stamp are the same set today.
+   `containment` — a reader triple, where stamped-and-not-holding is ordinary and the only
+   violation is an UNSTAMPED night that holds the triple. Nothing infers a triple from the tree. */
+export const ERA_BEAT_NODES = ['ECGDex', 'PpgDex', 'PpgDexFinger'];
+export const ERA_READER_TRIPLES = [
+  {
+    name: 'fold',
+    nodes: ERA_TRIO_NODES,
+    test: 'equality',
+    readers: ['tools/trio-eligible-nights.mjs', 'tools/tch-multinight.mjs', 'tools/tch-minrho-corpus.mjs', 'tools/tch-bootstrap-ci.mjs', 'tools/tch-fused-corpus.mjs']
+  },
+  {
+    name: 'beat',
+    nodes: ERA_BEAT_NODES,
+    test: 'containment',
+    readers: ['tools/closure-tol-hac.mjs', 'tools/beat-comb-analysis.mjs']
+  }
+];
+
+/* How many nights a triple's line names before it counts the rest, as `ERA_LINE_NAMES` does below. */
+export const ERA_TRIPLE_NAMES = 6;
+
+/** PURE. One triple's exposure over a night → nodes map and the set of stamped nights.
+    ∅ `oneAway` counts the nights that are one export short of the triple AND carry no stamp — the
+    tripwire, never a violation: the data is absent, so no reader reaches it yet. */
+export function tripleExposure(triple, byNight, stampedNights) {
+  const holds = (nodes) => triple.nodes.every((n) => nodes.indexOf(n) >= 0);
+  const held = [];
+  const unstampedHolding = [];
+  const stampedNotHolding = [];
+  const oneAway = [];
+  for (const night of [...byNight.keys()].sort()) {
+    const nodes = byNight.get(night);
+    const stamped = stampedNights.has(night);
+    if (holds(nodes)) {
+      held.push(night);
+      if (!stamped) unstampedHolding.push(night);
+      continue;
+    }
+    if (stamped) stampedNotHolding.push(night);
+    else if (triple.nodes.filter((n) => nodes.indexOf(n) >= 0).length === triple.nodes.length - 1) oneAway.push(night);
+  }
+  return {
+    name: triple.name,
+    nodes: triple.nodes.slice(),
+    test: triple.test,
+    readers: triple.readers.slice(),
+    tripleNights: held.length,
+    unstampedHolding: unstampedHolding.length,
+    unstampedHoldingNights: unstampedHolding,
+    stampedNotHolding: stampedNotHolding.length,
+    oneAway: oneAway.length,
+    oneAwayNights: oneAway.slice(0, ERA_TRIPLE_NAMES)
+  };
+}
+
+/** PURE. The violations of each triple's OWN declared test, named. An equality triple also reports a
+    stamped night that does not hold it; a containment triple does not, because that is ordinary. */
+export function tripleViolations(exposures, stampedCount) {
+  const out = [];
+  for (const e of exposures) {
+    for (const night of e.unstampedHoldingNights) out.push({ triple: e.name, night, why: 'holds the triple with no stamp' });
+    if (e.test === 'equality' && e.tripleNights !== stampedCount) out.push({ triple: e.name, night: null, why: `${e.tripleNights} night(s) hold the triple and ${stampedCount} carry a stamp` });
+  }
+  return out;
+}
+
 /* The node one tracked export belongs to. 🔴 NEVER A PREFIX MATCH: 74 nights carry a
    `PpgDexFinger_<night>` export, and a prefix test reads it as the PpgDex leg (measured under
    #4014). Strip the suffix, then take the token before the first `_`, so the corpus spelling and the
@@ -223,7 +306,8 @@ export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
     exports: null,
     unrecordedByNode: null,
     unrecordedNights: null,
-    proxy: null
+    proxy: null,
+    proxies: null
   };
   if (files == null || files.all.length === 0) return empty;
   const read = readerFor({ cwd, commit });
@@ -271,6 +355,10 @@ export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
   const unrecordedByNode = {};
   for (const n of [...tally.keys()].sort()) unrecordedByNode[n] = tally.get(n);
   const allNights = new Set([...byNight.keys(), ...era.keys()]);
+  /* Every triple a three-leg reader requires, each under its own test. `proxy` stays the fold
+     triple's own numbers, because the committed artifact and the suite read that spelling. */
+  const stampedSet = new Set(era.keys());
+  const proxies = ERA_READER_TRIPLES.map((tr) => tripleExposure(tr, byNight, stampedSet));
   return {
     root,
     commit,
@@ -282,7 +370,8 @@ export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
     exports: { total: recorded + unrecorded, recorded, unrecorded },
     unrecordedByNode,
     unrecordedNights,
-    proxy: { threeLegNights, stampedNights: era.size, disagreements }
+    proxy: { threeLegNights, stampedNights: era.size, disagreements },
+    proxies
   };
 }
 
@@ -359,10 +448,23 @@ export function eraCoverageLine(coverage, { label = 'fold era' } = {}) {
 /* The criterion is pre-stated and is NOT the unrecorded count: 80 unrecorded exports are the
    measured state this artifact exists to publish, while a night disagreeing with its own stamp is
    the condition that makes the stamp unreadable as a leg test. */
+/** PURE. One reason line over both judged lists, or null when neither holds anything. */
+export function eraReason(disagreements, violations) {
+  const parts = [];
+  if (disagreements != null && disagreements.length > 0)
+    parts.push(`${disagreements.length} night(s) disagree between carrying three trio exports and carrying a stamp: ${disagreements.map((d) => d.night).join(', ')}`);
+  for (const v of violations ?? []) parts.push(v.night == null ? `the ${v.triple} triple: ${v.why}` : `${v.night} ${v.why} (${v.triple} triple)`);
+  return parts.length === 0 ? null : parts.join(' · ');
+}
+
 export function eraVerdict(census, { commit = null, at = null } = {}) {
   const total = census.ok ? census.exports.total : 0;
   const bad = census.ok ? census.proxy.disagreements : null;
-  const status = census.ok ? (bad.length === 0 ? 'PASS' : 'FAIL') : 'NOT_RUN';
+  /* The fold triple's disagreement list and every OTHER reader triple's own violations are one
+     judged quantity: a night a three-leg reader can reach while no stamp names the code that wrote
+     its exports. A triple nobody measures cannot raise one, which is why the list is named. */
+  const viol = census.ok ? tripleViolations(census.proxies, census.stamped) : null;
+  const status = census.ok ? (bad.length === 0 && viol.length === 0 ? 'PASS' : 'FAIL') : 'NOT_RUN';
   return {
     schema: 'tepna.verdict/1',
     gate: 'trio-export-era',
@@ -378,11 +480,12 @@ export function eraVerdict(census, { commit = null, at = null } = {}) {
           exports: census.exports,
           unrecordedByNode: census.unrecordedByNode,
           unrecordedNights: census.unrecordedNights,
-          proxy: census.proxy
+          proxy: census.proxy,
+          proxies: census.proxies
         }
       : null,
     evidence: [SELF, census.root],
-    reason: census.ok ? (bad.length === 0 ? null : `${bad.length} night(s) disagree between carrying three trio exports and carrying a stamp: ${bad.map((d) => d.night).join(', ')}`) : census.reason,
+    reason: census.ok ? eraReason(bad, viol) : census.reason,
     producedBy: producedByOf(SELF, commit),
     at: at ?? new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
   };
@@ -1000,11 +1103,58 @@ function selftest() {
       );
       ok('an unstamped 2-of-3 night keeps the proxy intact', c2.proxy.threeLegNights === 2 && c2.proxy.stampedNights === 2 && c2.proxy.disagreements.length === 0);
 
+      /* ── THE SECOND READER TRIPLE · residue `2026-10-12-rejected-trio-nights-keep-exports-no-fold-rewrites`
+         The fold triple's equality held on the tree while a beat reader's triple went unmeasured, so
+         these legs pin the triple LIST, each triple's own test, and the night the old shape missed. */
+      ok('two reader triples are named, not inferred', ERA_READER_TRIPLES.length === 2 && ERA_READER_TRIPLES.map((x) => x.name).join() === 'fold,beat');
+      ok('the fold triple is the three the fold requires, under equality', ERA_READER_TRIPLES[0].nodes.join() === 'ECGDex,OxyDex,PpgDex' && ERA_READER_TRIPLES[0].test === 'equality');
+      ok('🔴 the beat triple takes the second optical placement, NOT the ring', ERA_BEAT_NODES.join() === 'ECGDex,PpgDex,PpgDexFinger' && ERA_READER_TRIPLES[1].test === 'containment');
+      ok(
+        'every triple names the readers that require it',
+        ERA_READER_TRIPLES.every((x) => x.readers.length > 0 && x.readers.every((r) => r.startsWith('tools/')))
+      );
+
+      const beatOf = (census) => census.proxies.find((x) => x.name === 'beat');
+      ok('a 2-of-3 night on the beat triple is ONE AWAY, never a holder', beatOf(c2).tripleNights === 0 && beatOf(c2).oneAway === 1 && beatOf(c2).oneAwayNights.join() === '2026-07-02');
+      ok('∅ one-away is a tripwire, not a violation — the third export is absent', eraVerdict(c2, { commit: 'abcd1234', at: '2026-10-27T00:00:00Z' }).status === 'PASS');
+      ok('a stamped night that does not hold a containment triple is ordinary', beatOf(c2).stampedNotHolding === 2 && beatOf(c2).unstampedHolding === 0, JSON.stringify(beatOf(c2)));
+
+      for (const n of ['ECGDex', 'PpgDex', 'PpgDexFinger']) exp('2026-07-04', n);
+      execFileSync('git', ['add', '-A'], { cwd });
+      execFileSync('git', ['commit', '-qm', 'a beat-triple night with no stamp'], { cwd });
+      const c3 = eraCensus(ERA, { cwd });
+      const v3 = eraVerdict(c3, { commit: 'abcd1234', at: '2026-10-27T00:00:00Z' });
+      ok(
+        '🔴 an UNSTAMPED night holding the beat triple is a violation the fold triple cannot see',
+        c3.proxy.disagreements.length === 0 && v3.status === 'FAIL' && v3.reason.includes('2026-07-04') && v3.reason.includes('beat'),
+        `${v3.status} · ${c3.proxy.disagreements.length} fold disagreement(s) · ${v3.reason}`
+      );
+      ok('…counted and named on its own triple', beatOf(c3).unstampedHolding === 1 && beatOf(c3).unstampedHoldingNights.join() === '2026-07-04');
+      ok('…while the fold triple stays intact', c3.proxies[0].unstampedHolding === 0 && c3.proxies[0].tripleNights === 2 && c3.stamped === 2);
+      ok(
+        'the failing verdict still validates under verdict.js',
+        createRequire(import.meta.url)(join(ROOT, 'verdict.js')).validate(v3).ok,
+        createRequire(import.meta.url)(join(ROOT, 'verdict.js'))
+          .validate(v3)
+          .errors.join(' | ')
+      );
+      ok('the criterion did not move with the new triple', v3.criterion.name === 'stamp_three_leg_disagreements' && v3.criterion.threshold === 0);
+
+      /* The reason builder is PURE, so both shapes are pinned with no tree at all. */
+      ok('∅ two empty lists are no reason, never an empty string', eraReason([], []) === null);
+      ok('a fold disagreement reads as a night', eraReason([{ night: '2026-01-01' }], []).includes('2026-01-01'));
+      ok(
+        'a triple violation names the triple and the night',
+        eraReason([], [{ triple: 'beat', night: '2026-01-02', why: 'holds the triple with no stamp' }]) === '2026-01-02 holds the triple with no stamp (beat triple)'
+      );
+      ok('a triple-level violation carries no night', eraReason([], [{ triple: 'fold', night: null, why: '3 night(s) hold the triple and 2 carry a stamp' }]).startsWith('the fold triple:'));
+      ok('a one-away list is capped at the names it prints', ERA_TRIPLE_NAMES === 6 && tripleExposure(ERA_READER_TRIPLES[1], new Map(), new Set()).oneAwayNights.length === 0);
+
       const absent = eraCensus('uploads/no-such-root', { cwd });
       const vAbsent = eraVerdict(absent, { commit: 'abcd1234', at: '2026-10-27T00:00:00Z' });
       ok(
         '∅ an unlistable root is NOT_RUN with a reason and no result, never a PASS over zero',
-        absent.ok === false && vAbsent.status === 'NOT_RUN' && vAbsent.result === null && typeof vAbsent.reason === 'string'
+        absent.ok === false && absent.proxies === null && vAbsent.status === 'NOT_RUN' && vAbsent.result === null && typeof vAbsent.reason === 'string'
       );
       ok('the artifact text is one JSON object and one trailing newline', eraText(v2).endsWith('}\n') && JSON.stringify(JSON.parse(eraText(v2))) === JSON.stringify(v2));
       ok('the artifact path is under analysis/', ERA_ARTIFACT === 'analysis/trio-export-era.json');
@@ -1205,6 +1355,13 @@ function eraMain(argv, commit) {
   console.log(`  ${census.exports.unrecorded} sit in ${census.unstamped} unstamped night(s), where no stamp records the code, and --force never offers the night again.`);
   for (const [node, n] of Object.entries(census.unrecordedByNode)) console.log(`    ${node.padEnd(14)} ${n}`);
   console.log(`\n  the stamp as a leg test: ${census.proxy.threeLegNights} three-leg night(s), ${census.proxy.stampedNights} stamped, ${census.proxy.disagreements.length} disagreement(s)`);
+  for (const e of census.proxies ?? []) {
+    const away = e.oneAway === 0 ? '' : ` · ${e.oneAway} unstamped night(s) one export short (${e.oneAwayNights.join(', ')})`;
+    console.log(
+      `    ${e.name.padEnd(6)} {${e.nodes.join(', ')}} ${e.test} · ${e.tripleNights} night(s) hold it, ${e.unstampedHolding} UNSTAMPED, ${e.stampedNotHolding} stamped night(s) do not${away}`
+    );
+    console.log(`           read by ${e.readers.join(', ')}`);
+  }
   console.log(`  ${verdict.status}${verdict.reason ? ` — ${verdict.reason}` : ''}`);
   console.log(`  corpus-population ${run.population.status} over ${run.population.population.checked} night(s)${run.population.reason ? ` — ${run.population.reason}` : ''}`);
   return verdict.status === 'PASS' ? 0 : 1;
