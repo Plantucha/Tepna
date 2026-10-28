@@ -49,12 +49,14 @@
  *
  *   --coverage-only   skip the agreement pass (no ring dir needed)
  *   --max-lag <min>   alignment search half-width, default 90
+ *   --verdict-sample  print one tepna.verdict/1 population object, alone
  * ════════════════════════════════════════════════════════════════════════ */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const argv = process.argv.slice(2);
 /* Refuse a token nobody reads BEFORE anything is read. Measured on THIS tool (argv survey,
@@ -65,7 +67,7 @@ const argv = process.argv.slice(2);
    arguments, so an import of anything in this file judged flags it never passed (residue
    `2026-10-20-four-argv-adopters-refuse-at-module-scope-and-export`). The guard runs for the CLI only. */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) refuseUnknownArgvOrExit(argv, { valued: ['--cpap', '--max-lag', '--night', '--ring'], boolean: ['--coverage-only', '--selftest'] }, { tool: 'cpap-sa2-agreement' });
+if (IS_CLI) refuseUnknownArgvOrExit(argv, { valued: ['--cpap', '--max-lag', '--night', '--ring'], boolean: ['--coverage-only', '--selftest', '--verdict-sample'] }, { tool: 'cpap-sa2-agreement' });
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);
@@ -342,6 +344,33 @@ function findSa2(dir) {
 
 const SA2_STAMP = /^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})_SA2\.edf$/;
 
+/* ── the population this tool reads ───────────────────────────────────────────
+   Row 2026-10-21-forty-one-corpus-enumerators-report-no-population: the coverage table counted the
+   files it CHARACTERISED and said nothing about the files it was OFFERED, so an SA2 file dropped by
+   an unreadable header or a missing SpO2 channel left no trace at all. `findSa2` IS the enumeration,
+   so the population is its deduplicated basenames, and every offered file that no night
+   characterised is named. The arithmetic is asserted rather than trusted. */
+const POP_TOOL = 'tools/cpap-sa2-agreement.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+/** The enumeration, under a NAME — `snapshotEntries` publishes `rule: list.name`, and an inline
+ *  arrow would publish `null` and name no rule at all. */
+function listSa2Files(dir) {
+  return [...findSa2(dir).keys()].sort();
+}
+/* §∅ + owner ruling 2026-09-17: an enumeration that ran and offered nothing, or a pass that scored
+   nothing, is a DISCONTINUITY and refuses (exit 2). A partial population annotates and exits 0. */
+function exitCodeFor(population, scored) {
+  return population.status === 'NOT_RUN' || scored === 0 ? 2 : 0;
+}
+/** The adoption sample. It reads no corpus: the before and after snapshots are one planted listing,
+ *  so the object it prints is a known answer. */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const planted = () => ['20260610_231433_SA2.edf', '20260611_224012_SA2.edf'];
+  const snap = snapshotEntries('<cpap-tree>', { list: planted, unit: 'files', at });
+  return populationVerdict(snap, snap, { tool: POP_TOOL, at, evidence: POP_EV });
+}
+
 /** Sessions grouped by night. A single SA2 file is NEVER "the night" (§1). */
 function sa2Nights(seen, CpapEdf) {
   const nights = new Map();
@@ -547,9 +576,44 @@ function run() {
     console.error('cpap-sa2-agreement: --cpap <dir> is required (or --selftest)');
     process.exit(2);
   }
+  const snapBefore = snapshotEntries(cpapDir, { list: listSa2Files, unit: 'files' });
+  if (!snapBefore.ok) {
+    console.error(`refused: ${snapBefore.reason} — ${cpapDir}`);
+    console.log('POPULATION ' + JSON.stringify(populationVerdict(snapBefore, snapBefore, { tool: POP_TOOL, evidence: POP_EV })));
+    process.exit(2);
+  }
+  const commitOf = gitCommitOf();
   const { CpapEdf } = realm(REPO);
   const seen = findSa2(cpapDir);
   const nights = sa2Nights(seen, CpapEdf);
+  /* Every session row carries the basename it was read from, which is what makes the offered set and
+     the characterised set comparable in ONE unit. `notCovered` reads `row[key]`, so bare names
+     would cover nothing. */
+  const characterised = [...nights.values()].flat();
+  const publishPopulation = () => {
+    const snapAfter = snapshotEntries(cpapDir, { list: listSa2Files, unit: 'files' });
+    const population = populationVerdict(snapBefore, snapAfter, {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: POP_TOOL,
+      evidence: POP_EV
+    });
+    const unread = notCovered(snapBefore, characterised, { key: 'file' });
+    console.log(`\npopulation: ${snapBefore.n} SA2 file(s) offered under ${cpapDir} · ${characterised.length} characterised · ${nights.size} night(s) built · movement ${population.status}`);
+    const rule = ruleLine(population);
+    if (rule) console.log('  ' + rule);
+    if (unread.length) {
+      console.log(`  ${unread.length} offered file(s) no night characterised, by name: ${unread.slice(0, 8).join(', ')}${unread.length > 8 ? ', …' : ''}`);
+    }
+    if (unread.length !== snapBefore.n - characterised.length) {
+      throw new Error(`population arithmetic: ${snapBefore.n} offered − ${characterised.length} characterised ≠ ${unread.length} named`);
+    }
+    console.log('POPULATION ' + JSON.stringify(population));
+    return population;
+  };
+  /* An enumeration that ran and offered nothing cannot be described by the coverage table below —
+     its quantiles would read off an empty array. The absence is reported where it is found (§∅). */
+  if (snapBefore.n === 0) return exitCodeFor(publishPopulation(), 0);
 
   const hours = [...nights.entries()].map(([k, v]) => [k, v.reduce((t, x) => t + x.durSec, 0) / 3600]);
   const sorted = hours.map((h) => h[1]).sort((a, b) => a - b);
@@ -597,7 +661,8 @@ function run() {
 
   if (flag('--coverage-only') || !ringDir) {
     if (!ringDir) console.log('\n  (no --ring given — coverage only)');
-    return;
+    /* Coverage mode scores the files it characterised — that is the whole product of this pass. */
+    return exitCodeFor(publishPopulation(), characterised.length);
   }
 
   console.log(`\n── agreement vs the ring, per night ────────────────────────────`);
@@ -652,7 +717,9 @@ function run() {
   if (skippedSentinel) console.log(`\n  ${skippedSentinel} night(s) skipped: SA2 present but its SpO2 is entirely the -1 "no sensor" fill.`);
   if (!compared) {
     console.log('  (no night had BOTH real SA2 saturations and a ring timeseries.spo2)');
-    return;
+    /* §∅: a pass asked for an agreement and produced none. It refuses rather than exiting 0 over
+       nothing — the `--night` filter is a NAMED removal and reads the same way. */
+    return exitCodeFor(publishPopulation(), 0);
   }
   const mb = mean(biases);
   const sb2 = sd(biases);
@@ -663,7 +730,12 @@ function run() {
   console.log(`\n  Neither sensor is ground truth (§6). This is a report of disagreement,`);
   console.log(`  not a correction: no detector is tuned toward the other, and the two`);
   console.log(`  SpO2 sources are never averaged.`);
+  if (only) console.log(`  --night ${only} is a NAMED removal: the population above is the whole offered set.`);
+  return exitCodeFor(publishPopulation(), compared);
 }
 
-if (flag('--selftest')) process.exit(selftest() ? 0 : 1);
-else run();
+if (flag('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+} else if (flag('--selftest')) process.exit(selftest() ? 0 : 1);
+else process.exit(run());
