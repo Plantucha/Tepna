@@ -59,3 +59,25 @@ statement about the curation. It is back in, and the live run carries it as the 
 The cap, and the row. The owner owns the cap, and the reading says it is not owed yet. The row's third
 defect also stands: a post a later post overrides still ranks like a current one, and nothing here
 detects that.
+
+---
+
+## FINISHED 2026-10-28 — head `9153cd574`, PR #4041 DRAFT, all 41 steps pass
+
+`npm run check` reads `EXIT=0`, `✓ check — all 41 steps passed`, suite `✓ all 14592 assertions
+passed (834 groups)`. `verdict-adoption` reads 145 `decides` producers with 141 gated, 168 adopted
+at the merge base `49a59cf711ae` and 0 de-adopted, byte form canonical.
+
+🔴 **STEP 37 REDS LAST, AND IT LINTS THE CHANGESET.** The first run died at `verify:pr-compliance`
+over one `passive` in `changes/2026-10-28-board-share-instrument.md`. I had ste-linted the handoff
+and the PR body, which is the prose a reader sees, and not the changeset, which is a new Markdown
+file in the diff. Four steps then never ran at all and the gate printed "this run says NOTHING about
+them" over their names. The cost of one unlinted line is the whole gate twice. Second sighting of
+the shape this week, after unit `probesplit`.
+
+⚠️ **THE FIVE RE-RUN STEPS WERE NOT A GATE.** Re-running only the steps that never ran leaves steps
+1 to 36 standing on the pre-amend tree, so the run above is a full `npm run check` on the final head
+instead. One gate over one state.
+
+The row stays OPEN and the ledger is untouched here: the reading says the cap is not due, and the
+cap is the owner's to order.
