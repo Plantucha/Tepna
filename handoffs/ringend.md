@@ -45,6 +45,6 @@ On main, the resumed files already report no end. The fresh files are the popula
  "producedBy":{"tool":"box-local read of SpO2 CSV stamps","commit":"22974e0d"},"at":"2026-10-28T00:00:00Z"}
 ```
 
-## Open question
+## Ruling
 
-On a resume, the last row is still observed, but the start is not. This PR keeps the resumed end as `null`, as PR #4019 decided.
+Kestrel ruled on board #1874 to keep the PR #4019 refusal for a resumed file. An observed end with a null start is a separate change. Log it as a new row only if a reader needs it. No reader needs it today.
