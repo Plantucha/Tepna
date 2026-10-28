@@ -183,6 +183,16 @@ const TRIO_NODES = ['ECGDex', 'PpgDex', 'OxyDex'];
    below it initializes, so a const declared later is dead to it (see the note at --selftest). */
 const NODE_INPUT_KEY = { ECGDex: 'ecg', PpgDex: 'ppg', OxyDex: 'oxy' };
 const UNSTAMPED_REASONS = ['unmeasured', 'stamp-unreadable', 'input-absent', 'exports-missing', 'stamp-absent'];
+/* THE MARKER KEYING FIELDS and their labels, in the order a report names them — declared up here for
+   the same reason as the two above: `--selftest` runs during module evaluation and a const declared
+   further down is in its temporal dead zone (measured: a ReferenceError at the first marker leg). */
+const MARKER_KEYING = [
+  ['target', 'target'],
+  ['bytes', 'size'],
+  ['keptBytes', "keeper's size"],
+  ['keptHash', "keeper's first-MiB hash"]
+];
+const joinAnd = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 /* COUNT THE TRIO, NOT EVERY .json IN THE FOLDER. Completeness used to be
    `readdirSync(dir).filter(f => f.endsWith('.json')).length === 3`, which silently made the trio test
    mean "exactly three JSON files exist" — so the moment a night gained a FOURTH export (the O2Ring
@@ -921,10 +931,10 @@ if (flag('--selftest')) {
     /* ── THE `.superseded` MARKER (owner ruling 2026-10-04) ────────────────────────────────────────
        An ambiguity somebody has already answered should not refuse a night. The readers are injected so
        these stay synthetic: `readMarker` returns marker text by path, `isPrefixOf` answers the
-       byte-superset question. ⚠️ SYNTHETIC BY NECESSITY and stated as such — no `.superseded` marker
-       exists in the corpus yet, and the conflicting pair the ruling describes (a mid-write NAS snapshot
-       beside the canonical rig file) lives on a tree the rig cannot see, so these assertions pin the
-       DECISION TABLE and not any real pair. */
+       byte-superset question. ⚠️ SYNTHETIC BY NECESSITY and stated as such — the three `.superseded`
+       markers written on 2026-10-05 sit beside a capture tree the rig cannot read, and each of them
+       carries NEITHER keying field, so these assertions pin the DECISION TABLE and not any real pair.
+       Block ⑨ pins what the fold says about markers shaped like those three. */
     const pair = () => [
       { name: 'Polar_VeritySense_x_20260815221142_PPG.txt', full: 'nas/Polar_VeritySense_x_20260815221142_PPG.txt', bytes: 100 },
       { name: 'Polar_VeritySense_x_20260815221142_PPG.txt', full: 'rig/Polar_VeritySense_x_20260815221142_PPG.txt', bytes: 300 }
@@ -1027,6 +1037,91 @@ if (flag('--selftest')) {
     eq('with no injected resolver the marker’s target is checked against the real realpath — a match folds', realOk.excluded.length, 1);
     const realBad = dedupeStream(realPair(), { readMarker: () => realMarker('/somewhere/else'), isPrefixOf: () => true });
     eq('…and a real mismatch is UNKNOWN', JSON.stringify([realBad.excluded.length, /now resolves to/.test(realBad.conflicts[0].markerUnknown || '')]), '[0,true]');
+
+    /* ⑨ THE KEYING CENSUS — both keying fields are OPTIONAL, so a fold must say whether they bound.
+       A marker carrying neither resolves on its basename alone, and today every marker in existence is
+       that marker. These legs pin the sentence such an exclusion prints: the fold stands, and the check
+       that examined nothing is NAMED rather than left to silence (§∅). */
+    const keyedBoth = tgt('target: /mnt/nas/x_PPG.txt\nbytes: 100\n', () => '/mnt/nas/x_PPG.txt');
+    eq('an exclusion records WHICH keying fields its marker offered', JSON.stringify(keyedBoth.excluded[0].keyed), '["target","bytes"]');
+    eq('…and the fold says it was checked against both', markerKeyedPhrase(keyedBoth.excluded[0].keyed), "checked against the marker's recorded target and size");
+    const legacy = dedupeStream(pair(), { readMarker: onSmall(marker(KEEP, 'legacy')), isPrefixOf: () => true });
+    eq('a marker carrying NO keying field still folds, and records that', JSON.stringify([legacy.excluded.length, legacy.excluded[0].keyed]), '[1,[]]');
+    eq('…and the fold NAMES the check that examined nothing, never a silent pass', /^UNKEYED: the marker records no keying field/.test(markerKeyedPhrase(legacy.excluded[0].keyed)), true);
+    const sizeOnly = tgt('bytes: 100\n');
+    eq('a marker carrying only `bytes` is keyed by SIZE alone, and says so', markerKeyedPhrase(sizeOnly.excluded[0].keyed), "checked against the marker's recorded size");
+    const census = markerKeying([...keyedBoth.excluded, ...legacy.excluded]);
+    eq(
+      'the census counts keyed against unkeyed and NAMES every unkeyed path',
+      JSON.stringify([census.total, census.keyed, census.unkeyed, census.unkeyedPaths]),
+      JSON.stringify([2, 1, 1, ['nas/Polar_VeritySense_x_20260815221142_PPG.txt']])
+    );
+    eq('…and its line carries both counts', markerKeyingLine(census), 'keying: 1 of 2 exclusion(s) checked against at least one recorded field · 1 UNKEYED (named below)');
+    eq('ANTI-VACUITY · a run that excluded nothing reports UNMEASURED, never `0 of 0`', markerKeyingLine(markerKeying([])), 'keying: UNMEASURED — this run excluded no file by a marker');
+    eq('a REFUSED night records the keying of the marker that did not hold', JSON.stringify(resized.conflicts[0].markerKeyed), '["bytes"]');
+    eq('…and carries NO keying when no marker was offered at all', bare.conflicts[0].markerKeyed, null);
+    const printed = markerExclusionLines([
+      { key: '2026-08-15', excluded: [...legacy.excluded, ...keyedBoth.excluded] },
+      { key: '2026-08-16', excluded: [] }
+    ]);
+    eq('the printed block carries one entry per exclusion and skips a night with none', printed.length, 2);
+    eq(
+      '…the UNKEYED entry names the path, the keeper and the check that examined nothing',
+      printed[0],
+      '    2026-08-15: nas/Polar_VeritySense_x_20260815221142_PPG.txt (100 B) — legacy (marker dated 2026-10-04)\n      keeper: rig/Polar_VeritySense_x_20260815221142_PPG.txt\n      UNKEYED: the marker records no keying field, so no keying check examined anything — a re-pointed link, a replaced copy or a re-synced keeper would fold here unnoticed'
+    );
+    eq('…and the keyed entry says what it was held to', /checked against the marker's recorded target and size$/.test(printed[1]), true);
+    /* ⑩ THE KEEPER SIDE — the two fields every marker in existence DOES carry. The three written on
+       2026-10-05 record `kept_bytes` and `kept_sha256_first_1mib`, and neither `target` nor `bytes`, so a
+       resolver reading only the latter pair holds today's markers to nothing at all. The old key class
+       `[A-Za-z_]+` could not even match a key with digits in it, so the hash line never reached `kv`. */
+    const keptMark = (extra) => marker(KEEP, 'mid-write NAS snapshot') + extra;
+    const kp = (extra, hashFirstMib) => dedupeStream(pair(), { readMarker: onSmall(keptMark(extra)), isPrefixOf: () => true, hashFirstMib });
+    eq('a key with DIGITS in it parses — the old class dropped `kept_sha256_first_1mib` whole', parseMarker(keptMark('kept_sha256_first_1mib: abc\n')).keptHash, 'abc');
+    const keptOk = kp('kept_bytes: 300\n');
+    eq('a marker whose recorded KEEPER size still holds folds, and records the field', JSON.stringify([keptOk.excluded.length, keptOk.excluded[0].keyed]), '[1,["keptBytes"]]');
+    const keptBad = kp('kept_bytes: 299\n');
+    eq(
+      'a keeper that is not the size the marker recorded is UNKNOWN, and names both sizes',
+      JSON.stringify([keptBad.excluded.length, /299 B.*300 B/.test(keptBad.conflicts[0].markerUnknown || '')]),
+      '[0,true]'
+    );
+    eq('a `kept_bytes` that is not a number is UNKNOWN, not silently ignored', kp('kept_bytes: lots\n').excluded.length, 0);
+    const hashOk = kp('kept_sha256_first_1mib: DEADBEEF\n', () => 'deadbeef');
+    eq('a recorded first-MiB hash that still matches folds, case-insensitively', JSON.stringify([hashOk.excluded.length, hashOk.excluded[0].keyed]), '[1,["keptHash"]]');
+    const hashBad = kp('kept_sha256_first_1mib: deadbeef\n', () => 'feedface');
+    eq('a REPLACED keeper is UNKNOWN, and names both hashes', JSON.stringify([hashBad.excluded.length, /deadbeef.*feedface/.test(hashBad.conflicts[0].markerUnknown || '')]), '[0,true]');
+    eq(
+      'a keeper that cannot be hashed is UNKNOWN, not absent',
+      /could not be hashed/.test(
+        kp('kept_sha256_first_1mib: x\n', () => {
+          throw new Error('EACCES: permission denied');
+        }).conflicts[0].markerUnknown || ''
+      ),
+      true
+    );
+    eq(
+      '…and a marker with NO recorded hash never hashes anything',
+      kp('kept_bytes: 300\n', () => {
+        throw new Error('must not be called');
+      }).excluded.length,
+      1
+    );
+    const realShape = kp('kept_bytes: 300\nkept_sha256_first_1mib: ABC\n', () => 'abc');
+    eq(
+      'the shape the three real markers carry is KEYED, and the fold says to what',
+      markerKeyedPhrase(realShape.excluded[0].keyed),
+      "checked against the marker's recorded keeper's size and keeper's first-MiB hash"
+    );
+    eq('…so such an exclusion is not counted UNKEYED', JSON.stringify(markerKeying(realShape.excluded)), '{"total":1,"keyed":1,"unkeyed":0,"unkeyedPaths":[]}');
+    // THE DEFAULT HASHER reads the first MiB at offset 0 of the REAL file — pinned against the file in hand.
+    eq(
+      'the default first-MiB hasher is SHA-256 over the first MiB, read at offset 0',
+      defaultHashFirstMib(here),
+      createHash('sha256')
+        .update(readFileSync(here).subarray(0, 1 << 20))
+        .digest('hex')
+    );
 
     const distinct = dedupeStream([
       { name: 'Polar_H10_x_20260717213258_ECG.txt', full: 'a/Polar_H10_x_20260717213258_ECG.txt', bytes: 25 },
@@ -1640,7 +1735,9 @@ function parseMarker(text) {
      the exclusion is reported WITH why, so a marker that excludes a file silently is not usable. */
   const kv = new Map();
   for (const line of String(text).split(/\r?\n/)) {
-    const m = /^\s*([A-Za-z_]+)\s*[:=]\s*(.+?)\s*$/.exec(line);
+    // DIGITS BELONG IN THE CLASS: `kept_sha256_first_1mib` is a key every real marker carries, and
+    // `[A-Za-z_]+` never matched it — the line was dropped before any check could read it.
+    const m = /^\s*([A-Za-z0-9_]+)\s*[:=]\s*(.+?)\s*$/.exec(line);
     if (m) kv.set(m[1].toLowerCase(), m[2]);
   }
   const kept = kv.get('kept') || kv.get('superseded_by') || null;
@@ -1652,8 +1749,15 @@ function parseMarker(text) {
   const target = kv.get('target') || null;
   const sizeRaw = kv.get('bytes');
   const bytes = sizeRaw !== undefined && /^\d+$/.test(sizeRaw) ? Number(sizeRaw) : sizeRaw !== undefined ? NaN : null;
+  /* AND THE KEEPER SIDE, which the three markers written on 2026-10-05 DO carry: the keeper's size and
+     the SHA-256 of its first MiB. `target`/`bytes` key the marker to the small copy's path; these key it
+     to the file it named as the keeper, so a replaced or re-synced keeper is a named finding instead of a
+     fold on bytes nobody compared. A value that is not a number is NaN — present and wrong, never null. */
+  const keptSizeRaw = kv.get('kept_bytes');
+  const keptBytes = keptSizeRaw !== undefined && /^\d+$/.test(keptSizeRaw) ? Number(keptSizeRaw) : keptSizeRaw !== undefined ? NaN : null;
+  const keptHash = kv.get('kept_sha256_first_1mib') || null;
   if (!kept || !reason) return { ok: false, reason: `the marker names ${!kept ? 'no kept file' : 'no reason'} — it cannot resolve an ambiguity it does not explain` };
-  return { ok: true, kept, reason, dated, target, bytes };
+  return { ok: true, kept, reason, dated, target, bytes, keptBytes, keptHash };
 }
 /* Does the SMALLER copy carry a marker that resolves this ambiguity? Returns one of three states and
    never guesses between them. `resolved` folds; `unknown` is a sentence that travels INTO the refusal so
@@ -1662,6 +1766,7 @@ function resolveSuperseded(small, big, opts = {}) {
   const readMarker = opts.readMarker || defaultReadMarker;
   const isPrefixOf = opts.isPrefixOf || defaultIsPrefixOf;
   const resolvePath = opts.resolvePath || realpathSync;
+  const hashFirstMib = opts.hashFirstMib || defaultHashFirstMib;
   let raw = null;
   try {
     raw = readMarker(String(small.full) + '.superseded');
@@ -1672,12 +1777,19 @@ function resolveSuperseded(small, big, opts = {}) {
   if (raw == null) return { resolved: false };
   const m = parseMarker(raw);
   if (!m.ok) return { resolved: false, unknown: `the \`.superseded\` marker beside ${small.full} is UNUSABLE: ${m.reason}` };
+  /* WHICH RECORDED FIELDS THIS MARKER OFFERED — so a fold can SAY what it was checked against. Both
+     keying fields are optional, and every marker written before 2026-10-05 carries neither, so the two
+     checks above bind on nothing for those markers. A check that examined nothing must be VISIBLE rather
+     than implied (§∅ — reduced coverage annotates): the exclusion still stands, and the line beside it
+     names the provenance nobody recorded. */
+  const keyed = MARKER_KEYING.filter(([k]) => m[k] !== null).map(([k]) => k);
   /* The marker names its keeper, and it must be THIS keeper. A marker naming some third file is not a
      resolution of the pair in hand — it is a claim about something else, and acting on it would fold a
      night on a file nobody compared. */
   if (basename(m.kept) !== basename(String(big.full)) && m.kept !== String(big.full))
     return {
       resolved: false,
+      keyed,
       unknown: `the marker beside ${small.full} names \`${m.kept}\` as the keeper, which is not the other copy in this pair (${big.full}) — UNKNOWN rather than a fold on an uncompared file`
     };
   /* THE MARKER IS KEYED TO THE PATH THE WALK REACHED, which a symlink re-point or another `--src` can
@@ -1691,32 +1803,108 @@ function resolveSuperseded(small, big, opts = {}) {
     } catch (e) {
       return {
         resolved: false,
+        keyed,
         unknown: `the marker beside ${small.full} records target \`${m.target}\`, but this path cannot be resolved now (${(e && e.message) || e}) — UNKNOWN, the marker may have been orphaned by a moved link`
       };
     }
     if (now !== m.target)
       return {
         resolved: false,
+        keyed,
         unknown: `the marker beside ${small.full} was written against \`${m.target}\`, but that path now resolves to \`${now}\` — the link was re-pointed or the file moved; UNKNOWN rather than a fold on a file the marker was not about`
       };
   }
   if (m.bytes !== null && m.bytes !== Number(small.bytes))
     return {
       resolved: false,
+      keyed,
       unknown: `the marker beside ${small.full} was written against a copy of ${m.bytes} B, but the copy in hand is ${small.bytes} B — UNKNOWN rather than a fold on a file the marker was not about`
     };
+  if (m.keptBytes !== null && m.keptBytes !== Number(big.bytes))
+    return {
+      resolved: false,
+      keyed,
+      unknown: `the marker beside ${small.full} records a keeper of ${m.keptBytes} B, but ${big.full} is ${big.bytes} B — UNKNOWN rather than a fold on a keeper the marker was not about`
+    };
+  if (m.keptHash !== null) {
+    let got;
+    try {
+      got = hashFirstMib(String(big.full));
+    } catch (e) {
+      return {
+        resolved: false,
+        keyed,
+        unknown: `the marker beside ${small.full} records the keeper's first-MiB hash, but ${big.full} could not be hashed (${(e && e.message) || e}) — a claim that cannot be checked is UNKNOWN`
+      };
+    }
+    if (String(got).toLowerCase() !== String(m.keptHash).toLowerCase())
+      return {
+        resolved: false,
+        keyed,
+        unknown: `the marker beside ${small.full} records the keeper's first MiB as \`${m.keptHash}\`, but ${big.full} hashes to \`${got}\` now — the keeper was replaced or re-synced; UNKNOWN rather than a fold on a file the marker was not about`
+      };
+  }
   let pref;
   try {
     pref = isPrefixOf(String(small.full), String(big.full));
   } catch (e) {
-    return { resolved: false, unknown: `the marker beside ${small.full} could not be verified (${(e && e.message) || e}) — a superset claim that cannot be checked is UNKNOWN` };
+    return { resolved: false, keyed, unknown: `the marker beside ${small.full} could not be verified (${(e && e.message) || e}) — a superset claim that cannot be checked is UNKNOWN` };
   }
   if (pref !== true)
     return {
       resolved: false,
+      keyed,
       unknown: `the marker beside ${small.full} claims it was superseded by ${big.full}, but its bytes are NOT a prefix of that file — so these are two different recordings, not a snapshot and its completion (CORPUS-TIER-30-NIGHTS §4: a size-only check passes exactly this case)`
     };
-  return { resolved: true, reason: m.reason + (m.dated ? ` (marker dated ${m.dated})` : '') };
+  return { resolved: true, keyed, reason: m.reason + (m.dated ? ` (marker dated ${m.dated})` : '') };
+}
+/* ── THE KEYING CENSUS: what each marker exclusion was actually CHECKED against ──────────────────────
+   The two keying fields (`target`, `bytes`) are optional, which means a marker that carries neither is
+   resolved on its basename alone — the path-keying check examined nothing, and the fold prints a reason
+   that reads exactly like a verified one. That is the §∅ shape: the exclusion is real and the PROVENANCE
+   of the check is absent, so the absence is named rather than inferred from silence. Pure over the
+   exclusion records, so the selftest asserts the sentences and not a corpus. */
+function markerKeyedPhrase(keyed) {
+  if (!keyed) return 'UNKEYED: no marker field was parsed, so no keying check examined anything';
+  const labels = new Map(MARKER_KEYING);
+  const have = keyed.map((k) => labels.get(k) || k);
+  if (have.length) return `checked against the marker's recorded ${joinAnd(have)}`;
+  return 'UNKEYED: the marker records no keying field, so no keying check examined anything — a re-pointed link, a replaced copy or a re-synced keeper would fold here unnoticed';
+}
+function markerKeying(excluded) {
+  const rows = excluded || [];
+  const un = rows.filter((x) => !x.keyed || !x.keyed.length);
+  return { total: rows.length, keyed: rows.length - un.length, unkeyed: un.length, unkeyedPaths: un.map((x) => x.path) };
+}
+/* THE PRINTED BLOCK, PURE — so `--selftest` pins the sentences a reader will actually see. No night
+   with a marker exists on this box (the three live beside a capture tree the rig cannot read), so an
+   end-to-end run can never be the proof; these two functions are, and they take the night records the
+   fold builds. */
+function markerExclusionLines(excludedNights) {
+  const rows = [];
+  for (const n of excludedNights || [])
+    for (const x of n.excluded || []) rows.push(`    ${n.key}: ${x.path} (${x.bytes} B) — ${x.reason}\n      keeper: ${x.keeper}\n      ${markerKeyedPhrase(x.keyed)}`);
+  return rows;
+}
+function markerKeyingLine(stats) {
+  // UNMEASURED, never `0 of 0`: a run that excluded nothing has no keying to report (§∅).
+  if (!stats || !stats.total) return 'keying: UNMEASURED — this run excluded no file by a marker';
+  return `keying: ${stats.keyed} of ${stats.total} exclusion(s) checked against at least one recorded field · ${stats.unkeyed} UNKEYED${stats.unkeyed ? ' (named below)' : ''}`;
+}
+function defaultHashFirstMib(path) {
+  /* The marker's own unit: SHA-256 over the first MiB, read at offset 0 and never the whole file — these
+     are capture files of hundreds of MB and the 8 GB rule is the reason the prefix check streams too. */
+  const CH = 1 << 20;
+  const fd = openSync(path, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(CH);
+    const got = readSync(fd, buf, 0, CH, 0);
+    return createHash('sha256')
+      .update(buf.subarray(0, Math.max(got, 0)))
+      .digest('hex');
+  } finally {
+    closeSync(fd);
+  }
 }
 function defaultReadMarker(path) {
   // ENOENT is "no marker" — every other error propagates, because an unreadable marker is not an absent
@@ -1790,7 +1978,7 @@ function dedupeStream(recs, opts = {}) {
       const res = resolveSuperseded(small, big, opts);
       if (res.resolved) {
         seen.keep = big;
-        seen.excluded.push({ path: small.full, bytes: small.bytes, reason: res.reason, keeper: big.full });
+        seen.excluded.push({ path: small.full, bytes: small.bytes, reason: res.reason, keeper: big.full, keyed: res.keyed || null });
         continue;
       }
       seen.conflict = {
@@ -1800,7 +1988,9 @@ function dedupeStream(recs, opts = {}) {
         other: r.full,
         otherBytes: r.bytes,
         // null when no marker was offered at all; a sentence when one was and could not be trusted.
-        markerUnknown: res.unknown || null
+        markerUnknown: res.unknown || null,
+        // null when nothing was parsed; otherwise which recorded fields the marker offered to be held to.
+        markerKeyed: res.keyed || null
       };
     }
   }
@@ -1999,7 +2189,11 @@ const excludedNights = [...nights.values()].filter((n) => (n.excluded || []).len
 if (excludedNights.length) {
   const files = excludedNights.reduce((t, n) => t + n.excluded.length, 0);
   console.log(`\n  superseded: ${files} file(s) across ${excludedNights.length} night(s) EXCLUDED by a \`.superseded\` marker — the keeper folds, the marker's reason is printed`);
-  for (const n of excludedNights) for (const x of n.excluded) console.log(`    ${n.key}: ${x.path} (${x.bytes} B) — ${x.reason}\n      keeper: ${x.keeper}`);
+  /* AND WHAT THE EXCLUSION WAS CHECKED AGAINST, per file and in aggregate. Without this the two keying
+     checks are invisible: a marker carrying neither field prints the same successful-looking line as one
+     held to a recorded path and size. */
+  console.log(`    ${markerKeyingLine(markerKeying(excludedNights.flatMap((n) => n.excluded)))}`);
+  for (const line of markerExclusionLines(excludedNights)) console.log(line);
 }
 for (const n of conflictNights) {
   for (const c of n.conflicts)
