@@ -1103,6 +1103,18 @@
     ]
    }
   },
+  "tools/deep-flow-join.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/deep-flow-join.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot of the trio root taken before the read and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. `--eve` is read by night key, one prefix lookup per night, so the trio tree is the whole enumeration the run makes. `--verdict-sample` prints the object over a synthetic three-night snapshot under the DEFAULT night rule, so the gate validates it where no corpus is mounted."
+  },
   "tools/deep-vlf-probe.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1164,9 +1176,16 @@
    "note": "derives an AHI per recording over the two annotated open mirrors (ISRUC scorer 1, iSleeps Flow Events) and judges the derivation against the count survey the brief pre-stated on 2026-10-12. Refuses with a named reason instead of defaulting: no-scorer-1-workbook, no-respiratory-scoring, no-event-stage-column, no-sleep-epoch. Corpus-dependent, so it is an operator instrument and not a step of npm run check; without the mount it emits NOT_RUN. Brief: briefs/OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md"
   },
   "tools/device-stability.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/device-stability.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot of the corpus directory taken before the read and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. The run also names the offered nights that carry no host-stamped stream, which the roll-up cannot show. `--verdict-sample` prints the object over a synthetic three-night snapshot under the DEFAULT night rule, so the gate validates it where no corpus is mounted. It was binned `word-only` / `exempt` before, on the reading that its only machine-readable output was its selftest assertion line; that is no longer true of it."
   },
   "tools/docs-constants.mjs": {
    "bin": "decides",
@@ -1987,9 +2006,16 @@
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
   "tools/ppg2w-spo2-fit.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ppg2w-spo2-fit.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot of the captures root taken before the read and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. The population prints at the `under 100 pooled bins` exit too, which used to be the last line such a run wrote. `--verdict-sample` prints the object over a synthetic three-night snapshot under the DEFAULT night rule, so the gate validates it where no corpus is mounted. It was binned `word-only` / `exempt` before, on the reading that its only machine-readable output was its selftest assertion line; that is no longer true of it."
   },
   "tools/ppi-jitter-vs-ecg.mjs": {
    "bin": "word-only",

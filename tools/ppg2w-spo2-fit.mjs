@@ -31,12 +31,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--bin'], boolean: ['--selftest'], positional: true };
+const ARGV_SPEC = { valued: ['--bin'], boolean: ['--selftest', '--verdict-sample'], positional: true };
 
 const argv = process.argv.slice(2);
 /* `process.argv` BELONGS TO WHOEVER IS RUNNING: at module scope this refusal would read the
@@ -248,8 +248,40 @@ function selftest() {
   return fail ? 1 : 0;
 }
 
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS: a population that did NOT move across the run,
+   over synthetic snapshots, so the sample costs no corpus read and runs where the captures are not.
+   The rule is the DEFAULT one, so the two night questions report `[]` — a measurement that the rule
+   refused nothing, which is a different statement from `null` (nobody looked). */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = {
+    ok: true,
+    root: '<captures-root>',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: [],
+    passedOver: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/ppg2w-spo2-fit.mjs', at, evidence: ['tools/ppg2w-spo2-fit.mjs'] });
+}
+
+export { verdictSample };
+
 if (isCliEntry(import.meta.url)) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
+  /* BEFORE the root resolution: the sample must run where no corpus is mounted. */
+  if (process.argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    process.exit(0);
+  }
   const root = positionalArgs(argv, ARGV_SPEC).find((a) => fs.existsSync(a));
   if (!root) {
     console.log('usage: node tools/ppg2w-spo2-fit.mjs <captures-root> [--bin 15]');

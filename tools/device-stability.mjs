@@ -43,12 +43,12 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { createRequire } from 'node:module';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--every', '--json'], boolean: ['--selftest'], positional: true };
+const ARGV_SPEC = { valued: ['--every', '--json'], boolean: ['--selftest', '--verdict-sample'], positional: true };
 
 const require = createRequire(import.meta.url);
 const DexClock = require(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'clock.js'));
@@ -300,10 +300,42 @@ function median(a) {
   return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
 }
 
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS: a population that did NOT move across the run,
+   over synthetic snapshots, so the sample costs no corpus read and runs where the captures are not.
+   The rule is the DEFAULT one, so the two night questions report `[]` — a measurement that the rule
+   refused nothing, which is a different statement from `null` (nobody looked). */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = {
+    ok: true,
+    root: '<corpus-dir>',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: [],
+    passedOver: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/device-stability.mjs', at, evidence: ['tools/device-stability.mjs'] });
+}
+
+export { verdictSample };
+
 async function main() {
   const args = process.argv.slice(2);
   refuseUnknownArgvOrExit(args, ARGV_SPEC, { tool: 'device-stability' });
   if (args.includes('--selftest')) return selftest();
+  /* BEFORE the corpus argument is read: the sample must run where no corpus is mounted. */
+  if (args.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    return;
+  }
   const dir = positionalArgs(args, ARGV_SPEC)[0];
   if (!dir) {
     console.error('usage: node tools/device-stability.mjs <corpus-dir> [--json out.json] [--every N]');

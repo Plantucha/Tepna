@@ -39,7 +39,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
-import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* Realm builder lifted verbatim from tools/cpap-corpus.mjs — imported there it would run that
    file's CLI main, so it is duplicated rather than imported. Keep the two in step. */
@@ -117,7 +117,7 @@ if (isCliEntry(import.meta.url)) {
     process.argv.slice(2),
     {
       valued: ['--trio', '--eve', '--step', '--anchors', '--anchor-r-min', '--pre-min', '--post-min'],
-      boolean: ['--sweep']
+      boolean: ['--sweep', '--verdict-sample']
     },
     { tool: 'deep-flow-join' }
   );
@@ -139,6 +139,38 @@ const ANCH = arg('--anchors', null);
 const R_MIN = Number(arg('--anchor-r-min', 0)); // 0 = accept every anchor; §11e names two bad ones
 const PRE = Number(arg('--pre-min', -39.5)); // integrator-dsp.js:3743
 const POST = Number(arg('--post-min', 21.2)); // measured, PR #1581
+
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS: a population that did NOT move across the run,
+   over synthetic snapshots, so the sample costs no corpus read and runs where the captures are not.
+   The rule is the DEFAULT one, so the two night questions report `[]` — a measurement that the rule
+   refused nothing, which is a different statement from `null` (nobody looked). */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: [],
+    passedOver: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/deep-flow-join.mjs', at, evidence: ['tools/deep-flow-join.mjs'] });
+}
+
+/* BEFORE the `--eve` refusal: the sample must run where no corpus is mounted. */
+if (process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
 if (!EVE) {
   console.error('usage: node tools/deep-flow-join.mjs --eve <dir> [--trio uploads/trio]');
   process.exit(2);
