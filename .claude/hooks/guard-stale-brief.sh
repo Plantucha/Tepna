@@ -137,6 +137,178 @@ WRITE_VERB_RE="(open\([^)]*['\"][wax]|\.write_text\(|\.write_bytes\(|\.writeline
 READ_FORM_RE="(open\([^,)]*\)|open\([^)]*['\"]r[b+]*['\"]|\.read_text\(|\.read_bytes\(|\.readlines\(|\.read\(|readFileSync\(|readFile\(|json\.load\(|yaml\.safe_load\(|\.exists\(|\.is_file\(|\.glob\(|\.rglob\(|\.stat\()"
 
 
+# ── WT_SCAN — WHICH PATH DOES THIS PROGRAM ACTUALLY WRITE? ────────────────────────────────────
+#    An awk reader of interpreter program text. It answers one of three things on stdout:
+#      DENY <reason>  a write whose target is a guarded path, or one it cannot resolve to a literal
+#      ALLOW <n>      n target-bearing writes, every target resolved, none of them guarded
+#      NOWRITE        no target-bearing write form at all — the caller falls back to its old rule
+#
+#    HOW IT READS A TARGET. String literals are masked out first, so every later rule runs over text
+#    with no quoting left to misread. Then each write form is looked up in a slot table, because the
+#    target does not sit in one place: `open(T, "w")` and `writeFileSync(T, …)` name it first,
+#    `shutil.copy(src, T)` and `os.replace(src, T)` name it last, `Path(T).write_text(…)` names it
+#    as the receiver, and `Path(src).replace(T)` names it as the argument while the receiver is the
+#    source. A list of verbs cannot tell those apart, which is why the old arm denied on the verb.
+#
+#    WHAT MAKES IT SAFE. Three fail-closed rules, each measured rather than assumed:
+#      · a target that is not a literal and not a variable holding one DENIES (argv, a concatenation,
+#        an f-string, a reassigned name) — so the variable case keeps its denial;
+#      · a program that shells out DENIES, because `os.system("cp x briefs/X.md")` writes through a
+#        channel no slot table can read;
+#      · an unterminated string literal DENIES, since the mask cannot be trusted past it.
+#
+#    WHAT IT DOES NOT MODEL, stated rather than discovered later: a shell body handed to `bash <<SH`
+#    (the caller's own redirect test covers the outside text, not a kept body), a target built by
+#    concatenation from pieces no single literal spells, and a guarded path that reaches the program
+#    as an ARGUMENT rather than in its text. The last two are residue rows of their own, filed with
+#    the measurement that found them.
+WT_SCAN='# wtscan.awk — read interpreter PROGRAM TEXT on stdin, print one verdict line.
+#   DENY <reason>      a write whose target is a guarded path, or one this scan cannot resolve
+#   ALLOW <n>          n target-bearing writes, every target resolved and none guarded
+#   NOWRITE            no target-bearing write form found at all
+# -v guarded=<ERE>
+BEGIN { SQ = sprintf("%c", 39); DQ = sprintf("%c", 34); BQ = sprintf("%c", 96) }
+{ src = src $0 "\n" }
+END {
+  n = length(src); masked = ""; nlit = 0; q = ""
+  for (i = 1; i <= n; i++) {
+    c = substr(src, i, 1)
+    if (q != "") {
+      if (c == "\\") { cur = cur substr(src, i+1, 1); i++; continue }
+      if (c == q) { nlit++; lit[nlit] = cur; masked = masked "@L" nlit "@"; q = ""; cur = "" ; continue }
+      cur = cur c; continue
+    }
+    if (c == SQ || c == DQ || c == BQ) { q = c; cur = ""; continue }
+    if (c == "\n" || c == "\t") { masked = masked " "; continue }
+    masked = masked c
+  }
+  if (q != "") { print "DENY an unterminated string literal, so the program text cannot be read"; exit }
+
+  # ── one level of literal resolution: IDENT = "literal", and a handle from open("literal", …) ──
+  m = masked
+  while (match(m, /[A-Za-z_][A-Za-z_0-9]*[ ]*=[ ]*@L[0-9]+@/)) {
+    s = substr(m, RSTART, RLENGTH); m = substr(m, RSTART + RLENGTH)
+    name = s; sub(/[ ]*=.*/, "", name); idx = s; sub(/.*@L/, "", idx); sub(/@$/, "", idx)
+    if (name in map && map[name] != lit[idx+0]) map[name] = "\001AMBIGUOUS"; else map[name] = lit[idx+0]
+  }
+  m = masked
+  while (match(m, /[A-Za-z_][A-Za-z_0-9]*[ ]*=[ ]*(io\.|codecs\.)?open\([ ]*@L[0-9]+@/)) {
+    s = substr(m, RSTART, RLENGTH); m = substr(m, RSTART + RLENGTH)
+    name = s; sub(/[ ]*=.*/, "", name); idx = s; sub(/.*@L/, "", idx); sub(/@$/, "", idx)
+    if (name in map && map[name] != lit[idx+0]) map[name] = "\001AMBIGUOUS"; else map[name] = lit[idx+0]
+  }
+  m = masked
+  while (match(m, /with[ ]+(io\.|codecs\.)?open\([ ]*@L[0-9]+@[^)]*\)[ ]*as[ ]+[A-Za-z_][A-Za-z_0-9]*/)) {
+    s = substr(m, RSTART, RLENGTH); m = substr(m, RSTART + RLENGTH)
+    name = s; sub(/.*as[ ]+/, "", name); idx = s; sub(/.*@L/, "", idx); sub(/@.*/, "", idx)
+    if (name in map && map[name] != lit[idx+0]) map[name] = "\001AMBIGUOUS"; else map[name] = lit[idx+0]
+  }
+
+  # ── a program that shells out writes through a channel this scan cannot read ──
+  if (masked ~ /(^|[^A-Za-z_0-9])(os\.system|os\.popen|subprocess|Popen|child_process|execSync|execFileSync|spawnSync|spawn\(|exec\()/) {
+    print "DENY the program shells out, so a write can leave through a channel this scan cannot read"; exit
+  }
+
+  writes = 0
+  nw = split("", W)
+  # target-bearing write forms, with WHERE the target sits: A1 first argument, AL last argument,
+  # RX the receiver standing before the dot.
+  nw = scan(masked, "(^|[^A-Za-z_0-9.])open\\(", "A1", "MODEW") + nw
+  nw = scan(masked, "(^|[^A-Za-z_0-9])(writeFileSync|appendFileSync|writeFile|createWriteStream)\\(", "A1", "") + nw
+  nw = scan(masked, "(^|[^A-Za-z_0-9])shutil\\.(copy|copy2|copyfile|move)\\(", "AL", "") + nw
+  nw = scan(masked, "(^|[^A-Za-z_0-9])os\\.(replace|rename)\\(", "AL", "") + nw
+  nw = scan(masked, "(^|[^A-Za-z_0-9])os\\.(remove|unlink)\\(", "A1", "") + nw
+  nw = scan(masked, "(^|[^A-Za-z_0-9])(os|shutil|fs|path)\\.[a-z_]+\\(", "SKIP", "") + nw
+  nw = scan(masked, "\\.(write_text|write_bytes|unlink)\\(", "RX", "") + nw
+  nw = scan(masked, "\\.(replace|rename)\\(", "A1SOFT", "") + nw
+  if (verdict != "") { print verdict; exit }
+  if (nw == 0) { print "NOWRITE"; exit }
+  print "ALLOW " nw
+}
+
+# scan: find every occurrence of pat in s, pull its target, judge it. Returns the count found.
+function scan(s, pat, where, modegate,   found, pos, rest, open_at, args, na, tgt, i, val, head) {
+  found = 0; pos = 0; rest = s
+  while (match(rest, pat)) {
+    head = RSTART + RLENGTH - 1                     # index of the "(" inside rest
+    while (substr(rest, head, 1) != "(" && head <= length(rest)) head++
+    na = arglist(rest, head, args)
+    if (na < 0) { verdict = "DENY a write call this scan cannot split into arguments"; return found }
+    if (modegate == "MODEW") {
+      if (na < 2) { rest = substr(rest, head + 1); continue }   # open(x) with no mode is a READ
+      val = resolve(args[2])
+      if (val == "\001UNRESOLVED") { rest = substr(rest, head + 1); continue }
+      if (val !~ /[wax]/) { rest = substr(rest, head + 1); continue }
+    }
+    found++
+    if (where == "SKIP") { found--; rest = substr(rest, head + 1); continue }
+    if (where == "A1") tgt = args[1]
+    else if (where == "AL") tgt = args[na]
+    else tgt = receiver(rest, RSTART + RLENGTH - length(pat))
+    if (where == "RX") tgt = receiver_before(rest, head)
+    if (where == "A1SOFT") tgt = args[1]
+    val = resolve(tgt)
+    # `.replace(` and `.rename(` move the receiver ONTO their first argument, which is the target.
+    # Both are also string methods, so an argument this scan cannot resolve is not evidence of a file
+    # write at all. Every other form in this table names a file and fails closed.
+    if (where == "A1SOFT" && val == "\001UNRESOLVED") { found--; rest = substr(rest, head + 1); continue }
+    if (val == "\001UNRESOLVED") {
+      verdict = "DENY a write whose target this scan cannot resolve to a literal path: " trim(tgt)
+      return found
+    }
+    if (val ~ guarded) {
+      verdict = "DENY a write whose target IS a guarded path: " val
+      return found
+    }
+    rest = substr(rest, head + 1)
+  }
+  return found
+}
+
+# arglist: fill args[1..n] with the top-level comma-separated arguments of the call whose "(" is at k.
+function arglist(s, k, args,   depth, i, cur, n, c) {
+  depth = 0; n = 0; cur = ""
+  for (i = k; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (c == "(" || c == "[" || c == "{") { depth++; if (depth == 1) continue; cur = cur c; continue }
+    if (c == ")" || c == "]" || c == "}") { depth--; if (depth == 0) { n++; args[n] = cur; return n } cur = cur c; continue }
+    if (c == "," && depth == 1) { n++; args[n] = cur; cur = ""; continue }
+    cur = cur c
+  }
+  return -1
+}
+
+# receiver_before: the expression standing immediately before the ".verb(" at k.
+function receiver_before(s, k,   i, depth, c, start) {
+  i = k - 1
+  while (i > 0 && substr(s, i, 1) != ".") i--      # back to the dot
+  i--
+  if (i <= 0) return "\001UNRESOLVED"
+  if (substr(s, i, 1) == ")") {                    # a call: Path("x") / Path(p)
+    depth = 0
+    for (; i > 0; i--) {
+      c = substr(s, i, 1)
+      if (c == ")") depth++
+      else if (c == "(") { depth--; if (depth == 0) break }
+    }
+    if (i <= 0) return "\001UNRESOLVED"
+    if (arglist(s, i, A) < 1) return "\001UNRESOLVED"
+    return A[1]
+  }
+  start = i
+  while (start > 0 && substr(s, start, 1) ~ /[A-Za-z_0-9@]/) start--
+  return substr(s, start + 1, i - start)
+}
+function receiver(s, k) { return receiver_before(s, k) }
+
+function resolve(t,   v, idx) {
+  t = trim(t)
+  if (t ~ /^@L[0-9]+@$/) { idx = t; sub(/^@L/, "", idx); sub(/@$/, "", idx); return lit[idx+0] }
+  if (t ~ /^[A-Za-z_][A-Za-z_0-9]*$/ && (t in map)) { v = map[t]; if (v == "\001AMBIGUOUS") return "\001UNRESOLVED"; return v }
+  return "\001UNRESOLVED"
+}
+function trim(t) { gsub(/^[ \t]+|[ \t]+$/, "", t); return t }'
+
 edit_dir="."
 cd_missing=""
 [ -n "$f" ] && edit_dir="$(dirname "$f")"
@@ -405,6 +577,7 @@ prog_text="$_hd_kept $(printf '%s' "$cmd_outside" | awk '
 ')"
 
 write_shape=""
+write_from_prog=""
 looks_like_write() {
   # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
   # test. Measured 2026-09-02: `grep -n "<<<<<<<\|=======\|>>>>>>>" briefs/X.md`, i.e. the standard
@@ -445,16 +618,34 @@ looks_like_write() {
   #    is why a verb list was reached for in the first place, and why the inversion rather than a
   #    longer list is what closes the class.
   if [ -n "$2" ] && printf '%s' "$2" | grep -qE "$GUARDED_RE"; then
-    local verb
+    local verb scan
+    # ── THE TARGET SCAN RUNS FIRST, AND IT IS THE ONLY THING HERE THAT CAN ANSWER "DATA" ─────────
+    #    Residue 2026-10-26-a-guarded-path-written-as-data-reads-as-a-write-of-that-path. Before it,
+    #    a guarded path ANYWHERE in program text denied as soon as any write verb stood anywhere
+    #    else in the same program, so a script writing a note to a scratchpad was denied for quoting
+    #    a brief inside the note. `WT_SCAN` reads each write form's TARGET SLOT instead, and the row
+    #    called that impossible because the adjacency it imagined cannot see a path behind a
+    #    variable. One level of literal resolution is what makes it possible: the scan resolves
+    #    `L = "briefs/X-BRIEF.md"` and judges the resolved value, and a target it CANNOT resolve
+    #    denies. So the variable case the row protects keeps denying, by the same rule.
+    scan="$(printf '%s' "$2" | awk -v guarded="$(printf '%s' "$GUARDED_RE" | sed 's/\\/\\\\/g')" "$WT_SCAN" 2>/dev/null)"
+    case "$scan" in
+      "DENY "*) write_shape="${scan#DENY }"; write_from_prog=1; return 0 ;;
+      "ALLOW "*) return 1 ;;
+    esac
+    # NOWRITE, or an awk that could not run: the rule that shipped before the scan, unchanged. The
+    # scan can only SUBTRACT denials, never add one, so a box without awk keeps the old behaviour.
     verb="$(printf '%s' "$2" | grep -oE "$WRITE_VERB_RE" | head -1)"
     if [ -n "$verb" ]; then
-      write_shape="an interpreter write verb, matched as \`$verb\` — no adjacency test ran here"
+      write_shape="an interpreter write verb, matched as \`$verb\`, which the target scan does not model"
+      write_from_prog=1
       return 0
     fi
     # A read beside no write is the allowlist's one ALLOW. Anything else is a form nobody here
     # recognises, and the arm reports WHAT it could not classify rather than a verb it never saw.
     if ! printf '%s' "$2" | grep -qE "$READ_FORM_RE"; then
       write_shape='a guarded path in interpreter program text, reached by no form the read allowlist knows — the arm fails closed on an unknown form'
+      write_from_prog=1
       return 0
     fi
   fi
@@ -519,7 +710,10 @@ report=""; first=""; n=0
 # `data_only` survives the loop only while EVERY reporting path was read inside program text alone.
 # One path standing in the command proper clears it, because that one is a target the reader can see.
 data_only=""
-case "$write_shape" in "an interpreter write verb"*) data_only=1 ;; esac
+# ⚠ KEYED ON THE ARM THAT FIRED, NOT ON ITS PROSE. This used to match the one shape string the
+# interpreter arm could produce, so the target scan's own denials — the ones MOST likely to be a
+# data mention — printed no warning at all. A flag the arm sets cannot drift from the prose.
+[ -n "$write_from_prog" ] && data_only=1
 while IFS= read -r rel; do
   [ -z "$rel" ] && continue
   # shellcheck disable=SC2086 # $_have_too is a deliberately word-split "--not <sha>" list
