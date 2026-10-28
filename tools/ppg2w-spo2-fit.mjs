@@ -31,6 +31,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -255,24 +256,65 @@ if (isCliEntry(import.meta.url)) {
     process.exit(2);
   }
   const binS = opt('--bin', 15);
+  /* THE NIGHT RULE IS THE POPULATION RULE. `snapshotNights` applies the same `YYYY-MM-DD` filter
+     this loop spelled by hand, and it publishes what the filter did with the rest of the listing,
+     which the inline `.filter()` dropped before anyone could report it.
+     🔴 AN UNREADABLE ROOT REFUSES, IT DOES NOT REPORT ZERO (§∅). The positional guard above accepts
+     any path `existsSync` likes, a file among them, and the old `readdirSync` threw on those. The
+     snapshot returns `ok: false` with the reason, so the refusal is taken here rather than published
+     as `0 night(s) offered`. */
+  const snap = snapshotNights(root);
+  if (!snap.ok) {
+    console.error(`refused: ${snap.reason} — ${root}`);
+    process.exit(2);
+  }
+  /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Binning a corpus of PPG2W and
+     SpO₂ pairs takes long enough for a commit to land in this worktree. */
+  const commitOf = gitCommitOf();
   const sessions = [];
-  for (const day of fs
-    .readdirSync(root)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort()) {
+  for (const day of snap.nights) {
     const dir = path.join(root, day);
     for (const f of fs.readdirSync(dir).filter((x) => /_PPG2W\.txt$/i.test(x))) {
       const stem = f.replace(/_PPG2W\.txt$/i, '');
       const sp = path.join(dir, stem + '_SPO2.csv');
       if (!fs.existsSync(sp)) continue;
       const bins = sessionBins(path.join(dir, f), sp, { binS });
-      if (bins) sessions.push({ name: stem.slice(-14), bins });
+      /* The session name is a 14-digit stamp, so it cannot say which NIGHT a session came from.
+         The night rides along for the coverage line below; `pooledFit` reads `name` and `bins`. */
+      if (bins) sessions.push({ night: day, name: stem.slice(-14), bins });
     }
   }
   console.log(`  sessions with usable pairs: ${sessions.length}`);
+  /* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing snapshot is what says so.
+     `tepna-corpus-tier.service` re-tiers the corpus daily, so a pooled fit can open over one night
+     set and close over another. The status labels MOVEMENT across the run, never coverage. */
+  const printPopulation = () => {
+    const population = populationVerdict(snap, snapshotNights(root), {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: 'tools/ppg2w-spo2-fit.mjs',
+      evidence: ['tools/ppg2w-spo2-fit.mjs', 'tools/corpus-scope-core.mjs']
+    });
+    console.log(
+      `\npopulation: ${snap.n} night(s) offered under the root · ${new Set(sessions.map((s) => s.night)).size} contributed a usable pair · movement ${population.status}` +
+        (population.reason ? ` — ${population.reason}` : '')
+    );
+    const populationRule = ruleLine(population);
+    if (populationRule) console.log(populationRule);
+    /* A COUNT of the nights that contributed nothing names nothing to chase. A night falls out here
+       when it holds no `_PPG2W.txt`, when the matching `_SPO2.csv` is absent, or when the pair bins
+       to nothing usable. */
+    const missed = notCovered(snap, sessions, { key: 'night' });
+    if (missed.length)
+      console.log(`  ${missed.length} offered night(s) contributed no usable pair, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+    console.log('POPULATION ' + JSON.stringify(population));
+  };
   const pf = pooledFit(sessions);
+  /* 🔴 A RUN THAT POOLED TOO LITTLE STILL OWES ITS POPULATION. This exit used to be the last line
+     such a run printed, so the one case where the population is the whole story reported none. */
   if (!pf) {
     console.log('  ✗ under 100 pooled bins — no verdict.');
+    printPopulation();
     process.exit(1);
   }
   console.log('  session          bins    r');
@@ -285,4 +327,5 @@ if (isCliEntry(import.meta.url)) {
       ? '  ✓ the ratio TRACKS SpO₂ (monotonic, positive) — functional red+IR behaviour (ch0=IR, ch1=RED by sign)'
       : '  ✗ no robust tracking — the functional case is NOT supported by this corpus state'
   );
+  printPopulation();
 }
