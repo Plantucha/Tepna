@@ -2,7 +2,7 @@
 
 **Unit.** Log three measured rows in `briefs/RESIDUE.md`: the corpus night rule pinned to one
 calendar year, the eighteen residue citations that resolve to no row, and the twenty-nine that
-resolve only by prefix. No row moves; nothing is closed here.
+resolve only by prefix. No row moves; this unit closes nothing.
 
 **Branch + worktree.** `claude/rowbatch-osp` @ `34d455a92` in `wt-rowbatch-osp`, rebased onto
 `36984bd9c` (PR #3933, merged). Three rows appended, all `OPEN`, all logged 2026-10-26, each citing
@@ -23,14 +23,14 @@ That is the same split the residue-row skill already records for an annotated ST
 measured on the source cell too: two gates, one row, and the cheap one passes.
 
 **Also measured.** `--group=` is substring-or-regex, so the failing group's own suggested re-run
-line cannot be pasted: its title ends in `(DOCS-LEDGER-GATE)` and the parentheses match nothing.
+line resists a paste: its title ends in `(DOCS-LEDGER-GATE)` and the parentheses match nothing.
 Filter on `Docs-ledger — brief lifecycle` instead, and read the assertion count to prove the filter
 selected something.
 
 **Open questions.** The three `nsrr-*` backlog keys in `tools/corpus-reads.mjs` still owe an
 owner-facing record-population decision (board #1254).
 
-**Blockers.** None. The one-PR cap is free: #3933 merged, so `wt-heavykey-osp` can be retired with
+**Blockers.** None. The one-PR cap is free: #3933 merged, so `wt-heavykey-osp` retires with
 `node tools/wt-done.mjs`.
 
 **Doc-search query that finds the prior work.**

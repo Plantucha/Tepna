@@ -7,7 +7,7 @@
 3. **Exact stopping point** — five rows appended to `briefs/RESIDUE.md` and committed.
    `node tools/residue-ids.mjs --check --base origin/main` reads
    `ok — 5 row(s) added, none colliding, none mutated`; the `Docs-ledger — brief lifecycle`
-   group passes 102 assertions. The PR body is linted clean (ste-lint 0 findings over 9 prose
+   group passes 102 assertions. ste-lint reads 0 findings over the PR body's 9 prose
    lines) at the scratchpad path for this session, file `body-fiverows.md`.
    `npm run check` is still running detached into `check-fiverows.log` beside it.
 4. **Next step** — read the `EXIT=` sentinel in that log, push with `--force-with-lease`,
@@ -33,6 +33,6 @@
 
 ## Carried forward
 
-A source cell must be backticked in all three legal forms. `residue-ids --check` exits 0 over an
+A source cell carries backticks in all three legal forms. `residue-ids --check` exits 0 over an
 unbackticked cell and `docs-ledger` check8b convicts, so the 4-second pre-check is
 `node tests/run-tests.mjs --group="Docs-ledger — brief lifecycle"` before any ledger PR.

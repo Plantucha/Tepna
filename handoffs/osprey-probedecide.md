@@ -2,7 +2,7 @@
 
 1. **Unit** — answer the open question in `2026-10-21-the-probe-reaches-four-of-forty-abstaining-tools`:
    build a sandboxed probe, or leave the hazard-bearing tools as named abstentions. A MEASUREMENT,
-   no PR, reported at board #1336; the row is claimed at #1337 and stays OPEN.
+   no PR, reported at board #1336; board #1337 claims the row, and it stays OPEN.
 2. **Branch + worktree** — none. Measured at `e0126973e` from this session's cached scans
    (`argvreads.json`, `hazyield2.json`, `selftest-list.txt` in the scratchpad).
 3. **Exact stopping point** — reported. Over the 37 undecidable tools at that ref: the shipped bar

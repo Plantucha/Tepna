@@ -1,6 +1,6 @@
 # Osprey — backlogcost (what the remaining corpus-enumerator backlog costs)
 
-1. **Unit** — cost the 44 unwired corpus enumerators by what each would need to be wired AND
+1. **Unit** — cost the 44 unwired corpus enumerators by what wiring each one would take, AND
    verified corpus-free. A MEASUREMENT: no PR, no code, reported on board thread 7 as #1335.
 2. **Branch + worktree** — none. Measured at `e0126973e` in a detached worktree
    (`wt-backlogcost-osp`, retired after the run). Scripts live in this session's scratchpad as

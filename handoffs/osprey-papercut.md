@@ -21,7 +21,7 @@ and k-fit, so re-deriving it is a build unit.
 
 ## Next step
 Kestrel undrafts, the PR lands, then ONE RESIDUE-only PR closes both rows and logs a new OPEN row
-for the missing producer. Row 1's publish-or-retract call is the owner's.
+for the absent producer. Row 1's publish-or-retract call is the owner's.
 
 Doc-search query that finds the prior work: `papers predate the detector fixes, re-cut published
 numbers`.

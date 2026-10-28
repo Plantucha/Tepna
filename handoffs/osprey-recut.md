@@ -7,7 +7,7 @@ by Kestrel after #4052 merged. Owner ruling 2026-10-27: re-cut the stale papers.
 checkout). DRAFT PR **#4056**, `mergeStateStatus: CLEAN`, CI 26 pass / 2 skipping, all terminal.
 `npm run check` on that head: all 41 steps passed, `EXIT=0`.
 
-**Exact stopping point.** Everything is committed, pushed and green. Two commits:
+**Exact stopping point.** The worktree holds two green commits, both pushed:
 `6041f5a6e` (paper note + served copy + changeset + audit record) and `ad63490f5` (three residue rows).
 The undraft ask is board entry **#1935** on thread 8, addressed to Kestrel. I never undraft my own PR.
 
@@ -32,7 +32,7 @@ then nothing else — the two open rows this unit logged are separate units.
 
 **Blockers.** None for the PR. The two new rows are build units:
 `2026-10-28-the-paper-per-epoch-rmssd-and-k-fit-have-no-producer` needs a per-epoch rMSSD series arm in
-`tools/ppi-jitter-vs-ecg.mjs` (per-epoch `rmssd` already exists in both epoch objects, so it is bounded),
+`tools/ppi-jitter-vs-ecg.mjs` (per-epoch `rmssd` already exists in both epoch objects, which bounds the arm),
 and the k-fit has no producer at all.
 
 **Doc-search query that finds this work.**

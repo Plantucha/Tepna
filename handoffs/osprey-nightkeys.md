@@ -29,7 +29,7 @@ and weight 90 to 51 and 73.
 population verdict could disagree about which nights exist; the guard now reads the snapshot's list, and
 that also gave it an ordering it never had, since `readdirSync` returns none and `slice(-3)` had been
 reading three arbitrary nights for recent writes. The two trio tools publish a population the adoption
-enumerator cannot see, and the named invisibility set in `tests/dex-tests.js` is where that is recorded.
+enumerator cannot see, and the named invisibility set in `tests/dex-tests.js` records that.
 
 **Three findings from the wiring.** The fold's `--dry-run` exit planned a population and reported none, so the
 publisher is one helper on all three exits. Every NOT_RUN population reason read "neither snapshot
