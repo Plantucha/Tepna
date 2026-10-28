@@ -256,9 +256,13 @@ export function treePublications(root) {
   return publicationsOf([...new Set(files)], read);
 }
 
-/* Pure: judge a manifest against an enumerated population. Returns { ok, errors[], counts }. */
+/* Pure: judge a manifest against an enumerated population. Returns { ok, errors[], unexamined[],
+   counts }. `unexamined` is the producers the runner could not READ — a cap hit under box load, not
+   a judgement about the adoption; the CLI reports them apart from `errors` and `ok` ignores them,
+   because a run that examined nothing about a row has found nothing wrong with it either. */
 export function check(enumerated, manifest, validator, runner) {
   const errors = [];
+  const unexamined = [];
   const rows = (manifest && manifest.producers) || {};
   const named = Object.keys(rows).sort();
   const enumSet = new Set(enumerated);
@@ -267,7 +271,7 @@ export function check(enumerated, manifest, validator, runner) {
   for (const p of named)
     if (!enumSet.has(p))
       errors.push(`STALE row: ${p} is in the manifest and publishes no verdict (no word, no object, no builder call outside its comments; or the file is gone) — remove or re-bin it`);
-  const counts = { enumerated: enumerated.length, named: named.length, decides: 0, 'already-json': 0, 'word-only': 0, test: 0, adopted: 0, pending: 0, validated: 0 };
+  const counts = { enumerated: enumerated.length, named: named.length, decides: 0, 'already-json': 0, 'word-only': 0, test: 0, adopted: 0, pending: 0, validated: 0, unexamined: 0 };
   for (const p of named) {
     const r = rows[p] || {};
     if (!BINS.includes(r.bin)) {
@@ -290,11 +294,21 @@ export function check(enumerated, manifest, validator, runner) {
         errors.push(`${p}: adopted without \`emits\` ({cmd:[…]} printing the object, or {file}) — an adoption the gate cannot read is a claim`);
         continue;
       }
+      const te = timeoutMsError(p, r.emits);
+      if (te) {
+        errors.push(te);
+        continue;
+      }
       if (!validator || !runner) continue; // the pure core; the CLI passes both
       let obj;
       try {
         obj = runner(r.emits);
       } catch (e) {
+        if (e && e.unexamined) {
+          unexamined.push({ path: p, ...e, message: String(e.message || e) });
+          counts.unexamined++;
+          continue;
+        }
         errors.push(`${p}: emits could not be read — ${String(e.message || e).slice(0, 120)}`);
         continue;
       }
@@ -303,7 +317,7 @@ export function check(enumerated, manifest, validator, runner) {
       if (!v.ok) errors.push(`${p}: the emitted object is NOT a valid tepna.verdict/1 — ${v.errors.slice(0, 3).join(' | ')}`);
     }
   }
-  return { ok: errors.length === 0, errors, counts };
+  return { ok: errors.length === 0, errors, unexamined, counts };
 }
 
 /* ── EVERY CHECK IS GATED — a static population equality over the `decides` set ──────────────────
@@ -698,13 +712,14 @@ export function parseContributionSet(briefSrc) {
    and the reason `checked` exists. Returns { ok, errors[], counts }. */
 export function checkContributions(manifest, briefSrc, validator, runner) {
   const errors = [];
+  const unexamined = [];
   const block = (manifest && manifest.contributions) || {};
   const rows = block.figures || {};
   const table = parseContributionSet(briefSrc);
   const counts = { table: table.length, figures: Object.keys(rows).length, adopted: 0, pending: 0, read: 0, examined: 0 };
   if (!table.length) {
     errors.push(`contributions: the named set is ${JSON.stringify(block.enumeratedFrom || '(unset)')} and its §2 table read as 0 figures — a population that reads empty examines nothing`);
-    return { ok: false, errors, counts };
+    return { ok: false, errors, unexamined, counts };
   }
   const inTable = new Map(table.map((t) => [t.figure, t]));
   const named = Object.keys(rows).sort();
@@ -740,11 +755,20 @@ export function checkContributions(manifest, briefSrc, validator, runner) {
       errors.push(`contributions: "${f}" is adopted without \`emits\` ({cmd:[…]} printing the object, or {file}) — an adoption the gate cannot read is a claim`);
       continue;
     }
+    const te = timeoutMsError(`contributions: "${f}"`, r.emits);
+    if (te) {
+      errors.push(te);
+      continue;
+    }
     if (!validator || !runner) continue; // the pure core; the CLI passes both
     let obj;
     try {
       obj = runner(r.emits);
     } catch (e) {
+      if (e && e.unexamined) {
+        unexamined.push({ path: `contributions: "${f}"`, ...e, message: String(e.message || e) });
+        continue;
+      }
       errors.push(`contributions: "${f}" emits could not be read — ${String(e.message || e).slice(0, 120)}`);
       continue;
     }
@@ -760,7 +784,7 @@ export function checkContributions(manifest, briefSrc, validator, runner) {
     }
     counts.examined++;
   }
-  return { ok: errors.length === 0, errors, counts };
+  return { ok: errors.length === 0, errors, unexamined, counts };
 }
 
 /* The base manifest, read from git at `merge-base HEAD <baseRef>`. Mirrors tools/residue-ids.mjs:
@@ -825,12 +849,65 @@ export function pickEmitted(payload, emits) {
   return payload[emits.key];
 }
 
+/* ── THE CHILD CAP, AND WHY A TIMEOUT IS NOT A FAILED ADOPTION ─────────────────────────────────
+   Residue `2026-10-27-a-fixed-spawn-timeout-makes-a-gate-step-red-under-box-load`: this spawn
+   carried a fixed 120 s cap for every producer. `tools/xerj-load.mjs --dry-run --json` walks 6455
+   cached items and took 1 m 48.7 s at load average 44 on 24 cores, so the margin was 11 seconds and
+   any peer's long job closed it. The run then red at step 38 of 41 and `npm run check` left steps 39
+   to 41 unrun — a FAIL about a producer nobody read, which is §4b's family and the same conflation
+   the contract names in `find_unwired.py` (exit 1 for a finding AND for a crash).
+
+   ⚠️ A CAP IS NOT A PERFORMANCE TARGET. It is the point past which a run is no longer believed to be
+   running — the rule `tools/workflow-timeout-guard.mjs` states for CI jobs, applied to a child here.
+   SAMPLE 2026-10-28, rig-x870 at load average 5.9 to 7.4, every adopted producer timed in one pass:
+   n = 167, median 22 ms, p90 114 ms, p95 995 ms, and 166 of them at most 6.4 s. ONE outlier,
+   `tools/xerj-load.mjs` at 25.5 s idle against 108.7 s at load 44, a 4.3x stretch. So the default
+   below stands three orders of magnitude above the population it governs, and the outlier declares
+   its own `emits.timeoutMs` rather than dragging every other producer's cap up with it. */
+export const DEFAULT_EMITS_TIMEOUT_MS = 120_000;
+export const MAX_EMITS_TIMEOUT_MS = 900_000;
+
+/* The cap this entry runs under. Pure, so the shape leg and the runner read one rule. An absent or
+   malformed value falls back to the default HERE and reds in the shape leg below — a cap is not the
+   place to refuse, because refusing on it would turn a typo into the unexamined state it exists to
+   report. */
+export function emitsTimeoutMs(emits) {
+  const t = emits && emits.timeoutMs;
+  return Number.isInteger(t) && t > 0 && t <= MAX_EMITS_TIMEOUT_MS ? t : DEFAULT_EMITS_TIMEOUT_MS;
+}
+
+/* The shape rule for a declared cap, read by both check legs so one message exists. */
+export function timeoutMsError(where, emits) {
+  const t = emits && emits.timeoutMs;
+  if (t === undefined) return null;
+  if (Number.isInteger(t) && t > 0 && t <= MAX_EMITS_TIMEOUT_MS) return null;
+  return `${where}: emits.timeoutMs must be a whole number of milliseconds in 1..${MAX_EMITS_TIMEOUT_MS}, got ${JSON.stringify(t)} — an unreadable cap would silently become the ${DEFAULT_EMITS_TIMEOUT_MS} ms default`;
+}
+
+/* A producer that hit its cap was NEVER READ. The flag is the whole point: the caller routes this
+   away from `errors` into `unexamined`, so "this adoption is invalid" and "the box was busy" stop
+   arriving on the same wire. */
+export function unexaminedTimeout(fields) {
+  const e = new Error(`no object after ${fields.capMs} ms (the cap) at load ${fields.load1}`);
+  e.unexamined = true;
+  return Object.assign(e, fields);
+}
+
 /* Read what an adopted producer emits: run its cmd (stdout must be the object, or a payload carrying
-   it under `emits.key`) or read its file. */
-function runEmits(emits, root) {
+   it under `emits.key`) or read its file. Exported for the selftest: the cap's DETECTION is the half
+   a pure routing test cannot reach, and it is the half the row was written about. */
+export function runEmits(emits, root) {
   let text;
   if (Array.isArray(emits.cmd)) {
-    const r = spawnSync(emits.cmd[0], emits.cmd.slice(1), { cwd: root, encoding: 'utf8', timeout: 120000, maxBuffer: 64 << 20 });
+    const capMs = emitsTimeoutMs(emits);
+    const t0 = Date.now();
+    const r = spawnSync(emits.cmd[0], emits.cmd.slice(1), { cwd: root, encoding: 'utf8', timeout: capMs, maxBuffer: 64 << 20 });
+    const elapsedMs = Date.now() - t0;
+    /* spawnSync reports a cap hit as `error.code === 'ETIMEDOUT'` and kills with SIGTERM; a SIGTERM
+       from anywhere else (a peer's cleanup, the harness watchdog of §4c) is equally a run nobody
+       read, so both land here. */
+    if (r.error ? r.error.code === 'ETIMEDOUT' : r.signal === 'SIGTERM')
+      throw unexaminedTimeout({ capMs, elapsedMs, load1: Math.round(os.loadavg()[0] * 100) / 100, cmd: emits.cmd.join(' '), signal: r.signal || null });
     if (r.error) throw r.error;
     text = r.stdout;
   } else text = fs.readFileSync(path.join(root, emits.file), 'utf8');
@@ -908,6 +985,67 @@ function selftest() {
   ok(!r.ok && /NOT a valid tepna.verdict\/1/.test(r.errors[0]) && /no eighth value/.test(r.errors[0]), 'adopted but the object is invalid → red naming the validator error');
   r = check(['tools/a.mjs'], M({ 'tools/a.mjs': { bin: 'decides', status: 'adopted', emits: { file: 'missing.json' } } }), V.validate, runner);
   ok(!r.ok && /could not be read/.test(r.errors[0]), 'adopted but unreadable → red, not silently green');
+  /* ── THE CAP: A PRODUCER NOBODY READ IS NOT A FAILED ADOPTION ───────────────────────────────
+     Residue 2026-10-27-a-fixed-spawn-timeout-makes-a-gate-step-red-under-box-load. Both halves are
+     here: the DETECTION (a real child outliving a real cap) and the ROUTING (where that lands). */
+  {
+    const timedOut = () => {
+      throw unexaminedTimeout({ capMs: 120000, elapsedMs: 120004, load1: 44.1, cmd: 'node tools/slow.mjs --json' });
+    };
+    const row = { bin: 'decides', status: 'adopted', emits: { cmd: ['node', 'tools/slow.mjs', '--json'] } };
+    r = check(['tools/a.mjs'], M({ 'tools/a.mjs': row }), V.validate, timedOut);
+    ok(r.ok && r.errors.length === 0, 'a producer that hit its cap is NOT a red — the run examined nothing about it, so it found nothing wrong');
+    ok(r.unexamined.length === 1 && r.unexamined[0]?.path === 'tools/a.mjs' && r.counts.unexamined === 1, '…it lands in `unexamined` by name, and the count says how many');
+    ok(
+      r.unexamined[0]?.capMs === 120000 && r.unexamined[0]?.load1 === 44.1 && /120000 ms/.test(r.unexamined[0]?.message || ''),
+      '…carrying the cap and the box load, so the reader can tell contention from a broken producer'
+    );
+    ok(r.counts.validated === 0, '…and it is NEVER counted as validated: checked and excluded stay separate (§🧾)');
+    r = check(['tools/a.mjs'], M({ 'tools/a.mjs': { bin: 'decides', status: 'adopted', emits: { file: 'missing.json' } } }), V.validate, runner);
+    ok(!r.ok && r.unexamined.length === 0, 'CONTROL — an ordinary read failure still reds and never hides in `unexamined`');
+  }
+  // the declared cap: read where it is legal, red where it is not, and the producer is not run on a red
+  {
+    ok(emitsTimeoutMs({}) === DEFAULT_EMITS_TIMEOUT_MS && emitsTimeoutMs({ timeoutMs: 1500 }) === 1500, 'a declared cap is used and an absent one falls back to the default');
+    ok(
+      [0, -1, 1.5, '120000', null, MAX_EMITS_TIMEOUT_MS + 1].every((t) => emitsTimeoutMs({ timeoutMs: t }) === DEFAULT_EMITS_TIMEOUT_MS),
+      'a malformed cap falls back rather than refusing — a typo must not become the state it reports'
+    );
+    ok(timeoutMsError('x', {}) === null && timeoutMsError('x', { timeoutMs: 1500 }) === null, '…and the shape leg passes an absent or legal cap');
+    ok(
+      [0, -1, 1.5, '120000', MAX_EMITS_TIMEOUT_MS + 1].every((t) => /emits.timeoutMs must be/.test(timeoutMsError('x', { timeoutMs: t }) || '')),
+      '…and reds every malformed one, so the fallback is never silent'
+    );
+    let calls = 0;
+    const counting = (e) => {
+      calls += 1;
+      return runner(e);
+    };
+    r = check(['tools/a.mjs'], M({ 'tools/a.mjs': { bin: 'decides', status: 'adopted', emits: { file: 'good.json', timeoutMs: -3 } } }), V.validate, counting);
+    ok(!r.ok && /emits.timeoutMs must be/.test(r.errors[0]) && calls === 0, 'a malformed cap reds the row and the producer is never run — the shape is judged before the box is asked');
+  }
+  // DETECTION — a real child against a real cap, which is the half no routing test reaches
+  {
+    const slow = { cmd: [process.execPath, '-e', 'setTimeout(() => {}, 30000)'], timeoutMs: 250 };
+    let caught = null;
+    try {
+      runEmits(slow, ROOT);
+    } catch (e) {
+      caught = e;
+    }
+    ok(caught && caught.unexamined === true, 'a child that outlives its cap throws the UNEXAMINED shape, not a bare ETIMEDOUT');
+    ok(caught && caught.capMs === 250 && caught.elapsedMs >= 200 && typeof caught.load1 === 'number', '…with the cap, the elapsed time and the load on it');
+    const quick = { cmd: [process.execPath, '-e', 'process.stdout.write(JSON.stringify({ schema: "tepna.verdict/1", status: "PASS" }))'], timeoutMs: 30000 };
+    ok(runEmits(quick, ROOT).status === 'PASS', 'CONTROL — a child that answers inside its cap is read as it always was');
+    const broken = { cmd: [process.execPath, '-e', 'process.stdout.write("not json")'], timeoutMs: 30000 };
+    let e2 = null;
+    try {
+      runEmits(broken, ROOT);
+    } catch (e) {
+      e2 = e;
+    }
+    ok(e2 && !e2.unexamined, 'CONTROL — a child that answers with garbage is a read failure, never an unexamined one');
+  }
   r = check(['tools/a.mjs'], M({ 'tools/a.mjs': { bin: 'decides', status: 'pending' } }), V.validate, runner);
   ok(r.ok && r.counts.pending === 1 && r.counts.validated === 0, 'pending is honest and green — the count says how many are still owed');
   r = check(['tools/a.mjs'], M({ 'tools/a.mjs': { bin: 'maybe' } }), V.validate, runner);
@@ -1018,6 +1156,22 @@ function selftest() {
     const { readSource, testRefs } = treeReaders(ROOT);
     const real = checkGated(JSON.parse(fs.readFileSync(MANIFEST, 'utf8')), readSource, testRefs);
     ok(real.ok, 'the committed manifest: every decides producer is gated or in the ratchet, and nothing in the ratchet is gated (' + real.errors.join(' | ') + ')');
+  }
+  /* The committed caps, DERIVED rather than frozen: a count written here would age the day another
+     producer outgrows the default, so the leg reads whatever the manifest declares. The floor is
+     anti-vacuity — at least one row must declare a cap, or this leg examines nothing. */
+  {
+    const live = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+    const declared = Object.entries(live.producers || {}).filter(([, row]) => row.emits && row.emits.timeoutMs !== undefined);
+    ok(declared.length >= 1, 'at least one committed row declares `emits.timeoutMs` — a cap leg over zero rows examines nothing');
+    ok(
+      declared.every(([name, row]) => timeoutMsError(name, row.emits) === null),
+      'every committed cap is a whole number of milliseconds inside the bound (' + declared.map(([n, r]) => `${n}=${r.emits.timeoutMs}`).join(', ') + ')'
+    );
+    ok(
+      declared.every(([, row]) => row.emits.timeoutMs > DEFAULT_EMITS_TIMEOUT_MS),
+      'and each one is ABOVE the default — a declared cap that is not larger buys nothing and hides why it was written'
+    );
   }
   // emits.key — the object under a key of a larger payload
   ok(pickEmitted({ a: 1 }, {}).a === 1 && pickEmitted({ a: 1 }, { cmd: ['x'] }).a === 1, 'no key ⇒ the payload is the object');
@@ -1248,6 +1402,12 @@ function selftest() {
     ok(k.ok && k.counts.adopted === 1 && k.counts.read === 0, 'the pure core checks an adopted row for shape alone and reads nothing');
     k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'gone.json' } } }), TABLE, vOK, run);
     ok(!k.ok && /emits could not be read/.test(k.errors[0]), 'an adopted figure whose object cannot be read reds, never silently greens');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { cmd: ['node', 'x.mjs'] } } }), TABLE, vOK, () => {
+      throw unexaminedTimeout({ capMs: 120000, elapsedMs: 120004, load1: 44.1, cmd: 'node x.mjs' });
+    });
+    ok(k.ok && k.unexamined.length === 1 && k.counts.read === 0, 'a figure whose producer hit the cap is unexamined here too, never a red — the two legs route a timeout the same way');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json', timeoutMs: 0 } } }), TABLE, vOK, run);
+    ok(!k.ok && /emits.timeoutMs must be/.test(k.errors[0]), '…and a malformed cap reds in the contributions leg with the same message');
     k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vBad, run);
     ok(!k.ok && /NOT a valid tepna.verdict\/1 — status is not one of the seven/.test(k.errors[0]), 'an adopted figure emitting an invalid object reds naming the validator error');
     /* PLANT — the whole point: VALID is not ADOPTED. The block must have been EXAMINED. */
@@ -1493,7 +1653,7 @@ function main() {
   const r = check(en, manifest, V.validate, (e) => runEmits(e, ROOT));
   const c = r.counts;
   console.log(
-    `verdict-adoption: ${c.enumerated} producer(s) enumerated · ${c.named} binned — decides ${c.decides} · already-json ${c['already-json']} · word-only ${c['word-only']} · test ${c.test} · adopted ${c.adopted} (validated ${c.validated}) · pending ${c.pending}`
+    `verdict-adoption: ${c.enumerated} producer(s) enumerated · ${c.named} binned — decides ${c.decides} · already-json ${c['already-json']} · word-only ${c['word-only']} · test ${c.test} · adopted ${c.adopted} (validated ${c.validated}, unexamined ${c.unexamined}) · pending ${c.pending}`
   );
   const { readSource, testRefs } = treeReaders(ROOT);
   const g = checkGated(manifest, readSource, testRefs);
@@ -1534,10 +1694,25 @@ function main() {
     cr.errors.push(`contributions: the method set here (${CONTRIBUTION_METHODS.join('|')}) differs from verdict.js (${V.CONTRIBUTION_METHODS.join('|')}) — verdict.js owns it, so follow it here`);
   console.log(`verdict-adoption: byte form — ${text === null ? 'no manifest file' : bf.ok ? 'canonical' : `NOT canonical from line ${bf.line}`}`);
   const errors = [...bf.errors, ...r.errors, ...g.errors, ...w.errors, ...wo.errors, ...rt.errors, ...cr.errors];
+  /* THE UNEXAMINED SET IS PRINTED ON EVERY PATH, red or green: a reviewer who sees only the reds
+     cannot tell that a producer went unread, and that is the reading the row was written about. */
+  const unexamined = [...(r.unexamined || []), ...(cr.unexamined || [])];
+  for (const u of unexamined) console.log(`  ⏱ UNEXAMINED ${u.path}: ${u.message} — \`${u.cmd}\``);
   if (errors.length) {
     console.log(errors.map((e) => '  ✗ ' + e).join('\n'));
     console.log(`\n✗ ${errors.length} red(s) — the population and the manifest are not equal, an adoption does not hold, or a check has no test`);
     process.exit(1);
+  }
+  if (unexamined.length) {
+    /* EXIT 2 IS "I COULD NOT LOOK", NEVER "I LOOKED AND IT FAILED". Exit 1 above says an adoption
+       does not hold; this says the box was too busy to read one, which §🧾 calls NOT_RUN and §4b
+       calls a verdict about something never examined. The code is the machine-readable half, since
+       this gate's result IS its exit code and summary line (its own manifest row says so). */
+    console.log(
+      `\n⏱ UNKNOWN — ${unexamined.length} adopted producer(s) hit the cap and were never read, so this run says NOTHING about them, pass or fail. ` +
+        "This is contention, not a failing adoption: re-run the step alone with `npm run verify:verdict-adoption`, and if it holds at an idle load, raise that row's `emits.timeoutMs`."
+    );
+    process.exit(2);
   }
   console.log(
     '✓ the manifest partitions the enumerated population; every adoption read and valid; every check is gated or in the ratchet; nothing adopted on the base was de-adopted; ' +
