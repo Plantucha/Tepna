@@ -30,6 +30,104 @@ changesets.)
 
 ---
 
+## [2.24.0] — 2026-10-28
+
+### Added
+- Record the absorbed civil shift in the per-night host-clock sidecar, so a night states how wrong its absolute stamps are.
+- Mark a residue citation as a CORRECTION in the pickup listing, and name the verb it cannot attribute.
+- Measure the year a declared night rule stops scoring, and red the day the corpus crosses it. Eleven shipped rules under `tools/` refuse every night outside the corpus year. The gate names the earliest horizon and the tools that carry it. The reader compiles each rule and probes it, and it fails closed on a site it cannot resolve.
+- Publish the PpgDex clock seam on the node-export, so a folded artifact can count seams rather than only bound them. A seamless night omits the key, and the entries carry the device step with the phone delta present as null when nobody measured it.
+- Add the one-night Verity SDK-mode trial. The owner reads the runbook, then runs a CLI that writes two config keys and proves only those two moved. The decisions it runs on sit inside the coverage floor.
+- Re-derive the census of files that read a 14-digit filename stamp from a computed predicate, and route two sleep-night filters through the stamp owner.
+- Measure which trio exports carry a recorded code era, so the exports sitting in a night the fold
+- `tools/board-share.mjs` measures how much of Rule 0's top five the agent board takes, so the owner
+- Add `tools/checkout-advance.mjs` — rank what blocks a fast-forward of a checkout, naming which blockers are byte-identical no-ops.
+- Add `corpus-scope.mjs --nights`, a recursive census of the corpus size. It counts night-shaped directories and distinct names apart, and states its walk depth and rule beside the figure.
+- Publish who held the event loop beside the stall bin, from the two instruments the daemon already carries. An instrument that was not armed says so by name.
+
+### Changed
+- Carry the enclosing function in an equivalence entry's key, so an edit above a recorded mutant no longer detaches its excuse. (`MUTATION-PROGRAM-2026-08-09-BRIEF.md`)
+- Decide the residue citation drift tool's `--strict` exit on the three classes it ranks as defects, and never on a moved line hint.
+- Record the night keying the sensor-trio paper's real-data section rode. A re-run of the (`FILENAME-STAMP-JS-CONSUMERS-2026-10-20-BRIEF.md`)
+- Void the mutants a write landed inside, rather than annotating a whole sweep whose input moved.
+- Lift the O2Ring data callback out of `run_oxyii` into three typed module-level functions.
+- Re-cut the six cohort-pinned papers on today's code, replace the published numbers,
+- The population half of `corpus-scope.mjs` moves into `corpus-scope-core.mjs`, which writes, execs and fetches nothing. The commit read now parses `.git` instead of shelling out. The old `git rev-parse` reader stays beside the selftest as its oracle. Every delegating tool points at the core, so the probe-safe population grows from 41 tools to 67 with nothing lost.
+- Close the detector-drift papers row and the sweep-seam row, and log the absent
+- Delete every equivalence entry whose mutation the generator no longer produces and whose text its file no longer holds. Settle each multi-candidate drifted entry against a probe of every site it could name. Grant a function qualifier only where exactly one generated mutant carries that identity. (`EQUIVALENCE-ORPHAN-RULING-2026-10-28-BRIEF.md`)
+- Close two residue rows against the citers that corrected their figures, and log
+- Answer the daemon RSS climb row with ten box nights after the QC scan moved to a child.
+- Delete the sixteen capture-host literal defaults that no call ever takes, so those parameters become required. Each deleted default now has a test that observes the value where the code hands it over. `nightqc.constant_runs` walks its samples with `enumerate`, so the mutation gate can decide its mutants.
+
+### Fixed
+- Date a live Polar artifact by the arrival of its first landed row. The session start keeps its own name in the envelope's provenance.
+- Stop citing a mutation batch label as a residue key: 31 pointers now name the pull request that made them.
+- Stamp an absent code identity with the reason the lookup itself reported. A failed `rev-parse` inside a checkout no longer reads like a run with no tree.
+- Split the cite-drift tool's `missing-file` bin by evidence. A path whose spellings appear nowhere in
+- Name the corpus entries no night rule counted, so a record-keyed root is no longer published as an emptied corpus.
+- Cancel the cpap poller inside its loop, so the leg naming the shielded teardown counts that release and not the entry sweep's.
+- Say what releases the CPAP card when the poller's teardown runs under a cancellation. The executor
+- Make the stale-brief denial name the arm that fired and where each candidate path came from.
+- Derive the default-rule answer at the two snapshots that asserted it. Red a hand-written answer that contradicts the rule beside it.
+- Name the cause each unwalked hop actually has. The measurement walk reported an absent input whenever a guard needing two things lost either one. The hop's NOT_RUN state now rides a flag rather than the word `absent` in its own sentence.
+- Stop an entries-walk snapshot from answering a night-rule question nobody asked of it.
+- Name the lister that chose a non-night population, and publish that name in the verdict instead of dropping the caller's one selection decision.
+- Four corpus enumerators report the file population they walked, through a named lister and a
+- Read the harness under the defect-shape bans through a second derived population over `tests/*.mjs`.
+- A night-shaped directory the oracle's own year rule refuses no longer reads as a flat root. The
+- The PAT feasibility page keys a night on the first data row. The stamp in a capture filename is (`FILENAME-STAMP-JS-CONSUMERS-2026-10-20-BRIEF.md`)
+- Re-anchor the drifted mutation-equivalence entries, each one probed at its new address.
+- Name the rows and pointers behind the unanchored and beyond-eof citation verdicts, so a reader can chase the classes the report only counted.
+- Compare the four runtime floors in `capture-host/requirements.txt` against the gate's interpreter, which no gate did before, and name the declaring file on every row.
+- Skip the equivalence-ledger qualifier checks where the JS lane is absent. A mutation sandbox no longer reads this lane's own ledger under the JS lane's name.
+- Deny a guarded brief path in interpreter program text unless a read form stands beside it. A write shape the guard never enumerated no longer passes.
+- Let the stale-ledger guard allow a command that only prints the ledger path, or names it in a commit message. Every read, write and redirect stays denied.
+- Read a declared night rule as code. A rule bound one line earlier and passed by name was invisible
+- Name the axis the published reference rode, and say so when the record states none. The card printed the corner axis as a complete provenance clause while the record carried nothing about the reference's own axis. A ratchet now detects a published record that outlives a producer field.
+- The night judge now annotates an axis segment too thin to measure. It judges the segments it can, rather than taking the whole device to UNKNOWN.
+- Say what the literal-default scan read. An uncovered default is one that no test call omits, and
+- Read a `changes/<key>.md` filename as a path rather than as a residue citation, and red when a
+- PpgDex publishes a tri-state drawn-axis verdict. An unmeasured delta concentration now reports null rather than false, so an uncounted column no longer earns the top timing tier. The node-export reshape forwards `applied` as well, which a drift reader needs before it counts this node's absorbed rate correction twice.
+- The fleet board's plan pace no longer spans a weekly reset. The pace is now measured between two readings carrying the same `resets` stamp. A week holding one reading refuses with a named reason instead of publishing a negative rate. The evaluation parser now accepts a heading written with a Markdown prefix. A new tripwire names the running checkout when its copy of `tools/board.mjs` differs from `origin/main`.
+- The fleet board's solid-night streak now skips a night whose verdict predates the end of its own band. Such a night neither extends nor resets the streak, and the card names it as pending. The reader of the band is the verdict's own `result.scope.band`, so no rule keys on the folder date any more. A verdict stamped after its band ended still counts. A PASS carrying no band, or none of its own verdict time, stops the streak with a named reason.
+- Give the re-anchor census a verdict the contract accepts. A run told not to probe is
+- Resolve five code citations of a residue key: two gain a row, two name the row they
+- Bound the digit run in CPAPDex's two node-local filename-stamp readers, so a fourteen-digit window inside a longer token stops parsing as an instant.
+- Take the instant in five filename-stamp readers from the one stamp owner, so an out-of-range
+- Name why a folded night carries no stamp. Separate a night whose third device never recorded from one a failure left half-written. Record the reason, the nodes the night had input for, and the exports on disk in the run ledger.
+- Score a mutation run the harness killed as INVALID in both runners, so a verdict stops depending on the load on the box.
+- Measure whether the fast-forward the hook-liveness reader prints can run. Name the paths whose uncommitted lines block it. Report whether the measured checkout carries the reader.
+- Pick each equivalence probe's target with the key the plan decided with. A sibling mutant on the same line can no longer stand in for the entry.
+- Date the live O2Ring acquisition envelope by the SpO2 CSV's first row, never by the capture process start. A resumed file reports neither a start nor a sample count.
+- Offer the one command that makes a behind checkout current. Drive every command the stale-ledger denial prints through both guards in the self-test. Name the two restore forms inline, because one restores the stale copy and §2c refuses the other.
+- The stamp census admits a file that calls a stamp owner, not only one whose text spells the fourteen digits. A reader repaired onto `DexClock.fileStamp` now stays in the population that certifies the repair. (`FILENAME-STAMP-JS-CONSUMERS-2026-10-20-BRIEF.md`)
+- - Report whether a mutation sweep's own input moved. A worker shares the caller tree's inodes, so a root write reaches it mid-sweep.
+- Read the Integrator's drawn-axis refusal from whichever key an artifact carries — `deviceDrawn`,
+- Produce the trio-eligible night population from the tracked fold corpus, so the published count is
+- Vet the mutation worker baseline in the tree the mutants run in, so a group red for the absent `.git` stops counting as a kill.
+- The verdict-adoption gate ran every adopted producer under one fixed 120 s cap and reported a cap
+- The board's staleness banner weighs every file the renderer runs, not `tools/board.mjs` alone, and raises on an absence as well as a drift.
+- The fleet board's runner verdict reached the page as a `<div class="meta">` inside the header: 12 px,
+- Cap the agent board at two of the five Rule 0 hits. Board posts held 44 % of the top-five slots over the 84 queries the fleet itself ran. Ten of those queries returned five posts and no repo document. The search names every post it holds back, and `--board-all` ranks the board with everything else.
+- `corpus-scope.mjs --nights` skipped the primary checkout's uploads tree. The documentation writes that
+- Lower the `cryptography` floor in `capture-host` to 50.0.0, the version both venvs run.
+- `biome.json` turns the recommended correctness set off and names nine rules in its place. A rule nobody names is not a rule anybody relaxed — nothing reads it, and the omission leaves no trace in any log.
+- Report every drifted equivalence entry with no reachable address, under a criterion its ledger can fail. (`EQUIVALENCE-ORPHAN-RULING-2026-10-28-BRIEF.md`)
+- Repair the eleven equivalence entries whose `why` prose named a different function than the
+- The fold ledger lands beside the output tree `--out` names. A run that planned no night now
+- The year-horizon tripwire walks its documented roots at any depth and states that depth beside the figure. A nested night now reaches the rules it judges. The collector takes an injected walker, so the selftest plants it.
+- Put the mutation CLI behind the shared entry-guard predicate, so a sibling can import `tools/mutate.mjs` without running a sweep.
+- Pin the pytest the diff-scoped mutation job installs, so a pytest release cannot stop the gate measuring anything.
+- Correct the HRV paper's disclosure note: its per-epoch alignment has a committed producer, and a run today gives the numbers.
+- Seven partial-leg readers now name the fold era of their own nights, and which carry none.
+- Re-decide an equivalence qualifier that was already written against the generator that judged it. The
+- Let `residue-ids` accept a closed row whose only other change maps a home path to `~/`.
+- End the live O2Ring envelope at its last landed row, not at its first row plus the row count.
+- Settle an escalated equivalence cohort by the source range of the probe family its entries name, and (`EQUIVALENCE-ORPHAN-RULING-2026-10-28-BRIEF.md`)
+- Guard the O2Ring split wave-poll write on the stream writer's existence, and log the dropped-wave configuration once per link.
+
+---
+
 ## [2.23.0] — 2026-10-26
 
 ### Added
@@ -3499,7 +3597,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.23.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.24.0...HEAD
+[2.24.0]: https://github.com/Plantucha/Tepna/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/Plantucha/Tepna/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/Plantucha/Tepna/compare/v2.21.0...v2.22.0
 [2.21.0]: https://github.com/Plantucha/Tepna/compare/v2.20.0...v2.21.0
