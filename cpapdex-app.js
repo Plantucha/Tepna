@@ -38,12 +38,18 @@ import { CpapRender } from './cpapdex-render.js';
      The pattern stays the ACCEPT TEST, so this reader claims exactly the names it claimed, and only
      the INSTANT changes. A bare `Date.UTC` rolls an out-of-range component onto a real instant
      (Clock Contract §2.7): `20261332_999999` reached 2027-02-05 and `20260230` reached 2026-03-02.
-     `prefixMs` orders the files handed to `CpapEdf.groupSessionSets`, so a fabricated instant
-     reorders a night's sessions. CPAPDex carries no `clock.js` (CLAUDE.md §👥.3), so the validator
-     comes from `cpapdex-edf.js`, which this bundle inlines ahead of this module. */
+     `prefixMs` orders the files handed to `CpapEdf.groupSessionSets`, which re-sorts them by its own
+     ANCHORED reader, so no cluster boundary depends on this value today — it is a contract repair, not
+     a measured reordering. CPAPDex carries no `clock.js` (CLAUDE.md §👥.3), so the validator comes
+     from `cpapdex-edf.js`, which this bundle inlines ahead of this module.
+
+     BOUND THE DIGIT RUN (Clock Contract §2 step 4). Unbounded, the pattern took a 14-digit WINDOW out
+     of a longer run, and §2.7 cannot see that: every component of the window is legal.
+     `9920260612_222830_BRP.edf` and `20260612_2228301` both read 2026-06-12 22:28:30. `(?:^|\D)`
+     captures nothing, so the group indices and the ACCEPT class of every real name are unchanged. */
   function parseEdfName(name) {
     var base = name.replace(/^.*[\\/]/, '');
-    var m = base.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+    var m = base.match(/(?:^|\D)(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?!\d)/);
     var prefixMs = null;
     if (m) prefixMs = CpapEdf.stampMk(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6], 0); // floating wall-clock
     var type = null;
@@ -67,7 +73,13 @@ import { CpapRender } from './cpapdex-render.js';
         return e.type;
       })
       .sort(function (a, b) {
-        return (a.prefixMs || 0) - (b.prefixMs || 0);
+        /* ∅ — an absent stamp is not epoch 0. `(a.prefixMs || 0)` manufactured one and sorted every
+           unstamped file ahead of every real one; bounding the pattern above only grows that set.
+           Absent sorts LAST and keeps its input order (Array#sort is stable). */
+        if (a.prefixMs == null && b.prefixMs == null) return 0;
+        if (a.prefixMs == null) return 1;
+        if (b.prefixMs == null) return -1;
+        return a.prefixMs - b.prefixMs;
       });
     /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III — the local rule below was SILENT DATA LOSS and is gone.
        It clustered on a >15 MINUTE gap and then did `c.files[e.type] = e` — "last-wins on duplicate
