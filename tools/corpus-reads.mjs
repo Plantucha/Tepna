@@ -696,7 +696,9 @@ export const POPULATION_EXCLUSIONS = {
   'build-docs.mjs': 'the night-shaped regex validates a release date; it enumerates docs/',
   'board-corpus.mjs': 'the night-shaped regex matches the date in a residue row key; it enumerates the folder --out names',
   'nsrr-effort-typing.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
-  'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus'
+  'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
+  'codex-export.mjs':
+    'it walks a git-archive export built to EXCLUDE the corpus, and it already publishes its own offer-vs-read population over that export; a second verdict there would name a repo-path unit as a corpus one'
 };
 
 /* ── THE FIVE THE TRACER STILL WILL NOT DECIDE ─────────────────────────────────────────────────
@@ -735,7 +737,27 @@ export const UNDECIDED_CORPUS = {
    under `tests/` as evidence that a test covers it. A hazard list is not that, and the mention
    alone reded its ratchet. */
 export const UNWIRED_BACKLOG = {
-  'acc-acc-control.mjs': 1,
+  /* FOUR RECURSIVE WALKERS LEFT TOGETHER, 2026-10-28, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `acc-acc-control.mjs`,
+     `h10-session-rate.mjs`, `pletha-marker-oracle.mjs` and `edge-settle.mjs` each walk ONE root
+     recursively, so the three file-unit walkers take `snapshotEntries` with a lister the caller
+     names — `listCaptureFragments`, `listEcgStreams`, `listPlethaFiles` — and `edge-settle.mjs`,
+     whose unit is a NIGHT, takes `snapshotNights`. Each publishes the comparison, so the scan reads
+     them as `reports` and this list must not name them.
+     THREE OF THE FOUR SWALLOWED A DIRECTORY ERROR AT EVERY LEVEL. `catch { return o }`,
+     `catch { return }` and a bare walk read an unreadable root as an empty one, so a mount this
+     machine does not hold scored zero and said nothing. The root read now carries no `catch` and
+     the tool exits 2 naming the errno; an unreadable SUBDIRECTORY is a reduced-coverage case, so it
+     is named and counted beside the figure instead (§∅ — a discontinuity refuses, a reduced
+     coverage annotates).
+     `edge-settle.mjs` HAD THE TAUTOLOGICAL DENOMINATOR, row
+     2026-10-28-edge-settle-divides-by-the-nights-that-survived-the-read: it kept only nights that
+     gave a row and then divided every figure by that count, so a night directory the read could not
+     score left the population and the tool could report 12 of 12 over a tree holding 40. It now
+     counts every night directory the walk offers and names the rowless ones beside the survivors.
+     `codex-export.mjs` LEFT AS AN EXCLUSION, NOT A WIRING — it walks a git-archive export built to
+     exclude the corpus and already publishes its own offer-vs-read figure; see
+     `POPULATION_EXCLUSIONS` above. */
   /* THE SEVEN THE BINDING HOP ADMITTED, 2026-10-21, row
      2026-10-21-the-corpus-axis-reads-the-site-only. Each one binds the trio root to a variable and
      walks the variable, so the population rule read no corpus path at the site and the tool sat
@@ -782,7 +804,6 @@ export const UNWIRED_BACKLOG = {
      SUBDIRECTORY and returned the accumulator, so a partly readable tree and a whole one printed
      the same line. The walk now names the directories it could not read and the population line
      carries the count. `dual-clock-rate.mjs` already refused by name and keeps that refusal. */
-  'codex-export.mjs': 1,
   'corpus-census.mjs': 2,
   'corpus-tier.mjs': 1,
   /* THE THREE CPAP-CORPUS READERS LEFT TOGETHER, 2026-10-28, row
@@ -801,9 +822,7 @@ export const UNWIRED_BACKLOG = {
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a root that offered
      nothing, and an agreement pass that compared nothing, now exit 2 where all three exited 0. */
   'cvhr-fold-rescore.mjs': 1,
-  'edge-settle.mjs': 1,
   'geometry-scan.mjs': 1,
-  'h10-session-rate.mjs': 1,
   'hostaxis-estimator-bakeoff.mjs': 1,
   /* THE THREE NSRR COHORT READERS LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `nsrr-criterion-sweep.mjs`,
@@ -854,7 +873,6 @@ export const UNWIRED_BACKLOG = {
      2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot and
      2026-10-26-wiring-a-population-verdict-costs-the-probe-safety-that-made-it-cheap. */
   'o2ring-finger-validate-batch.mjs': 1,
-  'pletha-marker-oracle.mjs': 1,
   /* FOUR NAMES LEFT TOGETHER, 2026-10-28, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
      `deep-flow-join.mjs`, `device-stability.mjs`, `pat-ppg-ppg-control.mjs` and `ppg2w-spo2-fit.mjs`
      were ONE walker written four times: `readdirSync(<root>)` filtered by the literal `YYYY-MM-DD`
