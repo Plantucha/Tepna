@@ -290,7 +290,15 @@ jobs:
           # findings no other lane produces, so every mutant reports "no budget" and the gate REFUSES.
           # mutmut PINNED to the version every venv runs: the mutant GENERATOR is the gate, and 3.7 vs 3.8
           # examine different populations. The pin lives here AND in requirements-dev.txt; a test asserts they agree.
-          pip install pytest mutmut==3.8.0 hypothesis shellcheck-py
+          # pytest is PINNED for the same reason mutmut is. mutmut's stats harness reads pytest's
+          # PRIVATE `Item._nodeid` (mutmut 3.8.0, runners/harness.py:157), and pytest 9.2.0 — on
+          # PyPI since 2026-10-27 21:30Z — no longer carries it. An unpinned install took 9.2.0
+          # within four hours: every glob's stats pass died with `AttributeError: 'Function' object
+          # has no attribute '_nodeid'`, so run 40614222266 generated 642 mutants under 21 globs,
+          # tested 0, and the gate returned NOT_RUN over them. The RUNNER decides what executes
+          # just as the GENERATOR decides what exists, so pin both to the version the venvs run.
+          # Lift this when mutmut ships a release that does not read a private pytest attribute.
+          pip install pytest==9.1.1 mutmut==3.8.0 hypothesis shellcheck-py
           pip install -r requirements.txt
       - name: Mutate only what this PR changed
         # `tools/mutate.py` shells out to `.venv/bin/python`; on the runner the venv is the ambient
