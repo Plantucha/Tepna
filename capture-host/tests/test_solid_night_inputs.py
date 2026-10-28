@@ -2221,6 +2221,79 @@ def test_the_JOURNAL_half_of_the_record_set_excuses_a_step_and_respects_the_devi
     )
 
 
+def _audit_with(night, records):
+    night.mkdir(exist_ok=True)
+    (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": records}))
+    return str(night / f"{BASE}_ECG.txt")
+
+
+def test_a_journal_record_that_names_only_an_ADDRESS_is_claimed_by_NO_device_and_the_count_is_stated(
+    tmp_path,
+):
+    """🔴 THE THREE-SOURCE CLAIM HELD IN FORM AND NOT IN FACT. `loss_audit._device_keys` writes whichever
+    identifier the log line carried, and most carry the address alone; this consumer holds a device NAME,
+    so such a record matches nobody and is dropped for EVERY device. 113 of 115 in-window records on the
+    capture host were in that state when this leg was written, while `how` still reported a read of all
+    three sources. The record set does not change here — §∅: reduced coverage annotates."""
+    night = tmp_path / "2026-09-20"
+    at = (T0 + dt.timedelta(minutes=5)).isoformat(timespec="seconds")
+    p = _audit_with(night, [{"at": at, "phrase": "device clock unreadable", "devices": ["AA:BB:CC:DD:EE:FF"]}])
+    recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == [], "the record reaches neither arm, which is the defect the count makes visible"
+    assert how == (
+        "seam sidecar + journal clock events (1 of 1 in-window records name only an address, so no "
+        "device could claim them) + CLOCKSYNC.csv"
+    ), "a substring match reads '-1 of 1' as a hit, so the whole string is asserted"
+
+
+def test_a_journal_record_naming_ANOTHER_devices_name_is_dropped_without_being_counted(tmp_path):
+    """The annotation exists to separate two drops that look alike. A record naming another device's NAME
+    belongs to that device and is working as designed; one naming only an address belongs to nobody. A
+    count that conflated them would report a defect on every night that has two devices."""
+    night = tmp_path / "2026-09-20"
+    at = (T0 + dt.timedelta(minutes=5)).isoformat(timespec="seconds")
+    p = _audit_with(night, [{"at": at, "phrase": "re-sync busy", "devices": ["Polar Sense SPARE"]}])
+    recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == []
+    assert how == "seam sidecar + journal clock events + CLOCKSYNC.csv", (
+        "another device's record is not this source failing to match, so the string stays unannotated"
+    )
+
+
+def test_an_address_only_record_OUTSIDE_the_worn_interval_is_not_counted(tmp_path):
+    """The window filter is not the defect. A record the night never covers was never this device's to
+    claim, so counting it would overstate the matched-out share on every short wear."""
+    night = tmp_path / "2026-09-20"
+    out_of_window = (T0 + dt.timedelta(days=3)).isoformat(timespec="seconds")
+    p = _audit_with(night, [{"at": out_of_window, "phrase": "device clock JUMPED", "devices": ["AA:BB:CC:DD:EE:FF"]}])
+    recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == [] and how == "seam sidecar + journal clock events + CLOCKSYNC.csv"
+
+
+def test_the_matched_out_COUNTS_accumulate_and_the_whole_string_is_asserted(tmp_path):
+    """Two counters, one string, and a one-record fixture cannot see either of them accumulate. `= 1` for
+    `+= 1` reads the same on one record, and `-= 1` hides behind a substring match because "-1 of 1"
+    contains "1 of 1". So this leg carries THREE in-window records, two of them address-only, and asserts
+    the whole `how` string by equality. The third names another device, which is counted in the window and
+    not in the matched-out share."""
+    night = tmp_path / "2026-09-20"
+    ats = [(T0 + dt.timedelta(minutes=m)).isoformat(timespec="seconds") for m in (5, 6, 7)]
+    p = _audit_with(
+        night,
+        [
+            {"at": ats[0], "phrase": "device clock unreadable", "devices": ["AA:BB:CC:DD:EE:FF"]},
+            {"at": ats[1], "phrase": "device clock JUMPED", "devices": ["11:22:33:44:55:66"]},
+            {"at": ats[2], "phrase": "re-sync busy", "devices": ["Polar Sense SPARE"]},
+        ],
+    )
+    recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == [], "no record names this device, so the set is unchanged and only `how` moves"
+    assert how == (
+        "seam sidecar + journal clock events (2 of 3 in-window records name only an address, so no "
+        "device could claim them) + CLOCKSYNC.csv"
+    ), "both counts accumulate, and an equality assertion sees a sign flip a substring match would not"
+
+
 def test_an_UNREADABLE_clocksync_stops_the_record_set_rather_than_shortening_it(tmp_path):
     night = tmp_path / "2026-09-20"
     night.mkdir()
