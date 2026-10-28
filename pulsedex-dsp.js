@@ -1669,6 +1669,7 @@
   }
 
   // Public namespace — the headless surface the orchestrator + app both call.
+  // biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: a hoisted `var` reads as `undefined` here, never a dead zone — the idiom adopts the namespace the bundle may already have defined
   var PulseDex = typeof PulseDex !== 'undefined' && PulseDex ? PulseDex : {};
   PulseDex.compute = function (input, opts) {
     const r = pdComputeResult(input);
