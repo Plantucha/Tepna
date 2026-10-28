@@ -593,9 +593,29 @@ def read_clock_events(
 # unattributed gaps and 5 of them start inside a bracket, against 0.097 expected if its gaps fell
 # uniformly over its 222.9 h of coverage, of which the brackets hold 2605 s (0.325 %) — an enrichment of
 # 52x. The Polar streams see the same 2605 s and 0 of their 17 unattributed gaps start inside one. That
-# asymmetry IS the mechanism: the ring is POLLED and carries no buffer, so a second the loop never asked
-# for does not exist, while a PMD stream's device buffer replays it late and #3168's delay test already
-# calls that a delay.
+# asymmetry IS the mechanism: the ring is POLLED and its reply carries at most 250 samples, about 2 s, so
+# a backlog deeper than that is discarded by the ring with no error and no gap marker
+# (`O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF` §1, from `oxyii.py:933`), while a PMD stream's device
+# buffer replays it late and #3168's delay test already calls that a delay.
+#
+# 🔴 WHAT BOUNDS THAT POPULATION: THE WORK RAN IN THIS PROCESS. Measured read-only on vigil
+# 2026-10-28 over the 70 stored audits and the journal (residue
+# `2026-10-25-the-re-judge-tear-population-is-one-night-under-an-unnamed-condition`). #3554 moved the
+# audit, the verdict and the wear scan into the poll's child (`_qc_offload` →
+# `qc_child.audit_and_compose`), and the journal's `code_moved` lines date the first poll running it to
+# 2026-10-13T14:27. journald holds 331 distinct brackets (2026-10-12 20:01 → 2026-10-28 11:31). 215 of
+# them overlap no ring coverage at all, so they could tear nothing: the ring was not streaming. Of the
+# 116 that do overlap it, ALL TEN pre-offload brackets carry a ring discontinuity — 5 gaps this bin
+# attributes and 9 the witness called late delivery — and ALL 106 post-offload brackets carry none.
+#
+# ⚠️ ERA AND NIGHT ARE CONFOUNDED, and no read of the box separates them: journald retains nothing
+# before 2026-10-11 and an older night's re-judge reads an empty window, so every observable pre-offload
+# bracket falls on ONE night. Three things carry the reading past that coincidence. #2936 measured the
+# same shape for the night-QC scan — a thread sharing the interpreter lock stalled every stream 1–5 s at
+# each poll. The tear sits 28–57 s INSIDE the bracket, never at its edges. And it reaches the polled
+# ring alone.
+#
+# KEEP THE BIN. A clean bin over 106 exposed brackets is this instrument's measurement, not its absence.
 #
 # The cap is the instrument's own bound. A start whose end line never arrives would otherwise swallow
 # every line until the next verdict, and measuring the same brackets WITHOUT a cap put one at 87,982 s.
@@ -1025,6 +1045,15 @@ def witness_judges(witness, t0: _dt.datetime, g: float) -> tuple[str, float | No
     those minutes into loss. Three such cases: no frame file at all; no reading on one side of the gap;
     and a counter that went BACKWARDS, which is a new recording session rather than a small step, and
     then nothing about the old value bounds the new one.
+
+    ⚠️ THE FIRST REPLY AFTER A STALL IS ITSELF CAPPED, so this reading can land on a count that has
+    not caught up yet. Measured read-only on vigil 2026-10-28 over night 2026-10-12's 00:48 gap: the last
+    row before it reads 8465, the first row 13.7 s later reads 8466, and the row one second after that
+    reads 8480. This rule lands on the 8466 and answers `silence` with an advance of 1; one row later the
+    same gap answers `delay`. The BUCKET is still right — the ring discarded that backlog
+    (`O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF` §1) and the host never received those seconds — but the
+    stated reason "it produced nothing" is refuted by the next row. Residue
+    `2026-10-28-the-signal-witness-lands-on-the-capped-first-reply-after-a-stall`.
     """
     if not witness:
         return ("unwitnessed", None)
