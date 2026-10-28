@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-10-28 · **Created:** 2026-10-28 · **Residue:** 2026-10-03-verity-ppg-moves-in-a-ring-seam-refold
+**Status:** PROPOSED — 2026-10-28 · **Created:** 2026-10-28
 
 # The ring-seam re-fold moved ten Verity nights, and today it would move none
 
