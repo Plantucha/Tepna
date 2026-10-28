@@ -12092,6 +12092,113 @@
       T.eq('…over checked 0', ev.population.checked, 0);
       T.ok('…and names the empty root as the reason', /offered no night directory/.test(String(ev.reason)), String(ev.reason));
     });
+    /* ════ ONE RUN, TWO POPULATIONS OF DIFFERENT UNITS ═══════════════════════════════════════════
+       Row 2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-population-at-once.
+       `oxy-hr-bias.mjs` scores LEG 1 over the `O2Ring*.csv` FILES directly under the uploads root,
+       and legs 3 and 2 over the NIGHT directories under `uploads/trio`. The two sets share no member
+       and no arithmetic relates them — the figures behind the committed run read 42 files and 95
+       nights — so one object cannot report the run: whichever count it carried would stand in for the
+       other half. Each unit therefore publishes its own `POPULATION ` line, from ONE printer.
+       The second half of the row is the exit code. The trio-absent branch and the no-paired-epochs
+       branch each exited 0, so a run that read the FILE half and never opened a night exited the way
+       a complete run exits. Every exit now routes through that same publisher, which derives the code
+       from the objects: a half that could not enumerate, or that scored nothing over a root which
+       offered something, exits 2. A SHORTFALL still exits 0 on purpose — a moved population describes
+       one continuous set, its intersection, so reduced coverage annotates where a discontinuity
+       refuses (owner ruling 2026-09-17, §∅).
+       The KNOWN ANSWER below is the pair of refusals an empty root produces: two NOT_RUN objects with
+       DIFFERENT units and different reasons, which is what no single-object run could have printed. ════ */
+    group('oxy-hr-bias publishes one population per unit, and neither count stands for the run', 'tools · corpus-reads · verdict-sample', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the two-population legs examined nothing');
+        else T.skip('the two-population legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var REL = 'tools/oxy-hr-bias.mjs';
+      var OB = TT[REL] || '';
+      /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+      T.ok('ANTI-VACUITY · the oxy-hr-bias source is loaded', /const CSV_UNIT = /.test(OB), OB.length + ' char(s)');
+      if (!/const CSV_UNIT = /.test(OB)) return;
+      T.ok('it takes the population primitive from the core, not a hand-rolled object', /populationVerdict[\s\S]{0,300}?from '\.\/corpus-scope-core\.mjs'/.test(OB), 'absent');
+      /* TWO UNITS, TWO PRIMITIVES. `snapshotEntries` carries the unit it is given; `snapshotNights`
+         carries none, so the night half publishes the shared `nights_added_or_removed` criterion. */
+      T.ok(
+        'the FILE half enumerates with snapshotEntries under a named unit',
+        /snapshotEntries\(UP, \{ list: listO2RingCsv, unit: CSV_UNIT \}\)/.test(OB),
+        'absent — the file half must name its own unit'
+      );
+      T.ok('the NIGHT half enumerates the trio tree with snapshotNights', /snapshotNights\(TRIO\)/.test(OB), 'absent');
+      T.ok('the file rule is a NAMED function, so the object states who chose it', /function listO2RingCsv\(/.test(OB), 'absent — an inline arrow publishes rule: null');
+      /* THE BORROWED UNIT WORD IS HOW ONE COUNT CAME TO DESCRIBE THE OTHER HALF: leg 1 counted files
+         and said `night(s)`, in the one line a reader looks at. */
+      T.ok('LEG 1 reports its mean over FILES, the unit it actually counted', /mean Δ over \$\{leg1\.length\} file\(s\)/.test(OB), 'absent — leg 1 must not borrow the night half’s unit word');
+      T.eq('ONE printer, so the two units cannot drift apart', (OB.match(/'POPULATION '/g) || []).length, 1);
+      T.ok('…and it is reached from a single publisher every exit routes through', /function publishAndExit\(\)/.test(OB), 'absent');
+      /* ONE exit 0 is legal, and it is not a run: `--verdict-sample` prints the adoption object and
+         leaves before the first corpus read. The scan strips comments, because this file's own prose
+         quotes the exits it removed. */
+      var SRC = OB.replace(/\/\*[\s\S]*?\*\//g, '');
+      T.eq('no scoring path exits 0 — only the adoption sample does', (SRC.match(/process\.exit\(0\)/g) || []).length, 1);
+      T.ok('…and that one sits inside the --verdict-sample block', /--verdict-sample'\)\)\s*\{[\s\S]{0,200}?process\.exit\(0\)/.test(SRC), 'the only exit 0 must be the sample block');
+      var iSample = SRC.indexOf("flag('--verdict-sample')"),
+        iRead = SRC.indexOf('POP.files.open = fileSnap()');
+      T.ok('…and the source places it before every corpus read', iSample >= 0 && iRead > iSample, 'sample at ' + iSample + ' · first real enumeration at ' + iRead);
+      T.ok('the tool has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG['oxy-hr-bias.mjs'] === undefined, 'oxy-hr-bias.mjs is still listed as an unwired corpus enumerator');
+      T.eq('…and the scanner itself now classifies it as reporting', CR.classifyTool(OB).cls, 'reports');
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns the tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* The corpus-free `emits.cmd` the manifest names. A source scan cannot see the ORDERING: a flag
+         declared after the read still greps as present. */
+      var smp = probe(REL, ['--verdict-sample']);
+      T.eq('--verdict-sample exits 0 with no corpus in reach', smp.status, 0);
+      var obj = null;
+      try {
+        obj = JSON.parse(String(smp.out));
+      } catch {
+        obj = null;
+      }
+      T.ok('…printing ONE parseable object and nothing else', obj != null, String(smp.out).slice(0, 200));
+      if (obj != null) {
+        T.eq('…on the contract schema', obj.schema, 'tepna.verdict/1');
+        T.eq('…naming itself as the producer', obj.producedBy && obj.producedBy.tool, REL);
+        T.eq('…over the three fabricated files', obj.population && obj.population.checked, 3);
+        T.eq('…under the FILE unit this tool added', obj.criterion && obj.criterion.name, 'O2Ring CSV files_added_or_removed');
+        T.eq('…as a PASS, so the sample exercises the published path', obj.status, 'PASS');
+      }
+      T.eq('…and wrote nothing beside itself', smp.wrote, []);
+      /* KNOWN ANSWER · the probe cwd is an empty directory, so the FILE root enumerates and offers
+         nothing while the NIGHT root does not exist. Two halves, two reasons, one exit 2. */
+      var empty = probe(REL, ['--uploads', '.']);
+      T.eq('a root with no files and no trio tree exits 2, not 0', empty.status, 2);
+      var lines = String(empty.out)
+        .split('\n')
+        .filter(function (l) {
+          return l.indexOf('POPULATION ') === 0;
+        });
+      T.eq('…publishing TWO population objects, one per unit', lines.length, 2);
+      if (lines.length !== 2) return;
+      var objs = lines.map(function (l) {
+        return JSON.parse(l.slice('POPULATION '.length));
+      });
+      T.eq('…the first under the file unit', objs[0].criterion.name, 'O2Ring CSV files_added_or_removed');
+      T.eq('…the second under the night unit', objs[1].criterion.name, 'nights_added_or_removed');
+      T.ok('…so no object reports both halves', objs[0].criterion.name !== objs[1].criterion.name, 'the two criteria must differ');
+      T.eq('…both NOT_RUN, never a PASS over nothing', objs[0].status + '/' + objs[1].status, 'NOT_RUN/NOT_RUN');
+      T.eq('…both over checked 0', objs[0].population.checked + objs[1].population.checked, 0);
+      T.ok('…and the FILE half names the root it enumerated', /offered no O2Ring CSV file/.test(String(objs[0].reason)), String(objs[0].reason));
+      T.ok('…while the NIGHT half names the error that stopped it', /not enumerable: ENOENT/.test(String(objs[1].reason)), String(objs[1].reason));
+      T.eq('…and the refusal wrote nothing either', empty.wrote, []);
+      /* CONTROL · the exit code is derived, so the pure arm is asserted on both sides. */
+      var self = probe(REL, ['--selftest']);
+      T.eq('CONTROL · the tool’s own selftest of the exit-code arms passes', self.status, 0);
+      T.ok('…and says how many it ran', /SELFTEST PASS \((\d+)\/\1\)/.test(String(self.out)), String(self.out).slice(0, 160));
+    });
     /* ════ A PUBLISHED CONTROL CARRIES THE POPULATION IT WAS COMPUTED OVER ══════════════════════
        Row 2026-10-22-the-apnea-controls-are-compared-across-two-populations: the apnea harness read
        §9's four published figures as a bare delta of 0.02 and printed `drifted` past it. §9 computed

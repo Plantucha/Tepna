@@ -28,8 +28,16 @@
  * from a quantization rule needs the FOURTH corner R5's first two items ask for (the ResMed oximeter).
  * This tool bounds the question; it does not close it.
  *
+ * TWO POPULATIONS, TWO OBJECTS. LEG 1 scores O2Ring CSV FILES under the uploads root; legs 2 and 3
+ * score NIGHT DIRECTORIES under `uploads/trio`. No arithmetic relates the two sets, so each half
+ * publishes its own `tepna.verdict/1` population object and the run refuses rather than exiting 0
+ * over a half it never read (row 2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-\
+ * population-at-once).
+ *
  * Usage:
  *   node tools/oxy-hr-bias.mjs [--uploads <dir>]      (default: $DEX_UPLOADS or ./uploads)
+ *   node tools/oxy-hr-bias.mjs --selftest             # pure core, no corpus, no git
+ *   node tools/oxy-hr-bias.mjs --verdict-sample       # the file population object alone, no corpus
  * Needs the gitignored corpus: O2Ring CSVs for leg 1, uploads/trio/<date>/ exports for leg 2.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
@@ -38,6 +46,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
 
 const req = createRequire(import.meta.url);
 /* DERIVE the root from this file, never `process.cwd()` (the PR #686 class, gate-enforced): a tool run
@@ -46,11 +55,173 @@ const req = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const uArg = process.argv.indexOf('--uploads');
 const UP = uArg > 0 ? process.argv[uArg + 1] : process.env.DEX_UPLOADS || path.join(ROOT, 'uploads');
+const argv = process.argv.slice(2);
+const flag = (n) => argv.includes(n);
+const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+
+/* ── THE TWO POPULATIONS, AND WHY NEITHER MAY SPEAK FOR THE OTHER ────────────────────────────
+   Row 2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-population-at-once. LEG 1 reads
+   `O2Ring*.csv` FILES lying directly under the uploads root; LEGS 3 and 2 read NIGHT DIRECTORIES
+   under `uploads/trio`. The two sets share no member and no arithmetic relates them — the run
+   behind the committed figures read 42 files and 95 nights — so a single count published as "this
+   run's population" would misdescribe whichever half a reader came for. Each half therefore
+   publishes its own object carrying its own unit, under its own leg's name.
+   🔴 AND LEG 1's HEADLINE SAID `night(s)` OVER A FILE COUNT, which is where one population wore
+   the other's unit in the one place a reader looks. Two O2Ring CSVs from one calendar night are two
+   members of this population, so the borrowed word was also the wrong word. */
+const O2RING_CSV = /^O2Ring.*\.csv$/;
+const CSV_UNIT = 'O2Ring CSV files';
+const TOOL = 'tools/oxy-hr-bias.mjs';
+const EV = [TOOL, 'tools/corpus-scope-core.mjs'];
+const TRIO = path.join(UP, 'trio');
+/* A NAMED LISTER IS THE RULE: `snapshotEntries` publishes `rule: null` for an inline arrow, which
+   would state that nobody chose the rule this run applied. */
+function listO2RingCsv(root) {
+  return fs.readdirSync(root).filter((f) => O2RING_CSV.test(f));
+}
+const fileSnap = () => snapshotEntries(UP, { list: listO2RingCsv, unit: CSV_UNIT });
+const nightSnap = () => snapshotNights(TRIO);
+
+/* THE SAMPLE TOUCHES NO CORPUS, because the adoption check parses stdout as JSON on every box. The
+   lister is INJECTED, so `snapshotEntries` runs for real and nothing is read from disk; it is not
+   named `listO2RingCsv`, because a sample that read no corpus must not publish the production
+   rule's name. It carries the FILE unit — the unit this tool added — while the night half publishes
+   the `nights_added_or_removed` criterion that 20 other runs already carry. */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  function sampleFiles() {
+    return ['O2Ring S 2100_20260503210952.csv', 'O2Ring S 2100_20260504202108.csv', 'O2Ring S 2100_20260505202850.csv'];
+  }
+  const snap = snapshotEntries('<uploads>', { list: sampleFiles, unit: CSV_UNIT, at });
+  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: EV });
+}
+if (flag('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
+/* ── ONE PUBLISHER, CALLED BEFORE EVERY EXIT ─────────────────────────────────────────
+   Same row: the trio-absent branch and the no-paired-epochs branch each `process.exit(0)`, so a run
+   that read the file half and never opened a night exited the way a complete run exits. Both legs'
+   read sets are declared HERE rather than beside their legs, because an exit before a leg starts
+   still publishes that leg's population, and a `const` declared further down would be unreachable
+   from this function at that moment. */
+const leg1Files = [];
+const leg3Nights = [];
+const leg2Nights = [];
+const POP = {
+  files: { label: 'LEG 1 — O2Ring CSV files directly under the uploads root', open: null, close: fileSnap, key: 'file', reads: [{ leg: 'LEG 1', names: leg1Files }] },
+  nights: {
+    label: 'LEGS 3 and 2 — night directories under uploads/trio',
+    open: null,
+    close: nightSnap,
+    key: 'night',
+    reads: [
+      { leg: 'LEG 3', names: leg3Nights },
+      { leg: 'LEG 2', names: leg2Nights }
+    ]
+  }
+};
+/* THE EXIT CODE IS DERIVED FROM THE OBJECTS, pure so the selftest can fire both arms. A SHORTFALL
+   exits 0 on purpose: a moved population still describes one continuous set, its intersection, so
+   reduced coverage annotates where a discontinuity refuses (owner ruling 2026-09-17, §∅). */
+function exitCodeFor(rows) {
+  return rows.some((r) => r.population.status === 'NOT_RUN' || r.examinedNothing) ? 2 : 0;
+}
+let exitCode = null;
+function publishAndExit() {
+  /* A second call — a later leg exiting after the publisher already ran — repeats the code the
+     objects gave rather than a bare 0, so the only literal `process.exit(0)` left in this file is
+     the adoption sample's, which reads no corpus at all. */
+  if (exitCode !== null) process.exit(exitCode);
+  console.log('\n▸ POPULATIONS — one object per unit, and neither of them describes the other half\n');
+  const rows = [];
+  for (const k of Object.keys(POP)) {
+    const p = POP[k];
+    /* An exit before the leg opened still walks the root, so the object reports a real enumeration
+       rather than a fabricated one — and an unreadable root arrives here as `ok: false`, which is
+       the NOT_RUN the exit code reads. */
+    const open = p.open || p.close();
+    const population = populationVerdict(open, p.close(), { commit: commitOf.commit, commitReason: commitOf.reason, tool: TOOL, evidence: EV });
+    const examinedNothing = population.status !== 'NOT_RUN' && p.reads.every((r) => r.names.length === 0);
+    rows.push({ key: k, population, examinedNothing });
+    console.log(`   ${p.label}`);
+    console.log(
+      `   population: ${population.population.checked} ${open.unit || 'nights'} this leg can report over, of ${population.population.eligible} it saw · movement ${population.status}${population.reason ? ` — ${population.reason}` : ''}`
+    );
+    const rl = ruleLine(population);
+    if (rl) console.log(` ${rl}`);
+    for (const r of p.reads) {
+      const miss = notCovered(
+        open,
+        r.names.map((x) => ({ [p.key]: x })),
+        { key: p.key }
+      );
+      console.log(`   ${r.leg} scored ${r.names.length} of the ${open.n} offered`);
+      if (miss.length) console.log(`   ${r.leg} did not score ${miss.length}, by name: ${miss.slice(0, 8).join(' · ')}${miss.length > 8 ? ` (+${miss.length - 8} more)` : ''}`);
+    }
+    /* The object beside the prose, per §🧾 — the prose explains, this is the API. */
+    console.log('POPULATION ' + JSON.stringify(population));
+    console.log('');
+  }
+  exitCode = exitCodeFor(rows);
+  if (exitCode !== 0) {
+    const half = rows.filter((r) => r.population.status === 'NOT_RUN' || r.examinedNothing).map((r) => r.key);
+    console.log(`   ⚠ this run reports over no ${half.join(' and no ')} at all, so it exits ${exitCode} rather than looking complete`);
+  }
+  process.exit(exitCode);
+}
+
+if (flag('--selftest')) {
+  let ran = 0;
+  let fail = 0;
+  const A = (what, cond) => {
+    ran++;
+    if (!cond) {
+      fail++;
+      console.log(`  ✗ ${what}`);
+    }
+  };
+  const smp = verdictSample();
+  A('the sample publishes the contract schema', smp.schema === 'tepna.verdict/1');
+  A('the sample carries the FILE unit in its criterion, never the night one', smp.criterion.name === 'O2Ring CSV files_added_or_removed');
+  A('the sample is a PASS over the three files it listed', smp.status === 'PASS' && smp.population.checked === 3);
+  A('the sample names this tool as the producer', smp.producedBy.tool === TOOL);
+  /* THE LISTER TRAVELS AS THE RULE. An inline arrow would publish `rule: null`, and `tools/` is a
+     readable root that holds no O2Ring CSV, so the rule refuses instead of inventing a member. */
+  const named = snapshotEntries(path.join(ROOT, 'tools'), { list: listO2RingCsv, unit: CSV_UNIT });
+  A('the production lister travels as the snapshot rule, by name', named.rule === 'listO2RingCsv');
+  A('…and a root holding no O2Ring CSV enumerates to an empty population, not to a failure', named.ok === true && named.n === 0);
+  /* AN UNREADABLE ROOT IS A NOT_RUN WITH THE ROOT NAMED, never a measured zero (§∅). */
+  const gone = path.join(ROOT, 'no-such-oxy-hr-bias-root');
+  const nr = populationVerdict(snapshotNights(gone), snapshotNights(gone), { tool: TOOL, at: '2026-10-28T00:00:00Z', evidence: EV });
+  A('an absent trio root publishes NOT_RUN, never a population of zero', nr.status === 'NOT_RUN' && nr.population.checked === 0);
+  A('…and names why the walk could not enumerate', /not enumerable/.test(String(nr.reason)));
+  A('…under the night criterion, which is not the file one', nr.criterion.name === 'nights_added_or_removed');
+  A(
+    'a run whose night half never enumerated exits 2',
+    exitCodeFor([
+      { population: { status: 'PASS' }, examinedNothing: false },
+      { population: { status: 'NOT_RUN' }, examinedNothing: false }
+    ]) === 2
+  );
+  A('a leg that scored nothing over a root that offered something exits 2 as well', exitCodeFor([{ population: { status: 'PASS' }, examinedNothing: true }]) === 2);
+  A(
+    'CONTROL · two halves that both enumerated and both scored exit 0, SHORTFALL included',
+    exitCodeFor([
+      { population: { status: 'PASS' }, examinedNothing: false },
+      { population: { status: 'SHORTFALL' }, examinedNothing: false }
+    ]) === 0
+  );
+  console.log(fail ? `SELFTEST FAIL (${fail})` : `SELFTEST PASS (${ran}/${ran})`);
+  process.exit(fail ? 1 : 0);
+}
+
+const commitOf = gitCommitOf(ROOT);
 if (!fs.existsSync(UP)) {
   console.error(`✕ corpus not found: ${UP}\n  set DEX_UPLOADS or pass --uploads <dir>`);
-  process.exit(2);
+  publishAndExit();
 }
-const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 
 /* ── LEG 1 ─────────────────────────────────────────────────────────────────────────────────── */
 function oxyRealm() {
@@ -110,7 +281,10 @@ function oxyRealm() {
 }
 
 const O = oxyRealm();
-const csvs = fs.readdirSync(UP).filter((f) => /^O2Ring.*\.csv$/.test(f));
+/* THE READ ITERATES THE SNAPSHOT'S OWN MEMBERS, so the population and the figures cannot be over
+   two different listings of one root. */
+POP.files.open = fileSnap();
+const csvs = POP.files.open.members;
 console.log('▸ LEG 1 — does OxyDex itself add bias?  (raw `Pulse Rate` column mean vs stats.meanHr)\n');
 console.log('   raw mean   OxyDex meanHr        Δ   samples  file');
 const leg1 = [];
@@ -137,10 +311,11 @@ for (const f of csvs) {
   } catch {}
   if (oxy == null) continue;
   leg1.push(oxy - raw);
+  leg1Files.push(f);
   console.log(`   ${raw.toFixed(3).padStart(8)} ${oxy.toFixed(3).padStart(14)} ${(oxy - raw).toFixed(3).padStart(8)} ${String(n).padStart(9)}  ${f.slice(0, 30)}`);
 }
 if (leg1.length) {
-  console.log(`\n   mean Δ over ${leg1.length} night(s) = ${mean(leg1).toFixed(4)} bpm`);
+  console.log(`\n   mean Δ over ${leg1.length} file(s) = ${mean(leg1).toFixed(4)} bpm`);
   console.log(`   non-integer raw HR values seen: ${nonInt} — the column is integer-quantized at 1 Hz`);
   console.log(`   ⇒ candidate (a) "OxyDex's HR path" is ${Math.abs(mean(leg1)) < 0.06 ? 'EXCLUDED — the residual is its 1-dp output rounding' : 'NOT excluded'}`);
 } else console.log('   (no O2Ring CSVs found)');
@@ -157,10 +332,14 @@ if (leg1.length) {
 /* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
    (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
    present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
-function legEstimator(T, nightsOut) {
+/* ONE WALK PER POPULATION: the offered names come from the snapshot this run publishes, never from
+   a second `readdirSync` of the same root. A night arriving between the two walks would otherwise be
+   scored into a figure whose population never saw it (row
+   2026-10-21-the-reference-validation-population-path-runs-on-no-box-here's sibling finding). */
+function legEstimator(T, offered, nightsOut) {
   if (!fs.existsSync(T)) return null;
   const blocks = [];
-  for (const n of fs.readdirSync(T).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
+  for (const n of offered) {
     let E;
     try {
       E = JSON.parse(fs.readFileSync(path.join(T, n, `ECGDex_${n}.node-export.json`), 'utf8'));
@@ -181,8 +360,8 @@ function legEstimator(T, nightsOut) {
   return blocks;
 }
 
-const legNights = [];
-const blocks = legEstimator(path.join(UP, 'trio'), legNights);
+POP.nights.open = nightSnap();
+const blocks = legEstimator(TRIO, POP.nights.open.nights, leg3Nights);
 console.log('\n\u25b8 LEG 3 \u2014 estimator only: median(rate) vs 60000/mean(RR), ONE series, no device\n');
 if (!blocks || !blocks.length) console.log('   (no ECG rr series in the folded corpus)');
 else {
@@ -195,27 +374,26 @@ else {
   console.log(`   blocks = ${blocks.length} (300 beats each)`);
   console.log(`   median(rate)  \u2212 60000/mean(RR) = ${mean(dm).toFixed(3)} bpm  SD ${sd(dm).toFixed(2)}   \u2190 OxyDex \u2212 ECGDex, by construction`);
   console.log(`   mean(rate)    \u2212 60000/mean(RR) = ${mean(da).toFixed(3)} bpm  SD ${sd(da).toFixed(2)}`);
-  console.log(`   ${eraCoverageLine(eraCoverage(eraOfNights(path.join(UP, 'trio'), legNights)), { label: 'fold era' })}`);
+  console.log(`   ${eraCoverageLine(eraCoverage(eraOfNights(TRIO, leg3Nights)), { label: 'fold era' })}`);
   console.log('   Compare LEG 2. If these match, the "device bias" is an ESTIMATOR MISMATCH and no');
   console.log('   sensor, firmware or aggregation change can remove it \u2014 only agreeing on one statistic.');
 }
 
 /* ── LEG 2 ─────────────────────────────────────────────────────────────────────────────────── */
-const T = path.join(UP, 'trio');
 console.log('\n▸ LEG 2 — quantization or device?  (per-epoch OxyDex hr − ECGDex hr, folded trio corpus)\n');
-if (!fs.existsSync(T)) {
+if (!fs.existsSync(TRIO)) {
   console.log('   (uploads/trio/ absent — fold it with tools/trio-batch.mjs first)');
-  process.exit(0);
+  publishAndExit();
 }
 const epochs = (o) => (o.timeseries && o.timeseries.epochs) || [];
 let all = [];
 let nights = 0;
-const usedNights = [];
-for (const n of fs.readdirSync(T).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
+/* The same snapshot LEG 3 read, for the same reason: one walk, one population. */
+for (const n of POP.nights.open.nights) {
   let E, X;
   try {
-    E = JSON.parse(fs.readFileSync(path.join(T, n, `ECGDex_${n}.node-export.json`), 'utf8'));
-    X = JSON.parse(fs.readFileSync(path.join(T, n, `OxyDex_${n}.node-export.json`), 'utf8'));
+    E = JSON.parse(fs.readFileSync(path.join(TRIO, n, `ECGDex_${n}.node-export.json`), 'utf8'));
+    X = JSON.parse(fs.readFileSync(path.join(TRIO, n, `OxyDex_${n}.node-export.json`), 'utf8'));
   } catch {
     continue;
   }
@@ -233,18 +411,18 @@ for (const n of fs.readdirSync(T).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))) 
   }
   if (ds.length < 12) continue; // an hour of overlap is the floor for a night to contribute
   nights++;
-  usedNights.push(n);
+  leg2Nights.push(n);
   all = all.concat(ds);
 }
 if (!all.length) {
   console.log('   (no paired epochs)');
-  process.exit(0);
+  publishAndExit();
 }
 const m = mean(all);
 const sd = Math.sqrt(all.reduce((a, b) => a + (b - m) ** 2, 0) / (all.length - 1));
 const sem = sd / Math.sqrt(all.length);
 console.log(`   n = ${all.length} epochs over ${nights} night(s)`);
-console.log(`   ${eraCoverageLine(eraCoverage(eraOfNights(T, usedNights)))}`);
+console.log(`   ${eraCoverageLine(eraCoverage(eraOfNights(TRIO, leg2Nights)))}`);
 console.log(`   mean Δ(OxyDex − ECGDex) = ${m.toFixed(3)} bpm · SD ${sd.toFixed(2)} · SEM ${sem.toFixed(3)} · ${Math.abs(m / sem).toFixed(1)}σ from zero`);
 console.log('   prediction if the device TRUNCATES: −0.500 · if it ROUNDS: 0.000');
 console.log(`   ⇒ measured sits ${m < -0.45 ? 'at truncation' : m > -0.05 ? 'at rounding' : 'BETWEEN the two — so neither quantisation mechanism explains it'}`);
@@ -252,3 +430,5 @@ console.log('   …and LEG 3 shows why: the estimator mismatch alone is −0.299
 console.log('   Quantisation was the wrong question. See LEG 3.');
 console.log('\n   The per-epoch SD dwarfs the offset: this is a small SYSTEMATIC bias on a noisy');
 console.log('   difference, visible only in pooling. Do not read a single night as evidence.');
+
+publishAndExit();
