@@ -1658,6 +1658,29 @@
         "VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.24.0",
+      "date": "2026-10-28",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "ab12d63caf33",
+        "OxyDex": "7c821f612cd2",
+        "PulseDex": "cc7a0f4b278a",
+        "GlucoDex": "3db0912943bb",
+        "PpgDex": "0141eb2a9b03",
+        "HRVDex": "248cb1f4bca7",
+        "CPAPDex": "ec72091395ed",
+        "Integrator": "ec676636a376",
+        "MotionDex": "628c53a97933"
+      },
+      "briefs": [
+        "MUTATION-PROGRAM-2026-08-09-BRIEF.md",
+        "FILENAME-STAMP-JS-CONSUMERS-2026-10-20-BRIEF.md",
+        "EQUIVALENCE-ORPHAN-RULING-2026-10-28-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
