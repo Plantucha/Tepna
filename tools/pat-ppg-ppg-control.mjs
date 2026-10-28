@@ -52,6 +52,7 @@ import { join, basename } from 'node:path';
 import { loadDsps, getDsps, median, quantile, BIN_MIN } from './pat-matchrate-strict.mjs';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {
@@ -279,10 +280,47 @@ function main() {
     process.exit(2);
   }
   loadDsps();
-  const nights = readdirSync(DIR)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && statSync(join(DIR, d)).isDirectory())
-    .filter((d) => !ONLY || d === ONLY)
-    .sort();
+  /* THE NIGHT RULE IS THE POPULATION RULE, and this control had the one population shape that
+     flatters itself: `eligible` below read `nights.length`, which is the list AFTER `--only` cut it.
+     So a single-night run reported `1 of 1` and a population that cannot see the set move. The
+     snapshot is taken BEFORE the cap, and the cap's cost is named beside it.
+     🔴 AN UNREADABLE ROOT REFUSES, IT DOES NOT REPORT ZERO (§∅). `existsSync` above passes a
+     directory this process cannot open, and the old `readdirSync` threw on it. The snapshot returns
+     `ok: false` with the reason instead, so the refusal is taken here rather than published as
+     `0 night(s) offered`. */
+  const snap = snapshotNights(DIR);
+  if (!snap.ok) {
+    console.error(`refused: ${snap.reason} — ${DIR}`);
+    process.exit(2);
+  }
+  const nights = snap.nights.filter((d) => !ONLY || d === ONLY);
+  /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Surrogate scoring over a corpus
+     takes long enough for a commit to land in this worktree, and Node loaded this module at the
+     start. */
+  const commitOf = gitCommitOf();
+  /* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. Every line below, the verdict object
+     included, sat inside `if (bests.length)`, so the one case where the population is the whole
+     story was the one case that reported none. */
+  const printPopulation = () => {
+    const population = populationVerdict(snap, snapshotNights(DIR), {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: 'tools/pat-ppg-ppg-control.mjs',
+      evidence: ['tools/pat-ppg-ppg-control.mjs', 'tools/corpus-scope-core.mjs']
+    });
+    console.log(
+      `\npopulation: ${snap.n} night(s) offered under the root · ${nights.length} after the --only cap · ${bests.length} scored · movement ${population.status}` +
+        (population.reason ? ` — ${population.reason}` : '')
+    );
+    const populationRule = ruleLine(population);
+    if (populationRule) console.log(populationRule);
+    /* THE OTHER HALF OF THE POPULATION. The verdict is about MOVEMENT; it says nothing about the
+       offered nights this run never scored, and a COUNT names nothing to chase. Both causes land
+       here: the `--only` cap and the nights holding no ring/ankle pair. */
+    const missed = notCovered(snap, bests, { key: 'night' });
+    if (missed.length) console.log(`  it scored ${missed.length} offered night(s) not at all, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+    console.log('POPULATION ' + JSON.stringify(population));
+  };
   console.log(`FINGER (O2Ring, right index) <-> ANKLE (Verity, left) — axis=${AXIS}`);
   console.log(`symmetric window +-${WIN_MS} ms - strict +-${STRICT_W_MS} ms - ${N_SURR} surrogates - EVERY pair scored\n`);
   if (SCATTER) console.log(`night        pairs  best: ovl  resid  wins  medLag  IQRall  IQRperWin   vs pat-gate 60 ms`);
@@ -369,6 +407,7 @@ function main() {
       );
     console.log('Comparable with PAT-VERDICT-CONSOLIDATED §3 (84-99 ms, ECG->pulse). This is offset-free by');
     console.log('construction (per-window median removed) and pools ALL residuals, accepted and rejected.');
+    printPopulation();
     return;
   }
   if (bests.length) {
@@ -393,12 +432,14 @@ function main() {
           significant: sig.length,
           inCodeRulePasses: sig.length >= bests.length * 0.5
         },
-        population: { checked: bests.length, eligible: nights.length },
+        /* `eligible` is what the run OFFERED, read from the snapshot, never the list `--only` left. */
+        population: { checked: bests.length, eligible: snap.n },
         evidence: [DIR],
         note: 'the in-code rule (≥ 50 % of nights with p < 0.05 and ratio > 1) is reported as `result.inCodeRulePasses`; it was not pre-stated in a brief'
       })
     );
   }
+  printPopulation();
 }
 
 const IS_CLI = isCliEntry(import.meta.url);

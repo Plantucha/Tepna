@@ -39,6 +39,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
+import { NIGHT_RE, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* Realm builder lifted verbatim from tools/cpap-corpus.mjs — imported there it would run that
    file's CLI main, so it is duplicated rather than imported. Keep the two in step. */
@@ -116,7 +117,7 @@ if (isCliEntry(import.meta.url)) {
     process.argv.slice(2),
     {
       valued: ['--trio', '--eve', '--step', '--anchors', '--anchor-r-min', '--pre-min', '--post-min'],
-      boolean: ['--sweep']
+      boolean: ['--sweep', '--verdict-sample']
     },
     { tool: 'deep-flow-join' }
   );
@@ -138,6 +139,38 @@ const ANCH = arg('--anchors', null);
 const R_MIN = Number(arg('--anchor-r-min', 0)); // 0 = accept every anchor; §11e names two bad ones
 const PRE = Number(arg('--pre-min', -39.5)); // integrator-dsp.js:3743
 const POST = Number(arg('--post-min', 21.2)); // measured, PR #1581
+
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS: a population that did NOT move across the run,
+   over synthetic snapshots, so the sample costs no corpus read and runs where the captures are not.
+   The rule is the DEFAULT one, so the two night questions report `[]` — a measurement that the rule
+   refused nothing, which is a different statement from `null` (nobody looked). */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = {
+    ok: true,
+    root: 'uploads/trio',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: [],
+    passedOver: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/deep-flow-join.mjs', at, evidence: ['tools/deep-flow-join.mjs'] });
+}
+
+/* BEFORE the `--eve` refusal: the sample must run where no corpus is mounted. */
+if (process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
 if (!EVE) {
   console.error('usage: node tools/deep-flow-join.mjs --eve <dir> [--trio uploads/trio]');
   process.exit(2);
@@ -218,16 +251,55 @@ function joinNight(night, shiftMin) {
   return { deep, deepHit, other, otherHit, nEv: ev.length };
 }
 
-const nights = fs
-  .readdirSync(TRIO)
-  .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-  .sort();
+/* THE NIGHT RULE IS THE POPULATION RULE. `snapshotNights` applies the same `YYYY-MM-DD` filter this
+   listing spelled by hand, and it publishes what the filter did with the rest of the listing, which
+   the inline `.filter()` dropped before anyone could report it. `--eve` is NOT a second population:
+   its directory is read by night key, one prefix lookup per night, so the trio tree is the whole
+   enumeration this run makes.
+   🔴 AN UNREADABLE ROOT REFUSES, IT DOES NOT REPORT ZERO (§∅). `--trio` defaults to a RELATIVE
+   `uploads/trio`, so every run from a worktree with no corpus lands on an absent root, and the old
+   listing threw there. The snapshot returns `ok: false` with the reason, so the refusal is taken
+   here rather than published as `0 night(s) offered`. */
+const snap = snapshotNights(TRIO);
+if (!snap.ok) {
+  console.error(`refused: ${snap.reason} — ${TRIO}`);
+  process.exit(2);
+}
+const nights = snap.nights;
+/* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Joining EDF flow events against a
+   trio corpus takes long enough for a commit to land in this worktree. */
+const commitOf = gitCommitOf();
 const cohortOf = (n) => (n < STEP ? 'pre' : 'post');
 /* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
    (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
    present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
 /* `joinNight` refuses on data alone, never on the offset, so one set covers both signs. */
 const READ = new Set();
+
+/* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing snapshot is what says so.
+   `tepna-corpus-tier.service` re-tiers the corpus daily, so a join this long can open over one
+   night set and close over another. The status labels MOVEMENT across the run, never coverage —
+   `READ` below is the coverage, and the two are reported apart on purpose. */
+function printPopulation() {
+  const population = populationVerdict(snap, snapshotNights(TRIO), {
+    commit: commitOf.commit,
+    commitReason: commitOf.reason,
+    tool: 'tools/deep-flow-join.mjs',
+    evidence: ['tools/deep-flow-join.mjs', 'tools/corpus-scope-core.mjs']
+  });
+  console.log(`\npopulation: ${snap.n} night(s) offered under the trio root · ${READ.size} joined · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+  const populationRule = ruleLine(population);
+  if (populationRule) console.log(populationRule);
+  /* A COUNT of the nights that joined nothing names nothing to chase. A night falls out here when
+     `joinNight` refuses it on data — no flow events under that key, or no Deep window to score. */
+  const missed = notCovered(
+    snap,
+    [...READ].map((n) => ({ night: n })),
+    { key: 'night' }
+  );
+  if (missed.length) console.log(`  ${missed.length} offered night(s) joined nothing, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+  console.log('POPULATION ' + JSON.stringify(population));
+}
 
 /* Split by PROVENANCE of the offset, not only by cohort. `anchored` nights carry a per-night
    measurement; `extrapolated` nights carry the cohort constant, which `fitClockOffsetSegments`
@@ -284,6 +356,7 @@ for (const sign of [+1, -1]) {
   }
 }
 console.log(`  ${eraCoverageLine(eraCoverage(eraOfNights(TRIO, [...READ].sort())))}\n`);
+printPopulation();
 console.log('  The correct sign is the one with the SMALLER cohort gap: a misapplied sign adds');
 console.log('  ~2x the offset to one cohort, so the two populations separate rather than converge.');
 

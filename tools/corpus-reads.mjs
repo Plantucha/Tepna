@@ -764,8 +764,6 @@ export const UNWIRED_BACKLOG = {
   'cpap-sa2-agreement.mjs': 1,
   'cvhr-fold-rescore.mjs': 1,
   'deep-desat-falsifier.mjs': 1,
-  'deep-flow-join.mjs': 2,
-  'device-stability.mjs': 1,
   'dual-clock-rate.mjs': 1,
   'ecg-rate-transfer.mjs': 1,
   'edge-settle.mjs': 1,
@@ -777,10 +775,21 @@ export const UNWIRED_BACKLOG = {
   'nsrr-stage-validate.mjs': 1,
   'o2ring-finger-validate-batch.mjs': 1,
   'oxy-hr-bias.mjs': 2,
-  'pat-ppg-ppg-control.mjs': 2,
   'pin-coverage.mjs': 2,
   'pletha-marker-oracle.mjs': 1,
   'ppg-autogain-e2.mjs': 1,
+  /* FOUR NAMES LEFT TOGETHER, 2026-10-28, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
+     `deep-flow-join.mjs`, `device-stability.mjs`, `pat-ppg-ppg-control.mjs` and `ppg2w-spo2-fit.mjs`
+     were ONE walker written four times: `readdirSync(<root>)` filtered by the literal `YYYY-MM-DD`
+     text that `NIGHT_RE` already spells. Each now takes `snapshotNights` over that root before and
+     after the read and publishes the comparison, so the scan reads them as `reports` and this list
+     must not name them. Their unit is a NIGHT, which is why they take `snapshotNights` where the
+     four names above took `snapshotEntries`.
+     TWO OF THE SIX NIGHT WALKERS STAYED. `pin-coverage.mjs` walks SEVERAL roots in one run, which is
+     the census question and not this one, and `oxy-hr-bias.mjs` holds two populations at once — a
+     CSV file set and a night tree — where one snapshot would publish one count over the other. Rows
+     2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot and
+     2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-population-at-once. */
   /* FOUR NAMES LEFT TOGETHER, 2026-10-26, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
      `ppg-foot-consensus-e1.mjs`, `ppg-fusion-e3.mjs`, `ppi-jitter-vs-ecg.mjs` and
      `resp-cardiac-suppression-e8.mjs` were ONE walker written four times: the same recursive
@@ -790,7 +799,6 @@ export const UNWIRED_BACKLOG = {
      `snapshotEntries` rather than `snapshotNights` — a night snapshot over a capture tree would
      manufacture a population out of directories nobody keyed by date. */
   'ppg-bridge-hrv-validate.mjs': 1,
-  'ppg2w-spo2-fit.mjs': 1,
   'resp-acc-headless.mjs': 2,
   /* THE ONE `repo-corpus` MEMBER (row 2026-10-21-a-repo-rooted-path-can-still-be-corpus). It walks
      `uploads/trio` inside the checkout, which no flag can re-point, and its own usage line says

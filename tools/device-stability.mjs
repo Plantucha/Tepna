@@ -43,11 +43,12 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { createRequire } from 'node:module';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { NIGHT_RE, gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
-const ARGV_SPEC = { valued: ['--every', '--json'], boolean: ['--selftest'], positional: true };
+const ARGV_SPEC = { valued: ['--every', '--json'], boolean: ['--selftest', '--verdict-sample'], positional: true };
 
 const require = createRequire(import.meta.url);
 const DexClock = require(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'clock.js'));
@@ -299,10 +300,42 @@ function median(a) {
   return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
 }
 
+/* THE CORPUS-FREE SAMPLE THE ADOPTION GATE RUNS: a population that did NOT move across the run,
+   over synthetic snapshots, so the sample costs no corpus read and runs where the captures are not.
+   The rule is the DEFAULT one, so the two night questions report `[]` — a measurement that the rule
+   refused nothing, which is a different statement from `null` (nobody looked). */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const nights = ['2026-06-11', '2026-06-12', '2026-06-13'];
+  const snap = {
+    ok: true,
+    root: '<corpus-dir>',
+    reason: null,
+    n: nights.length,
+    nights,
+    digest: null,
+    maxCtimeMs: null,
+    at,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
+    rejectedNightShaped: [],
+    admittedNonNight: [],
+    passedOver: []
+  };
+  return populationVerdict(snap, snap, { tool: 'tools/device-stability.mjs', at, evidence: ['tools/device-stability.mjs'] });
+}
+
+export { verdictSample };
+
 async function main() {
   const args = process.argv.slice(2);
   refuseUnknownArgvOrExit(args, ARGV_SPEC, { tool: 'device-stability' });
   if (args.includes('--selftest')) return selftest();
+  /* BEFORE the corpus argument is read: the sample must run where no corpus is mounted. */
+  if (args.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    return;
+  }
   const dir = positionalArgs(args, ARGV_SPEC)[0];
   if (!dir) {
     console.error('usage: node tools/device-stability.mjs <corpus-dir> [--json out.json] [--every N]');
@@ -312,11 +345,24 @@ async function main() {
   const every = everyIx >= 0 ? Number(args[everyIx + 1]) : DEFAULT_EVERY;
   const jsonIx = args.indexOf('--json');
 
-  const nights = fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(e.name))
-    .map((e) => e.name)
-    .sort();
+  /* THE NIGHT RULE IS THE POPULATION RULE. `snapshotNights` applies the same `YYYY-MM-DD` filter the
+     hand-rolled listing here spelled by hand, and it publishes what that filter did with the rest of
+     the listing — which a local `readdirSync().filter()` discards before anyone can report it.
+     🔴 AN UNREADABLE ROOT REFUSES, IT DOES NOT REPORT ZERO (§∅). The snapshot returns `ok: false`
+     with the reason instead of throwing, so the refusal has to be taken HERE: a run that read on
+     past it would publish `0 night(s) offered`, which is a measurement of zero over a directory
+     nothing opened. The hand-rolled `readdirSync` threw, which was honest; reporting its `n` would
+     not be. */
+  const snap = snapshotNights(dir);
+  if (!snap.ok) {
+    console.error(`refused: ${snap.reason} — ${dir}`);
+    process.exit(2);
+  }
+  const nights = snap.nights;
+  /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. A σ_y curve per stream over a
+     corpus takes long enough for a commit to land in this worktree, and Node loaded this module at
+     the start. */
+  const commitOf = gitCommitOf();
 
   const rows = [];
   for (const night of nights) {
@@ -428,9 +474,34 @@ async function main() {
         .join(' · ')
   );
 
+  /* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing snapshot is what says so.
+     `tepna-corpus-tier.service` re-tiers the corpus daily, so a walk this long can open over one
+     night set and close over another. Without the second snapshot a roll-up that moved because the
+     tree gained a night is indistinguishable from one that moved because a stream changed. The
+     status labels MOVEMENT across the run, never coverage; the night counts are separate. */
+  const population = populationVerdict(snap, snapshotNights(dir), {
+    commit: commitOf.commit,
+    commitReason: commitOf.reason,
+    tool: 'tools/device-stability.mjs',
+    evidence: ['tools/device-stability.mjs', 'tools/corpus-scope-core.mjs']
+  });
+  const scoredNights = new Set(rows.map((r) => r.night));
+  console.log(`\npopulation: ${snap.n} night(s) offered under the root · ${scoredNights.size} scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+  const populationRule = ruleLine(population);
+  if (populationRule) console.log(populationRule);
+  /* THE OTHER HALF OF THE POPULATION. The verdict above is about MOVEMENT; it says nothing about the
+     offered nights this run never scored, and a COUNT of them names nothing to chase. A night falls
+     out here when it holds no ECG/PPG/ACC/GYRO/MAG stream at all — the only streams whose rows carry
+     a `sensor timestamp [ns]` column — so its absence from the roll-up is a property of the night,
+     not of the clock. */
+  const missed = notCovered(snap, rows, { key: 'night' });
+  if (missed.length)
+    console.log(`  ${missed.length} offered night(s) carry no host-stamped stream, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
+  console.log('POPULATION ' + JSON.stringify(population));
+
   if (jsonIx >= 0) {
     const crystalRows = [...crystalOf].map(([k, v]) => ({ night: k.split('|')[0], device: k.split('|')[1], ...v }));
-    fs.writeFileSync(args[jsonIx + 1], JSON.stringify({ corpus: dir, every, refTauSec: REF_TAU_SEC, rows, crystal: crystalRows, summary, census }, null, 2));
+    fs.writeFileSync(args[jsonIx + 1], JSON.stringify({ corpus: dir, every, refTauSec: REF_TAU_SEC, population, rows, crystal: crystalRows, summary, census }, null, 2));
     console.log('wrote ' + args[jsonIx + 1]);
   }
 }
