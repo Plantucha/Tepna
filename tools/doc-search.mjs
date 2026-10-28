@@ -303,6 +303,15 @@ export function wantBoardCap(argv) {
   return !(argv || []).includes('--board-all');
 }
 
+/* A BOARD POST THE BOARD ITSELF REPLACED DOES NOT RANK LIKE A CURRENT ONE (row
+   `2026-10-28-a-superseded-post-is-marked-but-not-de-ranked`). #4064 wrote the mark and moved no
+   score, so a retracted ruling still answered first. The rule lives with the cap in
+   `xerj-query.mjs`; this is the switch that turns it off by name, for a reader who wants the
+   ranking as it scored: `--keep-superseded`. */
+export function wantSuperseded(argv) {
+  return !(argv || []).includes('--keep-superseded');
+}
+
 /* A bound on how long the default lane may hold the caller before the fallback runs. The timer is
    cleared on settle so a fast answer leaves no dangling handle; the label names what did not answer. */
 export function withTimeout(promise, ms, label) {
@@ -1214,12 +1223,20 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
      exactly where a reader lands when the index is down. */
   ok('the board share cap is on by default', wantBoardCap(['node', 'x', 'q']) === true);
   ok('--board-all turns it off by name', wantBoardCap(['--board-all', 'q']) === false);
+  ok('the de-rank of a replaced board post is on by default', wantSuperseded(['node', 'x', 'q']) === true);
+  ok('--keep-superseded turns it off by name', wantSuperseded(['--keep-superseded', 'q']) === false);
+  ok('CONTROL: the two switches are independent', wantBoardCap(['--keep-superseded', 'q']) === true && wantSuperseded(['--board-all', 'q']) === true);
   ok('--board-all is a flag, never a query word', stripFlags(['--board-all', 'seam']).join(' ') === 'seam');
   ok('--board-all does not change which lane answers', searchLane(['--board-all', 'q']) === 'hybrid');
   {
     const src = readFileSync(new URL(import.meta.url), 'utf-8');
-    ok('the hybrid lane passes the switch to the search', /hybridSearch\(\{ query: q, rerank: wantRerank\(process\.argv\), cap: wantBoardCap\(process\.argv\) \}\)/.test(src));
-    ok('the fallback lane caps the ranked list too', /capSourceShare\(ranked, 8\)/.test(src));
+    ok(
+      'the hybrid lane passes the switch to the search',
+      /hybridSearch\(\{ query: q, rerank: wantRerank\(process\.argv\), cap: wantBoardCap\(process\.argv\), superseded: wantSuperseded\(process\.argv\) \}\)/.test(src)
+    );
+    ok('the fallback lane caps the ranked list too', /capSourceShare\(deferred\.hits, 8\)/.test(src));
+    ok('…and de-ranks a replaced board post before it caps', /wantSuperseded\(process\.argv\) \? deferSuperseded\(ranked, 8\)/.test(src));
+    ok('…and names the replaced posts it held and the files it could not read', /deferred\.supersededHeld > 0/.test(src) && /deferred\.unreadable\?\.length/.test(src));
     ok('…and names what it held back rather than dropping it silently', /capped\.held > 0/.test(src));
   }
   ok(
@@ -1264,7 +1281,11 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     }
     const xq = await import('./xerj-query.mjs');
     try {
-      const out = await withTimeout(xq.hybridSearch({ query: q, rerank: wantRerank(process.argv), cap: wantBoardCap(process.argv) }), HYBRID_TIMEOUT_MS, 'hybrid index');
+      const out = await withTimeout(
+        xq.hybridSearch({ query: q, rerank: wantRerank(process.argv), cap: wantBoardCap(process.argv), superseded: wantSuperseded(process.argv) }),
+        HYBRID_TIMEOUT_MS,
+        'hybrid index'
+      );
       process.stdout.write(`${xq.render(out, q, { brief })}\n`);
       if (wantsMap(process.argv) && !out.refused) await printMapLines(out.hits.map((h) => h.path));
       for (const line of readWarningLines(brief)) console.log(line);
@@ -1309,12 +1330,19 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   }
   /* THE SAME CAP IN THE FALLBACK LANE. A rule that binds only the lane that usually answers is a
      rule a reader cannot state, and this lane is the one a reader lands in when the index is down. */
-  const { capSourceShare, capMax } = await import('./xerj-query.mjs');
+  const { capSourceShare, capMax, deferSuperseded } = await import('./xerj-query.mjs');
   const ranked = rank(qv, entries, query, 8);
-  const capped = wantBoardCap(process.argv) ? capSourceShare(ranked, 8) : { hits: ranked, held: 0 };
+  /* The de-rank runs on the whole ranked list and before the cap, the same order the hybrid lane
+     uses, so the cap still has something to backfill from and never spends a board slot on a post
+     the board replaced. */
+  const deferred = wantSuperseded(process.argv) ? deferSuperseded(ranked, 8) : { hits: ranked, supersededHeld: 0, supersededBy: [], unreadable: [] };
+  const capped = wantBoardCap(process.argv) ? capSourceShare(deferred.hits, 8) : { hits: deferred.hits.slice(0, 8), held: 0 };
   const hits = capped.hits;
   console.log(`\n▸ ${qv ? 'semantic' : 'TOKEN-FALLBACK (embedder unreachable)'} · "${query}"\n`);
   if (capped.held > 0) console.log(`  ⚠ ${capped.held} board post(s) held below the share cap (at most ${capMax(8)} of 8) — \`--board-all\` ranks them with everything else\n`);
+  if (deferred.supersededHeld > 0)
+    console.log(`  ⚠ ${deferred.supersededHeld} replaced board post(s) held below their successors (#${deferred.supersededBy.join(', #')}) — \`--keep-superseded\` ranks them where they scored\n`);
+  if (deferred.unreadable?.length) console.log(`  ⚠ ${deferred.unreadable.length} board post(s) could not be read for a supersession mark, so none was applied to them\n`);
   for (const h of hits) console.log(brief ? `  ${h.score.toFixed(3)}  ${h.file}` : `  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
   if (readMode) {
     /* --read: the matching CHUNK of the top three hits, inline, so the reader reads them instead of
