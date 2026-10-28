@@ -40,6 +40,7 @@ import readline from 'node:readline';
 import { createRequire } from 'node:module';
 import { MAX_CRYSTAL_SPREAD_PPM, MS_PER_S_TO_PPM, crystalVerdict } from './device-stability.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { capturesRoot } from './home-paths.mjs';
 
 /* σ_y comes from the SPINE's Allan core, not a local reimplementation — `clock.js` owns
@@ -54,7 +55,34 @@ const DexClock = _require(path.join(path.dirname(new URL(import.meta.url).pathna
    module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
    reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { positional: true }, { tool: 'dual-clock-rate' });
+if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--verdict-sample'], positional: true }, { tool: 'dual-clock-rate' });
+const SAMPLE_AT = '2026-10-28T00:00:00Z';
+
+/* THE ADOPTION SAMPLE prints the object ALONE, because `verdict-adoption` parses this stdout as
+   JSON — the ordinary run prints the same object after a human line, which is right for a reader
+   and unparseable for the checker. The names are synthetic and no commit identity is claimed, which
+   is what `commitReason` says rather than a sha that would imply the sample was measured. */
+/* THE SAMPLE LIVES IN A HELPER, and that placement is the assertion. `corpus-reads.mjs` blanks a
+   body named `verdictSample` before it classifies the tool, so the clearance comes off the REAL
+   walk below — a sample at top level would have this tool read as reporting a population over
+   names no run enumerates. */
+function verdictSample() {
+  const sampleCaptureFiles = () => ['Polar_H10_02849638_20260721194715_ECG.txt', 'Polar_VeritySense_0C301E3F_20260721194615_PPG.txt'];
+  const snap = snapshotEntries('(sample)', { list: sampleCaptureFiles, unit: 'capture-files', at: SAMPLE_AT });
+  return populationVerdict(snap, snap, {
+    tool: 'tools/dual-clock-rate.mjs',
+    evidence: ['tools/dual-clock-rate.mjs'],
+    at: SAMPLE_AT,
+    commitReason: '--verdict-sample: synthetic capture-files names, no code identity claimed'
+  });
+}
+/* The object ALONE on stdout, because `verdict-adoption` parses it as JSON; the ordinary run prints
+   the same object after a human line, which is right for a reader and unparseable for the checker. */
+if (IS_CLI && process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
 const DIR = process.argv[2] || path.join(capturesRoot(), '2026-07-26');
 
 /* The host stamp is written to millisecond resolution, so a host column derived from the device time
@@ -351,7 +379,21 @@ if (IS_CLI) {
     console.error('nothing was read and nothing was written.');
     process.exit(2);
   }
-  const files = probe.names.filter((f) => CAPTURE_FILE_RE.test(f));
+  /* The walk publishes what it walked. `probeCaptureDir` already names an unreadable root, so the
+     lister rethrows that reason rather than returning an empty list — an empty list and an
+     unreadable directory are different facts (CLAUDE.md §∅). */
+  const listCaptureFiles = (root) => {
+    const pr = probeCaptureDir(root);
+    if (!pr.names) throw Object.assign(new Error(pr.error || 'not a readable directory'), { code: pr.error || 'ENOTDIR' });
+    return pr.names.filter((f) => CAPTURE_FILE_RE.test(f));
+  };
+  const POP = { list: listCaptureFiles, unit: 'capture-files' };
+  const popBefore = snapshotEntries(DIR, POP);
+  if (!popBefore.ok) {
+    console.error(`✕ dual-clock-rate: ${popBefore.reason} — ${DIR}`);
+    process.exit(2);
+  }
+  const files = popBefore.members;
   const big = files
     .map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size }))
     .filter((x) => x.sz > MIN_FRAGMENT_BYTES)
@@ -371,7 +413,17 @@ if (IS_CLI) {
     console.error('nothing was read and nothing was written.');
     process.exit(2);
   }
+  const population = populationVerdict(popBefore, snapshotEntries(DIR, POP), {
+    tool: 'tools/dual-clock-rate.mjs',
+    evidence: ['tools/dual-clock-rate.mjs']
+  });
   console.log('DEVICE RATE vs HOST CLOCK — measured directly from the two columns in each raw file\n');
+  console.log(
+    `population: ${population.population.checked} capture-file(s) matched under ${DIR}; ` +
+      `${big.length} read — the ${(MIN_FRAGMENT_BYTES / 1e6).toFixed(0)} MB floor and the six-largest cap ` +
+      `leave ${files.length - big.length} unexamined.`
+  );
+  console.log(`POPULATION ${JSON.stringify(population)}\n`);
   const byDev = {};
   const entriesBy = {}; // device -> [{ppm, ppmUncertainty}] for the χ² crystal verdict
   const drawnBy = {}; // device -> count of long fragments whose axis is drawn

@@ -3202,8 +3202,9 @@
 
        So the published value is `null`: a number carrying no information is the fabricated zero one
        layer up (§∅), and the export is the cross-node currency where some future consumer could spend
-       it. ⚠️ Read this null as "not published", NOT as "the device could not measure it" — the
-       distinction is recorded here because nothing in the export can carry it.
+       it. The null carries its reason, `proxy-uninformative` (owner ruling 2026-10-28, residue
+       2026-09-20-oxydex-resprate-pair-is-owner-blocked), so a reader can tell "not published" from
+       "the device could not measure it" in the export itself, not only in this comment.
 
        ⚠️ THIS IS OXYDEX'S PROXY ONLY. PulseDex's `respRate` is a DIFFERENT metric from real RR
        intervals via a Lomb-Scargle HF peak, it is gated by its own assertions, and NOTHING here
@@ -3214,7 +3215,7 @@
        rather than a copy of its arithmetic — including that the kernel's 0.13-0.33 Hz scan makes its
        own `Fast (>20)` label unreachable, since 0.33 Hz is 19.8 brpm.
        Residue: 2026-09-15-proxy-resprate-uninformative. Instrument: tools/nsrr-resprate-validate.mjs */
-    var respRate = null;
+    var respRate = respRateRetracted();
     var hrAsym = computeHRAsymmetry(rows);
     var hrQuart = computeHRQuartileTrend(rows);
     var spo2HRLag = computeSpO2HRLag(rows);
@@ -5696,6 +5697,13 @@
       windowsUsed: per.length
     };
   }
+  /* The published respiration rate: a null with its reason, never a number (see processNight).
+     `respRateBpm` stays the key the render guard and every reader test, so an old reader still sees
+     null. A fresh object per call, so no night can mutate another's. */
+  function respRateRetracted() {
+    return { respRateBpm: null, respRateLabel: null, reason: 'proxy-uninformative' };
+  }
+
   function _respRateProxyWindow(rows) {
     var n = rows.length;
     if (n < 600) return null;
@@ -7945,8 +7953,9 @@
              not measure respiration), but exports written BEFORE that still carry a number, and reading
              it back here re-surfaced the "Respiratory Rate (RSA spectral proxy)" section on reload — an
              unattributed proxy reaching a reader by the one path the retraction did not cover
-             (residue 2026-09-03-oxydex-proxy-resprate-unattributed / -has-no-consumer). */
-          respRate: null,
+             (residue 2026-09-03-oxydex-proxy-resprate-unattributed / -has-no-consumer). The reload
+             carries the same named null as compute, whatever the export held. */
+          respRate: respRateRetracted(),
           hrAsym: (obj.newMetrics || {}).hrAsymmetry || null,
           hrQuart: (obj.newMetrics || {}).hrQuartiles || null,
           spo2HRLag: (obj.newMetrics || {}).spo2HRLag || null,

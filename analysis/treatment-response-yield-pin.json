@@ -23,7 +23,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "92cec4912b7f"
+      "oxydex-dsp.js": "017b1384b659"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -93,11 +93,18 @@
       "old": "c4f4cee79733",
       "new": "d5e923c8081e",
       "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+    },
+    {
+      "date": "2026-10-28",
+      "file": "oxydex-dsp.js",
+      "old": "92cec4912b7f",
+      "new": "017b1384b659",
+      "reason": "residue 2026-09-20-oxydex-resprate-pair-is-owner-blocked: the retracted respiration rate ships as a null with a named reason, `proxy-uninformative`, in place of a bare null. A statement moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
     }
   ],
-  "measuredAt": "2026-10-22T07:42:46.942Z",
+  "measuredAt": "2026-10-28T21:46:35.597Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "93d98bddb"
+    "commit": "47c6f9dc9"
   }
 }

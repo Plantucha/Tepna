@@ -362,8 +362,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7c821f612cd2",
-          "computeHash": "5c5d8c5f921a"
+          "manifestHash": "1d095cb389b9",
+          "computeHash": "becef93efb96"
         },
         "evidence": {
           "envelopeRef": null,
@@ -391,8 +391,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7c821f612cd2",
-          "computeHash": "5c5d8c5f921a"
+          "manifestHash": "1d095cb389b9",
+          "computeHash": "becef93efb96"
         },
         "evidence": {
           "envelopeRef": null,
@@ -420,8 +420,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7c821f612cd2",
-          "computeHash": "5c5d8c5f921a"
+          "manifestHash": "1d095cb389b9",
+          "computeHash": "becef93efb96"
         },
         "evidence": {
           "envelopeRef": null,
@@ -449,8 +449,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7c821f612cd2",
-          "computeHash": "5c5d8c5f921a"
+          "manifestHash": "1d095cb389b9",
+          "computeHash": "becef93efb96"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1186,7 +1186,11 @@
         "basis": "medianOf30minWindows",
         "windowsUsed": 14
       },
-      "respRate": null,
+      "respRate": {
+        "respRateBpm": null,
+        "respRateLabel": null,
+        "reason": "proxy-uninformative"
+      },
       "hrAsymmetry": {
         "hrAccelAsym": 1.008,
         "meanUpBpm": 1.09,

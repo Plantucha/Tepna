@@ -44,6 +44,7 @@ import { join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -59,6 +60,33 @@ const HOP = parseFloat(opt('--hop', '300'));
 const MAXLAG = parseFloat(opt('--max-lag', '30'));
 const JSON_OUT = opt('--json', null);
 const SKIP_EXISTING = argv.includes('--skip-existing');
+const SAMPLE_AT = '2026-10-28T00:00:00Z';
+
+/* THE ADOPTION SAMPLE prints the object ALONE, because `verdict-adoption` parses this stdout as
+   JSON — the ordinary run prints the same object after a human line, which is right for a reader
+   and unparseable for the checker. The names are synthetic and no commit identity is claimed, which
+   is what `commitReason` says rather than a sha that would imply the sample was measured. */
+/* THE SAMPLE LIVES IN A HELPER, and that placement is the assertion. `corpus-reads.mjs` blanks a
+   body named `verdictSample` before it classifies the tool, so the clearance comes off the REAL
+   walk below — a sample at top level would have this tool read as reporting a population over
+   names no run enumerates. */
+function verdictSample() {
+  const sampleCaptureFiles = () => ['2026-07-21/Polar_H10_02849638_20260721194715_ACC.txt', '2026-07-21/Polar_VeritySense_0C301E3F_20260721194615_ACC.txt'];
+  const snap = snapshotEntries('(sample)', { list: sampleCaptureFiles, unit: 'files', at: SAMPLE_AT });
+  return populationVerdict(snap, snap, {
+    tool: 'tools/wearable-sync.mjs',
+    evidence: ['tools/wearable-sync.mjs'],
+    at: SAMPLE_AT,
+    commitReason: '--verdict-sample: synthetic files names, no code identity claimed'
+  });
+}
+/* The object ALONE on stdout, because `verdict-adoption` parses it as JSON; the ordinary run prints
+   the same object after a human line, which is right for a reader and unparseable for the checker. */
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
 if (!SRC || !existsSync(SRC)) {
   console.error('wearable-sync: --src <capture dir> is required and must exist');
   process.exit(2);
@@ -100,23 +128,47 @@ const IS_VER = /^Polar_(Sense|VeritySense)_.*_ACC\.txt$/;
 // The evening owns the night: a file starting before noon belongs to the previous date.
 const nightOf = (ms) => new Date(new Date(ms).getUTCHours() < 12 ? ms - 86400000 : ms).toISOString().slice(0, 10);
 
-const walk = (d, out = []) => {
+/* THE SWALLOW THAT WAS HERE: the `catch` returned the accumulator, so a subdirectory present and
+   unreadable contributed nothing and left no trace — an unreadable tree and an empty one read the
+   same, which is ∅. Both are still walked past rather than refused, because one unreadable
+   subdirectory is reduced coverage over a corpus of many; what changes is that the walk now NAMES
+   which directories it could not read, and the population line below carries the count. */
+const walk = (d, out = [], unreadable = []) => {
   let ents = [];
   try {
     ents = readdirSync(d, { withFileTypes: true });
-  } catch {
+  } catch (e) {
+    unreadable.push(`${d}: ${e.code || e.message}`);
     return out;
   }
   for (const e of ents) {
     const p = join(d, e.name);
-    if (e.isDirectory()) walk(p, out);
+    if (e.isDirectory()) walk(p, out, unreadable);
     else out.push({ name: e.name, path: p });
   }
   return out;
 };
+/* The walk publishes what it walked. The lister reads the ROOT with no `catch`, so an unreadable
+   `--src` reaches `snapshotEntries` as a named errno and refuses — the existence guard above answers
+   ENOENT only. Members are paths relative to the root, because two subdirectories may hold one
+   filename and a bare name would collapse them into one member. */
+const unreadableDirs = [];
+let srcEntries = [];
+const listCaptureFiles = (root) => {
+  readdirSync(String(root));
+  unreadableDirs.length = 0;
+  srcEntries = walk(String(root), [], unreadableDirs);
+  return srcEntries.map((e) => e.path.slice(String(root).length).replace(/^[/\\]/, ''));
+};
+const POP = { list: listCaptureFiles, unit: 'files' };
+const popBefore = snapshotEntries(SRC, POP);
+if (!popBefore.ok) {
+  console.error(`wearable-sync: ${popBefore.reason} — ${SRC}`);
+  process.exit(2);
+}
 const index = {};
 const refusedStamps = [];
-for (const { name, path } of walk(SRC)) {
+for (const { name, path } of srcEntries) {
   const t = stampMs(name);
   if (t === null) continue;
   if (t === false) {
@@ -208,6 +260,22 @@ const done = new Set(prior.filter((r) => r && r.confident).map((r) => r.night));
 const keys = Object.keys(index)
   .filter((k) => (!ONLY || k === ONLY) && index[k].H10.length && index[k].VER.length && !done.has(k))
   .sort();
+const population = populationVerdict(popBefore, snapshotEntries(SRC, POP), {
+  tool: 'tools/wearable-sync.mjs',
+  evidence: ['tools/wearable-sync.mjs']
+});
+console.log(
+  `population: ${population.population.checked} file(s) walked under ${SRC}` +
+    (unreadableDirs.length ? `, ${unreadableDirs.length} subdirectory/ies unreadable (${unreadableDirs.slice(0, 3).join('; ')})` : '') +
+    `; ${Object.keys(index).length} night(s) carry an ACC stamp and ${keys.length} are measured here.`
+);
+console.log(
+  `the remainder is named, not dropped: ${refusedStamps.length} refused stamp(s)` +
+    (ONLY ? `, --night ${ONLY} selects one night` : '') +
+    (done.size ? `, ${done.size} already measured` : '') +
+    ', and a night without BOTH devices cannot be paired.'
+);
+console.log(`POPULATION ${JSON.stringify(population)}`);
 if (done.size) console.log(`skipping ${done.size} night(s) already measured in ${JSON_OUT}\n`);
 if (!keys.length) {
   /* "Nothing left to do" is SUCCESS, not failure. On a daily timer the second run

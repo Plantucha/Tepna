@@ -12199,6 +12199,304 @@
       T.eq('CONTROL · the tool’s own selftest of the exit-code arms passes', self.status, 0);
       T.ok('…and says how many it ran', /SELFTEST PASS \((\d+)\/\1\)/.test(String(self.out)), String(self.out).slice(0, 160));
     });
+    /* ════ FIVE SINGLE-ROOT ENUMERATORS, FIVE POPULATIONS ═══════════════════════════════════════
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. Each of these five reads ONE
+       root a flag hands it and published no account of the set it walked, so a reader could not tell
+       a sweep of a corpus from a sweep of whatever survived a size filter, a stream glob or a
+       selection flag.
+       THE PRIMITIVE HAS TO MATCH THE UNIT. Only `deep-desat-falsifier.mjs` is keyed on nights, and
+       its walk admits EVERY directory, so it declares that wider rule rather than taking the
+       night-shaped default — which would publish a population narrower than the set it read. The
+       other four are keyed on FILES, so a night snapshot there would answer `n: 0` over a full
+       corpus; they take `snapshotEntries` through a lister the caller NAMES, because an inline arrow
+       publishes `rule: null` and names no rule at all.
+       AND A SELECTION IS NOT A RULE. `--limit`, `--top` and `--max-nights` cut the offer after the
+       snapshot, so each printed line names what the selection left unread. */
+    group('the five single-root enumerators publish the population they walked', 'tools · corpus-reads · population', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the five-enumerator legs examined nothing');
+        else T.skip('the five-enumerator legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var FIVE = [
+        { stem: 'beat-error-recovery.mjs', anti: /function\* rrFiles\(/ },
+        { stem: 'deep-desat-falsifier.mjs', anti: /const STAGES = \['REM', 'Light', 'Deep', 'Wake'\]/ },
+        { stem: 'ppg-autogain-e2.mjs', anti: /const DEVICE_RE = / },
+        { stem: 'ppg-bridge-hrv-validate.mjs', anti: /export const PPG_PATTERN = / },
+        { stem: 'stuck-run-lengths.mjs', anti: /const STREAMS = / }
+      ];
+      var texts = {};
+      for (var i = 0; i < FIVE.length; i++) {
+        var rel = 'tools/' + FIVE[i].stem;
+        var src = TT[rel] || '';
+        texts[FIVE[i].stem] = src;
+        /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+        T.ok('ANTI-VACUITY · ' + FIVE[i].stem + ' is loaded', FIVE[i].anti.test(src), src.length + ' char(s)');
+        if (!FIVE[i].anti.test(src)) return;
+        T.ok(FIVE[i].stem + ' takes the population primitive from the core, not a hand-rolled object', /from '\.\/corpus-scope-core\.mjs'/.test(src), 'absent');
+        T.eq('…and the scanner classifies it as reporting', CR.classifyTool(src).cls, 'reports');
+        T.ok('…and it has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[FIVE[i].stem] === undefined, FIVE[i].stem + ' is still listed as an unwired corpus enumerator');
+      }
+      /* THE ONE NIGHT-KEYED WALK declares its own wider rule, and prints what that rule admitted. */
+      var DD = texts['deep-desat-falsifier.mjs'];
+      T.ok(
+        'deep-desat-falsifier DECLARES the rule its walk applies, rather than taking NIGHT_RE',
+        /const NIGHT_RULE = \/\^\/;/.test(DD),
+        'absent — a night-shaped default would publish a narrower population than the walk'
+      );
+      T.ok(
+        '…opening the snapshot under that rule and reading the walk off it',
+        /const popBefore = snapshotNights\(DIR, \{ re: NIGHT_RULE \}\);[\s\S]{0,400}?const nightDirs = popBefore\.nights;/.test(DD),
+        'absent — the snapshot IS the enumeration'
+      );
+      T.ok(
+        '…and printing the rule line, so the non-night names it counted IN are visible',
+        /ruleLine\(population\)/.test(DD),
+        'absent — a wider rule with no account of itself counts a non-night directory as a night'
+      );
+      /* THE FOUR FILE-KEYED WALKS each name their lister. A function assigned to the `list` property
+         inherits the name `list`, which the primitive publishes as `null`, so the name has to be the
+         caller's own. */
+      var NAMED = [
+        { stem: 'beat-error-recovery.mjs', rule: /list: rrFiles, unit: 'rr-files'/ },
+        { stem: 'ppg-autogain-e2.mjs', rule: /const listPpgFilesAtSize = / },
+        { stem: 'ppg-bridge-hrv-validate.mjs', rule: /const listDevicePpgFiles = / },
+        { stem: 'stuck-run-lengths.mjs', rule: /const listStreamFiles = / }
+      ];
+      for (var j = 0; j < NAMED.length; j++) {
+        var t = texts[NAMED[j].stem];
+        T.ok(NAMED[j].stem + ' enumerates a FILE population through a NAMED lister', NAMED[j].rule.test(t), 'absent — an inline arrow publishes rule: null');
+        T.ok('…under snapshotEntries, never a night snapshot over a capture tree', /snapshotEntries\(/.test(t) && !/snapshotNights\(/.test(t), 'a file population must not borrow the night primitive');
+        T.ok('…and refuses a root it cannot enumerate, naming the reason', /popBefore\.ok/.test(t) && /popBefore\.reason/.test(t), 'absent — an absent root is not a zero (§∅)');
+      }
+      /* A SELECTION NAMES WHAT IT LEFT UNREAD, in the three tools that cut the offer. */
+      T.ok('--limit names the offered files it left unread', /--limit \$\{limit\} left \$\{popBefore\.n - files\.length\} offered file\(s\) unread/.test(texts['stuck-run-lengths.mjs']), 'absent');
+      T.ok(
+        '--max-nights names them too, beside the offer it used to print alone',
+        /# population: \$\{files\.length\} of \$\{popBefore\.n\}/.test(texts['ppg-autogain-e2.mjs']),
+        'absent — the line described the offer and printed the selection’s count'
+      );
+      T.ok('--top names them in the bridge', /--top \$\{TOP\} left \$\{popBefore\.n - ppgFiles\.length\} offered file\(s\) unread/.test(texts['ppg-bridge-hrv-validate.mjs']), 'absent');
+      /* AND THE BRIDGE'S REFUSAL HAS TO PRECEDE ITS BARE WALK, or the errno leaves as a stack trace
+         from `walk` before the snapshot can name it. The source ORDER is the assertion, because the
+         corpus path needs a ref where `ppgdex-dsp.js` differs and no probe can reach it here. */
+      var BR = texts['ppg-bridge-hrv-validate.mjs'];
+      var iSnap = BR.indexOf('const popBefore = snapshotEntries(DIR, POP);'),
+        iWalk = BR.indexOf('const all = walk(DIR);');
+      T.ok('the bridge snapshots the root BEFORE the bare walk that would throw', iSnap >= 0 && iWalk > iSnap, 'snapshot at ' + iSnap + ' · bare walk at ' + iWalk);
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* KNOWN ANSWER · an unreadable root. The probe cwd is an empty directory, so `./nope` cannot be
+         enumerated and each tool must exit 2 rather than score an empty population. */
+      var REFUSE = [
+        ['tools/beat-error-recovery.mjs', ['--root', './nope']],
+        ['tools/deep-desat-falsifier.mjs', ['--dir', './nope']],
+        ['tools/ppg-autogain-e2.mjs', ['--dir', './nope']],
+        ['tools/stuck-run-lengths.mjs', ['--dir', './nope', '--stream', 'verity-ppg']]
+      ];
+      for (var k = 0; k < REFUSE.length; k++) {
+        var bad = probe(REFUSE[k][0], REFUSE[k][1]);
+        T.eq(REFUSE[k][0] + ' exits 2 on a root it cannot enumerate', bad.status, 2);
+        T.eq('…and wrote nothing beside itself', bad.wrote, []);
+      }
+      /* KNOWN ANSWER · a root that enumerates and offers nothing is NOT_RUN, never a PASS over zero:
+         the probe cwd itself is readable and empty. */
+      var empty = probe('tools/beat-error-recovery.mjs', ['--root', '.']);
+      T.eq('an empty root still runs, because it enumerated', empty.status, 0);
+      var doc = null;
+      try {
+        doc = JSON.parse(String(empty.out));
+      } catch {
+        doc = null;
+      }
+      T.ok('…publishing one document a consumer can parse', doc != null, String(empty.out).slice(0, 160));
+      if (doc == null) return;
+      T.eq('…carrying the population beside the streams it scored', doc.population && doc.population.schema, 'tepna.verdict/1');
+      T.eq('…as NOT_RUN over an offer of nothing', doc.population.status, 'NOT_RUN');
+      T.eq('…over checked 0, which Verdict.make refuses to call a PASS', doc.population.population.checked, 0);
+      T.ok('…naming the root it enumerated in the reason', /offered no rr-file/.test(String(doc.population.reason)), String(doc.population.reason));
+      var ag = probe('tools/ppg-autogain-e2.mjs', ['--dir', '.']);
+      var popLines = String(ag.out)
+        .split('\n')
+        .filter(function (l) {
+          return l.indexOf('POPULATION ') === 0;
+        });
+      T.eq('ppg-autogain-e2 publishes exactly ONE population object per run', popLines.length, 1);
+      if (popLines.length !== 1) return;
+      var agPop = JSON.parse(popLines[0].slice('POPULATION '.length));
+      T.eq('…under the file unit it walked, not a night one', agPop.criterion.name, 'ppg-files_added_or_removed');
+      T.eq('…and NOT_RUN over an empty offer', agPop.status, 'NOT_RUN');
+    });
+    /* ════ FIVE SINGLE-ROOT FILE READERS, ONE UNIT: FILES ═══════════════════════════════════════
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `beat-correspondence.mjs`,
+       `dual-clock-rate.mjs`, `ecg-rate-transfer.mjs`, `resp-acc-headless.mjs` and
+       `wearable-sync.mjs` each walk ONE capture directory and score over FILES, and none of them
+       said how many the directory offered. The offer and the read are not close, measured on one
+       real night 2026-10-28: 9 pair-eligible files for one ECG/PPG pair, 187 capture files for the
+       six largest over a 3 MB floor, 4 ECG records for 2 under `--limit`, and 577 files walked for
+       one paired night. A reader could not tell a sweep of a night from a sweep of one file.
+       THE UNIT IS WHY THEY TAKE `snapshotEntries`, not `snapshotNights`: a night rule over a file
+       population publishes a rule nobody wrote, and `rule: null` is what an inline arrow would
+       publish, so every lister here is NAMED by the caller.
+       FOUR OF THE FIVE READ AN UNREADABLE ROOT AS EMPTY OR THREW WITH NO NAMED REASON, and
+       `wearable-sync.mjs`'s recursive walk swallowed an unreadable SUBDIRECTORY into the
+       accumulator, so a partly readable tree and a whole one printed the same line (§∅). The walk
+       now names the directories it could not read.
+       AND THE CLEARANCE COMES OFF THE REAL CALL. Each adoption sample fabricates a two-file
+       snapshot, so a sample at top level would classify the tool as reporting over a walk no run
+       makes — the samples live in a `verdictSample` helper, whose body `corpus-reads.mjs` blanks
+       before it decides, and the CONTROL legs below gut the real call and watch the class fall out
+       of `reports`. ════ */
+    group('the five single-root file readers publish the files they walked', 'tools · corpus-reads · population', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the five file-reader legs examined nothing');
+        else T.skip('the five file-reader legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var FIVE = [
+        { stem: 'beat-correspondence.mjs', anti: /const ARGV_SPEC = \{ valued: \['--q', '--band'\]/, lister: /const listPairFiles = /, unit: 'pair-files' },
+        { stem: 'dual-clock-rate.mjs', anti: /export const CAPTURE_FILE_RE = /, lister: /const listCaptureFiles = /, unit: 'capture-files' },
+        { stem: 'ecg-rate-transfer.mjs', anti: /export const BAND_MEDIAN_ABS_MS = 4;/, lister: /const listEcgRecords = /, unit: 'ecg-records' },
+        { stem: 'resp-acc-headless.mjs', anti: /const STAMP_SOURCES|const stampOf = /, lister: /const listAccFiles = /, unit: 'acc-files' },
+        { stem: 'wearable-sync.mjs', anti: /const STAMP = \/_\(\\d\{8\}_\?\\d\{6\}\)_ACC\//, lister: /const listCaptureFiles = /, unit: 'files' }
+      ];
+      var texts = {};
+      for (var i = 0; i < FIVE.length; i++) {
+        var rel = 'tools/' + FIVE[i].stem;
+        var src = TT[rel] || '';
+        texts[FIVE[i].stem] = src;
+        /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+        T.ok('ANTI-VACUITY · ' + FIVE[i].stem + ' is loaded', FIVE[i].anti.test(src), src.length + ' char(s)');
+        if (!FIVE[i].anti.test(src)) return;
+        T.ok(FIVE[i].stem + ' takes the population primitive from the core, not a hand-rolled object', /from '\.\/corpus-scope-core\.mjs'/.test(src), 'absent');
+        T.eq('…and the scanner classifies it as reporting', CR.classifyTool(src).cls, 'reports');
+        T.ok('…and it has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[FIVE[i].stem] === undefined, FIVE[i].stem + ' is still listed as an unwired corpus enumerator');
+        T.ok('…enumerating a FILE population through a NAMED lister', FIVE[i].lister.test(src), 'absent — a function on the `list` property inherits the name `list`, which publishes rule: null');
+        T.ok(
+          '…under snapshotEntries, never a night snapshot over a capture tree',
+          /snapshotEntries\(/.test(src) && !/snapshotNights\(/.test(src),
+          'a file population must not borrow the night primitive'
+        );
+        T.ok('…and refuses a root it cannot enumerate, naming the reason', /popBefore\.ok/.test(src) && /popBefore\.reason/.test(src), 'absent — an absent root is not a zero (§∅)');
+        T.ok('…publishing the object under the unit its own walk carries', src.indexOf("unit: '" + FIVE[i].unit + "'") > 0, "unit: '" + FIVE[i].unit + "' is absent");
+      }
+      /* THE SWALLOW THAT WAS THE WORST OF THE FIVE: a recursive walk whose catch returned the
+         accumulator. The directories it could not read are now NAMED, and the count rides the
+         population line, so reduced coverage annotates where it used to vanish. */
+      var WS = texts['wearable-sync.mjs'];
+      T.ok(
+        'wearable-sync names the subdirectories its walk could not read',
+        /unreadable\.push\(`\$\{d\}: \$\{e\.code \|\| e\.message\}`\)/.test(WS),
+        'absent — a catch returning the accumulator makes an unreadable tree read as a complete one'
+      );
+      T.ok('…and the population line carries that count', /unreadableDirs\.length \? `, \$\{unreadableDirs\.length\} subdirectory/.test(WS), 'absent');
+      T.ok(
+        '…while the lister itself reads the ROOT with no catch, so an unreadable --src refuses',
+        /const listCaptureFiles = \(root\) => \{\n\s+readdirSync\(String\(root\)\);/.test(WS),
+        'absent — the root errno must reach snapshotEntries'
+      );
+      T.ok(
+        '…and its population prints before the exit that says nothing is left to pair',
+        WS.indexOf('POPULATION ${JSON.stringify(population)}') < WS.indexOf('has BOTH an H10 and a Verity ACC file'),
+        'the walk must publish what it walked even when nothing is scored'
+      );
+      /* EACH SELECTION NAMES WHAT IT LEFT UNREAD. The three that cut the offer say so by arithmetic
+         on the published count, never by a second walk. */
+      T.ok('the fragment floor and the six-largest cap name their remainder', /files\.length - big\.length\} unexamined/.test(texts['dual-clock-rate.mjs']), 'absent');
+      T.ok('--limit names the ECG records it left unread', /'; --limit left ' \+ \(popBefore\.n - limit\) \+ ' unread'/.test(texts['ecg-rate-transfer.mjs']), 'absent');
+      T.ok('the pair reader names the pair-eligible files it did not read', /of \$\{population\.population\.checked\} pair-eligible file/.test(texts['beat-correspondence.mjs']), 'absent');
+      T.ok(
+        'the respiration pre-flight says the PAGE receives the whole folder',
+        /H10 ACC file\(s\) under \$\{DIR\}; the page receives the `/.test(texts['resp-acc-headless.mjs']),
+        'absent — the ACC count is not what the page analyses'
+      );
+      /* THE SAMPLE IS NOT THE CLEARANCE. Each of the three new adopters prints a fabricated
+         population under `--verdict-sample`; the helper's body is blanked before the class is
+         decided, so gutting the REAL call must drop the tool out of `reports`. */
+      var NEW = ['dual-clock-rate.mjs', 'resp-acc-headless.mjs', 'wearable-sync.mjs'];
+      for (var n = 0; n < NEW.length; n++) {
+        var s2 = texts[NEW[n]];
+        var i0 = s2.indexOf('function verdictSample() {');
+        T.ok(NEW[n] + ' keeps its adoption sample in a verdictSample helper', i0 > 0, 'absent — a sample at top level is read as a walk');
+        if (i0 < 0) continue;
+        var i1 = s2.indexOf('\n}\n', i0) + 3;
+        var gutted =
+          s2.slice(0, i1) +
+          s2
+            .slice(i1)
+            .replace(/snapshotEntries\(/g, 'noSnapshot(')
+            .replace(/populationVerdict\(/g, 'noVerdict(');
+        T.ok(
+          'CONTROL · with the real call gutted and only the sample left, the class falls out of reports',
+          CR.classifyTool(gutted).cls !== 'reports',
+          'the sample alone cleared the tool — ' + CR.classifyTool(gutted).cls
+        );
+      }
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* KNOWN ANSWER · an unreadable root. The probe cwd is an empty directory, so `./nope` cannot be
+         enumerated and each tool must exit 2 rather than score an empty population. */
+      var REFUSE = [
+        ['tools/beat-correspondence.mjs', ['./nope']],
+        ['tools/dual-clock-rate.mjs', ['./nope']],
+        ['tools/ecg-rate-transfer.mjs', ['--dir', './nope']],
+        ['tools/resp-acc-headless.mjs', ['./nope']],
+        ['tools/wearable-sync.mjs', ['--src', './nope']]
+      ];
+      for (var k = 0; k < REFUSE.length; k++) {
+        var bad = probe(REFUSE[k][0], REFUSE[k][1]);
+        T.eq(REFUSE[k][0] + ' exits 2 on a root it cannot enumerate', bad.status, 2);
+        T.eq('…and wrote nothing beside itself', bad.wrote, []);
+      }
+      /* KNOWN ANSWER · a root that enumerates and offers nothing still exits 2 in the three that
+         need a file to measure anything — the probe cwd is readable and empty, which is the case a
+         bare walk used to report as a clean run. */
+      var EMPTY = [
+        ['tools/beat-correspondence.mjs', ['.']],
+        ['tools/dual-clock-rate.mjs', ['.']],
+        ['tools/ecg-rate-transfer.mjs', ['--dir', '.']]
+      ];
+      for (var m = 0; m < EMPTY.length; m++) {
+        var none = probe(EMPTY[m][0], EMPTY[m][1]);
+        T.eq(EMPTY[m][0] + ' exits 2 over a readable root that offered no file', none.status, 2);
+      }
+      /* KNOWN ANSWER · the adoption sample each new row names. The checker parses stdout as JSON, so
+         the object must be ALONE, and its `rule` must be the lister the caller named. */
+      var SAMPLES = [
+        ['tools/dual-clock-rate.mjs', 'sampleCaptureFiles', 'capture-files'],
+        ['tools/resp-acc-headless.mjs', 'sampleAccFiles', 'acc-files'],
+        ['tools/wearable-sync.mjs', 'sampleCaptureFiles', 'files']
+      ];
+      for (var q = 0; q < SAMPLES.length; q++) {
+        var sr = probe(SAMPLES[q][0], ['--verdict-sample']);
+        T.eq(SAMPLES[q][0] + ' --verdict-sample exits 0', sr.status, 0);
+        var obj = null;
+        try {
+          obj = JSON.parse(String(sr.out));
+        } catch {
+          obj = null;
+        }
+        T.ok('…printing ONE object and nothing else, which is what the checker parses', obj != null, String(sr.out).slice(0, 160));
+        if (obj == null) continue;
+        T.eq('…a tepna.verdict/1', obj.schema, 'tepna.verdict/1');
+        T.eq('…naming the lister the caller named, never the `list` property', obj.result && obj.result.rule, SAMPLES[q][1]);
+        T.eq('…under the unit the real walk carries', obj.result && obj.result.unit, SAMPLES[q][2]);
+        T.eq('…claiming no commit identity, because the sample measured nothing', obj.producedBy && obj.producedBy.commit, null);
+        T.ok('…and saying why in commitReason', /synthetic/.test(String(obj.producedBy && obj.producedBy.commitReason)), String(obj.producedBy && obj.producedBy.commitReason));
+      }
+    });
     /* ════ FOUR READERS, ONE POPULATION: THE TRIO NIGHT TREE ════════════════════════════════════
        Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `closure-tol-hac.mjs`,
        `pb-fusion-blast.mjs`, `rho-overlap-power.mjs` and `tch-pooled-hat.mjs` all score over the
@@ -56722,6 +57020,11 @@
       // generated), not just res.elements[0].*; the node-lane gate never pinned them, so dropping one stays
       // green. Pin the accessors the review view consumes.
       T.ok('top-level res.recording + res.generated surface on reload (review view reads them, not just elements[0])', !!(res.recording && res.generated));
+      /* ∅ THE RETRACTED RATE SHIPS AS A NAMED NULL (owner ruling 2026-10-28, residue
+         2026-09-20-oxydex-resprate-pair-is-owner-blocked). A bare null cannot say "not published"
+         rather than "not measured"; the reason travels in the export beside the null. */
+      var _rrOut = envlp && envlp.nights && envlp.nights[0] && envlp.nights[0].newMetrics ? envlp.nights[0].newMetrics.respRate : undefined;
+      T.ok('the export publishes respRate as a null with its reason, never a number', !!_rrOut && _rrOut.respRateBpm === null && _rrOut.reason === 'proxy-uninformative', JSON.stringify(_rrOut));
       /* A RETRACTED METRIC DOES NOT RETURN THROUGH THE LOADER. `respRate` is null at compute since
          #2527; a pre-retraction export still carries a number, and until 2026-09-21 the loader read
          it straight back into the night, where the render guard `n.respRate && n.respRate.respRateBpm
@@ -56734,8 +57037,8 @@
       legacy.nights[0].newMetrics.hrAsymmetry = legacy.nights[0].newMetrics.hrAsymmetry || { planted: true };
       var resL = OD.loadOwnExport(legacy);
       T.ok(
-        'a pre-#2527 export carrying newMetrics.respRate reloads as respRate === null (retracted, not re-imported)',
-        !!(resL && resL.ok) && resL.nights[0].respRate === null,
+        'a pre-#2527 export carrying newMetrics.respRate reloads with respRateBpm === null and the named reason (retracted, not re-imported)',
+        !!(resL && resL.ok) && resL.nights[0].respRate != null && resL.nights[0].respRate.respRateBpm === null && resL.nights[0].respRate.reason === 'proxy-uninformative',
         resL && resL.ok ? JSON.stringify(resL.nights[0].respRate) : 'reload failed'
       );
       T.ok(

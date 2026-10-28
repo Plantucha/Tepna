@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7c821f612cd2" data-compute-hash="5c5d8c5f921a">
+<html lang="en" data-manifest-hash="1d095cb389b9" data-compute-hash="becef93efb96">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kqXP9hkfQEBweqIXvDoh+YohehKFIGPX6HmywBVmOq0=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kMBDwj9d1pjlIO9o/ihHWuuCnQGqEW9CiFQP6NogSp0=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.24.0</title>
@@ -16510,8 +16510,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
        So the published value is `null`: a number carrying no information is the fabricated zero one
        layer up (§∅), and the export is the cross-node currency where some future consumer could spend
-       it. ⚠️ Read this null as "not published", NOT as "the device could not measure it" — the
-       distinction is recorded here because nothing in the export can carry it.
+       it. The null carries its reason, `proxy-uninformative` (owner ruling 2026-10-28, residue
+       2026-09-20-oxydex-resprate-pair-is-owner-blocked), so a reader can tell "not published" from
+       "the device could not measure it" in the export itself, not only in this comment.
 
        ⚠️ THIS IS OXYDEX'S PROXY ONLY. PulseDex's `respRate` is a DIFFERENT metric from real RR
        intervals via a Lomb-Scargle HF peak, it is gated by its own assertions, and NOTHING here
@@ -16522,7 +16523,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        rather than a copy of its arithmetic — including that the kernel's 0.13-0.33 Hz scan makes its
        own `Fast (>20)` label unreachable, since 0.33 Hz is 19.8 brpm.
        Residue: 2026-09-15-proxy-resprate-uninformative. Instrument: tools/nsrr-resprate-validate.mjs */
-    var respRate = null;
+    var respRate = respRateRetracted();
     var hrAsym = computeHRAsymmetry(rows);
     var hrQuart = computeHRQuartileTrend(rows);
     var spo2HRLag = computeSpO2HRLag(rows);
@@ -19004,6 +19005,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       windowsUsed: per.length
     };
   }
+  /* The published respiration rate: a null with its reason, never a number (see processNight).
+     `respRateBpm` stays the key the render guard and every reader test, so an old reader still sees
+     null. A fresh object per call, so no night can mutate another's. */
+  function respRateRetracted() {
+    return { respRateBpm: null, respRateLabel: null, reason: 'proxy-uninformative' };
+  }
+
   function _respRateProxyWindow(rows) {
     var n = rows.length;
     if (n < 600) return null;
@@ -21253,8 +21261,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
              not measure respiration), but exports written BEFORE that still carry a number, and reading
              it back here re-surfaced the "Respiratory Rate (RSA spectral proxy)" section on reload — an
              unattributed proxy reaching a reader by the one path the retraction did not cover
-             (residue 2026-09-03-oxydex-proxy-resprate-unattributed / -has-no-consumer). */
-          respRate: null,
+             (residue 2026-09-03-oxydex-proxy-resprate-unattributed / -has-no-consumer). The reload
+             carries the same named null as compute, whatever the export held. */
+          respRate: respRateRetracted(),
           hrAsym: (obj.newMetrics || {}).hrAsymmetry || null,
           hrQuart: (obj.newMetrics || {}).hrQuartiles || null,
           spo2HRLag: (obj.newMetrics || {}).spo2HRLag || null,

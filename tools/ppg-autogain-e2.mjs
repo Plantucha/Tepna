@@ -105,6 +105,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -505,10 +506,33 @@ const walk = (d, out = []) => {
   }
   return out;
 };
-const files = walk(DIR).sort().slice(0, MAX_NIGHTS);
+/* THE LISTER IS THE RULE: `DEVICE_RE` at or above `--min-mb` is this run's offer, and it is named
+   rather than left for a reader to infer from a count. The root's OWN readability is not a recursion
+   failure — `walk` swallows an unreadable directory so one bad subdirectory cannot abort a corpus,
+   and that swallow also turned an absent `--dir` into a population of zero. The lister reads the root
+   itself and lets it throw, which the snapshot reports as an unenumerable root rather than as an
+   emptied corpus (§∅). */
+const listPpgFilesAtSize = (root) => {
+  readdirSync(String(root));
+  return walk(root).sort();
+};
+const POP = { list: listPpgFilesAtSize, unit: 'ppg-files' };
+const popBefore = snapshotEntries(DIR, POP);
+if (!popBefore.ok) {
+  console.error(`ppg-autogain-e2: ${popBefore.reason} — ${DIR}`);
+  process.exit(2);
+}
+/* `--max-nights` is a SELECTION over that offer, not a rule, so it never narrows the snapshot. */
+const files = popBefore.members.slice(0, MAX_NIGHTS);
 
 console.log(`# E-2 · autogain step repair${AC_QUIET ? ' · AC-QUIET STEPS ONLY (adjacent-block AC < ' + AC_BOUND + 'x scale)' : ''}`);
-console.log(`# population: ${files.length} file(s) matching ${DEVICE_RE} at >= ${MIN_MB} MB under ${DIR}`);
+/* The old line described the OFFER and printed the SELECTION's count, so a run that cut 40 files out
+   of 112 published 40 as everything the rule matched. Both numbers now appear, and the one that was
+   missing is the one a reader needs to size the remainder. */
+console.log(
+  `# population: ${files.length} of ${popBefore.n} file(s) matching ${DEVICE_RE} at >= ${MIN_MB} MB under ${DIR}` +
+    (popBefore.n > files.length ? ` · --max-nights ${MAX_NIGHTS} left ${popBefore.n - files.length} offered file(s) unread` : '')
+);
 console.log(`# bound ${SD_BOUND} robust sd · widen = settlingWidenSec(d, scale, ${F_HP}, zeroPhase) · block ${BLOCK_SEC} s · bar ${CEIL_MS} ms · ${NULL_DRAWS} null draws`);
 console.log('# night              fs    steps  st/h  s>=10 s>=20  widenMed  winSec%  beats%  intv% preExcl%   rmssd  rmssdEx     dR  nullMed nullP95  vsNull  ctrl');
 
@@ -657,6 +681,12 @@ console.log(
   `# ${cleared.length} night(s) clear both the ${CEIL_MS} ms bar and their own null p95, ${clearedPhys.length} of them in the physiological band · control reproduced the shipped rMSSD on ${checked - ctrlFails}/${checked}`
 );
 console.log(`# validity sidecars read: ${sidecars} of ${files.length} recording(s) · absent blocks skipped: ${absentBlocks}`);
+
+/* The population closes over the SAME lister it opened with, after the last read: a file can arrive
+   or leave under a run this long, and `checked`/`excluded` below count what this run scored rather
+   than what the corpus offered it. The two are different quantities and both are published. */
+const population = populationVerdict(popBefore, snapshotEntries(DIR, POP), { tool: 'tools/ppg-autogain-e2.mjs', commit, evidence: ['tools/ppg-autogain-e2.mjs'] });
+console.log('POPULATION ' + JSON.stringify(population));
 
 const medPhys = physD.length ? quantileSorted(physD, 0.5) : null;
 // medPhys is null when no readable night sits in the physiological rMSSD band: that is no population
