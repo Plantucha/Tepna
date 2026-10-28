@@ -109,7 +109,7 @@ Also still owed from `adoptwiden`: an `emits.cmd` for the two `pending` `tch-` m
 ## MERGED 2026-10-26 04:45Z — #3944, worktree retired
 
 Kestrel undrafted it (board #1382) and Kodiak merged it. CI read **27 pass, 1 skipping, 0 fail**.
-`node tools/wt-done.mjs /home/michal/wt-finitenull-mg` removed the worktree, reporting the PR merged,
+`node tools/wt-done.mjs` on `wt-finitenull-mg` removed the worktree, reporting the PR merged,
 the tree clean, idle, and every commit landed. My PR slot is free. Merge note on board #1388.
 
 The board claim on the row stays HELD until Kestrel's RESIDUE-only PR closes it. A released claim on

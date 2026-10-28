@@ -5,7 +5,7 @@
 #3567 closure.
 **Doc-search query that found the prior work:** `dsp helper returns 0 for an empty or too-short input
 absence as value` → `tests/dex-tests.js:19700-19800` · `ecgdex-dsp.js` · `briefs/RESIDUE.md`.
-**Branch / worktree:** `claude/pdzero-mg` in `/home/michal/wt-pdzero-mg`. Board entry #430.
+**Branch / worktree:** `claude/pdzero-mg` in `wt-pdzero-mg`. Board entry #430.
 
 ## What shipped
 

@@ -109,7 +109,7 @@ Finch posted the copy verdict on thread 8, which cleared ruling #1205 item 2. My
 read agreed with it: 51 of 51 `inputHashes` records MATCH over 48 distinct files and 18.3 MB. A
 truncated file cannot match its recorded hash, so that verdict needs no server access.
 
-Then, in order, on `/home/michal/wt-drawnppm-mg`:
+Then, in order, in `wt-drawnppm-mg`:
 
 1. `node tools/rebase-safe.mjs` — EXIT=0, head `b46f9538d`, 0 behind, no artifact moved.
 2. `DEX_UPLOADS=… node tools/regen-ppgdex-goldens.mjs` — EXIT=0, 1 fixture moved, 11 fields.
