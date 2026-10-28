@@ -226,18 +226,20 @@ export function isPointerRepair(before, after, isRow) {
  *
  * The secret scan (`.gitleaks.toml` rule `home-path`) reports an absolute path under one user's home
  * directory, and it reads every changed line. Closing a row changes its state cell, so the whole line
- * enters the diff, and a home path written into the row's evidence years ago blocks the close (#4028:
- * 17 such paths on main). The scanner says do not allowlist, so the row must lose the path.
+ * enters the diff, and a home path written into the row's evidence earlier blocks the close (#4028;
+ * 25 such paths in 20 rows on main). The scanner says do not allowlist, so the row must lose the path.
  *
- * ⚠️ ONE SUBSTITUTION, NOTHING ELSE. Map every `/home/<user>/` prefix in the base cells to `~/`; the
- * result must equal the branch cells exactly. The regex is the scanner's own, so the exemption covers
- * what the scanner reports and no more. Any other difference, in any cell, is still a mutation.
+ * ⚠️ ONE SUBSTITUTION, NOTHING ELSE. Map every `/home/<user>` in the base cells to `~`; the result must
+ * equal the branch cells exactly. The user name is the scanner's own pattern, and the name must end
+ * there, so `/home/<user>/x` becomes `~/x` and a bare `cd /home/<user>` becomes `cd ~`. The bare form is
+ * one the scanner misses (it needs the trailing slash) but the owner's ruling at board #649 does not.
+ * Any other difference, in any cell, is still a mutation.
  *
  * @param {string} before  the row's non-state cells as they stand on the base
  * @param {string} after   the same cells on this branch
  */
 export function isHomeRedaction(before, after) {
-  const mapped = String(before).replace(/\/home\/[a-z_][a-z0-9_-]{0,31}\//g, '~/');
+  const mapped = String(before).replace(/\/home\/[a-z_][a-z0-9_-]{0,31}(?![a-z0-9_-])/g, '~');
   return mapped !== String(before) && mapped === String(after);
 }
 
@@ -1042,6 +1044,10 @@ if (IS_CLI && process.argv.includes('--selftest')) {
   assert(!isHomeRedaction('the defect is real', 'the defect is fixed'), 'a claim edit with no home path FIRES');
   assert(!isHomeRedaction('same ~/text', 'same ~/text'), 'no substitution is not a redaction');
   assert(!isHomeRedaction(`${H}a and ${H}b`, `~/a and ${H}b`), 'a partial redaction FIRES');
+  const HB = H.slice(0, -1); // the bare home directory, no trailing slash
+  assert(isHomeRedaction(`cd ${HB} && run`, 'cd ~ && run'), 'a bare home directory maps to ~');
+  assert(!isHomeRedaction(`cd ${HB}x && run`, 'cd ~x && run'), 'a longer user name is not cut short');
+  assert(!isHomeRedaction(`cd ${HB} && run`, 'cd ~/ && run'), 'a bare home directory does not gain a slash');
   const hrow = (ev, state = 'OPEN') => `| ${A} | 2026-09-02 | \`X-BRIEF.md\` | d | ${ev} | ${state} |`;
   v = verdict(hrow(`venv at ${H}repo`), hrow('venv at ~/repo', 'fixed #4028'));
   assert(v.mutated.length === 0 && v.collisions.length === 0, 'closing a row with a redacted home path is clean');
