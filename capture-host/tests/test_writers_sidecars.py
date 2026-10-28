@@ -1089,6 +1089,42 @@ def test_oxylife_writer_without_fsync_still_flushes(tmp_path):
     w.close()
 
 
+def test_oxylife_writer_fsyncs_by_DEFAULT_and_the_health_record_names_ITS_OWN_file(tmp_path, monkeypatch):
+    """A lifecycle sidecar that never reached the platter is exactly the file a 3am reader needs after
+    a machine failure, so the disk barrier is the DEFAULT and a caller opts out of it. The health
+    record carries this path because every failure line and every SLOW report is read per file."""
+    import writers
+
+    synced = []
+    monkeypatch.setattr(writers._FlushHealth, "fsync", lambda self, fh: synced.append(self.path))
+    p = tmp_path / "OXYLIFE.csv"
+    w = writers.OxyLifeLogWriter(str(p), flush_interval=0.0)  # fsync not passed: the default decides
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    assert synced == [str(p)], "one barrier, and the record names this file"
+    assert w.path == str(p)
+    off = writers.OxyLifeLogWriter(str(tmp_path / "off.csv"), flush_interval=0.0, fsync=False)
+    off.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    assert synced == [str(p)], "fsync=False removes the barrier and nothing else"
+    w.close()
+    off.close()
+
+
+def test_oxylife_writer_treats_a_ONE_BYTE_file_as_a_night_already_under_way(tmp_path):
+    """`resumed` is `size > 0`, not `size > 1`. A file holding one byte is an earlier process torn
+    off mid-row, and opening it fresh to write a header would truncate that process's night — the
+    2026-09-20 wipe in miniature. One byte is the smallest file that is not empty."""
+    import writers
+
+    p = tmp_path / "OXYLIFE.csv"
+    p.write_text("x")
+    w = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    assert w.resumed is True
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    w.close()
+    text = p.read_text()
+    assert text.startswith("x") and "# device=" not in text
+
+
 def test_oxylife_writer_close_swallows_a_raising_handle(tmp_path):
     """close() is guarded: a handle that raises on close is swallowed, never propagated into a teardown."""
     import writers

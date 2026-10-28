@@ -131,6 +131,32 @@ def test_backward_step_into_an_already_advancing_session_emits_two_transitions()
     assert eng.state is OxyRecState.RECORDING
 
 
+def test_a_REPEATED_counter_while_recording_is_NOT_a_close():
+    """The ring reports the same `duration_s` on every frame inside one counter second, so equality
+    is the ordinary case, not an edge. A close is the counter going BACKWARD; reading equal as a
+    close mints an END_CANDIDATE, and a `closed_at_duration`, out of a frame that measured nothing
+    new — and the pull path would then confirm a session that never ended."""
+    eng = _eng()
+    eng.observe_duration(10)
+    eng.observe_duration(11)
+    assert eng.state is OxyRecState.RECORDING
+    assert eng.observe_duration(11) == []
+    assert eng.state is OxyRecState.RECORDING and eng.closed_at_duration is None
+
+
+def test_a_close_into_a_counter_of_EXACTLY_ONE_still_opens_the_new_session():
+    """1 s is the smallest positive reading the ring can report, so it is the boundary the second
+    transition rests on. Without it the new session sits in END_CANDIDATE at a positive counter —
+    a candidate the pull path can still confirm against a close that already happened."""
+    eng = _eng()
+    eng.observe_duration(49)
+    eng.observe_duration(50)
+    ts = eng.observe_duration(1)
+    assert [t.new for t in ts] == [OxyRecState.END_CANDIDATE, OxyRecState.RECORDING]
+    assert ts[0].closed_at_duration == 50
+    assert ts[1].reason == "new session already advancing (→1)"
+
+
 def test_end_candidate_holds_through_zeros_then_a_new_session_returns_to_recording():
     """The 2026-08-23 14:20/14:25 corpus pair: two real sessions five minutes apart. The candidate holds
     while the counter sits at 0, and re-donning starts a fresh RECORDING."""
@@ -209,6 +235,34 @@ def test_after_confirmation_an_advancing_counter_is_a_new_recording():
     assert [t.new for t in ts] == [OxyRecState.RECORDING]
 
 
+def test_each_transition_NAMES_the_counter_READING_that_caused_it():
+    """`boot_rec_state` restores a state from the journal and this string is the only account of why
+    that state exists. Each reading below names ITS OWN number, because a borrowed one reads as a
+    different frame and a reason-less row cannot be audited at all."""
+    eng = _eng()
+    assert [t.reason for t in eng.observe_duration(0)] == ["duration_s reads 0"]
+    assert [t.reason for t in eng.observe_duration(7)] == ["duration_s left 0 (→7)"]
+    assert [t.new for t in eng.observe_duration(0)] == [OxyRecState.END_CANDIDATE]
+    assert [t.reason for t in eng.observe_duration(9)] == ["duration_s advancing (0→9)"]
+
+
+def test_after_a_CONFIRMED_close_the_reason_says_WHICH_of_the_two_readings_it_saw():
+    """END_CONFIRMED is the one state whose next reading is read without reference to `prev`: any
+    positive counter is a new session opening and 0 is the ring still idle. The reason has to say
+    which, because the state alone no longer distinguishes them."""
+
+    def _confirmed():
+        eng = _eng()
+        for d in (0, 10, 20, 0):
+            eng.observe_duration(d)
+        eng.confirm_end(20)
+        assert eng.state is OxyRecState.END_CONFIRMED
+        return eng
+
+    assert [t.reason for t in _confirmed().observe_duration(0)] == ["duration_s reads 0"]
+    assert [t.reason for t in _confirmed().observe_duration(5)] == ["duration_s reads 5 — a new session is open"]
+
+
 # ── THE fleet trap, as a planted control: link loss is UNKNOWN, never NOT_RECORDING ───────────────────
 
 
@@ -259,6 +313,18 @@ def test_rec_rows_carry_the_rec_axis_and_the_shared_row_shape():
     assert len(parts) == 10
     assert parts[2] == "rec_unknown" and parts[3] == "not_recording" and parts[8] == "rec"
     assert parts[9] == "", "NOT_RECORDING names no closing counter"
+
+
+def test_every_transition_CARRIES_the_device_and_session_and_HISTORY_keeps_the_object():
+    """Whose ring and which session: the journal row is written from these two fields and the engine
+    is the only holder of either, so a transition that drops one is a row that names no device.
+    `history` is read back by the STATUS surface — a placeholder there is a state change with no
+    account of itself."""
+    eng = _eng()
+    ts = eng.observe_duration(0) + eng.observe_duration(9)
+    assert [t.device_id for t in ts] == ["O2R-01", "O2R-01"]
+    assert [t.session_id for t in ts] == ["20260824T220000Z-abcdef"] * 2
+    assert eng.history == ts, "the transitions themselves, not placeholders beside them"
 
 
 def test_illegal_rec_transition_raises():
@@ -361,6 +427,14 @@ def test_the_rows_come_back_ordered_by_stamp_even_when_two_share_one():
     rows = rec_journal_rows(text)
     assert [r[0] for r in rows] == sorted(r[0] for r in rows)
     assert rows[-1][3] == 900
+    # The case the docstring names, and the one a tuple sort cannot survive: two tied rows whose only
+    # difference is the number cell. A tuple comparison reaches the fourth element and meets None
+    # against an int, inside the boot path, where a raise is a daemon that does not start.
+    tied = _file(
+        _row(tie, "recording", "end_candidate", closed="412"),
+        _row(tie, "recording", "end_candidate"),
+    )
+    assert [r[3] for r in rec_journal_rows(tied)] == [412, None]
 
 
 def test_a_naive_stamp_reads_as_utc_because_only_a_zone_dropping_writer_emits_one():
@@ -369,6 +443,20 @@ def test_a_naive_stamp_reads_as_utc_because_only_a_zone_dropping_writer_emits_on
     naive = rec_journal_rows(_file(_row("2026-10-28T03:00:00", "not_recording", "recording")))
     aware = rec_journal_rows(_file(_row("2026-10-28T03:00:00+00:00", "not_recording", "recording")))
     assert naive[0][0] == aware[0][0]
+
+
+def test_the_ZONE_decides_the_instant_even_on_a_host_four_hours_WEST(monkeypatch):
+    """Two different failures hide here and a UTC host shows neither. A naive stamp left naive reads
+    in the host's zone; a zoned stamp re-stamped as UTC loses its own offset. Either moves the row by
+    hours, and hours is the unit the age bound refuses on, so either can discard a live candidate."""
+    import time
+
+    monkeypatch.setenv("TZ", "America/New_York")  # the autouse conftest fixture puts the zone back
+    time.tzset()
+    naive = rec_journal_rows(_file(_row("2026-10-28T03:00:00", "not_recording", "recording")))
+    zulu = rec_journal_rows(_file(_row("2026-10-28T03:00:00+00:00", "not_recording", "recording")))
+    east = rec_journal_rows(_file(_row("2026-10-28T05:00:00+02:00", "not_recording", "recording")))
+    assert naive[0][0] == zulu[0][0] == east[0][0] == _ms("2026-10-28T03:00:00+00:00")
 
 
 def test_the_reader_answers_nothing_for_empty_and_absent_text():
@@ -411,6 +499,17 @@ def test_the_age_bound_is_a_refusal_and_its_edge_is_inclusive():
     assert boot_rec_state(at, now)[0] == RecSeed(OxyRecState.END_CANDIDATE, 412)
     seed, why = boot_rec_state(past, now)
     assert seed == RecSeed(OxyRecState.UNKNOWN, None) and "does not describe now" in why
+
+
+def test_the_REFUSAL_states_the_age_IN_HOURS_because_that_line_is_the_whole_account():
+    """The caller logs this string and keeps nothing else: it is the only statement of how stale the
+    row was. An hours figure computed in anything but hours describes a different night, and a
+    near-miss divisor is the version nobody notices."""
+    now = _ms(NOW)
+    rows = [(now - 200 * 3600 * 1000.0, "recording", "end_candidate", 412)]
+    seed, why = boot_rec_state(rows, now, max_age_s=3600.0)
+    assert seed == RecSeed(OxyRecState.UNKNOWN, None)
+    assert why == "the journal's last rec row is 200.0h old; it does not describe now"
 
 
 def test_a_last_row_that_is_itself_unknown_stays_unknown():
