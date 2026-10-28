@@ -782,9 +782,30 @@ export const UNWIRED_BACKLOG = {
   'geometry-scan.mjs': 1,
   'h10-session-rate.mjs': 1,
   'hostaxis-estimator-bakeoff.mjs': 1,
-  'nsrr-criterion-sweep.mjs': 1,
-  'nsrr-oxydex-odi.mjs': 2,
-  'nsrr-stage-validate.mjs': 1,
+  /* THE THREE NSRR COHORT READERS LEFT TOGETHER, 2026-10-28, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `nsrr-criterion-sweep.mjs`,
+     `nsrr-oxydex-odi.mjs` and `nsrr-stage-validate.mjs` read ONE population from three angles —
+     the EDF paired with its `-nsrr.xml` annotation — and each now snapshots that enumeration
+     before the read and publishes the comparison, so the scan reads them as `reports` and this
+     list must not name them. Their unit is a RECORD, so they take `snapshotEntries` with a named
+     lister rather than `snapshotNights`: an NSRR stem is no date and a night rule over it would
+     publish a rule nobody wrote.
+     THE SWEEP CARRIES TWO POPULATIONS, because it reads the corpus through two hops: `--cache`
+     walks the PSG tree and keeps what it could parse, and the sweep then walks THE CACHE. Either
+     hop can lose most of the corpus while the other reports a clean pass, so each publishes its
+     own offer and the cache hop's root names the tree it was built from.
+     THE OFFERED COUNT IS NOT THE SCORED COUNT, measured 2026-10-28 over real SHHS records: 8
+     records offered against 6 scored in `nsrr-stage-validate.mjs` and 6 paired in
+     `nsrr-oxydex-odi.mjs`, with the unpaired members named in both. Each carries an arithmetic
+     control (offered − scored === named).
+     THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a `--cache` build pointed
+     at nothing, a sweep with no cache, and a run that scored no record now exit 2 where all of
+     them exited 0.
+     ⚠️ TWO SIBLINGS ON THE SAME MOUNT ARE STILL EXCLUDED rather than wired —
+     `nsrr-effort-typing.mjs` and `nsrr-score-pool.mjs` sit in `POPULATION_EXCLUSIONS` because the
+     NSRR mount is not the capture corpus, while these three sat here as debt. Wiring these three
+     settles the three; whether the exclusion still reads right for the other two is row
+     2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt. */
   'o2ring-finger-validate-batch.mjs': 1,
   'pletha-marker-oracle.mjs': 1,
   'ppg-autogain-e2.mjs': 1,

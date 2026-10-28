@@ -12339,6 +12339,189 @@
       T.eq('CONTROL · tch-pooled-hat passes its own selftest', tchSelf.status, 0);
       T.ok('…and counts the assertions it ran', /(\d+) passed, 0 failed/.test(String(tchSelf.out)), String(tchSelf.out).slice(0, 160));
     });
+    /* ════ THREE NSRR COHORT READERS PUBLISH THE RECORD SET THEY WERE OFFERED ══════════════════
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population, the NSRR slice.
+       `nsrr-stage-validate.mjs`, `nsrr-oxydex-odi.mjs` and `nsrr-criterion-sweep.mjs` read the same
+       SHHS tree from three angles, and all three reported only what they SCORED — a pooled kappa, an
+       ODI agreement table, a band sweep. A record whose annotation XML is absent, whose header will
+       not parse, or whose SpO2 channel is missing left no trace in any of them.
+       THE UNIT HERE IS A RECORD, NOT A NIGHT, so each passes a NAMED lister to `snapshotEntries`:
+       `snapshotEntries` publishes `rule: list.name`, and an inline arrow would publish `null` and
+       name no rule at all. The leg below reads that name back out of the object.
+       THE SWEEP CARRIES TWO POPULATIONS, because its two hops are offered different sets: `--cache`
+       is offered the EDF records under the named PSG dir, and the sweep hop is offered the records
+       the CACHE holds — listed out of the cache file, so the denominator the bands are taken over is
+       the one the sweep actually read.
+       TWO DEFECTS THIS SLICE FOUND AND FIXED, both pinned below. `discover()` fell through a NAMED
+       `--dir` that held no pair to the default cohort tree and silently scored the whole cohort; and
+       `--cache` over a root offering no record REWROTE the cache with an empty one, after which the
+       sweep scored nothing and said the run was clean. ════ */
+    group('the three NSRR cohort readers publish the record set they were offered', 'tools · corpus-reads · verdict-sample', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the NSRR-population legs examined nothing');
+        else T.skip('the NSRR-population legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var THREE = [
+        { rel: 'tools/nsrr-stage-validate.mjs', lister: 'listEdfRecords' },
+        { rel: 'tools/nsrr-oxydex-odi.mjs', lister: 'listEdfRecords' },
+        { rel: 'tools/nsrr-criterion-sweep.mjs', lister: 'listEdfRecords' }
+      ];
+      /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+      var missing = THREE.filter(function (t) {
+        return typeof TT[t.rel] !== 'string' || TT[t.rel].length === 0;
+      });
+      T.eq('ANTI-VACUITY · all three NSRR readers are readable in this lane', missing, []);
+      if (missing.length) return;
+      THREE.forEach(function (t) {
+        var src = TT[t.rel];
+        var stem = t.rel.replace(/^.*\//, '');
+        T.ok(t.rel + ' takes its population primitive from the shared core', CR.importsNightPrimitive(src), 'absent — the import rule reads the specifiers');
+        T.ok(t.rel + ' enumerates with snapshotEntries, because its unit is a record', /snapshotEntries\(/.test(src), 'absent — snapshotNights would publish a night rule nobody wrote here');
+        T.ok(t.rel + ' never claims the night rule it does not use', !/snapshotNights\(/.test(src), 'a night snapshot over EDF records describes a different population');
+        T.ok(t.rel + ' names the lister the snapshot publishes as its rule', new RegExp('function ' + t.lister + '\\(').test(src), 'absent — an inline arrow publishes rule: null');
+        T.ok(t.rel + ' declares the record unit its lister enumerates', src.indexOf("unit: 'records'") >= 0, "absent — unit: 'records'");
+        T.ok(t.rel + ' declares --verdict-sample', src.indexOf('--verdict-sample') >= 0, 'absent — the manifest row names a flag the tool does not read');
+        T.ok(t.rel + ' controls its coverage line by arithmetic', /population arithmetic:/.test(src), 'absent — a coverage line may then contradict its own headline');
+        T.ok(t.rel + ' names the records nothing scored', /, by name: /.test(src), 'absent — a count nobody can chase is not a named absence');
+        T.ok(t.rel + ' has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[stem] === undefined, stem + ' is still listed as an unwired corpus enumerator');
+        T.eq('…and the scanner itself classifies ' + t.rel + ' as reporting', CR.classifyTool(src).cls, 'reports');
+        /* THE REAL PATH, read off the blanked source: the object must survive the blanking, so it
+           exists on a path a real run takes and not only under the sample flag. */
+        var blanked = CR.blankSampleHelpers(src);
+        T.ok(
+          t.rel + ' publishes a population from a path the sample helper does not hold',
+          blanked.indexOf("'POPULATION '") >= 0 || /JSON\.stringify\(emptyPopulation\)/.test(blanked),
+          'absent — only the sample publishes an object'
+        );
+      });
+      /* CONTROL · the clearance is not vacuous: gut the real `populationVerdict` calls in each and
+         the class falls out of `reports`. Every sample call survives the gut, which is the point —
+         the scanner blanks the helper that holds it. */
+      THREE.forEach(function (t) {
+        var gutted = TT[t.rel].replace(/populationVerdict\(snap(Before|Cache),/g, 'NOT_THE_PRIMITIVE(snap$1,');
+        T.ok('CONTROL · ' + t.rel + ' stops reporting when its real calls are gutted', CR.classifyTool(gutted).cls !== 'reports', CR.classifyTool(gutted).cls);
+      });
+      /* THE SWEEP'S SECOND POPULATION, as source: the sweep hop reads its offer out of the CACHE,
+         under a second named lister, so the band sweep's denominator is the set it scored over. */
+      var sweepSrc = TT['tools/nsrr-criterion-sweep.mjs'];
+      T.ok(
+        'nsrr-criterion-sweep lists the records the cache holds, under a name',
+        /function listCachedRecords\(/.test(sweepSrc),
+        'absent — the sweep hop would publish the directory population a second time'
+      );
+      T.ok('…and the sweep hop snapshots through that lister', /list: listCachedRecords/.test(sweepSrc), 'absent — the cache offer is not published');
+      T.ok('…naming the tree the cache records, never a directory it never read', /cache\.dir \|\| '<unknown tree>'/.test(sweepSrc), 'absent — the root would be the cwd of whoever swept');
+      /* THE EXPLICIT-ROOT STOP, as source. A named root that holds no pair used to fall through to
+         the default cohort tree, which scores thousands of records nobody asked about. */
+      var odiSrc = TT['tools/nsrr-oxydex-odi.mjs'];
+      T.ok(
+        'nsrr-oxydex-odi stops at a named root instead of falling through to the cohort tree',
+        /if \(named && existsSync\(named\)\) return \{ recs: \[\], searched, offerDir: named \};/.test(odiSrc),
+        'absent — an explicit --dir with no pair scores the default tree'
+      );
+      T.ok('…and carries the root it was offered out of discovery', /offerDir/.test(odiSrc), 'absent — the population has no root to be taken over');
+      /* THE CACHE THAT IS NOT REWRITTEN, as source: the early return sits above the build. */
+      T.ok(
+        'nsrr-criterion-sweep refuses before buildCache when the root offers no record',
+        sweepSrc.indexOf('NO CACHE WRITTEN, any existing cache is untouched') >= 0,
+        'absent — an empty root replaces a good cache with an empty one'
+      );
+      T.ok('…and the refusal is published, not merely printed', /return exitCodeFor\(emptyPopulation, 0\)/.test(sweepSrc), 'absent — the absence leaves no object behind');
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* The corpus-free `emits.cmd` each manifest row names. A source scan cannot see the ORDERING:
+         a flag declared after the first read still greps as present. */
+      THREE.forEach(function (t) {
+        var r = probe(t.rel, ['--verdict-sample']);
+        T.eq(t.rel + ' --verdict-sample exits 0 with no corpus in reach', r.status, 0);
+        var obj = null;
+        try {
+          obj = JSON.parse(String(r.out));
+        } catch {
+          obj = null;
+        }
+        T.ok(t.rel + ' prints ONE parseable object and nothing else', obj != null, String(r.out).slice(0, 200));
+        if (obj == null) return;
+        T.eq(t.rel + ' publishes the contract schema', obj.schema, 'tepna.verdict/1');
+        T.eq(t.rel + ' wrote nothing beside itself', r.wrote, []);
+      });
+      /* KNOWN ANSWERS · the two population samples carry a planted record set; stage-validate's
+         sample is the POOL object its manifest row has always named, which is a different statement
+         and must not be read as a population. */
+      var odiS = JSON.parse(String(probe('tools/nsrr-oxydex-odi.mjs', ['--verdict-sample']).out));
+      T.eq('nsrr-oxydex-odi scored the four fabricated records', odiS.population.checked, 4);
+      T.eq('…under the records criterion', odiS.criterion.name, 'records_added_or_removed');
+      T.eq('…publishing the NAMED lister as its rule', odiS.result.rule, 'samplePairs');
+      T.eq('…naming itself as the producer', odiS.producedBy.tool, 'tools/nsrr-oxydex-odi.mjs');
+      T.eq('…as a PASS, so the sample exercises the published path', odiS.status, 'PASS');
+      var swS = JSON.parse(String(probe('tools/nsrr-criterion-sweep.mjs', ['--verdict-sample']).out));
+      T.eq('nsrr-criterion-sweep scored the three planted records', swS.population.checked, 3);
+      T.eq('…under the records criterion', swS.criterion.name, 'records_added_or_removed');
+      T.eq('…publishing the planted lister as its rule', swS.result.rule, 'samplePlanted');
+      T.eq('…naming itself as the producer', swS.producedBy.tool, 'tools/nsrr-criterion-sweep.mjs');
+      T.eq('…as a PASS', swS.status, 'PASS');
+      var stS = JSON.parse(String(probe('tools/nsrr-stage-validate.mjs', ['--verdict-sample']).out));
+      T.eq('nsrr-stage-validate keeps the pool sample its manifest row names', stS.gate, 'nsrr-score-pool:nsrr-stage-validate');
+      T.eq('…over the pre-stated kappa band, not a population criterion', stS.criterion.name, 'cohen_kappa_4class_pooled');
+      T.eq('…and the pool is the declared emitter of that object', stS.producedBy.tool, 'tools/nsrr-score-pool.mjs');
+      /* KNOWN ANSWER · a root that offers no record. Each publishes NOT_RUN over checked 0 and exits
+         2 where all three exited 0 — stage-validate printed a sentence, the sweep wrote an empty
+         cache, and the ODI reader walked away to the default tree. */
+      [
+        { rel: 'tools/nsrr-stage-validate.mjs', args: ['--dir', '.'] },
+        { rel: 'tools/nsrr-oxydex-odi.mjs', args: ['--dir', '.'] },
+        { rel: 'tools/nsrr-criterion-sweep.mjs', args: ['--cache', '--dir', '.'] }
+      ].forEach(function (c) {
+        var r = probe(c.rel, c.args);
+        T.eq(c.rel + ' over a root that offers no record exits 2, not 0', r.status, 2);
+        var line = String(r.out)
+          .split('\n')
+          .filter(function (l) {
+            return l.indexOf('POPULATION ') === 0;
+          })[0];
+        T.ok('…and still published a POPULATION line', line != null, String(r.out).slice(0, 200));
+        if (line == null) return;
+        var ev = JSON.parse(line.slice('POPULATION '.length));
+        T.eq('…whose status is NOT_RUN, never a PASS over nothing', ev.status, 'NOT_RUN');
+        T.eq('…over checked 0', ev.population.checked, 0);
+        T.eq('…carrying the records criterion', ev.criterion.name, 'records_added_or_removed');
+        T.ok('…and the reason names the root itself', String(ev.reason).indexOf('the root ') === 0, String(ev.reason).slice(0, 80));
+        T.eq('…and wrote nothing beside itself', r.wrote, []);
+      });
+      /* The sweep's refusal says the cache is untouched, which is the half a source scan cannot
+         prove: the line comes off the run that refused. */
+      var swEmpty = probe('tools/nsrr-criterion-sweep.mjs', ['--cache', '--dir', '.']);
+      T.ok('nsrr-criterion-sweep says it wrote no cache over an empty root', String(swEmpty.out).indexOf('NO CACHE WRITTEN') >= 0, String(swEmpty.out).slice(0, 200));
+      /* `--json` stays ONE parseable object on the refusal path too, so a consumer parsing stdout
+         reads the absence rather than a syntax error. */
+      var stJson = probe('tools/nsrr-stage-validate.mjs', ['--dir', '.', '--json']);
+      T.eq('nsrr-stage-validate --json over an empty root exits 2', stJson.status, 2);
+      var stObj = null;
+      try {
+        stObj = JSON.parse(String(stJson.out));
+      } catch {
+        stObj = null;
+      }
+      T.ok('…printing ONE parseable object and no POPULATION line beside it', stObj != null && String(stJson.out).indexOf('POPULATION ') < 0, String(stJson.out).slice(0, 200));
+      if (stObj != null) {
+        T.eq('…whose status is NOT_RUN', stObj.status, 'NOT_RUN');
+        T.eq('…over checked 0', stObj.population.checked, 0);
+      }
+      /* CONTROL · the three still pass their own selftests, so the exit arms are asserted from
+         inside as well as from here. */
+      ['tools/nsrr-oxydex-odi.mjs', 'tools/nsrr-criterion-sweep.mjs', 'tools/nsrr-stage-validate.mjs'].forEach(function (rel) {
+        var self = probe(rel, ['--selftest']);
+        T.eq('CONTROL · ' + rel + ' passes its own selftest', self.status, 0);
+        T.ok('…and counts the assertions it ran', /(\d+)\s+(passed|assertion)/.test(String(self.out)), String(self.out).slice(-200));
+      });
+    });
     /* ════ A PUBLISHED CONTROL CARRIES THE POPULATION IT WAS COMPUTED OVER ══════════════════════
        Row 2026-10-22-the-apnea-controls-are-compared-across-two-populations: the apnea harness read
        §9's four published figures as a bare delta of 0.02 and printed `drifted` past it. §9 computed

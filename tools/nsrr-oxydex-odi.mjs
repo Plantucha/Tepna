@@ -78,6 +78,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, basename } from 'node:path';
 import vm from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const require_ = createRequire(import.meta.url);
 const DexBuild = require_('./build-core.js');
@@ -299,21 +300,33 @@ function discover(argv) {
     return i >= 0 ? argv[i + 1] : null;
   };
   const searched = [];
+  /* THE FIRST CANDIDATE THAT EXISTS IS THE POPULATION'S ROOT even when it yields no pair, because a
+     directory of EDFs whose annotations never arrived is a REAL offer of zero scored records — and
+     reporting that as "nothing found anywhere" loses the only number a reader can act on. */
+  let offerDir = null;
   const tryPair = (e, a, why) => {
     searched.push(why + ': ' + e + (a === e ? '' : '  +  ' + a));
+    if (!offerDir && existsSync(e)) offerDir = e;
     return pairsFrom(e, a);
   };
   const dir = arg('--dir');
   if (dir) {
     const r = tryPair(dir, dir, '--dir');
-    if (r.length) return { recs: r, searched };
+    if (r.length) return { recs: r, searched, offerDir: dir };
   }
   const ed = arg('--edfs'),
     an = arg('--anns');
   if (ed && an) {
     const r = tryPair(ed, an, '--edfs/--anns');
-    if (r.length) return { recs: r, searched };
+    if (r.length) return { recs: r, searched, offerDir: ed };
   }
+  /* 🔴 AN EXPLICIT ROOT IS NOT A HINT. Measured 2026-10-28: `--dir <a dir with no pair>` fell
+     through to `/srv/data/shhs/polysomnography` and began scoring the whole 5136-record cohort — the
+     operator named one tree and the tool reported another, with nothing in the output to say so.
+     A named root that exists ENDS the search: its offer is published and the run refuses (§∅).
+     Row 2026-10-28-an-explicit-nsrr-root-falls-through-to-the-default-tree. */
+  const named = dir || (ed && an ? ed : null);
+  if (named && existsSync(named)) return { recs: [], searched, offerDir: named };
   const env = process.env.DEX_NSRR;
   const roots = [];
   if (env) roots.push(env);
@@ -323,9 +336,44 @@ function discover(argv) {
       const e = join(base, 'edfs', cohort),
         a = join(base, 'annotations-events-nsrr', cohort);
       const r = tryPair(e, a, 'tree');
-      if (r.length) return { recs: r, searched };
+      if (r.length) return { recs: r, searched, offerDir: e };
     }
-  return { recs: [], searched };
+  return { recs: [], searched, offerDir };
+}
+
+/* ── the population this tool was OFFERED, 2026-10-28 ─────────────────────────────────────────
+   Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `pairsFrom` drops every EDF
+   whose annotation never arrived, SILENTLY, and the summary then counted the pairs as the whole
+   corpus — so a tree half annotated read exactly like a complete one. The offer is published beside
+   the score and the unpaired records are NAMED. */
+const POP_TOOL = 'tools/nsrr-oxydex-odi.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+/* A NAMED lister: `snapshotEntries` publishes `rule: list.name`, and an inline arrow publishes
+   `rule: null`. This function IS the EDF side of the pairing above — one record per EDF, keyed by
+   the stem every row downstream carries as `id`. */
+function listEdfRecords(root) {
+  return readdirSync(root)
+    .filter((f) => /\.edf$/i.test(f))
+    .map((f) => basename(f).replace(/\.edf$/i, ''))
+    .sort();
+}
+function samplePairs() {
+  return ['rec-0001', 'rec-0002', 'rec-0003', 'rec-0004'];
+}
+/* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
+   before it decides whether this tool reports a population: a fabricated call left at top level
+   would clear the tool over a walk no run makes. It reads no corpus and prints the object ALONE,
+   because `verify:verdict-adoption` parses stdout as JSON. */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const snap = snapshotEntries('<nsrr>/edfs/shhs1', { list: samplePairs, unit: 'records', at });
+  return populationVerdict(snap, snap, { tool: POP_TOOL, at, evidence: POP_EV });
+}
+/* The shared exit rule of this slice, pure so a caller and a test can both read it: a tree nobody
+   can enumerate and a run that scored no record both exit 2; reduced coverage annotates and
+   exits 0 (owner ruling 2026-09-17, §∅). */
+function exitCodeFor(population, scored) {
+  return population.status === 'NOT_RUN' || scored === 0 ? 2 : 0;
 }
 
 /* ── one record ──────────────────────────────────────────────────────────────────────────────
@@ -671,9 +719,19 @@ function _entries(recs, rows, byId) {
 }
 
 function main(argv) {
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    return 0;
+  }
   if (argv.includes('--selftest')) return selftest();
   const json = argv.includes('--json');
-  const { recs, searched } = discover(argv);
+  const { recs, searched, offerDir } = discover(argv);
+  const commitOf = gitCommitOf();
+  const snapOf = (dir) => snapshotEntries(dir, { list: listEdfRecords, unit: 'records' });
+  /* The OFFER is taken ONCE and kept: `notCovered` reads a snapshot's members, and a verdict object
+     carries only counts. */
+  const snapBefore = offerDir ? snapOf(offerDir) : null;
+  const popOver = (dir) => populationVerdict(snapBefore, snapOf(dir), { commit: commitOf.commit, commitReason: commitOf.reason, tool: POP_TOOL, evidence: POP_EV });
 
   if (!recs.length) {
     if (json) console.log(JSON.stringify({ status: 'skipped', reason: 'no EDF+XML pairs found', searched }, null, 2));
@@ -683,7 +741,19 @@ function main(argv) {
       console.log('\n  This tool never downloads anything. Point it with --dir, --edfs/--anns, or DEX_NSRR.');
       console.log('  ⚠️ A skip is not a pass: nothing here says the detector agrees with anything.');
     }
-    return 0;
+    /* 🔴 THIS RETURNED 0 — the way a complete run returns. A root that offered records and paired
+       none of them is no result, and a search that found no root at all is less than that (§∅). */
+    if (offerDir) {
+      const population = popOver(offerDir);
+      if (!json) {
+        console.log(`\npopulation: ${snapBefore.n} record(s) offered under ${offerDir} · 0 paired · movement ${population.status}`);
+        const rule = ruleLine(population);
+        if (rule) console.log(rule);
+        console.log('POPULATION ' + JSON.stringify(population));
+      }
+      return exitCodeFor(population, 0);
+    }
+    return 2;
   }
 
   const ctx = makeRealm();
@@ -729,10 +799,19 @@ function main(argv) {
   if (useCache) saveScoreCache(code, _entries(recs, rows, byId), undefined);
   if (!json && process.stderr.isTTY) process.stderr.write('\r');
   const sum = summarise(rows);
+  /* The offer against the score. `notCovered` reads `row[key]`, and a scored row carries its record
+     stem as `id`. The arithmetic control throws rather than printing a coverage line that
+     contradicts its own headline. */
+  const population = popOver(offerDir);
+  const scoredRows = rows.filter((r) => !r.err);
+  const unpaired = notCovered(snapBefore, scoredRows, { key: 'id' });
+  if (unpaired.length !== snapBefore.n - scoredRows.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${scoredRows.length} scored ≠ ${unpaired.length} unscored`);
 
   if (json) {
-    console.log(JSON.stringify({ summary: sum, records: rows }, null, 2));
-    return 0;
+    /* A `--json` run stays ONE parseable object, so the population rides inside it rather than on a
+       line beside it. */
+    console.log(JSON.stringify({ summary: sum, population, unscored: unpaired, records: rows }, null, 2));
+    return exitCodeFor(population, scoredRows.length);
   }
 
   console.log('\n' + paint('OxyDex ODI-4 → AHI  vs  EXPERT-SCORED PSG AHI', C.B) + '\n');
@@ -775,7 +854,13 @@ function main(argv) {
   console.log(paint('\n  ⚠️ CARRY THE DOMAIN SHIFT: clinical PSG on a clinical cohort is not a consumer ring on a', C.d));
   console.log(paint('     healthy sleeper, and the reference AHI is scorer-derived, not truth.', C.d));
   console.log(paint('     §P5 gates PUBLICATION of these numbers, not their measurement.', C.d));
-  return 0;
+  console.log(`\npopulation: ${snapBefore.n} record(s) offered under ${offerDir} · ${scoredRows.length} scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+  const popRule = ruleLine(population);
+  if (popRule) console.log(popRule);
+  if (unpaired.length)
+    console.log(`  ${unpaired.length} offered record(s) produced no score, by name: ${unpaired.slice(0, 8).join(' · ')}${unpaired.length > 8 ? ` · … (+${unpaired.length - 8})` : ''}`);
+  console.log('POPULATION ' + JSON.stringify(population));
+  return exitCodeFor(population, scoredRows.length);
 }
 
 if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

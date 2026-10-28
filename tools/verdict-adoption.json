@@ -1588,6 +1588,18 @@
    },
    "note": "the AHI surrogate refit (briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md \u00a74.4, band ratified by the owner 2026-10-13): one verdict per harmonized AHI definition, each naming its column in criterion. The band is pre-stated on the LOWER end of a 95 % CI over the Spearman rho gain against the shipped estimator, bootstrapped clustered on subject because the harmonized table repeats 2293 subjects \u2014 PASS only when the whole interval sits above 0, SHORTFALL when it contains 0, UNDERPOWERED under the pre-stated hold-out floor of 300 subjects (named with the count as numbers), NOT_RUN with a null result when no held-out record carries that column with every predictor. The refit judged is the multi-predictor form, pre-stated as the only shipped form whose rank a refit can move: a single-multiplier refit of ODI4 is a monotone transform of ODI4, and its invariance travels in result.odi4Form as a measured companion."
   },
+  "tools/nsrr-criterion-sweep.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/nsrr-criterion-sweep.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the SpO2 criterion sweep, which reads one cache and sweeps bands over it. It publishes TWO populations, because the two hops offer different sets: `--cache` is offered the EDF RECORD basenames under the named PSG dir, through `snapshotEntries` with a named lister before the read and once after, and the sweep hop is offered the RECORDS THE CACHE HOLDS, listed out of the cache file itself so the denominator the bands are taken over is the one the sweep actually read. Measured on the real NSRR mount 2026-10-28: 8 records offered, 6 reached a usable cache entry, the 2 with no annotation pair named beside the figure, then 6 cached records offered and 6 scorable. An arithmetic control (offered minus scored === named) throws rather than let a coverage line contradict its own headline. A root nobody can enumerate, a `--cache` with no `--dir`, an absent cache file and a sweep over no record now exit 2 where this tool exited 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
   "tools/nsrr-effort-typing.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1599,6 +1611,18 @@
     ]
    },
    "note": "wave-2 adopter (Magpie): the three bands over the fraction of central apneas whose effort falls below half baseline \u2014 PASS TRANSFERS (>= 0.7) \u00b7 FAIL PARTIAL / ARTIFACT (named in reason; a graded miss is still a miss under the closed enum) \u00b7 NOT_RUN no central apnea scored. Population = central apneas; the obstructive control rides in result."
+  },
+  "tools/nsrr-oxydex-odi.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/nsrr-oxydex-odi.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "OxyDex's ODI against the SHHS scorers, one record per EDF + annotation pair. The population is the EDF RECORD basenames the resolved PSG dir offers, through `snapshotEntries` with a named lister before the read and once after, because the agreement table counted the pairs it scored and said nothing about the records it was offered: a record whose annotation file is absent, whose header will not parse or whose SpO2 channel is missing left no trace. Measured on the real NSRR mount 2026-10-28: 8 records offered, 6 scored, and the 2 that scored nothing named beside the figure under an arithmetic control (offered minus scored === named). The same unit found and fixed a defect this population exposes: `discover()` fell through a NAMED `--dir` / `--edf`+`--annot` root that held no pair to the default cohort tree and silently scored the whole 5136-record cohort under a figure the caller never asked for, so an explicit root now ends the search and reports its own emptiness. A root nobody can enumerate, a root that offered no record, and a run that scored no pair now exit 2 where this tool exited 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   },
   "tools/nsrr-score-pool.mjs": {
    "bin": "decides",
@@ -1622,7 +1646,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "a DECLARED pool scorer: exports CRITERION (cohen_kappa_4class_pooled \u2265 0.60, the E1 band pre-stated in SHHS-EXTERNAL-VALIDATION-2026-09-04 before #2423 ran) + verdict() \u2014 PASS \u2265 0.60 \u00b7 FAIL naming the partial / does-not-transfer band and per-stage recall \u00b7 UNKNOWN when populationMisalignment says suspect-shift (pipeline, not detector) \u00b7 UNDERPOWERED < 10 records \u00b7 NOT_RUN; --dir emits the same object via poolVerdict, --json puts it at the top level"
+   "note": "a DECLARED pool scorer: exports CRITERION (cohen_kappa_4class_pooled \u2265 0.60, the E1 band pre-stated in SHHS-EXTERNAL-VALIDATION-2026-09-04 before #2423 ran) + verdict() \u2014 PASS \u2265 0.60 \u00b7 FAIL naming the partial / does-not-transfer band and per-stage recall \u00b7 UNKNOWN when populationMisalignment says suspect-shift (pipeline, not detector) \u00b7 UNDERPOWERED < 10 records \u00b7 NOT_RUN; --dir emits the same object via poolVerdict, --json puts it at the top level It also publishes the RECORD POPULATION it was offered under `--dir`, through `snapshotEntries` with a named lister before the pairing and once after, since a pooled kappa says nothing about the records that never reached the pool: measured on the real NSRR mount 2026-10-28, 8 records offered, 6 scored, and the 2 without an annotation pair named beside the figure under an arithmetic control. The population rides inside the one `--json` object rather than beside it. A root nobody can enumerate, a root that offered no record, and a run that scored no record now exit 2 where this tool exited 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   },
   "tools/null-fuzz.mjs": {
    "bin": "decides",
