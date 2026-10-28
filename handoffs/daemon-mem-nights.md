@@ -7,9 +7,9 @@
 **branch:** claude/memnights-wrn
 **worktree:** ../wt-memnights-wrn
 **doc-search:** `daemon mem block rss climb plateau band glibc arena outside`
-**stopping-point:** The glibc row reads `answered #PRNUM`. The plateau row stays OPEN, for the reason in part 2.
+**stopping-point:** The glibc row reads `answered #4030`. The plateau row stays OPEN, for the reason in part 2.
 **next-step:** The plateau row needs one more night with no daemon restart between 22:00 and 10:00. Only the owner can hold the morning restart.
-**done-when:** `git show origin/main:briefs/RESIDUE.md` shows the glibc row as `answered #PRNUM`.
+**done-when:** `git show origin/main:briefs/RESIDUE.md` shows the glibc row as `answered #4030`.
 
 ## 1 · Population
 
