@@ -7,9 +7,9 @@
 **branch:** claude/rssclimb-wrn
 **worktree:** ../wt-rssclimb-wrn
 **doc-search:** `daemon rss climbs across a night released only by restart qc child`
-**stopping-point:** The row reads `answered #PRNUM`.
+**stopping-point:** The row reads `answered #4042`.
 **next-step:** None for this row. The plateau question stays with row `2026-10-18-the-post-child-climb-plateaus-inside-the-documented-band`.
-**done-when:** `git show origin/main:briefs/RESIDUE.md` shows the row as `answered #PRNUM`.
+**done-when:** `git show origin/main:briefs/RESIDUE.md` shows the row as `answered #4042`.
 
 ## 1 · What the row asked
 
