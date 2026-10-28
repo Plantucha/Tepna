@@ -215,6 +215,88 @@ expectcmd ALLOW "…and a perl with no -i flag is not a write"         "perl -ne
 expectcmd ALLOW "the hatch releases a new fail-closed denial"        "CLAUDE_ALLOW_STALE_BRIEF=1 python3 -c \"import mymod; mymod.roundtrip('briefs/SHARED-BRIEF.md')\""
 
 echo
+echo "### THE TARGET SCAN — a guarded path written as DATA is not a write of that path"
+# Residue 2026-10-26-a-guarded-path-written-as-data-reads-as-a-write-of-that-path. The interpreter
+# arm used to deny on a write verb standing ANYWHERE in the program, so a report written to a temp
+# file denied because its CONTENT quoted a brief. The scan now resolves the TARGET slot of each
+# write form, one level through a literal assignment, and reads the verdict off that path alone.
+# Each ALLOW below differs from the DENY above it in one property: WHERE the guarded path sits.
+expectcmd ALLOW "a report elsewhere may quote a brief in its content"  "python3 - <<'PY'
+open('$TMP/elsewhere.txt', 'w').write('the rows live in briefs/SHARED-BRIEF.md')
+PY"
+expectcmd DENY  "…and the same call with the brief as the target"      "python3 - <<'PY'
+open('briefs/SHARED-BRIEF.md', 'w').write('the rows live here')
+PY"
+expectcmd ALLOW "…target behind a variable, resolving outside the repo" "python3 - <<'PY'
+p = '$TMP/elsewhere.txt'
+open(p, 'w').write('the rows live in briefs/SHARED-BRIEF.md')
+PY"
+expectcmd DENY  "…and the same variable resolving TO the brief"        "python3 - <<'PY'
+p = 'briefs/SHARED-BRIEF.md'
+open(p, 'w').write('v3')
+PY"
+expectcmd ALLOW "a node report elsewhere, the brief named in the JSON" "node -e \"require('fs').writeFileSync('$TMP/r.json', JSON.stringify({doc:'briefs/SHARED-BRIEF.md'}))\""
+expectcmd DENY  "…and the same writeFileSync behind a const"           "node -e \"const p='briefs/SHARED-BRIEF.md'; require('fs').writeFileSync(p,'v3')\""
+expectcmd ALLOW "reading the brief and writing a summary elsewhere"    "python3 - <<'PY'
+s = open('briefs/SHARED-BRIEF.md').read()
+open('$TMP/elsewhere.txt', 'w').write(s[:10])
+PY"
+expectcmd ALLOW "a with-open handle pointing outside the repo"         "python3 - <<'PY'
+with open('$TMP/elsewhere.txt', 'w') as fh:
+    fh.write('briefs/SHARED-BRIEF.md')
+PY"
+expectcmd DENY  "…and the same handle opened on the brief"             "python3 - <<'PY'
+with open('briefs/SHARED-BRIEF.md', 'w') as fh:
+    fh.write('v3')
+PY"
+# A copy READS its first argument and WRITES its last, so the direction decides the verdict. The
+# move family is the pair that bites: `Path(x).replace(y)` moves the RECEIVER onto its argument,
+# the opposite slot from `.write_text(` — and `.replace(` is also the string method, so an
+# unresolvable receiver there is a SKIP rather than a denial.
+expectcmd ALLOW "a copy FROM the brief is a read of it"                "python3 -c \"import shutil; shutil.copy('briefs/SHARED-BRIEF.md','$TMP/copy.md')\""
+expectcmd DENY  "…and a copy ONTO the brief is a write of it"          "python3 -c \"import shutil; shutil.copy('$TMP/copy.md','briefs/SHARED-BRIEF.md')\""
+expectcmd DENY  "a move onto the brief names arg 1, not the receiver"  "python3 -c \"import pathlib; pathlib.Path('$TMP/copy.md').replace('briefs/SHARED-BRIEF.md')\""
+expectcmd ALLOW "…and a string .replace() is no file move at all"      "python3 - <<'PY'
+s = open('briefs/SHARED-BRIEF.md').read().replace('v1', 'v2')
+open('$TMP/elsewhere.txt', 'w').write(s)
+PY"
+# THE SCAN SUBTRACTS DENIALS, so every arm it cannot read must fail closed. These three are the
+# whole of that: a target it cannot resolve, a program that writes through a shell, and text it
+# cannot tokenize. An `awk` that will not run leaves the scan empty, which is the fourth — the old
+# verb rule then answers, unchanged.
+expectcmd DENY  "an unresolvable target fails closed"                  "python3 - <<'PY'
+import sys
+# the rows live in briefs/SHARED-BRIEF.md
+open(sys.argv[1], 'w').write('v3')
+PY"
+# ⚠ THE SHELL-OUT LEG CARRIES NO `cp` AND NO `mv`. Written with `os.system('cp x briefs/…')` it
+# denies on the clause-adjacency arm instead, two arms earlier, and scores green while the arm it
+# claims to cover never runs. A leg must be unreachable by every rule but the one it names.
+expectcmd DENY  "a program that shells out fails closed"               "python3 - <<'PY'
+import subprocess
+# the rows live in briefs/SHARED-BRIEF.md
+subprocess.run(['/bin/true'])
+PY"
+expectcmd DENY  "an unterminated literal fails closed"                 "python3 - <<'PY'
+# briefs/SHARED-BRIEF.md is the doc, and this apostrophe (don't) closes no literal
+open('$TMP/elsewhere.txt', 'w').write('v3')
+PY"
+# ⚠ TWO SHAPES THE GUARD DOES NOT SEE, PINNED AS BEHAVIOUR IT HAS AND NOT AS BEHAVIOUR ANYONE WANTS.
+# Both predate the scan and neither is narrowed by it: the full path never appears in the program
+# text, so the arm does not fire at all. Rows
+# 2026-10-28-a-write-target-built-by-concatenation-is-invisible-to-the-guard and
+# 2026-10-28-a-guarded-path-reaching-a-program-through-argv-is-invisible-to-the-guard carry them. A
+# leg that reads ALLOW here is the tripwire: when either row is fixed, this leg reds and says so.
+expectcmd ALLOW "KNOWN GAP: a target built by concatenation"           "python3 - <<'PY'
+d = 'briefs/'
+open(d + 'SHARED-BRIEF.md', 'w').write('v3')
+PY"
+expectcmd ALLOW "KNOWN GAP: a target handed in through argv"           "python3 - briefs/SHARED-BRIEF.md <<'PY'
+import sys
+open(sys.argv[1], 'w').write('v3')
+PY"
+
+echo
 echo "### WHAT THE DENIAL SAYS — the verdict is not the only thing a reader has to act on"
 # Residue 2026-10-26-a-guarded-path-written-as-data-reads-as-a-write-of-that-path. The interpreter
 # arm cannot see its target, so a program that writes elsewhere and merely NAMES a guarded doc is
@@ -235,16 +317,36 @@ expectsays() { # expectsays <PRESENT|ABSENT> <label> <needle> <text>
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
 
-# The case this session paid twice: the target is a variable pointing OUTSIDE the repo, and the
-# guarded path stands in the program text as prose. The verdict is DENY and stays DENY.
+# These needles used to hang on the data case, which now ALLOWs and therefore says nothing. The
+# denial that still carries the program-text vocabulary is the one the scan CANNOT resolve: the
+# target is an argv element and a guarded path stands in the program as prose. That is the arm
+# where an operator most needs to be told which of the two cases they are in, because the hook is
+# refusing on what it could not read rather than on what it saw.
+_unres_msg="$(saysof "python3 - <<'PY'
+import sys
+# the rows live in briefs/SHARED-BRIEF.md
+open(sys.argv[1],'w').write('v3')
+PY")"
+expectsays PRESENT "an unresolved target names the scan that refused"     "a write whose target this scan cannot resolve" "$_unres_msg"
+expectsays PRESENT "…and quotes the expression it could not resolve"      "sys.argv[1]" "$_unres_msg"
+expectsays PRESENT "…and says the path was read in program text alone"    "read ONLY inside a heredoc the shell hands to an interpreter" "$_unres_msg"
+expectsays PRESENT "…and warns that every path sat inside the program"    "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_unres_msg"
+expectsays PRESENT "…and names the candidate set as a candidate set"      "which is a candidate set and not a target" "$_unres_msg"
+# The arm's OTHER two fail-closed reasons say what they could not read, and never borrow the
+# resolved wording. A denial that names the wrong reason sends the reader to the wrong remedy.
+_shell_msg="$(saysof "python3 - <<'PY'
+import subprocess
+# the rows live in briefs/SHARED-BRIEF.md
+subprocess.run(['/bin/true'])
+PY")"
+expectsays PRESENT "a shell-out says the channel is unreadable"           "shells out" "$_shell_msg"
+expectsays ABSENT  "…and claims no resolved target"                       "target IS a guarded path" "$_shell_msg"
+# And the data case, which the scan cleared, prints nothing at all: no verdict, so no text.
 _data_msg="$(saysof "python3 - <<'PY'
 p='$TMP/elsewhere.txt'
 open(p,'w').write('briefs/SHARED-BRIEF.md holds the rows')
 PY")"
-expectsays PRESENT "a data mention names the interpreter verb that fired"  "an interpreter write verb, matched as" "$_data_msg"
-expectsays PRESENT "…and says the path was read in program text alone"     "read ONLY inside a heredoc the shell hands to an interpreter" "$_data_msg"
-expectsays PRESENT "…and warns that every path sat inside the program"     "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_data_msg"
-expectsays PRESENT "…and names the candidate set as a candidate set"       "which is a candidate set and not a target" "$_data_msg"
+expectsays ABSENT  "a cleared data mention prints no denial at all"       "STALE BRIEF" "$_data_msg"
 
 # The control, differing in ONE property: the write verb stands in the command beside the path.
 _sed_msg="$(saysof "sed -i 's/a/b/' briefs/SHARED-BRIEF.md")"
