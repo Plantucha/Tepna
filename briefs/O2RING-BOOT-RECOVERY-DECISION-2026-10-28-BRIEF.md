@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (DECIDED 2026-10-28 — the owner chose option B, the full recovery with the numeric column; the build is unit 121) · **Residue:** 2026-10-28-end-confirmed-has-no-producer-outside-its-tests · **Created:** 2026-10-28
+**Status:** PROPOSED (DECIDED 2026-10-28 — the owner chose option B, the full recovery with the numeric column; the build is unit 121) · **Created:** 2026-10-28
 
 # The ring's recording axis has no boot recovery — what that costs, and the three ways out
 
