@@ -68752,6 +68752,65 @@
         );
         T.eq('CONTROL · a seamless night omits the key entirely, so no clean committed export moves a byte', 'clockResyncs' in ctl.recording, false);
 
+        /* ── AN OFFSET STEP IS NOT A COUNTER STEP, AND ONLY THE FIRST SEGMENTS THE AXIS ─────────────
+           The plant above jumps the sensor column by 2792 days, which is a step of the DEVICE COUNTER.
+           This one advances that column by 20 s and leaves the phone stamps alone — the ring's
+           replay-on-reconnect shape — so it sits UNDER the 60 s resync bound and OVER the 10 s offset
+           bound. It therefore raises no resync and does raise a second offset segment, which is the
+           pair of events `recording.hostAxis.maxStepMs` cannot tell apart.
+           Until these legs landed the whole source tree held ONE occurrence of `offsetSegments`: its
+           write. `analyze` dropped it and the builder never forwarded it, so the field appeared in 0 of
+           173 committed PPG exports and no reader could tell a night corrected PER SEGMENT from one
+           corrected by a single rate. Row `2026-10-03-verity-ppg-moves-in-a-ring-seam-refold` had to
+           reason about exactly that difference from the counter step instead.
+           The control pins the no-null-key discipline that keeps every clean committed export
+           byte-identical. */
+        var replayText = function (sec, atRow, jumpMs) {
+          var rows = seamText(sec, 0).split('\n');
+          for (var i = atRow; i < rows.length; i++) {
+            var c = rows[i].split(';');
+            c[1] = String(Math.round(Number(c[1]) + jumpMs * 1e6));
+            rows[i] = c.join(';');
+          }
+          return rows.join('\n');
+        };
+        var repTxt = replayText(300, 20000, 20000);
+        var rep = PD.compute({ text: repTxt }, { code: CODE });
+        var repSegs = rep.recording.offsetSegments;
+        T.ok(
+          'REPLAY · a 20 s device-column jump with the host stamps untouched publishes recording.offsetSegments',
+          Array.isArray(repSegs) && repSegs.length > 1,
+          JSON.stringify(repSegs && repSegs.length)
+        );
+        T.eq('REPLAY · …and raises NO clockResyncs — a counter step and an offset step are different events', 'clockResyncs' in rep.recording, false);
+        T.ok(
+          'REPLAY · every segment carries its own anchor count and span beside its ppm (§7: a rate never travels alone)',
+          !!repSegs &&
+            repSegs.every(function (sg) {
+              return isFinite(sg.anchors) && sg.anchors > 0 && isFinite(sg.spanS) && isFinite(sg.flatOffsetMs) && 'ppm' in sg && typeof sg.rate === 'string';
+            }),
+          JSON.stringify(repSegs && repSegs[0])
+        );
+        T.ok(
+          'REPLAY · a segment too short to support a rate says so by NAME, never a value with a caveat elsewhere',
+          !!repSegs &&
+            repSegs.every(function (sg) {
+              return sg.ppm != null || (sg.rate === 'unknown' && typeof sg.rateReason === 'string' && sg.rateReason.length > 0);
+            }),
+          JSON.stringify(
+            repSegs &&
+              repSegs.map(function (sg) {
+                return sg.rate + '/' + sg.rateReason;
+              })
+          )
+        );
+        T.eq(
+          'REPLAY · the segmentation is on the analysis result too, so no consumer re-derives it from the export',
+          Array.isArray(P.analyze(P.parsePPG(repTxt, undefined), null).offsetSegments),
+          true
+        );
+        T.eq('CONTROL · a stream with no offset step omits offsetSegments entirely, so no clean committed export moves a byte', 'offsetSegments' in ctl.recording, false);
+
         if (typeof PD.buildMeasurementBlocks !== 'function' || typeof PD.analyze !== 'function' || typeof PD.parsePPG !== 'function') {
           T.skip('plants via PpgDex.buildMeasurementBlocks', 'builder seam not exposed');
           return;
