@@ -173,10 +173,28 @@ export function qualifyPlan(entries, generated) {
     const k = idKey(m);
     cnt.set(k, (cnt.get(k) || 0) + 1);
   }
-  const out = { write: [], collides: [], topLevel: [], legacy: [], drifted: [], already: [] };
+  const out = { write: [], collides: [], topLevel: [], legacy: [], drifted: [], already: [], alreadyWide: [], alreadyGone: [] };
   for (const e of entries) {
     if (e.fn != null && e.fn !== '') {
-      out.already.push(e);
+      /* 🔴 AN ALREADY-WRITTEN QUALIFIER IS RE-DECIDED, NEVER TRUSTED. The write-time condition is
+         that exactly one generated mutant carries `(fn, op, before, after)`. It was applied once, to
+         the generator of that day, and this branch used to accept the field on sight. The only
+         standing guard afterwards was the Python invariant
+         `test_a_FUNCTION_QUALIFIER_is_unique_within_its_module`, which compares qualified entries to
+         EACH OTHER. It fires on a pair sharing one identity. It cannot see a lone entry sitting over
+         two sibling mutants, which is the shape a later edit above the site produces. Residue
+         `2026-10-28-the-qualifier-uniqueness-test-compares-entries-to-each-other-not-to-the-generator`.
+         The histogram above is the generator's own answer, so asking it again costs one lookup.
+
+         The two failures are NOT one quantity. `alreadyWide` (n > 1) is an excuse wider than the
+         mutant it was judged over — a false classification. `alreadyGone` (n === 0) names no mutant
+         at all, and `resolveEntryAddresses` fails closed on it: the entry keeps its recorded line
+         and orphans, which costs a blocked survivor and excuses nothing. §∅ — a dead qualifier is
+         reported as the absence it is, never folded into the count of wide ones. */
+      const n = cnt.get(idKey(e)) ?? 0;
+      if (n === 1) out.already.push(e);
+      else if (n === 0) out.alreadyGone.push({ entry: e, n });
+      else out.alreadyWide.push({ entry: e, n });
       continue;
     }
     if (e.after == null) {
@@ -404,15 +422,20 @@ const UNADDRESSED_REASON = {
 };
 
 /* 🔴 THE RESCUE THAT DOES NOT WORK, MEASURED RATHER THAN ASSUMED. An entry with no `fn` looks
-   addressable anyway, because its `why` opens `In <function>.` — 421 of the committed 434 do. If
+   addressable anyway, because its `why` opens `In <function>.` — 391 of the committed 401 do. If
    that name were the recorded function, every drifted entry would carry an address and this tool
-   would only have to read it.
-   It is not an address. The 320 entries that DO carry a machine-read `fn` are the control, and on
-   10 of them the prose names a different function: `dfaAlpha1` for `dfaAlpha1Segmented`,
-   `countPairs` for `countPairsIn`, `markO2Sentinels` for `markO2BeatMarkers`. The prose names an
-   enclosing, neighbouring or since-renamed function, so placing an entry by it would mis-anchor
-   about one in 32 — and this tool's standing rule is that a wrong re-anchor is worse than a lost
-   entry. So the prose is reported as a disagreement rate and never consumed.
+   would only have to read it. It is not an address, for two measured reasons.
+   (1) IT DRIFTS. The 315 entries carrying BOTH the prose and a machine-read `fn` are the control, and
+   the prose named a different function on 11 of them until it was repaired on 2026-10-28: `dfaAlpha1`
+   for `dfaAlpha1Segmented`, `countPairs` for `countPairsIn`, `markO2Sentinels` for
+   `markO2BeatMarkers`, and `detectClampSaturation` for the `spikeAt` nested inside it. The count is 0
+   today and the selftest leg holds it there, so the agreement is an invariant someone MAINTAINS, never
+   a property of the field: stale prose beside a freshly stamped `fn` re-opens it, and the leg names
+   the entry.
+   (2) THE REPAIR DOES NOT REACH THE SET A RESCUE WOULD SERVE. 79 entries carry no `fn` at all, 76 of
+   them with prose, and over exactly those entries nothing checks the prose. Placing one by it stakes a
+   re-anchor on an unchecked name, and this tool's standing rule is that a wrong re-anchor costs more
+   than a lost entry. So the prose is reported as a disagreement count and never consumed.
    `fnFromProse` is exported for the control, not for placement; nothing in the write path calls it. */
 export function fnFromProse(why) {
   const m = /^In ([A-Za-z_$][\w$]*)[.,:; ]/.exec(String(why == null ? '' : why).trim());
@@ -769,7 +792,16 @@ export function makePruneVerdict(tp) {
    `qualifyPlan` already computes. The old invariant is kept and strengthened rather than dropped —
    `ambiguousWritten` is still carried in `result`, and a non-zero one is FAIL, which outranks the
    SHORTFALL, because a widened excuse is a false classification and an orphan is only an unreachable
-   one. Residue 2026-10-27-thirty-eight-drifted-entries-have-no-address-a-mechanism-can-reach. */
+   one. Residue 2026-10-27-thirty-eight-drifted-entries-have-no-address-a-mechanism-can-reach.
+
+   ⚠️ AND IT WAS STILL A CONSTANT. The criterion moved, the old quantity stayed — nothing incremented
+   `ambiguousWritten`, so the FAIL arm could not be reached by any ledger. `qualifyPlan` now
+   re-decides every already-written qualifier against the generator's identity histogram, and this
+   object reads that count. Measured 2026-10-28 over the 322 qualified entries at `5527cfef4`: every
+   one names exactly one generated mutant, so the quantity is 0 because it was asked, not because it
+   was asserted. `alreadyNamingNoMutant` rides beside it and is deliberately NOT in the status: a
+   dead qualifier orphans its entry and excuses nothing, so it is a reported absence, not a FAIL.
+   Residue 2026-10-28-the-qualifier-uniqueness-test-compares-entries-to-each-other-not-to-the-generator. */
 export function makeQualifyVerdict(tq) {
   const commit = headCommit();
   const checked = tq.entries;
@@ -791,6 +823,7 @@ export function makeQualifyVerdict(tq) {
           drifted: tq.drifted,
           alreadyQualified: tq.already,
           ambiguousWritten: tq.ambiguousWritten || 0,
+          alreadyNamingNoMutant: tq.alreadyGone || 0,
           driftWithNoReachableAddress: noAddress,
           /* The retrospective: of the already-drifted entries, how many a qualifier would place. */
           driftPlacedForAnyFn: tq.wouldAnyFn,
@@ -1014,7 +1047,21 @@ if (IS_MAIN && has('--selftest')) {
   ok('a TOP-LEVEL mutant can carry no qualifier', qp.topLevel.length === 1);
   ok('an entry recording no `after` is refused — a qualifier would have to invent one', qp.legacy.length === 1);
   ok('a DRIFTED entry is refused — its function could only be read off a wrong line', qp.drifted.length === 1);
-  ok('an entry that already carries one is left alone', qp.already.length === 1);
+  ok('an entry that already carries one is RE-DECIDED and kept', qp.already.length === 1 && qp.alreadyWide.length === 0 && qp.alreadyGone.length === 0);
+  /* The already-written qualifier, re-decided. These two legs are the ones the Python invariant
+     cannot reach: one entry, no pair to compare it with, and the generator is the only witness. */
+  const qWide = qualifyPlan([{ line: 20, op: 'num → 0', before: 'x = 5;', after: 'x = 0;', fn: 'beta' }], [qgen[1], { ...qgen[2], after: 'x = 0;' }]);
+  ok(
+    'a LONE already-qualified entry over two sibling mutants is WIDE, with the count that decided it',
+    qWide.alreadyWide.length === 1 && qWide.alreadyWide[0].n === 2 && qWide.already.length === 0,
+    JSON.stringify(qWide.alreadyWide)
+  );
+  const qDead = qualifyPlan([{ line: 20, op: 'num → 0', before: 'x = 5;', after: 'x = 0;', fn: 'gamma' }], qgen);
+  ok(
+    '…and one naming NO generated mutant is DEAD, counted apart from the wide ones',
+    qDead.alreadyGone.length === 1 && qDead.alreadyGone[0].n === 0 && qDead.alreadyWide.length === 0,
+    JSON.stringify(qDead.alreadyGone)
+  );
   const coll = qualifyPlan([{ line: 20, op: 'num → 0', before: 'x = 5;', after: 'x = 0;' }], [qgen[1], { ...qgen[2], after: 'x = 0;' }]);
   ok('an identity that names two mutants in ONE function is refused, not written', coll.collides.length === 1 && coll.write.length === 0);
   /* the retrospective: what a qualifier would have bought an entry that never carried one */
@@ -1101,6 +1148,16 @@ if (IS_MAIN && has('--selftest')) {
     vqFail.status === 'FAIL' && /wider than the mutant/.test(vqFail.reason) && Verdict.validate(vqFail).ok,
     vqFail.status + ' · ' + String(vqFail.reason)
   );
+  /* The quantity above is now MEASURED by `qualifyPlan`, so these two legs pin what each failure
+     costs: a wide qualifier FAILS on its own, and a dead one is carried without touching the status. */
+  const vqWide = makeQualifyVerdict(TQ({ ambiguousWritten: 1 }));
+  ok('a wide qualifier FAILS on its own, with no unreachable entry beside it', vqWide.status === 'FAIL' && Verdict.validate(vqWide).ok, vqWide.status);
+  const vqDead = makeQualifyVerdict(TQ({ alreadyGone: 1 }));
+  ok(
+    '…while a DEAD qualifier is reported in `result` and leaves the status alone — it orphans its entry and excuses nothing',
+    vqDead.status === 'PASS' && vqDead.result.alreadyNamingNoMutant === 1 && Verdict.validate(vqDead).ok,
+    vqDead.status + ' · ' + JSON.stringify(vqDead.result.alreadyNamingNoMutant)
+  );
   ok(
     'the criterion is the one the ledger can fail, stated before the data',
     vqOk.criterion.name === 'drifted_entries_with_no_reachable_address' && vqOk.criterion.threshold === 0 && vqOk.criterion.direction === 'lte',
@@ -1125,12 +1182,15 @@ if (IS_MAIN && has('--selftest')) {
     agS.disagree.length === 1 && agS.disagree[0].fn === 'alphaInner' && agS.disagree[0].prose === 'alpha',
     JSON.stringify(agS.disagree)
   );
-  /* The committed ledger is the measurement the comment above quotes; pin it as a floor, not a literal. */
+  /* The committed ledger is the measurement the comment above quotes. The prose was repaired to agree
+     on 2026-10-28, so this leg pins the disagreement count at 0 rather than at "it drifts": stale
+     prose beside a freshly stamped `fn` reds it, the message names the entry, and the fix is the
+     prose. The `checkable` floor is there so the leg cannot pass over a ledger it failed to read. */
   const agLive = proseFnAgreement(_led);
   ok(
-    'the committed prose disagrees with a written qualifier at least once, so it is not an address',
-    agLive.disagree.length > 0 && agLive.checkable > 100,
-    agLive.disagree.length + ' of ' + agLive.checkable
+    'every committed entry carrying both a prose name and a written qualifier names ONE function',
+    agLive.disagree.length === 0 && agLive.checkable > 100,
+    agLive.disagree.length + ' disagreement(s) over ' + agLive.checkable + ' checkable · ' + JSON.stringify(agLive.disagree.slice(0, 3))
   );
   ok(
     'no write path consumes the prose',
@@ -1614,7 +1674,22 @@ if (IS_MAIN && !has('--selftest')) {
        (fn, op, before, after) identity is unique in the file, and it moves no address — so it needs
        no probe, where a re-anchor does. The control for that claim is in the code below, not in this
        comment: every line is snapshotted before the write and compared after. */
-    const tq = { write: 0, collides: 0, topLevel: 0, legacy: 0, drifted: 0, already: 0, entries: 0, files: 0, wouldAnyFn: 0, wouldSomeFn: 0, wouldNever: 0, wouldGone: 0, ambiguousWritten: 0 };
+    const tq = {
+      write: 0,
+      collides: 0,
+      topLevel: 0,
+      legacy: 0,
+      drifted: 0,
+      already: 0,
+      entries: 0,
+      files: 0,
+      wouldAnyFn: 0,
+      wouldSomeFn: 0,
+      wouldNever: 0,
+      wouldGone: 0,
+      ambiguousWritten: 0,
+      alreadyGone: 0
+    };
     const before = new Map();
     for (const file of files) {
       const generated = enumerate(file);
@@ -1629,6 +1704,12 @@ if (IS_MAIN && !has('--selftest')) {
       tq.legacy += q.legacy.length;
       tq.drifted += q.drifted.length;
       tq.already += q.already.length;
+      /* `ambiguousWritten` is the quantity `makeQualifyVerdict` FAILS on, and it used to be this
+         object's initialiser read back out — a constant, which is the §4b family the verdict's own
+         comment was written about. It is now MEASURED: the already-qualified entries whose identity
+         no longer names exactly one generated mutant. */
+      tq.ambiguousWritten += q.alreadyWide.length;
+      tq.alreadyGone += q.alreadyGone.length;
       for (const d of q.drifted) {
         if (d.would === 'anyFn') tq.wouldAnyFn++;
         else if (d.would === 'someFn') tq.wouldSomeFn++;
@@ -1636,9 +1717,15 @@ if (IS_MAIN && !has('--selftest')) {
         else tq.wouldGone++;
       }
       console.log(
-        `▸ ${file}  ${doc[file].length} entr(ies) · ${q.write.length} qualifiable · ${q.collides.length} identity-collides · ${q.topLevel.length} top-level · ${q.legacy.length} no-after · ${q.drifted.length} drifted · ${q.already.length} already`
+        `▸ ${file}  ${doc[file].length} entr(ies) · ${q.write.length} qualifiable · ${q.collides.length} identity-collides · ${q.topLevel.length} top-level · ${q.legacy.length} no-after · ${q.drifted.length} drifted · ${q.already.length} already (re-decided) · ${q.alreadyWide.length} wide · ${q.alreadyGone.length} dead`
       );
       for (const c of q.collides) console.log(`    ⚠ COLLIDES L${c.line} [${c.op}] — its (fn, op, before, after) names more than one mutant, so a qualifier would widen the excuse`);
+      /* An aggregate cannot be acted on here either: a wide qualifier is a live false excuse and a
+         dead one is a silently unreachable entry, so each is named with the count that decided it. */
+      for (const w of q.alreadyWide)
+        console.log(`    ✗ WIDE QUALIFIER L${w.entry.line} [${w.entry.op}] fn=${w.entry.fn} — its identity names ${w.n} generated mutants, so the excuse is wider than the mutant it was judged over`);
+      for (const g of q.alreadyGone)
+        console.log(`    ⊘ DEAD QUALIFIER L${g.entry.line} [${g.entry.op}] fn=${g.entry.fn} — its identity names no generated mutant, so the entry keeps its recorded line and orphans`);
       /* An aggregate cannot be acted on. Each entry with no reachable address is printed with what
          it stopped excusing, so a deletion list is read off the run rather than reconstructed. */
       const un = unaddressed(q.drifted);
@@ -1666,7 +1753,7 @@ if (IS_MAIN && !has('--selftest')) {
       );
       const ag = proseFnAgreement(doc);
       console.log(
-        `  control · the prose rescue: ${ag.named} of ${ag.entries} entr(ies) open "In <function>", and over the ${ag.checkable} with a machine-read qualifier to check against it disagrees ${ag.disagree.length} time(s) — so the prose is not an address.`
+        `  control · the prose rescue: ${ag.named} of ${ag.entries} entr(ies) open "In <function>", and over the ${ag.checkable} with a machine-read qualifier to check against it disagrees ${ag.disagree.length} time(s) — pinned at 0 since 2026-10-28, which is maintained agreement and not an address. The ${ag.entries - ag.checkable} entr(ies) this control cannot check are the ones a prose rescue would have to serve.`
       );
       for (const d of ag.disagree) console.log(`    ⚠ PROSE MISNAMES ${d.file} L${d.line} [${d.op}] — fn=${d.fn}, prose=${d.prose}`);
     }

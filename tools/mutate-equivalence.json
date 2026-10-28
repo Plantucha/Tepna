@@ -2,6 +2,12 @@
  "_README": [
   "THE EQUIVALENCE CLASSIFICATION — MUTATION-EQUIVALENCE-2026-08-04 §5/§6.1.",
   "",
+  "AN ENTRY'S `why` OPENS `In <function>.` AND MUST NAME THE FUNCTION THE MUTATED LINE SITS IN —",
+  "the innermost one, which is what the machine-read `fn` records. The prose is for a reader, so no",
+  "mechanism places an entry by it; `proseFnAgreement` in `tools/reanchor-equivalence.mjs` compares the",
+  "two over every entry carrying both and a selftest leg pins the disagreement count at 0. Stamping a",
+  "`fn` beside stale prose therefore reds that leg, and the leg names the entry — the fix is the prose.",
+  "",
   "A surviving mutant is not automatically a test gap. Some cannot be killed by ANY input: `if (lo < 0)",
   "lo = 0` mutated to `<=` still assigns 0 when lo IS 0. Reporting those against a `killed / tested`",
   "denominator makes the target unreachable by arithmetic and buries the real gaps among them.",
@@ -1191,7 +1197,7 @@
    "before": "if (nWin < 1) continue;",
    "after": "if (nWin <= 1) continue;",
    "class": "no-distinguishing-input",
-   "why": "In dfaAlpha1. Original and mutant produced byte-identical output on every input.",
+   "why": "In dfaAlpha1Segmented, the pooled estimator the whole-record dfaAlpha1 calls. Original and mutant produced byte-identical output on every input.",
    "probe": "dfaAlpha1 · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
    "reanchored": {
     "at": "2026-10-26",
@@ -1276,7 +1282,7 @@
    "before": "if (nA > 0) {",
    "after": "if (nA >= 0) {",
    "class": "no-distinguishing-input",
-   "why": "In countPairs. Original and mutant produced byte-identical output on every input.",
+   "why": "In countPairsIn, whose own header comment still heads it countPairs. Original and mutant produced byte-identical output on every input.",
    "probe": "countPairs · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
    "reanchored": {
     "at": "2026-10-26",
@@ -1293,7 +1299,7 @@
    "before": "for (let a = 0; a < nA; a++) {",
    "after": "for (let a = 0; a <= nA; a++) {",
    "class": "no-distinguishing-input",
-   "why": "In countPairs. Original and mutant produced byte-identical output on every input.",
+   "why": "In countPairsIn, whose own header comment still heads it countPairs. Original and mutant produced byte-identical output on every input.",
    "probe": "countPairs · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
    "reanchored": {
     "at": "2026-10-26",
@@ -1421,7 +1427,7 @@
    "before": "for (let i = 0; i < x.length; i++) {",
    "after": "for (let i = 0; i <= x.length; i++) {",
    "class": "no-distinguishing-input",
-   "why": "In markO2Sentinels. Original and mutant produced byte-identical output on every input.",
+   "why": "In markO2BeatMarkers, exported under its retired name markO2Sentinels. Original and mutant produced byte-identical output on every input.",
    "probe": "markO2Sentinels · the 156 invalid marker (direct): 15 inputs, 15 distinct baseline answers; 5/5 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
   },
   {
@@ -1430,7 +1436,7 @@
    "before": "if (k === i || k < 0 || k >= x.length) continue;",
    "after": "if (k === i || k <= 0 || k >= x.length) continue;",
    "class": "no-distinguishing-input",
-   "why": "In markO2Sentinels. Original and mutant produced byte-identical output on every input.",
+   "why": "In markO2BeatMarkers, exported under its retired name markO2Sentinels. Original and mutant produced byte-identical output on every input.",
    "probe": "markO2Sentinels · the 156 invalid marker (direct): 15 inputs, 15 distinct baseline answers; 5/5 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
    "reanchored": {
     "at": "2026-10-26",
@@ -5513,7 +5519,7 @@
    "before": "for (let i = 0; i < n; i++) {",
    "after": "for (let i = 0; i <= n; i++) {",
    "class": "no-distinguishing-input",
-   "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+   "why": "In spikeAt, the per-bound test nested inside detectClampSaturation. Original and mutant produced byte-identical output on every input.",
    "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
    "reanchored": {
     "at": "2026-10-28",
@@ -5531,7 +5537,7 @@
    "before": "if (Math.abs(d) < 0.5) {",
    "after": "if (Math.abs(d) <= 0.5) {",
    "class": "no-distinguishing-input",
-   "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+   "why": "In spikeAt, the per-bound test nested inside detectClampSaturation. Original and mutant produced byte-identical output on every input.",
    "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
    "reanchored": {
     "at": "2026-10-26",
@@ -5548,7 +5554,7 @@
    "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "after": "const pileUp = at > 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "class": "no-distinguishing-input",
-   "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+   "why": "In spikeAt, the per-bound test nested inside detectClampSaturation. Original and mutant produced byte-identical output on every input.",
    "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
    "reanchored": {
     "at": "2026-10-27",
@@ -5565,7 +5571,7 @@
    "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "after": "const pileUp = at >= 3 && pct > 0.3 && ratio >= CLIP_RATIO;",
    "class": "no-distinguishing-input",
-   "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+   "why": "In spikeAt, the per-bound test nested inside detectClampSaturation. Original and mutant produced byte-identical output on every input.",
    "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
    "reanchored": {
     "at": "2026-10-27",
@@ -5582,7 +5588,7 @@
    "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "after": "const pileUp = at >= 3 && pct >= 0.3 && ratio > CLIP_RATIO;",
    "class": "no-distinguishing-input",
-   "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+   "why": "In spikeAt, the per-bound test nested inside detectClampSaturation. Original and mutant produced byte-identical output on every input.",
    "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
    "reanchored": {
     "at": "2026-10-27",
@@ -5599,7 +5605,7 @@
    "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
    "after": "const pileUp = at >= 3 && pct >= 0 && ratio >= CLIP_RATIO;",
    "class": "no-distinguishing-input",
-   "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+   "why": "In spikeAt, the per-bound test nested inside detectClampSaturation. Original and mutant produced byte-identical output on every input.",
    "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
    "reanchored": {
     "at": "2026-10-26",
@@ -5616,7 +5622,7 @@
    "before": "const saturated = pileUp && (inVendorBand || ratio >= HARD_RAIL_RATIO);",
    "after": "const saturated = pileUp && (inVendorBand || ratio > HARD_RAIL_RATIO);",
    "class": "no-distinguishing-input",
-   "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+   "why": "In spikeAt, the per-bound test nested inside detectClampSaturation. Original and mutant produced byte-identical output on every input.",
    "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js",
    "reanchored": {
     "at": "2026-10-26",
