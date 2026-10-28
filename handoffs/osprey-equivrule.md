@@ -8,15 +8,23 @@ placers, and measure whether a repeat inside one function is a distinct site.
 **Branch and worktree.** `claude/equivrule-osp` in `wt-equivrule-osp`, rebased onto `origin/main`.
 PR **#4039**, opened as a DRAFT. The code commit is the rebased `c337cb7b9`.
 
-**Exact stopping point.** Both ledger passes have landed, and the brief now reads DONE.
+**Exact stopping point.** Both ledger passes have landed, the brief reads DONE, and a second round
+repaired the qualifier. CI redded `test (py3.12)` on the python invariant
+`test_a_FUNCTION_QUALIFIER_is_unique_within_its_module`, and the fix narrowed the settle pass to
+`qualifyPlan`'s own uniqueness condition, so 11 of the 13 re-addresses stay line-keyed and 2 keep a
+qualifier.
 `tools/mutate-equivalence.json` goes 434 → 401: `--prune --write` deleted 29 orphans, and
 `--settle --write` re-addressed 13, deleted 4 and escalated 2. Controls read 0 duplicate identities,
 13 settle stamps, a byte-identical round-trip, and a dry `--prune` over the rebased file reporting
 `orphansFound: 0` of 401. `node tools/reanchor-equivalence.mjs --selftest` reads
-`✓ all 109 selftests passed`.
+`✓ all 116 selftests passed`.
 
-**Next step.** Read the `EXIT=` sentinel of the detached `npm run check` in the scratchpad, confirm
-the all-41-steps line, then ask Kestrel on board thread 8 to undraft #4039. I never undraft my own.
+**Next step.** Read both detached sentinels in the scratchpad — `JS_EXIT=` for `npm run check` and
+`PY2_EXIT=` for `capture-host/check.sh` under the primary checkout's interpreter — then ask Kestrel on
+board thread 8 to undraft #4039. I never undraft my own. The unit after the merge is the OPEN row
+`2026-10-28-two-equivalence-excuses-sit-over-six-sites-one-of-which-the-suite-kills`, by Kestrel's
+ruling: measure each of the five surviving sites, then give each site its own entry with its own
+argument or leave it a reported survivor.
 
 **Open questions.** Two entries wait on the owner, and they are the whole escalation:
 `ppgdex-dsp.js` L485 and L577, both `cmp < → <=` over `for (let i = 0; i < n; i++) {`. The generator

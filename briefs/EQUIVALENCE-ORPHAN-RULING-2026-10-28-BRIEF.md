@@ -187,14 +187,53 @@ One `--qualify` run before and one after, with no bucket left over.
 
 | qualifier bucket | before (434) | after (401) | what moved it |
 |---|---|---|---|
-| `alreadyQualified` | 320 | 333 | +13, the re-addresses, which gain an `fn` |
+| `alreadyQualified` | 320 | 322 | +2, the only re-addresses whose identity names one mutant |
+| `identityCollides` | 4 | 15 | +11, the re-addresses that stay line-keyed (next section) |
 | `drifted` | 104 | 61 | −43 = 26 `gone` deleted + 4 refuted + 13 re-addressed |
 | ↳ `driftMutationGone` | 26 | 0 | all deleted |
 | ↳ `driftNeverPlaceable` | 12 | 0 | 9 re-addressed, 3 deleted |
 | ↳ `driftPlacedOnlyForSomeFn` | 7 | 2 | 4 re-addressed, 1 deleted, 2 escalated |
 | ↳ `driftPlacedForAnyFn` | 59 | 59 | untouched; the qualifier already places these |
 | `noAfterRecorded` | 6 | 3 | −3, the `clock.js` entries |
-| `identityCollides` | 4 | 4 | untouched |
+
+Both columns add to their own total: 320 + 4 + 104 + 6 = 434, and 322 + 15 + 61 + 3 = 401. The 11 that
+move into `identityCollides` are the tool's OWN verdict on them, under the same condition
+`qualifyPlan` has always applied, so the two passes agree rather than needing a special case.
+
+## A re-address and a qualifier are two decisions, and only 2 of 13 earned the second
+
+The first push of this work wrote `fn` on all 13 re-addressed entries, and capture-host's
+`tests/test_equivalence_ledger.py::test_a_FUNCTION_QUALIFIER_is_unique_within_its_module` redded on
+CI with *a function qualifier that excuses more than one mutant*. The red is right, and the defect is
+mine.
+
+**The two decisions differ in what the probe can support.** Moving `line` rests on a measurement:
+the probe watched that exact site survive. Writing `fn` REPLACES the line in the entry's identity, so the match
+becomes the line-free `(fn, op, before, after)` — and that is safe only under the condition
+`qualifyPlan` has always applied, that exactly ONE generated mutant carries the identity. A cohort of
+two surviving sites inside one function fails it by construction, which is precisely the shape the
+settle pass re-addresses.
+
+**The gate saw 6 of the 11, and the tool's own condition sees all 11.** The python invariant compares
+ledger entries to each other, so it fires only on a PAIR of qualified entries sharing an identity —
+3 pairs here. It cannot see a lone qualified entry whose identity names two generated mutants, which
+is the other 5 (`ppgdex-dsp.js` L1274, L2461, L3210 · `motiondex-dsp.js` L1013 · `pulsedex-dsp.js`
+L829). Entry-to-entry comparison is the weaker instrument; entry-to-generator is the question that
+decides the matter. Logged as residue against the test, not against this ledger.
+
+| re-address | identity | qualifier |
+|---|---|---|
+| `glucodex-dsp.js` L1415 `detectClampSaturation` | 1 generated mutant | **written** |
+| `glucodex-dsp.js` L1461 `spikeAt` | 1 generated mutant | **written** |
+| `ppgdex-dsp.js` L1274 · L2461 · L3210 | 2 each | line-keyed |
+| `hrvdex-dsp.js` L1258 · L1269 | 2 each (one identity, two entries) | line-keyed |
+| `motiondex-dsp.js` L992 ×2 · L1017 ×2 | 2 each (two identities, two entries each) | line-keyed |
+| `motiondex-dsp.js` L1013 | 4 | line-keyed |
+| `pulsedex-dsp.js` L829 | 2 | line-keyed |
+
+A line-keyed re-address keeps everything the probe measured and loses only the drift resistance a
+qualifier would have added. `settleQualifier()` now makes the call, five selftests pin it, and each
+refused entry records its own reason in `reanchored.rule`.
 
 The `clock.js` three are why the census said 26 and the ruling says 29.
 `tools/reanchor-equivalence.mjs:168` bins an entry with no `after` as `legacy` and `continue`s, so a

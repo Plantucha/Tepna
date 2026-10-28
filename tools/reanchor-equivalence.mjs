@@ -139,6 +139,19 @@ export function planEntry(entry, generated) {
    the source — so this tool never re-implements the brace matcher and cannot drift from it. */
 export const idKey = (m) => (m.fn == null ? '\u0000top' : m.fn) + '\u0000' + codeKey(m) + '\u0000' + norm(m.after);
 
+/* WHETHER A RE-ADDRESSED ENTRY MAY ALSO TAKE A QUALIFIER. The address and the qualifier are two
+   decisions: `line` is measured (the probe watched that site survive), while `fn` REPLACES the line
+   in the identity, so it is safe only under the same uniqueness condition `qualifyPlan` applies —
+   exactly one generated mutant carries `(fn, op, before, after)`. A cohort of two surviving sites
+   inside one function fails it by construction, and qualifying both would leave one excuse standing
+   for two mutants. `idCnt` is the file's identity histogram, built from the generator. */
+export function settleQualifier(mutant, idCnt) {
+  if (mutant.fn == null) return { ok: false, verdict: 'refused-top-level', n: 0, reason: 'the site is top level, so no qualifier can name it' };
+  const n = idCnt.get(idKey(mutant)) ?? 0;
+  if (n === 1) return { ok: true, verdict: 'written', n, reason: null };
+  return { ok: false, verdict: 'refused-not-unique', n, reason: `${n} generated mutants share the identity (${mutant.fn}, op, before, after)` };
+}
+
 /* WHAT A QUALIFIER IS WORTH, ENTRY BY ENTRY — and which entries may safely receive one.
    `write` is the only safe set, and the two conditions that define it are both necessary:
 
@@ -631,6 +644,7 @@ export function makeSettleVerdict(ts) {
           deleted: ts.deleted,
           escalated: ts.escalated,
           unprobed: ts.unprobed,
+          lineKeyed: ts.lineKeyed ?? 0,
           byRule: ts.byRule,
           written: ts.written
         },
@@ -1280,6 +1294,47 @@ if (IS_MAIN && has('--selftest')) {
     vsNil.status === 'NOT_RUN' && vsNil.result === null && typeof vsNil.reason === 'string' && Verdict.validate(vsNil).ok,
     vsNil.status
   );
+  /* THE QUALIFIER REFUSAL. A re-address and a qualifier are two decisions, and the second one is
+     available far less often than the first: the generator's own identity histogram decides it. */
+  const H = (pairs) => new Map(pairs.map(([fn, op, before, after, n]) => [idKey({ fn, op, before, after }), n]));
+  const mSolo = { fn: 'alpha', op: 'cmp < → <=', before: 'if (a < b) {', after: 'if (a <= b) {', line: 10 };
+  const mTwin = { fn: 'beta', op: 'cmp < → <=', before: 'for (i = 0; i < n; i++) {', after: 'for (i = 0; i <= n; i++) {', line: 20 };
+  const hist = H([
+    ['alpha', mSolo.op, mSolo.before, mSolo.after, 1],
+    ['beta', mTwin.op, mTwin.before, mTwin.after, 2]
+  ]);
+  const qSolo = settleQualifier(mSolo, hist);
+  ok('a re-addressed site whose identity names ONE generated mutant takes the qualifier', qSolo.ok && qSolo.verdict === 'written' && qSolo.n === 1 && qSolo.reason === null, JSON.stringify(qSolo));
+  const qTwin = settleQualifier(mTwin, hist);
+  ok(
+    'a site whose identity names TWO is refused and stays line-keyed — one excuse may not stand for two mutants',
+    !qTwin.ok && qTwin.verdict === 'refused-not-unique' && qTwin.n === 2 && /2 generated mutants share/.test(qTwin.reason),
+    JSON.stringify(qTwin)
+  );
+  const qTop = settleQualifier({ fn: null, op: mSolo.op, before: mSolo.before, after: mSolo.after, line: 3 }, hist);
+  ok('a top-level site is refused for a different, named reason, never silently', !qTop.ok && qTop.verdict === 'refused-top-level' && /top level/.test(qTop.reason), JSON.stringify(qTop));
+  const qAbsent = settleQualifier(mSolo, new Map());
+  ok('an identity the generator does not carry counts 0, so the qualifier is refused, not written over an absence', !qAbsent.ok && qAbsent.n === 0, JSON.stringify(qAbsent));
+  ok(
+    'the refusal is the SAME condition qualifyPlan applies, so the two passes cannot diverge',
+    (() => {
+      const gen = [mSolo, mTwin, { ...mTwin, line: 30 }];
+      const cnt = new Map();
+      for (const m of gen) cnt.set(idKey(m), (cnt.get(idKey(m)) || 0) + 1);
+      const qp = qualifyPlan(
+        [
+          { line: 10, op: mSolo.op, before: mSolo.before, after: mSolo.after },
+          { line: 20, op: mTwin.op, before: mTwin.before, after: mTwin.after }
+        ],
+        gen
+      );
+      return qp.write.length === 1 && qp.collides.length === 1 && settleQualifier(mSolo, cnt).ok && !settleQualifier(mTwin, cnt).ok;
+    })()
+  );
+  const vsLK = makeSettleVerdict(TS({ entries: 19, cohorts: 12, files: 4, addressed: 15, deleted: 4, lineKeyed: 11 }));
+  ok('the verdict reports the refusals it made, so a line-keyed address is visible and not silent', vsLK.result.lineKeyed === 11 && Verdict.validate(vsLK).ok, JSON.stringify(vsLK.result));
+  ok('a settle tally that never refused reports 0 rather than omitting the field', makeSettleVerdict(TS({ entries: 3, cohorts: 1, files: 1, addressed: 3 })).result.lineKeyed === 0);
+
   ok('the emitted verdict object validates', vs.ok, (vs.errors || []).join('; '));
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
@@ -1565,7 +1620,7 @@ if (IS_MAIN && !has('--selftest')) {
        `settleDecide` per cohort. It writes only behind that probe, which is why it is exempt from
        the `--write` refusal above: the refusal exists to stop an address moving onto a mutant
        nobody re-tested, and here every address a write takes came back `survived` in this run. */
-    const ts = { entries: 0, cohorts: 0, files: 0, addressed: 0, deleted: 0, escalated: 0, unprobed: 0, written: false, byRule: {} };
+    const ts = { entries: 0, cohorts: 0, files: 0, addressed: 0, deleted: 0, escalated: 0, unprobed: 0, lineKeyed: 0, written: false, byRule: {} };
     const deletions = new Map();
     const settleList = opt('--settle-list', '');
     const rows = [];
@@ -1574,6 +1629,18 @@ if (IS_MAIN && !has('--selftest')) {
       if (!generated) continue;
       const cohorts = settleCohorts(doc[file], generated);
       if (!cohorts.length) continue;
+      /* THE QUALIFIER IS A SECOND DECISION, AND IT IS NOT THE ADDRESS. A re-address moves `line`,
+         which is measured: the probe watched that very site survive. Stamping `fn` as well converts
+         the identity to the LINE-FREE `(fn, op, before, after)`, so it is safe only under
+         `qualifyPlan`'s own uniqueness condition — exactly one generated mutant carries that
+         identity. Two surviving sites of one cohort inside ONE function fail it: each entry is a
+         distinct site by line, and qualifying both collapses them to one identity, which is one
+         excuse standing for two mutants (capture-host
+         `tests/test_equivalence_ledger.py::test_a_FUNCTION_QUALIFIER_is_unique_within_its_module`,
+         which measured 3 such pairs in this tool's first settle run). The refusal keeps the
+         measured line and drops the qualifier, so the entry stays line-keyed and exactly anchored. */
+      const idCnt = new Map();
+      for (const m of generated) idCnt.set(idKey(m), (idCnt.get(idKey(m)) || 0) + 1);
       ts.files++;
       const nEntries = cohorts.reduce((a, c) => a + c.entries.length, 0);
       const targets = [];
@@ -1618,13 +1685,25 @@ if (IS_MAIN && !has('--selftest')) {
           };
           if (dec.action === 'address') {
             ts.addressed++;
-            rows.push({ ...base, toLine: dec.mutant.line, toFn: dec.mutant.fn ?? null });
+            rows.push({ ...base, toLine: dec.mutant.line, toFn: dec.mutant.fn ?? null, qualifier: q.verdict, identityMutants: q.n });
             console.log(`      → ADDRESS L${dec.entry.line} becomes L${dec.mutant.line} in ${dec.mutant.fn == null ? 'top level' : dec.mutant.fn} — ${dec.reason}`);
+            const q = settleQualifier(dec.mutant, idCnt);
+            if (!q.ok) {
+              ts.lineKeyed++;
+              console.log(`        · stays line-keyed — ${q.reason}`);
+            }
             if (WRITE) {
-              dec.entry.reanchored = { at: TODAY, from: dec.entry.line, commit: COMMIT, outcome: 'survived', probe: probeNote, rule: `settle rule ${d.rule}` };
+              dec.entry.reanchored = {
+                at: TODAY,
+                from: dec.entry.line,
+                commit: COMMIT,
+                outcome: 'survived',
+                probe: probeNote,
+                rule: `settle rule ${d.rule}` + (q.ok ? '' : ' (line-keyed: the qualifier would not be unique)')
+              };
               dec.entry.line = dec.mutant.line;
-              dec.entry.fn = dec.mutant.fn ?? undefined;
-              if (dec.entry.fn === undefined) delete dec.entry.fn;
+              if (q.ok) dec.entry.fn = dec.mutant.fn;
+              else delete dec.entry.fn;
             }
           } else if (dec.action === 'delete') {
             ts.deleted++;

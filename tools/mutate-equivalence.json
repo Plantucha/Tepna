@@ -449,9 +449,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (104 group(s))",
-    "rule": "settle rule 3"
-   },
-   "fn": "parsePPG"
+    "rule": "settle rule 3 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1184,
@@ -734,9 +733,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (104 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "beatSQI"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1580,
@@ -1338,9 +1336,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged ppgdex-dsp (104 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "timeDomain"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 3197,
@@ -2406,9 +2403,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "hrvBuildNodeExport"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1263,
@@ -2441,9 +2437,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged hrvdex-dsp (30 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "hrvBuildNodeExport"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1280,
@@ -3631,9 +3626,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "respWindowSpectrum"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 992,
@@ -3649,9 +3643,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "respWindowSpectrum"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 997,
@@ -3735,9 +3728,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "respWindowSpectrum"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1017,
@@ -3753,9 +3745,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "respWindowSpectrum"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1017,
@@ -3771,9 +3762,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged motiondex-dsp (26 group(s))",
-    "rule": "settle rule 2"
-   },
-   "fn": "respWindowSpectrum"
+    "rule": "settle rule 2 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1031,
@@ -4932,9 +4922,8 @@
     "commit": "f35487ecc39c",
     "outcome": "survived",
     "probe": "mutate.mjs --only over the groups tagged pulsedex-dsp (27 group(s))",
-    "rule": "settle rule 4"
-   },
-   "fn": "parseRRInput"
+    "rule": "settle rule 4 (line-keyed: the qualifier would not be unique)"
+   }
   },
   {
    "line": 1128,
