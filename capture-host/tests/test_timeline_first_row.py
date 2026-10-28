@@ -76,6 +76,14 @@ def test_start_of_prefers_the_first_row_and_names_each_source():
     assert timeline._start_of(f) == (stamp + 3600.0, timeline.START_FIRST_ROW)
 
 
+def test_placed_from_without_an_offset_leaves_the_start_in_the_floating_frame():
+    """`offset_sec` defaults to 0.0, which means "already one frame". A caller that passes none, as
+    `start_sources` does, gets each start exactly as `_start_of` read it, never shifted."""
+    f = _f(f"Polar_H10_{SYN}_20260725223000_ECG.txt", "ECG", 130 * 600)
+    stamp, _src = timeline._start_of(f)
+    assert list(timeline._placed_from([f], SYN, "ECG", 130)) == [(stamp, 600.0, timeline.START_FILENAME_STAMP)]
+
+
 def _late_stream(tmp_path):
     """A session stamped 22:00 whose ECG stream landed its first row at 01:00 and ran one hour. The
     rows carry their own times, so the file is written from 01:00 and then named with the session stamp."""
