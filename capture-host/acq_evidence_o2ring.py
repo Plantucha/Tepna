@@ -194,6 +194,7 @@ def assemble_live(
     stopped_cleanly: bool | None = None,
     ppg_grid: dict | None = None,
     ppg_ledger: dict | None = None,
+    last_row_ms: float | None = None,
 ) -> ae.AcquisitionEvidence:
     """Normalize a LIVE O2Ring session (the OXYFRAME/BLE path) into an `AcquisitionEvidence`.
 
@@ -228,8 +229,14 @@ def assemble_live(
     holds the earlier session's rows. Reporting either would state a start after the file began and a
     count smaller than the artifact, so both are `None` (§∅: absent, never a convenient number) and the
     instance's own figures travel in `provenance` as `rows_this_instance` and `instance_start_time_ms`,
-    which is what they actually measure. `end_time_ms` follows: it is derived from the two, so it
-    cannot survive them."""
+    which is what they actually measure. `end_time_ms` follows: it cannot survive the start.
+
+    ⚠️ THE END IS THE LAST LANDED ROW, NEVER `start + rows * 1000`. The count holds one row per
+    second only while every second lands. A stall inside one episode leaves the count short of the
+    span, so the derived end sat before the file's last row by the length of every stall. `last_row_ms`
+    is `Spo2CsvWriter.last_row_ms`, and the end is that stamp plus the one second its row covers. A
+    caller that passes no last stamp gets no end (§∅). The span between the two observed stamps is the
+    duration this envelope observed, and `duration_check` carries it."""
     # ── validation (§6): the live path verifies no bytes — it writes them. There is no hash, no
     # re-read, no trailer. Claiming VALID would assert a check nobody ran, so validation is UNKNOWN
     # unless a caller supplies a verdict from an actual check. This is the honest asymmetry with the
@@ -248,12 +255,14 @@ def assemble_live(
         completeness = ae.UNKNOWN
 
     # ── the artifact's own span, or nothing. A resumed file knows neither end of it (see the
-    # docstring), and a derived end cannot be more certain than the start it is measured from. ──
+    # docstring). The end is OBSERVED, the last landed row plus the one second it covers. ──
     artifact_start = None if resumed else start_time_ms
     sample_count = None if resumed else artifact_rows
     end_time_ms = None
-    if artifact_start is not None and sample_count:
-        end_time_ms = artifact_start + sample_count * 1000  # the CSV is 1 Hz, one row per second
+    observed_s = None
+    if artifact_start is not None and last_row_ms is not None:
+        end_time_ms = last_row_ms + 1000  # the CSV is 1 Hz, so its last row covers one second
+        observed_s = round((end_time_ms - artifact_start) / 1000)
 
     return ae.AcquisitionEvidence(
         session_id=session_id,
@@ -267,8 +276,9 @@ def assemble_live(
         sample_count=sample_count,
         # no independent expectation exists for a live stream of unknown duration (§8: UNKNOWN, not 0)
         expected_sample_count=ae.UNKNOWN,
-        # nothing declares a duration for a live session the way a .dat trailer does
-        duration_check=ae.DurationCheck.build(stored_s=None, observed_s=None),
+        # nothing declares a duration for a live session the way a .dat trailer does, but the span
+        # between the first and the last landed row is observed
+        duration_check=ae.DurationCheck.build(stored_s=None, observed_s=observed_s),
         transport_gaps=ae.UNKNOWN,  # see the docstring — the PPG grid's gaps are NOT this file's
         decode_gaps=ae.UNKNOWN,
         device_state=device_state if device_state is not None else ae.UNKNOWN,

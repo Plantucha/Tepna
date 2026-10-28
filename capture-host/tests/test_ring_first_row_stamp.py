@@ -267,6 +267,7 @@ def _env(**kw):
         artifact_rows=3,
         start_time_ms=_ms(_FIRST),
         instance_start_time_ms=_ms(_SESSION),
+        last_row_ms=_ms(_FIRST) + 2000,
     )
     base.update(kw)
     return o2.assemble_live(**base)
@@ -281,17 +282,61 @@ def test_the_two_starts_are_INDEPENDENT_fields():
     assert ev.start_time_ms - ev.provenance["instance_start_time_ms"] == 147 * 60 * 1000.0 + 7456.0
 
 
-def test_THE_DERIVED_END_FOLLOWS_THE_CORRECTED_START():
-    """🔴 The ring's amplification, which the Polar twin does not have: `end_time_ms` is
+def test_THE_END_IS_THE_LAST_ROW_AND_NO_START_MOVES_IT():
+    """🔴 The ring's amplification, which the Polar twin did not have: `end_time_ms` was
     `start + rows * 1000`, so the session start standing in for the artifact's moved the whole span.
-    Stated as the arithmetic rather than as a snapshot — one row per second, three rows."""
+    The end is now the last landed row plus its one second, so a wrong start moves the start only."""
     ev = _env()
     assert ev.end_time_ms == _ms(_FIRST) + 3000
-    # and the control: against the session start, the same three rows would have reported a span
-    # 2 h 27 m too early, which is a night in the wrong place rather than a field in the wrong place
     wrong = _env(start_time_ms=_ms(_SESSION))
-    assert wrong.end_time_ms == _ms(_SESSION) + 3000
-    assert ev.end_time_ms - wrong.end_time_ms == 147 * 60 * 1000.0 + 7456.0
+    assert wrong.end_time_ms == ev.end_time_ms, "the start no longer reaches the end"
+    assert ev.duration_check.observed_s == 3
+
+
+def test_A_STALL_INSIDE_ONE_EPISODE_DOES_NOT_SHORTEN_THE_END(tmp_path):
+    """🔴 Row `2026-10-27-the-live-ring-envelope-ends-a-file-by-one-episodes-row-count`. Three rows
+    land across ten minutes, so the count says three seconds and the file says ten minutes. The
+    derived end sat 597 s before the last row. Driven through the real writer, so the seam is the
+    one `capture.py` reads."""
+    wr = _writer(tmp_path)
+    try:
+        wr.write(_FIRST, 96, 58, 0)
+        wr.write(_FIRST + dt.timedelta(seconds=1), 96, 58, 0)
+        wr.write(_FIRST + dt.timedelta(seconds=600), 95, 59, 0)
+    finally:
+        wr.close()
+    assert wr.rows == 3
+    assert wr.last_row_ms == _ms(_FIRST) + 600_000
+    ev = _env(start_time_ms=wr.first_row_ms, last_row_ms=wr.last_row_ms, artifact_rows=wr.rows)
+    assert ev.end_time_ms == _ms(_FIRST) + 601_000
+    assert ev.end_time_ms != wr.first_row_ms + wr.rows * 1000, "the count-derived end is the defect"
+    assert ev.duration_check.observed_s == 601
+    assert ev.sample_count == 3, "the count still travels, beside the span it does not fill"
+
+
+def test_the_LAST_row_tracks_every_landed_row_and_a_lost_row_does_not_move_it(tmp_path):
+    wr = _writer(tmp_path)
+    fh = _WriteFailingFH()
+    try:
+        assert wr.last_row_ms is None, "a header-only file has no last row"
+        wr.write(_FIRST, 96, 58, 0)
+        assert wr.last_row_ms == _ms(_FIRST)
+        wr._fh = fh
+        wr.write(_LATER, 95, 59, 1)
+        assert wr.last_row_ms == _ms(_FIRST), "a row that never landed must not end the artifact"
+        fh.failing = False
+        wr.write(_LATER, 95, 59, 1)
+        assert wr.last_row_ms == _ms(_LATER)
+    finally:
+        fh.failing = False
+        wr.close()
+
+
+def test_A_RESUMED_FILE_STILL_REPORTS_NO_END():
+    """The resume leg keeps its refusal: the start is unknown, so no observed span exists."""
+    ev = _env(resumed=True)
+    assert ev.end_time_ms is None
+    assert ev.duration_check.observed_s is None
 
 
 def test_an_undated_artifact_reports_no_start_while_the_session_start_SURVIVES():
@@ -348,6 +393,7 @@ def test_the_capture_seam_passes_the_WRITER_S_stamp():
     assert "start_time_ms=wr.first_row_ms," in src
     assert "instance_start_time_ms=calendar.timegm(started.timetuple()) * 1000.0," in src
     assert "resumed=wr.resumed," in src
+    assert "last_row_ms=wr.last_row_ms," in src
     # ANCHORED ON THE LINE START: the session-start expression is still there under the instance
     # keyword, and an unanchored `in` reads `instance_start_time_ms=…` as the defect it looks for.
     assert "\n            start_time_ms=calendar.timegm(" not in src
@@ -377,7 +423,8 @@ def test_an_UNMEASURED_clock_offset_and_device_state_are_the_SENTINELS_not_None(
     ev = _env()
     assert ev.clock_offset == ae.ClockOffset.unknown()
     assert ev.device_state == ae.UNKNOWN
-    assert ev.duration_check == ae.DurationCheck.build(stored_s=None, observed_s=None)
+    # the span is observed now (first and last landed rows); without a last row it is not
+    assert _env(last_row_ms=None).duration_check == ae.DurationCheck.build(stored_s=None, observed_s=None)
 
 
 def test_a_MEASURED_clock_offset_and_device_state_SURVIVE_the_envelope():
