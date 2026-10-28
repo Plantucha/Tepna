@@ -35,6 +35,7 @@ The audit also records the journal's own SHAPE (`journal_shape`, published again
 from __future__ import annotations
 
 import bisect
+import collections
 import datetime as _dt
 import glob
 import itertools
@@ -397,7 +398,9 @@ def stall_rows(night_dir: str) -> dict:
         out = dict.fromkeys(stall_rows_keys(), None)
         out["present"] = False
         return out
-    threads: dict[str, int] = {}
+    # A tally, never an absence reading: `Counter` keeps the zero default out of the code the
+    # astgrep rule reads, and a thread with no stall simply has no key.
+    threads: collections.Counter[str] = collections.Counter()
     stackless = 0
     worst = 0.0
     for r in rows:
@@ -409,7 +412,7 @@ def stall_rows(night_dir: str) -> dict:
                 if isinstance(v, dict):
                     frames = v.get("frames") or []
                     key = f"{v.get('thread')}:{frames[0]}" if frames else str(v.get("thread"))
-                    threads[key] = threads.get(key, 0) + 1
+                    threads[key] += 1
         lag = r.get("lag_ms")
         if isinstance(lag, (int, float)):
             worst = max(worst, float(lag))
@@ -418,7 +421,7 @@ def stall_rows(night_dir: str) -> dict:
         "rows": len(rows),
         "torn_lines": torn,
         "worst_lag_ms": round(worst, 1) if rows else None,
-        "threads": threads,
+        "threads": dict(threads),
         "rows_without_stacks": stackless,
         "capped": any(bool(r.get("capped")) for r in rows),
         "dropped_past_cap": max((int(r.get("dropped_before") or 0) for r in rows), default=0),
