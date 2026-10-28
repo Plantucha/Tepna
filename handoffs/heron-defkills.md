@@ -23,9 +23,15 @@ Hand plants, one mutant per fresh tree:
 | `adapter_pool.py`, `cpap_harvest.py` | 4 of 4 KILLED |
 | the equivalence claims | 4 of 4 SURVIVED, 0 red legs |
 
+The gate then named ONE survivor the hand census had missed. It sits in the rewritten scanner itself: `nightqc.x_constant_runs__mutmut_18` moves the TRAILING run test from `>=` to `>`.
+
+The walk emits a run at the sample that ends it. A run reaching the last sample therefore leaves the loop unemitted, and the trailing copy of that test emits it on its own comparison. The middle-run case pinned the loop copy and said nothing about this one. `test_constant_runs_counts_a_TAIL_run_at_exactly_min_run` now pins three positions, and a plant of that exact mutation reds it with 1 red leg and no other.
+
+The run that found it reads `killed 617`, `survived 5`, `excused 4`, `undecided 0` over 639 generated mutants. `undecided 0` is what the `enumerate` rewrite bought.
+
 ## 4. Next step
 
-Read the `tools/mutate_diff.py --base origin/main` verdict in the scratchpad log. Then rebase with `node tools/rebase-safe.mjs`, close the row as `fixed #4040`, run `capture-host/check.sh` and `npm run check`, and post the undraft ask on queue thread 8.
+Re-run `capture-host/check.sh` in full and `tools/mutate_diff.py --base origin/main` on THIS commit. The gate builds its scratch from the commit and never from the tree. The mutation verdict must read 0 survivors and 0 undecided. Then push with the lease and correct the thread 8 ask. Entry #1820 claimed the census accounted for every survivor, and the gate had already found one more.
 
 ## 5. Open questions
 

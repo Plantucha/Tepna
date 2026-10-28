@@ -3445,6 +3445,18 @@ def test_constant_runs_is_keyed_on_length_not_value():
         nightqc.constant_runs([1, 1], min_run=0)
 
 
+def test_constant_runs_counts_a_TAIL_run_at_exactly_min_run():
+    # The walk emits a run at the sample that ENDS it, so a run reaching the last sample is emitted
+    # by the trailing test instead, on its own `>=`. The middle-run case above pins the loop's
+    # boundary and says nothing about this one: the diff-scoped mutation gate killed `>=` to `>`
+    # inside the loop and left the trailing copy alive (#4040).
+    assert nightqc.constant_runs([5, 0, 0, 0], min_run=3) == [(1, 3, 0)]
+    # one sample short of the threshold, at the same position, is NOT a run.
+    assert nightqc.constant_runs([5, 0, 0], min_run=3) == []
+    # a whole series of one value is a tail run starting at index 0.
+    assert nightqc.constant_runs([7, 7, 7], min_run=3) == [(0, 3, 7)]
+
+
 # ── `_ramp`: the approach and departure shape, read directly ───────────────────────────────────────
 # Reached in production only through the clip detector, which exercises ONE shape per corpus column.
 # Each case below is a hand-made approach/departure pair stating one behaviour of the window walk, the
