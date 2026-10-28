@@ -48,6 +48,7 @@ import subprocess
 
 import nightqc
 import nights_index as _ni
+import oxyii as _ox
 import probe_night as _probe
 import verdict as _verdict
 import writers as _w
@@ -1004,6 +1005,15 @@ def signal_witness(night_dir: str) -> list[tuple[_dt.datetime, int]]:
     It is assembled across ALL of the night's frame files because the 0x04 stream fragments on its own
     schedule — 20 files beside a single `_SPO2.csv` on 2026-09-09 — so no one file brackets a given gap.
 
+    🔴 READ BY HEADER NAME, through `oxyframe_samples`. This function used to take the counter from
+    `parts[1]` while the module's own rule two screens down says `duration_s` and `ppg_n` are read by
+    name, because `writers.OXYFRAME_COLUMNS` may grow and an index has no contract — and three writer
+    tests had already moved onto the wrong column when `alarm_raw` was appended. A positional read of a
+    grown layout does not fail; it witnesses a different field (residue
+    `2026-10-28-the-signal-witness-reads-the-ring-counter-by-position`). The one behaviour that changes
+    with it: a row before any header line is skipped, because without the header there is no column
+    contract and guessing one is the defect itself.
+
     ⚠️ NOT the exported per-sample axis, which cannot answer this. The raw streams' `sensor timestamp
     [ns]` is DRAWN (`sample_index x 7,953,045 ns`, one delta value at 100.0 % across 16 files) and the
     `_SPO2.csv` primary carries no device column at all. The ring has a clock — an onboard RTC we
@@ -1013,59 +1023,85 @@ def signal_witness(night_dir: str) -> list[tuple[_dt.datetime, int]]:
     out: list[tuple[_dt.datetime, int]] = []
     for path in _recording_glob(night_dir, _RING_OXYFRAME):
         try:
-            with open(path, "rb") as fh:
-                for raw in fh:
-                    line = raw.decode("utf-8", "replace")
-                    if line.startswith("Phone timestamp"):
-                        continue
-                    parts = line.split(";")
-                    if len(parts) < 2:
-                        continue
-                    stamp = _ni.parse_stamp(line)
-                    if stamp is None:
-                        continue
-                    try:
-                        out.append((stamp, int(parts[1])))
-                    except ValueError:
-                        continue  # a torn row carries no counter; it is not a zero
+            rows = oxyframe_samples(path)
         except OSError:
             continue  # one unreadable frame file is not the absence of a witness
+        # a torn, blank or absent counter cell arrives as None from `_cell_int`; it is not a zero (§∅)
+        out.extend((stamp, dur) for stamp, dur, _n in rows if dur is not None)
     out.sort()
     return out
 
 
-def witness_judges(witness, t0: _dt.datetime, g: float) -> tuple[str, float | None]:
-    """`(verdict, advance_s)` for one gap — `"delay"`, `"silence"` or `"unwitnessed"`.
+#: How long after a gap the counter is allowed to settle before it is read. THE FIRST REPLY AFTER A
+#: STALL IS NOT THE RING'S CURRENT STATE: it can be a frame queued before the stall, or a drain capped
+#: at `oxyii.SAMPLES_A_CAP` records. The window is the replay ceiling below plus one 1.0 s poll, and it
+#: is stated from those two numbers rather than fitted — on night 2026-10-12's 00:48 gap the settled row
+#: arrived 1.2 s after the capped one (residue
+#: `2026-10-28-the-signal-witness-lands-on-the-capped-first-reply-after-a-stall`).
+RING_WITNESS_SETTLE_S = 3.0
 
-    The counter's reading at or before the gap start against its first reading at or after the gap end:
-    advancing by the gap's length (within one count) means the ring produced those seconds and only the
-    delivery was lost; not advancing means it produced nothing and they are gone.
+
+def witness_judges(witness, t0: _dt.datetime, g: float) -> tuple[str, float | None]:
+    """`(verdict, advance_s)` for one gap — `"undelivered"`, `"silence"` or `"unwitnessed"`.
+
+    The counter's reading at or before the gap start against its SETTLED reading after the gap end:
+    advancing by the gap's length (within one count) means the ring produced those seconds; not
+    advancing means it produced nothing and they are gone.
+
+    PRODUCTION AND DELIVERY ARE TWO CLAIMS AND THIS COUNTER ANSWERS ONLY THE FIRST. A gap the counter
+    advanced across is signal the ring produced and we do not hold: `"undelivered"`. It is as absent
+    from the recording as `"silence"` is, so the caller keeps both in the gap list and in loss, and the
+    published name says which of the two it was. 🔴 THIS REVERSES #3168's `"delay"` BUCKET, which read
+    the same advance as "only the delivery was lost" and took those minutes out of loss — a device-side
+    claim ("the ring was fine") standing in for a recording-side one ("we have the seconds"). The
+    attribution #3168 wanted is not lost with it: `by_cause` still names the daemon that stalled.
+
+    AND NO REPORTED GAP COULD HAVE BEEN A LATE DELIVERY ANYWAY. A gap is reported only above the
+    stream's own cadence cut, whose floor is `nights_index.GAP_S` = 2.0 s, and `RING_REPLAY_CEILING_S` is
+    2.0 s — so every gap that reaches this function is longer than the deepest backlog one reply could
+    carry. Both numbers are pre-stated and `test_no_reported_gap_can_fit_the_rings_replay_ceiling`
+    fails if either moves, which is the day a delivered-late bucket would mean something again.
 
     `"unwitnessed"` — never `"silence"` — where the counter cannot answer, and the caller must not fold
     those minutes into loss. Three such cases: no frame file at all; no reading on one side of the gap;
     and a counter that went BACKWARDS, which is a new recording session rather than a small step, and
     then nothing about the old value bounds the new one.
 
-    ⚠️ THE FIRST REPLY AFTER A STALL IS ITSELF CAPPED, so this reading can land on a count that has
-    not caught up yet. Measured read-only on vigil 2026-10-28 over night 2026-10-12's 00:48 gap: the last
-    row before it reads 8465, the first row 13.7 s later reads 8466, and the row one second after that
-    reads 8480. This rule lands on the 8466 and answers `silence` with an advance of 1; one row later the
-    same gap answers `delay`. The BUCKET is still right — the ring discarded that backlog
-    (`O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF` §1) and the host never received those seconds — but the
-    stated reason "it produced nothing" is refuted by the next row. Residue
-    `2026-10-28-the-signal-witness-lands-on-the-capped-first-reply-after-a-stall`.
+    🔴 THE FIRST REPLY AFTER A STALL IS NOT THE READING. It can be a frame queued before the stall or a
+    drain capped at the reply cap, so it under-reports what the ring produced. Measured read-only on
+    vigil 2026-10-28 over night 2026-10-12's 00:48 gap: the last row before it reads 8465, the first row
+    13.7 s later reads 8466, and the row 1.2 s after that reads 8480. Reading the first row alone
+    answered `silence` with an advance of 1 and gave the reason "it produced nothing", which the next row
+    refutes. So the reading is the HIGHEST count within `RING_WITNESS_SETTLE_S` of that first row, and the
+    wall seconds OUTSIDE the gap on both sides come back off it, because a second of signal produced
+    before the gap started or after it ended is not a second the gap carried. The 00:48 gap then reads
+    `undelivered` with an advance of about 13.8, which keeps those seconds in loss under their own name
+    (residue `2026-10-28-the-signal-witness-lands-on-the-capped-first-reply-after-a-stall`).
+
+    ⚠️ A NEGATIVE STEP IS STILL READ RAW, before that subtraction. The subtraction can carry an honest
+    reading below zero on its own, and a reset is the one thing it must never be confused with.
     """
     if not witness:
         return ("unwitnessed", None)
     ts = [w[0] for w in witness]
     i = bisect.bisect_right(ts, t0) - 1
-    j = bisect.bisect_left(ts, t0 + _dt.timedelta(seconds=g))
+    end = t0 + _dt.timedelta(seconds=g)
+    j = bisect.bisect_left(ts, end)
     if i < 0 or j >= len(ts):
         return ("unwitnessed", None)
-    advance = float(witness[j][1] - witness[i][1])
-    if advance < 0:
-        return ("unwitnessed", advance)  # the session restarted: the counter reset
-    return ("delay" if advance >= g - RING_WITNESS_TOL_S else "silence", advance)
+    # the settled reading: the highest count among the rows within the settle window of the first row
+    # after the gap. `max` over a range, not a hand-advanced index — the mutation gate times such a
+    # scan out rather than failing it (CLAUDE.md §🧪), and ties take the EARLIEST row, which is the one
+    # that charges the least wall time to production below.
+    last = bisect.bisect_right(ts, ts[j] + _dt.timedelta(seconds=RING_WITNESS_SETTLE_S)) - 1
+    m = max(range(j, last + 1), key=lambda k: witness[k][1])
+    raw = float(witness[m][1] - witness[i][1])
+    if raw < 0:
+        return ("unwitnessed", raw)  # the session restarted: the counter reset
+    # seconds the two readings bracket but the gap does not: production there says nothing about it
+    outside = (t0 - ts[i]).total_seconds() + (ts[m] - end).total_seconds()
+    advance = max(0.0, raw - outside)
+    return ("undelivered" if advance >= g - RING_WITNESS_TOL_S else "silence", advance)
 
 
 def _iso(t) -> "str | None":
@@ -1083,6 +1119,14 @@ def _iso(t) -> "str | None":
 #: expected rate cannot decide whether a given hour lost signal. The number is published WITH the
 #: ratio it was computed from, so a reader can restate the shortfall against any rate they can defend.
 RING_NOMINAL_FS = 125.000
+#: THE REPLAY CEILING: the longest hole a single late reply could ever fill, in seconds of produced
+#: signal. The ring answers a poll with at most `oxyii.SAMPLES_A_CAP` records and DROPS a deeper backlog
+#: with no error and no gap marker (`O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF` §1, from `oxyii.py`). At
+#: the nominal rate that cap is 2.0 s, so a longer hole cannot have been delivered late however much the
+#: counter advanced across it: the ring produced those seconds and we hold none of them. Both numbers
+#: keep ONE spelling each — the cap in `oxyii`, the rate above — so this reads them rather than
+#: restating either.
+RING_REPLAY_CEILING_S = _ox.SAMPLES_A_CAP / RING_NOMINAL_FS
 #: `ppg_n` and `duration_s` by HEADER NAME, never by position — `writers.OXYFRAME_COLUMNS` may grow at
 #: the tail and an index counted from the end has no contract (that rule is written there, and three
 #: writer tests moved onto the wrong column when `alarm_raw` was appended).
@@ -1947,16 +1991,15 @@ def audit_night(
         # than borrow another device's witness. #3157's classification is untouched for every Polar stream.
         if pat == _RING_SPO2 and not any(sc["period_ns"] and sc["last_dev"] is not None for _n, sc in scans):
             witness = signal_witness(night_dir)
-            kept = []
+            # EVERY GAP KEEPS ITS PLACE IN THE LIST. The witness names what the ring produced across it
+            # and nothing more: a produced span we do not hold is `"undelivered"` and stays in `by_cause`
+            # and in loss beside `"silence"`, while `"unwitnessed"` is subtracted below as it always was.
+            # #3168 moved a produced span into `delays` instead, which took real holes out of the number
+            # the night is judged on; `witness_judges` carries that reversal and the reason for it.
             for r in recs:
                 verdict_, advance = witness_judges(witness, r["at"], r["s"])
-                if verdict_ == "delay":
-                    delays.append((r["at"], r["s"], None))
-                    continue
                 r["witness"] = verdict_
                 r["witness_advance_s"] = None if advance is None else round(advance, 1)
-                kept.append(r)
-            recs = kept
         gaps = [(r["at"], r["s"]) for r in recs]
         address = str(d.get("address") or "")
         ev = journal((name, address) if address else name, since, until)
