@@ -1,0 +1,302 @@
+{
+ "schema": "tepna.audit-record/1",
+ "title": "PPG-ECG HRV paper: the per-epoch arm re-cut from a committed producer, and the jitter model refuted",
+ "residue": [
+  "2026-09-07-ppg-ecg-hrv-paper-predates-the-fill-removal",
+  "2026-10-27-the-ppg-ecg-hrv-paper-has-no-committed-producer",
+  "2026-10-28-the-paper-per-epoch-rmssd-and-k-fit-have-no-producer"
+ ],
+ "date": "2026-10-28",
+ "scope": "internal",
+ "instrument": {
+  "tool": "tools/ppi-jitter-vs-ecg.mjs",
+  "arm": "per-epoch rMSSD and SDNN bias, the jitter-budget k-fit, the catastrophic split and the budget's status counts",
+  "estimators": "each node's OWN exported estimator over its OWN published series on the common absolute epoch grid: PPGDSP.timeDomain(seg, segMask, null, segAdj) and ECGDSP.rmssd(seg, segSkip) / ECGDSP.std(seg). No HRV math is reimplemented and no DSP changed, so no bundle moved.",
+  "run": [
+   "--device",
+   "verity",
+   "--max-nights",
+   "54",
+   "--epoch-dump",
+   "<a path outside the repository>"
+  ],
+  "runtimeSec": 1256,
+  "reproducibility": "two independent full runs of the same command (1033 s and 1256 s) agree to the printed precision on the three descriptive figures cross-checked here (jitter sd median 6.34 ms, per-epoch rMSSD bias +4.2 %, per-epoch SDNN bias +2.6 %), so the arm is deterministic over this corpus"
+ },
+ "corpus": {
+  "dir": "/srv/data/tepna-corpus/uploads/Ecg nightly",
+  "window": "2026-06-10 to 2026-07-13 (the paper's own stated range)",
+  "filesWalked": 1980,
+  "matchedVerityPpg": 54,
+  "pairedH10Ecg": 50,
+  "nightsScored": 30
+ },
+ "populations": {
+  "jitterArmEpochs": 2000,
+  "perEpochHrvEpochs": 1961,
+  "hoursCovered": 163.4,
+  "candidateEpochs": 2551,
+  "dropped": {
+   "thin": 542,
+   "noEnvelopeLag": 0,
+   "jitterRefused": 9,
+   "sessionBoundary": 37,
+   "ecgTooFewBeats": 2
+  },
+  "note": "the per-epoch population is a SUBSET of the jitter population; a figure from one must not be read against a drop tally from the other"
+ },
+ "results": {
+  "perEpochRmssdBiasPct": {
+   "median": 4.2,
+   "iqr": [
+    1.84,
+    6.77
+   ],
+   "rangeAcrossNights": [
+    -11.34,
+    134.76
+   ],
+   "meanOverNights": 12.56,
+   "sdOverNights": 29.57,
+   "within10Pct": "25/30",
+   "within5Pct": "15/30",
+   "positiveNights": "28/30",
+   "loa95Pct": [
+    -45.4,
+    70.5
+   ],
+   "estimator": "median across nights of each night's median per-epoch bias \u2014 the paper's own definition"
+  },
+  "perEpochSdnnBiasPct": {
+   "median": 2.6,
+   "iqr": [
+    1.49,
+    3.33
+   ],
+   "rangeAcrossNights": [
+    -2.3,
+    62.6
+   ],
+   "rangeSource": "read off the producer's per-night column; the ranges line does not carry SDNN"
+  },
+  "jitterSdMs": {
+   "median": 6.34,
+   "iqr": [
+    4.61,
+    8.83
+   ],
+   "rangeAcrossNights": [
+    3.74,
+    34.23
+   ]
+  },
+  "ppiMaeMs": {
+   "median": 4.38,
+   "iqr": [
+    3.47,
+    5.14
+   ],
+   "rangeAcrossNights": [
+    2.93,
+    25.97
+   ]
+  },
+  "ppiBiasMs": {
+   "median": 0.01,
+   "iqr": [
+    -0.0,
+    0.02
+   ],
+   "rangeAcrossNights": [
+    -0.5,
+    0.23
+   ]
+  },
+  "beatSensitivityPct": {
+   "median": 100.0,
+   "iqr": [
+    99.58,
+    100.0
+   ],
+   "rangeAcrossNights": [
+    44.77,
+    100.0
+   ]
+  },
+  "beatPpvPct": {
+   "median": 100.0,
+   "iqr": [
+    100.0,
+    100.0
+   ],
+   "rangeAcrossNights": [
+    44.27,
+    100.0
+   ]
+  },
+  "wholeRecordRmssdBiasPct": {
+   "median": 6.52,
+   "iqr": [
+    1.59,
+    15.41
+   ],
+   "note": "a DIFFERENT estimator from the per-epoch figure above, and reported beside it for that reason"
+  },
+  "catastrophicEpochs": {
+   "n": 283,
+   "of": 1961,
+   "sharePct": 14.4,
+   "jitterMedianInsideMs": 19.2,
+   "jitterMedianOutsideMs": 5.6,
+   "above15msInsidePct": 67,
+   "above15msOutsidePct": 8
+  },
+  "referencePerEpochEcgRmssdMs": 35.4,
+  "budgetSigmaMs": {
+   "1pct": 4.57,
+   "2pct": 6.48,
+   "3pct": 7.95,
+   "5pct": 10.31,
+   "reachedNights": {
+    "1pct": "6/30",
+    "2pct": "17/30",
+    "3pct": "21/30",
+    "5pct": "23/30"
+   },
+   "medianNightSigmaMs": 6.34
+  },
+  "kFitConstrained": {
+   "model": "rMSSD\u00b2_ppg = rMSSD\u00b2_ecg + k\u00b7\u03c3\u00b2 per night, a fixed at 1 (the equation the paper writes)",
+   "k": 1.21,
+   "kIqr": [
+    0.44,
+    2.53
+   ],
+   "nightsFitted": "30/30 with >=5 epochs",
+   "r2Increment": 0.088,
+   "r2IncrementIqr": [
+    -0.046,
+    0.343
+   ],
+   "r2IncrementWorst": -0.651,
+   "r2Uncentred": 0.227,
+   "r2AgainstRmssd2Ppg": 0.579,
+   "r2AgainstRmssd2PpgIqr": [
+    0.37,
+    0.727
+   ],
+   "pooled": {
+    "k": 2.94,
+    "r2Increment": 0.194,
+    "r2Uncentred": 0.228,
+    "r2AgainstRmssd2Ppg": 0.193,
+    "epochs": 1961,
+    "note": "descriptive only; the pooled k is the one value inside the theoretical band [2,6]"
+   },
+   "theoreticalBand": [
+    2,
+    6
+   ],
+   "note": "ONE residual sum, three denominators. A published R\u00b2 that does not name its denominator can be any of these."
+  },
+  "kFitFree": {
+   "model": "rMSSD\u00b2_ppg = a\u00b7rMSSD\u00b2_ecg + k\u00b7\u03c3\u00b2, both coefficients fitted",
+   "a": 1.06,
+   "aIqr": [
+    0.99,
+    1.17
+   ],
+   "k": 1.07,
+   "kIqr": [
+    0.21,
+    3.09
+   ],
+   "r2": 0.672,
+   "r2Iqr": [
+    0.373,
+    0.831
+   ],
+   "note": "a reads ~1, so the paper\u2019s a=1 constraint is not what breaks the fit"
+  },
+  "withinNightJitterIqrMs": {
+   "median": 4.82,
+   "range": [
+    0.55,
+    29.72
+   ],
+   "note": "the x-spread a per-night fit has to work with; \u03c3\u00b2 is the only predictor, so this bounds the achievable per-night R\u00b2 whether the model holds or not"
+  },
+  "bareDeviceRmssdR2": {
+   "median": 0.649,
+   "iqr": [
+    0.302,
+    0.808
+   ],
+   "note": "no model in it \u2014 the most charitable reading of an unlabelled published R\u00b2, measured rather than assumed"
+  }
+ },
+ "published": {
+  "source": "papers/ppg-ecg-hrv-validation.html Draft v2, measured 2026-07 on pre-removal bytes",
+  "nights": 20,
+  "epochs": 1477,
+  "epochsPooled": 1488,
+  "perEpochRmssdBiasPct": {
+   "median": 4.24,
+   "iqr": [
+    1.83,
+    6.85
+   ]
+  },
+  "perEpochSdnnBiasPct": {
+   "median": 2.46,
+   "iqr": [
+    1.15,
+    3.76
+   ]
+  },
+  "jitterSdMs": {
+   "median": 5.92,
+   "iqr": [
+    3.98,
+    10.61
+   ]
+  },
+  "ppiMaeMs": {
+   "median": 3.94
+  },
+  "ppiBiasMs": {
+   "median": 0.01
+  },
+  "catastrophicEpochs": {
+   "n": 158,
+   "of": 1488,
+   "sharePct": 10.6,
+   "above15msInsidePct": 91,
+   "above15msOutsidePct": 7
+  },
+  "kFit": {
+   "k": 2.39,
+   "kIqr": [
+    1.79,
+    2.85
+   ],
+   "r2": 0.964,
+   "r2Iqr": [
+    0.937,
+    0.989
+   ],
+   "r2Min": 0.67,
+   "pooled": {
+    "k": 2.29,
+    "r2": 0.909
+   }
+  }
+ },
+ "verdict": "REFUTED - the paper's descriptive panels re-cut closely (per-epoch rMSSD bias +4.20 % against +4.24 % published, SDNN +2.60 against +2.46, PPI bias +0.01 ms, sensitivity and PPV at ceiling), and its central mechanistic claim does not reproduce under any estimator searched: the equation as written gives k 1.21 and R2 0.088 against the published k 2.39 and R2 0.964, the same residuals give 0.227 and 0.579 under the other two denominators, freeing the reference coefficient gives 0.672 at a 1.06, and the devices' bare per-epoch rMSSD agreement is 0.649. Part of the failure is structural: within-night jitter IQR is 4.82 ms, so this corpus cannot identify a coefficient on sigma^2 whether the physics holds or not. The paper is re-cut to say so and Table 2 is retained as a labelled illustration, not a design target.",
+ "limits": [
+  "single subject, one device pair, every night quiet sleep",
+  "the model was never testable on this corpus at full strength: jitter barely varies within a night",
+  "three panels are carried from Draft v2 and still have no producer - the ECG detector-validation residuals (2.2), the epoch-level SQI AUC (3.4) and the two negative fiducial results (4)",
+  "per-night and per-epoch values are capture records and stay off the repository; this file holds pooled figures, counts, the night count and the date range only"
+ ]
+}
