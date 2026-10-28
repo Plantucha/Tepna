@@ -25,19 +25,21 @@ EXIT=0 over all 41 steps. The owner question is board entry **#2071** on thread 
 
 ## 4 · Next step
 
-Wait for the owner's choice between options A, B and C. Then stamp the status line with that choice
-and open the build unit. Nothing else in this unit remains.
+The owner chose option B on 2026-10-28, and Kestrel ordered the sequence. Unit 121 builds the full
+recovery with the numeric column. Unit 122 wires `confirm_end` in the pull path. Both wait for #4083
+to merge, and Kestrel undrafts it.
 
 ## 5 · Open questions
 
-The owner holds three: which option, whether `confirm_end` gains a caller, and what a tripwire does
-when it fires. §6 of the brief states them.
+None remain in this unit. The owner answered both: option B, and `confirm_end` gains a caller as its
+own unit. §6 of the brief records the ruling.
 
 ## 6 · Blockers
 
-The row forbids boot-recovery code before the decision. Deploys to vigil stay owner-authorized, and
-this unit deploys nothing. The `END_CONFIRMED` finding needs a residue row, and that row waits for a
-free PR slot.
+Unit 121 ships code and restarts no daemon, because a deploy to vigil stays owner-only. Row
+`2026-10-28-end-confirmed-has-no-producer-outside-its-tests` rides this PR and reads OPEN until unit
+122 closes it. Every landing PR appends to `RESIDUE.md`, so this branch conflicts with any other PR
+that touches the ledger.
 
 ## 7 · The doc-search query
 
