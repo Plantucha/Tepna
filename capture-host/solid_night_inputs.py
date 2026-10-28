@@ -1283,7 +1283,14 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
     ⚠️ THE WORD FILTER GUARDS THIS SOURCE ONLY. The journal's `clock_events` carry their own vocabulary
     (`loss_audit.CLOCK_EVENT_PHRASES`) and it admits `device clock unreadable`, which is the same event
     this list excludes. That disagreement is open and is the owner's to settle; do not resolve it by
-    editing one side."""
+    editing one side.
+
+    ⚠️ AND THE JOURNAL SOURCE REACHES ALMOST NOTHING TODAY. A clock-event record whose `devices` list
+    holds only ADDRESSES matches no device name, so it is dropped here for every device: 113 of 115
+    in-window records over 70 audits, measured 2026-10-28 on the capture host. The three-source claim
+    above therefore held in form and not in fact, and `how` now states that count rather than reporting a
+    read of a source that matched nothing (`_A5_JOURNAL_ADDRESS` carries the measurement and the reason
+    the remedy is not here)."""
     out: list[float] = [r["host_ms"] for r in recorded_seams(primary, start, end)]
     audit = read_json(os.path.join(night_dir, LOSS_AUDIT_NAME))
     if audit is None:
@@ -1293,19 +1300,31 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
     ev = audit.get("clock_events")
     if ev is None:
         return None, "journalctl was unavailable when the night was audited, so the record set is incomplete"
+    j_window = j_address_only = 0
     for e in ev:
         t = _ni.parse_host_stamp(str(e.get("at") or ""))
         if t is None or (start is not None and (t < start or t > end)):
             continue
+        j_window += 1
         devs = e.get("devices") or []
         if devs and device not in devs:
-            continue  # a line that names OTHER devices is not this device's record; one that names none is
+            # a line that names OTHER devices is not this device's record; one that names none is. A line
+            # that names only an ADDRESS is neither: no device name can match it, so it is dropped here
+            # for EVERY device and the count travels in `how` (see `_A5_JOURNAL_ADDRESS`).
+            if all(_A5_JOURNAL_ADDRESS.match(str(d)) for d in devs):
+                j_address_only += 1
+            continue
         out.append(t.timestamp() * 1000.0)
     seen = _clocksync_rows(night_dir, device, start, end)
     if seen is None:
         return None, f"`{writers_CLOCKSYNC}` is present but unreadable, so the record set is incomplete"
     out.extend(seen)
     out.sort()
+    if j_address_only:
+        return out, (
+            f"seam sidecar + journal clock events ({j_address_only} of {j_window} in-window records name "
+            "only an address, so no device could claim them) + CLOCKSYNC.csv"
+        )
     return out, "seam sidecar + journal clock events + CLOCKSYNC.csv"
 
 
@@ -1328,6 +1347,20 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
 # names: on 2026-10-20 the H10 kept 28 rows, 26 of them this word, and the density arm fired on two
 # deferrals that wrote nothing. The give-up words STAY — a ladder that attempted writes is the brief's
 # own case — and removing them as well would have cost 1,293 excuses to retire 34 dense refusals.
+# AN ADDRESS-SHAPED ENTRY in a journal clock event's `devices` list. `loss_audit._device_keys` writes a
+# device's name AND its address, whichever the log line carried, and most capture lines carry only the
+# address. The A5 consumer holds a device NAME, so a record whose every entry is address-shaped matches no
+# device and is dropped for ALL of them — measured 2026-10-28 over the capture host's 70 `LOSS-AUDIT.json`
+# files: 113 of 115 in-window records name only an address, so the journal source reached neither the
+# density arm nor the excuse arm for any device, while `how` still claimed all three sources were read.
+#
+# 🔴 THE REMEDY IS NOT HERE. Matching the address as well would re-admit those 113 records, and they
+# include the `device clock unreadable` lines that `_A5_NON_RECORD_EVENTS` EXCLUDES on the CSV side while
+# `loss_audit.CLOCK_EVENT_PHRASES` ADMITS them. That disagreement is open and is the owner's to settle, so
+# this constant classifies and counts and changes no verdict. §∅'s ruling 2026-09-17 is what it obeys: a
+# discontinuity refuses, reduced COVERAGE annotates, and a matched-out source is reduced coverage.
+_A5_JOURNAL_ADDRESS = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+
 _A5_NON_RECORD_EVENTS = (
     "deferred-absent",
     "deferred-after-pause",
