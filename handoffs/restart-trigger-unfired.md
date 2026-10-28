@@ -7,9 +7,9 @@
 **branch:** claude/restarttrig-wrn
 **worktree:** ../wt-restarttrig-wrn
 **doc-search:** `supervised restart crash-loop trigger never fired marker store journal retention`
-**stopping-point:** `briefs/RESIDUE.md` — the row reads `answered #PRNUM`
+**stopping-point:** `briefs/RESIDUE.md` — the row reads `answered #4025`
 **next-step:** None. Kestrel sequences the PR. The unit owes no deploy and no restart.
-**done-when:** `git show origin/main:briefs/RESIDUE.md` shows the row with the state cell `answered #PRNUM`.
+**done-when:** `git show origin/main:briefs/RESIDUE.md` shows the row with the state cell `answered #4025`.
 
 ## Verdict
 
