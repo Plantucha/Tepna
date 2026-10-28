@@ -12680,6 +12680,243 @@
         T.eq('…a tepna.verdict/1', obj.schema, 'tepna.verdict/1');
       }
     });
+    /* ════ FOUR FOLD-AND-COHORT READERS PUBLISH THE POPULATION THEY WALKED ════════════════════════
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population, slice C.
+       `cvhr-fold-rescore.mjs` scored a night list it took from a COMMITTED CONTROL and never
+       enumerated the tree that control selects from, so a night directory on disk the control does
+       not name was never scored and never named. `o2ring-finger-validate-batch.mjs` took several
+       capture roots and reported pairs, with no statement of what any root held — and a root that
+       was not a directory was dropped by a stat filter into a refusal that said "no directories
+       given". `seqnet-eval.mjs` reported per-cohort deltas over the nights its own cache happened to
+       hold. `corpus-census.mjs`, the tool whose whole job is a census, published the files it
+       MATCHED and never the files it had walked, so its count had no denominator.
+       FOUR UNITS, TWO PRIMITIVES. The fold rescore's unit is a NIGHT DIRECTORY and takes
+       `snapshotNights`; the other three count FILES and take `snapshotEntries` with a NAMED lister
+       (`snapshotEntries` publishes `rule: list.name`, so an inline arrow publishes `null` and names
+       no rule). The census is the one that must not route through its own census: it publishes the
+       population from the single traversal it already makes, and `census()` reads that walk's
+       members rather than walking a second time — two reads of one tree can disagree, and then no
+       figure says which read it was taken over.
+       THE CENSUS CARRIED A THIRD DEFECT, row
+       2026-10-28-an-empty-census-overwrites-the-manifest-it-would-be-diffed-against: `--write` over a
+       glob that matched nothing wrote an EMPTY manifest over the committed one, destroying the very
+       baseline the next `--diff` reads. It now refuses, writes nothing, and says what is untouched.
+       THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a cohort cache pointed at
+       nothing, a run invoked with no arguments at all, an argument that is not a directory, and a
+       sweep that was offered no file now exit 2 — a run that examined nothing must not carry a
+       complete run's exit code. ONE EXIT IS DELIBERATELY NOT 2: `cvhr --tree <empty>` enumerates the
+       tree fine and then refuses on its CONTROL, which is a different fact with its own exit 1, and
+       the population object beside it still reads NOT_RUN over checked 0. ════ */
+    group('the four fold-and-cohort readers publish the population they walked', 'tools · corpus-reads · population', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the slice-C legs examined nothing');
+        else T.skip('the fold-and-cohort legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var FOUR = [
+        { rel: 'tools/cvhr-fold-rescore.mjs', anti: /overlapTest|cvhr-fold-rescore/, primitive: 'snapshotNights', lister: null, unit: null },
+        { rel: 'tools/o2ring-finger-validate-batch.mjs', anti: /O2Ring.*_PPG\.txt|finger-validate/, primitive: 'snapshotEntries', lister: 'listRingCaptureFiles', unit: 'capture-files' },
+        { rel: 'tools/seqnet-eval.mjs', anti: /seqnet|cohort/, primitive: 'snapshotEntries', lister: 'listFeatureCaches', unit: 'cached-nights' },
+        { rel: 'tools/corpus-census.mjs', anti: /uniqueByContent|corpus-census/, primitive: 'snapshotEntries', lister: 'listCorpusFiles', unit: 'files' }
+      ];
+      /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+      var missing = FOUR.filter(function (t) {
+        return typeof TT[t.rel] !== 'string' || TT[t.rel].length === 0 || !t.anti.test(TT[t.rel]);
+      }).map(function (t) {
+        return t.rel;
+      });
+      T.eq('ANTI-VACUITY · all four slice-C readers are readable in this lane', missing, []);
+      if (missing.length) return;
+      FOUR.forEach(function (t) {
+        var src = TT[t.rel];
+        var stem = t.rel.replace(/^.*\//, '');
+        T.ok(t.rel + ' takes the population primitive from the shared core, not a hand-rolled object', /from '\.\/corpus-scope-core\.mjs'/.test(src), 'absent');
+        T.ok(
+          t.rel + ' enumerates with ' + t.primitive + ', the primitive its own unit earns',
+          src.indexOf(t.primitive + '(') > 0,
+          'absent — a night tool must not borrow the file primitive, nor a file tool the night one'
+        );
+        T.ok(
+          t.rel + ' declares --verdict-sample, which is what the adoption gate RUNS',
+          src.indexOf('--verdict-sample') >= 0,
+          'absent — an adoption row naming a flag the tool does not read is a claim'
+        );
+        T.ok(
+          t.rel + ' refuses a root it cannot enumerate, naming the reason the snapshot gave',
+          /\.reason/.test(src) && /process\.exit\(2\)|return 2/.test(src),
+          'absent — an absent root is not a zero (§∅)'
+        );
+        T.ok(t.rel + ' has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[stem] === undefined, stem + ' is still listed as an unwired corpus enumerator');
+        T.eq('…and the scanner itself classifies ' + t.rel + ' as reporting', CR.classifyTool(src).cls, 'reports');
+        /* THE SAMPLE IS NOT THE CLEARANCE: `corpus-reads.mjs` blanks a sample helper before it
+           decides, so the POPULATION print must survive the blanking — otherwise the object exists
+           only under the flag and no real run publishes one. */
+        T.ok(
+          t.rel + ' prints its POPULATION line from a path no sample helper holds',
+          CR.blankSampleHelpers(src).indexOf('POPULATION ') >= 0,
+          'absent — the published object would exist only under --verdict-sample'
+        );
+        if (t.lister) {
+          T.ok(
+            t.rel + ' names its lister, so the published rule is not null',
+            new RegExp('(?:const|function) ' + t.lister + '\\b').test(src),
+            t.lister + ' is absent — a function on the `list` property inherits the name `list`'
+          );
+          T.ok('…and hands that NAMED lister to the snapshot', new RegExp('list: ' + t.lister).test(src), 'absent');
+          T.ok('…under the unit its own walk carries', src.indexOf("unit: '" + t.unit + "'") > 0, "unit: '" + t.unit + "' is absent");
+        }
+      });
+      /* CONTROL · the clearance is not vacuous: gut the real `populationVerdict` call in each and the
+         class must fall out of `reports`. */
+      FOUR.forEach(function (t) {
+        var gutted = TT[t.rel].replace(/populationVerdict\(/g, 'NOT_THE_PRIMITIVE(');
+        T.ok('CONTROL · ' + t.rel + ' stops reporting with its real population call gutted', CR.classifyTool(gutted).cls !== 'reports', CR.classifyTool(gutted).cls);
+      });
+      /* THE FOLD RESCORE'S OWN DEFECT: the control is a SELECTION inside the offer, and the nights it
+         leaves out are named through the one definition of that arithmetic, never a hand-rolled set
+         difference. */
+      var CV = TT['tools/cvhr-fold-rescore.mjs'];
+      T.ok('the fold rescore names the offered nights its control does not', /notANight\(popBefore, committed\)/.test(CV), 'absent — reduced coverage annotates, it is never silently renormalised');
+      T.ok('…and states the offer BEFORE its control refusal, because a refused run enumerated the tree all the same', CV.indexOf('offered: ${popBefore.n} night') > 0, 'absent');
+      /* A `const` arrow called above its own declaration is a guaranteed dead-zone throw, which is
+         row 2026-10-28-the-cvhr-cost-phase-publishes-a-population-before-the-publisher-exists. The
+         leg reads every call site's offset rather than one spelling of one call. */
+      var pubDecl = CV.indexOf('const publishPopulation =');
+      var pubCalls = [];
+      var pubRe = /publishPopulation\(/g;
+      var pubHit = null;
+      while ((pubHit = pubRe.exec(CV)) !== null) pubCalls.push(pubHit.index);
+      T.ok('…through a publisher declared before every call that reaches it', pubDecl >= 0 && pubCalls.length >= 2, 'declared at ' + pubDecl + ', ' + pubCalls.length + ' call site(s)');
+      T.eq(
+        '…with no call above the declaration, which would throw before it published anything',
+        pubCalls.filter(function (i) {
+          return i < pubDecl;
+        }),
+        []
+      );
+      /* THE MULTI-ROOT SWEEP: one snapshot per root, never one listing standing for the sweep, and
+         the loop reads the snapshot's members rather than taking a second listing. */
+      var O2 = TT['tools/o2ring-finger-validate-batch.mjs'];
+      T.ok(
+        'the ring sweep snapshots EVERY root it was given, not just the first',
+        /dirs\.map\(\(d\) => \(\{ dir: d, snap: snapshotEntries\(d, POP\) \}\)\)/.test(O2),
+        'absent — one directory listing cannot be a multi-root sweep population'
+      );
+      T.ok('…and scores off the snapshot members, so the figure and the population are one read', /snap\.members\.map/.test(O2), 'absent — two reads of one directory can disagree');
+      T.ok('…stating how many roots were walked and which were passed over', /roots: \$\{rootsGiven\.length\} given, \$\{walkable\.length\} walked/.test(O2), 'absent');
+      T.ok(
+        '…naming the passed-over arguments in the refusal itself',
+        /all passed over: \$\{rootsPassedOver\.join/.test(O2),
+        'absent — "no directories given" over a run that WAS given one says the opposite of what happened'
+      );
+      /* THE CENSUS: ONE TRAVERSAL, A DENOMINATOR, AND A REFUSAL THAT PROTECTS ITS OWN BASELINE. */
+      var CC = TT['tools/corpus-census.mjs'];
+      T.ok(
+        'the census walks once and feeds that walk to the census it publishes',
+        /census\(root, glob, \{[^}]*members: opening\.members/.test(CC),
+        'absent — routing the census through a second walk publishes a population the rows were not taken over'
+      );
+      T.ok('…counting the files the glob REJECTED, so the matched count has a denominator', /rejectedByGlob: account\.rejected\.length/.test(CC), 'absent');
+      T.ok(
+        '…with the walk as the eligible population, never the match as its own denominator',
+        /excluded: walked - rows\.length/.test(CC),
+        'absent — checked === eligible over a filtered set is the tautology this row names'
+      );
+      T.ok('…nulling the counts it did not take, rather than writing a zero', /walked: null/.test(CC), 'absent — a count that was not taken is null, never 0 (§∅)');
+      T.ok(
+        '…naming each subdirectory it could not read, with the errno',
+        /unreadableDirs\.push\(/.test(CC) && /e\.code \|\| e\.message/.test(CC),
+        'absent — an unreadable subtree would read as an absent one'
+      );
+      T.ok(
+        '…and refusing to write an empty manifest over the committed one',
+        /NO MANIFEST WRITTEN/.test(CC),
+        'absent — row 2026-10-28-an-empty-census-overwrites-the-manifest-it-would-be-diffed-against'
+      );
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* KNOWN ANSWER · the corpus-free sample each adoption row names. The checker parses stdout as
+         JSON, so the object must be ALONE — a source scan cannot see a human line printed beside it. */
+      [
+        ['tools/cvhr-fold-rescore.mjs', 'corpus-population', 'PASS', 2, 'nights_added_or_removed'],
+        ['tools/o2ring-finger-validate-batch.mjs', 'o2ring-finger-validate-batch', 'UNKNOWN', 92, 'per_pair_hr_agreement_abs_delta'],
+        ['tools/seqnet-eval.mjs', 'seqnet-port-parity', 'PASS', 2, null],
+        ['tools/corpus-census.mjs', 'corpus-census', 'PASS', 3, null]
+      ].forEach(function (row) {
+        var r = probe(row[0], ['--verdict-sample']);
+        T.eq(row[0] + ' --verdict-sample exits 0 with no corpus in reach', r.status, 0);
+        var obj = null;
+        try {
+          obj = JSON.parse(String(r.out));
+        } catch {
+          obj = null;
+        }
+        T.ok(row[0] + ' prints ONE parseable object and nothing else', obj != null, String(r.out).slice(0, 200));
+        if (obj == null) return;
+        T.eq(row[0] + ' publishes the contract schema', obj.schema, 'tepna.verdict/1');
+        T.eq(row[0] + ' names the gate the adoption row carries', obj.gate, row[1]);
+        T.eq(row[0] + ' names itself as the producer', obj.producedBy && obj.producedBy.tool, row[0]);
+        T.eq(row[0] + ' publishes the sample status its shape earns', obj.status, row[2]);
+        T.eq(row[0] + ' scored the fabricated population', obj.population && obj.population.checked, row[3]);
+        T.ok(row[0] + ' keeps checked + excluded === eligible', obj.population.checked + obj.population.excluded === obj.population.eligible, JSON.stringify(obj.population));
+        if (row[4]) T.eq(row[0] + ' carries its pre-stated criterion', obj.criterion && obj.criterion.name, row[4]);
+        T.eq(row[0] + ' wrote nothing beside itself', r.wrote, []);
+      });
+      /* KNOWN ANSWER · a root that cannot be enumerated, and one that is readable and empty. The
+         probe cwd IS an empty directory, so `.` is the empty-but-readable case and `./nope` is
+         ENOENT — an absent root and an empty one are different facts and earn different reasons. */
+      [
+        ['tools/cvhr-fold-rescore.mjs', ['--tree', './nope'], 2, null],
+        ['tools/o2ring-finger-validate-batch.mjs', ['.'], 2, /offered no capture-file at all/],
+        ['tools/seqnet-eval.mjs', [], 2, null],
+        ['tools/seqnet-eval.mjs', ['--cache', './nope', '--cohorts', 'a'], 2, null],
+        ['tools/corpus-census.mjs', ['--root', '.', '--glob', '*', '--name', 'probe', '--write'], 2, /offered no file at all/],
+        ['tools/corpus-census.mjs', ['--root', '.', '--glob', '*', '--name', 'probe', '--diff'], 2, /offered no file at all/]
+      ].forEach(function (row) {
+        var r = probe(row[0], row[1]);
+        T.eq(row[0] + ' ' + row[1].join(' ') + ' exits 2 rather than carrying a complete run’s code', r.status, row[2]);
+        T.eq('…and wrote nothing beside itself', r.wrote, []);
+        if (!row[3]) return;
+        var line = String(r.out)
+          .split('\n')
+          .filter(function (l) {
+            return l.indexOf('POPULATION ') === 0;
+          })[0];
+        T.ok('…while still publishing the POPULATION line the run owes', line != null, String(r.out).slice(0, 200));
+        if (line == null) return;
+        var ev = JSON.parse(line.slice('POPULATION '.length));
+        T.eq('…whose status is NOT_RUN, never a PASS over nothing', ev.status, 'NOT_RUN');
+        T.eq('…over checked 0', ev.population.checked, 0);
+        T.ok('…naming the root and the shape of the absence it found', row[3].test(String(ev.reason)), String(ev.reason));
+      });
+      /* KNOWN ANSWER · an argument that is not a directory names itself in the refusal. */
+      var notADir = probe('tools/o2ring-finger-validate-batch.mjs', ['./package.json']);
+      T.eq('the ring sweep exits 2 when every argument was passed over', notADir.status, 2);
+      T.ok('…naming the argument and why, rather than "no directories given"', /passed over: .*package\.json/.test(String(notADir.out)), String(notADir.out).slice(0, 200));
+      /* KNOWN ANSWER · the empty census protects the baseline a later --diff reads. */
+      var emptyWrite = probe('tools/corpus-census.mjs', ['--root', '.', '--glob', '*', '--name', 'probe', '--write']);
+      T.ok('an empty census says what it did NOT write', /NO MANIFEST WRITTEN/.test(String(emptyWrite.out)), String(emptyWrite.out).slice(0, 240));
+      T.ok('…and names the manifest it left untouched', /is untouched/.test(String(emptyWrite.out)), String(emptyWrite.out).slice(0, 240));
+      /* CONTROL · each tool still passes its own selftest, so the arms above are asserted from inside
+         as well as from here, and the count is parsed rather than written as a literal. */
+      [
+        ['tools/cvhr-fold-rescore.mjs', /all (\d+) selftests passed/],
+        ['tools/o2ring-finger-validate-batch.mjs', /all (\d+) selftests passed/],
+        ['tools/seqnet-eval.mjs', /all (\d+) selftests passed/],
+        ['tools/corpus-census.mjs', /all (\d+) selftests passed/]
+      ].forEach(function (row) {
+        var r = probe(row[0], ['--selftest']);
+        T.eq('CONTROL · ' + row[0] + ' passes its own selftest', r.status, 0);
+        var m = row[1].exec(String(r.out));
+        T.ok('…in the summary line selftest-all parses, with a counted number of assertions', m != null && Number(m[1]) > 0, String(r.out).slice(-160));
+      });
+    });
     /* ════ FOUR READERS, ONE POPULATION: THE TRIO NIGHT TREE ════════════════════════════════════
        Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `closure-tol-hac.mjs`,
        `pb-fusion-blast.mjs`, `rho-overlap-power.mjs` and `tch-pooled-hat.mjs` all score over the

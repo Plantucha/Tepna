@@ -15,6 +15,7 @@ import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 /* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
@@ -107,10 +108,20 @@ function ringHRSeries(path) {
 /* Accept a shell glob without dying on it. `captures/*` expands to the session directories AND any
    stray file beside them (`status.json` here), and `readdirSync` on a file throws ENOTDIR — so the
    obvious invocation killed the whole sweep before a single row printed. Filter, don't assume. */
+/* 🔴 AND A ROOT IT CANNOT STAT IS NOT THE SAME FACT AS A FILE. The filter returned `false` for both,
+   so a captures directory this machine could not open left the sweep with no row, no count and no
+   name — the glob reason above is real and it does not extend to EACCES. Each argument now says why
+   it is out, and the roots line below prints every reason. */
+const rootsGiven = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const rootsPassedOver = [];
 const dirs = process.argv.slice(2).filter((d) => {
+  if (d.startsWith('--')) return false;
   try {
-    return statSync(d).isDirectory();
-  } catch {
+    if (statSync(d).isDirectory()) return true;
+    rootsPassedOver.push(`${d}: not a directory`);
+    return false;
+  } catch (e) {
+    rootsPassedOver.push(`${d}: ${e.code || e.message}`);
     return false;
   }
 });
@@ -171,16 +182,47 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   process.exit(bad ? 1 : 0);
 }
 if (!dirs.length) {
-  console.error('no directories given — usage: node tools/o2ring-finger-validate-batch.mjs <captures-dir> [...]');
+  /* NAME WHAT WAS PASSED OVER. An argument that is not a directory, or one whose stat threw, is
+     already held in `rootsPassedOver` with its reason — a bare "no directories given" over a run that
+     WAS given an argument tells the reader the opposite of what happened. */
+  console.error(
+    'no directories given — usage: node tools/o2ring-finger-validate-batch.mjs <captures-dir> [...]' +
+      (rootsPassedOver.length ? `\n  ${rootsGiven.length} argument(s) given, all passed over: ${rootsPassedOver.join('; ')}` : '')
+  );
+  process.exit(2);
+}
+/* ── THE POPULATION IS PER ROOT, BECAUSE THE SWEEP IS MULTI-ROOT ─────────────────────────────────
+   `snapshotEntries` reads ONE root, so a single snapshot over the first argument would publish one
+   directory's listing as the whole sweep's population (row
+   2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot). One snapshot per root,
+   then the roots line states how many were offered and which are out, and each root publishes its
+   own stability verdict at the tail. The lister carries a NAME so the published rule is not null,
+   and the loop reads the snapshot's own members rather than taking a second listing — two reads of
+   one directory can disagree, and then no figure names which one it was taken over. */
+const listRingCaptureFiles = (root) => readdirSync(root);
+const POP = { list: listRingCaptureFiles, unit: 'capture-files' };
+const opening = dirs.map((d) => ({ dir: d, snap: snapshotEntries(d, POP) }));
+for (const o of opening) if (!o.snap.ok) rootsPassedOver.push(`${o.dir}: ${o.snap.reason}`);
+const walkable = opening.filter((o) => o.snap.ok);
+console.log(`roots: ${rootsGiven.length} given, ${walkable.length} walked` + (rootsPassedOver.length ? `, ${rootsPassedOver.length} out (${rootsPassedOver.join('; ')})` : ', none out'));
+if (!walkable.length) {
+  console.error('no captures directory could be enumerated — usage: node tools/o2ring-finger-validate-batch.mjs <captures-dir> [...]');
   process.exit(2);
 }
 const rows = [];
-for (const d of dirs) {
-  const files = readdirSync(d).map((f) => join(d, f));
+const offer = { ppg: 0, rootsMissingAKind: [], unpartnered: 0, windowless: 0 };
+for (const { dir: d, snap } of walkable) {
+  const files = snap.members.map((f) => join(d, f));
   const ppgs = files.filter((f) => /O2Ring.*_PPG\.txt$/.test(f) && statSync(f).size > 200000);
   const ecgs = files.filter((f) => /H10.*_ECG\.txt$/.test(f) && statSync(f).size > 200000);
   const spo2s = files.filter((f) => /O2Ring.*_SPO2\.csv$/.test(f));
-  if (!ppgs.length || !ecgs.length || !spo2s.length) continue;
+  offer.ppg += ppgs.length;
+  if (!ppgs.length || !ecgs.length || !spo2s.length) {
+    offer.rootsMissingAKind.push(
+      `${d.split('/').pop()}: ${[!ppgs.length && 'no PPG over 200 kB', !ecgs.length && 'no ECG over 200 kB', !spo2s.length && 'no SpO₂ csv'].filter(Boolean).join(' and ')}`
+    );
+    continue;
+  }
   const ecgWin = ecgs.map((f) => ({ f, w: isoWindow(f) }));
   const spoWin = spo2s.map((f) => ({
     f,
@@ -198,12 +240,19 @@ for (const d of dirs) {
     try {
       pw = isoWindow(pf);
     } catch {
+      offer.windowless++;
       continue;
     }
     const be = ecgWin.map((e) => ({ ...e, ov: overlapSec(pw, e.w) })).sort((a, b) => b.ov - a.ov)[0];
-    if (!be || be.ov < 45) continue; // need a real shared window
+    if (!be || be.ov < 45) {
+      offer.unpartnered++; // need a real shared window
+      continue;
+    }
     const bs = spoWin.map((s) => ({ ...s, ov: s.w[0] && s.w[1] ? overlapSec(pw, s.w) : 0 })).sort((a, b) => b.ov - a.ov)[0];
-    if (!bs || bs.ov < 45) continue;
+    if (!bs || bs.ov < 45) {
+      offer.unpartnered++;
+      continue;
+    }
     let pB, eB, rB;
     try {
       pB = beatsFromPPG(pf);
@@ -215,12 +264,18 @@ for (const d of dirs) {
     }
     const lo = Math.max(pB.out[0]?.tMs ?? Infinity, eB[0]?.tMs ?? Infinity, rB[0]?.tMs ?? Infinity);
     const hi = Math.min(pB.out.at(-1)?.tMs ?? -Infinity, eB.at(-1)?.tMs ?? -Infinity, rB.at(-1)?.tMs ?? -Infinity);
-    if (!(hi > lo)) continue;
+    if (!(hi > lo)) {
+      offer.windowless++;
+      continue;
+    }
     const win = (a) => a.filter((x) => x.tMs >= lo && x.tMs <= hi).map((x) => x.hr);
     const mP = median(win(pB.out)),
       mE = median(win(eB)),
       mR = median(win(rB));
-    if (mP == null || mE == null || mR == null) continue;
+    if (mP == null || mE == null || mR == null) {
+      offer.windowless++;
+      continue;
+    }
     rows.push({
       sess: d.replace(homedir() + '/', ''),
       file: pf.split('/').pop().slice(-22),
@@ -255,6 +310,20 @@ for (const r of rows) {
   );
 }
 console.log(`\n${pass}/${tot} pairs PASS (both Δ ≤ 3 bpm, feet detected).`);
+/* ── WHAT THE SWEEP WAS OFFERED, beside what it scored (§∅ — reduced coverage annotates) ──────────
+   Every `continue` above removes an offered PPG file for its own reason, and the batch line counts
+   only the survivors. Named here so the two numbers can be read together. */
+console.log(
+  `  population: ${offer.ppg} PPG file(s) over 200 kB offered by ${walkable.length} walked root(s); ${tot} scored, ${rows.filter((r) => r.err).length} errored, ` +
+    `${offer.unpartnered} without an ECG or SpO₂ partner inside 45 s, ${offer.windowless} without a common window` +
+    (offer.rootsMissingAKind.length ? `; ${offer.rootsMissingAKind.length} root(s) lacked a whole kind (${offer.rootsMissingAKind.join('; ')})` : '')
+);
+for (const { dir: d, snap } of walkable) {
+  const population = populationVerdict(snap, snapshotEntries(d, POP), { tool: 'tools/o2ring-finger-validate-batch.mjs', evidence: ['tools/o2ring-finger-validate-batch.mjs'] });
+  const rule = ruleLine(population);
+  if (rule) console.log(`  ${rule}`);
+  console.log(`POPULATION ${JSON.stringify(population)}`);
+}
 
 /* ── ONE tepna.verdict/1, AND IT SAYS UNKNOWN (CLAUDE.md §🧾) ──────────────────────────────────────────
    PRE-STATED CRITERION, with its source:
@@ -324,3 +393,13 @@ const _dRs = rows
   .sort((a, b) => a - b);
 const _med = _dRs.length ? (_dRs.length % 2 ? _dRs[_dRs.length >> 1] : (_dRs[(_dRs.length >> 1) - 1] + _dRs[_dRs.length >> 1]) / 2) : null;
 console.log('\nVERDICT (tepna.verdict/1) ' + JSON.stringify(gateVerdict({ pass, tot, errs: _errs, medianDeltaRing: _med, commit: gitShort() })));
+
+/* ── A SWEEP THAT WAS OFFERED NOTHING EXITS 2 (§∅) ───────────────────────────────────────────────
+   Every walked root enumerated and not one held a PPG file over the floor, so there was no
+   population to score and the NOT_RUN above is the whole run; exiting 0 would give a sweep that
+   examined nothing a complete sweep's status. A root that DID offer files, none of them eligible, is
+   a different fact: the offer is printed beside the figure and the batch keeps its own exit. */
+if (!offer.ppg) {
+  console.error(`✕ no PPG file over 200 kB under any of the ${walkable.length} walked root(s) — nothing was offered to score`);
+  process.exit(2);
+}
