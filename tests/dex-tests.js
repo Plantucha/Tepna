@@ -41735,8 +41735,7 @@
           'cohort-worker.js': [1, SYNTH],
           'ppgdex-app.js': [2, 'GYRO, MAGN: no RUNS writer for the stream'],
           'qrs-equiv-worker.js': [1, SYNTH],
-          'qrs-yield-worker.js': [1, SYNTH],
-          'resp-acc-analysis-app.js': [1, OPEN]
+          'qrs-yield-worker.js': [1, SYNTH]
         };
 
         /* `tools/` is pinned as ONE population, never per file. The adoption gate (tools/, verdict manifest) counts a
@@ -41834,7 +41833,8 @@
           'sensor-trio-worker.js parseECG',
           'sensor-trio-worker.js parsePPG',
           'pat-feasibility-worker.js parseECG',
-          'pat-feasibility-worker.js parsePPG'
+          'pat-feasibility-worker.js parsePPG',
+          'resp-acc-analysis-app.js parseSensorXYZ'
         ].forEach(function (k) {
           T.ok('…and it sees the WIRED caller `' + k + '` carry the sidecar', carried.indexOf(k) >= 0, 'carrying: ' + carried.join(' · '));
         });
@@ -42008,6 +42008,110 @@
        the writer's rule is `stuck` at ANY value, the recompute's is rail-pinned, so a held mid-range
        value is invisible to the recompute. This plants exactly that and requires the exclusion and the
        annotation, with the samples and the interval population left untouched ("nothing else"). */
+    /* ── SAMPLE-VALIDITY-ENVELOPE done-when 4 — THE CHEST ACC LEG, WIRED **AND** CONSUMING ────────────
+       The last caller outside `tools/` was `resp-acc-analysis-app.js`, and wiring it alone would have
+       changed nothing. `respiratoryRate` already refuses a window it did not observe, but the mask it
+       reads is built from inter-sample GAPS (`respResample`'s `covered`), and a blanked run keeps every
+       row at the native period — a NaN there would delete the ROW and turn an absence of VALUE into an
+       absence of TIME. So the stamps march on across a span the device never measured, the interpolator
+       draws a smooth line through it, and `respWindowSpectrum` normalises amplitude away. That is the
+       sensor-off defect DEEP-AUDIT-III §4.2 already fixed, arriving by the one door the gap rule cannot
+       watch. The spans now reach the same refusal through the sidecar.
+       Synthetic input, stated as such: the flat `uploads` tree carries no `…_ACCRUNS.txt` companion, so
+       no leg here claims a corpus measurement. */
+    group('SAMPLE-VALIDITY-ENVELOPE done-when 4 — a respiratory window that leans on a blanked run is NOT RECORDING', 'motiondex-dsp · resp-acc-analysis-app · §∅ · consuming', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.genSyntheticACC === 'function' && typeof MD.respiratoryRate === 'function' && typeof MD.parseSensorXYZ === 'function')) {
+        T.skip('MOTIONDSP available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var txt = MD.genSyntheticACC({ sec: 600, hz: 26, brpm: 15, seed: 11 });
+      var rr = function (spans) {
+        var rows = MD.parseSensorXYZ(txt);
+        if (spans) rows._blankSpans = spans;
+        return MD.respiratoryRate(rows, rows[0].tMs, 'mg', {});
+      };
+      var rowsP = MD.parseSensorXYZ(txt);
+      var tA = rowsP[0].tMs,
+        tB = rowsP[rowsP.length - 1].tMs;
+      var base = rr(null);
+      T.ok(
+        'baseline · the clean synthetic measures every window',
+        !!base.hasData && base.windowsUncovered === 0 && base.windowsTotal > 10,
+        'uncovered=' + base.windowsUncovered + ' of ' + base.windowsTotal
+      );
+
+      /* one 60 s run, mid-stream — four 60 s windows at a 30 s hop overlap it by more than 20 % */
+      var mid = tA + Math.round((tB - tA) * 0.5);
+      var gated = rr([{ t0Ms: mid, t1Ms: mid + 60000, channel: 'acc' }]);
+      var unc = (gated.series || []).filter(function (e) {
+        return e.covered === false;
+      });
+      T.ok('a blanked run marks its windows NOT RECORDING', unc.length > 0, unc.length + ' uncovered of ' + gated.windowsTotal);
+      T.ok(
+        '…and none of them reports a breathing rate',
+        unc.every(function (e) {
+          return e.brpm === null && e.conf === 0;
+        }),
+        JSON.stringify(unc.slice(0, 3))
+      );
+      T.ok('…while the windows outside it still measure', gated.windowsTotal - gated.windowsUncovered > 0 && gated.medianBrpm > 0, 'median=' + gated.medianBrpm);
+      T.ok('…and the rate they report does not move', Math.abs(gated.medianBrpm - base.medianBrpm) <= 1.5, 'base=' + base.medianBrpm + ' gated=' + gated.medianBrpm);
+      /* the DENOMINATOR, not merely the numerator: a blanked window leaves the coverage ratio, exactly
+         as a sensor-off one does — a span the device never measured is not a window that failed */
+      T.eq('a blanked window leaves the coverage denominator', gated.windowsUncovered, unc.length);
+
+      /* ── the discriminations: the mask must move ONLY where a real span says so ── */
+      T.eq('a stream with no sidecar is unchanged, byte for byte', JSON.stringify(rr(null)), JSON.stringify(base));
+      T.eq('an EMPTY span list is unchanged too', JSON.stringify(rr([])), JSON.stringify(base));
+      T.eq('a span after the stream ends changes nothing', JSON.stringify(rr([{ t0Ms: tB + 3600000, t1Ms: tB + 3660000 }])), JSON.stringify(base));
+      T.eq('a span before it starts changes nothing', JSON.stringify(rr([{ t0Ms: tA - 3600000, t1Ms: tA - 60000 }])), JSON.stringify(base));
+      T.eq(
+        'a non-finite or inverted span is ignored, never read as the whole stream',
+        JSON.stringify(
+          rr([
+            { t0Ms: NaN, t1Ms: tB },
+            { t0Ms: mid + 60000, t1Ms: mid }
+          ])
+        ),
+        JSON.stringify(base)
+      );
+
+      /* ── the writer emits ONE ROW PER CHANNEL, so x/y/z spans of one event arrive OVERLAPPING. The
+         cursor walk is only correct over disjoint intervals, so they merge first. Pre-merge, a cursor
+         parked on the x-span skipped every row of the y-span that began inside it. ── */
+      var three = rr([
+        { t0Ms: mid + 50000, t1Ms: mid + 110000, channel: 'accy' },
+        { t0Ms: mid, t1Ms: mid + 60000, channel: 'accx' },
+        { t0Ms: mid + 100000, t1Ms: mid + 160000, channel: 'accz' }
+      ]);
+      var one = rr([{ t0Ms: mid, t1Ms: mid + 160000, channel: 'acc' }]);
+      T.eq('three CHAINED per-channel spans refuse exactly their union', three.windowsUncovered, one.windowsUncovered);
+      /* anti-vacuity: the union must be a DIFFERENT measurement from the 60 s span, or the equality
+         above would hold for a cursor that never merged anything */
+      T.ok('…and that union refuses strictly more than the 60 s span alone', one.windowsUncovered > gated.windowsUncovered, 'union=' + one.windowsUncovered + ' · 60 s span=' + gated.windowsUncovered);
+
+      /* ── the page: pairs by EXACT name, hands the bytes over, and says so on the surface ── */
+      var appSrc = (env.sources && env.sources['resp-acc-analysis-app.js']) || '';
+      T.ok('the page source is readable here', appSrc.length > 1000, 'env.sources length=' + appSrc.length);
+      T.ok('the page buckets the `_ACCRUNS.txt` companion', /_ACCRUNS\\\.txt\$\/i\.test\(n\)/.test(appSrc), 'groupFiles ACCRUNS bucket: ' + (/_ACCRUNS/.test(appSrc) ? 'present' : 'ABSENT'));
+      T.ok(
+        '…and pairs it by EXACT stream name, never by stamp proximity',
+        /replace\(\/RUNS\\\.txt\$\/i, '\.txt'\)/.test(appSrc) && /accRuns\[acc\[k\]\.name\] \|\| null/.test(appSrc),
+        'pairing: ' + (/accRuns\[acc\[k\]\.name\]/.test(appSrc) ? 'by exact name' : 'NOT by exact name')
+      );
+      T.ok(
+        '…and hands the bytes to parseSensorXYZ',
+        /runsTxt \? M\.parseSensorXYZ\(txt, \{ runsText: runsTxt \}\) : M\.parseSensorXYZ\(txt\)/.test(appSrc),
+        'parse call: ' + (/runsText: runsTxt/.test(appSrc) ? 'carries runsText' : 'BARE')
+      );
+      T.ok(
+        '…and publishes the validity beside the night it describes',
+        /validity: rows\._runsSidecar/.test(appSrc) && /validityNote\(src && src\.validity\)/.test(appSrc),
+        'surface: ' + (/validityNote\(/.test(appSrc) ? 'validityNote rendered' : 'NOT rendered')
+      );
+    });
+
     group('SAMPLE-VALIDITY-ENVELOPE done-when 3 — a run only the _PPGRUNS sidecar saw is excluded and annotated, and nothing else moves', 'ppgdex-dsp · §∅ · sidecar · pinned', function (T) {
       var P = env.PPGDSP;
       if (!P || !P.analyze || !P.parsePPG || !P.compute) {
