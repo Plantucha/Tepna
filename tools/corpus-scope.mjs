@@ -41,6 +41,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { corpusSearch } from './regen-goldens-core.mjs';
 /* ⚠️ THE POPULATION HALF LIVES IN corpus-scope-core.mjs AND IS RE-EXPORTED HERE UNCHANGED, so every
    caller of this module still reads the same names. A tool that wants the probe-safe closure imports
    the core directly; a tool that needs `countUnder` imports this file and accepts `exec`. */
@@ -65,6 +66,28 @@ export * from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
+
+/** The documented uploads row is a `<placeholder>`, so `classifyRoot` marks it `elided` and no
+ *  census built from countable roots alone can see it. That tree is the LARGEST one and it is the
+ *  tree the repository's own fixture machinery reads, so dropping it silently publishes a corpus
+ *  size that omits the corpus (@osprey, board #1766: 249 night-shaped directories over 156 names,
+ *  47 of them in no other root, opening the span five weeks earlier).
+ *
+ *  So the census resolves that one row through `corpusSearch`, the SAME resolver
+ *  `verify-fixtures.mjs` uses — `$DEX_UPLOADS`, then the primary checkout, then this one. The row
+ *  keeps the doc's elided TEXT as its name, because the resolved path is a home directory and a
+ *  published census may not carry one.
+ *
+ *  ∅ When no candidate exists, the row stays EXCLUDED and says which resolver failed. It never
+ *  becomes a zero, because "this machine holds no uploads tree" is not "the corpus holds no night".
+ *  PURE given `hit`. */
+export function applyElidedUploads(rows, hit) {
+  return rows.map((r) => {
+    if (r.countable || r.why !== 'elided' || !/uploads\/?$/.test(r.path)) return r;
+    if (!hit || !hit.exists) return { ...r, why: 'elided — the repo corpus resolver found no uploads tree on this machine' };
+    return { ...r, countable: true, resolvedDir: hit.dir, resolvedBy: hit.label, why: null };
+  });
+}
 
 /** Every directory NAME under `root`, at any depth — the walker `nightDirsUnder` is given, kept on
  *  this side of the split because it shells out. Returns null, never [], when the root is not a
@@ -157,6 +180,31 @@ function selftest() {
   ok('a remote root is NOT countable and says why', why['vigil:/srv/tepna/captures'] === 'remote');
   ok('a <placeholder> root is NOT countable and says why', why['<primary checkout>/uploads'] === 'elided');
   ok('a real absolute path IS countable', roots.find((r) => r.path === '/srv/data/tepna-corpus/uploads/').countable === true);
+
+  /* PLANT — the elided `<primary checkout>/uploads` row IS the largest tree and the one the fixture
+     machinery reads, so a census that drops it silently publishes a corpus size that omits the corpus
+     (@osprey, board #1766). The resolver is injected, so these are rules about the rule. */
+  const hit = { exists: true, dir: '/some/checkout/uploads', label: 'primary checkout (git --git-common-dir)' };
+  const resolved = applyElidedUploads(roots, hit);
+  const upRow = resolved.find((r) => r.path === '<primary checkout>/uploads');
+  ok('a resolvable uploads placeholder becomes countable', upRow.countable === true && upRow.why === null, JSON.stringify(upRow));
+  ok('the walk gets a real directory and the row keeps the doc TEXT as its name', upRow.resolvedDir === hit.dir && upRow.path === '<primary checkout>/uploads');
+  ok('the resolution NAMES which candidate answered', upRow.resolvedBy === hit.label);
+  /* PLANT — ∅ · no uploads tree here is not zero nights. */
+  const unresolved = applyElidedUploads(roots, null).find((r) => r.path === '<primary checkout>/uploads');
+  ok('an unresolvable uploads placeholder stays EXCLUDED, never a zero', unresolved.countable !== true && unresolved.resolvedDir === undefined, JSON.stringify(unresolved));
+  ok('and it says the resolver is what failed, not the corpus', /resolver found no uploads tree on this machine/.test(unresolved.why), unresolved.why);
+  ok(
+    'a candidate that does not exist reads the same as none at all',
+    applyElidedUploads(roots, { exists: false, dir: '/nope', label: 'x' }).find((r) => r.path === '<primary checkout>/uploads').countable !== true
+  );
+  /* CONTROL — the rule touches ONE row. An elided root that is not an uploads tree, and every
+     countable root, come through byte-identical. */
+  ok('CONTROL · a non-uploads elided root is untouched', resolved.find((r) => r.path === '/run/media/…/Ecg nightly').why === 'elided');
+  ok(
+    'CONTROL · every other row is unchanged',
+    JSON.stringify(resolved.filter((r) => r.path !== '<primary checkout>/uploads')) === JSON.stringify(roots.filter((r) => r.path !== '<primary checkout>/uploads'))
+  );
 
   /* PLANT — the whole defect in one assertion: a root that is not here returns null, NEVER 0. */
   ok('an absent root counts null, not 0', countUnder('/nonexistent-corpus-root-xyz', '*_ECG.txt') === null);
@@ -812,17 +860,31 @@ function main() {
      what the eleven PAT and TCH tools take their population from. */
   if (argv.includes('--nights')) {
     const docP = join(ROOT, DOC);
-    const rts = existsSync(docP) ? parseRoots(readFileSync(docP, 'utf8')) : [];
+    const parsed = existsSync(docP) ? parseRoots(readFileSync(docP, 'utf8')) : [];
+    const up = corpusSearch(ROOT);
+    const rts = applyElidedUploads(
+      parsed,
+      up.candidates.find((c) => c.chosen && c.exists)
+    );
     const walked = rts.map((r) => {
-      const w = r.countable ? nightDirsUnder(resolve(r.path), { lister: findDirNames }) : null;
-      return { root: r.path, directories: w ? w.directories : null, names: w ? w.names : null, why: r.countable ? (w && w.ok ? null : 'absent') : r.why };
+      const dir = r.resolvedDir || r.path;
+      const w = r.countable ? nightDirsUnder(resolve(dir), { lister: findDirNames }) : null;
+      return {
+        root: r.path,
+        directories: w ? w.directories : null,
+        names: w ? w.names : null,
+        why: r.countable ? (w && w.ok ? null : 'absent') : r.why,
+        ...(r.resolvedBy ? { resolvedBy: r.resolvedBy } : {})
+      };
     });
+    /* The alias rule needs the REAL path, which for the resolved row is not its printed name. */
+    const realOf = new Map(rts.filter((r) => r.resolvedDir).map((r) => [r.path, r.resolvedDir]));
     /* dedupeRoots keys on `count`, so the alias rule reads the unit this census actually summed. */
     const dd = dedupeRoots(
       walked.map((w) => ({ ...w, count: w.directories })),
       (x) => {
         try {
-          return realpathSync(resolve(x));
+          return realpathSync(resolve(realOf.get(x) || x));
         } catch {
           return x;
         }
@@ -837,7 +899,8 @@ function main() {
     console.log(`corpus night census · rule ${String(NIGHT_RE)} · recursive · roots from ${DOC}\n`);
     for (const r of dd) {
       const cell = r.directories === null ? 'NOT WALKABLE HERE'.padEnd(18) : `${String(r.directories).padStart(6)} dir / ${String((r.names || []).length).padStart(4)} name`;
-      console.log(`  ${cell}  ${r.root}${r.why ? `   (${r.why})` : ''}${r.counted === false ? '   NOT SUMMED' : ''}`);
+      const via = r.resolvedBy ? `   (resolved by ${r.resolvedBy})` : '';
+      console.log(`  ${cell}  ${r.root}${via}${r.why ? `   (${r.why})` : ''}${r.counted === false ? '   NOT SUMMED' : ''}`);
     }
     if (nv.result === null) {
       console.log(`\n  ${nv.status} — ${nv.reason}`);
