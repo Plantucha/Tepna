@@ -118,3 +118,18 @@ and that anchored rule is the one the eleven scorers run.
 
 Eight selftests, 115 in all. Planting a pass-through `applyElidedUploads` reds four of them and names
 the row.
+
+### Gates, and the red that was mine
+
+`npm run check` reads `EXIT=0`, `✓ check — all 41 steps passed`, 14,588 assertions over 834 groups, on
+head `1ffe0036c`.
+
+⚠️ **THE FIRST RUN RED AT STEP 15, AND THE DEFECT WAS IN MY OWN LEDGER ROW.** `check8b` reads a residue
+source cell as a backticked brief, a backticked repo path or a backticked `#NNNN`, and I wrote a bare
+`#4033`. CLAUDE.md states the three forms with backticks that read as prose formatting, so the literal
+requirement does not announce itself. One failing assertion of 14,588, and 26 later steps never ran.
+
+⚠️ **THE RE-RUN COMMAND THE FAILURE PRINTS MATCHES ZERO GROUPS.** Its `--group=` pattern carries the
+group title's em-dash, which the filter does not survive. The run says `✗ filter matched ZERO groups`
+rather than reading as a pass, so the §4b family stays caught here, but a short substring is what runs
+the group.
