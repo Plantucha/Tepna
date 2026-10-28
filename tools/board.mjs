@@ -401,6 +401,32 @@ export function runnerBannerText(runner) {
   return runner.reason || null;
 }
 
+/* THE QUALIFIER MUST OUTRANK WHAT IT QUALIFIES. This verdict reached the page as a
+   `<div class="meta">` inside the header — 12 px, `--dim`, the same class and size as the host name
+   and the URL printed beside it — while a failing CI run renders at 18 px bold inside a bordered
+   `.banner` block. So the one condition that puts EVERY number below it in doubt was the quietest
+   thing on the page, which is the row's own complaint: a reader cannot tell a stale renderer from a
+   stale input, because both present as one wrong number beside correct ones. On 2026-10-27 the
+   release card's `v2.21.0` against a `v2.23.0` tag was read as a bug in `release()`.
+
+   Drift is MEASURED, so it is red. A renderer that could not be compared is the ABSENCE, so it is
+   amber and says which files it could not read — "I could not look" and "they match" are opposite
+   answers (§∅), and an absence that renders as nothing is the state an operator most needs. Pure,
+   so --selftest can plant it. */
+export function runnerBanner(runner) {
+  const why = runnerBannerText(runner);
+  if (!why) return null;
+  return { level: runner && runner.stale === true ? 'red' : 'amber', why: `${why} — every card below it was produced by that code` };
+}
+
+/* A banner that qualifies the whole page reads as one more item when it sits among the items it
+   qualifies, so it goes FIRST, ahead of the cards whose numbers it doubts. Pure, and it copies
+   rather than splices, so the caller's list is never reordered under it. */
+export function withRunnerBanner(banners, runner) {
+  const rb = runnerBanner(runner);
+  return rb ? [rb, ...(banners || [])] : [...(banners || [])];
+}
+
 function runner() {
   try {
     const behind = +sh('git', ['rev-list', '--count', `HEAD..${MAIN_REF}`], { cwd: REPO });
@@ -1246,7 +1272,7 @@ export function collect() {
   }
   if (board.budget.ok && board.budget.stale) banners.push({ level: 'amber', why: `the plan % is ${board.budget.ageHours} h old — re-read /usage and update plan.json` });
   if (!board.budget.ok && board.budget.weekReset) banners.push({ level: 'amber', why: board.budget.reason });
-  board.banners = banners;
+  board.banners = withRunnerBanner(banners, board.runner);
   return board;
 }
 
@@ -1474,7 +1500,7 @@ p{margin:8px 0}
 @media(max-width:640px){.wrap{padding:0 16px}.kv{grid-template-columns:1fr;gap:2px}.kv dt{margin-top:8px}.statusline{gap:16px}.table-wrap table{min-width:560px}}
 </style></head><body>
 <div class="wrap">
-<header><h1>Tepna fleet board</h1><div class="meta">${esc(b.generatedAt)} &middot; ${esc(b.host)} &middot; <code>${esc(b.url)}</code></div>${runnerBannerText(b.runner) ? `<div class="meta">⚠ ${esc(runnerBannerText(b.runner))}</div>` : ''}</header>
+<header><h1>Tepna fleet board</h1><div class="meta">${esc(b.generatedAt)} &middot; ${esc(b.host)} &middot; <code>${esc(b.url)}</code></div></header>
 ${banners}
 <div class="status-cards">
 <div class="mini-card"><h3>daemon</h3><p class="big ${b.vigilHealth.ok && b.vigilHealth.active === 'active' ? 'ok' : 'bad'}">${b.vigilHealth.ok ? esc(b.vigilHealth.active) : 'unknown'}</p></div>
@@ -1944,6 +1970,24 @@ function runSelftest() {
       ok(runnerBannerText({ ok: false, reason: 'running-checkout read failed' }) === 'running-checkout read failed', 'a failed runner section raises it too');
       ok(runnerBannerText({ stale: true, reason: 'drifted' }) === 'drifted', 'a drifted renderer raises it');
       ok(runnerBannerText({ stale: false, behind: 196, reason: 'behind but matching' }) === null, 'CONTROL · a matching renderer stays quiet, however far behind');
+
+      /* THE PLACEMENT, NOT THE PRESENCE. The verdict was already on the page before this leg
+         existed — in the header's `meta` class, beside the host name. These cases pin the LEVEL and
+         the ORDER instead: what the board measured is red, what it could not read is amber, and
+         either one precedes the cards it qualifies. */
+      const drifted = runnerBanner({ stale: true, reason: 'the code differs', drifted: ['tools/release-land.mjs'] });
+      ok(drifted.level === 'red' && /every card below it/.test(drifted.why), 'MEASURED drift is a red banner that says what it qualifies');
+      ok(/the code differs/.test(drifted.why), "the banner carries the verdict's own reason, never a second sentence about it");
+      ok(runnerBanner({ stale: null, reason: 'two file(s) could not be compared' }).level === 'amber', 'a renderer that could not be compared is AMBER, never silent and never a measured red');
+      ok(runnerBanner({ ok: false, reason: 'running-checkout read failed: ENOENT' }).level === 'amber', 'a failed runner section reaches the page too');
+      ok(runnerBanner({ stale: false, behind: 196, reason: 'behind but matching' }) === null, 'CONTROL · a matching renderer raises no banner, however far behind');
+
+      const existing = [{ level: 'red', why: 'main CI: tests failure' }];
+      const ordered = withRunnerBanner(existing, { stale: true, reason: 'the code differs' });
+      ok(ordered.length === 2 && /every card below it/.test(ordered[0].why), 'the qualifier is FIRST, ahead of the banner it puts in doubt');
+      ok(existing.length === 1 && existing[0].why === 'main CI: tests failure', "the caller's list is copied, not spliced");
+      ok(withRunnerBanner(existing, { stale: false, reason: null }).length === 1, 'CONTROL · a current renderer adds nothing');
+      ok(withRunnerBanner(null, { stale: false, reason: null }).length === 0, 'no banners and a current renderer is an empty list, not a throw');
 
       /* THE REAL TREE, derived rather than frozen: this repo's own board.mjs must reach both. */
       const real = rendererClosure('tools/board.mjs', (rel) => readFileSync(path.join(SELF_REPO, rel), 'utf-8'));
