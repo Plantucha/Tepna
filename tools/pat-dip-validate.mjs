@@ -35,6 +35,7 @@ import { anklePair } from './pat-dip-index.mjs';
 import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { notANight, populationVerdict, snapshotNights } from './corpus-scope-core.mjs';
+import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -281,8 +282,17 @@ function main() {
     popBefore,
     rows.map((r) => ({ night: r.night, ok: !r.skip }))
   );
+  /* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
+     (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
+     present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
+  const ERA = eraCoverage(
+    eraOfNights(
+      TRIO,
+      rows.filter((r) => !r.skip).map((r) => r.night)
+    )
+  );
   if (AS_JSON) {
-    console.log(JSON.stringify({ offered: popBefore.n, population, rows }, null, 1));
+    console.log(JSON.stringify({ offered: popBefore.n, population, rows, era: ERA }, null, 1));
     return;
   }
   console.log('ΔPAT validation — CPAP clock anchored per night on desats; null = ' + K_SHIFT + ' circular shifts of the dip onsets\n');
@@ -302,6 +312,7 @@ function main() {
   const scored = rows.filter((r) => !r.skip).length;
   console.log(`\npopulation: ${popBefore.n} night(s) offered under ${ROOT} · ${scored} scored · movement ${population.status}${population.reason ? ' — ' + population.reason : ''}`);
   console.log(`offered but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
+  console.log(eraCoverageLine(ERA));
   /* §🧾 NAMES THE OBJECT AS THE API and the prose as the explanation. This run published the
      sentence and kept the object to itself, so no reader could take the population machine-readably
      — the same defect the reference validator carried. */

@@ -37,6 +37,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 
 const req = createRequire(import.meta.url);
 /* DERIVE the root from this file, never `process.cwd()` (the PR #686 class, gate-enforced): a tool run
@@ -153,7 +154,10 @@ if (leg1.length) {
    measures it with NO DEVICE INVOLVED: one RR series, both estimators, per 300-beat block. Any residual
    after subtracting it is the only part that could be a sensor property.
    ── */
-function legEstimator(T) {
+/* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
+   (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
+   present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
+function legEstimator(T, nightsOut) {
   if (!fs.existsSync(T)) return null;
   const blocks = [];
   for (const n of fs.readdirSync(T).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
@@ -165,6 +169,7 @@ function legEstimator(T) {
     }
     const rr = E.timeseries && E.timeseries.rr;
     if (!rr || !rr.ms || rr.ms.length < 300) continue;
+    nightsOut.push(n);
     const ms = rr.ms.filter((v) => v > 300 && v < 2000); // Malik-plausible only
     for (let i = 0; i + 300 <= ms.length; i += 300) {
       const seg = ms.slice(i, i + 300);
@@ -176,7 +181,8 @@ function legEstimator(T) {
   return blocks;
 }
 
-const blocks = legEstimator(path.join(UP, 'trio'));
+const legNights = [];
+const blocks = legEstimator(path.join(UP, 'trio'), legNights);
 console.log('\n\u25b8 LEG 3 \u2014 estimator only: median(rate) vs 60000/mean(RR), ONE series, no device\n');
 if (!blocks || !blocks.length) console.log('   (no ECG rr series in the folded corpus)');
 else {
@@ -189,6 +195,7 @@ else {
   console.log(`   blocks = ${blocks.length} (300 beats each)`);
   console.log(`   median(rate)  \u2212 60000/mean(RR) = ${mean(dm).toFixed(3)} bpm  SD ${sd(dm).toFixed(2)}   \u2190 OxyDex \u2212 ECGDex, by construction`);
   console.log(`   mean(rate)    \u2212 60000/mean(RR) = ${mean(da).toFixed(3)} bpm  SD ${sd(da).toFixed(2)}`);
+  console.log(`   ${eraCoverageLine(eraCoverage(eraOfNights(path.join(UP, 'trio'), legNights)), { label: 'fold era' })}`);
   console.log('   Compare LEG 2. If these match, the "device bias" is an ESTIMATOR MISMATCH and no');
   console.log('   sensor, firmware or aggregation change can remove it \u2014 only agreeing on one statistic.');
 }
@@ -203,6 +210,7 @@ if (!fs.existsSync(T)) {
 const epochs = (o) => (o.timeseries && o.timeseries.epochs) || [];
 let all = [];
 let nights = 0;
+const usedNights = [];
 for (const n of fs.readdirSync(T).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
   let E, X;
   try {
@@ -225,6 +233,7 @@ for (const n of fs.readdirSync(T).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))) 
   }
   if (ds.length < 12) continue; // an hour of overlap is the floor for a night to contribute
   nights++;
+  usedNights.push(n);
   all = all.concat(ds);
 }
 if (!all.length) {
@@ -235,6 +244,7 @@ const m = mean(all);
 const sd = Math.sqrt(all.reduce((a, b) => a + (b - m) ** 2, 0) / (all.length - 1));
 const sem = sd / Math.sqrt(all.length);
 console.log(`   n = ${all.length} epochs over ${nights} night(s)`);
+console.log(`   ${eraCoverageLine(eraCoverage(eraOfNights(T, usedNights)))}`);
 console.log(`   mean Δ(OxyDex − ECGDex) = ${m.toFixed(3)} bpm · SD ${sd.toFixed(2)} · SEM ${sem.toFixed(3)} · ${Math.abs(m / sem).toFixed(1)}σ from zero`);
 console.log('   prediction if the device TRUNCATES: −0.500 · if it ROUNDS: 0.000');
 console.log(`   ⇒ measured sits ${m < -0.45 ? 'at truncation' : m > -0.05 ? 'at rounding' : 'BETWEEN the two — so neither quantisation mechanism explains it'}`);

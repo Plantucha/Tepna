@@ -57,6 +57,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { eraCoverage, eraCoverageLine, eraOfNights } from './fold-generation.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -405,6 +406,17 @@ const population = populationVerdict(snap, snapshotNights(DIR), {
   evidence: ['tools/deep-vlf-probe.mjs', 'tools/corpus-scope.mjs']
 });
 
+/* A PARTIAL-LEG READ CANNOT REACH THE THREE-LEG STAMP RULE, so it owes the era of ITS OWN nights
+   (row 2026-10-27-partial-leg-consumers-read-exports-with-no-recorded-code-era). §∅: the data is
+   present and the PROVENANCE is absent, so the number stands and the line names what is unrecorded. */
+const ERA = eraCoverage(
+  eraOfNights(
+    DIR,
+    nightsUsed.map((x) => x.night),
+    { cwd: ROOT, commit }
+  )
+);
+
 /* The verdict above is about MOVEMENT — what arrived or left while the run read. The offered nights
    this run did not read are a different statement, and a count of them names nothing to chase, so
    the per-night skip list below carries the reason each one holds. */
@@ -415,6 +427,7 @@ function printPopulation() {
   const rl = ruleLine(population);
   if (rl) console.log(rl);
   console.log(`  the read used ${nightsUsed.length} of the ${snap.n} offered under ${DIR}${snap.ok ? '' : ` · ${snap.reason}`}, removing ${skipped.length} named below`);
+  console.log(`  ${eraCoverageLine(ERA)}`);
 }
 
 const pooled = armStats(epochsOut);
@@ -428,6 +441,7 @@ if (AS_JSON) {
         dir: DIR,
         vigilFrom: VIGIL_FROM,
         corpusPopulation: population,
+        era: ERA,
         nightsUsed,
         skipped,
         pooled,
