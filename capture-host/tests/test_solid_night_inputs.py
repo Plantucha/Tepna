@@ -2221,9 +2221,12 @@ def test_the_JOURNAL_half_of_the_record_set_excuses_a_step_and_respects_the_devi
     )
 
 
-def _audit_with(night, records):
+def _audit_with(night, records, addresses=None):
     night.mkdir(exist_ok=True)
-    (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": records}))
+    audit = {"clock_events": records}
+    if addresses is not None:
+        audit["device_addresses"] = addresses
+    (night / "LOSS-AUDIT.json").write_text(json.dumps(audit))
     return str(night / f"{BASE}_ECG.txt")
 
 
@@ -2237,12 +2240,12 @@ def test_a_journal_record_that_names_only_an_ADDRESS_is_claimed_by_NO_device_and
     three sources. The record set does not change here — §∅: reduced coverage annotates."""
     night = tmp_path / "2026-09-20"
     at = (T0 + dt.timedelta(minutes=5)).isoformat(timespec="seconds")
-    p = _audit_with(night, [{"at": at, "phrase": "device clock unreadable", "devices": ["AA:BB:CC:DD:EE:FF"]}])
+    p = _audit_with(night, [{"at": at, "phrase": "device clock JUMPED", "devices": ["AA:BB:CC:DD:EE:FF"]}])
     recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
-    assert recs == [], "the record reaches neither arm, which is the defect the count makes visible"
+    assert recs == [], "an audit written before the binding leaves the record claimable by nobody"
     assert how == (
-        "seam sidecar + journal clock events (1 of 1 in-window records name only an address, so no "
-        "device could claim them) + CLOCKSYNC.csv"
+        "seam sidecar + journal clock events (1 of 1 in-window records name only an address and this "
+        "night records no address for the device) + CLOCKSYNC.csv"
     ), "a substring match reads '-1 of 1' as a hit, so the whole string is asserted"
 
 
@@ -2289,9 +2292,113 @@ def test_the_matched_out_COUNTS_accumulate_and_the_whole_string_is_asserted(tmp_
     recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
     assert recs == [], "no record names this device, so the set is unchanged and only `how` moves"
     assert how == (
-        "seam sidecar + journal clock events (2 of 3 in-window records name only an address, so no "
-        "device could claim them) + CLOCKSYNC.csv"
-    ), "both counts accumulate, and an equality assertion sees a sign flip a substring match would not"
+        "seam sidecar + journal clock events (1 of 3 in-window records name only an address and this "
+        "night records no address for the device; 1 of 3 in-window records carry an event that wrote no "
+        "clock) + CLOCKSYNC.csv"
+    ), "each count accumulates on its own note, and equality sees a sign flip a substring match would not"
+
+
+def test_a_record_naming_ONLY_this_devices_ADDRESS_is_claimed(tmp_path):
+    """🔴 THE LEG THE OWNER RULED FOR, 2026-10-28: a record matches by name OR by address. 113 of
+    115 in-window records over 70 audits on the capture host named an address alone, so this is where the
+    journal source stops reaching neither arm."""
+    night = tmp_path / "2026-09-20"
+    at = T0 + dt.timedelta(minutes=5)
+    p = _audit_with(
+        night,
+        [
+            {
+                "at": at.isoformat(timespec="seconds"),
+                "phrase": "device clock JUMPED",
+                "devices": ["AA:BB:CC:DD:EE:FF"],
+            }
+        ],
+        {H10["name"]: "AA:BB:CC:DD:EE:FF"},
+    )
+    recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == [at.timestamp() * 1000.0], "the night's own binding names the address as this device's"
+    assert how == "seam sidecar + journal clock events + CLOCKSYNC.csv", (
+        "a claimed record is not reduced coverage, so the string carries no note"
+    )
+
+
+def test_the_NAME_still_claims_a_record_when_the_night_records_an_address(tmp_path):
+    """Both identifiers, not the address in place of the name. Two of the 115 records named a name, and
+    they have to keep arriving."""
+    night = tmp_path / "2026-09-20"
+    at = T0 + dt.timedelta(minutes=7)
+    p = _audit_with(
+        night,
+        [{"at": at.isoformat(timespec="seconds"), "phrase": "re-sync busy", "devices": [H10["name"]]}],
+        {H10["name"]: "AA:BB:CC:DD:EE:FF"},
+    )
+    recs, _how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == [at.timestamp() * 1000.0]
+
+
+def test_ANOTHER_devices_ADDRESS_is_dropped_and_reads_as_no_defect(tmp_path):
+    """With the binding in hand, an address this device does not hold belongs to another device, exactly
+    as another device's NAME does. Counting it would report a defect on every two-device night."""
+    night = tmp_path / "2026-09-20"
+    at = (T0 + dt.timedelta(minutes=5)).isoformat(timespec="seconds")
+    p = _audit_with(
+        night,
+        [{"at": at, "phrase": "device clock JUMPED", "devices": ["11:22:33:44:55:66"]}],
+        {H10["name"]: "AA:BB:CC:DD:EE:FF"},
+    )
+    recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == []
+    assert how == "seam sidecar + journal clock events + CLOCKSYNC.csv"
+
+
+def test_the_CSV_EXCLUSION_WINS_over_a_record_that_names_this_device(tmp_path):
+    """🔴 OWNER RULING 2026-10-28, and the half the two vocabularies disagreed about.
+    `_A5_NON_RECORD_EVENTS` excludes `unreadable` on the CSV side while `loss_audit.CLOCK_EVENT_PHRASES`
+    admits `device clock unreadable`, so admitting the address match alone would have re-admitted through
+    the journal the event the CSV drops. The line names this device outright and is still no record."""
+    night = tmp_path / "2026-09-20"
+    at = (T0 + dt.timedelta(minutes=5)).isoformat(timespec="seconds")
+    p = _audit_with(
+        night,
+        [{"at": at, "phrase": "device clock unreadable", "devices": [H10["name"]]}],
+        {H10["name"]: "AA:BB:CC:DD:EE:FF"},
+    )
+    recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == [], "the exclusion wins over the match, so neither arm sees it"
+    assert how == (
+        "seam sidecar + journal clock events (1 of 1 in-window records carry an event that wrote no "
+        "clock) + CLOCKSYNC.csv"
+    )
+
+
+def test_a_NULL_address_in_the_binding_reads_like_no_binding_at_all(tmp_path):
+    """A device the config gives no address keeps a null rather than dropping out of the map (∅), and the
+    consumer must read that as the name-only match rather than as an address it can compare."""
+    night = tmp_path / "2026-09-20"
+    at = (T0 + dt.timedelta(minutes=5)).isoformat(timespec="seconds")
+    p = _audit_with(
+        night,
+        [{"at": at, "phrase": "device clock JUMPED", "devices": ["AA:BB:CC:DD:EE:FF"]}],
+        {H10["name"]: None},
+    )
+    recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs == []
+    assert how == (
+        "seam sidecar + journal clock events (1 of 1 in-window records name only an address and this "
+        "night records no address for the device) + CLOCKSYNC.csv"
+    )
+
+
+def test_the_exclusion_list_is_authored_ONCE_and_both_tuples_project_it():
+    """ONE LIST FOR BOTH ARMS (owner ruling 2026-10-28). The CSV words keep their order, the only paired
+    phrase is the one the journal admitted while the CSV excluded it, and a phrase the journal never reads
+    could never be excluded here."""
+    import loss_audit
+
+    assert si._A5_NON_RECORD_EVENTS == tuple(word for word, _phrase in si._A5_RECORD_EXCLUSIONS)
+    assert si._A5_NON_RECORD_PHRASES == frozenset({"device clock unreadable"})
+    assert dict(si._A5_RECORD_EXCLUSIONS)["unreadable"] == "device clock unreadable"
+    assert set(si._A5_NON_RECORD_PHRASES) <= set(loss_audit.CLOCK_EVENT_PHRASES)
 
 
 def test_an_UNREADABLE_clocksync_stops_the_record_set_rather_than_shortening_it(tmp_path):

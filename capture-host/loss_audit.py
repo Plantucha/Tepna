@@ -1888,6 +1888,19 @@ def audit_night(
         ]
     )
     out["clock_events_source"] = "journalctl -u tepna-capture" if ce is not None else "unavailable"
+    # THE NAME-TO-ADDRESS BINDING, written beside the night for the reason `clock_events` is: the verdict
+    # side reads neither the journal nor the config, and a clock-event line usually carries only the
+    # address. Without this key the A5 consumer holds a device NAME and can claim none of those records —
+    # 113 of 115 in-window records over 70 audits, measured 2026-10-28 on the capture host (residue
+    # `2026-10-28-a-journal-clock-record-that-names-an-address-reaches-neither-a5-arm`, owner ruling of
+    # 2026-10-28). ONE MAP rather than a field on each device entry: five branches below write those
+    # entries, a sixth would be easy to miss, and the consumer wants one lookup. A device the config gives
+    # no address keeps a null, which leaves an absent binding distinguishable from an empty one (§∅).
+    out["device_addresses"] = {
+        str(d.get("name") or d.get("model")): (str(d["address"]) if d.get("address") else None)
+        for d in devices
+        if isinstance(d, dict) and (d.get("name") or d.get("model"))
+    }
     # The box's OWN jobs as spans, read once for the night — see `read_job_spans`. Written beside the
     # night for the reason `clock_events` is: the verdict side has no journal and journald rotates.
     js = job_spans(since, until)

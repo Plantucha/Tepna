@@ -1280,17 +1280,17 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
     writing to that clock at that moment, which is the brief's own rule ("a FAILED re-sync is still a
     record that a clock event happened").
 
-    ⚠️ THE WORD FILTER GUARDS THIS SOURCE ONLY. The journal's `clock_events` carry their own vocabulary
-    (`loss_audit.CLOCK_EVENT_PHRASES`) and it admits `device clock unreadable`, which is the same event
-    this list excludes. That disagreement is open and is the owner's to settle; do not resolve it by
-    editing one side.
+    ONE EXCLUSION LIST ANSWERS FOR BOTH SOURCES. `_A5_RECORD_EXCLUSIONS` pairs each CSV word with the
+    journal phrase that records the same event, so `device clock unreadable` is dropped here exactly as
+    its CSV word `unreadable` is — the owner ruled on 2026-10-28 that the CSV exclusion wins over a match.
+    The two vocabularies disagreed about that one event for as long as they were two lists.
 
-    ⚠️ AND THE JOURNAL SOURCE REACHES ALMOST NOTHING TODAY. A clock-event record whose `devices` list
-    holds only ADDRESSES matches no device name, so it is dropped here for every device: 113 of 115
-    in-window records over 70 audits, measured 2026-10-28 on the capture host. The three-source claim
-    above therefore held in form and not in fact, and `how` now states that count rather than reporting a
-    read of a source that matched nothing (`_A5_JOURNAL_ADDRESS` carries the measurement and the reason
-    the remedy is not here)."""
+    A RECORD MATCHES BY NAME OR BY ADDRESS, and the address comes from the night's own audit
+    (`loss_audit` writes `device_addresses` because this side reads no config). A clock-event line usually
+    carries only the address: 113 of 115 in-window records over 70 audits named one and no device claimed
+    them, measured 2026-10-28 on the capture host. A night audited before that key keeps the name-only
+    match, and `how` then states the records nobody could claim — reduced coverage annotates (∅'s owner
+    ruling 2026-09-17)."""
     out: list[float] = [r["host_ms"] for r in recorded_seams(primary, start, end)]
     audit = read_json(os.path.join(night_dir, LOSS_AUDIT_NAME))
     if audit is None:
@@ -1300,19 +1300,29 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
     ev = audit.get("clock_events")
     if ev is None:
         return None, "journalctl was unavailable when the night was audited, so the record set is incomplete"
-    j_window = j_address_only = 0
+    keys = {device}
+    addr = (audit.get("device_addresses") or {}).get(device)
+    if addr:
+        keys.add(str(addr))
+    j_window = j_unclaimable = j_excluded = 0
     for e in ev:
         t = _ni.parse_host_stamp(str(e.get("at") or ""))
         if t is None or (start is not None and (t < start or t > end)):
             continue
         j_window += 1
-        devs = e.get("devices") or []
-        if devs and device not in devs:
+        if str(e.get("phrase") or "") in _A5_NON_RECORD_PHRASES:
+            # The CSV exclusion wins over a match: this event moved no clock, so it is not a record here
+            # any more than its CSV word is one source down.
+            j_excluded += 1
+            continue
+        devs = [str(d) for d in (e.get("devices") or [])]
+        if devs and not keys.intersection(devs):
             # a line that names OTHER devices is not this device's record; one that names none is. A line
-            # that names only an ADDRESS is neither: no device name can match it, so it is dropped here
-            # for EVERY device and the count travels in `how` (see `_A5_JOURNAL_ADDRESS`).
-            if all(_A5_JOURNAL_ADDRESS.match(str(d)) for d in devs):
-                j_address_only += 1
+            # carrying only addresses is this device's when the night's binding holds one of them, and on
+            # a night whose audit predates that binding it is claimable by nobody — that count travels in
+            # `how` rather than shrinking the set silently.
+            if addr is None and all(_A5_JOURNAL_ADDRESS.match(d) for d in devs):
+                j_unclaimable += 1
             continue
         out.append(t.timestamp() * 1000.0)
     seen = _clocksync_rows(night_dir, device, start, end)
@@ -1320,11 +1330,16 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
         return None, f"`{writers_CLOCKSYNC}` is present but unreadable, so the record set is incomplete"
     out.extend(seen)
     out.sort()
-    if j_address_only:
-        return out, (
-            f"seam sidecar + journal clock events ({j_address_only} of {j_window} in-window records name "
-            "only an address, so no device could claim them) + CLOCKSYNC.csv"
+    notes: list[str] = []
+    if j_unclaimable:
+        notes.append(
+            f"{j_unclaimable} of {j_window} in-window records name only an address and this night records "
+            "no address for the device"
         )
+    if j_excluded:
+        notes.append(f"{j_excluded} of {j_window} in-window records carry an event that wrote no clock")
+    if notes:
+        return out, f"seam sidecar + journal clock events ({'; '.join(notes)}) + CLOCKSYNC.csv"
     return out, "seam sidecar + journal clock events + CLOCKSYNC.csv"
 
 
@@ -1354,20 +1369,29 @@ def clock_records(night_dir: str, device: str, primary: str, start, end) -> tupl
 # files: 113 of 115 in-window records name only an address, so the journal source reached neither the
 # density arm nor the excuse arm for any device, while `how` still claimed all three sources were read.
 #
-# 🔴 THE REMEDY IS NOT HERE. Matching the address as well would re-admit those 113 records, and they
-# include the `device clock unreadable` lines that `_A5_NON_RECORD_EVENTS` EXCLUDES on the CSV side while
-# `loss_audit.CLOCK_EVENT_PHRASES` ADMITS them. That disagreement is open and is the owner's to settle, so
-# this constant classifies and counts and changes no verdict. §∅'s ruling 2026-09-17 is what it obeys: a
-# discontinuity refuses, reduced COVERAGE annotates, and a matched-out source is reduced coverage.
+# 🔴 THE REMEDY LANDED 2026-10-28, BY OWNER RULING. `clock_records` now claims a record whose
+# `devices` list holds this device's NAME or the address the night's audit records for it, and the
+# re-admitted `device clock unreadable` lines are excluded by the pairing in `_A5_RECORD_EXCLUSIONS`, so
+# the CSV exclusion wins on both sources. This pattern still classifies: it tells an address-shaped entry
+# from a name, which is what lets `how` separate a record another device owns from one no device can
+# claim on a night whose audit predates the binding.
 _A5_JOURNAL_ADDRESS = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 
-_A5_NON_RECORD_EVENTS = (
-    "deferred-absent",
-    "deferred-after-pause",
-    "unreadable",
-    "start-without-sync",
-    "released-to-set",
+# ONE AUTHORED LIST FOR BOTH ARMS AND BOTH SOURCES: each CSV word beside the journal phrase that records
+# the same event, or `None` where the journal has no phrase for it. The density arm and the excuse arm read
+# one record set, so a word admitted on one source and excluded on the other made the two arms disagree
+# about the same night. `unreadable` and `device clock unreadable` ARE that pair, and the owner ruled on
+# 2026-10-28 that the CSV exclusion wins. The two tuples below are projections of this list, never
+# authored beside it.
+_A5_RECORD_EXCLUSIONS: tuple[tuple[str, str | None], ...] = (
+    ("deferred-absent", None),
+    ("deferred-after-pause", None),
+    ("unreadable", "device clock unreadable"),
+    ("start-without-sync", None),
+    ("released-to-set", None),
 )
+_A5_NON_RECORD_EVENTS = tuple(word for word, _phrase in _A5_RECORD_EXCLUSIONS)
+_A5_NON_RECORD_PHRASES = frozenset(phrase for _word, phrase in _A5_RECORD_EXCLUSIONS if phrase)
 writers_CLOCKSYNC = "CLOCKSYNC.csv"
 
 
