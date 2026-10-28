@@ -73,6 +73,7 @@ import { dirname, join, basename } from 'node:path';
 import vm from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
 import { printVerdict } from './verdict-emit.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -610,6 +611,29 @@ export function scoreRecord(ctx, edfBuffer, xmlText) {
   };
 }
 
+/* ── the population this scorer was OFFERED, 2026-10-28 ───────────────────────────────────────
+   Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. This tool reported the records
+   it SCORED and the ones whose pairing failed, which is most of the way — but never how many the
+   tree held, so a directory half delivered read like a complete pass. The offer is published
+   beside the score, and the members nothing scored are NAMED. */
+const POP_TOOL = 'tools/nsrr-stage-validate.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+/* A NAMED lister: `snapshotEntries` publishes `rule: list.name`, and an inline arrow publishes
+   `rule: null`. This function IS the walk below — one record per EDF, keyed by its own stem, which
+   is what the annotation pairing and every row downstream key on. */
+function listEdfRecords(root) {
+  return readdirSync(root)
+    .filter((f) => /\.edf$/i.test(f))
+    .map((f) => basename(f).replace(/\.edf$/i, ''))
+    .sort();
+}
+/* The shared exit rule of this slice, pure so a caller and a test can both read it: a tree nobody
+   can enumerate and a run that scored no record both exit 2; reduced coverage annotates and
+   exits 0 (owner ruling 2026-09-17, §∅). */
+function exitCodeFor(population, scored) {
+  return population.status === 'NOT_RUN' || scored === 0 ? 2 : 0;
+}
+
 /* ── CLI ────────────────────────────────────────────────────────────────────────────────────────*/
 const IS_CLI = isCliEntry(import.meta.url);
 if (IS_CLI) {
@@ -756,6 +780,37 @@ if (IS_CLI) {
     console.error(`nsrr-stage-validate: ${DIR} not found.`);
     process.exit(2);
   }
+  /* The OFFER, taken before the pairing drops anything. */
+  const snapBefore = snapshotEntries(base, { list: listEdfRecords, unit: 'records' });
+  if (!snapBefore.ok) {
+    console.error(`nsrr-stage-validate: refused — ${snapBefore.reason}`);
+    process.exit(2);
+  }
+  const commitOf = gitCommitOf();
+  /* 🔴 A ROOT THAT OFFERED NOTHING SAID SO IN PROSE ONLY. The old refusal printed a sentence and
+     exited; the offer it refused over was never published, so a run over the wrong tree and a run
+     over a tree whose every pair failed read the same from the outside (§∅). The population is
+     published first, and `--json` stays ONE parseable object. */
+  if (snapBefore.n === 0) {
+    const emptyPopulation = populationVerdict(snapBefore, snapshotEntries(base, { list: listEdfRecords, unit: 'records' }), {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: POP_TOOL,
+      evidence: POP_EV
+    });
+    if (JSON_OUT) console.log(JSON.stringify(emptyPopulation));
+    else {
+      console.error(
+        `nsrr-stage-validate: no .edf files in ${DIR}.\n\nNSRR/PhysioNet require a signed DUA and this suite is 100 % local — it cannot fetch them.\nDrop EDF + annotation-XML pairs in and re-run. Prove the path first with --selftest.`
+      );
+      console.log(`\npopulation: 0 record(s) offered under ${base} · 0 scored · movement ${emptyPopulation.status}` + (emptyPopulation.reason ? ` — ${emptyPopulation.reason}` : ''));
+      const emptyRule = ruleLine(emptyPopulation);
+      if (emptyRule) console.log(emptyRule);
+      console.log('POPULATION ' + JSON.stringify(emptyPopulation));
+    }
+    process.exit(exitCodeFor(emptyPopulation, 0));
+  }
+
   // pair an .edf with the .xml sharing its stem
   const files = readdirSync(base);
   const recs = files
@@ -771,12 +826,6 @@ if (IS_CLI) {
       );
       return xml ? { id: stem, edf: join(base, f), xml: join(base, xml) } : { id: stem, missing: true };
     });
-  if (!recs.length) {
-    console.error(
-      `nsrr-stage-validate: no .edf files in ${DIR}.\n\nNSRR/PhysioNet require a signed DUA and this suite is 100 % local — it cannot fetch them.\nDrop EDF + annotation-XML pairs in and re-run. Prove the path first with --selftest.`
-    );
-    process.exit(2);
-  }
   const rows = [];
   for (const r of recs) {
     if (r.missing) {
@@ -786,6 +835,25 @@ if (IS_CLI) {
     rows.push({ id: r.id, ...scoreRecord(ctx, toArrayBuffer(readFileSync(r.edf)), readFileSync(r.xml, 'utf8')) });
   }
   const ok = rows.filter((r) => !r.err);
+  /* The offer against the score. `notCovered` reads `row[key]`, and a scored row carries its own
+     record stem as `id`. The arithmetic control throws rather than printing a coverage line that
+     contradicts its own headline. */
+  const population = populationVerdict(snapBefore, snapshotEntries(base, { list: listEdfRecords, unit: 'records' }), {
+    commit: commitOf.commit,
+    commitReason: commitOf.reason,
+    tool: POP_TOOL,
+    evidence: POP_EV
+  });
+  const unscored = notCovered(snapBefore, ok, { key: 'id' });
+  if (unscored.length !== snapBefore.n - ok.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${ok.length} scored ≠ ${unscored.length} unscored`);
+  const printPopulation = () => {
+    console.log(`\npopulation: ${snapBefore.n} record(s) offered under ${base} · ${ok.length} scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+    const rule = ruleLine(population);
+    if (rule) console.log(rule);
+    if (unscored.length)
+      console.log(`  ${unscored.length} offered record(s) produced no score, by name: ${unscored.slice(0, 8).join(' · ')}${unscored.length > 8 ? ` · … (+${unscored.length - 8})` : ''}`);
+    console.log('POPULATION ' + JSON.stringify(population));
+  };
   /* the same decision the pool would emit for this scorer, over these rows — one object per run */
   const pool = await import('./nsrr-score-pool.mjs');
   let commit = null;
@@ -795,7 +863,9 @@ if (IS_CLI) {
     /* not a checkout → commit null with commitReason (the pool says so) */
   }
   const verdictObj = pool.poolVerdict({ CRITERION, verdict, liveStat }, liveStat(ok), ok, { total: rows.length }, { scorerSpec: './nsrr-stage-validate.mjs', commit, evidence: [DIR] });
-  if (JSON_OUT) console.log(JSON.stringify({ ...verdictObj, detail: { rows } }, null, 2));
+  /* A `--json` run stays ONE parseable object, so the population rides inside it rather than on a
+     line beside it. */
+  if (JSON_OUT) console.log(JSON.stringify({ ...verdictObj, population, unscored, detail: { rows } }, null, 2));
   else {
     console.log('\nSHIPPED STAGER vs EXPERT PSG LABELS — REM\n');
     console.log('record                     epochs  recall  precis    F1   expert%  detected%');
@@ -820,5 +890,9 @@ if (IS_CLI) {
       console.log('strap on a healthy sleeper. A good number here does NOT retire the real-night falsifiers.');
     }
     printVerdict(verdictObj);
+    printPopulation();
   }
+  /* 🔴 THIS EXITED 0 OVER A TREE THAT SCORED NOTHING — the way a full pass exits. A run that scored
+     no record is not a weaker result, it is no result (§∅). */
+  process.exit(exitCodeFor(population, ok.length));
 }
