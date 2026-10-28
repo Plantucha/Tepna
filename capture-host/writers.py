@@ -3396,6 +3396,10 @@ class Spo2CsvWriter:
         # capture process began, while the CSV's first row lands when the link is up and a reading is
         # valid. `StreamWriter._first_row_ms` exists for the same reason on the Polar rail.
         self._first_row_ms: float | None = None
+        # WHAT ENDS IT (row `2026-10-27-the-live-ring-envelope-ends-a-file-by-one-episodes-row-count`).
+        # The row count does not: one row per second holds only while every second lands, and a stall
+        # inside one episode leaves the count short of the span. The last landed row is observed.
+        self._last_row_ms: float | None = None
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
@@ -3428,6 +3432,7 @@ class Spo2CsvWriter:
                 # read on the first row that LANDS, never on the first one handed over: a row the
                 # health object could not persist left no sample in the file, so it cannot date it
                 self._first_row_ms = _phone_ms(when)
+            self._last_row_ms = _phone_ms(when)
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -3462,6 +3467,16 @@ class Spo2CsvWriter:
         rows — which is why the envelope drops it on a resume rather than dating a file to a time after
         it began."""
         return self._first_row_ms
+
+    @property
+    def last_row_ms(self) -> float | None:
+        """When this artifact's last LANDED row arrived, as floating wall-clock ms — or `None`.
+
+        This is what ends the file. `first_row_ms + rows * 1000` does not: a second with no landed row
+        adds nothing to `rows` and still passes on the wall clock, so the derived end falls short of
+        the last row by every stall inside the episode. A row the health object could not persist
+        does not move it, for the reason it does not move `first_row_ms`."""
+        return self._last_row_ms
 
     def close(self) -> None:
         try:

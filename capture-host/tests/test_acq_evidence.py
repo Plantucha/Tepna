@@ -190,10 +190,17 @@ def test_live_gap_fields_are_UNKNOWN_and_the_PPG_facts_are_NAMED_separately():
 
 
 def test_live_sample_count_is_the_rows_actually_written():
-    ev = _live(artifact_rows=3600, start_time_ms=1000.0)
+    ev = _live(artifact_rows=3600, start_time_ms=1000.0, last_row_ms=1000.0 + 3599 * 1000)
     assert ev.sample_count == 3600
     assert ev.expected_sample_count == ae.UNKNOWN, "a live stream has no independent expectation"
-    assert ev.end_time_ms == 1000.0 + 3600 * 1000, "the CSV is 1 Hz — one row per second"
+    assert ev.end_time_ms == 1000.0 + 3600 * 1000, "the last row covers one second of a 1 Hz CSV"
+
+
+def test_live_end_is_NOT_derived_from_the_row_count():
+    """§∅: without an observed last row there is no end, however many rows were counted."""
+    ev = _live(artifact_rows=3600, start_time_ms=1000.0)
+    assert ev.end_time_ms is None
+    assert ev.duration_check.source == ae.UNKNOWN
 
 
 def test_live_completeness_needs_a_clean_stop_signal():
@@ -284,6 +291,7 @@ def test_a_failing_sidecar_write_never_damages_the_capture(tmp_path):
         rows = 10
         resumed = False
         first_row_ms = 1_787_000_000_000.0
+        last_row_ms = 1_787_000_009_000.0
 
     capture._emit_oxy_live_evidence(
         "O2-1",

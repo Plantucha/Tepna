@@ -84,6 +84,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { functionRange } from './probe-equivalence.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -618,6 +619,62 @@ export function settleDecide(cohort, outcomeOf) {
   out.rule = 5;
   escalate(`${S.length} of ${all} site(s) survived and ${K.length} were killed, over ${n} entr(ies): the address matters and the data does not say which site this entry judged`);
   return out;
+}
+
+/* ══ RULE 5-BIS — THE PROBE FIELD NAMES THE RANGE THE VERDICT CAME FROM ═════════════════
+   Rule 5 escalates because "the data does not say which site this entry judged". For an entry the
+   PROBE engine emitted, the data does say it, and the entry has carried it all along.
+
+   `tools/probe-equivalence.mjs` composes `probe` from `fam.name` — machine-written, never prose —
+   and that engine picks a family's survivors by SOURCE RANGE: `inRange = (m) => m.line >= range.start
+   && m.line <= range.end` over `functionRange(SRC, fam.fn)`. An emitted entry's family therefore
+   names a function whose range CONTAINED the mutant that was judged. Narrowing a cohort's candidates
+   by that same range reproduces the engine's own selection instead of inventing a second one, and
+   `functionRange` refuses an absent or AMBIGUOUS declaration, so the narrowing fails closed wherever
+   the name no longer resolves.
+
+   ⚠️ IT READS A RANGE, NOT A NAME, and that is measured rather than chosen. Over the committed
+   ledger on 2026-10-28, 309 entries carry both a machine-read `fn` and a parseable probe family, and
+   the two disagree on 11: `spikeAt` under family `detectClampSaturation` (nested inside it),
+   `countPairsIn` under `countPairs` and `markO2BeatMarkers` under `markO2Sentinels` (both renamed
+   since, so those families resolve to null today), and `dfaAlpha1Segmented` under `dfaAlpha1` (whose
+   range has since shrunk past it). Every one is a containment or a rename, because `fn` is the
+   INNERMOST named function while the family is the one the battery drove.
+
+   The narrowing can only ever make a cohort SMALLER, and only a cohort rule 5 already escalated is
+   offered to it, so its failure mode is an entry left exactly as it was — the recoverable direction
+   this ledger's rules demand. It refuses outright when a cohort's entries name different families,
+   because entries are interchangeable only inside the family that judged them. */
+export function probeFamilyFn(entry) {
+  const p = entry == null ? null : entry.probe;
+  if (typeof p !== 'string') return { ok: false, fn: null, reason: 'the entry carries no probe field, so no family named it' };
+  const m = /^([A-Za-z_$][A-Za-z0-9_$]*) · [^:]*: \d+ inputs, \d+ distinct baseline answers;/.exec(p);
+  if (!m) return { ok: false, fn: null, reason: 'the probe field is not in the engine-written `<family> · <axis>: N inputs, M distinct baseline answers;` form' };
+  return { ok: true, fn: m[1], reason: null };
+}
+
+export function narrowToProbedFamily(cohort, src, rangeOf = functionRange) {
+  const names = new Set();
+  for (const e of cohort.entries) {
+    const f = probeFamilyFn(e);
+    if (!f.ok) return { ok: false, candidates: null, fn: null, range: null, reason: f.reason };
+    names.add(f.fn);
+  }
+  if (names.size !== 1)
+    return {
+      ok: false,
+      candidates: null,
+      fn: null,
+      range: null,
+      reason: `the cohort's entries name ${names.size} probe families (${[...names].join(', ')}), and an entry is interchangeable only inside the family that judged it`
+    };
+  const fn = [...names][0];
+  const range = rangeOf(String(src == null ? '' : src), fn);
+  if (!range) return { ok: false, candidates: null, fn, range: null, reason: `\`${fn}\` does not resolve to one unambiguous declaration here, so its range can narrow nothing` };
+  const candidates = cohort.candidates.filter((m) => m.line >= range.start && m.line <= range.end);
+  if (!candidates.length) return { ok: false, candidates: null, fn, range, reason: `no candidate site lies inside \`${fn}\` at L${range.start}–${range.end}, so the probed family names none of them` };
+  if (candidates.length === cohort.candidates.length) return { ok: false, candidates: null, fn, range, reason: `every candidate already lies inside \`${fn}\`, so the range narrows nothing` };
+  return { ok: true, candidates, fn, range, reason: null };
 }
 
 export function makeSettleVerdict(ts) {
@@ -1229,6 +1286,58 @@ if (IS_MAIN && has('--selftest')) {
     d0.rule === 0 && d0.decisions[0].action === 'escalate' && d0.unknown.length === 1,
     JSON.stringify({ rule: d0.rule, unknown: d0.unknown.length })
   );
+  /* ── rule 5-bis ─────────────────────────────────────────────────────────────────────
+     The DECOY runs first: the same cohort, unnarrowed, must escalate — otherwise a leg below would
+     pass on a shape rule 5 never reached. */
+  const PRB = (fam) => `${fam} · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js`;
+  const Cp = (lines, cands, fams) => {
+    const c = C(lines, cands);
+    c.entries.forEach((e, i) => {
+      e.probe = PRB(fams[i] ?? fams[0]);
+    });
+    return c;
+  };
+  const RANGE = (a, b) => () => ({ start: a, end: b });
+  /* The real shape this rule was written for: MORE surviving sites than entries, plus a killed one,
+     which is exactly `ppgdex-dsp.js` on 2026-10-28 — 2 entries over 5 surviving sites and `pearson`
+     killed. Two survivors sit inside the probed family and two do not. */
+  const cohB = Cp([9, 11], [40, 50, 90, 95], ['parsePPG', 'parsePPG']);
+  const outB = OUT({ 40: 'survived', 50: 'survived', 90: 'survived', 95: 'killed' });
+  ok('rule 5-bis DECOY · the cohort escalates before any narrowing, so the legs below are not testing rule 2', settleDecide(cohB, outB).rule === 5);
+  ok('the probe field yields the family the engine wrote into it', probeFamilyFn(cohB.entries[0]).fn === 'parsePPG', JSON.stringify(probeFamilyFn(cohB.entries[0])));
+  ok(
+    'a `why`-style prose field is NOT read as a family — only the engine-written shape is',
+    probeFamilyFn({ probe: 'In parsePPG. Original and mutant produced byte-identical output.' }).ok === false && probeFamilyFn({}).ok === false
+  );
+  const narB = narrowToProbedFamily(cohB, 'ignored', RANGE(30, 60));
+  ok(
+    'narrowing keeps only the candidates inside the probed family’s range, and can only SHRINK the cohort',
+    narB.ok && narB.candidates.map((m) => m.line).join(',') === '40,50' && narB.candidates.every((m) => cohB.candidates.includes(m)),
+    JSON.stringify(narB)
+  );
+  const dB = settleDecide({ ...cohB, candidates: narB.candidates }, outB);
+  ok(
+    'rule 5-bis · inside the family the escalated cohort becomes a BIJECTION, and no address lands on the killed site',
+    dB.rule === 2 && dB.decisions.every((x) => x.action === 'address' && outB(x.mutant) === 'survived') && dB.decisions.map((x) => x.mutant.line).join(',') === '40,50',
+    JSON.stringify(dB.decisions.map((x) => x.mutant.line))
+  );
+  ok(
+    'two families in one cohort REFUSE — an entry is interchangeable only inside the family that judged it',
+    narrowToProbedFamily(Cp([9, 11], [40, 50, 90, 95], ['parsePPG', 'lombScargle']), 'x', RANGE(30, 60)).ok === false
+  );
+  ok('a family whose declaration no longer resolves REFUSES rather than guessing a range', narrowToProbedFamily(cohB, 'x', () => null).ok === false);
+  ok('a range holding no candidate REFUSES, so the probed family never excuses a site it does not contain', narrowToProbedFamily(cohB, 'x', RANGE(1000, 2000)).ok === false);
+  ok('a range holding EVERY candidate declines, because narrowing nothing is not evidence', narrowToProbedFamily(cohB, 'x', RANGE(1, 9999)).ok === false);
+  /* The default `rangeOf` is the probe engine’s own `functionRange`, wired here over a real source
+     so the leg fails if that import ever stops resolving. */
+  const srcFam = ['function other(a) {', '  return a;', '}', 'function parsePPG(t) {', '  let n = 0;', '  for (let i = 0; i < n; i++) {}', '  return n;', '}'].join('\n');
+  const narReal = narrowToProbedFamily(Cp([9], [2, 6], ['parsePPG']), srcFam);
+  ok(
+    'the default range resolver is the probe engine’s own, so the narrowing reproduces its selection',
+    narReal.ok && narReal.candidates.map((m) => m.line).join(',') === '6' && narReal.range.start === 4,
+    JSON.stringify(narReal)
+  );
+
   /* The load-bearing property across all five: a write only ever moves an address onto a site this
      run watched survive. Asserted over every rule at once rather than per leg. */
   for (const [nm, d] of [
@@ -1629,6 +1738,15 @@ if (IS_MAIN && !has('--selftest')) {
       if (!generated) continue;
       const cohorts = settleCohorts(doc[file], generated);
       if (!cohorts.length) continue;
+      /* Rule 5-bis reads function RANGES out of the live source. An unreadable file leaves `src`
+         empty, `functionRange` then resolves nothing, and every narrowing declines — which is the
+         escalation rule 5 would have reached anyway. */
+      let src = '';
+      try {
+        src = readFileSync(join(ROOT, file), 'utf8');
+      } catch (_) {
+        console.log(`    ⚠ ${file}: source unreadable, so no cohort can be narrowed to its probed family`);
+      }
       /* THE QUALIFIER IS A SECOND DECISION, AND IT IS NOT THE ADDRESS. A re-address moves `line`,
          which is measured: the probe watched that very site survive. Stamping `fn` as well converts
          the identity to the LINE-FREE `(fn, op, before, after)`, so it is safe only under
@@ -1661,7 +1779,25 @@ if (IS_MAIN && !has('--selftest')) {
       };
       const probeNote = `mutate.mjs --only over the groups tagged ${probe.groups} (${probe.groupCount} group(s))`;
       for (const c of cohorts) {
-        const d = settleDecide(c, outcomeOf);
+        let d = settleDecide(c, outcomeOf);
+        if (d.rule === 5) {
+          const nar = narrowToProbedFamily(c, src);
+          if (!nar.ok) console.log(`      rule 5-bis declined — ${nar.reason}`);
+          else {
+            const d2 = settleDecide({ ...c, candidates: nar.candidates }, outcomeOf);
+            /* ONLY AN ADDRESSING OUTCOME IS TAKEN. Rules 2 and 4 move a line onto a site this run
+               watched survive; rules 1 and 3 would DELETE an entry on the strength of a narrowing,
+               and a narrowing is evidence about which site was judged, not about whether the excuse
+               is refuted. A re-decision that escalates again changes nothing, so rule 5 stands. */
+            if (d2.rule === 2 || d2.rule === 4) {
+              const note = `, and the candidates were narrowed to the probed family \`${nar.fn}\` at L${nar.range.start}–${nar.range.end} — the same source range the probe engine selected the judged mutant by`;
+              for (const dec of d2.decisions) dec.reason += note;
+              d2.rule = '5b';
+              d = d2;
+              console.log(`      rule 5-bis — narrowed to \`${nar.fn}\` L${nar.range.start}–${nar.range.end}: ${nar.candidates.length} of ${c.candidates.length} candidate site(s)`);
+            } else console.log(`      rule 5-bis declined — inside \`${nar.fn}\` the cohort still decides by rule ${d2.rule}`);
+          }
+        }
         ts.cohorts++;
         ts.entries += c.entries.length;
         ts.byRule['rule' + d.rule] = (ts.byRule['rule' + d.rule] || 0) + c.entries.length;
@@ -1685,9 +1821,14 @@ if (IS_MAIN && !has('--selftest')) {
           };
           if (dec.action === 'address') {
             ts.addressed++;
+            /* ⚠️ THE QUALIFIER IS COMPUTED BEFORE IT IS REPORTED. The evidence row carries `q`, so
+               building the row above the `const` made the FIRST address decision of every settle run
+               throw `ReferenceError: Cannot access 'q' before initialization` — a guaranteed TDZ that
+               no gate here could see: `--selftest` never enters this branch, and `biome.json` sets
+               `recommended: false` with an allow-list that omits `noInvalidUseBeforeDeclaration`. */
+            const q = settleQualifier(dec.mutant, idCnt);
             rows.push({ ...base, toLine: dec.mutant.line, toFn: dec.mutant.fn ?? null, qualifier: q.verdict, identityMutants: q.n });
             console.log(`      → ADDRESS L${dec.entry.line} becomes L${dec.mutant.line} in ${dec.mutant.fn == null ? 'top level' : dec.mutant.fn} — ${dec.reason}`);
-            const q = settleQualifier(dec.mutant, idCnt);
             if (!q.ok) {
               ts.lineKeyed++;
               console.log(`        · stays line-keyed — ${q.reason}`);

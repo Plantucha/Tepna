@@ -5601,6 +5601,8 @@ def _emit_oxy_live_evidence(name, dev, started, wr, grid, ledger):
             stopped_cleanly=not _STOP.is_set(),
             ppg_grid=_oxy_grid_facts(grid),
             ppg_ledger=_oxy_ledger_facts(ledger),
+            # THE ARTIFACT'S END IS ITS LAST ROW, never its first row plus the row count
+            last_row_ms=wr.last_row_ms,
         )
         with open(path + ".meta.json", "w") as fh:
             json.dump({"acquisition_evidence": ev.to_dict()}, fh, indent=2)
