@@ -49,11 +49,16 @@
   function groupFiles(files) {
     var acc = [],
       brp = {},
-      eve = {};
+      eve = {},
+      accRuns = {};
     for (var i = 0; i < files.length; i++) {
       var f = files[i],
         n = f.name;
-      if (/_ACC\.txt$/i.test(n) && /Polar_H10/i.test(n)) acc.push(f);
+      /* ∅ The validity sidecar the box wrote beside this very stream: `<base>RUNS.txt`, so
+         `X_ACC.txt` pairs with `X_ACCRUNS.txt` by EXACT name. Never by stamp proximity — a night
+         with several H10 sessions would otherwise take another session's blanking runs. */
+      if (/_ACCRUNS\.txt$/i.test(n)) accRuns[n.replace(/RUNS\.txt$/i, '.txt')] = f;
+      else if (/_ACC\.txt$/i.test(n) && /Polar_H10/i.test(n)) acc.push(f);
       else if (/_BRP\.edf$/i.test(n)) {
         var d = (f.webkitRelativePath || n).match(/(\d{8})/);
         if (d) (brp[d[1]] = brp[d[1]] || []).push(f);
@@ -85,7 +90,8 @@
         var prev = new Date(Date.UTC(y, mo - 1, da - 1));
         key = '' + prev.getUTCFullYear() + String(prev.getUTCMonth() + 1).padStart(2, '0') + String(prev.getUTCDate()).padStart(2, '0');
       }
-      if (brp[key] && brp[key].length) out.push({ name: acc[k].name, acc: acc[k], brp: brp[key], eve: eve[key] || [], dayNum: Date.UTC(y, mo - 1, da) / 86400000 });
+      if (brp[key] && brp[key].length)
+        out.push({ name: acc[k].name, acc: acc[k], accRuns: accRuns[acc[k].name] || null, brp: brp[key], eve: eve[key] || [], dayNum: Date.UTC(y, mo - 1, da) / 86400000 });
       else out.noFlow.push(acc[k].name + ' (wanted CPAP night ' + key + ')');
     }
     out.sort(function (a, b) {
@@ -194,7 +200,13 @@
   // ── one night ──────────────────────────────────────────────────────────
   async function runNight(nt) {
     var txt = await readText(nt.acc);
-    var rows = M.parseSensorXYZ(txt);
+    /* ∅ The sidecar rides with the bytes. Without it a blanked run reaches `respiratoryRate` as a
+       stamped sample at the native period, and the coverage mask — which reads inter-sample GAPS —
+       cannot tell it from signal. With it, `parseSensorXYZ` hangs the spans on the row array and
+       the mask refuses every window that leans on one. A drop with no companion is the unchanged
+       path: `parseAccRuns(undefined)` returns null and today's bytes stand. */
+    var runsTxt = nt.accRuns ? await readText(nt.accRuns) : null;
+    var rows = runsTxt ? M.parseSensorXYZ(txt, { runsText: runsTxt }) : M.parseSensorXYZ(txt);
     if (!rows || rows.length < 5000) return { name: nt.name, skip: 'ACC too short' };
     // pick the longest BRP session of the night
     var best = null;
@@ -263,6 +275,17 @@
       selfR: selfR,
       lock: lock,
       est: est,
+      /* §🎫 the series this night reports, with the validity it rests on — named, never implied */
+      validity: rows._runsSidecar
+        ? {
+            source: '_ACCRUNS.txt',
+            comparable: !!rows._runsSidecar.comparable,
+            spans: (rows._blankSpans || []).length,
+            blankedSec: (rows._blankSpans || []).reduce(function (s, b) {
+              return s + Math.max(0, (b.t1Ms - b.t0Ms) / 1000);
+            }, 0)
+          }
+        : null,
       accT0: accT0,
       cpapDur: flow.length / fsF
     };
@@ -1161,6 +1184,24 @@
       row(tv, [fmt(c.coverage * 100, 1) + '%', fmt(c.confMin, 3), '<b>' + fmt(c.mae) + '</b>', fmt(c.rmse), '±' + fmt(c.loa), fmt(c.within2 * 100, 1) + '%', fmt(c.r, 3)]);
     }
 
+    /* §🎫 The validity the night's numbers rest on, named beside the night rather than in a caption:
+       a reader who sees a blanked span knows the windows over it were refused, not measured. A night
+       whose drop carried no companion renders nothing, because absence of a sidecar is not a count. */
+    function validityNote(v) {
+      if (!v) return '';
+      return (
+        ' <small>[_ACCRUNS.txt: ' +
+        v.spans +
+        ' recorded span' +
+        (v.spans === 1 ? '' : 's') +
+        ' · ' +
+        Math.round(v.blankedSec) +
+        ' s blanked' +
+        (v.comparable ? '' : ' · rule not comparable') +
+        ']</small>'
+      );
+    }
+
     // ── 5 · per night ──
     var tn = $('tblNights').querySelector('tbody');
     tn.innerHTML = '';
@@ -1174,7 +1215,7 @@
       row(tn, [
         /* A THIRD uploaded-filename path into row()'s markup-bearing cells. The CodeQL control
            caught it: #3432 escaped the other two and alert #188 stayed OPEN. */
-        escapeHTML(cn.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '')),
+        escapeHTML(cn.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '')) + validityNote(src && src.validity),
         src ? fmt(src.hours, 1) : '—',
         a2.n,
         fmt(a2.mae),
