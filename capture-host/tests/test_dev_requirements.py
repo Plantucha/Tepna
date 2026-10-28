@@ -93,3 +93,25 @@ def test_a_missing_declaration_is_reported_by_name():
     """The plant: the exact drift this file was written for, reproduced from strings."""
     ci = inline_ci_packages("pip install pytest mutmut shellcheck-py\n")
     assert ci - declared_packages("pytest\nmutmut\n") == {"shellcheck-py"}
+
+
+def test_the_mutation_job_pins_the_pytest_it_installs():
+    """mutmut's stats harness reads pytest's PRIVATE `Item._nodeid` (3.8.0, runners/harness.py:157).
+
+    pytest 9.2.0 no longer carries that attribute, so an UNPINNED `pip install pytest` in the mutation
+    job took it within four hours of release: all 21 globs of run 40614222266 generated 642 mutants,
+    tested 0, and the gate returned NOT_RUN over them. The RUNNER decides what executes just as the
+    GENERATOR decides what exists, so this pin must be as explicit as mutmut's and must name the same
+    version this file's floor does.
+    """
+    if not WORKFLOW.exists():  # pragma: no cover - capture-host shipped alone
+        pytest.skip("workflow not present in this checkout (scratch copy or lane shipped alone)")
+    lines = [
+        ln for ln in WORKFLOW.read_text(encoding="utf-8").splitlines() if "pip install pytest" in ln and "mutmut" in ln
+    ]
+    assert len(lines) == 1, lines
+    pinned = re.search(r"\bpytest==([^\s]+)", lines[0])
+    assert pinned, f"the mutation job installs pytest unpinned: {lines[0].strip()}"
+    floor = re.search(r"^pytest>=([^\s#]+)", REQ_DEV.read_text(encoding="utf-8"), re.MULTILINE)
+    assert floor, "requirements-dev.txt declares no pytest floor"
+    assert pinned.group(1) == floor.group(1), (pinned.group(1), floor.group(1))
