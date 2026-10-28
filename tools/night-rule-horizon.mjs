@@ -35,7 +35,8 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { DOC, dedupeRoots, gitCommitOf, NIGHT_RE, parseRoots, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { DOC, dedupeRoots, gitCommitOf, nightDirsUnder, NIGHT_RE, parseRoots, populationVerdict, producedByOf, ruleLine } from './corpus-scope-core.mjs';
+import { findDirNames } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -254,8 +255,31 @@ export function declaredRules(toolsDir = HERE) {
  * a narrowed scope is visible. The primary checkout's `uploads/` tree is written as a placeholder in
  * the doc, which is why `extra` exists: the eleven year-ruled tools are pointed at it by `--dir`, so
  * a gate that never walked it would miss the first night that crosses the boundary.
+ *
+ * 🔴 THE WALK IS RECURSIVE AND THE VERDICT STATES ITS DEPTH. Row
+ * 2026-10-28-the-horizon-tripwire-judges-a-one-level-night-population: this collector read ONE level
+ * and published the union as `nightsOffered` with no depth beside it, so a night nested under a
+ * documented root never reached the rules it judges. The corpus nests. Measured here on 2026-10-28,
+ * three of the five readable roots offer ZERO names to a one-level read while holding 109, 147 and 2
+ * one level down, and a 2027 directory under any of them would escape the probe built to catch
+ * exactly that directory.
+ *
+ * 🔴 THIS IS NOT `snapshotNights` WIDENED. That primitive keeps its one-level contract, because a
+ * scorer's population is what its own `--dir` offers directly and eleven shipped tools take theirs
+ * from it. The question HERE scores nothing — it asks which names the corpus holds at all, which is
+ * the CENSUS question — so it takes the census walk and states its depth the way
+ * `corpus-scope.mjs --nights` does.
+ *
+ * No root-count is summed. The documented roots nest and alias, so one total over them would name no
+ * set; each row carries its own `directories` beside the union of names.
+ *
+ * PURE given `lister`, which is REQUIRED and injected — the contract `nightDirsUnder` sets, because
+ * the shipped walker shells out and a collector nobody can plant is how the one-level read shipped.
  */
-export function corpusNights(docText, { resolver = (p) => realpathSync(p), extra = [] } = {}) {
+export function corpusNights(docText, { resolver = (p) => realpathSync(p), extra = [], lister } = {}) {
+  if (typeof lister !== 'function') {
+    throw new TypeError('corpusNights: a lister is required — an absent walker throws rather than publishing an empty corpus');
+  }
   const parsed = parseRoots(docText);
   const rows = dedupeRoots(
     parsed.map((r) => ({ root: r.path, count: r.countable ? 0 : null, why: r.why })),
@@ -264,33 +288,32 @@ export function corpusNights(docText, { resolver = (p) => realpathSync(p), extra
   const excluded = { elided: 0, remote: 0, absent: 0, 'not-absolute': 0, alias: 0 };
   const roots = [];
   const names = new Set();
+  /* ∅: an unwalkable root carries `directories: null`, never 0 — "nobody looked" is not "none". */
+  const walk = (root, extraFields = {}) => {
+    const w = nightDirsUnder(resolve(root), { lister });
+    if (!w.ok) excluded.absent++;
+    roots.push({ root, ok: w.ok, n: w.ok ? w.names.length : 0, directories: w.ok ? w.directories : null, reason: w.ok ? null : w.reason, ...extraFields });
+    for (const n of w.names || []) names.add(n);
+  };
   for (const r of rows) {
     if (r.count === null) {
       excluded[r.why] = (excluded[r.why] || 0) + 1;
-      roots.push({ root: r.root, ok: false, n: 0, reason: r.why });
+      roots.push({ root: r.root, ok: false, n: 0, directories: null, reason: r.why });
       continue;
     }
     if (r.counted === false) {
       excluded.alias++;
-      roots.push({ root: r.root, ok: false, n: 0, reason: r.why });
+      roots.push({ root: r.root, ok: false, n: 0, directories: null, reason: r.why });
       continue;
     }
-    const snap = snapshotNights(r.root);
-    if (!snap.ok) excluded.absent++;
-    roots.push({ root: r.root, ok: snap.ok, n: snap.ok ? snap.n : 0, reason: snap.ok ? null : snap.reason });
-    for (const n of snap.nights || []) names.add(n);
+    walk(r.root);
   }
-  for (const root of extra) {
-    const snap = snapshotNights(root);
-    if (!snap.ok) excluded.absent++;
-    roots.push({ root, ok: snap.ok, n: snap.ok ? snap.n : 0, reason: snap.ok ? null : snap.reason, caller: true });
-    for (const n of snap.nights || []) names.add(n);
-  }
-  return { roots, excluded, nights: [...names].sort(), readable: roots.filter((r) => r.ok).length };
+  for (const root of extra) walk(root, { caller: true });
+  return { roots, excluded, nights: [...names].sort(), readable: roots.filter((r) => r.ok).length, depth: 'recursive' };
 }
 
 /** One verdict over the pair. PURE in its inputs, so the selftest plants both halves. */
-export function horizonVerdict({ rules, unparsed, nights, roots, excluded = null, commit = null, commitReason = null, at = null }) {
+export function horizonVerdict({ rules, unparsed, nights, roots, excluded = null, depth = null, commit = null, commitReason = null, at = null }) {
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   const base = {
     gate: 'night-rule-horizon',
@@ -339,6 +362,10 @@ export function horizonVerdict({ rules, unparsed, nights, roots, excluded = null
     earliestHorizonYear: earliest,
     toolsAtEarliestHorizon: atEarliest,
     nightsOffered: nights.length,
+    /* The figure means nothing without the walk that produced it, and a guessed word would be worse
+       than none: an unstated depth reads null (row
+       2026-10-28-the-horizon-tripwire-judges-a-one-level-night-population). */
+    nightsDepth: depth,
     rootsReadable: roots.filter((x) => x.ok).length,
     rootsOffered: roots.length,
     rootsExcluded: excluded,
@@ -417,7 +444,8 @@ function verdictSample() {
     rules: sampleRules(),
     unparsed: [],
     nights: ['2026-06-10', '2026-06-11'],
-    roots: [{ root: 'uploads/trio', ok: true, n: 2, reason: null }],
+    roots: [{ root: 'uploads/trio', ok: true, n: 2, directories: 2, reason: null }],
+    depth: 'recursive',
     at: '2026-10-26T00:00:00Z'
   });
 }
@@ -535,6 +563,50 @@ function selftest() {
   ok('…and the folded row names the other lines rather than only its first', (objFixture?.lines ?? []).length >= 3 && new Set(objFixture.lines).size >= 2, JSON.stringify(objFixture?.lines));
   ok('…and the sample validates against the contract', Verdict.validate(verdictSample()).ok !== false, JSON.stringify(Verdict.validate(verdictSample())));
 
+  console.log('\n### THE COLLECTOR WALKS AT DEPTH, AND THE VERDICT SAYS WHICH DEPTH');
+  /* Row 2026-10-28-the-horizon-tripwire-judges-a-one-level-night-population. The collector had no
+     plant at all before this section — the live walk was its only caller — which is how a one-level
+     read shipped inside a gate built to catch a directory that nests. `extra` plants a root without
+     a doc to parse, and `lister` is the injected walker the shipped tool passes `findDirNames` as. */
+  const hzLister = () => ['corpus', 'trio', '2026-06-10', '2027-01-04', 'notes'];
+  const hzDeep = corpusNights('', { extra: ['/planted/corpus'], lister: hzLister });
+  ok('a name the walker reports from below the root reaches the judged set', hzDeep.nights.join(',') === '2026-06-10,2027-01-04', JSON.stringify(hzDeep.nights));
+  ok('…and the collector states the depth it walked', hzDeep.depth === 'recursive', JSON.stringify(hzDeep.depth));
+  ok('…and the row carries its directory count beside the names', hzDeep.roots[0].directories === 2 && hzDeep.roots[0].n === 2, JSON.stringify(hzDeep.roots[0]));
+  /* THE PAIR THAT MATTERS FOR §∅: a walked-and-hzEmpty root and an hzAbsent one must not read the
+     same. The first is a measurement of zero, the second is the absence of a measurement. */
+  const hzEmpty = corpusNights('', { extra: ['/planted/empty'], lister: () => [] });
+  ok(
+    'a root walked and holding nothing reads ok with a zero count',
+    hzEmpty.roots[0].ok === true && hzEmpty.roots[0].directories === 0 && hzEmpty.excluded.absent === 0,
+    JSON.stringify(hzEmpty.roots[0])
+  );
+  const hzAbsent = corpusNights('', { extra: ['/planted/absent'], lister: () => null });
+  ok(
+    '…while a root this machine cannot walk reads null directories, never zero',
+    hzAbsent.roots[0].ok === false && hzAbsent.roots[0].directories === null && hzAbsent.excluded.absent === 1,
+    JSON.stringify(hzAbsent.roots[0])
+  );
+  /* The lister is the enumeration, so its absence throws rather than publishing an hzEmpty corpus —
+     the contract `nightDirsUnder` sets, and the reason a gate cannot silently stop walking. */
+  let hzThrew = null;
+  try {
+    corpusNights('', { extra: ['/planted/corpus'] });
+  } catch (e) {
+    hzThrew = e;
+  }
+  ok('an absent lister throws rather than reporting a corpus of none', hzThrew instanceof TypeError && /lister is required/.test(hzThrew.message), String(hzThrew));
+  /* ANTI-VACUITY for the depth field: it is the walk's own report, not a constant in the builder. A
+     verdict built without one says null rather than borrowing the word the live run happens to use. */
+  const hzNoDepth = horizonVerdict({ rules, unparsed: [], nights: ['2026-06-10'], roots, at: '2026-10-26T00:00:00Z' });
+  ok('a verdict built with no stated depth publishes null, never a guessed word', hzNoDepth.result.nightsDepth === null, JSON.stringify(hzNoDepth.result.nightsDepth));
+  const hzWithDepth = horizonVerdict({ rules, unparsed: [], nights: ['2026-06-10'], roots, depth: 'recursive', at: '2026-10-26T00:00:00Z' });
+  ok(
+    '…and the stated depth reaches the result beside the figure',
+    hzWithDepth.result.nightsDepth === 'recursive' && hzWithDepth.result.nightsOffered === 1,
+    JSON.stringify(hzWithDepth.result.nightsDepth)
+  );
+
   const ran = PASSED.length + fail;
   console.log(`\n${fail ? `\u2717 ${fail} of ${ran} FAILED` : `\u2713 all ${ran} selftests passed \u00b7 the horizon is measured and the boundary reds`}`);
   return fail ? 1 : 0;
@@ -553,12 +625,14 @@ if (IS_CLI) {
   const docPath = argv.indexOf('--doc') >= 0 ? argv[argv.indexOf('--doc') + 1] : join(REPO, DOC);
   const { rules, unparsed } = declaredRules();
   const uploads = process.env.DEX_UPLOADS || join(REPO, 'uploads');
-  const extra = argv.indexOf('--dir') >= 0 ? [argv[argv.indexOf('--dir') + 1]] : [uploads, join(uploads, 'trio')];
-  const { roots, nights, excluded } = corpusNights(readFileSync(docPath, 'utf8'), { extra });
+  /* ONE root, where two used to sit: `uploads/trio` was listed beside `uploads` because the walk
+     read one level, and the recursive walk reaches it from the parent alone. */
+  const extra = argv.indexOf('--dir') >= 0 ? [argv[argv.indexOf('--dir') + 1]] : [uploads];
+  const { roots, nights, excluded, depth } = corpusNights(readFileSync(docPath, 'utf8'), { extra, lister: findDirNames });
   /* The primitive owns the repo root and resolves its own commit; this tool stamps the same pair
      into its own verdict rather than borrowing a reason (`corpus-scope.mjs` records why). */
   const { commit, reason: commitReason } = gitCommitOf(REPO);
-  const v = horizonVerdict({ rules, unparsed, nights, roots, excluded, commit, commitReason });
+  const v = horizonVerdict({ rules, unparsed, nights, roots, excluded, depth, commit, commitReason });
   /* The walk's own account of its yardstick, beside the horizon the rules carry. */
   const pop = populationVerdict(
     {
@@ -591,7 +665,7 @@ if (IS_CLI) {
     },
     { tool: SELF, at: v.at }
   );
-  console.log(`POPULATION ${nights.length} night(s) over ${roots.filter((r) => r.ok).length} readable root(s) of ${roots.length} documented`);
+  console.log(`POPULATION ${nights.length} night name(s) over ${roots.filter((r) => r.ok).length} readable root(s) of ${roots.length} documented, ${depth} walk`);
   const rl = ruleLine(pop);
   if (rl) console.log(rl);
   console.log(horizonLine(v));
