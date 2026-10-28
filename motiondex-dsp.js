@@ -885,6 +885,43 @@
       while (pc < n - 2 && tSec[pc + 1] < tc) pc++;
       covered[kc] = tSec[pc + 1] - tSec[pc] <= gapMaxSec ? 1 : 0;
     }
+    /* ∅ THE SAME REFUSAL, REACHED BY THE SIDECAR INSTEAD OF BY A GAP. A blanked run KEEPS its rows —
+       a NaN there would delete the ROW and turn an absence of VALUE into an absence of TIME — so the
+       inter-sample rule above cannot see one: the stamps march on at the native period across a span
+       the device never measured. `parseSensorXYZ` hangs the `…_ACCRUNS.txt` spans on the row array as
+       `_blankSpans` ({ t0Ms, t1Ms } absolute, one row per channel, so several may overlap). A grid
+       point that leans on a blanked sample is NOT covered, exactly as a sensor-off hole is not.
+       Spans merge first: the cursor walk below is only correct over disjoint intervals, and the
+       writer emits one row per CHANNEL, so x/y/z spans of one event arrive overlapping. */
+    var _bsRaw = rows._blankSpans;
+    if (_bsRaw && _bsRaw.length) {
+      var _bs = [];
+      for (var bq = 0; bq < _bsRaw.length; bq++) {
+        var _b = _bsRaw[bq];
+        if (!_b || !isFinite(_b.t0Ms) || !isFinite(_b.t1Ms) || _b.t1Ms < _b.t0Ms) continue;
+        _bs.push({ t0Ms: _b.t0Ms, t1Ms: _b.t1Ms });
+      }
+      _bs.sort(function (a, b) {
+        return a.t0Ms - b.t0Ms;
+      });
+      var _merged = [];
+      for (var bm = 0; bm < _bs.length; bm++) {
+        var _last = _merged.length ? _merged[_merged.length - 1] : null;
+        if (_last && _bs[bm].t0Ms <= _last.t1Ms) _last.t1Ms = Math.max(_last.t1Ms, _bs[bm].t1Ms);
+        else _merged.push(_bs[bm]);
+      }
+      var _bi = 0;
+      for (i = 0; i < n && _bi < _merged.length; i++) {
+        var _rm = rows[i].tMs;
+        if (_rm == null || !isFinite(_rm)) continue;
+        while (_bi < _merged.length && _merged[_bi].t1Ms < _rm) _bi++;
+        if (_bi >= _merged.length || _rm < _merged[_bi].t0Ms) continue;
+        /* the two grid points that bracket this sample both interpolate THROUGH it */
+        var _k = Math.floor((tSec[i] - tSec[0]) * RR_FS);
+        if (_k >= 0 && _k < nOut) covered[_k] = 0;
+        if (_k + 1 >= 0 && _k + 1 < nOut) covered[_k + 1] = 0;
+      }
+    }
     var aa = butterSOS(6, 0.8 * (RR_FS / 2), fsNative, 'low');
     var axes = ['x', 'y', 'z'],
       out = [];
