@@ -767,7 +767,6 @@ export const UNWIRED_BACKLOG = {
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, and a run that scored
      nothing over a root that offered something, now exit 2 where all four exited 0. */
   'beat-correspondence.mjs': 1,
-  'beat-error-recovery.mjs': 2,
   'codex-export.mjs': 1,
   'corpus-census.mjs': 2,
   'corpus-tier.mjs': 1,
@@ -787,7 +786,6 @@ export const UNWIRED_BACKLOG = {
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a root that offered
      nothing, and an agreement pass that compared nothing, now exit 2 where all three exited 0. */
   'cvhr-fold-rescore.mjs': 1,
-  'deep-desat-falsifier.mjs': 1,
   'dual-clock-rate.mjs': 1,
   'ecg-rate-transfer.mjs': 1,
   'edge-settle.mjs': 1,
@@ -818,9 +816,32 @@ export const UNWIRED_BACKLOG = {
      NSRR mount is not the capture corpus, while these three sat here as debt. Wiring these three
      settles the three; whether the exclusion still reads right for the other two is row
      2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt. */
+  /* FIVE SINGLE-ROOT NAMES LEFT TOGETHER, 2026-10-28, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `beat-error-recovery.mjs`,
+     `deep-desat-falsifier.mjs`, `ppg-autogain-e2.mjs`, `ppg-bridge-hrv-validate.mjs` and
+     `stuck-run-lengths.mjs` each read ONE root a flag hands them, so each now snapshots that root
+     before the read and publishes the comparison after it. The scan reads all five as `reports` and
+     this list must not name them.
+     THE PRIMITIVE IS THE ONE THAT MATCHES THE UNIT, not the one the slice was ordered under. Only
+     `deep-desat-falsifier.mjs` is keyed on nights, and its walk admits EVERY directory, so it
+     DECLARES that wider rule and `admittedNonNight` names each non-night directory it counted in —
+     the default `NIGHT_RE` would have published a population narrower than the set it read. The
+     other four are keyed on FILES — a `_RR.txt` one level down, a per-stream glob, a device PPG
+     pattern — so they take `snapshotEntries` through a NAMED lister, because a night snapshot over a
+     capture tree answers `n: 0` over a full corpus.
+     `--limit`, `--top` and `--max-nights` are SELECTIONS over that offer and never rules, so each
+     printed line now names how many offered members the selection left unread. `ppg-autogain-e2.mjs`
+     described the offer and printed the selection's count in the same line, so a run that cut 40
+     files out of 112 published 40 as everything its rule matched.
+     FOUR ROOT FAILURES BECAME REFUSALS. `ppg-autogain-e2.mjs` recursed through a `catch` that reads
+     an unreadable directory as an empty one, so an unreadable root scored zero files and said
+     nothing; the other three threw the errno out of the walk as an uncaught stack trace. All four now
+     exit 2 naming the root and the errno (§∅ — an absent root is not a zero).
+     THE MULTI-ROOT AND PROBE-SAFE NAMES STAYED, under rows
+     2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot and
+     2026-10-26-wiring-a-population-verdict-costs-the-probe-safety-that-made-it-cheap. */
   'o2ring-finger-validate-batch.mjs': 1,
   'pletha-marker-oracle.mjs': 1,
-  'ppg-autogain-e2.mjs': 1,
   /* FOUR NAMES LEFT TOGETHER, 2026-10-28, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
      `deep-flow-join.mjs`, `device-stability.mjs`, `pat-ppg-ppg-control.mjs` and `ppg2w-spo2-fit.mjs`
      were ONE walker written four times: `readdirSync(<root>)` filtered by the literal `YYYY-MM-DD`
@@ -859,7 +880,6 @@ export const UNWIRED_BACKLOG = {
      `reports` and this list must not name them. Their unit is a FILE, not a night, so they take
      `snapshotEntries` rather than `snapshotNights` — a night snapshot over a capture tree would
      manufacture a population out of directories nobody keyed by date. */
-  'ppg-bridge-hrv-validate.mjs': 1,
   'resp-acc-headless.mjs': 2,
   'seqnet-eval.mjs': 1,
   /* `stage-lab.mjs` WAS THE HEAVIEST KEY HERE, at weight 12, and has LEFT: its twelve enumerations
@@ -867,7 +887,6 @@ export const UNWIRED_BACKLOG = {
      than a night one. A night snapshot there answers `ok: true, n: 0` over a full dataset, which is
      why the weight sat unspent through four wiring units — the unit was the blocker, not the wiring
      (row 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
-  'stuck-run-lengths.mjs': 1,
   'wearable-sync.mjs': 1
 };
 

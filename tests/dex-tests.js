@@ -12199,6 +12199,140 @@
       T.eq('CONTROL · the tool’s own selftest of the exit-code arms passes', self.status, 0);
       T.ok('…and says how many it ran', /SELFTEST PASS \((\d+)\/\1\)/.test(String(self.out)), String(self.out).slice(0, 160));
     });
+    /* ════ FIVE SINGLE-ROOT ENUMERATORS, FIVE POPULATIONS ═══════════════════════════════════════
+       Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. Each of these five reads ONE
+       root a flag hands it and published no account of the set it walked, so a reader could not tell
+       a sweep of a corpus from a sweep of whatever survived a size filter, a stream glob or a
+       selection flag.
+       THE PRIMITIVE HAS TO MATCH THE UNIT. Only `deep-desat-falsifier.mjs` is keyed on nights, and
+       its walk admits EVERY directory, so it declares that wider rule rather than taking the
+       night-shaped default — which would publish a population narrower than the set it read. The
+       other four are keyed on FILES, so a night snapshot there would answer `n: 0` over a full
+       corpus; they take `snapshotEntries` through a lister the caller NAMES, because an inline arrow
+       publishes `rule: null` and names no rule at all.
+       AND A SELECTION IS NOT A RULE. `--limit`, `--top` and `--max-nights` cut the offer after the
+       snapshot, so each printed line names what the selection left unread. */
+    group('the five single-root enumerators publish the population they walked', 'tools · corpus-reads · population', function (T) {
+      var TT = env.toolTexts;
+      var CR = env.corpusReads;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT || !CR) {
+        if (nodeLane) T.ok('env.toolTexts and env.corpusReads are wired in the node lane', false, 'absent — the five-enumerator legs examined nothing');
+        else T.skip('the five-enumerator legs', 'they read the tools tree; the node lane carries it');
+        return;
+      }
+      var FIVE = [
+        { stem: 'beat-error-recovery.mjs', anti: /function\* rrFiles\(/ },
+        { stem: 'deep-desat-falsifier.mjs', anti: /const STAGES = \['REM', 'Light', 'Deep', 'Wake'\]/ },
+        { stem: 'ppg-autogain-e2.mjs', anti: /const DEVICE_RE = / },
+        { stem: 'ppg-bridge-hrv-validate.mjs', anti: /export const PPG_PATTERN = / },
+        { stem: 'stuck-run-lengths.mjs', anti: /const STREAMS = / }
+      ];
+      var texts = {};
+      for (var i = 0; i < FIVE.length; i++) {
+        var rel = 'tools/' + FIVE[i].stem;
+        var src = TT[rel] || '';
+        texts[FIVE[i].stem] = src;
+        /* ANTI-VACUITY: a missing key would make every regex below pass over an empty string. */
+        T.ok('ANTI-VACUITY · ' + FIVE[i].stem + ' is loaded', FIVE[i].anti.test(src), src.length + ' char(s)');
+        if (!FIVE[i].anti.test(src)) return;
+        T.ok(FIVE[i].stem + ' takes the population primitive from the core, not a hand-rolled object', /from '\.\/corpus-scope-core\.mjs'/.test(src), 'absent');
+        T.eq('…and the scanner classifies it as reporting', CR.classifyTool(src).cls, 'reports');
+        T.ok('…and it has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[FIVE[i].stem] === undefined, FIVE[i].stem + ' is still listed as an unwired corpus enumerator');
+      }
+      /* THE ONE NIGHT-KEYED WALK declares its own wider rule, and prints what that rule admitted. */
+      var DD = texts['deep-desat-falsifier.mjs'];
+      T.ok(
+        'deep-desat-falsifier DECLARES the rule its walk applies, rather than taking NIGHT_RE',
+        /const NIGHT_RULE = \/\^\/;/.test(DD),
+        'absent — a night-shaped default would publish a narrower population than the walk'
+      );
+      T.ok(
+        '…opening the snapshot under that rule and reading the walk off it',
+        /const popBefore = snapshotNights\(DIR, \{ re: NIGHT_RULE \}\);[\s\S]{0,400}?const nightDirs = popBefore\.nights;/.test(DD),
+        'absent — the snapshot IS the enumeration'
+      );
+      T.ok(
+        '…and printing the rule line, so the non-night names it counted IN are visible',
+        /ruleLine\(population\)/.test(DD),
+        'absent — a wider rule with no account of itself counts a non-night directory as a night'
+      );
+      /* THE FOUR FILE-KEYED WALKS each name their lister. A function assigned to the `list` property
+         inherits the name `list`, which the primitive publishes as `null`, so the name has to be the
+         caller's own. */
+      var NAMED = [
+        { stem: 'beat-error-recovery.mjs', rule: /list: rrFiles, unit: 'rr-files'/ },
+        { stem: 'ppg-autogain-e2.mjs', rule: /const listPpgFilesAtSize = / },
+        { stem: 'ppg-bridge-hrv-validate.mjs', rule: /const listDevicePpgFiles = / },
+        { stem: 'stuck-run-lengths.mjs', rule: /const listStreamFiles = / }
+      ];
+      for (var j = 0; j < NAMED.length; j++) {
+        var t = texts[NAMED[j].stem];
+        T.ok(NAMED[j].stem + ' enumerates a FILE population through a NAMED lister', NAMED[j].rule.test(t), 'absent — an inline arrow publishes rule: null');
+        T.ok('…under snapshotEntries, never a night snapshot over a capture tree', /snapshotEntries\(/.test(t) && !/snapshotNights\(/.test(t), 'a file population must not borrow the night primitive');
+        T.ok('…and refuses a root it cannot enumerate, naming the reason', /popBefore\.ok/.test(t) && /popBefore\.reason/.test(t), 'absent — an absent root is not a zero (§∅)');
+      }
+      /* A SELECTION NAMES WHAT IT LEFT UNREAD, in the three tools that cut the offer. */
+      T.ok('--limit names the offered files it left unread', /--limit \$\{limit\} left \$\{popBefore\.n - files\.length\} offered file\(s\) unread/.test(texts['stuck-run-lengths.mjs']), 'absent');
+      T.ok(
+        '--max-nights names them too, beside the offer it used to print alone',
+        /# population: \$\{files\.length\} of \$\{popBefore\.n\}/.test(texts['ppg-autogain-e2.mjs']),
+        'absent — the line described the offer and printed the selection’s count'
+      );
+      T.ok('--top names them in the bridge', /--top \$\{TOP\} left \$\{popBefore\.n - ppgFiles\.length\} offered file\(s\) unread/.test(texts['ppg-bridge-hrv-validate.mjs']), 'absent');
+      /* AND THE BRIDGE'S REFUSAL HAS TO PRECEDE ITS BARE WALK, or the errno leaves as a stack trace
+         from `walk` before the snapshot can name it. The source ORDER is the assertion, because the
+         corpus path needs a ref where `ppgdex-dsp.js` differs and no probe can reach it here. */
+      var BR = texts['ppg-bridge-hrv-validate.mjs'];
+      var iSnap = BR.indexOf('const popBefore = snapshotEntries(DIR, POP);'),
+        iWalk = BR.indexOf('const all = walk(DIR);');
+      T.ok('the bridge snapshots the root BEFORE the bare walk that would throw', iSnap >= 0 && iWalk > iSnap, 'snapshot at ' + iSnap + ' · bare walk at ' + iWalk);
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('the execution legs', 'Node-lane only (spawns each tool in an empty temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      /* KNOWN ANSWER · an unreadable root. The probe cwd is an empty directory, so `./nope` cannot be
+         enumerated and each tool must exit 2 rather than score an empty population. */
+      var REFUSE = [
+        ['tools/beat-error-recovery.mjs', ['--root', './nope']],
+        ['tools/deep-desat-falsifier.mjs', ['--dir', './nope']],
+        ['tools/ppg-autogain-e2.mjs', ['--dir', './nope']],
+        ['tools/stuck-run-lengths.mjs', ['--dir', './nope', '--stream', 'verity-ppg']]
+      ];
+      for (var k = 0; k < REFUSE.length; k++) {
+        var bad = probe(REFUSE[k][0], REFUSE[k][1]);
+        T.eq(REFUSE[k][0] + ' exits 2 on a root it cannot enumerate', bad.status, 2);
+        T.eq('…and wrote nothing beside itself', bad.wrote, []);
+      }
+      /* KNOWN ANSWER · a root that enumerates and offers nothing is NOT_RUN, never a PASS over zero:
+         the probe cwd itself is readable and empty. */
+      var empty = probe('tools/beat-error-recovery.mjs', ['--root', '.']);
+      T.eq('an empty root still runs, because it enumerated', empty.status, 0);
+      var doc = null;
+      try {
+        doc = JSON.parse(String(empty.out));
+      } catch {
+        doc = null;
+      }
+      T.ok('…publishing one document a consumer can parse', doc != null, String(empty.out).slice(0, 160));
+      if (doc == null) return;
+      T.eq('…carrying the population beside the streams it scored', doc.population && doc.population.schema, 'tepna.verdict/1');
+      T.eq('…as NOT_RUN over an offer of nothing', doc.population.status, 'NOT_RUN');
+      T.eq('…over checked 0, which Verdict.make refuses to call a PASS', doc.population.population.checked, 0);
+      T.ok('…naming the root it enumerated in the reason', /offered no rr-file/.test(String(doc.population.reason)), String(doc.population.reason));
+      var ag = probe('tools/ppg-autogain-e2.mjs', ['--dir', '.']);
+      var popLines = String(ag.out)
+        .split('\n')
+        .filter(function (l) {
+          return l.indexOf('POPULATION ') === 0;
+        });
+      T.eq('ppg-autogain-e2 publishes exactly ONE population object per run', popLines.length, 1);
+      if (popLines.length !== 1) return;
+      var agPop = JSON.parse(popLines[0].slice('POPULATION '.length));
+      T.eq('…under the file unit it walked, not a night one', agPop.criterion.name, 'ppg-files_added_or_removed');
+      T.eq('…and NOT_RUN over an empty offer', agPop.status, 'NOT_RUN');
+    });
     /* ════ FOUR READERS, ONE POPULATION: THE TRIO NIGHT TREE ════════════════════════════════════
        Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `closure-tol-hac.mjs`,
        `pb-fusion-blast.mjs`, `rho-overlap-power.mjs` and `tch-pooled-hat.mjs` all score over the

@@ -46,6 +46,7 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, s
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -285,11 +286,30 @@ const walk = (d, out = []) => {
   }
   return out;
 };
-const all = walk(DIR);
 if (!PPG_PATTERN[DEVICE] || !['gap', 'any'].includes(FIRES)) {
   console.error('--device must be o2ring|verity and --fires gap|any');
   process.exit(2);
 }
+/* THE LISTER IS THE RULE, and the rule is the DEVICE: `PPG_PATTERN[DEVICE]` decides which files this
+   run offers, so the snapshot names it rather than leaving a reader to infer the offer from a count of
+   what was scored. It is taken AFTER the device check above, because an unknown `--device` would make
+   the lister throw and the snapshot would then report an unenumerable root for a bad flag.
+   `--top` is a SELECTION over that offer, never a narrower population: pointed at a Verity corpus with
+   the default o2ring filter this tool once scored nothing and said nothing (2026-09-22), which is the
+   shape a published population makes visible. */
+const listDevicePpgFiles = (root) =>
+  walk(root)
+    .filter((f) => PPG_PATTERN[DEVICE].test(f.p))
+    .map((f) => f.p);
+const POP = { list: listDevicePpgFiles, unit: `${DEVICE}-ppg-files` };
+const popBefore = snapshotEntries(DIR, POP);
+if (!popBefore.ok) {
+  console.error(`ppg-bridge-hrv-validate: ${popBefore.reason} — ${DIR}`);
+  process.exit(2);
+}
+/* The bare walk runs AFTER the snapshot, so an unreadable root is refused with its errno above
+   rather than thrown out of `walk` as an uncaught stack trace. */
+const all = walk(DIR);
 const ppgFiles = all
   .filter((f) => PPG_PATTERN[DEVICE].test(f.p))
   .sort((a, b) => b.size - a.size)
@@ -395,6 +415,13 @@ for (const f of ppgFiles) {
 }
 console.log(`\n${rows} scored file(s)  ·  BETTER ${better} · unchanged ${same} · mixed ${mixed} · WORSE ${worse}`);
 console.log('SKIPPED (named): ' + JSON.stringify(skipped) + ` · candidates ${ppgFiles.length} · ecg files indexed ${ecgIndex.length}, parsed ${ecgCache.size}`);
+const population = populationVerdict(popBefore, snapshotEntries(DIR, POP), { tool: 'tools/ppg-bridge-hrv-validate.mjs', evidence: ['tools/ppg-bridge-hrv-validate.mjs'] });
+console.log(
+  `population: ${population.status} — ${population.population.checked} ${DEVICE} PPG file(s) of ${population.population.eligible} offered under ${DIR}` +
+    (popBefore.n > ppgFiles.length ? ` · --top ${TOP} left ${popBefore.n - ppgFiles.length} offered file(s) unread` : '') +
+    (population.reason ? `\n  ${population.reason}` : '')
+);
+console.log('POPULATION ' + JSON.stringify(population));
 if (inert) console.log(`${inert} firing file(s) where §4 moved NO epoch HRV — accounting only (nGapSpanIntervals), nothing to score.`);
 if (noEcg) console.log(`${noEcg} firing file(s) had no overlapping ECG epoch — not counted either way.`);
 console.log(

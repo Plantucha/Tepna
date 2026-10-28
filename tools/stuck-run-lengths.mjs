@@ -70,6 +70,9 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { gitShort, makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
+
+const TOOL = 'tools/stuck-run-lengths.mjs';
 
 export const T_STUCK = 200;
 export const GAP_FACTOR = 4;
@@ -440,7 +443,17 @@ async function main() {
     }
     return out;
   };
-  let files = walk(dir).sort();
+  /* THE LISTER IS THE RULE for this unit, and it is per-stream: `spec.glob` decides which files the
+     run offers, so the unit carries the stream's own name. The snapshot is taken over the OFFER —
+     `--limit` is a selection a reader makes on top of it, never a narrower population, so the line
+     below names how many offered files it left unread. */
+  const listStreamFiles = (root) => walk(root).sort();
+  const popBefore = snapshotEntries(dir, { list: listStreamFiles, unit: `${name}-files` });
+  if (!popBefore.ok) {
+    console.error(`stuck-run-lengths: ${popBefore.reason} — ${dir}`);
+    process.exit(2);
+  }
+  let files = popBefore.members;
   if (limit > 0) files = files.slice(0, limit);
   const hists = spec.cols.map(() => new Map());
   const longByValue = spec.cols.map(() => new Map());
@@ -454,7 +467,13 @@ async function main() {
     }
     if (++done % 50 === 0) console.log(`  … ${done}/${files.length} files, ${counts[0].toLocaleString()} samples ch0`);
   }
+  const population = populationVerdict(popBefore, snapshotEntries(dir, { list: listStreamFiles, unit: `${name}-files` }), { tool: TOOL, evidence: [TOOL, dir, `stream=${name}`] });
   console.log(`\nstream ${name} · ${files.length} files · fs ${spec.fs} Hz (measured) · writers key '${spec.writerKey}'`);
+  console.log(
+    `  population: ${population.status} — ${population.population.checked} ${name}-file(s) of ${population.population.eligible}` +
+      (limit > 0 && popBefore.n > files.length ? ` · --limit ${limit} left ${popBefore.n - files.length} offered file(s) unread` : '') +
+      (population.reason ? `\n  ${population.reason}` : '')
+  );
   const rows = [];
   for (let c = 0; c < spec.cols.length; c++) {
     const dropped = dropTopModalValues(hists[c], longByValue[c], 3);
@@ -472,7 +491,7 @@ async function main() {
       if (v.reason) console.log(`      ${v.reason}`);
     }
   }
-  console.log('\nJSON ' + JSON.stringify({ stream: name, fs: spec.fs, files: files.length, tStuck: T_STUCK, rows }));
+  console.log('\nJSON ' + JSON.stringify({ stream: name, fs: spec.fs, files: files.length, population, tStuck: T_STUCK, rows }));
   console.log('VERDICT ' + JSON.stringify(runVerdict(rows, { commit: gitShort(), evidence: [dir, `stream=${name}`] })));
 }
 
