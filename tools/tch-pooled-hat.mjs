@@ -32,12 +32,12 @@
  *   node tools/tch-pooled-hat.mjs --dir uploads/trio --json
  *   node tools/tch-pooled-hat.mjs --selftest      # planted truth: identity + recovery
  */
-import { readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { solveNight } from './tch-fused-corpus.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { corpusBlock, corpusIdentity, repoRelative } from './fold-generation.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const KEYS = ['h10', 'verity', 'o2'];
@@ -136,10 +136,43 @@ function main() {
   const i = argv.indexOf('--dir');
   const dir = i >= 0 && argv[i + 1] ? argv[i + 1] : join(ROOT, 'uploads', 'trio');
   const asJson = argv.includes('--json');
-  const names = readdirSync(dir)
-    .filter((d) => /^\d{4}-\d\d-\d\d$/.test(d) && statSync(join(dir, d)).isDirectory())
-    .sort();
+  /* ── THE POPULATION THESE THREE ESTIMATORS ARE COMPUTED OVER ──────────────────────────────
+     Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. The headline printed
+     `N nights … (M skipped)`, so the skipped count was there and the OFFERED count never was: a
+     root holding nothing night-shaped, and a root whose every night solves, both printed a bare
+     pair of numbers. `snapshotNights`' default rule is this walk's own rule written twice over —
+     `\d{2}` where this file wrote `\d\d` — so the offered set does not move, and the night
+     questions bind because the rule is the default one. */
+  const snapBefore = snapshotNights(dir);
+  const commitOf = gitCommitOf();
+  const POP_EV = ['tools/tch-pooled-hat.mjs', 'tools/corpus-scope-core.mjs'];
   const solved = [];
+  const publishPopulation = () => {
+    const population = populationVerdict(snapBefore, snapshotNights(dir), {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: 'tools/tch-pooled-hat.mjs',
+      evidence: POP_EV
+    });
+    const rule = ruleLine(population);
+    /* 🔴 PUBLISHED BEFORE EVERY EXIT, the refusal included. `need >=2 solved nights` is the one
+       case where the population IS the whole finding, and it was the one case that reported none. */
+    console.log(`\npopulation: ${snapBefore.n} night(s) offered under ${dir} · ${solved.length} solved · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+    if (rule) console.log(rule);
+    /* The solved ROWS, not their names: `notCovered` reads `row[key]`, so a list of strings would
+       cover nothing and report every offered night as unsolved. */
+    const unsolved = notCovered(snapBefore, solved, { key: 'night' });
+    if (snapBefore.ok && unsolved.length !== snapBefore.n - solved.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${solved.length} solved ≠ ${unsolved.length} unsolved`);
+    if (unsolved.length) console.log(`  ${unsolved.length} offered night(s) went unsolved, by name: ${unsolved.slice(0, 8).join(' · ')}${unsolved.length > 8 ? ` · … (+${unsolved.length - 8})` : ''}`);
+    console.log('POPULATION ' + JSON.stringify(population));
+    return population;
+  };
+  if (!snapBefore.ok) {
+    console.error(`refused: ${snapBefore.reason} — ${dir}`);
+    publishPopulation();
+    process.exit(2);
+  }
+  const names = snapBefore.nights;
   const skipped = [];
   for (const n of names) {
     const r = solveNight(dir, n);
@@ -148,7 +181,8 @@ function main() {
   }
   if (solved.length < 2) {
     console.error(`need ≥2 solved nights, got ${solved.length}`);
-    process.exit(1);
+    publishPopulation();
+    process.exit(2);
   }
   const e = estimators(solved);
   /* The corpus identity of THIS cut, scoped to the nights the estimators actually read. A published
@@ -161,7 +195,22 @@ function main() {
     ? corpusBlock(corpusIdentity(root, { nights: solved.map((r) => r.night) }))
     : { root: dir, resolvable: false, reason: 'the corpus is outside this checkout, so git cannot identify it', dataDigest: null, foldGeneration: null };
   if (asJson) {
-    console.log(JSON.stringify({ dir, corpus, nights: e.nights, skipped: skipped.length, pairs: e.P, pooled: e.pooled, weighted: e.weighted, gap: e.gap, medianSigma: e.med }, null, 2));
+    /* THE JSON READER GETS THE OBJECT TOO, inside the document rather than printed beside it: a
+       consumer parsing stdout as one JSON value would otherwise have to choose between the figures
+       and their population, and the whole point is that neither stands alone. */
+    const population = populationVerdict(snapBefore, snapshotNights(dir), {
+      commit: commitOf.commit,
+      commitReason: commitOf.reason,
+      tool: 'tools/tch-pooled-hat.mjs',
+      evidence: POP_EV
+    });
+    console.log(
+      JSON.stringify(
+        { dir, corpus, population, offered: snapBefore.n, nights: e.nights, skipped: skipped.length, pairs: e.P, pooled: e.pooled, weighted: e.weighted, gap: e.gap, medianSigma: e.med },
+        null,
+        2
+      )
+    );
     return;
   }
   console.log(`\n  POOLED-SECONDS HAT vs MEDIAN OVER NIGHTS — ${e.nights} nights, ${e.P.N.toLocaleString()} pooled seconds (${skipped.length} skipped)\n`);
@@ -194,6 +243,27 @@ function main() {
   }
   console.log('\n  ⚠ These are the SAME nights under three estimators. A difference between them is not');
   console.log('    disagreement about the devices — it is the estimators answering different questions.\n');
+  publishPopulation();
+}
+
+/* A NAMED lister: `snapshotEntries` publishes `rule: list.name`, and an inline arrow would publish
+   `rule: null` — the caller's one decision, unrecorded. */
+function sampleNights() {
+  return ['2026-06-10', '2026-06-11', '2026-06-12'];
+}
+/* The adoption sample reads no corpus, so the object's shape is checkable where no uploads tree
+   exists. It prints the object ALONE, because `verify:verdict-adoption` parses stdout as JSON. */
+/* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
+   before it decides whether this tool reports a population: a fabricated call left at top level
+   would clear the tool over a walk no run makes (the lesson its own CONTROL leg records). */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const snap = snapshotEntries('<uploads>/trio', { list: sampleNights, unit: 'nights', at });
+  return populationVerdict(snap, snap, { tool: 'tools/tch-pooled-hat.mjs', at, evidence: ['tools/tch-pooled-hat.mjs', 'tools/corpus-scope-core.mjs'] });
+}
+if (process.argv.slice(2).includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
 }
 
 if (isCliEntry(import.meta.url)) main();

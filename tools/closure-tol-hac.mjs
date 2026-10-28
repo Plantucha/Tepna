@@ -51,6 +51,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -60,6 +61,25 @@ const arg = (k, d) => {
 };
 const TRIO = path.resolve(ROOT, arg('--trio', 'uploads/trio'));
 const LIMIT = Number(arg('--limit', '99'));
+/* A NAMED lister: `snapshotEntries` publishes `rule: list.name`, and an inline arrow publishes
+   `rule: null`. The adoption sample reads no corpus and prints the object ALONE, because
+   `verify:verdict-adoption` parses stdout as JSON — and it sits above `loadIntegrator()` so the
+   sample needs no bundle either. */
+function sampleNights() {
+  return ['2026-06-10', '2026-06-11', '2026-06-12'];
+}
+/* THE SAMPLE LIVES IN A NAMED HELPER, because `corpus-reads.mjs` blanks a `verdictSample` body
+   before it decides whether this tool reports a population: a fabricated call left at top level
+   would clear the tool over a walk no run makes (the lesson its own CONTROL leg records). */
+function verdictSample() {
+  const at = '2026-10-28T00:00:00Z';
+  const snap = snapshotEntries('<uploads>/trio', { list: sampleNights, unit: 'nights', at });
+  return populationVerdict(snap, snap, { tool: 'tools/closure-tol-hac.mjs', at, evidence: ['tools/closure-tol-hac.mjs', 'tools/corpus-scope-core.mjs'] });
+}
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 
 /* ── co-load the real integrator in a realm (the geometry-scan.mjs pattern) ── */
 async function loadIntegrator() {
@@ -164,11 +184,24 @@ const NODES = [
 const LAGS = [0, 2, 4, 8];
 
 const I = await loadIntegrator();
-const nights = fs
-  .readdirSync(TRIO)
-  .filter((d) => /^\d{4}-\d\d-\d\d$/.test(d))
-  .sort()
-  .slice(0, LIMIT);
+/* ── THE POPULATION THIS TOLERANCE RULE IS JUDGED OVER ───────────────────────────────────────
+   Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `N nights` here counted what
+   survived `--limit`, and `M nights with three fitted legs` counted what scored; neither said what
+   the root OFFERED, and the gap between the three is the whole story of a rule derived from 30-odd
+   nights out of 147. The cap is a removal with a reason, so it is named separately below rather
+   than folded into the night count.
+   `snapshotNights`' default rule is this walk's own rule spelled `\d{2}` for `\d\d`, so the offered
+   set does not move and the night questions bind. */
+const POP_TOOL = 'tools/closure-tol-hac.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+const snapBefore = snapshotNights(TRIO);
+if (!snapBefore.ok) {
+  console.error(`refused: ${snapBefore.reason} — ${TRIO}`);
+  console.log('POPULATION ' + JSON.stringify(populationVerdict(snapBefore, snapBefore, { tool: POP_TOOL, evidence: POP_EV })));
+  process.exit(2);
+}
+const commitOf = gitCommitOf();
+const nights = snapBefore.nights.slice(0, LIMIT);
 
 console.log('Closure tolerance — magnitude rule vs Newey-West HAC');
 console.log(`  ${nights.length} nights · Bartlett lags swept ${LAGS.join(', ')}\n`);
@@ -222,9 +255,44 @@ for (const night of nights) {
   );
 }
 
+/* ONE PUBLISHER, CALLED BEFORE EVERY EXIT. The three removal causes are reported apart because
+   they are different facts: the `--limit` cap, the nights whose beat triple is incomplete, and the
+   nights whose three legs did not fit confidently. */
+/* The shared exit rule, pure so a caller and a test can both read it: an unenumerable population
+   and a run that scored nothing both exit 2; a SHORTFALL annotates and exits 0. */
+function exitCodeFor(population, scored) {
+  return population.status === 'NOT_RUN' || scored === 0 ? 2 : 0;
+}
+function publishPopulation() {
+  const population = populationVerdict(snapBefore, snapshotNights(TRIO), {
+    commit: commitOf.commit,
+    commitReason: commitOf.reason,
+    tool: POP_TOOL,
+    evidence: POP_EV
+  });
+  console.log(
+    `\npopulation: ${snapBefore.n} night(s) offered under ${TRIO} · ${nights.length} after --limit ${LIMIT} · ${rows.length} with three fitted legs · movement ${population.status}` +
+      (population.reason ? ` — ${population.reason}` : '')
+  );
+  const rule = ruleLine(population);
+  if (rule) console.log(rule);
+  /* The rows, not their names — `notCovered` reads `row[key]`. */
+  const unscored = notCovered(snapBefore, rows, { key: 'night' });
+  if (unscored.length)
+    console.log(`  ${unscored.length} offered night(s) scored no closure, by name: ${unscored.slice(0, 8).join(' · ')}${unscored.length > 8 ? ` · … (+${unscored.length - 8})` : ''}`);
+  if (unscored.length !== snapBefore.n - rows.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${rows.length} scored ≠ ${unscored.length} unscored`);
+  console.log('POPULATION ' + JSON.stringify(population));
+  /* The caller derives its exit code from this object, so the publisher hands it back rather than
+     let a second `populationVerdict` call decide the exit over a third enumeration. */
+  return population;
+}
+
 if (!rows.length) {
   console.log('\n⊘ no nights produced three confident legs with blocks_.');
-  process.exit(0);
+  /* 🔴 THIS EXITED 0 — the way a run that measured the whole corpus exits. A tolerance rule
+     derived from no night at all is not a weaker finding, it is no finding, and the caller could
+     not tell (§∅). The rule is this slice's shared one: NOT_RUN or nothing scored exits 2. */
+  process.exit(exitCodeFor(publishPopulation(), rows.length));
 }
 
 console.log(`\n  ${rows.length} nights with three fitted legs\n`);
@@ -274,3 +342,4 @@ for (const L of LAGS) {
       ).toFixed(3)}  (n=${u.length})`
     );
 }
+process.exit(exitCodeFor(publishPopulation(), rows.length));

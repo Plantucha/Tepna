@@ -748,12 +748,24 @@ export const UNWIRED_BACKLOG = {
      THE COUNTS WERE RE-MEASURED in that row, because four of them moved with the ladder and two
      had drifted under the rung that landed in #3862. Nothing reads the number; a wrong one is
      still a wrong statement.
-     THREE OF THOSE SEVEN HAVE LEFT THIS LIST — `ecg-apnea-correlate.mjs`, `deep-vlf-probe.mjs` and
-     `pb-agreement.mjs` now snapshot the trio root before the walk and publish the comparison, so
-     the scan reads them as `reports` and this list must not name them (row
-     2026-10-21-forty-one-corpus-enumerators-report-no-population). */
-  'closure-tol-hac.mjs': 1,
-  'pb-fusion-blast.mjs': 1,
+     THREE OF THOSE SEVEN LEFT THIS LIST ON 2026-10-21 — `ecg-apnea-correlate.mjs`,
+     `deep-vlf-probe.mjs` and `pb-agreement.mjs` now snapshot the trio root before the walk and
+     publish the comparison, so the scan reads them as `reports` and this list must not name them
+     (row 2026-10-21-forty-one-corpus-enumerators-report-no-population). `closure-tol-hac.mjs` and
+     `pb-fusion-blast.mjs` left on 2026-10-28, in the paragraph below. */
+  /* FOUR TRIO-NIGHT READERS LEFT TOGETHER, 2026-10-28, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `closure-tol-hac.mjs`,
+     `pb-fusion-blast.mjs`, `rho-overlap-power.mjs` and `tch-pooled-hat.mjs` all walk the SAME
+     population — the trio night tree — and each now takes `snapshotNights` over it before the read
+     and publishes the comparison, so the scan reads them as `reports` and this list must not name
+     them. Their unit is a NIGHT, so they take `snapshotNights` rather than `snapshotEntries`.
+     THE OFFERED COUNT IS NOT THE SCORED COUNT IN ANY OF THE FOUR, and the gap is the point: 147
+     nights offered against 104 pairs, 90 solved hats, 24 three-legged closures and 0 fusion rows
+     without `--cpap`. Each names the unscored nights beside the figure and carries an arithmetic
+     control (offered − scored === unscored) so a coverage line can never contradict its own
+     headline.
+     THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, and a run that scored
+     nothing over a root that offered something, now exit 2 where all four exited 0. */
   'beat-correspondence.mjs': 1,
   'beat-error-recovery.mjs': 2,
   'codex-export.mjs': 1,
@@ -816,11 +828,6 @@ export const UNWIRED_BACKLOG = {
      manufacture a population out of directories nobody keyed by date. */
   'ppg-bridge-hrv-validate.mjs': 1,
   'resp-acc-headless.mjs': 2,
-  /* THE ONE `repo-corpus` MEMBER (row 2026-10-21-a-repo-rooted-path-can-still-be-corpus). It walks
-     `uploads/trio` inside the checkout, which no flag can re-point, and its own usage line says
-     "reads the committed uploads/trio corpus" — so the walk was never in doubt, only invisible.
-     Wiring it means deleting this line, and the reverse leg reds if the line outlives the debt. */
-  'rho-overlap-power.mjs': 2,
   'seqnet-eval.mjs': 1,
   /* `stage-lab.mjs` WAS THE HEAVIEST KEY HERE, at weight 12, and has LEFT: its twelve enumerations
      walk external PSG archives, so it reports a RECORD population through `snapshotEntries` rather
@@ -828,7 +835,6 @@ export const UNWIRED_BACKLOG = {
      why the weight sat unspent through four wiring units — the unit was the blocker, not the wiring
      (row 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
   'stuck-run-lengths.mjs': 1,
-  'tch-pooled-hat.mjs': 1,
   'wearable-sync.mjs': 1
 };
 
