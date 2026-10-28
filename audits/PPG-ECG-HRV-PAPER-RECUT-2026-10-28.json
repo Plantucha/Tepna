@@ -1,0 +1,194 @@
+{
+ "schema": "tepna.audit-record/1",
+ "title": "PPG-ECG HRV paper: what the committed producer reads today",
+ "residue": "2026-10-28-the-paper-producer-search-missed-a-tool-committed-in-august",
+ "date": "2026-10-28",
+ "scope": "internal",
+ "instrument": {
+  "tool": "tools/ppi-jitter-vs-ecg.mjs",
+  "firstCommitted": "2026-08-03 (#756)",
+  "runs": {
+   "primary": [
+    "--device",
+    "verity",
+    "--max-nights",
+    "54"
+   ],
+   "sleepOnly": [
+    "--device",
+    "verity",
+    "--sleep-only",
+    "--max-nights",
+    "54"
+   ],
+   "subWindow": [
+    "--device",
+    "verity",
+    "--max-nights",
+    "42",
+    "(2026-06-10 to 2026-07-05 only)"
+   ]
+  },
+  "unit": "per-night jitter_sd (ms) and per-night whole-record rMSSD bias (%)"
+ },
+ "corpus": {
+  "dir": "/srv/data/tepna-corpus/uploads/Ecg nightly",
+  "window": "2026-06-10 to 2026-07-13 (the paper's own stated range)",
+  "filesWalked": 1980,
+  "matchedVerityPpg": 54,
+  "pairedH10Ecg": 50
+ },
+ "results": {
+  "primary": {
+   "nightsScored": 30,
+   "epochsKept": 2000,
+   "epochsDropped": {
+    "thin": 542,
+    "noEnvelopeLag": 0,
+    "jitterRefused": 9
+   },
+   "jitterSdMs": {
+    "median": 6.34,
+    "iqr": [
+     4.61,
+     8.83
+    ]
+   },
+   "rmssdBiasPct": {
+    "median": 6.52,
+    "iqr": [
+     1.59,
+     15.41
+    ],
+    "estimator": "whole-record per night"
+   },
+   "beatMatchPct": {
+    "median": 100.0,
+    "iqr": [
+     100.0,
+     100.0
+    ]
+   },
+   "beatCountRatio": {
+    "median": 1.0,
+    "iqr": [
+     1.0,
+     1.0
+    ]
+   },
+   "sdnnRobustVsDispSdPct": {
+    "median": 2.77,
+    "iqr": [
+     -5.81,
+     4.8
+    ]
+   },
+   "referenceRateBpm": {
+    "median": 49.6,
+    "slowestEpoch": 14.8,
+    "fastestEpoch": 131.2
+   }
+  },
+  "sleepOnly": {
+   "nightsScored": 21,
+   "epochsKept": 1594,
+   "jitterSdMs": {
+    "median": 6.26,
+    "iqr": [
+     4.61,
+     7.65
+    ]
+   },
+   "rmssdBiasPct": {
+    "median": 7.16,
+    "iqr": [
+     2.53,
+     18.42
+    ]
+   }
+  },
+  "subWindow": {
+   "nightsScored": 22,
+   "epochsKept": 1478,
+   "jitterSdMs": {
+    "median": 7.01,
+    "iqr": [
+     5.92,
+     10.61
+    ]
+   },
+   "rmssdBiasPct": {
+    "median": 6.91,
+    "iqr": [
+     1.54,
+     17.67
+    ]
+   }
+  }
+ },
+ "published": {
+  "source": "papers/ppg-ecg-hrv-validation.html Draft v2, measured 2026-07",
+  "nights": 20,
+  "epochs": 1477,
+  "epochsPooled": 1488,
+  "jitterSdMs": {
+   "median": 5.92,
+   "iqr": [
+    3.98,
+    10.61
+   ],
+   "rangeAcrossNights": [
+    3.02,
+    48.8
+   ]
+  },
+  "rmssdBiasPct": {
+   "median": 4.24,
+   "iqr": [
+    1.83,
+    6.85
+   ],
+   "rangeAcrossNights": [
+    -1.1,
+    118.9
+   ],
+   "estimator": "median across nights of each per-night median of per-epoch bias"
+  },
+  "kFit": {
+   "k": 2.39,
+   "kIqr": [
+    1.79,
+    2.85
+   ],
+   "r2": 0.964,
+   "r2Iqr": [
+    0.937,
+    0.989
+   ],
+   "r2Min": 0.67
+  }
+ },
+ "driftControl": {
+  "pairedAgainst": "audits/VERITY-JITTER-CORPUS-2026-09-22.json (same tool, same flags, same corpus, 16 days after the fill removal)",
+  "auditNights": 19,
+  "todayNights": 21,
+  "nightsJoined": 16,
+  "identicalPopulationNights": 12,
+  "medianDeltaMs": 0.0,
+  "maxAbsDeltaMs": 0.55,
+  "reading": "the jitter arm did not move between 2026-09-22 and 2026-10-28 on like populations"
+ },
+ "notReproducible": [
+  "the per-epoch rMSSD series: the tool publishes one whole-record rMSSD per night, while the paper's +4.24 % is the median across nights of each per-night median of per-epoch bias",
+  "the k-fit: k = 2.39, R2 = 0.964, the catastrophic-epoch population and Table 2's budget have no producer at all",
+  "the per-epoch table section 5 calls 'the committed artifact': no such file exists under analysis/ or audits/"
+ ],
+ "verdict": "MEASURED, NOT DECIDED - the jitter arm reproduces (6.34 ms today against 5.92 ms published, with 0.00 ms median drift against the 2026-09-22 run on like populations), the rMSSD arm reads farther from the ECG as #2907 predicted, and the paper's own rMSSD estimator and k-fit remain unreproducible; whether the affected panels are re-cut or retracted is the owner's call",
+ "limits": [
+  "no threshold was stated before this run, so this record measures and does not decide (CLAUDE.md section verdict: a criterion derived from the data it judges is UNKNOWN)",
+  "76 commits have touched ppgdex-dsp.js and 58 ecgdex-dsp.js since the producer landed on 2026-08-03, so any difference from the published figures belongs to that whole interval, never to the fill removal alone",
+  "the populations differ: 30 nights here against the paper's 20, and the paper's night range reaches 48.80 ms while nothing here exceeds 34.23 ms, so the medians are not a paired comparison",
+  "the rMSSD columns compare two different estimators, so the 6.52 % is not a re-cut of the 4.24 %",
+  "the sleep-only arm is low-biased: three nights the 2026-09-22 run scored (jitter 11.2, 7.4 and 10.9 ms) leave today's sleep-only population, because more of their sessions now parse and the merged window starts in daylight"
+ ]
+}
