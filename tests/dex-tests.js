@@ -56856,6 +56856,11 @@
       // generated), not just res.elements[0].*; the node-lane gate never pinned them, so dropping one stays
       // green. Pin the accessors the review view consumes.
       T.ok('top-level res.recording + res.generated surface on reload (review view reads them, not just elements[0])', !!(res.recording && res.generated));
+      /* ∅ THE RETRACTED RATE SHIPS AS A NAMED NULL (owner ruling 2026-10-28, residue
+         2026-09-20-oxydex-resprate-pair-is-owner-blocked). A bare null cannot say "not published"
+         rather than "not measured"; the reason travels in the export beside the null. */
+      var _rrOut = envlp && envlp.nights && envlp.nights[0] && envlp.nights[0].newMetrics ? envlp.nights[0].newMetrics.respRate : undefined;
+      T.ok('the export publishes respRate as a null with its reason, never a number', !!_rrOut && _rrOut.respRateBpm === null && _rrOut.reason === 'proxy-uninformative', JSON.stringify(_rrOut));
       /* A RETRACTED METRIC DOES NOT RETURN THROUGH THE LOADER. `respRate` is null at compute since
          #2527; a pre-retraction export still carries a number, and until 2026-09-21 the loader read
          it straight back into the night, where the render guard `n.respRate && n.respRate.respRateBpm
@@ -56868,8 +56873,8 @@
       legacy.nights[0].newMetrics.hrAsymmetry = legacy.nights[0].newMetrics.hrAsymmetry || { planted: true };
       var resL = OD.loadOwnExport(legacy);
       T.ok(
-        'a pre-#2527 export carrying newMetrics.respRate reloads as respRate === null (retracted, not re-imported)',
-        !!(resL && resL.ok) && resL.nights[0].respRate === null,
+        'a pre-#2527 export carrying newMetrics.respRate reloads with respRateBpm === null and the named reason (retracted, not re-imported)',
+        !!(resL && resL.ok) && resL.nights[0].respRate != null && resL.nights[0].respRate.respRateBpm === null && resL.nights[0].respRate.reason === 'proxy-uninformative',
         resL && resL.ok ? JSON.stringify(resL.nights[0].respRate) : 'reload failed'
       );
       T.ok(
