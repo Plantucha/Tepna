@@ -859,6 +859,18 @@
    },
    "note": "leg C (V-H on device axes) as a tepna.verdict/1. The criterion is the tool's own contract bar, BL_MAX_BOUND_PPM: legC refuses to return a ppm when the unexplained excursion implies a wider rate half-width, so PASS carries ppm and boundPpm together and a bound above max is UNDERPOWERED (a measurement too imprecise to quote), as are too-few-beats, blocks < 4 and no slope pairs; no seed is UNKNOWN; extraction failure NOT_RUN. --pred prints a closure residual and declares no agreement verdict, so FAIL is reachable from nothing and criterion.name says so. Population unit is the night-pair (one decision per H10+Verity pair; the refusal object exposes no block count), with blocks and beat counts in result. scope: internal."
   },
+  "tools/board-share.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/board-share.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "measures how much of Rule 0's top five the agent board takes, so the cap the owner deferred on 2026-10-17 can be ordered on a reading. Residue 2026-10-18-board-hits-have-no-share-cap-in-rule-0. The criterion is pre-stated from the SHAPE of a five-slot list (at three of five the board holds the majority), never from the reading it judges, so the bound is two of five and the aggregate share is a diagnostic beside it. Population is the committed query set; a query doc-search could not run is `unreadable` and a query the reranker floor rejected is `below-floor`, kept apart because one slot is absent and the other is genuinely empty. A survey where nothing was measured is NOT_RUN, and a machine with no board corpus is NOT_APPLICABLE rather than a PASS over nothing. Primary dev machine only: no gate or CI step may read its output."
+  },
   "tools/board.mjs": {
    "bin": "word-only",
    "status": "exempt",
