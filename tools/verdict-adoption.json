@@ -964,6 +964,18 @@
    },
    "note": "says what blocks a fast-forward of a long-lived checkout, path by path. Residue 2026-10-27-the-board-renders-from-a-checkout-nobody-advances: git lists every untracked file that would be overwritten and ranks none of them, so a byte-identical no-op reads exactly like a handoff holding work nobody else has (measured on a two-clone fixture in the selftest). `population` is the untracked paths examined, a path whose comparison did not complete is `unreadable` and EXCLUDED rather than defaulted into `identical`, an AHEAD checkout is FAIL because no value of the criterion can fast-forward it, and a checkout with no untracked path at all is NOT_APPLICABLE rather than a PASS over zero examined paths."
   },
+  "tools/closure-tol-hac.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/closure-tol-hac.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it fits three rate legs per trio night and scores a closure against a HAC standard error, and the two counts differ by an order of magnitude: 147 nights offered, 99 after `--limit`, 24 with three confident legs. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. A trio tree nobody can enumerate, and a run where no night produced three legs, now exit 2 where this tool exited 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
   "tools/codex-export.mjs": {
    "bin": "decides",
    "status": "adopted",
@@ -1947,9 +1959,16 @@
    "note": "night-level agreement between the device PB flag and OxyDex, as a tepna.verdict/1. The criterion binds on whether kappa is DEFINED (no zero margin), NEVER on its magnitude: OXYDEX-PB-OVERCALL-2026-07-31 states the device is not ground truth, that disagreement does not mean OxyDex is wrong, and names \"a threshold chosen to make kappa look better on 39 nights of one subject\" as the error to avoid. A degenerate table is NOT_APPLICABLE (a property of the data, not a failure); no paired nights is NOT_RUN. Power is NOT assessed and criterion.name says so on every status, because n = 1 subject and the brief states no supported night count. scope: internal."
   },
   "tools/pb-fusion-blast.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pb-fusion-blast.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the PB fusion sweep over trio nights. Without `--cpap` it scores nothing at all \u2014 147 nights offered, 0 rows \u2014 which is exactly the state a run with no population could not report. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. It was binned `word-only` / `exempt` before, on the reading that its only machine-readable output was its selftest assertion line; that is no longer true of it, and a usage refusal now publishes the population it declined to score before exiting 2 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   },
   "tools/pin-coverage.mjs": {
    "bin": "already-json",
@@ -2634,6 +2653,30 @@
     "file": "analysis/tri_device_nights.json"
    },
    "note": "row 2026-10-25-the-trio-eligible-claim-resolves-to-an-unproduced-list: the producer of analysis/tri_device_nights.json, which sourced CLAUDE.md's trio figure with 20 hand-typed night names, no criterion, no population and no producer. It writes one tepna.verdict/1 over the git-tracked uploads/trio tree: PASS when each night's own .trio-stamp and the trio node-exports in that folder agree on every night, FAIL naming the nights where they split or an export dated to another night. The manifest reads the committed artifact; `--check` re-derives it and reds on drift, and the suite holds the committed lists against a live classification."
+  },
+  "tools/rho-overlap-power.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/rho-overlap-power.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the overlap-power scan over paired trio nights: 147 offered, 104 contributing a pair. It was the one `repo-corpus` member of the unwired set \u2014 it walks `uploads/trio` inside the checkout, which no flag can re-point, so the walk was never in doubt, only invisible. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. A root that offers nights and a run that scores none now exit 2 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/tch-pooled-hat.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-pooled-hat.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the pooled three-cornered-hat solve: 147 nights offered, 90 with a solved triple. The `--json` path carries the same object plus the offered count, so a consumer reading the pooled \u03c3 can see what it was pooled over. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. Fewer than two solved nights publishes the population and exits 2, where the tool used to print a need-more line and exit 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   }
  }
 }
