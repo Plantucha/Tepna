@@ -6036,16 +6036,20 @@ def _oxyii_nonlive_frame(cx: _OxyiiLink, r) -> bool:
                 oxy_arr_wr.write(_ph, name, "PPG_FRAME_A", None, None, len(_recs), None)
             except Exception:  # telemetry must never disturb the data callback
                 pass
-            for _v, _bt in _recs:
-                # sensor_ns 0: this opcode carries no device clock (see the header
-                # comment on the `pletha` layout). Back-timing the block would be
-                # inventing per-sample instants the device never reported.
-                # ⚠️ REACHABLE None, and NOT a narrowing gap: in `split` poll mode the 0x03 poll is
-                # issued under this same `plethawr or SPLIT` condition, so a box in split mode with no
-                # `pletha` stream polls, gets a reply, and writes to None ~1/s — outside the try above.
-                # Residue 2026-10-27-split-poll-mode-writes-the-raw-pleth-to-a-none-writer. Left
-                # EXACTLY as it was: repairing it is a behaviour change, and this unit preserves it.
-                plethawr.write_pletha(_ph, None, _v, _bt)  # type: ignore[union-attr]
+            # ONE CONDITION, AND IT IS THE WRITER'S EXISTENCE. The poll is owned by the MODE —
+            # `test_SPLIT_mode_polls_the_wave_every_cycle_and_the_vitals_on_a_DEADLINE` pins that 0x03 is
+            # the wave source in split mode, polled whether or not a `pletha` stream is configured — so a
+            # reply reaches this point with nothing to write it to whenever split mode runs without that
+            # stream. This used to write to None once per reply, OUTSIDE the `try` its sibling arrival
+            # write sits in. Residue 2026-10-27-split-poll-mode-writes-the-raw-pleth-to-a-none-writer.
+            # The arrival row above and the bus push below need no writer and still run: those are what
+            # the poll buys when the stream is absent.
+            if plethawr:
+                for _v, _bt in _recs:
+                    # sensor_ns 0: this opcode carries no device clock (see the header
+                    # comment on the `pletha` layout). Back-timing the block would be
+                    # inventing per-sample instants the device never reported.
+                    plethawr.write_pletha(_ph, None, _v, _bt)
             BUS.push("o2pletha", [[_v] for _v, _ in _recs])
     if r and r[0] == oxyii.OP_RT_PPG and ppg2wr:
         recs = oxyii.parse_rt_ppg(r[1])
@@ -6631,6 +6635,17 @@ async def run_oxyii(dev: dict, root: str):
                     if "pletha" in (dev.get("streams") or [])
                     else None
                 )
+                # ∅ SPLIT MODE WITH NO `pletha` STREAM IS COHERENT, AND IT IS SAID OUT LOUD. The 0x03
+                # poll belongs to the mode, so this configuration polls the wave every cycle, logs each
+                # reply's arrival, and keeps no samples. Said once per link rather than once per reply: a
+                # reader of the journal should not have to infer from an absent file that the wave was
+                # asked for and dropped.
+                if O2WAVE_POLL_MODE == O2WAVE_POLL_SPLIT and not plethawr:
+                    log.info(
+                        "%s: split wave-poll mode with no `pletha` stream — 0x03 is polled and its arrivals "
+                        "are logged, and its samples are kept nowhere",
+                        name,
+                    )
                 # THE RING'S ACC IS RECORDED, NOT ONLY DISPLAYED. Gated on the SAME `"acc"` key that ORs
                 # the AUTO_RT_SWITCH push bit below, so the stream that gets asked for is exactly the
                 # stream that gets written — a device pushing frames we drop on the floor is airtime
