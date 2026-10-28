@@ -161,3 +161,13 @@ def test_every_move_is_REPORTED_because_each_one_is_a_real_disconnect():
     assert "H10" in line and SENA in line and AX in line
     assert "Verity: unassigned -> " in line, "a first placement must read as one, not as a move"
     assert P.rebalance_reason(before, before) == "no device moved"
+
+
+def test_ADDING_a_radio_while_every_open_one_is_reserved_still_places_the_devices():
+    """The mirror of the removal case. `apply_added` must hand the RESERVED set on to `assign`, or a
+    plug-in event with no open radio returns an empty plan and every sensor is left homeless — worse
+    than the contention a reserved radio costs. Nothing can be moved here, so `movable` is irrelevant:
+    the devices have no home at all."""
+    after, moved = P.apply_added(AX, ALL, DEVS, {}, reserved=[UB, SENA, AX])
+    assert set(after) == set(DEVS), after
+    assert set(after.values()) <= {UB, SENA, AX} and moved == sorted(DEVS)

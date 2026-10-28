@@ -3437,8 +3437,122 @@ def test_constant_runs_is_keyed_on_length_not_value():
     # zero is a LEGAL sample; only the run length may decide.
     assert nightqc.constant_runs([0, 1, 0, 1, 0], min_run=2) == []
     assert nightqc.constant_runs([5, 0, 0, 0, 5], min_run=3) == [(1, 3, 0)]
-    with pytest.raises(ValueError):
+    # the refusal SAYS what it wants: `min_run` arrives from a caller's own threshold, so a bare
+    # ValueError leaves the operator reading the traceback to find which argument was wrong.
+    with pytest.raises(ValueError, match="min_run must be at least 2"):
         nightqc.constant_runs([1, 1], min_run=1)
+    with pytest.raises(ValueError, match="min_run must be at least 2"):
+        nightqc.constant_runs([1, 1], min_run=0)
+
+
+def test_constant_runs_counts_a_TAIL_run_at_exactly_min_run():
+    # The walk emits a run at the sample that ENDS it, so a run reaching the last sample is emitted
+    # by the trailing test instead, on its own `>=`. The middle-run case above pins the loop's
+    # boundary and says nothing about this one: the diff-scoped mutation gate killed `>=` to `>`
+    # inside the loop and left the trailing copy alive (#4040).
+    assert nightqc.constant_runs([5, 0, 0, 0], min_run=3) == [(1, 3, 0)]
+    # one sample short of the threshold, at the same position, is NOT a run.
+    assert nightqc.constant_runs([5, 0, 0], min_run=3) == []
+    # a whole series of one value is a tail run starting at index 0.
+    assert nightqc.constant_runs([7, 7, 7], min_run=3) == [(0, 3, 7)]
+
+
+# ── `_ramp`: the approach and departure shape, read directly ───────────────────────────────────────
+# Reached in production only through the clip detector, which exercises ONE shape per corpus column.
+# Each case below is a hand-made approach/departure pair stating one behaviour of the window walk, the
+# monotonicity test or the projection. `ramp` is `_RAMP_SAMPLES` = 6, and every case places the plateau
+# at index 6 so the backward walk needs index 0 — a walk that stopped one short would collect five
+# samples, fall below `ramp`, and report `beyond` as None rather than an answer.
+_RAMP_CASES = [
+    # (id, values, first, n, toward_high, expected (mono_in, mono_out, beyond))
+    (
+        "a FLAT STEP either side is still monotone — a rail plateau flickers by one LSB",
+        [10, 10, 11, 12, 13, 14] + [20] * 4 + [14, 13, 13, 12, 11, 10],
+        6,
+        4,
+        True,
+        (True, True, False),
+    ),
+    (
+        "the projection landing EXACTLY on the plateau value has not left the range",
+        [2, 4, 6, 8, 10, 12] + [22] * 5 + [12, 10, 8, 6, 4, 2],
+        6,
+        5,
+        True,
+        (True, True, False),
+    ),
+    (
+        "a projection ONE step past the plateau value HAS left it, and the slope is read end to end",
+        [0, 5, 5, 5, 5, 10] + [19] * 5 + [10, 11, 12, 13, 14, 15],
+        6,
+        5,
+        True,
+        (True, False, True),
+    ),
+    (
+        "the LAST step of the approach counts — a rise that turns over at the plateau is not monotone",
+        [0, 2, 4, 6, 8, 7] + [30] * 3 + [1, 1, 1, 1, 1, 1],
+        6,
+        3,
+        True,
+        (False, True, False),
+    ),
+    (
+        "the LAST step of the departure counts too",
+        [0, 2, 4, 6, 8, 10] + [30] * 3 + [14, 13, 12, 11, 10, 11],
+        6,
+        3,
+        True,
+        (True, False, False),
+    ),
+    (
+        "toward a LOW rail every test inverts: non-increasing in, non-decreasing out, projects BELOW",
+        [40, 35, 35, 30, 25, 20] + [6] * 4 + [10, 11, 11, 12, 13, 14],
+        6,
+        4,
+        False,
+        (True, True, True),
+    ),
+    (
+        "and at a low rail the projection landing exactly ON the value has not left the range either",
+        [40, 35, 30, 25, 20, 15] + [5] * 2 + [15, 20, 25, 30, 35, 40],
+        6,
+        2,
+        False,
+        (True, True, False),
+    ),
+    (
+        "a low-rail departure that turns back down is not monotone out",
+        [40, 35, 30, 25, 20, 15] + [5] * 2 + [10, 11, 12, 13, 14, 13],
+        6,
+        2,
+        False,
+        (True, False, False),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "values,first,n,toward_high,want", [c[1:] for c in _RAMP_CASES], ids=[c[0] for c in _RAMP_CASES]
+)
+def test_the_ramp_shape_is_read_as_stated(values, first, n, toward_high, want):
+    got = nightqc._ramp(values, first, n, toward_high=toward_high, annotations=())
+    assert got == want, f"{got} != {want} on {values}"
+
+
+def test_the_ramp_WINDOW_takes_consecutive_samples_from_the_plateau_edge_outward():
+    """The walk starts at the sample ADJACENT to the plateau and steps one at a time. Starting inside
+    the plateau would read its own constant values as the approach, and stepping by two would sample a
+    different frequency of the signal than the one the monotonicity test is about. Both show up here
+    as a window that cannot be filled or an approach that is not the one in the data."""
+    values = [0, 2, 4, 6, 8, 10] + [30] * 4 + [10, 8, 6, 4, 2, 0]
+    mono_in, mono_out, beyond = nightqc._ramp(values, 6, 4, toward_high=True, annotations=())
+    assert (mono_in, mono_out) == (True, True)
+    # slope 2.0 over six samples, projected across a four-sample plateau: 10 + 8 = 18, short of 30
+    assert beyond is False
+    # a window the walk cannot fill is NOT answered: §∅ — an absent shape is None, never False
+    short = [8, 10] + [30] * 4 + [10, 8]
+    assert nightqc._ramp(short, 2, 4, toward_high=True, annotations=()) == (False, False, None)
 
 
 def test_count_singletons_edges():

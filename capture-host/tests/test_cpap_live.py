@@ -76,6 +76,63 @@ def test_a_missing_or_malformed_cpap_block_is_unknown_not_a_crash():
         assert v["state"] == "unknown" and v["age_s"] is None and v["fresh"] is False
 
 
+def test_a_SUB_SECOND_poll_keeps_its_own_window_and_is_not_rounded_up_to_the_fallback():
+    """The `p > 0` guard rejects a nonsensical interval, not a short one. A half-second poll is a
+    legitimate configuration, and replacing its 1.5 s window with the 90 s fallback would call a
+    reading 60× older than the mechanism's promise fresh."""
+    assert L.stale_after_s(0.5) == 1.5
+    assert L.stale_after_s(0.001) == 0.003
+
+
+def test_a_multiple_of_ONE_is_honoured_and_the_floor_only_catches_a_nonsense_multiple():
+    """`max(1, …)` exists so a zero or negative multiple cannot produce a window that is always
+    expired. One missed poll is a real policy, so the floor must sit at 1 and not above it."""
+    assert L.stale_after_s(10.0, multiple=1) == 10.0
+    assert L.stale_after_s(10.0, multiple=0) == 10.0, "the floor"
+    assert L.stale_after_s(10.0, multiple=-4) == 10.0, "the floor"
+
+
+def test_the_window_live_view_USES_is_the_one_derived_from_ITS_OWN_poll_interval():
+    """The interval reaches `stale_after_s` from the caller, so a view that substituted the fallback
+    would report a 90 s window to the page while judging freshness by the same wrong number. Asserted
+    at an interval that is NOT 30 s, because the fallback IS 30 s."""
+    v = L.live_view({"fg_state": "Therapy", "therapy": True, "detector_host_ms": 100_000}, 110_000, 10.0)
+    assert v["stale_after_s"] == 30.0 and v["fresh"] is True
+
+
+def test_a_reading_EXACTLY_at_the_window_is_still_evidence():
+    """The window is "older than the mechanism's own promise", so the promise itself is inside it.
+    Excluding the boundary would make the third poll's own reading unknown at the instant it arrives."""
+    v = L.live_view({"fg_state": "Therapy", "therapy": True, "detector_host_ms": 100_000}, 130_000, 10.0)
+    assert v["age_s"] == 30.0 and v["age_s"] == v["stale_after_s"]
+    assert v["fresh"] is True and v["state"] == "Therapy", "the boundary reading was discarded"
+
+
+def test_the_DEVICES_OWN_WORD_is_shown_and_never_re_derived_from_the_therapy_flag():
+    """`fg_state` carries states the boolean cannot express — a ramp is therapy, and a reader told
+    "Therapy" while the machine says "Ramp" has been given a summary, not the reading."""
+    v = L.live_view({"fg_state": "Ramp", "therapy": True, "detector_host_ms": 100_000}, 110_000, 30.0)
+    assert v["state"] == "Ramp", "the detector's own word was replaced by a derived one"
+
+
+def test_with_NO_fg_state_the_boolean_decides_BOTH_ways():
+    """An older detector reading carries `therapy` and no `fg_state`, so the fallback must answer
+    both ways round. A fallback fixed at either word would read as a measurement of the machine."""
+    base = {"therapy": True, "detector_host_ms": 100_000}
+    assert L.live_view(base, 110_000, 30.0)["state"] == "Therapy"
+    assert L.live_view({**base, "therapy": False}, 110_000, 30.0)["state"] == "Standby"
+    # an empty string is a reading that says nothing, so it takes the same fallback
+    assert L.live_view({**base, "fg_state": ""}, 110_000, 30.0)["state"] == "Therapy"
+
+
+def test_the_age_is_published_to_a_TENTH_of_a_second_and_stays_a_float():
+    """A whole-second age reads as a precision the subtraction does not have at one end and hides a
+    real sub-second difference at the other. One decimal is the published contract."""
+    v = L.live_view({"fg_state": "Therapy", "therapy": True, "detector_host_ms": 100_000}, 101_234, 30.0)
+    assert v["age_s"] == 1.2, "the age must be rounded to one decimal, not to a second and not to two"
+    assert isinstance(v["age_s"], float)
+
+
 # ── the therapy-end trigger ─────────────────────────────────────────────────────────────────────
 
 

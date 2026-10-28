@@ -1428,3 +1428,20 @@ def test_CONTROL_the_five_known_answer_laws_still_identify():
     got = allan.noise_id(_white_pm())
     assert got["noise"] == "white-phase" and got.get("ok") is None, got
     assert got["alpha"] == 2
+
+
+def test_adev_pooled_passes_the_CALLERS_k_through_and_never_its_own_default():
+    """`k` is stated by the caller (ALLAN-STABILITY-GAPS §2.2). A pooled call that dropped it would
+    fall back to `segments_by_gap`'s default 4.0 and cut a hole the caller chose to keep, so the
+    segment count is asserted at a k on either side of the same 15 s hole."""
+    import random
+
+    random.seed(13)
+    x = [0.0]
+    for _ in range(999):
+        x.append(x[-1] + random.gauss(0, 1e-3))
+    ts = [i if i < 500 else i + 15 for i in range(1000)]  # one 16 s hole in a 1 s cadence
+    _pts_cut, meta_cut = allan.adev_pooled(x, 1.0, ts, 4.0)
+    assert meta_cut["segments"] == 2 and meta_cut["pooled"] is True
+    _pts_kept, meta_kept = allan.adev_pooled(x, 1.0, ts, 20.0)
+    assert meta_kept == {"segments": 1, "dropped_intervals": 0, "pooled": False}, "the caller's k was ignored"

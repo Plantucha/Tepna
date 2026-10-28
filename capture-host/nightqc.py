@@ -2772,7 +2772,7 @@ _HELD_NEAR_DELTA = 0.90  # >= this share of runs on two ADJACENT lengths => a ze
 # because a 1.5625 Hz update is emitted into a 10 Hz record stream.
 
 
-def constant_runs(values, *, min_run: int = 2):
+def constant_runs(values, *, min_run: int):
     """Maximal runs of ONE repeated value that reach `min_run`, as `(first_index, n, value)`.
 
     Keyed on length and never on value membership. A `!= 0` test — or any list of known-bad constants
@@ -2782,14 +2782,19 @@ def constant_runs(values, *, min_run: int = 2):
     out = []
     if min_run < 2:
         raise ValueError("min_run must be at least 2 — a single sample is not a run")
-    i, n = 0, len(values)
-    while i < n:
-        j = i + 1
-        while j < n and values[j] == values[i]:
-            j += 1
-        if j - i >= min_run:
-            out.append((i, j - i, values[i]))
-        i = j
+    # A `for … in enumerate(…)` scan, never a hand-advanced index: under the diff-scoped mutation
+    # gate a mutant on a self-advanced `while` index does not terminate, so mutmut reports UNDECIDED
+    # and the gate REFUSES rather than failing (CLAUDE.md §🧪). The loop variable drives the walk and
+    # `start` only ever moves to a position the walk already reached.
+    start = 0
+    for i, value in enumerate(values):
+        if value == values[start]:
+            continue
+        if i - start >= min_run:
+            out.append((start, i - start, values[start]))
+        start = i
+    if len(values) - start >= min_run:
+        out.append((start, len(values) - start, values[start]))
     return out
 
 
@@ -2900,7 +2905,7 @@ _ANNOTATION_GAP_MAX = 8  # the longest run of consecutive annotation rows a plat
 # marker burst, reporting a span that is mostly annotation.
 
 
-def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
+def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations):
     """Approach/departure shape around a plateau: `(monotone_in, monotone_out, projects_beyond)`.
 
     `projects_beyond` continues the approach slope across the plateau and asks whether it would have
