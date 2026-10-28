@@ -212,7 +212,7 @@ already do.
 > `ntfs3` driver and `lsblk` the `ntfs` format, so both of those labels are right at different layers).
 > `CONTRIBUTING.md` §6.1 has carried this correction since 2026-07-28 and cites this section for it — the
 > correction never reached the brief itself, so a reader arriving here got the wrong filesystem. Also
-> re-verified 2026-09-20: the primary checkout has since MOVED to `/home/michal/Tepna` on **ext4**, and
+> re-verified 2026-09-20: the primary checkout has since MOVED to `~/Tepna` on **ext4**, and
 > the volume named here is not mounted, so this friction no longer applies to the main working copy.
 
 `git worktree add` fails intermittently on this exFAT volume ("unable to write upstream branch

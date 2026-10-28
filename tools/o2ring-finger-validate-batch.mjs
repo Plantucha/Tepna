@@ -12,6 +12,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
 import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -221,7 +222,7 @@ for (const d of dirs) {
       mR = median(win(rB));
     if (mP == null || mE == null || mR == null) continue;
     rows.push({
-      sess: d.replace('/home/michal/', ''),
+      sess: d.replace(homedir() + '/', ''),
       file: pf.split('/').pop().slice(-22),
       winSec: Math.round((hi - lo) / 1000),
       mP,

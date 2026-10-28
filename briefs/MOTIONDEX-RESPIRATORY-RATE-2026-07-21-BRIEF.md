@@ -448,7 +448,7 @@ alignment instrument.
 
 **Correcting this brief's own framing first:** §1 was repeatedly described as blocked on files. The
 files were on the capture machine the whole time — **419 `Polar_H10_*_ACC.txt` and 254 `_BRP.edf`
-across 204 CPAP nights** under `/home/michal/tepna-smoketest/captures`, and under this tool's own
+across 204 CPAP nights** under `~/tepna-smoketest/captures`, and under this tool's own
 pairing rule **every one of the 419 ACC files pairs with a CPAP night**. Nothing was missing. Nobody
 had looked.
 

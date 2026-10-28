@@ -51,7 +51,7 @@
 #     capture-host/systemd/tepna-capture.service   User=tepna    <- what this script was comparing
 #                                                                   (DELETED 2026-08-05 — see below)
 #     capture-host/deploy/tepna-capture.service    User=vigil    <- what is actually installed
-#     /home/vigil/tepna-capture.service            (a day stale) <- what install-services.sh installed
+#     ~vigil/tepna-capture.service                 (a day stale) <- what install-services.sh installed
 #
 # THREE files, one unit. The repo already carried a correct, committed site copy under deploy/, so
 # nothing needed templating — and the TEMPLATED comparison, which normalises User/Group/ReadWritePaths

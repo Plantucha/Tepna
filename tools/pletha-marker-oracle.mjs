@@ -30,6 +30,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { makeVerdict } from './verdict-emit.mjs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 
 export function scoreRows(vals, beats) {
@@ -194,15 +195,50 @@ else if (!arg || !fs.existsSync(arg)) {
   console.error('usage: node tools/pletha-marker-oracle.mjs <captures-root> [--json] | --selftest | --verdict-sample');
   process.exit(2);
 } else {
-  const files = [];
-  const walk = (d) => {
-    for (const n of fs.readdirSync(d)) {
-      const q = path.join(d, n);
-      if (fs.statSync(q).isDirectory()) walk(q);
-      else if (/_PLETHA\.txt$/.test(n)) files.push(q);
-    }
+  /* THE WALK IS THE POPULATION RULE, so the lister carries a name the snapshot can publish and the
+     root read has no `catch`: `existsSync` above answers ENOENT only, so an unreadable root (EACCES)
+     used to reach this walk and throw a raw errno out of a bare `readdirSync`. A `catch` there would
+     have been worse — it reads an unreadable tree as an empty one, which is the ∅ swallow. */
+  const unreadableDirs = [];
+  let plethaPaths = [];
+  const listPlethaFiles = (root) => {
+    const base = String(root);
+    fs.readdirSync(base);
+    unreadableDirs.length = 0;
+    plethaPaths = [];
+    const walk = (d) => {
+      let names;
+      try {
+        names = fs.readdirSync(d);
+      } catch (e) {
+        /* REDUCED COVERAGE ANNOTATES (§∅). A subdirectory nobody can read is named and counted;
+           swallowing it printed the same line for a partly readable tree and a whole one. */
+        unreadableDirs.push(`${path.relative(base, d) || '.'}: ${e.code || e.message}`);
+        return;
+      }
+      for (const n of names) {
+        const q = path.join(d, n);
+        let dir = false;
+        try {
+          dir = fs.statSync(q).isDirectory();
+        } catch (e) {
+          unreadableDirs.push(`${path.relative(base, q) || n}: ${e.code || e.message}`);
+          continue;
+        }
+        if (dir) walk(q);
+        else if (/_PLETHA\.txt$/.test(n)) plethaPaths.push(q);
+      }
+    };
+    walk(base);
+    return plethaPaths.map((q) => path.relative(base, q));
   };
-  walk(arg);
+  const POP = { list: listPlethaFiles, unit: 'pletha-files' };
+  const popBefore = snapshotEntries(arg, POP);
+  if (!popBefore.ok) {
+    console.error(`\u2715 pletha-marker-oracle: ${popBefore.reason} — ${arg}`);
+    process.exit(2);
+  }
+  const files = plethaPaths.slice();
   const tot = { rows: 0, loneB1: 0, loneB0: 0, runB1: 0, runB0: 0, beatOff156: 0, runs: 0, longest: 0 };
   let scored = 0;
   for (const f of files.sort()) {
@@ -219,6 +255,18 @@ else if (!arg || !fs.existsSync(arg)) {
   out(`  run  156 · beat=1 ${tot.runB1}   beat=0 ${tot.runB0}   (runs ${tot.runs}, longest ${tot.longest})`);
   out(`  beat=1 on a non-156 row: ${tot.beatOff156}`);
   out(`VERDICT: ${v.label}${v.holds && !v.vacuous ? ` — discriminating run rows: ${v.runRows}` : ''}`);
+  /* THE OFFER BESIDE THE READ. `scored` counts the files `scoreFile` could parse, and that number
+     used to stand alone over a tree whose size nobody published. */
+  const population = populationVerdict(popBefore, snapshotEntries(arg, POP), {
+    tool: 'tools/pletha-marker-oracle.mjs',
+    evidence: ['tools/pletha-marker-oracle.mjs']
+  });
+  out(
+    `  population: ${population.population.checked} _PLETHA.txt file(s) offered under ${arg}` +
+      `; ${files.length - scored} unscored because no row parsed` +
+      (unreadableDirs.length ? `; ${unreadableDirs.length} unreadable subdirectory(ies): ${unreadableDirs.join(', ')}` : '')
+  );
+  out(`POPULATION ${JSON.stringify(population)}`);
   // the object IS the verdict; the lines above are its explanation
   if (JSON_OUT) console.log(JSON.stringify(verdictObject(tot, { files: files.length, scored, root: arg })));
   process.exit(v.holds ? 0 : 1);

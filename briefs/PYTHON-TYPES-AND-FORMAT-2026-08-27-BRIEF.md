@@ -12,7 +12,7 @@
 ## 0 · The decision and its numbers (sized before opining, 2026-08-27 22:15)
 
 - **mypy**: `--ignore-missing-imports --explicit-package-bases` over 278 source files →
-  **189 errors in 41 files**, measured **in the canonical root checkout** (`/home/michal/Tepna`).
+  **189 errors in 41 files**, measured **in the canonical root checkout** (`~/Tepna`).
   ⚠️ **THE TREE IS PART OF THE NUMBER.** A whole-tree count is a property of the checkout it ran in,
   and checkouts here differ by untracked strays. Measured 2026-08-28: a worktree off `origin/main`
   reports **188** for the same command — the missing line is `probe_rt_ppg_args.py:101`, an
@@ -342,7 +342,7 @@
 
       | tree | result |
       |---|---|
-      | canonical root `/home/michal/Tepna` | `Found 102 errors in 33 files (checked **332** source files)` |
+      | canonical root `~/Tepna` | `Found 102 errors in 33 files (checked **332** source files)` |
       | clean worktree off `origin/main` | `Found 102 errors in 33 files (checked **341** source files)` |
 
       **§0's "THE TREE IS PART OF THE NUMBER" rule is honoured rather than assumed away**: both trees

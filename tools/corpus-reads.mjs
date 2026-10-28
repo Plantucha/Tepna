@@ -696,7 +696,9 @@ export const POPULATION_EXCLUSIONS = {
   'build-docs.mjs': 'the night-shaped regex validates a release date; it enumerates docs/',
   'board-corpus.mjs': 'the night-shaped regex matches the date in a residue row key; it enumerates the folder --out names',
   'nsrr-effort-typing.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
-  'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus'
+  'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
+  'codex-export.mjs':
+    'it walks a git-archive export built to EXCLUDE the corpus, and it already publishes its own offer-vs-read population over that export; a second verdict there would name a repo-path unit as a corpus one'
 };
 
 /* ── THE FIVE THE TRACER STILL WILL NOT DECIDE ─────────────────────────────────────────────────
@@ -735,7 +737,27 @@ export const UNDECIDED_CORPUS = {
    under `tests/` as evidence that a test covers it. A hazard list is not that, and the mention
    alone reded its ratchet. */
 export const UNWIRED_BACKLOG = {
-  'acc-acc-control.mjs': 1,
+  /* FOUR RECURSIVE WALKERS LEFT TOGETHER, 2026-10-28, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `acc-acc-control.mjs`,
+     `h10-session-rate.mjs`, `pletha-marker-oracle.mjs` and `edge-settle.mjs` each walk ONE root
+     recursively, so the three file-unit walkers take `snapshotEntries` with a lister the caller
+     names — `listCaptureFragments`, `listEcgStreams`, `listPlethaFiles` — and `edge-settle.mjs`,
+     whose unit is a NIGHT, takes `snapshotNights`. Each publishes the comparison, so the scan reads
+     them as `reports` and this list must not name them.
+     THREE OF THE FOUR SWALLOWED A DIRECTORY ERROR AT EVERY LEVEL. `catch { return o }`,
+     `catch { return }` and a bare walk read an unreadable root as an empty one, so a mount this
+     machine does not hold scored zero and said nothing. The root read now carries no `catch` and
+     the tool exits 2 naming the errno; an unreadable SUBDIRECTORY is a reduced-coverage case, so it
+     is named and counted beside the figure instead (§∅ — a discontinuity refuses, a reduced
+     coverage annotates).
+     `edge-settle.mjs` HAD THE TAUTOLOGICAL DENOMINATOR, row
+     2026-10-28-edge-settle-divides-by-the-nights-that-survived-the-read: it kept only nights that
+     gave a row and then divided every figure by that count, so a night directory the read could not
+     score left the population and the tool could report 12 of 12 over a tree holding 40. It now
+     counts every night directory the walk offers and names the rowless ones beside the survivors.
+     `codex-export.mjs` LEFT AS AN EXCLUSION, NOT A WIRING — it walks a git-archive export built to
+     exclude the corpus and already publishes its own offer-vs-read figure; see
+     `POPULATION_EXCLUSIONS` above. */
   /* THE SEVEN THE BINDING HOP ADMITTED, 2026-10-21, row
      2026-10-21-the-corpus-axis-reads-the-site-only. Each one binds the trio root to a variable and
      walks the variable, so the population rule read no corpus path at the site and the tool sat
@@ -766,8 +788,22 @@ export const UNWIRED_BACKLOG = {
      headline.
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, and a run that scored
      nothing over a root that offered something, now exit 2 where all four exited 0. */
-  'beat-correspondence.mjs': 1,
-  'codex-export.mjs': 1,
+  /* FIVE SINGLE-ROOT FILE READERS LEFT TOGETHER, 2026-10-28, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `beat-correspondence.mjs`,
+     `dual-clock-rate.mjs`, `ecg-rate-transfer.mjs`, `resp-acc-headless.mjs` and
+     `wearable-sync.mjs` each walk ONE capture directory for FILES, so each takes `snapshotEntries`
+     with a lister the caller names — `listPairFiles`, `listCaptureFiles`, `listEcgRecords`,
+     `listAccFiles` — and publishes the comparison, so the scan reads them as `reports` and this
+     list must not name them. A night rule over a file unit would publish a rule nobody wrote.
+     THE OFFERED COUNT IS NOT THE READ COUNT IN ANY OF THEM, measured on one real night
+     2026-10-28: 9 pair-eligible files for one ECG/PPG pair, 187 capture files for the six largest
+     over a 3 MB floor, 4 ECG records for 2 under `--limit`, and 577 files walked for one paired
+     night. Each names its remainder beside the figure.
+     FOUR OF THE FIVE READ AN UNREADABLE ROOT AS EMPTY OR THREW WITH NO NAMED REASON, which is the
+     ∅ swallow the wiring exposes: `wearable-sync.mjs`'s recursive walk also caught an unreadable
+     SUBDIRECTORY and returned the accumulator, so a partly readable tree and a whole one printed
+     the same line. The walk now names the directories it could not read and the population line
+     carries the count. `dual-clock-rate.mjs` already refused by name and keeps that refusal. */
   'corpus-census.mjs': 2,
   'corpus-tier.mjs': 1,
   /* THE THREE CPAP-CORPUS READERS LEFT TOGETHER, 2026-10-28, row
@@ -786,11 +822,7 @@ export const UNWIRED_BACKLOG = {
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a root that offered
      nothing, and an agreement pass that compared nothing, now exit 2 where all three exited 0. */
   'cvhr-fold-rescore.mjs': 1,
-  'dual-clock-rate.mjs': 1,
-  'ecg-rate-transfer.mjs': 1,
-  'edge-settle.mjs': 1,
   'geometry-scan.mjs': 1,
-  'h10-session-rate.mjs': 1,
   'hostaxis-estimator-bakeoff.mjs': 1,
   /* THE THREE NSRR COHORT READERS LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `nsrr-criterion-sweep.mjs`,
@@ -841,7 +873,6 @@ export const UNWIRED_BACKLOG = {
      2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot and
      2026-10-26-wiring-a-population-verdict-costs-the-probe-safety-that-made-it-cheap. */
   'o2ring-finger-validate-batch.mjs': 1,
-  'pletha-marker-oracle.mjs': 1,
   /* FOUR NAMES LEFT TOGETHER, 2026-10-28, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
      `deep-flow-join.mjs`, `device-stability.mjs`, `pat-ppg-ppg-control.mjs` and `ppg2w-spo2-fit.mjs`
      were ONE walker written four times: `readdirSync(<root>)` filtered by the literal `YYYY-MM-DD`
@@ -880,14 +911,12 @@ export const UNWIRED_BACKLOG = {
      `reports` and this list must not name them. Their unit is a FILE, not a night, so they take
      `snapshotEntries` rather than `snapshotNights` — a night snapshot over a capture tree would
      manufacture a population out of directories nobody keyed by date. */
-  'resp-acc-headless.mjs': 2,
-  'seqnet-eval.mjs': 1,
+  'seqnet-eval.mjs': 1
   /* `stage-lab.mjs` WAS THE HEAVIEST KEY HERE, at weight 12, and has LEFT: its twelve enumerations
      walk external PSG archives, so it reports a RECORD population through `snapshotEntries` rather
      than a night one. A night snapshot there answers `ok: true, n: 0` over a full dataset, which is
      why the weight sat unspent through four wiring units — the unit was the blocker, not the wiring
      (row 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
-  'wearable-sync.mjs': 1
 };
 
 /** Classify every tool under one directory. Returns rows sorted by name. */

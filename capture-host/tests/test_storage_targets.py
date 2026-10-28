@@ -10,10 +10,17 @@ is how ~350 MB/night lands on the wrong filesystem while the operator believes i
 
 import datetime as dt
 import os
+from pathlib import Path
 
 import pytest
 
 import storage_targets as st
+
+# The tracked tree stores no absolute path under a home directory (owner ruling 2026-10-28), so
+# the two home-shaped fixtures below are COMPUTED. `Path.home()` raises rather than returning a
+# relative path, so a stripped environment fails loudly instead of testing a different rule.
+IDENTITY = str(Path.home() / ".ssh" / "id_ed25519")
+HOME_SSH = str(Path.home() / ".ssh")
 
 
 @pytest.fixture(autouse=True)
@@ -29,7 +36,7 @@ RSYNC = {
     "host": "192.168.0.142",
     "user": "tepna",
     "share": "/mnt/tank/tepna",
-    "identity": "/home/tepna/.ssh/id_ed25519",
+    "identity": IDENTITY,
 }
 NFS = {"protocol": "nfs", "host": "192.168.0.142", "share": "/mnt/tank/tepna", "mountpoint": "/srv/tepna/archive"}
 
@@ -51,7 +58,7 @@ def test_an_unknown_field_is_refused_rather_than_stored():
 def test_a_validated_target_carries_no_secret_bearing_key():
     out = st.validate(RSYNC)
     assert not (set(out) & st._SECRET_KEYS)
-    assert out["identity"] == "/home/tepna/.ssh/id_ed25519", "the PATH is kept, never the key itself"
+    assert out["identity"] == IDENTITY, "the PATH is kept, never the key itself"
 
 
 # ── host / path validation (these values become argv) ─────────────────────────────────────────
@@ -238,7 +245,7 @@ def test_a_local_path_is_not_advertised_as_needing_root():
 
 
 @pytest.mark.parametrize(
-    "bad", ["/etc", "/etc/systemd/system", "/boot", "/home/vigil/.ssh", "/", "/root", "/srvmalicious", "/mntevil"]
+    "bad", ["/etc", "/etc/systemd/system", "/boot", HOME_SSH, "/", "/root", "/srvmalicious", "/mntevil"]
 )
 def test_a_mountpoint_outside_the_allowed_roots_is_refused(bad, monkeypatch):
     monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv", "/mnt", "/media", "/opt/tepna", "/var/lib/tepna"))
@@ -277,7 +284,7 @@ def test_dest_status_defends_itself_against_an_unvalidated_target(monkeypatch):
     called = []
     monkeypatch.setattr(st.os.path, "isdir", lambda p: called.append(p) or True)
     monkeypatch.setattr(st.os.path, "ismount", lambda p: called.append(p) or True)
-    for bad in ("/etc", "/home/vigil/.ssh", "/boot", ""):
+    for bad in ("/etc", HOME_SSH, "/boot", ""):
         s = st.dest_status({"kind": "mount", "protocol": "nfs", "mountpoint": bad})
         assert s["ready"] is False
     assert called == [], "an out-of-root path must never reach a filesystem call"
@@ -288,7 +295,7 @@ def test_dest_status_local_protocol_defends_against_unvalidated_target(monkeypat
     monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv", "/mnt"))
     called = []
     monkeypatch.setattr(st.os.path, "isdir", lambda p: called.append(p) or True)
-    for bad in ("/etc", "/home/vigil/.ssh", "/boot", ""):
+    for bad in ("/etc", HOME_SSH, "/boot", ""):
         s = st.dest_status({"protocol": "local", "mountpoint": bad})
         assert s["ready"] is False
     assert called == [], "an out-of-root path must never reach a filesystem call"

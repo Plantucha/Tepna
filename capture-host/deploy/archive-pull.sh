@@ -25,7 +25,7 @@
 # Install on the dev box (one-time; user timer, no root):
 #   systemctl --user edit --force --full tepna-archive-pull.timer   # see units in this header
 #   -- or simply:
-#   crontab -e   →   30 13 * * *  /home/michal/Tepna/capture-host/deploy/archive-pull.sh
+#   crontab -e   →   30 13 * * *  ~/Tepna/capture-host/deploy/archive-pull.sh
 #
 # The paired systemd user units, verbatim:
 #   ~/.config/systemd/user/tepna-archive-pull.service
@@ -33,7 +33,8 @@
 #     Description=Pull vigil captures to the corpus archive (second disk)
 #     [Service]
 #     Type=oneshot
-#     ExecStart=/home/michal/Tepna/capture-host/deploy/archive-pull.sh
+#     ExecStart=%h/Tepna/capture-host/deploy/archive-pull.sh   # `%h` is the unit user's home;
+#                                                              systemd expands no `~` and no `$HOME`
 #   ~/.config/systemd/user/tepna-archive-pull.timer
 #     [Unit]
 #     Description=Daily 13:30 archive pull (after the box's 13:00 SD harvest)
@@ -43,13 +44,13 @@
 #     [Install]
 #     WantedBy=timers.target
 #   then: systemctl --user daemon-reload && systemctl --user enable --now tepna-archive-pull.timer
-#   ⚠ `loginctl enable-linger michal` or the timer dies with the login session — the exact
+#   ⚠ `loginctl enable-linger "$USER"` or the timer dies with the login session — the exact
 #     Linger=no silent-failure trap the main-auto-sync timers already hit once.
 set -euo pipefail
 
 # SRC overridable for the test harness only — production always pulls from vigil.
 SRC="${TEPNA_ARCHIVE_SRC:-vigil:/srv/tepna/captures/}"
-DEST="${TEPNA_ARCHIVE_DEST:-/home/michal/Tepna/uploads/vigil-archive/captures}"
+DEST="${TEPNA_ARCHIVE_DEST:-$HOME/Tepna/uploads/vigil-archive/captures}"
 LOG="${TEPNA_ARCHIVE_LOG:-$HOME/.local/state/tepna-archive-pull.log}"
 
 mkdir -p "$DEST" "$(dirname "$LOG")"

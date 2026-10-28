@@ -54,7 +54,7 @@ All four verified to exist 2026-08-09:
 | path | files | what |
 |---|---|---|
 | `<root>/uploads` | 653 (435 gitignored) | fixture inputs — what `DEX_UPLOADS` wants |
-| `/home/michal/tepna-smoketest/captures` | 11,430 | capture-host output, per-night tri-device |
+| `~/tepna-smoketest/captures` | 11,430 | capture-host output, per-night tri-device |
 | `/run/media/…/Ecg nightly` | 1,980 | Polar Sensor Logger corpus — **note the space in the name** |
 | `vigil:/srv/tepna/captures` | 4,247 (21 nights) | freshest; reachable over `ssh vigil` |
 

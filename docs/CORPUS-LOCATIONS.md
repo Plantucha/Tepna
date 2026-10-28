@@ -158,20 +158,20 @@ a checksum.
 | path | files | what it is | what it is for |
 |---|---|---|---|
 | `<primary checkout>/uploads` | 777 (**435 gitignored**, 136 tracked) | fixture inputs + committed goldens | the only one that satisfies `verify-fixtures` / the regen family — this is what `DEX_UPLOADS` wants |
-| `/home/michal/tepna-smoketest/captures` | 11,646 | capture-host output, per-night tri-device | folding nights through the Integrator; `tools/trio-batch.mjs` reads this shape |
+| `~/tepna-smoketest/captures` | 11,646 | capture-host output, per-night tri-device | folding nights through the Integrator; `tools/trio-batch.mjs` reads this shape |
 | `/run/media/…/Ecg nightly` | 1,980 | Polar Sensor Logger corpus (~19 GB) | the vendor-decode reference — validating our PMD decoders against PSL's own output |
 | `vigil:/srv/tepna/captures` | 6,827 across 28 nights | the capture box, **freshest data** | anything needing recent nights; reachable over `ssh vigil` |
 
 ⚠️ **Row 2 is a SYMLINK, and `find` silently reports nothing through it.**
-`/home/michal/tepna-smoketest/captures` → `/srv/data/tepna-smoketest-captures`. `find` does not follow
+`~/tepna-smoketest/captures` → `/srv/data/tepna-smoketest-captures`. `find` does not follow
 symlinked *start points* by default (`-P`), so it treats the path as a plain file, matches nothing, and
 **exits 0 with no error**. Measured 2026-08-27:
 
 ```sh
-find  /home/michal/tepna-smoketest/captures  -name '*_ECG.txt' | wc -l   # → 0     ← false "no data"
-find -L /home/michal/tepna-smoketest/captures -name '*_ECG.txt' | wc -l  # → 505
-find  /home/michal/tepna-smoketest/captures/ -name '*_ECG.txt' | wc -l   # → 505   (trailing slash)
-ls    /home/michal/tepna-smoketest/captures/*/*_ECG.txt      | wc -l     # → 505   (glob follows)
+find  ~/tepna-smoketest/captures  -name '*_ECG.txt' | wc -l   # → 0     ← false "no data"
+find -L ~/tepna-smoketest/captures -name '*_ECG.txt' | wc -l  # → 505
+find  ~/tepna-smoketest/captures/ -name '*_ECG.txt' | wc -l   # → 505   (trailing slash)
+ls    ~/tepna-smoketest/captures/*/*_ECG.txt      | wc -l     # → 505   (glob follows)
 ```
 
 **Use `find -L`, or a trailing slash, or a glob.** The tell that it is the instrument and not the

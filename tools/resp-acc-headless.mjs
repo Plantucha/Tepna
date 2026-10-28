@@ -64,6 +64,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { launch } from './pw-launch.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -73,7 +74,34 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
    module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
    reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { valued: ['--url', '--figures'], positional: true }, { tool: 'resp-acc-headless' });
+if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { valued: ['--url', '--figures'], boolean: ['--verdict-sample'], positional: true }, { tool: 'resp-acc-headless' });
+const SAMPLE_AT = '2026-10-28T00:00:00Z';
+
+/* THE ADOPTION SAMPLE prints the object ALONE, because `verdict-adoption` parses this stdout as
+   JSON — the ordinary run prints the same object after a human line, which is right for a reader
+   and unparseable for the checker. The names are synthetic and no commit identity is claimed, which
+   is what `commitReason` says rather than a sha that would imply the sample was measured. */
+/* THE SAMPLE LIVES IN A HELPER, and that placement is the assertion. `corpus-reads.mjs` blanks a
+   body named `verdictSample` before it classifies the tool, so the clearance comes off the REAL
+   walk below — a sample at top level would have this tool read as reporting a population over
+   names no run enumerates. */
+function verdictSample() {
+  const sampleAccFiles = () => ['Polar_H10_02849638_20260721194715_ACC.txt', 'Polar_H10_02849638_20260722201512_ACC.txt'];
+  const snap = snapshotEntries('(sample)', { list: sampleAccFiles, unit: 'acc-files', at: SAMPLE_AT });
+  return populationVerdict(snap, snap, {
+    tool: 'tools/resp-acc-headless.mjs',
+    evidence: ['tools/resp-acc-headless.mjs'],
+    at: SAMPLE_AT,
+    commitReason: '--verdict-sample: synthetic acc-files names, no code identity claimed'
+  });
+}
+/* The object ALONE on stdout, because `verdict-adoption` parses it as JSON; the ordinary run prints
+   the same object after a human line, which is right for a reader and unparseable for the checker. */
+if (IS_CLI && process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
 const DIR = process.argv[2];
 const uArg = process.argv.indexOf('--url');
 const URL_ = uArg > 0 ? process.argv[uArg + 1] : 'http://127.0.0.1:8080';
@@ -136,7 +164,18 @@ const stampOf = (() => {
   } catch {}
   return null;
 })();
-const acc = fs.readdirSync(DIR).filter((f) => /Polar_H10.*_ACC\.txt$/i.test(f));
+/* The pre-flight publishes the population it walked. The existence guard above answers ENOENT only,
+   so a staged directory present and unreadable (EACCES) reached this bare `readdirSync` and would
+   have thrown with no named reason — and a `catch` there would have read as an empty corpus, which
+   is the ∅ swallow. The snapshot names the errno instead. */
+const listAccFiles = (root) => fs.readdirSync(String(root)).filter((f) => /Polar_H10.*_ACC\.txt$/i.test(f));
+const POP = { list: listAccFiles, unit: 'acc-files' };
+const popBefore = snapshotEntries(DIR, POP);
+if (!popBefore.ok) {
+  console.error(`✕ resp-acc-headless: ${popBefore.reason} — ${DIR}`);
+  process.exit(2);
+}
+const acc = popBefore.members;
 console.log(`▸ staged dir: ${DIR}`);
 if (!stampOf) {
   /* FAIL LOUD, NOT OPEN. If the shared parser cannot be loaded, this tool must not fall back to a
@@ -147,6 +186,13 @@ if (!stampOf) {
   console.log(`  ${acc.length} ACC file(s), ${dated.length} of them carrying a session stamp the page can read`);
   if (acc.length && !dated.length) console.log('  ⚠ none carry a recognisable stamp — expected _YYYYMMDD_HHMMSS_ACC.txt (phone) or _YYYYMMDDHHMMSS_ACC.txt (capture host)');
 }
+
+const population = populationVerdict(popBefore, snapshotEntries(DIR, POP), {
+  tool: 'tools/resp-acc-headless.mjs',
+  evidence: ['tools/resp-acc-headless.mjs']
+});
+console.log(`  population: ${population.population.checked} H10 ACC file(s) under ${DIR}; the page receives the ` + 'whole folder, so its own night grouping decides what it analyses.');
+console.log(`POPULATION ${JSON.stringify(population)}`);
 
 const b = await launch(chromium);
 const p = await b.newPage();

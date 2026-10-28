@@ -399,7 +399,7 @@ passed with the file logging 1700 rows a day and nobody reading them as wrong.
 
 ⚠️ **The last two rows are operational, not rhetorical, and the first is a live hazard.**
 
-- **The shared root checkout `/home/michal/Tepna` was measured 103 commits behind `origin/main`
+- **The shared root checkout `~/Tepna` was measured 103 commits behind `origin/main`
   on 2026-09-03**, tree clean against its own HEAD — pure staleness, not anyone's in-flight edit. Its
   `capture.py` differs from main by 30 insertions and **259 deletions**. Any session reading a code
   fact there is citing a hundred-commit-old tree, and the failure is silent because the code is still

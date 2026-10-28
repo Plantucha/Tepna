@@ -90,7 +90,7 @@ NoNewPrivileges=no
 # so /etc/chrony blocks writing the servers and /run/chrony blocks chronyc from creating the reply socket
 # it needs to talk to chronyd at all.
 ProtectSystem=strict
-# ProtectHome stays TRUE, so /home/vigil is invisible to the daemon. Consequence for the offload: the
+# ProtectHome stays TRUE, so the service user's home is invisible to the daemon. Consequence for the offload: the
 # rsync SSH key must NOT live in ~/.ssh — put it under /srv/tepna/.ssh/ (mode 600) or the archive push
 # will fail with a key it cannot see.
 ProtectHome=true

@@ -413,7 +413,7 @@ night pairing, byte-weighted parallel ETA) live in the brief.
 ### 6.1 Branch creation on the mounted working volume (environment friction, not a code defect)
 
 ⚠️ **Re-verified 2026-09-20 on rig-x870: the primary checkout has MOVED and this friction no longer
-applies to it.** `/home/michal/Tepna` is on **ext4**, `/run/media/michal/647A504F7A50205A` is not mounted
+applies to it.** `~/Tepna` is on **ext4**, `/run/media/michal/647A504F7A50205A` is not mounted
 at all, and the volume behind that UUID is NTFS (`nvme0n1p3`) — not the exFAT that
 `DEEP-AUDIT-III-FOLLOWUPS §3` names. `ntfs` and `ntfs3` are both correct and name different layers:
 measured on the one NTFS volume currently mounted, `findmnt` reports **`ntfs3`** (the kernel driver,
