@@ -331,36 +331,64 @@ export function normaliseRel(fromRel, spec) {
    So the population is derived, not typed: relative `.mjs` imports plus the `path.join(REPO,
    'tools', 'x.mjs')` call sites, followed transitively. A frozen list ages; this one cannot. It
    FAILS CLOSED, because a regex that stops matching would otherwise shrink the population silently
-   and every answer would read clean. `readText` is injected, so the rule is testable without a disk. */
+   and every answer would read clean. `readText` is injected, so the rule is testable without a disk.
+
+   🔴 THE CLOSURE SPANS TWO TREES, AND ONLY ONE OF THEM IS THIS FILE'S. An `import` resolves against
+   the running file's own directory, so it loads from `SELF_REPO` whatever `REPO` says. A shelled
+   call resolves against `REPO`, because the call site builds the path from it. Today the two
+   coincide and the distinction costs nothing. The remedy the row names — repointing the unit at a
+   dedicated checkout — separates them, and a comparison that reads every file from one root would
+   then report on code that is not running and stay silent about code that is. So each file carries
+   the root it would LOAD from: `via[rel]` is `self`, `data`, or both when both reach it.
+
+   A NAME THAT RESOLVES IN NO ROOT IS THE READER'S ARTIFACT, NOT A GAP IN THE MEASUREMENT. The
+   shell-call rule reads raw text, so it also matches the call-site example in the comment above and
+   the fixtures in this file's own selftest: measured 2026-10-28, `tools/x.mjs` (from that comment)
+   and `tools/inner-helper.mjs` (from the plant) joined the real four. Both still fail closed — they
+   are REPORTED as `unresolved`, never dropped — but a reader told "I could not compare it" about a
+   file that was never there learns nothing, and the two names crowd out the three that matter. */
 export function rendererClosure(entryRel, readText) {
-  const seen = new Set();
+  const via = new Map();
   const unreadable = [];
-  const queue = [entryRel];
+  const readOk = new Set();
+  const queue = [[entryRel, 'self']];
   let edges = 0;
   while (queue.length) {
-    const rel = queue.shift();
-    if (seen.has(rel)) continue;
-    seen.add(rel);
+    const [rel, kind] = queue.shift();
+    const kinds = via.get(rel) || new Set();
+    if (kinds.has(kind)) continue;
+    kinds.add(kind);
+    via.set(rel, kinds);
     let text = null;
     try {
-      text = readText(rel);
+      text = readText(rel, kind);
     } catch {
       text = null;
     }
     if (typeof text !== 'string') {
-      unreadable.push(rel);
+      if (!unreadable.includes(rel)) unreadable.push(rel);
       continue;
     }
-    const deps = [
-      ...[...text.matchAll(/from\s+'(\.\.?\/[^']+\.mjs)'/g)].map((m) => normaliseRel(rel, m[1])),
-      ...[...text.matchAll(/'tools',\s*'([A-Za-z0-9._-]+\.mjs)'/g)].map((m) => `tools/${m[1]}`)
-    ];
-    edges += deps.length;
-    for (const d of deps) if (!seen.has(d)) queue.push(d);
+    readOk.add(rel);
+    const imported = [...text.matchAll(/from\s+'(\.\.?\/[^']+\.mjs)'/g)].map((m) => normaliseRel(rel, m[1]));
+    const shelled = [...text.matchAll(/'tools',\s*'([A-Za-z0-9._-]+\.mjs)'/g)].map((m) => `tools/${m[1]}`);
+    edges += imported.length + shelled.length;
+    for (const d of imported) queue.push([d, kind]);
+    for (const d of shelled) queue.push([d, 'data']);
   }
-  if (unreadable.includes(entryRel)) return { ok: false, reason: `the renderer's entry file ${entryRel} could not be read`, files: [], unreadable };
-  if (edges === 0) return { ok: false, reason: `no dependency was found in ${entryRel} — the closure reader matched nothing, and an empty population would read as clean`, files: [], unreadable };
-  return { ok: true, files: [...seen].filter((f) => !unreadable.includes(f)).sort(), unreadable };
+  const unresolved = unreadable.filter((f) => !readOk.has(f)).sort();
+  if (unreadable.includes(entryRel)) return { ok: false, reason: `the renderer's entry file ${entryRel} could not be read`, files: [], unreadable, unresolved, via: {} };
+  if (edges === 0)
+    return {
+      ok: false,
+      reason: `no dependency was found in ${entryRel} — the closure reader matched nothing, and an empty population would read as clean`,
+      files: [],
+      unreadable,
+      unresolved,
+      via: {}
+    };
+  const readable = [...via.keys()].filter((f) => !unreadable.includes(f)).sort();
+  return { ok: true, files: readable, unreadable, unresolved, via: Object.fromEntries(readable.map((f) => [f, [...via.get(f)].sort()])) };
 }
 
 /* THE BOARD IS RENDERED BY THE CHECKOUT IT RUNS IN, AND THAT CHECKOUT LAGS (residue
@@ -368,29 +396,48 @@ export function rendererClosure(entryRel, readText) {
    over the closure above: `{ drifted, unreadable, examined }`, or a bare boolean from the days when
    one file WAS the population — a boolean therefore reports on `tools/board.mjs` and says so, rather
    than borrowing the wider sentence. A file that could not be compared is `null`, never `false`:
-   "I could not look" and "they match" are opposite answers (§∅). */
-export function runnerVerdict(behind, drift) {
+   "I could not look" and "they match" are opposite answers (§∅).
+
+   `opts.separateRoots` says the renderer's code and the checkout it reports on are DIFFERENT trees,
+   which is what repointing the unit does. The sentence then names which tree each drifted file came
+   from, because "the running checkout is 196 behind" reads as a statement about the code when the
+   two are one tree and is false about the code when they are not. Default false keeps every
+   two-argument caller byte-identical. */
+export function runnerVerdict(behind, drift, opts = {}) {
   const n = Number.isFinite(behind) ? behind : null;
-  if (n === null) return { stale: null, reason: 'the running checkout could not be compared with the ref' };
-  const d = typeof drift === 'boolean' ? { drifted: drift ? ['tools/board.mjs'] : [], unreadable: [], examined: ['tools/board.mjs'] } : { drifted: [], unreadable: [], examined: [], ...(drift || {}) };
+  const split = Boolean(opts && opts.separateRoots);
+  const subject = split ? 'the checkout it reports on' : 'the running checkout';
+  if (n === null) return { stale: null, reason: `${subject} could not be compared with the ref` };
+  const d =
+    typeof drift === 'boolean'
+      ? { drifted: drift ? ['tools/board.mjs'] : [], unreadable: [], examined: ['tools/board.mjs'] }
+      : { drifted: [], unreadable: [], examined: [], unresolved: [], ...(drift || {}) };
   const examined = d.examined.length ? d.examined : d.drifted;
+  const artifact = (d.unresolved || []).length ? `; ${d.unresolved.length} derived name(s) resolve to no file in either tree (${d.unresolved.join(', ')}), so the closure reader is over-matching` : '';
+  const label = (rel) => {
+    const k = split && d.via ? d.via[rel] : null;
+    if (!k || !k.length) return rel;
+    return `${rel} (${k.map((x) => (x === 'self' ? "the renderer's own tree" : 'the checkout it reports on')).join(' and ')})`;
+  };
   if (d.drifted.length)
     return {
       stale: true,
       behind: n,
       drifted: d.drifted,
-      reason: `this board was rendered by code that differs from ${MAIN_REF} — ${d.drifted.length} of the renderer's ${examined.length + d.unreadable.length} file(s): ${d.drifted.join(', ')} — in a checkout ${n} commit(s) behind it`
+      unreadable: d.unreadable,
+      reason: `this board was rendered by code that differs from ${MAIN_REF} — ${d.drifted.length} of the renderer's ${examined.length + d.unreadable.length} file(s): ${d.drifted.map(label).join(', ')}${d.unreadable.length ? `, and ${d.unreadable.length} more could not be compared (${d.unreadable.join(', ')})` : ''} — ${split ? `while ${subject} is ${n} commit(s) behind the ref` : `in a checkout ${n} commit(s) behind it`}${artifact}`
     };
   if (d.unreadable.length)
     return {
       stale: null,
       behind: n,
       drifted: [],
-      reason: `${d.unreadable.length} of the renderer's file(s) could not be compared with ${MAIN_REF} (${d.unreadable.join(', ')}), so this board cannot say its code matches`
+      unreadable: d.unreadable,
+      reason: `${d.unreadable.length} of the renderer's file(s) could not be compared with ${MAIN_REF} (${d.unreadable.join(', ')}), so this board cannot say its code matches${artifact}`
     };
   const matches = examined.length === 1 ? `its ${examined[0]} matches the ref` : `all ${examined.length} file(s) of the renderer's own code match the ref`;
-  if (n > 0) return { stale: false, behind: n, drifted: [], reason: `the running checkout is ${n} commit(s) behind ${MAIN_REF}, and ${matches}` };
-  return { stale: false, behind: 0, drifted: [], reason: null };
+  if (n > 0) return { stale: false, behind: n, drifted: [], unreadable: [], reason: `${subject} is ${n} commit(s) behind ${MAIN_REF}, and ${matches}${artifact}` };
+  return { stale: false, behind: 0, drifted: [], unreadable: [], reason: artifact ? artifact.slice(2) : null };
 }
 
 /* A banner that only fires on `stale === true` drops BOTH absence shapes: the uncomparable checkout
@@ -427,23 +474,39 @@ export function withRunnerBanner(banners, runner) {
   return rb ? [rb, ...(banners || [])] : [...(banners || [])];
 }
 
+/* EACH FILE IS COMPARED IN THE TREE IT WOULD LOAD FROM — `self` against `SELF_REPO`, `data` against
+   `REPO`. With one tree this is the previous behaviour exactly. With two it is the only honest
+   reading: after a repoint the imports are current and the shelled tools are still the data
+   checkout's, so a one-root comparison would invert the banner in both directions. `behind` stays a
+   fact about `REPO`, which is the tree whose HEAD the operator advances. */
 function runner() {
+  const rootOf = (kind) => (kind === 'self' ? SELF_REPO : REPO);
+  const separateRoots = path.resolve(SELF_REPO) !== path.resolve(REPO);
   try {
     const behind = +sh('git', ['rev-list', '--count', `HEAD..${MAIN_REF}`], { cwd: REPO });
-    const clo = rendererClosure('tools/board.mjs', (rel) => readFileSync(path.join(REPO, rel), 'utf-8'));
-    if (!clo.ok) return { ok: true, ...runnerVerdict(behind, { drifted: [], unreadable: ['tools/board.mjs'], examined: [] }), closureReason: clo.reason };
+    const clo = rendererClosure('tools/board.mjs', (rel, kind) => readFileSync(path.join(rootOf(kind), rel), 'utf-8'));
+    if (!clo.ok) return { ok: true, ...runnerVerdict(behind, { drifted: [], unreadable: ['tools/board.mjs'], examined: [] }, { separateRoots }), closureReason: clo.reason };
     const drifted = [];
-    const unreadable = [...clo.unreadable];
+    const unreadable = clo.unreadable.filter((f) => !clo.unresolved.includes(f));
     for (const rel of clo.files) {
-      try {
-        const here = sh('git', ['hash-object', path.join(REPO, rel)], { cwd: REPO });
-        const there = sh('git', ['rev-parse', `${MAIN_REF}:${rel}`], { cwd: REPO });
-        if (here !== there) drifted.push(rel);
-      } catch {
-        unreadable.push(rel);
+      for (const kind of clo.via[rel]) {
+        const root = rootOf(kind);
+        try {
+          const here = sh('git', ['hash-object', path.join(root, rel)], { cwd: root });
+          const there = sh('git', ['rev-parse', `${MAIN_REF}:${rel}`], { cwd: root });
+          if (here !== there && !drifted.includes(rel)) drifted.push(rel);
+        } catch {
+          if (!unreadable.includes(rel)) unreadable.push(rel);
+        }
       }
     }
-    return { ok: true, ...runnerVerdict(behind, { drifted, unreadable, examined: clo.files.filter((f) => !unreadable.includes(f)) }), closure: clo.files };
+    return {
+      ok: true,
+      ...runnerVerdict(behind, { drifted, unreadable, unresolved: clo.unresolved, examined: clo.files.filter((f) => !unreadable.includes(f)), via: clo.via }, { separateRoots }),
+      closure: clo.files,
+      unresolved: clo.unresolved,
+      separateRoots
+    };
   } catch (e) {
     return fail(`running-checkout read failed: ${e.message}`);
   }
@@ -1995,6 +2058,71 @@ function runSelftest() {
         real.ok && real.files.includes('tools/argv-guard.mjs') && real.files.includes('tools/release-land.mjs'),
         `the REAL closure of this board reaches both dependencies, got ${real.ok ? real.files.join(',') : real.reason}`
       );
+      ok(real.ok && real.via['tools/release-land.mjs'].includes('data'), 'the two-root split is REAL in this repo, not a planted shape: the release card shells its tool from the reported checkout');
+      ok(
+        real.unresolved.join() === 'tools/inner-helper.mjs,tools/x.mjs',
+        `the REAL closure's unresolvable names are exactly the comment example and the selftest plant — tighten the reader and update this leg, got ${real.unresolved.join()}`
+      );
+
+      /* TWO TREES. An import loads from the file's own directory; a shelled call loads from `REPO`.
+         The remedy the row names separates them, so each file must be compared where it loads. */
+      const kinds = [];
+      const readKinds = (rel, kind) => {
+        kinds.push(`${rel}:${kind}`);
+        return readPlant(rel);
+      };
+      const two = rendererClosure('tools/board.mjs', readKinds);
+      ok(two.ok && two.via['tools/board.mjs'].join() === 'self', "the entry file loads from the renderer's own tree");
+      ok(two.ok && two.via['tools/release-land.mjs'].join() === 'data', 'a SHELLED tool loads from the checkout the renderer reports on, never from its own tree');
+      ok(two.ok && two.via['tools/argv-guard.mjs'].join() === 'data,self', 'a file reached BOTH ways carries both roots, because it runs in both');
+      ok(two.ok && two.via['tools/inner-helper.mjs'].join() === 'data,self', "a shelled tool's own imports inherit ITS root, transitively");
+      ok(kinds.includes('tools/release-land.mjs:data') && kinds.includes('tools/argv-guard.mjs:self'), `the reader is TOLD the root, so the caller can read the right tree, got ${kinds.join(' ')}`);
+      ok(clo.files.join() === two.files.join(), 'CONTROL · a reader that ignores the second argument gets the same file list as before');
+
+      /* THE SENTENCE. With one tree `the running checkout` names both; with two it names neither. */
+      const vias = { 'tools/release-land.mjs': ['data'], 'tools/board.mjs': ['self'] };
+      const joined = runnerVerdict(196, { drifted: ['tools/release-land.mjs'], unreadable: [], examined: ['tools/board.mjs', 'tools/release-land.mjs'], via: vias });
+      const apart = runnerVerdict(196, { drifted: ['tools/release-land.mjs'], unreadable: [], examined: ['tools/board.mjs', 'tools/release-land.mjs'], via: vias }, { separateRoots: true });
+      ok(
+        joined.reason === runnerVerdict(196, { drifted: ['tools/release-land.mjs'], unreadable: [], examined: ['tools/board.mjs', 'tools/release-land.mjs'] }).reason,
+        'CONTROL · one tree reads exactly as it did before, via or no via'
+      );
+      ok(/in a checkout 196 commit\(s\) behind it/.test(joined.reason) && !/reports on/.test(joined.reason), 'CONTROL · the one-tree sentence is unchanged');
+      ok(/the checkout it reports on/.test(apart.reason), 'with two trees the sentence names the checkout, not `the running checkout`');
+      ok(/release-land\.mjs \(the checkout it reports on\)/.test(apart.reason), 'a drifted file names the TREE it drifted in, so a reader knows which one to advance');
+      ok(runnerVerdict(4, false, { separateRoots: true }).reason.startsWith('the checkout it reports on is 4'), 'the behind-only sentence takes the same subject');
+      ok(runnerVerdict(null, true, { separateRoots: true }).reason === 'the checkout it reports on could not be compared with the ref', 'the uncomparable sentence takes it too');
+      ok(runnerVerdict(0, false, { separateRoots: true }).reason === null, 'CONTROL · two current trees still raise nothing');
+      const mixed = runnerVerdict(9, { drifted: ['tools/board.mjs'], unreadable: ['tools/new-tool.mjs'], examined: ['tools/board.mjs'] });
+      ok(/1 more could not be compared \(tools\/new-tool\.mjs\)/.test(mixed.reason), 'a file that drifted and a file that could not be read are BOTH named — the count alone loses the second');
+      ok(mixed.unreadable.join() === 'tools/new-tool.mjs', 'the uncompared files reach the caller as data, not only as prose');
+
+      /* A NAME THAT RESOLVES NOWHERE. The shell-call rule reads raw text, so the comment above and
+         this selftest's own fixtures enter the population. They must be classified, not dropped. */
+      const ghost = 'ghost.mjs';
+      const ROOTS = {
+        self: { 'tools/board.mjs': PLANT['tools/board.mjs'], 'tools/argv-guard.mjs': PLANT['tools/argv-guard.mjs'], 'tools/inner-helper.mjs': PLANT['tools/inner-helper.mjs'] },
+        data: { 'tools/board.mjs': PLANT['tools/board.mjs'], 'tools/release-land.mjs': PLANT['tools/release-land.mjs'] }
+      };
+      const perRoot = rendererClosure('tools/board.mjs', (rel, kind) => {
+        const t = ROOTS[kind][rel];
+        if (t === undefined) throw new Error(`absent from the ${kind} tree`);
+        /* The ghost name is assembled, never written whole — a literal call site in this file would
+           enter the REAL closure below and the leg would then measure its own fixture. */
+        return rel === 'tools/board.mjs' ? `${t}sh('node', [path.join(REPO, 'tools', '${ghost}')]);\n` : t;
+      });
+      ok(perRoot.unresolved.join() === 'tools/ghost.mjs', `a name absent from BOTH trees is the reader's artifact, got ${perRoot.unresolved.join()}`);
+      ok(
+        perRoot.unreadable.includes('tools/argv-guard.mjs') && !perRoot.unresolved.includes('tools/argv-guard.mjs'),
+        'a REAL file absent from ONE tree stays a measurement gap — the renderer loads it in the tree that has it and not in the other'
+      );
+      const arte = runnerVerdict(3, { drifted: [], unreadable: [], examined: ['tools/board.mjs'], unresolved: ['tools/x.mjs'] });
+      ok(/resolve to no file in either tree \(tools\/x\.mjs\)/.test(arte.reason), 'the artifact is REPORTED in its own clause, never folded into the uncompared count');
+      ok(
+        runnerVerdict(0, { drifted: [], unreadable: [], examined: ['tools/board.mjs'], unresolved: ['tools/x.mjs'] }).reason.startsWith('2 derived') === false,
+        'CONTROL · an all-clear with an artifact still speaks, and the clause does not start with its own separator'
+      );
+      ok(runnerVerdict(0, false).reason === null, 'CONTROL · an all-clear with no artifact stays silent');
     }
   }
   console.log(fails.length ? `board selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);

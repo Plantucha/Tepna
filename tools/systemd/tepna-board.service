@@ -24,6 +24,30 @@
 #   systemctl --user daemon-reload && systemctl --user enable --now tepna-board.timer
 #   systemctl --user start tepna-board.service        # generate once now
 #   xdg-open ~/.local/share/tepna/board/index.html
+#
+# REPOINTING THE RENDERER AT A CURRENT TREE — the owner's call, NOT performed by any PR (residue
+# 2026-10-27-the-board-renders-from-a-checkout-nobody-advances). `WorkingDirectory=%h/Tepna` below
+# means the board is rendered by whatever that shared checkout holds, and on 2026-10-28 it held code
+# 224 commits behind the ref. The renderer now MEASURES that and says so in a header banner, which
+# makes the condition legible without curing it. The cure is a second tree that nobody works in:
+#
+#   git clone --shared %h/Tepna %h/.local/share/tepna/board-src
+#   systemctl --user edit tepna-board.service     # and add the drop-in below
+#     [Service]
+#     WorkingDirectory=%h/.local/share/tepna/board-src
+#     Environment=TEPNA_REPO=%h/Tepna
+#     ReadWritePaths=%h/.local/share/tepna/board %h/.local/share/tepna/board-src
+#     ExecStartPre=/bin/sh -c 'git fetch --quiet origin main && git checkout --quiet --detach origin/main'
+#
+# `TEPNA_REPO` stays the primary checkout on purpose: the cards report on the tree the fleet works
+# in, and only the CODE moves to the pinned clone. `ReadWritePaths` must name the clone, because
+# `ProtectHome=read-only` would otherwise refuse the fetch.
+#
+# WHAT IT DOES NOT CURE. An `import` loads from the renderer's own tree; a shelled tool loads from
+# `TEPNA_REPO`. So `release-land.mjs` and `usage-guard.mjs` would still run the primary checkout's
+# copies, and the banner reports each drifted file with the tree it came from for exactly that
+# reason. Measured 2026-10-28 with the roots split: 3 of 4 files drifted, 1 in the renderer's own
+# tree and 2 in the checkout it reports on.
 [Unit]
 Description=Tepna — regenerate the fleet board (tokens, release watch, PRs, CI, decisions)
 Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/board.mjs
