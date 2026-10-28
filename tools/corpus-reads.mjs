@@ -766,7 +766,22 @@ export const UNWIRED_BACKLOG = {
      headline.
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, and a run that scored
      nothing over a root that offered something, now exit 2 where all four exited 0. */
-  'beat-correspondence.mjs': 1,
+  /* FIVE SINGLE-ROOT FILE READERS LEFT TOGETHER, 2026-10-28, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `beat-correspondence.mjs`,
+     `dual-clock-rate.mjs`, `ecg-rate-transfer.mjs`, `resp-acc-headless.mjs` and
+     `wearable-sync.mjs` each walk ONE capture directory for FILES, so each takes `snapshotEntries`
+     with a lister the caller names — `listPairFiles`, `listCaptureFiles`, `listEcgRecords`,
+     `listAccFiles` — and publishes the comparison, so the scan reads them as `reports` and this
+     list must not name them. A night rule over a file unit would publish a rule nobody wrote.
+     THE OFFERED COUNT IS NOT THE READ COUNT IN ANY OF THEM, measured on one real night
+     2026-10-28: 9 pair-eligible files for one ECG/PPG pair, 187 capture files for the six largest
+     over a 3 MB floor, 4 ECG records for 2 under `--limit`, and 577 files walked for one paired
+     night. Each names its remainder beside the figure.
+     FOUR OF THE FIVE READ AN UNREADABLE ROOT AS EMPTY OR THREW WITH NO NAMED REASON, which is the
+     ∅ swallow the wiring exposes: `wearable-sync.mjs`'s recursive walk also caught an unreadable
+     SUBDIRECTORY and returned the accumulator, so a partly readable tree and a whole one printed
+     the same line. The walk now names the directories it could not read and the population line
+     carries the count. `dual-clock-rate.mjs` already refused by name and keeps that refusal. */
   'codex-export.mjs': 1,
   'corpus-census.mjs': 2,
   'corpus-tier.mjs': 1,
@@ -786,8 +801,6 @@ export const UNWIRED_BACKLOG = {
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a root that offered
      nothing, and an agreement pass that compared nothing, now exit 2 where all three exited 0. */
   'cvhr-fold-rescore.mjs': 1,
-  'dual-clock-rate.mjs': 1,
-  'ecg-rate-transfer.mjs': 1,
   'edge-settle.mjs': 1,
   'geometry-scan.mjs': 1,
   'h10-session-rate.mjs': 1,
@@ -880,14 +893,12 @@ export const UNWIRED_BACKLOG = {
      `reports` and this list must not name them. Their unit is a FILE, not a night, so they take
      `snapshotEntries` rather than `snapshotNights` — a night snapshot over a capture tree would
      manufacture a population out of directories nobody keyed by date. */
-  'resp-acc-headless.mjs': 2,
-  'seqnet-eval.mjs': 1,
+  'seqnet-eval.mjs': 1
   /* `stage-lab.mjs` WAS THE HEAVIEST KEY HERE, at weight 12, and has LEFT: its twelve enumerations
      walk external PSG archives, so it reports a RECORD population through `snapshotEntries` rather
      than a night one. A night snapshot there answers `ok: true, n: 0` over a full dataset, which is
      why the weight sat unspent through four wiring units — the unit was the blocker, not the wiring
      (row 2026-10-21-forty-one-corpus-enumerators-report-no-population). */
-  'wearable-sync.mjs': 1
 };
 
 /** Classify every tool under one directory. Returns rows sorted by name. */

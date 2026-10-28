@@ -2725,6 +2725,42 @@
     ]
    },
    "note": "the pooled three-cornered-hat solve: 147 nights offered, 90 with a solved triple. The `--json` path carries the same object plus the offered count, so a consumer reading the pooled \u03c3 can see what it was pooled over. The population is the NIGHT TREE the run walked, published once before the read and once after through `snapshotNights`, so a night arriving or leaving mid-run is a FAIL rather than a silently different denominator. The headline names the unscored nights, and an arithmetic control (offered \u2212 scored === unscored) throws rather than let a coverage line contradict its own headline. Fewer than two solved nights publishes the population and exits 2, where the tool used to print a need-more line and exit 0 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/dual-clock-rate.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/dual-clock-rate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it measures device rate against the host clock from the two stamp columns of each raw file in ONE capture night. The population is the capture FILES the night offered, taken through `snapshotEntries` with the named lister `listCaptureFiles` before the read and once after, so a file arriving or leaving mid-run is a FAIL rather than a silently different denominator. The offered count is not the read count, measured on a real night 2026-10-28: 187 capture files matched and the six largest over a 3 MB floor were read, leaving 181 unexamined and named. The pre-existing refusals stay: an unreadable directory, a night matching no capture file, and a night whose every match sits under the fragment floor each exit 2 with the reason named (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/resp-acc-headless.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/resp-acc-headless.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it drives the respiration page over a staged ACC directory in a headless browser. The population is the H10 ACC files the pre-flight walked, through `snapshotEntries` with the named lister `listAccFiles`, and the line says plainly that the PAGE receives the whole folder, so the page's own night grouping decides what it analyses. The staged-directory guard answered ENOENT only, so a directory present and unreadable reached a bare `readdirSync` and threw with no named reason; the snapshot names the errno and exits 2 (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/wearable-sync.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/wearable-sync.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it measures H10 against Verity motion over every night under `--src`. The population is the FILES the recursive walk found, through `snapshotEntries` with the named lister `listCaptureFiles`, with members kept as paths relative to the root because two subdirectories may hold one filename. Its walk caught an unreadable subdirectory and returned the accumulator, so a partly readable tree and a whole one printed the same line: the walk now names the directories it could not read and the population line carries the count, while an unreadable `--src` itself exits 2 with the errno named. The offered count is not the scored count, measured 2026-10-28: 577 files walked for one paired night, with refused stamps, `--night`, `--skip-existing` and the both-devices requirement each named as remainder (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   }
  }
 }
