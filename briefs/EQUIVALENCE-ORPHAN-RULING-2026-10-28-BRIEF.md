@@ -50,6 +50,9 @@ default.
 2. **Decide the 12 `never` entries.** Each repeats one mutation inside one function, so no qualifier
    separates the pair. Re-probing both mutants under one entry would cover them, and that needs a key
    this ledger does not have.
+   The Python lane met the same wall and wrote it down: `briefs/MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md`
+   § 2a-bis holds that a key needs content **and** position, because two survivors in one function with
+   identical mutation text share every content field. So a fix here is a key change, not a qualifier.
 3. **Rule on the 7 conditional entries.** A probe at each candidate address would place them, at the
    cost of one `--only` run per entry.
 
