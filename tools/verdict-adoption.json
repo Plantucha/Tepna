@@ -1687,6 +1687,18 @@
    },
    "note": "the PPG twin of oracle-ecg-firmware-rr: PpgDex's feet against the O2Ring's own `156` beat markers. Criterion is `ppi_delta_median` <= one ADC sample (8.000 ms at the 125.000 Hz crystal), pre-stated from the instrument rather than the data; the ~190 ms firmware DETECTION LAG is reported beside it as a latency and is deliberately unbanded, because it is a device property and scoring it would report a working detector as broken. scope: internal \u2014 a second estimator on one sensor, not a second sensor (R5-HR-TRIPLET-REFERENCE \u00a74)"
   },
+  "tools/oxy-hr-bias.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/oxy-hr-bias.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it holds TWO populations of different units and publishes one object for each: the O2Ring CSV FILES leg 1 scores directly under the uploads root, and the NIGHT DIRECTORIES legs 3 and 2 score under uploads/trio. No arithmetic relates the two sets, so neither count may stand for the run. The sample carries the file unit this tool added; the night half publishes the shared nights_added_or_removed criterion. A half that enumerated nothing, or scored nothing over a root that offered something, exits 2 rather than 0 (row 2026-10-28-oxy-hr-bias-holds-a-file-population-and-a-night-population-at-once)"
+  },
   "tools/pat-axis-leg-audit.mjs": {
    "bin": "word-only",
    "status": "exempt",
