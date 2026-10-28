@@ -3,13 +3,17 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (decision record — awaiting the owner's choice between options A, B and C) · **Created:** 2026-10-28
+**Status:** PROPOSED (DECIDED 2026-10-28 — the owner chose option B, the full recovery with the numeric column; the build is unit 121) · **Residue:** 2026-10-28-end-confirmed-has-no-producer-outside-its-tests · **Created:** 2026-10-28
 
 # The ring's recording axis has no boot recovery — what that costs, and the three ways out
 
-Residue row `2026-10-27-o2ring-recording-axis-has-no-boot-recovery` waits on an owner decision. This
+Residue row `2026-10-27-o2ring-recording-axis-has-no-boot-recovery` waited on an owner decision. This
 brief is that decision's record. It carries no code. It states what the recording axis loses across a
 host restart, what is already built, what is left, and three options with their cost.
+
+🔴 **The owner ruled on 2026-10-28: option B, the full recovery on the CPAP boot pattern, with the
+numeric column.** `confirm_end` also gains a caller in the pull path, as its own unit. §6 records both
+answers, and §7 holds the acceptance they ask for.
 
 The row's parent is `OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md` §10, whose restart table
 left cases 2, 3 and 7 unexecuted. This brief traces all three and measures two of them.
@@ -88,9 +92,9 @@ The absent piece is a reader, not a journal. The durable substrate exists.
 weeks. So the axis cannot today confirm an end even without a restart, and case 3's loss has no
 consumer yet to harm.
 
-That finding needs a residue row. I did not append it, because closing or adding rows outside
-this PR's own life rides a separate RESIDUE-only PR, and I hold one PR slot. Whoever appends the row
-mints its key. The defect reads: the `END_CONFIRMED` producer has no caller outside its own tests.
+Row `2026-10-28-end-confirmed-has-no-producer-outside-its-tests` records that finding. Kestrel ordered it into this PR
+with the ruling, so it rides here rather than on a separate ledger PR. The owner's second answer
+closes it: `confirm_end` gains a caller in the pull path, as unit 122.
 
 ## 5 · The reference pattern, and what it would cost here
 
@@ -117,7 +121,7 @@ Keep the axis self-healing. Add a standing count of restarts that land inside a 
 - Leaves: case 3's `closed_at_duration` still lost on an unplanned restart.
 - Honest against: the measured exposure is already zero over nine weeks and 403 h.
 
-### Option B — mirror the reference pattern in full
+### Option B — mirror the reference pattern in full 🔴 CHOSEN 2026-10-28
 
 A pure `boot_rec_state(rows, now_ms)` plus a thin reader, restoring `state` and the counter.
 
@@ -142,18 +146,26 @@ first whichever way the decision goes.
 zero, the axis heals itself in half a minute, and the state C protects has no consumer today. A
 tripwire keeps the zero honest; building recovery first would protect a number nobody reads.
 
-## 6 · The owner question
+## 6 · The ruling, 2026-10-28
 
-1. A, B or C? Or the column alone, with the recovery deferred?
-2. Does `confirm_end` get a caller in the pull path, and is that a separate unit?
-3. If the answer is A, what should the tripwire do when it fires — warn, or open work?
+The owner answered both open questions, and Kestrel relayed them on board thread 7.
 
-## 7 · Acceptance, once decided
+1. **Option B** — the full recovery on the CPAP boot pattern, with the numeric column. Unit 121 builds
+   it. My own reading preferred A, on the measured exposure of zero. The ruling stands over that
+   reading, and §3 keeps the numbers for whoever revisits it.
+2. **`confirm_end` gains a caller in the pull path**, as unit 122. That answers §4's finding, and row
+   `2026-10-28-end-confirmed-has-no-producer-outside-its-tests` carries it.
 
-- [ ] This brief's status line names the chosen option, with the date.
-- [ ] If B or C: the rec row gains a numeric column for `closed_at_duration`, with a writer test.
-- [ ] If B or C: the pure function takes journal rows and an age bound. It owns no clock.
-- [ ] If A: the tripwire counts starts inside a recording window and reports a `tepna.verdict/1`.
+A deploy to vigil stays owner-only. Unit 121 ships code and restarts no daemon.
+
+## 7 · Acceptance
+
+- [x] This brief's status line names option B, with the date.
+- [x] Row `2026-10-28-end-confirmed-has-no-producer-outside-its-tests` rides this PR.
+- [ ] Unit 121 gives the rec rows a numeric column for `closed_at_duration`, with a writer test.
+- [ ] Unit 121's pure function takes journal rows and an age bound. It owns no clock.
+- [ ] Unit 121 bounds the journal's age, as `CATCH_UP_MAX_AGE_S` bounds the reference.
+- [ ] Unit 121 restores `END_CANDIDATE` and `closed_at_duration`, not `RECORDING` alone.
 - [ ] §10's case 7 reads answered, and names the three tests.
-- [ ] Whoever holds a free PR slot appends the `END_CONFIRMED` row.
-- [ ] `capture-host/check.sh` passes at the 100 % floor, and the row closes with the landing PR.
+- [ ] Unit 122 wires `confirm_end` in the pull path, and closes the row.
+- [ ] `capture-host/check.sh` passes at the 100 % floor on both units.
