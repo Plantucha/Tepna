@@ -12388,10 +12388,14 @@
         T.ok(t.rel + ' names the members nothing scored', /, by name: /.test(src), 'absent — a count nobody can chase is not a named absence');
         T.ok(t.rel + ' has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[stem] === undefined, stem + ' is still listed as an unwired corpus enumerator');
         T.eq('…and the scanner itself classifies ' + t.rel + ' as reporting', CR.classifyTool(src).cls, 'reports');
-        /* THE REAL PATH, read off the blanked source: `'POPULATION '` must survive the blanking, so
-           the object exists on a path a real run takes and not only under the sample flag. */
-        var blanked = CR.blankSampleHelpers(src);
-        T.ok(t.rel + ' prints a POPULATION line from a path the sample helper does not hold', blanked.indexOf("'POPULATION '") >= 0, 'absent — only the sample publishes an object');
+        /* THE REAL PATH, read off the blanked source: a real call must survive the blanking, so the
+           object exists on a path a run takes and not only under the sample flag. MASK FIRST — the
+           blanking's brace matcher walks to EOF on a brace inside a string or a comment, which on
+           2026-10-28 blanked a whole NSRR reader below its sample helper and reported an absence that
+           was the probe's own. These three were safe by luck; the printed line itself is asserted by
+           this group's execution legs. Row 2026-10-28-the-sample-blanking-contract-reads-masked-source. */
+        var blanked = CR.blankSampleHelpers(env.argvReads.maskNonCode(src));
+        T.ok(t.rel + ' publishes a population from a path the sample helper does not hold', /populationVerdict\(/.test(blanked), 'absent — only the sample publishes an object');
       });
       /* CONTROL · the clearance is not vacuous: gut the real `populationVerdict` calls in each and
          the class falls out of `reports`. Each tool's sample call survives the gut, which is the
@@ -12530,14 +12534,16 @@
         T.ok(t.rel + ' names the records nothing scored', /, by name: /.test(src), 'absent — a count nobody can chase is not a named absence');
         T.ok(t.rel + ' has left the unwired backlog it was listed in', CR.UNWIRED_BACKLOG[stem] === undefined, stem + ' is still listed as an unwired corpus enumerator');
         T.eq('…and the scanner itself classifies ' + t.rel + ' as reporting', CR.classifyTool(src).cls, 'reports');
-        /* THE REAL PATH, read off the blanked source: the object must survive the blanking, so it
-           exists on a path a real run takes and not only under the sample flag. */
-        var blanked = CR.blankSampleHelpers(src);
-        T.ok(
-          t.rel + ' publishes a population from a path the sample helper does not hold',
-          blanked.indexOf("'POPULATION '") >= 0 || /JSON\.stringify\(emptyPopulation\)/.test(blanked),
-          'absent — only the sample publishes an object'
-        );
+        /* THE REAL PATH, read off the blanked source: a real call must survive the blanking, so the
+           object exists on a path a run takes and not only under the sample flag. BLANKING READS
+           MASKED SOURCE — `classifyTool` masks before it blanks, and the brace matcher walks to EOF
+           on a brace inside a string or a comment. Measured 2026-10-28 on nsrr-oxydex-odi: raw source
+           blanked from the sample helper to the last line, so every real call vanished and this leg
+           reported an absence that was the probe's own. The mask empties string bodies, so the probe
+           is the primitive and not the printed word.
+           Row 2026-10-28-the-sample-blanking-contract-reads-masked-source. */
+        var blanked = CR.blankSampleHelpers(env.argvReads.maskNonCode(src));
+        T.ok(t.rel + ' publishes a population from a path the sample helper does not hold', /populationVerdict\(/.test(blanked), 'absent — only the sample publishes an object');
       });
       /* CONTROL · the clearance is not vacuous: gut the real `populationVerdict` calls in each and
          the class falls out of `reports`. Every sample call survives the gut, which is the point —
@@ -12657,10 +12663,22 @@
       }
       /* CONTROL · the three still pass their own selftests, so the exit arms are asserted from
          inside as well as from here. */
+      /* A COUNT OR A DECLARED DEBT, never silence. `selftest-all.mjs` carries an UNPARSEABLE_RATCHET
+         that may only shrink, and nsrr-stage-validate is one of its members: its selftest ticks a line
+         per assertion and prints no total. Asserting a count outright would red on a debt the repo has
+         already recorded, so the leg reads the ratchet, and the second leg is the tripwire that makes
+         the debt payable — the day the tool counts, its ratchet row has to go. */
+      var SA = TT['tools/selftest-all.mjs'] || '';
+      var ratchet = (SA.match(/UNPARSEABLE_RATCHET\s*=\s*new Set\(\[([\s\S]*?)\]\)/) || [])[1] || '';
+      T.ok('ANTI-VACUITY · the unparseable-selftest ratchet is readable', ratchet.split("'").length - 1 >= 20, (ratchet.split("'").length - 1) / 2 + ' entries');
       ['tools/nsrr-oxydex-odi.mjs', 'tools/nsrr-criterion-sweep.mjs', 'tools/nsrr-stage-validate.mjs'].forEach(function (rel) {
+        var stem = rel.replace(/^.*\//, '');
         var self = probe(rel, ['--selftest']);
         T.eq('CONTROL · ' + rel + ' passes its own selftest', self.status, 0);
-        T.ok('…and counts the assertions it ran', /(\d+)\s+(passed|assertion)/.test(String(self.out)), String(self.out).slice(-200));
+        var counted = /(\d+)\s+(passed|assertion)/.test(String(self.out));
+        var ratcheted = ratchet.indexOf("'" + stem + "'") >= 0;
+        T.ok('…and either counts the assertions it ran or is a declared member of the ratchet', counted || ratcheted, 'neither: ' + String(self.out).slice(-200));
+        T.ok('…and the two are exclusive, so a counting tool stops being carried as debt', !(counted && ratcheted), stem + ' counts its assertions and is still listed as unparseable');
       });
     });
     /* ════ A PUBLISHED CONTROL CARRIES THE POPULATION IT WAS COMPUTED OVER ══════════════════════
