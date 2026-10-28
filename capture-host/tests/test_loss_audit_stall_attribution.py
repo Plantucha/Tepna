@@ -286,3 +286,110 @@ def test_an_ABSENT_journalctl_leaves_the_callback_half_unread_and_still_reads_th
     got = loss_audit.read_stall_attribution(SINCE, UNTIL, night, run=boom)
     assert got["callback_watch"]["armed"] is None
     assert got["stall_sampler"]["rows"] == 1, "the file half must answer without the journal"
+
+
+# ── WHAT THE MUTATION GATE SAW THAT NOTHING ABOVE OBSERVED ───────────────────────────────────────────
+# Each case below pins a value a mutant moved while the suite stayed green. The names say which reading
+# the night loses, never which mutant, because the mutant numbering is not stable across a rewrite.
+
+
+def test_a_ZERO_MS_callback_reports_zero_rather_than_a_floor():
+    """`worst_ms` starts at the identity of `max`, so the shortest event the daemon logs is reportable."""
+    got = loss_audit.callback_watch(["slow callback: task:x held the loop 0 ms — y (seen 1, worst 0 ms)"])
+    assert got["events"] == {"task:x": {"n": 1, "worst_ms": 0.0}}, got
+
+
+def test_TWO_torn_lines_count_TWO_and_the_rows_BEHIND_them_are_still_read(tmp_path):
+    """A tear stops the LINE, never the file. The daemon appends while it runs, so a tear sits last only
+    when nothing follows it — and the rows behind one are the night's own stalls."""
+    night = str(tmp_path / "2026-09-25")
+    _jsonl(night, '{"schema": "tepna.stall/1", "lag_m', "not json at all", _row(), _row())
+    got = loss_audit.stall_rows(night)
+    assert got["torn_lines"] == 2, got
+    assert got["rows"] == 2, got
+
+
+def test_the_thread_key_is_the_thread_AND_its_first_frame_and_a_repeat_counts(tmp_path):
+    """The key answers WHERE the loop was held, so the frame belongs in it. A thread name alone names the
+    sampler's own thread on every row it ever writes."""
+    night = str(tmp_path / "2026-09-25")
+    _jsonl(night, _row(), _row())
+    got = loss_audit.stall_rows(night)
+    assert got["threads"] == {"MainThread:nightqc.summarize:41": 2}, got
+
+
+def test_TWO_stackless_rows_count_TWO(tmp_path):
+    night = str(tmp_path / "2026-09-25")
+    _jsonl(night, _row(stacks=None), _row(stacks={}))
+    got = loss_audit.stall_rows(night)
+    assert got["rows_without_stacks"] == 2 and got["rows"] == 2, got
+
+
+def test_the_worst_lag_keeps_the_samplers_OWN_precision_and_a_zero_reads_zero(tmp_path):
+    """One decimal of a millisecond: the sampler logs `lag_ms` as a float, and both a coarser and a
+    finer rounding read as a different stall."""
+    night = str(tmp_path / "2026-09-25")
+    _jsonl(night, _row(lag_ms=0.0))
+    assert loss_audit.stall_rows(night)["worst_lag_ms"] == 0.0, "the worst starts at max's identity"
+    _jsonl(night, _row(lag_ms=2.25))
+    assert loss_audit.stall_rows(night)["worst_lag_ms"] == 2.2, "one decimal, neither two nor none"
+
+
+def test_an_EMPTY_file_reports_a_MEASURED_zero_for_the_cap_and_for_what_it_dropped(tmp_path):
+    """The file exists, so every count is a reading. Only the worst lag is null, because no row carries
+    one — §∅ applies per field, not per file."""
+    night = str(tmp_path / "2026-09-25")
+    _jsonl(night)
+    got = loss_audit.stall_rows(night)
+    assert got["dropped_past_cap"] == 0 and got["capped"] is False, got
+    assert got["threads"] == {} and got["torn_lines"] == 0, got
+
+
+def test_a_row_carrying_NO_dropped_count_reads_zero_rather_than_one(tmp_path):
+    """The sampler writes `dropped_before` only once it has capped, so its absence is a zero it measured."""
+    night = str(tmp_path / "2026-09-25")
+    _jsonl(night, _row(dropped_before=None), _row(dropped_before=0))
+    assert loss_audit.stall_rows(night)["dropped_past_cap"] == 0
+
+
+def test_the_journal_read_is_BOUNDED_so_a_wedged_journalctl_cannot_hold_the_audit(tmp_path):
+    """The audit runs per night inside the morning's own window. An unbounded read here would hand a
+    stuck journalctl the whole run, and the reader's refusal path exists for exactly that."""
+    seen = {}
+
+    def fake(argv, **kw):
+        seen["argv"], seen["kw"] = argv, kw
+        return _R(0, "")
+
+    loss_audit.read_stall_attribution(SINCE, UNTIL, str(tmp_path), run=fake)
+    assert seen["kw"]["timeout"] == 120, seen["kw"]
+    assert seen["argv"][0] == "journalctl" and "tepna-capture" in seen["argv"], seen["argv"]
+
+
+def test_the_sampler_file_read_NAMES_its_encoding(tmp_path):
+    """`encoding="utf-8"` → `None` / dropped. The rows carry thread names and frame text, which are
+    device-independent but locale-sensitive, and a wrong codec on this reader does not announce itself:
+    a mis-decoded frame simply becomes a different `threads` key, so the night names the wrong holder.
+
+    CPython resolves the default encoding in C, so no in-process patch reaches it; `-X
+    warn_default_encoding -W error::EncodingWarning` is the supported lever and holds on a UTF-8 box and
+    a C-locale one alike. Same two rules as the sibling in test_loss_audit.py: IN-PROCESS FIRST (mutmut
+    selects a mutant's tests from coverage and a subprocess is invisible to the tracer), and NO `env=`
+    (the child must inherit `MUTANT_UNDER_TEST`, or it runs the original function however the parent was
+    mutated)."""
+    import subprocess
+    import sys
+
+    night = str(tmp_path / "2026-09-25")
+    _jsonl(night, _row(), _row(stacks={"1": {"thread": "MainThread", "frames": ["nightqc.summarize:41"]}}))
+
+    assert loss_audit.stall_rows(night)["rows"] == 2
+
+    src = f"import loss_audit\ngot = loss_audit.stall_rows({night!r})\nassert got['rows'] == 2, got\n"
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+    assert r.returncode == 0, r.stderr[-600:]

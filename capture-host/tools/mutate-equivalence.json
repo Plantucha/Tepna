@@ -1571,6 +1571,38 @@
       "key": "- return write_night(night, devices, commit=None, **readers) | + return write_night(night, devices, **readers)",
       "probe": "Hand-applied 2026-10-19 one at a time with PYTHONDONTWRITEBYTECODE=1, against the whole of tests/test_loss_audit.py (170 tests), reverted after and the file confirmed byte-identical: SURVIVED, 170 passed. Read the signature in the same session: `inspect.signature(write_night).parameters['commit']` is `default=None, kind=KEYWORD_ONLY`, so the mutant passes exactly what the default supplies. POSITIVE CONTROLS in the same sweep, on this same call: dropping `**readers` and emptying `devices` were each KILLED by that run (1 failed, 169 passed), so the suite does observe a changed argument list here.",
       "why": "The explicit keyword passes the value the signature already defaults to, so the original and the mutant bind `write_night`'s parameters identically and no input separates them. The keyword stays because a synthetic night records NO commit and the call should say so. The claim is self-policing: give `write_night`'s `commit` a different default and this mutant becomes distinguishable, which this gate reports as REFUTED rather than passing quietly."
+    },
+    {
+      "brief": "O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF.md (unit stallwho, the loop-attribution reader)",
+      "class": "no-distinguishing-input",
+      "function": "callback_watch",
+      "key": "- last: bool | None = None | + last: bool | None = \"\"",
+      "probe": "battery run 2026-10-28 on this head over the REAL module and a per-mutant copy of its source, 124 cases each: 16 line lists through `callback_watch` (empty, ON only, OFF only, both orders, an event alone, a 0 ms event, an event with each pair line, repeats, two unrelated lines, two near-miss event spellings, the sampler pair), and 12 night-directory shapes through `stall_rows` (absent, empty file, one row, two rows, a torn line, blank-padded, capped with a dropped count, stackless, a non-ASCII thread written UTF-8, raw non-ASCII bytes, a JSON list, a bare scalar), each also through `read_stall_attribution` under 8 injected runners (rc 0 empty, ON, OFF, event, blank lines; rc 1; OSError; TimeoutExpired). Every case was compared as sorted JSON, and a raise was recorded as an output. 0 of 124 differ for each of the four.",
+      "why": "STRUCTURAL, not a sampling: `last` is never returned and never truthiness-tested. It is read only by `last is True` and `last is False`, and any ON or OFF line overwrites it before either read. So the initial value is observable only on a window carrying neither line, where `\"\"` fails both identity tests exactly as `None` does, and the function falls to its third return."
+    },
+    {
+      "brief": "O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF.md (unit stallwho, the loop-attribution reader)",
+      "class": "no-distinguishing-input",
+      "function": "callback_watch",
+      "key": "- seen_event = False | + seen_event = None",
+      "probe": "battery run 2026-10-28 on this head over the REAL module and a per-mutant copy of its source, 124 cases each: 16 line lists through `callback_watch` (empty, ON only, OFF only, both orders, an event alone, a 0 ms event, an event with each pair line, repeats, two unrelated lines, two near-miss event spellings, the sampler pair), and 12 night-directory shapes through `stall_rows` (absent, empty file, one row, two rows, a torn line, blank-padded, capped with a dropped count, stackless, a non-ASCII thread written UTF-8, raw non-ASCII bytes, a JSON list, a bare scalar), each also through `read_stall_attribution` under 8 injected runners (rc 0 empty, ON, OFF, event, blank lines; rc 1; OSError; TimeoutExpired). Every case was compared as sorted JSON, and a raise was recorded as an output. 0 of 124 differ for each of the four.",
+      "why": "STRUCTURAL: the only read is `if seen_event or last is True`, and any event line assigns `True` before it. `None` and `False` are both falsy, so the initial value cannot change which branch that `or` takes."
+    },
+    {
+      "brief": "O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF.md (unit stallwho, the loop-attribution reader)",
+      "class": "no-distinguishing-input",
+      "function": "read_stall_attribution",
+      "key": "- lines: list[str] | None = None | + lines: list[str] | None = \"\"",
+      "probe": "battery run 2026-10-28 on this head over the REAL module and a per-mutant copy of its source, 124 cases each: 16 line lists through `callback_watch` (empty, ON only, OFF only, both orders, an event alone, a 0 ms event, an event with each pair line, repeats, two unrelated lines, two near-miss event spellings, the sampler pair), and 12 night-directory shapes through `stall_rows` (absent, empty file, one row, two rows, a torn line, blank-padded, capped with a dropped count, stackless, a non-ASCII thread written UTF-8, raw non-ASCII bytes, a JSON list, a bare scalar), each also through `read_stall_attribution` under 8 injected runners (rc 0 empty, ON, OFF, event, blank lines; rc 1; OSError; TimeoutExpired). Every case was compared as sorted JSON, and a raise was recorded as an output. 0 of 124 differ for each of the four.",
+      "why": "A successful journal read overwrites `lines`, so this value reaches `stall_attribution` only on the refusal path. There it meets two consumers, and `\"\"` satisfies both: `lines is not None` becomes true, and `callback_watch(\"\")` iterates no character and returns the same three keys the `None` arm states literally; `for ln in lines or []` reads `\"\"` as falsy and iterates nothing either way."
+    },
+    {
+      "brief": "O2RING-FREEZE-SURVIVAL-2026-10-13-BRIEF.md (unit stallwho, the loop-attribution reader)",
+      "class": "no-distinguishing-input",
+      "function": "stall_rows",
+      "key": "- out = dict.fromkeys(stall_rows_keys(), None) | + out = dict.fromkeys(stall_rows_keys(), )",
+      "probe": "battery run 2026-10-28 on this head over the REAL module and a per-mutant copy of its source, 124 cases each: 16 line lists through `callback_watch` (empty, ON only, OFF only, both orders, an event alone, a 0 ms event, an event with each pair line, repeats, two unrelated lines, two near-miss event spellings, the sampler pair), and 12 night-directory shapes through `stall_rows` (absent, empty file, one row, two rows, a torn line, blank-padded, capped with a dropped count, stackless, a non-ASCII thread written UTF-8, raw non-ASCII bytes, a JSON list, a bare scalar), each also through `read_stall_attribution` under 8 injected runners (rc 0 empty, ON, OFF, event, blank lines; rc 1; OSError; TimeoutExpired). Every case was compared as sorted JSON, and a raise was recorded as an output. 0 of 124 differ for each of the four.",
+      "why": "`dict.fromkeys`'s own default value IS `None`, so the two spellings are one call. No input can separate them, and the absent-file path still returns every key of `stall_rows_keys()` null."
     }
   ],
   "mmeta.py": [
