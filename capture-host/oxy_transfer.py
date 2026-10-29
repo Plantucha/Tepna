@@ -315,6 +315,11 @@ class VerifyResult:
     reason: str
     size: int
     sha256: str | None
+    #: The trailer's own declared `total_seconds`, carried out of the layer-3 walk that already read it.
+    #: APPENDED LAST, DEFAULTED: every construction below is positional, and a field inserted earlier
+    #: would silently re-point four of them. Only the ok path sets it — a rejected file declares
+    #: nothing, so a number beside a `False` would be a declaration this layer never accepted.
+    total_seconds: int | None = None
 
 
 _BY_LABEL = {f.label: f for f in FailureClass}
@@ -541,7 +546,12 @@ def verify(part_path: str, reported_size: int | None, parse_trailer) -> VerifyRe
             None,
         )
     return VerifyResult(
-        True, VALIDATION_DEPTH, f"size+finalised+records: {n_records} records at {size} B", size, inv.sha256_bytes(data)
+        True,
+        VALIDATION_DEPTH,
+        f"size+finalised+records: {n_records} records at {size} B",
+        size,
+        inv.sha256_bytes(data),
+        n_records,
     )
 
 

@@ -6368,6 +6368,111 @@ def _oxyii_on_data(cx: _OxyiiLink, _s, d) -> None:
 _OXY_REC_TAIL_BYTES = 65536  # how much of OXYLIFE.csv the boot read looks at — the tail holds the last row
 
 
+def _oxy_rec_journals(root, now_ms):
+    """`[(path, tail_text)]` for each OXYLIFE.csv that exists in the two night directories a rec row can
+    be in, oldest first. Reads only, creates nothing.
+
+    TWO night directories, because the writer appends into the night dir of the SESSION's start date and
+    that stays yesterday's folder all day (`solid_night`'s measured case). One directory would read an
+    empty file every morning, on exactly the days these readers are for.
+
+    THE TAIL ONLY. This file carries every link transition of the day — hundreds of rows — and both
+    callers want its last rec row. A torn first line is what `rec_journal_rows` already skips.
+
+    `night_dir` is deliberately not called: it creates the directory, and a reader that creates a night
+    folder would make an empty night look like a captured one. The PATH rides along with the text
+    because the confirming caller writes its row back into the file the candidate came out of."""
+    out = []
+    day = _dt.datetime.fromtimestamp(now_ms / 1000.0)  # LOCAL, matching night_dir's own strftime
+    for d in (day - _dt.timedelta(days=1), day):
+        path = os.path.join(root, "captures", d.strftime("%Y-%m-%d"), "OXYLIFE.csv")
+        try:
+            with open(path, "rb") as fh:
+                fh.seek(0, 2)
+                size = fh.tell()
+                fh.seek(max(0, size - _OXY_REC_TAIL_BYTES))
+                out.append((path, fh.read().decode("utf-8", "replace")))
+        except OSError:
+            continue  # no journal there: the reader's caller seeds UNKNOWN, or confirms nothing
+    return out
+
+
+def _oxy_rec_confirm(root, stored_s, now_ms, *, device=None, device_id=None):
+    """Confirm a witnessed close against the pulled artifact's OWN declared duration, and journal it.
+    Returns the transitions written, `[]` when nothing confirmed.
+
+    `OxyRecEngine.confirm_end` is the only producer of END_CONFIRMED, and until this caller it had none
+    outside its tests: 363 END_CANDIDATE rows on vigil, 0 confirmations.
+
+    THE ENGINE IS SEEDED FROM THE JOURNAL, never held between the close and the pull. The pull lands
+    minutes to hours after the close, often in a later process, and the journal is the one place that
+    survives that gap — the same reading `boot_rec_state` already does for the boot. A module-level
+    engine registry would confirm only inside the process that watched, which is the case that was
+    already covered; this way round, a restart between close and pull still confirms.
+
+    THE ROW GOES BACK INTO THE FILE THE CANDIDATE CAME OUT OF, not into tonight's. The candidate and
+    its confirmation describe ONE session, and a reader of that night's journal would otherwise see a
+    close that never resolved.
+
+    The engine claims no `session`: the process confirming need not be the one that witnessed, so a
+    session id here would name a run that may have observed nothing."""
+    import oxy_lifecycle
+
+    held = [(p, oxy_lifecycle.rec_journal_rows(t)) for p, t in _oxy_rec_journals(root, now_ms)]
+    held = [(p, rs) for p, rs in held if rs]
+    if not held:
+        log.info("oxy rec confirm: no rec row in either journal — nothing was witnessed closing")
+        return []
+    held.sort(key=lambda pr: pr[1][-1][0])  # by each file's own newest rec row
+    path = held[-1][0]
+    rows = sorted((r for _p, rs in held for r in rs), key=lambda r: r[0])
+    seed, why = oxy_lifecycle.boot_rec_state(rows, now_ms)
+    eng = oxy_lifecycle.OxyRecEngine(device_id=device_id, state=seed.state, closed_at_duration=seed.closed_at_duration)
+    out = eng.confirm_end(int(stored_s))
+    if not out:
+        log.info("oxy rec confirm: the artifact declares %ss and nothing confirmed (%s)", stored_s, why)
+        return []
+    # Journaling must never damage the pull it describes — the same discipline as `_rec_emit`. The bytes
+    # are already committed; a write failure costs the confirmation row, not the recording.
+    try:
+        w = OxyLifeLogWriter(path, device=device)
+        try:
+            for t in out:
+                w.write(t)
+        finally:
+            w.close()
+    except (OSError, ValueError) as exc:
+        log.warning("oxy rec confirm: %s not written (%r) — the pull is unaffected", path, exc)
+    log.info("oxy rec confirm: %s", out[-1].reason)
+    return out
+
+
+def _oxy_rec_confirm_pulled(root, paths, *, device=None, device_id=None):
+    """Feed each freshly pulled `.dat` to `_oxy_rec_confirm`, and stop at the first confirmation.
+
+    THE NUMBER COMES OUT OF A FILE THAT PASSED THE RECORD-BOUNDARY WALK (`oxy_transfer.verify`, layer
+    3), not out of a bare trailer read. A right-sized, finalised file can still hide a shifted record
+    grid, and a confirmation is a claim that the stored session IS the one the axis watched close —
+    confirming that from bytes nothing vouched for is the resume path's asymmetry over again.
+
+    A `.part` is skipped: a short pull declares nothing. More than one session can land in one pull, and
+    only one of them can be the close this journal witnessed, so the first agreement wins and the rest
+    are left alone."""
+    import oxy_transfer
+    import oxyii
+
+    for p in paths:
+        if not str(p).endswith(".dat"):
+            continue
+        vr = oxy_transfer.verify(p, None, oxyii.parse_oxy_trailer)
+        if not vr.ok or vr.total_seconds is None:
+            continue
+        out = _oxy_rec_confirm(root, vr.total_seconds, _time.time() * 1000.0, device=device, device_id=device_id)
+        if out:
+            return out
+    return []
+
+
 def _oxy_rec_boot(root, now_ms):
     """The `RecSeed` a just-started daemon should construct the RECORDING axis with. Reads two file
     tails; decides nothing. The twin of `_cpap_autostart_boot`, on the pattern that function set.
@@ -6383,18 +6488,7 @@ def _oxy_rec_boot(root, now_ms):
     night folder would make an empty night look like a captured one."""
     import oxy_lifecycle
 
-    text = ""
-    day = _dt.datetime.fromtimestamp(now_ms / 1000.0)  # LOCAL, matching night_dir's own strftime
-    for d in (day - _dt.timedelta(days=1), day):
-        path = os.path.join(root, "captures", d.strftime("%Y-%m-%d"), "OXYLIFE.csv")
-        try:
-            with open(path, "rb") as fh:
-                fh.seek(0, 2)
-                size = fh.tell()
-                fh.seek(max(0, size - _OXY_REC_TAIL_BYTES))
-                text += fh.read().decode("utf-8", "replace")
-        except OSError:
-            continue  # no journal there: `boot_rec_state` seeds UNKNOWN, and says so
+    text = "".join(t for _p, t in _oxy_rec_journals(root, now_ms))
     rows = oxy_lifecycle.rec_journal_rows(text)
     seed, why = oxy_lifecycle.boot_rec_state(rows, now_ms)
     log.info("oxy rec boot: %s", why)
@@ -7518,6 +7612,11 @@ async def pull_oxyii_session(
             _power_flush(name)
             log.info("%s: stored-session pull finished — resuming live capture", name)
 
+    # THE RECORDING AXIS'S CLOSE EARNS ITS CONFIRMATION HERE. Every harvest route — charger, not-worn,
+    # presence, hourly and the API — reaches the ring through this one function, so the confirmation is
+    # wired once rather than per trigger. It reads files and appends one journal row; it changes nothing
+    # about the pull, and `_oxy_rec_confirm` swallows its own write failures.
+    _oxy_rec_confirm_pulled(root, saved, device=name, device_id=dev.get("device_id"))
     return {
         "ok": True,
         "new_files": [os.path.basename(f) for f in saved],

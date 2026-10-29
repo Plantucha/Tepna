@@ -591,7 +591,12 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # in `oxy_lifecycle`, which this module-wide exclusion does not cover, so the blind spot gains one
     # file-reading function and no logic. `moduleFunctionsAtDeclaration` stays where it is, per the note
     # above.
-    assert n == 333, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 333 → 336 on 2026-10-28 (O2RING-BOOT-RECOVERY §9, unit 122): `_oxy_rec_journals` (the tail read
+    # the boot and the confirmation now share), `_oxy_rec_confirm` and `_oxy_rec_confirm_pulled`. +3,
+    # the whole delta — all three read files and write one journal row; the decisions they feed,
+    # `boot_rec_state` and `confirm_end`, are PURE and live in `oxy_lifecycle`, which this module-wide
+    # exclusion does not cover. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 336, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
