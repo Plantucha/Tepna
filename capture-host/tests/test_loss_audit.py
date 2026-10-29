@@ -2570,6 +2570,7 @@ def test_the_audit_records_each_devices_ADDRESS_so_the_A5_consumer_can_claim_a_r
         {"name": "Polar H10 0284", "model": "H10", "address": "AA:BB:CC:DD:EE:FF"},
         {"name": "Polar Sense SPARE", "model": "VERITY"},
         {"model": "O2RING", "address": "11:22:33:44:55:66"},
+        {"name": "Nameplate only", "address": "66:55:44:33:22:11"},
         "not-a-device",
     ]
     a = loss_audit.audit_night(d, devs, journal=lambda *a: [], clock_events=lambda *a, **k: [])
@@ -2577,7 +2578,11 @@ def test_the_audit_records_each_devices_ADDRESS_so_the_A5_consumer_can_claim_a_r
         "Polar H10 0284": "AA:BB:CC:DD:EE:FF",
         "Polar Sense SPARE": None,
         "O2RING": "11:22:33:44:55:66",
+        "Nameplate only": "66:55:44:33:22:11",
     }, "a bare string is not a device, and a device with no name is keyed by the model the rest keys on"
+    # THE NAME-ONLY DEVICE IS WHAT MAKES THE `name` LOOKUP LOAD-BEARING. Every other entry here carries a
+    # `model`, so the filter admitted them whatever it asked for first, and mutant 98 of the diff-scoped
+    # gate on #4094 survived by dropping the `name` clause. A config device needs neither key by schema.
 
 
 def test_a_clock_event_record_is_NOT_a_loss_cause_bin(tmp_path):

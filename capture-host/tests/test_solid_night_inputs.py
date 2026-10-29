@@ -2274,26 +2274,29 @@ def test_an_address_only_record_OUTSIDE_the_worn_interval_is_not_counted(tmp_pat
 
 
 def test_the_matched_out_COUNTS_accumulate_and_the_whole_string_is_asserted(tmp_path):
-    """Two counters, one string, and a one-record fixture cannot see either of them accumulate. `= 1` for
-    `+= 1` reads the same on one record, and `-= 1` hides behind a substring match because "-1 of 1"
-    contains "1 of 1". So this leg carries THREE in-window records, two of them address-only, and asserts
-    the whole `how` string by equality. The third names another device, which is counted in the window and
-    not in the matched-out share."""
+    """🔴 ONE RECORD PER COUNTER CANNOT SEE EITHER COUNTER ACCUMULATE: `= 1` reads exactly like `+= 1`
+    there, and `-= 1` hides behind a substring match because "-1 of 1" contains "1 of 1". The first cut of
+    this leg carried one excluded record and one address-only record, and the diff-scoped mutation gate on
+    #4094 proved it blind — mutants 64 and 81 survived it. So each counter now gets TWO records, and the
+    whole `how` string is asserted by equality. A fifth record names another device, which the window
+    counts and neither matched-out share does."""
     night = tmp_path / "2026-09-20"
-    ats = [(T0 + dt.timedelta(minutes=m)).isoformat(timespec="seconds") for m in (5, 6, 7)]
+    ats = [(T0 + dt.timedelta(minutes=m)).isoformat(timespec="seconds") for m in (5, 6, 7, 8, 9)]
     p = _audit_with(
         night,
         [
             {"at": ats[0], "phrase": "device clock unreadable", "devices": ["AA:BB:CC:DD:EE:FF"]},
-            {"at": ats[1], "phrase": "device clock JUMPED", "devices": ["11:22:33:44:55:66"]},
-            {"at": ats[2], "phrase": "re-sync busy", "devices": ["Polar Sense SPARE"]},
+            {"at": ats[1], "phrase": "device clock unreadable", "devices": ["11:22:33:44:55:66"]},
+            {"at": ats[2], "phrase": "device clock JUMPED", "devices": ["11:22:33:44:55:66"]},
+            {"at": ats[3], "phrase": "re-sync busy", "devices": ["99:88:77:66:55:44"]},
+            {"at": ats[4], "phrase": "re-sync busy", "devices": ["Polar Sense SPARE"]},
         ],
     )
     recs, how = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
     assert recs == [], "no record names this device, so the set is unchanged and only `how` moves"
     assert how == (
-        "seam sidecar + journal clock events (1 of 3 in-window records name only an address and this "
-        "night records no address for the device; 1 of 3 in-window records carry an event that wrote no "
+        "seam sidecar + journal clock events (2 of 5 in-window records name only an address and this "
+        "night records no address for the device; 2 of 5 in-window records carry an event that wrote no "
         "clock) + CLOCKSYNC.csv"
     ), "each count accumulates on its own note, and equality sees a sign flip a substring match would not"
 
