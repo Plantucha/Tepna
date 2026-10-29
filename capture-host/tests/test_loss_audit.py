@@ -2559,6 +2559,32 @@ def test_every_one_of_the_four_clock_event_phrases_is_a_record(tmp_path):
     assert [p for _t, p, _ln in ev] == list(loss_audit.CLOCK_EVENT_PHRASES)
 
 
+def test_the_audit_records_each_devices_ADDRESS_so_the_A5_consumer_can_claim_a_record(tmp_path):
+    """🔴 A CLOCK-EVENT LINE USUALLY NAMES ONLY THE ADDRESS and the A5 consumer holds a NAME, so 113
+    of 115 in-window records over 70 audits reached neither A5 arm for want of this binding — measured
+    2026-10-28 on the capture host, and the owner ruled the same day that a record matches by name or by
+    address. The verdict side reads no config and no journal, so the binding travels with the night. A
+    device the config gives no address keeps a null, which leaves absence readable as absence (∅)."""
+    d = _night(tmp_path)
+    devs = [
+        {"name": "Polar H10 0284", "model": "H10", "address": "AA:BB:CC:DD:EE:FF"},
+        {"name": "Polar Sense SPARE", "model": "VERITY"},
+        {"model": "O2RING", "address": "11:22:33:44:55:66"},
+        {"name": "Nameplate only", "address": "66:55:44:33:22:11"},
+        "not-a-device",
+    ]
+    a = loss_audit.audit_night(d, devs, journal=lambda *a: [], clock_events=lambda *a, **k: [])
+    assert a["device_addresses"] == {
+        "Polar H10 0284": "AA:BB:CC:DD:EE:FF",
+        "Polar Sense SPARE": None,
+        "O2RING": "11:22:33:44:55:66",
+        "Nameplate only": "66:55:44:33:22:11",
+    }, "a bare string is not a device, and a device with no name is keyed by the model the rest keys on"
+    # THE NAME-ONLY DEVICE IS WHAT MAKES THE `name` LOOKUP LOAD-BEARING. Every other entry here carries a
+    # `model`, so the filter admitted them whatever it asked for first, and mutant 98 of the diff-scoped
+    # gate on #4094 survived by dropping the `name` clause. A config device needs neither key by schema.
+
+
 def test_a_clock_event_record_is_NOT_a_loss_cause_bin(tmp_path):
     """`KINDS` bins a line as the CAUSE of a gap; these phrases record that a clock event happened at all,
     whether or not a gap followed. Folding them together would change loss attribution."""
