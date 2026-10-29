@@ -512,12 +512,12 @@ the three that are not are precisely the ones gated on the recording axis. Mappe
 | § | case | status | where |
 |---|---|---|---|
 | 1 | host restarts while **not connected** | ✅ covered | `crash_1_before_any_request_leaves_nothing`, `crash_9_after_the_ledger_write_everything_agrees` |
-| 2 | host restarts **during recording** | 🔴 **unblocked 2026-09-25: the recording axis landed as #1751 — not executed** | needs the recording axis — nothing durable records "a recording is in progress on the device" |
-| 3 | host restarts **immediately after recording ends** | 🔴 **blocked** | `END_CANDIDATE` must survive a restart before this is testable |
+| 2 | host restarts **during recording** | ✅ covered 2026-10-28 (unit 121) | `test_the_boot_reader_restores_a_candidate_from_tonight_journal`, `test_a_seeded_recording_still_witnesses_the_NEXT_close` |
+| 3 | host restarts **immediately after recording ends** | ✅ covered 2026-10-28 (unit 121) | `test_an_end_candidate_comes_back_WITH_the_number_it_closed_at`, `test_a_seeded_end_candidate_confirms_through_the_pull_path` |
 | 4 | host restarts **during `.dat` download** | ✅ covered | `crash_3_mid_download_leaves_a_part_that_is_never_adopted`, `crash_4_complete_looking_bytes_are_still_not_adopted`, `resume_truncates_a_longer_stale_part_rather_than_splicing` |
 | 5 | host restarts **after download, before atomic commit** | ✅ covered | `crash_6_verified_but_not_committed_is_recoverable`, `crash_7_a_failed_rename_leaves_the_source_never_neither` |
 | 6 | host restarts **after commit, before analysis** | ✅ covered | `crash_8_committed_bytes_with_a_stale_ledger_are_repulled_never_lost` |
-| 7 | **BLE disconnects during recording** | 🔴 **unblocked 2026-09-25: the recording axis landed as #1751 — not executed** | recording axis again |
+| 7 | **BLE disconnects during recording** | ✅ covered — never a boot case | `test_link_loss_moves_to_unknown_never_not_recording`, `test_link_loss_forgets_the_counter_so_reconnect_starts_from_ignorance`, `test_link_loss_while_already_unknown_is_silent` |
 | 8 | **BLE disconnects during `.dat` pull** | ✅ covered | `download_reports_a_transport_exception_as_transport`, `select_retries_a_recoverable_failure_within_the_bound`, `select_stops_at_the_attempt_bound` |
 
 **The four reconciliation legs §22 names are all implemented**, and it is worth naming which function
@@ -539,8 +539,9 @@ about **reconciliation**, and the honest reading of "§22 is 5/8 done" is *"five
 reconciliation behaviours are pinned"*, not *"five of the eight crashes have been survived in
 production"*.
 
-**What to build when the axis lands:** cases 2, 3 and 7 — one restart-reconciliation test each, keyed
-on `OxyRecState` surviving a restart. They belong with unit 2, not before it.
+**Built 2026-10-28, unit 121** (`O2RING-BOOT-RECOVERY-DECISION-2026-10-28-BRIEF.md` §8). Cases 2 and 3
+are restart cases, and `boot_rec_state` is what makes `OxyRecState` survive a restart. Case 7 is a link
+drop, which the axis answered from the start, so it needed no new test.
 
 
 ## 11 · §23 T0–T7 — three stamps have a home, and the ledger IS written in production

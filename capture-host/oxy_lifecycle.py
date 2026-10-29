@@ -162,6 +162,11 @@ class Transition:
     # INDEPENDENT dimensions, one journal, correlation in the reader). The two vocabularies are disjoint,
     # so even an axis-blind reader cannot confuse a rec row's states with link states.
     axis: str = ""
+    #: The RECORDING axis's measured close, as a NUMBER rather than inside `reason` — appended last
+    #: 2026-10-28 per the append-never-insert rule, so a 9-column historical row still parses. Written
+    #: only on rows whose `new` is END_CANDIDATE or END_CONFIRMED; absent everywhere else, and absent
+    #: is an EMPTY field, never 0 (0 is a legal duration). `boot_rec_state` reads it back.
+    closed_at_duration: int | None = None
 
     def as_row(self) -> str:
         def _f(v) -> str:
@@ -178,6 +183,7 @@ class Transition:
                 _f(self.session_id),
                 _f(self.failure.label if self.failure else None),
                 self.axis,
+                _f(self.closed_at_duration),
             )
         )
 
@@ -263,6 +269,8 @@ class OxyRecState(Enum):
 
 _R = OxyRecState
 
+REC_AXIS = "rec"  # the OXYLIFE.csv `axis` column value for this axis; blank = LINK, "power" = oxy_power
+
 REC_LEGAL_TRANSITIONS = frozenset(
     {
         (_R.UNKNOWN, _R.RECORDING),
@@ -271,6 +279,11 @@ REC_LEGAL_TRANSITIONS = frozenset(
         (_R.NOT_RECORDING, _R.UNKNOWN),
         (_R.RECORDING, _R.END_CANDIDATE),
         (_R.RECORDING, _R.UNKNOWN),
+        # RECORDING → NOT_RECORDING is reachable ONLY from a boot seed (added 2026-10-28 with
+        # `boot_rec_state`). Under continuous observation the counter cannot step from positive to 0
+        # without passing `duration < prev` first, so this edge would be dead code without the seed —
+        # and WITH the seed its absence left a seeded RECORDING with no way out of a ring reading 0.
+        (_R.RECORDING, _R.NOT_RECORDING),
         # END_CANDIDATE → RECORDING: a new session began before the old one's pull confirmed — the ring is
         # re-donned. The candidate's confirmation debt lives in the inventory ledger, not in this axis.
         (_R.END_CANDIDATE, _R.END_CONFIRMED),
@@ -330,7 +343,13 @@ class OxyRecEngine:
             host_wall=self.wall(),
             device_id=self.device_id,
             session_id=self.session_id,
-            axis="rec",
+            axis=REC_AXIS,
+            # Only the two states the number describes carry it. A RECORDING row carrying the PREVIOUS
+            # session's close would read as this session's, and the reader cannot tell a stale number
+            # from a current one.
+            closed_at_duration=(
+                self.closed_at_duration if new in (OxyRecState.END_CANDIDATE, OxyRecState.END_CONFIRMED) else None
+            ),
         )
         self.state = new
         self.history.append(t)
@@ -352,7 +371,20 @@ class OxyRecEngine:
             if duration > 0:
                 out.append(self._to(OxyRecState.RECORDING, f"duration_s left 0 (→{duration})"))
         elif st is OxyRecState.RECORDING:
-            if prev is not None and duration < prev:
+            if prev is None and duration == 0:
+                # A SEEDED RECORDING, first observation, ring at 0 — reachable only through
+                # `boot_rec_state`. The session that seed described is over, and its close went
+                # unwitnessed: nothing measured what the counter read at close. So this is
+                # NOT_RECORDING with NO candidate — an END_CANDIDATE whose `closed_at_duration` is
+                # absent can never confirm (`confirm_end` refuses on None), which would be a state
+                # that only looks like evidence.
+                out.append(
+                    self._to(
+                        OxyRecState.NOT_RECORDING,
+                        "seeded RECORDING and duration_s reads 0 — the close went unwitnessed",
+                    )
+                )
+            elif prev is not None and duration < prev:
                 self.closed_at_duration = prev
                 out.append(
                     self._to(
@@ -364,9 +396,10 @@ class OxyRecEngine:
         elif st is OxyRecState.END_CANDIDATE:
             if prev is not None and duration > prev:
                 out.append(self._to(OxyRecState.RECORDING, f"duration_s advancing ({prev}→{duration})"))
-        else:  # END_CONFIRMED — the only remaining state, and prev == 0 here BY CONSTRUCTION (the
-            # candidate held at 0 until the pull confirmed), so under continuous observation any
-            # positive counter is a NEW session opening; 0 is the ring still idle. A dead
+        else:  # END_CONFIRMED — the only remaining state. Under continuous observation prev == 0 here
+            # BY CONSTRUCTION (the candidate held at 0 until the pull confirmed); after a boot seed prev
+            # is None. Neither branch below reads prev, which is why one seed does not need a second
+            # path: any positive counter is a NEW session opening, and 0 is the ring still idle. A dead
             # `duration > prev` re-check would be an unreachable branch wearing a guard's clothes.
             if duration == 0:
                 out.append(self._to(OxyRecState.NOT_RECORDING, "duration_s reads 0"))
@@ -399,3 +432,131 @@ class OxyRecEngine:
                 )
             ]
         return []
+
+
+# ── BOOT RECOVERY for the RECORDING axis ──────────────────────────────────────────────────────────
+# (O2RING-BOOT-RECOVERY-DECISION-2026-10-28 §5, option B — the owner's ruling of 2026-10-28.)
+#
+# The axis was write-only across a host restart. A new process constructs the engine UNKNOWN with
+# `prev_duration` forgotten, so an unplanned restart inside a recording window lost `state` and the
+# `closed_at_duration` a close had already measured — the one number nothing else holds. The CPAP side
+# solved this shape first: `cpap_live.journal_rows` parses, `cpap_live.boot_start_state` decides, and
+# `capture._cpap_autostart_boot` only reads files. The two functions below are that pattern.
+#
+# They own no clock and touch no file. The caller reads the journal and passes `now_ms`.
+
+REC_CATCH_UP_MAX_AGE_S = 86400.0
+"""How old the journal's last rec row may be and still describe NOW, in seconds.
+
+Mirrors `cpap_live.CATCH_UP_MAX_AGE_S` on purpose, and the value carries different weight per state.
+For RECORDING it is nearly cosmetic: the ring re-establishes that state from its own counter inside
+one poll, measured at 38 s. For END_CANDIDATE it is the whole point — an unconfirmed close leaves a
+`.dat` unpulled, and a day-old candidate is still the only record of that session's closing counter.
+Past the bound the seed is UNKNOWN. A stale row never becomes a guess."""
+
+
+def _wall_ms(raw):
+    """Epoch ms from an ISO-8601 `host_wall` stamp, or None. Pure.
+
+    A naive stamp is read as UTC, because `_default_wall` writes `datetime.now(timezone.utc)` and a
+    naive row can only come from a writer that dropped the zone. Reading it in the host's local zone
+    would move it by the offset, which is exactly the error an age bound cannot survive."""
+    try:
+        dt = datetime.fromisoformat(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp() * 1000.0
+
+
+def rec_journal_rows(text):
+    """`[(host_ms, prev, new, closed_at_duration)]` for the RECORDING axis only, ascending. Pure.
+
+    The ONE place that knows `OXYLIFE.csv`'s layout for this axis: `host_wall` at 0, `prev` at 2, `new`
+    at 3, `axis` at 8, and the numeric `closed_at_duration` at 9 on rows written from 2026-10-28. A
+    nine-column row predates that column and yields None for it, which is the honest reading — the
+    number was never written, and 0 is a legal duration.
+
+    Skipped in silence: the `# device=` preamble, the header line, a torn first line (a caller may hand
+    us a TAIL of the file), every LINK and POWER row, and any row whose wall stamp will not parse. A
+    stamp that will not parse cannot be placed in time, and placing it by guess would hand the age
+    bound a fabricated number."""
+    rows = []
+    for line in str(text or "").splitlines():
+        parts = line.split(";")
+        if len(parts) < 9 or parts[8].strip() != REC_AXIS:
+            continue
+        ms = _wall_ms(parts[0])
+        if ms is None:
+            continue
+        closed = None
+        if len(parts) > 9 and parts[9].strip() != "":
+            try:
+                closed = int(parts[9])
+            except ValueError:
+                closed = None  # an unparseable number is ABSENT, not 0
+        rows.append((ms, parts[2].strip(), parts[3].strip(), closed))
+    # Keyed on the stamp alone. A tuple sort would compare `closed_at_duration` when two rows share a
+    # stamp, and None against an int raises.
+    rows.sort(key=lambda r: r[0])
+    return rows
+
+
+@dataclass(frozen=True)
+class RecSeed:
+    """What a just-started daemon constructs `OxyRecEngine` with.
+
+    `prev_duration` is absent by design: no journal row carries the live counter, so inventing one
+    would let the first observation after a boot read as an advance or a close. The engine therefore
+    learns the counter from the device, exactly as it does on a cold start."""
+
+    state: OxyRecState
+    closed_at_duration: int | None
+
+
+def boot_rec_state(rows, now_ms, max_age_s: float = REC_CATCH_UP_MAX_AGE_S):
+    """`(RecSeed, reason)` — the RECORDING state a just-started daemon should begin with. Pure.
+
+    The mirror of `cpap_live.boot_start_state`, and it answers the same question: does the journal
+    describe something that is still true. Every refusal returns UNKNOWN with the reason that produced
+    it, because UNKNOWN is what a cold start already uses and it costs one poll to leave.
+
+    A seeded END_CANDIDATE is the case worth the unit. It carries `closed_at_duration` back, so the
+    pull path can still confirm a close that a restart interrupted. A row from before the numeric
+    column seeds the state with no number, and says so — `confirm_end` then refuses, which is the
+    correct refusal rather than a confirmation against a borrowed figure."""
+    rows = list(rows or [])
+    if not rows:
+        return RecSeed(OxyRecState.UNKNOWN, None), "no rec rows in the journal"
+    ms, _prev, new, closed = rows[-1]
+    try:
+        state = OxyRecState(new)
+    except ValueError:
+        return RecSeed(OxyRecState.UNKNOWN, None), f"the last rec row names no known state ({new!r})"
+    try:
+        age = (float(now_ms) - float(ms)) / 1000.0
+    except (TypeError, ValueError):
+        return RecSeed(OxyRecState.UNKNOWN, None), "unusable timestamps"
+    if age < 0:
+        return (
+            RecSeed(OxyRecState.UNKNOWN, None),
+            "the journal's last rec row is in the future — clock disagreement, not a live session",
+        )
+    if age > float(max_age_s):
+        return (
+            RecSeed(OxyRecState.UNKNOWN, None),
+            f"the journal's last rec row is {age / 3600.0:.1f}h old; it does not describe now",
+        )
+    if state is OxyRecState.UNKNOWN:
+        return RecSeed(
+            OxyRecState.UNKNOWN, None
+        ), "the last rec row is UNKNOWN — the previous process ended unobservable"
+    if state in (OxyRecState.END_CANDIDATE, OxyRecState.END_CONFIRMED):
+        if closed is None:
+            return (
+                RecSeed(state, None),
+                f"{state.value} restored with no counter — that row predates the closed_at_duration column",
+            )
+        return RecSeed(state, closed), f"{state.value} restored, closed at {closed}s ({age / 60.0:.0f} min ago)"
+    return RecSeed(state, None), f"{state.value} restored ({age / 60.0:.0f} min ago)"
