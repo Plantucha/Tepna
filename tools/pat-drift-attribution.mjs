@@ -91,7 +91,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_EXPLAINS = 0.3;
@@ -272,13 +272,13 @@ async function main() {
   console.log(`ecg-axis ${ECG_AXIS}\n`);
   console.log(`bands on |obs-pred|/|obs|: <=${BAND_EXPLAINS} CLOCK EXPLAINS · <=${BAND_PARTIAL} PARTIAL · else CLOCK DOES NOT EXPLAIN\n`);
   console.log('night         ppmECG  ppmPPG   predicted   censored      RAW    ratio  rawR2   verdict');
-  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. `/^2026-/` is a NIGHT
-     RULE and goes to `snapshotNights`, which measures it against `NIGHT_RE` over the same listing;
+  /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk. `NIGHT_RE` is the SHARED NIGHT
+     RULE and goes to `snapshotNights`, which measures it over the same listing;
      `--only` is a SELECTION over that offer and stays here, named by the count it left unread. In
      one `.filter()` the two were indistinguishable, so a narrowed root read exactly like a
      deliberate selection. The three bare `continue`s below drop a night from the attribution table
      with no line, so the offer is what names them at the end rather than a count nobody can chase. */
-  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+  const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
   const selected = popBefore.nights.filter((x) => !ONLY || ONLY.has(x));
   const covered = [];
   for (const n of selected) {
@@ -368,7 +368,7 @@ async function main() {
     );
   }
   console.log('\n(ppm columns and predicted/observed slopes are in ppm, i.e. ms of lag per 1e6 ms elapsed)');
-  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RE }), {
     tool: 'tools/pat-drift-attribution.mjs',
     evidence: ['tools/pat-drift-attribution.mjs']
   });
@@ -400,8 +400,8 @@ function verdictSample() {
     digest: null,
     maxCtimeMs: null,
     at,
-    rule: String(/^2026-/),
-    ruleIsDefault: false,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
     rejectedNightShaped: [],
     admittedNonNight: []
   };
