@@ -88,6 +88,7 @@ export const STEPS = [
   'test:build-core',
   'test:trio-anchor',
   'test:fold-provenance',
+  'test:trio-fold-clock',
   'test:seqnet-port',
   'test:stage-lab-core',
   'test:oxydex-stager',
