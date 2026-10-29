@@ -65,7 +65,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_STRUCTURED = 0.3;
@@ -371,13 +371,13 @@ async function main() {
   };
   const ONLY = argv.includes('--only') ? new Set(argv[argv.indexOf('--only') + 1].split(',')) : null;
   /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk — and the two filters that
-     used to sit in one `.filter()` are DIFFERENT KINDS of statement. `/^2026-/` is a NIGHT RULE, so
-     it goes to `snapshotNights`, which measures it against `NIGHT_RE` over the same listing and
-     names what it refused and what it swallowed; `--only` is a SELECTION over that offer, so it
+     used to sit in one `.filter()` are DIFFERENT KINDS of statement. `NIGHT_RE` is the SHARED NIGHT RULE, so
+     it goes to `snapshotNights`, which measures it over the same listing and names what it refused
+     and what it swallowed; `--only` is a SELECTION over that offer, so it
      stays here and is named by the count of nights it left unread. Folded together, a narrowed root
      and a `--only` run read alike (residue
      `2026-10-21-the-reference-validation-night-filter-is-pinned-to-one-year`). */
-  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+  const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
   const selected = popBefore.nights.filter((x) => !ONLY || ONLY.has(x));
   const covered = [];
   for (const n of selected) {
@@ -443,7 +443,7 @@ async function main() {
      nights this run SCORED; the population verdict judges whether the night population moved under
      it. Folding the second into the first's `excluded` would make a narrowed root and a skipped
      night read alike, which is the defect it exists to expose. */
-  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RE }), {
     tool: 'tools/pat-residual-structure.mjs',
     commit: gitCommitShort(),
     evidence: ['tools/pat-residual-structure.mjs']

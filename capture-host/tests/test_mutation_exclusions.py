@@ -586,7 +586,12 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # `start_notify` receives, and the context it is handed is a frozen dataclass, which this count
     # does not cover. The blind spot shrinks in SHAPE, not in size: the module is still excluded whole.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 332, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 332 → 333 on 2026-10-28 (O2RING-BOOT-RECOVERY §8, unit 121): `_oxy_rec_boot`, the file read the
+    # seeded RECORDING axis needs at boot. +1, the whole delta — the decision it feeds is PURE and lives
+    # in `oxy_lifecycle`, which this module-wide exclusion does not cover, so the blind spot gains one
+    # file-reading function and no logic. `moduleFunctionsAtDeclaration` stays where it is, per the note
+    # above.
+    assert n == 333, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

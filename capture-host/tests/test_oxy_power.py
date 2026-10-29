@@ -94,7 +94,8 @@ def test_transition_rows_are_power_axis_and_write_through_the_existing_row_forma
     assert isinstance(row, oxy_lifecycle.Transition)
     assert row.axis == P.AXIS == "power"
     text = row.as_row()
-    assert text.endswith(";power")
+    # Cell 8, not the tail: `closed_at_duration` is appended tenth, and a power row never carries one.
+    assert text.split(";")[8] == "power" and text.endswith(";power;")
     assert "pw_radio_idle;pw_passive_scan;window;ring-1;sess" in text
     assert pw.drain() == [], "drain hands each row over exactly once"
 

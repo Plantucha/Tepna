@@ -51,7 +51,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -77,8 +77,8 @@ function verdictSample() {
     digest: null,
     maxCtimeMs: null,
     at,
-    rule: String(/^2026-/),
-    ruleIsDefault: false,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
     rejectedNightShaped: [],
     admittedNonNight: []
   };
@@ -227,12 +227,12 @@ console.log('  night        R-peaks   feet   paired  yield  |  PAT med   SD    I
 console.log('  ' + '-'.repeat(88));
 
 /* ONE WALK, AND THE WALK IS THE POPULATION. The two filters that used to sit in one `.filter()`
-   are DIFFERENT KINDS of statement: `/^2026-/` is this tool's own NIGHT RULE, so it goes to
-   `snapshotNights`, which measures it against the shared night shape and names every night-shaped
-   name it refused — folded into the filter it dropped a 2027 night in silence. `--night` is a
+   are DIFFERENT KINDS of statement: `NIGHT_RE` is the shared NIGHT RULE, so it goes to
+   `snapshotNights`, which measures it over the same listing and names every night-shaped name it
+   refused — folded into the filter it dropped a refused night in silence. `--night` is a
    SELECTION over that offer and stays here, named by the count of nights it leaves unread. Row
    2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one. */
-const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
 const nights = popBefore.nights.filter((d) => (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory());
 const covered = [];
 const ALL = [];
@@ -273,7 +273,7 @@ for (const n of nights) {
 console.log('  ' + '-'.repeat(88));
 /* THE POPULATION, REPORTED BEFORE THE EARLY EXIT — a run that measures nothing still walked a root,
    and the status labels MOVEMENT of the night population, never coverage. */
-const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RE }), {
   tool: 'tools/pat-literature-spec.mjs',
   evidence: ['tools/pat-literature-spec.mjs']
 });

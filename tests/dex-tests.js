@@ -11668,13 +11668,19 @@
          whatever survived, so a night-shaped name from any other year was refused with no reader
          able to see it: `pat-mode-posture.mjs` printed `eligible: 1` over a root offering two
          night-shaped directories. The rule now travels as the snapshot's `re`, which names every
-         refusal in the printed rule line. The leg pins the three halves plus a fourth: the year
-         literal must reach `snapshotNights` as a rule rather than sit in a bare `.filter()`, so
-         re-hiding it behind a hand-rolled walk reds here.
+         refusal in the printed rule line. The leg pins the three halves plus a fourth: the rule
+         must reach `snapshotNights` as a rule rather than sit in a bare `.filter()`, so re-hiding
+         it behind a hand-rolled walk reds here.
 
-         The refusal must stay the caller's own rule and not be widened into the primitive's
-         default — widening would admit a 2027 directory the authors never scored, which is a
-         population change wearing an accounting fix's clothes. */
+         🔴 THE SECOND LEG REVERSED ON 2026-10-28, BY OWNER RULING on row
+         2026-10-26-the-corpus-night-rule-is-pinned-to-one-calendar-year. It used to require the
+         literal `/^2026-/` at the call, recording the fleet's position that the refusal stays the
+         caller's own and must never widen into the primitive's default. The owner ruled the other
+         way: a night is any `YYYY-MM-DD` name whatever the year, held in ONE shared constant. So
+         the leg now requires `NIGHT_RE` — the constant `corpus-scope-core.mjs` already exported —
+         and a tool that re-pins its rule to a calendar year reds here. The behavioural half is
+         `tools/night-rule-horizon.mjs`, which plants a 2027 directory on disk and reads it back
+         through every declared scoring rule. */
       var yearWired = [
         'tools/pat-literature-spec.mjs',
         'tools/pat-mode-posture.mjs',
@@ -11694,11 +11700,11 @@
         ''
       );
       T.eq(
-        'and each one passes its own year rule to the snapshot rather than filtering a listing by hand',
+        'and each one passes the SHARED night rule to the snapshot rather than a year of its own',
         yearWired
           .filter(function (k) {
             var t = TT[k] || '';
-            return !/snapshotNights\([^)]*\{[^}]*re:\s*\/\^2026-\//.test(t);
+            return !/snapshotNights\([^)]*\{[^}]*re:\s*NIGHT_RE\b/.test(t);
           })
           .join(', '),
         ''

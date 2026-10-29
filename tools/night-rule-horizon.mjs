@@ -4,19 +4,21 @@
 /**
  * THE YEAR A DECLARED NIGHT RULE STOPS SCORING — measured, never read off the digits.
  *
- * Row `2026-10-26-the-corpus-night-rule-is-pinned-to-one-calendar-year`: eleven analysis tools pass
- * `/^2026-/` to `snapshotNights` as their own declared night rule, so each one refuses a night from
- * any other year. The refusal is honest — `populationVerdict` names the caller's rule and every
- * night-shaped directory it turned away, and a probe over a planted 2027 root reads
+ * Row `2026-10-26-the-corpus-night-rule-is-pinned-to-one-calendar-year`: eleven analysis tools used
+ * to pass `/^2026-/` to `snapshotNights` as their own declared night rule, so each one refused a
+ * night from any other year. The refusal was honest — `populationVerdict` names the caller's rule
+ * and every night-shaped directory it turned away, and a probe over a planted 2027 root read
  * `NOT_RUN … the caller's own rule /^2026-/ refused every one of them (2027-01-04, 2027-02-11)`.
- * What the row asks for and the repository lacks is a GATE that fires BEFORE the boundary: nothing
- * today says the whole PAT and TCH program will stop scoring new nights on a calendar date.
+ * What the row asked for and the repository lacked is a GATE that fires BEFORE the boundary.
  *
- * 🔴 THIS TOOL WIDENS NO POPULATION. `tests/dex-tests.js` carries a leg whose comment records the
- * fleet's ruling that the year rule must stay the caller's own and must not be widened into the
- * primitive's default, because widening admits a year the authors never scored. So the remedy the
- * row proposes is a decision the owner owns, and this tool is the half that is nobody's decision:
- * it measures the horizon and reds the day the corpus crosses it, leaving both remedies open.
+ * 🔴 THE OWNER RULED ON 2026-10-28, AND THE OTHER HALF IS NOW BUILT. A night name is any
+ * `YYYY-MM-DD`, whatever the year, and the rule lives in ONE shared constant — `NIGHT_RE` in
+ * `corpus-scope-core.mjs`, which every one of the eleven now passes. So this tool no longer guards
+ * a boundary the fleet decided to keep: it guards against a NEW pin, and reds the day a tool
+ * re-declares a rule that stops scoring on a calendar date.
+ *
+ * 🔴 THIS TOOL STILL WIDENS NO POPULATION ITSELF. It measures what each site declares; moving a
+ * site onto the shared constant is that tool's own diff, and the owner owns the ruling behind it.
  *
  * 🔴 THE INSTRUMENT IS BEHAVIOURAL. A census that grepped for the digits `2026` would be a
  * text-keyed instrument measuring a text-keyed property, and it would agree with itself. Each
@@ -30,12 +32,13 @@
  *   node tools/night-rule-horizon.mjs --verdict-sample # the shape, with no corpus
  *   node tools/night-rule-horizon.mjs --selftest       # plants
  */
-import { readdirSync, readFileSync, realpathSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
-import { DOC, dedupeRoots, gitCommitOf, nightDirsUnder, NIGHT_RE, parseRoots, populationVerdict, producedByOf, ruleLine } from './corpus-scope-core.mjs';
+import { DOC, dedupeRoots, gitCommitOf, nightDirsUnder, NIGHT_RE, parseRoots, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { findDirNames } from './corpus-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -472,6 +475,31 @@ function selftest() {
   const dead = horizonOf(compileLiteral('/^2019-/'));
   ok('a rule that refuses the corpus year reads as admitting nothing, not as a later pin', !dead.admitsFirst, JSON.stringify(dead));
 
+  /* ── THE OWNER'S 2027 DIRECTORY, READ OFF A REAL DISK ──────────────────────────────────────
+     Owner ruling 2026-10-28 on row `2026-10-26-the-corpus-night-rule-is-pinned-to-one-calendar-year`:
+     a night is any `YYYY-MM-DD` name whatever the year, held in ONE shared constant. Every leg
+     above probes a SYNTHETIC name against a compiled pattern, so none of them would catch a rule
+     that admits the string while the walk still drops the directory. These two plant a 2027 night
+     under a real root and read it back through the production primitive, once under the shared
+     constant and once under every rule the eleven actually declare. A rule re-pinned to a year
+     reds HERE, against a directory on disk, rather than against a regular expression. */
+  console.log('\n### THE SHARED RULE, AGAINST A 2027 DIRECTORY ON DISK');
+  const planted = mkdtempSync(join(tmpdir(), 'night-horizon-'));
+  for (const n of ['2026-06-10', '2027-01-04']) mkdirSync(join(planted, n), { recursive: true });
+  const shared = snapshotNights(planted);
+  ok(
+    'the shared constant admits a 2027 night directory and refuses none of the two',
+    shared.ok === true && shared.n === 2 && shared.nights.includes('2027-01-04') && shared.rejectedNightShaped.length === 0,
+    JSON.stringify(shared.nights)
+  );
+  /* THE SCORERS, NOT THE PLANTS. A rule below a file's own `function selftest(` line exists to
+     prove the primitive refuses, so it must stay refusing; only a declared SCORING rule owes the
+     2027 directory. */
+  const refusing = declaredRules()
+    .rules.filter((r) => !r.inSelftest && !snapshotNights(planted, { re: r.re }).nights.includes('2027-01-04'))
+    .map((r) => `${r.tool}:${r.line} ${r.rule}`);
+  ok('every declared SCORING rule reads the planted 2027 night back off the disk', refusing.length === 0, refusing.join(', '));
+
   console.log('\n### PLANT · A NIGHT OUTSIDE THE RULE REDS, AND THE REASON NAMES THE PAIR');
   const rules = sampleRules();
   const roots = [{ root: 'planted', ok: true, n: 2, reason: null }];
@@ -544,8 +572,15 @@ function selftest() {
   const live = declaredRules();
   ok('ANTI-VACUITY · the reader finds the declared rules', live.rules.length >= 2, `${live.rules.length} rule(s)`);
   ok('every site is readable, so the live read states a horizon', live.unparsed.length === 0, live.unparsed.join('; '));
+  /* 🔴 THIS ASSERTION REVERSED ON 2026-10-28, AND ITS ANTI-VACUITY MOVED WITH IT. It used to read
+     `>= 1`, which pinned the eleven year-ruled scorers in place by testing for them. The owner
+     ruled that a night is any `YYYY-MM-DD`, so no SCORING rule may carry a horizon now. A bare
+     `=== 0` would pass over an empty read, so the probe's own liveness is carried by the fixture
+     rules on the next line, which stay pinned deliberately. */
   const livePinned = live.rules.filter((r) => r.horizon != null && r.admitsFirst && !r.inSelftest);
-  ok('at least one live rule carries a horizon', livePinned.length >= 1, `${livePinned.length} pinned`);
+  ok('NO live scoring rule carries a horizon — every one of them is the shared constant', livePinned.length === 0, livePinned.map((r) => `${r.tool}:${r.line} ${r.rule}`).join(', '));
+  const plantPinned = live.rules.filter((r) => r.horizon != null && r.admitsFirst && r.inSelftest);
+  ok('ANTI-VACUITY · the probe still finds a pinned rule in this checkout, among the fixtures', plantPinned.length >= 1, `${plantPinned.length} pinned fixture rule(s)`);
   /* ANTI-VACUITY for the exclusion above: if this checkout held no fixture site, the plant legs
      would be testing a path the live read never walks. */
   const liveplants = live.rules.filter((r) => r.inSelftest);

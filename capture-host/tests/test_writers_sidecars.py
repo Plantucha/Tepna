@@ -971,10 +971,35 @@ def test_oxylife_writer_header_and_rows(tmp_path):
     assert lines[0] == "# device=O2R-01"
     # `axis` appended 2026-08-24 (blank = link, "rec" = recording axis) — append-never-insert asserted:
     # the original eight names are unmoved and the new name is LAST.
-    assert lines[1] == "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis"
+    assert lines[1] == "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis;closed_at_duration"
     assert lines[1].startswith("host_wall;host_monotonic;prev;new;reason;device;session;failure")
     assert lines[2].endswith("scan;O2R-01;s1;") and lines[3].startswith("W;2.0;connecting;connected")
     assert w.rows == 2
+
+
+def test_oxylife_writer_names_the_closing_counter_and_a_RESUMED_file_keeps_its_OLDER_header(tmp_path):
+    """`closed_at_duration` was appended 2026-10-28 so a host restart can restore the counter a close
+    had already measured (O2RING-BOOT-RECOVERY-DECISION §5). A FRESH file gets the ten-name header. A
+    file this night already holds keeps its nine-name one, because the writer appends and never
+    rewrites — which is why the reader decides the column by cell count, not by header width."""
+    import oxy_lifecycle
+    import writers
+
+    fresh = tmp_path / "fresh.csv"
+    w = writers.OxyLifeLogWriter(str(fresh), device="O2R-01")
+    w.write(_FakeTransition("2026-10-28T03:00:00+00:00;1.0;recording;end_candidate;r;O2R-01;s1;;rec;412"))
+    w.close()
+    assert fresh.read_text().splitlines()[1].endswith(";axis;closed_at_duration")
+
+    old = tmp_path / "resumed.csv"
+    old.write_text("# device=O2R-01\nhost_wall;host_monotonic;prev;new;reason;device;session;failure;axis\n")
+    w2 = writers.OxyLifeLogWriter(str(old), device="O2R-01")
+    assert w2.resumed is True
+    w2.write(_FakeTransition("2026-10-28T03:00:00+00:00;1.0;recording;end_candidate;r;O2R-01;s1;;rec;412"))
+    w2.close()
+    lines = old.read_text().splitlines()
+    assert lines[1] == "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis"
+    assert oxy_lifecycle.rec_journal_rows(old.read_text())[0][3] == 412, "the row still reads, under the old header"
 
 
 def test_oxylife_writer_APPENDS_across_daemon_restarts_instead_of_wiping_the_night(tmp_path):
@@ -1017,7 +1042,7 @@ def test_oxylife_writer_treats_an_EMPTY_existing_file_as_fresh(tmp_path):
     w.close()
     assert p.read_text().splitlines()[:2] == [
         "# device=O2R-01",
-        "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis",
+        "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis;closed_at_duration",
     ]
 
 
@@ -1062,6 +1087,42 @@ def test_oxylife_writer_without_fsync_still_flushes(tmp_path):
     w.write(_FakeTransition("W;1.0;a;b;r;;;"))
     assert "a;b;r" in p.read_text()
     w.close()
+
+
+def test_oxylife_writer_fsyncs_by_DEFAULT_and_the_health_record_names_ITS_OWN_file(tmp_path, monkeypatch):
+    """A lifecycle sidecar that never reached the platter is exactly the file a 3am reader needs after
+    a machine failure, so the disk barrier is the DEFAULT and a caller opts out of it. The health
+    record carries this path because every failure line and every SLOW report is read per file."""
+    import writers
+
+    synced = []
+    monkeypatch.setattr(writers._FlushHealth, "fsync", lambda self, fh: synced.append(self.path))
+    p = tmp_path / "OXYLIFE.csv"
+    w = writers.OxyLifeLogWriter(str(p), flush_interval=0.0)  # fsync not passed: the default decides
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    assert synced == [str(p)], "one barrier, and the record names this file"
+    assert w.path == str(p)
+    off = writers.OxyLifeLogWriter(str(tmp_path / "off.csv"), flush_interval=0.0, fsync=False)
+    off.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    assert synced == [str(p)], "fsync=False removes the barrier and nothing else"
+    w.close()
+    off.close()
+
+
+def test_oxylife_writer_treats_a_ONE_BYTE_file_as_a_night_already_under_way(tmp_path):
+    """`resumed` is `size > 0`, not `size > 1`. A file holding one byte is an earlier process torn
+    off mid-row, and opening it fresh to write a header would truncate that process's night — the
+    2026-09-20 wipe in miniature. One byte is the smallest file that is not empty."""
+    import writers
+
+    p = tmp_path / "OXYLIFE.csv"
+    p.write_text("x")
+    w = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    assert w.resumed is True
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    w.close()
+    text = p.read_text()
+    assert text.startswith("x") and "# device=" not in text
 
 
 def test_oxylife_writer_close_swallows_a_raising_handle(tmp_path):

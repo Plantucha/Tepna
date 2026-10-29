@@ -35,7 +35,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -159,13 +159,13 @@ function beatsPPG(file) {
 console.log('PAT scatter vs WINDOW LENGTH — drift integrates, physiology does not');
 console.log('selection is STRUCTURAL only: one fragment each side, span >= 40 min, 30-120 bpm both\n');
 /* THE SCORED SET IS THE SNAPSHOT THIS RUN REPORTS, never a second walk — and the two filters that
-   used to sit in one `.filter()` are DIFFERENT KINDS of statement. `/^2026-/` is a NIGHT RULE, so it
-   goes to `snapshotNights`, which measures it against `NIGHT_RE` over the same listing and names
+   used to sit in one `.filter()` are DIFFERENT KINDS of statement. `NIGHT_RE` is the SHARED NIGHT RULE, so it
+   goes to `snapshotNights`, which measures it over the same listing and names
    what it refused and what it swallowed; `--night` is a SELECTION over that offer, so it stays here
    and is named by the count of nights it left unread. Folded together, a narrowed root and a
    one-night run read alike. The structural criteria below are COVERAGE rules over the offer, not
    night rules, so they ride `notANight` at the end rather than the walk's own `re`. */
-const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
 const nights = popBefore.nights.filter((d) => !ONLY || d === ONLY);
 const covered = [];
 const rows = [];
@@ -284,7 +284,7 @@ if (rows.length) {
    nights that met the structural criteria; this verdict says whether the night population MOVED
    under the run. The status labels MOVEMENT, not coverage: `checked` is the intersection of the two
    snapshots, and reading it as a scored count would publish the whole offer as scored. */
-const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RE }), {
   tool: 'tools/pat-window-scaling.mjs',
   evidence: ['tools/pat-window-scaling.mjs']
 });
@@ -313,8 +313,8 @@ function verdictSample() {
     digest: null,
     maxCtimeMs: null,
     at,
-    rule: String(/^2026-/),
-    ruleIsDefault: false,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
     rejectedNightShaped: [],
     admittedNonNight: []
   };

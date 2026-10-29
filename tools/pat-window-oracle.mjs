@@ -74,7 +74,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PHYS_LO = 200;
@@ -536,7 +536,7 @@ function selftest() {
 
   /* ── A REFUSED night-shaped directory is still a night-shaped directory (2026-10-26, row
      2026-10-25-a-refused-night-shaped-directory-reads-as-a-flat-root). The MIXED guard used to read
-     the ADMITTED count, which this tool's own `/^2026-/` rule can drive to zero, so the guard went
+     the ADMITTED count, which any narrower night rule can drive to zero, so the guard went
      quiet exactly where the rule reopened the hazard. PLANT: drop the third argument at the call
      site, or restore the two-parameter signature, and the first two assertions below go red. */
   const vHidden = rootLayoutVerdict([], ['a_ECG.txt'], ['2027-01-02']);
@@ -653,7 +653,7 @@ function selftest() {
 }
 
 /* ── Root layout: a root holding RECORDINGS but no night directories must REFUSE ──────────────
-   `nights` below filters `readdirSync(DIR)` on /^2026-/, so a root whose recordings sit FLAT
+   `nights` below filters `readdirSync(DIR)` on `NIGHT_RE`, so a root whose recordings sit FLAT
    (`Polar_H10_<serial>_YYYYMMDD_HHMMSS_ECG.txt`) yields an empty night list, an empty TALLY and
    **exit 0** — the tool reporting success about a tree it never examined. Measured 2026-09-02 on
    `uploads/Ecg nightly`: 50 `_ECG.txt` present, `TALLY: {}`, exit 0. This brief's own status header
@@ -742,7 +742,7 @@ export function rootLayoutVerdict(nightDirs, looseRecordings, refusedNightShaped
       mode: 'sessions',
       note:
         `flat root — ${looseRecordings.length} recording file(s) at depth 1, ZERO night directories ` +
-        `(/^2026-/) and ZERO night-shaped names the rule refused. Scored as SESSIONS keyed on each ` +
+        `(${String(NIGHT_RE)}) and ZERO night-shaped names the rule refused. Scored as SESSIONS keyed on each ` +
         `recording's own YYYYMMDD_HHMMSS token, NEVER as nights. Found loose: ${shown}${more}.`
     };
   return {
@@ -1011,7 +1011,7 @@ async function main() {
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
   getDsps();
   const entries = readdirSync(DIR);
-  /* THE NIGHT WALK IS THE POPULATION. `/^2026-/` is this tool's own NIGHT RULE and travels as the
+  /* THE NIGHT WALK IS THE POPULATION. `NIGHT_RE` is the shared NIGHT RULE and travels as the
      snapshot's `re`, so every night-shaped name the rule REFUSED is named in the printed rule line;
      inside a bare `.filter()` the refusal left no trace. `entries` is still read because the flat
      mirror below counts loose recordings, which are not nights.
@@ -1023,7 +1023,7 @@ async function main() {
      dropping the directory. The decided flat policy (residue 2026-09-02-oracle-flat-root-policy)
      is untouched: a root with no night-shaped child at all still scores as sessions. What changed
      is which roots count as flat — a name the RULE hid is not a name the TREE lacked. */
-  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+  const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
   const nights = popBefore.nights.slice().sort();
   const scoredNights = [];
   /* Refuse a root whose recordings sit outside night directories — see rootLayoutVerdict. */
@@ -1141,7 +1141,7 @@ async function main() {
      of the night population under the run, never coverage; the rule line names what the rule refused.
      In SESSIONS mode the scored units are sessions by the decided policy, so the night offer is the
      population and the line says no night was scored. */
-  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RE }), {
     tool: 'tools/pat-window-oracle.mjs',
     evidence: ['tools/pat-window-oracle.mjs']
   });

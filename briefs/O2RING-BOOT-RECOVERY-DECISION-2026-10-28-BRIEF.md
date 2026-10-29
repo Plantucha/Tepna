@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (DECIDED 2026-10-28 — the owner chose option B, the full recovery with the numeric column; the build is unit 121) · **Created:** 2026-10-28
+**Status:** IN-PROGRESS (option B, decided 2026-10-28; the recovery landed, the `confirm_end` caller comes next) — 2026-10-28 · **Created:** 2026-10-28
 
 # The ring's recording axis has no boot recovery — what that costs, and the three ways out
 
@@ -162,10 +162,45 @@ A deploy to vigil stays owner-only. Unit 121 ships code and restarts no daemon.
 
 - [x] This brief's status line names option B, with the date.
 - [x] Row `2026-10-28-end-confirmed-has-no-producer-outside-its-tests` rides this PR.
-- [ ] Unit 121 gives the rec rows a numeric column for `closed_at_duration`, with a writer test.
-- [ ] Unit 121's pure function takes journal rows and an age bound. It owns no clock.
-- [ ] Unit 121 bounds the journal's age, as `CATCH_UP_MAX_AGE_S` bounds the reference.
-- [ ] Unit 121 restores `END_CANDIDATE` and `closed_at_duration`, not `RECORDING` alone.
-- [ ] §10's case 7 reads answered, and names the three tests.
+- [x] Unit 121 gives the rec rows a numeric column for `closed_at_duration`, with a writer test.
+- [x] Unit 121's pure function takes journal rows and an age bound. It owns no clock.
+- [x] Unit 121 bounds the journal's age, as `CATCH_UP_MAX_AGE_S` bounds the reference.
+- [x] Unit 121 restores `END_CANDIDATE` and `closed_at_duration`, not `RECORDING` alone.
+- [x] §10's case 7 reads answered, and names the three tests.
 - [ ] Unit 122 wires `confirm_end` in the pull path, and closes the row.
 - [ ] `capture-host/check.sh` passes at the 100 % floor on both units.
+
+
+## 8 · Unit 121 — what the build added, 2026-10-28
+
+Option B, as §6 ruled it. The code sits where §5's pattern put it, and every claim below names its
+test in `capture-host/tests/`.
+
+| piece | where | what it does |
+|---|---|---|
+| the numeric column | `Transition.closed_at_duration`, `writers.OxyLifeLogWriter` header | tenth cell, appended last. Only `END_CANDIDATE` and `END_CONFIRMED` rows carry a number |
+| the reader | `oxy_lifecycle.rec_journal_rows(text)` | rec-axis rows only, ascending by stamp. Pure |
+| the age bound | `oxy_lifecycle.REC_CATCH_UP_MAX_AGE_S` | 86400 s, mirroring the reference. Past it the seed is UNKNOWN |
+| the decision | `oxy_lifecycle.boot_rec_state(rows, now_ms)` | returns a `RecSeed` and a reason. Owns no clock, touches no file |
+| the file read | `capture._oxy_rec_boot(root, now_ms)` | two night tails, decides nothing |
+| the one new edge | `RECORDING → NOT_RECORDING` | reachable only from a seed |
+
+Three points the ruling did not name, decided in the build:
+
+1. **A seeded `RECORDING` meeting a zero counter leaves to `NOT_RECORDING`, with no candidate.** The
+   engine's only exit tested `duration < prev`, and a seed carries no `prev`, so a seeded RECORDING
+   could never leave. The close went unwitnessed, so no number describes it
+   (`test_a_seeded_recording_meeting_a_zero_counter_reaches_not_recording`).
+2. **A `RecSeed` carries no `prev_duration`.** No journal row holds the live counter, and inventing
+   one would make the first reading after a boot look like an advance or a close
+   (`test_the_seed_carries_no_counter_so_the_first_reading_cannot_look_like_a_close`).
+3. **A row from before the column seeds the state with no number, and the reason says so.**
+   `confirm_end` then refuses, which beats confirming against a borrowed figure
+   (`test_an_end_candidate_from_before_the_column_restores_with_no_number_and_says_so`).
+
+**§10's case 7 was never a boot case.** Case 7 is a BLE disconnect during recording, and the axis
+already answers it: the link drops, the state goes UNKNOWN, and the engine forgets the counter. Three tests
+pin it, all predating this unit — `test_link_loss_moves_to_unknown_never_not_recording`,
+`test_link_loss_forgets_the_counter_so_reconnect_starts_from_ignorance` and
+`test_link_loss_while_already_unknown_is_silent`. Cases 2 and 3 are the restart cases, and this unit
+executes them.
