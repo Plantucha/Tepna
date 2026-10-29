@@ -37,15 +37,18 @@
  *   node tools/cvhr-fold-rescore.mjs [--tree <captures dir>] [--control <audit.json>] [--limit N]
  *                                    [--resume] [--out <json>]
  *   node tools/cvhr-fold-rescore.mjs --control-only   # phase 1 alone: ~1 s, no scoring
+ *   node tools/cvhr-fold-rescore.mjs --verdict-sample   # the population object ALONE, corpus-free
  *   node tools/cvhr-fold-rescore.mjs --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ECG_FILES, PPG_FILES, hostWindowMs, realm } from './gap-s-sweep.mjs';
 import { ivIntersect, ivSpan, mergeIv } from './trio-anchor.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -53,6 +56,31 @@ export const CONTROL_DEFAULT = join(ROOT, 'audits', 'GAP-S-SWEEP-2026-09-22.json
 export const TREE_DEFAULT = '/srv/data/tepna-corpus/uploads/vigil-archive/captures';
 export const ECG_GLOB = /^Polar_H10.*_ECG\.txt$/;
 export const PPG_GLOB = /^Polar_VeritySense.*_PPG\.txt$/;
+export const NIGHT_RE = /^\d{4}-\d\d-\d\d$/;
+const SAMPLE_AT = '2026-10-28T00:00:00Z';
+
+/* THE ADOPTION SAMPLE prints the object ALONE, because `verdict-adoption` parses this stdout as JSON.
+   It lives in a helper called `verdictSample`, and that placement is an assertion: `corpus-reads.mjs`
+   blanks such a body before it classifies the tool, so the population clearance comes off the real
+   walk in `main` and never off these two synthetic names. */
+function verdictSample() {
+  /* The sample walks a REAL root, built here and removed again, so the primitive runs the same path a
+     corpus run takes. `snapshotNights` reads a directory and takes no injected name list, and a
+     hand-written snapshot literal would state a walk nobody ran. */
+  const dir = mkdtempSync(join(tmpdir(), 'cvhr-fold-sample-'));
+  try {
+    for (const night of ['2026-09-20', '2026-09-21']) mkdirSync(join(dir, night));
+    const snap = snapshotNights(dir, { re: NIGHT_RE, at: SAMPLE_AT });
+    return populationVerdict(snap, snap, {
+      tool: 'tools/cvhr-fold-rescore.mjs',
+      evidence: ['tools/cvhr-fold-rescore.mjs'],
+      at: SAMPLE_AT,
+      commitReason: '--verdict-sample: synthetic night names, no code identity claimed'
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 /* ── windows without reading the file ──────────────────────────────────────────────────────────────
    `hostWindowMs` needs the header plus the first and last data row; a 412 MB fragment does not need to
@@ -418,6 +446,10 @@ export function scoreFragment(realms, kind, path) {
 
 /* ── the run ──────────────────────────────────────────────────────────────────────────────────── */
 function main(argv) {
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    return 0;
+  }
   const arg = (k, d) => {
     const i = argv.indexOf(k);
     return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
@@ -427,11 +459,45 @@ function main(argv) {
   const outPath = arg('--out', join(ROOT, '.cache', 'cvhr-fold-rescore.json'));
   const limit = Number(arg('--limit', '0')) || 0;
   const resume = argv.includes('--resume');
-  if (!existsSync(tree)) {
-    console.error(`the corpus tree is not here: ${tree}\n  point --tree or $DEX_UPLOADS at it (docs/CORPUS-LOCATIONS.md); a worktree has no corpus`);
+  /* THE OFFER IS THE TREE; THE CONTROL IS A SELECTION INSIDE IT. Before this snapshot the only
+     enumeration was the control's night list, so a night directory on disk that the control does not
+     name was never scored and never named — the run reported a population it had not looked at. The
+     snapshot states what the tree offered, and `notANight` names the offered nights the control leaves
+     out (§∅ — reduced coverage annotates, it is never silently renormalised). It also refuses an
+     unreadable tree BY NAME: `existsSync` passed such a root and `fragmentsOf` then threw a raw
+     errno. */
+  const POP = { re: NIGHT_RE };
+  const popBefore = snapshotNights(tree, POP);
+  if (!popBefore.ok) {
+    console.error(`the corpus tree is not here: ${tree} — ${popBefore.reason}\n  point --tree or $DEX_UPLOADS at it (docs/CORPUS-LOCATIONS.md); a worktree has no corpus`);
     return 2;
   }
   const committed = JSON.parse(readFileSync(controlPath, 'utf8')).overlapTest.mergedSessionsView.rows;
+
+  /* THE OFFER IS STATED BEFORE THE REFUSAL, because a refused run enumerated the tree all the same
+     and a reader of that exit owes nothing less. `publishPopulation` is declared here and called on
+     every path below it — a `const` arrow called above its own declaration is a guaranteed dead-zone
+     throw, which is the shape of row 2026-10-28-the-cvhr-cost-phase-publishes-a-population-before-the-publisher-exists. */
+  const uncontrolled = notANight(popBefore, committed);
+  console.log(
+    `  offered: ${popBefore.n} night director${popBefore.n === 1 ? 'y' : 'ies'} under ${tree}; ${committed.length} named by the control` +
+      (uncontrolled.length ? `; ${uncontrolled.length} offered and never scored, because the control does not name them: ${uncontrolled.join(', ')}` : '; every offered night is named by the control')
+  );
+  const publishPopulation = (scoredNights, resumedCount, cutCount) => {
+    const population = populationVerdict(popBefore, snapshotNights(tree, POP), {
+      tool: 'tools/cvhr-fold-rescore.mjs',
+      evidence: ['tools/cvhr-fold-rescore.mjs', controlPath.replace(ROOT + '/', '')]
+    });
+    console.log(
+      `  population: ${popBefore.n} night(s) offered by the tree, ${committed.length} named by the control, ${scoredNights} in this run` +
+        (cutCount ? `; ${cutCount} cut by --limit ${limit}` : '') +
+        (resumedCount ? `; ${resumedCount} carried from a prior run` : '')
+    );
+    const rule = ruleLine(population);
+    if (rule) console.log(`  ${rule}`);
+    console.log(`POPULATION ${JSON.stringify(population)}`);
+    return population;
+  };
 
   /* PHASE 1 — and it REFUSES the whole run rather than scoring on a selection it cannot vouch for. */
   console.log(`▸ control · ${committed.length} nights against ${controlPath.replace(ROOT + '/', '')}`);
@@ -442,6 +508,7 @@ function main(argv) {
     console.error(`\n✕ REFUSING to score: ${bad.length} of ${committed.length} night(s) do not reproduce the committed merged view.`);
     console.error('  This tool enumerates for itself, and the committed view is what proves it selects as the fold does.');
     console.error('  A disagreement means the selection rule moved — fix that before any number is published.');
+    publishPopulation(0, 0, 0);
     return 1;
   }
   console.log(`  ✓ all ${committed.length} nights reproduce the committed merged view`);
@@ -452,10 +519,13 @@ function main(argv) {
   const nights = [];
   let firstMs = null;
   const targets = limit ? ctl.slice(0, limit) : ctl;
+  const cutByLimit = ctl.length - targets.length;
+  let resumed = 0;
   for (let i = 0; i < targets.length; i++) {
     const r = targets[i];
     if (done.has(r.night)) {
       nights.push(done.get(r.night));
+      resumed++;
       continue;
     }
     const t0 = Date.now();
@@ -505,26 +575,48 @@ function main(argv) {
   for (const n of nights)
     for (const k of ['ecg', 'ppg'])
       if (n[k].coveredHours != null && n.unionHours[k] - n[k].coveredHours > 1) coverage.push({ night: n.night, stream: k, unionHours: n.unionHours[k], coveredHours: n[k].coveredHours });
+  console.log(`\n▸ rho ${rho.rho == null ? 'REFUSED — ' + rho.reason : rho.rho} over n=${rho.n} night(s) · ${refused.length} night(s) with a refused stream`);
+  const population = publishPopulation(nights.length, resumed, cutByLimit);
   const out = {
     schema: 'tepna.cvhr-fold-rescore/1',
+    population,
     criterion: { preStated: 'fraction of overlap on the UNION of fragments, not the largest-file pair; Spearman rho with n; GAP_S at the shipped 10 s', control: controlPath },
     tree,
     nights,
     rho,
     refusals: { nights: refused.length, detail: refused.map((n) => ({ night: n.night, ecg: n.ecg.reason, ppg: n.ppg.reason })), fragments: frag },
     coverageShortfall: coverage,
-    /* ⚠️ NOT a `tepna.verdict/1`, and that is deliberate. This tool DECIDES NOTHING: it reports ρ with n
+    /* ⚠️ ρ CARRIES NO `tepna.verdict/1`, and that is deliberate. This tool decides nothing ABOUT THE
+       MEASUREMENT: it reports ρ with n
        and proposes no band, exactly as its two siblings do — `gap-s-sweep.mjs` is exempt in
        `tools/verdict-adoption.json` as "a MEASUREMENT sweep for an owner ruling … it reports where the
        CVHR index moves and decides nothing", and `treatment-response-recut.mjs` as "a re-cut
        AGGREGATOR, not a gate". A `status` here could only ever read PASS-because-it-ran, over a
        `criterion` with a null threshold — a status-shaped non-decision, which is the thing the adoption
-       gate exists to catch. The numbers stay machine-readable under a name that claims no verdict. */
+       gate exists to catch. The numbers stay machine-readable under a name that claims no verdict.
+       🔴 THE POPULATION IS THE ONE THING THIS TOOL DOES DECIDE, and `population` below carries that
+       verdict alone — whether the tree it enumerated held still across the run, on a criterion stated
+       before the walk. That is a fact about the enumeration and not about ρ, so the objection above
+       still holds where it was aimed. The adoption record states the same boundary in its note. */
     result: {
       rho: rho.rho,
       n: rho.n,
       rhoRefusedBecause: rho.reason,
-      population: { nights: nights.length, paired: rho.n, unpaired: nights.length - rho.n },
+      /* EVERY FIGURE'S DENOMINATOR, named rather than left to the reader. `nights` is the run, which
+         `--limit` and `--resume` both move; `treeNights` is what the walk offered, and the three
+         remainders say where the difference went. */
+      population: {
+        treeNights: popBefore.n,
+        controlNights: committed.length,
+        uncontrolled: uncontrolled.length,
+        uncontrolledNames: uncontrolled,
+        cutByLimit,
+        resumed,
+        scored: nights.length - resumed,
+        nights: nights.length,
+        paired: rho.n,
+        unpaired: nights.length - rho.n
+      },
       comparison: { sweepRestrictedRho: 0.255, sweepN: 17, sweepExcludedUnder2h: 6, note: "the sweep scored the largest fragment per stream; this scores the fold's selection over every night" },
       fragments: { scored: frag.ecg.scored + frag.ppg.scored, refused: frag.ecg.refused + frag.ppg.refused },
       decides: 'nothing — no band is proposed and no threshold is moved'
@@ -533,7 +625,6 @@ function main(argv) {
     at: new Date().toISOString()
   };
   writeFileSync(outPath, JSON.stringify(out, null, 2) + '\n');
-  console.log(`\n▸ rho ${rho.rho == null ? 'REFUSED — ' + rho.reason : rho.rho} over n=${rho.n} night(s) · ${refused.length} night(s) with a refused stream`);
   console.log(`  wrote ${outPath}`);
   return 0;
 }

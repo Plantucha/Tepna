@@ -804,7 +804,29 @@ export const UNWIRED_BACKLOG = {
      SUBDIRECTORY and returned the accumulator, so a partly readable tree and a whole one printed
      the same line. The walk now names the directories it could not read and the population line
      carries the count. `dual-clock-rate.mjs` already refused by name and keeps that refusal. */
-  'corpus-census.mjs': 2,
+  /* FOUR NAMES LEFT TOGETHER, 2026-10-28, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
+     `cvhr-fold-rescore.mjs`, `o2ring-finger-validate-batch.mjs`, `seqnet-eval.mjs` and
+     `corpus-census.mjs` each reach the corpus through a DIFFERENT hop, and each now snapshots that
+     hop before the read and publishes the comparison after it, so the scan reads them as `reports`
+     and this list must not name them. The fold rescore's unit is a NIGHT, so it takes
+     `snapshotNights`; the other three take `snapshotEntries` through a named lister —
+     `listRingCaptureFiles`, `listFeatureCaches` and `listCorpusFiles` — because a night rule over a
+     capture tree, a feature cache or a census glob would publish a rule nobody wrote.
+     THREE REMOVALS WENT UNPUBLISHED IN THE FOLD RESCORE ALONE: it never enumerated the tree at all,
+     so its offer was the control file's night list; `--limit` cut that offer while the published
+     figure counted survivors; and `--resume` mixed nights carried from a prior run with nights this
+     one scored. The offer is now stated BEFORE the control phase, so a run that refuses to score
+     still says what it was offered.
+     THE CENSUS WALKED ITS TREE WITHOUT SIZING IT, which is the residue row's own failure one layer
+     down: `census()` matched a glob and published the matches, so a count carried no denominator and
+     the files the glob rejected were never counted. The walk now accounts for them, the manifest
+     commits the figure, and the verdict's `eligible` is the walk rather than the match. That walk is
+     also the ONE traversal in the file — a second pass to answer "what did you walk" would re-digest
+     megabytes a file and could answer differently from the pass the rows came out of.
+     THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a cohort cache pointed at
+     nothing, a run invoked with no arguments at all, and an argument that is not a directory, now
+     exit 2 naming the errno where three of the four either threw an uncaught stack trace or read an
+     unreadable root as an empty one. */
   'corpus-tier.mjs': 1,
   /* THE THREE CPAP-CORPUS READERS LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `cpap-corpus.mjs`,
@@ -821,9 +843,8 @@ export const UNWIRED_BACKLOG = {
      figure and carries an arithmetic control (offered − scored === named).
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a root that offered
      nothing, and an agreement pass that compared nothing, now exit 2 where all three exited 0. */
-  'cvhr-fold-rescore.mjs': 1,
   'geometry-scan.mjs': 1,
-  'hostaxis-estimator-bakeoff.mjs': 1,
+  'hostaxis-estimator-bakeoff.mjs': 1
   /* THE THREE NSRR COHORT READERS LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `nsrr-criterion-sweep.mjs`,
      `nsrr-oxydex-odi.mjs` and `nsrr-stage-validate.mjs` read ONE population from three angles —
@@ -872,7 +893,6 @@ export const UNWIRED_BACKLOG = {
      THE MULTI-ROOT AND PROBE-SAFE NAMES STAYED, under rows
      2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot and
      2026-10-26-wiring-a-population-verdict-costs-the-probe-safety-that-made-it-cheap. */
-  'o2ring-finger-validate-batch.mjs': 1,
   /* FOUR NAMES LEFT TOGETHER, 2026-10-28, row 2026-10-21-forty-one-corpus-enumerators-report-no-population.
      `deep-flow-join.mjs`, `device-stability.mjs`, `pat-ppg-ppg-control.mjs` and `ppg2w-spo2-fit.mjs`
      were ONE walker written four times: `readdirSync(<root>)` filtered by the literal `YYYY-MM-DD`
@@ -911,7 +931,6 @@ export const UNWIRED_BACKLOG = {
      `reports` and this list must not name them. Their unit is a FILE, not a night, so they take
      `snapshotEntries` rather than `snapshotNights` — a night snapshot over a capture tree would
      manufacture a population out of directories nobody keyed by date. */
-  'seqnet-eval.mjs': 1
   /* `stage-lab.mjs` WAS THE HEAVIEST KEY HERE, at weight 12, and has LEFT: its twelve enumerations
      walk external PSG archives, so it reports a RECORD population through `snapshotEntries` rather
      than a night one. A night snapshot there answers `ok: true, n: 0` over a full dataset, which is

@@ -36,11 +36,12 @@
  *   node tools/corpus-census.mjs --selftest | --verdict-sample
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const PREFIX_BYTES = 8 * 1024 * 1024;
@@ -86,24 +87,58 @@ export function digestPrefix(path, full) {
   }
 }
 
-/* Walk, filter, digest. Streams per file and keeps only the row — a census over a 200-night corpus
-   must not hold the corpus (the lazy-load rule). */
-export function census(root, glob, { full = false, fs = null } = {}) {
-  const re = globToRe(glob);
-  const rows = [];
-  const walk = (dir) => {
-    for (const e of fs ? fs.readdirSync(dir, { withFileTypes: true }) : readdirSync(dir, { withFileTypes: true })) {
+/* THE TREE IS WALKED ONCE, AND THE WALK IS NAMED. A census digests megabytes a file, so a second
+   traversal to answer "what did you walk" would cost minutes and could answer differently from the
+   one the rows came from. `walkFiles` is therefore the only traversal here: the CLI's lister calls
+   it, the snapshot publishes those members, and `census` digests that same list. Names only, never
+   contents — one relative path is ~60 bytes, so this holds a list and not the corpus.
+
+   THE ROOT READ CARRIES NO `catch`. A root nobody can enumerate is a DISCONTINUITY — the census
+   covers nothing — so it throws and the CLI refuses by name with exit 2. An unreadable SUBDIRECTORY
+   is reduced coverage, so it is named in `unreadableDirs` and counted beside the figure (§∅). With
+   no `unreadableDirs` to report into, that error throws too: a caller with nowhere to state the gap
+   must not continue, because a partly readable tree and a whole one would print the same count. */
+export function walkFiles(root, { fs = null, unreadableDirs = null } = {}) {
+  const rd = (dir) => (fs ? fs.readdirSync(dir, { withFileTypes: true }) : readdirSync(dir, { withFileTypes: true }));
+  const files = [];
+  const walk = (dir, isRoot) => {
+    let entries;
+    try {
+      entries = rd(dir);
+    } catch (e) {
+      if (isRoot || !unreadableDirs) throw e;
+      unreadableDirs.push(`${relative(root, dir) || '.'}: ${e.code || e.message}`);
+      return;
+    }
+    for (const e of entries) {
       const p = join(dir, e.name);
-      if (e.isDirectory()) walk(p);
-      else {
-        const rel = relative(root, p);
-        if (!re.test(rel)) continue;
-        const st = fs ? fs.statSync(p) : statSync(p);
-        rows.push({ name: rel, bytes: st.size, sha8m: fs ? fs.digest(p) : digestPrefix(p, full) });
-      }
+      if (e.isDirectory()) walk(p, false);
+      else files.push(relative(root, p));
     }
   };
-  walk(root);
+  walk(root, true);
+  return files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/* Filter, digest. Streams per file and keeps only the row — a census over a 200-night corpus must
+   not hold the corpus (the lazy-load rule). `members` is the walk the caller already published, so
+   the tree is traversed once; `account` collects what the glob REJECTED, which is the denominator
+   the published count is a numerator of — "597 files" over a tree holding 4000 says one thing and
+   over a tree holding 598 says another. */
+export function census(root, glob, { full = false, fs = null, members = null, account = null } = {}) {
+  const re = globToRe(glob);
+  const rels = members || walkFiles(root, { fs, unreadableDirs: account ? account.unreadableDirs : null });
+  const rows = [];
+  for (const rel of rels) {
+    if (!re.test(rel)) {
+      if (account) account.rejected.push(rel);
+      continue;
+    }
+    const p = join(root, rel);
+    const st = fs ? fs.statSync(p) : statSync(p);
+    rows.push({ name: rel, bytes: st.size, sha8m: fs ? fs.digest(p) : digestPrefix(p, full) });
+  }
+  if (account) account.walked = rels.length;
   rows.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return rows;
 }
@@ -135,7 +170,7 @@ export function dedupe(rows) {
   return { uniqueByContent: byContent.size, uniqueByName: byName.size, dupes };
 }
 
-export function manifest(rows, { root, glob, name, full = false, at }) {
+export function manifest(rows, { root, glob, name, full = false, at, account = null }) {
   const d = dedupe(rows);
   return {
     schema: SCHEMA,
@@ -146,6 +181,12 @@ export function manifest(rows, { root, glob, name, full = false, at }) {
     dedupeKeys: DEDUPE_KEYS,
     at: at || new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
     counts: { files: rows.length, uniqueByContent: d.uniqueByContent, uniqueByName: d.uniqueByName, duplicates: d.dupes.length },
+    /* THE COUNT'S OWN DENOMINATOR, committed with it. ∅: `null` where no walk accounted for the
+       population — a manifest built from rows alone cannot know what the tree offered, and `0`
+       there would read as a tree holding nothing but matches. */
+    population: account
+      ? { walked: account.walked, matched: rows.length, rejectedByGlob: account.rejected.length, unreadableDirs: account.unreadableDirs.slice() }
+      : { walked: null, matched: rows.length, rejectedByGlob: null, unreadableDirs: null },
     duplicates: d.dupes,
     files: rows
   };
@@ -211,14 +252,20 @@ export function verdictObject(mode, payload, { name, root, path, commit, commitR
       status: 'NOT_RUN',
       population: { checked: 0, eligible: 0, excluded: 0 },
       result: null,
-      reason: `no file under ${root} matched ${payload.glob} — an empty census is not a census (check the root, and that the corpus is mounted)`
+      reason:
+        `no file under ${root} matched ${payload.glob} — an empty census is not a census (check the root, and that the corpus is mounted)` +
+        (payload.population && payload.population.walked != null ? `; the walk offered ${payload.population.walked} file(s), none of them matching` : '')
     });
   }
+  /* `eligible` IS WHAT THE WALK OFFERED where a walk accounted for it, so `checked` is a figure with
+     a denominator rather than its own. Without an account the two are equal — which is the
+     tautological shape this wiring exists to retire, kept only for a manifest built from rows. */
+  const walked = payload.population && payload.population.walked != null ? payload.population.walked : null;
   return makeVerdict({
     ...base,
     status: 'PASS',
-    population: { checked: rows.length, eligible: rows.length, excluded: 0 },
-    result: { counts: payload.counts, digest: payload.digest, glob: payload.glob },
+    population: walked == null ? { checked: rows.length, eligible: rows.length, excluded: 0 } : { checked: rows.length, eligible: walked, excluded: walked - rows.length },
+    result: { counts: payload.counts, digest: payload.digest, glob: payload.glob, population: payload.population ?? null },
     reason: null
   });
 }
@@ -298,6 +345,73 @@ function selftest() {
   eq(verdictObject('write', m, AT).status, 'PASS', 'a written census over 3 files is a PASS');
   eq(verdictObject('write', manifest([], { root: '/c', glob: '*.nope', name: 'x' }), AT).status, 'NOT_RUN', 'an EMPTY census is NOT_RUN — "0 files" must not read as a clean census');
   eq(verdictSample().status === 'PASS' && verdictSample().producedBy.commit === null, true, '--verdict-sample is a PASS over scratch rows, no commit');
+  /* THE WALK, AND WHAT IT OFFERED — the half the published count is a numerator of. An injected `fs`
+     stands in for a tree so the legs run on every machine; the real refusal exits are measured
+     against a planted tree from the CLI. */
+  const D = (name) => ({ name, isDirectory: () => true });
+  const F = (name) => ({ name, isDirectory: () => false });
+  const treeOf = (locked) => ({
+    readdirSync: (dir) => {
+      if (locked && dir === join('/t', 'sub')) {
+        const e = new Error('permission denied');
+        e.code = 'EACCES';
+        throw e;
+      }
+      if (dir === '/t') return [D('sub'), F('a_ECG.txt'), F('notes.md')];
+      if (dir === join('/t', 'sub')) return [F('b_ECG.txt')];
+      const e = new Error('no such directory');
+      e.code = 'ENOENT';
+      throw e;
+    },
+    statSync: () => ({ size: 10 }),
+    digest: () => 'dddddddddddddddd'
+  });
+  const threw = (fn) => {
+    try {
+      fn();
+      return 'no throw';
+    } catch (e) {
+      return e.code || 'threw';
+    }
+  };
+  eq(walkFiles('/t', { fs: treeOf(false) }).join(), ['a_ECG.txt', 'notes.md', join('sub', 'b_ECG.txt')].join(), 'the walk returns every FILE it saw, relative to the root, sorted');
+  const gaps = [];
+  eq(walkFiles('/t', { fs: treeOf(true), unreadableDirs: gaps }).join(), 'a_ECG.txt,notes.md', 'an unreadable SUBDIRECTORY costs its files — reduced coverage, not a refusal');
+  eq(gaps.join(), `${join('sub')}: EACCES`, '…and it is NAMED with its errno, so a half-read tree cannot print the count of a whole one');
+  eq(
+    threw(() => walkFiles('/nope', { fs: treeOf(false), unreadableDirs: [] })),
+    'ENOENT',
+    'an unenumerable ROOT throws — a census over nothing is a discontinuity, and the CLI refuses by name'
+  );
+  eq(
+    threw(() => walkFiles('/t', { fs: treeOf(true) })),
+    'EACCES',
+    'control · with nowhere to report the gap the subdirectory error throws too, rather than reading as an empty directory'
+  );
+  /* THE GLOB'S REMAINDER IS THE DENOMINATOR. `notes.md` was walked and rejected; before this was
+     counted, "2 files" was published over a tree nobody could size. */
+  const acct = { walked: 0, rejected: [], unreadableDirs: [] };
+  const cr = census('/t', '**/*_ECG.txt', { fs: treeOf(false), account: acct });
+  eq(cr.length + '/' + acct.walked + '/' + acct.rejected.join(), '2/3/notes.md', 'the census counts what the walk OFFERED and names what the glob rejected');
+  const cm = manifest(cr, { root: '/t', glob: '**/*_ECG.txt', name: 'scratch', at: '2026-09-22T00:00:00Z', account: acct });
+  eq(
+    `${cm.population.walked}/${cm.population.matched}/${cm.population.rejectedByGlob}`,
+    '3/2/1',
+    '…and the COMMITTED manifest carries that denominator, so a later reader need not re-walk to size it'
+  );
+  eq(
+    manifest(cr, { root: '/t', glob: '*', name: 'scratch', at: '2026-09-22T00:00:00Z' }).population.walked,
+    null,
+    '∅ · a manifest built from rows alone cannot know what the tree offered, so `walked` is null and never 0'
+  );
+  const cv = verdictObject('write', cm, AT);
+  eq(`${cv.population.checked}/${cv.population.eligible}/${cv.population.excluded}`, '2/3/1', "the verdict's `eligible` is the WALK, so `checked` has a denominator it did not derive from itself");
+  eq(cv.population.checked + cv.population.excluded === cv.population.eligible, true, '…and §🧾 closes: checked + excluded = eligible');
+  eq(
+    verdictObject('write', manifest(cr, { root: '/t', glob: '*', name: 'x' }), AT).population.eligible,
+    2,
+    'control · with no account the two are equal again, which is the tautology this wiring retires'
+  );
   /* the digest really reads the file */
   const tmp = join(ROOT, 'tools', '.census-selftest.tmp');
   writeFileSync(tmp, 'hello');
@@ -338,28 +452,79 @@ function main() {
     console.error('       node tools/corpus-census.mjs --diff analysis/census/<id>.json --root <dir> [--json]');
     process.exit(2);
   }
-  if (!existsSync(root)) {
-    console.error(`✕ no such root: ${root}  (the corpus is gitignored — point --root at the volume that holds it)`);
+  /* ONE WALK, NAMED, BEFORE A SINGLE DIGEST. The lister's name travels into the snapshot's rule, so
+     the population says what it enumerated and not merely how many — an inline arrow publishes
+     `rule: null`. `unreadable` holds the gaps of the LAST walk to run, and the opening walk is the
+     one the rows come from, so the account keeps that list rather than the closing walk's. */
+  let unreadable = [];
+  const listCorpusFiles = (dir) => {
+    const gaps = [];
+    const files = walkFiles(dir, { unreadableDirs: gaps });
+    unreadable = gaps;
+    return files;
+  };
+  const POP = { list: listCorpusFiles, unit: 'files' };
+  const opening = snapshotEntries(root, POP);
+  if (!opening.ok) {
+    console.error(`✕ ${root} cannot be walked — ${opening.reason}  (the corpus is gitignored — point --root at the volume that holds it)`);
     process.exit(2);
   }
+  const account = { walked: 0, rejected: [], unreadableDirs: unreadable };
+  /* BOTH PATHS PUBLISH IT. `--diff` reads the same tree through the same walk, and a diff over a
+     half-readable tree is the case this file exists to catch: a subdirectory the walk could not open
+     presents as files REMOVED, named one by one, with nothing saying the read failed.
+     Under `--json` the object goes through `out` (stderr) with the rest of the prose, because stdout
+     carries exactly one JSON object and that is the contract `--json` has with its callers. */
+  const publishPopulation = (globUsed, matched) => {
+    const population = populationVerdict(opening, snapshotEntries(root, POP), { tool: 'tools/corpus-census.mjs', evidence: ['tools/corpus-census.mjs'] });
+    const gaps = account.unreadableDirs;
+    out(
+      `   population: ${account.walked} file(s) walked under ${root}, ${matched} matched ${globUsed}` +
+        (account.rejected.length ? `, ${account.rejected.length} did not` : '') +
+        (gaps.length ? `; ${gaps.length} unreadable subdirector${gaps.length === 1 ? 'y' : 'ies'} — reduced coverage, named: ${gaps.join(' · ')}` : '')
+    );
+    const rule = ruleLine(population);
+    if (rule) out(`   ${rule}`);
+    out(`POPULATION ${JSON.stringify(population)}`);
+    return population;
+  };
   if (diffPath) {
     const oldM = JSON.parse(readFileSync(diffPath, 'utf8'));
-    const rows = census(root, oldM.glob, { full: /file\)/.test(oldM.digest || '') });
+    const rows = census(root, oldM.glob, { full: /file\)/.test(oldM.digest || ''), members: opening.members, account });
     const d = diff(oldM, rows);
     out(`▸ census "${oldM.census}" — recorded ${d.before} file(s) on ${oldM.at}, tree now holds ${d.after}`);
     for (const a of d.added) out(`   + ${a}`);
     for (const r of d.removed) out(`   − ${r}`);
     for (const c of d.changed) out(`   ~ ${c.name}   ${c.bytes[0]}→${c.bytes[1]} bytes · ${c.sha8m[0]}→${c.sha8m[1]}`);
+    publishPopulation(oldM.glob, rows.length);
     const v = verdictObject('diff', d, { name: oldM.census, root, path: diffPath });
     if (json) console.log(JSON.stringify(v));
     else out(`\n  tepna.verdict/1: ${v.status}${v.reason ? '  — ' + v.reason.slice(0, 200) : ''}`);
+    /* A DIFF AGAINST A MANIFEST HOLDING NO FILE EXAMINED NOTHING, so it exits 2 rather than carrying
+       a complete run's status over a comparison it could not make. */
+    if (v.status === 'NOT_RUN') process.exit(2);
     return;
   }
-  const rows = census(root, glob, { full });
-  const m = manifest(rows, { root, glob, name, full });
+  const rows = census(root, glob, { full, members: opening.members, account });
+  const m = manifest(rows, { root, glob, name, full, account });
   out(
     `▸ census "${name}" over ${root}   ${m.counts.files} file(s) · ${m.counts.uniqueByName} unique by NAME (${DEDUPE_KEYS.byName}) · ${m.counts.uniqueByContent} unique by CONTENT (${DEDUPE_KEYS.byContent})`
   );
+  publishPopulation(glob, rows.length);
+  /* AN EMPTY CENSUS MUST NOT BECOME THE BASELINE. `--write` over a root whose glob matched nothing
+     replaced the committed manifest with an empty one, after which every later `--diff` read clean
+     over a corpus nobody had enumerated — the same shape as the sweep that rewrote its cache from an
+     empty root one tool over (row 2026-10-28-an-empty-census-overwrites-the-manifest-it-would-be-diffed-against).
+     The run refuses instead: the file on disk is untouched, the NOT_RUN the verdict already carried
+     is printed, and the exit says the census examined nothing (§∅ — an absent population is not a
+     clean one). */
+  if (!rows.length) {
+    const v0 = verdictObject('write', m, { name, root, path: null });
+    if (json) console.log(JSON.stringify(v0));
+    else out(`\n  tepna.verdict/1: ${v0.status}  — ${v0.reason}`);
+    console.error(`✕ NO MANIFEST WRITTEN, any existing analysis/census/${name}.json is untouched — no file under ${root} matched ${glob}`);
+    process.exit(2);
+  }
   let path = null;
   if (argv.includes('--write')) {
     const dir = join(ROOT, 'analysis', 'census');

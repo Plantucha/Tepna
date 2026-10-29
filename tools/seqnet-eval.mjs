@@ -18,6 +18,7 @@ import path from 'node:path';
 import { foldOf, loadWeights, seqnetForward, viterbi } from './seqnet-infer.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const args = Object.fromEntries(
   process.argv
@@ -30,15 +31,31 @@ const model = args.weights ? loadWeights(JSON.parse(fs.readFileSync(args.weights
 const meta = model ? model.meta : {};
 const K = model ? model.arch.K : 4;
 
-function listNights(cache, cohorts) {
+/* THE LISTER IS THE POPULATION RULE AND IT CARRIES A NAME, or `snapshotEntries` publishes `rule:
+   null` — an inline arrow reads as the parameter's own key. One cohort directory is one root, so the
+   walk takes one snapshot per cohort rather than one over the first (row
+   2026-10-28-the-multi-root-enumerators-need-a-census-not-a-night-snapshot). */
+const listFeatureCaches = (dir) =>
+  fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(`.${FEAT}.json`))
+    .sort();
+
+/* `account` CARRIES THE REMOVALS OUT. A cache whose `skipped` flag is set left this list with no
+   count and no name, so the fold's night total described the survivors alone (§∅ — reduced coverage
+   annotates, it is never silently renormalised). The members come from the snapshot, so the figures
+   and the published population are taken over ONE listing of each directory. */
+function listNights(snaps, account) {
   const nights = [];
-  for (const c of cohorts) {
-    const d = path.join(cache, c);
-    for (const f of fs.readdirSync(d).sort()) {
-      if (!f.endsWith(`.${FEAT}.json`)) continue;
-      const m = JSON.parse(fs.readFileSync(path.join(d, f), 'utf8'));
-      if (m.skipped) continue;
-      nights.push({ cohort: c, id: m.id, bin: path.join(d, f.slice(0, -5) + '.f32'), k: m.k, n: m.n, y: Int32Array.from(m.labels), names: m.names });
+  for (const { cohort, snap } of snaps) {
+    if (!snap.ok) continue;
+    for (const f of snap.members) {
+      const m = JSON.parse(fs.readFileSync(path.join(snap.root, f), 'utf8'));
+      if (m.skipped) {
+        account.skipped.push(`${cohort}/${m.id != null ? m.id : f}`);
+        continue;
+      }
+      nights.push({ cohort, id: m.id, bin: path.join(snap.root, f.slice(0, -5) + '.f32'), k: m.k, n: m.n, y: Int32Array.from(m.labels), names: m.names });
     }
   }
   return nights;
@@ -169,12 +186,27 @@ function pythonKappa(foldJson, K) {
 }
 
 function run() {
-  const cohorts = args.cohorts.split(',');
-  const nights = listNights(args.cache, cohorts);
+  if (!args.cache || !args.cohorts) {
+    console.error('seqnet-eval: --cache <lab-cache> and --cohorts a,b,.. are required');
+    process.exit(2);
+  }
+  const cohorts = String(args.cohorts).split(',');
+  const POP = { list: listFeatureCaches, unit: 'cached-nights' };
+  const snaps = cohorts.map((c) => ({ cohort: c, snap: snapshotEntries(path.join(args.cache, c), POP) }));
+  for (const s of snaps) if (!s.snap.ok) console.error(`  ✕ cohort ${s.cohort}: ${s.snap.reason}`);
+  if (!snaps.some((s) => s.snap.ok)) {
+    console.error(`seqnet-eval: no cohort cache under ${args.cache} could be enumerated — nothing was read`);
+    process.exit(2);
+  }
+  const account = { skipped: [] };
+  const nights = listNights(snaps, account);
   const fold = parseInt(args.fold, 10),
     group = !!meta.group_subjects;
   let test = nights.filter((t) => foldOf(t.cohort, t.id, group) === fold);
+  const otherFolds = nights.length - test.length;
+  const beforeLimit = test.length;
   if (args.limit) test = test.slice(0, parseInt(args.limit, 10));
+  const cutByLimit = beforeLimit - test.length;
   const namesAll = nights.find((t) => t.names).names;
   const rx = meta.drop ? new RegExp(meta.drop) : null;
   const keep = namesAll.map((nm, j) => (rx && rx.test(nm) ? -1 : j)).filter((j) => j >= 0);
@@ -239,6 +271,20 @@ function run() {
   if (kappaPy != null) console.log(`kappa: JS ${kappaJs.toFixed(4)} vs Python ${kappaPy.toFixed(4)} (gap ${Math.abs(kappaJs - kappaPy).toFixed(4)})`);
   const v = parityVerdict(results, { kappaJs, kappaPy, evidence: [args.weights, args.proba, args['python-fold']].filter(Boolean) });
   console.log(`verdict: ${v.status}${v.reason ? ' — ' + v.reason : ''}`);
+  /* ── THE POPULATION EVERY FIGURE ABOVE WAS TAKEN OVER ─────────────────────────────────────────── */
+  const offered = snaps.reduce((a, s) => a + (s.snap.ok ? s.snap.n : 0), 0);
+  console.log(
+    `  population: ${offered} cached night(s) offered by ${snaps.filter((s) => s.snap.ok).length} of ${snaps.length} cohort cache(s); ${test.length} scored` +
+      `; ${account.skipped.length} marked skipped in the cache${account.skipped.length ? ` (${account.skipped.join(', ')})` : ''}` +
+      `; ${otherFolds} in another fold; ${cutByLimit} cut by --limit`
+  );
+  for (const { cohort, snap } of snaps) {
+    if (!snap.ok) continue;
+    const population = populationVerdict(snap, snapshotEntries(path.join(args.cache, cohort), POP), { tool: 'tools/seqnet-eval.mjs', evidence: ['tools/seqnet-eval.mjs'] });
+    const rule = ruleLine(population);
+    if (rule) console.log(`  ${rule}`);
+    console.log(`POPULATION ${JSON.stringify(population)}`);
+  }
   if (args.verdict) {
     fs.writeFileSync(args.verdict, JSON.stringify(v, null, 2) + '\n');
     console.log(`→ ${args.verdict}`);

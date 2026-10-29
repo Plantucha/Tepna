@@ -2766,6 +2766,18 @@
     ]
    },
    "note": "it measures H10 against Verity motion over every night under `--src`. The population is the FILES the recursive walk found, through `snapshotEntries` with the named lister `listCaptureFiles`, with members kept as paths relative to the root because two subdirectories may hold one filename. Its walk caught an unreadable subdirectory and returned the accumulator, so a partly readable tree and a whole one printed the same line: the walk now names the directories it could not read and the population line carries the count, while an unreadable `--src` itself exits 2 with the errno named. The offered count is not the scored count, measured 2026-10-28: 577 files walked for one paired night, with refused stamps, `--night`, `--skip-existing` and the both-devices requirement each named as remainder (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/cvhr-fold-rescore.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cvhr-fold-rescore.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "\u03c1 itself carries NO verdict, deliberately: the tool reports Spearman \u03c1 with n over the CVHR fold overlap and proposes no band, as its siblings `gap-s-sweep.mjs` (\"a MEASUREMENT sweep for an owner ruling\") and `treatment-response-recut.mjs` (\"a re-cut AGGREGATOR, not a gate\") do. What it DOES decide is its own POPULATION: the night tree is snapshotted through `snapshotNights` before the control phase and again after the scoring, and `populationVerdict` publishes whether that set held still across the run \u2014 PASS stable, SHORTFALL moved, NOT_RUN when a walk could not enumerate. Three removals went unpublished before this: the tool never enumerated the tree at all, so its offer was the control file's night list; `--limit` cut that offer while the published figure counted the survivors; and `--resume` mixed nights carried from a prior run with nights this one scored. The offer is now stated before the control phase, so a run that REFUSES to score still says what it was offered, and an absent or unreadable tree exits 2 naming the errno where `existsSync` used to pass it to a throw. The cmd walks a scratch temp root holding two synthetic night directories, so the gate validates the object where no corpus is mounted (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   }
  }
 }
