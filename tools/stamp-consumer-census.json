@@ -293,6 +293,13 @@
       "anchored": false,
       "readBy": "Magpie",
       "note": "THE ONE TIME READER THAT SLICES THE DIGITS ITSELF, and the separator rule is why nobody had seen it. Its node-local `parseTimestamp` holds the Clock Contract's 14-digit arm at line 85 and spells the gap `[_\\-]?`, so the run ended there and the file reached neither predicate until 2026-10-27. CPAPDex carries no `clock.js` by design, so there is no owner to route to and the node-local variant is correct to exist. `anchored` is false because the regex bounds no run: it range-validates through `_ckMk` and then takes the first fourteen digits of a longer token. Logged as its own row rather than repaired here, because the fix re-bundles CPAPDex."
+    },
+    "tools/ring-offset-census.mjs": {
+      "reads": [
+        "accept-test"
+      ],
+      "anchored": null,
+      "note": "READ 2026-10-29 (Heron), the day the file entered the tree. `RE_RING_PPG` admits a ring plethysmogram filename and decides nothing else. The instant comes from `PpgDex.parsePPG` through the shared clock spine, never from these digits, so no site here converts the stamp. Same reading as `capture-host/ppg_grid_check.py`."
     }
   }
 }
