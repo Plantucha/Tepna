@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { gitShort } from './verdict-emit.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 
@@ -112,6 +112,16 @@ function ringHRSeries(path) {
    so a captures directory this machine could not open left the sweep with no row, no count and no
    name — the glob reason above is real and it does not extend to EACCES. Each argument now says why
    it is out, and the roots line below prints every reason. */
+/* 🔴 AN UNKNOWN DASHED TOKEN IS STILL A TYPO, and the filter below would swallow it silently (row
+   2026-10-21-two-tools-take-a-bare-argv-token-as-data-with-no-guard). Every bare token is a captures
+   root, so the POSITIONS are this tool's interface and `positional: true` keeps all of them — it
+   refuses only a dashed token this tool does not read. Without it `--limit 5` dropped out of `dirs`,
+   `5` read as a root, and the sweep ran over everything while its caller believed it had asked for
+   five. The refusal sits inside the entry guard: `process.argv` belongs to whoever is running, so a
+   module-scope call would judge an importer's arguments. */
+if (isCliEntry(import.meta.url)) {
+  refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--selftest', '--verdict-sample'], positional: true }, { tool: 'o2ring-finger-validate-batch' });
+}
 const rootsGiven = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const rootsPassedOver = [];
 const dirs = process.argv.slice(2).filter((d) => {

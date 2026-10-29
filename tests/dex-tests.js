@@ -12812,6 +12812,23 @@
         /all passed over: \$\{rootsPassedOver\.join/.test(O2),
         'absent — "no directories given" over a run that WAS given one says the opposite of what happened'
       );
+      /* THE POSITIONS ARE THE INTERFACE, SO AN UNKNOWN DASHED TOKEN MUST STILL REFUSE. Wiring the
+         population made this scan decidable: `argv-reads.mjs` reads the shape-selected filter as
+         keeping every non-flag token as data, which is `consumes` — the class the argv-reads gate
+         reds by name. `positional: true` keeps every captures root and refuses only a dashed token
+         the tool does not read (row
+         2026-10-21-two-tools-take-a-bare-argv-token-as-data-with-no-guard). */
+      T.ok(
+        'the ring sweep refuses an unknown dashed token while keeping every position',
+        /refuseUnknownArgvOrExit\(process\.argv\.slice\(2\), \{ boolean: \['--selftest', '--verdict-sample'\], positional: true \}/.test(O2),
+        'absent'
+      );
+      T.ok(
+        '…inside the entry guard, because process.argv belongs to whoever is running',
+        /if \(isCliEntry\(import\.meta\.url\)\) \{\n  refuseUnknownArgvOrExit\(/.test(O2),
+        'a module-scope call would judge an importer’s arguments'
+      );
+      T.eq('…and the argv scan therefore reads it as refusing, not consuming', env.argvReads ? env.argvReads.classifyTool(O2).cls : 'refuses', 'refuses');
       /* THE CENSUS: ONE TRAVERSAL, A DENOMINATOR, AND A REFUSAL THAT PROTECTS ITS OWN BASELINE. */
       var CC = TT['tools/corpus-census.mjs'];
       T.ok(
@@ -12899,6 +12916,12 @@
       var notADir = probe('tools/o2ring-finger-validate-batch.mjs', ['./package.json']);
       T.eq('the ring sweep exits 2 when every argument was passed over', notADir.status, 2);
       T.ok('…naming the argument and why, rather than "no directories given"', /passed over: .*package\.json/.test(String(notADir.out)), String(notADir.out).slice(0, 200));
+      /* KNOWN ANSWER · a dashed token this tool does not read is a typo, not a root. Dropping it
+         silently would sweep every root while its caller believed it had asked for five. */
+      var typo = probe('tools/o2ring-finger-validate-batch.mjs', ['--limit', '5', '.']);
+      T.eq('the ring sweep exits 2 on an unknown dashed token', typo.status, 2);
+      T.ok('…naming the flag and what it does accept', /unknown flag --limit/.test(String(typo.out)) && /--verdict-sample/.test(String(typo.out)), String(typo.out).slice(0, 200));
+      T.eq('…and wrote nothing beside itself', typo.wrote, []);
       /* KNOWN ANSWER · the empty census protects the baseline a later --diff reads. */
       var emptyWrite = probe('tools/corpus-census.mjs', ['--root', '.', '--glob', '*', '--name', 'probe', '--write']);
       T.ok('an empty census says what it did NOT write', /NO MANIFEST WRITTEN/.test(String(emptyWrite.out)), String(emptyWrite.out).slice(0, 240));
