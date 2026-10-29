@@ -30,6 +30,7 @@ import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collapseHome } from './home-paths.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -470,12 +471,28 @@ export function intersectSnapshots(before, after) {
  *  population, the intersection, so this annotates reduced coverage instead of refusing a figure
  *  (owner ruling 2026-09-17, `CLAUDE.md` §∅ — a discontinuity refuses, reduced coverage annotates).
  *  A caller that must not narrow treats SHORTFALL as its own refusal. */
-export function populationVerdict(before, after, { commit = null, commitReason = null, at = null, tool = 'tools/corpus-scope.mjs', evidence = [] } = {}) {
+export function populationVerdict(before, after, { commit = null, commitReason = null, at = null, tool = 'tools/corpus-scope.mjs', evidence = [], home = homedir() } = {}) {
   const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
-  const ev = ['tools/corpus-scope.mjs', DOC, ...evidence].filter((e, i, a) => a.indexOf(e) === i);
+  const ev = ['tools/corpus-scope.mjs', DOC, ...evidence].map((e) => collapseHome(String(e), home)).filter((e, i, a) => a.indexOf(e) === i);
   const stamp = at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   /* THE UNIT IS READ FROM THE SNAPSHOT, so one builder serves a night population and a record one and
      neither can borrow the other's words. */
+  /* ROW 2026-10-29-every-committed-population-verdict-carries-the-walked-root-absolute. The owner
+     ruled on 2026-10-28 that the tracked tree stores no absolute path under a home directory, and
+     THIS builder is where a walked root becomes a committed artifact: `result.root`, the reason
+     prose below, and a caller's own `evidence`. So the collapse sits at the PUBLISH boundary and
+     not in `snapshotNights`, where the row first proposed it. Measured 2026-10-29:
+     `tools/seqnet-eval.mjs:53` joins `snap.root` onto a filename and reads that file, so a snapshot
+     that carried `~/...` would read nothing. 86 files call the two snapshot functions and every one
+     of them publishes through this builder, so no caller has to remember.
+     `collapseHome` is the one definition (`tools/home-paths.mjs:47`) and it returns a root outside
+     the home directory unchanged. `home` is a parameter, as `expandHome` above takes one, so a leg
+     pins the rule without reading this machine's environment.
+     A REASON IS PROSE WITH A PATH INSIDE IT, and `collapseHome` answers for a string that IS a
+     path. A `readdir` failure with no `errno` carries the absolute path inside its message, so the
+     prose gets the same prefix by substitution. */
+  const pubPath = (p) => collapseHome(String(p), home);
+  const pubProse = (s) => (s === null || s === undefined ? s : String(s).split(home).join('~'));
   const W = unitWords(before, after);
   const names = (xs) => (xs.length > 4 ? `${xs.slice(0, 4).join(', ')} and ${xs.length - 4} more` : xs.join(', '));
   let v;
@@ -493,7 +510,7 @@ export function populationVerdict(before, after, { commit = null, commitReason =
       criterion: { name: W.criterion, threshold: 0, unit: W.unit, direction: 'lte' },
       result: null,
       evidence: ev,
-      reason: `${which} (${(before.ok ? after : before).reason}), so this run cannot tell a stable population from a moved one`,
+      reason: pubProse(`${which} (${(before.ok ? after : before).reason}), so this run cannot tell a stable population from a moved one`),
       producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
@@ -527,11 +544,13 @@ export function populationVerdict(before, after, { commit = null, commitReason =
       criterion: { name: W.criterion, threshold: 0, unit: W.unit, direction: 'lte' },
       result: null,
       evidence: ev,
-      reason: refused.length
-        ? `the root ${before.root} offered ${refused.length} night-shaped director${refused.length === 1 ? 'y' : 'ies'} and the caller's own rule ${before.rule} refused every one of them (${names(refused)})${alsoPassed}, so this run measured no population`
-        : passed.length
-          ? `the root ${before.root} enumerated ${entries(passed)} and the rule ${before.rule} matched none of them (${names(passed)}), so this run measured no population and the root may be keyed on something other than a ${W.one}`
-          : `the root ${before.root} enumerated and offered no ${W.thing} at all, so this run measured no population`,
+      reason: pubProse(
+        refused.length
+          ? `the root ${before.root} offered ${refused.length} night-shaped director${refused.length === 1 ? 'y' : 'ies'} and the caller's own rule ${before.rule} refused every one of them (${names(refused)})${alsoPassed}, so this run measured no population`
+          : passed.length
+            ? `the root ${before.root} enumerated ${entries(passed)} and the rule ${before.rule} matched none of them (${names(passed)}), so this run measured no population and the root may be keyed on something other than a ${W.one}`
+            : `the root ${before.root} enumerated and offered no ${W.thing} at all, so this run measured no population`
+      ),
       producedBy: producedByOf(tool, commit, commitReason),
       at: stamp
     });
@@ -548,7 +567,7 @@ export function populationVerdict(before, after, { commit = null, commitReason =
       population: { checked: d.n, eligible: d.n + d.added.length + d.removed.length, excluded: d.added.length + d.removed.length },
       criterion: { name: W.criterion, threshold: 0, unit: W.unit, direction: 'lte' },
       result: {
-        root: before.root,
+        root: pubPath(before.root),
         n: d.n,
         unit: W.unit,
         digest: d.digest,
