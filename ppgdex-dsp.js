@@ -1642,6 +1642,13 @@
             anchors: hostAx.n,
             totalMs: hostAx.totalMs,
             ppm: hostAx.ppm,
+            /* §7's two companions for the `ppm` above, forwarded from the spine. THIS BLOCK RENAMES, so a
+               field the spine adds and this list omits is dropped — the trap that already ate `stability`
+               here once, and the reason 173 committed exports of this node quote a rate with an anchor
+               count and no span anywhere in the block. `spanPpm` is the same divergence ratio before the
+               width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
+            spanMs: hostAx.spanMs,
+            spanPpm: hostAx.spanPpm,
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
@@ -7019,6 +7026,13 @@
         out.recording.hostAxis = {
           anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
           ppm: nz(r.hostAxis.ppm),
+          /* §7's two companions for a quoted rate, and this block published neither. `spanMs` is the
+             span the ppm was measured over — 173 committed exports of this node quote a ppm with
+             `anchors` and no span. `spanPpm` is the same ratio before the running median, so the pair
+             says how much of the quote the smoother's last window set. Both come from the spine; see
+             `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
+          spanMs: nz(r.hostAxis.spanMs),
+          spanPpm: nz(r.hostAxis.spanPpm),
           maxStepMs: nz(r.hostAxis.maxStepMs),
           totalMs: nz(r.hostAxis.totalMs),
           /* The three §7 discriminators. `independent` is the verdict on whether the host column is a

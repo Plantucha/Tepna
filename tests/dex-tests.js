@@ -2262,6 +2262,11 @@
       var ha = out && out.recording && out.recording.hostAxis;
       T.ok('the export carries recording.hostAxis from a FILE, not from a hand-built axis', !!ha, JSON.stringify(ha && Object.keys(ha)));
       if (!ha) return;
+      /* §7's two companions on the REAL path. Both are picked by name in the reshape, so the spine
+         publishing them is not enough — this is the seam that ate `stability` on its first real-data
+         run, and 173 committed exports of this node still quote a ppm with no span. */
+      T.ok('…with spanMs beside the ppm — §7 never allows a rate without its span', typeof ha.spanMs === 'number' && ha.spanMs > 0, 'spanMs=' + ha.spanMs);
+      T.ok('…and spanPpm, the same rate before the running median', typeof ha.spanPpm === 'number' && isFinite(ha.spanPpm), 'spanPpm=' + ha.spanPpm);
       T.eq('…the planted host is INDEPENDENT (spread ≫ 2 ms), so a stability curve is owed', ha.independent, true);
       var st = ha.stability;
       T.ok('…and stability is a BLOCK, not null — the §2.1 forwarding gap is closed on the file path', !!st, JSON.stringify(st));
@@ -4625,6 +4630,80 @@
         'cA(500)=' + interp.correctionAt(500) + ' cA(0)=' + interp.correctionAt(0)
       );
       T.approx('…and lands between its two bracketing anchors', interp.correctionAt(500), (interp.correctionAt(0) + interp.correctionAt(1000)) / 2, 1e-9);
+    });
+
+    /* ════ `spanPpm` + `spanMs` — A QUOTED RATE CARRIES WHAT IT WAS MEASURED OVER ═══════════════════
+       `ppm` is `sm[n-1] / span`: an END-POINT RATIO of the width-21 running median, not a fit across
+       the anchors. Two things a consumer therefore could not see on its own fragment: the span the rate
+       was measured over — §7's own rule, and 173 committed PpgDex exports quote a `ppm` with `anchors`
+       and no span — and how much of the quote the median's final window set. Both fields are additive,
+       and `ppm` is pinned to a literal below so a later edit cannot move it under cover of them.
+       Sized by tools/ring-rate-cause.mjs (708 ring fragments, 223 788 544 rows, 2026-10-29): the
+       published ppm is a residual of five terms and the dominant one carries a median 4.16 times the
+       quote, so publishing one of them alone leaves the number unreadable. ════ */
+    group('hostAxis spanPpm + spanMs — the quoted rate becomes readable', 'clock · host-axis · spanppm', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.hostAxis !== 'function') {
+        T.skip('DexClock.hostAxis available', 'clock.js not loaded');
+        return;
+      }
+      var SPAN = 190 * 60 * 1000,
+        N = 2873;
+      var ramp = function (fn) {
+        var a = [];
+        for (var i = 0; i < N; i++) {
+          var d = (i / (N - 1)) * SPAN;
+          a.push({ devMs: d, hostMs: d + fn(d, i) });
+        }
+        return a;
+      };
+      // A CLEAN linear divergence, no jitter: 1000 ms over 190 min = 87.719 ppm by construction.
+      var LIN = 1000;
+      var axL = C.hostAxis(
+        ramp(function (t) {
+          return (t / SPAN) * LIN;
+        }),
+        {}
+      );
+      T.ok('the success path publishes spanMs at all (the refusal path always did)', axL.ok === true && typeof axL.spanMs === 'number', 'spanMs=' + axL.spanMs);
+      T.eq('…and it is the device span between first and last anchor', Math.round(axL.spanMs), SPAN);
+      T.ok('spanPpm reads the planted rate off the RAW divergence', Math.abs(axL.spanPpm - 87.71929824561403) < 1e-9, 'spanPpm=' + axL.spanPpm);
+      /* §7's end-clamp statement, computed rather than asserted. At k = n−1 the window is [n−11, n−1],
+         so `sm[n-1]` is the SIXTH-FROM-LAST raw value and `ppm` therefore lags `spanPpm` by exactly
+         5 anchors of drift: 1 − 5/(n−1), which is the 0.17 % at n = 2873 that clock.js quotes. A RATIO,
+         so the leg is independent of the planted rate. */
+      T.ok('ppm under-reads spanPpm by exactly 5 anchors of drift (§7 end clamp)', Math.abs(axL.ppm / axL.spanPpm - (1 - 5 / (N - 1))) < 1e-12, 'ratio=' + axL.ppm / axL.spanPpm);
+      T.ok('…and ppm itself is unchanged by this addition (literal pin)', Math.abs(axL.ppm - 87.56658358989395) < 1e-9, 'ppm=' + axL.ppm);
+      /* ONE 470 ms host-stamp slip at the LAST anchor — VIGIL-OBSERVED-ERRORS E8's worst measured
+         value. The end-point ratio takes all of it; the median rejects it. This is why the correction
+         reads `sm`, and why `spanPpm` is a diagnostic and never the rate to apply. */
+      var axSlip = C.hostAxis(
+        ramp(function (t) {
+          return t >= SPAN ? 470 : 0;
+        }),
+        {}
+      );
+      T.ok('a single 470 ms end slip moves spanPpm by the full 41.2 ppm', Math.abs(axSlip.spanPpm - 41.2280701754386) < 1e-9, 'spanPpm=' + axSlip.spanPpm);
+      T.ok('…and leaves ppm at zero — the running median rejects it', Math.abs(axSlip.ppm) < 1e-12, 'ppm=' + axSlip.ppm);
+      /* §∅ — a refusal reports NO rate of either kind rather than a zero. Two refusals, two reasons:
+         too few anchors (no span computed yet) and a zero device span (span computed, rate impossible). */
+      var few = C.hostAxis(
+        [
+          { devMs: 0, hostMs: 0 },
+          { devMs: 1, hostMs: 1 }
+        ],
+        {}
+      );
+      T.eq('a sub-3-anchor refusal carries no spanPpm', few.ok === false && few.spanPpm === undefined, true);
+      var flat = C.hostAxis(
+        [
+          { devMs: 5, hostMs: 0 },
+          { devMs: 5, hostMs: 7 },
+          { devMs: 5, hostMs: 3 }
+        ],
+        {}
+      );
+      T.eq('…and a zero-span refusal names the span it got, still with no rate', flat.ok === false && flat.spanMs === 0 && flat.spanPpm === undefined, true);
     });
 
     group('hostAxis — recover a planted device drift without disturbing the intervals', 'clock · host-axis', function (T) {
@@ -29640,6 +29719,14 @@
         '…and recording.hostAxis — dead until analyze forwarded rec.hostAxis',
         !!ex.recording.hostAxis && ex.recording.hostAxis.timingSource === 'device',
         JSON.stringify(ex.recording.hostAxis && ex.recording.hostAxis.timingSource)
+      );
+      /* The unsmoothed twin travels here too (2026-10-29). This node quotes a rate — it divides `fs`
+         by the ppm — so a reader sizing that correction needs the end-point ratio the median replaced.
+         `spanMs` stays this node's own (`ecgdex-dsp.js:5656`), which is why only one key is new. */
+      T.ok(
+        '…and recording.hostAxis.spanPpm — the rate before the running median',
+        !!ex.recording.hostAxis && typeof ex.recording.hostAxis.spanPpm === 'number' && isFinite(ex.recording.hostAxis.spanPpm),
+        JSON.stringify(ex.recording.hostAxis && ex.recording.hostAxis.spanPpm)
       );
       // Attach-only-when-present: a rec the parser could not judge adds NO keys (export-shape inertness
       // for recordings with no ns column / no host stamps — the discipline every sibling block keeps).

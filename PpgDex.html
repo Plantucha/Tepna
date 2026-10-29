@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e270b52ded28" data-compute-hash="17f3514c59c6">
+<html lang="en" data-manifest-hash="a01ac8987c3c" data-compute-hash="3f308dfb7de1">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+egeWdETiBZ27Gdd8RX+z+wWiiWXEw2g2TPSErAdq5g=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fqhp4uoeZeCyCOtsTVvJY/rgoZv+Oo7+GUwjjkOnsqc=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fqhp4uoeZeCyCOtsTVvJY/rgoZv+Oo7+GUwjjkOnsqc=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-uSUfxansjHADk1N3tZc/tAz0gqnVaxkZ0OX5X7kz5Lw=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.24.0</title>
@@ -8731,6 +8731,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             anchors: hostAx.n,
             totalMs: hostAx.totalMs,
             ppm: hostAx.ppm,
+            /* §7's two companions for the `ppm` above, forwarded from the spine. THIS BLOCK RENAMES, so a
+               field the spine adds and this list omits is dropped — the trap that already ate `stability`
+               here once, and the reason 173 committed exports of this node quote a rate with an anchor
+               count and no span anywhere in the block. `spanPpm` is the same divergence ratio before the
+               width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
+            spanMs: hostAx.spanMs,
+            spanPpm: hostAx.spanPpm,
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
@@ -14108,6 +14115,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         out.recording.hostAxis = {
           anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
           ppm: nz(r.hostAxis.ppm),
+          /* §7's two companions for a quoted rate, and this block published neither. `spanMs` is the
+             span the ppm was measured over — 173 committed exports of this node quote a ppm with
+             `anchors` and no span. `spanPpm` is the same ratio before the running median, so the pair
+             says how much of the quote the smoother's last window set. Both come from the spine; see
+             `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
+          spanMs: nz(r.hostAxis.spanMs),
+          spanPpm: nz(r.hostAxis.spanPpm),
           maxStepMs: nz(r.hostAxis.maxStepMs),
           totalMs: nz(r.hostAxis.totalMs),
           /* The three §7 discriminators. `independent` is the verdict on whether the host column is a

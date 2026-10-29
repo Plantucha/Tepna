@@ -22,6 +22,7 @@
       "applied": false,
       "anchors": 6,
       "ppm": -9.09296192874232,
+      "spanPpm": -1.298552876596999,
       "ppmUncertainty": null,
       "maxStepMs": 0,
       "spanMs": 59223.076904296875,
@@ -80,8 +81,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ab12d63caf33",
-        "computeHash": "99676cd848b9"
+        "manifestHash": "21c00a3dc623",
+        "computeHash": "7ac32b22237d"
       },
       "evidence": {
         "envelopeRef": null,
@@ -110,8 +111,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ab12d63caf33",
-        "computeHash": "99676cd848b9"
+        "manifestHash": "21c00a3dc623",
+        "computeHash": "7ac32b22237d"
       },
       "evidence": {
         "envelopeRef": null,
@@ -140,8 +141,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ab12d63caf33",
-        "computeHash": "99676cd848b9"
+        "manifestHash": "21c00a3dc623",
+        "computeHash": "7ac32b22237d"
       },
       "evidence": {
         "envelopeRef": null,
@@ -170,8 +171,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ab12d63caf33",
-        "computeHash": "99676cd848b9"
+        "manifestHash": "21c00a3dc623",
+        "computeHash": "7ac32b22237d"
       },
       "evidence": {
         "envelopeRef": null,
@@ -202,8 +203,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ab12d63caf33",
-        "computeHash": "99676cd848b9"
+        "manifestHash": "21c00a3dc623",
+        "computeHash": "7ac32b22237d"
       },
       "evidence": {
         "envelopeRef": null,
