@@ -2779,6 +2779,18 @@
    },
    "note": "\u03c1 itself carries NO verdict, deliberately: the tool reports Spearman \u03c1 with n over the CVHR fold overlap and proposes no band, as its siblings `gap-s-sweep.mjs` (\"a MEASUREMENT sweep for an owner ruling\") and `treatment-response-recut.mjs` (\"a re-cut AGGREGATOR, not a gate\") do. What it DOES decide is its own POPULATION: the night tree is snapshotted through `snapshotNights` before the control phase and again after the scoring, and `populationVerdict` publishes whether that set held still across the run \u2014 PASS stable, SHORTFALL moved, NOT_RUN when a walk could not enumerate. Three removals went unpublished before this: the tool never enumerated the tree at all, so its offer was the control file's night list; `--limit` cut that offer while the published figure counted the survivors; and `--resume` mixed nights carried from a prior run with nights this one scored. The offer is now stated before the control phase, so a run that REFUSES to score still says what it was offered, and an absent or unreadable tree exits 2 naming the errno where `existsSync` used to pass it to a throw. The cmd walks a scratch temp root holding two synthetic night directories, so the gate validates the object where no corpus is mounted (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
   },
+  "tools/ring-rate-cause.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ring-rate-cause.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "row 2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied, under owner order #2161: the owner ruled the ring carries a crystal and cannot drift past single-digit ppm, so the census's 50 impossible nights hold an acquisition or a processing error instead. This decomposes each published rate into five pre-stated causes and names the dominant one per fragment and per night. spanPpm = (hostSpan - devSpan)/devSpan, and hostSpan - devSpan = (n-1)(stepTrue - stepNom) + G - J*stepNom + jitter, so the terms are drawn-constant-error, undelivered-samples, device-counted-skips, host-stamp-jitter and end-window-median. Pre-stated criterion: no rated fragment publishes a rate outside the node's own two floors, threshold 0 fragments; the floors are read out of ppgdex-dsp.js and clock.js at run time, and a floor this tool cannot read exits 2 rather than scoring it zero. Population = folded ring nights with raw fragments here, the census's own enumerator reused, with an unreadable fragment named and counted apart. It calls the real DexClock.hostAxis and the real DexClock.parseTimestamp, so the arithmetic is the node's; the control is that it reproduces the census's worst single-axis ppm for 2026-07-25 to all 15 digits. The cmd builds two synthetic fragments in memory and takes the FAIL branch, so the object validates where no corpus is mounted."
+  },
   "tools/ring-offset-census.mjs": {
    "bin": "decides",
    "status": "adopted",
