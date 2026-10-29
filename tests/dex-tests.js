@@ -10508,7 +10508,16 @@
              sentence still over-flags — which is this population's stated design (a new tool lands here
              rather than staying invisible), and the honest classification is a reason, not a guard. */
           'tools/tch-reference-record.mjs':
-            "REPORTS — it republishes the sibling reference run's pooled figures and applies no rate at all: it never calls `hostAxis`, never reads a `.ppm`, and its axis mention is the `axisNote` sentence inside the record it writes."
+            "REPORTS — it republishes the sibling reference run's pooled figures and applies no rate at all: it never calls `hostAxis`, never reads a `.ppm`, and its axis mention is the `axisNote` sentence inside the record it writes.",
+          /* Joined the population 2026-10-29 with the census of the ring's own axis. Its subject IS
+             the published rate: it counts how many committed ring nights keep a `ppm` no crystal can
+             hold, so refusing a drawn axis would delete the population it exists to characterise —
+             the reading `known-clock-recovery.mjs` already carries one row up. It applies no
+             correction and places no sample, and it publishes `drawnAxis`, `independentAxis`,
+             `maxDrawnShare` and `nightsEveryFragmentDrawn` beside every rate it prints, so the
+             provenance travels with the arithmetic. */
+          'tools/ring-offset-census.mjs':
+            'REPORTS — it audits the rate itself, printing `drawn=` beside `ppm=` per fragment and counting the nights whose every fragment is drawn. It applies no rate and corrects no axis.'
         };
         var POP = [],
           AXIS = [],
@@ -10565,9 +10574,10 @@
           'tools/beat-comb-analysis.mjs, tools/beat-leg-closure.mjs, tools/dual-clock-rate.mjs, tools/integrator-block-precision.mjs'
         );
         /* 12 measured 2026-09-27; 13 from 2026-10-18, when `tch-reference-record.mjs` joined on its
-           published `axisNote` sentence (see its EXCLUDED row). The number is a ratchet on a derived
-           set, so it moves only beside a classification. */
-        T.eq('POPULATION is 13 — the published denominator', POP.length, 13, 'POPULATION=' + POP.join(', '));
+           published `axisNote` sentence (see its EXCLUDED row); 14 from 2026-10-29, when
+           `ring-offset-census.mjs` joined on the `.ppm` it audits. The number is a ratchet on a
+           derived set, so it moves only beside a classification. */
+        T.eq('POPULATION is 14 — the published denominator', POP.length, 14, 'POPULATION=' + POP.join(', '));
       }
 
       /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing
@@ -42970,7 +42980,12 @@
         /* `tools/` is pinned as ONE population, never per file. The adoption gate (tools/, verdict manifest) counts a
            tool as GATED when its stem occurs under `tests/`, so a table of tool names here would mark
            38 research tools as gated by a test that runs none of them. The failure lists the files. */
-        var TOOLS_PIN = { files: 38, calls: 64, reason: 'research tools: ' + OPEN };
+        /* 38 files / 64 calls to 2026-10-28; 39 / 65 from 2026-10-29, when `ring-offset-census.mjs`
+           began parsing raw ring plethysmograms for their host axis. No `…RUNS.txt` sidecar exists
+           beside a vendor ring export anywhere in this corpus — every capture predates the writer —
+           so there is nothing for that call to pass, and the pin is the honest answer rather than a
+           deferral. */
+        var TOOLS_PIN = { files: 39, calls: 65, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');

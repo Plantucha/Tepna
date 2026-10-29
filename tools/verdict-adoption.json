@@ -2778,6 +2778,18 @@
     ]
    },
    "note": "\u03c1 itself carries NO verdict, deliberately: the tool reports Spearman \u03c1 with n over the CVHR fold overlap and proposes no band, as its siblings `gap-s-sweep.mjs` (\"a MEASUREMENT sweep for an owner ruling\") and `treatment-response-recut.mjs` (\"a re-cut AGGREGATOR, not a gate\") do. What it DOES decide is its own POPULATION: the night tree is snapshotted through `snapshotNights` before the control phase and again after the scoring, and `populationVerdict` publishes whether that set held still across the run \u2014 PASS stable, SHORTFALL moved, NOT_RUN when a walk could not enumerate. Three removals went unpublished before this: the tool never enumerated the tree at all, so its offer was the control file's night list; `--limit` cut that offer while the published figure counted the survivors; and `--resume` mixed nights carried from a prior run with nights this one scored. The offer is now stated before the control phase, so a run that REFUSES to score still says what it was offered, and an absent or unreadable tree exits 2 naming the errno where `existsSync` used to pass it to a throw. The cmd walks a scratch temp root holding two synthetic night directories, so the gate validates the object where no corpus is mounted (row 2026-10-21-forty-one-corpus-enumerators-report-no-population)."
+  },
+  "tools/ring-offset-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ring-offset-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "row 2026-09-29-ring-offset-steps-every-night-single-rate-quoted-across-them: the census reads every raw ring PPG fragment of every folded night and measures what the per-segment host axis makes of it. Pre-stated criterion: no night keeps a finite segment rate outside the +-50 ppm crystal bound, threshold 0 nights. Population = folded ring nights with raw fragments here; a folded night with no raw is excluded and named, an unreadable directory is counted apart and never read as empty. A recording the model left whole contributes ONE implied segment carrying its single-axis rate, because offsetSegments is written only where the split raises more than one segment. The sample is synthetic: no corpus, no night names, commit null with a reason."
   }
  }
 }
