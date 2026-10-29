@@ -80,7 +80,7 @@ function printPopulation(v, snap) {
    report itself is what proves the wiring runs on a box with no volume. */
 function refuseWithPopulation(reason) {
   const Verdict = createRequire(import.meta.url)(path.join(REPO, 'verdict.js'));
-  const snap = snapshotNights(TRIO, { re: /^2026-/ });
+  const snap = snapshotNights(TRIO, { re: NIGHT_RE });
   const v = Verdict.make({
     gate: 'corpus-population',
     status: 'NOT_RUN',
@@ -298,7 +298,7 @@ function night(dateISO) {
    no trace anywhere. Measured 2026-10-21 over `uploads/trio`: 147 directories, 147 night-shaped,
    147 under 2026, so the rule refuses nothing today. That is a measurement and not a reason to
    drop it — the line reads `none` until the day it does not. */
-const popBefore = snapshotNights(TRIO, { re: /^2026-/ });
+const popBefore = snapshotNights(TRIO, { re: NIGHT_RE });
 const DATES = popBefore.nights;
 const ONLY = process.env.ONLY ? [process.env.ONLY] : DATES;
 const all = [];
@@ -319,7 +319,7 @@ for (const d of ONLY) {
   );
   all.push(...r.rows);
 }
-const population = populationVerdict(popBefore, snapshotNights(TRIO, { re: /^2026-/ }), { tool: TOOL, evidence: [TOOL] });
+const population = populationVerdict(popBefore, snapshotNights(TRIO, { re: NIGHT_RE }), { tool: TOOL, evidence: [TOOL] });
 printPopulation(population, popBefore);
 if (process.env.ONLY) console.log(`  ONLY=${process.env.ONLY} narrowed this run to 1 of ${popBefore.n} night(s) in the root.`);
 
@@ -355,8 +355,8 @@ function verdictSample() {
     digest: null,
     maxCtimeMs: null,
     at,
-    rule: String(/^2026-/),
-    ruleIsDefault: String(/^2026-/) === String(NIGHT_RE),
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
     rejectedNightShaped: [],
     admittedNonNight: []
   };

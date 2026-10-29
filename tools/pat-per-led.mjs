@@ -53,7 +53,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -79,8 +79,8 @@ function verdictSample() {
     digest: null,
     maxCtimeMs: null,
     at,
-    rule: String(/^2026-/),
-    ruleIsDefault: false,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
     rejectedNightShaped: [],
     admittedNonNight: []
   };
@@ -243,11 +243,11 @@ if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
 
 console.log('PER-LED PAT — each optical channel as its own detector (no consensus)');
 console.log('  inter-LED differences cancel the beat, so their TCH gives FIDUCIAL jitter directly\n');
-/* ONE WALK, AND THE WALK IS THE POPULATION. `/^2026-/` is this tool's own NIGHT RULE and travels as
+/* ONE WALK, AND THE WALK IS THE POPULATION. `NIGHT_RE` is the shared NIGHT RULE and travels as
    the walk's `re`, so `snapshotNights` names every night-shaped name it refused; folded into a
    `.filter()` it dropped them in silence. `--night` is a SELECTION over that offer and stays here.
    Row 2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one. */
-const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
 const nights = popBefore.nights.filter((n) => (!ONLY || n === ONLY) && fs.statSync(path.join(DIR, n)).isDirectory());
 const covered = [];
 for (const n of nights) {
@@ -325,7 +325,7 @@ for (const n of nights) {
 
 /* THE POPULATION THIS RUN COVERED. The status labels MOVEMENT of the night population under the run,
    never coverage, and the `scored` count beside it is what this tool actually measured. */
-const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RE }), {
   tool: 'tools/pat-per-led.mjs',
   evidence: ['tools/pat-per-led.mjs']
 });

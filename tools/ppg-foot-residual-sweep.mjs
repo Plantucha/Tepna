@@ -42,7 +42,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { NIGHT_RE, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -366,8 +366,8 @@ function verdictSample() {
     digest: null,
     maxCtimeMs: null,
     at,
-    rule: String(/^2026-/),
-    ruleIsDefault: false,
+    rule: String(NIGHT_RE),
+    ruleIsDefault: true,
     rejectedNightShaped: [],
     admittedNonNight: []
   };
@@ -421,13 +421,13 @@ async function main() {
      (2026-07-17/…), the phone-tree mirror (`Ecg-nightly-archive`) is FLAT with the date only in
      the filename stamp (…_20260610_211539_PPG.txt). Both resolve to one candidate file per night —
      the largest, the convention every sibling uses. */
-  /* ONE WALK FOR THE NIGHT LAYOUT, AND THAT WALK IS THE POPULATION. `/^2026-/` is this tool's own
+  /* ONE WALK FOR THE NIGHT LAYOUT, AND THAT WALK IS THE POPULATION. `NIGHT_RE` is the shared
      NIGHT RULE and travels as the walk's `re`, so `snapshotNights` names every night-shaped name it
      refused rather than dropping it inside a `.filter()`. Row
      2026-10-25-a-hard-coded-year-rule-refuses-a-night-and-the-verdict-reads-eligible-one. The flat
      mirror below carries no night directories at all, so the population there reads 0 night-shaped
      names and the layout word beside it says which branch ran. */
-  const popBefore = snapshotNights(DIR, { re: /^2026-/ });
+  const popBefore = snapshotNights(DIR, { re: NIGHT_RE });
   const entries = fs.readdirSync(DIR);
   const dateDirs = popBefore.nights.filter((n) => fs.statSync(path.join(DIR, n)).isDirectory());
   const perNight = new Map(); // night -> [{f,s}]
@@ -534,7 +534,7 @@ async function main() {
   }
   /* THE POPULATION THIS RUN COVERED, printed before the cross-night figures it qualifies. The
      status labels MOVEMENT of the night population under the run, never coverage. */
-  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: /^2026-/ }), {
+  const population = populationVerdict(popBefore, snapshotNights(DIR, { re: NIGHT_RE }), {
     tool: 'tools/ppg-foot-residual-sweep.mjs',
     evidence: ['tools/ppg-foot-residual-sweep.mjs']
   });
