@@ -92,6 +92,7 @@ import { createHash } from 'node:crypto';
 import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2ring-dat-timefit.mjs';
 import { buildRecord, appendFold, LEDGER_NAME } from './fold-provenance.mjs';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
+import { mergeClockResyncs, mergeOffsetSegments } from './trio-fold-clock.mjs';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);
@@ -4041,6 +4042,14 @@ for (const p of work) {
       gap: null,
       sentinelRejected: recs.reduce((t, r) => t + (r.sentinelRejected || 0), 0),
       sentinelKept: recs.reduce((t, r) => t + (r.sentinelKept || 0), 0),
+      /* THE CLOCK ANNOTATIONS OF THE FRAGMENTS, rebased onto the merged axis (residue
+         2026-10-29-the-fold-merge-drops-the-ring-segmentation-it-now-publishes). `mergeEcg` above
+         carries its own, and this record carried neither, so `offsetSegments` and `clockResyncs`
+         reached 0 of the 74 folded ring exports while every single-fragment night published both.
+         Both stay `undefined` when no fragment had one, so a clean night keeps today's bytes. The
+         epoch rule, and why a bound cannot stay fragment-local, live in `tools/trio-fold-clock.mjs`. */
+      clockResyncs: mergeClockResyncs(recs),
+      offsetSegments: mergeOffsetSegments(recs, base.t0Ms),
       /* Carry the TIMING PROVENANCE across the merge (WEARABLE-HOST-AXIS-FOLLOWUPS §F3). Without this
          the merged rec has no `hostAxis`, so the export's `quality.timingSource` came out null on every
          folded night — the field existed and was never populated, which is precisely the hollow-gate
