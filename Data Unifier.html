@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c6d5d8d7d344" data-compute-hash="032e6c3d97bf"><head>
+<html lang="en" data-manifest-hash="f1d37c9760b9" data-compute-hash="6965970caf63"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+egeWdETiBZ27Gdd8RX+z+wWiiWXEw2g2TPSErAdq5g=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-3hKoR70OoVl+YpsugJMyqcetldWdx3Bbu9rjWz+Te6Q=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IcIoipQ0VYpQZZ9CwMRRqh/n6LBB/w4+kMWcy5MilEk=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kMBDwj9d1pjlIO9o/ihHWuuCnQGqEW9CiFQP6NogSp0=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-olGSs2IuOS5/nCWBxgMvNWNu2xbJPT8jNTXkt6EzH+8=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wWOPs8vqt/AFVxopLGesbnrAgSrUrlfVm3GJcGGg61Q=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-3hKoR70OoVl+YpsugJMyqcetldWdx3Bbu9rjWz+Te6Q=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IcIoipQ0VYpQZZ9CwMRRqh/n6LBB/w4+kMWcy5MilEk=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-RL5agm0jO+OAF4uwgIkvU/TYyrFDJF4flIvpopkODeQ=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kMBDwj9d1pjlIO9o/ihHWuuCnQGqEW9CiFQP6NogSp0=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-olGSs2IuOS5/nCWBxgMvNWNu2xbJPT8jNTXkt6EzH+8=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-uSUfxansjHADk1N3tZc/tAz0gqnVaxkZ0OX5X7kz5Lw=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-wYnHDXFhU6XERv+SR42WR5IpB9t1lse9BMsdNBfoZ+M='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -3681,6 +3681,30 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       maxStepMs: maxStep,
       totalMs: sm[n - 1],
       ppm: ppm,
+      /* THE SPAN THE `ppm` ABOVE WAS MEASURED OVER. §7 says a ppm never travels without its anchor
+         count and its span, and until now this function published `n` and left the span to the
+         caller: the refusal path three blocks up returns `spanMs`, the SUCCESS path did not. Measured
+         2026-10-29 over the tracked corpus: 173 committed PpgDex node-exports carry a `ppm` and an
+         `anchors` with no span anywhere in the block, because the node had nothing to forward.
+         ECGDex computes its own (`ecgdex-dsp.js:5656`) and keeps it. Additive — no existing field
+         moves, and a consumer that ignores this reads exactly what it read before. */
+      spanMs: span,
+      /* THE SAME RATE WITHOUT THE SMOOTHER, so a reader can size what the smoother did HERE.
+         `ppm` above is `sm[n-1] / span`: an END-POINT RATIO of the median-smoothed divergence, not a
+         fit across the anchors. `spanPpm` is that ratio over the RAW divergence,
+         `(pts[n-1].r − r0) / span`. The DIFFERENCE between them is therefore exactly what the width-21
+         running median did to the final window — the end-clamp bias §7 describes as 5 anchors' drift,
+         which no consumer could previously measure on its own fragment.
+         ⚠ NEITHER NUMBER IS THE BETTER ONE, and `spanPpm` is NOT a rate to apply. The median is here
+         on purpose: one 470 ms host-stamp slip (VIGIL-OBSERVED-ERRORS E8) moves an end-point ratio by
+         470 ms / span and leaves the median alone, which is why the correction reads `sm`. Over an
+         11-minute fragment that single slip is 712 ppm. Read `spanPpm` to size the smoothing, and
+         read `stability.ppmUncertainty` below to size the rate itself.
+         WHY IT IS WORTH A FIELD (tools/ring-rate-cause.mjs, 708 ring fragments / 223 788 544 rows,
+         2026-10-29): the published `ppm` decomposes into five terms, this smoothing difference is one
+         of them, and the DOMINANT term carries a median 4.16 times the quote. A number that is the
+         residual of terms larger than itself cannot be read while only the residual is published. */
+      spanPpm: ((pts[n - 1].r - r0) / span) * 1e6,
       /* See the spread block above. `independent: false` means the host column carried no information
          the device column did not already have — read this, never a ~0 ppm, to decide whether the axis
          was actually disciplined. `spreadMs` is published so the call is checkable rather than trusted. */
@@ -20751,6 +20775,13 @@ __exports.GlucoDex = window.GlucoDex;
             anchors: hostAx.n,
             totalMs: hostAx.totalMs,
             ppm: hostAx.ppm,
+            /* §7's two companions for the `ppm` above, forwarded from the spine. THIS BLOCK RENAMES, so a
+               field the spine adds and this list omits is dropped — the trap that already ate `stability`
+               here once, and the reason 173 committed exports of this node quote a rate with an anchor
+               count and no span anywhere in the block. `spanPpm` is the same divergence ratio before the
+               width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
+            spanMs: hostAx.spanMs,
+            spanPpm: hostAx.spanPpm,
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
@@ -26128,6 +26159,13 @@ __exports.GlucoDex = window.GlucoDex;
         out.recording.hostAxis = {
           anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
           ppm: nz(r.hostAxis.ppm),
+          /* §7's two companions for a quoted rate, and this block published neither. `spanMs` is the
+             span the ppm was measured over — 173 committed exports of this node quote a ppm with
+             `anchors` and no span. `spanPpm` is the same ratio before the running median, so the pair
+             says how much of the quote the smoother's last window set. Both come from the spine; see
+             `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
+          spanMs: nz(r.hostAxis.spanMs),
+          spanPpm: nz(r.hostAxis.spanPpm),
           maxStepMs: nz(r.hostAxis.maxStepMs),
           totalMs: nz(r.hostAxis.totalMs),
           /* The three §7 discriminators. `independent` is the verdict on whether the host column is a
@@ -32222,6 +32260,9 @@ __exports.PpgDex = window.PpgDex;
             drawnShare: ecgHostAx.drawnShare != null ? ecgHostAx.drawnShare : null,
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
+            /* The unsmoothed twin of the `ppm` above, forwarded from the spine (`spanMs` below stays this
+               node's own measurement). Same renaming trap as `stability`: listed here or dropped. */
+            spanPpm: ecgHostAx.spanPpm,
             maxStepMs: ecgHostAx.maxStepMs,
             spanMs: ecgAxisSpanMs,
             /* σ_y(τ) of the host−device divergence, forwarded from the spine. Like the fields above,
@@ -33024,6 +33065,9 @@ __exports.PpgDex = window.PpgDex;
         applied: r.hostAxis.applied,
         anchors: r.hostAxis.anchors,
         ppm: r.hostAxis.ppm,
+        /* The unsmoothed twin of `ppm`, forwarded from the spine. `spanMs` below stays this node's
+           own (`:5656`) — the pair is additive and moves nothing. */
+        spanPpm: r.hostAxis.spanPpm,
         ppmUncertainty: r.hostAxis.stability ? r.hostAxis.stability.ppmUncertainty : null,
         maxStepMs: r.hostAxis.maxStepMs,
         spanMs: r.hostAxis.spanMs,

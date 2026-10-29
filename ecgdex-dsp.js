@@ -5652,6 +5652,9 @@
             drawnShare: ecgHostAx.drawnShare != null ? ecgHostAx.drawnShare : null,
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
+            /* The unsmoothed twin of the `ppm` above, forwarded from the spine (`spanMs` below stays this
+               node's own measurement). Same renaming trap as `stability`: listed here or dropped. */
+            spanPpm: ecgHostAx.spanPpm,
             maxStepMs: ecgHostAx.maxStepMs,
             spanMs: ecgAxisSpanMs,
             /* σ_y(τ) of the host−device divergence, forwarded from the spine. Like the fields above,
@@ -6454,6 +6457,9 @@
         applied: r.hostAxis.applied,
         anchors: r.hostAxis.anchors,
         ppm: r.hostAxis.ppm,
+        /* The unsmoothed twin of `ppm`, forwarded from the spine. `spanMs` below stays this node's
+           own (`:5656`) — the pair is additive and moves nothing. */
+        spanPpm: r.hostAxis.spanPpm,
         ppmUncertainty: r.hostAxis.stability ? r.hostAxis.stability.ppmUncertainty : null,
         maxStepMs: r.hostAxis.maxStepMs,
         spanMs: r.hostAxis.spanMs,

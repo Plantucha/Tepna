@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cc7a0f4b278a" data-compute-hash="02e26248f392"><head>
+<html lang="en" data-manifest-hash="1f30101dd490" data-compute-hash="b9f20ac41e29"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Zpjuz9HNd+LLNjkoKzMtvjd/eUkluuel1K4d1OmNQg=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F3NHiGTYMI9L2FxTH1NkmMI68ps02XdfPhj+h8DZ74U=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-IcIoipQ0VYpQZZ9CwMRRqh/n6LBB/w4+kMWcy5MilEk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-pjsZSrNAaZH9vKKKd7Co81sel60gUKh93MH/+BvPuJc=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-y/LeuGeQ7roL7v5QWXpI/RWIoVDaYIwOC+nSsqyvOHg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Zpjuz9HNd+LLNjkoKzMtvjd/eUkluuel1K4d1OmNQg=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F3NHiGTYMI9L2FxTH1NkmMI68ps02XdfPhj+h8DZ74U=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IcIoipQ0VYpQZZ9CwMRRqh/n6LBB/w4+kMWcy5MilEk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-pjsZSrNAaZH9vKKKd7Co81sel60gUKh93MH/+BvPuJc=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.24.0</title>
@@ -6656,6 +6656,30 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       maxStepMs: maxStep,
       totalMs: sm[n - 1],
       ppm: ppm,
+      /* THE SPAN THE `ppm` ABOVE WAS MEASURED OVER. §7 says a ppm never travels without its anchor
+         count and its span, and until now this function published `n` and left the span to the
+         caller: the refusal path three blocks up returns `spanMs`, the SUCCESS path did not. Measured
+         2026-10-29 over the tracked corpus: 173 committed PpgDex node-exports carry a `ppm` and an
+         `anchors` with no span anywhere in the block, because the node had nothing to forward.
+         ECGDex computes its own (`ecgdex-dsp.js:5656`) and keeps it. Additive — no existing field
+         moves, and a consumer that ignores this reads exactly what it read before. */
+      spanMs: span,
+      /* THE SAME RATE WITHOUT THE SMOOTHER, so a reader can size what the smoother did HERE.
+         `ppm` above is `sm[n-1] / span`: an END-POINT RATIO of the median-smoothed divergence, not a
+         fit across the anchors. `spanPpm` is that ratio over the RAW divergence,
+         `(pts[n-1].r − r0) / span`. The DIFFERENCE between them is therefore exactly what the width-21
+         running median did to the final window — the end-clamp bias §7 describes as 5 anchors' drift,
+         which no consumer could previously measure on its own fragment.
+         ⚠ NEITHER NUMBER IS THE BETTER ONE, and `spanPpm` is NOT a rate to apply. The median is here
+         on purpose: one 470 ms host-stamp slip (VIGIL-OBSERVED-ERRORS E8) moves an end-point ratio by
+         470 ms / span and leaves the median alone, which is why the correction reads `sm`. Over an
+         11-minute fragment that single slip is 712 ppm. Read `spanPpm` to size the smoothing, and
+         read `stability.ppmUncertainty` below to size the rate itself.
+         WHY IT IS WORTH A FIELD (tools/ring-rate-cause.mjs, 708 ring fragments / 223 788 544 rows,
+         2026-10-29): the published `ppm` decomposes into five terms, this smoothing difference is one
+         of them, and the DOMINANT term carries a median 4.16 times the quote. A number that is the
+         residual of terms larger than itself cannot be read while only the residual is published. */
+      spanPpm: ((pts[n - 1].r - r0) / span) * 1e6,
       /* See the spread block above. `independent: false` means the host column carried no information
          the device column did not already have — read this, never a ~0 ppm, to decide whether the axis
          was actually disciplined. `spreadMs` is published so the call is checkable rather than trusted. */
