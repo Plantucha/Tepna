@@ -6365,6 +6365,42 @@ def _oxyii_on_data(cx: _OxyiiLink, _s, d) -> None:
         _oxyii_live_frame(cx, r)
 
 
+_OXY_REC_TAIL_BYTES = 65536  # how much of OXYLIFE.csv the boot read looks at — the tail holds the last row
+
+
+def _oxy_rec_boot(root, now_ms):
+    """The `RecSeed` a just-started daemon should construct the RECORDING axis with. Reads two file
+    tails; decides nothing. The twin of `_cpap_autostart_boot`, on the pattern that function set.
+
+    TWO night directories, because the writer appends into the night dir of the SESSION's start date
+    and that stays yesterday's folder all day (`solid_night`'s measured case). One directory would
+    read an empty file every morning and seed UNKNOWN on the days the recovery is for.
+
+    THE TAIL ONLY. This file carries every link transition of the day — hundreds of rows — and the
+    boot read needs its last rec row. A torn first line is what `rec_journal_rows` already skips.
+
+    `night_dir` is deliberately not called: it creates the directory, and a reader that creates a
+    night folder would make an empty night look like a captured one."""
+    import oxy_lifecycle
+
+    text = ""
+    day = _dt.datetime.fromtimestamp(now_ms / 1000.0)  # LOCAL, matching night_dir's own strftime
+    for d in (day - _dt.timedelta(days=1), day):
+        path = os.path.join(root, "captures", d.strftime("%Y-%m-%d"), "OXYLIFE.csv")
+        try:
+            with open(path, "rb") as fh:
+                fh.seek(0, 2)
+                size = fh.tell()
+                fh.seek(max(0, size - _OXY_REC_TAIL_BYTES))
+                text += fh.read().decode("utf-8", "replace")
+        except OSError:
+            continue  # no journal there: `boot_rec_state` seeds UNKNOWN, and says so
+    rows = oxy_lifecycle.rec_journal_rows(text)
+    seed, why = oxy_lifecycle.boot_rec_state(rows, now_ms)
+    log.info("oxy rec boot: %s", why)
+    return seed
+
+
 async def run_oxyii(dev: dict, root: str):
     """Wellue O2Ring-S / T8520 ("S8-AW…") — live SpO2 + pulse over the OxyII protocol (NOT legacy Viatom).
     No bonding. Flow: connect → auth(0xFF) → setup(0x10) → poll cmd=0x04 ~1/s. Emits the ViHealth CSV
@@ -6379,7 +6415,18 @@ async def run_oxyii(dev: dict, root: str):
     _power_for(name, addr)  # the POWER axis — created here so it carries the BLE address
     # The RECORDING axis (OxyRecEngine) — same journal, axis="rec", INDEPENDENT of the link axis above.
     # duration_s drives it (the measured signal); link loss moves it to UNKNOWN, never to NOT_RECORDING.
-    _oxyrec = oxy_lifecycle.OxyRecEngine(device_id=dev.get("device_id"), session_id=_oxylc.session_id)
+    # BOOT RECOVERY, option B (O2RING-BOOT-RECOVERY-DECISION-2026-10-28, owner's ruling). Until this
+    # seed the axis was write-only across a restart: a new process began UNKNOWN, and an unplanned
+    # restart inside a recording window lost the `closed_at_duration` a close had already measured.
+    # RECORDING comes back too, which the ring re-establishes by itself in 38 s — the state worth the
+    # read is END_CANDIDATE, whose number nothing else holds.
+    _recseed = _oxy_rec_boot(root, _time.time() * 1000.0)
+    _oxyrec = oxy_lifecycle.OxyRecEngine(
+        device_id=dev.get("device_id"),
+        session_id=_oxylc.session_id,
+        state=_recseed.state,
+        closed_at_duration=_recseed.closed_at_duration,
+    )
     # The slot holds a writer once opened; `{"w": None}` alone infers `dict[str, None]`, so the
     # one assignment that fills it reads as an error. It is opened once per run, lazily (G4).
     _oxywr: "dict[str, OxyLifeLogWriter | None]" = {"w": None}  # G4 OXYLIFE.csv, opened once per run (first night dir)

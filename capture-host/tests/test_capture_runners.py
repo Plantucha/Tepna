@@ -571,8 +571,10 @@ def test_run_oxyii_journals_both_axes_worn_flip_and_recording_close(tmp_path, mo
     assert st["oxy_recording"] == "rec_unknown", "post-teardown the axis must read UNKNOWN, not a stale state"
     (life,) = list((tmp_path / "captures").rglob("OXYLIFE.csv"))
     rows = [ln.split(";") for ln in life.read_text().splitlines() if ln and not ln.startswith(("#", "host_wall"))]
-    rec = [r for r in rows if r[-1] == "rec"]
-    link = [r for r in rows if r[-1] == ""]
+    # The axis is cell 8, NOT the last cell: `closed_at_duration` was appended tenth on 2026-10-28, so
+    # a row's last cell is now the number (blank on every state but a close).
+    rec = [r for r in rows if r[8] == "rec"]
+    link = [r for r in rows if r[8] == ""]
     assert [r[3] for r in rec] == ["recording", "end_candidate", "rec_unknown"], "rec axis journals in order"
     assert "901→0" in rec[1][4] and "closed at 901" in rec[1][4], "the close records the counter value"
     assert any(r[3] == "live" for r in link) and any(r[3] == "idle_unworn" for r in link)

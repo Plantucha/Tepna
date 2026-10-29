@@ -3157,7 +3157,12 @@ class OxyLifeLogWriter:
             # row), "rec" = the RECORDING axis (oxy_lifecycle.OxyRecEngine). No committed reader keys on
             # column count (checked at append time: timeline/webmon/tools carry no OXYLIFE reader); read
             # by header.
-            self._fh.write("host_wall;host_monotonic;prev;new;reason;device;session;failure;axis\n")
+            # `closed_at_duration` appended 2026-10-28 (append-never-insert, same rule as `axis`): the
+            # RECORDING axis's measured close as a NUMBER, so `oxy_lifecycle.boot_rec_state` can read it
+            # back after a restart instead of parsing it out of `reason`. A RESUMED file keeps its older
+            # nine-column header, which is why the parser reads column 9 as absent when it is not there
+            # rather than by header width.
+            self._fh.write("host_wall;host_monotonic;prev;new;reason;device;session;failure;axis;closed_at_duration\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
