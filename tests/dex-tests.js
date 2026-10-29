@@ -10517,7 +10517,16 @@
              `maxDrawnShare` and `nightsEveryFragmentDrawn` beside every rate it prints, so the
              provenance travels with the arithmetic. */
           'tools/ring-offset-census.mjs':
-            'REPORTS — it audits the rate itself, printing `drawn=` beside `ppm=` per fragment and counting the nights whose every fragment is drawn. It applies no rate and corrects no axis.'
+            'REPORTS — it audits the rate itself, printing `drawn=` beside `ppm=` per fragment and counting the nights whose every fragment is drawn. It applies no rate and corrects no axis.',
+          /* Joined the population 2026-10-29 beside the census, under owner order #2161: the census
+             COUNTED the nights whose rate no crystal can hold, and this one decomposes each one into
+             named causes. It reads `.ppm` only to attribute it — `drawn-constant-error`,
+             `undelivered-samples`, `device-counted-skips`, `host-stamp-jitter`, `end-window-median` —
+             and the whole point is that the quoted rate is the residual of two accounting errors.
+             Gating a drawn axis out would delete 373 of its 689 rated fragments, which are exactly
+             the population it was built to characterise. */
+          'tools/ring-rate-cause.mjs':
+            'REPORTS — it decomposes the published rate into five named causes and prints `quantizedShare`, `axisDrawn`, `axisSpreadMs` and the span beside every ppm it attributes. It applies no rate, corrects no axis and places no sample.'
         };
         var POP = [],
           AXIS = [],
@@ -10575,9 +10584,10 @@
         );
         /* 12 measured 2026-09-27; 13 from 2026-10-18, when `tch-reference-record.mjs` joined on its
            published `axisNote` sentence (see its EXCLUDED row); 14 from 2026-10-29, when
-           `ring-offset-census.mjs` joined on the `.ppm` it audits. The number is a ratchet on a
-           derived set, so it moves only beside a classification. */
-        T.eq('POPULATION is 14 — the published denominator', POP.length, 14, 'POPULATION=' + POP.join(', '));
+           `ring-offset-census.mjs` joined on the `.ppm` it audits; 15 the same day, when
+           `ring-rate-cause.mjs` joined to decompose that same `.ppm` into named causes. The number is
+           a ratchet on a derived set, so it moves only beside a classification. */
+        T.eq('POPULATION is 15 — the published denominator', POP.length, 15, 'POPULATION=' + POP.join(', '));
       }
 
       /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing
