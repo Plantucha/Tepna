@@ -37,11 +37,13 @@
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import { createHash } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
+import { collapseHome } from './home-paths.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const PREFIX_BYTES = 8 * 1024 * 1024;
@@ -170,12 +172,19 @@ export function dedupe(rows) {
   return { uniqueByContent: byContent.size, uniqueByName: byName.size, dupes };
 }
 
-export function manifest(rows, { root, glob, name, full = false, at, account = null }) {
+export function manifest(rows, { root, glob, name, full = false, at, account = null, home = homedir() }) {
   const d = dedupe(rows);
   return {
     schema: SCHEMA,
     census: name,
-    root,
+    /* THE SECOND PUBLISH BOUNDARY for a walked root, beside `populationVerdict`
+       (row 2026-10-29-every-committed-population-verdict-carries-the-walked-root-absolute). This
+       manifest is written under `analysis/census/` and committed, so the owner's 2026-10-28 ruling
+       binds here: the tracked tree stores no absolute path under a home directory. Nothing reads
+       this field back as a path — `--diff` takes its root from argv and reads only `census` and
+       `files` off the recorded manifest — so the collapse costs no caller anything. A root outside
+       the home directory, such as the `/srv` mount this census runs over, passes through. */
+    root: collapseHome(String(root), home),
     glob,
     digest: full ? 'sha256(file)[0:16]' : `sha256(first ${PREFIX_BYTES} bytes)[0:16]`,
     dedupeKeys: DEDUPE_KEYS,
@@ -209,7 +218,7 @@ export function diff(oldM, rows) {
   return { added, removed, changed, before: (oldM.files || []).length, after: rows.length };
 }
 
-export function verdictObject(mode, payload, { name, root, path, commit, commitReason, at } = {}) {
+export function verdictObject(mode, payload, { name, root, path, commit, commitReason, at, home = homedir() } = {}) {
   const criterion = {
     name:
       mode === 'diff'
@@ -219,7 +228,9 @@ export function verdictObject(mode, payload, { name, root, path, commit, commitR
     unit: mode === 'diff' ? 'unnamed changes' : 'files',
     direction: 'eq'
   };
-  const base = { gate: 'corpus-census', criterion, evidence: [path || `${root}/`].filter(Boolean), tool: 'tools/corpus-census.mjs', commit, commitReason, at };
+  /* The same ruling as `manifest()` above: this evidence entry is the walked root whenever the
+     caller recorded no manifest path, and a census verdict is committed beside the manifest. */
+  const base = { gate: 'corpus-census', criterion, evidence: [path || `${collapseHome(String(root), home)}/`].filter(Boolean), tool: 'tools/corpus-census.mjs', commit, commitReason, at };
   if (mode === 'diff') {
     const moved = payload.added.length + payload.removed.length + payload.changed.length;
     const population = { checked: payload.after, eligible: payload.after, excluded: 0 };
@@ -253,7 +264,7 @@ export function verdictObject(mode, payload, { name, root, path, commit, commitR
       population: { checked: 0, eligible: 0, excluded: 0 },
       result: null,
       reason:
-        `no file under ${root} matched ${payload.glob} — an empty census is not a census (check the root, and that the corpus is mounted)` +
+        `no file under ${collapseHome(String(root), home)} matched ${payload.glob} — an empty census is not a census (check the root, and that the corpus is mounted)` +
         (payload.population && payload.population.walked != null ? `; the walk offered ${payload.population.walked} file(s), none of them matching` : '')
     });
   }
@@ -429,6 +440,15 @@ function selftest() {
   } catch (_) {
     /* best effort */
   }
+  /* ROW 2026-10-29-every-committed-population-verdict-carries-the-walked-root-absolute — the second
+     publish boundary. This manifest lands under `analysis/census/` and the repo tracks it, so the
+     owner's 2026-10-28 ruling binds here. `home` is a parameter: no leg reads this machine's. */
+  const HR = [R('a.txt', 1, 'aaaaaaaaaaaaaaaa')];
+  eq(manifest(HR, { root: '/h/u/corpus', glob: '*', name: 'x', at: AT.at, home: '/h/u' }).root, '~/corpus', 'the committed manifest stores the walked root collapsed');
+  eq(manifest(HR, { root: '/srv/data/tepna-corpus', glob: '*', name: 'x', at: AT.at, home: '/h/u' }).root, '/srv/data/tepna-corpus', 'CONTROL · a root outside the home directory is stored verbatim');
+  const vEmptyHome = verdictObject('write', manifest([], { root: '/h/u/corpus', glob: '*.nope', name: 'x', at: AT.at, home: '/h/u' }), { ...AT, root: '/h/u/corpus', path: null, home: '/h/u' });
+  eq(/~\/corpus/.test(vEmptyHome.reason) && !vEmptyHome.reason.includes('/h/u/corpus'), true, 'an empty census names the collapsed root in its reason');
+  eq(vEmptyHome.evidence.includes('~/corpus/'), true, 'and the verdict evidence carries the collapsed root');
   console.log(`all ${n} selftests passed`);
 }
 

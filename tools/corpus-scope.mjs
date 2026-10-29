@@ -847,6 +847,21 @@ function selftest() {
         return v.result.depth === 'recursive' && v.result.rule === String(NIGHT_RE) && v.result.earliest === '2026-06-10' && v.result.latest === '2026-06-10';
       })()
     );
+    /* ROW 2026-10-29-every-committed-population-verdict-carries-the-walked-root-absolute — the
+       publish boundary, pinned in both directions. `home` is a parameter, so these legs name a home
+       directory that is not this machine's and read no environment. */
+    const homeRoot = join(tmp, 'home-corpus');
+    mkdirSync(join(homeRoot, '2026-01-01'), { recursive: true });
+    const hs = snapshotNights(homeRoot);
+    const hv = populationVerdict(hs, snapshotNights(homeRoot), { tool: 'selftest', home: tmp, evidence: [join(homeRoot, 'note.json')] });
+    ok('the published root collapses at the publish boundary', hv.result.root === '~/home-corpus', hv.result.root);
+    ok("a caller's own evidence entry collapses with it", hv.evidence.includes('~/home-corpus/note.json'), hv.evidence.join(' '));
+    ok('ANTI-FIX CONTROL · the SNAPSHOT keeps the absolute root, because tools/seqnet-eval.mjs:53 joins it onto a filename and reads that file', hs.root === homeRoot, hs.root);
+    const homeEmpty = join(tmp, 'home-empty');
+    mkdirSync(homeEmpty, { recursive: true });
+    const ev0 = populationVerdict(snapshotNights(homeEmpty), snapshotNights(homeEmpty), { tool: 'selftest', home: tmp });
+    ok('the NOT_RUN prose names the collapsed root and never the home prefix', /~\/home-empty/.test(ev0.reason) && !ev0.reason.includes(tmp), ev0.reason);
+    ok('CONTROL · a root outside the home directory publishes verbatim', populationVerdict(hs, snapshotNights(homeRoot), { tool: 'selftest', home: join(tmp, 'elsewhere') }).result.root === homeRoot);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
