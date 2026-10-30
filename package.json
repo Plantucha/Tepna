@@ -73,6 +73,7 @@
     "verify:residue-citations": "node tools/residue-citations.mjs",
     "verify:defect-pins": "node tools/defect-pin-census.mjs",
     "verify:survivor-ratchet": "node tools/mutation-survivors.mjs ratchet --expect 30",
+    "verify:flag-exit": "node tools/flag-exit-scan.mjs --check",
     "verify:absence": "node tools/absence-ledger.mjs --ratchet",
     "verify:shard-timings": "node tests/verify-shard-timings.mjs",
     "timings:refresh": "node tests/run-tests.mjs --json | node tests/gen-group-timings.mjs",
