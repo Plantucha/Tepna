@@ -10815,9 +10815,11 @@
          equality so a future second literal is caught rather than inferred from the single-declaration
          check alone. */
       T.eq(
-        'the closure is exactly the nine modules the realm loads',
+        'the closure is exactly the ten modules the realm loads (clock-seam.js since 2026-10-30: the fold runs OxyDex, which scans for a clock seam)',
         mods.slice().sort().join(','),
-        ['clock.js', 'kernel-constants.js', 'export-schema.js', 'dex-export.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'oxydex-dsp.js', 'oxydex-util.js', 'ppgdex-dsp.js'].sort().join(','),
+        ['clock.js', 'clock-seam.js', 'kernel-constants.js', 'export-schema.js', 'dex-export.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'oxydex-dsp.js', 'oxydex-util.js', 'ppgdex-dsp.js']
+          .sort()
+          .join(','),
         'the compute closure changed. If a module was ADDED to the fold, add it here deliberately; if one was removed, the stamps it justified are stale in the other direction.'
       );
       T.ok('the closure is not trivially small', mods.length >= 9, mods.length + ' modules — a shrunken list would blind the stamp, which is the direction that ships silently');
@@ -83843,6 +83845,88 @@
           T.eq(k + ': loads no module its node bundles omit', alien, []);
         });
       }
+    });
+
+    /* RESIDUE 2026-10-30-tool-realms-omit-the-seam-tripwire — #4112 wired `clock-seam.js` into OxyDex and
+       PulseDex, and both DSPs read `typeof DexSeam` at load. Ten tools built a vm realm from their own
+       inline array without the module, so each run through them published `clockSeamScan.scanned:false`
+       and never looked for a mid-file step. This group reds an inline tool array that loads `clock.js`
+       and an OxyDex or PulseDex DSP and omits `clock-seam.js`, or loads it after the DSP. Four arrays
+       name those files for another purpose (review, census, mutation targets), and each is exempt by
+       file and name. Node-lane only — env.toolSources is fs-read; the browser lane SKIPs. */
+    group('RESIDUE tool-realms-omit-the-seam-tripwire — every tool realm that loads OxyDex or PulseDex loads clock-seam.js first', 'tools · realm · clock-seam', function (T) {
+      var TS = env.toolSources;
+      if (!TS) {
+        T.skip('env.toolSources provided to the runner', 'Node-lane only (run-tests.mjs readToolSources)');
+        return;
+      }
+      var NOT_REALMS = {
+        'dsp-review-qwen.mjs:FLEET': 'the files a review lens reads',
+        'guarantees.mjs:SPINE': 'the files a guarantee census reads',
+        'mutation-crawl.mjs:DEFAULT_FLEET': 'the mutation targets',
+        'stmt-delete.mjs:LEVEL_B_ALLOWLIST': 'the statement-deletion allowlist'
+      };
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+      }
+      /* each inline array that names clock.js and a seam-calling DSP: { name, mods } */
+      function seamRealms(src) {
+        var c = code(src),
+          out = [],
+          re = /\[[^[\]]*\]/g,
+          m;
+        while ((m = re.exec(c))) {
+          var mods = (m[0].match(/'([\w.-]+\.js)'/g) || []).map(function (q) {
+            return q.slice(1, -1);
+          });
+          if (mods.indexOf('clock.js') < 0) continue;
+          if (mods.indexOf('oxydex-dsp.js') < 0 && mods.indexOf('pulsedex-dsp.js') < 0) continue;
+          var decl = /(?:const|let|var)\s+([A-Z_][A-Z0-9_]*)\s*=\s*$/.exec(c.slice(Math.max(0, m.index - 80), m.index));
+          out.push({ name: decl ? decl[1] : null, mods: mods });
+        }
+        return out;
+      }
+      function seamFault(mods) {
+        var s = mods.indexOf('clock-seam.js');
+        if (s < 0) return 'omits clock-seam.js';
+        var dsp = Math.min.apply(
+          null,
+          ['oxydex-dsp.js', 'pulsedex-dsp.js']
+            .map(function (d) {
+              return mods.indexOf(d);
+            })
+            .filter(function (i) {
+              return i >= 0;
+            })
+        );
+        return s < dsp ? null : 'loads clock-seam.js after the DSP';
+      }
+      T.eq('CLASSIFIER · a seam-less OxyDex realm is found', seamRealms("for (const f of ['clock.js', 'oxydex-dsp.js']) run(f);").length, 1);
+      T.eq('CLASSIFIER · a realm without clock.js is not a seam realm', seamRealms("const X = ['kernel-constants.js', 'oxydex-dsp.js'];").length, 0);
+      T.eq('CLASSIFIER · the declared name is read', seamRealms("const SPINE = ['clock.js', 'pulsedex-dsp.js'];")[0].name, 'SPINE');
+      T.eq('FAULT · an absent module is named', seamFault(['clock.js', 'oxydex-dsp.js']), 'omits clock-seam.js');
+      T.eq('FAULT · a late module is named', seamFault(['clock.js', 'pulsedex-dsp.js', 'clock-seam.js']), 'loads clock-seam.js after the DSP');
+      T.eq('FAULT · seam before the DSP passes', seamFault(['clock.js', 'clock-seam.js', 'oxydex-dsp.js']), null);
+
+      var checked = 0,
+        exempt = 0;
+      Object.keys(TS)
+        .sort()
+        .forEach(function (n) {
+          seamRealms(TS[n]).forEach(function (r, i) {
+            var key = n + ':' + (r.name || '#' + i);
+            if (NOT_REALMS[key]) {
+              exempt++;
+              return;
+            }
+            checked++;
+            T.eq(key + ' loads clock-seam.js before its DSP', seamFault(r.mods), null);
+          });
+        });
+      T.eq('every NOT_REALMS exemption still names a live array', exempt, Object.keys(NOT_REALMS).length);
+      T.ok('ANTI-VACUITY · the scan reached the ten inline realms it fixed (>= 10)', checked >= 10, 'checked ' + checked);
     });
     /* RESIDUE 2026-10-20-corpus-tier-swap-can-hide-an-over-cap-heap — the tiering job reports what it
        HOLDS, because the unit's `MemoryPeak` is the cgroup's and charges reclaimable page cache. Two

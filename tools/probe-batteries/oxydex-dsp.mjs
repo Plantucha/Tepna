@@ -40,7 +40,7 @@
  * and the PR records the curve.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 
-export const deps = ['kernel-constants.js', 'clock.js'];
+export const deps = ['kernel-constants.js', 'clock.js', 'clock-seam.js'];
 
 export function realmGlobals() {
   const ctx = {

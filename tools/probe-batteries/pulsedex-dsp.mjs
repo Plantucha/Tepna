@@ -31,7 +31,7 @@
  *   classifyRecording(a, t0Ms, durSec) · lineChartSVG(pts, color, medVal)
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 
-export const deps = ['kernel-constants.js', 'clock.js'];
+export const deps = ['kernel-constants.js', 'clock.js', 'clock-seam.js'];
 
 export function realmGlobals() {
   const ctx = {
