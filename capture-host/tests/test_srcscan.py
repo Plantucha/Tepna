@@ -173,33 +173,58 @@ def _chain_root(node: ast.AST) -> ast.AST:
             return node
 
 
+_FUNC = (ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _taint(roots: list[ast.AST], seed: set[str]) -> set[str]:
+    """The names in these subtrees that carry source text, seeded with an enclosing scope's.
+
+    ⚠️ ONE SCOPE AT A TIME, because a name is not the same variable in two functions. Over the whole
+    module at once, one test's `body = module_source(...)[a:b]` made EVERY other test's
+    `body = open(sc.path).read()` carry source text — and the split of a sidecar file the test had just
+    written became a finding. Measured 2026-10-30 against `test_run_sidecar.py` lines 742 and 1263
+    (residue `2026-10-30-the-source-window-ratchet-taints-one-name-across-every-function`), where the
+    gate contradicted its own stated population: a `tmp_path` read is the 47 lines it does not judge.
+    A module-level `SRC = module_source(...)` still reaches every function below it, as the seed."""
+    tainted = set(seed)
+    for root in roots:
+        for node in ast.walk(root):
+            if not isinstance(node, ast.Assign):
+                continue
+            carries = any(
+                (isinstance(n, ast.Call) and (_call_name(n) in _SRCSCAN_READERS or _reads_a_repo_file(n)))
+                or (isinstance(n, ast.Name) and n.id in tainted)
+                for n in ast.walk(node.value)
+            )
+            if carries:
+                tainted |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+    return tainted
+
+
 def raw_source_window_scans(src: str) -> list[tuple[int, str]]:
     """Every `<source text>.split(…)[N]` in `src`, as (line, text). The helpers are not matched."""
     tree = ast.parse(src)
     lines = src.splitlines()
-    tainted: set[str] = set()
+    outer: list[ast.AST] = [n for n in tree.body if not isinstance(n, _FUNC)]
+    module_taint = _taint(outer, set())
+    scopes: list[tuple[list[ast.AST], set[str]]] = [(outer, module_taint)]
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign):
-            continue
-        carries = any(
-            (isinstance(n, ast.Call) and (_call_name(n) in _SRCSCAN_READERS or _reads_a_repo_file(n)))
-            or (isinstance(n, ast.Name) and n.id in tainted)
-            for n in ast.walk(node.value)
-        )
-        if carries:
-            tainted |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+        if isinstance(node, _FUNC):
+            scopes.append(([node], _taint([node], module_taint)))
     found = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Subscript) or not isinstance(node.value, ast.Call):
-            continue
-        call = node.value
-        if not (isinstance(call.func, ast.Attribute) and call.func.attr in ("split", "rsplit")):
-            continue
-        if not (isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, int)):
-            continue
-        root = _chain_root(call.func.value)
-        if isinstance(root, ast.Name) and (root.id in tainted or root.id in _SRCSCAN_READERS):
-            found.add((node.lineno, lines[node.lineno - 1].strip()))
+    for roots, tainted in scopes:
+        for root in roots:
+            for node in ast.walk(root):
+                if not isinstance(node, ast.Subscript) or not isinstance(node.value, ast.Call):
+                    continue
+                call = node.value
+                if not (isinstance(call.func, ast.Attribute) and call.func.attr in ("split", "rsplit")):
+                    continue
+                if not (isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, int)):
+                    continue
+                chain = _chain_root(call.func.value)
+                if isinstance(chain, ast.Name) and (chain.id in tainted or chain.id in _SRCSCAN_READERS):
+                    found.add((node.lineno, lines[node.lineno - 1].strip()))
     return sorted(found)
 
 
@@ -230,6 +255,33 @@ def test_the_ratchet_fires_on_a_planted_scan_and_leaves_a_data_split_alone():
         "    body = split_segment(src, 'async def run_polar', 1, where='capture.py')\n"
     )
     assert raw_source_window_scans(converted) == [], raw_source_window_scans(converted)
+
+
+def test_one_name_in_two_functions_is_two_variables():
+    """THE PLANT for residue
+    `2026-10-30-the-source-window-ratchet-taints-one-name-across-every-function`. A source window and a
+    read of a file the test itself wrote, under ONE name, in two functions: only the first is a source
+    window, and the second is the population this gate says it leaves alone. The seed is planted too —
+    module-level source text still reaches a function below it, which is not a leak but the contract."""
+    both = (
+        "from tests._srcscan import module_source\n"
+        "def test_src():\n"
+        "    src = module_source('writers.py')\n"
+        "    body = src[src.index('class A') : src.index('class B')]\n"
+        "    assert body.split('median')[1]\n"
+        "def test_data(tmp_path):\n"
+        "    body = open(tmp_path / 'K_ACC.txt').read()\n"
+        "    assert float(body.split('share=')[1].split()[0]) > 0.85\n"
+    )
+    assert [ln for ln, _ in raw_source_window_scans(both)] == [5], raw_source_window_scans(both)
+
+    seeded = (
+        "from tests._srcscan import module_source\n"
+        "SRC = module_source('writers.py')\n"
+        "def test_x():\n"
+        "    assert SRC.split('class StreamWriter')[1]\n"
+    )
+    assert [ln for ln, _ in raw_source_window_scans(seeded)] == [4], raw_source_window_scans(seeded)
 
 
 def test_no_scan_in_this_suite_cuts_a_source_window_with_a_bare_split_index():

@@ -16,6 +16,7 @@ import datetime as _dt
 
 import nightqc
 import writers
+from _srcscan import module_source
 from writers import StreamWriter, _ns_col
 
 T0 = _dt.datetime(2026, 9, 6, 4, 53, 0)
@@ -105,7 +106,7 @@ def test_the_weighting_caller_separates_UNKNOWN_from_ZERO(tmp_path):
     """`file_span_sec`'s contract says callers must treat None as unknown, never as zero; the night
     weighting did `float(span or 0.0)`, which collapses them. Same arm today — an unplaceable file is
     a point at its start stamp either way — but the distinction is kept so the idiom is not copied."""
-    src = open(nightqc.__file__).read()
+    src = module_source("nightqc.py")
     assert 'float(f.get("span_sec") or 0.0)' not in src, "the collapsing idiom is back"
     assert 'raw = f.get("span_sec")' in src
 

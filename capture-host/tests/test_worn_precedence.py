@@ -13,6 +13,7 @@ import re
 import pytest
 
 import telemetry
+from _srcscan import module_source
 
 BRIEF = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -24,7 +25,7 @@ BRIEF = os.path.join(
 def test_every_vote_the_combiner_can_emit_has_a_row_and_a_source():
     """The population is the combiner's own vote names, not a list typed beside it: `worn_verdict`
     appends `votes.append(("<name>", …))` and reads `charging:<why>` — both are enumerated here."""
-    src = open(telemetry.__file__, encoding="utf-8").read()
+    src = module_source("telemetry.py")
     body = src[src.index("def worn_verdict(") : src.index("\n# ── CHARGING AT FULL")]
     emitted = set(re.findall(r'votes\.append\(\("([a-z-]+)"', body))
     emitted |= {"charging:" + w for w in ("rising", "pmd-in-charger", "flat-at-full")}

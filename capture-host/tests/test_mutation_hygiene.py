@@ -62,11 +62,47 @@ READ_CALL = re.compile(r"\bopen\s*\(|\.read_text\s*\(|inspect\.getsource")
 MODULE_OBJ = re.compile(r"inspect\.getsource\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)")
 SELF_REF = re.compile(r"""["']tests/test_[a-z_0-9]+\.py["']""")
 
+# ⚠️ AND THE ALIAS FORM NAMES NO FILE EITHER. `Path(rc.__file__).read_text(...)` carries no `"radioclock.py"`
+# literal and no `inspect.getsource`, so both shapes above miss it — and the read still hands back the
+# mutmut-generated module. Measured 2026-10-30 (residue
+# `2026-10-30-the-mutation-hygiene-scan-misses-a-read-through-a-module-alias`): that exact read in
+# `test_radioclock.py` made all 8 selected globs report 0 tested mutants, 0 of 1221 decided, and
+# `mutate_diff` refused with NOT_RUN while THIS gate stayed green.
+#
+# `__file__` on an imported module is the whole signal, and the import statement says which module the
+# name is bound to, so nothing here is a list anyone maintains. A `__file__` used to build a cwd or a
+# PYTHONPATH is not a read and never reaches this check — the callee decides that, above.
+
 
 def _mutatable_modules() -> set[str]:
     """Every module `tools/mutate.py` would mutate — the ones whose source gets a generated twin."""
     skip = {"probe_oxyii_ppg.py", "probe_polar_onboard.py", "ppg_grid_check.py", "adapter_ab.py"}
     return {p.name for p in HERE.glob("*.py") if p.name not in skip}
+
+
+def _module_aliases(tree: ast.Module, mods: set[str]) -> dict[str, str]:
+    """`{bound name: module file}` for every `import <m>` / `import <m> as <a>` of a mutatable module.
+
+    The BOUND name is the key, because that is what the read spells: `import radioclock as rc` makes
+    `rc.__file__` the offence and `radioclock` appears nowhere in it."""
+    out: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Import):
+            continue
+        for a in node.names:
+            if f"{a.name}.py" in mods:
+                out[a.asname or a.name] = f"{a.name}.py"
+    return out
+
+
+def _file_attr(call: ast.Call, aliases: dict[str, str]) -> tuple[str, str] | None:
+    """`(bound name, module file)` when the call reads a module's `__file__`, else `None`."""
+    for sub in ast.walk(call):
+        if isinstance(sub, ast.Attribute) and sub.attr == "__file__" and isinstance(sub.value, ast.Name):
+            mod = aliases.get(sub.value.id)
+            if mod is not None:
+                return sub.value.id, mod
+    return None
 
 
 # The three read shapes the gate keys on, as CALL names. Kept beside `READ_CALL` (the text form) because
@@ -91,7 +127,9 @@ def raw_reads(src: str, mods: set[str]) -> list[tuple[int, str]]:
     exempts nothing but itself. Comments fall out for free — `ast` does not see them — which is what the
     `line.lstrip().startswith("#")` guard used to do by hand."""
     out: list[tuple[int, str]] = []
-    for node in ast.walk(ast.parse(src)):
+    tree = ast.parse(src)
+    aliases = _module_aliases(tree, mods)
+    for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         f = node.func
@@ -114,6 +152,16 @@ def raw_reads(src: str, mods: set[str]) -> list[tuple[int, str]]:
                     f"reads {obj.group(1)}.py via the module object "
                     f"`inspect.getsource({obj.group(1)})` — names no file, so the "
                     f"filename match above cannot see it",
+                )
+            )
+            continue
+        alias = _file_attr(node, aliases)
+        if alias is not None:
+            out.append(
+                (
+                    node.lineno,
+                    f"reads {alias[1]} via the module alias `{alias[0]}.__file__` — names no "
+                    f"file, so the filename match above cannot see it either",
                 )
             )
     return out
@@ -169,6 +217,37 @@ def test_the_gate_sees_a_read_split_across_lines():
     assert raw_reads("js = open(os.path.join(d,\n    '..', 'ecgdex-dsp.js')).read()\n", mods) == []
     assert raw_reads("import inspect, capture\nsrc = inspect.getsource(\n    capture)\n", mods) != []
     assert raw_reads("import inspect, capture\nsrc = inspect.getsource(\n    capture.run_polar)\n", mods) == []
+
+
+def test_the_gate_sees_a_read_through_a_module_alias():
+    """THE PLANT for residue `2026-10-30-the-mutation-hygiene-scan-misses-a-read-through-a-module-alias`:
+    the exact read #4126 shipped. It made all 8 selected globs report 0 of 1221 mutants decided, and
+    `mutate_diff` refused with NOT_RUN, while THIS gate stayed green.
+
+    The mechanism is asserted beside the finding: the alias read carries no filename literal and no
+    `inspect.getsource(<module>)`, so both earlier shapes genuinely miss it. Four negatives keep the
+    positive from passing vacuously — an alias of a module nobody mutates, a `__file__` that builds a
+    path instead of reading it, the test file's own `__file__`, and the routed call."""
+    mods = {"capture.py", "radioclock.py", "nightqc.py"}
+    aliased = "import radioclock as rc\ndef test_x():\n    src = Path(rc.__file__).read_text()\n"
+    hits = raw_reads(aliased, mods)
+    assert [n for n, _ in hits] == [3], hits
+    assert "radioclock.py" in hits[0][1], hits  # the MODULE, which the read never spells
+    assert "rc.__file__" in hits[0][1], hits  # and the alias, which is what the author has to find
+    # the mechanism, not a story: neither earlier shape can see this read
+    assert not any(f"'{m}'" in aliased or f'"{m}"' in aliased for m in mods), "it names no file"
+    assert MODULE_OBJ.search(aliased) is None, "and hands no module object to inspect.getsource"
+    # the plain spelling is the same offence
+    plain = "import nightqc\ndef t():\n    s = open(nightqc.__file__).read()\n"
+    assert [n for n, _ in raw_reads(plain, mods)] == [3]
+    # an alias of a module the gate does not mutate is not an offence: nothing is unmeasurable
+    assert raw_reads("import probe_oxyii_ppg as p\ndef t():\n    s = open(p.__file__).read()\n", mods) == []
+    # a `__file__` that builds a path is not a read — the CALLEE decides, so cwd and PYTHONPATH pass
+    assert raw_reads("import nightqc\ndef t():\n    run(c, cwd=os.path.dirname(nightqc.__file__))\n", mods) == []
+    # the test file's own source is not a mutatable module
+    assert raw_reads("def t():\n    s = open(__file__).read()\n", mods) == []
+    # and the routed call stays silent
+    assert raw_reads("import nightqc\ndef t():\n    s = module_source('nightqc.py')\n", mods) == []
 
 
 def test_the_helper_actually_skips_on_a_generated_file(tmp_path, monkeypatch):
