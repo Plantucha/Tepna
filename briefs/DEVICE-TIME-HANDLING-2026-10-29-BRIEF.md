@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-10-29 (owner ordered "write it up, assign it right now" 2026-10-29; seven units assigned in §3, none begun) · **Created:** 2026-10-29
+**Status:** IN-PROGRESS — 2026-10-29 (O1 done; U2 measuring; U3, U5 claimed; U6 waits for the owner) · **Created:** 2026-10-29
 
 # Brief — better time handling on every device
 
@@ -17,7 +17,7 @@ and a host stamp (Clock Contract §7).
 | node | `hostAxis` refs in `*-dsp.js` | step detection (`clockResyncs`) | `clock.js` in the bundle |
 |---|---|---|---|
 | ECGDex (H10) | 50 | yes | yes |
-| PpgDex (Verity, ring PPG) | 59 | yes | **no** |
+| PpgDex (Verity, ring PPG) | 59 | yes | yes, since O1 (was **no**) |
 | MotionDex | **0** | yes | yes |
 | OxyDex (ring SpO₂) | 0 | **no** | yes |
 | PulseDex, HRVDex | 0 | no | yes |
@@ -30,7 +30,9 @@ Counted with `grep -c` per file; the bundle column is `grep -c 'data-inline-src=
 (`tools/trio-batch.mjs:1535`) and the test runner co-load `clock.js`, so corpus numbers are
 host-corrected and the app's numbers are not. Row `2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible`
 named remedy (b), "PpgDex inlines `clock.js`", as the owner's decision. #3914 closed that row by the
-fixture route. The app gap stays open. This is owner decision **O1** in §4.
+fixture route. The owner approved **O1** in §4 on 2026-10-29. The PpgDex clock PR inlines `clock.js` and closes the app gap.
+
+**Scope of O1 (Heron, board #2195).** An unstamped finger file defaults to `'device-crystal'` at `ppgdex-dsp.js:1403`. Line 1446 then sets `fs = O2_ADC_HZ` after `:1253`. So the `:1253` correction reaches the Verity and the host-disciplined ring nights only. Heron's #2164 counted 516 ring exports that declare `host-disciplined` and 5 that declare a crystal.
 
 ## 2 · The units
 
@@ -56,16 +58,17 @@ Search: `O2Ring PMDARRIVAL frame anchor every row host axis` → `O2RING-FRAME-S
 Search: `per-beat correctionAt instead of fs ppm rescale` → `DEVICE-RATE-TRUTH-2026-08-05` §9,
 `IBI-ALIGNMENT-LIMIT-2026-08-01`, `papers/wearable-clock-drift.html`.
 
-- `ppgdex-dsp.js:1253` divides `fs` by `(1 + ppm/1e6)` for the whole night.
+- **Correction (Heron, board #2193).** The per-beat mapping already ships: `ppgdex-dsp.js:1288` sets `relSec[i]` through `correctionAt(devMs)`. The defect left is `fs` alone.
+- `ppgdex-dsp.js:1253` divides `fs` by `(1 + ppm/1e6)` for the whole night, also on a stepped stream.
+- `:1254` rounds `fs` to 0.01 Hz, which is 80 ppm at 125 Hz.
 - The published `ppm` lags the end-point rate by 5 anchors: `ppm/spanPpm = 1 − 5/(n−1)` (#4099).
 - `correctionAt()` is linear between anchors and needs no rate, so it carries neither the lag nor a
   single-rate assumption.
 - This folds into Heron's confirmed next unit (board #2178–#2180, the PpgDex span flag). Its first step
   stands: measure the sub-2400 s fragments alone against the ECG, with today's correction and without it.
-- In the app this does nothing until O1 lands.
 
 - [ ] Fragment measurement against the ECG, before any code
-- [ ] Per-beat mapping lands only if it beats `fs/(1+ppm)` on that measurement
+- [ ] A change to `fs` at `:1253`–`:1254` lands only if it beats today's `fs/(1+ppm)` on that measurement
 - [ ] Sub-2400 s rate annotated, never refused (decided #2180)
 
 ### U3 · A clock-seam tripwire for OxyDex, PulseDex and HRVDex — **Osprey**
@@ -105,8 +108,8 @@ Search: `shared timing block export timingSource independent` → `O2RING-PHASE4
 - One `clock.js` function fills `timingSource`, `independent`, anchor count, `spanMs`, `ppm`,
   `spanPpm`, resyncs and seams.
 - A node with no second clock writes `timingSource:'device-only'` and `independent:false`, not silence.
-- `clock.js` sits in 5 of 8 bundles. A node without it (PpgDex, GlucoDex, CPAPDex) needs a node-local
-  emitter of the same shape, or O1. CLAUDE.md §👥.3: announce, land before node-local work.
+- `clock.js` sits in 6 of 8 bundles since O1. A node without it (GlucoDex, CPAPDex) needs a node-local
+  emitter of the same shape. CLAUDE.md §👥.3: announce, land before node-local work.
 
 - [ ] Shape documented in `docs/EXPORT-SHAPES.md`
 - [ ] Every node-export carries the block; a parity group asserts one shape across nodes
@@ -118,6 +121,7 @@ Search: `RADIO-CLOCK-SIDECAR-2026-09-07` (the owner flashed the firmware on 2026
 - Measure the device↔anchor residual spread on box nights. Compare it with the bands that brief already states
   (< 2 ms ⇒ `'radio'`; 2–50 ms ⇒ jitter aid; > 50 ms ⇒ ignore).
 - Read-only on vigil. Nothing deploys and no daemon restarts without the owner.
+- **NOT_RUN (Wren, board #2191).** The box holds 0 `RADIOCLOCK` sidecars. Nobody enabled `tepna-radioclock.service`, and `config.yaml` has no `radio_clock` block. The unit waits for the owner to arm the collector for one night.
 
 - [ ] Spread per night, population and window stated, one `tepna.verdict/1` object
 
@@ -150,6 +154,6 @@ writes its handoff and stops at the next unit boundary.
 
 ## 4 · Owner decisions
 
-- **O1** — inline `clock.js` into PpgDex (5 → 6 clock bundles; the node-local parser variants stay).
-  Without it U2 and U5 change the fold and not the app.
+- [x] **O1** — inline `clock.js` into PpgDex (5 → 6 clock bundles; the node-local parser variants stay). The owner approved it on 2026-10-29, and the PpgDex clock PR does it.
+- [ ] **O2** — arm the radio collector on vigil for one night, so U6 can run.
 - Not reopened: resync file-set rotation (declined 2026-09-07), edge-stamp §4 (your two open questions).
