@@ -11101,7 +11101,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         offsetMin: opts.offsetMin != null ? opts.offsetMin : null,
         durationMin: night.stats ? night.stats.durationMin : null,
         beats: night.stats ? night.stats.n : null,
-        coveragePct: null
+        coveragePct: null,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). The O2Ring writes ONE clock: its rows carry no host stamp
+           column, so this node reports `device-only` instead of saying nothing about its timing.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       ganglior_events: oxyBuildGangliorEvents([night]),
       timeseries: oxyBuildTimeseriesBlock([night]),

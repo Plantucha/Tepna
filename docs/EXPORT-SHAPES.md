@@ -149,11 +149,12 @@ beside a `reason` that names the cause.
 tier says a real second clock disciplined the recording, and "we never measured whether the device column
 is a clock" may not reach it. Under-claiming is the honest failure.
 
-**Why `dex-export.js` and not `clock.js`.** `clock.js` sits in 5 of 8 app bundles — PpgDex, GlucoDex and
-CPAPDex carry none, so `DexClock` is undefined there (CLAUDE.md §✅), and O1 of the same brief inlines it
-into PpgDex alone, which still leaves two. A builder living in the spine therefore needs a hand-written
-twin in every node without it, which is the duplication this block exists to end. `dex-export.js` is inlined in all nine bundles. The
-block CONSUMES a `hostAxis` result and never produces one, so it needs the spine no more than
+**Why `dex-export.js` and not `clock.js`.** `clock.js` sits in 6 of 8 app bundles since #4105 inlined it
+into PpgDex; GlucoDex and CPAPDex still carry none, so `DexClock` is undefined there (CLAUDE.md §✅). A
+builder living in the spine therefore needs a hand-written twin in every node without it, which is the
+duplication this block exists to end — and the twin would be owed by exactly the two nodes with no host
+column, the ones whose block is all absence. `dex-export.js` is inlined in all nine bundles. The block
+CONSUMES a `hostAxis` result and never produces one, so it needs the spine no more than
 `coverageFromSegments` does.
 
 **Gate.** The suite group `one shared timing block — nine keys, one vocabulary, every node-export` pins the

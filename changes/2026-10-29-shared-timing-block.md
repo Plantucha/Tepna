@@ -1,7 +1,7 @@
 ---
 bump: minor
 type: added
-brief: briefs/DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md
+brief: DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md
 ---
 
 Every node-export now carries `recording.timing`, nine keys built by one function

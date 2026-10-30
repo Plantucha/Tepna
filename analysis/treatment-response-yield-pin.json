@@ -23,14 +23,14 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "5cc642ee790b",
       "oxydex-profile.js": "3496a101178a",
-      "oxydex-dsp.js": "017b1384b659"
+      "oxydex-dsp.js": "5c5826474e27"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1f3a5758e3ce",
-      "pulsedex-dsp.js": "d5e923c8081e"
+      "pulsedex-dsp.js": "0367176cc4ee"
     }
   },
   "yield": {
@@ -102,9 +102,9 @@
       "reason": "residue 2026-09-20-oxydex-resprate-pair-is-owner-blocked: the retracted respiration rate ships as a null with a named reason, `proxy-uninformative`, in place of a bare null. A statement moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
     }
   ],
-  "measuredAt": "2026-10-29T22:12:37.633Z",
+  "measuredAt": "2026-10-30T02:12:52.228Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "e7fbdef9a"
+    "commit": "fe1a64477"
   }
 }

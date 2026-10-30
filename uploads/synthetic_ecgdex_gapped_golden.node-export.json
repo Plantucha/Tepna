@@ -18,6 +18,17 @@
     "endEpochMs": 1781658437815,
     "offsetMin": null,
     "events": 0,
+    "timing": {
+      "timingSource": "device",
+      "independent": false,
+      "anchors": 6,
+      "spanMs": 59223.076904296875,
+      "ppm": -9.09296192874232,
+      "spanPpm": -1.298552876596999,
+      "resyncs": 0,
+      "seams": 0,
+      "reason": null
+    },
     "hostAxis": {
       "applied": false,
       "anchors": 6,
@@ -81,8 +92,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b8431fd93725",
-        "computeHash": "0d9793358804"
+        "manifestHash": "2d8814cadc90",
+        "computeHash": "6ab27dca997b"
       },
       "evidence": {
         "envelopeRef": null,
@@ -111,8 +122,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b8431fd93725",
-        "computeHash": "0d9793358804"
+        "manifestHash": "2d8814cadc90",
+        "computeHash": "6ab27dca997b"
       },
       "evidence": {
         "envelopeRef": null,
@@ -141,8 +152,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b8431fd93725",
-        "computeHash": "0d9793358804"
+        "manifestHash": "2d8814cadc90",
+        "computeHash": "6ab27dca997b"
       },
       "evidence": {
         "envelopeRef": null,
@@ -171,8 +182,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b8431fd93725",
-        "computeHash": "0d9793358804"
+        "manifestHash": "2d8814cadc90",
+        "computeHash": "6ab27dca997b"
       },
       "evidence": {
         "envelopeRef": null,
@@ -203,8 +214,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b8431fd93725",
-        "computeHash": "0d9793358804"
+        "manifestHash": "2d8814cadc90",
+        "computeHash": "6ab27dca997b"
       },
       "evidence": {
         "envelopeRef": null,
