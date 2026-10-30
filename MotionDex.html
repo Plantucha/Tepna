@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="97ade6c626cc" data-compute-hash="5889595f1a4f">
+<html lang="en" data-manifest-hash="d7cdc880f74c" data-compute-hash="3bfebe999e37">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0un7kHTIHKWBkF8u7QGJVGiUNvx1xeLqlFS6+bz2N9c=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6tShTGpS12eMO7yk25fJqw2v9FKKIcrgD6BUUCLMs1c=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FBiTcHTLOpQ4hoHAXUlNQri8UKDWenWw5NUem5faavU=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-KLptJEzcGJB/xaRMuGp/5SdDH/bgXnczJV69p60XJAw=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.24.0</title>
@@ -4206,10 +4206,23 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 
     var resyncs = _tbCount(opts.resyncs);
     var seams = _tbCount(opts.seams);
-    if (seams == null) seams = resyncs; // every seam detected today IS a counter step — see above
-    // One clause for both, because `seams` can only be null when `resyncs` is: a node that counts
-    // steps and declares no seams of its own inherits the step count one line up.
-    if (resyncs == null) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+    /* DECOUPLED 2026-10-30 — residue row
+       `2026-10-30-the-timing-block-says-nobody-looked-beside-a-seam-scan-that-did`.
+       The inheritance `seams = resyncs` was sound while every seam detector WAS a counter-step
+       detector. U3 of DEVICE-TIME-HANDLING ended that: OxyDex and PulseDex scan their own stamp
+       intervals for a seam and detect no counter step at all. A borrowed count therefore published
+       a number neither node measured, and the single clause below told a consumer that a node which
+       HAD scanned looked for nothing. The two counts are independent measurements now, and each is
+       `null` only when its own instrument did not report.
+       A node whose scan RAN and could not answer passes `seamsReason`, so "never looked" and
+       "looked and refused" stay distinguishable instead of collapsing into one sentence. */
+    var seamsReason = seams == null && typeof opts.seamsReason === 'string' && opts.seamsReason ? opts.seamsReason : null;
+    var noResyncs = resyncs == null;
+    var neverScanned = seams == null && !seamsReason;
+    if (noResyncs && neverScanned) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+    else if (noResyncs) why.push('this node does not look for device-clock resyncs, so that count is unknown rather than zero');
+    else if (neverScanned) why.push('this node does not scan for axis seams, so that count is unknown rather than zero');
+    if (seamsReason) why.push('the axis-seam scan reported no count: ' + seamsReason);
 
     return {
       timingSource: src,
@@ -7569,7 +7582,12 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
            Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
            nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
            load-order bug and the export-parity group reds on it rather than letting it pass. */
-        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({ resyncs: summary.clockResyncs }) : null
+        timing:
+          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
+            ? // The counter-step detector IS this node's seam instrument, so one array answers both
+              // counts — asserted here rather than inherited inside the shared builder.
+              DexExport.timingBlock({ resyncs: summary.clockResyncs, seams: summary.clockResyncs })
+            : null
       },
       motion: {
         streams: summary.streams,

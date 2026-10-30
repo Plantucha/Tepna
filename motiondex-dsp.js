@@ -1638,7 +1638,12 @@
            Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
            nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
            load-order bug and the export-parity group reds on it rather than letting it pass. */
-        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({ resyncs: summary.clockResyncs }) : null
+        timing:
+          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
+            ? // The counter-step detector IS this node's seam instrument, so one array answers both
+              // counts — asserted here rather than inherited inside the shared builder.
+              DexExport.timingBlock({ resyncs: summary.clockResyncs, seams: summary.clockResyncs })
+            : null
       },
       motion: {
         streams: summary.streams,

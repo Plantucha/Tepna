@@ -353,10 +353,23 @@
 
     var resyncs = _tbCount(opts.resyncs);
     var seams = _tbCount(opts.seams);
-    if (seams == null) seams = resyncs; // every seam detected today IS a counter step — see above
-    // One clause for both, because `seams` can only be null when `resyncs` is: a node that counts
-    // steps and declares no seams of its own inherits the step count one line up.
-    if (resyncs == null) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+    /* DECOUPLED 2026-10-30 — residue row
+       `2026-10-30-the-timing-block-says-nobody-looked-beside-a-seam-scan-that-did`.
+       The inheritance `seams = resyncs` was sound while every seam detector WAS a counter-step
+       detector. U3 of DEVICE-TIME-HANDLING ended that: OxyDex and PulseDex scan their own stamp
+       intervals for a seam and detect no counter step at all. A borrowed count therefore published
+       a number neither node measured, and the single clause below told a consumer that a node which
+       HAD scanned looked for nothing. The two counts are independent measurements now, and each is
+       `null` only when its own instrument did not report.
+       A node whose scan RAN and could not answer passes `seamsReason`, so "never looked" and
+       "looked and refused" stay distinguishable instead of collapsing into one sentence. */
+    var seamsReason = seams == null && typeof opts.seamsReason === 'string' && opts.seamsReason ? opts.seamsReason : null;
+    var noResyncs = resyncs == null;
+    var neverScanned = seams == null && !seamsReason;
+    if (noResyncs && neverScanned) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+    else if (noResyncs) why.push('this node does not look for device-clock resyncs, so that count is unknown rather than zero');
+    else if (neverScanned) why.push('this node does not scan for axis seams, so that count is unknown rather than zero');
+    if (seamsReason) why.push('the axis-seam scan reported no count: ' + seamsReason);
 
     return {
       timingSource: src,

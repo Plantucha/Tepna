@@ -1643,7 +1643,16 @@
            Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
            nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
            load-order bug and the export-parity group reds on it rather than letting it pass. */
-        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
+        /* The U3 tripwire IS this node's seam instrument (`clockSeamScan`, distinct from the
+           `clockSeams` cross-check), so its count travels here instead of being borrowed from a
+           resync detector an RR stream has no way to run. A refused scan passes its reason. */
+        timing:
+          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
+            ? DexExport.timingBlock({
+                seams: r.clockSeamScan ? r.clockSeamScan.seams : null,
+                seamsReason: r.clockSeamScan ? r.clockSeamScan.reason : null
+              })
+            : null
       },
       hrv: {
         time: {

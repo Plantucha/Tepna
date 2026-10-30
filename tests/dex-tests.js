@@ -21434,9 +21434,11 @@
       T.ok('a node with no host column reads device-only, never silence', bare.timingSource === 'device-only' && bare.independent === false, JSON.stringify(bare));
       T.ok('…and says WHY every number is absent', typeof bare.reason === 'string' && bare.reason.length > 0, String(bare.reason));
 
-      // ── 3 · §∅ — a node that LOOKED and found no resync reports 0; one that did not look reports null ──
-      var looked = DE.timingBlock({ resyncs: [] });
-      T.ok('an empty resync list is a measured zero, not an absence', looked.resyncs === 0 && looked.seams === 0, JSON.stringify(looked));
+      /* ── 3 · §∅ — an instrument that LOOKED and found none reports 0; one that did not reports null ──
+         Both lists are passed because the two counts are independent instruments (section 5b): an
+         empty resync list says nothing about whether anyone scanned for a seam. */
+      var looked = DE.timingBlock({ resyncs: [], seams: [] });
+      T.ok('an empty list from either instrument is a measured zero, not an absence', looked.resyncs === 0 && looked.seams === 0, JSON.stringify(looked));
       T.ok('…while an absent list stays null', bare.resyncs === null && bare.seams === null, JSON.stringify(bare));
 
       // ── 4 · the top tier is a CLAIM, so an unmeasured drawn verdict may not reach it ──
@@ -21491,12 +21493,41 @@
         'a refusal that names no reason says so, and never splices undefined into the sentence',
         /the spine named no reason/.test(DE.timingBlock({ hostAxis: { ok: false, n: 2 }, resyncs: [] }).reason || '')
       );
-      var full = DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [] });
+      // Every measurement present now means BOTH counts as well as the axis — a block missing either
+      // instrument owes a sentence saying which one never reported.
+      var full = DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [], seams: [] });
       T.ok('a block with every measurement present carries NO reason', full.reason === null, String(full.reason));
 
       // ── 5 · a node that already owns a lattice keeps its verdict — no committed export changes meaning ──
       T.ok('a node-supplied timingSource is honoured, not re-derived', DE.timingBlock({ hostAxis: ax, timingSource: 'device', resyncs: [] }).timingSource === 'device');
       T.ok('…and a value outside the vocabulary is refused, not passed through', SOURCES.indexOf(DE.timingBlock({ hostAxis: ax, timingSource: 'made-up', resyncs: [] }).timingSource) >= 0);
+
+      /* ── 5b · THE TWO COUNTS ARE INDEPENDENT INSTRUMENTS ──
+         Residue row `2026-10-30-the-timing-block-says-nobody-looked-beside-a-seam-scan-that-did`.
+         `seams` inherited `resyncs` on the premise that every seam detector was also a counter-step
+         detector. U3 shipped a stamp-interval tripwire to two nodes that detect no counter step, so
+         the premise is gone. A borrowed count publishes a number nobody measured, and the single
+         clause told a consumer that a node which HAD scanned looked for nothing. These legs pin each
+         count to its own instrument and keep the three states §∅ demands apart: a count, a node that
+         never looked, and a scan that ran and could not answer. */
+      var borrowed = DE.timingBlock({ resyncs: [1, 2] });
+      T.ok('a seam count is never borrowed from the resync count', borrowed.seams === null);
+      T.ok('…and the reason does not call a measured resync count unknown', !/device-clock resyncs/.test(borrowed.reason || ''));
+      T.ok('…while it does say the seam scan never ran', /does not scan for axis seams/.test(borrowed.reason || ''));
+      var scanned0 = DE.timingBlock({ seams: 0 });
+      T.ok('a node that scanned and found none publishes 0, never null', scanned0.seams === 0);
+      T.ok('…and its reason names the resync count alone, not the scan it ran', /does not look for device-clock resyncs/.test(scanned0.reason || '') && !/axis seams/.test(scanned0.reason || ''));
+      var refusedScan = DE.timingBlock({ seams: null, seamsReason: 'too-few-stamps' });
+      T.ok('a scan that RAN and refused is not a node that never looked', /scan reported no count: too-few-stamps/.test(refusedScan.reason || ''));
+      T.ok('…so the never-looked sentence stays off it', !/does not scan for axis seams/.test(refusedScan.reason || ''));
+      T.ok('…and §∅ it still publishes null, never a 0', refusedScan.seams === null);
+      T.ok(
+        'a node that looks for neither keeps the ONE combined sentence — committed bytes do not move',
+        /looks for neither device-clock resyncs nor axis seams/.test(DE.timingBlock({}).reason || '')
+      );
+      T.ok('§∅ a numeric string is not a seam count either', DE.timingBlock({ seams: '2' }).seams === null);
+      T.ok('…and neither is a negative one', DE.timingBlock({ seams: -1 }).seams === null);
+      T.ok('a stale seamsReason is dropped once a real count arrives', !/reported no count/.test(DE.timingBlock({ seams: 2, seamsReason: 'too-few-stamps' }).reason || ''));
 
       // ── 6 · SOURCE LEG — every node-export builder reaches the one builder ──
       var BUILDERS = ['oxydex-dsp.js', 'pulsedex-dsp.js', 'hrvdex-dsp.js', 'ecgdex-dsp.js', 'motiondex-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'cpapdex-fusion.js'];
@@ -21504,6 +21535,16 @@
         return !src[f] || src[f].indexOf('DexExport.timingBlock(') === -1;
       });
       T.ok('all eight node-export builders call DexExport.timingBlock', missing.length === 0, missing.join(', '));
+      /* A node that OWNS a seam instrument must pass its count: the builder no longer infers one, so
+         a call site that forgets would publish `seams: null` beside a scan that answered. The three
+         counter-step nodes assert the equality themselves; the two U3 scanners pass their tripwire. */
+      var SEAM_OWNERS = ['oxydex-dsp.js', 'pulsedex-dsp.js', 'ecgdex-dsp.js', 'motiondex-dsp.js', 'ppgdex-dsp.js'];
+      var noSeamArg = SEAM_OWNERS.filter(function (f) {
+        var t = src[f] || '';
+        var i = t.indexOf('DexExport.timingBlock({');
+        return i < 0 || t.slice(i, i + 700).indexOf('seams:') === -1;
+      });
+      T.ok('every node owning a seam instrument passes its own count', noSeamArg.length === 0, noSeamArg.join(', '));
 
       /* ── 7 · FIXTURE LEG — TWO COMMITTED SETS, ONE CONTRACT, DIFFERENT OBLIGATIONS ──
          `env.equiv[*].fixture` is the golden set the nine `tools/regen-<node>-goldens.mjs` rewrite from
