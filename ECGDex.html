@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2d8814cadc90" data-compute-hash="6ab27dca997b">
+<html lang="en" data-manifest-hash="6f5fe2ce08bb" data-compute-hash="090ad82c4798">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0un7kHTIHKWBkF8u7QGJVGiUNvx1xeLqlFS6+bz2N9c=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4ajqJlTr1n3ab1PraClma35aOKPyiaDmfc81yTdbvO4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-brcVxTI6BShvL8gR+V83Km/RAvADXOTbir/uhFdqiC0=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-KLptJEzcGJB/xaRMuGp/5SdDH/bgXnczJV69p60XJAw=' 'sha256-OW9id26tlvl67DI/dV/gEvngBelegszw1kizSis/UAY=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-brcVxTI6BShvL8gR+V83Km/RAvADXOTbir/uhFdqiC0=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.24.0</title>
@@ -4728,10 +4728,23 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
     var resyncs = _tbCount(opts.resyncs);
     var seams = _tbCount(opts.seams);
-    if (seams == null) seams = resyncs; // every seam detected today IS a counter step — see above
-    // One clause for both, because `seams` can only be null when `resyncs` is: a node that counts
-    // steps and declares no seams of its own inherits the step count one line up.
-    if (resyncs == null) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+    /* DECOUPLED 2026-10-30 — residue row
+       `2026-10-30-the-timing-block-says-nobody-looked-beside-a-seam-scan-that-did`.
+       The inheritance `seams = resyncs` was sound while every seam detector WAS a counter-step
+       detector. U3 of DEVICE-TIME-HANDLING ended that: OxyDex and PulseDex scan their own stamp
+       intervals for a seam and detect no counter step at all. A borrowed count therefore published
+       a number neither node measured, and the single clause below told a consumer that a node which
+       HAD scanned looked for nothing. The two counts are independent measurements now, and each is
+       `null` only when its own instrument did not report.
+       A node whose scan RAN and could not answer passes `seamsReason`, so "never looked" and
+       "looked and refused" stay distinguishable instead of collapsing into one sentence. */
+    var seamsReason = seams == null && typeof opts.seamsReason === 'string' && opts.seamsReason ? opts.seamsReason : null;
+    var noResyncs = resyncs == null;
+    var neverScanned = seams == null && !seamsReason;
+    if (noResyncs && neverScanned) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+    else if (noResyncs) why.push('this node does not look for device-clock resyncs, so that count is unknown rather than zero');
+    else if (neverScanned) why.push('this node does not scan for axis seams, so that count is unknown rather than zero');
+    if (seamsReason) why.push('the axis-seam scan reported no count: ' + seamsReason);
 
     return {
       timingSource: src,
@@ -15783,7 +15796,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
                 hostAxis: r.hostAxis,
                 timingSource: r.hostAxis ? r.hostAxis.timingSource : null,
                 drawn: r.hostAxis ? r.hostAxis.deviceDrawn : null,
-                resyncs: r.clockResyncs || []
+                resyncs: r.clockResyncs || [],
+                // This node's seam instrument IS its counter-step detector, so the two counts are
+                // the same measurement. The node says so; the shared builder no longer assumes it.
+                seams: r.clockResyncs || []
               })
             : null
       },

@@ -52,8 +52,8 @@
       "ppm": null,
       "spanPpm": null,
       "resyncs": null,
-      "seams": null,
-      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero"
+      "seams": 0,
+      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node does not look for device-clock resyncs, so that count is unknown rather than zero"
     }
   },
   "hrv": {

@@ -6444,7 +6444,10 @@
                 hostAxis: r.hostAxis,
                 timingSource: r.hostAxis ? r.hostAxis.timingSource : null,
                 drawn: r.hostAxis ? r.hostAxis.deviceDrawn : null,
-                resyncs: r.clockResyncs || []
+                resyncs: r.clockResyncs || [],
+                // This node's seam instrument IS its counter-step detector, so the two counts are
+                // the same measurement. The node says so; the shared builder no longer assumes it.
+                seams: r.clockResyncs || []
               })
             : null
       },

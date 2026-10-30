@@ -6763,7 +6763,16 @@
            load-order bug and the export-parity group reds on it rather than letting it pass. */
         timing:
           typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
-            ? DexExport.timingBlock({ hostAxis: r.hostAxis, timingSource: r.timingSource, drawn: r.axisDrawn, resyncs: r.clockResyncs || [] })
+            ? // This node's seam instrument IS its counter-step detector (`clockResyncs` entries
+              // carry `deviceStepMs`), so one array answers both counts — asserted here, not assumed
+              // by the shared builder.
+              DexExport.timingBlock({
+                hostAxis: r.hostAxis,
+                timingSource: r.timingSource,
+                drawn: r.axisDrawn,
+                resyncs: r.clockResyncs || [],
+                seams: r.clockResyncs || []
+              })
             : null
       },
       ganglior_events: events,
