@@ -310,7 +310,15 @@
         }),
         offMaskGaps: (night.offMaskGaps || []).map(function (g) {
           return { afterSession: g.afterIdx, gapMin: g.gapMin };
-        })
+        }),
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). An AirSense EDF set carries the machine's own clock and no host
+           stamp column, so this node reports `device-only` and no rate.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       metrics: night.metrics || null,
       crossMetrics: cross,

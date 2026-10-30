@@ -27,7 +27,18 @@
     "longRecording": true,
     "windows": 19,
     "beats": 6153,
-    "coveragePct": 100
+    "coveragePct": 100,
+    "timing": {
+      "timingSource": "device-only",
+      "independent": false,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "resyncs": null,
+      "seams": null,
+      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero"
+    }
   },
   "hrv": {
     "time": {

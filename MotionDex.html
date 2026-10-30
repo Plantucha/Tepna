@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="58bf921031f3" data-compute-hash="3698d32dd382">
+<html lang="en" data-manifest-hash="56e6b91496ad" data-compute-hash="8f827657899c">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-olGSs2IuOS5/nCWBxgMvNWNu2xbJPT8jNTXkt6EzH+8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6tShTGpS12eMO7yk25fJqw2v9FKKIcrgD6BUUCLMs1c=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fz+P+euC35ByB4VDjCgsNqNbIGWU5+l1Sqz5Ogyd9VE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.24.0</title>
@@ -4099,7 +4099,133 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     return _scrubWith(root.ExportSchema, envelope);
   }
 
-  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport, _scrubWith: _scrubWith, coverageFromSegments: coverageFromSegments };
+  /* ── THE SHARED TIMING BLOCK — `recording.timing` on every node-export ──────────────────────────
+     (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5.)
+
+     Each node reshaped the host-axis verdict BY HAND, field by field, and the two that do it most
+     (`ecgdex-dsp.js`, `ppgdex-dsp.js`) carry comments recording what that cost: `stability` computed
+     in `clock.js` and dropped one layer down, `independent`/`spreadMs` discarded a line after they
+     were computed, `tau0`/`noiseType` read back off names the spine never wrote. A reshape drops
+     whatever it does not name. Five nodes named nothing at all — OxyDex, PulseDex, HRVDex, GlucoDex
+     and CPAPDex publish no timing provenance, so a consumer cannot tell "one clock" from "nobody
+     looked", and those are different facts.
+
+     This is the ONE builder. Nine keys, always all nine, in this order, whatever the node:
+
+       timingSource  'device+host' | 'host' | 'device' | 'device-only' | 'none'
+       independent   true | false | null  — Clock Contract §7: was the host column a SECOND clock?
+       anchors       int | null           — host↔device anchor pairs the axis was built from
+       spanMs        number | null        — the span the `ppm` below was measured over
+       ppm           number | null        — the smoothed divergence rate
+       spanPpm       number | null        — the same ratio BEFORE the running median
+       resyncs       int | null           — device-clock resync steps detected
+       seams         int | null           — discontinuities in the PUBLISHED axis
+       reason        string | null        — why any of the above is null; null only when none is
+
+     WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
+     of 8 app bundles, and therefore planned a node-local twin for PpgDex, GlucoDex and CPAPDex —
+     three hand-written copies of the shape this function exists to stop being hand-written.
+     `dex-export.js` is carried by 9 of 9 bundles, so the same code reaches every node with no twin.
+     This block CONSUMES a `DexClock.hostAxis` result and never produces one, so it needs the spine
+     present no more than `coverageFromSegments` above does.
+
+     ∅ ABSENCE IS NULL. A node with no host stamp column writes `timingSource:'device-only'` and
+     `independent:false` — a measured fact about its input format, not silence — while every number it
+     could not measure stays `null` beside a sentence naming WHY. A node that does not look for
+     resyncs writes `null`, never `0`: nobody looked is not none found.
+
+     `'device-only'` IS NOT `'device'`. `'device'` means a host column was there and carried nothing
+     the device column did not already have (`independent:false` — the whole phone-captured tree).
+     `'device-only'` means there was no host column to read at all. A consumer sizing a capture path,
+     or picking clock legs for a three-cornered hat, has to tell those two apart.
+
+     A node that already owns a provenance lattice (ECGDex, PpgDex) passes its own `timingSource` and
+     this function VALIDATES rather than re-derives it, so no committed export changes meaning. The
+     derivation below serves the nodes that had none. It routes an UNMEASURED `drawn` verdict to
+     `'host'`, never to `'device+host'`: the top tier claims a real second clock disciplined the
+     recording, and "we never measured whether the device column is a clock" may not reach it.
+     Under-claiming is the honest failure (PpgDex's arm at `ppgdex-dsp.js:1709`, verbatim).
+
+     `seams` BESIDE `resyncs`, THOUGH TODAY THEY AGREE. Every node that detects a seam detects it AS a
+     counter step (`ppgdex-dsp.js:5343` defines `clockSeam` as `!!clockResyncs.length`), so a node that
+     declares no seams of its own gets the resync count here. The key is still its own, because a seam
+     is a fact about the PUBLISHED axis — a node can refuse over a data gap that no counter step marks
+     — and a consumer must not have to know which node is which to read it. */
+  var TIMING_SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
+
+  function _tbNum(v) {
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+  // A count, or `null`. Never a `0` standing in for an absent measurement: an empty ARRAY is a node
+  // that looked and found none, `null`/`undefined` is a node that did not look, and the two differ.
+  function _tbCount(v) {
+    if (v == null) return null;
+    if (Array.isArray(v)) return v.length;
+    if (typeof v === 'boolean') return null; // a boolean is a verdict, not a count — do not coerce it
+    return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null;
+  }
+
+  function timingBlock(opts) {
+    opts = opts || {};
+    var ax = opts.hostAxis || null;
+    var ok = !!(ax && ax.ok);
+    var drawn = opts.drawn === undefined ? null : opts.drawn;
+    var why = [];
+
+    var src;
+    if (typeof opts.timingSource === 'string' && TIMING_SOURCES.indexOf(opts.timingSource) >= 0) {
+      src = opts.timingSource;
+    } else if (!ax) {
+      src = 'device-only';
+    } else if (!ok) {
+      // Refused. A device column measured to be real still carries the recording; a drawn or
+      // unmeasured one leaves nothing, and `pat-gate.js` refuses on exactly that value.
+      src = drawn === false ? 'device' : 'none';
+    } else if (drawn !== false) {
+      src = 'host';
+    } else {
+      src = ax.independent === false ? 'device' : 'device+host';
+    }
+
+    var independent;
+    if (!ax)
+      independent = false; // no host column ⇒ measured: there is no second clock here
+    else if (ok && ax.independent != null) independent = ax.independent === true;
+    else independent = null;
+
+    if (!ax) why.push('no host stamp column on this input, so there is no second clock to discipline the device rate against');
+    else if (!ok) why.push('the host axis refused: ' + (ax.reason || 'the spine named no reason'));
+    else if (ax.independent == null) why.push('the host axis published no independence verdict');
+
+    var resyncs = _tbCount(opts.resyncs);
+    var seams = _tbCount(opts.seams);
+    if (seams == null) seams = resyncs; // every seam detected today IS a counter step — see above
+    // One clause for both, because `seams` can only be null when `resyncs` is: a node that counts
+    // steps and declares no seams of its own inherits the step count one line up.
+    if (resyncs == null) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+
+    return {
+      timingSource: src,
+      independent: independent,
+      anchors: ok ? _tbCount(ax.n != null ? ax.n : ax.anchors) : null,
+      spanMs: ok ? _tbNum(ax.spanMs) : null,
+      ppm: ok ? _tbNum(ax.ppm) : null,
+      spanPpm: ok ? _tbNum(ax.spanPpm) : null,
+      resyncs: resyncs,
+      seams: seams,
+      reason: why.length ? why.join('; ') : null
+    };
+  }
+
+  var DexExport = {
+    exportName: exportName,
+    EXPORT_KINDS: EXPORT_KINDS,
+    scrubExport: scrubExport,
+    _scrubWith: _scrubWith,
+    coverageFromSegments: coverageFromSegments,
+    timingBlock: timingBlock,
+    TIMING_SOURCES: TIMING_SOURCES
+  };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
@@ -7252,6 +7378,13 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     var summary = {
       node: 'MotionDex',
       t0Ms: t0Ms,
+      /* THE RESYNC COUNT, WHERE THE EXPORT CAN REACH IT (DEVICE-TIME-HANDLING-2026-10-29 U5).
+         `parseSensorXYZ` hangs its seam list on the row array (`out._clockResyncs`, :347) and sets the
+         key only when it found one, so the whole signal stopped at `actigraphy`'s local `_seam` flag
+         (:585) and `buildNodeExport` could not say whether this night's axis is seamed. A consumer
+         reading the shared timing block has to be told the difference between a node that found no
+         step and a node that never looked, which is why this is `null` ONLY when no stream parsed. */
+      clockResyncs: _mdResyncCount([acc, chest, gyro, mag]),
       durSec: durMeasured == null ? null : Math.round(durMeasured),
       streams: {
         acc: acc ? acc.length : 0,
@@ -7272,6 +7405,21 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   //  SYNTHETIC IMU — deterministic (seeded) generator for the committed fixture
   //  + the equiv gate. No Date.now / Math.random (reproducible bytes).
   // ════════════════════════════════════════════════════════════════════════
+  /* Counts the device-clock resync steps across every parsed stream. `null` when NOTHING parsed —
+     nobody looked, which §∅ forbids reporting as `0`. A stream that parsed and carries no
+     `_clockResyncs` key looked and found none, and contributes 0. */
+  function _mdResyncCount(streams) {
+    var looked = false,
+      n = 0;
+    for (var i = 0; i < streams.length; i++) {
+      var s = streams[i];
+      if (!s || !s.length) continue;
+      looked = true;
+      if (s._clockResyncs && s._clockResyncs.length) n += s._clockResyncs.length;
+    }
+    return looked ? n : null;
+  }
+
   function mulberry32(seed) {
     var s = seed >>> 0;
     return function () {
@@ -7403,7 +7551,19 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
          `version` a string. Measured over the 98 committed node-exports, this was one of only two
          warnings in the whole corpus. */
       schema: { name: 'ganglior.node-export', version: '2.0', node: 'MotionDex', nodeVersion: '1.0', bus: 'ganglior' },
-      recording: { startEpochMs: t0, durSec: summary.durSec },
+      recording: {
+        startEpochMs: t0,
+        durSec: summary.durSec,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ────────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). MotionDex DETECTS counter steps and does
+           not yet correct the rate — that is U4 of the same brief — so the resync count here is a
+           real measurement while every host-axis number is null beside the reason that says why.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({ resyncs: summary.clockResyncs }) : null
+      },
       motion: {
         streams: summary.streams,
         supineFrac: summary.position ? summary.position.supineFrac : null,

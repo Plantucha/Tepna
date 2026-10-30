@@ -12,7 +12,18 @@
   },
   "recording": {
     "startEpochMs": 1781128800000,
-    "durSec": 120
+    "durSec": 120,
+    "timing": {
+      "timingSource": "device-only",
+      "independent": false,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "resyncs": 0,
+      "seams": 0,
+      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against"
+    }
   },
   "motion": {
     "streams": {
