@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-09 · **Created:** 2026-08-08 · **Follow-ups:** O2RING-ADAPTIVE-TIMEBASE-FOLLOWUPS-2026-08-09-BRIEF.md
+**Status:** DONE — 2026-08-09 · **Created:** 2026-08-08 · **Follow-ups:** O2RING-ADAPTIVE-TIMEBASE-FOLLOWUPS-2026-08-09-BRIEF.md · **Residue:** 2026-10-29-ring-device-crystal-axis-reads-high-against-the-ecg
 
 # O2Ring adaptive timebase — device crystal by default, host discipline when the host earns it
 
