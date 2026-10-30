@@ -1569,8 +1569,21 @@ function nRowKey(n){
   const rs = n && typeof n.recording_start === 'string' ? n.recording_start : '';
   return (n && n.night ? n.night : '') + (rs ? '@' + rs.slice(11) : '');
 }
+/* ── THE RING'S PPG HAS A DOOR OF ITS OWN WHEN THE VERITY IS ABSENT ─────────────────────────────────
+   The Verity column is the only door into PPGDex, and the ring's `_PPG.txt` is filed under PPGDex too.
+   So a night the Verity missed hid a pleth the ring did record: on 2026-10-29 the Sense stayed off all
+   night, the ring recorded 6.6 h with its PPG, and the owner could not open it ("i cant click on verity
+   to look at ppg recorded by o2ring", 2026-10-30). The cell still says the Verity recorded nothing; it
+   only stops hiding the other device's stream behind that. No hours or coverage are shown: the PPGDex
+   record's stats are not the Verity's, and the ring's own hours sit in the O2Ring column. */
+function nRingPpgCell(n){
+  const v = n.PPGDex;
+  if(!v || !v.loadable || !nHas(n, 'ringppg')) return null;
+  return `<td><button type="button" class="ncell" data-night="${esc(nRowKey(n))}" data-node="PPGDex" title="the Verity recorded nothing this night — open PPGDex with the O2Ring PPG loaded"><span class="top"><i class="ng rec">●</i>O2Ring PPG</span><span class="sub">no Verity · ring PPG</span><span class="nbar"><i class="rec" style="width:100%"></i></span></button></td>`;
+}
 function nDevCell(n, d){
   const c = nCls(n, d), v = n[d.node];
+  if(c==='none' && d.k==='verity'){ const ring = nRingPpgCell(n); if(ring) return ring; }
   if(c==='none') return `<td><div class="ncell none off" title="${esc(d.name)} recorded nothing this night"><div class="top"><i class="ng none">–</i>—</div><div class="sub">not recorded</div><div class="nbar"></div></div></td>`;
   const w = v.coverage!=null ? Math.round(100*v.coverage) : Math.round(100*Math.min(1,(v.hours||0)/nSpan(n)));
   const sub = v.pending ? 'counting…' : v.fragments!=null ? `${v.fragments} frag · ${nLost(v)}` : (c==='rec' ? 'recorded' : 'not measured yet');
