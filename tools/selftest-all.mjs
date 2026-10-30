@@ -402,9 +402,25 @@ export const UNPARSEABLE_RATCHET = new Set([
   'wt-done.mjs'
 ]);
 
-/* This script is excluded from its own DISCOVERY list, which would leave its predicates ungated — the
-   exact shape it exists to catch. `--selftest` therefore runs them; the CI loop finds this file by that
-   same literal and runs it, so the detector is gated by the mechanism it guards. */
+/* THE RUNNER IS A MEMBER OF ITS OWN POPULATION — row
+   `2026-10-28-the-selftest-runner-excludes-itself-so-its-own-meta-rules-go-unexamined-locally`.
+
+   It used to drop itself from discovery, reasoning that its own `--selftest` runs those predicates and
+   that CI's per-tool loop finds this file by the same literal. Both halves are true, and NEITHER
+   reaches `npm run check`: step 41 is `node tools/selftest-all.mjs` with no flag, so every rule this
+   file enforces inside its own `--selftest` block ran in CI alone. The local gate and CI then enforced
+   different rule sets and the local one was the smaller — which is this file's own defect class with
+   the sides swapped from `2026-09-03-selftest-all-unbounded-fanout`. Measured 2026-10-28: the
+   typed-count rule at the foot of the selftest reded CI for `tools/home-paths.mjs` after a local run
+   that had passed all 41 steps on the same head.
+
+   Membership costs 0.3 s and recurses NOWHERE, because the sweep spawns every member with
+   `--selftest`, which returns above the sweep. That flag is what separates membership from recursion,
+   so a leg below reads it out of this file's own source rather than trusting the reader. */
+export function toolPopulation(entries) {
+  return entries.filter((f) => f.endsWith('.mjs')).sort();
+}
+
 const TOOL_TIMEOUT_MS = 120000;
 
 /* WHY a tool failed, not just THAT it did. `err` from execFile carries the only evidence that exists
@@ -514,8 +530,7 @@ export function verdictSample() {
 /* THE CLI. Everything below runs only when this file is the entry, so an import shares the predicates
    above without starting a sweep. */
 async function main() {
-  const files = readdirSync(TOOLS)
-    .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
+  const files = toolPopulation(readdirSync(TOOLS))
     .filter((f) => {
       try {
         return declaresSelftest(readFileSync(join(TOOLS, f), 'utf8'));
@@ -687,10 +702,7 @@ async function main() {
       );
       eq(literalCountLines('const FS = 100;\nconsole.log(`resampled at ${FS} Hz`);').length === 0, 'hop DECOY · a const in a print that is not a summary is not a count');
       eq(literalCountLines('const N = 8;\nconsole.log(`all ${N} selftests passed`);\nconsole.log(`${f} failed of ${N}`);').length === 2, 'hop · both summary lines of one tool are reported');
-      const typed = readdirSync(TOOLS)
-        .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
-        .filter((f) => literalCountLines(readFileSync(join(TOOLS, f), 'utf8')).length > 0)
-        .sort();
+      const typed = toolPopulation(readdirSync(TOOLS)).filter((f) => literalCountLines(readFileSync(join(TOOLS, f), 'utf8')).length > 0);
       eq(typed.length === 0, `no tool prints a typed assertion count — it must be incremented by the assertion helper (${typed.length}: ${typed.join(' · ')})`);
     }
     {
@@ -712,6 +724,31 @@ async function main() {
         r.status === 0 && r.stdout === 'function function\n',
         `importing selftest-all.mjs and verdict-adoption.mjs runs neither CLI (status ${r.status}, stdout ${JSON.stringify(String(r.stdout).slice(0, 120))})`
       );
+    }
+    {
+      /* ════ THE RUNNER IS IN THE POPULATION IT RUNS ══════════════════════════════════════════════
+         Row `2026-10-28-the-selftest-runner-excludes-itself-so-its-own-meta-rules-go-unexamined-locally`:
+         `test:tools` is step 41 of the local gate and runs this file with NO flag, so until now the
+         rules below reached CI alone. These legs pin the membership and the one property that keeps it
+         from being recursion. */
+      eq(
+        JSON.stringify(toolPopulation(['z.mjs', 'readme.txt', 'selftest-all.mjs', 'a.mjs'])) === JSON.stringify(['a.mjs', 'selftest-all.mjs', 'z.mjs']),
+        'population · every `.mjs` entry is a member, sorted, and a non-tool file is not'
+      );
+      const own = readFileSync(join(TOOLS, 'selftest-all.mjs'), 'utf8');
+      eq(toolPopulation(readdirSync(TOOLS)).includes('selftest-all.mjs'), 'population · the REAL sweep list contains this file');
+      /* Membership is only worth anything if the member runs: the sweep enrols a member by the same
+         predicate it applies to every other tool, so a file that failed it would be discovered and
+         then dropped, silently. */
+      eq(declaresSelftest(own), 'population · and this file satisfies the enrolment predicate, so the member actually runs');
+      eq(!declaresNearMissSelftest(own), 'population · and it is not a near miss, so it is not excluded as unplanned');
+      /* THE TYPED-COUNT RULE NOW READS THIS FILE TOO. It passes today; the leg states that, so a later
+         edit that prints a typed count here is caught by the rule this file enforces on others. */
+      eq(literalCountLines(own).length === 0, 'population · this file prints no typed assertion count either');
+      /* 🔴 THE FLAG IS WHAT SEPARATES MEMBERSHIP FROM RECURSION. The sweep spawns each member with
+         `--selftest`, which returns above the sweep. Drop that flag and a member named `selftest-all`
+         sweeps again, forever. The regex is escaped, so this leg cannot match its own source. */
+      eq(/execFile\(\s*process\.execPath,\s*\[join\(TOOLS, f\), '--selftest'\]/.test(own), 'population · the sweep spawns every member WITH `--selftest`, so a self-member recurses nowhere');
     }
     console.log(`all ${n} selftests passed`);
     process.exit(0);
@@ -736,8 +773,7 @@ async function main() {
     });
 
   const unratcheted = [];
-  const nearMiss = readdirSync(TOOLS)
-    .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
+  const nearMiss = toolPopulation(readdirSync(TOOLS))
     .filter((f) => {
       try {
         return declaresNearMissSelftest(readFileSync(join(TOOLS, f), 'utf8'));
