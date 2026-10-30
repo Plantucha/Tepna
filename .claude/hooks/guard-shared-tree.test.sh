@@ -463,6 +463,42 @@ case "$_rp" in
   *"SAY SO"*) echo "  ok    …and asks for a self-report, the only evidence hatch use can leave" ;;
   *) echo "  FAIL  no self-report asked for, so the stated failure signal is unobservable"; fail=$((fail+1)) ;;
 esac
+# THE REMEDY THIS RULE PRINTED WAS DENIED BY THIS RULE. Measured 2026-10-29 on a rebase held by two
+# corpus-backed goldens: `git checkout --ours -- <16 paths>`, the same list through `xargs`, and
+# `git checkout HEAD~1 -- <one golden>` outside any rebase were all denied — the last being the form
+# this paragraph itself offered. The hatch does not reach it either, because it is read from the
+# HOOK's environment and a Bash call cannot set it. So the denial must name a spelling a session can
+# actually run, and that spelling lives in the tool that knows what a path is.
+_rc="$(reason 'git checkout HEAD~1 -- uploads/ECGDex_2026-06-27_equiv.node-export.json')"
+case "$_rc" in
+  *"--resolve"*) echo "  ok    the checkout denial names a remedy a session can run" ;;
+  *) echo "  FAIL  the denial still offers only commands it denies"; fail=$((fail+1)) ;;
+esac
+# …and it must say WHY that subcommand exists, or the next reader widens this rule instead.
+case "$_rc" in
+  *"cannot tell a generated path from a source one"*) echo "  ok    …and says why the rule itself cannot decide" ;;
+  *) echo "  FAIL  the denial does not explain why the remedy is elsewhere"; fail=$((fail+1)) ;;
+esac
+# The old advice was "run it on that one explicit path outside a rebase", which this rule denies.
+# ABSENT, or the paragraph re-earns the defect.
+case "$_rc" in
+  *"explicit path outside a rebase"*) echo "  FAIL  the denied advice is still in the message"; fail=$((fail+1)) ;;
+  *) echo "  ok    …and no longer suggests the form it refuses" ;;
+esac
+# The REVERT case keeps an answer, and it is the no-ref form the MUST-ALLOW list already pins.
+case "$_rc" in
+  *"git checkout -- <file>"*) echo "  ok    …and the own-edit revert keeps the allowed no-ref form" ;;
+  *) echo "  FAIL  the own-edit revert lost its remedy"; fail=$((fail+1)) ;;
+esac
+# ANTI-VACUITY: the paragraph must not appear on a denial that has nothing to do with a checkout.
+# Its own variable, because `_rq` below is assigned AFTER this block and an unset one passes this
+# case vacuously — which is the shape of a leg that never examined anything.
+_rc2="$(reason 'git clean -f')"
+case "$_rc2" in
+  *"--resolve"*) echo "  FAIL  the resolve remedy appears on an unrelated denial"; fail=$((fail+1)) ;;
+  *) echo "  ok    an unrelated denial does not carry the resolve remedy" ;;
+esac
+
 # …and NOT on an ordinary denial: advice that appears on every denial is noise, and noise is how the
 # one paragraph that mattered gets skipped.
 _rq="$(reason 'git add -A')"

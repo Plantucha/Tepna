@@ -30,6 +30,7 @@ import {
   classifyOwnedFixtures as rebaseClassifyOwnedFixtures,
   unrestoredFrom as rebaseUnrestoredFrom,
   heldGoldens as rebaseHeldGoldens,
+  resolvePlan as rebaseResolvePlan,
   trackedOracle as rebaseTrackedOracle
 } from '../tools/rebase-safe.mjs';
 /* AND THIS IMPORT IS ITSELF AN ASSERTION. `tools/pr-compliance.mjs` ended in a bare
@@ -3313,6 +3314,9 @@ async function main() {
     /* The REAL two-rail split, a FUNCTION so nothing pays for the nine recipe spawns unless the group
        runs — the population half of the same pair as rebaseGeneratedSet. */
     rebaseHeldGoldens: rebaseHeldGoldens,
+    /* The remedy's DECISION half, pure and driven by value: which named paths the builders may
+       restore, and what each refusal says. The CLI writes bytes; this decides. */
+    rebaseResolvePlan: rebaseResolvePlan,
     rebaseTrackedOracle: rebaseTrackedOracle,
     /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
        parser that judges it, so the two cannot disagree about what a quoted verdict is. */
