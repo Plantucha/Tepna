@@ -39,7 +39,8 @@
    A night is REPORTED WITH ITS REASON when it cannot be measured — a quiet night
    with no shared movement is a real outcome, not an error, and printing nothing
    would let an unmeasured night pass as a synchronised one. */
-import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync, existsSync, openSync, readSync, closeSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
@@ -60,6 +61,7 @@ const HOP = parseFloat(opt('--hop', '300'));
 const MAXLAG = parseFloat(opt('--max-lag', '30'));
 const JSON_OUT = opt('--json', null);
 const SKIP_EXISTING = argv.includes('--skip-existing');
+const SELFTEST = argv.includes('--selftest');
 const SAMPLE_AT = '2026-10-28T00:00:00Z';
 
 /* THE ADOPTION SAMPLE prints the object ALONE, because `verdict-adoption` parses this stdout as
@@ -87,7 +89,9 @@ if (argv.includes('--verdict-sample')) {
   process.exit(0);
 }
 
-if (!SRC || !existsSync(SRC)) {
+/* `--selftest` reads fixtures it writes itself, so it owes no `--src`. The guard still refuses an
+   ordinary run with no corpus, which is the case it exists for. */
+if (!SELFTEST && (!SRC || !existsSync(SRC))) {
   console.error('wearable-sync: --src <capture dir> is required and must exist');
   process.exit(2);
 }
@@ -127,6 +131,144 @@ const IS_H10 = /^Polar_H10_.*_ACC\.txt$/;
 const IS_VER = /^Polar_(Sense|VeritySense)_.*_ACC\.txt$/;
 // The evening owns the night: a file starting before noon belongs to the previous date.
 const nightOf = (ms) => new Date(new Date(ms).getUTCHours() < 12 ? ms - 86400000 : ms).toISOString().slice(0, 10);
+
+const ISO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/;
+/* THE FIRST DATA ROW OWNS THE START — THE NAME CARRIES THE SESSION'S.
+   `stampMs` above reads the filename stamp, which the capture writer sets when the SESSION opens.
+   A stream that bonds late opens after it. Board #373 measured the gap over the whole capture tree:
+   the first data row of 8077 of 8077 files carries a parseable host stamp, 101 files disagree with
+   their own name by over 5 min, and the worst sits 18.7 h out. The grid then drops every row outside
+   `[t0, t0 + 12 h]` BY THE ROW'S OWN TIME, so a stream that opened 12 h after its session stamp lost
+   all of its rows, and one that opened late lost its tail by the same gap. Row
+   `2026-10-28-wearable-sync-anchors-its-window-at-the-session-stamp`; same repair as
+   `tools/trio-anchor.mjs` and `sensor-trio-night.js` made for their own consumers.
+   THE READ IS BOUNDED to the first 64 KiB, not the file: the window needs ONE row and an ACC file
+   runs to hundreds of MiB, so a whole second pass over the corpus is the cost the row warned about.
+   A final line the read may have cut is dropped rather than parsed. A head that carries no parseable
+   row returns null, which the caller names rather than replacing with a number (§∅). */
+const HEAD_BYTES = 65536;
+const firstRowMs = (path) => {
+  let fd = null;
+  try {
+    fd = openSync(path, 'r');
+    const buf = Buffer.allocUnsafe(HEAD_BYTES);
+    const n = readSync(fd, buf, 0, HEAD_BYTES, 0);
+    if (!n) return null;
+    const lines = buf.toString('utf8', 0, n).split('\n');
+    if (n === HEAD_BYTES) lines.pop();
+    for (let i = 1; i < lines.length; i++) {
+      const c = lines[i].split(';');
+      if (c.length < 4) continue;
+      if (!ISO.test(String(c[0]).trim())) continue;
+      const t = CK.parseTimestamp(String(c[0]).trim());
+      if (t && isFinite(t.tMs)) return t.tMs;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch {}
+    }
+  }
+};
+/* ONE SIDE'S START, AND WHAT IT ANCHORED ON. The start is the EARLIEST first-row stamp among the
+   side's files. A file whose head carries no parseable row KEEPS ITS FILENAME STAMP and is counted:
+   dropping it would shrink the window silently, and substituting a zero or a default is the bug this
+   repo calls ∅. The caller prints both counts, so a night anchored on a name says so. */
+const startOf = (list, readFirstRow) => {
+  let t = Number.POSITIVE_INFINITY;
+  let onRow = 0;
+  let onName = 0;
+  for (const f of list) {
+    const r = readFirstRow(f.path);
+    if (r === null || !isFinite(r)) {
+      onName++;
+      if (isFinite(f.t) && f.t < t) t = f.t;
+      continue;
+    }
+    onRow++;
+    if (r < t) t = r;
+  }
+  return { t: isFinite(t) ? t : null, onRow, onName };
+};
+/* The window opens where BOTH streams are live and runs 12 h, which is what the name-stamp version
+   intended and could not deliver. `t0` is the LATER of the two sides' starts. */
+const windowFor = (h10, ver, readFirstRow) => {
+  const a = startOf(h10, readFirstRow);
+  const b = startOf(ver, readFirstRow);
+  if (a.t === null || b.t === null) return { t0: null, t1: null, onRow: a.onRow + b.onRow, onName: a.onName + b.onName };
+  const t0 = Math.max(a.t, b.t);
+  return { t0, t1: t0 + 12 * 3600000, onRow: a.onRow + b.onRow, onName: a.onName + b.onName };
+};
+
+if (SELFTEST) {
+  let n = 0;
+  const eq = (c, what) => {
+    n++;
+    if (!c) {
+      console.error(`FAIL · ${what}`);
+      process.exit(1);
+    }
+  };
+  const dir = mkdtempSync(join(tmpdir(), 'wsync-selftest-'));
+  const write = (name, body) => {
+    const f = join(dir, name);
+    writeFileSync(f, body);
+    return f;
+  };
+  const HEAD = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n';
+  const row = (iso) => `${iso};1000;10;20;30\n`;
+  try {
+    const fA = write('a.txt', HEAD + row('2026-07-21T22:10:00.000') + row('2026-07-21T22:10:01.000'));
+    eq(firstRowMs(fA) === Date.UTC(2026, 6, 21, 22, 10, 0, 0), 'firstRowMs reads the first DATA row, never the header');
+
+    const fB = write('b.txt', HEAD + 'not a stamp;1;2;3;4\n' + row('2026-07-21T23:00:00.000'));
+    eq(firstRowMs(fB) === Date.UTC(2026, 6, 21, 23, 0, 0, 0), 'it walks past a row whose stamp field is not a time');
+
+    const fC = write('c.txt', HEAD + 'x;y;z\n');
+    eq(firstRowMs(fC) === null, 'a head with no parseable data row reads null, never a substituted number');
+    eq(firstRowMs(join(dir, 'absent.txt')) === null, 'an unreadable file reads null rather than throwing');
+
+    const fD = write('d.txt', HEAD + `${'#'.repeat(HEAD_BYTES)}\n` + row('2026-07-21T22:00:00.000'));
+    eq(firstRowMs(fD) === null, 'the read is BOUNDED — a row past the 64 KiB head is not reached, and the bound reports null');
+
+    /* THE ROW'S OWN FAILURE CASE. The Verity name stamp sits at 19:00 and its rows open at 07:05 the
+       next morning, 12 h 5 min later. Anchored on the names the window is [19:00, 07:00] and every
+       Verity row falls outside it; anchored on the rows it opens at 07:05 and keeps them. */
+    const nameH = Date.UTC(2026, 6, 21, 19, 0, 0);
+    const nameV = Date.UTC(2026, 6, 21, 19, 0, 0);
+    const rowH = Date.UTC(2026, 6, 21, 19, 2, 0);
+    const rowV = Date.UTC(2026, 6, 22, 7, 5, 0);
+    const fH = write('h.txt', HEAD + row('2026-07-21T19:02:00.000'));
+    const fV = write('v.txt', HEAD + row('2026-07-22T07:05:00.000'));
+    const H = [{ path: fH, t: nameH }];
+    const V = [{ path: fV, t: nameV }];
+    const oldT0 = Math.max(Math.min(...H.map((x) => x.t)), Math.min(...V.map((x) => x.t)));
+    eq(oldT0 === nameH, 'the name-stamp anchor opens at the session stamp');
+    eq(rowV >= oldT0 + 12 * 3600000, 'and the late stream sits OUTSIDE the window it opened — the defect');
+    const w = windowFor(H, V, firstRowMs);
+    eq(w.t0 === rowV, 'the row anchor opens at the LATER of the two streams first rows');
+    eq(rowV >= w.t0 && rowV < w.t1, 'so the late stream row now sits inside the window');
+    eq(rowH < w.t0, 'and the early stream is bounded by the late one, which is what "both live" means');
+    eq(w.onRow === 2 && w.onName === 0, 'both sides report anchoring on a row');
+
+    const wFallback = windowFor([{ path: fC, t: nameH }], V, firstRowMs);
+    eq(wFallback.onName === 1 && wFallback.onRow === 1, 'a file with no parseable row keeps its NAME stamp and is COUNTED');
+    eq(wFallback.t0 === rowV, 'and it does not move a window the other side bounds');
+
+    const wNone = windowFor([{ path: fC, t: Number.NaN }], V, firstRowMs);
+    eq(wNone.t0 === null, 'a side with no readable start at all reads null, so the caller can refuse the night');
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
+  }
+  console.log(`all ${n} selftests passed`);
+  process.exit(0);
+}
 
 /* THE SWALLOW THAT WAS HERE: the `catch` returned the accumulator, so a subdirectory present and
    unreadable contributed nothing and left no trace — an unreadable tree and an empty one read the
@@ -190,7 +332,6 @@ if (refusedStamps.length) {
   );
 }
 
-const ISO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/;
 /* Bin tri-axial ACC onto a uniform grid as MEAN ABSOLUTE SAMPLE-TO-SAMPLE CHANGE.
    The differencing removes gravity and posture before any resampling, so a device
    lying at a different tilt cannot contribute a constant that survives binning. A
@@ -296,8 +437,15 @@ console.log('night        H10 VER   span   offset(s)  drift(ppm)  usable  medR  
 const rows = [];
 for (const k of keys) {
   const g = index[k];
-  const t0 = Math.max(Math.min(...g.H10.map((x) => x.t)), Math.min(...g.VER.map((x) => x.t)));
-  const t1 = t0 + 12 * 3600000;
+  /* The window anchors on each stream's FIRST DATA ROW, not on its filename stamp — see `firstRowMs`.
+     A night where neither side offers a readable start is REPORTED, not skipped silently. */
+  const w = windowFor(g.H10, g.VER, firstRowMs);
+  if (w.t0 === null) {
+    console.log(`${k}  — no readable start on one of the streams (no first row and no filename stamp)`);
+    continue;
+  }
+  const { t0, t1 } = w;
+  if (w.onName) console.log(`${k}  — ${w.onName} file(s) carry no parseable first row and keep their filename stamp`);
   const A = gridMotion(g.H10, t0, t1, FS_HZ),
     B = gridMotion(g.VER, t0, t1, FS_HZ);
   if (!A || !B) {
@@ -306,7 +454,7 @@ for (const k of keys) {
   }
   const r = DSP.alignEnvelopes(A, B, FS_HZ, { windowSec: WIN, hopSec: HOP, maxLagSec: MAXLAG, nullIters: 20 });
   const span = (Math.min(A.length, B.length) / FS_HZ / 3600).toFixed(2);
-  const row = { night: k, nH10: g.H10.length, nVer: g.VER.length, spanH: +span, ...r };
+  const row = { night: k, nH10: g.H10.length, nVer: g.VER.length, spanH: +span, anchor: { t0, onRow: w.onRow, onName: w.onName }, ...r };
   delete row.windows; // the per-window detail is for --json, not the console
   rows.push({ ...row, windows: r.windows });
   console.log(
