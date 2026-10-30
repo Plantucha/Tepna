@@ -2209,6 +2209,85 @@
       );
     });
 
+    /* ════ THE WHOLE-FILE RATE NOW CARRIES ITS OWN VERDICT ═══════════════════════════════
+       `ppgOffsetSegments` refuses a SEGMENT's ppm under `PPG_RATE_MIN_SPAN_S` and names the span in
+       `rateReason`. The whole-file axis published a bare `ppm`, so a reader could not tell a rate
+       measured over eight hours from one measured over thirteen seconds — and 432 of 523 rated ring
+       fragments sit under that floor (#2163).
+       `rateApplied` is SEPARATE on purpose: `ppgdex-dsp.js:1253` divides `fs` by the ppm whatever the
+       span says, because refusing leaves `fs` on the device rate, which RING-TIMEBASE-ECG-TEST rates
+       worse on 18 of 22 QC-PASS nights (owner, board #2180). PPGDEX-SUBFLOOR-RATE-TEST then found the
+       H10 ECG unable to separate the two, at 0.013 bpm over the 26 bins it can score.
+       BOTH BRANCHES, because an annotation that only ever says 'unknown' is not a verdict. */
+    group('PpgDex hostAxis — the published rate says what span it rests on', 'ppgdex-dsp · hostaxis-rate · subfloor-annotation', function (T) {
+      var C = env.DexClock;
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!C || typeof C.hostAxis !== 'function' || !P || typeof P.buildNodeExport !== 'function') {
+        T.skip('DexClock.hostAxis + PPGDSP.buildNodeExport available', 'not loaded');
+        return;
+      }
+      var seed = 777;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      /* The device column is jittered for the same reason the drawn-axis control above jitters it: a
+         uniform ramp is classified DRAWN, and this group is about the span, not about that branch. */
+      var mk = function (stepMs) {
+        var a = [];
+        for (var m = 0; m < 400; m++) a.push({ devMs: m * stepMs + Math.round(40 * rnd()), hostMs: m * stepMs * (1 + 30e-6) + 40 * rnd() });
+        var ha = C.hostAxis(a, {});
+        var ex = P.buildNodeExport({ hostAxis: ha, t0Ms: Date.UTC(2026, 8, 7, 0, 0, 0), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] }, { rich: true });
+        return { ha: ha, out: ex && ex.recording && ex.recording.hostAxis };
+      };
+      // 400 anchors 100 ms apart span 39.9 s; 10 s apart span 3990 s. The floor is 2400 s.
+      var shortRun = mk(100);
+      var longRun = mk(10000);
+      T.ok(
+        'ANTI-VACUITY · one axis spans UNDER the 2400 s floor and the other OVER it',
+        !!shortRun.out && !!longRun.out && shortRun.ha.spanMs < 2400e3 && longRun.ha.spanMs >= 2400e3,
+        'short=' + (shortRun.ha && shortRun.ha.spanMs) + ' long=' + (longRun.ha && longRun.ha.spanMs)
+      );
+      if (!shortRun.out || !longRun.out) return;
+      T.eq('a sub-floor span publishes rate "unknown"', shortRun.out.rate, 'unknown');
+      T.ok(
+        '…with a reason naming the span it got and the floor it missed',
+        typeof shortRun.out.rateReason === 'string' && shortRun.out.rateReason.indexOf('under the 2400 s a rate needs') > 0,
+        'rateReason=' + JSON.stringify(shortRun.out.rateReason)
+      );
+      T.eq('an above-floor span publishes rate "measured"', longRun.out.rate, 'measured');
+      T.eq('…and carries no reason, because nothing refused it', longRun.out.rateReason, null);
+      T.ok('the ppm is still published under the floor — this annotates, it does not refuse', typeof shortRun.out.ppm === 'number' && isFinite(shortRun.out.ppm), 'ppm=' + shortRun.out.ppm);
+      /* §∅ · a hand-built spine axis that no parse ever applied carries no answer, and the export says
+         so rather than reading an absent key as `false`. */
+      T.eq('a raw spine axis reports rateApplied as unknown, never false', shortRun.out.rateApplied, null);
+
+      /* ── `rateApplied` FROM A FILE, where the fs division either survives or does not ──────────────
+         The committed finger twin is the one fixture that takes both branches: `device-crystal`
+         overwrites `fs` with the 125.000 ADC constant AFTER the division, so its measured ppm reaches
+         nothing, while `host-disciplined` keeps the divided rate. A single hardcoded `true` read the
+         same on both arms and was wrong on the DEFAULT one. */
+      var eqF = env.equiv && env.equiv.ppgdex_finger;
+      if (!(eqF && eqF.input && typeof P.compute === 'function')) {
+        T.skip('committed finger twin present', 'uploads/synthetic_ppgdex_o2ring_finger.txt absent — it is COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      var hostHa = (function (o) {
+        var e = P.compute({ text: eqF.input }, o);
+        return e && e.recording && e.recording.hostAxis;
+      })({ rich: true, timebase: 'host-disciplined' });
+      var crysHa = (function (o) {
+        var e = P.compute({ text: eqF.input }, o);
+        return e && e.recording && e.recording.hostAxis;
+      })({ rich: true, timebase: 'device-crystal' });
+      T.ok('ANTI-VACUITY · the finger twin builds a host axis on both arms', !!hostHa && !!crysHa, 'host=' + !!hostHa + ' crystal=' + !!crysHa);
+      if (!hostHa || !crysHa) return;
+      T.eq('a host-disciplined parse divided fs by the ppm, and says so', hostHa.rateApplied, true);
+      T.eq('…and the crystal default discarded that division, and says THAT', crysHa.rateApplied, false);
+      T.eq('both arms still publish the same measured ppm', hostHa.ppm, crysHa.ppm);
+      T.eq('…and the same sub-floor verdict, because it is about the SPAN, not about fs', hostHa.rate + '|' + crysHa.rate, 'unknown|unknown');
+    });
+
     /* ALLAN-STABILITY-GAPS §2.1's Done-when names the EXPORT PATH, and the group above drives
        `buildNodeExport` with a hand-built axis — which is the surface Kestrel's 2026-09-14 re-triage
        named as the wrong one: `analyze` never returned the axis object, so the export block was

@@ -1250,7 +1250,15 @@
         : typeof DexClock !== 'undefined' && DexClock.hostAxis
           ? DexClock.hostAxis(axisAnchors, {})
           : { ok: false, reason: 'no clock spine in this bundle' };
-    if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);
+    /* NOT span-gated, on purpose — the export's `rate`/`rateReason` say what span this rate rests on
+       instead of refusing it (owner, board #2180). The flag records whether the division REACHED `fs`,
+       because the `device-crystal` branch below overwrites `fs` with the ADC constant and a consumer
+       cannot otherwise tell a measured `ppm` that moved the rate from one that moved nothing. */
+    let rateAppliedToFs = false;
+    if (hostAx.ok && isFinite(hostAx.ppm)) {
+      fs = fs / (1 + hostAx.ppm / 1e6);
+      rateAppliedToFs = true;
+    }
     fs = Math.round(fs * 100) / 100;
     /* `timingSource` is the field a consumer should actually branch on, and the reason this is computed
        rather than assumed. DRAWN + host anchors ⇒ every bit of real timing came from the host, and the
@@ -1444,6 +1452,8 @@
       }
       relSec = rc;
       fs = O2_ADC_HZ;
+      /* The host-axis division above is DISCARDED here, so the export must not claim it was applied. */
+      rateAppliedToFs = false;
       timebase = 'device-crystal';
     }
     return {
@@ -1649,6 +1659,18 @@
                width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
             spanMs: hostAx.spanMs,
             spanPpm: hostAx.spanPpm,
+            /* ⚠️ `rateApplied` IS NOT `rate`, and that asymmetry is deliberate (owner, board #2180).
+               `rate`, published beside this field in the export, says whether the SPAN supports a rate.
+               This field says whether the parse actually divided `fs` by it, which only this layer
+               knows: the `device-crystal` branch overwrites `fs` with the ADC constant afterwards, so a
+               crystal recording carries a measured `ppm` that reached nothing. The division is NOT
+               span-gated, because refusing it leaves `fs` on the DEVICE rate, which
+               `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` rates worse than the host axis on 18 of 22
+               QC-PASS nights. So the pair annotates and never refuses. Measured in
+               `PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md`: gating the division moves `fs` on 134
+               of 288 sub-floor fragments, and the H10 ECG separates the two arms by 0.013 bpm over the
+               26 bins it can score — it cannot referee them, so nothing about `fs` moved. */
+            rateApplied: rateAppliedToFs,
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
@@ -7034,6 +7056,9 @@
          existing, so a night without one omits the block and every committed export stays
          byte-identical rather than gaining a wall of nulls. */
       if (r.hostAxis && r.hostAxis.ok) {
+        /* Read BEFORE `nz()` for the rate verdict below: `nz` maps a non-number to null and
+           `isFinite(null)` is TRUE, so an absent span would have read as a measured one. */
+        const haSpanMs = typeof r.hostAxis.spanMs === 'number' && isFinite(r.hostAxis.spanMs) ? r.hostAxis.spanMs : null;
         out.recording.hostAxis = {
           anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
           ppm: nz(r.hostAxis.ppm),
@@ -7044,6 +7069,27 @@
              `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
           spanMs: nz(r.hostAxis.spanMs),
           spanPpm: nz(r.hostAxis.spanPpm),
+          /* THE RATE'S OWN VERDICT, in `ppgOffsetSegments`'s vocabulary rather than a second spelling
+             of one refusal: `rate` reads 'unknown' under `PPG_RATE_MIN_SPAN_S`, the floor this node
+             already applies to a SEGMENT's ppm, and `rateReason` names the span that refused it. The
+             whole-file axis named nothing until now, so a consumer could not tell a rate measured over
+             eight hours from one measured over forty seconds. Computed HERE because it is a pure
+             function of the span one line up; `rateApplied` is not, so it travels from the parse layer
+             that owns it. ⚠️ THIS IS THE SECOND RESHAPE OF ONE BLOCK — the parse layer builds
+             `hostAxis` at `:1641` and this list renames it field by field, so a key the parse layer
+             adds and this list omits is DROPPED. That seam already ate `applied` below and both of
+             `stability`'s names, and it ate these three too — green at the parse layer, absent over an
+             artifact — until the group `ppgdex-dsp · hostaxis-rate · subfloor-annotation` read them
+             through `buildNodeExport`. `== null ? null` on the forward, because a source object
+             without the key is unknown and §∅ forbids answering an unknown with `false`. */
+          rate: haSpanMs == null ? 'unknown' : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000 ? 'measured' : 'unknown',
+          rateReason:
+            haSpanMs == null
+              ? 'no span — the axis published none'
+              : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
+                ? null
+                : 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs',
+          rateApplied: r.hostAxis.rateApplied == null ? null : r.hostAxis.rateApplied === true,
           maxStepMs: nz(r.hostAxis.maxStepMs),
           totalMs: nz(r.hostAxis.totalMs),
           /* The three §7 discriminators. `independent` is the verdict on whether the host column is a
