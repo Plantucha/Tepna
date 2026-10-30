@@ -42,12 +42,17 @@
  *   2. a regex after a KEYWORD — `return /[",\r\n]/` read as division, because `return` ends in a
  *      word character, which ate the rest of that line.
  * Corruption fell 3 of 14 names → 2 of 14, and the finding count 16 → 14. It is NOT zero: the residue
- * needs a real parser, and this repo has none available (checked: no typescript, acorn, espree or babel
- * in node_modules; biome exposes only an experimental Grit search). Until it is zero, the count is an
- * upper bound and this must not gate anything.
+ * needs a real parser, and whether one EXISTS is a fact about the CHECKOUT, not about the repo:
+ * `acorn` is a declared devDependency since #3529 (2026-10-12), while a gate lane installs nothing and
+ * so still has none. This header claimed "this repo has none available" from 2026-09-04 to 2026-10-30,
+ * which was true of a lane and false of a developer tree. So the preparation is now resolved per run:
+ * `acornOrNull()` asks the checkout, `codeOnlyParsed` parses when it answers, and the `codeOnly`
+ * tokenizer below stays for the lane with no parser and for text no parse accepts. Every run prints
+ * which preparation read how many files. The 2-of-14 residue above was measured on the tokenizer and
+ * still stands wherever the tokenizer runs, so the count is an upper bound and must not gate anything.
  * So the detector's LOGIC is sound (both plant categories are caught by name, and read-vs-write
- * discriminates 3/3) while its CORPUS PREPARATION is not. Replace `codeOnly` with a real parse before
- * anyone trusts the count, and never gate on it until the false-positive rate is measured at zero.
+ * discriminates 3/3) while its CORPUS PREPARATION was the weak half. Never gate on it until the
+ * false-positive rate is measured at zero on BOTH preparations.
  * A noisy required check gets disabled, and then it protects nothing.
  *
  * Usage:
@@ -57,6 +62,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
@@ -121,8 +127,8 @@ export function codeOnly(src) {
        A regex can only START where an operand is expected, so the preceding non-space character
        decides: after a value (identifier, `)`, `]`, digit) a `/` is DIVISION; otherwise it opens a
        literal. That rule is not perfect JS — `a++ /re/` is pathological — but it is exact on this
-       corpus, and the alternative was a parser this repo does not have (checked: no typescript, acorn,
-       espree or babel in node_modules; biome exposes only an experimental Grit search). */
+       corpus, and it is the FALLBACK now rather than the only option: `prepare` parses with `acorn`
+       when the checkout resolves one, and reaches this scanner when it does not. */
     if (c === '/') {
       let j = out.length - 1;
       while (j >= 0 && /\s/.test(out[j])) j--;
@@ -168,6 +174,74 @@ export function codeOnly(src) {
     i++;
   }
   return out;
+}
+
+/* THE REAL PARSE, WHEN THE CHECKOUT HAS ONE. The hand tokenizer above is exact on this corpus and
+   states its own residue: 2 of 14 names stayed corrupted. `acorn` has been a declared devDependency
+   since #3529, so a developer checkout can answer structurally while a gate lane still cannot —
+   CI installs nothing. So the choice belongs to the RUN, never to a constant: resolve the parser,
+   and keep the tokenizer when it is absent or when the text is not JS at all. The resolution shape
+   is `tools/xerj-load.mjs`'s: `createRequire` inside a try, memoised, degrading rather than throwing. */
+const requireHere = createRequire(import.meta.url);
+let _acorn;
+export function acornOrNull(req = requireHere) {
+  if (_acorn === undefined) {
+    try {
+      _acorn = req('acorn');
+    } catch {
+      _acorn = null;
+    }
+  }
+  return _acorn;
+}
+
+/* A file must PARSE before its tokens are trusted, because tokenizing alone answers for text that is
+   not a program: `<html><body>` tokenizes as comparisons and names. So parse first as a script, then
+   as a module, and return null when neither holds — the root `.html` files never do.
+   BLANK, never delete. A blanked span leaves every later offset and line where the raw file put it,
+   which is exactly the desynchronisation the hand tokenizer paid 21 % of its finding set for. */
+export function codeOnlyParsed(src, acorn) {
+  const s = String(src);
+  const opts = {
+    ecmaVersion: 'latest',
+    allowHashBang: true,
+    allowReturnOutsideFunction: true,
+    allowAwaitOutsideFunction: true,
+    allowSuperOutsideMethod: true
+  };
+  const comments = [];
+  let toks;
+  for (const sourceType of ['script', 'module']) {
+    comments.length = 0;
+    try {
+      acorn.parse(s, { ...opts, sourceType, onComment: comments });
+      toks = [...acorn.tokenizer(s, opts)];
+      break;
+    } catch {
+      toks = null;
+    }
+  }
+  if (!toks) return null;
+  const out = s.split('');
+  const blank = (from, to) => {
+    for (let i = from; i < to && i < out.length; i += 1) if (out[i] !== '\n') out[i] = ' ';
+  };
+  for (const t of toks) {
+    const label = t.type && t.type.label;
+    if (label === 'string' || label === 'template' || label === 'regexp') blank(t.start, t.end);
+  }
+  for (const c of comments) blank(c.start, c.end);
+  return out.join('');
+}
+
+/* ONE call site decides per text, and SAYS which preparation answered. A count whose preparation is
+   unnamed cannot be compared with the next run's. */
+export function prepare(src, acorn = acornOrNull()) {
+  if (acorn) {
+    const parsed = codeOnlyParsed(src, acorn);
+    if (parsed !== null) return { code: parsed, by: 'acorn' };
+  }
+  return { code: codeOnly(src), by: 'tokenizer' };
 }
 
 /** Balanced-brace slice starting at the first `{` after `at`. Regex-to-a-fixed-indent gets this wrong
@@ -333,6 +407,40 @@ function selfTest() {
   ok(isConsumed('a.b', 'x.js', [['y.js', 'axb']]) === null, 'a dot in a symbol name is literal, not "any character"');
   ok(isConsumed('a.b', 'x.js', [['y.js', 'q = a.b;']]) === 'y.js', '…and the literal form still matches');
   ok(isConsumed('zed', 'a.js', [['b.js', 'unzed zedly']]) === null, 'a substring is not a reference');
+  /* THE PREPARATION IS A PER-RUN FACT, so both paths are pinned here and the run says which answered. */
+  ok(prepare('var s = "notAName";', null).by === 'tokenizer', 'with NO parser the hand tokenizer still prepares the corpus');
+  /* ⚠️ NOT AN ASSERTION. `selftest-all.mjs` runs this file in a CI lane, and a lane installs nothing,
+     so a leg demanding acorn would red there for a reason that is not a defect. The run SAYS which
+     preparation it could exercise, and a skip is printed as a skip rather than counted as a pass. */
+  const ac = acornOrNull();
+  console.log(ac ? '  · acorn resolved: the parse legs below RUN' : '  ⊘ no acorn in this checkout: the parse legs below are SKIPPED, not passed');
+  if (ac) {
+    ok(prepare('var s = "notAName";', ac).by === 'acorn', 'a parseable file is prepared BY the parser');
+    ok(!prepare('var s = "notAName";', ac).code.includes('notAName'), 'the parse path strips a string literal');
+    ok(!prepare('var x = a.replace(/"/g, "");', ac).code.includes('"g'), 'the quote inside a regex costs the parse path nothing — cause 1');
+    ok(prepare('function f(v){ return /[",\\r\\n]/.test(v) ? 1 : 2; }\nvar keepMe = 1;', ac).code.includes('keepMe'), 'a regex after `return` costs the parse path nothing — cause 2');
+    ok(codeOnlyParsed('<html><body>', ac) === null, 'text that is not a program returns null rather than a wrong answer');
+    ok(prepare('<html><body>', ac).by === 'tokenizer', 'and such a file FALLS BACK, counted, never dropped');
+    ok(
+      prepare('import x from "y";\nvar keepMe = 1;', ac).by === 'acorn' && prepare('import x from "y";\nvar keepMe = 1;', ac).code.includes('keepMe'),
+      'a module parses as a module after the script attempt fails'
+    );
+    const tpl = prepare('var a = `xx${keepMe}yy`;', ac).code;
+    ok(tpl.includes('keepMe') && !tpl.includes('xx'), 'a name inside a template EXPRESSION survives while the text around it does not');
+    const multi = prepare('var keepMe = 1;\n/* one\ntwo */\nvar alsoKeep = 2;\n', ac).code;
+    ok(
+      multi.split('\n').length === 5 && multi.includes('keepMe') && multi.includes('alsoKeep') && !multi.includes('one'),
+      'a comment spanning LINES is blanked without eating its newlines, so every later line number holds'
+    );
+    const blanked = prepare('a // b\nc', ac).code;
+    ok(blanked === 'a     \nc' && blanked.length === 'a // b\nc'.length, 'blanking preserves every offset and every newline — the tokenizer SHORTENS, and that is the desynchronisation itself');
+  }
+  ok(
+    acornOrNull(() => {
+      throw new Error('absent');
+    }) === ac,
+    'the resolution is memoised, so no file can flip the preparation mid-corpus'
+  );
   console.log(fail ? `\nfind-unwired-js selftest: ${fail} FAILED` : '\nfind-unwired-js selftest: all passed');
   return fail ? 1 : 0;
 }
@@ -361,8 +469,14 @@ if (IS_MAIN) {
     captureHost: countDir('capture-host', /\.py$/),
     docs: countDir('docs', /\.html$/)
   };
-  const corpus = files.map((f) => [f, codeOnly(readFileSync(join(ROOT, f), 'utf8'))]);
-  for (const h of htmlFiles()) corpus.push([h, codeOnly(readFileSync(join(ROOT, h), 'utf8'))]);
+  const prep = { acorn: 0, tokenizer: 0 };
+  const prepOne = (text) => {
+    const r = prepare(text);
+    prep[r.by] += 1;
+    return r.code;
+  };
+  const corpus = files.map((f) => [f, prepOne(readFileSync(join(ROOT, f), 'utf8'))]);
+  for (const h of htmlFiles()) corpus.push([h, prepOne(readFileSync(join(ROOT, h), 'utf8'))]);
 
   let shapeA = 0;
   let shapeB = 0;
@@ -381,7 +495,7 @@ if (IS_MAIN) {
   const unwired = [];
   const allowed = [];
   const seen = new Set();
-  let rescued = 0;
+  const rescues = [];
   const allFiles = [...files, ...htmlFiles()].map((f) => join(ROOT, f));
   for (const p of published) {
     const key = `${p.file}\u0000${p.ns}\u0000${p.name}`;
@@ -392,8 +506,9 @@ if (IS_MAIN) {
        name it calls consumed is consumed; a name it flags needs the structural check. That ordering
        keeps the run at seconds instead of ~30 s while making every REPORTED finding Grit-backed. */
     if (isConsumed(p.name, p.file, corpus)) continue;
-    if (isConsumedGrit(p.name, p.file, allFiles)) {
-      rescued++;
+    const gritFile = isConsumedGrit(p.name, p.file, allFiles);
+    if (gritFile) {
+      rescues.push({ name: p.name, file: p.file, where: gritFile });
       continue;
     }
     (ALLOW[p.name] ? allowed : unwired).push(p);
@@ -414,6 +529,12 @@ if (IS_MAIN) {
   console.log('\n== published JS names that reach NO other file ==\n');
   console.log(`   SHAPES ENUMERATED: window.NS = {…} → ${shapeA} name(s) · window.X = Y → ${shapeB} name(s)`);
   console.log(`   SCANNED:  ${files.length} root .js  +  ${corpus.length - files.length} root .html`);
+  console.log(`   PREPARED BY: acorn on ${prep.acorn} file(s), the hand tokenizer on ${prep.tokenizer}`);
+  console.log(
+    acornOrNull()
+      ? '     the tokenizer files are the ones no parse accepted, which is every root .html.'
+      : '     NO acorn in this checkout, so every file took the tokenizer and its 2-of-14 residue stands.'
+  );
   /* THE EXCLUSION LIST IS A FINDING, not bookkeeping. What the parser cannot see is the interesting
      output — a reader who knows the blind spots can judge the set; one who does not will over-trust it. */
   console.log('   SKIPPED, and why:');
@@ -429,7 +550,13 @@ if (IS_MAIN) {
   if (unwired.length > 40) console.log(`   … and ${unwired.length - 40} more`);
   for (const a of allowed) console.log(`   (allowed) ${a.file.padEnd(20)} ${a.name.padEnd(28)} ${ALLOW[a.name].slice(0, 60)}`);
   console.log(`\n   ${unwired.length} unexplained, ${allowed.length} allowed`);
-  console.log(`   ${rescued} finding(s) RESCUED by the structural check — the tokenizer had lost their consumer.`);
+  /* A COUNT WITH NO NAMES CANNOT BE CHECKED — the same rule this tool applies to a zero. Each line
+     says where the structural check found the consumer the cheap pass missed, so the next reader can
+     read that file instead of re-deriving the set. The CAUSE is not asserted here: a `.html` consumer
+     is prepared by the tokenizer whatever the checkout holds, and `isConsumed` also declines a
+     verbatim re-publication, so a rescue is not evidence of corruption by itself. */
+  console.log(`   ${rescues.length} finding(s) RESCUED by the structural check — the cheap pass missed the consumer:`);
+  for (const r of rescues) console.log(`     ${r.name.padEnd(28)} published in ${r.file}, read in ${r.where}`);
   console.log('   ADVISORY — read each before believing it; exit is always 0.');
   process.exit(0);
 }
