@@ -3096,3 +3096,58 @@ def test_an_UNREADABLE_clock_offset_WARNS_and_the_envelope_still_carries_the_hon
     said = [r.getMessage() for r in caplog.records if "clock offset unavailable" in r.getMessage()]
     assert len(said) == 1, f"the refusal must say so once, got {[r.getMessage() for r in caplog.records]}"
     assert "unknown" in said[0], f"and name what it recorded instead, got {said[0]}"
+
+
+# ── a stream that ends ON ITS OWN releases the link (2026-10-29: held 16 h after therapy end) ──
+async def _pump_that_ends(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None):
+    """A pump that returns by itself, the way the therapy-end sink or a link drop ends one."""
+    return 0
+
+
+def test_controller_self_ended_stream_closes_the_link_and_frees_the_guard():
+    import as11_link_guard as G
+
+    async def go():
+        connect, events = _connector()
+
+        async def guarded():
+            return await G.hold("live-stream", connect)
+
+        c = CS.LiveStreamController(_ControllerBus(), guarded, _creds, _idle_devices, pump=_pump_that_ends)
+        assert (await c.op("start"))["ok"] is True
+        await c._task
+        assert events["disconnected"] == 1, "the link closes when the pump ends without op(stop)"
+        assert G.busy_with() is None, "the guard no longer names live-stream as the holder"
+        assert c._disconnect is None
+        await c.op("stop")
+        assert events["disconnected"] == 1, "a later stop does not close the link a second time"
+        assert (await c.op("start"))["ok"] is True, "the next start is not declined as LinkBusy"
+        await c.op("stop")
+
+    _run(go())
+
+
+def test_controller_self_ended_stream_survives_a_disconnect_that_raises():
+    async def go():
+        calls = []
+
+        async def connect():
+            async def write(_f):
+                pass
+
+            async def recv_frame():
+                await asyncio.sleep(3600)
+
+            async def disconnect():
+                calls.append(1)
+                raise OSError("adapter gone")
+
+            return write, recv_frame, disconnect
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_pump_that_ends)
+        await c.op("start")
+        assert await c._task == 0, "the pump result survives a failed close"
+        assert calls == [1] and c._disconnect is None
+        assert (await c.op("stop")) == {"ok": True, "streaming": False}
+
+    _run(go())
