@@ -596,7 +596,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # the whole delta — all three read files and write one journal row; the decisions they feed,
     # `boot_rec_state` and `confirm_end`, are PURE and live in `oxy_lifecycle`, which this module-wide
     # exclusion does not cover. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 336, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 336 → 334 on 2026-10-30 (row `2026-10-30-the-journal-priority-formatter-is-duplicated-in-radioclock`):
+    # the FIRST fall in this list. `_PriorityFormatter.format` and `_install_logging` leave for
+    # `journal_logging.py`, which `radioclock.py` imports too — it had copied the map, the formatter and the
+    # installer, and nothing held the two equal. −2, which is the whole delta. A fall shrinks the blind spot
+    # this pin measures, so it is updated the same deliberate way a rise is.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 334, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

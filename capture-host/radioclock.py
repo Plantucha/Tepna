@@ -32,14 +32,15 @@
 
 from __future__ import annotations
 
-# `logging` is imported here AND locally inside `main`. The local import is left exactly where it was
-# ON PURPOSE: the diff-scoped mutation gate selects whole FUNCTIONS, so removing one line from `main`
+# `logging` is imported INSIDE `main` and nowhere else. That local import is left exactly where it was
+# ON PURPOSE: the diff-scoped mutation gate selects whole FUNCTIONS, so moving one line out of `main`
 # would pull this entry point's 27 pre-existing survivors into a blocking gate for a one-line change.
 # Residue `2026-10-30-the-mutation-gate-selects-a-whole-entry-point-for-one-line`.
-import logging
 import os
 import re
 import struct
+
+import journal_logging
 
 #: HCI event codes we care about. Everything else on the monitor stream is ignored.
 HCI_EVT_DISCONNECT_COMPLETE = 0x05
@@ -1084,48 +1085,12 @@ def decide(cfg: dict, sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller):
 
 
 # ── JOURNAL SEVERITY ────────────────────────────────────────────────────────────────────────────────
-# systemd assigns ONE priority to a service's whole stdout stream, so a plain `basicConfig` files every
-# line — INFO, WARNING, ERROR alike — at priority 6, and `journalctl -u tepna-radioclock -p warning`
-# comes back clean on a box that logged warnings. `capture.py` measured that (33 warnings, nothing on
-# `-p warning`; VIGIL-COEXISTENCE-AND-RANGE §1, executed 2026-08-04) and this unit logs warnings of its
-# own, so it carries the same `<N>` prefix. The mapping is DUPLICATED rather than imported, because §0
-# invariant 1 says `capture.py` is not touched by this feature and a separate unit does not pull the
-# capture daemon's import graph in for five lines. Extracting both into a shared module is residue
-# `2026-10-30-the-journal-priority-formatter-is-duplicated-in-radioclock`.
-# The same format `capture.py` installs: the level name stays in the text, so a reader who pipes the
-# journal through anything that drops its metadata still sees the severity.
-_LOG_FORMAT = "%(asctime)s %(levelname)s %(message)s"
-
-_SYSLOG_PRIORITY = {logging.CRITICAL: 2, logging.ERROR: 3, logging.WARNING: 4, logging.INFO: 6, logging.DEBUG: 7}
-
-
-class _PriorityFormatter(logging.Formatter):
-    """Prefix each record with its syslog priority so journald can filter on severity."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        return f"<{_SYSLOG_PRIORITY.get(record.levelno, 6)}>" + super().format(record)
-
-
-def _install_logging(stream=None) -> logging.Formatter:
-    """Configure root logging; add the `<N>` prefix ONLY when journald is consuming the stream.
-
-    🔴 THE ONE LINE MUST REACH THE JOURNAL. Measured 2026-10-30: the entry point configured no handler
-    at all, so every `log.info` fell to logging's last-resort handler at WARNING and was DROPPED. The
-    outcomes §0.3 keeps distinguishable are indistinguishable to a reader until the line is readable,
-    and this unit's whole output was a silent exit 0.
-
-    The discriminator is systemd's own `JOURNAL_STREAM`, not `isatty()`: a run redirected to a file is
-    equally not-a-TTY, and the prefix would only corrupt the file. ⚠️ NO `force=True` — it REMOVES
-    every existing root handler, which under pytest is `caplog`'s (`capture._install_logging` carries
-    the same warning and the measurement behind it).
-    """
-    fmt: logging.Formatter = (
-        _PriorityFormatter(_LOG_FORMAT) if os.environ.get("JOURNAL_STREAM") else logging.Formatter(_LOG_FORMAT)
-    )
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(fmt)
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
-    return fmt
+# The `<N>` syslog prefix, the priority map and the installer live in `journal_logging.py`, which
+# `capture.py` imports too. This unit shipped its own copy, and row
+# `2026-10-30-the-journal-priority-formatter-is-duplicated-in-radioclock` closed that: two copies with
+# no test holding them equal are two places the scale an operator filters on can drift apart. The
+# earlier note here worried about pulling the capture daemon's import graph in for five lines, and the
+# shared module answers it — it imports `logging` and `os`, and holds no daemon state.
 
 
 def main(
@@ -1226,5 +1191,5 @@ def main(
 if __name__ == "__main__":  # pragma: no cover — exercised via main(argv)
     import sys
 
-    _install_logging()
+    journal_logging.install_logging()
     raise SystemExit(main(sys.argv[1:]))

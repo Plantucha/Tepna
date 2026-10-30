@@ -17,8 +17,6 @@
 # SPECIFICATION, which is weaker than `test_polar_pmd.py`'s known-answer against a real frame.
 # Replace `_anchor_event`'s bytes with the first real report the flashed dongle produces.
 
-import io
-import logging
 import os
 import struct
 
@@ -1541,109 +1539,12 @@ def test_when_the_address_MOVES_to_a_new_index_the_collector_follows_it(tmp_path
 # last-resort handler at WARNING and was DROPPED — the unit's whole output was a silent exit 0. A bare
 # `basicConfig` is only half a fix: systemd gives a service's whole stdout stream ONE priority, so
 # `journalctl -u tepna-radioclock -p warning` would still come back clean on a box that logged
-# warnings (`capture.py` measured that; VIGIL-COEXISTENCE-AND-RANGE §1). These assert the emitted
-# BYTES, because the bug is a severity that is printed and never expressed.
-
-
-def _reset_root():
-    for h in logging.root.handlers[:]:
-        logging.root.removeHandler(h)
-
-
-def _install(stream):
-    """Clear root first: `_install_logging` deliberately does NOT use `force=True`, which would rip
-    out pytest's caplog handler, so `basicConfig` is a no-op unless root is empty."""
-    _reset_root()
-    return rc._install_logging(stream)
-
-
-def test_the_priority_map_covers_every_level_this_unit_emits():
-    # 4 is the one that matters: WARNING is what `-p warning` filters on, and the level the re-arm
-    # failures below are logged at. The rest are pinned so a later edit cannot shift the scale.
-    assert rc._SYSLOG_PRIORITY[logging.CRITICAL] == 2
-    assert rc._SYSLOG_PRIORITY[logging.ERROR] == 3
-    assert rc._SYSLOG_PRIORITY[logging.WARNING] == 4
-    assert rc._SYSLOG_PRIORITY[logging.INFO] == 6
-    assert rc._SYSLOG_PRIORITY[logging.DEBUG] == 7
-
-
-def test_journald_gets_the_severity_prefix_on_the_bytes(monkeypatch):
-    monkeypatch.setenv("JOURNAL_STREAM", "9:123456")
-    buf = io.StringIO()
-    try:
-        _install(buf)
-        log = logging.getLogger("radioclock")
-        log.info("radio clock unavailable: not a Nordic controller")
-        log.warning("radio clock: re-arm failed on the adapter that just came up")
-        lines = buf.getvalue().splitlines()
-        assert lines[0].startswith("<6>"), "an INFO line must carry priority 6"
-        assert lines[1].startswith("<4>"), "a WARNING line must be filterable by `-p warning`"
-        # The level NAME travels in the text too, so a reader that drops the journal's metadata still
-        # sees the severity. Pinned here because the format is the other half of expressing it.
-        assert "INFO" in lines[0] and "WARNING" in lines[1], lines
-        assert lines[1].endswith("radio clock: re-arm failed on the adapter that just came up")
-    finally:
-        _reset_root()
-
-
-def test_a_console_never_sees_the_prefix(monkeypatch):
-    """The discriminator is `JOURNAL_STREAM`, not `isatty()`: a run redirected to a FILE is equally
-    not-a-TTY, and a `<6>` there corrupts the file for everything that reads it."""
-    monkeypatch.delenv("JOURNAL_STREAM", raising=False)
-    buf = io.StringIO()
-    try:
-        _install(buf)
-        logging.getLogger("radioclock").info("one line")
-        out = buf.getvalue()
-        assert not out.startswith("<"), out
-        assert "INFO" in out and out.endswith("one line\n"), out
-    finally:
-        _reset_root()
-
-
-def test_installing_logging_does_not_clobber_a_handler_that_already_exists():
-    """No `force=True`. Under pytest the existing root handler is `caplog`'s, and removing it makes
-    every test that drives `main()` and asserts on records see an empty list."""
-    mine = logging.StreamHandler(io.StringIO())
-    _reset_root()
-    logging.root.addHandler(mine)
-    try:
-        rc._install_logging(io.StringIO())
-        assert mine in logging.root.handlers, "basicConfig must stay a no-op here"
-    finally:
-        _reset_root()
-
-
-def test_the_installer_raises_the_root_level_so_an_INFO_LINE_ARRIVES(monkeypatch):
-    """A fresh interpreter starts root at WARNING, so an installer that configures handlers and not
-    the LEVEL drops every `log.info` this unit emits — which is the original defect, one layer down.
-    The other journal legs cannot see it: pytest leaves root permissive, so INFO arrives there
-    whatever the installer sets. This one puts root back where a real process starts."""
-    monkeypatch.delenv("JOURNAL_STREAM", raising=False)
-    buf = io.StringIO()
-    try:
-        _reset_root()
-        logging.root.setLevel(logging.WARNING)
-        rc._install_logging(buf)
-        logging.getLogger("radioclock").info("radio clock armed")
-        assert "radio clock armed" in buf.getvalue(), "the installer must let INFO through"
-    finally:
-        _reset_root()
-        logging.root.setLevel(logging.WARNING)
-
-
-def test_a_level_outside_the_map_is_filed_as_INFO_not_as_DEBUG(monkeypatch):
-    """The `get` default decides where an unmapped level lands. 6 keeps such a line visible under the
-    journal's default; 7 files it as DEBUG, which `journalctl` hides unless asked. A custom level is
-    not hypothetical — `logging.addLevelName` is how a later NOTICE tier would arrive."""
-    monkeypatch.setenv("JOURNAL_STREAM", "9:123456")
-    buf = io.StringIO()
-    try:
-        _install(buf)
-        logging.getLogger("radioclock").log(25, "between INFO and WARNING")
-        assert buf.getvalue().startswith("<6>"), buf.getvalue()
-    finally:
-        _reset_root()
+# warnings (`capture.py` measured that; VIGIL-COEXISTENCE-AND-RANGE §1).
+#
+# The prefix, the map and the installer are `journal_logging.py`, which `capture.py` imports too, and
+# `tests/test_journal_priority.py` asserts their emitted BYTES once. What stays here is the half only
+# this unit can state: its entry point calls that installer, and no `basicConfig` sits at a call site.
+# Row `2026-10-30-the-journal-priority-formatter-is-duplicated-in-radioclock`.
 
 
 def test_one_missing_socket_constant_is_enough_to_make_the_kernel_unreadable():
@@ -1665,8 +1566,8 @@ def test_one_missing_socket_constant_is_enough_to_make_the_kernel_unreadable():
 
 def test_the_script_entry_installs_logging_rather_than_a_bare_basicConfig():
     """The guard this file needs is against someone putting `logging.basicConfig(...)` back at a call
-    site: it would log, and the severity would stop being expressed. One `basicConfig` in the file,
-    inside `_install_logging`, and the script entry calls the function.
+    site: it would log, and the severity would stop being expressed. So no `basicConfig` anywhere in
+    this module, and the script entry calls the shared installer.
 
     ⚠️ `module_source`, NEVER a raw read of `radioclock.py` — see `tests/_srcscan.py`. mutmut
     generates ONE module holding every mutant inline, so `count(...) == 1` reads 21 and mutmut reports
@@ -1677,10 +1578,11 @@ def test_the_script_entry_installs_logging_rather_than_a_bare_basicConfig():
     `rc.__file__` rather than by filename — residue
     `2026-10-30-the-mutation-hygiene-scan-misses-a-read-through-a-module-alias`."""
     src = module_source("radioclock.py")
-    assert src.count("logging.basicConfig(") == 1
+    assert src.count("logging.basicConfig(") == 0, "the only basicConfig lives in journal_logging.py"
     marker = 'if __name__ == "__main__":'
-    assert "_install_logging()" in after_last(src, marker, where="radioclock.py")
-    assert "_install_logging()" not in until_anchor(src, marker, where="radioclock.py")
+    call = "journal_logging.install_logging()"
+    assert call in after_last(src, marker, where="radioclock.py")
+    assert call not in until_anchor(src, marker, where="radioclock.py")
 
 
 # ── THE KERNEL READ ─────────────────────────────────────────────────────────────────────────────────
