@@ -840,6 +840,112 @@ def test_a_malformed_sysfs_entry_is_skipped_rather_than_raising(tmp_path):
     assert rc.adapter_index(H10, str(root)) is None
 
 
+def test_the_address_is_read_from_the_KERNEL_first_with_sysfs_as_the_fallback():
+    """🔴 `/sys/class/bluetooth/hciN/address` is ABSENT on kernel 7.0 for EVERY adapter — measured on
+    vigil 2026-10-30, and by `tepna-btattach.sh:85-108` on 2026-09-12. A sysfs-only reader reports
+    "no controller with address ... is present" about a radio that is plugged in, up and correct,
+    which is how the collector came to exit 0 writing nothing on an armed box."""
+    seen = []
+
+    def kernel(index):
+        seen.append(index)
+        return "aa:bb:cc:dd:ee:ff" if index == 2 else None
+
+    def unknown(index, sysfs):
+        return None
+
+    got = rc.controller_address(2, rc.SYSFS_BLUETOOTH, kernel_reader=kernel, sysfs_reader=unknown)
+    assert got == "AA:BB:CC:DD:EE:FF", "the kernel answers, and the answer is upper-cased"
+    assert seen == [2], "the kernel is asked first, and about this index only"
+    fallback = rc.controller_address(
+        1, rc.SYSFS_BLUETOOTH, kernel_reader=kernel, sysfs_reader=lambda i, s: "11:22:33:44:55:66"
+    )
+    assert fallback == "11:22:33:44:55:66", "sysfs still answers where the kernel cannot"
+    assert rc.controller_address(1, rc.SYSFS_BLUETOOTH, kernel_reader=kernel, sysfs_reader=unknown) is None
+
+
+def test_the_kernel_is_not_asked_about_a_sysfs_tree_that_is_not_the_real_one(tmp_path):
+    """A `sysfs` other than the real tree means the caller is describing a DIFFERENT box. Answering
+    that from THIS box's kernel mixes two boxes, and that is how a test passes on the dev machine and
+    fails on the capture box."""
+    sysfs = _sysfs(tmp_path, {"hci0": "AA:BB:CC:DD:EE:FF"})
+    assert rc.controller_address(0, sysfs) == "AA:BB:CC:DD:EE:FF"
+    assert rc.adapter_index("aa:bb:cc:dd:ee:ff", sysfs) == 0
+
+
+def test_a_connection_device_is_not_a_controller(tmp_path):
+    """⚠️ `/sys/class/bluetooth` LISTS CONNECTION DEVICES TOO — measured on vigil 2026-10-30:
+    `hci0:2048` sits beside `hci0`, `hci1` and `hci2`. The name starts with `hci`, so a prefix test
+    takes it for a controller, and `int(name[3:])` raises on `0:2048`. A connection device publishes
+    the REMOTE end's address where it publishes one, so reading it as a controller is wrong even when
+    the name happens to parse."""
+    sysfs = _sysfs(tmp_path, {"hci0": "AA:BB:CC:DD:EE:FF", "hci0:2048": H10, "hci2": "11:22:33:44:55:66"})
+    assert rc.controller_indices(sysfs) == [0, 2]
+    assert rc.adapter_index(H10, sysfs) is None, "the peer address of a connection is not an adapter"
+    assert rc.adapter_index("11:22:33:44:55:66", sysfs) == 2
+    assert rc.controller_indices(str(tmp_path / "no-such-dir")) == []
+
+
+def test_one_unreadable_controller_does_not_end_the_scan(tmp_path):
+    """The old reader returned None from INSIDE the loop whenever a name it had accepted would not
+    parse, so one oddity hid every controller after it."""
+    root = tmp_path / "bt"
+    root.mkdir()
+    (root / "hci0").mkdir()  # no address file at all, as on kernel 7.0
+    (root / "hci3").mkdir()
+    (root / "hci3" / "address").write_text(H10 + "\n", encoding="utf-8")
+    assert rc.adapter_index(H10, str(root)) == 3
+
+
+def test_the_all_zero_address_is_unknown_never_an_identity(tmp_path):
+    """An unprogrammed Zephyr build reports `00:00:00:00:00:00`
+    (`briefs/ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`), so it is unknown: a configured zero must not
+    pin whichever adapter answered first."""
+    assert rc.format_bdaddr(b"\x00\x00\x00\x00\x00\x00") is None
+    assert rc.format_bdaddr(b"\xff\xee\xdd\xcc\xbb\xaa") == "AA:BB:CC:DD:EE:FF", "little-endian"
+    assert rc.format_bdaddr(b"\x01\x02\x03") is None, "a short read is not an address"
+    sysfs = _sysfs(tmp_path, {"hci0": "00:00:00:00:00:00"})
+    assert rc.address_from_sysfs(0, sysfs) is None
+    assert rc.adapter_index("00:00:00:00:00:00", sysfs) is None
+
+
+def test_an_empty_address_file_is_unknown_not_a_match(tmp_path):
+    """An empty read is the shape `tepna-btattach.sh` warns about: a caller comparing it against the
+    wanted address concludes "wrong identity" about a controller that is correct."""
+    root = tmp_path / "bt"
+    root.mkdir()
+    (root / "hci0").mkdir()
+    (root / "hci0" / "address").write_text("\n", encoding="utf-8")
+    assert rc.address_from_sysfs(0, str(root)) is None
+    assert rc.adapter_index("", str(root)) is None
+
+
+def test_main_configures_logging_so_the_one_line_reaches_the_journal(tmp_path):
+    """🔴 Measured 2026-10-30: `main` configured NO handler, so every INFO line fell to logging's
+    last-resort handler at WARNING and was dropped. The unit's whole output was a silent exit 0.
+
+    `caplog` is why the suite never saw it — pytest attaches a handler of its own, so this entry point
+    was covered by tests that supplied the configuration it was missing. This leg asserts the
+    CONFIGURATION rather than the message."""
+    import logging
+
+    root = logging.getLogger()
+    saved, saved_level = root.handlers[:], root.level
+    for h in saved:
+        root.removeHandler(h)
+    try:
+        assert not root.handlers, "the fixture must start bare, or it proves nothing"
+        assert rc.main(["--config", str(tmp_path / "nope.yaml")], _sysfs(tmp_path, {})) == 0
+        assert root.handlers, "main configured no handler, so its one line reaches nobody"
+        assert logging.getLogger("radioclock").isEnabledFor(logging.INFO)
+    finally:
+        for h in root.handlers[:]:
+            root.removeHandler(h)
+        for h in saved:
+            root.addHandler(h)
+        root.setLevel(saved_level)
+
+
 def test_DISABLED_by_default_is_the_first_thing_checked(tmp_path):
     """Default OFF, opt-in by config — §0.2. A box that never asked for this must not have its
     controller probed, so the flag is read before anything touches a radio."""
