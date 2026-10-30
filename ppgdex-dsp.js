@@ -1255,11 +1255,26 @@
        because the `device-crystal` branch below overwrites `fs` with the ADC constant and a consumer
        cannot otherwise tell a measured `ppm` that moved the rate from one that moved nothing. */
     let rateAppliedToFs = false;
+    /* ⚠️ THE FLAG READS THE PUBLISHED `fs`, NOT THE DIVISION — a rate quantised back to its old value
+       reached nothing, exactly like the crystal overwrite this field was written for. The line below
+       rounds to 0.01 Hz, which is 80 ppm at the ring's 125 Hz, so any `|ppm|` under 40 leaves `fs`
+       where it was. Measured on the committed finger twin: `ppm` is -6.87, `fs` does not move, and
+       this flag published `true` (row
+       2026-10-29-ppgdex-rounds-its-corrected-rate-into-eighty-ppm-steps). Over the 288
+       host-disciplined ring fragments that build an axis, 154 carry `abs(ppm) < 40` and the median is
+       32.8 ppm, so the median fragment claimed a correction it did not keep.
+       `fs` ITSELF IS UNCHANGED HERE, deliberately: whether to stop quantising the corrected rate is
+       an `fs` change, and `PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md` item 1 records the owner's
+       order that no `fs` change lands while the ECG cannot referee one. This makes the erasure
+       VISIBLE; it does not decide it. */
+    const fsBeforeCorrection = Math.round(fs * 100) / 100;
+    let fsDivided = false;
     if (hostAx.ok && isFinite(hostAx.ppm)) {
       fs = fs / (1 + hostAx.ppm / 1e6);
-      rateAppliedToFs = true;
+      fsDivided = true;
     }
     fs = Math.round(fs * 100) / 100;
+    rateAppliedToFs = fsDivided && fs !== fsBeforeCorrection;
     /* `timingSource` is the field a consumer should actually branch on, and the reason this is computed
        rather than assumed. DRAWN + host anchors ⇒ every bit of real timing came from the host, and the
        device contributed only sample ORDER. DRAWN + no anchors ⇒ `'none'`: the recording carries no
@@ -1661,9 +1676,11 @@
             spanPpm: hostAx.spanPpm,
             /* ⚠️ `rateApplied` IS NOT `rate`, and that asymmetry is deliberate (owner, board #2180).
                `rate`, published beside this field in the export, says whether the SPAN supports a rate.
-               This field says whether the parse actually divided `fs` by it, which only this layer
-               knows: the `device-crystal` branch overwrites `fs` with the ADC constant afterwards, so a
-               crystal recording carries a measured `ppm` that reached nothing. The division is NOT
+               This field says whether the correction REACHED the published `fs`, which only this layer
+               knows, and there are two ways it does not: the `device-crystal` branch overwrites `fs`
+               with the ADC constant afterwards, and the 0.01 Hz quantisation of `fs` — 80 ppm at the
+               ring's 125 Hz — rounds any smaller correction back out. Either way the recording carries
+               a measured `ppm` that reached nothing, and that is what this flag is for. The division is NOT
                span-gated, because refusing it leaves `fs` on the DEVICE rate, which
                `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` rates worse than the host axis on 18 of 22
                QC-PASS nights. So the pair annotates and never refuses. Measured in

@@ -2549,10 +2549,66 @@
       })({ rich: true, timebase: 'device-crystal' });
       T.ok('ANTI-VACUITY · the finger twin builds a host axis on both arms', !!hostHa && !!crysHa, 'host=' + !!hostHa + ' crystal=' + !!crysHa);
       if (!hostHa || !crysHa) return;
-      T.eq('a host-disciplined parse divided fs by the ppm, and says so', hostHa.rateApplied, true);
-      T.eq('…and the crystal default discarded that division, and says THAT', crysHa.rateApplied, false);
+      /* ⚠️ THE FLAG IS ABOUT THE PUBLISHED RATE, NOT THE DIVISION. `fs` is quantised to 0.01 Hz
+         after the division, which is 80 ppm at this ring's 125 Hz, so the twin's -6.87 ppm is rounded
+         entirely back out and the host arm publishes the rate it started with. Until 2026-10-30 the
+         host leg here asserted `true`: the suite PINNED a correction the export does not carry (row
+         2026-10-29-ppgdex-rounds-its-corrected-rate-into-eighty-ppm-steps). Nothing about `fs` moved
+         to fix it — whether to stop quantising is an `fs` change, and
+         PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md item 1 records the owner's order that none
+         lands while the ECG cannot referee one. */
+      var stepPpm = (0.01 / 125) * 1e6;
+      T.ok("ANTI-VACUITY · the twin's own ppm is under HALF a step of fs, so no division could survive it", Math.abs(hostHa.ppm) < stepPpm / 2, 'ppm=' + hostHa.ppm + ' halfStep=' + stepPpm / 2);
+      T.eq('…and the arithmetic says the same: 125 Hz divided by that ppm rounds back to 125 Hz', Math.round((125 / (1 + hostHa.ppm / 1e6)) * 100) / 100, 125);
+      T.eq('so the host arm reports the division reached nothing — it divided, the rounding took it back', hostHa.rateApplied, false);
+      T.eq('…and the crystal default reports the same, for its own reason: the ADC constant overwrote fs', crysHa.rateApplied, false);
       T.eq('both arms still publish the same measured ppm', hostHa.ppm, crysHa.ppm);
       T.eq('…and the same sub-floor verdict, because it is about the SPAN, not about fs', hostHa.rate + '|' + crysHa.rate, 'unknown|unknown');
+
+      /* ANTI-VACUITY FOR THE PAIR ABOVE — both arms now read `false`, so a field reduced to the
+         constant `false` would pass every leg in this group. A correction LARGER than one quantisation
+         step must still read `true`. 2000 ppm against the ~74 ppm step at 135 Hz is 27 steps, so this
+         leg is the one that reds if the flag ever stops tracking the published rate. Verity-shaped on
+         purpose: three channels that differ keep `deriveSiteFromLayout` off 'finger', whose default
+         timebase is the crystal, and the arm is named anyway. */
+      var bigRows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+      var bigStep = 1000 / 135,
+        bigDev = 0;
+      for (var bi = 0; bi < 6000; bi++) {
+        bigDev += bigStep;
+        var bigHost = bigDev * (1 + 2000e-6) + 40 * rnd();
+        var bigPleth = Math.round(20000 + 3000 * Math.sin((2 * Math.PI * bi) / 135 / 0.9));
+        bigRows.push(
+          new Date(Date.UTC(2026, 9, 30) + Math.round(bigHost)).toISOString().replace('T', ' ').replace('Z', '') +
+            ';' +
+            Math.round(bigDev * 1e6) +
+            ';' +
+            bigPleth +
+            ';' +
+            (bigPleth + 50) +
+            ';' +
+            (bigPleth - 50) +
+            ';' +
+            400
+        );
+      }
+      var bigHa = (function () {
+        var e = P.compute({ text: bigRows.join('\n'), fname: 'Polar_VeritySense_TEST_20261030000000_PPG.txt' }, { rich: true, timebase: 'host-disciplined' });
+        return e && e.recording && e.recording.hostAxis;
+      })();
+      /* `ok` is not among the keys this export block renames, so read the ppm — its presence IS the
+         axis having been built. Expect roughly half the planted 2000 ppm: §7's end-clamp biases the
+         ends by 5 anchors' drift, and 6000 rows at one anchor per 500 give 12. Under-reading is fine
+         here; the leg needs one step, not the exact rate. */
+      T.ok(
+        'ANTI-VACUITY · the supra-step control builds a host axis at all',
+        !!bigHa && typeof bigHa.ppm === 'number' && isFinite(bigHa.ppm),
+        JSON.stringify(bigHa && { ppm: bigHa.ppm, anchors: bigHa.anchors })
+      );
+      if (bigHa && typeof bigHa.ppm === 'number' && isFinite(bigHa.ppm)) {
+        T.ok('…carrying a ppm well OVER one quantisation step of fs', Math.abs(bigHa.ppm) > (0.01 / 135) * 1e6, 'ppm=' + bigHa.ppm + ' step=' + (0.01 / 135) * 1e6);
+        T.eq('…and THAT correction survives the rounding, so the flag reads true', bigHa.rateApplied, true);
+      }
     });
 
     /* ALLAN-STABILITY-GAPS §2.1's Done-when names the EXPORT PATH, and the group above drives
