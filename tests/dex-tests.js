@@ -42544,6 +42544,16 @@
             'parseECG · a sidecar with NO rule line is not comparable with anything',
             E.parseECG(HDR, { runsText: 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).runsSidecar.comparable === false
           );
+          /* The STREAMED entry carries the same validity (residue 2026-10-17-sample-parsers-called-without-their-sidecar):
+             `tools/trio-batch.mjs` folds 60 MB ECG files line by line through `parseECGLines`, so a sidecar
+             only `parseECG` could read never reached the fold. */
+          if (typeof E.parseECGLines === 'function') {
+            var lines = HDR.split(/\r?\n/),
+              lBare = E.parseECGLines(lines),
+              lSc = E.parseECGLines(lines, { runsText: SC });
+            T.ok('parseECGLines · ONE argument is byte-identical — no sidecar fields appear', lBare.blankingSpans === undefined && lBare.runsSidecar === undefined);
+            T.eq('parseECGLines · the streamed entry carries the same spans as the whole-text one', JSON.stringify(lSc.blankingSpans), JSON.stringify(withSc.blankingSpans));
+          } else T.skip('ECGDSP.parseECGLines unavailable');
         } else T.skip('ECGDSP.parseECG unavailable');
         // (6) THE REFUSAL — §∅: a discontinuity REFUSES, reduced coverage annotates (owner, 2026-09-17).
         if (E && typeof E.epochEngine === 'function') {
@@ -43082,7 +43092,11 @@
            beside a vendor ring export anywhere in this corpus — every capture predates the writer —
            so there is nothing for that call to pass, and the pin is the honest answer rather than a
            deferral. */
-        var TOOLS_PIN = { files: 39, calls: 65, reason: 'research tools: ' + OPEN };
+        /* 40 / 64 from 2026-10-29, two moves in one PR: `trio-batch.mjs` hands `_PPGRUNS.txt` to both of
+           its `parsePPG` calls (−2; its two ACC calls stay bare, since the ACC union pads silence onto a
+           grid and a run index needs its own rebase), and `parseECGLines` joins CALL because it now
+           accepts `runsText`, which surfaces the one bare call in `ecg-rate-transfer.mjs` (+1, +1 file). */
+        var TOOLS_PIN = { files: 40, calls: 64, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
@@ -43092,7 +43106,7 @@
             .replace(/\/\*[\s\S]*?\*\//g, blank)
             .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
         }
-        var CALL = /\b(parseECG|parseECGText|parsePPG|parsePPG2W|parseDeviceACC|parseSensorXYZ)\s*\(/g;
+        var CALL = /\b(parseECG|parseECGText|parseECGLines|parsePPG|parsePPG2W|parseDeviceACC|parseSensorXYZ)\s*\(/g;
         /* every call by name, with whether its OWN argument list names `runsText` (balanced parens, so a
          nested call's arguments are inside and the next statement is outside) */
         function calls(src) {

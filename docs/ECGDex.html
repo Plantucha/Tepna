@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="21c00a3dc623" data-compute-hash="7ac32b22237d">
+<html lang="en" data-manifest-hash="b8431fd93725" data-compute-hash="0d9793358804">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-brcVxTI6BShvL8gR+V83Km/RAvADXOTbir/uhFdqiC0=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-wYnHDXFhU6XERv+SR42WR5IpB9t1lse9BMsdNBfoZ+M='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-2BDRZ6VKh8OkZurNHffDYcwBtBuhz/p2tofi1tuMXLQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Fq9mZ3s4ajOpQaITKbXSnt/ZDnFA1DUPz9uZDRv0JgQ=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-brcVxTI6BShvL8gR+V83Km/RAvADXOTbir/uhFdqiC0=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.24.0</title>
@@ -15006,20 +15006,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one. LAST and
     // OPTIONAL per §🧪: every existing 1-arg call is byte-identical, and the no-sidecar path does not
     // move a single fixture.
-    var rec = parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
-    var runs = parseEcgRuns(opts && opts.runsText);
-    if (rec && runs) {
-      rec.runsSidecar = runs;
-      rec.blankingSpans = runs.spans;
-    }
-    return rec;
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText });
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
   // chunks instead of materialising it: a 260 MB `_ECG.txt` costs a 260 MB string PLUS ~3.4 M line
   // objects under `split()`, and both die at once here. The numeric result is identical — the loop
   // below never looked at anything but one line at a time.
-  function parseECGLines(lines) {
+  function parseECGLines(lines, opts) {
     var cap = 1 << 16,
       arr = new Int16Array(cap),
       n = 0;
@@ -15051,7 +15045,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       scan.row(p, n);
     }
     var t = ecgTimingResolve(scan.done());
-    return {
+    var rec = {
       int16: arr.slice(0, n),
       fs: t.fs,
       fsSource: t.fsSource,
@@ -15077,6 +15071,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       deviceEpoch: t.deviceEpoch,
       hostAxis: t.hostAxis
     };
+    /* `opts.runsText` is the `_ECGRUNS.txt` companion's bytes. It lives HERE, not only in
+       `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds 60 MB files line by line)
+       reaches the same validity a whole-text caller does. LAST and OPTIONAL per §🧪: a call without
+       it returns the record above unchanged. */
+    var runs = parseEcgRuns(opts && opts.runsText);
+    if (runs) {
+      rec.runsSidecar = runs;
+      rec.blankingSpans = runs.spans;
+    }
+    return rec;
   }
 
   /* recording.coverage for an ECG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.

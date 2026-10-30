@@ -5800,20 +5800,14 @@
     // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one. LAST and
     // OPTIONAL per §🧪: every existing 1-arg call is byte-identical, and the no-sidecar path does not
     // move a single fixture.
-    var rec = parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
-    var runs = parseEcgRuns(opts && opts.runsText);
-    if (rec && runs) {
-      rec.runsSidecar = runs;
-      rec.blankingSpans = runs.spans;
-    }
-    return rec;
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText });
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
   // chunks instead of materialising it: a 260 MB `_ECG.txt` costs a 260 MB string PLUS ~3.4 M line
   // objects under `split()`, and both die at once here. The numeric result is identical — the loop
   // below never looked at anything but one line at a time.
-  function parseECGLines(lines) {
+  function parseECGLines(lines, opts) {
     var cap = 1 << 16,
       arr = new Int16Array(cap),
       n = 0;
@@ -5845,7 +5839,7 @@
       scan.row(p, n);
     }
     var t = ecgTimingResolve(scan.done());
-    return {
+    var rec = {
       int16: arr.slice(0, n),
       fs: t.fs,
       fsSource: t.fsSource,
@@ -5871,6 +5865,16 @@
       deviceEpoch: t.deviceEpoch,
       hostAxis: t.hostAxis
     };
+    /* `opts.runsText` is the `_ECGRUNS.txt` companion's bytes. It lives HERE, not only in
+       `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds 60 MB files line by line)
+       reaches the same validity a whole-text caller does. LAST and OPTIONAL per §🧪: a call without
+       it returns the record above unchanged. */
+    var runs = parseEcgRuns(opts && opts.runsText);
+    if (runs) {
+      rec.runsSidecar = runs;
+      rec.blankingSpans = runs.spans;
+    }
+    return rec;
   }
 
   /* recording.coverage for an ECG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.

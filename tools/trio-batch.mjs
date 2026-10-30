@@ -93,6 +93,7 @@ import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2rin
 import { buildRecord, appendFold, LEDGER_NAME } from './fold-provenance.mjs';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { mergeClockResyncs, mergeOffsetSegments } from './trio-fold-clock.mjs';
+import { mergeBlankingSpans, mergePinnedSpans, runsSidecarPath } from './trio-fold-validity.mjs';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);
@@ -213,6 +214,19 @@ const countTrioExports = (dir) => {
   }
 };
 const wantNode = (n) => !ONLY_NODE || ONLY_NODE === n;
+/* The `…RUNS.txt` validity sidecar beside a raw stream, or `undefined` when the box wrote none (every
+   phone capture, and every box night before the writer). An unreadable sidecar is NAMED, never read as
+   "no runs": a missing witness and a witness that saw nothing are two different facts. */
+const readRuns = (full, stream) => {
+  const p = runsSidecarPath(full, stream);
+  if (!p || !existsSync(p)) return undefined;
+  try {
+    return readFileSync(p, 'utf8');
+  } catch (e) {
+    console.warn(`  ⚠ ${p} could not be read (${e.code || e.message}) — this fragment folds without its validity sidecar`);
+    return undefined;
+  }
+};
 // Nocturnal band, floating wall clock. Wraps midnight when start > end, which is the normal case.
 const [BAND_A, BAND_B] = (() => {
   const raw = opt('--night-band', '21-9');
@@ -3939,7 +3953,12 @@ for (const p of work) {
       console.warn(
         `  ⚠ ECG merge: ${overlaps.length} negative session boundary(ies), total ${(overlaps.reduce((a, o) => a + o.ms, 0) / 1000).toFixed(2)} s — merged elapsed time is OVER-stated by that much`
       );
+    /* The `_ECGRUNS.txt` blanking spans of every fragment, on the merged sample axis
+       (`tools/trio-fold-validity.mjs`). Absent when no fragment carried a sidecar. */
+    const blank = mergeBlankingSpans(recs);
+    if (blank && blank.unplaced) console.warn(`  ⚠ ECG merge: ${blank.unplaced} blanking span(s) after a fragment of unknown length — dropped, not placed`);
     return {
+      blankingSpans: blank ? blank.spans : undefined,
       int16: out,
       fs,
       gaps,
@@ -4029,6 +4048,8 @@ for (const p of work) {
       for (let i = 0; i < r.n; i++) relSec[idx + i] = off + r.relSec[i];
       idx += r.n;
     }
+    const pinned = mergePinnedSpans(recs, nch);
+    if (pinned.unplaced) console.warn(`  ⚠ PPG merge: ${pinned.unplaced} pinned span(s) after a fragment of unknown length — dropped, not placed`);
     return {
       ch,
       amb,
@@ -4040,6 +4061,10 @@ for (const p of work) {
       durSec: relSec[n - 1],
       site: base.site,
       gap: null,
+      /* The pinned-rail spans of every fragment, sidecar-led where a `_PPGRUNS.txt` was read, on the
+         merged sample axis (`tools/trio-fold-validity.mjs`). Without this field the merged record had
+         none, and `compute`'s pinned-interval exclusion ran on no multi-fragment night. */
+      spans: pinned.spans,
       sentinelRejected: recs.reduce((t, r) => t + (r.sentinelRejected || 0), 0),
       sentinelKept: recs.reduce((t, r) => t + (r.sentinelKept || 0), 0),
       /* THE CLOCK ANNOTATIONS OF THE FRAGMENTS, rebased onto the merged axis (residue
@@ -4115,7 +4140,7 @@ for (const p of work) {
     try {
       // STREAMED, not slurped — see readLinesBounded. `map` runs one file at a time, so peak is
       // one chunk plus the compact Int16Array the parser accumulates, not the whole text.
-      const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECGLines(readLinesBounded(f.full))));
+      const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECGLines(readLinesBounded(f.full), { runsText: readRuns(f.full, 'ECG') })));
       if (p.accH10 && p.accH10.length) {
         /* ALL concurrent ACC sessions, laid on ONE UNIFORM GRID with the silence between them padded.
            `[0]` was wrong (the earliest session is often a settling fragment: 2026-07-27 had 7 sessions
@@ -4196,7 +4221,7 @@ for (const p of work) {
   // Same as ECGDex above: a night with no PPG is a partial night, not a broken one.
   if (wantNode('PpgDex') && p.ppg && p.ppg.length)
     try {
-      const rec = mergePpg(p.ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'))));
+      const rec = mergePpg(p.ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'), { runsText: readRuns(f.full, 'PPG') })));
       // The IMU companions stay single-session: they only drive the per-epoch motionIndex, and the
       // 775 MB ACC union is the one that would blow the string limit. Documented, not silent.
       /* EVERY concurrent session, not `[0]`.
@@ -4258,7 +4283,7 @@ for (const p of work) {
      O2Ring publishes none at all). */
   if (wantNode('PpgDex') && p.o2ppg && p.o2ppg.length)
     try {
-      const frec = mergePpg(p.o2ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'))));
+      const frec = mergePpg(p.o2ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'), { runsText: readRuns(f.full, 'PPG') })));
       const fex = PpgDex.compute(frec, { ...COMMON, source: 'o2ring-finger-ppg' });
       const fh = hoursOf(fex);
       if (!KEEP_DAYTIME && fh != null && fh < MIN_HOURS) console.log(`    ⊘ PpgDexFinger  ${fh.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);

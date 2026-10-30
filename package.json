@@ -25,6 +25,7 @@
     "test:trio-anchor": "node tests/trio-anchor-tests.mjs",
     "test:fold-provenance": "node tests/fold-provenance-tests.mjs",
     "test:trio-fold-clock": "node tests/trio-fold-clock-tests.mjs",
+    "test:trio-fold-validity": "node tests/trio-fold-validity-tests.mjs",
     "test:seqnet-port": "node tests/seqnet-port-tests.mjs",
     "test:stage-lab-core": "node tests/stage-lab-core-tests.mjs",
     "test:oxydex-stager": "node tests/oxydex-stager-tests.mjs",
