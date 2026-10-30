@@ -46336,6 +46336,140 @@
       }
     });
 
+    /* ─────────────────────────────────────────────────────────────────────────────────────────────
+       Row 2026-10-28-secret-scan-has-no-whole-tree-scope-so-a-landed-value-is-never-examined.
+       The gate is DIFF-SCOPED by design and that stays right: tracked files on main hold private
+       values today, so a whole-tree GATE is the owner's call. Two things were missing. There was no
+       whole-tree SCOPE at all — `gitleaks git --log-opts=<mb>..HEAD` was the only shape the tool
+       could ask for — so a value that landed before the gate existed could not be examined even by
+       hand. And the verdict named no walk, so a PASS over a two-commit diff read exactly like a
+       statement about the tree it never opened. Both halves are pinned below, and the last leg pins
+       the restraint: `--tree` is opt-in and NO workflow calls it.
+       ───────────────────────────────────────────────────────────────────────────────────────────── */
+    group('secret-scan names the walk its green is about, and can walk the tree', 'tools · secret-scan · scope · argv', function (T) {
+      var SS = env.SecretScan;
+      if (!SS || typeof SS.scannerArgs !== 'function') {
+        T.skip('env.SecretScan provided to the runner', 'Node-lane only — the browser lane cannot import a tool module');
+        return;
+      }
+      var FIND = [{ rule: 'private-term', file: 'f', line: 1, commit: null }];
+
+      /* ── the verdict says which population it walked ── */
+      var d = SS.verdictFor({ findings: [], commits: 2, privateTerms: 'configured', commit: 'abc1234' });
+      T.eq('a diff green counts the commits it walked and names that walk', [d.status, d.population.checked, d.result.walk], ['PASS', 2, 'diff']);
+      T.eq('…and carries no file count, because it opened no tree', d.result.walked, null);
+      var t = SS.verdictFor({ findings: [], commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 3401 });
+      T.eq('a tree green counts the files it walked and names that walk', [t.status, t.population.checked, t.result.walk, t.result.walked], ['PASS', 3401, 'tree', 3401]);
+
+      var V = env.Verdict;
+      if (!V) T.skip('env.Verdict provided to the runner', 'the contract validator is not wired');
+      else {
+        T.ok('the tree verdict validates under tepna.verdict/1', V.validate(t).ok, JSON.stringify((V.validate(t) || {}).errors || []));
+        var ft = SS.verdictFor({ findings: FIND, commits: 0, privateTerms: 'configured', commit: 'abc1234', walk: 'tree', walked: 9 });
+        T.ok('…and so does a tree FAIL', V.validate(ft).ok, JSON.stringify((V.validate(ft) || {}).errors || []));
+        T.ok('a tree FAIL counts the walked files in its reason', /9 walked file/.test(String(ft.reason)), String(ft.reason));
+        /* A tree finding is HISTORY. Telling the author to rewrite their branch would be wrong advice
+           and would also hand a private value a second life in a public patch. */
+        T.ok('…and sends it to the owner rather than at a branch rewrite', /owner/.test(String(ft.reason)) && !/this branch/.test(String(ft.reason)), String(ft.reason));
+        var fd = SS.verdictFor({ findings: FIND, commits: 1, privateTerms: 'configured', commit: 'abc1234' });
+        T.ok('CONTROL · a diff FAIL still names the commits this branch adds', /commits this branch adds/.test(String(fd.reason)), String(fd.reason));
+      }
+
+      /* ── one builder, two shapes: the selftest and the scan ask the same function ── */
+      var da = SS.scannerArgs({ walk: 'diff', range: 'A..B', cfg: 'c.toml', report: 'r.json', target: '/t' });
+      var ta = SS.scannerArgs({ walk: 'tree', cfg: 'c.toml', report: 'r.json', target: '/t' });
+      T.eq('the diff walk asks the scanner for a commit range', [da[0], da[1]], ['git', '--log-opts=A..B']);
+      T.eq('the tree walk asks for the files on disk and names no range', [ta[0], ta.join(' ').indexOf('--log-opts')], ['dir', -1]);
+      T.ok('both walks redact, so no finding can print the value', da.indexOf('--redact') > 0 && ta.indexOf('--redact') > 0);
+      T.eq('both walks carry the findings exit code the tool reads', [da[da.indexOf('--exit-code') + 1], ta[ta.indexOf('--exit-code') + 1]], ['3', '3']);
+      T.eq('both walks end at the target the caller named', [da[da.length - 1], ta[ta.length - 1]], ['/t', '/t']);
+
+      var threw = function (fn) {
+        try {
+          fn();
+          return false;
+        } catch {
+          return true;
+        }
+      };
+      T.ok(
+        'an unknown walk is refused, never defaulted into the other scope',
+        threw(function () {
+          SS.scannerArgs({ walk: 'all', cfg: 'c', report: 'r', target: '/t' });
+        })
+      );
+      T.ok(
+        'a diff walk with no range is refused, because an absent range is every commit',
+        threw(function () {
+          SS.scannerArgs({ walk: 'diff', cfg: 'c', report: 'r', target: '/t' });
+        })
+      );
+      T.ok(
+        'a tree verdict with no file count is refused, not published over an unstated population',
+        threw(function () {
+          SS.verdictFor({ findings: [], commits: 0, privateTerms: null, commit: null, walk: 'tree' });
+        })
+      );
+      T.ok(
+        'a verdict naming a walk the tool has no scope for is refused',
+        threw(function () {
+          SS.verdictFor({ findings: [], commits: 1, privateTerms: null, commit: null, walk: 'everything' });
+        })
+      );
+
+      /* ── the argv guard: a mistyped mode must not run the OTHER walk and report PASS ──
+         Every probe below refuses before the binary probe, so no leg here runs a scanner. */
+      var probe = env.probeToolArgv;
+      if (!probe) T.skip('env.probeToolArgv provided to the runner', 'the argv refusals need a spawn');
+      else {
+        var REL = 'tools/secret-scan.mjs';
+        var bad = probe(REL, ['--tre']);
+        T.eq('a mistyped mode refuses instead of walking the diff and passing', bad.status, 2);
+        T.ok('…and suggests the word it nearly spelled', /did you mean --tree/.test(String(bad.out)), String(bad.out).slice(0, 200));
+        T.eq('…and NOTHING was written', bad.wrote, []);
+        var mixed = probe(REL, ['--tree', '--base', 'origin/main']);
+        T.eq('a tree walk carrying a diff flag refuses', mixed.status, 2);
+        T.ok('…naming the flag the tree walk never reads', /unknown flag --base/.test(String(mixed.out)), String(mixed.out).slice(0, 200));
+        var stray = probe(REL, ['x.txt']);
+        T.eq('a stray path refuses, because neither walk reads one', stray.status, 2);
+        T.eq('…and NOTHING was written', stray.wrote, []);
+      }
+
+      var src = (env.sources || {})['tools/secret-scan.mjs'];
+      if (src == null) T.skip('tools/secret-scan.mjs in env.sources', 'not wired — the placement scan would read nothing');
+      else {
+        T.ok('the guard call sits inside main(), so importing this module judges no argv', !/^refuseUnknownArgvOrExit\(/m.test(src) && /\n  refuseUnknownArgvOrExit\(/.test(src));
+        T.eq('the scanner argv has ONE spelling, so the selftest drives what the scan runs', (src.match(/'--log-opts='/g) || []).length, 1);
+      }
+
+      /* ── THE RESTRAINT, pinned: the scope exists and is NOT a gate ── */
+      if (!env.nodeFs || !env.repoRoot) T.skip('env.nodeFs + env.repoRoot provided to the runner', 'the workflow scan needs the files on disk');
+      else {
+        var fs = env.nodeFs;
+        var dir = env.repoRoot + '/.github/workflows';
+        var names = fs.readdirSync(dir).filter(function (n) {
+          return /\.ya?ml$/.test(n);
+        });
+        var texts = names.map(function (n) {
+          return [n, String(fs.readFileSync(dir + '/' + n, 'utf8'))];
+        });
+        var callers = texts.filter(function (p) {
+          return /secret-scan\.mjs/.test(p[1]);
+        });
+        var treeCallers = callers.filter(function (p) {
+          return /secret-scan\.mjs[^\n]*--tree/.test(p[1]);
+        });
+        T.ok('CONTROL · the diff walk IS wired, so the scan below read a real caller set', callers.length > 0, JSON.stringify(names.length));
+        T.eq(
+          'no workflow runs the tree walk: the scope is opt-in and a whole-tree gate stays the owner’s call',
+          treeCallers.map(function (p) {
+            return p[0];
+          }),
+          []
+        );
+      }
+    });
+
     group('Rebase-safe — the union-merge blind spot has a detector, with BOTH controls', 'tools · rebase-safe-union', function (T) {
       /* `rebase-safe`'s whole model is CONFLICT-driven: it enumerates `--diff-filter=U` and its contract
          is "conflict in ANY other path → STOP". A `merge=union` path NEVER conflicts — the driver keeps

@@ -255,7 +255,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`run-progress.mjs`](../tools/run-progress.mjs) | SHARED PROGRESS, ETA AND RESUME FOR THE MULTI-HOUR TOOLS Every long-runner here had the same two holes, and both cost real time: |
 | [`run-tests-verdict.mjs`](../tools/run-tests-verdict.mjs) | THE TEST RUNNER'S tepna.verdict/1 OBJECT — VERDICT-CONTRACT §3d, the third and largest runner adopter, through the same `aggregateChildren` as run-check (#2827) and selftest-all (#2828). |
 | [`screen-draft-inputs.mjs`](../tools/screen-draft-inputs.mjs) | ADVISORY screen over drafted assertion INPUTS. WHY THIS EXISTS. |
-| [`secret-scan.mjs`](../tools/secret-scan.mjs) | the diff-scoped secret gate node tools/secret-scan.mjs # scan merge-base(origin/main)..HEAD node tools/secret-scan.mjs --base <ref> # another base node tools/secret-scan.mjs… |
+| [`secret-scan.mjs`](../tools/secret-scan.mjs) | the diff-scoped secret gate node tools/secret-scan.mjs # scan merge-base(origin/main)..HEAD node tools/secret-scan.mjs --base <ref> # another base node tools/secret-scan.mjs --tree # the… |
 | [`selftest-all.mjs`](../tools/selftest-all.mjs) | RUN EVERY TOOL'S SELFTEST — locally, in parallel, with assertion counts. |
 | [`seqnet-eval.mjs`](../tools/seqnet-eval.mjs) | run the JS port over REAL cached nights exactly as seqnet.py does (same fold hash, same column drop, same presence flags, same tensorise, same Viterbi) and score it: pooled/per-cohort κ,… |
 | [`seqnet-infer.mjs`](../tools/seqnet-infer.mjs) | run the stage-lab control net (seqnet.py's TCN + biGRU + Viterbi) in plain JS with no runtime library, so a trained stager can ship inside a bundled offline Tepna instrument. |

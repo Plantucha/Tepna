@@ -644,6 +644,10 @@ function readSources() {
        future edit that resolves ROOT from the cwd instead would make the refusal unreachable and the
        tool would silently act on whichever tree you happen to stand in. */
     'tools/rebase-safe.mjs',
+    /* The secret gate's argv guard and its scanner argv are read as TEXT as well as driven: the guard
+       must sit INSIDE main() so an import judges nothing, and `--log-opts=` must have ONE spelling so
+       the selftest drives the argv the scan actually runs. Neither is visible from the exports. */
+    'tools/secret-scan.mjs',
     /* The §∅ pin-constant parity gate reads BOTH sides as text.  asks for exactly
        this — "that constant must be asserted equal to this one by a gate that has been shown to RED
        on a mismatch" — and a Python constant cannot be imported into the JS lane, so the pairing is
@@ -3012,6 +3016,15 @@ async function main() {
     console.error(paint('  ! pat-host-offset failed to load: ' + e.message, C.yellow));
   }
 
+  /* The secret gate's pure halves — the scanner argv builder and the verdict. The import is inert:
+     the CLI tail is behind isCliEntry, so nothing here reads a commit or spawns a scanner. */
+  let SecretScan = null;
+  try {
+    SecretScan = await import(new URL('../tools/secret-scan.mjs', import.meta.url).href);
+  } catch (e) {
+    console.error(paint('  ! secret-scan failed to load: ' + e.message, C.yellow));
+  }
+
   /* §∅ cross-language constant parity reads SOURCE TEXT on both sides — the Python file cannot be
      imported here, and the JS constants are module-private. `nightqc.py` is optional: absent, the
      gate still pins the JS half and asserts the Python side carries NONE of the names, so a partial
@@ -3055,6 +3068,7 @@ async function main() {
     NsrrStage: NsrrStage,
     MutTriage: MutTriage,
     PatHostOffset: PatHostOffset,
+    SecretScan: SecretScan,
     DexKernel: ctx.DexKernel,
     MetricRegistry: ctx.MetricRegistry,
     DexProfile: ctx.DexProfile,
