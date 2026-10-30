@@ -11221,6 +11221,74 @@
       T.eq('every self-test unsets every hatch its hook dereferences', MISSING.join(', '), '');
       T.eq('…and unsets it before the first line that touches the hook', LATE.join(', '), '');
     });
+
+    /* ════ A TOOL THAT EXPORTS A FUNCTION MUST SURVIVE BEING IMPORTED ════════════════════════════
+       Row 2026-10-30-a-module-level-guard-travels-with-the-import. `rebase-safe.mjs` held its
+       two-checkout refusal in a bare top-level block, so `import { classify } from
+       './rebase-safe.mjs'` exited 4 before the importing file ran a line — and the exit text spoke
+       about rebasing a checkout the importer never named. `wt-done --landed` is that importer, and it
+       runs by absolute path from any checkout, which is exactly the case the refusal detects.
+       THE SHAPE, NOT THE FILE. A bare block at column 0 runs during module evaluation as surely as a
+       bare statement does, and it reads like a scope rather than like work, which is why it survived
+       review. `js-lex.mjs` carries the same lesson in its own header: it exists because importing
+       `mutate.mjs` to borrow one function starts a mutation run.
+       MEASURED 2026-10-30 over tools/*.mjs: seven tools open a bare top-level block, three of those
+       blocks call `process.exit`, and exactly ONE of the three exports anything — `rebase-safe.mjs`,
+       with fourteen exports. The other two export nothing, so no importer can reach them and the
+       block is their design rather than a defect. That is why the assertion is keyed on EXPORTS: the
+       wider shape has 240 module-scope exits in this tree and gating it would be a rewrite, not a
+       tripwire.
+       The detector is proven on a PLANT rather than on the tree's own survivors, so tidying either
+       remaining tool cannot quietly empty this group. ════ */
+    group('no exporting tool exits from a bare top-level block', 'tools · module-scope · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS: the browser lane cannot enumerate a directory, the node lane can. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the bare-block scan examined nothing');
+        else T.skip('the bare-block exit scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var stripC = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      /* Returns the 1-based line of every bare top-level block whose body calls `process.exit`. A
+         bare block opens on a line that is exactly `{`, because house style indents every other one. */
+      var bareBlockExits = function (text) {
+        var lines = stripC(text).split('\n');
+        var found = [];
+        for (var i = 0; i < lines.length; i++) {
+          if (lines[i].replace(/\s+$/, '') !== '{') continue;
+          var depth = 1,
+            body = '';
+          for (var j = i + 1; j < lines.length && depth > 0; j++) {
+            depth += (lines[j].match(/\{/g) || []).length - (lines[j].match(/\}/g) || []).length;
+            body += lines[j] + '\n';
+          }
+          if (body.indexOf('process.exit') >= 0) found.push(i + 1);
+        }
+        return found;
+      };
+      var PLANT = 'export function pure(x) {\n  return x;\n}\n\n{\n  if (!ok) {\n    process.exit(4);\n  }\n}\n';
+      var CONTROL = 'export function guarded() {\n  {\n    process.exit(4);\n  }\n}\n';
+      var offenders = [];
+      var bareBlocks = 0;
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          var text = TT[k];
+          var hits = bareBlockExits(text);
+          bareBlocks += hits.length;
+          if (!hits.length) return;
+          if (/^export\s/m.test(stripC(text))) offenders.push(k + ':' + hits.join(','));
+        });
+      /* ANTI-VACUITY, on the population and on the detector separately. */
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.eq('PLANT · a bare block that exits is detected', JSON.stringify(bareBlockExits(PLANT)), '[5]');
+      T.eq('CONTROL · an exit nested inside a function is not', JSON.stringify(bareBlockExits(CONTROL)), '[]');
+      T.ok('and the scan still sees bare blocks in the real tree', bareBlocks >= 1, 'bareBlocks=' + bareBlocks + ' — three measured 2026-10-30');
+      T.eq('no tool that exports a function exits from a bare top-level block', offenders.join(', '), '');
+    });
     /* ════ A FLAG'S VALUE IS NOT THE TOOL'S POSITIONAL ══════════════════════════════════════════
        Row 2026-10-21-a-dash-test-picker-takes-a-valued-flags-value. `argv.find((a) =>
        !a.startsWith('--'))` reads "my one positional", and it is ORDER-DEPENDENT where the flags are

@@ -93,8 +93,22 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
    the opposite direction, and a tool that quietly retargets itself is its own hazard. An ambiguous
    invocation reports as ambiguous and names both paths, which is the same honest-absence rule §∅
    applies to a missing measurement. `--show-toplevel` is used to DETECT the mismatch, never to
-   resolve it. */
-{
+   resolve it.
+
+   🔴 IT RUNS ON A CLI RUN ONLY, BECAUSE A BARE TOP-LEVEL BLOCK FIRES ON AN `import` TOO. The refusal
+   lived in a bare block here, so `import { classify } from './rebase-safe.mjs'` exited 4 before the
+   importing file reached a line of its own — and the exit text spoke about rebasing a checkout the
+   importer never asked to rebase. `wt-done --landed` is the caller that wants `classify`, and it runs
+   by absolute path from any checkout, which is the very case the refusal names. `js-lex.mjs` was
+   split out of `mutate.mjs` for the same reason: importing a module to borrow one function must not
+   start the module's job. Row `2026-10-30-a-module-level-guard-travels-with-the-import`.
+
+   THE REFUSAL GUARDS THE REBASE, NOT THE READS. An importer reaching `generatedSet()` or
+   `heldGoldens()` still reads the SCRIPT's checkout, and that is safe by construction here: both fail
+   CLOSED, returning `null` or an empty set, and `classify` answers `source` on a null set — which
+   stops a rebase rather than resolving one. Destructive work lives in `main()`, and `main()` asks
+   first. */
+function refuseForeignCheckout() {
   let cwdTop = null;
   try {
     /* stderr IGNORED: outside a checkout git writes a multi-line 'fatal: not a git repository'
@@ -950,6 +964,10 @@ function checkUnionPaths(onto) {
 }
 
 async function main() {
+  /* FIRST, before any argument is read or any builder list is loaded: the two-checkout refusal above.
+     It sits here rather than at module scope so an `import` of this file runs no checks of its own,
+     and it stays ahead of `--classify` because that path reads the script's checkout as well. */
+  refuseForeignCheckout();
   const argv = process.argv.slice(2);
   const gen = generatedSet();
 
