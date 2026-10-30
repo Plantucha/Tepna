@@ -656,12 +656,39 @@ class LiveStreamController:
         if self._extra_ids:
             kw["extra_ids"] = self._extra_ids
         self._task = asyncio.create_task(
-            self._pump(self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw)
+            self._release_when_done(
+                self._pump(
+                    self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw
+                ),
+                disconnect,
+            )
         )
         out = {"ok": True, "streaming": True, "channels": self._keys()}
         if self._continuity is not None:
             out.update(self._continuity.snapshot())  # INV8: the state this session OPENED in
         return out
+
+    async def _release_when_done(self, pump, disconnect):
+        """Run the pump, and CLOSE THE LINK when it ends ON ITS OWN.
+
+        🔴 A STREAM THAT STOPS ITSELF MUST STILL LET GO OF THE AS11. The therapy-end sink, a link drop
+        and a pump error all end the pump without `op("stop")`, and `disconnect` was only ever called
+        from `_stop_op`. So the BLE link stayed open and `as11_link_guard` kept naming "live-stream" as
+        the holder: on the owner's box 2026-10-29 the stream auto-stopped at 04:21 and the shadow poll
+        and the spool pull were declined for 16 h, until a daemon restart.
+
+        `_stop_op` takes `self._disconnect` BEFORE it waits for the task, so when this finally runs
+        under a stop the identity check fails and the link is closed there, once."""
+        try:
+            return await pump
+        finally:
+            if self._disconnect is disconnect:
+                self._disconnect = None
+                _log.info("CPAP stream ended on its own — closing the AS11 link")
+                try:
+                    await disconnect()
+                except Exception:  # noqa: BLE001 — best-effort link close, as in _stop_op
+                    pass
 
     async def _stop_op(self):
         task, stop, disconnect = self._task, self._stop, self._disconnect
