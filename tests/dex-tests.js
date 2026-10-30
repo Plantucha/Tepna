@@ -21451,6 +21451,44 @@
       var axDrawnTrue = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: true };
       T.ok('…and a drawn axis under-claims to host however independent it reads', DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [] }).timingSource === 'host');
       T.ok('…while a node-supplied verdict still outranks the axis field', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [] }).timingSource === 'device+host');
+
+      /* ── THE SANITISERS, PINNED AT THEIR EDGES ──
+         `_tbNum` and `_tbCount` are the only place a caller's junk becomes a published number, and §∅
+         says a value nobody measured is `null` — never a coerced one. Six inputs pin that, and each was
+         chosen because the diff-scoped mutation lane proved no existing assertion distinguished it:
+         `'device+host'` sits at index 0 of the vocabulary, so a `>= 0` membership test degraded to
+         `> 0` silently rejected the TOP tier and fell through to the derived branch. `isFinite('5')` is
+         true, so a numeric STRING is the input that separates a `typeof` guard from an `isFinite` one.
+         A negative count and a `NaN` separate the three conjuncts of the count guard from each other. */
+      T.ok(
+        'the first entry of the vocabulary is accepted — a membership test must not exclude index 0',
+        DE.timingBlock({ timingSource: 'device+host', hostAxis: null, resyncs: [] }).timingSource === 'device+host'
+      );
+      T.ok(
+        '§∅ a numeric STRING is not a measurement — isFinite() alone would have taken it',
+        DE.timingBlock({ hostAxis: { ok: true, n: 9, spanMs: '5', independent: true }, resyncs: [] }).spanMs === null
+      );
+      T.ok('§∅ NaN is not a measurement either', DE.timingBlock({ hostAxis: { ok: true, n: 9, ppm: NaN, independent: true }, resyncs: [] }).ppm === null);
+      T.ok('a plain number IS a count and survives untouched', DE.timingBlock({ resyncs: 3 }).resyncs === 3);
+      T.ok('…a numeric string is not one', DE.timingBlock({ resyncs: '3' }).resyncs === null);
+      T.ok('…and neither is a negative count', DE.timingBlock({ resyncs: -1 }).resyncs === null);
+      T.ok('…while a numeric ZERO is a count and survives — §∅: looked and found none', DE.timingBlock({ resyncs: 0 }).resyncs === 0);
+
+      /* ── A REFUSED AXIS PUBLISHES NOTHING, NOT EVEN WHAT IT STILL CARRIES ──
+         `hostAxis` returns `{ ok:false, reason, n }` and may still carry fields from before it gave
+         up. Adopting an `independent` from a refusal would report a second clock the spine declined to
+         stand behind, so `ok` gates the read and the verdict stays `null`. The last leg pins the
+         FALLBACK text: a refusal that names no reason must say the spine named none, never splice
+         `undefined` into a sentence a reader will quote back. */
+      T.ok(
+        'a refused axis does not lend its independence verdict to the block',
+        DE.timingBlock({ hostAxis: { ok: false, reason: 'too few anchors', n: 2, independent: true }, resyncs: [] }).independent === null
+      );
+      T.ok('only the boolean true reads as independent — a truthy 1 does not', DE.timingBlock({ hostAxis: { ok: true, n: 9, independent: 1 }, resyncs: [] }).independent === false);
+      T.ok(
+        'a refusal that names no reason says so, and never splices undefined into the sentence',
+        /the spine named no reason/.test(DE.timingBlock({ hostAxis: { ok: false, n: 2 }, resyncs: [] }).reason || '')
+      );
       var full = DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [] });
       T.ok('a block with every measurement present carries NO reason', full.reason === null, String(full.reason));
 
