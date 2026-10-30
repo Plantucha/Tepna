@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-29 (O1, U2, U3 and U5 done; U7 in progress; U6 waits for the owner) · **Created:** 2026-10-29
+**Status:** IN-PROGRESS — 2026-10-29 (O1, U1, U2, U3 and U5 done; U7 in progress; U6 waits for the owner) · **Created:** 2026-10-29
 
 # Brief — better time handling on every device
 
@@ -49,9 +49,20 @@ Search: `O2Ring PMDARRIVAL frame anchor every row host axis` → `O2RING-FRAME-S
 - Expected accuracy change: small, because the stamps already equal arrival. The scratch build runs; the
   retest arm `trio-sc-arrival` scores it against the H10 ECG.
 
-- [ ] Retest scored against the ECG, box nights and phone nights separately
-- [ ] `parsePPG` reads `opts.arrivalText`; absent file ⇒ today's behaviour, byte-identical
-- [ ] PpgDex fixtures regenerated with `tools/regen-ppgdex-goldens.mjs`
+- [x] Retest scored against the ECG, box nights and phone nights separately (2026-10-30, board #2207)
+- Withdrawn 2026-10-30, because the arm did not win: `parsePPG` reading `opts.arrivalText`, and the
+  PpgDex fixture regen that it would have owed.
+
+**Result (2026-10-30).** Population: 97 nights, 94 with an H10 ECG, scored in 5-min bins against the ECG HR.
+
+| group | nights | today MAE | arrival MAE | crystal MAE | arrival vs today, better/worse |
+|---|---|---|---|---|---|
+| box | 69 | 0.28 bpm | 0.31 bpm | 0.43 bpm | 17 / 28 |
+| phone | 24 | 0.38 bpm | 0.38 bpm | 0.39 bpm | 0 / 0 |
+
+One anchor per frame reads no better than one anchor per 500 rows, so U1 lands no code. Phone nights
+carry no `PMDARRIVAL` file, so the arrival arm equals today there by construction. Today's host axis
+beats the crystal on 55 box nights, and the crystal wins 7.
 
 ### U2 · Correct each beat through `correctionAt()`, not one `fs` per night — **Heron**
 
@@ -162,12 +173,12 @@ ingest re-anchor carried as #1956's follow-up).
 | U5 | Magpie | `dex-export.js` (spine, 9 bundles) | 1st, alone — DONE |
 | U3 | Osprey | `oxydex-dsp.js`, `pulsedex-dsp.js`, `hrvdex-dsp.js` | any time; rebase after U5 |
 | U2 | Heron | `ppgdex-dsp.js` | measurement now; code after U1 |
-| U1 | Kestrel | `ppgdex-dsp.js`, `tools/trio-batch.mjs` | after the retest scores |
+| U1 | Kestrel | nothing: measured, no code (2026-10-30) | done |
 | U6 | Wren | box read-only | any time |
 | U4 | Magpie | `motiondex-dsp.js` | after U5 merges |
 | U7 | Heron | `capture-host/` | after U2 — in progress |
 
-U1 and U2 both edit `ppgdex-dsp.js`. U1 lands first; U2 rebases with `tools/rebase-safe.mjs`.
+U1 landed no code, so U2 had no rebase to wait for.
 One PR per bird, draft-first, WIP cap 4 (§👥.5).
 
 **Usage guard.** The owner's order lifts pace ruling #2138 for these units. On 2026-10-29 the weekly
