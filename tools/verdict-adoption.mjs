@@ -69,6 +69,7 @@ import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { CLS_CODE, blankComments, classify } from './js-lex.mjs';
 import { declaresSelftest } from './selftest-all.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = path.join(ROOT, 'tools', 'verdict-adoption.json');
@@ -647,7 +648,7 @@ export /* A NAME GOES INTO A REGEX, SO EVERY METACHARACTER IN IT IS ESCAPED, NOT
    form was right for the identifiers this gate reads and wrong as a rule: a backslash or a dot in
    a name built a pattern that matched something else (CodeQL `js/incomplete-sanitization`, high,
    reported on #4133). */
-const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const reEscape = escapeRe;
 
 function functionBody(src, name, isPy) {
   if (src == null || !/^[A-Za-z_$][\w$]*$/.test(name)) return null;

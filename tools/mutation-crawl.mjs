@@ -59,6 +59,7 @@ import { createHash } from 'node:crypto';
 import { recoverStale, pendingBackups } from './mutate-recover.mjs';
 import vm from 'node:vm';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -866,7 +867,7 @@ function enclosingFn(lines, lineNo) {
    Word-boundary matched. A substring match would count `computeDerivedX` as a reference to
    `computeDerived`, and inflating a signal that exists to be read by eye is worse than omitting it. */
 export function callSiteContext(fnName, corpus) {
-  const re = new RegExp('\\b' + String(fnName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+  const re = new RegExp('\\b' + escapeRe(fnName) + '\\b');
   const areas = {};
   const files = [];
   for (const [path, text] of corpus) {

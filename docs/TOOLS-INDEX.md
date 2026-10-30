@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**299 tools** · 298 with a purpose line · **1 without**
+**300 tools** · 299 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -236,6 +236,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`regen-oxydex-goldens.mjs`](../tools/regen-oxydex-goldens.mjs) | Regenerate OxyDex's committed golden fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-ppgdex-goldens.mjs`](../tools/regen-ppgdex-goldens.mjs) | Regenerate PpgDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs, then re-recording each fixture. |
 | [`regen-pulsedex-goldens.mjs`](../tools/regen-pulsedex-goldens.mjs) | Regenerate PulseDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regex-escape-core.mjs`](../tools/regex-escape-core.mjs) | THE one canonical escaper for a literal that reaches a RegExp. |
 | [`release-due.mjs`](../tools/release-due.mjs) | release-due — cut the release AUTOMATICALLY when it is due, and NAME the distance when it is not. |
 | [`release-land.mjs`](../tools/release-land.mjs) | THE WHOLE RELEASE, ONE COMMAND, NO OPERATOR MEMORY — stamp → build → gate → PR → merge → tag → GitHub Release → cleanup. |
 | [`release.mjs`](../tools/release.mjs) | CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release. |

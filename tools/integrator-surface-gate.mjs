@@ -39,6 +39,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -80,7 +81,7 @@ export function fusionKeys(dspText) {
 }
 
 export function mentions(renderText, key) {
-  return new RegExp('\\b' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(renderText);
+  return new RegExp('\\b' + escapeRe(key) + '\\b').test(renderText);
 }
 
 /** The two red conditions, and nothing else. */

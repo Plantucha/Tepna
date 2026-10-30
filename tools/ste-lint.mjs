@@ -41,6 +41,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -241,7 +242,7 @@ export function findings(src, glossary = { retired: new Map(), technical: new Se
         if (new RegExp(`\\b(?:the|a|an|this|its|their)\\s+${t}(?=\\s+(?:of|is|was|has|had)\\b|[,.;:)])`, 'i').test(s)) add(n, 'verb-noun', t);
       }
       for (const [retired, approved] of glossary.retired) {
-        if (new RegExp(`\\b${retired.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s)) add(n, 'retired-term', `"${retired}" → "${approved}"`);
+        if (new RegExp(`\\b${escapeRe(retired)}\\b`, 'i').test(s)) add(n, 'retired-term', `"${retired}" → "${approved}"`);
       }
     }
   }

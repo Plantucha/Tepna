@@ -68,6 +68,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -351,7 +352,7 @@ export function unrestoredFrom(text, names) {
   for (const p of names) {
     if (typeof p !== 'string' || !p) return null;
     const base = p.slice(p.lastIndexOf('/') + 1);
-    const re = new RegExp('[⊘✗]\\s+' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+—');
+    const re = new RegExp('[⊘✗]\\s+' + escapeRe(base) + '\\s+—');
     if (re.test(text)) bad.push(p);
   }
   return bad;

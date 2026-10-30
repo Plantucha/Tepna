@@ -43,6 +43,7 @@ import { createRequire } from 'node:module';
 import { elementBlocks } from './strip-markup.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 // ESM-MIGRATION Phase 2: a co-loaded DSP may be a dual-mode ES module (top-level export) — a classic
@@ -223,7 +224,7 @@ function rewriteWorkers(html) {
 function bundle(html) {
   // strip any prior shim first (idempotent) so we re-inject a fresh one — consume the trailing
   // newline we injected with it, so repeated runs don't accumulate blank lines.
-  html = html.replace(new RegExp(SHIM_OPEN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s\\S]*?' + SHIM_CLOSE + '\\n?', 'i'), '');
+  html = html.replace(new RegExp(escapeRe(SHIM_OPEN) + '[\\s\\S]*?' + SHIM_CLOSE + '\\n?', 'i'), '');
   html = inlineScripts(html);
   const rw = rewriteWorkers(html);
   html = rw.html;

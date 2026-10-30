@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { selfTest as stripSelfTest, stripElement } from './strip-markup.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -56,7 +57,7 @@ export function auditGuide(html) {
   const allIds = new Set([...String(html).matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
   const hrefs = [...body.matchAll(/href="#([^"]*)"/g)].map((m) => m[1]).filter(Boolean);
   const dead = [...new Set(hrefs.filter((h) => !ids.has(h)))].sort();
-  const dup = [...ids].filter((i) => (body.match(new RegExp(`\\bid="${i.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g')) || []).length > 1);
+  const dup = [...ids].filter((i) => (body.match(new RegExp(`\\bid="${escapeRe(i)}"`, 'g')) || []).length > 1);
 
   /* Abbreviation index: keys decoded on both sides, targets checked against the FULL id set (a jump may
      legitimately target a section whose id lives inside a scripted region of the document). */

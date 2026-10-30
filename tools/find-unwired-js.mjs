@@ -66,6 +66,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BIOME = join(ROOT, 'node_modules', '.bin', 'biome');
@@ -353,7 +354,7 @@ export function isConsumed(name, definer, corpus) {
      literally — a correctness bug as much as a sanitisation one, since `.` would then match any
      character and silently mark unrelated symbols consumed. Same class as the tools-index escape fixed
      in #2154: there the order was wrong, here the character class was too narrow. */
-  const n = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const n = escapeRe(name);
   const re = new RegExp(`(?:[\\w$]+\\.)?(?<![\\w$])${n}(?![\\w$])\\s*(=(?!=)|.?)`, 'g');
   for (const [file, code] of corpus) {
     if (file === definer) continue;

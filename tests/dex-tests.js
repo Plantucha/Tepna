@@ -11532,6 +11532,88 @@
        enumerations it held when it was pinned, and every entry shares one reason — it predates the
        primitive and nobody has wired it yet. Wiring one means DELETING its line, and the reverse
        leg reds if a line outlives the backlog it describes. ════ */
+    /* ── ONE HOME FOR THE REGEX ESCAPER ─────────────────────────────────────────────────────────
+       Row `2026-10-30-the-regex-escaper-is-copied-seven-times-and-exported-twice`. The 14-character
+       metacharacter class stood at 17 sites in `tools/` in three spellings, and three of those sites
+       exported it with no importer between them. A new site copies whichever neighbour it READ, which
+       is how a `$`-only copy (#4134, CodeQL high) and a wrong-order copy (#2154) both read as the
+       house form. POPULATION: every `tools/*.mjs` carrying a character class that holds 8 or more of
+       the 14. The scan reads RAW text, prose included, because a copy sitting in a comment is exactly
+       the one a later site reads. The NAMED SET is what makes this a gate rather than a ratchet, and
+       each exemption states why the shared home cannot reach it; an exemption that stops carrying a
+       class of its own reds too, since dead text would silently cover the next copy. ════ */
+    group('the regex escaper has one home in the tools tree', 'tools · regex-escape · source-scan', function (T) {
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS: the browser lane reads no tool source, the node lane does. */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the escaper scan examined nothing');
+        else T.skip('the regex-escaper single-source scan', 'no tool-source table in this lane (browser); the node lane carries it');
+        return;
+      }
+      var HOME = 'regex-escape-core.mjs';
+      var EXEMPT = {
+        'secret-scan.mjs': 'escapes for a Go RE2 pattern inside a TOML literal string, so one shared JS escaper would hide the day the two sets stop agreeing',
+        'corpus-census.mjs': 'translates a glob, so `*` and `?` never reach its escape — a deliberate narrowing rather than a partial copy'
+      };
+      var META = '.*+?^${}()|[]\\';
+      var metaCount = function (cls) {
+        var inner = cls
+          .slice(1, -1)
+          .replace(/\\\\/g, '\u0000')
+          .replace(/\\]/g, ']')
+          .replace(/\\/g, '')
+          .replace(/\u0000/g, '\\');
+        var n = 0;
+        for (var i = 0; i < META.length; i++) if (inner.indexOf(META.charAt(i)) >= 0) n++;
+        return n;
+      };
+      var population = Object.keys(TT)
+        .filter(function (k) {
+          return /^tools\/[^/]+\.m?js$/.test(k);
+        })
+        .sort();
+      var sites = [];
+      population.forEach(function (k) {
+        var self = k.replace(/^.*\//, '');
+        var re = /\.replace\(\s*\/(\[[^/\n]*?\])\/g\s*,/g;
+        var m;
+        while ((m = re.exec(TT[k] || '')) !== null) if (metaCount(m[1]) >= 8 && sites.indexOf(self) < 0) sites.push(self);
+      });
+      T.ok('ANTI-VACUITY · the scan reads the whole tools tree rather than a sample', population.length > 100, population.length + ' tool source(s)');
+      T.ok('ANTI-VACUITY · and it finds the home itself, so the detector can see a class at all', sites.indexOf(HOME) >= 0, sites.join(', ') || 'none found');
+      T.eq(
+        'no tool writes the metacharacter class out for itself unless it is named here',
+        sites
+          .filter(function (f) {
+            return f !== HOME && EXEMPT[f] === undefined;
+          })
+          .sort()
+          .join(', '),
+        ''
+      );
+      T.eq(
+        'and no exemption outlives the copy it describes',
+        Object.keys(EXEMPT)
+          .filter(function (f) {
+            return sites.indexOf(f) < 0;
+          })
+          .sort()
+          .join(', '),
+        ''
+      );
+      T.ok(
+        'every exemption states its reason, so a reader need not re-derive it',
+        Object.keys(EXEMPT).every(function (f) {
+          return String(EXEMPT[f] || '').length > 40;
+        })
+      );
+      var importers = population.filter(function (k) {
+        return String(TT[k] || '').indexOf("from './" + HOME + "'") >= 0;
+      });
+      T.ok('and the home carries importers rather than being a third unused export', importers.length >= 10, importers.length + ' importer(s)');
+    });
+
     group('every corpus enumerator reports its population or is named here', 'tools · corpus-reads · source-scan', function (T) {
       var TT = env.toolTexts;
       var CR = env.corpusReads;
