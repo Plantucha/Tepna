@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="64739bf8ac57" data-compute-hash="5a9085703176">
+<html lang="en" data-manifest-hash="ce4db4c9437f" data-compute-hash="687ca8f00a14">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0un7kHTIHKWBkF8u7QGJVGiUNvx1xeLqlFS6+bz2N9c=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nZ0f+VvSf1GyaxAdacWEVWjqolEeybqQcn4A2avRoaw=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0un7kHTIHKWBkF8u7QGJVGiUNvx1xeLqlFS6+bz2N9c=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-D0YR9+62Fd3hUFRoEZhA/MkKslQirmZQg7KMBHKpICk=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LHo1Cil1Q3vSpkH9u6uL9AR3e+OmkXjBAy32luT9+FA=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-PmuaIBmgR8mq4Jcn6RwaCsTYul8fNC1GM+vLFFQ6mPQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-QyURGUmKmbpEGz6vtt+poPueeRE901i4IjiyZIbxJNo=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jlaekI7OzFDzIQkIY0VqoDWeI8aRzEkz7c5nibMzgy0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-s5jQgZ2dCmcNdTTy5gLqyiwkCVbXvuldnqeO/1M79kk='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.24.0</title>
@@ -12768,6 +12768,462 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
+<script data-inline-src="clock-seam.js">/* ════ Tepna · shared clock-seam tripwire (clock-seam.js) ──────────────────
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0. See the LICENSE and NOTICE
+ * files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ────────────────────────────────────────────────────────────────────────
+ * WHAT THIS IS. The Clock Contract §7 says a node that does not detect clock
+ * steps owes a TRIPWIRE. This module is the one helper OxyDex, PulseDex and
+ * HRVDex call (DEVICE-TIME-HANDLING-2026-10-29 §U3).
+ *
+ * ⚠️ WHAT THOSE THREE ALREADY HAD, because the unit was sized as though they had
+ * nothing and that premise is wrong. PulseDex carries the TWO-CLOCK
+ * discriminator (`PD_RESYNC_BOUND_MS`, the shared 60 s bound ECGDex, PpgDex and
+ * MotionDex also use) and refuses its whole-record variability metrics with
+ * `hrvReason:'clock-seam'`. OxyDex guards its span against the row count and
+ * cadence (`clockNonMonotonic`, `durationInflated`) and relabels the coverage
+ * block `discontinuous`. HRVDex was pinned structurally exempt in the suite.
+ *
+ * SO THIS IS A DIFFERENT INSTRUMENT, AND NAMING MATTERS MORE THAN USUAL. The
+ * resync bound answers "do the device clock and the host clock disagree", which
+ * needs two clocks and catches a step wherever it sits. The endpoint guard
+ * answers "is first-to-last plausible", which catches a step only when it
+ * survives to the ends. Neither sees a step that lands mid-file and leaves the
+ * endpoints plausible on a single clock — a 90 s back-step in the middle of an
+ * otherwise ordinary night — and that is this module's question. A node may run
+ * both: they are not redundant, and the suite pins the bound so a reader cannot
+ * read one as the other.
+ *
+ * THE RULING IT IMPLEMENTS (owner, 2026-09-17). A DISCONTINUITY refuses and a
+ * reduced COVERAGE annotates: a window split by a seam is `null` with reason
+ * `clock-seam`, while a window merely thinned by a dropout keeps its value with
+ * the covered span beside it. The two look alike in a stamp column — both are a
+ * long gap — so the discriminator is stated here rather than guessed per node.
+ *
+ * THE BAR IS THE FILE'S OWN DISTRIBUTION, NEVER A FIXED MILLISECOND VALUE
+ * (§∅). A ring at 4 s and a beat series at 0.8 s cannot share a constant, and a
+ * constant tuned on one corpus silently stops firing on the next device. So the
+ * centre is the MEDIAN interval and the spread is the MAD of the intervals the
+ * file itself carries.
+ *
+ * ⚠️ THE KNOWN FAILURE OF A SELF-SCALED BAR (memory `solid-night-verdict-inputs`,
+ * 2026-09-24): a noisy night inflates its own bar and hides its own steps. That
+ * is why this module publishes `medianMs`, `madMs`, `barMs`, `n` and
+ * `dominantShare` beside every verdict — a reader can see the bar that judged
+ * the file — and why a thin file gets `barMs: null` instead of a bar computed
+ * from a handful of intervals. A null bar still judges a BACKWARD stamp, which
+ * is decided by recovery rather than by the distribution (below).
+ *
+ * RUN LENGTH, NOT A LONE OUTLIER. A single wide interval in a jittery stream is
+ * an outlier; a clock step separates two established runs of the file's own
+ * cadence. A forward candidate is therefore declared a seam only when at least
+ * CK_SEAM_MIN_RUN in-bar intervals sit on BOTH sides of it. A candidate that
+ * fails that test is reported in `unsettled` with its reason, never dropped
+ * silently — an unexamined gap would otherwise read as a clean file.
+ *
+ * WHAT IT REFUSES TO DECIDE. In a stream whose intervals ARE the signal (RR
+ * beats, HRV sessions) a forward gap cannot be told from a clock jump by phase,
+ * because there is no phase. The scan says so in `forwardDecidable: false`
+ * rather than reporting zero forward seams, because a zero there would be a
+ * manufactured absence (§∅).
+ *
+ * AND HOW MUCH IT CANNOT SEE EVEN THEN — measured while writing this module,
+ * not reasoned about. On ONE clock a forward step and a dropout of the same
+ * length are the same column of stamps. Phase is the only discriminator left,
+ * so a step landing within the file's own jitter of a whole number of cadences
+ * is invisible here: a 137 s step on a 4 s ring cadence reads as a 34-cadence
+ * dropout, correctly, because nothing in the file says otherwise. The width of
+ * that blind band is a property of the file, so the scan PUBLISHES it as
+ * `forwardBlindShare` — the share of arbitrary forward steps this file's jitter
+ * hides. A reader who needs the rest of them needs a SECOND clock, which is
+ * what `PD_RESYNC_BOUND_MS` and its siblings use, and that is why this module
+ * complements them instead of replacing them. A BACKWARD step needs no phase,
+ * no cadence and no bar — but it does have to prove it is not a re-ordered BLE
+ * packet, which the corpus forced and `CK_SEAM_RECOVER_RUN` states.
+ * ════════════════════════════════════════════════════════════════════════ */
+(function (root) {
+  'use strict';
+
+  /* ── pre-stated constants (§🧾: a threshold derived from the data it judges is
+     not a criterion). Each is a shape decision, not a tuned knob. ────────── */
+  // Two stamps make one interval; below that there is nothing to examine at all.
+  var CK_SEAM_MIN_STAMPS = 2;
+  /* A median and a MAD over fewer than this many intervals describe the handful
+     they were drawn from, not the file. Below it the bar is `null` and only
+     backward stamps are judged. */
+  var CK_SEAM_MIN_INTERVALS = 8;
+  // Robust sigmas above the median before an interval is a candidate.
+  var CK_SEAM_K = 6;
+  /* A perfectly drawn stream has MAD 0, which would put the bar ON the median
+     and make every quantum of jitter a candidate. The spread floor is a fraction
+     of the file's own cadence — still the file's distribution, never a constant. */
+  var CK_SEAM_SIGMA_FLOOR_FRAC = 0.05;
+  /* Share of intervals landing on one value before the stream counts as having a
+     cadence at all. Same reasoning and same number as `CK_AXIS_DRAWN_SHARE` in
+     clock.js: two thirds on one value is a rate, not a coincidence. */
+  var CK_SEAM_REGULAR_SHARE = 0.67;
+  // In-bar intervals needed on each side before a forward candidate is a seam.
+  var CK_SEAM_MIN_RUN = 3;
+  /* RECOVERY — how many samples a BACKWARD stamp gets to climb back over the
+     level it fell from before it is called a clock step rather than delivery
+     re-ordering. Measured on the real RR corpus (18 Polar Sensor Logger files,
+     252 329 intervals, 2026-10-29): 81 backward stamps, every one of them
+     recovering within 2 to 6 samples, 67 of them in 2. A clock step does not
+     recover at all — it takes its whole magnitude to climb back, which is 23
+     samples for a 90 s step on a 4 s cadence and about 90 on a 1 s one. 20
+     leaves over 3x headroom above the worst real re-ordering and still sits far
+     below any step worth refusing a window for. */
+  var CK_SEAM_RECOVER_RUN = 20;
+
+  function _med(a) {
+    if (!a.length) return null;
+    var s = a.slice().sort(function (x, y) {
+      return x - y;
+    });
+    var m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  /**
+   * Scan a stamp series in ROW ORDER for clock seams.
+   * @param {Array<number>} stamps floating wall-clock ms, as the file lists them
+   * @param {{minIntervals?:number,k?:number,minRun?:number,label?:string}} [opts]
+   * @returns {Object} the scan verdict; `ok:false` only when nothing was examined
+   */
+  function seamScan(stamps, opts) {
+    /* Read the options through ONE cast at the declaration, the idiom the type gate's own notes
+       prescribe (tsconfig.json //d2): casting each property access instead would rewrite lines a
+       source-text gate may be reading verbatim. */
+    var o = /** @type {any} */ (opts || {});
+    var label = o.label == null ? null : String(o.label);
+    var minIntervals = o.minIntervals > 0 ? o.minIntervals | 0 : CK_SEAM_MIN_INTERVALS;
+    var k = o.k > 0 ? +o.k : CK_SEAM_K;
+    var minRun = o.minRun >= 0 ? o.minRun | 0 : CK_SEAM_MIN_RUN;
+
+    /* A non-finite stamp is an ABSENT stamp (§∅) — it is skipped and COUNTED, so
+       a caller can see how much of the column never parsed. It is never read as
+       a zero, and it never joins the distribution. */
+    var t = [],
+      srcIdx = [],
+      skipped = 0;
+    var list = stamps && stamps.length ? stamps : [];
+    for (var i = 0; i < list.length; i++) {
+      var v = +list[i];
+      if (!isFinite(v)) {
+        skipped++;
+        continue;
+      }
+      t.push(v);
+      srcIdx.push(i);
+    }
+    if (t.length < CK_SEAM_MIN_STAMPS)
+      return { ok: false, reason: 'fewer than ' + CK_SEAM_MIN_STAMPS + ' parseable stamps — nothing to examine', n: 0, stamps: t.length, skipped: skipped, label: label };
+
+    // ── the intervals the file itself carries, in row order ──
+    var d = [],
+      at = [],
+      idx = [];
+    for (var j = 1; j < t.length; j++) {
+      d.push(t[j] - t[j - 1]);
+      at.push(t[j]);
+      idx.push(srcIdx[j]);
+    }
+    var n = d.length;
+
+    /* THE DISTRIBUTION comes from the FORWARD intervals only. A backward stamp is
+       the defect being hunted; letting it into the centre would widen the bar that
+       has to catch it. */
+    var fwd = [];
+    for (var f = 0; f < n; f++) if (d[f] > 0) fwd.push(d[f]);
+    var medianMs = null,
+      madMs = null,
+      barMs = null,
+      sigmaMs = null;
+    if (fwd.length >= minIntervals) {
+      medianMs = _med(fwd);
+      var dev = [];
+      for (var m = 0; m < fwd.length; m++) dev.push(Math.abs(fwd[m] - medianMs));
+      madMs = _med(dev);
+      sigmaMs = 1.4826 * madMs;
+      var floor = Math.abs(medianMs) * CK_SEAM_SIGMA_FLOOR_FRAC;
+      if (!(sigmaMs > floor)) sigmaMs = floor;
+      barMs = medianMs + k * sigmaMs;
+    }
+
+    /* IS THERE A CADENCE? The dominant interval, counted at ms resolution. Without
+       one there is no phase, so a forward gap cannot be classified (see the header). */
+    var tally = Object.create(null),
+      best = null,
+      bestN = 0;
+    for (var c = 0; c < fwd.length; c++) {
+      var key = String(Math.round(fwd[c]));
+      tally[key] = (tally[key] || 0) + 1;
+      if (tally[key] > bestN) {
+        bestN = tally[key];
+        best = +key;
+      }
+    }
+    var dominantShare = fwd.length ? bestN / fwd.length : null;
+    var regular = dominantShare != null && dominantShare >= CK_SEAM_REGULAR_SHARE;
+    var cadenceMs = regular ? best : null;
+    var forwardDecidable = !!(regular && barMs != null);
+    /* TWO DIFFERENT TOLERANCES, AND CONFLATING THEM COSTS POWER. `barMs` (median + k·sigma) decides
+       whether an interval is UNUSUAL for this file. The phase test asks a narrower question — does
+       this gap land on a whole number of cadences — and the answer only needs the file's own spread,
+       so its tolerance is ONE sigma, not k of them. Measured on the ring corpus (42 real nights,
+       2026-10-29): cadence 1000 ms on every night, sigma 50 ms, and ZERO gaps of any size, so the
+       narrower band costs nothing observed and cuts the blind share below from 0.60 to 0.10. */
+    var phaseTolMs = sigmaMs != null ? Math.max(sigmaMs, 1) : null;
+    /* THE BLIND SHARE (see the header). A forward step is caught only off-phase, and the band is
+       ±phaseTol around every cadence multiple, so this is the fraction of arbitrary forward steps
+       this file's own spread hides. `null` — never 0 — with no cadence to be in phase with. */
+    var forwardBlindShare = cadenceMs && phaseTolMs != null ? Math.min(1, +((2 * phaseTolMs) / cadenceMs).toFixed(4)) : null;
+
+    // ── in-bar runs, for the run-length test below ──
+    var inBar = [];
+    for (var b = 0; b < n; b++) inBar.push(barMs == null ? d[b] >= 0 : d[b] >= 0 && d[b] <= barMs);
+    function runBack(p) {
+      var r = 0;
+      for (var q = p - 1; q >= 0 && inBar[q]; q--) r++;
+      return r;
+    }
+    function runFwd(p) {
+      var r = 0;
+      for (var q = p + 1; q < n && inBar[q]; q++) r++;
+      return r;
+    }
+
+    /* The level each sample fell FROM: the running maximum over everything before it. A plain
+       previous-stamp comparison cannot serve, because the stamp before a re-ordered one is itself
+       inside the disordered patch. */
+    var runMaxBefore = [];
+    for (var rm = 0, hi = t[0]; rm < n; rm++) {
+      runMaxBefore.push(hi);
+      if (t[rm + 1] > hi) hi = t[rm + 1];
+    }
+    var seams = [],
+      dropouts = [],
+      reorders = [],
+      unsettled = [],
+      duplicates = 0;
+    for (var s = 0; s < n; s++) {
+      var gap = d[s];
+      if (gap < 0) {
+        /* ⚠️ A BACKWARD STAMP IS NOT AUTOMATICALLY A CLOCK STEP, and this module said it was until
+           the corpus answered. A host-stamped beat stream arrives in BLE packets, and the first
+           stamp of a packet can land one or two beats behind the last stamp of the one before:
+           measured 81 times in 252 329 real RR intervals, 1.2 s to 2.1 s backwards, EVERY ONE
+           recovering within 6 samples. Refusing those windows would refuse 11 of 18 real files for
+           a delivery artefact.
+           So the test is RECOVERY, which is run length again and needs no magnitude: a re-ordered
+           packet climbs back over the level it fell from almost at once, while a stepped clock stays
+           behind for its whole magnitude. A step that the file ENDS before resolving is `unsettled`,
+           never clean — nothing examined it (§∅). */
+        var recN = null;
+        for (var rq = s + 1; rq <= n && rq - s <= CK_SEAM_RECOVER_RUN; rq++) {
+          if (t[rq] > runMaxBefore[s]) {
+            recN = rq - s;
+            break;
+          }
+        }
+        if (recN != null) {
+          reorders.push({ idx: idx[s], atMs: at[s], deltaMs: gap, recoverN: recN });
+        } else if (s + CK_SEAM_RECOVER_RUN <= n) {
+          // A WHOLE recovery window was examined and the level never came back: that is a step.
+          seams.push({ idx: idx[s], atMs: at[s], deltaMs: gap, kind: 'back-step', residualMs: null, recoverN: null, runBefore: runBack(s), runAfter: runFwd(s) });
+        } else {
+          // The file ended first. Not clean, not a seam — unexamined, and it says so (§∅).
+          unsettled.push({ idx: idx[s], atMs: at[s], deltaMs: gap, reason: 'recovery-truncated', examined: n - s });
+        }
+        continue;
+      }
+      if (gap === 0) {
+        duplicates++;
+        continue;
+      }
+      if (barMs == null || gap <= barMs) continue;
+      if (!forwardDecidable) {
+        /* No cadence ⇒ no phase ⇒ this is reported as reduced coverage with an
+           UNKNOWN multiple, and `forwardDecidable:false` tells the reader a seam
+           could be hiding in it. `multiple: null`, never 1 (§∅). */
+        dropouts.push({ idx: idx[s], atMs: at[s], deltaMs: gap, multiple: null });
+        continue;
+      }
+      /* THE DISCRIMINATOR. Through a dropout the clock keeps ticking, so the gap
+         lands on a whole number of cadences. A step lands off-phase.
+         `cad`/`jit` are the same two numbers under a non-null name: the branch above returns for
+         every file without a cadence, so by here they are decided. */
+      var cad = /** @type {number} */ (cadenceMs),
+        jit = /** @type {number} */ (phaseTolMs);
+      var mult = Math.round(gap / cad);
+      var residual = Math.abs(gap - mult * cad);
+      if (residual <= jit) {
+        dropouts.push({ idx: idx[s], atMs: at[s], deltaMs: gap, multiple: mult });
+        continue;
+      }
+      var rb = runBack(s),
+        ra = runFwd(s);
+      if (Math.min(rb, ra) < minRun) {
+        unsettled.push({
+          idx: idx[s],
+          atMs: at[s],
+          deltaMs: gap,
+          residualMs: residual,
+          runBefore: rb,
+          runAfter: ra,
+          reason: 'off-phase gap with no established cadence on both sides (need ' + minRun + ')'
+        });
+        continue;
+      }
+      seams.push({ idx: idx[s], atMs: at[s], deltaMs: gap, kind: 'forward-jump', residualMs: residual, runBefore: rb, runAfter: ra });
+    }
+
+    return {
+      ok: true,
+      label: label,
+      n: n,
+      stamps: t.length,
+      skipped: skipped,
+      medianMs: medianMs,
+      madMs: madMs,
+      sigmaMs: sigmaMs,
+      barMs: barMs,
+      phaseTolMs: phaseTolMs,
+      cadenceMs: cadenceMs,
+      dominantShare: dominantShare,
+      regular: regular,
+      forwardDecidable: forwardDecidable,
+      forwardBlindShare: forwardBlindShare,
+      minRun: minRun,
+      seams: seams,
+      dropouts: dropouts,
+      reorders: reorders,
+      unsettled: unsettled,
+      duplicates: duplicates,
+      firstMs: t[0],
+      lastMs: t[t.length - 1]
+    };
+  }
+
+  /**
+   * Does ONE window still describe one continuous stretch of signal?
+   * `continuous` is `true`, `false`, or `null` when no scan examined the span —
+   * absence is never reported as a clean window (§∅).
+   *
+   * ⚠️ MEMBERSHIP IS THE TRANSITION, NOT THE STAMP. A seam sits BETWEEN two
+   * consecutive samples, and after a backward step the later sample carries the
+   * EARLIER wall-clock stamp — so a test asking whether the seam's own stamp
+   * falls inside the window misses every back-step the window spans (measured
+   * while writing this module: an RR series stepped back 90 s read `continuous`
+   * over the very window that contained the step). The test is therefore an
+   * overlap against the open interval between the two stamps, which also leaves
+   * a window ending exactly at the last pre-seam sample continuous, as it is.
+   * A caller that knows its ROW span should pass `opts.rows` instead: row
+   * indices cannot be reordered by a clock step.
+   *
+   * @param {Object|null} scan a `seamScan` result
+   * @param {number} startMs window start (exclusive of the stamp at startMs)
+   * @param {number} endMs window end (inclusive)
+   * @param {{rows?:{from:number,to:number}}} [opts] row-index membership instead
+   */
+  function windowVerdict(scan, startMs, endMs, opts) {
+    var spanMs = isFinite(startMs) && isFinite(endMs) ? endMs - startMs : null;
+    if (!scan || scan.ok !== true)
+      return { decided: false, continuous: null, reason: 'no-seam-scan', seams: [], dropoutMs: null, spanMs: spanMs, coveredMs: null, coveragePct: null, forwardDecidable: null };
+    if (spanMs == null)
+      return {
+        decided: false,
+        continuous: null,
+        reason: 'window has no finite bounds',
+        seams: [],
+        dropoutMs: null,
+        spanMs: null,
+        coveredMs: null,
+        coveragePct: null,
+        forwardDecidable: scan.forwardDecidable
+      };
+    var rows = opts && opts.rows && isFinite(opts.rows.from) && isFinite(opts.rows.to) ? opts.rows : null;
+    function spans(e) {
+      // ROW MODE: the transition sits between rows e.idx-1 and e.idx, so the window
+      // must hold both. WALL-CLOCK MODE: overlap against the open interval (lo, hi).
+      if (rows) return e.idx - 1 >= rows.from && e.idx <= rows.to;
+      var a = e.atMs,
+        b = e.atMs - e.deltaMs;
+      var lo = Math.min(a, b),
+        hi = Math.max(a, b);
+      return startMs < hi && lo < endMs;
+    }
+    var inside = [];
+    for (var i = 0; i < scan.seams.length; i++) if (spans(scan.seams[i])) inside.push(scan.seams[i]);
+    var dropoutMs = 0;
+    for (var j = 0; j < scan.dropouts.length; j++) {
+      var g = scan.dropouts[j];
+      /* ONE cadence of the gap is the sample that was due; the rest is uncovered
+         span. With no cadence nothing is subtracted, so the figure is the whole
+         gap and `forwardDecidable:false` travels beside it. */
+      if (spans(g)) dropoutMs += g.deltaMs - (scan.cadenceMs != null ? scan.cadenceMs : 0);
+    }
+    if (dropoutMs < 0) dropoutMs = 0;
+    if (spanMs >= 0 && dropoutMs > spanMs) dropoutMs = spanMs; // coverage never goes negative
+    var coveredMs = spanMs - dropoutMs;
+    return {
+      decided: true,
+      continuous: inside.length === 0,
+      // A refusing window carries the NAMED reason the ruling asks for, never a borrowed one.
+      reason: inside.length ? 'clock-seam' : null,
+      seams: inside,
+      dropoutMs: dropoutMs,
+      spanMs: spanMs,
+      coveredMs: coveredMs,
+      // Rounded because this number is EXPORTED — a float tail here is bytes nobody reads.
+      coveragePct: spanMs > 0 ? +((100 * coveredMs) / spanMs).toFixed(1) : null,
+      forwardDecidable: scan.forwardDecidable
+    };
+  }
+
+  /** The scan as it ships on a node export: counts and the bar that judged them. */
+  function seamSummary(scan) {
+    if (!scan || scan.ok !== true) return { scanned: false, reason: scan && scan.reason ? scan.reason : 'no-seam-scan', seams: null, dropouts: null, barMs: null, forwardDecidable: null };
+    return {
+      scanned: true,
+      reason: null,
+      n: scan.n,
+      seams: scan.seams.length,
+      dropouts: scan.dropouts.length,
+      reorders: scan.reorders.length,
+      unsettled: scan.unsettled.length,
+      medianMs: scan.medianMs,
+      madMs: scan.madMs,
+      barMs: scan.barMs,
+      cadenceMs: scan.cadenceMs,
+      dominantShare: scan.dominantShare,
+      forwardBlindShare: scan.forwardBlindShare,
+      forwardDecidable: scan.forwardDecidable
+    };
+  }
+
+  var API = {
+    seamScan: seamScan,
+    windowVerdict: windowVerdict,
+    seamSummary: seamSummary,
+    CK_SEAM_MIN_STAMPS: CK_SEAM_MIN_STAMPS,
+    CK_SEAM_MIN_INTERVALS: CK_SEAM_MIN_INTERVALS,
+    CK_SEAM_K: CK_SEAM_K,
+    CK_SEAM_SIGMA_FLOOR_FRAC: CK_SEAM_SIGMA_FLOOR_FRAC,
+    CK_SEAM_REGULAR_SHARE: CK_SEAM_REGULAR_SHARE,
+    CK_SEAM_MIN_RUN: CK_SEAM_MIN_RUN,
+    CK_SEAM_RECOVER_RUN: CK_SEAM_RECOVER_RUN
+  };
+  /* The IIFE argument is typed as a union by the gate, so the attach is cast once here — the same
+     move dex-coload.js and provenance-banner.js make, and the reason clock.js's lone error is left
+     alone (editing the spine churns every bundle's manifestHash). */
+  /** @type {any} */ (root).DexSeam = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+</script>
 <!-- ESM-MIGRATION Phase 4: namespaced load — the DSP attaches ONLY its namespace (no bare-global
      spray on this page); the UI modules import their DSP helpers explicitly (destructured from
      the namespace _bare surface). The spray still serves the non-namespaced classic realms
@@ -13708,6 +14164,30 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     _ckDMY = DexClock._ckDMY,
     parseTimestamp = DexClock.parseTimestamp,
     fileStamp = DexClock.fileStamp;
+  /* CLOCK-SEAM TRIPWIRE (clock-seam.js; Clock Contract §7, DEVICE-TIME-HANDLING-2026-10-29 §U3).
+     OxyDex detected no clock step until this unit, so a ring whose RTC jumped mid-night reached the
+     metrics as signal. Delegated by name, the way DexClock already is. */
+  /* ⚠️ ABSENCE-TOLERANT ON PURPOSE, AND NOT SILENTLY. Every bundle carrying this DSP inlines
+     `clock-seam.js`; a tool's `vm` realm may not. About twenty tools build a realm from their own
+     module literal, and a hard alias made each one a ReferenceError at load — measured 2026-10-29,
+     `cpap-oxy-couple.mjs` exited 1 over an empty root where it had exited 2. §👥.3 warns that a bare
+     guard turns that crash into silent disablement, so this fallback REFUSES instead: the scan carries
+     `reason:'seam-module-absent'` and the published summary reads `scanned:false` with null counts,
+     never a clean zero (§∅). The shape is the one `seamSummary` returns for any refused scan, and a
+     suite leg holds the two DSPs' fallbacks identical. */
+  var _DexSeamMod = typeof DexSeam !== 'undefined' ? DexSeam : null;
+  var _seamAbsentScan = function () {
+    return { ok: false, reason: 'seam-module-absent', n: 0, seams: [], dropouts: [], reorders: [], unsettled: [] };
+  };
+  var _seamAbsentSummary = function (s) {
+    return { scanned: false, reason: (s && s.reason) || 'seam-module-absent', seams: null, dropouts: null, barMs: null, forwardDecidable: null };
+  };
+  var _seamAbsentVerdict = function () {
+    return { decided: false, continuous: null, reason: 'seam-module-absent', seams: [] };
+  };
+  var seamScan = _DexSeamMod ? _DexSeamMod.seamScan : _seamAbsentScan,
+    seamSummary = _DexSeamMod ? _DexSeamMod.seamSummary : _seamAbsentSummary,
+    seamWindowVerdict = _DexSeamMod ? _DexSeamMod.windowVerdict : _seamAbsentVerdict;
   // Floating-ms date anchor (00:00) for a recording: filename 14-digit date, else
   // file.lastModified (as floating wall-clock), else null. Used for time-only rows.
   /* §F2 (DEEP-AUDIT-III-FOLLOWUPS) — VALIDATE THE COMPONENTS, and ANCHOR the regex. This surfaced as
@@ -16413,6 +16893,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var artifactsCleaned = cleanArtifactHR(rows); // then clean HR before any analysis
     var date = rows.length ? fmtDate(rows[0].t) : 'Unknown';
     var t0Ms = rows.length ? rows[0].tMs : null; // CLOCK-UNIFY per-recording anchor
+    /* THE TRIPWIRE RUNS ON EVERY NIGHT, not on suspicion — a step is only visible against the file's
+       own interval distribution, and that distribution exists only here. The scan itself judges
+       nothing about SpO₂; what it publishes is which windows no longer describe one continuous
+       stretch of signal (owner ruling 2026-09-17). */
+    var _seamStamps = [];
+    for (var _ssi = 0; _ssi < rows.length; _ssi++) _seamStamps.push(rows[_ssi] ? rows[_ssi].tMs : null);
+    var _seamScan = seamScan(_seamStamps, { label: 'oxydex' });
     var stats = computeStats(rows);
     stats.artifactHrCleaned = artifactsCleaned;
     // EXPORT-INVARIANCE (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2): attach the trim counts ONLY when a trim
@@ -16820,6 +17307,35 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // node-relative grid). Feeds the Integrator HR-hat 3rd corner + a 2nd per-epoch motion series for
     // the correlated-TCH ρ (only PpgDex had one). Additive; empty when rows/t0Ms are absent.
     night_obj.tchEpochs = oxyBuildEpochSeries(rows, t0Ms);
+    /* THE SCAN SHIPS WHETHER OR NOT IT FOUND ANYTHING (§∅). A reader cannot tell "scanned, clean"
+       from "no tripwire here" unless the clean case says so, so the summary is unconditional and
+       moves every night's export bytes once — the detail lists are conditional, as `clockResyncs`
+       already is in ECGDex. */
+    night_obj.clockSeamScan = seamSummary(_seamScan);
+    /* AN EPOCH SPLIT BY A SEAM IS NOT A FIVE-MINUTE WINDOW (owner ruling 2026-09-17: a discontinuity
+       refuses, reduced coverage annotates). It publishes NO value and is listed with its reason
+       instead: a null `hr` here would be read as "the device reported nothing", which is the
+       absence this ruling exists to keep apart, and a nulled field inside the series would reach
+       `medianOf` in every consumer that averages it. A dropout keeps its epoch untouched. */
+    var _seamRefusals = [];
+    if (_seamScan.ok && _seamScan.seams.length) {
+      night_obj.clockSeams = _seamScan.seams;
+      if (Array.isArray(night_obj.tchEpochs) && night_obj.tchEpochs.length && t0Ms != null) {
+        var _keptEpochs = [];
+        for (var _eI = 0; _eI < night_obj.tchEpochs.length; _eI++) {
+          var _ep = night_obj.tchEpochs[_eI];
+          var _epStart = t0Ms + _ep.tMin * 60000;
+          var _epV = seamWindowVerdict(_seamScan, _epStart, _epStart + 300000);
+          if (_epV.continuous === false) {
+            _seamRefusals.push({ series: 'tchEpochs', tMin: _ep.tMin, reason: 'clock-seam', seams: _epV.seams.length });
+            continue;
+          }
+          _keptEpochs.push(_ep);
+        }
+        night_obj.tchEpochs = _keptEpochs;
+      }
+    }
+    if (_seamRefusals.length) night_obj.clockSeamRefusals = _seamRefusals;
     // The oximeter's primary signal at its recorded rate — see oxyBuildSpo2Series. Additive; null
     // when rows/t0Ms are absent, so a consumer can distinguish "no field" from "no usable SpO2".
     night_obj.spo2Series = oxyBuildSpo2Series(rows, t0Ms, 'spo2');
@@ -21780,6 +22296,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     return {
       date: n.date,
       t0Ms: n.t0Ms != null ? n.t0Ms : null,
+      // The tripwire's own verdict travels with the night (DEVICE-TIME-HANDLING §U3); the two detail
+      // lists only when a seam fired, so a clean night's bytes carry one small object, not three.
+      clockSeamScan: n.clockSeamScan || null,
+      ...(Array.isArray(n.clockSeams) && n.clockSeams.length ? { clockSeams: n.clockSeams } : {}),
+      ...(Array.isArray(n.clockSeamRefusals) && n.clockSeamRefusals.length ? { clockSeamRefusals: n.clockSeamRefusals } : {}),
       contentId: n.contentId != null ? n.contentId : null,
       file: n.fname,
       provenance: _prov,
