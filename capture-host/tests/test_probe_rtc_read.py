@@ -16,6 +16,7 @@ import asyncio
 
 import oxyii
 import probe_rtc_read as probe
+from _srcscan import module_source
 from probe_rtc_read import diff
 
 
@@ -172,7 +173,7 @@ def test_d_ask_loops_past_a_nonmatching_frame(monkeypatch, capsys):
 
 
 def test_module_has_a_cli_guard():
-    src = open(probe.__file__).read()
+    src = module_source("probe_rtc_read.py")
     assert 'if __name__ == "__main__":' in src
     assert "require_free_link()" in src  # the daemon-stop guard runs before any connect, in the entry
 

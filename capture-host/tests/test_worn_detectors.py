@@ -34,6 +34,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import telemetry  # noqa: E402
+from _srcscan import module_source  # noqa: E402
 
 WORN_SD = [1000.0 + (i % 3) * 8.0 for i in range(400)]  # SD ~3.3 — deep under 72
 DESK_SD = [1000.0 + (i % 7) * 900.0 for i in range(400)]  # SD ~2200 — far above 72
@@ -374,7 +375,7 @@ def test_every_detector_name_the_combiner_can_emit_is_mapped_to_a_source():
     pieces of evidence where there is one."""
     import re
 
-    src = open(telemetry.__file__, encoding="utf-8").read()
+    src = module_source("telemetry.py")
     body = src[src.index("def worn_verdict(") :]
     body = body[: body.index("\ndef ", 1)]
     emitted = set(re.findall(r'votes\.append\(\("([a-z-]+)"', body))

@@ -11,6 +11,7 @@
 import json
 
 import night_report as nr
+from _srcscan import module_source
 
 REAL_DEVICES = [
     {
@@ -207,7 +208,7 @@ def test_read_night_takes_the_NEWEST_verdict_and_renders_the_file(tmp_path):
 def test_no_function_here_accepts_or_returns_the_webhook_url():
     """The URL carries a token. This module builds TEXT and never touches delivery, so no future edit
     can leak the secret through the report file — `alerts.Notifier` owns the URL and never logs it."""
-    src = open(nr.__file__, encoding="utf-8").read()
+    src = module_source("night_report.py")
     for forbidden in ("webhook_url", "requests.post", "urlopen", "ntfy"):
         assert forbidden not in src, f"{forbidden} must not appear in the report builder"
 

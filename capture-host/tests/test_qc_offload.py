@@ -14,6 +14,7 @@ import re
 import pytest
 
 import capture
+from _srcscan import module_source
 from tests import _qc_child_target
 
 
@@ -73,7 +74,7 @@ def test_a_dead_worker_propagates_its_error_and_the_pool_is_still_shut_down(monk
 
 
 def test_the_poller_hands_summarize_to_the_child_and_not_to_a_thread():
-    src = open(capture.__file__).read()
+    src = module_source("capture.py")
     assert "await _qc_offload(\n                qc_child.scan_night," in src
     assert "to_thread(nightqc.summarize" not in src
     assert 'summ["isolation"] = _QC_ISOLATION' in src, "the path taken travels on the summary, which is READ"
@@ -85,7 +86,7 @@ def test_every_heavy_night_call_is_handed_to_the_child_and_none_of_them_to_a_thr
     retention `mallinfo2` cannot see, `write_night` and `solid_night.write_night` +311..+605 MB of peak
     per night that the daemon then keeps. A `to_thread` on any of them is the defect coming back, and it
     comes back by someone restoring one line — which is why this reads the source."""
-    src = open(capture.__file__).read()
+    src = module_source("capture.py")
     for heavy in ("loss_audit.wear_by_device", "loss_audit.write_night", "solid_night.write_night"):
         assert f"to_thread({heavy}" not in src, heavy
         assert f"to_thread(\n            {heavy}" not in src, heavy

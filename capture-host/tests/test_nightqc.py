@@ -4367,9 +4367,9 @@ def test_the_wear_scan_rides_the_summary_s_child_and_never_gets_a_SECOND_one(tmp
     directly, and exactly two offload call sites in the file — one per poller.
 
     The join stays in the parent, because it is pure and reads no file."""
-    import capture
+    from _srcscan import module_source
 
-    src = open(capture.__file__).read()
+    src = module_source("capture.py")
     assert "_qc_offload(loss_audit" not in src, "the wear scan must NOT get a child of its own"
     assert "to_thread(loss_audit.wear_by_device" not in src, "nor a thread: it rides the summary's child"
     assert src.count("await _qc_offload(") == 2, "one offload per poller — a third is a second child per poll"

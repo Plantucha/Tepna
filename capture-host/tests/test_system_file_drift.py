@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import nightqc  # noqa: E402
+from _srcscan import module_source  # noqa: E402
 
 
 class _Done:
@@ -96,7 +97,7 @@ def test_it_does_NOT_feed_the_ok_verdict():
     """A drifted deploy file is an operator action, not a bad night's capture. QC already returns
     ok=false on ~10 of 11 nights for a benign doffing gap; another axis in an alarm nobody reads is
     worth nothing. Pinned by source so the coupling cannot be added quietly."""
-    src = open(nightqc.__file__, encoding="utf-8").read()
+    src = module_source("nightqc.py")
     ok_line = [l for l in src.splitlines() if l.strip().startswith('"ok":')]
     assert ok_line, "the ok verdict moved; re-point this test"
     assert "system_files" not in " ".join(ok_line)

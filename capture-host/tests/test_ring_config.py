@@ -11,6 +11,7 @@ import asyncio
 
 import oxyii
 import ring_config as rc
+from _srcscan import module_source
 from ring_config import judge_write, struct_diff
 
 
@@ -200,7 +201,7 @@ def test_set_refuses_to_write_blind(monkeypatch, capsys):
 
 
 def test_module_has_a_cli_guard():
-    src = open(rc.__file__).read()
+    src = module_source("ring_config.py")
     assert 'if __name__ == "__main__":' in src
     assert "require_free_link()" in src
 

@@ -13,6 +13,7 @@ import asyncio
 
 import oxyii
 import probe_buzz_fiducial as probe
+from _srcscan import module_source
 from probe_buzz_fiducial import back_time, locate_artifact
 
 
@@ -193,7 +194,7 @@ def test_the_only_device_state_writes_are_whitelisted(tmp_path, monkeypatch):
 
 
 def test_module_has_a_cli_guard():
-    src = open(probe.__file__).read()
+    src = module_source("probe_buzz_fiducial.py")
     assert 'if __name__ == "__main__":' in src
     assert "require_free_link()" in src
 

@@ -18,6 +18,7 @@ import os
 import pytest
 
 import writers
+from _srcscan import module_source
 from writers import (
     HELD_CONFIRM_WINDOWS,
     HELD_EXIT_SHARE,
@@ -239,7 +240,7 @@ def test_clip_and_collapse_are_NOT_computed_live(tmp_path):
     ring's 199-clip is not an encoding extreme (so "at the range extreme" is a whole-night property),
     and collapse needs a running median — O(window) per sample on the BLE notification path, where
     the failure mode is dropped notifications, i.e. losing the recording to describe it better."""
-    src = open(writers.__file__).read()
+    src = module_source("writers.py")
     body = src[src.index("class _RunSidecar") : src.index("class StreamWriter")]
     assert "median" not in body
     assert '"clip"' not in body and "'clip'" not in body
