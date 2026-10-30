@@ -126,6 +126,10 @@
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
+<!-- clock-seam.js: the clock-seam tripwire the OxyDex/PulseDex/HRVDex DSPs alias as DexSeam
+     at module evaluation. An absent block is a ReferenceError, not a fallback. -->
+<script data-inline-src="clock-seam.js">
+</script>
 <script data-inline-src="clock.js">
 /*
  * clock.js — Tepna

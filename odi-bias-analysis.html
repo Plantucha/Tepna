@@ -263,6 +263,10 @@
 <!-- clock.js MUST precede any delegating *-dsp.js: oxydex-dsp.js aliases DexClock.parseTimestamp
      at load (CLAUDE.md §Clock Contract, A5). Without it the page threw
      "DexClock is not defined" at oxydex-dsp.js:171 and the OxyDex path never came up. -->
+<!-- clock-seam.js: the clock-seam tripwire the OxyDex/PulseDex/HRVDex DSPs alias as DexSeam
+     at module evaluation. An absent block is a ReferenceError, not a fallback. -->
+<script data-inline-src="clock-seam.js">
+</script>
 <script data-inline-src="clock.js">
 /*
  * clock.js — Tepna

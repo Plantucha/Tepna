@@ -243,6 +243,30 @@
     _ckDMY = DexClock._ckDMY,
     parseTimestamp = DexClock.parseTimestamp,
     fileStamp = DexClock.fileStamp;
+  /* CLOCK-SEAM TRIPWIRE (clock-seam.js; Clock Contract §7, DEVICE-TIME-HANDLING-2026-10-29 §U3).
+     OxyDex detected no clock step until this unit, so a ring whose RTC jumped mid-night reached the
+     metrics as signal. Delegated by name, the way DexClock already is. */
+  /* ⚠️ ABSENCE-TOLERANT ON PURPOSE, AND NOT SILENTLY. Every bundle carrying this DSP inlines
+     `clock-seam.js`; a tool's `vm` realm may not. About twenty tools build a realm from their own
+     module literal, and a hard alias made each one a ReferenceError at load — measured 2026-10-29,
+     `cpap-oxy-couple.mjs` exited 1 over an empty root where it had exited 2. §👥.3 warns that a bare
+     guard turns that crash into silent disablement, so this fallback REFUSES instead: the scan carries
+     `reason:'seam-module-absent'` and the published summary reads `scanned:false` with null counts,
+     never a clean zero (§∅). The shape is the one `seamSummary` returns for any refused scan, and a
+     suite leg holds the two DSPs' fallbacks identical. */
+  var _DexSeamMod = typeof DexSeam !== 'undefined' ? DexSeam : null;
+  var _seamAbsentScan = function () {
+    return { ok: false, reason: 'seam-module-absent', n: 0, seams: [], dropouts: [], reorders: [], unsettled: [] };
+  };
+  var _seamAbsentSummary = function (s) {
+    return { scanned: false, reason: (s && s.reason) || 'seam-module-absent', seams: null, dropouts: null, barMs: null, forwardDecidable: null };
+  };
+  var _seamAbsentVerdict = function () {
+    return { decided: false, continuous: null, reason: 'seam-module-absent', seams: [] };
+  };
+  var seamScan = _DexSeamMod ? _DexSeamMod.seamScan : _seamAbsentScan,
+    seamSummary = _DexSeamMod ? _DexSeamMod.seamSummary : _seamAbsentSummary,
+    seamWindowVerdict = _DexSeamMod ? _DexSeamMod.windowVerdict : _seamAbsentVerdict;
   // Floating-ms date anchor (00:00) for a recording: filename 14-digit date, else
   // file.lastModified (as floating wall-clock), else null. Used for time-only rows.
   /* §F2 (DEEP-AUDIT-III-FOLLOWUPS) — VALIDATE THE COMPONENTS, and ANCHOR the regex. This surfaced as
@@ -2948,6 +2972,13 @@
     var artifactsCleaned = cleanArtifactHR(rows); // then clean HR before any analysis
     var date = rows.length ? fmtDate(rows[0].t) : 'Unknown';
     var t0Ms = rows.length ? rows[0].tMs : null; // CLOCK-UNIFY per-recording anchor
+    /* THE TRIPWIRE RUNS ON EVERY NIGHT, not on suspicion — a step is only visible against the file's
+       own interval distribution, and that distribution exists only here. The scan itself judges
+       nothing about SpO₂; what it publishes is which windows no longer describe one continuous
+       stretch of signal (owner ruling 2026-09-17). */
+    var _seamStamps = [];
+    for (var _ssi = 0; _ssi < rows.length; _ssi++) _seamStamps.push(rows[_ssi] ? rows[_ssi].tMs : null);
+    var _seamScan = seamScan(_seamStamps, { label: 'oxydex' });
     var stats = computeStats(rows);
     stats.artifactHrCleaned = artifactsCleaned;
     // EXPORT-INVARIANCE (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2): attach the trim counts ONLY when a trim
@@ -3355,6 +3386,35 @@
     // node-relative grid). Feeds the Integrator HR-hat 3rd corner + a 2nd per-epoch motion series for
     // the correlated-TCH ρ (only PpgDex had one). Additive; empty when rows/t0Ms are absent.
     night_obj.tchEpochs = oxyBuildEpochSeries(rows, t0Ms);
+    /* THE SCAN SHIPS WHETHER OR NOT IT FOUND ANYTHING (§∅). A reader cannot tell "scanned, clean"
+       from "no tripwire here" unless the clean case says so, so the summary is unconditional and
+       moves every night's export bytes once — the detail lists are conditional, as `clockResyncs`
+       already is in ECGDex. */
+    night_obj.clockSeamScan = seamSummary(_seamScan);
+    /* AN EPOCH SPLIT BY A SEAM IS NOT A FIVE-MINUTE WINDOW (owner ruling 2026-09-17: a discontinuity
+       refuses, reduced coverage annotates). It publishes NO value and is listed with its reason
+       instead: a null `hr` here would be read as "the device reported nothing", which is the
+       absence this ruling exists to keep apart, and a nulled field inside the series would reach
+       `medianOf` in every consumer that averages it. A dropout keeps its epoch untouched. */
+    var _seamRefusals = [];
+    if (_seamScan.ok && _seamScan.seams.length) {
+      night_obj.clockSeams = _seamScan.seams;
+      if (Array.isArray(night_obj.tchEpochs) && night_obj.tchEpochs.length && t0Ms != null) {
+        var _keptEpochs = [];
+        for (var _eI = 0; _eI < night_obj.tchEpochs.length; _eI++) {
+          var _ep = night_obj.tchEpochs[_eI];
+          var _epStart = t0Ms + _ep.tMin * 60000;
+          var _epV = seamWindowVerdict(_seamScan, _epStart, _epStart + 300000);
+          if (_epV.continuous === false) {
+            _seamRefusals.push({ series: 'tchEpochs', tMin: _ep.tMin, reason: 'clock-seam', seams: _epV.seams.length });
+            continue;
+          }
+          _keptEpochs.push(_ep);
+        }
+        night_obj.tchEpochs = _keptEpochs;
+      }
+    }
+    if (_seamRefusals.length) night_obj.clockSeamRefusals = _seamRefusals;
     // The oximeter's primary signal at its recorded rate — see oxyBuildSpo2Series. Additive; null
     // when rows/t0Ms are absent, so a consumer can distinguish "no field" from "no usable SpO2".
     night_obj.spo2Series = oxyBuildSpo2Series(rows, t0Ms, 'spo2');
@@ -8315,6 +8375,11 @@
     return {
       date: n.date,
       t0Ms: n.t0Ms != null ? n.t0Ms : null,
+      // The tripwire's own verdict travels with the night (DEVICE-TIME-HANDLING §U3); the two detail
+      // lists only when a seam fired, so a clean night's bytes carry one small object, not three.
+      clockSeamScan: n.clockSeamScan || null,
+      ...(Array.isArray(n.clockSeams) && n.clockSeams.length ? { clockSeams: n.clockSeams } : {}),
+      ...(Array.isArray(n.clockSeamRefusals) && n.clockSeamRefusals.length ? { clockSeamRefusals: n.clockSeamRefusals } : {}),
       contentId: n.contentId != null ? n.contentId : null,
       file: n.fname,
       provenance: _prov,
