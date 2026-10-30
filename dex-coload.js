@@ -35,7 +35,7 @@
        browser-gates caught it as "real OxyDex stack loaded + ran in worker — escapeHTML is not
        defined". Bundles (#3426) and tool realms (#3437) were the first two places the same
        absence lived; the worker is the third. It depends on nothing, so it loads first. */
-    shared: ['dex-escape.js', 'clock.js'],
+    shared: ['dex-escape.js', 'clock.js', 'clock-seam.js'],
     // vendor adapters (self-register on load; order = registration order, drift-bait).
     // Load AFTER signal-adapters.js; the parser they wrap is resolved lazily in parse(),
     // so they may load before the DSP (mirrors the existing host ordering).
@@ -68,6 +68,7 @@
     //    by the render-coverage rigs + CpapEdf.selfTest + the equivalence goldens.)
     nodeModules: [
       { file: 'clock.js', global: 'DexClock' },
+      { file: 'clock-seam.js', global: 'DexSeam' },
       { file: 'ecgdex-cross.js', global: 'ECGCross' },
       { file: 'oxydex-cross.js', global: 'OXYCross' },
       { file: 'pulsedex-cross.js', global: 'PulseCross' },

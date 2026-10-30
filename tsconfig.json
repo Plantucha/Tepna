@@ -39,6 +39,7 @@
     "adapters/resmed-edf.js",
     "adapters/polar-acc.js",
     "kernel-constants.js",
+    "clock-seam.js",
     "event-coupling.js",
     "dex-coload.js",
     "provenance-banner.js",
