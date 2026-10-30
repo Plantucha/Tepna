@@ -1314,6 +1314,18 @@
    },
    "note": "wave-2 adopter (Magpie): the decision is the --baseline RATCHET \u2014 gateVerdict(): PASS 0 newly pseudo-tested functions vs tools/pseudo-tested-baseline.json \u00b7 FAIL names the new ones \u00b7 NOT_APPLICABLE file absent from the baseline (unmeasured, deliberately not gated) \u00b7 UNKNOWN canary survived \u00b7 population = function bodies scored, excluded = declined (trivial / no operator / not reached). Emitted at every --baseline exit (--json prints it); the pseudo-tested COUNT itself is a measurement, not the gate. Sample = a synthetic ratchet through the real decision, no git."
   },
+  "tools/flag-exit-drive.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/flag-exit-drive.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the coverage half of tools/flag-exit-scan.mjs, which names the SHAPE and declares `covered` a spawn-grep LOWER bound. Residue 2026-10-30-thirteen-health-flags-exit-above-module-work-nothing-drives logged the gap. Each recipe is pre-stated \u2014 argv, expected exit code, and a MARKER string whose only home in the source lies BELOW the census risk line. A child exiting 0 proves nothing, because the flag guard exits 0 too; the marker is what places execution past the statement the flag skips. The risk line comes from flagExitShape, never from a constant here, so the census and the drive cannot drift. Four risk statements sit inside a top-level block, and those recipes owe an `enters` predicate: aperiodic-method-compare reads its file only inside the --grids sweep. Population is the 11 health-claiming census tools that no test spawned on 2026-10-30: 8 driven, 3 excluded with a measured reason (a 90 s bare run with no output, an append into another lane's mutation state, and a usage exit that sits above the risk). The excluded three appear as SLUGS, because spawnedTools() credits coverage to any tools/<name>.mjs string in a file that spawns, and a mention would hand them a false green. A selftest leg asserts that asymmetry. A child that hits the 60 s cap is UNEXAMINED and the gate exits 2, never FAIL (CLAUDE.md section 4c). The parser is optional through createRequire, so a lane with no node_modules gets NOT_RUN rather than a clean read."
+  },
   "tools/flag-exit-scan.mjs": {
    "bin": "decides",
    "status": "adopted",
