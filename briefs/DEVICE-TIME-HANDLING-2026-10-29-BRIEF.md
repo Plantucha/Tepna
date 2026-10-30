@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-29 (O1 done; U2 measuring; U3, U5 claimed; U6 waits for the owner) · **Created:** 2026-10-29
+**Status:** IN-PROGRESS — 2026-10-29 (O1 and U5 done; U2 measuring; U3 claimed; U6 waits for the owner) · **Created:** 2026-10-29
 
 # Brief — better time handling on every device
 
@@ -105,14 +105,17 @@ Search: `shared timing block export timingSource independent` → `O2RING-PHASE4
 `RADIO-CLOCK-SIDECAR-2026-09-07` §timingSource, `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01`.
 
 - Each node reshapes the host-axis block twice by hand, field by field (Heron, unit 129).
-- One `clock.js` function fills `timingSource`, `independent`, anchor count, `spanMs`, `ppm`,
-  `spanPpm`, resyncs and seams.
+- One function fills `timingSource`, `independent`, anchor count, `spanMs`, `ppm`, `spanPpm`,
+  resyncs and seams.
 - A node with no second clock writes `timingSource:'device-only'` and `independent:false`, not silence.
-- `clock.js` sits in 6 of 8 bundles since O1. A node without it (GlucoDex, CPAPDex) needs a node-local
-  emitter of the same shape. CLAUDE.md §👥.3: announce, land before node-local work.
+- **Built in `dex-export.js`, not `clock.js`.** `clock.js` sits in 6 of 8 bundles even after O1, so a
+  spine-hosted builder would still owe GlucoDex and CPAPDex a hand-written twin — and those are exactly
+  the two nodes with no host column, whose block is all absence. `dex-export.js` is inlined in 9 of 9
+  bundles and already hosts `coverageFromSegments`, so no node-local emitter exists anywhere. The block
+  CONSUMES a `hostAxis` result and never produces one, which is why it does not need the spine.
 
-- [ ] Shape documented in `docs/EXPORT-SHAPES.md`
-- [ ] Every node-export carries the block; a parity group asserts one shape across nodes
+- [x] Shape documented in `docs/EXPORT-SHAPES.md`
+- [x] Every node-export carries the block; a parity group asserts one shape across nodes
 
 ### U6 · Radio-anchor spread measured on the box — **Wren**
 
@@ -137,7 +140,7 @@ ingest re-anchor carried as #1956's follow-up).
 
 | unit | bird | touches | order |
 |---|---|---|---|
-| U5 | Magpie | `clock.js` (spine, 5 bundles) | 1st, alone |
+| U5 | Magpie | `dex-export.js` (spine, 9 bundles) | 1st, alone — DONE |
 | U3 | Osprey | `oxydex-dsp.js`, `pulsedex-dsp.js`, `hrvdex-dsp.js` | any time; rebase after U5 |
 | U2 | Heron | `ppgdex-dsp.js` | measurement now; code after U1 |
 | U1 | Kestrel | `ppgdex-dsp.js`, `tools/trio-batch.mjs` | after the retest scores |

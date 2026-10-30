@@ -20,6 +20,17 @@
     "events": 0,
     "site": "wrist",
     "siteSource": "device-default",
+    "timing": {
+      "timingSource": "device",
+      "independent": false,
+      "anchors": 9,
+      "spanMs": 39622.222222,
+      "ppm": -7.478025799256342,
+      "spanPpm": -5.608519349359048,
+      "resyncs": 0,
+      "seams": 0,
+      "reason": null
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 40,
@@ -60,8 +71,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "0ee0a9d6297c",
-        "computeHash": "887568c0cc77"
+        "manifestHash": "ad936becdaae",
+        "computeHash": "fc0890b82752"
       },
       "evidence": {
         "envelopeRef": null,
@@ -90,8 +101,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "0ee0a9d6297c",
-        "computeHash": "887568c0cc77"
+        "manifestHash": "ad936becdaae",
+        "computeHash": "fc0890b82752"
       },
       "evidence": {
         "envelopeRef": null,

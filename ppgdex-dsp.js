@@ -6730,7 +6730,19 @@
         /* 'device-default' = inferred from the optical layout, NOT observed. On this deployment the
            Verity is ankle-worn and defaults to 'wrist', so a morphology tier justified by wrist
            literature is unearned wherever this reads 'device-default'. */
-        siteSource: r.siteSource || 'device-default'
+        siteSource: r.siteSource || 'device-default',
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). PpgDex owns the lattice this builder's derivation was taken from
+           (`:1709`), so it passes its own `timingSource` and the builder validates it. `|| []` keeps
+           "looked, found no resync" apart from "does not look" — the key is written only when non-empty.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing:
+          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
+            ? DexExport.timingBlock({ hostAxis: r.hostAxis, timingSource: r.timingSource, drawn: r.axisDrawn, resyncs: r.clockResyncs || [] })
+            : null
       },
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' },

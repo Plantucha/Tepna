@@ -1584,7 +1584,15 @@
         longRecording: r.longRec,
         windows: r.windows ? r.windows.length : 0,
         beats: r.N,
-        coveragePct: r.coverage
+        coveragePct: r.coverage,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). An RR stream is a list of intervals with one device clock behind
+           it and no host stamp column, so there is no second clock to discipline the rate against.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       hrv: {
         time: {

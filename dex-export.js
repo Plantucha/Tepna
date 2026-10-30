@@ -246,7 +246,140 @@
     return _scrubWith(root.ExportSchema, envelope);
   }
 
-  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport, _scrubWith: _scrubWith, coverageFromSegments: coverageFromSegments };
+  /* ── THE SHARED TIMING BLOCK — `recording.timing` on every node-export ──────────────────────────
+     (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5.)
+
+     Each node reshaped the host-axis verdict BY HAND, field by field, and the two that do it most
+     (`ecgdex-dsp.js`, `ppgdex-dsp.js`) carry comments recording what that cost: `stability` computed
+     in `clock.js` and dropped one layer down, `independent`/`spreadMs` discarded a line after they
+     were computed, `tau0`/`noiseType` read back off names the spine never wrote. A reshape drops
+     whatever it does not name. Five nodes named nothing at all — OxyDex, PulseDex, HRVDex, GlucoDex
+     and CPAPDex publish no timing provenance, so a consumer cannot tell "one clock" from "nobody
+     looked", and those are different facts.
+
+     This is the ONE builder. Nine keys, always all nine, in this order, whatever the node:
+
+       timingSource  'device+host' | 'host' | 'device' | 'device-only' | 'none'
+       independent   true | false | null  — Clock Contract §7: was the host column a SECOND clock?
+       anchors       int | null           — host↔device anchor pairs the axis was built from
+       spanMs        number | null        — the span the `ppm` below was measured over
+       ppm           number | null        — the smoothed divergence rate
+       spanPpm       number | null        — the same ratio BEFORE the running median
+       resyncs       int | null           — device-clock resync steps detected
+       seams         int | null           — discontinuities in the PUBLISHED axis
+       reason        string | null        — why any of the above is null; null only when none is
+
+     WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
+     of 8 app bundles, and therefore planned a node-local twin for PpgDex, GlucoDex and CPAPDex —
+     three hand-written copies of the shape this function exists to stop being hand-written.
+     `dex-export.js` is carried by 9 of 9 bundles, so the same code reaches every node with no twin.
+     This block CONSUMES a `DexClock.hostAxis` result and never produces one, so it needs the spine
+     present no more than `coverageFromSegments` above does.
+
+     ∅ ABSENCE IS NULL. A node with no host stamp column writes `timingSource:'device-only'` and
+     `independent:false` — a measured fact about its input format, not silence — while every number it
+     could not measure stays `null` beside a sentence naming WHY. A node that does not look for
+     resyncs writes `null`, never `0`: nobody looked is not none found.
+
+     `'device-only'` IS NOT `'device'`. `'device'` means a host column was there and carried nothing
+     the device column did not already have (`independent:false` — the whole phone-captured tree).
+     `'device-only'` means there was no host column to read at all. A consumer sizing a capture path,
+     or picking clock legs for a three-cornered hat, has to tell those two apart.
+
+     A node that already owns a provenance lattice (ECGDex, PpgDex) passes its own `timingSource` and
+     this function VALIDATES rather than re-derives it, so no committed export changes meaning. The
+     derivation below serves the nodes that had none. It routes an UNMEASURED `drawn` verdict to
+     `'host'`, never to `'device+host'`: the top tier claims a real second clock disciplined the
+     recording, and "we never measured whether the device column is a clock" may not reach it.
+     Under-claiming is the honest failure (PpgDex's arm at `ppgdex-dsp.js:1709`, verbatim).
+
+     `seams` BESIDE `resyncs`, THOUGH TODAY THEY AGREE. Every node that detects a seam detects it AS a
+     counter step (`ppgdex-dsp.js:5343` defines `clockSeam` as `!!clockResyncs.length`), so a node that
+     declares no seams of its own gets the resync count here. The key is still its own, because a seam
+     is a fact about the PUBLISHED axis — a node can refuse over a data gap that no counter step marks
+     — and a consumer must not have to know which node is which to read it. */
+  var TIMING_SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
+
+  function _tbNum(v) {
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+  // A count, or `null`. Never a `0` standing in for an absent measurement: an empty ARRAY is a node
+  // that looked and found none, `null`/`undefined` is a node that did not look, and the two differ.
+  function _tbCount(v) {
+    if (v == null) return null;
+    if (Array.isArray(v)) return v.length;
+    if (typeof v === 'boolean') return null; // a boolean is a verdict, not a count — do not coerce it
+    return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null;
+  }
+
+  function timingBlock(opts) {
+    opts = opts || {};
+    var ax = opts.hostAxis || null;
+    var ok = !!(ax && ax.ok);
+    /* THE PROVENANCE TEST, READ FROM THE PRODUCER. `independent` compares the host column against the
+       device column, so a counter synthesised as `index x an assumed rate` reads MORE independent the
+       coarser the fabrication, and a consumer that decides on `independent` alone has no provenance
+       test at all. `clock.js` publishes `deviceDrawn` beside it for exactly that reason. A node that
+       already owns the verdict passes it here; a node that passes nothing gets the axis's own
+       `deviceDrawn` rather than a bare `independent`, and an axis that publishes neither leaves this
+       null, which under-claims to `host` below. */
+    var drawn = opts.drawn !== undefined ? opts.drawn : ax && ax.deviceDrawn !== undefined ? ax.deviceDrawn : null;
+    var why = [];
+
+    var src;
+    if (typeof opts.timingSource === 'string' && TIMING_SOURCES.indexOf(opts.timingSource) >= 0) {
+      src = opts.timingSource;
+    } else if (!ax) {
+      src = 'device-only';
+    } else if (!ok) {
+      // Refused. A device column measured to be real still carries the recording; a drawn or
+      // unmeasured one leaves nothing, and `pat-gate.js` refuses on exactly that value.
+      src = drawn === false ? 'device' : 'none';
+    } else if (drawn !== false) {
+      src = 'host';
+    } else {
+      src = ax.independent === false ? 'device' : 'device+host';
+    }
+
+    var independent;
+    if (!ax)
+      independent = false; // no host column ⇒ measured: there is no second clock here
+    else if (ok && ax.independent != null) independent = ax.independent === true;
+    else independent = null;
+
+    if (!ax) why.push('no host stamp column on this input, so there is no second clock to discipline the device rate against');
+    else if (!ok) why.push('the host axis refused: ' + (ax.reason || 'the spine named no reason'));
+    else if (ax.independent == null) why.push('the host axis published no independence verdict');
+
+    var resyncs = _tbCount(opts.resyncs);
+    var seams = _tbCount(opts.seams);
+    if (seams == null) seams = resyncs; // every seam detected today IS a counter step — see above
+    // One clause for both, because `seams` can only be null when `resyncs` is: a node that counts
+    // steps and declares no seams of its own inherits the step count one line up.
+    if (resyncs == null) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+
+    return {
+      timingSource: src,
+      independent: independent,
+      anchors: ok ? _tbCount(ax.n != null ? ax.n : ax.anchors) : null,
+      spanMs: ok ? _tbNum(ax.spanMs) : null,
+      ppm: ok ? _tbNum(ax.ppm) : null,
+      spanPpm: ok ? _tbNum(ax.spanPpm) : null,
+      resyncs: resyncs,
+      seams: seams,
+      reason: why.length ? why.join('; ') : null
+    };
+  }
+
+  var DexExport = {
+    exportName: exportName,
+    EXPORT_KINDS: EXPORT_KINDS,
+    scrubExport: scrubExport,
+    _scrubWith: _scrubWith,
+    coverageFromSegments: coverageFromSegments,
+    timingBlock: timingBlock,
+    TIMING_SOURCES: TIMING_SOURCES
+  };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;

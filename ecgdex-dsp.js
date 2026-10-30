@@ -6428,7 +6428,25 @@
         // prefers `endEpochMs` over every duration key, so this is additive: absent ⇒ today's behaviour.
         endEpochMs: r.endEpochMs != null ? r.endEpochMs : null,
         offsetMin: r.offsetMin != null ? r.offsetMin : opts.offsetMin != null ? opts.offsetMin : null,
-        events: events.length
+        events: events.length,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). ECGDex owns a provenance lattice already (`:5648`), so it passes
+           its OWN `timingSource` and the builder validates rather than re-derives it — no committed
+           export changes meaning. `clockResyncs` is set only when non-empty, so `|| []` is the
+           difference between "looked, found none" and "did not look", which §∅ forbids conflating.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing:
+          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
+            ? DexExport.timingBlock({
+                hostAxis: r.hostAxis,
+                timingSource: r.hostAxis ? r.hostAxis.timingSource : null,
+                drawn: r.hostAxis ? r.hostAxis.deviceDrawn : null,
+                resyncs: r.clockResyncs || []
+              })
+            : null
       },
       // roadmap §12 — per-instance lineage for the three headline HRV metrics (keyed by registry id); null
       // when no window can be placed. Present on BOTH the light and the rich export: lineage is not a

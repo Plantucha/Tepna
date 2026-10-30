@@ -20,6 +20,17 @@
     "events": 0,
     "site": "finger",
     "siteSource": "device-default",
+    "timing": {
+      "timingSource": "host",
+      "independent": false,
+      "anchors": 11,
+      "spanMs": 39757.27306,
+      "ppm": -6.868177291421405,
+      "spanPpm": -6.868177291421405,
+      "resyncs": 0,
+      "seams": 0,
+      "reason": null
+    },
     "hostAxis": {
       "anchors": 11,
       "ppm": -6.868177291421405,
@@ -57,8 +68,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "0ee0a9d6297c",
-        "computeHash": "887568c0cc77"
+        "manifestHash": "ad936becdaae",
+        "computeHash": "fc0890b82752"
       },
       "evidence": {
         "envelopeRef": null,
@@ -87,8 +98,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "0ee0a9d6297c",
-        "computeHash": "887568c0cc77"
+        "manifestHash": "ad936becdaae",
+        "computeHash": "fc0890b82752"
       },
       "evidence": {
         "envelopeRef": null,

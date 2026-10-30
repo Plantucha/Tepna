@@ -1269,7 +1269,15 @@
             return r._spanMin != null && isFinite(r._spanMin);
           }).length,
           n: dated.length
-        }
+        },
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). A Welltory measurement row carries one vendor stamp and no host
+           stamp column, so this node reports `device-only` rather than staying silent.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       // SELF-INGEST enrich (D2 path b, 2026-07-04): the per-measurement table — the whole HRVDex clinical
       // value — now travels so a reloaded export renders the HRV dashboard. Transparent fields stay null when

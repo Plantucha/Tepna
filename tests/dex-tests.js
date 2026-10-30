@@ -21047,6 +21047,136 @@
       if (!any) T.ok('at least one export fixture provided', false, 'runner passed no fixtures');
     });
 
+    /* ════ ONE TIMING BLOCK, ONE SHAPE, EVERY NODE (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ════
+       Eight nodes built their timing provenance by hand, or not at all. Three nodes reshaped the
+       host-axis verdict field by field and dropped what they did not name — `stability`,
+       `independent`, `spreadMs` and `nTau` each vanished at one of those seams and each cost its own
+       trace. Five nodes published nothing, so a consumer could not tell "this input has one clock"
+       from "nobody looked", which are different facts and only one of them is a measurement.
+
+       The remedy is one builder (`dex-export.js timingBlock`) and this group is what keeps it one.
+       It checks the SHAPE, not the values: nine keys, in order, on every node-export the repo
+       commits, with the vocabulary closed and §∅'s rule enforced — a null measurement owes a reason
+       and a complete block owes none. A node that goes back to hand-rolling fails the source leg
+       before any fixture moves. */
+    group('one shared timing block — nine keys, one vocabulary, every node-export', 'dex-export · timing-parity · clock · §∅ · DEVICE-TIME-HANDLING', function (T) {
+      var KEYS = ['timingSource', 'independent', 'anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams', 'reason'];
+      var SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
+      var MEASURED = ['anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams'];
+      var src = env.sources || {};
+
+      // ── 1 · the builder exists and publishes its own vocabulary ──
+      var DE = null;
+      if (src['dex-export.js']) {
+        try {
+          var m = { exports: {} };
+          new Function('module', 'globalThis', src['dex-export.js'])(m, {});
+          DE = m.exports;
+        } catch (_e) {
+          /* DE stays null → reds below */
+        }
+      }
+      T.ok('dex-export.js exposes timingBlock', !!(DE && typeof DE.timingBlock === 'function'));
+      T.ok('…and the closed timingSource vocabulary beside it', !!(DE && String(DE.TIMING_SOURCES) === String(SOURCES)), DE ? String(DE.TIMING_SOURCES) : 'no module');
+      if (!DE || typeof DE.timingBlock !== 'function') return;
+
+      // ── 2 · the shape is fixed, including the key ORDER a parity claim rests on ──
+      var bare = DE.timingBlock();
+      T.ok('a no-argument call still returns all nine keys, in order', String(Object.keys(bare)) === String(KEYS), String(Object.keys(bare)));
+      T.ok('a node with no host column reads device-only, never silence', bare.timingSource === 'device-only' && bare.independent === false, JSON.stringify(bare));
+      T.ok('…and says WHY every number is absent', typeof bare.reason === 'string' && bare.reason.length > 0, String(bare.reason));
+
+      // ── 3 · §∅ — a node that LOOKED and found no resync reports 0; one that did not look reports null ──
+      var looked = DE.timingBlock({ resyncs: [] });
+      T.ok('an empty resync list is a measured zero, not an absence', looked.resyncs === 0 && looked.seams === 0, JSON.stringify(looked));
+      T.ok('…while an absent list stays null', bare.resyncs === null && bare.seams === null, JSON.stringify(bare));
+
+      // ── 4 · the top tier is a CLAIM, so an unmeasured drawn verdict may not reach it ──
+      var ax = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true };
+      T.ok('an unmeasured drawn verdict under-claims to host, never device+host', DE.timingBlock({ hostAxis: ax, resyncs: [] }).timingSource === 'host');
+      T.ok('a measured non-drawn axis with a second clock reaches device+host', DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [] }).timingSource === 'device+host');
+      var quant = { ok: true, n: 40, spanMs: 2.8e4, ppm: 0.1, spanPpm: 0.1, independent: false };
+      T.ok('a host column that is the device stamp rounded reads device, not device-only', DE.timingBlock({ hostAxis: quant, drawn: false, resyncs: [] }).timingSource === 'device');
+      /* The builder reads the PRODUCER's own provenance field when the node passes none, so a node
+         that forwards nothing but the axis still gets a provenance test rather than a bare
+         `independent`. clock.js publishes `deviceDrawn`; the drawn-axis ratchet is what this serves. */
+      var axDrawnFalse = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: false };
+      T.ok('an axis that publishes deviceDrawn:false reaches device+host with no node-supplied verdict', DE.timingBlock({ hostAxis: axDrawnFalse, resyncs: [] }).timingSource === 'device+host');
+      var axDrawnTrue = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: true };
+      T.ok('…and a drawn axis under-claims to host however independent it reads', DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [] }).timingSource === 'host');
+      T.ok('…while a node-supplied verdict still outranks the axis field', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [] }).timingSource === 'device+host');
+      var full = DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [] });
+      T.ok('a block with every measurement present carries NO reason', full.reason === null, String(full.reason));
+
+      // ── 5 · a node that already owns a lattice keeps its verdict — no committed export changes meaning ──
+      T.ok('a node-supplied timingSource is honoured, not re-derived', DE.timingBlock({ hostAxis: ax, timingSource: 'device', resyncs: [] }).timingSource === 'device');
+      T.ok('…and a value outside the vocabulary is refused, not passed through', SOURCES.indexOf(DE.timingBlock({ hostAxis: ax, timingSource: 'made-up', resyncs: [] }).timingSource) >= 0);
+
+      // ── 6 · SOURCE LEG — every node-export builder reaches the one builder ──
+      var BUILDERS = ['oxydex-dsp.js', 'pulsedex-dsp.js', 'hrvdex-dsp.js', 'ecgdex-dsp.js', 'motiondex-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'cpapdex-fusion.js'];
+      var missing = BUILDERS.filter(function (f) {
+        return !src[f] || src[f].indexOf('DexExport.timingBlock(') === -1;
+      });
+      T.ok('all eight node-export builders call DexExport.timingBlock', missing.length === 0, missing.join(', '));
+
+      /* ── 7 · FIXTURE LEG — TWO COMMITTED SETS, ONE CONTRACT, DIFFERENT OBLIGATIONS ──
+         `env.equiv[*].fixture` is the golden set the nine `tools/regen-<node>-goldens.mjs` rewrite from
+         the committed inputs. Every one of those files is CURRENT BUILD OUTPUT, so every one owes the
+         block, and a regenerator that stops reaching it reds here.
+         `env.fixtures` is tests/fixtures/ — sample exports frozen in June 2026 that no regenerator owns
+         and no build rewrites. They are PRE-CONTRACT BYTES, and Clock Contract §6 obliges consumers to
+         tolerate them, so an absent block there is the tolerance under test rather than a defect. Hand-
+         writing the block into them would delete the only pre-contract exports this suite reads.
+         Both sets owe the SHAPE wherever a block is present. */
+      function check(where, rec, required) {
+        var tb = rec.timing;
+        if (tb == null) {
+          if (required) T.ok(where + ' carries recording.timing', false, 'absent — a builder stopped reaching the shared block');
+          return;
+        }
+        T.ok(where + ' · nine keys, in order', String(Object.keys(tb)) === String(KEYS), String(Object.keys(tb)));
+        T.ok(where + ' · timingSource is in the vocabulary', SOURCES.indexOf(tb.timingSource) >= 0, String(tb.timingSource));
+        var absent = MEASURED.filter(function (k) {
+          return tb[k] == null;
+        });
+        T.ok(
+          where + ' · §∅ a null measurement owes a reason',
+          absent.length === 0 ? tb.reason === null : typeof tb.reason === 'string' && tb.reason.length > 0,
+          absent.join(',') + ' → ' + String(tb.reason)
+        );
+      }
+      function walk(where, json, required) {
+        if (!json || typeof json !== 'object') return 0;
+        var n = 0;
+        if (Array.isArray(json)) {
+          for (var i = 0; i < json.length; i++) n += walk(where + '[' + i + ']', json[i], required);
+          return n;
+        }
+        if (json.schema && json.schema.name === 'ganglior.node-export' && json.recording && typeof json.recording === 'object') {
+          check(where, json.recording, required);
+          n++;
+        }
+        if (Array.isArray(json.nights)) for (var j = 0; j < json.nights.length; j++) n += walk(where + '.nights[' + j + ']', json.nights[j], required);
+        return n;
+      }
+      var seen = 0;
+      var eq = env.equiv || {};
+      Object.keys(eq).forEach(function (k) {
+        if (eq[k] && eq[k].fixture !== undefined) seen += walk('equiv:' + k, eq[k].fixture, true);
+      });
+      var frozen = 0;
+      var fx = env.fixtures || {};
+      Object.keys(fx).forEach(function (k) {
+        frozen += walk('fixture:' + k, fx[k], false);
+      });
+      /* ANTI-VACUITY. Every leg above walks a list, and a list the runner did not populate walks to
+         zero assertions and prints green — the examined-nothing failure this suite has met before.
+         The floor is the regenerated node-export set this repo tracks, which spans seven of the eight
+         nodes (OxyDex's golden is a NIGHT ELEMENT, not an envelope, so its coverage is leg 6's). */
+      T.ok('the fixture leg actually examined regenerated node-exports', seen >= 15, seen + ' examined');
+      T.ok('…and the frozen pre-contract samples were read, not skipped past', frozen >= 2, frozen + ' examined');
+    });
+
     /* ════ 8b · SECURITY — untrusted filename → innerHTML is escaped (SECURITY-REMEDIATION A) ════ */
     group('Security — untrusted filename renders escaped (F1/F2/F3)', 'security · sources', function (T) {
       var src = env.sources || {};
