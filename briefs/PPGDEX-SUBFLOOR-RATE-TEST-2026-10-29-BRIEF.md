@@ -118,9 +118,13 @@ plausible band. Median `|ppm|` over the 288 is 33 and the worst is 30681, off a 
 3. The 2 dp rounding at `:1254` is what makes the gate nearly equivalent to a plausibility bound. One
    step is 80 ppm at 125 Hz, so a real crystal error of 25 ppm never survives it, while a fabricated
    -7338 ppm does. The line keeps the implausible correction and discards the legitimate one.
-4. Two findings owe residue rows. The export carries no `fs` anywhere, so a consumer cannot see the
-   number this line produces. And `:1253` applies a rate from a host column that is no second clock,
-   which `independent` already reports in the same block.
+4. Two of the three findings became residue rows, and another session had already logged the third.
+   Row `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate` carries the
+   absent `fs`, and `2026-10-29-ppgdex-rounds-its-corrected-rate-into-eighty-ppm-steps` carries item
+   3. The third finding is the non-independent host column, and row
+   `2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied` states it already.
+   That row names the same 42 fragments and holds the choice as the owner's. So item 7 corroborates a
+   row rather than opening one.
 5. **`rateApplied` cannot be a constant.** The first draft of the annotation hardcoded `true`, because
    the division runs whatever the span says. The `device-crystal` branch then overwrites `fs` with the
    125.000 ADC constant, so on the DEFAULT finger path that division reaches nothing. The field now
@@ -129,6 +133,24 @@ plausible band. Median `|ppm|` over the 288 is 33 and the worst is 30681, off a 
 6. **The export reshapes the host-axis block a second time, and renames it field by field.** The
    export drops any key the parse layer adds and that list omits. All three new fields read green at
    the parse layer and absent over an artifact, until a leg read them back through `buildNodeExport`.
+
+7. **I measured the non-independent path, and it does almost nothing.** 42 of the 288 read
+   `independent: false`, and `:1253` divides by their `ppm` anyway. They are the smallest fragments:
+   median span 33 s, maximum 70 s, median 3 anchors, which is the refusal floor. Their `|ppm|` is the
+   quantisation the Clock Contract predicts — median 0.00, maximum 86.9, nothing over 1000. Only 2 of
+   the 42 exceed one 0.01 Hz rounding step, so their `fs` lands on 125.01, 125.00 or 124.99. The other
+   246 are genuinely two clocks, at a median residual spread of 20 ms against the 2 ms quantum.
+
+   `clock.js` nulls `stackJitterMs` and `stability` on `independent: false` and publishes `ppm`
+   regardless, so independence gates the two diagnostics and not the correction. Harness `indep.mjs`:
+   one arm, parse only, 446 rows, 0 errors.
+
+   Row `2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied` reached the same
+   count from a different walk. Its remedy line reads "Refuse a rate where `independent` reads false,
+   which is 42 fragments", and it leaves that choice to the owner. That row rated 523 fragments of
+   708, and this one rated 288 of 446, so the two walks agree independently. This measurement adds the
+   severity: the 42 are the smallest fragments, and their correction rounds away at `:1254`. Nothing
+   here argues for refusal, so the finding needs no second row.
 
 ## 6 · Harness and scorer
 
