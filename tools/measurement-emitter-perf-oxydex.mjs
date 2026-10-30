@@ -88,6 +88,7 @@ export const OXY_FILES = [
   'oxydex-registry.js',
   'oxydex-cross.js',
   'clock.js',
+  'clock-seam.js',
   'oxydex-profile.js',
   'oxydex-dsp.js'
 ];

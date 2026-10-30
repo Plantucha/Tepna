@@ -137,7 +137,7 @@ const ctx = vm.createContext({
 ctx.window = ctx;
 ctx.self = ctx;
 ctx.globalThis = ctx;
-for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'pulsedex-dsp.js', 'analysis-stats.js']) {
+for (const f of ['clock.js', 'clock-seam.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'pulsedex-dsp.js', 'analysis-stats.js']) {
   try {
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(ROOT, f), 'utf8')), ctx, { filename: f });
   } catch (e) {

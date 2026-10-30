@@ -584,7 +584,7 @@ function compareMetrics(fz, cl, note, opts = {}) {
  * clean twin (null rows REMOVED), list the order-independent metrics, and say what an all-null night must give. */
 const TARGETS = {
   oxydex: {
-    files: ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-dsp.js'],
+    files: ['kernel-constants.js', 'clock.js', 'clock-seam.js', 'oxydex-util.js', 'oxydex-dsp.js'],
     known: KNOWN_BY_TARGET.oxydex,
     setup(ctx) {
       const OD = bare(ctx.OxyDex);
@@ -651,7 +651,7 @@ const TARGETS = {
   },
 
   pulsedex: {
-    files: ['kernel-constants.js', 'metric-registry.js', 'clock.js', 'pulsedex-dsp.js'],
+    files: ['kernel-constants.js', 'metric-registry.js', 'clock.js', 'clock-seam.js', 'pulsedex-dsp.js'],
     known: {},
     setup(ctx) {
       const PD = bare(ctx.PulseDex);

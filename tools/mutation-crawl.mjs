@@ -210,7 +210,7 @@ async function waitForQuiet() {
    app needs, this is about what a module body can reference before any function is called. It also
    carried `dex-units.js`, which does not exist in this repo and never has; every load is
    `existsSync`-guarded so it cost nothing but a reader's confidence. Each entry below resolves. */
-const SPINE = ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'dex-export.js', 'signal-frame.js'];
+const SPINE = ['clock.js', 'clock-seam.js', 'kernel-constants.js', 'metric-registry.js', 'dex-export.js', 'signal-frame.js'];
 export function loadRealm(text) {
   const src = String(text).replace(/^export .*$/gm, '');
   const ctx = {

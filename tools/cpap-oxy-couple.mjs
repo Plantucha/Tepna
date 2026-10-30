@@ -187,7 +187,7 @@ ctx.__DEX_NAMESPACED__ = true;
    tool could not run at all. Every other realm-building tool here already strips the line
    (`probe-equivalence.mjs:803`, `mutation-crawl.mjs:215`), and this one had been left behind. */
 const stripEsm = (text) => text.replace(/^export\s.*$/gm, '');
-for (const f of ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-dsp.js']) vm.runInContext(stripEsm(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
+for (const f of ['kernel-constants.js', 'clock.js', 'clock-seam.js', 'oxydex-util.js', 'oxydex-dsp.js']) vm.runInContext(stripEsm(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
 
 /* ── THE PRIMITIVE — now imported, not re-implemented (FOLLOWUPS §2) ─────────────────────────
    `coupling()` used to be defined HERE as a prototype. It is now the shared spine module

@@ -354,7 +354,7 @@ export function makeRealm() {
     }
   };
   const ctx = vm.createContext(sandbox);
-  for (const f of ['clock.js', 'kernel-constants.js', 'cpapdex-edf.js', 'oxydex-util.js', 'oxydex-dsp.js', 'nsrr-adapter.js']) {
+  for (const f of ['clock.js', 'clock-seam.js', 'kernel-constants.js', 'cpapdex-edf.js', 'oxydex-util.js', 'oxydex-dsp.js', 'nsrr-adapter.js']) {
     const p = join(ROOT, f);
     if (!existsSync(p)) throw new Error('module not found: ' + f);
     vm.runInContext(DexBuild.classicify(readFileSync(p, 'utf8')), ctx, { filename: f });

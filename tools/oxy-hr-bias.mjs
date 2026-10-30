@@ -266,6 +266,7 @@ function oxyRealm() {
   for (const f of [
     'kernel-constants.js',
     'clock.js',
+    'clock-seam.js',
     'metric-registry.js',
     'dex-escape.js',
     'dex-export.js',
