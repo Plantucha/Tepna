@@ -14,6 +14,7 @@
 # do the same thing again, silently.
 
 import os
+import re
 import subprocess
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,7 +22,13 @@ SH = os.path.join(HERE, "tepna-restart.sh")
 UNIT = "tepna-capture.service"
 
 
-def _run(tmp_path, *args, state="active", restart_rc=0):
+def _run(
+    tmp_path,
+    *args,
+    state="active",
+    restart_rc=0,
+    journal="2026-10-30T14:44:01+0100 vigil tepna-radioclock[811]: anchors re-enabled",
+):
     """Drive the real script with systemctl stubbed. `sleep` is stubbed too — the script waits 3–5 s for
     the unit to settle, which is right on the box and pure latency in a test."""
     bin_dir = tmp_path / "bin"
@@ -43,6 +50,12 @@ def _run(tmp_path, *args, state="active", restart_rc=0):
     slp = bin_dir / "sleep"
     slp.write_text("#!/bin/sh\nexit 0\n")
     slp.chmod(0o755)
+    # `journalctl` is stubbed for the same reason as systemctl: the real one on this host would read a
+    # journal the test does not control, and `journal=None` is the measured "could not read it" case.
+    jctl = bin_dir / "journalctl"
+    body = f'echo "{journal}"' if journal is not None else "exit 1"
+    jctl.write_text(f'#!/bin/sh\necho "journalctl $*" >> "{log}"\n{body}\n')
+    jctl.chmod(0o755)
     env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
     r = subprocess.run(["bash", SH, *args], capture_output=True, text=True, env=env)
     return r, log.read_text()
@@ -52,7 +65,16 @@ def test_the_verb_surface_is_fixed_and_everything_else_is_refused(tmp_path):
     # `stop` joined the surface on 2026-08-02 (a Polar holds ONE BLE link, so the offline-recording
     # probe has to take it off the daemon). It is covered by its own tests below, including the
     # deadman timer that makes it safe; everything NOT on the list is still refused before systemctl.
-    for argv in [[], ["restart", "extra"], ["mask"], ["restart-all"], [""], ["stop", "5", "extra"]]:
+    for argv in [
+        [],
+        ["restart", "extra"],
+        ["mask"],
+        ["restart-all"],
+        [""],
+        ["stop", "5", "extra"],
+        ["radioclock", "extra"],
+        ["radio", "clock"],
+    ]:
         r, calls = _run(tmp_path, *argv)
         assert r.returncode == 2, f"{argv!r} was accepted"
         assert "usage:" in r.stderr
@@ -114,6 +136,52 @@ def test_radio_fails_when_bluetoothd_does_not_come_back(tmp_path):
     r, _ = _run(tmp_path, "radio", state="inactive")
     assert r.returncode == 1
     assert "bluetooth: inactive" in r.stdout
+
+
+# ── radioclock: the second unit, and the only verb that reads a journal (2026-10-30) ───────────────
+#
+# The collector started by hand once and then sat inactive, because no verb could reach it. Its
+# failure mode is the capture box's worst one: nothing errors, no sidecar appears, and the night is
+# simply unmeasured. `is-active` alone cannot separate a collector that found the controller from one
+# that came up and found nothing, so the journal's last line is part of the verdict.
+
+
+def test_radioclock_restarts_only_the_collector_and_reports_the_journal(tmp_path):
+    r, calls = _run(tmp_path, "radioclock")
+    assert r.returncode == 0, r.stderr
+    assert "systemctl restart tepna-radioclock.service" in calls
+    assert f"systemctl restart {UNIT}" not in calls, "the capture daemon must not be touched"
+    assert "systemctl restart bluetooth" not in calls
+    assert "tepna-radioclock.service: active" in r.stdout
+    assert "journal: 2026-10-30T14:44:01+0100" in r.stdout
+    assert "anchors re-enabled" in r.stdout
+
+
+def test_radioclock_fails_when_the_collector_does_not_come_back(tmp_path):
+    """A collector that was asked to run and did not must not read as a started night."""
+    r, _ = _run(tmp_path, "radioclock", state="failed")
+    assert r.returncode == 1
+    assert "tepna-radioclock.service: failed" in r.stdout
+    assert "journal:" in r.stdout, "the journal line is the diagnostic; a red run needs it most"
+
+
+def test_radioclock_names_an_unreadable_journal_rather_than_printing_nothing(tmp_path):
+    """ABSENCE IS NULL. An empty journal line would read as silence from the unit, which is a
+    different finding from a journal this caller could not read at all."""
+    r, _ = _run(tmp_path, "radioclock", journal=None)
+    assert r.returncode == 0, r.stderr
+    assert "journal: unreadable" in r.stdout
+
+
+def test_the_usage_line_names_every_implemented_verb(tmp_path):
+    """The usage string is the ONLY place in capture-host that spells the verb surface, and until now
+    nothing held it against the dispatch. A verb implemented but unspelled is undiscoverable; a verb
+    spelled but unimplemented falls through to `usage` and reports exit 2 for a real request."""
+    src = open(SH).read()
+    spelled = set(re.search(r"usage: \$0 \{([^}]+)\}", src).group(1).replace(" [minutes]", "").split("|"))
+    implemented = set(re.findall(r"^  ([a-z]+)\)$", src, re.M))
+    assert spelled == implemented, f"spelled-only {spelled - implemented}, implemented-only {implemented - spelled}"
+    assert "radioclock" in spelled
 
 
 # ── stop: the dangerous verb, and the deadman that makes it safe (2026-08-02) ───────────────────────
