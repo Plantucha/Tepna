@@ -2116,7 +2116,15 @@
                 ceiling: cs.ceiling && cs.ceiling.saturated && cs.ceiling.value != null ? cs.ceiling.value : null,
                 blindMetrics: cs.blindMetrics || []
               }
-            : { detected: false }
+            : { detected: false },
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). A CGM export carries the sensor's own stamp and no host stamp
+           column, so there is no second clock here to measure a rate against.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       glucose: {
         mean: r.mean,

@@ -12,14 +12,25 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "945c68699ffb",
+    "contentId": "ef671ee2e838",
     "startEpochMs": 1782021923891,
     "endEpochMs": 1782022313021,
     "durSec": 389.1370903730582,
     "sessions": 1,
     "events": 0,
     "site": "wrist",
-    "siteSource": "device-default"
+    "siteSource": "device-default",
+    "timing": {
+      "timingSource": "device",
+      "independent": false,
+      "anchors": 138,
+      "spanMs": 388353.353088,
+      "ppm": -0.909192613290939,
+      "spanPpm": -0.909192613290939,
+      "resyncs": 0,
+      "seams": 0,
+      "reason": null
+    }
   },
   "ganglior_events": [],
   "reserved": {
@@ -34,18 +45,17 @@
         "endTMs": 1782022313021,
         "clockDomain": "device",
         "timingSource": "device",
-        "spreadMs": null,
-        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
+        "spreadMs": 0.988095999986399
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "a01ac8987c3c",
-        "computeHash": "3f308dfb7de1"
+        "manifestHash": "888d0f28bc9e",
+        "computeHash": "e27c74965932"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "945c68699ffb"
+        "inputHash": "ef671ee2e838"
       },
       "basis": "derived",
       "quality": {
@@ -65,18 +75,17 @@
         "endTMs": 1782022313021,
         "clockDomain": "device",
         "timingSource": "device",
-        "spreadMs": null,
-        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
+        "spreadMs": 0.988095999986399
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "a01ac8987c3c",
-        "computeHash": "3f308dfb7de1"
+        "manifestHash": "888d0f28bc9e",
+        "computeHash": "e27c74965932"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "945c68699ffb"
+        "inputHash": "ef671ee2e838"
       },
       "basis": "derived",
       "quality": {

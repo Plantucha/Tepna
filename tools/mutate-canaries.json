@@ -71,6 +71,15 @@
       "Cross-night significance — CI-includes-0 (#1)"
     ]
   },
+  "dex-export.js": {
+    "line": 330,
+    "op": "eq === → !==",
+    "before": "if (typeof opts.timingSource === 'string' && TIMING_SOURCES.indexOf(opts.timingSource) >= 0) {",
+    "after": "if (typeof opts.timingSource !== 'string' && TIMING_SOURCES.indexOf(opts.timingSource) >= 0) {",
+    "killers": [
+      "one shared timing block — nine keys, one vocabulary, every node-export"
+    ]
+  },
   "ecgdex-cross.js": {
     "line": 22,
     "op": "negate: drop !",

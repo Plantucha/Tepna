@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ec72091395ed" data-compute-hash="4896da8e4d80">
+<html lang="en" data-manifest-hash="fa729b4ccaf9" data-compute-hash="9b229f26c7ce">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AfPEIAeXXT0ZHnz8sdwL24OxRTdvfkuPm56Sw1iNfNo=' 'sha256-Bb0EtTN0ZQs5elsWn/gEtTxlDHg4/Pvvkn2RTNrWinQ=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fuqfXDlL9ySa8bCSpMfxfV4q8o2qAxXNDQrQvWnR2q0=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM=' 'sha256-rwi23Zd6f4Q2XvrStcfT9YToELXBXUbmB1yNSdlfr/I='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0un7kHTIHKWBkF8u7QGJVGiUNvx1xeLqlFS6+bz2N9c=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AfPEIAeXXT0ZHnz8sdwL24OxRTdvfkuPm56Sw1iNfNo=' 'sha256-Bb0EtTN0ZQs5elsWn/gEtTxlDHg4/Pvvkn2RTNrWinQ=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fuqfXDlL9ySa8bCSpMfxfV4q8o2qAxXNDQrQvWnR2q0=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rwi23Zd6f4Q2XvrStcfT9YToELXBXUbmB1yNSdlfr/I='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.24.0</title>
@@ -4271,7 +4271,140 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     return _scrubWith(root.ExportSchema, envelope);
   }
 
-  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport, _scrubWith: _scrubWith, coverageFromSegments: coverageFromSegments };
+  /* ── THE SHARED TIMING BLOCK — `recording.timing` on every node-export ──────────────────────────
+     (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5.)
+
+     Each node reshaped the host-axis verdict BY HAND, field by field, and the two that do it most
+     (`ecgdex-dsp.js`, `ppgdex-dsp.js`) carry comments recording what that cost: `stability` computed
+     in `clock.js` and dropped one layer down, `independent`/`spreadMs` discarded a line after they
+     were computed, `tau0`/`noiseType` read back off names the spine never wrote. A reshape drops
+     whatever it does not name. Five nodes named nothing at all — OxyDex, PulseDex, HRVDex, GlucoDex
+     and CPAPDex publish no timing provenance, so a consumer cannot tell "one clock" from "nobody
+     looked", and those are different facts.
+
+     This is the ONE builder. Nine keys, always all nine, in this order, whatever the node:
+
+       timingSource  'device+host' | 'host' | 'device' | 'device-only' | 'none'
+       independent   true | false | null  — Clock Contract §7: was the host column a SECOND clock?
+       anchors       int | null           — host↔device anchor pairs the axis was built from
+       spanMs        number | null        — the span the `ppm` below was measured over
+       ppm           number | null        — the smoothed divergence rate
+       spanPpm       number | null        — the same ratio BEFORE the running median
+       resyncs       int | null           — device-clock resync steps detected
+       seams         int | null           — discontinuities in the PUBLISHED axis
+       reason        string | null        — why any of the above is null; null only when none is
+
+     WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
+     of 8 app bundles, and therefore planned a node-local twin for PpgDex, GlucoDex and CPAPDex —
+     three hand-written copies of the shape this function exists to stop being hand-written.
+     `dex-export.js` is carried by 9 of 9 bundles, so the same code reaches every node with no twin.
+     This block CONSUMES a `DexClock.hostAxis` result and never produces one, so it needs the spine
+     present no more than `coverageFromSegments` above does.
+
+     ∅ ABSENCE IS NULL. A node with no host stamp column writes `timingSource:'device-only'` and
+     `independent:false` — a measured fact about its input format, not silence — while every number it
+     could not measure stays `null` beside a sentence naming WHY. A node that does not look for
+     resyncs writes `null`, never `0`: nobody looked is not none found.
+
+     `'device-only'` IS NOT `'device'`. `'device'` means a host column was there and carried nothing
+     the device column did not already have (`independent:false` — the whole phone-captured tree).
+     `'device-only'` means there was no host column to read at all. A consumer sizing a capture path,
+     or picking clock legs for a three-cornered hat, has to tell those two apart.
+
+     A node that already owns a provenance lattice (ECGDex, PpgDex) passes its own `timingSource` and
+     this function VALIDATES rather than re-derives it, so no committed export changes meaning. The
+     derivation below serves the nodes that had none. It routes an UNMEASURED `drawn` verdict to
+     `'host'`, never to `'device+host'`: the top tier claims a real second clock disciplined the
+     recording, and "we never measured whether the device column is a clock" may not reach it.
+     Under-claiming is the honest failure (PpgDex's arm at `ppgdex-dsp.js:1709`, verbatim).
+
+     `seams` BESIDE `resyncs`, THOUGH TODAY THEY AGREE. Every node that detects a seam detects it AS a
+     counter step (`ppgdex-dsp.js:5343` defines `clockSeam` as `!!clockResyncs.length`), so a node that
+     declares no seams of its own gets the resync count here. The key is still its own, because a seam
+     is a fact about the PUBLISHED axis — a node can refuse over a data gap that no counter step marks
+     — and a consumer must not have to know which node is which to read it. */
+  var TIMING_SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
+
+  function _tbNum(v) {
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+  // A count, or `null`. Never a `0` standing in for an absent measurement: an empty ARRAY is a node
+  // that looked and found none, `null`/`undefined` is a node that did not look, and the two differ.
+  function _tbCount(v) {
+    if (v == null) return null;
+    if (Array.isArray(v)) return v.length;
+    if (typeof v === 'boolean') return null; // a boolean is a verdict, not a count — do not coerce it
+    return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null;
+  }
+
+  function timingBlock(opts) {
+    opts = opts || {};
+    var ax = opts.hostAxis || null;
+    var ok = !!(ax && ax.ok);
+    /* THE PROVENANCE TEST, READ FROM THE PRODUCER. `independent` compares the host column against the
+       device column, so a counter synthesised as `index x an assumed rate` reads MORE independent the
+       coarser the fabrication, and a consumer that decides on `independent` alone has no provenance
+       test at all. `clock.js` publishes `deviceDrawn` beside it for exactly that reason. A node that
+       already owns the verdict passes it here; a node that passes nothing gets the axis's own
+       `deviceDrawn` rather than a bare `independent`, and an axis that publishes neither leaves this
+       null, which under-claims to `host` below. */
+    var drawn = opts.drawn !== undefined ? opts.drawn : ax && ax.deviceDrawn !== undefined ? ax.deviceDrawn : null;
+    var why = [];
+
+    var src;
+    if (typeof opts.timingSource === 'string' && TIMING_SOURCES.indexOf(opts.timingSource) >= 0) {
+      src = opts.timingSource;
+    } else if (!ax) {
+      src = 'device-only';
+    } else if (!ok) {
+      // Refused. A device column measured to be real still carries the recording; a drawn or
+      // unmeasured one leaves nothing, and `pat-gate.js` refuses on exactly that value.
+      src = drawn === false ? 'device' : 'none';
+    } else if (drawn !== false) {
+      src = 'host';
+    } else {
+      src = ax.independent === false ? 'device' : 'device+host';
+    }
+
+    var independent;
+    if (!ax)
+      independent = false; // no host column ⇒ measured: there is no second clock here
+    else if (ok && ax.independent != null) independent = ax.independent === true;
+    else independent = null;
+
+    if (!ax) why.push('no host stamp column on this input, so there is no second clock to discipline the device rate against');
+    else if (!ok) why.push('the host axis refused: ' + (ax.reason || 'the spine named no reason'));
+    else if (ax.independent == null) why.push('the host axis published no independence verdict');
+
+    var resyncs = _tbCount(opts.resyncs);
+    var seams = _tbCount(opts.seams);
+    if (seams == null) seams = resyncs; // every seam detected today IS a counter step — see above
+    // One clause for both, because `seams` can only be null when `resyncs` is: a node that counts
+    // steps and declares no seams of its own inherits the step count one line up.
+    if (resyncs == null) why.push('this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero');
+
+    return {
+      timingSource: src,
+      independent: independent,
+      anchors: ok ? _tbCount(ax.n != null ? ax.n : ax.anchors) : null,
+      spanMs: ok ? _tbNum(ax.spanMs) : null,
+      ppm: ok ? _tbNum(ax.ppm) : null,
+      spanPpm: ok ? _tbNum(ax.spanPpm) : null,
+      resyncs: resyncs,
+      seams: seams,
+      reason: why.length ? why.join('; ') : null
+    };
+  }
+
+  var DexExport = {
+    exportName: exportName,
+    EXPORT_KINDS: EXPORT_KINDS,
+    scrubExport: scrubExport,
+    _scrubWith: _scrubWith,
+    coverageFromSegments: coverageFromSegments,
+    timingBlock: timingBlock,
+    TIMING_SOURCES: TIMING_SOURCES
+  };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
@@ -11290,7 +11423,15 @@ __exports.CpapRender = window.CpapRender;
         }),
         offMaskGaps: (night.offMaskGaps || []).map(function (g) {
           return { afterSession: g.afterIdx, gapMin: g.gapMin };
-        })
+        }),
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). An AirSense EDF set carries the machine's own clock and no host
+           stamp column, so this node reports `device-only` and no rate.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       metrics: night.metrics || null,
       crossMetrics: cross,

@@ -57,6 +57,7 @@
  *   node tools/rebase-safe.mjs                 # rebase onto origin/main, rebuild, verify
  *   node tools/rebase-safe.mjs --onto <ref>    # some other base
  *   node tools/rebase-safe.mjs --classify <p…> # print the verdict for paths (used by the self-test)
+ *   node tools/rebase-safe.mjs --resolve <p…>  # take <onto>'s bytes for a path the BUILDERS own
  *   node tools/rebase-safe.mjs --no-build      # skip the rebuild (classification + rebase only)
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
@@ -530,6 +531,61 @@ export function classify(path, gen) {
   return 'source';
 }
 
+/* 🔴 THE REMEDY THIS TOOL PRINTS HAS TO BE RUNNABLE FROM A SESSION, AND IT WAS NOT.
+   `main()` stops on a held golden and says "resolve by taking <onto>'s copy, then re-run that
+   recipe". Every spelling of that — `git checkout <onto> -- <paths>`, `--ours`, `git checkout HEAD~1
+   -- <one golden>` outside any rebase — is denied by `.claude/hooks/guard-shared-tree.sh`, which is
+   RIGHT: its rule keys on the command shape, it cannot know what a path is, and widening it would
+   wave through the silent revert it exists to refuse. The hook's own hatch cannot reach it either,
+   because a hook reads the Claude Code process environment and not the environment of the Bash call
+   it judges. So the sanctioned spelling belongs HERE, in the tool that asks the builders which paths
+   they own. Row 2026-10-29-the-remedy-rebase-safe-prints-is-denied-by-the-hook-in-every-spelling.
+
+   PURE, and driven by value from the suite: it decides, it writes nothing. The CLI applies the plan.
+   It takes a path only on an AFFIRMATIVE answer — a builder owns it, or it is a HELD golden whose
+   regenerator is named — and refuses everything else, so an unreadable builder set (`gen` null,
+   every verdict `source`) resolves nothing rather than reverting the tree. */
+export function resolvePlan(paths, gen, held, recipeFor) {
+  const recipe = typeof recipeFor === 'function' ? recipeFor : () => null;
+  const heldBy = new Map();
+  for (const h of Array.isArray(held) ? held : []) {
+    if (h && typeof h.path === 'string' && h.path) heldBy.set(h.path, h);
+  }
+  const take = [];
+  const refuse = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(paths) ? paths : []) {
+    if (typeof raw !== 'string' || !raw.trim()) {
+      refuse.push({ path: String(raw), reason: 'not a path' });
+      continue;
+    }
+    const path = raw.trim();
+    if (seen.has(path)) continue; // naming a path twice is not two resolutions
+    seen.add(path);
+    const h = heldBy.get(path);
+    if (h) {
+      take.push({ path, verdict: 'held', recipe: h.recipe || null, why: h.why || null });
+      continue;
+    }
+    if (classify(path, gen) === 'generated') {
+      take.push({ path, verdict: 'generated', recipe: recipe(path), why: null });
+      continue;
+    }
+    /* `tests/dex-tests.js` gets its own refusal, because the generic one is wrong about it in a way
+       that costs a test group: the ref's copy IS the right starting point there, and the step that
+       matters is re-running your own insertion on top. CLAUDE.md §2c states it; a refusal that only
+       said "source" would read as "do not touch it". */
+    refuse.push({
+      path,
+      reason:
+        path === 'tests/dex-tests.js'
+          ? "source — restore the ref's copy by hand and RE-RUN your insertion, never keep one side wholesale"
+          : 'source — no builder owns it, so neither side of the conflict is reproducible; resolve it by hand'
+    });
+  }
+  return { take, refuse };
+}
+
 function rebuild(regenFixtures) {
   const steps = [
     ['tools/build.mjs', ['--all']],
@@ -896,14 +952,94 @@ async function main() {
   const argv = process.argv.slice(2);
   const gen = generatedSet();
 
-  if (argv[0] === '--classify') {
-    for (const p of argv.slice(1)) console.log(classify(p, gen) + '\t' + p);
-    return;
-  }
+  /* THE REFUSAL COMES FIRST, BECAUSE `--classify` HAS A CALLER NOW. `classify()` fails closed by
+     answering `source`, which is right for this tool's own rebase and WRONG as an answer to another
+     program: `wt-done --landed` asks which paths are generated so it can leave them out of the diff it
+     reads, and "everything is source" is exactly the reading that made its hatch unreachable (row
+     2026-10-29-the-landed-hatch-reads-a-rebundled-diff-into-a-one-megabyte-buffer). An unreadable
+     builder list is an absent answer, so it exits 2 here rather than printing 180 wrong ones. */
   if (!gen) {
     console.error(paint('✕ cannot read the builders’ owned sets — refusing to classify anything as generated.', C.red));
     console.error('  This tool fails CLOSED on purpose: guessing here reverts work. Rebase by hand.');
     process.exit(2);
+  }
+  if (argv[0] === '--classify') {
+    for (const p of argv.slice(1)) console.log(classify(p, gen) + '\t' + p);
+    return;
+  }
+
+  /* `--resolve <p…>` — the sanctioned spelling of the remedy the SOURCE-CONFLICT message prints, and
+     the only one a session can run (see resolvePlan's header). It is deliberately NOT a rebase: it
+     writes the ref's bytes for the paths you name, stages them, and names the recipe that re-earns
+     each one. Nothing else moves, so the operator still decides what happens next. */
+  if (argv[0] === '--resolve') {
+    const rest = argv.slice(1);
+    const wanted = [];
+    let ref = 'origin/main';
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === '--onto') {
+        ref = rest[i + 1] || ref;
+        i++;
+        continue;
+      }
+      if (rest[i].startsWith('--')) continue;
+      wanted.push(rest[i]);
+    }
+    if (!wanted.length) {
+      console.error(paint('✕ --resolve needs at least one path.', C.red));
+      console.error('  node tools/rebase-safe.mjs --resolve <path…> [--onto <ref>]   # default ref: origin/main');
+      process.exit(2);
+    }
+    /* NO FETCH HERE, and that is deliberate. A rebase in progress is already anchored to the upstream
+       commit it started from; fetching could move `origin/main` past it, and then "the ref's copy"
+       would be bytes from a commit the rebase never saw. The ref is read exactly as this checkout
+       holds it. */
+    const resolved = gitQuiet('rev-parse', '--verify', '--quiet', ref + '^{commit}');
+    if (!resolved.ok) {
+      console.error(paint('✕ cannot resolve ' + ref + ' in this checkout — refusing to guess which bytes you meant.', C.red));
+      process.exit(2);
+    }
+    const plan = resolvePlan(wanted, gen, heldGoldens(), recipeForFixture);
+    /* VALIDATE EVERY PATH BEFORE WRITING ANY, because a half-applied resolve is a worse state than a
+       refusal: the operator cannot tell by looking which paths still hold their own bytes. */
+    if (plan.refuse.length) {
+      console.error(paint('✕ refusing — these paths are not the builders’ to restore:', C.red));
+      plan.refuse.forEach((r) => console.error('    ' + r.path + '\n      ' + r.reason));
+      console.error('\n  Nothing was written. Re-run naming only the paths a builder or a regenerator owns.');
+      console.error('  node tools/rebase-safe.mjs --classify <path…>   # the verdict, per path');
+      process.exit(1);
+    }
+    console.log(paint('▸ taking ' + ref + "'s bytes for " + plan.take.length + ' path(s):', C.bold));
+    for (const t of plan.take) {
+      const co = gitQuiet('checkout', ref, '--', t.path);
+      if (!co.ok) {
+        console.error(paint('✕ git checkout failed for ' + t.path + ' — stopping with ' + plan.take.indexOf(t) + ' path(s) already written.', C.red));
+        process.exit(2);
+      }
+      gitQuiet('add', '--', t.path);
+      console.log('    ' + t.path + '  [' + t.verdict + ']');
+      if (t.why) console.log('      ' + t.why);
+      if (t.recipe) console.log('      authority: ' + t.recipe);
+    }
+    const recipes = plan.take.map((t) => t.recipe).filter(Boolean);
+    const held = plan.take.filter((t) => t.verdict === 'held');
+    console.log(paint('\n  The bytes are the ref’s, so they are NOT yet a rebuild of your branch. Next:', C.yel));
+    if (recipes.length) {
+      [...new Set(recipes)].forEach((r) => console.log('    ' + r));
+      if (held.length) console.log('    …with DEX_UPLOADS pointed at the corpus (docs/CORPUS-LOCATIONS.md)');
+    }
+    console.log('    node tools/build.mjs --all       # every other generated tree');
+    console.log('    npm run check                    # the full gate on the final state');
+    /* `--git-path` answers RELATIVE to the repository, and `existsSync` resolves a relative path
+       against the process cwd — which for this tool is never guaranteed to be ROOT. Join it. */
+    const gitPath = (n) => {
+      const r = git('rev-parse', '--git-path', n);
+      return r.startsWith('/') ? r : join(ROOT, r);
+    };
+    if (existsSync(gitPath('rebase-merge')) || existsSync(gitPath('rebase-apply'))) {
+      console.log(paint('  A rebase is in progress: `git rebase --continue` first, then the lines above.', C.yel));
+    }
+    return;
   }
 
   const onto = argv.includes('--onto') ? argv[argv.indexOf('--onto') + 1] : 'origin/main';

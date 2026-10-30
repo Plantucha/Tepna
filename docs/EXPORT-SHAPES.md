@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living) · **Created:** 2026-07-04 · last-verified 2026-07-04 · **Origin:** `briefs/SELF-INGEST-FOLLOWUPS-II-2026-07-04-BRIEF.md` F3
+**Status:** REFERENCE (living) · **Created:** 2026-07-04 · last-verified 2026-10-29 · **Origin:** `briefs/SELF-INGEST-FOLLOWUPS-II-2026-07-04-BRIEF.md` F3
 
 # Export shapes per node — the light-vs-rich contract
 
@@ -75,11 +75,11 @@ that no envelope joins the PPG path. **The rule the PpgDex row carries (§∅ ow
 the export carries `measurement: null` and a `measurementReason` that opens with `clock-seam:` and counts the
 resyncs — the whole-record numbers are still computed for display, but a number over a discontinuity gets no
 lineage claim. Reduced coverage (dropouts, pinned spans) is not a seam and annotates through `quality`.
-`window.spreadMs`: PpgDex ships WITHOUT `clock.js` (CLAUDE.md §✅), so in the bundle the node-local axis
-publishes null with that reason; a headless co-loaded run (the fixtures) carries the measured spread — a
-known headless/bundle divergence, the same one `recording.hostAxis` already has, recorded rather than hidden:
-**a PpgDex `spreadMs` NUMBER means "co-loaded run", never "the app"** — residue
-`2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible` holds the two remedies.
+`window.spreadMs`: PpgDex inlines `clock.js` since 2026-10-29 (CLAUDE.md §✅), so the app, the fixtures and
+the fold all build the same host axis and publish the same measured spread. Before that date the bundle
+omitted the module, published null with the reason `no DexClock in this bundle`, and a `spreadMs` NUMBER
+meant "co-loaded run" (residue `2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible`). The null branch
+remains for a realm that loads no `clock.js`.
 Emission is still staged per node — the other five do not emit it yet, and a missing block on THEIR exports is
 not a defect. **The Integrator consumes it (roadmap §8, 2026-09-21; the generic `adaptEnvelopeNode` too since
 2026-09-22, so an ECGDex export's recording-level map is consumed the same way):** `adaptOxyDex` turns each block into a
@@ -109,6 +109,59 @@ Field rules a reviewer should know without reading the module:
   state, and a `spreadMs: 0` asserts the two clocks agreed exactly, which is a claim nobody made.
 - **`window.clockDomain` is named** (`device | host | host-corrected`), never implied.
 
+## `recording.timing` — one shared timing block on every node-export (additive, PATCH; all eight nodes since 2026-10-29)
+
+Specified by `briefs/DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md` U5 and built by **one** function,
+`DexExport.timingBlock(opts)` in `dex-export.js`. Every node-export carries it, whatever the node.
+
+**What it replaced.** Three nodes reshaped the `DexClock.hostAxis` verdict by hand, field by field, and a
+reshape drops whatever it does not name. `stability` was computed in `clock.js` and vanished one layer
+down; `independent` and `spreadMs` were discarded a line after they were measured; `tau0` and `noiseType`
+were read back off names the spine never wrote, so both exported as permanent `null`. Each loss cost its
+own trace. The other five nodes published no timing provenance at all, so a consumer could not tell
+"this input carries one clock" from "nobody looked" — different facts, and only one is a measurement.
+
+**The nine keys, always all nine, in this order.**
+
+| key | type | meaning |
+|---|---|---|
+| `timingSource` | `'device+host' \| 'host' \| 'device' \| 'device-only' \| 'none'` | which clock(s) set the published axis |
+| `independent` | `true \| false \| null` | Clock Contract §7 — was the host column a SECOND clock (`spreadMs > 2 ms`)? |
+| `anchors` | int \| null | host↔device anchor pairs the axis was built from |
+| `spanMs` | number \| null | the span the `ppm` was measured over — §7 forbids a rate quoted without it |
+| `ppm` | number \| null | the smoothed host−device divergence rate |
+| `spanPpm` | number \| null | the same ratio BEFORE the running median, so a reader can size what the smoother did |
+| `resyncs` | int \| null | device-clock resync steps detected |
+| `seams` | int \| null | discontinuities in the PUBLISHED axis |
+| `reason` | string \| null | why anything above is `null`; `null` only when nothing is |
+
+**`'device-only'` is not `'device'`.** `'device'` means a host column was present and carried nothing the
+device column did not already have (`independent:false` — the whole phone-captured tree). `'device-only'`
+means there was no host column to read. A consumer picking clock legs for a three-cornered hat, or sizing
+a capture path, has to tell those apart, and the five silent nodes were publishing neither.
+
+**∅ at every field.** A node that does not look for resyncs writes `null`, never `0`: nobody looked is not
+none found. A node with no host stamp column writes `timingSource:'device-only'` and `independent:false` —
+a measured fact about its input format, not silence — and every number it could not measure stays `null`
+beside a `reason` that names the cause.
+
+**The top tier is a claim.** An UNMEASURED drawn verdict routes to `'host'`, never `'device+host'`: that
+tier says a real second clock disciplined the recording, and "we never measured whether the device column
+is a clock" may not reach it. Under-claiming is the honest failure.
+
+**Why `dex-export.js` and not `clock.js`.** `clock.js` sits in 6 of 8 app bundles since #4105 inlined it
+into PpgDex; GlucoDex and CPAPDex still carry none, so `DexClock` is undefined there (CLAUDE.md §✅). A
+builder living in the spine therefore needs a hand-written twin in every node without it, which is the
+duplication this block exists to end — and the twin would be owed by exactly the two nodes with no host
+column, the ones whose block is all absence. `dex-export.js` is inlined in all nine bundles. The block
+CONSUMES a `hostAxis` result and never produces one, so it needs the spine no more than
+`coverageFromSegments` does.
+
+**Gate.** The suite group `one shared timing block — nine keys, one vocabulary, every node-export` pins the
+key set and its ORDER, the closed `timingSource` vocabulary, the ∅ rule, and a source leg asserting all
+eight node-export builders reach `DexExport.timingBlock`. A node that goes back to hand-rolling reds there
+before a single fixture moves.
+
 ## Rules that fall out of this (for a new node / a reviewer)
 
 1. **Decide the clinical export shape up front.** If the node's value is a derived table (HRV rows, glycemic
@@ -121,6 +174,9 @@ Field rules a reviewer should know without reading the module:
    three** — see `SELF-INGEST-FOLLOWUPS-II` F1 (the scrub only walked `nights[]`).
 4. **Keep the LIGHT stream byte-identical for the Integrator** unless you deliberately enrich it (then it's
    fixture-moving: regenerate the node's `env.equiv` fixture + re-record).
+5. **Never hand-roll `recording.timing`.** Call `DexExport.timingBlock` and pass what your node measured.
+   A node that owns a `timingSource` lattice already passes its own value and the builder validates it;
+   a node that owns none passes nothing and gets `'device-only'` with a reason, never silence.
 
 > Cross-refs: `docs/CROSSNIGHT-ENVELOPE-SPEC.md` (the `crossNight` aggregate header), `CLAUDE.md` §🔒 Clock
 > Contract §6 (the export currency), `ARCHITECTURE-PRINCIPLES.md` §8 (adding a new Dex — this table is the

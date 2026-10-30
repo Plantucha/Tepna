@@ -39,6 +39,30 @@
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
     parseTimestamp = DexClock.parseTimestamp;
+  /* CLOCK-SEAM TRIPWIRE (clock-seam.js; Clock Contract §7, DEVICE-TIME-HANDLING-2026-10-29 §U3).
+     A beat series has no cadence, so the helper judges only BACKWARD stamps here and says in
+     `forwardDecidable:false` that a forward jump cannot be told from a gap by phase. */
+  /* ⚠️ ABSENCE-TOLERANT ON PURPOSE, AND NOT SILENTLY. Every bundle carrying this DSP inlines
+     `clock-seam.js`; a tool's `vm` realm may not. About twenty tools build a realm from their own
+     module literal, and a hard alias made each one a ReferenceError at load — measured 2026-10-29,
+     `cpap-oxy-couple.mjs` exited 1 over an empty root where it had exited 2. §👥.3 warns that a bare
+     guard turns that crash into silent disablement, so this fallback REFUSES instead: the scan carries
+     `reason:'seam-module-absent'` and the published summary reads `scanned:false` with null counts,
+     never a clean zero (§∅). The shape is the one `seamSummary` returns for any refused scan, and a
+     suite leg holds the two DSPs' fallbacks identical. */
+  var _DexSeamMod = typeof DexSeam !== 'undefined' ? DexSeam : null;
+  var _seamAbsentScan = function () {
+    return { ok: false, reason: 'seam-module-absent', n: 0, seams: [], dropouts: [], reorders: [], unsettled: [] };
+  };
+  var _seamAbsentSummary = function (s) {
+    return { scanned: false, reason: (s && s.reason) || 'seam-module-absent', seams: null, dropouts: null, barMs: null, forwardDecidable: null };
+  };
+  var _seamAbsentVerdict = function () {
+    return { decided: false, continuous: null, reason: 'seam-module-absent', seams: [] };
+  };
+  var seamScan = _DexSeamMod ? _DexSeamMod.seamScan : _seamAbsentScan,
+    seamSummary = _DexSeamMod ? _DexSeamMod.seamSummary : _seamAbsentSummary,
+    seamWindowVerdict = _DexSeamMod ? _DexSeamMod.windowVerdict : _seamAbsentVerdict;
   function fmtClock(ms) {
     var d = new Date(ms);
     return _ckP2(d.getUTCHours()) + ':' + _ckP2(d.getUTCMinutes());
@@ -1001,18 +1025,33 @@
 
   // ─── WINDOWED ANALYSIS (overnight / long recordings) ─────────────────────────
   // 5-min time windows → per-window short-term metrics. Aggregate with median+IQR.
-  function windowAnalysis(a, t, winSec) {
+  /* `opts.scan` + `opts.t0Ms` arm the clock-seam tripwire (§U3). They are LAST and OPTIONAL, so every
+     existing caller keeps its numbers: without a scan the loop below is the one it always was. */
+  function windowAnalysis(a, t, winSec, opts) {
     const N = a.length;
     let i = 0;
     const tEnd = t[N - 1];
     const wins = [],
-      segs = [];
+      segs = [],
+      seamWins = [];
+    const _scan = opts && opts.scan && opts.scan.ok && opts.scan.seams && opts.scan.seams.length ? opts.scan : null;
+    const _t0 = opts && opts.t0Ms != null && isFinite(opts.t0Ms) ? +opts.t0Ms : null;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
         seg = [];
       while (i < N && t[i] < w1) {
         seg.push(a[i]);
         i++;
+      }
+      /* A WINDOW SPLIT BY A SEAM DESCRIBES TWO STRETCHES OF SIGNAL, so it publishes no metrics and is
+         listed with its reason instead (owner ruling 2026-09-17). It is also kept out of `segs`,
+         because every aggregate below is a median over those segments. */
+      if (_scan && _t0 != null) {
+        const _wv = seamWindowVerdict(_scan, _t0 + w0 * 1000, _t0 + w1 * 1000);
+        if (_wv.continuous === false) {
+          seamWins.push({ tMin: +(w0 / 60).toFixed(1), reason: 'clock-seam', seams: _wv.seams.length, beats: seg.length });
+          continue;
+        }
       }
       if (seg.length >= 20) {
         // need enough beats for a valid window
@@ -1021,7 +1060,7 @@
         segs.push(seg);
       }
     }
-    return { wins, segs };
+    return { wins, segs, seamWins };
   }
 
   // ─── SIMPLE SVG LINE CHART (no external libs, x in minutes) ──────────────────
@@ -1352,8 +1391,11 @@
       dispMeanRR = meanRR,
       repSeg = a,
       winSpec = null;
+    /* THE TRIPWIRE RUNS ON THE STAMPS THE FRAME CARRIES, every input path included. A bare interval
+       array has no stamps at all, and the scan then refuses rather than reporting a clean file. */
+    const _seamScan = seamScan(Array.isArray(f.tsMs) ? f.tsMs : [], { label: 'pulsedex' });
     if (longRec) {
-      win = windowAnalysis(a, times, 300);
+      win = windowAnalysis(a, times, 300, { scan: _seamScan, t0Ms: f.t0Ms });
       if (win.wins.length >= 3) {
         const rmA = win.wins.map((w) => w.rmssd),
           sdA = win.wins.map((w) => w.sdnn),
@@ -1450,6 +1492,12 @@
     return {
       t0Ms: f.t0Ms,
       offsetMin: f.offsetMin,
+      /* §U3: the MID-FILE scan, always. ⚠️ `clockSeams` below is a DIFFERENT instrument and keeps its
+         name — it is the two-clock discriminator against the shared 60 s resync bound, and a second
+         key of that name here would silently shadow it (one object, one winner). This one reports the
+         distribution scan and the windows it refused. */
+      clockSeamScan: seamSummary(_seamScan),
+      clockSeamWindows: win && win.seamWins && win.seamWins.length ? win.seamWins : null,
       contentId: _cid,
       mode,
       modeLabel: MODE_LABEL[mode] || mode,
@@ -1573,6 +1621,9 @@
         startEpochMs: r.t0Ms ?? null,
         offsetMin: r.offsetMin ?? null,
         durationMin: r.durMin,
+        clockSeamScan: r.clockSeamScan ?? null,
+        ...(r.clockSeams ? { clockSeams: r.clockSeams } : {}),
+        ...(r.clockSeamWindows ? { clockSeamWindows: r.clockSeamWindows } : {}),
         /* FOLLOWUPS-II §1 — `durationMin` is kept for the envelope consumers that already read it
            (`adaptEnvelopeNode`), and these three say what it actually IS. `spanMin` null ⇒ the stream
            carries no wall clock, so it has no envelope and `coveragePct` is null too: absent, not 100. */
@@ -1584,7 +1635,15 @@
         longRecording: r.longRec,
         windows: r.windows ? r.windows.length : 0,
         beats: r.N,
-        coveragePct: r.coverage
+        coveragePct: r.coverage,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). An RR stream is a list of intervals with one device clock behind
+           it and no host stamp column, so there is no second clock to discipline the rate against.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       hrv: {
         time: {

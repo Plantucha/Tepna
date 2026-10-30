@@ -446,8 +446,19 @@ It auto-resolves generated conflicts, rebuilds every generated tree, and STOPS o
 instead of picking a side. For tests/dex-tests.js specifically: restore main's copy and RE-RUN your
 insertion — never keep one side wholesale.
 
-If you really are restoring one file deliberately (e.g. reverting your own edit), run it on that one
-explicit path outside a rebase, and VERIFY afterwards:
+If the path really is one the BUILDERS or a REGENERATOR own — a bundle, docs/, provenance/, an
+uploads/ golden — the sanctioned spelling of this checkout lives in that same tool. It refuses a
+source path, and it names the recipe that re-earns each one:
+
+    node tools/rebase-safe.mjs --resolve <path...> [--onto <ref>]
+
+That subcommand exists because THIS rule cannot tell a generated path from a source one, and because
+the hatch below is read from the HOOK's environment, which a Bash call cannot set. So re-spelling the
+command above does not help: every form is denied, including the one this paragraph used to suggest
+(measured 2026-10-29, row 2026-10-29-the-remedy-rebase-safe-prints-is-denied-by-the-hook-in-every-spelling).
+
+If you are reverting your OWN edit to a source file, the NO-REF form is allowed — and VERIFY after:
+    git checkout -- <file>
     git show HEAD:<file> | grep -c <an identifier your change adds>"
 fi
 

@@ -5800,20 +5800,14 @@
     // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one. LAST and
     // OPTIONAL per §🧪: every existing 1-arg call is byte-identical, and the no-sidecar path does not
     // move a single fixture.
-    var rec = parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
-    var runs = parseEcgRuns(opts && opts.runsText);
-    if (rec && runs) {
-      rec.runsSidecar = runs;
-      rec.blankingSpans = runs.spans;
-    }
-    return rec;
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText });
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
   // chunks instead of materialising it: a 260 MB `_ECG.txt` costs a 260 MB string PLUS ~3.4 M line
   // objects under `split()`, and both die at once here. The numeric result is identical — the loop
   // below never looked at anything but one line at a time.
-  function parseECGLines(lines) {
+  function parseECGLines(lines, opts) {
     var cap = 1 << 16,
       arr = new Int16Array(cap),
       n = 0;
@@ -5845,7 +5839,7 @@
       scan.row(p, n);
     }
     var t = ecgTimingResolve(scan.done());
-    return {
+    var rec = {
       int16: arr.slice(0, n),
       fs: t.fs,
       fsSource: t.fsSource,
@@ -5871,6 +5865,16 @@
       deviceEpoch: t.deviceEpoch,
       hostAxis: t.hostAxis
     };
+    /* `opts.runsText` is the `_ECGRUNS.txt` companion's bytes. It lives HERE, not only in
+       `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds 60 MB files line by line)
+       reaches the same validity a whole-text caller does. LAST and OPTIONAL per §🧪: a call without
+       it returns the record above unchanged. */
+    var runs = parseEcgRuns(opts && opts.runsText);
+    if (runs) {
+      rec.runsSidecar = runs;
+      rec.blankingSpans = runs.spans;
+    }
+    return rec;
   }
 
   /* recording.coverage for an ECG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
@@ -6424,7 +6428,25 @@
         // prefers `endEpochMs` over every duration key, so this is additive: absent ⇒ today's behaviour.
         endEpochMs: r.endEpochMs != null ? r.endEpochMs : null,
         offsetMin: r.offsetMin != null ? r.offsetMin : opts.offsetMin != null ? opts.offsetMin : null,
-        events: events.length
+        events: events.length,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). ECGDex owns a provenance lattice already (`:5648`), so it passes
+           its OWN `timingSource` and the builder validates rather than re-derives it — no committed
+           export changes meaning. `clockResyncs` is set only when non-empty, so `|| []` is the
+           difference between "looked, found none" and "did not look", which §∅ forbids conflating.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing:
+          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
+            ? DexExport.timingBlock({
+                hostAxis: r.hostAxis,
+                timingSource: r.hostAxis ? r.hostAxis.timingSource : null,
+                drawn: r.hostAxis ? r.hostAxis.deviceDrawn : null,
+                resyncs: r.clockResyncs || []
+              })
+            : null
       },
       // roadmap §12 — per-instance lineage for the three headline HRV metrics (keyed by registry id); null
       // when no window can be placed. Present on BOTH the light and the rich export: lineage is not a

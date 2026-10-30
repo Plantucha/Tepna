@@ -1454,6 +1454,13 @@
     var summary = {
       node: 'MotionDex',
       t0Ms: t0Ms,
+      /* THE RESYNC COUNT, WHERE THE EXPORT CAN REACH IT (DEVICE-TIME-HANDLING-2026-10-29 U5).
+         `parseSensorXYZ` hangs its seam list on the row array (`out._clockResyncs`, :347) and sets the
+         key only when it found one, so the whole signal stopped at `actigraphy`'s local `_seam` flag
+         (:585) and `buildNodeExport` could not say whether this night's axis is seamed. A consumer
+         reading the shared timing block has to be told the difference between a node that found no
+         step and a node that never looked, which is why this is `null` ONLY when no stream parsed. */
+      clockResyncs: _mdResyncCount([acc, chest, gyro, mag]),
       durSec: durMeasured == null ? null : Math.round(durMeasured),
       streams: {
         acc: acc ? acc.length : 0,
@@ -1474,6 +1481,21 @@
   //  SYNTHETIC IMU — deterministic (seeded) generator for the committed fixture
   //  + the equiv gate. No Date.now / Math.random (reproducible bytes).
   // ════════════════════════════════════════════════════════════════════════
+  /* Counts the device-clock resync steps across every parsed stream. `null` when NOTHING parsed —
+     nobody looked, which §∅ forbids reporting as `0`. A stream that parsed and carries no
+     `_clockResyncs` key looked and found none, and contributes 0. */
+  function _mdResyncCount(streams) {
+    var looked = false,
+      n = 0;
+    for (var i = 0; i < streams.length; i++) {
+      var s = streams[i];
+      if (!s || !s.length) continue;
+      looked = true;
+      if (s._clockResyncs && s._clockResyncs.length) n += s._clockResyncs.length;
+    }
+    return looked ? n : null;
+  }
+
   function mulberry32(seed) {
     var s = seed >>> 0;
     return function () {
@@ -1605,7 +1627,19 @@
          `version` a string. Measured over the 98 committed node-exports, this was one of only two
          warnings in the whole corpus. */
       schema: { name: 'ganglior.node-export', version: '2.0', node: 'MotionDex', nodeVersion: '1.0', bus: 'ganglior' },
-      recording: { startEpochMs: t0, durSec: summary.durSec },
+      recording: {
+        startEpochMs: t0,
+        durSec: summary.durSec,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ────────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). MotionDex DETECTS counter steps and does
+           not yet correct the rate — that is U4 of the same brief — so the resync count here is a
+           real measurement while every host-axis number is null beside the reason that says why.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({ resyncs: summary.clockResyncs }) : null
+      },
       motion: {
         streams: summary.streams,
         supineFrac: summary.position ? summary.position.supineFrac : null,

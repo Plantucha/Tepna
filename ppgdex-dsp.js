@@ -1153,10 +1153,10 @@
        Verdicts on this file's own corpus are unchanged — 0.6–8.8 % stays below and 100 % stays above —
        so the move costs nothing here and buys the rounded-rate and interrupted-drawn cases.
 
-       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately: PpgDex is one of the three
-       bundles that do NOT inline `clock.js` (CLAUDE.md §✅), so `DexClock` is `undefined` here and a
-       bare reference is a ReferenceError, not a fallback. The constant is duplicated ON PURPOSE and
-       the two must be moved together. */
+       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately. Until 2026-10-29 PpgDex did not
+       inline `clock.js`, so a bare reference was a ReferenceError. The bundle inlines it now, but a
+       realm that loads `ppgdex-dsp.js` without `clock.js` still exists (a worker or a tool), so the
+       constant stays duplicated ON PURPOSE and the two must be moved together. */
     let quantizedShare = null;
     /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
        byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
@@ -1200,9 +1200,9 @@
     // of the very axis it indexes. ≤0.03 % on a Polar, 0.16 % on the O2Ring — small, but a self-
     // inconsistent rec is the kind of thing that is only ever found much later, in something else.
     /* ⚠️ THE SURVIVING SEGMENT MUST BE ABLE TO CARRY AN AXIS, AND PpgDex MUST SAY SO ITSELF.
-       `DexClock.hostAxis` refuses below three anchors, but `clock.js` is not inlined in this bundle
-       (CLAUDE.md §✅), so in the shipped app that refusal does not exist and the `{ ok: false }`
-       fallback below says nothing about why. After a seam the pre-resync anchors are dropped, so what
+       `DexClock.hostAxis` refuses below three anchors, but a realm without `clock.js` (the shipped app
+       until 2026-10-29) has no such refusal, and the `{ ok: false }` fallback below says nothing about
+       why. After a seam the pre-resync anchors are dropped, so what
        remains is one segment — and a segment of one or two anchors is not a short measurement, it is
        not a measurement. Naming the count here keeps the two cases apart in the export: "this bundle
        has no clock spine" and "this night's post-seam segment was too short to measure a rate over"
@@ -1250,7 +1250,15 @@
         : typeof DexClock !== 'undefined' && DexClock.hostAxis
           ? DexClock.hostAxis(axisAnchors, {})
           : { ok: false, reason: 'no clock spine in this bundle' };
-    if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);
+    /* NOT span-gated, on purpose — the export's `rate`/`rateReason` say what span this rate rests on
+       instead of refusing it (owner, board #2180). The flag records whether the division REACHED `fs`,
+       because the `device-crystal` branch below overwrites `fs` with the ADC constant and a consumer
+       cannot otherwise tell a measured `ppm` that moved the rate from one that moved nothing. */
+    let rateAppliedToFs = false;
+    if (hostAx.ok && isFinite(hostAx.ppm)) {
+      fs = fs / (1 + hostAx.ppm / 1e6);
+      rateAppliedToFs = true;
+    }
     fs = Math.round(fs * 100) / 100;
     /* `timingSource` is the field a consumer should actually branch on, and the reason this is computed
        rather than assumed. DRAWN + host anchors ⇒ every bit of real timing came from the host, and the
@@ -1258,7 +1266,7 @@
        timing information whatsoever and must never be spent as a clock leg — closure, three-cornered hat
        and PAT all silently accept such a leg today and measure a constant. */
     /* 0.67 — the same cut as `clock.js` CK_AXIS_DRAWN_SHARE, on that file's 381-sidecar measurement.
-       Kept as a literal because `DexClock` does not exist in this bundle; see the block above. */
+       Kept as a literal because a realm without `clock.js` has no `DexClock`; see the block above. */
     /* ⚠️ TRI-STATE, and §∅ is why. `quantizedShare` stays `null` whenever fewer than 21 ns deltas
        resolved (the `deltas.length > 20` guard above), and this line used to read
        `quantizedShare != null && quantizedShare >= 0.67` — so an UNMEASURED concentration published a
@@ -1444,6 +1452,8 @@
       }
       relSec = rc;
       fs = O2_ADC_HZ;
+      /* The host-axis division above is DISCARDED here, so the export must not claim it was applied. */
+      rateAppliedToFs = false;
       timebase = 'device-crystal';
     }
     return {
@@ -1649,6 +1659,18 @@
                width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
             spanMs: hostAx.spanMs,
             spanPpm: hostAx.spanPpm,
+            /* ⚠️ `rateApplied` IS NOT `rate`, and that asymmetry is deliberate (owner, board #2180).
+               `rate`, published beside this field in the export, says whether the SPAN supports a rate.
+               This field says whether the parse actually divided `fs` by it, which only this layer
+               knows: the `device-crystal` branch overwrites `fs` with the ADC constant afterwards, so a
+               crystal recording carries a measured `ppm` that reached nothing. The division is NOT
+               span-gated, because refusing it leaves `fs` on the DEVICE rate, which
+               `RING-TIMEBASE-ECG-TEST-2026-10-29-BRIEF.md` rates worse than the host axis on 18 of 22
+               QC-PASS nights. So the pair annotates and never refuses. Measured in
+               `PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md`: gating the division moves `fs` on 134
+               of 288 sub-floor fragments, and the H10 ECG separates the two arms by 0.013 bpm over the
+               26 bins it can score — it cannot referee them, so nothing about `fs` moved. */
+            rateApplied: rateAppliedToFs,
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
@@ -4448,8 +4470,8 @@
     [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
   ];
   /* The OLS fit WITH its uncertainty. Mirrors `clock.js _ckAllanSlope` term for term — this node
-     cannot delegate to it: `PpgDex.html` inlines no `clock.js`, so `DexClock` is undefined in the
-     shipped bundle. The duplication is structural, which is why the parity gate pins the two lanes'
+     did not delegate to it because `PpgDex.html` inlined no `clock.js` until 2026-10-29, and a realm
+     without the module still runs this code. The duplication is structural, which is why the parity gate pins the two lanes'
      ANSWERS rather than trusting them to stay equal by inspection.
      ⚠️ The SE is a LOWER BOUND — overlapping ADEV points are correlated (adjacent taus reuse most of
      the same samples) while OLS assumes independent residuals. Do not tighten 1.96 to 1 SE believing
@@ -4796,7 +4818,7 @@
       meaning: cls.meaning,
       /* ⚠️ `…Ms` IS A MISNOMER, kept for back-compat — see the same note in `clock.js`. Phase is fed
          in ms and τ in seconds, so `adev` is ms/s: a RATE. PpgDex keeps its own copy of this because
-         it does not inline `clock.js` (CLAUDE.md §✅), so the two must stay in step by hand. */
+         it ran without `clock.js` until 2026-10-29 and some realms still do, so the two must stay in step by hand. */
       atShortestMs: r2(curve[0].adev),
       atLongestMs: curve[curve.length - 1].adev,
       atShortestPpm: r2(curve[0].adev * 1000),
@@ -6567,10 +6589,9 @@
   //
   //  basis: 'derived' (LEXICON §4b) — a statistic over a detected, corrected beat train.
   //  window: [t0Ms, endEpochMs] (the parser's last stamped row); when absent the beat span stands in and
-  //  is named. clockDomain 'device'. spreadMs: PpgDex ships WITHOUT clock.js (CLAUDE.md §✅ — DexClock is
-  //  undefined in the bundle), so `r.hostAxis` is `{ok:false}` there and the spread is null WITH that
-  //  reason; a headless co-loaded run may carry a measured spread — the block reports whichever the
-  //  node-local axis actually produced, never a value the bundle could not have measured.
+  //  is named. clockDomain 'device'. spreadMs: the bundle inlines clock.js since 2026-10-29, so the app
+  //  measures the spread the fixtures and the fold measure. A realm without clock.js gets `{ok:false}`
+  //  and a null spread WITH that reason — the block reports whichever axis the realm actually produced.
   //  evidence: inputHash = the export's recording.contentId (SignalFrame content address of the NN train),
   //  computed ONCE in ppgBuildNodeExport and shared. No acquisition envelope joins the PPG path today
   //  (the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt) — null
@@ -6609,7 +6630,7 @@
       window.spreadReason = ha
         ? 'host axis present but published no spread'
         : typeof DexClock === 'undefined'
-          ? 'no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread'
+          ? 'no DexClock in this realm (clock.js not loaded) — the node-local axis measures no host spread'
           : 'no host axis on this input (single device clock, or hostAxis refused) — nothing to measure spread against';
     if (windowNote) window.windowReason = windowNote;
     var quality = {
@@ -6731,7 +6752,19 @@
         /* 'device-default' = inferred from the optical layout, NOT observed. On this deployment the
            Verity is ankle-worn and defaults to 'wrist', so a morphology tier justified by wrist
            literature is unearned wherever this reads 'device-default'. */
-        siteSource: r.siteSource || 'device-default'
+        siteSource: r.siteSource || 'device-default',
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). PpgDex owns the lattice this builder's derivation was taken from
+           (`:1709`), so it passes its own `timingSource` and the builder validates it. `|| []` keeps
+           "looked, found no resync" apart from "does not look" — the key is written only when non-empty.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+           load-order bug and the export-parity group reds on it rather than letting it pass. */
+        timing:
+          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
+            ? DexExport.timingBlock({ hostAxis: r.hostAxis, timingSource: r.timingSource, drawn: r.axisDrawn, resyncs: r.clockResyncs || [] })
+            : null
       },
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' },
@@ -7023,6 +7056,9 @@
          existing, so a night without one omits the block and every committed export stays
          byte-identical rather than gaining a wall of nulls. */
       if (r.hostAxis && r.hostAxis.ok) {
+        /* Read BEFORE `nz()` for the rate verdict below: `nz` maps a non-number to null and
+           `isFinite(null)` is TRUE, so an absent span would have read as a measured one. */
+        const haSpanMs = typeof r.hostAxis.spanMs === 'number' && isFinite(r.hostAxis.spanMs) ? r.hostAxis.spanMs : null;
         out.recording.hostAxis = {
           anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
           ppm: nz(r.hostAxis.ppm),
@@ -7033,6 +7069,27 @@
              `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
           spanMs: nz(r.hostAxis.spanMs),
           spanPpm: nz(r.hostAxis.spanPpm),
+          /* THE RATE'S OWN VERDICT, in `ppgOffsetSegments`'s vocabulary rather than a second spelling
+             of one refusal: `rate` reads 'unknown' under `PPG_RATE_MIN_SPAN_S`, the floor this node
+             already applies to a SEGMENT's ppm, and `rateReason` names the span that refused it. The
+             whole-file axis named nothing until now, so a consumer could not tell a rate measured over
+             eight hours from one measured over forty seconds. Computed HERE because it is a pure
+             function of the span one line up; `rateApplied` is not, so it travels from the parse layer
+             that owns it. ⚠️ THIS IS THE SECOND RESHAPE OF ONE BLOCK — the parse layer builds
+             `hostAxis` at `:1641` and this list renames it field by field, so a key the parse layer
+             adds and this list omits is DROPPED. That seam already ate `applied` below and both of
+             `stability`'s names, and it ate these three too — green at the parse layer, absent over an
+             artifact — until the group `ppgdex-dsp · hostaxis-rate · subfloor-annotation` read them
+             through `buildNodeExport`. `== null ? null` on the forward, because a source object
+             without the key is unknown and §∅ forbids answering an unknown with `false`. */
+          rate: haSpanMs == null ? 'unknown' : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000 ? 'measured' : 'unknown',
+          rateReason:
+            haSpanMs == null
+              ? 'no span — the axis published none'
+              : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
+                ? null
+                : 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs',
+          rateApplied: r.hostAxis.rateApplied == null ? null : r.hostAxis.rateApplied === true,
           maxStepMs: nz(r.hostAxis.maxStepMs),
           totalMs: nz(r.hostAxis.totalMs),
           /* The three §7 discriminators. `independent` is the verdict on whether the host column is a

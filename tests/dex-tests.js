@@ -808,6 +808,273 @@
       }
     });
 
+    /* ── §U3 THE MID-FILE SEAM ────────────────────────────────────────────────────────────────────
+       DEVICE-TIME-HANDLING-2026-10-29 §U3 was sized as though OxyDex, PulseDex and HRVDex had no
+       seam handling at all. They do, and it is the premise that was wrong, so this group pins the
+       SHAPE of what was missing rather than the sizing: PulseDex compares its two clocks against the
+       shared 60 s resync bound, OxyDex guards first-to-last against the row count and cadence
+       (`clockNonMonotonic`, `durationInflated`), and both are blind to a step that lands MID-FILE
+       and leaves the endpoints plausible on ONE clock. `clock-seam.js` is that third instrument.
+       Every threshold it carries is pre-stated (§🧾) and every one of them was measured against the
+       real corpus before it was written down — the counts are in the legs below. */
+    group('∅ clock-seam tripwire — the MID-FILE step the endpoint guards cannot see', 'clock · clock-seam · oxydex-dsp · pulsedex-dsp · absence', function (T) {
+      var DS = env.DexSeam || (typeof DexSeam !== 'undefined' ? DexSeam : null);
+      if (!DS || typeof DS.seamScan !== 'function') {
+        T.ok('DexSeam.seamScan is reachable', false, 'clock-seam.js not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var mkStamps = function (n, cadMs, from, shiftMs) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push(t0 + i * cadMs + (from != null && i >= from ? shiftMs : 0));
+        return a;
+      };
+
+      /* PRE-STATED CRITERIA (§🧾). A threshold derived from the data it judges is not a criterion, so
+         these are pinned as literals and their provenance is the corpus count in the legs below. */
+      T.eq('the candidate bar is 6 robust sigmas over the file’s own median', DS.CK_SEAM_K, 6);
+      T.eq('a backward stamp gets 20 samples to climb back before it is called a step', DS.CK_SEAM_RECOVER_RUN, 20);
+      T.eq('a forward candidate needs 3 in-bar intervals on BOTH sides', DS.CK_SEAM_MIN_RUN, 3);
+
+      // ── CONTROL: a clean regular file is clean, and says what judged it ──
+      var clean = DS.seamScan(mkStamps(120, 4000));
+      T.eq('CONTROL · a continuous 4 s file reports no seam, no reorder and no unsettled gap', JSON.stringify([clean.seams.length, clean.reorders.length, clean.unsettled.length]), '[0,0,0]');
+      T.ok(
+        '…and publishes the bar that judged it, so a reader can see an inflated one',
+        clean.medianMs === 4000 && clean.barMs > 4000 && clean.cadenceMs === 4000,
+        JSON.stringify({ med: clean.medianMs, bar: clean.barMs, cad: clean.cadenceMs })
+      );
+      T.ok('…and how much it CANNOT see: the forward blind share, never an unstated 0', clean.forwardBlindShare > 0 && clean.forwardBlindShare < 1, JSON.stringify(clean.forwardBlindShare));
+
+      // ── A PLANTED BACKWARD STEP: 90 s back at row 60 of a 4 s file ──
+      var back = DS.seamScan(mkStamps(120, 4000, 60, -90000));
+      T.eq(
+        'a planted 90 s back-step is ONE seam, named back-step',
+        JSON.stringify(
+          back.seams.map(function (s) {
+            return s.kind;
+          })
+        ),
+        '["back-step"]'
+      );
+      /* The transition is between stamp 59 at 236 s and stamp 60 at 150 s, so the window that spans it
+         starts at 120 s. A window keyed to the planted index rather than to the stamps misses it. */
+      var bWin = DS.windowVerdict(back, t0 + 120000, t0 + 120000 + 300000);
+      T.eq('the window that spans it REFUSES, with the reason the ruling names', JSON.stringify([bWin.continuous, bWin.reason]), '[false,"clock-seam"]');
+      var bClear = DS.windowVerdict(back, t0, t0 + 120000);
+      T.eq('…and a window before it is still continuous — the refusal is scoped, not global', JSON.stringify([bClear.continuous, bClear.reason]), '[true,null]');
+
+      /* ⚠️ THE CONTROL THE CORPUS FORCED, and the reason this is not "any negative delta is a seam".
+         A host-stamped beat stream arrives in BLE packets and a packet's first stamp can land one or
+         two beats behind the last stamp of the one before. Measured 2026-10-29 over 18 real Polar
+         Sensor Logger RR files (252 329 intervals): 81 backward stamps, 1.2 s to 2.1 s, EVERY ONE
+         recovering within 6 samples — 67 of them within 2. A rule without this test refuses 11 of
+         those 18 files for a delivery artefact. */
+      var reord = mkStamps(60, 1000);
+      reord[30] = reord[30] - 1800;
+      var ro = DS.seamScan(reord);
+      T.eq('a re-ordered BLE packet is NOT a seam — it recovers, and is reported as a reorder', JSON.stringify([ro.seams.length, ro.reorders.length]), '[0,1]');
+      T.eq('…and the window it sits in keeps its value', JSON.stringify(DS.windowVerdict(ro, t0, t0 + 60000).continuous), 'true');
+      T.ok('…with the recovery length published, not just the verdict', ro.reorders[0].recoverN >= 1 && ro.reorders[0].recoverN <= DS.CK_SEAM_RECOVER_RUN, JSON.stringify(ro.reorders[0]));
+
+      /* THE OTHER HALF OF THE 2026-09-17 RULING: a DROPOUT annotates. The discriminator is phase —
+         through a dropout the clock keeps ticking, so the gap lands on a whole number of cadences. */
+      var drop = DS.seamScan(mkStamps(120, 4000, 60, 40 * 4000));
+      T.eq(
+        'a 40-cadence dropout is NOT a seam — it is a dropout with its multiple',
+        JSON.stringify([drop.seams.length, drop.dropouts.length, drop.dropouts[0] && drop.dropouts[0].multiple]),
+        '[0,1,41]'
+      );
+      var dWin = DS.windowVerdict(drop, t0 + 240000, t0 + 240000 + 300000);
+      T.ok(
+        '…so its window KEEPS its value, with the covered span beside it',
+        dWin.continuous === true && dWin.coveragePct > 0 && dWin.coveragePct < 100,
+        JSON.stringify({ c: dWin.continuous, pct: dWin.coveragePct })
+      );
+      var fwd = DS.seamScan(mkStamps(120, 4000, 60, 138000));
+      T.eq(
+        'an OFF-PHASE forward jump of the same size IS a seam',
+        JSON.stringify(
+          fwd.seams.map(function (s) {
+            return s.kind;
+          })
+        ),
+        '["forward-jump"]'
+      );
+
+      /* §∅ — ABSENCE IS NOT A CLEAN FILE. A stamp column that never parsed must not report zero
+         seams, and a stream whose intervals ARE the signal must not report zero FORWARD seams. */
+      var none = DS.seamScan([null, undefined, NaN]);
+      T.eq('a column with fewer than two parseable stamps refuses, with a reason', JSON.stringify([none.ok, none.n, !!none.reason]), '[false,0,true]');
+      T.eq('…and the summary of a refused scan says `scanned:false`, never a count of 0', JSON.stringify(DS.seamSummary(none).scanned), 'false');
+      var rr = [];
+      for (var bi = 0, accT = t0; bi < 120; bi++) {
+        rr.push(accT);
+        accT += 900 + 40 * Math.sin(bi / 5);
+      }
+      var rrS = DS.seamScan(rr);
+      T.eq('a beat series has no cadence, so a forward gap is UNDECIDABLE and says so', JSON.stringify([rrS.cadenceMs, rrS.forwardDecidable, rrS.forwardBlindShare]), '[null,false,null]');
+
+      /* TWO INSTRUMENTS, NOT ONE RENAMED. The resync bound answers "do the device clock and the host
+         clock disagree" and needs two clocks; this module answers "is this interval out of the
+         file's own family" and needs one. A single name for both is how they come to disagree, so
+         the module must NOT carry a resync bound of its own. */
+      var srcOf2 = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var tt = ln.trim();
+            return tt.indexOf('//') !== 0 && tt.indexOf('*') !== 0 && tt.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var seamSrc = srcOf2('clock-seam.js');
+      if (!seamSrc.trim()) {
+        T.skip('clock-seam.js source', 'sources not provided in this runner');
+      } else {
+        T.ok('clock-seam.js carries NO resync bound — the two-clock instrument keeps that name', !/RESYNC_BOUND/.test(seamSrc), 'a resync bound appeared in clock-seam.js: two names for one question');
+      }
+
+      /* THE FALLBACK LIVES TWICE, so a leg holds the two copies identical. A realm that omits the
+         module gets a refusal with one reason and one shape from both DSPs, never a clean nothing. */
+      var fbOf = function (src) {
+        var i = src.indexOf('var _DexSeamMod'),
+          j = src.indexOf('seamWindowVerdict = _DexSeamMod');
+        return i >= 0 && j > i ? src.slice(i, j).replace(/\s+/g, ' ') : null;
+      };
+      var fbOxy = fbOf(srcOf2('oxydex-dsp.js')),
+        fbPulse = fbOf(srcOf2('pulsedex-dsp.js'));
+      if (!fbOxy || !fbPulse) {
+        T.skip('the two DSP clock-seam fallbacks', 'sources not provided in this runner');
+      } else {
+        T.eq('OxyDex and PulseDex refuse identically when a realm omits clock-seam.js', fbOxy, fbPulse);
+        T.ok('\u2026and the refusal names a reason rather than reporting an empty scan', /seam-module-absent/.test(fbOxy), fbOxy.slice(0, 90));
+      }
+
+      /* HRVDEX IS NOT_APPLICABLE, AND THIS IS THE MEASUREMENT RATHER THAN THE ASSUMPTION. The suite
+         already pinned it structurally exempt; §U3 asked for a call site there anyway. A Welltory
+         export is a REPORT, not a stream: the real corpus file lists its rows newest-first while the
+         committed synthetic lists them oldest-first (both read 2026-10-29), so row order carries no
+         clock information and a row-order scan would refuse every real export. The DSP sorts by
+         stamp before it measures anything, which is why there is nothing here to scan. */
+      var hSrc = srcOf2('hrvdex-dsp.js');
+      if (!hSrc.trim()) {
+        T.skip('hrvdex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        T.ok(
+          'HRVDex wires NO seam scan: its row order is report order, not a timeline',
+          !/DexSeam/.test(hSrc),
+          'hrvdex-dsp.js now scans row order — re-run the Welltory order measurement before keeping it'
+        );
+      }
+    });
+
+    group('∅ clock-seam tripwire — the two call sites, with a clean control beside each', 'clock · clock-seam · oxydex-dsp · pulsedex-dsp · absence', function (T) {
+      var _od2 = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_od2 && _od2._bare) || _od2;
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      if (!OD || typeof OD.processNight !== 'function') {
+        T.ok('OxyDex.processNight is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+      } else {
+        var mkNight = function (shiftFrom, shiftMs) {
+          var rows = [];
+          for (var i = 0; i < 1800; i++) {
+            var ms = t0 + i * 1000 + (shiftFrom != null && i >= shiftFrom ? shiftMs : 0);
+            rows.push({ tMs: ms, t: new Date(ms), spo2: 96, hr: 60, motion: 0 });
+          }
+          return rows;
+        };
+        var cleanN = OD.processNight(mkNight(null, 0), 'clean.csv');
+        T.eq(
+          'CONTROL · a clean night SAYS it was scanned — "no tripwire here" and "scanned, clean" are different claims',
+          JSON.stringify([cleanN.clockSeamScan.scanned, cleanN.clockSeamScan.seams]),
+          '[true,0]'
+        );
+        T.ok(
+          'CONTROL · and carries neither detail list, so a clean export gains one small object',
+          cleanN.clockSeams === undefined && cleanN.clockSeamRefusals === undefined,
+          JSON.stringify({ s: cleanN.clockSeams, r: cleanN.clockSeamRefusals })
+        );
+        var seamN = OD.processNight(mkNight(900, -90000), 'seam.csv');
+        T.eq('a 90 s back-step mid-night is ONE seam on the night object', JSON.stringify(seamN.clockSeamScan.seams), '1');
+        T.ok(
+          '…and the epochs that span it are REFUSED, each with the named reason',
+          !!seamN.clockSeamRefusals &&
+            seamN.clockSeamRefusals.length > 0 &&
+            seamN.clockSeamRefusals.every(function (r) {
+              return r.reason === 'clock-seam';
+            }),
+          JSON.stringify(seamN.clockSeamRefusals)
+        );
+        T.ok(
+          '…they are REMOVED from the series, never published with a null in place of a value',
+          seamN.tchEpochs.length < cleanN.tchEpochs.length,
+          JSON.stringify({ clean: cleanN.tchEpochs.length, seamed: seamN.tchEpochs.length })
+        );
+        T.ok(
+          'PARITY · the clean night keeps every epoch the tripwire found nothing wrong with',
+          cleanN.tchEpochs.length === 6 &&
+            cleanN.tchEpochs.every(function (e) {
+              return e.hr === 60;
+            }),
+          JSON.stringify(cleanN.tchEpochs.length)
+        );
+        /* The ENDPOINT guard is why this instrument exists: a step that recovers nothing still leaves
+           first-to-last plausible, so `clockNonMonotonic` never fires on this night. */
+        T.ok(
+          'the endpoint guard is BLIND to it — which is the whole reason for the scan',
+          seamN.stats.clockNonMonotonic !== true && seamN.stats.durationInflated !== true,
+          JSON.stringify({ nm: seamN.stats.clockNonMonotonic, inf: seamN.stats.durationInflated })
+        );
+      }
+
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var rr2 = [];
+        /* 7200 beats is ~1.8 h, over the 90 min the classifier needs before PulseDex windows anything at
+           all. A shorter record skips the window walk entirely, and the refusal leg below then passes
+           over a code path that never ran. */
+        for (var i2 = 0; i2 < 7200; i2++) rr2.push(900 + 40 * Math.sin(i2 / 5));
+        var stamps2 = function (seamFrom, seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr2.length; k++) {
+            ts.push(acc + (seamFrom != null && k >= seamFrom ? seamMs : 0));
+            acc += rr2[k];
+          }
+          return ts;
+        };
+        var pClean = P.pdComputeResult({ vals: rr2, tsMs: stamps2(null, 0), t0Ms: t0 });
+        T.ok(
+          'PRECONDITION · the record is long enough that PulseDex walks windows at all',
+          pClean.longRec === true && Array.isArray(pClean.windows) && pClean.windows.length > 10,
+          JSON.stringify({ longRec: pClean.longRec, wins: pClean.windows && pClean.windows.length })
+        );
+        T.eq(
+          'CONTROL · a clean RR record reports the scan and refuses no window',
+          JSON.stringify([pClean.clockSeamScan.scanned, pClean.clockSeamScan.seams, pClean.clockSeamWindows]),
+          '[true,0,null]'
+        );
+        T.ok('CONTROL · and every HRV metric still computes — the tripwire is inert on a clean file', pClean.rmssd > 0 && pClean.sdnn > 0, JSON.stringify({ r: pClean.rmssd, s: pClean.sdnn }));
+        var pSeam = P.pdComputeResult({ vals: rr2, tsMs: stamps2(3600, -90000), t0Ms: t0 });
+        T.eq('a 90 s back-step is seen by the mid-file scan', JSON.stringify(pSeam.clockSeamScan.seams), '1');
+        T.ok(
+          '…and the windows that span it publish no metrics, with the reason named',
+          !!pSeam.clockSeamWindows &&
+            pSeam.clockSeamWindows.every(function (w) {
+              return w.reason === 'clock-seam';
+            }),
+          JSON.stringify(pSeam.clockSeamWindows)
+        );
+        /* BOTH instruments fire on this plant, and that is correct: a 90 s host step also makes the
+           host delta and the device delta disagree by more than the shared resync bound. The point
+           is that the mid-file scan ALSO names which windows it refused. */
+        T.eq('…while the two-clock discriminator keeps its own verdict and its own name', pSeam.hrvReason, 'clock-seam');
+      }
+    });
+
     /* §2e — the composites must refuse too. After a clock-seam refusal nulls rMSSD, the
        composites computed from cRm=null FABRICATED: stressEst → 100 (the clamp eats the
        1.2295*null term), hrvEst → 0 (1.494*null-13.37 clamps to 0), lnR(null) → −Infinity,
@@ -2207,6 +2474,85 @@
         !!haC && !('deviceDrawn' in haC) && !('drawnShare' in haC) && !('drawnReason' in haC),
         JSON.stringify(Object.keys(haC || {}))
       );
+    });
+
+    /* ════ THE WHOLE-FILE RATE NOW CARRIES ITS OWN VERDICT ═══════════════════════════════
+       `ppgOffsetSegments` refuses a SEGMENT's ppm under `PPG_RATE_MIN_SPAN_S` and names the span in
+       `rateReason`. The whole-file axis published a bare `ppm`, so a reader could not tell a rate
+       measured over eight hours from one measured over thirteen seconds — and 432 of 523 rated ring
+       fragments sit under that floor (#2163).
+       `rateApplied` is SEPARATE on purpose: `ppgdex-dsp.js:1253` divides `fs` by the ppm whatever the
+       span says, because refusing leaves `fs` on the device rate, which RING-TIMEBASE-ECG-TEST rates
+       worse on 18 of 22 QC-PASS nights (owner, board #2180). PPGDEX-SUBFLOOR-RATE-TEST then found the
+       H10 ECG unable to separate the two, at 0.013 bpm over the 26 bins it can score.
+       BOTH BRANCHES, because an annotation that only ever says 'unknown' is not a verdict. */
+    group('PpgDex hostAxis — the published rate says what span it rests on', 'ppgdex-dsp · hostaxis-rate · subfloor-annotation', function (T) {
+      var C = env.DexClock;
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!C || typeof C.hostAxis !== 'function' || !P || typeof P.buildNodeExport !== 'function') {
+        T.skip('DexClock.hostAxis + PPGDSP.buildNodeExport available', 'not loaded');
+        return;
+      }
+      var seed = 777;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      /* The device column is jittered for the same reason the drawn-axis control above jitters it: a
+         uniform ramp is classified DRAWN, and this group is about the span, not about that branch. */
+      var mk = function (stepMs) {
+        var a = [];
+        for (var m = 0; m < 400; m++) a.push({ devMs: m * stepMs + Math.round(40 * rnd()), hostMs: m * stepMs * (1 + 30e-6) + 40 * rnd() });
+        var ha = C.hostAxis(a, {});
+        var ex = P.buildNodeExport({ hostAxis: ha, t0Ms: Date.UTC(2026, 8, 7, 0, 0, 0), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] }, { rich: true });
+        return { ha: ha, out: ex && ex.recording && ex.recording.hostAxis };
+      };
+      // 400 anchors 100 ms apart span 39.9 s; 10 s apart span 3990 s. The floor is 2400 s.
+      var shortRun = mk(100);
+      var longRun = mk(10000);
+      T.ok(
+        'ANTI-VACUITY · one axis spans UNDER the 2400 s floor and the other OVER it',
+        !!shortRun.out && !!longRun.out && shortRun.ha.spanMs < 2400e3 && longRun.ha.spanMs >= 2400e3,
+        'short=' + (shortRun.ha && shortRun.ha.spanMs) + ' long=' + (longRun.ha && longRun.ha.spanMs)
+      );
+      if (!shortRun.out || !longRun.out) return;
+      T.eq('a sub-floor span publishes rate "unknown"', shortRun.out.rate, 'unknown');
+      T.ok(
+        '…with a reason naming the span it got and the floor it missed',
+        typeof shortRun.out.rateReason === 'string' && shortRun.out.rateReason.indexOf('under the 2400 s a rate needs') > 0,
+        'rateReason=' + JSON.stringify(shortRun.out.rateReason)
+      );
+      T.eq('an above-floor span publishes rate "measured"', longRun.out.rate, 'measured');
+      T.eq('…and carries no reason, because nothing refused it', longRun.out.rateReason, null);
+      T.ok('the ppm is still published under the floor — this annotates, it does not refuse', typeof shortRun.out.ppm === 'number' && isFinite(shortRun.out.ppm), 'ppm=' + shortRun.out.ppm);
+      /* §∅ · a hand-built spine axis that no parse ever applied carries no answer, and the export says
+         so rather than reading an absent key as `false`. */
+      T.eq('a raw spine axis reports rateApplied as unknown, never false', shortRun.out.rateApplied, null);
+
+      /* ── `rateApplied` FROM A FILE, where the fs division either survives or does not ──────────────
+         The committed finger twin is the one fixture that takes both branches: `device-crystal`
+         overwrites `fs` with the 125.000 ADC constant AFTER the division, so its measured ppm reaches
+         nothing, while `host-disciplined` keeps the divided rate. A single hardcoded `true` read the
+         same on both arms and was wrong on the DEFAULT one. */
+      var eqF = env.equiv && env.equiv.ppgdex_finger;
+      if (!(eqF && eqF.input && typeof P.compute === 'function')) {
+        T.skip('committed finger twin present', 'uploads/synthetic_ppgdex_o2ring_finger.txt absent — it is COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      var hostHa = (function (o) {
+        var e = P.compute({ text: eqF.input }, o);
+        return e && e.recording && e.recording.hostAxis;
+      })({ rich: true, timebase: 'host-disciplined' });
+      var crysHa = (function (o) {
+        var e = P.compute({ text: eqF.input }, o);
+        return e && e.recording && e.recording.hostAxis;
+      })({ rich: true, timebase: 'device-crystal' });
+      T.ok('ANTI-VACUITY · the finger twin builds a host axis on both arms', !!hostHa && !!crysHa, 'host=' + !!hostHa + ' crystal=' + !!crysHa);
+      if (!hostHa || !crysHa) return;
+      T.eq('a host-disciplined parse divided fs by the ppm, and says so', hostHa.rateApplied, true);
+      T.eq('…and the crystal default discarded that division, and says THAT', crysHa.rateApplied, false);
+      T.eq('both arms still publish the same measured ppm', hostHa.ppm, crysHa.ppm);
+      T.eq('…and the same sub-floor verdict, because it is about the SPAN, not about fs', hostHa.rate + '|' + crysHa.rate, 'unknown|unknown');
     });
 
     /* ALLAN-STABILITY-GAPS §2.1's Done-when names the EXPORT PATH, and the group above drives
@@ -21047,6 +21393,174 @@
       if (!any) T.ok('at least one export fixture provided', false, 'runner passed no fixtures');
     });
 
+    /* ════ ONE TIMING BLOCK, ONE SHAPE, EVERY NODE (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ════
+       Eight nodes built their timing provenance by hand, or not at all. Three nodes reshaped the
+       host-axis verdict field by field and dropped what they did not name — `stability`,
+       `independent`, `spreadMs` and `nTau` each vanished at one of those seams and each cost its own
+       trace. Five nodes published nothing, so a consumer could not tell "this input has one clock"
+       from "nobody looked", which are different facts and only one of them is a measurement.
+
+       The remedy is one builder (`dex-export.js timingBlock`) and this group is what keeps it one.
+       It checks the SHAPE, not the values: nine keys, in order, on every node-export the repo
+       commits, with the vocabulary closed and §∅'s rule enforced — a null measurement owes a reason
+       and a complete block owes none. A node that goes back to hand-rolling fails the source leg
+       before any fixture moves. */
+    group('one shared timing block — nine keys, one vocabulary, every node-export', 'dex-export · timing-parity · clock · §∅ · DEVICE-TIME-HANDLING', function (T) {
+      var KEYS = ['timingSource', 'independent', 'anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams', 'reason'];
+      var SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
+      var MEASURED = ['anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams'];
+      var src = env.sources || {};
+
+      // ── 1 · the builder exists and publishes its own vocabulary ──
+      var DE = null;
+      if (src['dex-export.js']) {
+        try {
+          var m = { exports: {} };
+          new Function('module', 'globalThis', src['dex-export.js'])(m, {});
+          DE = m.exports;
+        } catch (_e) {
+          /* DE stays null → reds below */
+        }
+      }
+      T.ok('dex-export.js exposes timingBlock', !!(DE && typeof DE.timingBlock === 'function'));
+      T.ok('…and the closed timingSource vocabulary beside it', !!(DE && String(DE.TIMING_SOURCES) === String(SOURCES)), DE ? String(DE.TIMING_SOURCES) : 'no module');
+      if (!DE || typeof DE.timingBlock !== 'function') return;
+
+      // ── 2 · the shape is fixed, including the key ORDER a parity claim rests on ──
+      var bare = DE.timingBlock();
+      T.ok('a no-argument call still returns all nine keys, in order', String(Object.keys(bare)) === String(KEYS), String(Object.keys(bare)));
+      T.ok('a node with no host column reads device-only, never silence', bare.timingSource === 'device-only' && bare.independent === false, JSON.stringify(bare));
+      T.ok('…and says WHY every number is absent', typeof bare.reason === 'string' && bare.reason.length > 0, String(bare.reason));
+
+      // ── 3 · §∅ — a node that LOOKED and found no resync reports 0; one that did not look reports null ──
+      var looked = DE.timingBlock({ resyncs: [] });
+      T.ok('an empty resync list is a measured zero, not an absence', looked.resyncs === 0 && looked.seams === 0, JSON.stringify(looked));
+      T.ok('…while an absent list stays null', bare.resyncs === null && bare.seams === null, JSON.stringify(bare));
+
+      // ── 4 · the top tier is a CLAIM, so an unmeasured drawn verdict may not reach it ──
+      var ax = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true };
+      T.ok('an unmeasured drawn verdict under-claims to host, never device+host', DE.timingBlock({ hostAxis: ax, resyncs: [] }).timingSource === 'host');
+      T.ok('a measured non-drawn axis with a second clock reaches device+host', DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [] }).timingSource === 'device+host');
+      var quant = { ok: true, n: 40, spanMs: 2.8e4, ppm: 0.1, spanPpm: 0.1, independent: false };
+      T.ok('a host column that is the device stamp rounded reads device, not device-only', DE.timingBlock({ hostAxis: quant, drawn: false, resyncs: [] }).timingSource === 'device');
+      /* The builder reads the PRODUCER's own provenance field when the node passes none, so a node
+         that forwards nothing but the axis still gets a provenance test rather than a bare
+         `independent`. clock.js publishes `deviceDrawn`; the drawn-axis ratchet is what this serves. */
+      var axDrawnFalse = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: false };
+      T.ok('an axis that publishes deviceDrawn:false reaches device+host with no node-supplied verdict', DE.timingBlock({ hostAxis: axDrawnFalse, resyncs: [] }).timingSource === 'device+host');
+      var axDrawnTrue = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: true };
+      T.ok('…and a drawn axis under-claims to host however independent it reads', DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [] }).timingSource === 'host');
+      T.ok('…while a node-supplied verdict still outranks the axis field', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [] }).timingSource === 'device+host');
+
+      /* ── THE SANITISERS, PINNED AT THEIR EDGES ──
+         `_tbNum` and `_tbCount` are the only place a caller's junk becomes a published number, and §∅
+         says a value nobody measured is `null` — never a coerced one. Six inputs pin that, and each was
+         chosen because the diff-scoped mutation lane proved no existing assertion distinguished it:
+         `'device+host'` sits at index 0 of the vocabulary, so a `>= 0` membership test degraded to
+         `> 0` silently rejected the TOP tier and fell through to the derived branch. `isFinite('5')` is
+         true, so a numeric STRING is the input that separates a `typeof` guard from an `isFinite` one.
+         A negative count and a `NaN` separate the three conjuncts of the count guard from each other. */
+      T.ok(
+        'the first entry of the vocabulary is accepted — a membership test must not exclude index 0',
+        DE.timingBlock({ timingSource: 'device+host', hostAxis: null, resyncs: [] }).timingSource === 'device+host'
+      );
+      T.ok(
+        '§∅ a numeric STRING is not a measurement — isFinite() alone would have taken it',
+        DE.timingBlock({ hostAxis: { ok: true, n: 9, spanMs: '5', independent: true }, resyncs: [] }).spanMs === null
+      );
+      T.ok('§∅ NaN is not a measurement either', DE.timingBlock({ hostAxis: { ok: true, n: 9, ppm: NaN, independent: true }, resyncs: [] }).ppm === null);
+      T.ok('a plain number IS a count and survives untouched', DE.timingBlock({ resyncs: 3 }).resyncs === 3);
+      T.ok('…a numeric string is not one', DE.timingBlock({ resyncs: '3' }).resyncs === null);
+      T.ok('…and neither is a negative count', DE.timingBlock({ resyncs: -1 }).resyncs === null);
+      T.ok('…while a numeric ZERO is a count and survives — §∅: looked and found none', DE.timingBlock({ resyncs: 0 }).resyncs === 0);
+
+      /* ── A REFUSED AXIS PUBLISHES NOTHING, NOT EVEN WHAT IT STILL CARRIES ──
+         `hostAxis` returns `{ ok:false, reason, n }` and may still carry fields from before it gave
+         up. Adopting an `independent` from a refusal would report a second clock the spine declined to
+         stand behind, so `ok` gates the read and the verdict stays `null`. The last leg pins the
+         FALLBACK text: a refusal that names no reason must say the spine named none, never splice
+         `undefined` into a sentence a reader will quote back. */
+      T.ok(
+        'a refused axis does not lend its independence verdict to the block',
+        DE.timingBlock({ hostAxis: { ok: false, reason: 'too few anchors', n: 2, independent: true }, resyncs: [] }).independent === null
+      );
+      T.ok('only the boolean true reads as independent — a truthy 1 does not', DE.timingBlock({ hostAxis: { ok: true, n: 9, independent: 1 }, resyncs: [] }).independent === false);
+      T.ok(
+        'a refusal that names no reason says so, and never splices undefined into the sentence',
+        /the spine named no reason/.test(DE.timingBlock({ hostAxis: { ok: false, n: 2 }, resyncs: [] }).reason || '')
+      );
+      var full = DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [] });
+      T.ok('a block with every measurement present carries NO reason', full.reason === null, String(full.reason));
+
+      // ── 5 · a node that already owns a lattice keeps its verdict — no committed export changes meaning ──
+      T.ok('a node-supplied timingSource is honoured, not re-derived', DE.timingBlock({ hostAxis: ax, timingSource: 'device', resyncs: [] }).timingSource === 'device');
+      T.ok('…and a value outside the vocabulary is refused, not passed through', SOURCES.indexOf(DE.timingBlock({ hostAxis: ax, timingSource: 'made-up', resyncs: [] }).timingSource) >= 0);
+
+      // ── 6 · SOURCE LEG — every node-export builder reaches the one builder ──
+      var BUILDERS = ['oxydex-dsp.js', 'pulsedex-dsp.js', 'hrvdex-dsp.js', 'ecgdex-dsp.js', 'motiondex-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'cpapdex-fusion.js'];
+      var missing = BUILDERS.filter(function (f) {
+        return !src[f] || src[f].indexOf('DexExport.timingBlock(') === -1;
+      });
+      T.ok('all eight node-export builders call DexExport.timingBlock', missing.length === 0, missing.join(', '));
+
+      /* ── 7 · FIXTURE LEG — TWO COMMITTED SETS, ONE CONTRACT, DIFFERENT OBLIGATIONS ──
+         `env.equiv[*].fixture` is the golden set the nine `tools/regen-<node>-goldens.mjs` rewrite from
+         the committed inputs. Every one of those files is CURRENT BUILD OUTPUT, so every one owes the
+         block, and a regenerator that stops reaching it reds here.
+         `env.fixtures` is tests/fixtures/ — sample exports frozen in June 2026 that no regenerator owns
+         and no build rewrites. They are PRE-CONTRACT BYTES, and Clock Contract §6 obliges consumers to
+         tolerate them, so an absent block there is the tolerance under test rather than a defect. Hand-
+         writing the block into them would delete the only pre-contract exports this suite reads.
+         Both sets owe the SHAPE wherever a block is present. */
+      function check(where, rec, required) {
+        var tb = rec.timing;
+        if (tb == null) {
+          if (required) T.ok(where + ' carries recording.timing', false, 'absent — a builder stopped reaching the shared block');
+          return;
+        }
+        T.ok(where + ' · nine keys, in order', String(Object.keys(tb)) === String(KEYS), String(Object.keys(tb)));
+        T.ok(where + ' · timingSource is in the vocabulary', SOURCES.indexOf(tb.timingSource) >= 0, String(tb.timingSource));
+        var absent = MEASURED.filter(function (k) {
+          return tb[k] == null;
+        });
+        T.ok(
+          where + ' · §∅ a null measurement owes a reason',
+          absent.length === 0 ? tb.reason === null : typeof tb.reason === 'string' && tb.reason.length > 0,
+          absent.join(',') + ' → ' + String(tb.reason)
+        );
+      }
+      function walk(where, json, required) {
+        if (!json || typeof json !== 'object') return 0;
+        var n = 0;
+        if (Array.isArray(json)) {
+          for (var i = 0; i < json.length; i++) n += walk(where + '[' + i + ']', json[i], required);
+          return n;
+        }
+        if (json.schema && json.schema.name === 'ganglior.node-export' && json.recording && typeof json.recording === 'object') {
+          check(where, json.recording, required);
+          n++;
+        }
+        if (Array.isArray(json.nights)) for (var j = 0; j < json.nights.length; j++) n += walk(where + '.nights[' + j + ']', json.nights[j], required);
+        return n;
+      }
+      var seen = 0;
+      var eq = env.equiv || {};
+      Object.keys(eq).forEach(function (k) {
+        if (eq[k] && eq[k].fixture !== undefined) seen += walk('equiv:' + k, eq[k].fixture, true);
+      });
+      var frozen = 0;
+      var fx = env.fixtures || {};
+      Object.keys(fx).forEach(function (k) {
+        frozen += walk('fixture:' + k, fx[k], false);
+      });
+      /* ANTI-VACUITY. Every leg above walks a list, and a list the runner did not populate walks to
+         zero assertions and prints green — the examined-nothing failure this suite has met before.
+         The floor is the regenerated node-export set this repo tracks, which spans seven of the eight
+         nodes (OxyDex's golden is a NIGHT ELEMENT, not an envelope, so its coverage is leg 6's). */
+      T.ok('the fixture leg actually examined regenerated node-exports', seen >= 15, seen + ' examined');
+      T.ok('…and the frozen pre-contract samples were read, not skipped past', frozen >= 2, frozen + ' examined');
+    });
+
     /* ════ 8b · SECURITY — untrusted filename → innerHTML is escaped (SECURITY-REMEDIATION A) ════ */
     group('Security — untrusted filename renders escaped (F1/F2/F3)', 'security · sources', function (T) {
       var src = env.sources || {};
@@ -31567,18 +32081,18 @@
         T.ok('PpgDex.src.html is readable, so the realm fact is read and not assumed', false, 'env.srcHtml carries no PpgDex.src.html — this leg cannot tell the bundle realm from the suite realm');
         return;
       }
-      T.ok('CONTROL · PpgDex.src.html inlines no clock.js — the realm fact comes from the builder list', omits === true, 'PpgDex now inlines clock.js; the goldens owe a regeneration');
+      T.ok('CONTROL · PpgDex.src.html inlines clock.js — the realm fact comes from the builder list', omits === false, 'PpgDex no longer inlines clock.js; the goldens owe a regeneration');
       var rich = inBundleRealm('PpgDex', function () {
         return P.compute({ text: eq.input }, { rich: true });
       });
-      /* ANTI-VACUITY · the hiding must be LOAD-BEARING here. The same call in the co-loaded realm
-         carries a host axis the bundle cannot build, so if these two ever agree the leg above has
-         stopped proving anything. */
-      var coLoaded = P.compute({ text: eq.input }, { rich: true });
+      /* ANTI-VACUITY · the bundle now carries `clock.js` (DEVICE-TIME-HANDLING-2026-10-29 O1), so the
+         bundle realm IS the co-loaded realm and the export must carry the host axis the app now builds.
+         Before 2026-10-29 the bundle omitted the module and this leg asserted the two realms DIFFERED;
+         an export with no host axis here means the shell lost the module again. */
       T.ok(
-        'ANTI-VACUITY · the co-loaded realm really does produce a different export',
-        JSON.stringify(coLoaded.recording && coLoaded.recording.hostAxis) !== JSON.stringify(rich.recording && rich.recording.hostAxis),
-        'both realms gave hostAxis=' + JSON.stringify(rich.recording && rich.recording.hostAxis)
+        'ANTI-VACUITY · the bundle realm builds a host axis (clock.js is inlined)',
+        !!(rich.recording && rich.recording.hostAxis && rich.recording.hostAxis.applied === true && rich.recording.hostAxis.anchors >= 3),
+        'hostAxis=' + JSON.stringify(rich.recording && rich.recording.hostAxis)
       );
 
       /* Volatile keys the equiv gate excludes fleet-wide: they move on every run by design and say
@@ -31684,14 +32198,14 @@
         }
         return c;
       }
-      /* The golden is regenerated in the BUNDLE's realm (no clock.js — CLAUDE.md §✅), so the
-         recompute runs there too; the suite co-loads clock.js for the five bundles that carry it. */
+      /* The golden is regenerated in the BUNDLE's realm, so the recompute runs there too. PpgDex has
+         carried clock.js since 2026-10-29; `inBundleRealm` hides DexClock only for a shell that omits it. */
       var omitsF = shellOmitsModule('PpgDex', 'clock.js');
       if (omitsF === null) {
         T.ok('PpgDex.src.html is readable, so the realm fact is read and not assumed', false, 'env.srcHtml carries no PpgDex.src.html — this leg cannot tell the bundle realm from the suite realm');
         return;
       }
-      T.ok('CONTROL · PpgDex.src.html inlines no clock.js — the realm fact comes from the builder list', omitsF === true, 'PpgDex now inlines clock.js; the goldens owe a regeneration');
+      T.ok('CONTROL · PpgDex.src.html inlines clock.js — the realm fact comes from the builder list', omitsF === false, 'PpgDex no longer inlines clock.js; the goldens owe a regeneration');
       var out = inBundleRealm('PpgDex', function () {
         return P.compute({ text: eq.input }, { rich: true }); // rich, but NO timebase opt ⇒ the DEFAULT path
       });
@@ -42544,6 +43058,16 @@
             'parseECG · a sidecar with NO rule line is not comparable with anything',
             E.parseECG(HDR, { runsText: 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).runsSidecar.comparable === false
           );
+          /* The STREAMED entry carries the same validity (residue 2026-10-17-sample-parsers-called-without-their-sidecar):
+             `tools/trio-batch.mjs` folds 60 MB ECG files line by line through `parseECGLines`, so a sidecar
+             only `parseECG` could read never reached the fold. */
+          if (typeof E.parseECGLines === 'function') {
+            var lines = HDR.split(/\r?\n/),
+              lBare = E.parseECGLines(lines),
+              lSc = E.parseECGLines(lines, { runsText: SC });
+            T.ok('parseECGLines · ONE argument is byte-identical — no sidecar fields appear', lBare.blankingSpans === undefined && lBare.runsSidecar === undefined);
+            T.eq('parseECGLines · the streamed entry carries the same spans as the whole-text one', JSON.stringify(lSc.blankingSpans), JSON.stringify(withSc.blankingSpans));
+          } else T.skip('ECGDSP.parseECGLines unavailable');
         } else T.skip('ECGDSP.parseECG unavailable');
         // (6) THE REFUSAL — §∅: a discontinuity REFUSES, reduced coverage annotates (owner, 2026-09-17).
         if (E && typeof E.epochEngine === 'function') {
@@ -43082,7 +43606,11 @@
            beside a vendor ring export anywhere in this corpus — every capture predates the writer —
            so there is nothing for that call to pass, and the pin is the honest answer rather than a
            deferral. */
-        var TOOLS_PIN = { files: 39, calls: 65, reason: 'research tools: ' + OPEN };
+        /* 40 / 64 from 2026-10-29, two moves in one PR: `trio-batch.mjs` hands `_PPGRUNS.txt` to both of
+           its `parsePPG` calls (−2; its two ACC calls stay bare, since the ACC union pads silence onto a
+           grid and a run index needs its own rebase), and `parseECGLines` joins CALL because it now
+           accepts `runsText`, which surfaces the one bare call in `ecg-rate-transfer.mjs` (+1, +1 file). */
+        var TOOLS_PIN = { files: 40, calls: 64, reason: 'research tools: ' + OPEN };
 
         function blank(s) {
           return s.replace(/[^\n]/g, '');
@@ -43092,7 +43620,7 @@
             .replace(/\/\*[\s\S]*?\*\//g, blank)
             .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
         }
-        var CALL = /\b(parseECG|parseECGText|parsePPG|parsePPG2W|parseDeviceACC|parseSensorXYZ)\s*\(/g;
+        var CALL = /\b(parseECG|parseECGText|parseECGLines|parsePPG|parsePPG2W|parseDeviceACC|parseSensorXYZ)\s*\(/g;
         /* every call by name, with whether its OWN argument list names `runsText` (balanced parens, so a
          nested call's arguments are inside and the next statement is outside) */
         function calls(src) {
@@ -45700,6 +46228,80 @@
 
      Node-lane only (an ESM import of two tools plus nine recipe spawns), so the browser lane SKIPs;
      CI runs the Node lane. ══════════════════════════════════════════════════════════════════════ */
+    /* ════ THE REMEDY THE GUARD DENIES, DECIDED HERE ═══════════════════════════════════════════════
+       `rebase-safe` stops on a corpus-backed golden and prints "take <onto>'s copy, then re-run that
+       recipe". Every spelling of that command is denied by `.claude/hooks/guard-shared-tree.sh`, whose
+       rule keys on the command shape and cannot know what a path is — and whose hatch is read from the
+       hook's own environment, so a Bash call cannot set it. Row
+       `2026-10-29-the-remedy-rebase-safe-prints-is-denied-by-the-hook-in-every-spelling`.
+       `--resolve` is the sanctioned spelling, and this is its DECISION half: pure, so the suite can
+       drive every verdict by value. It takes a path only on an AFFIRMATIVE answer, which is what makes
+       an unreadable builder set resolve nothing instead of reverting the tree. */
+    group('Rebase-safe — --resolve takes only what a BUILDER or a REGENERATOR owns (REBASE-SAFE)', 'tools · rebase-safe · resolve', function (T) {
+      var plan = env.rebaseResolvePlan;
+      if (typeof plan !== 'function') {
+        T.skip('the resolve planner is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs) — the browser lane SKIPs');
+        return;
+      }
+      var GEN = new Set(['OxyDex.html', 'provenance/OxyDex.json']);
+      var HELD = [{ path: 'uploads/ECGDex_2026-06-27_equiv.node-export.json', why: 'its input is gitignored', recipe: 'tools/regen-ecgdex-goldens.mjs' }];
+      var recipeFor = function (q) {
+        return q === 'provenance/OxyDex.json' ? 'tools/regen-oxydex-goldens.mjs' : null;
+      };
+
+      // A builder-owned path is takeable, and the recipe travels with it.
+      var p1 = plan(['OxyDex.html', 'provenance/OxyDex.json'], GEN, HELD, recipeFor);
+      T.eq('two builder-owned paths are both taken', p1.take.length, 2);
+      T.eq('…and nothing is refused', p1.refuse.length, 0);
+      T.eq('a builder-owned path reads generated', p1.take[0] && p1.take[0].verdict, 'generated');
+      T.eq('…and carries the recipe its regenerator declares', p1.take[1] && p1.take[1].recipe, 'tools/regen-oxydex-goldens.mjs');
+
+      /* THE ROW'S OWN CASE. A held golden classifies SOURCE — that is why the rebase stops — so the
+         held set, not the classifier, is what makes it takeable. Without this rail the one path the
+         row measured would be refused by the remedy written for it. */
+      var p2 = plan(['uploads/ECGDex_2026-06-27_equiv.node-export.json'], GEN, HELD, recipeFor);
+      T.eq('a HELD golden is taken although the classifier calls it source', p2.take.length, 1);
+      T.eq('…and is marked held, not generated', p2.take[0] && p2.take[0].verdict, 'held');
+      T.eq('…and names the regenerator that re-earns it', p2.take[0] && p2.take[0].recipe, 'tools/regen-ecgdex-goldens.mjs');
+      T.eq('…and carries the reason it was held', p2.take[0] && p2.take[0].why, 'its input is gitignored');
+
+      // A source path is refused, and the refusal says why rather than just naming the verdict.
+      var p3 = plan(['oxydex-dsp.js'], GEN, HELD, recipeFor);
+      T.eq('a source path is refused', p3.refuse.length, 1);
+      T.eq('…and nothing is taken', p3.take.length, 0);
+      T.ok('…and the reason explains that no builder owns it', /no builder owns it/.test(String(p3.refuse[0] && p3.refuse[0].reason)), String(p3.refuse[0] && p3.refuse[0].reason));
+
+      /* `tests/dex-tests.js` gets its OWN refusal. The generic one reads as "do not touch it", and the
+         answer CLAUDE.md §2c gives is the opposite: restore the ref's copy, then RE-RUN your
+         insertion. This file conflicts on nearly every parallel PR, so the wrong advice here is the
+         expensive one. */
+      var p4 = plan(['tests/dex-tests.js'], GEN, HELD, recipeFor);
+      T.eq('the shared suite is refused too', p4.refuse.length, 1);
+      T.ok('…with the RE-RUN advice, not the generic reason', /RE-RUN your insertion/.test(String(p4.refuse[0] && p4.refuse[0].reason)), String(p4.refuse[0] && p4.refuse[0].reason));
+
+      /* FAIL CLOSED. `classify()` answers `source` for everything when the builder sets cannot be
+         read, so an unreadable set must resolve NOTHING — the direction that costs a rebase, never a
+         revert. The held rail is deliberately unaffected: a named recipe is an affirmative answer. */
+      var p5 = plan(['OxyDex.html', 'provenance/OxyDex.json'], null, [], recipeFor);
+      T.eq('an unreadable builder set takes nothing', p5.take.length, 0);
+      T.eq('…and refuses every path named', p5.refuse.length, 2);
+
+      /* A MIXED LIST REPORTS BOTH HALVES, which is what lets the caller refuse ATOMICALLY. A planner
+         that dropped the refusals would hand back a take list the CLI would apply, leaving a tree
+         half-resolved — and nothing on disk says which paths still hold their own bytes. */
+      var p6 = plan(['OxyDex.html', 'oxydex-dsp.js'], GEN, HELD, recipeFor);
+      T.eq('a mixed list still reports the takeable path', p6.take.length, 1);
+      T.eq('…and the refusal beside it', p6.refuse.length, 1);
+
+      // Degenerate input is refused rather than coerced: a blank argument is not a path.
+      var p7 = plan(['OxyDex.html', 'OxyDex.html', '  ', null], GEN, HELD, recipeFor);
+      T.eq('a path named twice is one resolution', p7.take.length, 1);
+      T.eq('…and a blank and a null are both refused', p7.refuse.length, 2);
+      T.eq('no paths at all ⇒ nothing taken', plan([], GEN, HELD, recipeFor).take.length, 0);
+      T.eq('a non-array ⇒ nothing taken', plan(null, GEN, HELD, recipeFor).take.length, 0);
+      T.eq('a missing recipe lookup is tolerated, not thrown', plan(['OxyDex.html'], GEN, HELD, null).take[0].recipe, null);
+    });
+
     group('Rebase-safe — a regenerator-owned golden is GENERATED only when the rebuild can restore it (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
       var mkRows = env.regenOwnedListing;
       var parse = env.rebaseParseOwnedListing;
@@ -53863,6 +54465,31 @@
         V({ prState: null, dirtyCount: 0, isMain: false, landless: { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: false } }).why,
         'no PR and nothing to land — 0 commits ahead of origin/main, tree clean, no branch on origin'
       );
+
+      /* ── THE PROOF READS A SOURCE DIFF, NOT A RE-BUNDLED ONE ──────────────────────────────────
+         Row 2026-10-29-the-landed-hatch-reads-a-rebundled-diff-into-a-one-megabyte-buffer. `--landed`
+         read `git diff -U0 origin/main...HEAD` into Node's default 1 MB buffer, so on any branch that
+         re-bundled an app it died as ENOBUFS — and a merged bundle PR is exactly what leaves a tree
+         behind, so the only hatch for those trees was unreachable. Measured on `claude/pbeat-hrn`
+         (2026-10-29/30): the whole diff is 32,301,331 bytes and adds 5225 identifiers; the source-only
+         diff is 22,936 bytes and adds 62. The second number is the one that matters, because
+         `landedByIdentifiers` runs one `git grep` per identifier, so widening the buffer alone would
+         have traded the refusal for a hang. A generated artifact's identifiers are a function of
+         source, so leaving them out removes no evidence. */
+      var parseClassify = env.wtDone.parseClassify,
+        splitDiffPaths = env.wtDone.splitDiffPaths;
+      var verdicts = parseClassify('source\toxydex-dsp.js\ngenerated\tOxyDex.html\ngenerated\tprovenance/OxyDex.json\nsource\ttests/dex-tests.js\n');
+      var split = splitDiffPaths('oxydex-dsp.js\nOxyDex.html\nprovenance/OxyDex.json\ntests/dex-tests.js\n', verdicts);
+      T.eq('the diff this proof reads is the source half', split.source.join(' '), 'oxydex-dsp.js tests/dex-tests.js');
+      T.eq('and the bundle and the ledger fragment are left out', split.generated.length, 2);
+      T.eq('nothing is left unclassified when every path got a verdict', split.unknown.length, 0);
+      T.ok('CONTROL · no verdicts at all REFUSES — an unreadable builder list must not read as all-source', splitDiffPaths('oxydex-dsp.js\n', null) === null, 'null verdicts must refuse');
+      T.eq('a path nobody classified is COUNTED, never assumed', splitDiffPaths('somebody-elses.js\n', verdicts).unknown.length, 1);
+      T.eq('a re-bundle-only branch leaves no source path to read', splitDiffPaths('OxyDex.html\nprovenance/OxyDex.json\n', verdicts).source.length, 0);
+      T.ok('a classification line with no tab is not a classification', parseClassify('source') === null, 'must refuse');
+      T.ok('nor is a verdict outside the two', parseClassify('maybe\tfoo.js') === null, 'must refuse');
+      T.eq('an empty listing classifies nothing and says so', parseClassify('').size, 0);
+      T.ok('the buffer every git call reads into is NAMED, not the 1 MB default', env.wtDone.RUN_MAX_BUFFER >= 64 * 1024 * 1024, String(env.wtDone.RUN_MAX_BUFFER));
     });
 
     /* Row 2026-10-12-wt-done-resolves-the-repo-from-the-shell-cwd: invoked by ABSOLUTE path from a
@@ -60017,8 +60644,8 @@
           T.skip(c.label + ' compute() ≡ committed export', 'committed input absent — uploads/ is gitignored (personal data); this leg runs locally with uploads/ present');
           return;
         }
-        /* THE BUNDLE REALM. The co-load carries `clock.js` because five of the eight bundles inline
-           it, so a recompute here runs in a realm three nodes never ship (CLAUDE.md §✅). Hide the
+        /* THE BUNDLE REALM. The co-load carries `clock.js` because six of the eight bundles inline
+           it, so a recompute here runs in a realm two nodes never ship (CLAUDE.md §✅). Hide the
            global for the nodes whose own shell omits it, or this gate compares a committed export
            against something the app cannot produce. Measured: with `clock.js` visible the two
            PpgDex synthetic twins came back with a host-axis-corrected `recording.contentId`, a
@@ -61271,7 +61898,7 @@
         return ORCH.indexOf(n) >= 0;
       });
       T.eq(
-        'the APP shells carrying a delegating DSP are exactly the five §✅ names (CLAIM clockBundles = 5)',
+        'the APP shells carrying a delegating DSP are exactly the five §✅ names (PpgDex also carries clock.js, CLAIM clockBundles = 6, and delegates nothing at load)',
         appCarriers.sort().join(','),
         'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
         'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
@@ -61492,6 +62119,7 @@
       var RESOLVE = {
         // shared spine
         'clock.js': 'DexClock',
+        'clock-seam.js': 'DexSeam',
         'kernel-constants.js': 'DexKernel',
         'metric-registry.js': 'MetricRegistry',
         'dex-profile.js': 'DexProfile',
@@ -83195,10 +83823,12 @@
         });
       }
       if (shellKeys.length) {
-        /* CLASSIFIER, over the REAL shells: PpgDex inlines ppgdex-dsp.js and no clock.js, so a realm
-           pairing the two must name clock.js and a realm without it must name nothing. */
-        T.eq("CLASSIFIER · clock.js beside ppgdex-dsp.js is alien to PpgDex's bundle", alienModules(['clock.js', 'ppgdex-dsp.js']), ['clock.js']);
-        T.eq('CLASSIFIER · the same realm without it is clean', alienModules(['ppgdex-dsp.js']), []);
+        /* CLASSIFIER, over the REAL shells: GlucoDex inlines glucodex-dsp.js and no clock.js, so a realm
+           pairing the two must name clock.js and a realm without it must name nothing. (PpgDex served
+           as the example until it gained clock.js on 2026-10-29; its realm is now clean WITH it.) */
+        T.eq("CLASSIFIER · clock.js beside glucodex-dsp.js is alien to GlucoDex's bundle", alienModules(['clock.js', 'glucodex-dsp.js']), ['clock.js']);
+        T.eq('CLASSIFIER · the same realm without it is clean', alienModules(['glucodex-dsp.js']), []);
+        T.eq('CLASSIFIER · clock.js beside ppgdex-dsp.js is clean — PpgDex inlines it since 2026-10-29', alienModules(['clock.js', 'ppgdex-dsp.js']), []);
         T.eq('CLASSIFIER · a realm naming no *-dsp.js identifies no bundle', alienModules(['clock.js']), undefined);
         names.forEach(function (k) {
           var alien = alienModules(M[k]);

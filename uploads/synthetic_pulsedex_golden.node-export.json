@@ -16,6 +16,22 @@
     "startEpochMs": 1781383490944,
     "offsetMin": null,
     "durationMin": 30,
+    "clockSeamScan": {
+      "scanned": true,
+      "reason": null,
+      "n": 1799,
+      "seams": 0,
+      "dropouts": 0,
+      "reorders": 0,
+      "unsettled": 0,
+      "medianMs": 1000,
+      "madMs": 31,
+      "barMs": 1300,
+      "cadenceMs": null,
+      "dominantShare": 0.016675931072818232,
+      "forwardBlindShare": null,
+      "forwardDecidable": false
+    },
     "spanMin": 30,
     "recordedMin": 30,
     "durationBasis": "envelope",
@@ -24,7 +40,18 @@
     "longRecording": false,
     "windows": 0,
     "beats": 1800,
-    "coveragePct": 100
+    "coveragePct": 100,
+    "timing": {
+      "timingSource": "device-only",
+      "independent": false,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "resyncs": null,
+      "seams": null,
+      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero"
+    }
   },
   "hrv": {
     "time": {

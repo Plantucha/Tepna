@@ -12,14 +12,44 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "96684e49da15",
+    "contentId": "e023726dcbf8",
     "startEpochMs": 1782021923891,
     "endEpochMs": 1782021963883,
     "durSec": 39.992592592592594,
     "sessions": 1,
     "events": 0,
     "site": "wrist",
-    "siteSource": "device-default"
+    "siteSource": "device-default",
+    "timing": {
+      "timingSource": "device",
+      "independent": false,
+      "anchors": 11,
+      "spanMs": 37029.62963,
+      "ppm": -11.002189437793822,
+      "spanPpm": -17.003410682049797,
+      "resyncs": 0,
+      "seams": 0,
+      "reason": null
+    },
+    "hostAxis": {
+      "anchors": 11,
+      "ppm": -11.002189437793822,
+      "spanMs": 37029.62963,
+      "spanPpm": -17.003410682049797,
+      "rate": "unknown",
+      "rateReason": "spans 37 s, under the 2400 s a rate needs",
+      "rateApplied": true,
+      "maxStepMs": 0,
+      "totalMs": -0.40740700000060315,
+      "independent": false,
+      "spreadMs": 0.9259260000035283,
+      "inertReason": "host ≡ device — residual spread 0.93 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock",
+      "drawn": false,
+      "quantizedShare": 0.5925171328023708,
+      "applied": true,
+      "timingSource": "device",
+      "stability": null
+    }
   },
   "ganglior_events": [],
   "reserved": {
@@ -34,18 +64,17 @@
         "endTMs": 1782021963883,
         "clockDomain": "device",
         "timingSource": "device",
-        "spreadMs": null,
-        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
+        "spreadMs": 0.9259260000035283
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "a01ac8987c3c",
-        "computeHash": "3f308dfb7de1"
+        "manifestHash": "888d0f28bc9e",
+        "computeHash": "e27c74965932"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "96684e49da15"
+        "inputHash": "e023726dcbf8"
       },
       "basis": "derived",
       "quality": {
@@ -65,18 +94,17 @@
         "endTMs": 1782021963883,
         "clockDomain": "device",
         "timingSource": "device",
-        "spreadMs": null,
-        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
+        "spreadMs": 0.9259260000035283
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "a01ac8987c3c",
-        "computeHash": "3f308dfb7de1"
+        "manifestHash": "888d0f28bc9e",
+        "computeHash": "e27c74965932"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "96684e49da15"
+        "inputHash": "e023726dcbf8"
       },
       "basis": "derived",
       "quality": {
@@ -218,9 +246,9 @@
       "spine": "foot",
       "n": 42,
       "tSec": [
-        1.875,
+        1.874,
         2.828,
-        3.776,
+        3.775,
         4.718,
         5.655,
         6.587,
@@ -228,35 +256,35 @@
         8.437,
         9.355,
         10.27,
-        11.181,
-        12.088,
+        11.18,
+        12.087,
         12.991,
-        13.893,
-        14.791,
-        15.687,
-        16.581,
-        17.473,
-        18.364,
+        13.892,
+        14.79,
+        15.686,
+        16.58,
+        17.472,
+        18.363,
         19.253,
         20.142,
         21.03,
         21.918,
         22.806,
         23.695,
-        24.585,
+        24.584,
         25.475,
         26.367,
         27.261,
-        28.158,
+        28.157,
         29.056,
         29.958,
         30.863,
-        31.772,
+        31.771,
         32.684,
-        33.602,
+        33.601,
         34.524,
         35.451,
-        36.385,
+        36.384,
         37.324,
         38.27,
         39.223

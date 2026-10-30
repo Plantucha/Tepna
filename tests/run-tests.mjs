@@ -30,6 +30,7 @@ import {
   classifyOwnedFixtures as rebaseClassifyOwnedFixtures,
   unrestoredFrom as rebaseUnrestoredFrom,
   heldGoldens as rebaseHeldGoldens,
+  resolvePlan as rebaseResolvePlan,
   trackedOracle as rebaseTrackedOracle
 } from '../tools/rebase-safe.mjs';
 /* AND THIS IMPORT IS ITSELF AN ASSERTION. `tools/pr-compliance.mjs` ended in a bare
@@ -662,6 +663,7 @@ function readSources() {
     'cohort-regression.js',
     'cohort-runner.html',
     'clock.js',
+    'clock-seam.js',
     'oxydex-util.js',
     'pulsedex-dsp.js',
     'oxydex-dsp.js',
@@ -2700,6 +2702,7 @@ async function main() {
     [
       'kernel-constants.js',
       'clock.js',
+      'clock-seam.js',
       'metric-registry.js',
       'dex-escape.js', // RENDER-HARNESS (§RN): escapeHTML — a top-level dep of the *-render.js review builders
       'dex-profile.js',
@@ -3116,6 +3119,7 @@ async function main() {
     // only worth asserting if the shared escaper is known to close that hole.
     escapeHTML: ctx.escapeHTML || (ctx.DexEsc && ctx.DexEsc.escapeHTML),
     DexClock: ctx.DexClock,
+    DexSeam: ctx.DexSeam,
     /* THE REALM GLOBAL — the object the co-loaded modules actually hang their globals on. The suite
        runs in the HOST context here (`require('./dex-tests.js')`) while the modules run inside the vm,
        so a group that must recompute the way a BUNDLE computes cannot reach them through its own
@@ -3310,6 +3314,9 @@ async function main() {
     /* The REAL two-rail split, a FUNCTION so nothing pays for the nine recipe spawns unless the group
        runs — the population half of the same pair as rebaseGeneratedSet. */
     rebaseHeldGoldens: rebaseHeldGoldens,
+    /* The remedy's DECISION half, pure and driven by value: which named paths the builders may
+       restore, and what each refusal says. The CLI writes bytes; this decides. */
+    rebaseResolvePlan: rebaseResolvePlan,
     rebaseTrackedOracle: rebaseTrackedOracle,
     /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
        parser that judges it, so the two cannot disagree about what a quoted verdict is. */

@@ -315,3 +315,63 @@ def test_the_offset_ACTUALLY_REACHES_the_emitted_envelope():
     seen.clear()
     cpap_stream._emit_acq_evidence(lambda ev: seen.setdefault("ev", ev), [_Raw()], _Counters(), 25.0, True, None)
     assert seen["ev"].clock_offset.measured is False
+
+
+# ── the session window: the value and its stamp must describe the same anchors ───────────────────
+
+
+def _walking_sidecar():
+    """The box's own file in miniature: an old block, a 60-day gap, then last night's block.
+
+    Shaped from the real measurement (2026-10-29): `AS11CLOCK.csv` held 93,990 anchors over 1562.9 h
+    and the RTC had walked −19.8 s end to end, so the whole-file median sat 11.8 s away from the
+    newest night's own. The two blocks here carry the same two offsets as the first and last day of
+    that file."""
+    old = [f"w;{H0 + i * 30.0};iso;{H0 + i * 30.0 + 1276.0};{-1276.0}" for i in range(60)]
+    recent_t0 = H0 + 60 * 86400.0
+    recent = [f"w;{recent_t0 + i * 30.0};iso;{recent_t0 + i * 30.0 + 1296.0};{-1296.0}" for i in range(60)]
+    return "\n".join([HDR] + old + recent), recent_t0
+
+
+def test_the_OFFSET_IS_THE_NEWEST_SESSION_not_the_whole_file():
+    """🔴 THE DEFECT THIS WINDOW EXISTS FOR. The sidecar never rotates, so a whole-file median answers
+    "what was the offset on average since August" while `measured_at_ms` says "measured minutes ago".
+    A consumer judging staleness from the stamp then trusts a number that spans two months.
+
+    `cpap_edf.device_start_from_host` places an SA2 with this value and a scoreable apnea lasts 10 s,
+    so an 11.8 s error puts a desaturation beside the wrong event with both files well-formed."""
+    text, _ = _walking_sidecar()
+    got = A.offset_for_envelope(text)
+    assert got["offset_sec"] == 1296.0, "the window must report the newest session, not the history"
+    whole = A.offset_for_envelope(text, window_s=1e12)
+    assert whole["offset_sec"] == 1286.0, "the unwindowed read medians across the walk"
+    assert abs(whole["offset_sec"] - got["offset_sec"]) == 10.0, "and the two differ by half the walk"
+
+
+def test_the_POPULATION_travels_with_the_VALUE():
+    """A caller that cannot see how many anchors over how long a span produced an offset cannot tell
+    a whole session from a single poll — and a single poll carries the device's whole-second quantum."""
+    text, recent_t0 = _walking_sidecar()
+    got = A.offset_for_envelope(text)
+    assert got["anchors"] == 60, "only the newest block is in the window"
+    assert got["span_s"] == 59 * 30.0
+    assert got["window_s"] == A.ENVELOPE_WINDOW_S
+    assert got["measured_at_ms"] == A._host_epoch_to_floating_ms(recent_t0 + 59 * 30.0)
+
+
+def test_a_LONE_ANCHOR_IN_ITS_WINDOW_refuses_even_though_the_file_is_long():
+    """The newest anchor sits a week past everything else: there is no second reading of the current
+    offset, so there is nothing to take a median over. `None` is the honest answer and the caller
+    renders it `ClockOffset.unknown()` — never a zero, and never the stale history (§∅)."""
+    rows = [f"w;{H0 + i * 30.0};iso;{H0 + i * 30.0 + AHEAD_S};{-AHEAD_S}" for i in range(50)]
+    lone = H0 + 7 * 86400.0
+    rows.append(f"w;{lone};iso;{lone + AHEAD_S};{-AHEAD_S}")
+    assert A.offset_for_envelope("\n".join([HDR] + rows)) is None
+
+
+def test_the_WINDOW_BOUNDARY_is_inclusive_on_both_sides_of_one_step():
+    """Pinned because `>` would drop an anchor exactly `window_s` old, and an off-by-one at the edge
+    is invisible on a dense file and decides the verdict on a sparse one."""
+    inside = "\n".join([HDR, f"w;{H0};iso;{H0 + AHEAD_S}", f"w;{H0 + 100.0};iso;{H0 + 100.0 + AHEAD_S}"])
+    assert A.offset_for_envelope(inside, window_s=100.0)["anchors"] == 2
+    assert A.offset_for_envelope(inside, window_s=99.0) is None

@@ -68,7 +68,18 @@
         "afterSession": 0,
         "gapMin": 3.6
       }
-    ]
+    ],
+    "timing": {
+      "timingSource": "device-only",
+      "independent": false,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "resyncs": null,
+      "seams": null,
+      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero"
+    }
   },
   "metrics": {
     "usageHours": 7.067,
