@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="62c3076353e4" data-compute-hash="94899fce0990"><head>
+<html lang="en" data-manifest-hash="01f6d9fe7eeb" data-compute-hash="fbb3b07d411b"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-3hKoR70OoVl+YpsugJMyqcetldWdx3Bbu9rjWz+Te6Q=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Fq9mZ3s4ajOpQaITKbXSnt/ZDnFA1DUPz9uZDRv0JgQ=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IcIoipQ0VYpQZZ9CwMRRqh/n6LBB/w4+kMWcy5MilEk=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kMBDwj9d1pjlIO9o/ihHWuuCnQGqEW9CiFQP6NogSp0=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-olGSs2IuOS5/nCWBxgMvNWNu2xbJPT8jNTXkt6EzH+8=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-uSUfxansjHADk1N3tZc/tAz0gqnVaxkZ0OX5X7kz5Lw=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-3hKoR70OoVl+YpsugJMyqcetldWdx3Bbu9rjWz+Te6Q=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Fq9mZ3s4ajOpQaITKbXSnt/ZDnFA1DUPz9uZDRv0JgQ=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IcIoipQ0VYpQZZ9CwMRRqh/n6LBB/w4+kMWcy5MilEk=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-TAm+eJdgc7F/kGxNcUC4oblndpFhRJ20GGF8mLzzC3I=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-kMBDwj9d1pjlIO9o/ihHWuuCnQGqEW9CiFQP6NogSp0=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-olGSs2IuOS5/nCWBxgMvNWNu2xbJPT8jNTXkt6EzH+8=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -29797,10 +29797,10 @@ __exports.GlucoDex = window.GlucoDex;
        Verdicts on this file's own corpus are unchanged — 0.6–8.8 % stays below and 100 % stays above —
        so the move costs nothing here and buys the rounded-rate and interrupted-drawn cases.
 
-       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately: PpgDex is one of the three
-       bundles that do NOT inline `clock.js` (CLAUDE.md §✅), so `DexClock` is `undefined` here and a
-       bare reference is a ReferenceError, not a fallback. The constant is duplicated ON PURPOSE and
-       the two must be moved together. */
+       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately. Until 2026-10-29 PpgDex did not
+       inline `clock.js`, so a bare reference was a ReferenceError. The bundle inlines it now, but a
+       realm that loads `ppgdex-dsp.js` without `clock.js` still exists (a worker or a tool), so the
+       constant stays duplicated ON PURPOSE and the two must be moved together. */
     let quantizedShare = null;
     /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
        byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
@@ -29844,9 +29844,9 @@ __exports.GlucoDex = window.GlucoDex;
     // of the very axis it indexes. ≤0.03 % on a Polar, 0.16 % on the O2Ring — small, but a self-
     // inconsistent rec is the kind of thing that is only ever found much later, in something else.
     /* ⚠️ THE SURVIVING SEGMENT MUST BE ABLE TO CARRY AN AXIS, AND PpgDex MUST SAY SO ITSELF.
-       `DexClock.hostAxis` refuses below three anchors, but `clock.js` is not inlined in this bundle
-       (CLAUDE.md §✅), so in the shipped app that refusal does not exist and the `{ ok: false }`
-       fallback below says nothing about why. After a seam the pre-resync anchors are dropped, so what
+       `DexClock.hostAxis` refuses below three anchors, but a realm without `clock.js` (the shipped app
+       until 2026-10-29) has no such refusal, and the `{ ok: false }` fallback below says nothing about
+       why. After a seam the pre-resync anchors are dropped, so what
        remains is one segment — and a segment of one or two anchors is not a short measurement, it is
        not a measurement. Naming the count here keeps the two cases apart in the export: "this bundle
        has no clock spine" and "this night's post-seam segment was too short to measure a rate over"
@@ -29902,7 +29902,7 @@ __exports.GlucoDex = window.GlucoDex;
        timing information whatsoever and must never be spent as a clock leg — closure, three-cornered hat
        and PAT all silently accept such a leg today and measure a constant. */
     /* 0.67 — the same cut as `clock.js` CK_AXIS_DRAWN_SHARE, on that file's 381-sidecar measurement.
-       Kept as a literal because `DexClock` does not exist in this bundle; see the block above. */
+       Kept as a literal because a realm without `clock.js` has no `DexClock`; see the block above. */
     /* ⚠️ TRI-STATE, and §∅ is why. `quantizedShare` stays `null` whenever fewer than 21 ns deltas
        resolved (the `deltas.length > 20` guard above), and this line used to read
        `quantizedShare != null && quantizedShare >= 0.67` — so an UNMEASURED concentration published a
@@ -33092,8 +33092,8 @@ __exports.GlucoDex = window.GlucoDex;
     [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
   ];
   /* The OLS fit WITH its uncertainty. Mirrors `clock.js _ckAllanSlope` term for term — this node
-     cannot delegate to it: `PpgDex.html` inlines no `clock.js`, so `DexClock` is undefined in the
-     shipped bundle. The duplication is structural, which is why the parity gate pins the two lanes'
+     did not delegate to it because `PpgDex.html` inlined no `clock.js` until 2026-10-29, and a realm
+     without the module still runs this code. The duplication is structural, which is why the parity gate pins the two lanes'
      ANSWERS rather than trusting them to stay equal by inspection.
      ⚠️ The SE is a LOWER BOUND — overlapping ADEV points are correlated (adjacent taus reuse most of
      the same samples) while OLS assumes independent residuals. Do not tighten 1.96 to 1 SE believing
@@ -33440,7 +33440,7 @@ __exports.GlucoDex = window.GlucoDex;
       meaning: cls.meaning,
       /* ⚠️ `…Ms` IS A MISNOMER, kept for back-compat — see the same note in `clock.js`. Phase is fed
          in ms and τ in seconds, so `adev` is ms/s: a RATE. PpgDex keeps its own copy of this because
-         it does not inline `clock.js` (CLAUDE.md §✅), so the two must stay in step by hand. */
+         it ran without `clock.js` until 2026-10-29 and some realms still do, so the two must stay in step by hand. */
       atShortestMs: r2(curve[0].adev),
       atLongestMs: curve[curve.length - 1].adev,
       atShortestPpm: r2(curve[0].adev * 1000),
@@ -35211,10 +35211,9 @@ __exports.GlucoDex = window.GlucoDex;
   //
   //  basis: 'derived' (LEXICON §4b) — a statistic over a detected, corrected beat train.
   //  window: [t0Ms, endEpochMs] (the parser's last stamped row); when absent the beat span stands in and
-  //  is named. clockDomain 'device'. spreadMs: PpgDex ships WITHOUT clock.js (CLAUDE.md §✅ — DexClock is
-  //  undefined in the bundle), so `r.hostAxis` is `{ok:false}` there and the spread is null WITH that
-  //  reason; a headless co-loaded run may carry a measured spread — the block reports whichever the
-  //  node-local axis actually produced, never a value the bundle could not have measured.
+  //  is named. clockDomain 'device'. spreadMs: the bundle inlines clock.js since 2026-10-29, so the app
+  //  measures the spread the fixtures and the fold measure. A realm without clock.js gets `{ok:false}`
+  //  and a null spread WITH that reason — the block reports whichever axis the realm actually produced.
   //  evidence: inputHash = the export's recording.contentId (SignalFrame content address of the NN train),
   //  computed ONCE in ppgBuildNodeExport and shared. No acquisition envelope joins the PPG path today
   //  (the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt) — null
@@ -35253,7 +35252,7 @@ __exports.GlucoDex = window.GlucoDex;
       window.spreadReason = ha
         ? 'host axis present but published no spread'
         : typeof DexClock === 'undefined'
-          ? 'no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread'
+          ? 'no DexClock in this realm (clock.js not loaded) — the node-local axis measures no host spread'
           : 'no host axis on this input (single device clock, or hostAxis refused) — nothing to measure spread against';
     if (windowNote) window.windowReason = windowNote;
     var quality = {

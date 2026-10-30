@@ -59,10 +59,12 @@ var OXY_ECG_REALM = Object.freeze(OXY_REALM.concat(ECG_LEG));
    of a fixture pair is a committed node-export, which fusion reads as plain data. */
 var OXY_FUSION_REALM = Object.freeze(OXY_REALM.concat(['oxydex-fusion.js']));
 
-/* The PpgDex realm — the co-load of the PpgDex bundle's compute modules, and `clock.js` is NOT one of
-   them. PpgDex.src.html inlines no `clock.js` (CLAUDE.md §✅ — `DexClock` is undefined in that bundle,
-   and the node keeps its deliberate node-local parser), so a realm that loads it is not the realm the
-   app runs in. The entry sat here until 2026-10-24 under a comment claiming `ppgdex-dsp.js` aliases
+/* The PpgDex realm — the co-load of the PpgDex bundle's compute modules. Since 2026-10-29 `clock.js` is
+   one of them: PpgDex.src.html inlines it so the app's `typeof DexClock` guards take the host-axis
+   branch the fold and the suite already took (DEVICE-TIME-HANDLING-2026-10-29 O1, owner "fix ppgdex
+   issue too"). The node still keeps its deliberate node-local parser; nothing in `ppgdex-dsp.js`
+   aliases `DexClock.parseTimestamp`. History: before 2026-10-29 the bundle omitted the module, and the
+   entry sat here until 2026-10-24 under a comment claiming `ppgdex-dsp.js` aliases
    `DexClock.parseTimestamp` at load; it does not — every `DexClock` read in that DSP is guarded by
    `typeof`, and with the module present those guards take the branch the bundle never takes. Measured
    cost of the entry: the five reachable committed goldens were regenerated under it and carried a
@@ -73,6 +75,7 @@ var OXY_FUSION_REALM = Object.freeze(OXY_REALM.concat(['oxydex-fusion.js']));
    that loads a module its node omits. */
 var PPG_REALM = Object.freeze([
   'kernel-constants.js',
+  'clock.js',
   'signal-frame.js',
   'dex-export.js',
   'metric-registry.js',

@@ -31567,18 +31567,18 @@
         T.ok('PpgDex.src.html is readable, so the realm fact is read and not assumed', false, 'env.srcHtml carries no PpgDex.src.html — this leg cannot tell the bundle realm from the suite realm');
         return;
       }
-      T.ok('CONTROL · PpgDex.src.html inlines no clock.js — the realm fact comes from the builder list', omits === true, 'PpgDex now inlines clock.js; the goldens owe a regeneration');
+      T.ok('CONTROL · PpgDex.src.html inlines clock.js — the realm fact comes from the builder list', omits === false, 'PpgDex no longer inlines clock.js; the goldens owe a regeneration');
       var rich = inBundleRealm('PpgDex', function () {
         return P.compute({ text: eq.input }, { rich: true });
       });
-      /* ANTI-VACUITY · the hiding must be LOAD-BEARING here. The same call in the co-loaded realm
-         carries a host axis the bundle cannot build, so if these two ever agree the leg above has
-         stopped proving anything. */
-      var coLoaded = P.compute({ text: eq.input }, { rich: true });
+      /* ANTI-VACUITY · the bundle now carries `clock.js` (DEVICE-TIME-HANDLING-2026-10-29 O1), so the
+         bundle realm IS the co-loaded realm and the export must carry the host axis the app now builds.
+         Before 2026-10-29 the bundle omitted the module and this leg asserted the two realms DIFFERED;
+         an export with no host axis here means the shell lost the module again. */
       T.ok(
-        'ANTI-VACUITY · the co-loaded realm really does produce a different export',
-        JSON.stringify(coLoaded.recording && coLoaded.recording.hostAxis) !== JSON.stringify(rich.recording && rich.recording.hostAxis),
-        'both realms gave hostAxis=' + JSON.stringify(rich.recording && rich.recording.hostAxis)
+        'ANTI-VACUITY · the bundle realm builds a host axis (clock.js is inlined)',
+        !!(rich.recording && rich.recording.hostAxis && rich.recording.hostAxis.applied === true && rich.recording.hostAxis.anchors >= 3),
+        'hostAxis=' + JSON.stringify(rich.recording && rich.recording.hostAxis)
       );
 
       /* Volatile keys the equiv gate excludes fleet-wide: they move on every run by design and say
@@ -31684,14 +31684,14 @@
         }
         return c;
       }
-      /* The golden is regenerated in the BUNDLE's realm (no clock.js — CLAUDE.md §✅), so the
-         recompute runs there too; the suite co-loads clock.js for the five bundles that carry it. */
+      /* The golden is regenerated in the BUNDLE's realm, so the recompute runs there too. PpgDex has
+         carried clock.js since 2026-10-29; `inBundleRealm` hides DexClock only for a shell that omits it. */
       var omitsF = shellOmitsModule('PpgDex', 'clock.js');
       if (omitsF === null) {
         T.ok('PpgDex.src.html is readable, so the realm fact is read and not assumed', false, 'env.srcHtml carries no PpgDex.src.html — this leg cannot tell the bundle realm from the suite realm');
         return;
       }
-      T.ok('CONTROL · PpgDex.src.html inlines no clock.js — the realm fact comes from the builder list', omitsF === true, 'PpgDex now inlines clock.js; the goldens owe a regeneration');
+      T.ok('CONTROL · PpgDex.src.html inlines clock.js — the realm fact comes from the builder list', omitsF === false, 'PpgDex no longer inlines clock.js; the goldens owe a regeneration');
       var out = inBundleRealm('PpgDex', function () {
         return P.compute({ text: eq.input }, { rich: true }); // rich, but NO timebase opt ⇒ the DEFAULT path
       });
@@ -60031,8 +60031,8 @@
           T.skip(c.label + ' compute() ≡ committed export', 'committed input absent — uploads/ is gitignored (personal data); this leg runs locally with uploads/ present');
           return;
         }
-        /* THE BUNDLE REALM. The co-load carries `clock.js` because five of the eight bundles inline
-           it, so a recompute here runs in a realm three nodes never ship (CLAUDE.md §✅). Hide the
+        /* THE BUNDLE REALM. The co-load carries `clock.js` because six of the eight bundles inline
+           it, so a recompute here runs in a realm two nodes never ship (CLAUDE.md §✅). Hide the
            global for the nodes whose own shell omits it, or this gate compares a committed export
            against something the app cannot produce. Measured: with `clock.js` visible the two
            PpgDex synthetic twins came back with a host-axis-corrected `recording.contentId`, a
@@ -61285,7 +61285,7 @@
         return ORCH.indexOf(n) >= 0;
       });
       T.eq(
-        'the APP shells carrying a delegating DSP are exactly the five §✅ names (CLAIM clockBundles = 5)',
+        'the APP shells carrying a delegating DSP are exactly the five §✅ names (PpgDex also carries clock.js, CLAIM clockBundles = 6, and delegates nothing at load)',
         appCarriers.sort().join(','),
         'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
         'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
@@ -83209,10 +83209,12 @@
         });
       }
       if (shellKeys.length) {
-        /* CLASSIFIER, over the REAL shells: PpgDex inlines ppgdex-dsp.js and no clock.js, so a realm
-           pairing the two must name clock.js and a realm without it must name nothing. */
-        T.eq("CLASSIFIER · clock.js beside ppgdex-dsp.js is alien to PpgDex's bundle", alienModules(['clock.js', 'ppgdex-dsp.js']), ['clock.js']);
-        T.eq('CLASSIFIER · the same realm without it is clean', alienModules(['ppgdex-dsp.js']), []);
+        /* CLASSIFIER, over the REAL shells: GlucoDex inlines glucodex-dsp.js and no clock.js, so a realm
+           pairing the two must name clock.js and a realm without it must name nothing. (PpgDex served
+           as the example until it gained clock.js on 2026-10-29; its realm is now clean WITH it.) */
+        T.eq("CLASSIFIER · clock.js beside glucodex-dsp.js is alien to GlucoDex's bundle", alienModules(['clock.js', 'glucodex-dsp.js']), ['clock.js']);
+        T.eq('CLASSIFIER · the same realm without it is clean', alienModules(['glucodex-dsp.js']), []);
+        T.eq('CLASSIFIER · clock.js beside ppgdex-dsp.js is clean — PpgDex inlines it since 2026-10-29', alienModules(['clock.js', 'ppgdex-dsp.js']), []);
         T.eq('CLASSIFIER · a realm naming no *-dsp.js identifies no bundle', alienModules(['clock.js']), undefined);
         names.forEach(function (k) {
           var alien = alienModules(M[k]);

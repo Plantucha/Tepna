@@ -12,7 +12,7 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "9459dc635dd5",
+    "contentId": "52eb2b7c4711",
     "startEpochMs": 1782021923891,
     "endEpochMs": 1782021963883,
     "durSec": 29.992592592592594,
@@ -56,18 +56,17 @@
         "endTMs": 1782021963883,
         "clockDomain": "device",
         "timingSource": "device",
-        "spreadMs": null,
-        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
+        "spreadMs": 0.8148150000015448
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "a01ac8987c3c",
-        "computeHash": "3f308dfb7de1"
+        "manifestHash": "0ee0a9d6297c",
+        "computeHash": "887568c0cc77"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "9459dc635dd5"
+        "inputHash": "52eb2b7c4711"
       },
       "basis": "derived",
       "quality": {
@@ -87,18 +86,17 @@
         "endTMs": 1782021963883,
         "clockDomain": "device",
         "timingSource": "device",
-        "spreadMs": null,
-        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
+        "spreadMs": 0.8148150000015448
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "a01ac8987c3c",
-        "computeHash": "3f308dfb7de1"
+        "manifestHash": "0ee0a9d6297c",
+        "computeHash": "887568c0cc77"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "9459dc635dd5"
+        "inputHash": "52eb2b7c4711"
       },
       "basis": "derived",
       "quality": {

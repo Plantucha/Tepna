@@ -142,7 +142,7 @@ module inlined into many bundles moves every carrying app's `manifestHash` at on
 | module | bundles carrying it |
 |---|---|
 | `kernel-constants.js` · `metric-registry.js` · `dex-export.js` | **8 of 8** |
-| **`clock.js`** | **5 of 8** — absent from **PpgDex · GlucoDex · CPAPDex**, where `DexClock` is `undefined` |
+| **`clock.js`** | **6 of 8** — absent from **GlucoDex · CPAPDex**, where `DexClock` is `undefined` |
 
 - **Before delegating anything in a `*-dsp.js` to `DexClock`, check the bundle carries it**
   (`grep -c 'data-inline-src="clock.js"' <App>.html`). An unguarded alias throws at module evaluation
@@ -523,9 +523,10 @@ placeholders).
 - **Fonts:** no woff2, no `@font-face`, no CDN; `'Inter'`/`'IBM Plex Mono'` fall through to system faces
   by design.
 - **`parseTimestamp` is single-sourced in `clock.js` (`DexClock`)**, inlined into
-  **`CLAIM clockBundles = 5`** of the 8 app bundles — oxydex/pulsedex/hrvdex/ecgdex/motiondex delegate
-  via local aliases; **ppgdex, glucodex and cpapdex do not carry `clock.js`, so `DexClock` is UNDEFINED
-  there** (a `ReferenceError`, not a fallback) and they keep deliberate node-local variants. Do not force
+  **`CLAIM clockBundles = 6`** of the 8 app bundles — oxydex/pulsedex/hrvdex/ecgdex/motiondex delegate
+  via local aliases; **ppgdex carries `clock.js` (since 2026-10-29, for `DexClock.hostAxis`) and keeps
+  its node-local parser; glucodex and cpapdex do not carry it, so `DexClock` is UNDEFINED there** (a
+  `ReferenceError`, not a fallback). All three keep deliberate node-local parser variants. Do not force
   them onto DexClock or reintroduce a mirror. Load `clock.js` before any delegating `*-dsp.js`
   (`dex-coload.js shared:`, worker `importScripts`).
 - `docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`: historical, done.

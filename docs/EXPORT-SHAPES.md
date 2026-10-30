@@ -75,11 +75,11 @@ that no envelope joins the PPG path. **The rule the PpgDex row carries (§∅ ow
 the export carries `measurement: null` and a `measurementReason` that opens with `clock-seam:` and counts the
 resyncs — the whole-record numbers are still computed for display, but a number over a discontinuity gets no
 lineage claim. Reduced coverage (dropouts, pinned spans) is not a seam and annotates through `quality`.
-`window.spreadMs`: PpgDex ships WITHOUT `clock.js` (CLAUDE.md §✅), so in the bundle the node-local axis
-publishes null with that reason; a headless co-loaded run (the fixtures) carries the measured spread — a
-known headless/bundle divergence, the same one `recording.hostAxis` already has, recorded rather than hidden:
-**a PpgDex `spreadMs` NUMBER means "co-loaded run", never "the app"** — residue
-`2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible` holds the two remedies.
+`window.spreadMs`: PpgDex inlines `clock.js` since 2026-10-29 (CLAUDE.md §✅), so the app, the fixtures and
+the fold all build the same host axis and publish the same measured spread. Before that date the bundle
+omitted the module, published null with the reason `no DexClock in this bundle`, and a `spreadMs` NUMBER
+meant "co-loaded run" (residue `2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible`). The null branch
+remains for a realm that loads no `clock.js`.
 Emission is still staged per node — the other five do not emit it yet, and a missing block on THEIR exports is
 not a defect. **The Integrator consumes it (roadmap §8, 2026-09-21; the generic `adaptEnvelopeNode` too since
 2026-09-22, so an ECGDex export's recording-level map is consumed the same way):** `adaptOxyDex` turns each block into a

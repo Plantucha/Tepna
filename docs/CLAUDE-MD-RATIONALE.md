@@ -286,7 +286,7 @@ reading `typeof DexClock`:
 | module | bundles carrying it |
 |---|---|
 | `kernel-constants.js` · `metric-registry.js` · `dex-export.js` | **8 of 8** |
-| **`clock.js`** | **5 of 8** — absent from **PpgDex · GlucoDex · CPAPDex**, where `DexClock` is `undefined` at runtime |
+| **`clock.js`** | **6 of 8** — absent from **GlucoDex · CPAPDex**, where `DexClock` is `undefined` at runtime (PpgDex gained it 2026-10-29) |
 
 Those three are exactly the nodes §✅ names as keeping *"DELIBERATE node-local variants — do not force
 them onto DexClock"*. They ship without the spine **on purpose**; this paragraph contradicted §✅ and §✅
@@ -1350,10 +1350,11 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   flag "missing woff2" — that whole class of warning was removed at the root in June 2026.
 - **`parseTimestamp` single-sourced in `clock.js` (A5 EXECUTED 2026-07-03, owner-ratified).** The former
   "duplicated in every `*-dsp.js`, mirror it" rule is RETIRED: THE canonical Clock-Contract parser now lives
-  in `clock.js` (`DexClock`), inlined by the owned bundler into **`CLAIM clockBundles = 5`** of the 8 app
+  in `clock.js` (`DexClock`), inlined by the owned bundler into **`CLAIM clockBundles = 6`** of the 8 app
   bundles (bundled-local AND single-source) — **NOT all of them**, and that distinction is load-bearing:
-  oxydex/pulsedex/hrvdex/ecgdex/motiondex ship the spine and DELEGATE via local aliases, while **ppgdex,
-  glucodex and cpapdex do not inline `clock.js` at all**, so **`DexClock` is UNDEFINED in those three
+  oxydex/pulsedex/hrvdex/ecgdex/motiondex ship the spine and DELEGATE via local aliases; ppgdex inlines it
+  since 2026-10-29 for `hostAxis` only and delegates no parser; **glucodex and cpapdex do not inline
+  `clock.js` at all** (until 2026-10-29 ppgdex was a third), so **`DexClock` is UNDEFINED in those
   bundles** — a bare `DexClock.x` there is a `ReferenceError`, not a fallback. They keep DELIBERATE
   node-local variants (ppgdex: strict ISO/epoch subset + quote-strip; glucodex: `_ckParse` + MDY numeric
   wrapper; cpapdex: EDF subset) — do not force them onto DexClock, and do not reintroduce a mirror.
@@ -1391,8 +1392,8 @@ timezone (a New-York night reads 03:00 in London). Floating `tMs` + `getUTC*` is
 ### 2. One shared parser — `parseTimestamp(raw, opts) → { tMs, offsetMin } | null`
 **Single-sourced in `clock.js` (`DexClock`) since A5 (owner-ratified, executed 2026-07-03)** — the owned
 bundler inlines it into **the bundles §✅ names — NOT all of them**; delegating DSPs alias it locally
-(`var parseTimestamp = DexClock.parseTimestamp;` …). **`DexClock` is UNDEFINED in ppgdex, glucodex and
-cpapdex**, which keep deliberate node-local variants (§✅), so a bare `DexClock.x` there is a
+(`var parseTimestamp = DexClock.parseTimestamp;` …). **`DexClock` is UNDEFINED in glucodex and
+cpapdex** (and was in ppgdex until 2026-10-29), which keep deliberate node-local variants (§✅), so a bare `DexClock.x` there is a
 `ReferenceError`, not a fallback. The count lives in §✅'s machine-checked `CLAIM clockBundles` and is
 deliberately not restated here: one quantity, one source, one gate — this sentence said "every bundle"
 from 2026-08-15 until 2026-09-22 because the correction was applied to §✅ and not to its twin, and
