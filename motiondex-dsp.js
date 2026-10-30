@@ -176,6 +176,12 @@
      the same device's two files and a second constant would eventually disagree with the first. */
   var MOTION_RESYNC_BOUND_MS = 60000;
   var MOTION_GAP_CEIL_MS = 86400000;
+  /* ANCHOR CADENCE for the host-disciplined axis (`_mdHostDiscipline`). 100 rows is ~3.8 s at 26 Hz
+     and ~1.9 s at 52 Hz — the same cadence in TIME that ECGDex samples at (`AXIS_EVERY = 500`,
+     "~3.8 s at 130 Hz"), which is the invariant that matters here: `hostAxis` smooths with a running
+     median of FIXED WIDTH 21 ANCHORS, so one row stride across two different sample rates would
+     smooth over two different spans. At this cadence the smoother spans ~80 s on both nodes. */
+  var MOTION_AXIS_EVERY = 100;
   /* ── THE ACC VALIDITY SIDECAR (SAMPLE-VALIDITY-ENVELOPE §3.2, "acc" row) ─────────────────────
      `…_ACCRUNS.txt`, written beside every Polar `_ACC.txt`. Spans are keyed by the writer's own
      `Phone timestamp` + `dur_ms`, NOT by `first_index`: this parser drops implausible rows
@@ -345,6 +351,10 @@
     /* Present only when it happened, so every clean stream keeps today's bytes (§1.1). Each entry:
        { idx, deviceStepMs, phoneDeltaMs (null when the seam stamps did not parse) }. */
     if (resyncs.length) out._clockResyncs = resyncs;
+    /* The device counter is disciplined by the host column HERE, before any consumer reads `relNs`
+       (`relSecOf` is the only position in this node and it reads nothing else). See
+       `_mdHostDiscipline` for what is consumed and what is refused. */
+    _mdHostDiscipline(out, resyncs);
     /* Same idiom as the seam list: hung on the row array, so no consumer signature changes and a
        stream without a sidecar keeps today's bytes exactly. */
     var _runs = parseAccRuns(opts && opts.runsText);
@@ -376,6 +386,114 @@
       out._unit = 'µT';
     }
     return out;
+  }
+
+  /* ── THE HOST-DISCIPLINED AXIS — Clock Contract §7 (DEVICE-TIME-HANDLING-2026-10-29 U4) ─────────
+     Every Polar-Sensor-Logger and capture-host ACC row carries TWO clocks: `Phone timestamp` (host)
+     and `sensor timestamp [ns]` (device). MotionDex read only the second. It DETECTED a step in it
+     (`_clockResyncs` above) and corrected nothing, so every position this node publishes — `relSecOf`
+     divides `relNs` by 1e9 and consults nothing else — rode the device crystal for the whole night.
+
+     WHAT THIS CONSUMES, AND WHY IT IS `correctionAt` AND NOT `ppm`. §7 hands a node two different
+     things: a RATE (`ppm`) and an INTERPOLATION (`correctionAt`). ECGDex spends both, because it owns
+     an `fs` that a rate can divide, and it gates the rate behind a 2400 s span baseline
+     (`ECG_AXIS_MIN_SPAN_MS`) because a rate measured over a short fragment is amplified across the
+     whole file. MotionDex owns NO `fs` — there is no sampling rate anywhere in its positions, only
+     `relNs` per row — so only the interpolation applies, and §7 covers it in its own words: "No span
+     gate here (it interpolates)". ecgdex-dsp.js:5498 states the same reading beside `_ecgCorrAt`:
+     linear between anchors and FLAT outside them, so a short file receives a small bounded
+     correction instead of an amplified one.
+
+     THE GATES, PRE-STATED (§🧾) — each read off the axis, none derived from the data it judges:
+       · `ok:false`           keep the device axis and publish the refusal's own reason (§7).
+       · `independent:false`  the host column is the device column rounded (residual spread
+                              <= 2 ms): it carries nothing the device column did not already have, so
+                              "correcting" by it is arithmetic on one clock wearing two names.
+       · under 3 post-resync anchors — `hostAxis` refuses on its own and the refusal is published.
+     A DRAWN device axis is deliberately NOT a gate: ECGDex relabels rather than refuses (residue
+     2026-09-05-drawn-remedy-is-relabel-not-refuse) and `timingBlock` reads `deviceDrawn` off the axis
+     to label the source `host`. Refusing there would leave every sample on an axis already measured
+     to be fabricated, which is strictly worse than placing it on the host timeline.
+
+     CENSUS BEFORE WIRING — every real ACC file in the corpus (1694 files, 2026-10-30, 0 read
+     errors), read at this anchor cadence and through exactly these gates:
+       · the axis holds on 1692. Two files refuse on the implausible-rate bound (358161 and 488383
+         ppm): those two columns are not a host and a device, and both keep the device axis.
+       · `independent` is TRUE on 1593 and false on 99 — the 99 being phone-tree captures whose host
+         column is the device stamp rounded. So the correction applies to 1593 of 1694 (94 %), and
+         the remaining 101 keep the device axis with a reason attached.
+       · `deviceDrawn` is false on all 1692: the ACC counter is a real oscillator, unlike the
+         O2Ring's.
+       · 6 files carry a resync, and the post-resync split drops 1983 anchors across them. The split
+         is owed, and it is not vacuous.
+       · anchors per file: min 36, p05 46, median 387 — the >=3 floor never binds at this cadence.
+     WHAT IT MOVES. The largest correction across a file's anchor span is 135.1 ms at the median,
+     585.8 ms at p90, 37.2 s at the maximum. Files UNDER ECGDex's 2400 s span baseline move LESS
+     (p50 107.9 ms, p99 975.2 ms) than longer ones (p50 344.7 ms, p99 29.3 s) — which is the
+     boundedness the interpolation promises, and the reason a borrowed span gate here would refuse
+     1254 short files (74 % of the corpus) to guard against a risk that only the rate path carries.
+
+     ONE DEVICE CLOCK PER AXIS (§7). A resync is a CHANGE of clock, not a shift of one, so anchors
+     before the LAST resync describe a different oscillator state: they are dropped and COUNTED
+     (`anchorsDroppedPreResync`), exactly as ecgdex-dsp.js:5325 does. The seam's own host-device
+     offset is surfaced on `clockResyncs[].hostOffsetMs`, so the dropped segment stays visible rather
+     than merely absent, and the pre-seam rows keep the first post-seam anchor's flat correction —
+     which is what "FLAT outside the anchors" already means at the low end. */
+  function _mdHostDiscipline(rows, resyncs) {
+    var base = null;
+    for (var b = 0; b < rows.length; b++) {
+      if (rows[b].tMs != null) {
+        base = rows[b].tMs;
+        break;
+      }
+    }
+    /* §∅ — a stream whose rows carry no host stamp was never disciplined. That is an absence with a
+       name, never a zero correction silently applied. */
+    if (base == null) {
+      rows._hostAxis = { ok: false, n: 0, applied: false, timingSource: 'device-only', reason: 'no row carried a host stamp — nothing to discipline the device counter with' };
+      return;
+    }
+    var lastResyncRow = resyncs && resyncs.length ? resyncs[resyncs.length - 1].idx : null;
+    var anchors = [],
+      dropped = 0,
+      seam = null;
+    for (var i = 0; i < rows.length; i += MOTION_AXIS_EVERY) {
+      var r = rows[i];
+      if (r.tMs == null || !isFinite(r.relNs)) continue;
+      if (lastResyncRow !== null && i < lastResyncRow) {
+        dropped++;
+        continue;
+      }
+      var a = { devMs: r.relNs / 1e6, hostMs: r.tMs - base };
+      if (seam === null && lastResyncRow !== null) seam = a;
+      anchors.push(a);
+    }
+    if (seam !== null) resyncs[resyncs.length - 1].hostOffsetMs = Math.round(seam.hostMs - seam.devMs);
+    var ax = DexClock.hostAxis(anchors, {});
+    ax.applied = false;
+    if (dropped > 0) ax.anchorsDroppedPreResync = dropped;
+    /* THE PROVENANCE VERDICT, READ BEFORE THE RATE (§7, and the suite's drawn-axis gate). `independent`
+       alone cannot tell a real crystal from a counter synthesised as `index x an assumed rate` — the
+       coarser the fabrication, the MORE independent it reads — so the two verdicts are spent together:
+         drawn + independent   the counter carried no timing of its own, so the host stamps are all the
+                               timing there is and the samples are PLACED on them → `host` (ECGDex's
+                               relabel, not a refusal: leaving them on a fabricated rate is worse).
+         drawn + inert host    neither column measured anything → `none`. This is the one arm
+                               `timingBlock` cannot infer on its own: it reads `drawn` and answers
+                               `host`, which would claim a host timeline this node never applied.
+         real + inert host     one clock, the device's → `device`.
+         real + independent    two clocks, and the correction below rode both → `device+host`. */
+    var drawn = ax.deviceDrawn === true;
+    ax.timingSource = ax.independent === false ? (drawn ? 'none' : 'device') : drawn ? 'host' : 'device+host';
+    if (ax.ok && ax.independent !== false && typeof ax.correctionAt === 'function') {
+      for (var j = 0; j < rows.length; j++) {
+        var rr = rows[j];
+        if (!isFinite(rr.relNs)) continue;
+        rr.relNs += ax.correctionAt(rr.relNs / 1e6) * 1e6;
+      }
+      ax.applied = true;
+    }
+    rows._hostAxis = ax;
   }
 
   // The first wall-clock stamp of a stream — its base for anchoring the per-stream device counter.
@@ -1451,6 +1569,12 @@
     var sqi = motionSQI(posSrc, posUnit);
     var sqiActivity = actiSrc === posSrc ? sqi : motionSQI(actiSrc, actiUnit);
 
+    var _mdDomAx = _mdDominantStream([
+      { name: 'acc', rows: acc },
+      { name: 'chestAcc', rows: chest },
+      { name: 'gyro', rows: gyro },
+      { name: 'mag', rows: mag }
+    ]);
     var summary = {
       node: 'MotionDex',
       t0Ms: t0Ms,
@@ -1461,6 +1585,12 @@
          reading the shared timing block has to be told the difference between a node that found no
          step and a node that never looked, which is why this is `null` ONLY when no stream parsed. */
       clockResyncs: _mdResyncCount([acc, chest, gyro, mag]),
+      /* THE HOST-DISCIPLINED AXIS OF THE DOMINANT STREAM (U4 of the same brief). `hostAxis` is the
+         raw `DexClock.hostAxis` return — `buildNodeExport` forwards it to `DexExport.timingBlock`,
+         which owns the nine-key shape and the null discipline; `clockAxis` is the published remainder
+         (see `_mdClockAxis`). The correction itself was already applied to `relNs` at parse time. */
+      hostAxis: _mdDomAx ? _mdDomAx.rows._hostAxis || null : null,
+      exportAxis: _mdExportAxis(_mdDomAx),
       durSec: durMeasured == null ? null : Math.round(durMeasured),
       streams: {
         acc: acc ? acc.length : 0,
@@ -1484,6 +1614,58 @@
   /* Counts the device-clock resync steps across every parsed stream. `null` when NOTHING parsed —
      nobody looked, which §∅ forbids reporting as `0`. A stream that parsed and carries no
      `_clockResyncs` key looked and found none, and contributes 0. */
+  /* ONE EXPORT CARRIES ONE TIMING BLOCK, so one stream's axis has to speak for the night: the stream
+     with the MOST ROWS, which is the stream the headline metrics ride. A chest strap and a wrist
+     sensor are two devices with two crystals, and one block cannot describe both — so the stream
+     that spoke is NAMED (`motion.clockAxis.stream`) instead of being silently merged with the
+     others, and every stream keeps its own axis on its own row array. `null` when nothing parsed:
+     nobody looked (§∅). */
+  function _mdDominantStream(streams) {
+    var best = null;
+    for (var i = 0; i < streams.length; i++) {
+      var s = streams[i];
+      if (!s.rows || !s.rows.length) continue;
+      if (best === null || s.rows.length > best.rows.length) best = s;
+    }
+    return best;
+  }
+  /* THE HOST AXIS ON THE INTEGRATOR-FACING SURFACE, in the fleet's reference shape — the field set is
+     `ecgdex-dsp.js`'s `out.recording.hostAxis`, and the suite's seam gate reads BOTH blocks and
+     compares them, so a §7 discriminator dropped here is a red rather than a quiet gap. Three fields
+     are MotionDex's own and have no counterpart there: `stream` (which of up to four streams spoke),
+     `anchorsDroppedPreResync` (ECGDex's key name, carried here as a number rather than an omission)
+     and the seam list with its `hostOffsetMs`. Attached whether the axis held or refused, because a
+     consumer must separate "no second clock" from "nobody looked" (§∅). */
+  function _mdExportAxis(dom) {
+    if (!dom) return null;
+    var ax = dom.rows._hostAxis || null;
+    var seams = dom.rows._clockResyncs || null;
+    if (!ax) return null;
+    return {
+      ok: ax.ok === true,
+      applied: ax.applied === true,
+      stream: dom.name,
+      anchors: ax.n != null ? ax.n : null,
+      /* ONE DEVICE CLOCK PER AXIS: the anchors read off the pre-resync counter never reached the
+         spine, so `anchors` above is a post-seam count and this says what it cost. */
+      anchorsDroppedPreResync: ax.anchorsDroppedPreResync != null ? ax.anchorsDroppedPreResync : null,
+      ppm: ax.ppm != null ? ax.ppm : null,
+      spanPpm: ax.spanPpm != null ? ax.spanPpm : null,
+      spanMs: ax.spanMs != null ? ax.spanMs : null,
+      maxStepMs: ax.maxStepMs != null ? ax.maxStepMs : null,
+      /* Read THIS, never a ~0 ppm, to decide whether a second clock disciplined the axis (§7). */
+      independent: ax.independent != null ? ax.independent : null,
+      spreadMs: ax.spreadMs != null ? ax.spreadMs : null,
+      deviceDrawn: ax.deviceDrawn === true,
+      drawnShare: ax.drawnShare != null ? ax.drawnShare : null,
+      timingSource: ax.timingSource || null,
+      /* Null on a drawn axis by the spine's own rule: sigma_y(tau) over `index x rate` describes the
+         writer's arithmetic rather than a clock. Forwarded, never recomputed. */
+      stability: ax.deviceDrawn === true ? null : ax.stability || null,
+      reason: ax.reason || null,
+      resyncs: seams && seams.length ? seams : null
+    };
+  }
   function _mdResyncCount(streams) {
     var looked = false,
       n = 0;
@@ -1612,7 +1794,7 @@
         }
       }
     }
-    return {
+    var out = {
       kernel: kfmt,
       /* schema v2.0, matching the rest of the fleet. This was `version: 1` — a NUMBER — and the label
          was the only thing about it that was v1: the payload already carries the v2 contract
@@ -1632,17 +1814,27 @@
         durSec: summary.durSec,
         /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ────────────────────
            One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
-           carries the field list and the null discipline). MotionDex DETECTS counter steps and does
-           not yet correct the rate — that is U4 of the same brief — so the resync count here is a
-           real measurement while every host-axis number is null beside the reason that says why.
+           carries the field list and the null discipline). Since U4 of the same brief MotionDex also
+           DISCIPLINES its device counter against the host column (`_mdHostDiscipline`), so these
+           numbers are measurements rather than nulls — and when the axis refused, the refusal's own
+           reason travels with them instead of a borrowed one.
            Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
            nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
            load-order bug and the export-parity group reds on it rather than letting it pass. */
+        /* `timingSource` is passed rather than inferred: the shared builder reads `deviceDrawn` and
+           answers `host`, which on an UNAPPLIED axis would claim a host timeline nothing was placed
+           on. The node owns the verdict (`_mdHostDiscipline`), so `recording.timing.timingSource` and
+           `recording.hostAxis.timingSource` cannot disagree. */
         timing:
           typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
             ? // The counter-step detector IS this node's seam instrument, so one array answers both
               // counts — asserted here rather than inherited inside the shared builder.
-              DexExport.timingBlock({ resyncs: summary.clockResyncs, seams: summary.clockResyncs })
+              DexExport.timingBlock({
+                hostAxis: summary.hostAxis,
+                timingSource: summary.hostAxis ? summary.hostAxis.timingSource : undefined,
+                resyncs: summary.clockResyncs,
+                seams: summary.clockResyncs
+              })
             : null
       },
       motion: {
@@ -1682,6 +1874,10 @@
       },
       ganglior_events: events
     };
+    /* See `_mdExportAxis`. Assigned rather than inlined above because the suite's seam gate reads the
+       literal `out.recording.hostAxis` out of this source and compares its fields against ECGDex's. */
+    if (summary.exportAxis) out.recording.hostAxis = summary.exportAxis;
+    return out;
   }
 
   // ─── public API (dual-mode: window attach for classic co-load + ESM tail) ───

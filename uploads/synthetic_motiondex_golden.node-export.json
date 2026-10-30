@@ -14,15 +14,34 @@
     "startEpochMs": 1781128800000,
     "durSec": 120,
     "timing": {
-      "timingSource": "device-only",
+      "timingSource": "none",
       "independent": false,
-      "anchors": null,
-      "spanMs": null,
-      "ppm": null,
-      "spanPpm": null,
+      "anchors": 32,
+      "spanMs": 119230.7677,
+      "ppm": -3.859741985049304,
+      "spanPpm": -6.438774276186211,
       "resyncs": 0,
       "seams": 0,
-      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against"
+      "reason": null
+    },
+    "hostAxis": {
+      "ok": true,
+      "applied": false,
+      "stream": "acc",
+      "anchors": 32,
+      "anchorsDroppedPreResync": null,
+      "ppm": -3.859741985049304,
+      "spanPpm": -6.438774276186211,
+      "spanMs": 119230.7677,
+      "maxStepMs": 0.07660000000032596,
+      "independent": false,
+      "spreadMs": 0.9239999999990687,
+      "deviceDrawn": true,
+      "drawnShare": 0.7096774193548387,
+      "timingSource": "none",
+      "stability": null,
+      "reason": null,
+      "resyncs": null
     }
   },
   "motion": {
