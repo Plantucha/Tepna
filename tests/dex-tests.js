@@ -808,6 +808,273 @@
       }
     });
 
+    /* ── §U3 THE MID-FILE SEAM ────────────────────────────────────────────────────────────────────
+       DEVICE-TIME-HANDLING-2026-10-29 §U3 was sized as though OxyDex, PulseDex and HRVDex had no
+       seam handling at all. They do, and it is the premise that was wrong, so this group pins the
+       SHAPE of what was missing rather than the sizing: PulseDex compares its two clocks against the
+       shared 60 s resync bound, OxyDex guards first-to-last against the row count and cadence
+       (`clockNonMonotonic`, `durationInflated`), and both are blind to a step that lands MID-FILE
+       and leaves the endpoints plausible on ONE clock. `clock-seam.js` is that third instrument.
+       Every threshold it carries is pre-stated (§🧾) and every one of them was measured against the
+       real corpus before it was written down — the counts are in the legs below. */
+    group('∅ clock-seam tripwire — the MID-FILE step the endpoint guards cannot see', 'clock · clock-seam · oxydex-dsp · pulsedex-dsp · absence', function (T) {
+      var DS = env.DexSeam || (typeof DexSeam !== 'undefined' ? DexSeam : null);
+      if (!DS || typeof DS.seamScan !== 'function') {
+        T.ok('DexSeam.seamScan is reachable', false, 'clock-seam.js not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var mkStamps = function (n, cadMs, from, shiftMs) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push(t0 + i * cadMs + (from != null && i >= from ? shiftMs : 0));
+        return a;
+      };
+
+      /* PRE-STATED CRITERIA (§🧾). A threshold derived from the data it judges is not a criterion, so
+         these are pinned as literals and their provenance is the corpus count in the legs below. */
+      T.eq('the candidate bar is 6 robust sigmas over the file’s own median', DS.CK_SEAM_K, 6);
+      T.eq('a backward stamp gets 20 samples to climb back before it is called a step', DS.CK_SEAM_RECOVER_RUN, 20);
+      T.eq('a forward candidate needs 3 in-bar intervals on BOTH sides', DS.CK_SEAM_MIN_RUN, 3);
+
+      // ── CONTROL: a clean regular file is clean, and says what judged it ──
+      var clean = DS.seamScan(mkStamps(120, 4000));
+      T.eq('CONTROL · a continuous 4 s file reports no seam, no reorder and no unsettled gap', JSON.stringify([clean.seams.length, clean.reorders.length, clean.unsettled.length]), '[0,0,0]');
+      T.ok(
+        '…and publishes the bar that judged it, so a reader can see an inflated one',
+        clean.medianMs === 4000 && clean.barMs > 4000 && clean.cadenceMs === 4000,
+        JSON.stringify({ med: clean.medianMs, bar: clean.barMs, cad: clean.cadenceMs })
+      );
+      T.ok('…and how much it CANNOT see: the forward blind share, never an unstated 0', clean.forwardBlindShare > 0 && clean.forwardBlindShare < 1, JSON.stringify(clean.forwardBlindShare));
+
+      // ── A PLANTED BACKWARD STEP: 90 s back at row 60 of a 4 s file ──
+      var back = DS.seamScan(mkStamps(120, 4000, 60, -90000));
+      T.eq(
+        'a planted 90 s back-step is ONE seam, named back-step',
+        JSON.stringify(
+          back.seams.map(function (s) {
+            return s.kind;
+          })
+        ),
+        '["back-step"]'
+      );
+      /* The transition is between stamp 59 at 236 s and stamp 60 at 150 s, so the window that spans it
+         starts at 120 s. A window keyed to the planted index rather than to the stamps misses it. */
+      var bWin = DS.windowVerdict(back, t0 + 120000, t0 + 120000 + 300000);
+      T.eq('the window that spans it REFUSES, with the reason the ruling names', JSON.stringify([bWin.continuous, bWin.reason]), '[false,"clock-seam"]');
+      var bClear = DS.windowVerdict(back, t0, t0 + 120000);
+      T.eq('…and a window before it is still continuous — the refusal is scoped, not global', JSON.stringify([bClear.continuous, bClear.reason]), '[true,null]');
+
+      /* ⚠️ THE CONTROL THE CORPUS FORCED, and the reason this is not "any negative delta is a seam".
+         A host-stamped beat stream arrives in BLE packets and a packet's first stamp can land one or
+         two beats behind the last stamp of the one before. Measured 2026-10-29 over 18 real Polar
+         Sensor Logger RR files (252 329 intervals): 81 backward stamps, 1.2 s to 2.1 s, EVERY ONE
+         recovering within 6 samples — 67 of them within 2. A rule without this test refuses 11 of
+         those 18 files for a delivery artefact. */
+      var reord = mkStamps(60, 1000);
+      reord[30] = reord[30] - 1800;
+      var ro = DS.seamScan(reord);
+      T.eq('a re-ordered BLE packet is NOT a seam — it recovers, and is reported as a reorder', JSON.stringify([ro.seams.length, ro.reorders.length]), '[0,1]');
+      T.eq('…and the window it sits in keeps its value', JSON.stringify(DS.windowVerdict(ro, t0, t0 + 60000).continuous), 'true');
+      T.ok('…with the recovery length published, not just the verdict', ro.reorders[0].recoverN >= 1 && ro.reorders[0].recoverN <= DS.CK_SEAM_RECOVER_RUN, JSON.stringify(ro.reorders[0]));
+
+      /* THE OTHER HALF OF THE 2026-09-17 RULING: a DROPOUT annotates. The discriminator is phase —
+         through a dropout the clock keeps ticking, so the gap lands on a whole number of cadences. */
+      var drop = DS.seamScan(mkStamps(120, 4000, 60, 40 * 4000));
+      T.eq(
+        'a 40-cadence dropout is NOT a seam — it is a dropout with its multiple',
+        JSON.stringify([drop.seams.length, drop.dropouts.length, drop.dropouts[0] && drop.dropouts[0].multiple]),
+        '[0,1,41]'
+      );
+      var dWin = DS.windowVerdict(drop, t0 + 240000, t0 + 240000 + 300000);
+      T.ok(
+        '…so its window KEEPS its value, with the covered span beside it',
+        dWin.continuous === true && dWin.coveragePct > 0 && dWin.coveragePct < 100,
+        JSON.stringify({ c: dWin.continuous, pct: dWin.coveragePct })
+      );
+      var fwd = DS.seamScan(mkStamps(120, 4000, 60, 138000));
+      T.eq(
+        'an OFF-PHASE forward jump of the same size IS a seam',
+        JSON.stringify(
+          fwd.seams.map(function (s) {
+            return s.kind;
+          })
+        ),
+        '["forward-jump"]'
+      );
+
+      /* §∅ — ABSENCE IS NOT A CLEAN FILE. A stamp column that never parsed must not report zero
+         seams, and a stream whose intervals ARE the signal must not report zero FORWARD seams. */
+      var none = DS.seamScan([null, undefined, NaN]);
+      T.eq('a column with fewer than two parseable stamps refuses, with a reason', JSON.stringify([none.ok, none.n, !!none.reason]), '[false,0,true]');
+      T.eq('…and the summary of a refused scan says `scanned:false`, never a count of 0', JSON.stringify(DS.seamSummary(none).scanned), 'false');
+      var rr = [];
+      for (var bi = 0, accT = t0; bi < 120; bi++) {
+        rr.push(accT);
+        accT += 900 + 40 * Math.sin(bi / 5);
+      }
+      var rrS = DS.seamScan(rr);
+      T.eq('a beat series has no cadence, so a forward gap is UNDECIDABLE and says so', JSON.stringify([rrS.cadenceMs, rrS.forwardDecidable, rrS.forwardBlindShare]), '[null,false,null]');
+
+      /* TWO INSTRUMENTS, NOT ONE RENAMED. The resync bound answers "do the device clock and the host
+         clock disagree" and needs two clocks; this module answers "is this interval out of the
+         file's own family" and needs one. A single name for both is how they come to disagree, so
+         the module must NOT carry a resync bound of its own. */
+      var srcOf2 = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var tt = ln.trim();
+            return tt.indexOf('//') !== 0 && tt.indexOf('*') !== 0 && tt.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var seamSrc = srcOf2('clock-seam.js');
+      if (!seamSrc.trim()) {
+        T.skip('clock-seam.js source', 'sources not provided in this runner');
+      } else {
+        T.ok('clock-seam.js carries NO resync bound — the two-clock instrument keeps that name', !/RESYNC_BOUND/.test(seamSrc), 'a resync bound appeared in clock-seam.js: two names for one question');
+      }
+
+      /* THE FALLBACK LIVES TWICE, so a leg holds the two copies identical. A realm that omits the
+         module gets a refusal with one reason and one shape from both DSPs, never a clean nothing. */
+      var fbOf = function (src) {
+        var i = src.indexOf('var _DexSeamMod'),
+          j = src.indexOf('seamWindowVerdict = _DexSeamMod');
+        return i >= 0 && j > i ? src.slice(i, j).replace(/\s+/g, ' ') : null;
+      };
+      var fbOxy = fbOf(srcOf2('oxydex-dsp.js')),
+        fbPulse = fbOf(srcOf2('pulsedex-dsp.js'));
+      if (!fbOxy || !fbPulse) {
+        T.skip('the two DSP clock-seam fallbacks', 'sources not provided in this runner');
+      } else {
+        T.eq('OxyDex and PulseDex refuse identically when a realm omits clock-seam.js', fbOxy, fbPulse);
+        T.ok('\u2026and the refusal names a reason rather than reporting an empty scan', /seam-module-absent/.test(fbOxy), fbOxy.slice(0, 90));
+      }
+
+      /* HRVDEX IS NOT_APPLICABLE, AND THIS IS THE MEASUREMENT RATHER THAN THE ASSUMPTION. The suite
+         already pinned it structurally exempt; §U3 asked for a call site there anyway. A Welltory
+         export is a REPORT, not a stream: the real corpus file lists its rows newest-first while the
+         committed synthetic lists them oldest-first (both read 2026-10-29), so row order carries no
+         clock information and a row-order scan would refuse every real export. The DSP sorts by
+         stamp before it measures anything, which is why there is nothing here to scan. */
+      var hSrc = srcOf2('hrvdex-dsp.js');
+      if (!hSrc.trim()) {
+        T.skip('hrvdex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        T.ok(
+          'HRVDex wires NO seam scan: its row order is report order, not a timeline',
+          !/DexSeam/.test(hSrc),
+          'hrvdex-dsp.js now scans row order — re-run the Welltory order measurement before keeping it'
+        );
+      }
+    });
+
+    group('∅ clock-seam tripwire — the two call sites, with a clean control beside each', 'clock · clock-seam · oxydex-dsp · pulsedex-dsp · absence', function (T) {
+      var _od2 = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_od2 && _od2._bare) || _od2;
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      if (!OD || typeof OD.processNight !== 'function') {
+        T.ok('OxyDex.processNight is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+      } else {
+        var mkNight = function (shiftFrom, shiftMs) {
+          var rows = [];
+          for (var i = 0; i < 1800; i++) {
+            var ms = t0 + i * 1000 + (shiftFrom != null && i >= shiftFrom ? shiftMs : 0);
+            rows.push({ tMs: ms, t: new Date(ms), spo2: 96, hr: 60, motion: 0 });
+          }
+          return rows;
+        };
+        var cleanN = OD.processNight(mkNight(null, 0), 'clean.csv');
+        T.eq(
+          'CONTROL · a clean night SAYS it was scanned — "no tripwire here" and "scanned, clean" are different claims',
+          JSON.stringify([cleanN.clockSeamScan.scanned, cleanN.clockSeamScan.seams]),
+          '[true,0]'
+        );
+        T.ok(
+          'CONTROL · and carries neither detail list, so a clean export gains one small object',
+          cleanN.clockSeams === undefined && cleanN.clockSeamRefusals === undefined,
+          JSON.stringify({ s: cleanN.clockSeams, r: cleanN.clockSeamRefusals })
+        );
+        var seamN = OD.processNight(mkNight(900, -90000), 'seam.csv');
+        T.eq('a 90 s back-step mid-night is ONE seam on the night object', JSON.stringify(seamN.clockSeamScan.seams), '1');
+        T.ok(
+          '…and the epochs that span it are REFUSED, each with the named reason',
+          !!seamN.clockSeamRefusals &&
+            seamN.clockSeamRefusals.length > 0 &&
+            seamN.clockSeamRefusals.every(function (r) {
+              return r.reason === 'clock-seam';
+            }),
+          JSON.stringify(seamN.clockSeamRefusals)
+        );
+        T.ok(
+          '…they are REMOVED from the series, never published with a null in place of a value',
+          seamN.tchEpochs.length < cleanN.tchEpochs.length,
+          JSON.stringify({ clean: cleanN.tchEpochs.length, seamed: seamN.tchEpochs.length })
+        );
+        T.ok(
+          'PARITY · the clean night keeps every epoch the tripwire found nothing wrong with',
+          cleanN.tchEpochs.length === 6 &&
+            cleanN.tchEpochs.every(function (e) {
+              return e.hr === 60;
+            }),
+          JSON.stringify(cleanN.tchEpochs.length)
+        );
+        /* The ENDPOINT guard is why this instrument exists: a step that recovers nothing still leaves
+           first-to-last plausible, so `clockNonMonotonic` never fires on this night. */
+        T.ok(
+          'the endpoint guard is BLIND to it — which is the whole reason for the scan',
+          seamN.stats.clockNonMonotonic !== true && seamN.stats.durationInflated !== true,
+          JSON.stringify({ nm: seamN.stats.clockNonMonotonic, inf: seamN.stats.durationInflated })
+        );
+      }
+
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var rr2 = [];
+        /* 7200 beats is ~1.8 h, over the 90 min the classifier needs before PulseDex windows anything at
+           all. A shorter record skips the window walk entirely, and the refusal leg below then passes
+           over a code path that never ran. */
+        for (var i2 = 0; i2 < 7200; i2++) rr2.push(900 + 40 * Math.sin(i2 / 5));
+        var stamps2 = function (seamFrom, seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr2.length; k++) {
+            ts.push(acc + (seamFrom != null && k >= seamFrom ? seamMs : 0));
+            acc += rr2[k];
+          }
+          return ts;
+        };
+        var pClean = P.pdComputeResult({ vals: rr2, tsMs: stamps2(null, 0), t0Ms: t0 });
+        T.ok(
+          'PRECONDITION · the record is long enough that PulseDex walks windows at all',
+          pClean.longRec === true && Array.isArray(pClean.windows) && pClean.windows.length > 10,
+          JSON.stringify({ longRec: pClean.longRec, wins: pClean.windows && pClean.windows.length })
+        );
+        T.eq(
+          'CONTROL · a clean RR record reports the scan and refuses no window',
+          JSON.stringify([pClean.clockSeamScan.scanned, pClean.clockSeamScan.seams, pClean.clockSeamWindows]),
+          '[true,0,null]'
+        );
+        T.ok('CONTROL · and every HRV metric still computes — the tripwire is inert on a clean file', pClean.rmssd > 0 && pClean.sdnn > 0, JSON.stringify({ r: pClean.rmssd, s: pClean.sdnn }));
+        var pSeam = P.pdComputeResult({ vals: rr2, tsMs: stamps2(3600, -90000), t0Ms: t0 });
+        T.eq('a 90 s back-step is seen by the mid-file scan', JSON.stringify(pSeam.clockSeamScan.seams), '1');
+        T.ok(
+          '…and the windows that span it publish no metrics, with the reason named',
+          !!pSeam.clockSeamWindows &&
+            pSeam.clockSeamWindows.every(function (w) {
+              return w.reason === 'clock-seam';
+            }),
+          JSON.stringify(pSeam.clockSeamWindows)
+        );
+        /* BOTH instruments fire on this plant, and that is correct: a 90 s host step also makes the
+           host delta and the device delta disagree by more than the shared resync bound. The point
+           is that the mid-file scan ALSO names which windows it refused. */
+        T.eq('…while the two-clock discriminator keeps its own verdict and its own name', pSeam.hrvReason, 'clock-seam');
+      }
+    });
+
     /* §2e — the composites must refuse too. After a clock-seam refusal nulls rMSSD, the
        composites computed from cRm=null FABRICATED: stressEst → 100 (the clamp eats the
        1.2295*null term), hrvEst → 0 (1.494*null-13.37 clamps to 0), lnR(null) → −Infinity,
@@ -61715,6 +61982,7 @@
       var RESOLVE = {
         // shared spine
         'clock.js': 'DexClock',
+        'clock-seam.js': 'DexSeam',
         'kernel-constants.js': 'DexKernel',
         'metric-registry.js': 'MetricRegistry',
         'dex-profile.js': 'DexProfile',

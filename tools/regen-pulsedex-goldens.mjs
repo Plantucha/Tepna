@@ -98,7 +98,7 @@ function realm() {
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
   // clock.js BEFORE pulsedex-dsp.js — the delegating DSP aliases DexClock.parseTimestamp at load.
-  for (const f of ['kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'pulsedex-dsp.js'])
+  for (const f of ['kernel-constants.js', 'clock.js', 'clock-seam.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'pulsedex-dsp.js'])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
