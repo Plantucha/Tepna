@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-10-29 · **Created:** 2026-10-29 · **Residue:** 2026-10-29-ring-device-crystal-axis-reads-high-against-the-ecg
+**Status:** DONE — 2026-10-29 · **Created:** 2026-10-29
 
 # The ring's device-crystal timebase against the H10 ECG, over every night
 
