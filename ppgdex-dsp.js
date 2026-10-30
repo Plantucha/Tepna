@@ -1153,10 +1153,10 @@
        Verdicts on this file's own corpus are unchanged — 0.6–8.8 % stays below and 100 % stays above —
        so the move costs nothing here and buys the rounded-rate and interrupted-drawn cases.
 
-       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately: PpgDex is one of the three
-       bundles that do NOT inline `clock.js` (CLAUDE.md §✅), so `DexClock` is `undefined` here and a
-       bare reference is a ReferenceError, not a fallback. The constant is duplicated ON PURPOSE and
-       the two must be moved together. */
+       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately. Until 2026-10-29 PpgDex did not
+       inline `clock.js`, so a bare reference was a ReferenceError. The bundle inlines it now, but a
+       realm that loads `ppgdex-dsp.js` without `clock.js` still exists (a worker or a tool), so the
+       constant stays duplicated ON PURPOSE and the two must be moved together. */
     let quantizedShare = null;
     /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
        byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
@@ -1200,9 +1200,9 @@
     // of the very axis it indexes. ≤0.03 % on a Polar, 0.16 % on the O2Ring — small, but a self-
     // inconsistent rec is the kind of thing that is only ever found much later, in something else.
     /* ⚠️ THE SURVIVING SEGMENT MUST BE ABLE TO CARRY AN AXIS, AND PpgDex MUST SAY SO ITSELF.
-       `DexClock.hostAxis` refuses below three anchors, but `clock.js` is not inlined in this bundle
-       (CLAUDE.md §✅), so in the shipped app that refusal does not exist and the `{ ok: false }`
-       fallback below says nothing about why. After a seam the pre-resync anchors are dropped, so what
+       `DexClock.hostAxis` refuses below three anchors, but a realm without `clock.js` (the shipped app
+       until 2026-10-29) has no such refusal, and the `{ ok: false }` fallback below says nothing about
+       why. After a seam the pre-resync anchors are dropped, so what
        remains is one segment — and a segment of one or two anchors is not a short measurement, it is
        not a measurement. Naming the count here keeps the two cases apart in the export: "this bundle
        has no clock spine" and "this night's post-seam segment was too short to measure a rate over"
@@ -1258,7 +1258,7 @@
        timing information whatsoever and must never be spent as a clock leg — closure, three-cornered hat
        and PAT all silently accept such a leg today and measure a constant. */
     /* 0.67 — the same cut as `clock.js` CK_AXIS_DRAWN_SHARE, on that file's 381-sidecar measurement.
-       Kept as a literal because `DexClock` does not exist in this bundle; see the block above. */
+       Kept as a literal because a realm without `clock.js` has no `DexClock`; see the block above. */
     /* ⚠️ TRI-STATE, and §∅ is why. `quantizedShare` stays `null` whenever fewer than 21 ns deltas
        resolved (the `deltas.length > 20` guard above), and this line used to read
        `quantizedShare != null && quantizedShare >= 0.67` — so an UNMEASURED concentration published a
@@ -4448,8 +4448,8 @@
     [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
   ];
   /* The OLS fit WITH its uncertainty. Mirrors `clock.js _ckAllanSlope` term for term — this node
-     cannot delegate to it: `PpgDex.html` inlines no `clock.js`, so `DexClock` is undefined in the
-     shipped bundle. The duplication is structural, which is why the parity gate pins the two lanes'
+     did not delegate to it because `PpgDex.html` inlined no `clock.js` until 2026-10-29, and a realm
+     without the module still runs this code. The duplication is structural, which is why the parity gate pins the two lanes'
      ANSWERS rather than trusting them to stay equal by inspection.
      ⚠️ The SE is a LOWER BOUND — overlapping ADEV points are correlated (adjacent taus reuse most of
      the same samples) while OLS assumes independent residuals. Do not tighten 1.96 to 1 SE believing
@@ -4796,7 +4796,7 @@
       meaning: cls.meaning,
       /* ⚠️ `…Ms` IS A MISNOMER, kept for back-compat — see the same note in `clock.js`. Phase is fed
          in ms and τ in seconds, so `adev` is ms/s: a RATE. PpgDex keeps its own copy of this because
-         it does not inline `clock.js` (CLAUDE.md §✅), so the two must stay in step by hand. */
+         it ran without `clock.js` until 2026-10-29 and some realms still do, so the two must stay in step by hand. */
       atShortestMs: r2(curve[0].adev),
       atLongestMs: curve[curve.length - 1].adev,
       atShortestPpm: r2(curve[0].adev * 1000),
@@ -6567,10 +6567,9 @@
   //
   //  basis: 'derived' (LEXICON §4b) — a statistic over a detected, corrected beat train.
   //  window: [t0Ms, endEpochMs] (the parser's last stamped row); when absent the beat span stands in and
-  //  is named. clockDomain 'device'. spreadMs: PpgDex ships WITHOUT clock.js (CLAUDE.md §✅ — DexClock is
-  //  undefined in the bundle), so `r.hostAxis` is `{ok:false}` there and the spread is null WITH that
-  //  reason; a headless co-loaded run may carry a measured spread — the block reports whichever the
-  //  node-local axis actually produced, never a value the bundle could not have measured.
+  //  is named. clockDomain 'device'. spreadMs: the bundle inlines clock.js since 2026-10-29, so the app
+  //  measures the spread the fixtures and the fold measure. A realm without clock.js gets `{ok:false}`
+  //  and a null spread WITH that reason — the block reports whichever axis the realm actually produced.
   //  evidence: inputHash = the export's recording.contentId (SignalFrame content address of the NN train),
   //  computed ONCE in ppgBuildNodeExport and shared. No acquisition envelope joins the PPG path today
   //  (the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt) — null
@@ -6609,7 +6608,7 @@
       window.spreadReason = ha
         ? 'host axis present but published no spread'
         : typeof DexClock === 'undefined'
-          ? 'no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread'
+          ? 'no DexClock in this realm (clock.js not loaded) — the node-local axis measures no host spread'
           : 'no host axis on this input (single device clock, or hostAxis refused) — nothing to measure spread against';
     if (windowNote) window.windowReason = windowNote;
     var quality = {

@@ -12,14 +12,33 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "0f52a1aeb181",
+    "contentId": "eb6b340f0acd",
     "startEpochMs": 1784340847000,
     "endEpochMs": 1784340886995,
     "durSec": 40.232,
     "sessions": 1,
     "events": 0,
     "site": "finger",
-    "siteSource": "device-default"
+    "siteSource": "device-default",
+    "hostAxis": {
+      "anchors": 11,
+      "ppm": -6.868177291421405,
+      "spanMs": 39757.27306,
+      "spanPpm": -6.868177291421405,
+      "maxStepMs": 0,
+      "totalMs": -0.273059999999532,
+      "independent": false,
+      "spreadMs": 0.7504489999992074,
+      "inertReason": "host ≡ device — residual spread 0.75 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock",
+      "drawn": true,
+      "quantizedShare": 0.7790813282958838,
+      "applied": true,
+      "timingSource": "host",
+      "stability": null,
+      "deviceDrawn": true,
+      "drawnShare": 0.5,
+      "drawnReason": "device inter-sample deltas concentrate on one value (77.91 % share) — a synthesised counter, not a clock, whatever ppm it reports"
+    }
   },
   "ganglior_events": [],
   "reserved": {
@@ -33,19 +52,18 @@
         "startTMs": 1784340847000,
         "endTMs": 1784340886995,
         "clockDomain": "device",
-        "timingSource": "device",
-        "spreadMs": null,
-        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
+        "timingSource": "host",
+        "spreadMs": 0.7504489999992074
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "a01ac8987c3c",
-        "computeHash": "3f308dfb7de1"
+        "manifestHash": "0ee0a9d6297c",
+        "computeHash": "887568c0cc77"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "0f52a1aeb181"
+        "inputHash": "eb6b340f0acd"
       },
       "basis": "derived",
       "quality": {
@@ -64,19 +82,18 @@
         "startTMs": 1784340847000,
         "endTMs": 1784340886995,
         "clockDomain": "device",
-        "timingSource": "device",
-        "spreadMs": null,
-        "spreadReason": "no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread"
+        "timingSource": "host",
+        "spreadMs": 0.7504489999992074
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "a01ac8987c3c",
-        "computeHash": "3f308dfb7de1"
+        "manifestHash": "0ee0a9d6297c",
+        "computeHash": "887568c0cc77"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "0f52a1aeb181"
+        "inputHash": "eb6b340f0acd"
       },
       "basis": "derived",
       "quality": {
@@ -118,7 +135,7 @@
         "samplesSaturated": 0
       }
     ],
-    "timingSource": "none",
+    "timingSource": "host",
     "axisDrawn": true,
     "axisQuantizedShare": 0.7791,
     "timebase": "device-crystal"
@@ -210,9 +227,9 @@
       "spine": "foot",
       "n": 32,
       "tSec": [
-        1.198,
-        2.455,
-        3.704,
+        1.197,
+        2.454,
+        3.703,
         4.962,
         6.219,
         7.475,
@@ -222,12 +239,12 @@
         12.497,
         13.756,
         15.012,
-        16.27,
+        16.269,
         17.525,
         18.784,
-        20.041,
+        20.04,
         21.292,
-        22.548,
+        22.547,
         23.807,
         25.064,
         26.32,
@@ -238,10 +255,10 @@
         32.6,
         33.858,
         35.114,
-        36.372,
+        36.371,
         37.629,
-        38.887,
-        40.112
+        38.886,
+        40.111
       ],
       "ms": [
         1188,
