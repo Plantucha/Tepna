@@ -75,6 +75,7 @@ export const STEPS = [
   'verify:defect-pins',
   'verify:survivor-ratchet',
   'verify:flag-exit',
+  'verify:flag-drive',
   'verify:absence',
   'verify:seals',
   'verify:hook-contract',

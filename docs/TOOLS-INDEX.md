@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**300 tools** · 299 with a purpose line · **1 without**
+**301 tools** · 300 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -94,6 +94,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`find-copied-bodies.mjs`](../tools/find-copied-bodies.mjs) | FIND TESTS THAT EXERCISE A PRIVATE COPY INSTEAD OF THE SHIPPED SYMBOL. |
 | [`find-unwired-js.mjs`](../tools/find-unwired-js.mjs) | THE JS SIBLING OF `capture-host/tools/find_unwired.py`. Finds machinery that exists, is tested, and is connected to NOTHING — on the JS side, which that tool does not reach. |
 | [`findings-ledger.mjs`](../tools/findings-ledger.mjs) | THE FINDINGS LEDGER — C1 of the qwen engineering program (QWEN-ENGINEERING-PROGRAM 2026-08-27 §4). |
+| [`flag-exit-drive.mjs`](../tools/flag-exit-drive.mjs) | DRIVE EACH CENSUS TOOL PAST THE STATEMENT ITS HEALTH FLAG SKIPS. |
 | [`flag-exit-scan.mjs`](../tools/flag-exit-scan.mjs) | WHICH HEALTH FLAGS EXIT ABOVE MODULE-SCOPE EVALUATION THEY NEVER REACH. |
 | [`fleet-turns.mjs`](../tools/fleet-turns.mjs) | FLEET TURNS — how many turns each session spends, and how much each turn carries. |
 | [`fold-generation.mjs`](../tools/fold-generation.mjs) | re-resolve the corpus identity a published number was cut from. |
