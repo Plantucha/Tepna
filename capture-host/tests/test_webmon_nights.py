@@ -975,3 +975,66 @@ def test_a_DAYTIME_row_wears_no_verdict_and_says_why():
     block = _extract_fn(html, "nSolidBlock", "\n// The drawer")
     assert "n.daytime" in block and "[10:00, 18:00)" in block, "the drawer says it too, not just the cell"
     assert "' · daytime, outside the band'" in html, "and the row header names it"
+
+
+def test_a_night_WITHOUT_THE_VERITY_still_opens_the_rings_PPG():
+    """The Verity cell is the only door into PPGDex, and the ring's `_PPG.txt` is filed under PPGDex. On
+    2026-10-29 the Sense stayed off all night, so the cell read "not recorded" and hid the pleth the ring
+    did record. EXECUTED: the shipped `nDevCell` runs on three synthetic nights."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    src = "\n".join(
+        [
+            "const esc = s => String(s);",
+            "const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–', probe:'◔'};",
+            "const NIGHT_WHY_NOT = {};",
+            "const nHrs = h => String(h);",
+            "const nSpan = n => 8;",
+            _extract_fn(html, "nDevFiles", "\nfunction nHas"),
+            _extract_fn(html, "nHas", "\n/* The device's state"),
+            _extract_fn(html, "nCls", "\nfunction nLost"),
+            _extract_fn(html, "nLost", "\n/* ── ROW IDENTITY"),
+            _extract_fn(html, "nRowKey", "\n/* ── THE RING'S PPG"),
+            _extract_fn(html, "nRingPpgCell", "\nfunction nDevCell"),
+            _extract_fn(html, "nDevCell", "\nfunction nFusCell"),
+            "const NIGHT_COLS = ['PPGDex','OxyDex'];",
+            "const verity = {k:'verity', name:'Verity', node:'PPGDex', match:/Polar_VeritySense_/};",
+            "const NIGHT_DEVICES = [verity];",
+        ]
+    )
+    ring = "2026-10-29/Wellue_O2Ring-S_SN01_20261029213810_PPG.txt"
+    sense = "2026-10-29/Polar_VeritySense_SN02_20261029213900_PPG.txt"
+    nights = {
+        "ring_only": {"night": "2026-10-29", "PPGDex": {"files": [ring], "loadable": True, "hours": 6.6}},
+        "ring_not_loadable": {"night": "2026-10-29", "PPGDex": {"files": [ring], "loadable": False}},
+        "nothing": {"night": "2026-10-29", "OxyDex": {"files": [], "loadable": True}},
+        "both": {
+            "night": "2026-10-29",
+            "PPGDex": {"files": [ring, sense], "loadable": True, "hours": 6.5, "coverage": 1},
+        },
+    }
+    prog = (
+        src
+        + "\nconst N = "
+        + json.dumps(nights)
+        + ";\nconsole.log(JSON.stringify(Object.fromEntries(Object.entries(N).map(([k,n])=>[k, nDevCell(n, verity)]))));"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout.strip())
+    assert 'data-node="PPGDex"' in out["ring_only"] and "O2Ring PPG" in out["ring_only"], out["ring_only"]
+    assert "<button" in out["ring_only"], "the ring's PPG is a click, not a label"
+    assert "the Verity recorded nothing" in out["ring_only"], "the cell still says the Verity is absent"
+    assert "6.6" not in out["ring_only"], "no hours borrowed from the PPGDex record onto the Verity column"
+    for k in ("ring_not_loadable", "nothing"):
+        assert "<button" not in out[k] and "not recorded" in out[k], (k, out[k])
+    assert "O2Ring PPG" not in out["both"] and 'data-node="PPGDex"' in out["both"], "a Verity night is unchanged"
