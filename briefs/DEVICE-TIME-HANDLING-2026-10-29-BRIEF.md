@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-29 (O1 and U5 done; U1 measured, no code; U2 measuring; U3 claimed; U6 waits for the owner) · **Created:** 2026-10-29
+**Status:** IN-PROGRESS — 2026-10-29 (O1, U5, U2 and U1 done; U7 in progress; U3 claimed; U6 waits for the owner) · **Created:** 2026-10-29
 
 # Brief — better time handling on every device
 
@@ -139,13 +139,25 @@ Search: `RADIO-CLOCK-SIDECAR-2026-09-07` (the owner flashed the firmware on 2026
 
 - [ ] Spread per night, population and window stated, one `tepna.verdict/1` object
 
-### U7 · AS11 per-EDF re-anchor at ingest — **queued, Heron after U2**
+### U7 · AS11 per-EDF re-anchor at ingest — **Heron, IN-PROGRESS**
 
 Search: `AS11 per-EDF re-anchor ingest` → `AS11-CLOCK-DISCIPLINE-2026-08-24` (DONE; per-EDF placement +
 ingest re-anchor carried as #1956's follow-up).
 
 - Measured rate −4.7 ppm over 160 h, about 2.7 s a week. Harmless for sleep metrics; it matters only
   for fusion. Lowest priority.
+- 🔴 **Measured 2026-10-29 (Heron): the rate is harmless per night and the OFFSET is not.**
+  `AS11CLOCK.csv` never rotates, so `as11_clock.offset_for_envelope` took its median over the whole
+  file. That file held 93,990 anchors over 1562.9 h, and the RTC had walked 19.8 s end to end. The
+  whole-file median read 1283.9 s while that night's own read 1295.8 s. So the envelope published an
+  offset 11.8 s out, growing about 0.17 s a day.
+- **And the stamp hid it.** `measured_at_ms` carried the newest anchor's host time, so the stamp read
+  fresh while the value spanned 62 days. `cpap_edf.device_start_from_host` places an SA2 on the
+  device axis with that number, and a scoreable apnea lasts 10 s. So the error already exceeded one
+  event length.
+- [x] The envelope read now takes a 12 h session window. It anchors on the newest anchor rather than
+  on `now`, so the function stays pure. It publishes `anchors`, `span_s` and `window_s` beside the
+  value. A window holding fewer than two anchors returns `null`, never a zero and never the history.
 
 ## 3 · Assignment and order
 
@@ -157,7 +169,7 @@ ingest re-anchor carried as #1956's follow-up).
 | U1 | Kestrel | nothing: measured, no code (2026-10-30) | done |
 | U6 | Wren | box read-only | any time |
 | U4 | Magpie | `motiondex-dsp.js` | after U5 merges |
-| U7 | Heron | `capture-host/` | after U2 |
+| U7 | Heron | `capture-host/` | after U2 — in progress |
 
 U1 landed no code, so U2 had no rebase to wait for.
 One PR per bird, draft-first, WIP cap 4 (§👥.5).
