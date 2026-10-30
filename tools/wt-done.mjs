@@ -45,7 +45,15 @@ import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guar
    mistaken for the positional (residue `2026-10-21-a-dash-test-picker-takes-a-valued-flags-value`). */
 const ARGV_SPEC = { valued: ['--pr'], boolean: ['--list', '--pushed', '--landed', '--selftest'], positional: true };
 
-const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+/* EVERY GIT CALL HERE READS INTO A BUFFER, AND THE DEFAULT ONE IS 1 MB (row
+   2026-10-29-the-landed-hatch-reads-a-rebundled-diff-into-a-one-megabyte-buffer). Measured 2026-10-29 on
+   `claude/pbeat-hrn`: the three-dot diff `--landed` reads ran 32,301,331 bytes, so the hatch died as
+   ENOBUFS on every branch that re-bundled an app. That is precisely where a merged bundle PR leaves a
+   worktree behind, so the only hatch for those trees was unreachable. The cap is named rather than
+   implied, and `landedElsewhereFor` no longer hands it a generated diff at all. */
+export const RUN_MAX_BUFFER = 64 * 1024 * 1024;
+
+const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: RUN_MAX_BUFFER, ...opts });
 
 /* THE TOOL KNOWS WHERE IT LIVES (row 2026-10-12-wt-done-resolves-the-repo-from-the-shell-cwd). The two
    repo-level git calls (`worktree list`, `worktree remove`) used to read the SHELL's cwd, so an
@@ -605,6 +613,68 @@ export function landedByIdentifiers(ids, isOnBase, { base = 'origin/main', min =
     };
   return { ok: true, why: `all ${ids.length} identifier(s) this branch added are present on ${base}`, checked: ids.length, absent: [] };
 }
+/**
+ * `verdict\tpath` lines from `rebase-safe --classify` → a Map. Returns null when a line does not carry
+ * exactly one tab and one of the two verdicts, because a listing we cannot read is not a classification.
+ */
+export function parseClassify(text) {
+  const out = new Map();
+  for (const line of String(text == null ? '' : text).split('\n')) {
+    if (!line.trim()) continue;
+    const i = line.indexOf('\t');
+    if (i < 1) return null;
+    const verdict = line.slice(0, i);
+    const path = line.slice(i + 1);
+    if ((verdict !== 'source' && verdict !== 'generated') || !path) return null;
+    out.set(path, verdict);
+  }
+  return out;
+}
+/**
+ * Split a `git diff --name-only` listing into the SOURCE paths this proof can read, the GENERATED
+ * artifacts it must not, and the paths nobody classified. Returns null when there are no verdicts.
+ *
+ * ⚠️ AN UNCLASSIFIED PATH IS NOT EVIDENCE EITHER WAY, so it is counted rather than assumed. The
+ * caller refuses on both null and a non-empty `unknown`. `rebase-safe` fails closed by calling
+ * everything SOURCE, because its unsafe act is auto-resolving a file; this tool's unsafe act is
+ * DELETING a directory, and reading everything as source is what made the hatch unreachable.
+ *
+ * A generated artifact's identifiers are a function of source, so excluding them removes no evidence.
+ * Widening the buffer alone would have traded the ENOBUFS for a HANG: measured 2026-10-30 on
+ * `claude/pbeat-hrn`, the whole diff adds 5225 identifiers and the source diff 62, and
+ * `landedByIdentifiers` runs one `git grep` per identifier.
+ */
+export function splitDiffPaths(nameOnlyText, verdicts) {
+  if (!verdicts) return null;
+  const source = [];
+  const generated = [];
+  const unknown = [];
+  for (const line of String(nameOnlyText == null ? '' : nameOnlyText).split('\n')) {
+    const path = line.trim();
+    if (!path) continue;
+    const v = verdicts.get(path);
+    if (v === 'generated') generated.push(path);
+    else if (v === 'source') source.push(path);
+    else unknown.push(path);
+  }
+  return { source, generated, unknown };
+}
+/* THE CLASSIFIER IS ANOTHER TOOL'S, AND IT IS SPAWNED RATHER THAN IMPORTED. `rebase-safe.mjs` reads the
+   generated set from the builders that own it (§2c), which is the list this proof needs — but it refuses
+   a cross-checkout invocation in a MODULE-LEVEL block, so `import`ing it exits 4 before this file runs.
+   That refusal is right for its own CLI and wrong for a tool invoked by absolute path from anywhere
+   (row 2026-10-12-wt-done-resolves-the-repo-from-the-shell-cwd). So it runs as a child, in ITS own
+   checkout, and one call classifies every path. */
+function classifyPaths(paths) {
+  const script = path.join(REPO_ROOT, 'tools', 'rebase-safe.mjs');
+  if (!existsSync(script)) return null;
+  try {
+    return parseClassify(run(process.execPath, [script, '--classify', ...paths], { cwd: REPO_ROOT }));
+  } catch {
+    /* exit 2 is its fail-closed refusal — the builders' owned sets were unreadable. */
+    return null;
+  }
+}
 /* The impure half: the diff against the base, then one `git grep` per identifier over the base TREE
    (never the working tree, which is the thing being retired). */
 function landedElsewhereFor(wtPath, base = 'origin/main') {
@@ -613,11 +683,46 @@ function landedElsewhereFor(wtPath, base = 'origin/main') {
   } catch {
     return { ok: false, why: `cannot reach ${base} — no base to compare this branch's work with` };
   }
-  let diff;
+  /* NAMES FIRST — a listing is small whatever the branch re-bundled, and it is what tells source from
+     generated. The content diff then names those paths explicitly. */
+  let names;
   try {
-    diff = run('git', ['-C', wtPath, 'diff', '-U0', `refs/remotes/origin/main...HEAD`]);
+    names = run('git', ['-C', wtPath, 'diff', '--name-only', `refs/remotes/origin/main...HEAD`]);
   } catch (e) {
     return { ok: false, why: `diff against ${base} failed (${String(e.message || e).split('\n')[0]})` };
+  }
+  const split = splitDiffPaths(
+    names,
+    classifyPaths(
+      names
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+    )
+  );
+  if (!split)
+    return {
+      ok: false,
+      why: `cannot read the builders' owned sets, so a generated artifact cannot be told from source — refusing rather than reading a re-bundled diff`
+    };
+  if (split.unknown.length)
+    return {
+      ok: false,
+      why: `${split.unknown.length} path(s) in this branch's diff were classified neither source nor generated — refusing rather than guessing`
+    };
+  if (!split.source.length)
+    return {
+      ok: false,
+      why: `this branch changed ${split.generated.length} generated artifact(s) and no source file — nothing this proof can read`
+    };
+  let diff;
+  try {
+    diff = run('git', ['-C', wtPath, 'diff', '-U0', `refs/remotes/origin/main...HEAD`, '--', ...split.source]);
+  } catch (e) {
+    return {
+      ok: false,
+      why: `diff against ${base} over ${split.source.length} source path(s) failed (${String(e.message || e).split('\n')[0]})`
+    };
   }
   return landedByIdentifiers(
     addedIdentifiers(diff),
@@ -985,6 +1090,23 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
     assert(broken.ok === false, '∅ a unit directory that exists and cannot be read is never an empty unit list');
     assert(/could not be read/.test(broken.why), '…and the refusal says what it failed to read');
   }
+  /* ── THE PROOF READS A SOURCE DIFF (row 2026-10-29-the-landed-hatch-reads-a-rebundled-diff-into-a-
+     one-megabyte-buffer) ──────────────────────────────────────────────────────────────────────────
+     The verdicts are injected, so these legs need no builder, no child process and no repository. */
+  {
+    const listing = 'oxydex-dsp.js\nOxyDex.html\nprovenance/OxyDex.json\ntests/dex-tests.js\n';
+    const verdicts = parseClassify('source\toxydex-dsp.js\ngenerated\tOxyDex.html\ngenerated\tprovenance/OxyDex.json\nsource\ttests/dex-tests.js\n');
+    const split = splitDiffPaths(listing, verdicts);
+    assert(split.source.join(' ') === 'oxydex-dsp.js tests/dex-tests.js', 'the source paths are the ones no builder owns');
+    assert(split.generated.length === 2 && split.unknown.length === 0, 'the bundle and the ledger fragment are generated');
+    assert(splitDiffPaths(listing, null) === null, 'no verdicts at all REFUSES — it never reads as all-source');
+    assert(splitDiffPaths('OxyDex.html\n', verdicts).source.length === 0, 'a re-bundle-only branch leaves no source path to read');
+    assert(splitDiffPaths('somebody-elses.js\n', verdicts).unknown.length === 1, 'a path nobody classified is counted, not assumed');
+    assert(parseClassify('source') === null, 'a line with no tab is not a classification');
+    assert(parseClassify('maybe\tfoo.js') === null, 'a verdict outside the two is not a classification');
+    assert(parseClassify('').size === 0, 'an empty listing classifies nothing and says so');
+  }
+
   console.log(`selftest: ${ran}/${ran} ok`);
   process.exit(0);
 }

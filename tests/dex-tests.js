@@ -54391,6 +54391,31 @@
         V({ prState: null, dirtyCount: 0, isMain: false, landless: { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: false } }).why,
         'no PR and nothing to land — 0 commits ahead of origin/main, tree clean, no branch on origin'
       );
+
+      /* ── THE PROOF READS A SOURCE DIFF, NOT A RE-BUNDLED ONE ──────────────────────────────────
+         Row 2026-10-29-the-landed-hatch-reads-a-rebundled-diff-into-a-one-megabyte-buffer. `--landed`
+         read `git diff -U0 origin/main...HEAD` into Node's default 1 MB buffer, so on any branch that
+         re-bundled an app it died as ENOBUFS — and a merged bundle PR is exactly what leaves a tree
+         behind, so the only hatch for those trees was unreachable. Measured on `claude/pbeat-hrn`
+         (2026-10-29/30): the whole diff is 32,301,331 bytes and adds 5225 identifiers; the source-only
+         diff is 22,936 bytes and adds 62. The second number is the one that matters, because
+         `landedByIdentifiers` runs one `git grep` per identifier, so widening the buffer alone would
+         have traded the refusal for a hang. A generated artifact's identifiers are a function of
+         source, so leaving them out removes no evidence. */
+      var parseClassify = env.wtDone.parseClassify,
+        splitDiffPaths = env.wtDone.splitDiffPaths;
+      var verdicts = parseClassify('source\toxydex-dsp.js\ngenerated\tOxyDex.html\ngenerated\tprovenance/OxyDex.json\nsource\ttests/dex-tests.js\n');
+      var split = splitDiffPaths('oxydex-dsp.js\nOxyDex.html\nprovenance/OxyDex.json\ntests/dex-tests.js\n', verdicts);
+      T.eq('the diff this proof reads is the source half', split.source.join(' '), 'oxydex-dsp.js tests/dex-tests.js');
+      T.eq('and the bundle and the ledger fragment are left out', split.generated.length, 2);
+      T.eq('nothing is left unclassified when every path got a verdict', split.unknown.length, 0);
+      T.ok('CONTROL · no verdicts at all REFUSES — an unreadable builder list must not read as all-source', splitDiffPaths('oxydex-dsp.js\n', null) === null, 'null verdicts must refuse');
+      T.eq('a path nobody classified is COUNTED, never assumed', splitDiffPaths('somebody-elses.js\n', verdicts).unknown.length, 1);
+      T.eq('a re-bundle-only branch leaves no source path to read', splitDiffPaths('OxyDex.html\nprovenance/OxyDex.json\n', verdicts).source.length, 0);
+      T.ok('a classification line with no tab is not a classification', parseClassify('source') === null, 'must refuse');
+      T.ok('nor is a verdict outside the two', parseClassify('maybe\tfoo.js') === null, 'must refuse');
+      T.eq('an empty listing classifies nothing and says so', parseClassify('').size, 0);
+      T.ok('the buffer every git call reads into is NAMED, not the 1 MB default', env.wtDone.RUN_MAX_BUFFER >= 64 * 1024 * 1024, String(env.wtDone.RUN_MAX_BUFFER));
     });
 
     /* Row 2026-10-12-wt-done-resolves-the-repo-from-the-shell-cwd: invoked by ABSOLUTE path from a
