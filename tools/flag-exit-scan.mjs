@@ -56,19 +56,36 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import * as acorn from 'acorn';
 import { isCliEntry } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..');
 const BASELINE = join(HERE, 'flag-exit-baseline.json');
 
-/* `acorn` is a DECLARED devDependency (package.json, since #3529 on 2026-10-12), not a transitive
-   one, so a parse here is as available as biome is. `tools/find-unwired-js.mjs` still carries the
-   comment "no typescript, acorn, espree or babel in node_modules" and hand-rolls a tokenizer against
-   it; that claim is stale, and its own header says to replace the tokenizer once a parser exists. */
+/* 🔴 THE PARSER IS OPTIONAL, BECAUSE CI INSTALLS NOTHING. `acorn` is a declared devDependency
+   (package.json, since #3529), so it is there on a dev box. It is NOT there in a gate lane:
+   `.github/workflows/tests.yml:6` states "no npm install, no browser, no network", and the job
+   carrying this check is a bare checkout plus setup-node. A module-scope `import * as acorn` threw
+   there, stdout came back empty, and the adoption gate reported `emits could not be read — Unexpected
+   end of JSON input` (#4132, run 41060606483). So the parser is resolved through `createRequire` in a
+   try, exactly as `tools/xerj-load.mjs jsParser` does it, and an environment without one gets NOT_RUN
+   — a scan that examined nothing says so, rather than reading 299 files as clean (§∅, §4b).
+   That measurement also RETIRES this file's first claim, that `find-unwired-js.mjs`'s header comment
+   "no typescript, acorn, espree or babel in node_modules" is simply stale. For the lane that tool
+   runs in, the comment is TRUE. */
 const PARSE = { ecmaVersion: 'latest', sourceType: 'module', locations: true, allowAwaitOutsideFunction: true };
+
+/** The parser's `parse`, or `null` when the devDependency is absent. `req` is injectable so the
+    selftest can exercise the absent-parser path without touching a shared `node_modules`. */
+export function jsParse(req = createRequire(import.meta.url)) {
+  try {
+    return req('acorn').parse;
+  } catch {
+    return null;
+  }
+}
 
 /* A flag spelling that CLAIMS the tool is healthy. The claim is what makes a green exit a lie, so the
    threshold binds on this set and on nothing else. */
@@ -249,10 +266,14 @@ function exitingFunctions(ast) {
 }
 
 /** The census reading for one source text. `null` when it does not parse — never an empty pass. */
-export function flagExitShape(src, label = '<src>') {
+export function flagExitShape(src, label = '<src>', parse = jsParse()) {
+  /* No parser is NOT a property of the file, so it gets its own carrier rather than borrowing
+     `parsed: false`'s meaning. A caller that cannot tell the two apart would report an environment
+     fact as 299 corrupt files. */
+  if (!parse) return { parsed: false, noParser: true, reason: 'no JS parser available', label };
   let ast;
   try {
-    ast = acorn.parse(String(src || ''), PARSE);
+    ast = parse(String(src || ''), PARSE);
   } catch (err) {
     return { parsed: false, reason: `${err && err.message ? err.message : err}`, label };
   }
@@ -312,7 +333,7 @@ function spawnedTools() {
   return named;
 }
 
-function census() {
+function census(parse = jsParse()) {
   const dir = join(REPO, 'tools');
   const rows = [];
   const unparsed = [];
@@ -326,7 +347,7 @@ function census() {
       unparsed.push({ name, reason: `unreadable: ${err.message}` });
       continue;
     }
-    const shape = flagExitShape(text, name);
+    const shape = flagExitShape(text, name, parse);
     if (!shape.parsed) {
       unparsed.push({ name, reason: shape.reason });
       continue;
@@ -349,10 +370,19 @@ function census() {
 
 function commitOf() {
   try {
-    return execFileSync('git', ['-C', REPO, 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8' }).trim();
+    /* stderr is silenced: outside a checkout git prints to it, and this tool's stdout is parsed by
+       the adoption gate, so a bare `git` complaint beside a verdict object is pure noise. */
+    return execFileSync('git', ['-C', REPO, 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch {
     return null;
   }
+}
+
+/* §∅: a null commit is an ABSENCE and the object says why. `verdict.js:261` refuses the bare null,
+   which is how the no-parser sandbox caught this on the main path too, not only on the NOT_RUN one. */
+function producedBy() {
+  const commit = commitOf();
+  return { tool: 'tools/flag-exit-scan.mjs', commit, ...(commit ? {} : { commitReason: 'not a git checkout, or git is unavailable here' }) };
 }
 
 /* 🔴 TWO MODES, TWO CRITERIA, BECAUSE ONE WOULD LIE. The census judges the absolute shape, which 52
@@ -386,7 +416,27 @@ function verdict(c, status, reason, mode = 'census', grew = null) {
     },
     evidence: ['tools/flag-exit-scan.mjs', 'tools/importer-flag-probe.mjs'],
     reason: reason || null,
-    producedBy: { tool: 'tools/flag-exit-scan.mjs', commit: commitOf() },
+    producedBy: producedBy(),
+    at: new Date().toISOString()
+  };
+}
+
+/* An environment with no parser examined NOTHING. `checked + excluded = eligible` holds at 0, and
+   §🧾 forbids a PASS over `checked: 0`, so this cannot be mistaken for a clean scan. */
+function noParserVerdict() {
+  return {
+    schema: 'tepna.verdict/1',
+    gate: 'flag-exit-scan',
+    status: 'NOT_RUN',
+    scope: 'internal',
+    population: { checked: 0, eligible: 0, excluded: 0 },
+    criterion: CRITERIA.census,
+    /* `result: null`, not a shape full of nulls — `verdict.js` refuses the second, and it is right:
+       nothing was examined, so nothing was measured. */
+    result: null,
+    evidence: ['tools/flag-exit-scan.mjs', '.github/workflows/tests.yml'],
+    reason: 'no JS parser available: acorn is a devDependency and this environment has no node_modules',
+    producedBy: producedBy(),
     at: new Date().toISOString()
   };
 }
@@ -408,7 +458,14 @@ function report(c) {
 /* ── selftest ─────────────────────────────────────────────────────────────────────────────────────
    Placed ABOVE nothing: this block is the last thing in the file, so the tool cannot be its own
    instance. That is the defect it exists to find, and a scanner wearing it would be the §4b family. */
-function selftest() {
+function selftest(parse = jsParse()) {
+  /* A selftest that cannot parse must not read as a pass. It reports 0 of its legs examined and
+     exits 0, because the CI loop at .github/workflows/tests.yml:247 judges the EXIT CODE, and a
+     non-zero there would call an absent devDependency a broken tool. The message is the verdict. */
+  if (!parse) {
+    console.log('⊘ SKIP flag-exit-scan selftest: no JS parser in this environment, 0 leg(s) examined');
+    process.exit(0);
+  }
   let pass = 0;
   let fail = 0;
   const ok = (what, cond) => {
@@ -467,6 +524,32 @@ function selftest() {
   }
   ok("the row's own instance is in the census, because the SHAPE is what this reads", instance !== null && instance.parsed === true && instance.risk !== null && instance.claiming.length > 0);
 
+  /* The absent-parser path, through the injected `req` the production call never passes. */
+  const noParser = flagExitShape(POSITIVE, 'no-parser', null);
+  ok('an absent parser is its own carrier, never a parse failure', noParser.parsed === false && noParser.noParser === true);
+  ok(
+    'CONTROL · a real parse failure is NOT marked noParser',
+    (() => {
+      const bad = flagExitShape('const = ;', 'bad');
+      return bad.parsed === false && bad.noParser === undefined;
+    })()
+  );
+  ok(
+    '…and an injected require that throws yields null, so the degradation is reachable',
+    jsParse(() => {
+      throw new Error('MODULE_NOT_FOUND');
+    }) === null
+  );
+  /* 🔴 VALIDATED BY THE CONTRACT, NOT BY EYE. Hand-read, the first NOT_RUN object looked right and
+     `verdict.js` refused it twice: a result shape full of nulls where nothing was measured, and a null
+     commit with no `commitReason`. The adoption gate validates what a producer emits, so this leg
+     validates it here rather than leaving CI to find it. */
+  const nrv = noParserVerdict();
+  ok('an absent parser emits NOT_RUN over an empty population, with a reason', nrv.status === 'NOT_RUN' && nrv.population.eligible === 0 && typeof nrv.reason === 'string');
+  const V = createRequire(import.meta.url)(join(REPO, 'verdict.js'));
+  ok('…and `verdict.js` itself accepts that object', V.validate(nrv).ok === true);
+  ok('…and it accepts the census object this tool publishes', V.validate(verdict(census(parse), 'SHORTFALL', 'leg')).ok === true);
+
   /* This tool is never its own instance. */
   const self = flagExitShape(readFileSync(join(HERE, 'flag-exit-scan.mjs'), 'utf8'), 'flag-exit-scan.mjs');
   ok('the scanner does not wear the shape it reports', self.parsed === true && self.risk === null);
@@ -484,9 +567,15 @@ function selftest() {
    function behind the guard, so module scope evaluates nothing a flag can skip. */
 function main() {
   const argv = process.argv.slice(2);
-  if (argv.includes('--selftest')) selftest();
+  const parse = jsParse();
+  if (argv.includes('--selftest')) selftest(parse);
+  /* Every other mode needs the parser. Exit 2 is "it could not look", never "it looked and passed". */
+  if (!parse) {
+    console.log(JSON.stringify(noParserVerdict()));
+    process.exit(2);
+  }
 
-  const c = census();
+  const c = census(parse);
   const claiming = c.rows.filter((r) => r.claiming.length);
 
   /* `--verdict-sample` is how the adoption gate READS this producer (§🧾,
