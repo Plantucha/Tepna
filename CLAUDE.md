@@ -253,6 +253,19 @@ your diff.
 - **Plan the turn before you take it.** List every read and check the next step needs, then issue them
   all in one call. A turn costs the whole window; a tool call inside it costs only its output.
 
+### 7 · Decide your own recommended option (owner, 2026-10-30)
+
+The owner is the fleet's slowest queue. **When you would ask the owner a question and you hold a
+recommended option, take it yourself.** Post it on the board as `--kind decision` with the reason and
+the rejected options, and name it in your next report so the owner can overrule it.
+
+Still ask the owner for these:
+- a deploy, a daemon restart, `sudo` or a reboot on vigil;
+- a NAS deletion or chown (send it as a script);
+- the reversal of a standing owner order or ruling;
+- an outward-facing or irreversible action beyond the repo;
+- a choice where you hold no recommendation, or one that is a matter of the owner's taste.
+
 ---
 
 ## 📌 Brief lifecycle (*why → RATIONALE §📌*)
