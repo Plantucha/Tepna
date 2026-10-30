@@ -33089,6 +33089,140 @@
       T.ok('seam: epochs still carry tri-state moving', Array.isArray(b.epochs) && b.epochs.length === a.epochs.length);
     });
 
+    /* ════ MotionDex host-disciplined axis — DEVICE-TIME-HANDLING U4, Clock Contract §7 ═══════════
+       MotionDex detected a device-counter step and corrected nothing, so every position it publishes
+       rode the device crystal. It now builds `DexClock.hostAxis` from anchors AFTER the last resync
+       and applies `correctionAt` to `relNs` at the parse boundary. These legs pin the four outcomes
+       the node can have — corrected, inert host, refused, and seamed — because each one is a
+       different published claim and three of them are claims of ABSENCE. */
+    group('MotionDex §7 — the device counter is disciplined by the host column, or it says why not', 'motiondex-dsp · clock · host-axis · absence', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      var X = env.MotionDex;
+      if (!M || !X || typeof X.parseSensorXYZ !== 'function') {
+        T.skip('MotionDex.parseSensorXYZ available', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      var STEP_NS = 38461538; // 26 Hz — the Polar ACC rate
+      /* SMALL ON PURPOSE. A real Polar counter reads ~8.4e17 ns, which is past 2^53: building one in
+         plain JS arithmetic quantises the device axis to ~128 ns steps and the "exact" assertions
+         below fail by 62 ns against a parser that reads the column as a BigInt. The parser only needs
+         an integer string, so the test uses a counter it can hold exactly. */
+      var NS0 = 1000000000000;
+      var T0 = Date.UTC(2026, 6, 31, 0, 4, 26, 39);
+      var N = 10000; // → anchors at rows 0,100,…,9900 = 100 of them, well past hostAxis's ≥3 floor
+      function pad(v, w) {
+        v = String(v);
+        while (v.length < w) v = '0' + v;
+        return v;
+      }
+      function iso(ms) {
+        var d = new Date(ms);
+        return (
+          d.getUTCFullYear() +
+          '-' +
+          pad(d.getUTCMonth() + 1, 2) +
+          '-' +
+          pad(d.getUTCDate(), 2) +
+          'T' +
+          pad(d.getUTCHours(), 2) +
+          ':' +
+          pad(d.getUTCMinutes(), 2) +
+          ':' +
+          pad(d.getUTCSeconds(), 2) +
+          '.' +
+          pad(d.getUTCMilliseconds(), 3)
+        );
+      }
+      /* The host runs `ppm` faster than the device, so the divergence GROWS and the correction must
+         push `relNs` forward. `stepAt`/`stepNs` plant a mid-file counter resync; `noStamp` removes
+         the host column's content without removing the column.
+         `jitNs` is NOT decoration. A device counter that advances by one constant is DRAWN by
+         `clock.js`'s own discriminator (>= 67 % of inter-anchor deltas sharing one value) — which is
+         true of this generator and of every synthetic fixture, and it moves `timingSource` to `host`.
+         The legs that mean to exercise a REAL crystal plant a deterministic per-sample wobble so the
+         deltas scatter the way a real one's do. */
+      function accText(o) {
+        o = o || {};
+        var out = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+        for (var i = 0; i < N; i++) {
+          var jit = o.jitNs ? ((i * 2654435761) % 1000) * (o.jitNs / 1000) : 0;
+          var devNs = NS0 + i * STEP_NS + jit + (o.stepAt != null && i >= o.stepAt ? o.stepNs : 0);
+          var hostMs = T0 + Math.round(((i * STEP_NS) / 1e6) * (1 + (o.ppm || 0) / 1e6));
+          out.push((o.noStamp ? 'n/a' : iso(hostMs)) + ';' + String(devNs) + ';257;12;964');
+        }
+        return out.join('\n');
+      }
+      var RAW_SPAN_MS = ((N - 1) * STEP_NS) / 1e6; // the device axis's own span, uncorrected
+      var PLANTED_MS = RAW_SPAN_MS * 2000e-6; // what 2000 ppm of host-vs-device drift amounts to
+      function spanMsOf(rows) {
+        return (rows[rows.length - 1].relNs - rows[0].relNs) / 1e6;
+      }
+
+      // ── 1 · a real second clock: the drift is measured and REMOVED ────────────────────────────
+      var drift = X.parseSensorXYZ(accText({ ppm: 2000, jitNs: 400000 }));
+      var ax = drift._hostAxis;
+      T.ok('control: the drifted stream parsed every row', drift.length === N, 'rows=' + drift.length);
+      T.ok('the axis holds', !!(ax && ax.ok), ax && ax.reason);
+      T.eq('…over the anchors the 100-row cadence yields, not a guess', ax.n, 100);
+      T.eq('…and the host column is a SECOND clock, not the device rounded', ax.independent, true);
+      T.eq('the correction is applied', ax.applied, true);
+      /* The running median clamps ⌊21/2⌋/2 = 5 anchors' worth of drift INWARD at each end (§7), so a
+         100-anchor file recovers ~90 % of the plant and never 100 %. Both bounds are asserted: an
+         over-recovery is as wrong as an under-recovery, and `< PLANTED` is what separates this from
+         a fit. */
+      var got = spanMsOf(drift) - RAW_SPAN_MS;
+      T.ok(
+        '…and it moves the span toward the host by most of the plant, never past it',
+        got > 0.8 * PLANTED_MS && got < PLANTED_MS,
+        'moved ' + got.toFixed(1) + ' ms of a planted ' + PLANTED_MS.toFixed(1) + ' ms'
+      );
+      T.ok('the published rate reads the plant back, end-clamp bias and all', ax.ppm > 1800 && ax.ppm < 2000, 'ppm=' + ax.ppm.toFixed(1));
+
+      // ── 2 · an inert host column disciplines NOTHING, and the node says so ────────────────────
+      var inert = X.parseSensorXYZ(accText({ ppm: 0 }));
+      T.eq('§∅ an inert host column (the device stamp rounded) is not a second clock', inert._hostAxis.independent, false);
+      T.eq('…so nothing is applied', inert._hostAxis.applied, false);
+      T.eq('…and the device axis is returned EXACTLY as the counter wrote it', spanMsOf(inert), RAW_SPAN_MS);
+      /* A uniform counter under a host column that rounds it: neither column measured anything, and
+         `timingBlock` on its own would read `deviceDrawn` and answer `host`. */
+      T.eq("control: this generator's unjittered counter IS drawn", inert._hostAxis.deviceDrawn, true);
+      T.eq('§∅ a drawn counter under an inert host names NO timebase, not a host one', inert._hostAxis.timingSource, 'none');
+
+      // ── 3 · no host stamp at all: a refusal with its own reason, never a zero correction ──────
+      var blind = X.parseSensorXYZ(accText({ noStamp: true }));
+      T.eq('§∅ a stamp-less stream refuses', blind._hostAxis.ok, false);
+      T.ok('…naming the absence rather than borrowing a reason', /no row carried a host stamp/.test(String(blind._hostAxis.reason)), String(blind._hostAxis.reason));
+      T.eq('…and keeps the device axis untouched', spanMsOf(blind), RAW_SPAN_MS);
+
+      // ── 4 · ONE DEVICE CLOCK PER AXIS: pre-resync anchors are dropped and COUNTED ─────────────
+      var seamed = X.parseSensorXYZ(accText({ ppm: 2000, jitNs: 400000, stepAt: 5000, stepNs: 120000 * 1e6 }));
+      T.ok(
+        'control: the planted counter step is detected as a resync',
+        !!(seamed._clockResyncs && seamed._clockResyncs.length === 1),
+        'resyncs=' + ((seamed._clockResyncs && seamed._clockResyncs.length) || 0)
+      );
+      T.eq('every anchor before the last resync is dropped — a resync is a CHANGE of clock', seamed._hostAxis.anchorsDroppedPreResync, 50);
+      T.eq('…and the axis is built from the 50 that remain', seamed._hostAxis.n, 50);
+      T.ok(
+        'the seam carries its own host↔device offset, so the dropped segment is visible',
+        typeof seamed._clockResyncs[0].hostOffsetMs === 'number' && isFinite(seamed._clockResyncs[0].hostOffsetMs),
+        String(seamed._clockResyncs[0].hostOffsetMs)
+      );
+
+      // ── 5 · what the export publishes — the shared block plus the part it has no field for ────
+      var ex = X.buildNodeExport(M.compute({ acc: accText({ ppm: 2000, jitNs: 400000 }) }));
+      T.eq('the shared timing block reports two clocks', ex.recording.timing.timingSource, 'device+host');
+      T.eq('…with the anchor count the axis actually used', ex.recording.timing.anchors, 100);
+      T.eq('…and a span beside the rate, never a bare ppm', typeof ex.recording.timing.spanMs, 'number');
+      T.eq('the node names WHICH stream spoke for the night', ex.recording.hostAxis.stream, 'acc');
+      T.eq('…whether the correction was applied', ex.recording.hostAxis.applied, true);
+      T.eq('…and §∅ a file with no resync dropped no anchors — null, not 0', ex.recording.hostAxis.anchorsDroppedPreResync, null);
+      /* The two blocks answer the same question and must never diverge — the shared one is built by
+         `dex-export.js`, this one by the node. */
+      T.eq('…and the two timing surfaces agree on the source', ex.recording.hostAxis.timingSource, ex.recording.timing.timingSource);
+      T.eq('a real crystal under an independent host is NOT drawn', ex.recording.hostAxis.deviceDrawn, false);
+    });
+
     group('MotionDex ACC unit — ∅ an UNDETERMINED unit is not milli-g', 'motiondex-dsp · absence', function (T) {
       var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
       if (!M || typeof M.compute !== 'function' || typeof M.bodyPosition !== 'function') {
