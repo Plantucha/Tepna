@@ -31,6 +31,14 @@
  *   3. followed by a later top-level statement that EVALUATES something able to throw:
  *      a `vm` realm, a `require`/dynamic `import`, a file read, a child process, or `new Function`.
  *
+ * 🔴 CRITERION 3 MEANS THE STATEMENT'S OWN EVALUATION, SO THE RISK READING ENTERS NO FUNCTION BODY.
+ * A `function realm() { require(...) }` below a guard loads nothing until a caller runs it, and the
+ * guard above hides neither the declaration nor the call. The first reading walked into those bodies.
+ * Measured 2026-10-30 over 299 tools: it put 12 tools in the census on a risk no run evaluates, and
+ * gave 12 more a risk line inside a function while a real module-scope load sat lower in the file —
+ * `cpap-oxy-couple.mjs`, the instance this scanner exists for, among them. A top-level
+ * `if (ANCH) { readFileSync(...) }` still counts, because module evaluation reaches that statement.
+ *
  * A flag naming `--help`, `--usage`, `--version` or `--list` makes no claim about the tool's health,
  * so it is reported and excluded from the criterion. A flag naming a selftest, check, verification,
  * verdict or sample does make that claim, and those are what the threshold binds on.
@@ -116,6 +124,33 @@ function walk(node, visit) {
   }
 }
 
+/* A FUNCTION BODY IS NOT MODULE SCOPE, AND THE RISK READING ENTERED ONE.
+   `walk` above is depth-first over every child, so `function realm() { require(...) }` sitting below
+   a guard read as a load the guard hides. A declaration evaluates nothing. Its call happens when a
+   caller runs it, and no flag exit above it hides anything.
+
+   Measured 2026-10-30 over 299 tools: 12 of the 55 census rows carried no module-scope risk at all,
+   and 12 more named a line inside a function while a real module-scope load sat lower in the file.
+   So the risk walk stops at every function boundary, which is what criterion 3 of the header states.
+   A top-level `if (ANCH) { readFileSync(...) }` still counts, because module evaluation reaches it. */
+const FUNCTION_NODES = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
+
+/** `walk`, except it enters no function body. */
+function walkOutsideFunctions(node, visit) {
+  if (!node || typeof node.type !== 'string') return;
+  if (FUNCTION_NODES.has(node.type)) return;
+  visit(node);
+  for (const key of Object.keys(node)) {
+    if (key === 'loc' || key === 'start' || key === 'end') continue;
+    const v = node[key];
+    if (Array.isArray(v)) {
+      for (const c of v) if (c && typeof c.type === 'string') walkOutsideFunctions(c, visit);
+    } else if (v && typeof v.type === 'string') {
+      walkOutsideFunctions(v, visit);
+    }
+  }
+}
+
 /** The dotted name a callee spells, so `vm.createContext` is one string and not a shape to re-derive. */
 function calleeName(node) {
   if (!node) return '';
@@ -140,10 +175,10 @@ const RISK = [
   [/\.(execSync|execFileSync|spawnSync)$/, 'child-process']
 ];
 
-/** The first risk this statement evaluates, or `null` when it evaluates none. */
+/** The first risk this statement evaluates itself, or `null` when it evaluates none. */
 function riskIn(node) {
   let hit = null;
-  walk(node, (n) => {
+  walkOutsideFunctions(node, (n) => {
     if (hit) return;
     if (n.type === 'ImportExpression') {
       hit = { kind: 'dynamic-import', line: n.loc.start.line };
@@ -514,6 +549,31 @@ function selftest(parse = jsParse()) {
   /* A guard INSIDE a function body is not module scope: the exit happens when the function is called. */
   const NESTED = ["import vm from 'node:vm';", "function main() { if (process.argv.includes('--selftest')) process.exit(0); }", 'const ctx = vm.createContext({});'].join('\n');
   ok('CONTROL · a guard inside a function body is not module scope', flagExitShape(NESTED, 'nested').guards.length === 0);
+
+  /* CONTROL · a RISK inside a function body is not module scope either. The first reading held the
+     mirror control for a GUARD inside a function body and none for the risk, which is the asymmetry
+     that put 12 tools in the census on a load no run evaluates. */
+  const FNRISK = ["if (process.argv.includes('--selftest')) { process.exit(0); }", "function realm() { return require('node:vm'); }"].join('\n');
+  ok('CONTROL · a risk inside a function body is not module scope', flagExitShape(FNRISK, 'fnrisk').risk === null);
+
+  /* PLANT · a function declaration above a real module-scope read. The reported line must be the
+     statement that evaluates, so a wrapper between the guard and the load cannot mask it. */
+  const FNTHENREAD = [
+    "import { readFileSync } from 'node:fs';",
+    "if (process.argv.includes('--selftest')) { process.exit(0); }",
+    "function realm() { return require('node:vm'); }",
+    "const txt = readFileSync('x', 'utf8');"
+  ].join('\n');
+  const ftr = flagExitShape(FNTHENREAD, 'fnthenread');
+  ok('PLANT · the module-scope read below a wrapper is the risk', ftr.risk !== null && ftr.risk.kind === 'fs-read' && ftr.risk.line === 4);
+
+  /* CONTROL · a top-level conditional still counts: module evaluation reaches that statement. */
+  const CONDREAD = [
+    "import { readFileSync } from 'node:fs';",
+    "if (process.argv.includes('--selftest')) { process.exit(0); }",
+    "if (process.env.ANCH) { readFileSync(process.env.ANCH, 'utf8'); }"
+  ].join('\n');
+  ok('CONTROL · a top-level conditional read is still a risk', flagExitShape(CONDREAD, 'condread').risk !== null);
 
   /* The measured instance still wears the shape after its fix: the file did not move, a test grew. */
   let instance = null;
