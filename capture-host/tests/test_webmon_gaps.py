@@ -14,7 +14,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import storage_targets  # noqa: E402
 import webmon  # noqa: E402
-from tests.test_webmon_api import H10, _mk, _serve  # noqa: E402
+from tests.test_webmon_api import H10, _mk, _serve, stamp_dir_order  # noqa: E402
 
 
 # ── forget: address validation ──────────────────────────────────────────────────────────────────────
@@ -228,12 +228,14 @@ def test_timeline_picks_the_night_with_the_newest_ACTIVITY(tmp_path):
     `body.get("night", "2026-07-25")`, so a response with no `night` key at all passed. The stamps now
     land on the capture FILES, and the key is read directly."""
     caps = tmp_path / "captures"
-    # Created in THIS order on purpose: the decoy is both the newest NAME and the newest DIRECTORY
-    # mtime, so a chooser reading either one lands on it and this test fails. Creation order is the
-    # only thing a directory mtime records.
+    # The decoy is both the newest NAME and the newest DIRECTORY mtime, so a chooser reading either
+    # one lands on it and this test fails. That second property is STAMPED, never inherited from the
+    # clock: creation order is the only thing a directory mtime records, and these two folders are
+    # built back to back.
     session = _capture_night(caps, "2026-07-25", when=9_000_000_000)  # older name, freshest write
     decoy = _capture_night(caps, "2026-07-26", when=1000)  # newest name, stale write
-    assert os.path.getmtime(str(decoy)) > os.path.getmtime(str(session))
+    session_dir_mtime, decoy_dir_mtime = stamp_dir_order(session, decoy)
+    assert decoy_dir_mtime > session_dir_mtime
     app, *_ = _mk(tmp_path)
 
     async def go(c):

@@ -24,6 +24,29 @@ import telemetry
 import webmon
 
 
+# A directory mtime records ENTRY CREATION and nothing else, so two night folders built back to back
+# can share one filesystem tick. Both stamps are fixed, and far apart, because a test asserting
+# `getmtime(newer) > getmtime(older)` over two unstamped `mkdir` calls rides timer granularity.
+_DIR_STALE = 1000.0
+_DIR_FRESH = 9_000_000_000.0
+
+
+def stamp_dir_order(older, newer):
+    """Stamp two night DIRECTORIES so `newer` is strictly the newest folder, and return both mtimes.
+
+    The inequality is a CONTROL, not a precondition: it says the fixture would defeat a chooser that
+    stats the directory, which is the defect `webmon.newest_night` was rewritten to drop. So the
+    fixture STAMPS the order rather than inheriting it from the clock. Unstamped, that assertion reded
+    `test (py3.13)` on 2026-10-30 with `assert 1793356695.306263 > 1793356695.306263`, against a
+    branch that touched no Python at all.
+
+    Neither stamp can move the answer under test: `newest_night` reads per-FILE mtimes with the
+    sidecars excluded, and never a directory."""
+    os.utime(str(older), (_DIR_STALE, _DIR_STALE))
+    os.utime(str(newer), (_DIR_FRESH, _DIR_FRESH))
+    return os.path.getmtime(str(older)), os.path.getmtime(str(newer))
+
+
 def _serve(app, fn):
     """Run `fn(client)` against a live TestServer, tearing it down afterwards."""
 

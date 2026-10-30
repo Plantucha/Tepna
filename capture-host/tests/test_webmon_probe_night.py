@@ -14,7 +14,7 @@ import json
 import os
 
 import probe_night as pn
-from tests.test_webmon_api import _mk, _serve
+from tests.test_webmon_api import _mk, _serve, stamp_dir_order
 
 AT = "2026-10-13T18:36:15"
 ARMED = f"{AT} vigil tepna-capture[854652]: INFO heap probe: ARMED (tracemalloc)"
@@ -99,10 +99,12 @@ def test_the_midnight_decoy_holding_only_sidecars_is_not_the_folder_being_writte
     decoy.mkdir()
     (decoy / "vigil_box_0_20261012000000_LINK.txt").write_text("at;event\n")
     (decoy / "vigil_box_0_20261012000000_CLOCK.txt").write_text("at;ppm\n")
+    sess_dir_mtime, decoy_dir_mtime = stamp_dir_order(sess, decoy)
     assert _get(_mk(tmp_path)[0])[1]["night"] == "2026-10-11"
     # The control: the decoy WOULD win a directory-mtime read, so the assertion above is about the
-    # rule and not about the fixture happening to be ordered conveniently.
-    assert os.path.getmtime(str(decoy)) > os.path.getmtime(str(sess))
+    # rule and not about the fixture happening to be ordered conveniently. The two folders are built
+    # back to back and can share one tick, so the helper stamps the order instead of asserting it.
+    assert decoy_dir_mtime > sess_dir_mtime
 
 
 def test_a_tree_whose_folders_hold_no_capture_file_is_no_night(tmp_path):
