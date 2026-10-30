@@ -105,6 +105,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { gitShort, makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -201,7 +202,7 @@ export function functionRange(src, name) {
      The declaration is now any of: `function NAME(` · `const/let/var NAME = (…) =>` (async ok,
      single-param-no-parens ok) · `const/let/var NAME = function`. Escaping also widened from `$`
      alone to every metacharacter — same three-character fix killcheck's copy already carries. */
-  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const esc = escapeRe(name);
   const decl = new RegExp('(?:^|[^\\w$.])(?:function\\s+' + esc + '\\s*\\(|(?:const|let|var)\\s+' + esc + '\\s*=\\s*(?:async\\s*)?(?:function\\b|\\(|[\\w$]+\\s*=>))');
   /* 🔴 AMBIGUITY IS A REFUSAL, NOT A COIN FLIP (MUTATION-PROGRAM-FOLLOWUPS §10.5).
      Scanning for the FIRST declaration and stopping is what §10.5 records costing a whole run: a

@@ -43,6 +43,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, wri
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -79,9 +80,7 @@ export function applyMutant(lines, m) {
 }
 
 /* Exported so it can be pinned: the escaping bug it replaces was silent in both directions. */
-export function escapeRe(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+export { escapeRe };
 
 /* The enclosing range of `fn`, by brace counting — same method as probe-equivalence and
    mutation-worklist, so all three agree about what a function is. */

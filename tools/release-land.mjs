@@ -74,6 +74,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_DIR = join(tmpdir(), 'tepna-release-land');
@@ -160,7 +161,7 @@ export function parseDenylist(text) {
     try {
       out.push(new RegExp(l, 'i'));
     } catch {
-      out.push(new RegExp(l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+      out.push(new RegExp(escapeRe(l), 'i'));
     }
   }
   return out;

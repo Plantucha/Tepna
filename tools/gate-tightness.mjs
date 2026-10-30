@@ -41,6 +41,7 @@ import { stripNonCode } from './probe-equivalence.mjs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -105,7 +106,7 @@ export function stripPython(text) {
 /* Every character with meaning in a RegExp, escaped. Exported so it can be tested on inputs the
    extractor does not currently produce — the point is to stop depending on that. */
 export function escapeRegex(t) {
-  return String(t).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+  return escapeRe(t);
 }
 
 export function declaresSymbol(text, id) {

@@ -40,6 +40,7 @@ import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { DOC, dedupeRoots, gitCommitOf, nightDirsUnder, NIGHT_RE, parseRoots, populationVerdict, producedByOf, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { findDirNames } from './corpus-scope.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -80,7 +81,7 @@ const LIT_ANCHORED = new RegExp(String.raw`^\/(` + LIT_BODY + String.raw`)\/([a-
    backslash in the input would have reached the pattern unescaped. The identifier grammar this tool
    matches cannot produce one today, and an escaper that is right only while its caller stays narrow
    is the defect, not the caller. */
-const escRe = (sNm) => String(sNm).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escRe = escapeRe;
 
 const SITE_RE = /snapshotNights\s*\([^;]{0,240}?\bre:/g;
 const RULE_AT_SITE_RE = new RegExp(String.raw`snapshotNights\s*\([^;]{0,240}?\bre:\s*(` + LIT_SRC + String.raw`|[A-Za-z_$][\w$]*)`, 'g');

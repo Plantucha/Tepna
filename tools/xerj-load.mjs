@@ -42,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { CHUNKER, cacheHit, chunk, listExternalDocs, readDoc, readLines } from './doc-search.mjs';
 import { resolveStatePath } from './mutation-map.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -252,7 +253,7 @@ export function chunkLines(file, body, raw, chunks) {
       return [lineAt(a), lineAt(b)];
     });
   }
-  const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const esc = escapeRe;
   const SEP = '(?:[\\s*/#─-╿]|<[^>]*>|&[a-z]+;)+';
   const find = (words, from) => {
     if (!words.length) return null;
@@ -387,7 +388,7 @@ export function generationName(alias, at = new Date()) {
 
 /** Is `name` a generation of `alias` — and so ours to retire once it no longer serves the alias? */
 export function isGeneration(name, alias) {
-  const lit = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const lit = escapeRe(alias);
   return new RegExp(`^${lit}-\\d{8}t\\d{6}z$`).test(String(name));
 }
 
