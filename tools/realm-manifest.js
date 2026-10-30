@@ -36,13 +36,14 @@ var OXY_REALM = Object.freeze([
   'oxydex-registry.js',
   'oxydex-cross.js',
   'clock.js',
+  'clock-seam.js',
   'oxydex-profile.js',
   'oxydex-dsp.js'
 ]);
 
 /* The lean OxyDex DSP realm — only what `OxyDex._bare.processNight` needs (export-staleness and the
    PB operating-point study recompute per-night metrics and load nothing else). */
-var OXY_DSP_REALM = Object.freeze(['dex-escape.js', 'kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js']);
+var OXY_DSP_REALM = Object.freeze(['dex-escape.js', 'kernel-constants.js', 'clock.js', 'clock-seam.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js']);
 
 /* The ECGDex leg — registry before the DSP, morph after (the order regen-ecgdex-goldens co-loads). */
 var ECG_LEG = Object.freeze(['ecgdex-registry.js', 'ecgdex-dsp.js', 'ecgdex-morph.js']);
