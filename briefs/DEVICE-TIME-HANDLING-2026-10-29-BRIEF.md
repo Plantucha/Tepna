@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-10-29 (O1, U1, U2, U3 and U5 done; U7 in progress; U6 waits for the owner) · **Created:** 2026-10-29
+**Status:** IN-PROGRESS — 2026-10-29 (O1, U1, U2, U3, U4 and U5 done; U7 in progress; U6 waits for the owner) · **Created:** 2026-10-29
 
 # Brief — better time handling on every device
 
@@ -114,8 +114,22 @@ Search: `MotionDex host axis rate correction` → `MOTIONDEX-BUILD-2026-07-17`,
 - H10 and Verity ACC rows carry the same two clocks as their ECG and PPG rows.
 - Build the axis from anchors after the last resync and count the dropped ones, as ECGDex does (§7).
 
-- [ ] `hostAxis` on the post-resync segment; refusal keeps the device axis and says so
-- [ ] `motiondex` fixture regenerated with `tools/regen-motiondex-goldens.mjs`
+- [x] `hostAxis` on the post-resync segment; refusal keeps the device axis and says so
+- [x] `motiondex` fixture regenerated with `tools/regen-motiondex-goldens.mjs`
+
+**BUILT 2026-10-30 (`_mdHostDiscipline`).** The node consumes `correctionAt()` and never `.ppm`:
+MotionDex owns no `fs`, every position comes from `relSecOf`'s `relNs / 1e9`, and §7 states an
+interpolating consumer needs no span gate. An ECGDex-style 2400 s gate would refuse 1254 of the
+corpus's 1694 ACC files (74 %) against a risk only the rate path carries. The builder takes an anchor every
+100 rows — ~3.8 s at 26 Hz, the same cadence IN TIME as ECGDex's 500 rows at 130 Hz, which is what
+matters because the smoother runs a median of fixed width 21 ANCHORS.
+
+Census over all 1694 real ACC files at the shipped cadence, 0 errors: ok 1692, refused 2 (358161 and
+488383 ppm); `independent` 1593 true / 99 false / 2 null; `deviceDrawn` false on all 1692; 6 files
+carry resyncs dropping 1983 pre-seam anchors; anchors min 36, p05 46, median 387; |correction| p50
+135.1 ms, p90 585.8 ms, p99 16.6 s, max 37.2 s. The correction applies to 1593 of 1694 files (94 %).
+The node passes its own `timingSource` because the shared builder reads `deviceDrawn` before
+`independent` and would answer `host` for an axis that carries no sample.
 
 ### U5 · One shared timing block on every export — **Magpie** (spine; lands FIRST)
 
