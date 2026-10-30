@@ -46228,6 +46228,80 @@
 
      Node-lane only (an ESM import of two tools plus nine recipe spawns), so the browser lane SKIPs;
      CI runs the Node lane. ══════════════════════════════════════════════════════════════════════ */
+    /* ════ THE REMEDY THE GUARD DENIES, DECIDED HERE ═══════════════════════════════════════════════
+       `rebase-safe` stops on a corpus-backed golden and prints "take <onto>'s copy, then re-run that
+       recipe". Every spelling of that command is denied by `.claude/hooks/guard-shared-tree.sh`, whose
+       rule keys on the command shape and cannot know what a path is — and whose hatch is read from the
+       hook's own environment, so a Bash call cannot set it. Row
+       `2026-10-29-the-remedy-rebase-safe-prints-is-denied-by-the-hook-in-every-spelling`.
+       `--resolve` is the sanctioned spelling, and this is its DECISION half: pure, so the suite can
+       drive every verdict by value. It takes a path only on an AFFIRMATIVE answer, which is what makes
+       an unreadable builder set resolve nothing instead of reverting the tree. */
+    group('Rebase-safe — --resolve takes only what a BUILDER or a REGENERATOR owns (REBASE-SAFE)', 'tools · rebase-safe · resolve', function (T) {
+      var plan = env.rebaseResolvePlan;
+      if (typeof plan !== 'function') {
+        T.skip('the resolve planner is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs) — the browser lane SKIPs');
+        return;
+      }
+      var GEN = new Set(['OxyDex.html', 'provenance/OxyDex.json']);
+      var HELD = [{ path: 'uploads/ECGDex_2026-06-27_equiv.node-export.json', why: 'its input is gitignored', recipe: 'tools/regen-ecgdex-goldens.mjs' }];
+      var recipeFor = function (q) {
+        return q === 'provenance/OxyDex.json' ? 'tools/regen-oxydex-goldens.mjs' : null;
+      };
+
+      // A builder-owned path is takeable, and the recipe travels with it.
+      var p1 = plan(['OxyDex.html', 'provenance/OxyDex.json'], GEN, HELD, recipeFor);
+      T.eq('two builder-owned paths are both taken', p1.take.length, 2);
+      T.eq('…and nothing is refused', p1.refuse.length, 0);
+      T.eq('a builder-owned path reads generated', p1.take[0] && p1.take[0].verdict, 'generated');
+      T.eq('…and carries the recipe its regenerator declares', p1.take[1] && p1.take[1].recipe, 'tools/regen-oxydex-goldens.mjs');
+
+      /* THE ROW'S OWN CASE. A held golden classifies SOURCE — that is why the rebase stops — so the
+         held set, not the classifier, is what makes it takeable. Without this rail the one path the
+         row measured would be refused by the remedy written for it. */
+      var p2 = plan(['uploads/ECGDex_2026-06-27_equiv.node-export.json'], GEN, HELD, recipeFor);
+      T.eq('a HELD golden is taken although the classifier calls it source', p2.take.length, 1);
+      T.eq('…and is marked held, not generated', p2.take[0] && p2.take[0].verdict, 'held');
+      T.eq('…and names the regenerator that re-earns it', p2.take[0] && p2.take[0].recipe, 'tools/regen-ecgdex-goldens.mjs');
+      T.eq('…and carries the reason it was held', p2.take[0] && p2.take[0].why, 'its input is gitignored');
+
+      // A source path is refused, and the refusal says why rather than just naming the verdict.
+      var p3 = plan(['oxydex-dsp.js'], GEN, HELD, recipeFor);
+      T.eq('a source path is refused', p3.refuse.length, 1);
+      T.eq('…and nothing is taken', p3.take.length, 0);
+      T.ok('…and the reason explains that no builder owns it', /no builder owns it/.test(String(p3.refuse[0] && p3.refuse[0].reason)), String(p3.refuse[0] && p3.refuse[0].reason));
+
+      /* `tests/dex-tests.js` gets its OWN refusal. The generic one reads as "do not touch it", and the
+         answer CLAUDE.md §2c gives is the opposite: restore the ref's copy, then RE-RUN your
+         insertion. This file conflicts on nearly every parallel PR, so the wrong advice here is the
+         expensive one. */
+      var p4 = plan(['tests/dex-tests.js'], GEN, HELD, recipeFor);
+      T.eq('the shared suite is refused too', p4.refuse.length, 1);
+      T.ok('…with the RE-RUN advice, not the generic reason', /RE-RUN your insertion/.test(String(p4.refuse[0] && p4.refuse[0].reason)), String(p4.refuse[0] && p4.refuse[0].reason));
+
+      /* FAIL CLOSED. `classify()` answers `source` for everything when the builder sets cannot be
+         read, so an unreadable set must resolve NOTHING — the direction that costs a rebase, never a
+         revert. The held rail is deliberately unaffected: a named recipe is an affirmative answer. */
+      var p5 = plan(['OxyDex.html', 'provenance/OxyDex.json'], null, [], recipeFor);
+      T.eq('an unreadable builder set takes nothing', p5.take.length, 0);
+      T.eq('…and refuses every path named', p5.refuse.length, 2);
+
+      /* A MIXED LIST REPORTS BOTH HALVES, which is what lets the caller refuse ATOMICALLY. A planner
+         that dropped the refusals would hand back a take list the CLI would apply, leaving a tree
+         half-resolved — and nothing on disk says which paths still hold their own bytes. */
+      var p6 = plan(['OxyDex.html', 'oxydex-dsp.js'], GEN, HELD, recipeFor);
+      T.eq('a mixed list still reports the takeable path', p6.take.length, 1);
+      T.eq('…and the refusal beside it', p6.refuse.length, 1);
+
+      // Degenerate input is refused rather than coerced: a blank argument is not a path.
+      var p7 = plan(['OxyDex.html', 'OxyDex.html', '  ', null], GEN, HELD, recipeFor);
+      T.eq('a path named twice is one resolution', p7.take.length, 1);
+      T.eq('…and a blank and a null are both refused', p7.refuse.length, 2);
+      T.eq('no paths at all ⇒ nothing taken', plan([], GEN, HELD, recipeFor).take.length, 0);
+      T.eq('a non-array ⇒ nothing taken', plan(null, GEN, HELD, recipeFor).take.length, 0);
+      T.eq('a missing recipe lookup is tolerated, not thrown', plan(['OxyDex.html'], GEN, HELD, null).take[0].recipe, null);
+    });
+
     group('Rebase-safe — a regenerator-owned golden is GENERATED only when the rebuild can restore it (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
       var mkRows = env.regenOwnedListing;
       var parse = env.rebaseParseOwnedListing;
