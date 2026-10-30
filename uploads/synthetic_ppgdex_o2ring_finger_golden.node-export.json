@@ -36,6 +36,9 @@
       "ppm": -6.868177291421405,
       "spanMs": 39757.27306,
       "spanPpm": -6.868177291421405,
+      "rate": "unknown",
+      "rateReason": "spans 40 s, under the 2400 s a rate needs",
+      "rateApplied": false,
       "maxStepMs": 0,
       "totalMs": -0.273059999999532,
       "independent": false,
@@ -68,8 +71,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "ad936becdaae",
-        "computeHash": "fc0890b82752"
+        "manifestHash": "888d0f28bc9e",
+        "computeHash": "e27c74965932"
       },
       "evidence": {
         "envelopeRef": null,
@@ -98,8 +101,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "ad936becdaae",
-        "computeHash": "fc0890b82752"
+        "manifestHash": "888d0f28bc9e",
+        "computeHash": "e27c74965932"
       },
       "evidence": {
         "envelopeRef": null,
