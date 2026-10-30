@@ -40,6 +40,7 @@
  * USAGE
  *   node tools/ppg-bridge-hrv-validate.mjs --dir <captures> [--old <ref>] [--top N]
  *   node tools/ppg-bridge-hrv-validate.mjs --selftest
+ *   node tools/ppg-bridge-hrv-validate.mjs --verdict-sample   # the population verdict the adoption gate reads
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
@@ -66,6 +67,7 @@ const TOP = +opt('--top', 20);
    its file filter said so; pointed at a Verity corpus it scored nothing and said nothing (2026-09-22:
    13 min pinned at an 8 GB cap, 0 rows). Default stays o2ring — byte-identical behaviour. */
 const DEVICE = opt('--device', 'o2ring');
+const POP_UNIT = `${DEVICE}-ppg-files`;
 /* `--fires gap|any`: which files are validation cases. `gap` (default, §4's rule) scores only files
    where §4's gap-bridging fired; `any` scores every file whose epoch HRV differs between OLD and NEW —
    the right predicate for a change that acts elsewhere (the correctRR fill removal, #2333). */
@@ -262,9 +264,23 @@ function selftest() {
 }
 if (SELFTEST) process.exit(selftest());
 
+/* THE SAMPLE THE ADOPTION GATE READS (§🧾, `tools/verdict-adoption.json`): this tool's population
+   verdict over ONE FABRICATED population, listed by a closure, so the object is complete, the corpus
+   is never touched and the shape cannot drift from `snapshotEntries`. */
+function verdictSample() {
+  const at = '2026-10-30T00:00:00Z';
+  const snap = snapshotEntries('uploads/sample', { list: () => ['sample-a', 'sample-b'], unit: POP_UNIT, at });
+  return populationVerdict(snap, snap, { tool: 'tools/ppg-bridge-hrv-validate.mjs', at, evidence: ['tools/ppg-bridge-hrv-validate.mjs'] });
+}
+export { verdictSample };
+if (has('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
 /* ════════════════════════════════════ CORPUS RUN ════════════════════════════════════ */
 if (!DIR) {
-  console.error('usage: node tools/ppg-bridge-hrv-validate.mjs --dir <captures> [--old <ref>] [--new <ref>] [--device o2ring|verity] [--fires gap|any] [--top N]  |  --selftest');
+  console.error('usage: node tools/ppg-bridge-hrv-validate.mjs --dir <captures> [--old <ref>] [--new <ref>] [--device o2ring|verity] [--fires gap|any] [--top N]  |  --selftest  |  --verdict-sample');
   process.exit(2);
 }
 const oldSrc = execFileSync('git', ['-C', ROOT, 'show', OLD_REF + ':ppgdex-dsp.js'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -301,7 +317,7 @@ const listDevicePpgFiles = (root) =>
   walk(root)
     .filter((f) => PPG_PATTERN[DEVICE].test(f.p))
     .map((f) => f.p);
-const POP = { list: listDevicePpgFiles, unit: `${DEVICE}-ppg-files` };
+const POP = { list: listDevicePpgFiles, unit: POP_UNIT };
 const popBefore = snapshotEntries(DIR, POP);
 if (!popBefore.ok) {
   console.error(`ppg-bridge-hrv-validate: ${popBefore.reason} — ${DIR}`);

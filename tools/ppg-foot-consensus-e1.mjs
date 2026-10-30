@@ -48,6 +48,7 @@
  * USAGE
  *   node tools/ppg-foot-consensus-e1.mjs --dir <captures> [--device verity] [--sleep-only]
  *   node tools/ppg-foot-consensus-e1.mjs --selftest
+ *   node tools/ppg-foot-consensus-e1.mjs --verdict-sample   # the population verdict the adoption gate reads
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -66,6 +67,7 @@ const opt = (f, d) => {
 const SELFTEST = has('--selftest');
 const DIR = opt('--dir', null);
 const DEVICE = String(opt('--device', 'verity')).toLowerCase();
+const PPG_UNIT = `${DEVICE} PPG files`;
 const MAX_NIGHTS = +opt('--max-nights', 20);
 const SLEEP_ONLY = has('--sleep-only');
 /* E-1 names ±40 ms. The shipped PEAK vote uses ±50 ms; the foot is the sharper landmark (a tangent
@@ -298,6 +300,20 @@ function selftest() {
 if (SELFTEST) {
   process.exit(selftest() ? 1 : 0);
 }
+
+/* THE SAMPLE THE ADOPTION GATE READS (§🧾, `tools/verdict-adoption.json`): this tool's population
+   verdict over ONE FABRICATED population, listed by a closure, so the object is complete, the corpus
+   is never touched and the shape cannot drift from `snapshotEntries`. */
+function verdictSample() {
+  const at = '2026-10-30T00:00:00Z';
+  const snap = snapshotEntries('uploads/sample', { list: () => ['sample-a', 'sample-b'], unit: PPG_UNIT, at });
+  return populationVerdict(snap, snap, { tool: 'tools/ppg-foot-consensus-e1.mjs', at, evidence: ['tools/ppg-foot-consensus-e1.mjs'] });
+}
+export { verdictSample };
+if (has('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 if (!DIR) {
   console.error('need --dir <captures>  (or --selftest)');
   process.exit(2);
@@ -359,7 +375,6 @@ function listDevicePpg(root) {
     .map((f) => relative(root, f.p));
 }
 
-const PPG_UNIT = `${DEVICE} PPG files`;
 const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
 /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading a night of PPG takes long
    enough for a commit to land in this worktree, and Node loaded this module at the start. */
