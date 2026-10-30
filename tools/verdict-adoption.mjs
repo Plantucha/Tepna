@@ -643,7 +643,13 @@ export function verdictObjectLines(src, isPy) {
 /** One function definition's own body, or null when it cannot be located. PURE. `isPy` picks the
  *  syntax. Returns `{ text, code }`: `text` keeps strings, because a constructed object IS a string
  *  literal (`schema: 'tepna.verdict/1'`); `code` blanks them, because prose is not a call. */
-export function functionBody(src, name, isPy) {
+export /* A NAME GOES INTO A REGEX, SO EVERY METACHARACTER IN IT IS ESCAPED, NOT JUST `$`. The `$`-only
+   form was right for the identifiers this gate reads and wrong as a rule: a backslash or a dot in
+   a name built a pattern that matched something else (CodeQL `js/incomplete-sanitization`, high,
+   reported on #4133). */
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function functionBody(src, name, isPy) {
   if (src == null || !/^[A-Za-z_$][\w$]*$/.test(name)) return null;
   if (isPy) {
     const lines = blankPyComments(src).split('\n');
@@ -669,7 +675,7 @@ export function functionBody(src, name, isPy) {
   }
   const bare = blankComments(src);
   const cls = classify(src);
-  const esc = name.replace(/\$/g, '\\$');
+  const esc = reEscape(name);
   for (const re of [new RegExp(`function\\s+${esc}\\s*\\(`, 'g'), new RegExp(`(?:const|let|var)\\s+${esc}\\s*=\\s*(?:async\\s+)?(?:function\\s*)?\\(`, 'g')]) {
     for (const m of bare.matchAll(re)) {
       if (cls[m.index] !== CLS_CODE) continue;
@@ -1760,6 +1766,8 @@ function selftest() {
       /* WHY that last leg needs `blankPyStrings`: the prose reads as a call in the text, not in the code */
       const pb = functionBody(HOP['capture-host/hop-read.py'], 'read_verdict', true);
       ok(bareCalls(pb.text).has('tick') && !bareCalls(pb.code).has('tick'), 'docstring prose is a call in the raw body and not in the string-blanked view');
+      const odd = 'a\\b.c';
+      ok(new RegExp(`^${reEscape(odd)}$`).test(odd) && !new RegExp(`^${reEscape(odd)}$`).test('axbxc'), 'an escaped name matches ITSELF and nothing else — a backslash and a dot included');
       /* the gate arm itself */
       for (const [f, re] of [
         ['tools/uses-ctor.mjs', /which CONSTRUCTS a tepna\.verdict\/1 object/],
