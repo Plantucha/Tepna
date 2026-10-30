@@ -142,7 +142,7 @@ export function verdictSlope(slope) {
    set than the realm actually loads would certify a cache as current while the code that produced it
    had moved. ⚠️ ORDER IS LOAD-BEARING for makeRealm (oxydex-util before oxydex-dsp) and irrelevant to
    the hash, which is why the hash mixes each NAME in beside its bytes rather than relying on order. */
-const REALM_SOURCES = ['clock.js', 'kernel-constants.js', 'cpapdex-edf.js', 'oxydex-util.js', 'oxydex-dsp.js', 'nsrr-adapter.js'];
+const REALM_SOURCES = ['clock.js', 'clock-seam.js', 'kernel-constants.js', 'cpapdex-edf.js', 'oxydex-util.js', 'oxydex-dsp.js', 'nsrr-adapter.js'];
 
 /* A SCORE CACHE MUST BE KEYED ON THE CODE, NOT ONLY ON THE INPUT — this is the half the residue row
    did not name, and without it the cache is a liability rather than a saving. The sibling

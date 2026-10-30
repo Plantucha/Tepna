@@ -1546,7 +1546,18 @@ if (!flag('--code-digest') && (!SRC || !existsSync(SRC))) {
    OUTSIDE is this orchestrator's own text — scheduling, logging, retries and diagnostics cannot alter a
    fold's numbers, and hashing `__filename` made all 48 edits to this file (21 in July, 15 in August, 12
    in September — ~19/month) re-stale all 82 stamped nights at ~78 min per whole-corpus re-fold. */
-const COMPUTE_MODULES = ['clock.js', 'kernel-constants.js', 'export-schema.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'integrator-dsp.js'];
+const COMPUTE_MODULES = [
+  'clock.js',
+  'clock-seam.js',
+  'kernel-constants.js',
+  'export-schema.js',
+  'dex-export.js',
+  'oxydex-util.js',
+  'oxydex-dsp.js',
+  'ecgdex-dsp.js',
+  'ppgdex-dsp.js',
+  'integrator-dsp.js'
+];
 const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
 const CODE_DIGEST = (() => {
   /* The closure, and ONLY the closure — see COMPUTE_MODULES. `__filename` is deliberately absent: this
