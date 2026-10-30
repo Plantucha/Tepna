@@ -136,6 +136,20 @@ GUARDED_RE='(briefs/[A-Za-z0-9._@+-]+\.md|DOCS-INDEX\.md)'
 WRITE_VERB_RE="(open\([^)]*['\"][wax]|\.write_text\(|\.write_bytes\(|\.writelines\(|\.write\(|writeFileSync|appendFileSync|writeFile\(|createWriteStream\(|shutil\.(copy|copy2|copyfile|move)\(|os\.(replace|rename|remove|unlink)\(|\.replace\(|\.unlink\(|>>?[[:space:]]*['\"]?briefs/)"
 READ_FORM_RE="(open\([^,)]*\)|open\([^)]*['\"]r[b+]*['\"]|\.read_text\(|\.read_bytes\(|\.readlines\(|\.read\(|readFileSync\(|readFile\(|json\.load\(|yaml\.safe_load\(|\.exists\(|\.is_file\(|\.glob\(|\.rglob\(|\.stat\()"
 
+# ── ARGV_TARGET_RE — THE SECOND CHANNEL, AND IT IS A TARGET SLOT RATHER THAN A VERB ────────────
+#    Row 2026-10-28-a-guarded-path-reaching-a-program-through-argv-is-invisible-to-the-guard. In
+#    `python3 - briefs/X-BRIEF.md <<PY ... open(sys.argv[1], 'w') ... PY` the two halves of the
+#    evidence arrive through DIFFERENT CHANNELS: the path stands in the command line with no write
+#    verb beside it, and the program names a write with no guarded path in it. Each half alone reads
+#    as a read, so neither arm fires and a real write of a stale guarded doc lands.
+#
+#    THE JOIN IS A TARGET SLOT, NOT A VERB LIST. `WT_SCAN` already resolves every write form's
+#    target, and already denies one it cannot resolve to a literal while NAMING the expression it
+#    read. This pattern asks one question of that name: is the target an argument? A guarded path in
+#    the interpreter's own argument list then completes the evidence. So nothing here enumerates
+#    verbs, and the owner ruling that replaced the verb list with a read allowlist still holds.
+ARGV_TARGET_RE='(sys\.argv|process\.argv|\$ARGV|@ARGV|ARGV\[|\bargv\[)'
+
 
 # ── WT_SCAN — WHICH PATH DOES THIS PROGRAM ACTUALLY WRITE? ────────────────────────────────────
 #    An awk reader of interpreter program text. It answers one of three things on stdout:
@@ -158,10 +172,11 @@ READ_FORM_RE="(open\([^,)]*\)|open\([^)]*['\"]r[b+]*['\"]|\.read_text\(|\.read_b
 #      · an unterminated string literal DENIES, since the mask cannot be trusted past it.
 #
 #    WHAT IT DOES NOT MODEL, stated rather than discovered later: a shell body handed to `bash <<SH`
-#    (the caller's own redirect test covers the outside text, not a kept body), a target built by
-#    concatenation from pieces no single literal spells, and a guarded path that reaches the program
-#    as an ARGUMENT rather than in its text. The last two are residue rows of their own, filed with
-#    the measurement that found them.
+#    (the caller's own redirect test covers the outside text, not a kept body), and a target built by
+#    concatenation from pieces no single literal spells, which is a residue row of its own, filed
+#    with the measurement that found it. A guarded path reaching the program as an ARGUMENT was the
+#    third of these. This scan still cannot resolve such a target, and that unresolved name is now
+#    the evidence the CALLER joins to the command line — see `ARGV_TARGET_RE` above.
 WT_SCAN='# wtscan.awk — read interpreter PROGRAM TEXT on stdin, print one verdict line.
 #   DENY <reason>      a write whose target is a guarded path, or one this scan cannot resolve
 #   ALLOW <n>          n target-bearing writes, every target resolved and none guarded
@@ -552,13 +567,18 @@ cmd_outside="$cmd_outside$_sp_rest"
 #    guarded path in the other — and neither half satisfied both tests. The `node -e` legs passed
 #    the whole time, so the suite looked like a verb-list gap rather than a splitter defect.
 #    A quote-aware tokenizer is the only honest reader of a shell word.
-prog_text="$_hd_kept $(printf '%s' "$cmd_outside" | awk '
-  BEGIN { q = ""; tok = ""; want = 0; interp = 0; out = "" }
+#    ⚠ AND IT EMITS TWO LINES, BECAUSE A SECOND TOKENIZER WOULD BE A SECOND CHANCE TO DISAGREE
+#    WITH THIS ONE. Line 1 is the inline program payload, as before. Line 2 is the interpreter's
+#    own ARGUMENT LIST: every non-flag token after an interpreter name that the payload did not
+#    consume. The argv arm in `looks_like_write` reads line 2, and `emit()` fills both.
+_tok_out="$(printf '%s' "$cmd_outside" | awk '
+  BEGIN { q = ""; tok = ""; want = 0; interp = 0; out = ""; argvout = "" }
   function emit() {
     if (tok == "") return
     if (want) { out = out " " tok; want = 0 }
     else if (tok ~ /^(python3?|node|perl|ruby|php)$/ || tok ~ /\/(python3?|node|perl|ruby|php)$/) interp = 1
     else if (interp && (tok == "--eval" || (tok ~ /^-[A-Za-z]*[ceE]$/ && length(tok) <= 4))) want = 1
+    else if (interp && substr(tok, 1, 1) != "-") argvout = argvout " " tok
     tok = ""
   }
   {
@@ -573,8 +593,10 @@ prog_text="$_hd_kept $(printf '%s' "$cmd_outside" | awk '
     }
     emit()
   }
-  END { print out }
+  END { print out; print argvout }
 ')"
+prog_text="$_hd_kept $(printf '%s\n' "$_tok_out" | sed -n 1p)"
+argv_text="$(printf '%s\n' "$_tok_out" | sed -n 2p)"
 
 write_shape=""
 write_from_prog=""
@@ -649,6 +671,39 @@ looks_like_write() {
       return 0
     fi
   fi
+  # ── THE ARGV ARM — THE TWO CHANNELS JOINED AT THE TARGET SLOT ─────────────────────────────────
+  #    Residue 2026-10-28-a-guarded-path-reaching-a-program-through-argv-is-invisible-to-the-guard.
+  #    `python3 - briefs/X-BRIEF.md <<PY ... open(sys.argv[1], 'w') ... PY` rewrites a stale guarded
+  #    doc with every arm above silent. The redirect arm sees no redirect. The interpreter arm never
+  #    runs at all, because its gate asks the PROGRAM TEXT for a guarded path, and here the path
+  #    travelled in argv while the write stayed in the program. Each half alone reads as a read.
+  #
+  #    🔴 WHAT THIS ARM MUST NOT DO IS WIDEN THAT GATE TO THE COMMAND LINE. The gate's body fails
+  #    closed on an unknown read form, so a command with EMPTY program text would reach it carrying
+  #    no write and no read, and deny. `node tools/ste-lint.mjs briefs/X-BRIEF.md` is that command,
+  #    and the design brief names the outcome: every brief-reading tool in this repo denied on its
+  #    first use. So the join is the TARGET SLOT instead of a wider gate or a longer verb list. The
+  #    scan already resolves each write form's target, already denies a target it cannot reduce to
+  #    a literal, and already NAMES the expression it read. One question of that name — is the
+  #    target an argument — plus a guarded path in the interpreter's own argument list is the whole
+  #    evidence. Either half alone stays ALLOW, and all three tests below are required.
+  #
+  #    It leaves `write_from_prog` unset deliberately. The guarded path stands in the command text
+  #    here, so the diagnostic's own candidate-set wording is the truthful one, and a `data_only`
+  #    note about program text would describe the wrong channel.
+  if [ -n "$3" ] && printf '%s' "$3" | grep -qE "$GUARDED_RE" &&
+    [ -n "$(printf '%s' "$2" | tr -d '[:space:]')" ]; then
+    local ascan
+    ascan="$(printf '%s' "$2" | awk -v guarded="$(printf '%s' "$GUARDED_RE" | sed 's/\\/\\\\/g')" "$WT_SCAN" 2>/dev/null)"
+    case "$ascan" in
+      "DENY "*)
+        if printf '%s' "${ascan#DENY }" | grep -qE "$ARGV_TARGET_RE"; then
+          write_shape="a write whose target the program reads from its own arguments, beside a guarded path in the interpreter's argument list"
+          return 0
+        fi
+        ;;
+    esac
+  fi
   return 1
 }
 
@@ -660,7 +715,7 @@ if [ -n "$f" ]; then
     briefs/*.md | DOCS-INDEX.md) cands="$rel"; cand_src="the tool payload's own file_path, so the target is certain" ;;
     *) : ;;
   esac
-elif looks_like_write "$cmd_nohere" "$prog_text"; then
+elif looks_like_write "$cmd_nohere" "$prog_text" "$argv_text"; then
   cands="$(printf '%s' "$cmd_nohere" | grep -oE "$GUARDED_RE" | sort -u)"
   cand_src='every guarded-looking path in the command text, which is a candidate set and not a target'
 fi

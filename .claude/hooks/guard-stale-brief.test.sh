@@ -281,17 +281,47 @@ expectcmd DENY  "an unterminated literal fails closed"                 "python3 
 # briefs/SHARED-BRIEF.md is the doc, and this apostrophe (don't) closes no literal
 open('$TMP/elsewhere.txt', 'w').write('v3')
 PY"
-# ⚠ TWO SHAPES THE GUARD DOES NOT SEE, PINNED AS BEHAVIOUR IT HAS AND NOT AS BEHAVIOUR ANYONE WANTS.
-# Both predate the scan and neither is narrowed by it: the full path never appears in the program
-# text, so the arm does not fire at all. Rows
-# 2026-10-28-a-write-target-built-by-concatenation-is-invisible-to-the-guard and
-# 2026-10-28-a-guarded-path-reaching-a-program-through-argv-is-invisible-to-the-guard carry them. A
-# leg that reads ALLOW here is the tripwire: when either row is fixed, this leg reds and says so.
+# ⚠ ONE SHAPE THE GUARD DOES NOT SEE, PINNED AS BEHAVIOUR IT HAS AND NOT AS BEHAVIOUR ANYONE WANTS.
+# It predates the scan and is not narrowed by it: the full path never appears in the program text,
+# so the arm does not fire at all. Row
+# 2026-10-28-a-write-target-built-by-concatenation-is-invisible-to-the-guard carries it. A leg that
+# reads ALLOW here is the tripwire: when the row is fixed, this leg reds and says so.
 expectcmd ALLOW "KNOWN GAP: a target built by concatenation"           "python3 - <<'PY'
 d = 'briefs/'
 open(d + 'SHARED-BRIEF.md', 'w').write('v3')
 PY"
-expectcmd ALLOW "KNOWN GAP: a target handed in through argv"           "python3 - briefs/SHARED-BRIEF.md <<'PY'
+
+echo
+echo "### THE ARGV CHANNEL — the path in the argument list, the write in the program"
+# The argv row was this block's second KNOWN GAP until the arm below it in the hook joined the two
+# channels. Neither half is a write on its own: the command line carries a guarded path and no verb,
+# the program carries a write whose target the scan cannot resolve. The join is the TARGET SLOT, so
+# the four controls under each DENY are the ones that say the arm reads a slot and not a path.
+expectcmd DENY  "a target handed in through argv"                      "python3 - briefs/SHARED-BRIEF.md <<'PY'
+import sys
+open(sys.argv[1], 'w').write('v3')
+PY"
+expectcmd DENY  "the same, with the program inline and argv after it"  "python3 -c \"import sys; open(sys.argv[1], 'w').write('v3')\" briefs/SHARED-BRIEF.md"
+# ⚠ CONTROL 1 — THE ARM MUST NOT FIRE ON AN EMPTY PROGRAM. This is the catastrophe the design brief
+# names: widen the interpreter gate to the command line and every brief-reading tool in this repo
+# denies on its first use, because that gate fails closed on an unknown read form. Here there is no
+# program text at all, so the arm never runs. Leg 193's `ste-lint` call is the same statement.
+expectcmd ALLOW "a script FILE plus a brief is not a program"          "python3 tools/reads.py briefs/SHARED-BRIEF.md"
+# ⚠ CONTROL 2 — a RESOLVED target that is not guarded. The scan answers ALLOW, so the slot question
+# is never asked, and a guarded path in argv does not make a write elsewhere a write of the brief.
+expectcmd ALLOW "argv names a brief, the write resolves elsewhere"     "python3 - briefs/SHARED-BRIEF.md <<'PY'
+import sys
+open('$TMP/elsewhere.txt', 'w').write('v3')
+PY"
+# ⚠ CONTROL 3 — a program with no write. The scan answers NOWRITE, which is the common case for
+# every reader that takes its path as an argument.
+expectcmd ALLOW "argv names a brief and the program only reads"        "python3 - briefs/SHARED-BRIEF.md <<'PY'
+import sys
+print(open(sys.argv[1]).read())
+PY"
+# ⚠ CONTROL 4 — the other half alone. An argv write with no guarded path in the argument list is
+# the shape of every ordinary script, and nothing here may touch it.
+expectcmd ALLOW "an argv write whose argument is not a brief"          "python3 - $TMP/elsewhere.txt <<'PY'
 import sys
 open(sys.argv[1], 'w').write('v3')
 PY"
@@ -347,6 +377,17 @@ p='$TMP/elsewhere.txt'
 open(p,'w').write('briefs/SHARED-BRIEF.md holds the rows')
 PY")"
 expectsays ABSENT  "a cleared data mention prints no denial at all"       "STALE BRIEF" "$_data_msg"
+
+# The ARGV arm's denial is the one that must NOT borrow the program-text vocabulary. The guarded
+# path stands in the command line there, so the candidate-set wording is truthful and the
+# program-text warning would send the reader to look in the wrong place for the path.
+_argv_msg="$(saysof "python3 - briefs/SHARED-BRIEF.md <<'PY'
+import sys
+open(sys.argv[1],'w').write('v3')
+PY")"
+expectsays PRESENT "the argv arm names the slot it read"                 "target the program reads from its own arguments" "$_argv_msg"
+expectsays PRESENT "…and names the other channel it joined"               "a guarded path in the interpreter" "$_argv_msg"
+expectsays ABSENT  "…and does NOT claim the path sat in program text"     "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_argv_msg"
 
 # The control, differing in ONE property: the write verb stands in the command beside the path.
 _sed_msg="$(saysof "sed -i 's/a/b/' briefs/SHARED-BRIEF.md")"
