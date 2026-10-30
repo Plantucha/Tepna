@@ -40,6 +40,12 @@ Both validation nights fall before that date. So no measurement covered the late
 5. The box QC verdict comes from each night's `QC-VERDICT.json` under the vigil archive. The table shows `—` for a night
    without one. Most of those are phone nights.
 
+6. Each ring run reads the `*_PPG.txt` file alone. Its host column carries the BLE arrival jitter, and the
+   running median in `DexClock.hostAxis` absorbs it. The fold passes no `_PPGRUNS.txt` to the parser, so the
+   parser computes its own runs. `_PMDARRIVAL.csv`, `CLOCKSYNC.csv` and `_RTCLOG.csv` feed no ring export.
+   Both runs read the same inputs, so the comparison stays fair. The study does not show what those
+   sidecars could add. The 5-minute bins also hide beat-to-beat timing.
+
 The patch and the scorer stay out of the tree. §7 holds the scorer verbatim.
 
 ## 3 · Population
