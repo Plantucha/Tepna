@@ -46261,6 +46261,81 @@
       T.ok('…and the git probe suppresses stderr, so a non-checkout cwd leaks no fatal', /--show-toplevel'\],\s*\{[^}]*stdio: \['ignore', 'pipe', 'ignore'\]/.test(src));
     });
 
+    /* ════ AN UNKNOWN FLAG REFUSES — rebase-safe must not rebase on a token nobody reads ═════════
+       Row `2026-10-30-rebase-safe-takes-an-unknown-flag-and-rebases-anyway`. The tool imported only
+       `isCliEntry` from `tools/argv-guard.mjs`, so a token it never looks up was indistinguishable
+       from an absent one — and the default on its main path is A REAL REBASE plus every builder.
+       MEASURED 2026-10-30 on the commit this landed over: `--onto` with no value became `undefined`
+       and died with a TypeError at exit 2, which is a usage error reported as an internal crash; and
+       `--resolve <p> --no-build` dropped the stray flag in silence, because the resolve loop skips
+       every token starting with two dashes.
+       EXECUTED, NOT SCANNED: a source scan cannot tell a refusal from a crash. Both name the token,
+       and the difference is the exit code, the absence of a stack trace, and that nothing was written.
+       THE SPEC IS PER SUBCOMMAND, and that is not decoration. The rebase path takes no positional at
+       all while `--classify` and `--resolve` take nothing but paths, so one flat `positional: true`
+       spec would re-admit a stray path on the path where nothing reads it.
+       🔴 NO LEG PROBES THE BARE INVOCATION. `node tools/rebase-safe.mjs` with no argument is a real
+       rebase of the checkout the suite is running in, and the probe's temp cwd does not protect it:
+       every git call in the tool is bound to the SCRIPT's checkout. The refusals below all exit
+       before the first git call, which is why they are safe to run here at all. */
+    group('rebase-safe refuses an unknown argv token instead of rebasing', 'tools · rebase-safe · argv · execution', function (T) {
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns a tool in a temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      var REL = 'tools/rebase-safe.mjs';
+      var TOKEN = '--no-such-flag-9f3'; // tools/argv-survey.mjs TOKEN — the same probe the survey uses
+      var noStack = function (o) {
+        return !/\n\s+at\s|node:fs:\d|TypeError/.test(String(o));
+      };
+
+      var bad = probe(REL, [TOKEN]);
+      T.eq('an unknown flag on the rebase path exits 2, not 0', bad.status, 2);
+      T.ok('…and the refusal NAMES the token', String(bad.out).indexOf(TOKEN) >= 0, String(bad.out).slice(0, 220));
+      T.ok('…and lists what this path does accept', /accepted: --no-build --onto/.test(String(bad.out)), String(bad.out).slice(0, 220));
+      T.ok('…and says nothing was read and nothing was written', /nothing was read and nothing was written/.test(String(bad.out)), String(bad.out).slice(0, 220));
+      T.eq('…and NOTHING was written', bad.wrote, []);
+
+      /* The measured crash: arity is the guard's property, so a valueless valued flag is a refusal. */
+      var bare = probe(REL, ['--onto']);
+      T.eq('a valueless --onto refuses', bare.status, 2);
+      T.ok('…by name, not with a TypeError at an inner line', /--onto needs a value/.test(String(bare.out)) && noStack(bare.out), String(bare.out).slice(0, 220));
+
+      /* The silently-skipped token: the resolve loop drops anything starting with two dashes, so this
+         flag used to reach nothing at all and the resolve proceeded as if it had not been typed. */
+      var stray = probe(REL, ['--resolve', REL, '--no-build']);
+      T.eq('a stray flag on the --resolve path refuses', stray.status, 2);
+      T.ok('…naming the flag the resolve loop used to skip', /unknown flag --no-build/.test(String(stray.out)), String(stray.out).slice(0, 220));
+      T.eq('…and NOTHING was written', stray.wrote, []);
+
+      /* A SUBCOMMAND THAT DOES NOT LEAD is the same defect wearing a documented name: the dispatch
+         reads `argv[0]` only, so `--onto <ref> --classify <p>` asked for a classification and got a
+         REBASE. It refuses now because the rebase path's spec does not carry the subcommands. */
+      var late = probe(REL, ['--onto', 'origin/main', '--classify', REL]);
+      T.eq('a subcommand that does not lead refuses rather than rebasing', late.status, 2);
+      T.ok('…and names it', /unknown flag --classify/.test(String(late.out)), String(late.out).slice(0, 220));
+
+      /* ── CONTROLS · the documented invocations must still run, or this is a tool nobody can use ── */
+      var cls = probe(REL, ['--classify', 'OxyDex.html', REL]);
+      T.eq('CONTROL · --classify still answers, at exit 0', cls.status, 0);
+      T.ok('…generated for a bundle and source for a tool', /generated\tOxyDex\.html/.test(String(cls.out)) && /source\ttools\/rebase-safe\.mjs/.test(String(cls.out)), String(cls.out).slice(0, 220));
+      T.eq('…and --classify wrote nothing', cls.wrote, []);
+      /* The guard must hand a LEGAL argv through to the tool's own checks, not answer for them. */
+      var noPath = probe(REL, ['--resolve']);
+      T.eq("CONTROL · --resolve with no path reaches the tool's OWN refusal", noPath.status, 2);
+      T.ok('…in the tool’s own words, not the guard’s', /--resolve needs at least one path/.test(String(noPath.out)), String(noPath.out).slice(0, 220));
+
+      /* NON-VACUITY, and the row's own requirement: the call sits INSIDE main(), so importing this
+         module judges nothing — row `2026-10-30-a-module-level-guard-travels-with-the-import`. */
+      var src = (env.sources || {})[REL];
+      if (src == null) T.skip('tools/rebase-safe.mjs in env.sources', 'not wired — the placement scan would read nothing');
+      else {
+        T.ok('the guard call is indented inside a function, never at module scope', !/^refuseUnknownArgvOrExit\(/m.test(src) && /\n  refuseUnknownArgvOrExit\(/.test(src));
+        T.ok('…and it runs before the builder lists are read', /refuseUnknownArgvOrExit\([\s\S]{0,200}?const gen = generatedSet\(\)/.test(src));
+      }
+    });
+
     group('Rebase-safe — the union-merge blind spot has a detector, with BOTH controls', 'tools · rebase-safe-union', function (T) {
       /* `rebase-safe`'s whole model is CONFLICT-driven: it enumerates `--diff-filter=U` and its contract
          is "conflict in ANY other path → STOP". A `merge=union` path NEVER conflicts — the driver keeps
