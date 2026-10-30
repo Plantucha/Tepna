@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -52,7 +53,7 @@ export function scanWorkflow(text, name = '<text>') {
        stopped at the job key's own line and blocks came back EMPTY, making the gate report
        `timeout-minutes` missing on jobs that declare one: a FAIL indistinguishable from the defect
        it exists to find, which is the worst kind to ship. End-of-input is `$(?![\s\S])`. */
-    const re = new RegExp(`^ {2}${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:[ \\t]*$([\\s\\S]*?)(?=^ {2}[A-Za-z0-9_-]+:[ \\t]*$|$(?![\\s\\S]))`, 'm');
+    const re = new RegExp(`^ {2}${escapeRe(key)}:[ \\t]*$([\\s\\S]*?)(?=^ {2}[A-Za-z0-9_-]+:[ \\t]*$|$(?![\\s\\S]))`, 'm');
     const blk = re.exec(body);
     const inner = blk ? blk[1] : '';
     /* Capture the whole value, not `\S+`: an unresolved `${{ env.T }}` would otherwise be quoted
