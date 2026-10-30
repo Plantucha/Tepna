@@ -3104,8 +3104,10 @@ async def _pump_that_ends(bus, write, recv_frame, pk, cid, *, channels=None, sho
     return 0
 
 
-def test_controller_self_ended_stream_closes_the_link_and_frees_the_guard():
+def test_controller_self_ended_stream_closes_the_link_and_frees_the_guard(caplog):
     import as11_link_guard as G
+
+    caplog.set_level(logging.INFO)
 
     async def go():
         connect, events = _connector()
@@ -3119,6 +3121,8 @@ def test_controller_self_ended_stream_closes_the_link_and_frees_the_guard():
         assert events["disconnected"] == 1, "the link closes when the pump ends without op(stop)"
         assert G.busy_with() is None, "the guard no longer names live-stream as the holder"
         assert c._disconnect is None
+        said = [r.getMessage() for r in caplog.records if r.name == CS._log.name]
+        assert "CPAP stream ended on its own — closing the AS11 link" in said, "the self-close says so"
         await c.op("stop")
         assert events["disconnected"] == 1, "a later stop does not close the link a second time"
         assert (await c.op("start"))["ok"] is True, "the next start is not declined as LinkBusy"
