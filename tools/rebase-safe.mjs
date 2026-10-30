@@ -67,7 +67,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -963,12 +963,32 @@ function checkUnionPaths(onto) {
   process.exit(1);
 }
 
+/* THE FLAGS EACH PATH READS — row `2026-10-30-rebase-safe-takes-an-unknown-flag-and-rebases-anyway`.
+   ONE FLAT SPEC CANNOT SAY THIS. The rebase path takes no positional at all, while `--classify` and
+   `--resolve` take nothing but paths, so declaring `positional: true` for all three would let a stray
+   path reach the rebase — where nothing reads it. That is the silent default this guard exists to end,
+   one token along. Declared from what the code READS (`argv[0] ===`, `argv.includes`), never from the
+   usage lines: a spec built from the help is a spec for a different program. */
+function argvSpecFor(argv) {
+  if (argv[0] === '--classify') return { boolean: ['--classify'], positional: true };
+  if (argv[0] === '--resolve') return { boolean: ['--resolve'], valued: ['--onto'], positional: true };
+  return { boolean: ['--no-build'], valued: ['--onto'] };
+}
+
 async function main() {
   /* FIRST, before any argument is read or any builder list is loaded: the two-checkout refusal above.
      It sits here rather than at module scope so an `import` of this file runs no checks of its own,
      and it stays ahead of `--classify` because that path reads the script's checkout as well. */
   refuseForeignCheckout();
   const argv = process.argv.slice(2);
+  /* REFUSE A TOKEN NOBODY READS, BEFORE THE BUILDER LISTS ARE EVEN OPENED. Measured 2026-10-30 on the
+     commit this fix lands on: `--onto` with no value read as `undefined` and died with a TypeError at
+     exit 2, and `--resolve <p> --no-build` SKIPPED the stray flag in silence — the resolve loop drops
+     every token that starts with two dashes. On the rebase path an unknown flag read as nothing at all
+     and a real rebase followed, which is the row's defect.
+     INSIDE `main()`, never at module scope, so an importer's own flags are never judged (row
+     `2026-10-30-a-module-level-guard-travels-with-the-import`). */
+  refuseUnknownArgvOrExit(argv, argvSpecFor(argv), { tool: 'rebase-safe' });
   const gen = generatedSet();
 
   /* THE REFUSAL COMES FIRST, BECAUSE `--classify` HAS A CALLER NOW. `classify()` fails closed by
