@@ -174,6 +174,32 @@ const firstRowMs = (path) => {
     }
   }
 };
+/* THE NIGHT BUCKET READS THE FIRST DATA ROW — THE NAME CARRIES THE SESSION'S HOUR.
+   `nightOf(stampMs(name))` filed every file under the night its FILENAME stamp fell in, and the
+   capture writer sets that stamp when the SESSION opens, before the stream bonds. A stream that
+   opened across the noon fold therefore landed in the wrong night and met the wrong peer there.
+   Measured 2026-10-30 over 981 ACC files: 4 files change bucket, 101 names disagree with their own
+   first row by over 5 min, 16 by over 1 h, and the worst sits 18.7 h out. Row
+   `2026-10-30-the-wearable-sync-night-bucket-keys-on-the-filename-stamp`; `tools/trio-anchor.mjs`
+   (box side) and `sensor-trio-night.js` (browser side) made this repair for their own folds.
+   THE NAME STAYS THE NAMED FALLBACK: a file whose head carries no parseable row keeps its filename
+   stamp, exactly as `startOf` keeps it for the window, and the walk counts each source (§∅). */
+const bucketOf = (nameMs, path, readFirstRow) => {
+  const r = readFirstRow(path);
+  if (r === null || !isFinite(r)) return { key: nightOf(nameMs), on: 'name' };
+  return { key: nightOf(r), on: 'row' };
+};
+/* ONE BOUNDED READ PER FILE. The bucket walk reads every candidate file's head and `startOf` reads
+   the chosen night's heads again, so each path's answer is memoised. `null` is a cached ANSWER here
+   rather than a miss — membership decides, never the value, so an unreadable head is read once. */
+const memoRead = (read) => {
+  const seen = new Map();
+  return (p) => {
+    if (!seen.has(p)) seen.set(p, read(p));
+    return seen.get(p);
+  };
+};
+const firstRowCached = memoRead(firstRowMs);
 /* ONE SIDE'S START, AND WHAT IT ANCHORED ON. The start is the EARLIEST first-row stamp among the
    side's files. A file whose head carries no parseable row KEEPS ITS FILENAME STAMP and is counted:
    dropping it would shrink the window silently, and substituting a zero or a default is the bug this
@@ -336,6 +362,30 @@ if (SELFTEST) {
     const wNone = windowFor([{ path: fC, t: Number.NaN }], V, firstRowMs);
     eq(wNone.t0 === null, 'a side with no readable start at all reads null, so the caller can refuse the night');
 
+    /* ── THE NIGHT BUCKET (row 2026-10-30-the-wearable-sync-night-bucket-keys-on-the-filename-stamp) ──
+       The fold sits at noon, so a name stamped before it and a first row after it name TWO nights. */
+    const nameEarly = Date.UTC(2026, 6, 22, 11, 50, 0);
+    const fLate = write('fold-late.txt', HEAD + row('2026-07-22T12:10:00.000'));
+    const bLate = bucketOf(nameEarly, fLate, firstRowMs);
+    eq(bLate.on === 'row' && bLate.key === '2026-07-22', 'the bucket keys on the first data row and NAMES that source');
+    eq(nightOf(nameEarly) === '2026-07-21', 'while the filename stamp names the night before it — the defect');
+
+    const nameLate = Date.UTC(2026, 6, 22, 12, 5, 0);
+    const fEarly = write('fold-early.txt', HEAD + row('2026-07-22T11:40:00.000'));
+    const bEarly = bucketOf(nameLate, fEarly, firstRowMs);
+    eq(bEarly.key === '2026-07-21' && nightOf(nameLate) === '2026-07-22', 'and it folds the other way, where the row opened BEFORE the fold');
+
+    const bName = bucketOf(nameEarly, fC, firstRowMs);
+    eq(bName.on === 'name' && bName.key === nightOf(nameEarly), 'a head with no parseable row keeps its filename stamp and says which source answered (§∅)');
+
+    let reads = 0;
+    const counted = memoRead((pth) => {
+      reads++;
+      return firstRowMs(pth);
+    });
+    eq(counted(fC) === null && counted(fC) === null && reads === 1, 'a null first row is a cached ANSWER, so each path costs ONE bounded read');
+    eq(counted(fA) === Date.UTC(2026, 6, 21, 22, 10, 0, 0) && reads === 2, 'and a second path is read on its own');
+
     /* ── THE WINDOW'S END (row 2026-10-30-the-wearable-sync-motion-window-is-a-fixed-twelve-hours) ──
        The length was a constant, so a night overlapping for longer lost the remainder with the anchor
        already right. The end now comes from the streams' own last rows, capped. */
@@ -435,6 +485,8 @@ if (!popBefore.ok) {
 }
 const index = {};
 const refusedStamps = [];
+const bucketOn = { row: 0, name: 0 };
+let movedBucket = 0;
 for (const { name, path } of srcEntries) {
   const t = stampMs(name);
   if (t === null) continue;
@@ -444,8 +496,10 @@ for (const { name, path } of srcEntries) {
   }
   const dev = IS_H10.test(name) ? 'H10' : IS_VER.test(name) ? 'VER' : null;
   if (!dev) continue;
-  const k = nightOf(t);
-  (index[k] ||= { H10: [], VER: [] })[dev].push({ path, t });
+  const b = bucketOf(t, path, firstRowCached);
+  bucketOn[b.on] += 1;
+  if (b.on === 'row' && b.key !== nightOf(t)) movedBucket += 1;
+  (index[b.key] ||= { H10: [], VER: [] })[dev].push({ path, t });
 }
 
 if (refusedStamps.length) {
@@ -453,6 +507,15 @@ if (refusedStamps.length) {
   console.log(
     `refused ${refusedStamps.length} ACC file(s) whose filename stamp field is not a readable time (DexClock.fileStamp): ${shown.join(', ')}` +
       (refusedStamps.length > 6 ? ` … +${refusedStamps.length - 6} more` : '') +
+      '\n'
+  );
+}
+
+const bucketed = bucketOn.row + bucketOn.name;
+if (bucketed) {
+  console.log(
+    `bucketed ${bucketed} ACC file(s) by night: ${bucketOn.row} on the first data row, ${bucketOn.name} on the filename stamp (the head carries no parseable row)` +
+      (movedBucket ? `\n${movedBucket} file(s) sit in a different night than their filename stamp names` : '') +
       '\n'
   );
 }
@@ -565,7 +628,7 @@ for (const k of keys) {
   /* The window anchors on each stream's FIRST DATA ROW and ENDS at the earlier of the two streams'
      LAST rows, capped — see `firstRowMs`, `lastRowMs` and `windowFor`. A night that offers no readable
      start, or whose streams do not overlap at all, is REPORTED, not skipped silently. */
-  const w = windowFor(g.H10, g.VER, firstRowMs, lastRowMs);
+  const w = windowFor(g.H10, g.VER, firstRowCached, lastRowMs);
   if (w.t0 === null) {
     console.log(`${k}  — no readable start on one of the streams (no first row and no filename stamp)`);
     continue;
