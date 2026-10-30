@@ -316,7 +316,36 @@ function receiver_before(s, k,   i, depth, c, start) {
 }
 function receiver(s, k) { return receiver_before(s, k) }
 
-function resolve(t,   v, idx) {
+# resolve: one literal, one resolved identifier, or a CONCATENATION of those.
+#   Row 2026-10-28-a-write-target-built-by-concatenation-is-invisible-to-the-guard. A program that
+#   sets d = "briefs/" and then calls open(d + "SHARED-BRIEF.md", "w") spells no guarded path in any
+#   one place, so the whole
+#   interpreter arm never opened and the gap predates this scan. Joining the pieces is what lets the
+#   scan answer the affirmative verdict — `the target IS a guarded path` — instead of either silence
+#   or a refusal naming an expression nobody can act on.
+#   EVERY PIECE MUST RESOLVE, and a piece carrying a bracket of any kind is not a piece, because the
+#   return value of a call is not knowable here. So f(x) + @L1@ stays unresolved and fails closed.
+#   NOT MODELLED, stated rather than discovered later: perl and php join with a dot, python joins
+#   with a percent and with f-strings, and os.path.join is a call. Those stay unresolved, which is
+#   the safe side. A quote mark cannot appear in this comment either: the scan is a single-quoted
+#   shell string, and an apostrophe here ends it mid-program.
+function resolve(t,   np, P, i, out, piece) {
+  t = trim(t)
+  piece = resolve1(t)
+  if (piece != "\001UNRESOLVED") return piece
+  if (index(t, "+") == 0) return "\001UNRESOLVED"
+  if (t ~ /[(){}\[\]]/) return "\001UNRESOLVED"
+  np = split(t, P, /[ ]*\+[ ]*/)
+  if (np < 2) return "\001UNRESOLVED"
+  out = ""
+  for (i = 1; i <= np; i++) {
+    piece = resolve1(P[i])
+    if (piece == "\001UNRESOLVED") return "\001UNRESOLVED"
+    out = out piece
+  }
+  return out
+}
+function resolve1(t,   v, idx) {
   t = trim(t)
   if (t ~ /^@L[0-9]+@$/) { idx = t; sub(/^@L/, "", idx); sub(/@$/, "", idx); return lit[idx+0] }
   if (t ~ /^[A-Za-z_][A-Za-z_0-9]*$/ && (t in map)) { v = map[t]; if (v == "\001AMBIGUOUS") return "\001UNRESOLVED"; return v }
@@ -600,6 +629,7 @@ argv_text="$(printf '%s\n' "$_tok_out" | sed -n 2p)"
 
 write_shape=""
 write_from_prog=""
+write_cand=""
 looks_like_write() {
   # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
   # test. Measured 2026-09-02: `grep -n "<<<<<<<\|=======\|>>>>>>>" briefs/X.md`, i.e. the standard
@@ -671,6 +701,35 @@ looks_like_write() {
       return 0
     fi
   fi
+  # ── THE BUILT-TARGET ARM — THE SCAN RUNS WITH NO GATE, AND ONLY ITS AFFIRMATIVE VERDICT DENIES ─
+  #    Residue 2026-10-28-a-write-target-built-by-concatenation-is-invisible-to-the-guard. A program
+  #    that sets `d = 'briefs/'` and then writes `d + 'SOME-BRIEF.md'` spells no guarded path in any
+  #    one place, so the arm above never opened its gate and the write landed. `resolve` now joins
+  #    the pieces, which turns the scan's silence into its AFFIRMATIVE verdict.
+  #
+  #    🔴 ONLY THAT AFFIRMATIVE VERDICT MAY DENY HERE, AND THAT IS WHY THIS ARM NEEDS NO GATE. The
+  #    scan's other denials say what it could NOT read — an unresolved target, a shell-out, an
+  #    unterminated literal — and every ordinary script that writes to a computed path produces one.
+  #    Honouring those here would deny the whole repo on a path that names no brief at all. So this
+  #    arm acts on `the target IS a guarded path` and on nothing else, which is the one verdict that
+  #    carries its own evidence: the scan resolved the target and the resolved value is the doc.
+  #
+  #    The joined value is also the CANDIDATE, published in `write_cand`. The caller's usual
+  #    candidate set greps the command text, and in this class the path appears nowhere in it, so an
+  #    arm that denied without publishing would exit on an empty set and say nothing.
+  if [ -n "$(printf '%s' "$2" | tr -d '[:space:]')" ]; then
+    local bscan bval
+    bscan="$(printf '%s' "$2" | awk -v guarded="$(printf '%s' "$GUARDED_RE" | sed 's/\\/\\\\/g')" "$WT_SCAN" 2>/dev/null)"
+    case "$bscan" in
+      "DENY a write whose target IS a guarded path: "*)
+        bval="${bscan#DENY a write whose target IS a guarded path: }"
+        write_shape="a write whose target the program builds from pieces, which the scan joined to \`$bval\`"
+        write_from_prog=1
+        write_cand="$bval"
+        return 0
+        ;;
+    esac
+  fi
   # ── THE ARGV ARM — THE TWO CHANNELS JOINED AT THE TARGET SLOT ─────────────────────────────────
   #    Residue 2026-10-28-a-guarded-path-reaching-a-program-through-argv-is-invisible-to-the-guard.
   #    `python3 - briefs/X-BRIEF.md <<PY ... open(sys.argv[1], 'w') ... PY` rewrites a stale guarded
@@ -716,8 +775,15 @@ if [ -n "$f" ]; then
     *) : ;;
   esac
 elif looks_like_write "$cmd_nohere" "$prog_text" "$argv_text"; then
-  cands="$(printf '%s' "$cmd_nohere" | grep -oE "$GUARDED_RE" | sort -u)"
-  cand_src='every guarded-looking path in the command text, which is a candidate set and not a target'
+  # A target the scan JOINED is certain, and it is the one case where the path appears nowhere in
+  # the command text — so the usual candidate set would be empty and the denial would never print.
+  if [ -n "$write_cand" ]; then
+    cands="$(printf '%s' "$write_cand" | grep -oE "$GUARDED_RE" | sort -u)"
+    cand_src='the write target this scan joined from pieces in the program, so the target is certain'
+  else
+    cands="$(printf '%s' "$cmd_nohere" | grep -oE "$GUARDED_RE" | sort -u)"
+    cand_src='every guarded-looking path in the command text, which is a candidate set and not a target'
+  fi
 fi
 [ -z "$cands" ] && exit 0
 

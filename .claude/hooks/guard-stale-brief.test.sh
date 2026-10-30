@@ -281,13 +281,40 @@ expectcmd DENY  "an unterminated literal fails closed"                 "python3 
 # briefs/SHARED-BRIEF.md is the doc, and this apostrophe (don't) closes no literal
 open('$TMP/elsewhere.txt', 'w').write('v3')
 PY"
-# ⚠ ONE SHAPE THE GUARD DOES NOT SEE, PINNED AS BEHAVIOUR IT HAS AND NOT AS BEHAVIOUR ANYONE WANTS.
-# It predates the scan and is not narrowed by it: the full path never appears in the program text,
-# so the arm does not fire at all. Row
-# 2026-10-28-a-write-target-built-by-concatenation-is-invisible-to-the-guard carries it. A leg that
-# reads ALLOW here is the tripwire: when the row is fixed, this leg reds and says so.
-expectcmd ALLOW "KNOWN GAP: a target built by concatenation"           "python3 - <<'PY'
+echo
+echo "### THE BUILT TARGET — the path spelled in no one place"
+# This block was a KNOWN GAP reading ALLOW until `resolve` learned to join pieces. The full path
+# never appears in the program text, so the interpreter arm's gate never opened. The repair is not a
+# gate at all: the scan runs ungated, and ONLY its affirmative verdict denies. Its other denials say
+# what it could not read, and every script writing to a computed path produces one of those.
+expectcmd DENY  "a target built by concatenation"                      "python3 - <<'PY'
 d = 'briefs/'
+open(d + 'SHARED-BRIEF.md', 'w').write('v3')
+PY"
+expectcmd DENY  "the same join over three pieces"                      "python3 - <<'PY'
+d = 'briefs/'
+stem = 'SHARED-BRIEF'
+open(d + stem + '.md', 'w').write('v3')
+PY"
+# ⚠ CONTROL 1 — THE AFFIRMATIVE VERDICT IS THE ONLY ONE THIS ARM MAY ACT ON. A join that resolves
+# to a path naming no brief must stay ALLOW, and this is the leg that fails if the arm ever starts
+# honouring the scan's `cannot resolve` denials with no gate in front of them.
+expectcmd ALLOW "a join that resolves to a path with no brief in it"   "python3 - <<'PY'
+d = '$TMP/'
+open(d + 'elsewhere.txt', 'w').write('v3')
+PY"
+# ⚠ CONTROL 2 — A PIECE THAT IS A CALL IS NOT A PIECE, and this is the remaining blind spot, pinned
+# as behaviour the guard has. The return value of a call is not knowable here, so the target stays
+# unresolved, and with no guarded path in the program text no arm fires.
+expectcmd ALLOW "KNOWN GAP: a piece of the join is a call"             "python3 - <<'PY'
+import os
+open(os.environ['D'] + 'SHARED-BRIEF.md', 'w').write('v3')
+PY"
+# ⚠ CONTROL 3 — an AMBIGUOUS variable resolves to nothing, by the rule that shipped with the scan.
+# Two assignments make the prefix unknowable, so the join cannot be completed either.
+expectcmd ALLOW "KNOWN GAP: the prefix is assigned twice"              "python3 - <<'PY'
+d = 'briefs/'
+d = 'elsewhere/'
 open(d + 'SHARED-BRIEF.md', 'w').write('v3')
 PY"
 
@@ -388,6 +415,16 @@ PY")"
 expectsays PRESENT "the argv arm names the slot it read"                 "target the program reads from its own arguments" "$_argv_msg"
 expectsays PRESENT "…and names the other channel it joined"               "a guarded path in the interpreter" "$_argv_msg"
 expectsays ABSENT  "…and does NOT claim the path sat in program text"     "EVERY PATH ABOVE WAS READ INSIDE PROGRAM TEXT ALONE" "$_argv_msg"
+
+# The BUILT-TARGET denial is the only one in this hook that can name a certain target, because the
+# scan resolved it. So it must say the joined value, and it must not describe a candidate set.
+_join_msg="$(saysof "python3 - <<'PY'
+d = 'briefs/'
+open(d + 'SHARED-BRIEF.md', 'w').write('v3')
+PY")"
+expectsays PRESENT "a joined target is named in the denial"              "briefs/SHARED-BRIEF.md" "$_join_msg"
+expectsays PRESENT "…and the source says the target is certain"            "so the target is certain" "$_join_msg"
+expectsays ABSENT  "…and never calls it a candidate set"                   "which is a candidate set and not a target" "$_join_msg"
 
 # The control, differing in ONE property: the write verb stands in the command beside the path.
 _sed_msg="$(saysof "sed -i 's/a/b/' briefs/SHARED-BRIEF.md")"
