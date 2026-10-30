@@ -41,6 +41,7 @@
  * USAGE
  *   node tools/resp-cardiac-suppression-e8.mjs --dir <captures> [--max-nights 12]
  *   node tools/resp-cardiac-suppression-e8.mjs --selftest
+ *   node tools/resp-cardiac-suppression-e8.mjs --verdict-sample   # the population verdict the adoption gate reads
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -58,6 +59,7 @@ const opt = (f, d) => {
 };
 const SELFTEST = has('--selftest');
 const DIR = opt('--dir', null);
+const ACC_UNIT = 'H10 ACC files';
 const MAX_NIGHTS = +opt('--max-nights', 12);
 
 const FSC = 5; // Hz — RespAccAnalysis' common grid (its own _const.FSC; asserted at run time)
@@ -170,6 +172,20 @@ function selftest() {
 }
 
 if (SELFTEST) process.exit(selftest() ? 1 : 0);
+
+/* THE SAMPLE THE ADOPTION GATE READS (§🧾, `tools/verdict-adoption.json`): this tool's population
+   verdict over ONE FABRICATED population, listed by a closure, so the object is complete, the corpus
+   is never touched and the shape cannot drift from `snapshotEntries`. */
+function verdictSample() {
+  const at = '2026-10-30T00:00:00Z';
+  const snap = snapshotEntries('uploads/sample', { list: () => ['sample-a', 'sample-b'], unit: ACC_UNIT, at });
+  return populationVerdict(snap, snap, { tool: 'tools/resp-cardiac-suppression-e8.mjs', at, evidence: ['tools/resp-cardiac-suppression-e8.mjs'] });
+}
+export { verdictSample };
+if (has('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 if (!DIR) {
   console.error('need --dir <captures>  (or --selftest)');
   process.exit(2);
@@ -238,7 +254,7 @@ function listH10Acc(root) {
     .map((f) => relative(root, f.p));
 }
 
-const snap = snapshotEntries(DIR, { list: listH10Acc, unit: 'H10 ACC files' });
+const snap = snapshotEntries(DIR, { list: listH10Acc, unit: ACC_UNIT });
 /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading a night of ACC takes long
    enough for a commit to land in this worktree, and Node loaded this module at the start. */
 const commitOf = gitCommitOf(ROOT);
@@ -326,7 +342,7 @@ for (const f of accs) {
 /* THE SET MAY HAVE MOVED WHILE THIS RAN, and the closing walk is what says so. Without it a result
    that moved because the tree gained a capture is indistinguishable from one that moved because a
    file changed. */
-const population = populationVerdict(snap, snapshotEntries(DIR, { list: listH10Acc, unit: 'H10 ACC files' }), {
+const population = populationVerdict(snap, snapshotEntries(DIR, { list: listH10Acc, unit: ACC_UNIT }), {
   commit: commitOf.commit,
   commitReason: commitOf.reason,
   tool: 'tools/resp-cardiac-suppression-e8.mjs',

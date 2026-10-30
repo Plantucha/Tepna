@@ -67,7 +67,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { blankComments } from './js-lex.mjs';
+import { CLS_CODE, blankComments, classify } from './js-lex.mjs';
 import { declaresSelftest } from './selftest-all.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -211,6 +211,11 @@ export function publicationsOf(files, readSource) {
     if (why) out.set(p, why);
   }
   return out;
+}
+
+/** The verdict-named builder map over an explicit file list. PURE given its reader. */
+export function buildersOver(files, readSource) {
+  return verdictBuilders(new Map(files.map((p) => [p, bareSource(readSource(p), p.endsWith('.py'))])));
 }
 
 /* The population on a real tree. The scope rules and their histories, unchanged by the 2026-10-25
@@ -397,6 +402,45 @@ export function blankPyComments(src) {
   return out;
 }
 
+/* Python string CONTENT, blanked, quotes and offsets kept. The sibling of `blankPyComments`, for the
+   one question a docstring must not answer: which functions does this body CALL? A docstring stays a
+   string there by design, and prose carries parentheses — "the next loss-poller tick (`poll_sec`)" reads
+   as a call to `tick` (measured 2026-10-30 on `capture-host/solid_night.py`, which turned two resolvable
+   builders into unresolved ones). Comments are already blanked upstream; this blanks the prose. */
+export function blankPyStrings(src) {
+  let out = '';
+  let i = 0;
+  let q = null;
+  while (i < src.length) {
+    if (q) {
+      if (src.startsWith(q, i)) {
+        out += q;
+        i += q.length;
+        q = null;
+      } else if (src[i] === '\\' && q.length === 1) {
+        out += '  ';
+        i += 2;
+      } else {
+        out += src[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      continue;
+    }
+    const three = src.slice(i, i + 3);
+    if (three === "'''" || three === '"""') {
+      q = three;
+      out += three;
+      i += 3;
+    } else if (src[i] === "'" || src[i] === '"') {
+      q = src[i];
+      out += src[i++];
+    } else {
+      out += src[i++];
+    }
+  }
+  return out;
+}
+
 /* What gates a producer, or null. `readSource(p)` returns the file text — for the producer AND for each
    candidate test file; `testRefs(stem)` the list of test files naming it. Both injected, so the
    invariant is testable without a tree. A ref counts only when the test file names the tool outside its
@@ -569,6 +613,171 @@ export function verdictObjectLines(src, isPy) {
   return out;
 }
 
+/* ── THE HOP A STATIC LINE SCAN CANNOT SEE: A BUILDER IMPORTED FROM ANOTHER MODULE ───────────────
+   The comment above names its own blind spot, and row
+   `2026-10-28-the-word-only-bin-misses-a-verdict-built-by-an-imported-helper` asks for it closed.
+   `publicationOf` has read a one-hop imported builder since the enumeration was written; the OBJECT
+   half never did, so a producer that delegated the build sat in the bin exempt from object validation.
+
+   Measured 2026-10-30: 9 of the 50 word-only rows call a verdict-named builder they import, outside
+   their selftest. EIGHT publish a real object through `populationVerdict@tools/corpus-scope-core.mjs`.
+   The ninth is the control, and it is why a NAME cannot decide this: `tools/rebase-safe.mjs` calls
+   `extractVerdicts@tools/pr-compliance.mjs`, which PARSES objects out of a PR body and constructs none.
+
+   So the hop is a publication only when the callee CONSTRUCTS, and `builderConstructs` reads the
+   callee's own DEFINITION rather than its file — a file that builds somewhere says nothing about the
+   function this producer calls. It answers in THREE states, because a scanner that cannot resolve a
+   call has not proven absence (§∅):
+     true     the body constructs, directly or through a call it resolved
+     false    every call resolved and none constructs — a proven reader
+     unknown  nothing constructed, and a bare call stayed unresolved
+   The gate reads `unknown` as a publication. A false red names a tool to re-bin; a false green hides
+   an unvalidated verdict, which is the defect the row is about.
+
+   ⚠️ ONE LIMIT STAYS NAMED RATHER THAN IMPLIED AWAY: the contract reached under a LOCAL ALIAS
+   (`_v.make(`, `VD.make(`) is outside `BUILDS_OBJECT`'s four patterns, so a builder that publishes
+   that way reads `unknown` here instead of `true`. Measured 2026-10-30: 22 producers call it under
+   such a name and NOT ONE is word-only, so no bin turns on it today; the widening travels on row
+   `2026-10-30-the-object-detector-cannot-name-an-aliased-contract-import`. */
+
+/** One function definition's own body, or null when it cannot be located. PURE. `isPy` picks the
+ *  syntax. Returns `{ text, code }`: `text` keeps strings, because a constructed object IS a string
+ *  literal (`schema: 'tepna.verdict/1'`); `code` blanks them, because prose is not a call. */
+export /* A NAME GOES INTO A REGEX, SO EVERY METACHARACTER IN IT IS ESCAPED, NOT JUST `$`. The `$`-only
+   form was right for the identifiers this gate reads and wrong as a rule: a backslash or a dot in
+   a name built a pattern that matched something else (CodeQL `js/incomplete-sanitization`, high,
+   reported on #4133). */
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function functionBody(src, name, isPy) {
+  if (src == null || !/^[A-Za-z_$][\w$]*$/.test(name)) return null;
+  if (isPy) {
+    const lines = blankPyComments(src).split('\n');
+    const re = new RegExp(`^([ \\t]*)def\\s+${name}\\s*\\(`);
+    let start = -1;
+    let indent = 0;
+    for (const [i, line] of lines.entries()) {
+      const m = re.exec(line);
+      if (m) {
+        start = i;
+        indent = m[1].length;
+        break;
+      }
+    }
+    if (start < 0) return null;
+    const body = [lines[start]];
+    for (const line of lines.slice(start + 1)) {
+      if (line.trim() && line.search(/\S/) <= indent) break;
+      body.push(line);
+    }
+    const text = body.join('\n');
+    return { text, code: blankPyStrings(text) };
+  }
+  const bare = blankComments(src);
+  const cls = classify(src);
+  const esc = reEscape(name);
+  for (const re of [new RegExp(`function\\s+${esc}\\s*\\(`, 'g'), new RegExp(`(?:const|let|var)\\s+${esc}\\s*=\\s*(?:async\\s+)?(?:function\\s*)?\\(`, 'g')]) {
+    for (const m of bare.matchAll(re)) {
+      if (cls[m.index] !== CLS_CODE) continue;
+      /* WALK THE PARAMETER LIST FIRST. A destructured parameter opens a brace before the body does, so
+         matching from the first `{` after the name returns the SIGNATURE — measured on
+         `populationVerdict`, whose `{ commit = null, … } = {}` parameter read as its whole body and
+         made the one real constructor in the measured set look like a reader. */
+      let i = m.index + m[0].length - 1;
+      let depth = 0;
+      for (; i < bare.length; i += 1) {
+        if (cls[i] !== CLS_CODE) continue;
+        if (bare[i] === '(') depth += 1;
+        else if (bare[i] === ')') {
+          depth -= 1;
+          if (depth === 0) break;
+        }
+      }
+      /* Only whitespace or an arrow may stand between the parameter list and the body. Anything else
+         (an expression-bodied arrow, a type annotation) is a body this cannot delimit, so it says so. */
+      let open = -1;
+      for (let j = i + 1; j < bare.length; j += 1) {
+        if (cls[j] !== CLS_CODE) continue;
+        if (bare[j] === '{') {
+          open = j;
+          break;
+        }
+        if (/[\s=>]/.test(bare[j])) continue;
+        break;
+      }
+      if (open === -1) continue;
+      depth = 0;
+      for (let j = open; j < bare.length; j += 1) {
+        if (cls[j] !== CLS_CODE) continue;
+        if (bare[j] === '{') depth += 1;
+        else if (bare[j] === '}') {
+          depth -= 1;
+          if (depth !== 0) continue;
+          const text = bare.slice(open, j + 1);
+          let code = '';
+          for (let k = open; k <= j; k += 1) code += cls[k] === CLS_CODE ? bare[k] : bare[k] === '\n' ? '\n' : ' ';
+          return { text, code };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** Every BARE identifier called in a body. A method call carries a dot and belongs to its object. PURE. */
+export function bareCalls(code) {
+  const out = new Set();
+  for (const m of code.matchAll(/(^|[^\w.$])([A-Za-z_$][\w$]*)\s*\(/g)) out.add(m[2]);
+  return out;
+}
+
+/* A call can wear one of these names without naming a definition in this repo: the two languages'
+   ambient objects and the keywords that precede a parenthesis. Not an allowlist of safe behaviour —
+   none of them can construct a tepna.verdict/1 object, and leaving them out would make every body
+   `unknown`, which would make the three states one. */
+const AMBIENT_CALLS = new Set(
+  (
+    'String Number Boolean Object Array JSON Math Date Set Map WeakMap WeakSet RegExp Error TypeError RangeError Promise BigInt Symbol Proxy Reflect Intl isNaN isFinite parseInt parseFloat require fetch structuredClone queueMicrotask setTimeout setInterval clearTimeout encodeURIComponent decodeURIComponent ' +
+    'if for while switch catch return typeof function await new delete void throw yield else do ' +
+    'len str int float bool dict list tuple set frozenset bytes bytearray sorted reversed min max sum abs round pow divmod enumerate range any all isinstance issubclass getattr hasattr setattr delattr open print repr zip map filter type super iter next id hash vars dir callable chr ord format eval exec ' +
+    'elif not and or in is lambda except with class def assert raise del global nonlocal pass import from as try finally break continue match case async'
+  ).split(' ')
+);
+
+/** Does the builder `name` CONSTRUCT a verdict object? `true` | `false` | `'unknown'`. PURE — the
+ *  builder map and `readSource(p)` are injected, so the selftest plants a tree. */
+export function builderConstructs(name, builders, readSource, seen = new Set()) {
+  const file = builders && builders.get(name);
+  if (!file) return 'unknown';
+  return constructsIn(file, name, builders, readSource, seen);
+}
+
+function constructsIn(file, name, builders, readSource, seen) {
+  const key = `${file}::${name}`;
+  if (seen.has(key)) return false; // a cycle adds no construction of its own
+  seen.add(key);
+  const src = readSource(file);
+  if (src == null) return 'unknown';
+  const isPy = file.endsWith('.py');
+  const body = functionBody(src, name, isPy);
+  if (body == null) return 'unknown'; // the definition could not be delimited — not a proven absence
+  if (BUILDS_OBJECT.some((r) => r.test(body.text))) return true;
+  let unknown = false;
+  for (const call of bareCalls(body.code)) {
+    if (call === name || AMBIENT_CALLS.has(call)) continue;
+    const local = functionBody(src, call, isPy) ? file : null;
+    const hop = !local && builders.has(call) && importedNames(bareSource(src, isPy), isPy).has(call) ? builders.get(call) : null;
+    if (!local && !hop) {
+      unknown = true;
+      continue;
+    }
+    const r = constructsIn(local ?? hop, call, builders, readSource, seen);
+    if (r === true) return true;
+    if (r === 'unknown') unknown = true;
+  }
+  return unknown ? 'unknown' : false;
+}
+
 /* The ONE shared builder: `tools/verdict-emit.mjs` exists to construct the object on behalf of every
    adopter (`makeVerdict`, `aggregateChildren`), and its row says so. It is a library whose callers
    emit, not a producer, so it is named here, by path, rather than excused by a pattern. A listed
@@ -576,13 +785,14 @@ export function verdictObjectLines(src, isPy) {
 export const OBJECT_BUILDER_LIBRARIES = new Set(['tools/verdict-emit.mjs']);
 
 /** Judge every `word-only` row: it must not construct a verdict object. PURE — `readSource(p)` injected. */
-export function checkWordOnlyObject(manifest, readSource, libraries = OBJECT_BUILDER_LIBRARIES) {
+export function checkWordOnlyObject(manifest, readSource, libraries = OBJECT_BUILDER_LIBRARIES, builders = new Map()) {
   const rows = (manifest && manifest.producers) || {};
   const wordOnly = Object.keys(rows)
     .filter((p) => rows[p] && rows[p].bin === 'word-only')
     .sort();
   const errors = [];
   const flagged = [];
+  const hops = [];
   for (const p of wordOnly) {
     const src = readSource(p);
     if (src == null) {
@@ -594,14 +804,30 @@ export function checkWordOnlyObject(manifest, readSource, libraries = OBJECT_BUI
       if (!lines.length) errors.push(`${p}: in OBJECT_BUILDER_LIBRARIES but no longer constructs an object — remove the stale entry`);
       continue;
     }
-    if (!lines.length) continue;
-    flagged.push({ path: p, lines });
-    errors.push(
-      `${p}: binned word-only (exempt from object validation) but it CONSTRUCTS a tepna.verdict/1 object outside its selftest — ${lines[0]} — re-bin it \`decides\` with an \`emits\` the gate can run`
-    );
+    if (lines.length) {
+      flagged.push({ path: p, lines });
+      errors.push(
+        `${p}: binned word-only (exempt from object validation) but it CONSTRUCTS a tepna.verdict/1 object outside its selftest — ${lines[0]} — re-bin it \`decides\` with an \`emits\` the gate can run`
+      );
+      continue;
+    }
+    /* THE DELEGATED BUILD, one hop, and only to a builder that constructs (or that this cannot clear). */
+    const bare = bareSource(src, p.endsWith('.py'));
+    const span = selftestSpan(bare, p.endsWith('.py'));
+    const outside = span ? bare.slice(0, span[0]) + bare.slice(span[1]) : bare;
+    for (const n of [...importedNames(bare, p.endsWith('.py'))].sort()) {
+      if (!builders.has(n) || !new RegExp(`\\b${n}\\s*\\(`).test(outside)) continue;
+      const st = builderConstructs(n, builders, readSource);
+      if (st === false) continue;
+      hops.push({ path: p, builder: n, from: builders.get(n), state: st });
+      errors.push(
+        `${p}: binned word-only (exempt from object validation) but outside its selftest it calls \`${n}()\` from ${builders.get(n)}, which ${st === true ? 'CONSTRUCTS' : 'may construct (unresolved call — §∅: not a proven absence)'} a tepna.verdict/1 object — re-bin it \`decides\` with an \`emits\` the gate can run`
+      );
+      break;
+    }
   }
   for (const p of libraries) if (!wordOnly.includes(p)) errors.push(`${p}: in OBJECT_BUILDER_LIBRARIES but is not a word-only row — remove the stale entry`);
-  return { ok: errors.length === 0, errors, checked: wordOnly.length, flagged };
+  return { ok: errors.length === 0, errors, checked: wordOnly.length, flagged, hops };
 }
 
 /* Pure: judge the decides set against the ratchet. Returns { ok, errors[], gated, ungated }. */
@@ -1496,10 +1722,85 @@ function selftest() {
       w.errors.some((e) => /tools\/gone\.mjs: in OBJECT_BUILDER_LIBRARIES but is not a word-only row/.test(e)),
       'a stale library entry is a red'
     );
+    /* ── THE DELEGATED BUILD, one hop ────────────────────────────────────────────────────────────
+       Row 2026-10-28-the-word-only-bin-misses-a-verdict-built-by-an-imported-helper: eight producers
+       called `populationVerdict` from another module, and this LINE scan saw nothing. One plant per
+       state, and the control is a builder that only READS objects. */
+    {
+      const HOP = {
+        // constructs, behind a destructured parameter — the brace `functionBody` was fixed for
+        'tools/hop-ctor.mjs': "import { Verdict } from './verdict.js';\nexport function buildVerdict({ gate = 'x', at = null } = {}) {\n  return Verdict.make({ gate, at });\n}\n",
+        // the measured control: `extractVerdicts@tools/pr-compliance.mjs` parses and constructs nothing
+        'tools/hop-read.mjs': "export function readVerdicts(body) {\n  const o = JSON.parse(body);\n  if (o.schema === 'tepna.verdict/1') return [o];\n  return [];\n}\n",
+        // every call resolved but one: §∅ — an unresolved call is not a proven absence
+        'tools/hop-unknown.mjs': "import { helper } from './absent.mjs';\nimport { Verdict } from './verdict.js';\nexport function sketchVerdict(x) {\n  return helper(x);\n}\n",
+        // a cycle must terminate and add no construction of its own
+        'tools/hop-cycle.mjs': "import { Verdict } from './verdict.js';\nexport function oneVerdict(x) {\n  return twoVerdict(x);\n}\nexport function twoVerdict(x) {\n  return oneVerdict(x);\n}\n",
+        // Python: the construction is one local hop away, and the docstring carries prose parentheses
+        'capture-host/hop.py':
+          'from verdict import make\n\ndef py_verdict(n):\n    """Judge the next loss-poller tick (poll_sec) over one night."""\n    return _emit(n)\n\ndef _emit(n):\n    return {"schema": "tepna.verdict/1", "gate": n}\n',
+        'capture-host/hop-read.py': 'from verdict import make\n\ndef read_verdict(n):\n    """Read the next loss-poller tick (poll_sec) off a line."""\n    return 0\n',
+        // the consumers: a word-only row that calls one of the above
+        'tools/uses-ctor.mjs': "import { buildVerdict } from './hop-ctor.mjs';\nexport function run() {\n  return buildVerdict({ gate: 'x' });\n}\nfunction selftest() { ok('a', true); }\n",
+        'tools/uses-read.mjs': "import { readVerdicts } from './hop-read.mjs';\nexport function run(body) {\n  return readVerdicts(body);\n}\n",
+        'tools/uses-unknown.mjs': "import { sketchVerdict } from './hop-unknown.mjs';\nexport function run(x) {\n  return sketchVerdict(x);\n}\n",
+        'tools/uses-cycle.mjs': "import { oneVerdict } from './hop-cycle.mjs';\nexport function run(x) {\n  return oneVerdict(x);\n}\n",
+        'tools/uses-selftest.mjs': "import { buildVerdict } from './hop-ctor.mjs';\nfunction selftest() {\n  const v = buildVerdict({ gate: 'x' });\n  ok('a', !!v);\n}\n",
+        'tools/uses-noimport.mjs': "export function run() {\n  return buildVerdict({ gate: 'x' });\n}\n",
+        'capture-host/uses-hop.py': 'from hop import py_verdict\n\ndef run(n):\n    return py_verdict(n)\n'
+      };
+      const hread = (q) => HOP[q] ?? null;
+      const hb = buildersOver(Object.keys(HOP), hread);
+      ok(hb.get('buildVerdict') === 'tools/hop-ctor.mjs' && hb.get('py_verdict') === 'capture-host/hop.py', `the planted tree enumerates its builders (${[...hb.keys()].sort().join(',')})`);
+      /* the brace bug, pinned: the body must be the BODY, not the destructured parameter list */
+      const fb = functionBody(HOP['tools/hop-ctor.mjs'], 'buildVerdict', false);
+      ok(fb != null && fb.text.startsWith('{') && /Verdict\.make/.test(fb.text), `the parameter list is walked before the body opens (${fb == null ? 'null' : fb.text.split('\n')[0]})`);
+      /* three states, one plant each */
+      ok(builderConstructs('buildVerdict', hb, hread) === true, 'a builder that constructs reads true');
+      ok(builderConstructs('readVerdicts', hb, hread) === false, 'a builder whose every call resolves and none constructs reads false — the `rebase-safe` control');
+      ok(builderConstructs('sketchVerdict', hb, hread) === 'unknown', 'a builder with one unresolved call reads unknown, never false (§∅)');
+      ok(builderConstructs('oneVerdict', hb, hread) === false, 'a two-function cycle terminates and adds no construction');
+      ok(builderConstructs('absentVerdict', hb, hread) === 'unknown', 'a name no file defines reads unknown');
+      ok(builderConstructs('py_verdict', hb, hread) === true, 'Python: the construction one local hop away is found');
+      ok(builderConstructs('read_verdict', hb, hread) === false, 'Python: a reader whose docstring carries prose parentheses reads false');
+      /* WHY that last leg needs `blankPyStrings`: the prose reads as a call in the text, not in the code */
+      const pb = functionBody(HOP['capture-host/hop-read.py'], 'read_verdict', true);
+      ok(bareCalls(pb.text).has('tick') && !bareCalls(pb.code).has('tick'), 'docstring prose is a call in the raw body and not in the string-blanked view');
+      const odd = 'a\\b.c';
+      ok(new RegExp(`^${reEscape(odd)}$`).test(odd) && !new RegExp(`^${reEscape(odd)}$`).test('axbxc'), 'an escaped name matches ITSELF and nothing else — a backslash and a dot included');
+      /* the gate arm itself */
+      for (const [f, re] of [
+        ['tools/uses-ctor.mjs', /which CONSTRUCTS a tepna\.verdict\/1 object/],
+        ['tools/uses-unknown.mjs', /which may construct \(unresolved call/],
+        ['capture-host/uses-hop.py', /which CONSTRUCTS a tepna\.verdict\/1 object/]
+      ]) {
+        const h = checkWordOnlyObject(W({ [f]: wo }), hread, new Set(), hb);
+        ok(!h.ok && h.errors[0].startsWith(`${f}: binned word-only`) && re.test(h.errors[0]), `a word-only row that delegates its build reds BY NAME (${f}), got ${h.errors[0]}`);
+        ok(h.hops.length === 1 && h.hops[0].path === f && h.hops[0].from === hb.get(h.hops[0].builder), `the hop is reported as data, not only prose (${JSON.stringify(h.hops[0] ?? null)})`);
+      }
+      for (const f of ['tools/uses-read.mjs', 'tools/uses-cycle.mjs', 'tools/uses-selftest.mjs', 'tools/uses-noimport.mjs']) {
+        const h = checkWordOnlyObject(W({ [f]: wo }), hread, new Set(), hb);
+        ok(h.ok && h.hops.length === 0, `${f}: a proven reader, a cycle, a selftest-only call and an un-imported name buy no re-bin (${h.errors.join(' | ')})`);
+      }
+      /* and the one-hop detector is OFF unless a builder map is passed — the default stays the old arm */
+      ok(checkWordOnlyObject(W({ 'tools/uses-ctor.mjs': wo }), hread, new Set()).ok, 'without a builder map the delegated build is invisible — exactly the defect the row names');
+    }
+
     /* THE MEASURED CASE, on the real source: geometry-scan's row reverted to what it read before #3402. */
     const { readSource } = treeReaders(ROOT);
     const real = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
     ok(checkWordOnlyObject(real, readSource).ok, 'the committed manifest: no word-only row constructs a verdict object');
+    /* the real tree with the one-hop detector live, and the measured producer that hid behind it */
+    const realB = buildersOver(enumerate(ROOT), readSource);
+    const realHop = checkWordOnlyObject(real, readSource, OBJECT_BUILDER_LIBRARIES, realB);
+    ok(realHop.ok && realHop.hops.length === 0, `the committed manifest: no word-only row delegates its build either (${realHop.errors.join(' | ')})`);
+    const staleHop = { ...real, producers: { ...real.producers, 'tools/ppg-foot-consensus-e1.mjs': wo } };
+    const hw = checkWordOnlyObject(staleHop, readSource, OBJECT_BUILDER_LIBRARIES, realB);
+    ok(
+      !hw.ok && hw.errors.some((e) => e.startsWith('tools/ppg-foot-consensus-e1.mjs: binned word-only') && /populationVerdict/.test(e)),
+      `MEASURED CASE: one of the eight re-binned word-only is refused on its real source (${hw.errors.join(' | ')})`
+    );
+    ok(checkWordOnlyObject(staleHop, readSource).ok, 'the direct-object judge alone stays GREEN on that row — the blind spot this unit closes');
     const stale = { ...real, producers: { ...real.producers, 'tools/geometry-scan.mjs': wo } };
     w = checkWordOnlyObject(stale, readSource);
     ok(!w.ok && w.errors.some((e) => e.startsWith('tools/geometry-scan.mjs: binned word-only')), 'MEASURED CASE: geometry-scan re-binned word-only/exempt is refused on its real source');
@@ -1658,7 +1959,7 @@ function main() {
   const { readSource, testRefs } = treeReaders(ROOT);
   const g = checkGated(manifest, readSource, testRefs);
   const w = checkWordOnlyClaim(manifest, readSource);
-  const wo = checkWordOnlyObject(manifest, readSource);
+  const wo = checkWordOnlyObject(manifest, readSource, OBJECT_BUILDER_LIBRARIES, buildersOver(en, readSource));
   const bi = argv.indexOf('--base');
   const baseRef = bi >= 0 && argv[bi + 1] ? argv[bi + 1] : 'origin/main';
   const { mergeBase, manifest: baseManifest } = baseManifestAt(ROOT, baseRef);
@@ -1667,7 +1968,9 @@ function main() {
     `verdict-adoption: ${w.checked} word-only row(s) CLAIM nothing is emitted \u00b7 ${w.conceded} concede emission and say why ` +
       `= ${w.wordOnly} word-only \u2014 ${w.flagged.length} still print a decision outside their selftest, all in WO_CLAIM_RATCHET (debt, may only shrink)`
   );
-  console.log(`verdict-adoption: ${wo.checked} word-only row(s) examined for a constructed tepna.verdict/1 object outside their selftest \u2014 ${wo.flagged.length} construct one (must be 0)`);
+  console.log(
+    `verdict-adoption: ${wo.checked} word-only row(s) examined for a constructed tepna.verdict/1 object outside their selftest \u2014 ${wo.flagged.length} construct one directly \u00b7 ${wo.hops.length} through an imported builder (must be 0)`
+  );
   console.log(
     `verdict-adoption: ${w.noLocator} of the ${w.checked} have no recognisable selftest locator, so their WHOLE file is scanned \u2014 ` + `that bias runs toward false positives, never toward misses`
   );
