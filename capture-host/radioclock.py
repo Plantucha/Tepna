@@ -32,7 +32,13 @@
 
 from __future__ import annotations
 
+# `logging` is imported here AND locally inside `main`. The local import is left exactly where it was
+# ON PURPOSE: the diff-scoped mutation gate selects whole FUNCTIONS, so removing one line from `main`
+# would pull this entry point's 27 pre-existing survivors into a blocking gate for a one-line change.
+# Residue `2026-10-30-the-mutation-gate-selects-a-whole-entry-point-for-one-line`.
+import logging
 import os
+import re
 import struct
 
 #: HCI event codes we care about. Everything else on the monitor stream is ignored.
@@ -813,32 +819,140 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
 SYSFS_BLUETOOTH = "/sys/class/bluetooth"
 
 
-def adapter_index(address: str | None, sysfs: str = SYSFS_BLUETOOTH) -> int | None:
+#: `HCIGETDEVINFO` — the KERNEL's own answer to "which address does this controller carry".
+#: 🔴 `/sys/class/bluetooth/hciN/address` IS NOT UNIVERSAL. Measured on vigil 2026-10-30, kernel
+#: 7.0.0-38: the file is absent for every one of the three controllers, while this ioctl answered for
+#: all three. `tepna-btattach.sh:85-108` measured the same absence on 2026-09-12 and reads `hciconfig`
+#: first for it. A sysfs-only reader therefore reports "no controller present" about a box whose
+#: configured radio is plugged in, up and correct — which is how the collector came to record nothing.
+HCIGETDEVINFO = 0x800448D3
+#: `struct hci_dev_info` opens `{u16 dev_id; char name[8]; bdaddr_t bdaddr;}`, so the address is 6
+#: LITTLE-ENDIAN bytes at offset 10. The buffer is oversized deliberately: the struct grows at its END
+#: across kernels, and a buffer shorter than the running kernel's is EINVAL — the same lesson as
+#: `_HCI_FILTER_EVENTS` below.
+_HCI_DEV_INFO_SIZE = 300
+_HCI_DEV_INFO_BDADDR = 10
+#: A controller directory, ANCHORED rather than a prefix. ⚠️ `/sys/class/bluetooth` ALSO LISTS
+#: CONNECTION DEVICES: measured on vigil 2026-10-30, `hci0:2048` sits beside `hci0`, `hci1` and
+#: `hci2`. That name starts with `hci`, so a prefix test takes it for a controller and `int(name[3:])`
+#: raises on `0:2048`. A connection device publishes the REMOTE end's address where it publishes one,
+#: so reading it as a controller is wrong even when it parses.
+_HCI_NAME = re.compile(r"hci(\d+)\Z")
+#: The all-zero address is what an unprogrammed Zephyr build reports
+#: (`briefs/ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`), so it is UNKNOWN, never an identity: a caller
+#: comparing it against a configured zero would pin whichever adapter answered first.
+_NOT_AN_IDENTITY = "00:00:00:00:00:00"
+
+
+def controller_indices(sysfs: str = SYSFS_BLUETOOTH) -> list[int]:
+    """Every `hciN` the box lists, as integers, in index order. An unreadable tree is an empty list."""
+    try:
+        names = os.listdir(sysfs)
+    except OSError:
+        return []
+    found = [int(m.group(1)) for m in (_HCI_NAME.match(n) for n in names) if m is not None]
+    return sorted(found)
+
+
+def format_bdaddr(raw: bytes) -> str | None:
+    """EXACTLY 6 little-endian bytes → `AA:BB:CC:DD:EE:FF`, or None when they are not an identity.
+
+    Six, not "at least six". The caller slices six octets out of a 300-byte `hci_dev_info`, so a
+    longer argument is a wrong offset rather than an address with trailing bytes. Taking the first
+    six of seven would report a plausible identity read from the wrong field.
+    """
+    if len(raw) != 6:
+        return None
+    addr = ":".join("%02X" % b for b in reversed(raw))
+    return None if addr == _NOT_AN_IDENTITY else addr
+
+
+def address_from_sysfs(index: int, sysfs: str = SYSFS_BLUETOOTH) -> str | None:
+    """`hciN/address` for the kernels that publish it, upper-case, or None. An EMPTY read is None.
+
+    Kept as the FALLBACK rather than deleted: it is the only reader on kernels that do expose the
+    attribute, and an absent one is "unknown", never a match.
+    """
+    try:
+        # BYTES, then ASCII: a BD address is ASCII, and a garbage `address` file decoded as text
+        # raises UnicodeDecodeError — NOT an OSError, so it would crash the collector rather than
+        # read as unknown. `errors="ignore"` keeps a corrupt attribute unreadable, never fatal.
+        with open(os.path.join(sysfs, "hci%d" % index, "address"), "rb") as fh:
+            got = fh.read().decode("ascii", "ignore").strip().upper()
+    except OSError:  # deliberate: an entry with no readable address is unknown, not an error
+        return None
+    return None if (not got or got == _NOT_AN_IDENTITY) else got
+
+
+def address_from_ioctl(index: int, socket_module=None, ioctl=None) -> str | None:
+    """The controller's address from the kernel, or None if it cannot be read. The privileged read.
+
+    It needs a raw HCI socket, which the collector's unit already holds CAP_NET_RAW for (the same
+    capability `probe_controller` was measured against on 2026-09-07). Every failure is None, because
+    a controller this box cannot be asked about is UNKNOWN and §0.3 treats unknown as unavailable.
+
+    `socket_module` and `ioctl` are injectable so this is MEASURED rather than excused. The first
+    version carried `# pragma: no cover` and the diff-scoped mutation gate reported 51 mutants
+    UNDECIDED here — "never observed by a test", which is not a pass and not an excuse. Two
+    parameters turn the whole reader into something a test can watch.
+    """
+    import socket as _socket
+
+    sock_mod = socket_module or _socket
+    if ioctl is None:
+        import fcntl
+
+        ioctl = fcntl.ioctl
+    family = getattr(sock_mod, "AF_BLUETOOTH", None)
+    proto = getattr(sock_mod, "BTPROTO_HCI", None)
+    if family is None or proto is None:
+        return None
+    try:
+        sock = sock_mod.socket(family, sock_mod.SOCK_RAW, proto)
+    except OSError:
+        return None
+    try:
+        buf = bytearray(_HCI_DEV_INFO_SIZE)
+        struct.pack_into("<H", buf, 0, index)
+        ioctl(sock.fileno(), HCIGETDEVINFO, buf)
+    except OSError:
+        return None
+    finally:
+        try:
+            sock.close()
+        except OSError:  # deliberate: a read that cannot close its socket has still answered
+            pass
+    return format_bdaddr(bytes(buf[_HCI_DEV_INFO_BDADDR : _HCI_DEV_INFO_BDADDR + 6]))
+
+
+def controller_address(index: int, sysfs: str = SYSFS_BLUETOOTH, kernel_reader=None, sysfs_reader=None) -> str | None:
+    """This controller's address — the KERNEL first, `hciN/address` as the fallback — or None.
+
+    🔴 THE KERNEL IS ASKED ONLY ABOUT THE REAL TREE. A `sysfs` other than `SYSFS_BLUETOOTH` means the
+    caller is describing a DIFFERENT box, and answering that from THIS box's kernel mixes the two: a
+    test would then pass on the dev machine and fail on the capture box, or the reverse.
+    """
+    read_kernel = kernel_reader or (address_from_ioctl if sysfs == SYSFS_BLUETOOTH else None)
+    read_sysfs = sysfs_reader or address_from_sysfs
+    got = (read_kernel(index) if read_kernel is not None else None) or read_sysfs(index, sysfs)
+    return got.upper() if got else None
+
+
+def adapter_index(address: str | None, sysfs: str = SYSFS_BLUETOOTH, reader=None) -> int | None:
     """`hciN` → N for the controller with this ADDRESS, or None if it is not present.
 
     None is a real answer and the caller treats it as §0.3's "unavailable": a box whose configured
     dongle is unplugged has no radio clock, which is not an error.
+
+    One unreadable controller never ends the scan — it is simply not the one we are looking for.
     """
     want = str(address or "").upper()
     if not want:
         return None
-    try:
-        names = sorted(os.listdir(sysfs))
-    except OSError:
-        return None
-    for name in names:
-        if not name.startswith("hci"):
-            continue
-        try:
-            with open(os.path.join(sysfs, name, "address"), encoding="utf-8") as fh:
-                got = fh.read().strip().upper()
-        except OSError:  # deliberate: an entry with no readable address is not the controller we are
-            continue  # looking for, and a sysfs tree we cannot fully read is not an error here
-        if got == want:
-            try:
-                return int(name[3:])
-            except ValueError:
-                return None
+    read = reader or controller_address
+    for index in controller_indices(sysfs):
+        if read(index, sysfs) == want:
+            return index
     return None
 
 
@@ -969,6 +1083,51 @@ def decide(cfg: dict, sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller):
     return index, devices, None
 
 
+# ── JOURNAL SEVERITY ────────────────────────────────────────────────────────────────────────────────
+# systemd assigns ONE priority to a service's whole stdout stream, so a plain `basicConfig` files every
+# line — INFO, WARNING, ERROR alike — at priority 6, and `journalctl -u tepna-radioclock -p warning`
+# comes back clean on a box that logged warnings. `capture.py` measured that (33 warnings, nothing on
+# `-p warning`; VIGIL-COEXISTENCE-AND-RANGE §1, executed 2026-08-04) and this unit logs warnings of its
+# own, so it carries the same `<N>` prefix. The mapping is DUPLICATED rather than imported, because §0
+# invariant 1 says `capture.py` is not touched by this feature and a separate unit does not pull the
+# capture daemon's import graph in for five lines. Extracting both into a shared module is residue
+# `2026-10-30-the-journal-priority-formatter-is-duplicated-in-radioclock`.
+# The same format `capture.py` installs: the level name stays in the text, so a reader who pipes the
+# journal through anything that drops its metadata still sees the severity.
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(message)s"
+
+_SYSLOG_PRIORITY = {logging.CRITICAL: 2, logging.ERROR: 3, logging.WARNING: 4, logging.INFO: 6, logging.DEBUG: 7}
+
+
+class _PriorityFormatter(logging.Formatter):
+    """Prefix each record with its syslog priority so journald can filter on severity."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return f"<{_SYSLOG_PRIORITY.get(record.levelno, 6)}>" + super().format(record)
+
+
+def _install_logging(stream=None) -> logging.Formatter:
+    """Configure root logging; add the `<N>` prefix ONLY when journald is consuming the stream.
+
+    🔴 THE ONE LINE MUST REACH THE JOURNAL. Measured 2026-10-30: the entry point configured no handler
+    at all, so every `log.info` fell to logging's last-resort handler at WARNING and was DROPPED. The
+    outcomes §0.3 keeps distinguishable are indistinguishable to a reader until the line is readable,
+    and this unit's whole output was a silent exit 0.
+
+    The discriminator is systemd's own `JOURNAL_STREAM`, not `isatty()`: a run redirected to a file is
+    equally not-a-TTY, and the prefix would only corrupt the file. ⚠️ NO `force=True` — it REMOVES
+    every existing root handler, which under pytest is `caplog`'s (`capture._install_logging` carries
+    the same warning and the measurement behind it).
+    """
+    fmt: logging.Formatter = (
+        _PriorityFormatter(_LOG_FORMAT) if os.environ.get("JOURNAL_STREAM") else logging.Formatter(_LOG_FORMAT)
+    )
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(fmt)
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    return fmt
+
+
 def main(
     argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller, socket_module=None, packets=None
 ) -> int:
@@ -1067,4 +1226,5 @@ def main(
 if __name__ == "__main__":  # pragma: no cover — exercised via main(argv)
     import sys
 
+    _install_logging()
     raise SystemExit(main(sys.argv[1:]))

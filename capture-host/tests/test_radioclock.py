@@ -17,9 +17,13 @@
 # SPECIFICATION, which is weaker than `test_polar_pmd.py`'s known-answer against a real frame.
 # Replace `_anchor_event`'s bytes with the first real report the flashed dongle produces.
 
+import io
+import logging
+import os
 import struct
 
 import radioclock as rc
+from _srcscan import after_last, module_source, until_anchor
 
 H10 = "E4:22:F1:C2:23:2B"
 VERITY = "A0:9E:1A:9C:3B:60"
@@ -840,6 +844,86 @@ def test_a_malformed_sysfs_entry_is_skipped_rather_than_raising(tmp_path):
     assert rc.adapter_index(H10, str(root)) is None
 
 
+def test_the_address_is_read_from_the_KERNEL_first_with_sysfs_as_the_fallback():
+    """🔴 `/sys/class/bluetooth/hciN/address` is ABSENT on kernel 7.0 for EVERY adapter — measured on
+    vigil 2026-10-30, and by `tepna-btattach.sh:85-108` on 2026-09-12. A sysfs-only reader reports
+    "no controller with address ... is present" about a radio that is plugged in, up and correct,
+    which is how the collector came to exit 0 writing nothing on an armed box."""
+    seen = []
+
+    def kernel(index):
+        seen.append(index)
+        return "aa:bb:cc:dd:ee:ff" if index == 2 else None
+
+    def unknown(index, sysfs):
+        return None
+
+    got = rc.controller_address(2, rc.SYSFS_BLUETOOTH, kernel_reader=kernel, sysfs_reader=unknown)
+    assert got == "AA:BB:CC:DD:EE:FF", "the kernel answers, and the answer is upper-cased"
+    assert seen == [2], "the kernel is asked first, and about this index only"
+    fallback = rc.controller_address(
+        1, rc.SYSFS_BLUETOOTH, kernel_reader=kernel, sysfs_reader=lambda i, s: "11:22:33:44:55:66"
+    )
+    assert fallback == "11:22:33:44:55:66", "sysfs still answers where the kernel cannot"
+    assert rc.controller_address(1, rc.SYSFS_BLUETOOTH, kernel_reader=kernel, sysfs_reader=unknown) is None
+
+
+def test_the_kernel_is_not_asked_about_a_sysfs_tree_that_is_not_the_real_one(tmp_path):
+    """A `sysfs` other than the real tree means the caller is describing a DIFFERENT box. Answering
+    that from THIS box's kernel mixes two boxes, and that is how a test passes on the dev machine and
+    fails on the capture box."""
+    sysfs = _sysfs(tmp_path, {"hci0": "AA:BB:CC:DD:EE:FF"})
+    assert rc.controller_address(0, sysfs) == "AA:BB:CC:DD:EE:FF"
+    assert rc.adapter_index("aa:bb:cc:dd:ee:ff", sysfs) == 0
+
+
+def test_a_connection_device_is_not_a_controller(tmp_path):
+    """⚠️ `/sys/class/bluetooth` LISTS CONNECTION DEVICES TOO — measured on vigil 2026-10-30:
+    `hci0:2048` sits beside `hci0`, `hci1` and `hci2`. The name starts with `hci`, so a prefix test
+    takes it for a controller, and `int(name[3:])` raises on `0:2048`. A connection device publishes
+    the REMOTE end's address where it publishes one, so reading it as a controller is wrong even when
+    the name happens to parse."""
+    sysfs = _sysfs(tmp_path, {"hci0": "AA:BB:CC:DD:EE:FF", "hci0:2048": H10, "hci2": "11:22:33:44:55:66"})
+    assert rc.controller_indices(sysfs) == [0, 2]
+    assert rc.adapter_index(H10, sysfs) is None, "the peer address of a connection is not an adapter"
+    assert rc.adapter_index("11:22:33:44:55:66", sysfs) == 2
+    assert rc.controller_indices(str(tmp_path / "no-such-dir")) == []
+
+
+def test_one_unreadable_controller_does_not_end_the_scan(tmp_path):
+    """The old reader returned None from INSIDE the loop whenever a name it had accepted would not
+    parse, so one oddity hid every controller after it."""
+    root = tmp_path / "bt"
+    root.mkdir()
+    (root / "hci0").mkdir()  # no address file at all, as on kernel 7.0
+    (root / "hci3").mkdir()
+    (root / "hci3" / "address").write_text(H10 + "\n", encoding="utf-8")
+    assert rc.adapter_index(H10, str(root)) == 3
+
+
+def test_the_all_zero_address_is_unknown_never_an_identity(tmp_path):
+    """An unprogrammed Zephyr build reports `00:00:00:00:00:00`
+    (`briefs/ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`), so it is unknown: a configured zero must not
+    pin whichever adapter answered first."""
+    assert rc.format_bdaddr(b"\x00\x00\x00\x00\x00\x00") is None
+    assert rc.format_bdaddr(b"\xff\xee\xdd\xcc\xbb\xaa") == "AA:BB:CC:DD:EE:FF", "little-endian"
+    assert rc.format_bdaddr(b"\x01\x02\x03") is None, "a short read is not an address"
+    sysfs = _sysfs(tmp_path, {"hci0": "00:00:00:00:00:00"})
+    assert rc.address_from_sysfs(0, sysfs) is None
+    assert rc.adapter_index("00:00:00:00:00:00", sysfs) is None
+
+
+def test_an_empty_address_file_is_unknown_not_a_match(tmp_path):
+    """An empty read is the shape `tepna-btattach.sh` warns about: a caller comparing it against the
+    wanted address concludes "wrong identity" about a controller that is correct."""
+    root = tmp_path / "bt"
+    root.mkdir()
+    (root / "hci0").mkdir()
+    (root / "hci0" / "address").write_text("\n", encoding="utf-8")
+    assert rc.address_from_sysfs(0, str(root)) is None
+    assert rc.adapter_index("", str(root)) is None
+
+
 def test_DISABLED_by_default_is_the_first_thing_checked(tmp_path):
     """Default OFF, opt-in by config — §0.2. A box that never asked for this must not have its
     controller probed, so the flag is read before anything touches a radio."""
@@ -1450,3 +1534,302 @@ def test_when_the_address_MOVES_to_a_new_index_the_collector_follows_it(tmp_path
     assert probed == [1, 5], "startup found hci1; the re-arm followed the address to hci5"
     assert "moved hci1 → hci5" in caplog.text
     assert "following the address, not the index" in caplog.text
+
+
+# ── THE ONE LINE MUST REACH THE JOURNAL ─────────────────────────────────────────────────────────────
+# Measured 2026-10-30: the entry point configured no handler, so every `log.info` fell to logging's
+# last-resort handler at WARNING and was DROPPED — the unit's whole output was a silent exit 0. A bare
+# `basicConfig` is only half a fix: systemd gives a service's whole stdout stream ONE priority, so
+# `journalctl -u tepna-radioclock -p warning` would still come back clean on a box that logged
+# warnings (`capture.py` measured that; VIGIL-COEXISTENCE-AND-RANGE §1). These assert the emitted
+# BYTES, because the bug is a severity that is printed and never expressed.
+
+
+def _reset_root():
+    for h in logging.root.handlers[:]:
+        logging.root.removeHandler(h)
+
+
+def _install(stream):
+    """Clear root first: `_install_logging` deliberately does NOT use `force=True`, which would rip
+    out pytest's caplog handler, so `basicConfig` is a no-op unless root is empty."""
+    _reset_root()
+    return rc._install_logging(stream)
+
+
+def test_the_priority_map_covers_every_level_this_unit_emits():
+    # 4 is the one that matters: WARNING is what `-p warning` filters on, and the level the re-arm
+    # failures below are logged at. The rest are pinned so a later edit cannot shift the scale.
+    assert rc._SYSLOG_PRIORITY[logging.CRITICAL] == 2
+    assert rc._SYSLOG_PRIORITY[logging.ERROR] == 3
+    assert rc._SYSLOG_PRIORITY[logging.WARNING] == 4
+    assert rc._SYSLOG_PRIORITY[logging.INFO] == 6
+    assert rc._SYSLOG_PRIORITY[logging.DEBUG] == 7
+
+
+def test_journald_gets_the_severity_prefix_on_the_bytes(monkeypatch):
+    monkeypatch.setenv("JOURNAL_STREAM", "9:123456")
+    buf = io.StringIO()
+    try:
+        _install(buf)
+        log = logging.getLogger("radioclock")
+        log.info("radio clock unavailable: not a Nordic controller")
+        log.warning("radio clock: re-arm failed on the adapter that just came up")
+        lines = buf.getvalue().splitlines()
+        assert lines[0].startswith("<6>"), "an INFO line must carry priority 6"
+        assert lines[1].startswith("<4>"), "a WARNING line must be filterable by `-p warning`"
+        # The level NAME travels in the text too, so a reader that drops the journal's metadata still
+        # sees the severity. Pinned here because the format is the other half of expressing it.
+        assert "INFO" in lines[0] and "WARNING" in lines[1], lines
+        assert lines[1].endswith("radio clock: re-arm failed on the adapter that just came up")
+    finally:
+        _reset_root()
+
+
+def test_a_console_never_sees_the_prefix(monkeypatch):
+    """The discriminator is `JOURNAL_STREAM`, not `isatty()`: a run redirected to a FILE is equally
+    not-a-TTY, and a `<6>` there corrupts the file for everything that reads it."""
+    monkeypatch.delenv("JOURNAL_STREAM", raising=False)
+    buf = io.StringIO()
+    try:
+        _install(buf)
+        logging.getLogger("radioclock").info("one line")
+        out = buf.getvalue()
+        assert not out.startswith("<"), out
+        assert "INFO" in out and out.endswith("one line\n"), out
+    finally:
+        _reset_root()
+
+
+def test_installing_logging_does_not_clobber_a_handler_that_already_exists():
+    """No `force=True`. Under pytest the existing root handler is `caplog`'s, and removing it makes
+    every test that drives `main()` and asserts on records see an empty list."""
+    mine = logging.StreamHandler(io.StringIO())
+    _reset_root()
+    logging.root.addHandler(mine)
+    try:
+        rc._install_logging(io.StringIO())
+        assert mine in logging.root.handlers, "basicConfig must stay a no-op here"
+    finally:
+        _reset_root()
+
+
+def test_the_installer_raises_the_root_level_so_an_INFO_LINE_ARRIVES(monkeypatch):
+    """A fresh interpreter starts root at WARNING, so an installer that configures handlers and not
+    the LEVEL drops every `log.info` this unit emits — which is the original defect, one layer down.
+    The other journal legs cannot see it: pytest leaves root permissive, so INFO arrives there
+    whatever the installer sets. This one puts root back where a real process starts."""
+    monkeypatch.delenv("JOURNAL_STREAM", raising=False)
+    buf = io.StringIO()
+    try:
+        _reset_root()
+        logging.root.setLevel(logging.WARNING)
+        rc._install_logging(buf)
+        logging.getLogger("radioclock").info("radio clock armed")
+        assert "radio clock armed" in buf.getvalue(), "the installer must let INFO through"
+    finally:
+        _reset_root()
+        logging.root.setLevel(logging.WARNING)
+
+
+def test_a_level_outside_the_map_is_filed_as_INFO_not_as_DEBUG(monkeypatch):
+    """The `get` default decides where an unmapped level lands. 6 keeps such a line visible under the
+    journal's default; 7 files it as DEBUG, which `journalctl` hides unless asked. A custom level is
+    not hypothetical — `logging.addLevelName` is how a later NOTICE tier would arrive."""
+    monkeypatch.setenv("JOURNAL_STREAM", "9:123456")
+    buf = io.StringIO()
+    try:
+        _install(buf)
+        logging.getLogger("radioclock").log(25, "between INFO and WARNING")
+        assert buf.getvalue().startswith("<6>"), buf.getvalue()
+    finally:
+        _reset_root()
+
+
+def test_one_missing_socket_constant_is_enough_to_make_the_kernel_unreadable():
+    """BOTH constants are needed, so EITHER one missing is unknown. A kernel with `AF_BLUETOOTH` and
+    no `BTPROTO_HCI` is the half-built case, and reading `and` for `or` here would hand `None` to
+    `socket()` as a protocol number."""
+
+    class _HalfBare:
+        AF_BLUETOOTH = 31
+        SOCK_RAW = 3
+
+    class _OtherHalf:
+        BTPROTO_HCI = 1
+        SOCK_RAW = 3
+
+    assert rc.address_from_ioctl(0, socket_module=_HalfBare(), ioctl=_fake_ioctl(H10)) is None
+    assert rc.address_from_ioctl(0, socket_module=_OtherHalf(), ioctl=_fake_ioctl(H10)) is None
+
+
+def test_the_script_entry_installs_logging_rather_than_a_bare_basicConfig():
+    """The guard this file needs is against someone putting `logging.basicConfig(...)` back at a call
+    site: it would log, and the severity would stop being expressed. One `basicConfig` in the file,
+    inside `_install_logging`, and the script entry calls the function.
+
+    ⚠️ `module_source`, NEVER a raw read of `radioclock.py` — see `tests/_srcscan.py`. mutmut
+    generates ONE module holding every mutant inline, so `count(...) == 1` reads 21 and mutmut reports
+    "failed to collect stats": the whole module comes back unmeasurable while looking like a broken
+    environment. Measured 2026-10-30 with a raw `read_text` here: every one of the 8 selected globs
+    tested 0 mutants, 0 of 1221 were decided, and `mutate_diff` refused with `NOT_RUN` (exit 2).
+    `test_mutation_hygiene.py` did not catch it, because the read named the module through
+    `rc.__file__` rather than by filename — residue
+    `2026-10-30-the-mutation-hygiene-scan-misses-a-read-through-a-module-alias`."""
+    src = module_source("radioclock.py")
+    assert src.count("logging.basicConfig(") == 1
+    marker = 'if __name__ == "__main__":'
+    assert "_install_logging()" in after_last(src, marker, where="radioclock.py")
+    assert "_install_logging()" not in until_anchor(src, marker, where="radioclock.py")
+
+
+# ── THE KERNEL READ ─────────────────────────────────────────────────────────────────────────────────
+# `socket_module` and `ioctl` are injectable so this is MEASURED, not excused. The first version of
+# the reader carried `# pragma: no cover` and the diff-scoped mutation gate reported 51 mutants
+# UNDECIDED in it — never observed by a test, which is not a pass.
+
+
+class _FakeHciSock:
+    def __init__(self, close_raises=False, fileno=7):
+        self.closed = False
+        self._close_raises = close_raises
+        self._fileno = fileno
+
+    def fileno(self):
+        return self._fileno
+
+    def close(self):
+        self.closed = True
+        if self._close_raises:
+            raise OSError("closing a socket the kernel already took away")
+
+
+class _FakeHciSocketModule:
+    AF_BLUETOOTH = 31
+    BTPROTO_HCI = 1
+    SOCK_RAW = 3
+
+    def __init__(self, sock=None, raises=False):
+        self.sock = sock or _FakeHciSock()
+        self.raises = raises
+        self.calls = []
+
+    def socket(self, family, kind, proto):
+        self.calls.append((family, kind, proto))
+        if self.raises:
+            raise OSError("no bluetooth stack on this box")
+        return self.sock
+
+
+def _fake_ioctl(addr_text, seen=None):
+    """An ioctl that fills the BD_ADDR field the way HCIGETDEVINFO does, and records its arguments."""
+
+    def ioctl(fd, request, buf):
+        if seen is not None:
+            seen.append((fd, request, bytes(buf[:2]), len(buf)))
+        off = rc._HCI_DEV_INFO_BDADDR
+        buf[off : off + 6] = _addr_bytes(addr_text)
+        return 0
+
+    return ioctl
+
+
+def test_the_kernel_read_asks_for_this_index_on_a_raw_hci_socket():
+    seen = []
+    mod = _FakeHciSocketModule()
+    got = rc.address_from_ioctl(2, socket_module=mod, ioctl=_fake_ioctl(H10, seen))
+    assert got == H10, "little-endian in the struct, colon form out"
+    assert mod.calls == [(mod.AF_BLUETOOTH, mod.SOCK_RAW, mod.BTPROTO_HCI)]
+    fd, request, head, size = seen[0]
+    assert fd == 7
+    assert request == rc.HCIGETDEVINFO
+    assert head == struct.pack("<H", 2), "the index goes in the dev-info header, little-endian"
+    assert size == rc._HCI_DEV_INFO_SIZE, "the buffer is oversized on purpose — a short one is EINVAL"
+    assert mod.sock.closed, "the socket is closed whether or not the read answered"
+
+
+def test_the_default_reader_is_the_real_kernel_ioctl():
+    """With no `ioctl` injected the real `fcntl.ioctl` is what runs. Pointed at a closed descriptor it
+    raises OSError, which is UNKNOWN — what this leg proves is that the default is wired at all, so
+    the injection point cannot quietly become the only path that works."""
+    r, w = os.pipe()  # a real descriptor, then closed: the ioctl answers EBADF, not a ValueError
+    os.close(r)
+    os.close(w)
+    mod = _FakeHciSocketModule(sock=_FakeHciSock(fileno=r))
+    assert rc.address_from_ioctl(0, socket_module=mod) is None
+    assert mod.sock.closed
+
+
+def test_the_kernel_read_is_unknown_when_the_controller_reports_zeros():
+    mod = _FakeHciSocketModule()
+    assert rc.address_from_ioctl(0, socket_module=mod, ioctl=_fake_ioctl("00:00:00:00:00:00")) is None
+
+
+def test_a_box_with_no_bluetooth_stack_is_unknown_not_an_error():
+    """`AF_BLUETOOTH` is absent on a kernel built without it, and a controller this box cannot be
+    asked about is UNKNOWN — §0.3 treats unknown as unavailable."""
+
+    class _Bare:
+        pass
+
+    assert rc.address_from_ioctl(0, socket_module=_Bare(), ioctl=_fake_ioctl(H10)) is None
+    mod = _FakeHciSocketModule(raises=True)
+    assert rc.address_from_ioctl(0, socket_module=mod, ioctl=_fake_ioctl(H10)) is None
+    assert mod.calls, "the socket was attempted; the OSError is what made it unknown"
+
+
+def test_an_ioctl_that_fails_is_unknown_and_still_closes_its_socket():
+    def refuses(fd, request, buf):
+        raise OSError("EINVAL")
+
+    mod = _FakeHciSocketModule()
+    assert rc.address_from_ioctl(0, socket_module=mod, ioctl=refuses) is None
+    assert mod.sock.closed
+
+
+def test_a_close_that_fails_does_not_lose_an_answer_the_kernel_already_gave():
+    mod = _FakeHciSocketModule(sock=_FakeHciSock(close_raises=True))
+    assert rc.address_from_ioctl(1, socket_module=mod, ioctl=_fake_ioctl(VERITY)) == VERITY
+
+
+def test_only_six_octets_are_read_out_of_the_dev_info_buffer():
+    """The real buffer is 300 bytes. A slice one byte wide reads a seventh octet out of the struct's
+    next field and reports it as part of the identity."""
+    assert rc.format_bdaddr(bytes(range(1, 7))) == "06:05:04:03:02:01"
+    # SEVEN bytes is not six-plus-noise: the caller sliced the wrong field out of `hci_dev_info`, and
+    # the first six of seven would read back as a plausible identity. Unknown, never a guess.
+    assert rc.format_bdaddr(bytes(range(1, 8))) is None, "a seven-byte read is a wrong offset"
+
+
+def test_the_real_tree_asks_the_kernel_and_a_fake_tree_does_not(tmp_path, monkeypatch):
+    asked = []
+
+    def spy(index, *a, **k):
+        asked.append(index)
+        return H10
+
+    monkeypatch.setattr(rc, "address_from_ioctl", spy)
+    sysfs = _sysfs(tmp_path, {"hci0": VERITY})
+    assert rc.controller_address(0, sysfs) == VERITY
+    assert asked == [], "a fake tree describes another box; this box's kernel must not answer for it"
+    assert rc.controller_address(0) == H10
+    assert asked == [0], "the real tree asks the kernel first"
+
+
+def test_a_sysfs_address_is_normalised_to_upper_case(tmp_path):
+    """Both readers answer the same comparison, so one of them returning lower case would report
+    "wrong identity" about the controller that is right."""
+    sysfs = _sysfs(tmp_path, {"hci0": H10.lower()})
+    assert rc.address_from_sysfs(0, sysfs) == H10
+    assert rc.adapter_index(H10, sysfs) == 0
+
+
+def test_a_garbage_address_attribute_reads_as_unknown_rather_than_raising(tmp_path):
+    """The read takes BYTES: decoding the attribute as text raises UnicodeDecodeError, which is not an
+    OSError, so a corrupt `address` file would crash the collector instead of reading unknown."""
+    root = tmp_path / "bt"
+    root.mkdir()
+    (root / "hci0").mkdir()
+    (root / "hci0" / "address").write_bytes(b"\xff\xfegarbage\n")  # a NUL is ASCII and would survive
+    assert rc.address_from_sysfs(0, str(root)) == "GARBAGE"
+    assert rc.adapter_index(H10, str(root)) is None
