@@ -21,10 +21,13 @@
 set -uo pipefail
 
 UNIT=tepna-capture.service
+# The radio-clock collector is a SECOND unit, named as its own constant for the same reason: the
+# grant may reach these two services and nothing else on the box.
+RADIOCLOCK_UNIT=tepna-radioclock.service
 # Where the checkout lives, for `deploy`. A constant, not derived from the caller.
 REPO_DIR="${TEPNA_REPO_DIR:-/opt/tepna}"
 
-usage() { echo "usage: $0 {restart|status|radio|reload|reboot|deploy|stop [minutes]}" >&2; exit 2; }
+usage() { echo "usage: $0 {restart|status|radio|radioclock|reload|reboot|deploy|stop [minutes]}" >&2; exit 2; }
 # Arity is PER VERB: only `stop` takes a second argument. A blanket "1 or 2 args" would quietly accept
 # `restart extra`, and a verb that ignores trailing junk is one that will eventually be handed a typo
 # for the thing the caller actually meant.
@@ -169,6 +172,29 @@ case "$1" in
     sleep 5
     state=$(systemctl is-active bluetooth 2>/dev/null)
     echo "bluetooth: $state"
+    [ "$state" = active ] || exit 1
+    ;;
+  radioclock)
+    # A SECOND UNIT WITH A SILENT FAILURE MODE. tepna-radioclock.service writes the radio-clock
+    # sidecar and is NOT the capture daemon, so `restart` cannot reach it, and a bare systemctl grant
+    # stays refused for the reason the header gives. Until this verb the only way to start it was a
+    # root shell by hand, which is how it sat inactive after its last run on 2026-10-30 with a night
+    # expected. `restart`, never `start`, for the same reason the capture arm gives.
+    #
+    # THE JOURNAL LINE IS PART OF THE VERDICT, not a courtesy. The collector reports a re-enabled
+    # anchor set after an adapter reset to the journal and nowhere else, so `is-active` alone cannot
+    # separate a collector that found the controller from one that came up and found nothing. An
+    # unreadable journal says `unreadable` rather than printing an empty line, which would read as
+    # silence from a unit that was never asked.
+    systemctl restart "$RADIOCLOCK_UNIT" || exit 1
+    sleep 3
+    state=$(systemctl is-active "$RADIOCLOCK_UNIT" 2>/dev/null)
+    echo "$RADIOCLOCK_UNIT: $state"
+    if last=$(journalctl -u "$RADIOCLOCK_UNIT" -n 1 --no-pager -o short-iso 2>/dev/null) && [ -n "$last" ]; then
+      echo "journal: $last"
+    else
+      echo "journal: unreadable"
+    fi
     [ "$state" = active ] || exit 1
     ;;
   *) usage ;;
