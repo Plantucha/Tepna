@@ -39,7 +39,7 @@
    A night is REPORTED WITH ITS REASON when it cannot be measured — a quiet night
    with no shared movement is a real outcome, not an error, and printing nothing
    would let an unmeasured night pass as a synchronised one. */
-import { readFileSync, readdirSync, statSync, writeFileSync, existsSync, openSync, readSync, closeSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync, existsSync, openSync, readSync, closeSync, fstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
@@ -194,14 +194,88 @@ const startOf = (list, readFirstRow) => {
   }
   return { t: isFinite(t) ? t : null, onRow, onName };
 };
-/* The window opens where BOTH streams are live and runs 12 h, which is what the name-stamp version
-   intended and could not deliver. `t0` is the LATER of the two sides' starts. */
-const windowFor = (h10, ver, readFirstRow) => {
+/* THE LAST DATA ROW OWNS THE END — THE LENGTH WAS A CONSTANT.
+   `windowFor` ran 12 h from `t0` whatever the streams did, so a night that overlapped for longer lost
+   the remainder to the LENGTH alone, with the anchor already right. Measured 2026-10-30 over 981 ACC
+   files and 88 two-device nights: the 2026-07-26 night's two streams overlap for 14.5 h and the
+   2026-08-02 night's for 19.6 h, so those two lose 17 % and 39 % of their mutual overlap, while the
+   other 86 overlap for under 12 h and never felt it. Row
+   `2026-10-30-the-wearable-sync-motion-window-is-a-fixed-twelve-hours`.
+   THE READ IS BOUNDED to the LAST 64 KiB, for the same reason `firstRowMs` bounds its head: the
+   window needs one row and an ACC file runs to hundreds of MiB. The first line of a tail that did not
+   start at byte 0 may be a CUT row, so it is dropped rather than parsed. A tail carrying no parseable
+   row returns null, which the caller names rather than replacing with a number (§∅). */
+const lastRowMs = (path) => {
+  let fd = null;
+  try {
+    fd = openSync(path, 'r');
+    const size = fstatSync(fd).size;
+    if (!size) return null;
+    const from = Math.max(0, size - HEAD_BYTES);
+    const buf = Buffer.allocUnsafe(Math.min(HEAD_BYTES, size));
+    const n = readSync(fd, buf, 0, buf.length, from);
+    if (!n) return null;
+    const lines = buf.toString('utf8', 0, n).split('\n');
+    if (from > 0) lines.shift();
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const c = lines[i].split(';');
+      if (c.length < 4) continue;
+      if (!ISO.test(String(c[0]).trim())) continue;
+      const t = CK.parseTimestamp(String(c[0]).trim());
+      if (t && isFinite(t.tMs)) return t.tMs;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch {}
+    }
+  }
+};
+/* ONE SIDE'S END. The end is the LATEST last-row stamp among the side's files.
+   THE ASYMMETRY WITH `startOf` IS DELIBERATE: a filename stamp carries the session's OPEN, so it can
+   stand in for a missing start and NEVER for a missing end. A file whose tail carries no parseable
+   row therefore contributes nothing and is COUNTED, and a side where no file answers has NO end. */
+const endOf = (list, readLastRow) => {
+  let t = Number.NEGATIVE_INFINITY;
+  let onRow = 0;
+  let noRow = 0;
+  for (const f of list) {
+    const r = readLastRow(f.path);
+    if (r === null || !isFinite(r)) {
+      noRow++;
+      continue;
+    }
+    onRow++;
+    if (r > t) t = r;
+  }
+  return { t: isFinite(t) ? t : null, onRow, noRow };
+};
+/* THE WINDOW RUNS FROM WHERE BOTH STREAMS ARE LIVE TO WHERE THE FIRST ONE STOPS, capped.
+   `t0` is the LATER of the two starts and `t1` the EARLIER of the two ends, so the window is the
+   streams' mutual overlap by their own rows. The cap is the night bucket's width, so one window can
+   never span two nights, and `endOn` says which term bound it. Without `readLastRow` the old constant
+   length still applies, and says so — a caller that cannot read an end gets no invented one (§∅). */
+const MAX_WINDOW_H = 24; // the night bucket's width — a window may not span two nights
+const FALLBACK_WINDOW_H = 12; // the length this tool ran while the end was a constant
+const windowFor = (h10, ver, readFirstRow, readLastRow = null) => {
   const a = startOf(h10, readFirstRow);
   const b = startOf(ver, readFirstRow);
-  if (a.t === null || b.t === null) return { t0: null, t1: null, onRow: a.onRow + b.onRow, onName: a.onName + b.onName };
+  const counts = { onRow: a.onRow + b.onRow, onName: a.onName + b.onName };
+  if (a.t === null || b.t === null) return { t0: null, t1: null, endOn: null, reason: 'no readable start on one of the streams', ...counts };
   const t0 = Math.max(a.t, b.t);
-  return { t0, t1: t0 + 12 * 3600000, onRow: a.onRow + b.onRow, onName: a.onName + b.onName };
+  if (!readLastRow) return { t0, t1: t0 + FALLBACK_WINDOW_H * 3600000, endOn: 'length', noEnd: 0, ...counts };
+  const ea = endOf(h10, readLastRow);
+  const eb = endOf(ver, readLastRow);
+  const noEnd = ea.noRow + eb.noRow;
+  if (ea.t === null || eb.t === null) return { t0, t1: t0 + FALLBACK_WINDOW_H * 3600000, endOn: 'length-no-readable-end', noEnd, ...counts };
+  const mutual = Math.min(ea.t, eb.t);
+  if (mutual <= t0) return { t0, t1: null, endOn: null, reason: 'the two streams do not overlap by their own rows', noEnd, ...counts };
+  const cap = t0 + MAX_WINDOW_H * 3600000;
+  return { t0, t1: Math.min(mutual, cap), endOn: mutual > cap ? 'cap' : 'rows', noEnd, ...counts };
 };
 
 if (SELFTEST) {
@@ -261,6 +335,57 @@ if (SELFTEST) {
 
     const wNone = windowFor([{ path: fC, t: Number.NaN }], V, firstRowMs);
     eq(wNone.t0 === null, 'a side with no readable start at all reads null, so the caller can refuse the night');
+
+    /* ── THE WINDOW'S END (row 2026-10-30-the-wearable-sync-motion-window-is-a-fixed-twelve-hours) ──
+       The length was a constant, so a night overlapping for longer lost the remainder with the anchor
+       already right. The end now comes from the streams' own last rows, capped. */
+    const span = (a, b) => HEAD + row(a) + row(b);
+    eq(lastRowMs(write('e1.txt', span('2026-07-21T22:00:00.000', '2026-07-22T06:00:00.000'))) === Date.UTC(2026, 6, 22, 6, 0, 0), 'lastRowMs reads the LAST data row');
+    eq(lastRowMs(write('e2.txt', HEAD + row('2026-07-21T22:00:00.000') + 'not a stamp;1;2;3;4\n')) === Date.UTC(2026, 6, 21, 22, 0, 0), 'it walks BACK past a row whose stamp field is not a time');
+    eq(lastRowMs(join(dir, 'absent.txt')) === null, 'an unreadable file reads null rather than throwing');
+    const fTail = write('e3.txt', HEAD + row('2026-07-21T22:00:00.000') + `${'#'.repeat(HEAD_BYTES)}\n`);
+    eq(firstRowMs(fTail) !== null && lastRowMs(fTail) === null, 'the read is BOUNDED to the last 64 KiB — a start it can read and an end it cannot (§∅)');
+
+    // the side's end is the LATEST of its files, mirroring startOf's earliest
+    const eA = write('eA.txt', span('2026-07-21T22:00:00.000', '2026-07-22T04:00:00.000'));
+    const eB = write('eB.txt', span('2026-07-22T04:00:00.000', '2026-07-22T09:00:00.000'));
+    eq(
+      endOf(
+        [
+          { path: eA, t: 0 },
+          { path: eB, t: 0 }
+        ],
+        lastRowMs
+      ).t === Date.UTC(2026, 6, 22, 9, 0, 0),
+      'a side ends at the LATEST last row among its files'
+    );
+    eq(endOf([{ path: fTail, t: 0 }], lastRowMs).t === null && endOf([{ path: fTail, t: 0 }], lastRowMs).noRow === 1, 'a side whose only file has no readable last row has NO end, and says how many');
+
+    /* THE ROW'S OWN CASE: the two streams overlap for 20.8 h, and the 12 h length threw away 8.8 h. */
+    const lH = [{ path: write('lh.txt', span('2026-07-21T22:00:00.000', '2026-07-22T20:00:00.000')), t: nameH }];
+    const lV = [{ path: write('lv.txt', span('2026-07-21T22:10:00.000', '2026-07-22T19:00:00.000')), t: nameV }];
+    const wRows = windowFor(lH, lV, firstRowMs, lastRowMs);
+    eq(wRows.t0 === Date.UTC(2026, 6, 21, 22, 10, 0), 't0 is still the LATER of the two first rows');
+    eq(wRows.t1 === Date.UTC(2026, 6, 22, 19, 0, 0), 't1 is the EARLIER of the two LAST rows');
+    eq(wRows.endOn === 'rows' && wRows.t1 - wRows.t0 > 12 * 3600000, `the window now runs past 12 h on this night (${((wRows.t1 - wRows.t0) / 3600000).toFixed(2)} h)`);
+    eq(windowFor(lH, lV, firstRowMs).t1 === wRows.t0 + 12 * 3600000, 'and the 3-argument call still runs the old constant length — the defect, kept reachable');
+    eq(windowFor(lH, lV, firstRowMs).endOn === 'length', '…and NAMES that it ran on a length rather than on a read end');
+
+    // the cap binds, and says so
+    const cH = [{ path: write('ch.txt', span('2026-07-21T20:00:00.000', '2026-07-23T06:00:00.000')), t: nameH }];
+    const cV = [{ path: write('cv.txt', span('2026-07-21T20:00:00.000', '2026-07-23T08:00:00.000')), t: nameV }];
+    const wCap = windowFor(cH, cV, firstRowMs, lastRowMs);
+    eq(wCap.endOn === 'cap' && wCap.t1 === wCap.t0 + 24 * 3600000, 'a 34 h overlap is capped at the night bucket width, and the cap is NAMED');
+
+    // an unreadable end falls back to the length and counts the files, never inventing an end
+    const wNoEnd = windowFor([{ path: fTail, t: nameH }], lV, firstRowMs, lastRowMs);
+    eq(wNoEnd.endOn === 'length-no-readable-end' && wNoEnd.noEnd === 1, 'a side with no readable end keeps the length and reports the file count (§∅)');
+
+    // streams that never overlap are REFUSED, not given a window
+    const nH = [{ path: write('nh.txt', span('2026-07-21T22:00:00.000', '2026-07-21T23:00:00.000')), t: nameH }];
+    const nV = [{ path: write('nv.txt', span('2026-07-22T05:00:00.000', '2026-07-22T06:00:00.000')), t: nameV }];
+    const wNo = windowFor(nH, nV, firstRowMs, lastRowMs);
+    eq(wNo.t0 !== null && wNo.t1 === null && /do not overlap/.test(wNo.reason), 'two streams that never overlap get NO window and a named reason');
   } finally {
     try {
       rmSync(dir, { recursive: true, force: true });
@@ -437,15 +562,21 @@ console.log('night        H10 VER   span   offset(s)  drift(ppm)  usable  medR  
 const rows = [];
 for (const k of keys) {
   const g = index[k];
-  /* The window anchors on each stream's FIRST DATA ROW, not on its filename stamp — see `firstRowMs`.
-     A night where neither side offers a readable start is REPORTED, not skipped silently. */
-  const w = windowFor(g.H10, g.VER, firstRowMs);
+  /* The window anchors on each stream's FIRST DATA ROW and ENDS at the earlier of the two streams'
+     LAST rows, capped — see `firstRowMs`, `lastRowMs` and `windowFor`. A night that offers no readable
+     start, or whose streams do not overlap at all, is REPORTED, not skipped silently. */
+  const w = windowFor(g.H10, g.VER, firstRowMs, lastRowMs);
   if (w.t0 === null) {
     console.log(`${k}  — no readable start on one of the streams (no first row and no filename stamp)`);
     continue;
   }
+  if (w.t1 === null) {
+    console.log(`${k}  — ${w.reason}`);
+    continue;
+  }
   const { t0, t1 } = w;
   if (w.onName) console.log(`${k}  — ${w.onName} file(s) carry no parseable first row and keep their filename stamp`);
+  if (w.endOn !== 'rows') console.log(`${k}  — window END is ${w.endOn}, not the streams' own last rows (${w.noEnd} file(s) carry no parseable last row)`);
   const A = gridMotion(g.H10, t0, t1, FS_HZ),
     B = gridMotion(g.VER, t0, t1, FS_HZ);
   if (!A || !B) {
@@ -454,7 +585,15 @@ for (const k of keys) {
   }
   const r = DSP.alignEnvelopes(A, B, FS_HZ, { windowSec: WIN, hopSec: HOP, maxLagSec: MAXLAG, nullIters: 20 });
   const span = (Math.min(A.length, B.length) / FS_HZ / 3600).toFixed(2);
-  const row = { night: k, nH10: g.H10.length, nVer: g.VER.length, spanH: +span, anchor: { t0, onRow: w.onRow, onName: w.onName }, ...r };
+  const row = {
+    night: k,
+    nH10: g.H10.length,
+    nVer: g.VER.length,
+    spanH: +span,
+    anchor: { t0, onRow: w.onRow, onName: w.onName },
+    window: { t0, t1, endOn: w.endOn, hours: +((t1 - t0) / 3600000).toFixed(2) },
+    ...r
+  };
   delete row.windows; // the per-window detail is for --json, not the console
   rows.push({ ...row, windows: r.windows });
   console.log(
