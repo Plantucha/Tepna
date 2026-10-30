@@ -231,9 +231,32 @@ class ClockSidecar:
 ENVELOPE_REFERENCE = "host-wall"
 ENVELOPE_METHOD = "GetDateTime"
 
+# 🔴 THE VALUE AND ITS STAMP MUST DESCRIBE THE SAME ANCHORS.
+# `AS11CLOCK.csv` is APPEND-ONLY and never rotated — `ClockSidecar.__init__` explains why a daemon
+# restart must cost nothing — so it accumulates for as long as the box runs. MEASURED 2026-10-29 on
+# the box: 93,990 anchors spanning 1562.9 h (2026-08-25 → 2026-10-30). And the RTC walks: −4.71 ppm
+# over the first 160 h (this brief's own Measured section), −19.8 s end to end across that file.
+#
+# A median over the whole file therefore answers "what was the offset on average since August",
+# while `measured_at_ms` stamps it with the NEWEST anchor. So the stamp read fresh and the value
+# spanned 62 days: whole-file median 1283.9 s against that night's own 1295.8 s, i.e. the published
+# offset was 11.8 s out and growing ~0.17 s a day.
+#
+# 11.8 s is not cosmetic. `cpap_edf.device_start_from_host` places an SA2 on the device axis with
+# this very number, and a scoreable apnea lasts 10 s — so the error already exceeded one event
+# length, and a desaturation would land beside the wrong event while both files looked well-formed.
+#
+# The window is ONE CAPTURE SESSION, because that is what a consumer asks about. Per-night drift is
+# ~0.14 s over 8 h, so 12 h bounds the spread INSIDE the window to ~0.2 s and still leaves every
+# real session whole. It is anchored on the NEWEST ANCHOR, never on `now`, so this stays PURE: a
+# sidecar from a week ago yields that week's offset with a stamp that says so, and staleness stays
+# the consumer's to judge. A window holding fewer than two anchors returns None exactly as a short
+# file does — "not measured", never a zero (§∅).
+ENVELOPE_WINDOW_S = 12 * 3600.0
 
-def offset_for_envelope(text, *, analyze_fn=None):
-    """`{offset_sec, measured_at_ms, reference, method}` from AS11CLOCK.csv text, or None. PURE.
+
+def offset_for_envelope(text, *, analyze_fn=None, window_s=ENVELOPE_WINDOW_S):
+    """`{offset_sec, measured_at_ms, reference, method, anchors, span_s, window_s}` or None. PURE.
 
     None means "not measured" and the caller must render that as `ClockOffset.unknown()` — never as a
     zero, which asserts a measured agreement that never happened (`ClockOffset`'s own docstring makes
@@ -241,7 +264,11 @@ def offset_for_envelope(text, *, analyze_fn=None):
     0.0 is a legitimate measured result).
 
     `measured_at_ms` is the LAST anchor's host time as Clock-Contract floating tMs, because staleness
-    is the consumer's to judge and the newest anchor is what it must judge against."""
+    is the consumer's to judge and the newest anchor is what it must judge against.
+
+    The median is taken over the anchors within `window_s` of that newest anchor, NOT over the whole
+    file — see `ENVELOPE_WINDOW_S` for the measurement that forced it. `anchors`, `span_s` and
+    `window_s` publish the population the value rests on."""
     rows = []
     for line in str(text or "").splitlines():
         parts = line.split(";")
@@ -255,16 +282,25 @@ def offset_for_envelope(text, *, analyze_fn=None):
             rows.append((host_s, dev_s))
     if len(rows) < 2:
         return None  # `analyze` refuses below two anchors; so do we, for its reason
-    res = (analyze_fn or analyze)(rows)
+    last_host_s = max(h for h, _ in rows)
+    # SCOPED to the session window — see the note above. The whole file answers a different question.
+    scoped = [r for r in rows if r[0] >= last_host_s - float(window_s)]
+    if len(scoped) < 2:
+        return None  # the newest anchor stands alone in its window: nothing to take a median over
+    res = (analyze_fn or analyze)(scoped)
     if not res.get("ok") or res.get("offset_s") is None:
         return None
-    last_host_s = max(h for h, _ in rows)
     return {
         # NEGATED — see the sign note above. analyze: host−device; the envelope: device−host.
         "offset_sec": -float(res["offset_s"]),
         "measured_at_ms": _host_epoch_to_floating_ms(last_host_s),
         "reference": ENVELOPE_REFERENCE,
         "method": ENVELOPE_METHOD,
+        # THE POPULATION THIS VALUE RESTS ON, beside the value. A caller that cannot see how many
+        # anchors over how long a span produced an offset cannot tell a session from a single poll.
+        "anchors": len(scoped),
+        "span_s": last_host_s - min(h for h, _ in scoped),
+        "window_s": float(window_s),
     }
 
 
