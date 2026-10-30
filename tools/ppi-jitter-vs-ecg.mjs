@@ -48,6 +48,7 @@
  * USAGE
  *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--min-epochs 3] [--max-nights 20]
  *   node tools/ppi-jitter-vs-ecg.mjs --selftest
+ *   node tools/ppi-jitter-vs-ecg.mjs --verdict-sample   # the population verdict the adoption gate reads
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -102,6 +103,7 @@ const SLEEP_ONLY = has('--sleep-only');
 const MERGE = !has('--no-merge');
 const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600 * 1000).toISOString().slice(0, 10);
 const DEVICE = String(opt('--device', 'o2ring')).toLowerCase();
+const PPG_UNIT = `${DEVICE} PPG files`;
 /* ⚠️ THE SAME DEVICE IS NAMED TWO WAYS, and matching only one reports an EMPTY corpus as no data.
    The Verity Sense appears as `Polar_VeritySense_<serial>` when the capture host wrote it and as
    `Polar_Sense_<serial>` when Polar Sensor Logger did — identical serial (`0C301E3F` on this corpus),
@@ -363,7 +365,7 @@ export function catastrophicSplit(eps, biasPct, bandMs) {
    the flag is IN the tool and unreachable by anyone who did not read the source. */
 const USAGE =
   'usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--device o2ring|verity] ' +
-  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>]  |  --selftest';
+  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>]  |  --selftest  |  --verdict-sample';
 
 function selftest() {
   let fail = 0;
@@ -675,6 +677,20 @@ function selftest() {
 }
 if (SELFTEST) process.exit(selftest());
 
+/* THE SAMPLE THE ADOPTION GATE READS (§🧾, `tools/verdict-adoption.json`): this tool's population
+   verdict over ONE FABRICATED population, listed by a closure, so the object is complete, the corpus
+   is never touched and the shape cannot drift from `snapshotEntries`. */
+function verdictSample() {
+  const at = '2026-10-30T00:00:00Z';
+  const snap = snapshotEntries('uploads/sample', { list: () => ['sample-a', 'sample-b'], unit: PPG_UNIT, at });
+  return populationVerdict(snap, snap, { tool: 'tools/ppi-jitter-vs-ecg.mjs', at, evidence: ['tools/ppi-jitter-vs-ecg.mjs'] });
+}
+export { verdictSample };
+if (has('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
 /* ════════════════════════════════════════ CORPUS RUN ════════════════════════════════════════ */
 if (!DIR) {
   console.error(USAGE);
@@ -806,7 +822,6 @@ function listDevicePpg(root) {
     .map((f) => relative(root, f.p));
 }
 
-const PPG_UNIT = `${DEVICE} PPG files`;
 const snap = snapshotEntries(DIR, { list: listDevicePpg, unit: PPG_UNIT });
 /* 🔴 STAMP THE CODE THAT RAN, NOT THE CODE AT THE END OF THE RUN. Reading a night of PPG takes long
    enough for a commit to land in this worktree, and Node loaded this module at the start. */

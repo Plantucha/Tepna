@@ -23,6 +23,7 @@
  *
  * Usage:
  *   node tools/beat-error-recovery.mjs --self-test
+ *   node tools/beat-error-recovery.mjs --verdict-sample   # the population verdict the adoption gate reads
  *   node tools/beat-error-recovery.mjs --root <captures-dir> [--out results.json]
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
@@ -357,15 +358,28 @@ function selfTest() {
   return fail ? 1 : 0;
 }
 
+/* THE SAMPLE THE ADOPTION GATE READS (§🧾, `tools/verdict-adoption.json`): this tool's population
+   verdict over ONE FABRICATED population, listed by a closure, so the object is complete, the corpus
+   is never touched and the shape cannot drift from `snapshotEntries`. */
+export function verdictSample() {
+  const at = '2026-10-30T00:00:00Z';
+  const snap = snapshotEntries('uploads/sample', { list: () => ['sample-a', 'sample-b'], unit: POP.unit, at });
+  return populationVerdict(snap, snap, { tool: TOOL, at, evidence: [TOOL] });
+}
+
 function main(argv) {
   const arg = (k) => {
     const i = argv.indexOf(k);
     return i >= 0 ? argv[i + 1] : null;
   };
   if (argv.includes('--selftest') || argv.includes('--self-test')) return selfTest();
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    return 0;
+  }
   const root = arg('--root') || process.env.DEX_CAPTURES;
   if (!root) {
-    console.error('usage: node tools/beat-error-recovery.mjs --root <captures-dir> [--out f.json]\n   or: --self-test');
+    console.error('usage: node tools/beat-error-recovery.mjs --root <captures-dir> [--out f.json]\n   or: --self-test\n   or: --verdict-sample');
     return 2;
   }
   const ctx = realm();
