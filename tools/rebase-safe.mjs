@@ -896,14 +896,20 @@ async function main() {
   const argv = process.argv.slice(2);
   const gen = generatedSet();
 
-  if (argv[0] === '--classify') {
-    for (const p of argv.slice(1)) console.log(classify(p, gen) + '\t' + p);
-    return;
-  }
+  /* THE REFUSAL COMES FIRST, BECAUSE `--classify` HAS A CALLER NOW. `classify()` fails closed by
+     answering `source`, which is right for this tool's own rebase and WRONG as an answer to another
+     program: `wt-done --landed` asks which paths are generated so it can leave them out of the diff it
+     reads, and "everything is source" is exactly the reading that made its hatch unreachable (row
+     2026-10-29-the-landed-hatch-reads-a-rebundled-diff-into-a-one-megabyte-buffer). An unreadable
+     builder list is an absent answer, so it exits 2 here rather than printing 180 wrong ones. */
   if (!gen) {
     console.error(paint('✕ cannot read the builders’ owned sets — refusing to classify anything as generated.', C.red));
     console.error('  This tool fails CLOSED on purpose: guessing here reverts work. Rebase by hand.');
     process.exit(2);
+  }
+  if (argv[0] === '--classify') {
+    for (const p of argv.slice(1)) console.log(classify(p, gen) + '\t' + p);
+    return;
   }
 
   const onto = argv.includes('--onto') ? argv[argv.indexOf('--onto') + 1] : 'origin/main';

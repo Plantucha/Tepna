@@ -21451,6 +21451,44 @@
       var axDrawnTrue = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: true };
       T.ok('…and a drawn axis under-claims to host however independent it reads', DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [] }).timingSource === 'host');
       T.ok('…while a node-supplied verdict still outranks the axis field', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [] }).timingSource === 'device+host');
+
+      /* ── THE SANITISERS, PINNED AT THEIR EDGES ──
+         `_tbNum` and `_tbCount` are the only place a caller's junk becomes a published number, and §∅
+         says a value nobody measured is `null` — never a coerced one. Six inputs pin that, and each was
+         chosen because the diff-scoped mutation lane proved no existing assertion distinguished it:
+         `'device+host'` sits at index 0 of the vocabulary, so a `>= 0` membership test degraded to
+         `> 0` silently rejected the TOP tier and fell through to the derived branch. `isFinite('5')` is
+         true, so a numeric STRING is the input that separates a `typeof` guard from an `isFinite` one.
+         A negative count and a `NaN` separate the three conjuncts of the count guard from each other. */
+      T.ok(
+        'the first entry of the vocabulary is accepted — a membership test must not exclude index 0',
+        DE.timingBlock({ timingSource: 'device+host', hostAxis: null, resyncs: [] }).timingSource === 'device+host'
+      );
+      T.ok(
+        '§∅ a numeric STRING is not a measurement — isFinite() alone would have taken it',
+        DE.timingBlock({ hostAxis: { ok: true, n: 9, spanMs: '5', independent: true }, resyncs: [] }).spanMs === null
+      );
+      T.ok('§∅ NaN is not a measurement either', DE.timingBlock({ hostAxis: { ok: true, n: 9, ppm: NaN, independent: true }, resyncs: [] }).ppm === null);
+      T.ok('a plain number IS a count and survives untouched', DE.timingBlock({ resyncs: 3 }).resyncs === 3);
+      T.ok('…a numeric string is not one', DE.timingBlock({ resyncs: '3' }).resyncs === null);
+      T.ok('…and neither is a negative count', DE.timingBlock({ resyncs: -1 }).resyncs === null);
+      T.ok('…while a numeric ZERO is a count and survives — §∅: looked and found none', DE.timingBlock({ resyncs: 0 }).resyncs === 0);
+
+      /* ── A REFUSED AXIS PUBLISHES NOTHING, NOT EVEN WHAT IT STILL CARRIES ──
+         `hostAxis` returns `{ ok:false, reason, n }` and may still carry fields from before it gave
+         up. Adopting an `independent` from a refusal would report a second clock the spine declined to
+         stand behind, so `ok` gates the read and the verdict stays `null`. The last leg pins the
+         FALLBACK text: a refusal that names no reason must say the spine named none, never splice
+         `undefined` into a sentence a reader will quote back. */
+      T.ok(
+        'a refused axis does not lend its independence verdict to the block',
+        DE.timingBlock({ hostAxis: { ok: false, reason: 'too few anchors', n: 2, independent: true }, resyncs: [] }).independent === null
+      );
+      T.ok('only the boolean true reads as independent — a truthy 1 does not', DE.timingBlock({ hostAxis: { ok: true, n: 9, independent: 1 }, resyncs: [] }).independent === false);
+      T.ok(
+        'a refusal that names no reason says so, and never splices undefined into the sentence',
+        /the spine named no reason/.test(DE.timingBlock({ hostAxis: { ok: false, n: 2 }, resyncs: [] }).reason || '')
+      );
       var full = DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [] });
       T.ok('a block with every measurement present carries NO reason', full.reason === null, String(full.reason));
 
@@ -54353,6 +54391,31 @@
         V({ prState: null, dirtyCount: 0, isMain: false, landless: { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: false } }).why,
         'no PR and nothing to land — 0 commits ahead of origin/main, tree clean, no branch on origin'
       );
+
+      /* ── THE PROOF READS A SOURCE DIFF, NOT A RE-BUNDLED ONE ──────────────────────────────────
+         Row 2026-10-29-the-landed-hatch-reads-a-rebundled-diff-into-a-one-megabyte-buffer. `--landed`
+         read `git diff -U0 origin/main...HEAD` into Node's default 1 MB buffer, so on any branch that
+         re-bundled an app it died as ENOBUFS — and a merged bundle PR is exactly what leaves a tree
+         behind, so the only hatch for those trees was unreachable. Measured on `claude/pbeat-hrn`
+         (2026-10-29/30): the whole diff is 32,301,331 bytes and adds 5225 identifiers; the source-only
+         diff is 22,936 bytes and adds 62. The second number is the one that matters, because
+         `landedByIdentifiers` runs one `git grep` per identifier, so widening the buffer alone would
+         have traded the refusal for a hang. A generated artifact's identifiers are a function of
+         source, so leaving them out removes no evidence. */
+      var parseClassify = env.wtDone.parseClassify,
+        splitDiffPaths = env.wtDone.splitDiffPaths;
+      var verdicts = parseClassify('source\toxydex-dsp.js\ngenerated\tOxyDex.html\ngenerated\tprovenance/OxyDex.json\nsource\ttests/dex-tests.js\n');
+      var split = splitDiffPaths('oxydex-dsp.js\nOxyDex.html\nprovenance/OxyDex.json\ntests/dex-tests.js\n', verdicts);
+      T.eq('the diff this proof reads is the source half', split.source.join(' '), 'oxydex-dsp.js tests/dex-tests.js');
+      T.eq('and the bundle and the ledger fragment are left out', split.generated.length, 2);
+      T.eq('nothing is left unclassified when every path got a verdict', split.unknown.length, 0);
+      T.ok('CONTROL · no verdicts at all REFUSES — an unreadable builder list must not read as all-source', splitDiffPaths('oxydex-dsp.js\n', null) === null, 'null verdicts must refuse');
+      T.eq('a path nobody classified is COUNTED, never assumed', splitDiffPaths('somebody-elses.js\n', verdicts).unknown.length, 1);
+      T.eq('a re-bundle-only branch leaves no source path to read', splitDiffPaths('OxyDex.html\nprovenance/OxyDex.json\n', verdicts).source.length, 0);
+      T.ok('a classification line with no tab is not a classification', parseClassify('source') === null, 'must refuse');
+      T.ok('nor is a verdict outside the two', parseClassify('maybe\tfoo.js') === null, 'must refuse');
+      T.eq('an empty listing classifies nothing and says so', parseClassify('').size, 0);
+      T.ok('the buffer every git call reads into is NAMED, not the 1 MB default', env.wtDone.RUN_MAX_BUFFER >= 64 * 1024 * 1024, String(env.wtDone.RUN_MAX_BUFFER));
     });
 
     /* Row 2026-10-12-wt-done-resolves-the-repo-from-the-shell-cwd: invoked by ABSOLUTE path from a
