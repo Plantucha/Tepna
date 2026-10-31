@@ -51,7 +51,7 @@
  * hook reads what it was handed, and that somebody runs its test.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -232,10 +232,25 @@ export function probeWriterOnce(hookPath, env, payloadPath, { timeoutMs = 10000 
   }
 }
 
+/* EVERY SCRATCH DIRECTORY THIS TOOL MAKES IS REMOVED WHEN THE PROCESS EXITS. Measured 2026-10-31:
+   each run left a 4 MB payload.json in a hook-contract- directory in /tmp and never removed it, and 3107 of them
+   held 11 GB of the rig's tmpfs (RAM) while the OOM killer took lab jobs and the desktop app. */
+const SCRATCH = new Set();
+export function scratchDir(prefix) {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  if (!SCRATCH.size) process.on('exit', removeScratch);
+  SCRATCH.add(dir);
+  return dir;
+}
+export function removeScratch() {
+  for (const dir of SCRATCH) rmSync(dir, { recursive: true, force: true });
+  SCRATCH.clear();
+}
+
 /* The payload is written ONCE for the whole run and read by every trial: the measurement is the
    writer's fate, never the cost of building a few megabytes. */
 export function writePayload(bytes = probeBytes()) {
-  const file = join(mkdtempSync(join(tmpdir(), 'hook-contract-')), 'payload.json');
+  const file = join(scratchDir('hook-contract-'), 'payload.json');
   const pad = 'x'.repeat(Math.max(0, bytes - 64));
   writeFileSync(file, `${JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'true' }, pad })}\n`);
   return file;
@@ -413,7 +428,7 @@ function selftest() {
      faked by any amount of static parsing: a planted hook that exits without draining must make the
      writer take EPIPE, and its drained twin must not. If this pair ever reads the same, the probe
      measures nothing and every PASS above it is vacuous. */
-  const dir = mkdtempSync(join(tmpdir(), 'hookcontract-'));
+  const dir = scratchDir('hookcontract-');
   const nodrain = join(dir, 'nodrain.sh');
   writeFileSync(nodrain, 'set -u\nexit 0\n');
   const drained = join(dir, 'drained.sh');
@@ -432,6 +447,14 @@ function selftest() {
   );
   ok('…and its drained twin never does', pr2.epipe === 0, `stranded on ${pr2.epipe} of ${pr2.trials}, codes ${JSON.stringify(pr2.codes)}`);
   ok('…so the two readings agree on the plants', scanHook(readFileSync(nodrain, 'utf-8')).drain === null && scanHook(readFileSync(drained, 'utf-8')).drain === 2);
+
+  /* PLANT 5b · SCRATCH CLEANUP. A payload written here must be gone after removeScratch(), and its
+     control (the file existed first) keeps the assertion from passing over nothing. */
+  const leak = writePayload(1024);
+  const leakExisted = existsSync(leak);
+  removeScratch();
+  ok('a written payload exists before cleanup (control)', leakExisted);
+  ok('removeScratch() deletes every scratch directory, payload included', !existsSync(leak) && !existsSync(dirname(leak)));
 
   /* PLANT 6 · THE NINE SHELL LEGS, read statically. The planted pair differs in ONE property, so a
      scanner that answered the same for both would score as loudly here as it does on the tree. */
