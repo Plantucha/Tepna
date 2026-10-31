@@ -15,8 +15,8 @@
 # did exactly that for weeks while sitting here unmeasured (see that module's header).
 #
 # THIS is the gate, and the difference is scope, not severity: mutate only the functions a PR actually
-# TOUCHED, and require those mutants killed. It never judges pre-existing code, so it cannot inherit a
-# backlog; it enforces exactly one rule, and it is the rule the 2026-08-02 audit showed was missing —
+# TOUCHED, and require those mutants killed. It enforces exactly one rule, and it is the rule the
+# 2026-08-02 audit showed was missing —
 #
 #     IF YOU CHANGED THIS LINE, SOME TEST CAN SEE IT.
 #
@@ -34,6 +34,12 @@
 # * STRING-LITERAL mutants are excluded. 29 of the 33 survivors on capture.py's `_now` were mutations
 #   of log-message wording. Requiring those killed would mean asserting on log prose, which is exactly
 #   the kind of test that makes a suite brittle without making it truthful.
+# * THE UNIT IS THE FUNCTION, SO A BACKLOG CAN BE INHERITED — and `mutation-survivors.json` is what
+#   says whose it is. A survivor recorded `open` against that module and function AT `--base` is
+#   reported as inherited and does not fail the run; everything else fails exactly as before, and a
+#   function the record never saw inherits nothing (`mutation_diff.baseline_from_ledger`). Measured
+#   2026-10-30 on #4126: one logging line added to `radioclock.main` made 27 survivors of untouched
+#   code blocking, and the same line moved out of `main` passed with 0.
 # * NO-OP ON A PR THAT TOUCHES NO PYTHON. Prints, exits 0. A gate that runs when it has nothing to say
 #   trains people to ignore it.
 # * It reports the mutmut command to reproduce each survivor, because a CI failure that cannot be
@@ -82,11 +88,13 @@ from mutation_diff import (  # noqa: E402
     UNDECIDABLE,
     UNDECIDED,
     annotation_only,
+    baseline_from_ledger,
     clean_run_failures,
     clean_run_refusal,
     clean_run_exhaustion_verdict,
     classify,
     diff_key,
+    inherited_report,
     entry_before_in_source,
     function_of_mutant,
     kill_is_a_detection,
@@ -239,6 +247,31 @@ def load_equivalence() -> dict:
     return {}
 
 
+SURVIVOR_LEDGER = "mutation-survivors.json"
+
+
+def load_survivor_baseline(base: str, lane: str = "py") -> dict:
+    """The inherited set, read from the ledger AS COMMITTED AT `base` — never from the working tree.
+
+    🔴 `git show` IS THE WHOLE GUARD. The tree's copy is the one this branch can write, so reading it
+    would let a PR record its own survivors and clear its own gate in the same commit. At `base` the
+    record is main's, which is the only reading of "pre-existing" that a branch cannot author.
+
+    An absent, unreadable or malformed ledger returns {} — every survivor then blocks, which is this
+    gate's behaviour before the record existed. A baseline that cannot be read must never excuse.
+    """
+    try:
+        r = subprocess.run(["git", "show", f"{base}:{SURVIVOR_LEDGER}"], cwd=HERE, capture_output=True, text=True)
+    except OSError:
+        return {}
+    if r.returncode != 0:
+        return {}
+    try:
+        return baseline_from_ledger(json.loads(r.stdout), lane)
+    except ValueError:
+        return {}
+
+
 EXCLUSIONS_PATH = HERE / "tools" / EXCLUSIONS_FILE
 UNMEASURED_PATH = HERE / "tools" / "mutate-unmeasured.json"
 
@@ -359,6 +392,18 @@ def main(argv=None) -> int:
         "timeoutRetried": 0,
         "boundTooTight": 0,
     }
+    # THE BLAME SPLIT, IN THE OBJECT AND NOT ONLY IN THE PROSE (§🧾). A consumer reading
+    # `survived: 30` beside `status: PASS` needs the two numbers that reconcile them: how many this
+    # run BLOCKED on, and how many main's record already owned.
+    #
+    # NULL, NOT ZERO (§∅), and therefore its OWN dict. Both are decided by `classify`, and four
+    # exits above it return without reaching it — a preflight refusal, a PR with no Python, a budget
+    # refusal, a self-inconsistent verdict. `0` there would read as "the record owned nothing" on a
+    # run that never looked. Kept OUT of `_counts` because one `None` inside that literal widens
+    # every counter in it to `int | None`, and the arithmetic on `decided`, `notRequired` and
+    # `emptyDiff` stops type-checking — five errors over a 0 mypy baseline, for two keys nothing ever
+    # counts up. `emit` merges the two dicts into the one `result`.
+    _blame: dict[str, int | None] = {"inherited": None, "blocking": None}
     _pop = {"checked": 0, "eligible": 0}
     # THE SCOPE, so the prose can name it truthfully. The gate mutates whole FUNCTIONS (#1761 —
     # "slightly wider than the diff, which is the safe direction"), and saying "survived on lines
@@ -413,7 +458,7 @@ def main(argv=None) -> int:
             status,
             checked=_pop["checked"],
             eligible=_pop["eligible"],
-            result=dict(_counts),
+            result={**_counts, **_blame},
             reason=reason,
             evidence=["capture-host/tools/mutate_diff.py"] + (evidence or []),
             commit=_head_sha(),
@@ -1387,7 +1432,12 @@ def main(argv=None) -> int:
         generated=generated_keys,
         not_required=not_required_keys,
         unchecked={_k for _k, _ in _unchecked_after_isolation},
+        baseline=load_survivor_baseline(a.base),
     )
+    # SET BESIDE THE SPLIT, not beside the print. `emit` reads `_blame` on every exit below this
+    # line, and a counter filled next to the prose that reports it is the shape that shipped a
+    # `NameError` from three early returns (`tests/test_mutate_diff_emit_scope.py`).
+    _blame["inherited"] = len(cls["inherited"])
     if _uncorroborated:
         verdict["uncorroborated_refutations"] = [{"key": k, "why": w} for k, w in _uncorroborated]
     verdict["classification"] = {
@@ -1880,6 +1930,9 @@ def main(argv=None) -> int:
             declared=_declared,
             blocking=len(cls["unclassified"]) + len(cls["real_gap"]),
         )
+        # This path emits before the ordinary survivor report, and the counter is measured here too —
+        # `classify` has run, so the number exists and absence would be a lie about a run that looked.
+        _blame["blocking"] = len(cls["unclassified"]) + len(cls["real_gap"])
         _bcode = 2
         if _sub:
             _bstatus, _breason = _sub
@@ -1920,7 +1973,13 @@ def main(argv=None) -> int:
             "     strftime pattern and a join separator as readily as a log message. If one of these\n"
             "     carries data a consumer reads, the test that reads it is owed."
         )
+    # THE INHERITED SET IS REPORTED ON BOTH PATHS, because a reader of a green run needs it as much
+    # as a reader of a red one: it is the difference between "this function is clean" and "this
+    # function's holes belong to someone else's PR".
+    for _ln in inherited_report(cls["inherited"], locate=survivor_location):
+        print(_ln)
     blocking = cls["unclassified"] + cls["real_gap"]
+    _blame["blocking"] = len(blocking)
     if not blocking:
         n_ex = len(cls["excused"])
         # THE PROSE MUST MATCH THE VERDICT. "every mutant was killed" over a population of ZERO is true
@@ -1935,17 +1994,23 @@ def main(argv=None) -> int:
             # excused and 6 string-literal mutants nothing looked at, against decided 190. The headline
             # is the sentence a reader quotes, so it names what it was reached under.
             n_nr = _counts["notRequired"]
+            # AND THE INHERITED SET RIDES IN THE HEADLINE TOO. "every mutant was killed" is false
+            # while a survivor stands, however correctly this run declined to blame it — which is
+            # the same sentence #3654 printed over six mutants nothing had observed.
+            n_inh = _blame["inherited"]
             aside = ", ".join(
                 p
                 for p in (
                     f"{n_ex} recorded as equivalent" if n_ex else "",
                     f"{n_nr} not required" if n_nr else "",
+                    f"{n_inh} inherited from main" if n_inh else "",
                 )
                 if p
             )
             print(
                 "\nmutate-diff: every mutant on the changed functions"
                 + (" a test is owed for" if n_nr else "")
+                + (" that main's record does not already own" if n_inh else "")
                 + " was killed"
                 + (f" ({aside})." if aside else ".")
             )
@@ -1956,10 +2021,15 @@ def main(argv=None) -> int:
             return _refusal
         return emit("PASS", None, 0)
 
+    _inh_note = (
+        f"  A further {_blame['inherited']} survivor(s) are inherited and are NOT counted here.\n"
+        if _blame["inherited"]
+        else ""
+    )
     print(
         f"\nmutate-diff: {len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this "
         f"branch changed ({_scope['lines']} changed line(s)) — no test can see them.\n"
-        "  The unit is the FUNCTION, not the line: a survivor here may sit on a line you did not touch.\n"
+        "  The unit is the FUNCTION, not the line: a survivor here may sit on a line you did not touch.\n" + _inh_note
     )
     for s in cls["unclassified"]:
         print(f"  ── {s['mutant']}{survivor_location(s)}")

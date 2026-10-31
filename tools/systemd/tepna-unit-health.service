@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — the dead-man's switch for the rig's user timers (primary dev machine only).
+#
+# WHY (owner, 2026-10-31; audit F2, decision #2441). Four jobs had stopped and nothing said so:
+# qwen-idle failed every 5 min for five days, corpus-tier failed on 10-20 with its timer disabled,
+# nightly-triage hit its 8 h timeout, and disk-watch had not fired since 10-18. This unit runs
+# `tools/unit-health.mjs --post`, which reads systemd's own state and posts to board thread 7 only when
+# the finding set CHANGES. A job that stays broken posts once, and its recovery posts once.
+#
+# Install (the OWNER does this; a session must not):
+#   cp tools/systemd/tepna-unit-health.service tools/systemd/tepna-unit-health.timer ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now tepna-unit-health.timer
+[Unit]
+Description=Tepna — report failed, stopped or overdue user timers to the board
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/bin/sh -c 'T=%h/Tepna/tools/unit-health.mjs; [ -f "$T" ] || { echo "unit-health.mjs not on main yet"; exit 0; }; node "$T" --post; r=$?; [ "$r" -le 1 ] && exit 0; exit "$r"'
+TimeoutStartSec=2min

@@ -43,7 +43,10 @@ def scripted(rounds):
 
 
 def run(coro):
-    return asyncio.get_event_loop_policy().new_event_loop().run_until_complete(coro)
+    # NOT `get_event_loop_policy().new_event_loop()`. The policy system is deprecated in 3.14 and
+    # removed in 3.16, and the default policy's factory IS `asyncio.new_event_loop` — same loop, no
+    # warning. This matches the seven other test files that call `new_event_loop` directly.
+    return asyncio.new_event_loop().run_until_complete(coro)
 
 
 def committed_files(root):
