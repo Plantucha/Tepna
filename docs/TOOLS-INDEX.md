@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**301 tools** · 300 with a purpose line · **1 without**
+**302 tools** · 301 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -296,6 +296,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`trio-fold-clock.mjs`](../tools/trio-fold-clock.mjs) | A FOLDED NIGHT KEEPS THE CLOCK ANNOTATIONS OF ITS FRAGMENTS `mergePpg` in `tools/trio-batch.mjs` builds a fresh record, and it carried neither `offsetSegments` nor `clockResyncs`. |
 | [`trio-fold-validity.mjs`](../tools/trio-fold-validity.mjs) | A FOLDED NIGHT KEEPS THE VALIDITY OF ITS FRAGMENTS The box writes a `…RUNS.txt` validity sidecar beside each raw stream: `_ECGRUNS.txt` beside the H10 `_ECG.txt`, `_PPGRUNS.txt` beside the… |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
+| [`unit-health.mjs`](../tools/unit-health.mjs) | unit-health — the dead-man's switch for the rig's systemd user timers. |
 | [`usage-guard.mjs`](../tools/usage-guard.mjs) | USAGE GUARD — what the fleet has SPENT, measured, and what nobody can measure, said so. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |
 | [`verdict-adoption.mjs`](../tools/verdict-adoption.mjs) | THE VERDICT-CONTRACT ADOPTION GATE — every producer of a verdict word, enumerated and binned, as an EQUALITY (VERDICT-CONTRACT §3 / §3b step 2). |
