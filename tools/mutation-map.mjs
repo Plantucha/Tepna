@@ -119,10 +119,13 @@ export function resolveStateDir(root, existsFn = existsSync) {
  * is genuinely split — old sweeps in-tree, new state shared — and picking ONE dir at either grain
  * mis-reads the world: the first draft of this migration chose first-existing-DIR and eight present
  * sweeps read as a lost queue, because the shared dir existed for other reasons.
+ *
+ * `dirs` names the directories to scan INSTEAD of the two candidates. A caller holding a
+ * `--state-dir` redirect passes it, so one flag governs the whole run and not half of it.
  */
-export function stateJsonFiles(root, { existsFn = existsSync, readdirFn = readdirSync } = {}) {
+export function stateJsonFiles(root, { existsFn = existsSync, readdirFn = readdirSync, dirs = null } = {}) {
   const seen = new Map();
-  for (const dir of stateDirs(root)) {
+  for (const dir of dirs ?? stateDirs(root)) {
     if (!existsFn(dir)) continue;
     let names = [];
     try {

@@ -11575,12 +11575,15 @@
        `corpus-scope.mjs` import, so delegation moves a tool from `enumerates` to `reports` and
        never out of the population.
 
-       TWO NARROWING SETS, BOTH NAMED AND BOTH IN THE TOOL. `POPULATION_EXCLUSIONS` holds the 4
+       TWO NARROWING SETS, BOTH NAMED AND BOTH IN THE TOOL. `POPULATION_EXCLUSIONS` holds the 5
        files the generous vocabulary rule admits that read no capture — `argv-survey.mjs` names
        `DEX_UPLOADS` only to DELETE it from a probe environment, `build-docs.mjs` matches the
-       night regex on a release date, and the two NSRR tools read `.edf` under the public
-       `/srv/data/shhs` mount, which the daily re-tier never touches. `UNDECIDED_CORPUS` holds the
-       5 the tracer still refuses to decide, each with the shape that defeats it, so a sixth reds
+       night regex on a release date, and `codex-export.mjs` walks an export built to EXCLUDE the
+       corpus. A MOUNT IS NOT A REASON: the two NSRR readers sat here for reading a filesystem the
+       re-tier never touches while three siblings over the SAME two trees published a population,
+       and on 2026-10-31 both were wired instead (row
+       2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt). `UNDECIDED_CORPUS` holds the
+       4 the tracer still refuses to decide, each with the shape that defeats it, so a fifth reds
        rather than passing as a shrug.
 
        The NAMED SET below is what makes this a gate rather than a ratchet: a count would pass a new
@@ -11868,6 +11871,144 @@
           /populationVerdict/.test(CR.blankSampleHelpers('const a = populationVerdict(x);\nfunction verdictSample() {\n  return populationVerdict(y);\n}\n')) &&
           CR.blankSampleHelpers('function verdictSample() {\n  return populationVerdict(y);\n}\n').split('\n').length === 4,
         'the call inside is gone · the call outside survives · 4 line(s) in, 4 out'
+      );
+      /* ── AND THE SECOND RUNG READS THE FLAG, BECAUSE A SAMPLE NEED NOT HAVE A NAME ──────────
+         `SAMPLE_HELPER` keys on four function names, so the same fabricated call under a fifth
+         name clears the tool — and a call at top level inside `if (argv.includes('--verdict-
+         sample'))` has no enclosing function at all. Row
+         2026-10-28-the-sample-helper-blanking-is-keyed-on-four-spellings. Measured 2026-10-31 over
+         the 301 tools in `tools/`: 333 blocks in 229 files blank, 31 negated guards do not, and no
+         tool changes class, so these legs are the whole evidence that the rung does anything. */
+      var flagBlock = "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) {\n  console.log(populationVerdict(fakeA, fakeB));\n}\n";
+      var flagReal = "const dir = process.argv[2];\nreaddirSync(dir);\nconsole.log(populationVerdict(a, b));\nif (process.argv.includes('--verdict-sample')) {\n  console.log('sample');\n}\n";
+      T.ok(
+        'CONTROL · a population call at top level under the sample flag does not clear a tool, and the same call on the real path does',
+        CR.classifyTool(flagBlock).cls === 'enumerates' && CR.classifyTool(flagReal).cls === 'reports',
+        CR.classifyTool(flagBlock).cls + ' · ' + CR.classifyTool(flagReal).cls
+      );
+      /* THE DIRECTION THAT MATTERS. 31 conditions in `tools/` spell the real-run guard as
+         `IS_MAIN && !process.argv.includes('--selftest')`; blanking one guts a reporting tool's
+         own population call, which is a finding about nothing. */
+      T.eq(
+        'CONTROL · a NEGATED flag test guards the real run, so the rung leaves its block alone',
+        CR.classifyTool("const dir = process.argv[2];\nreaddirSync(dir);\nif (IS_MAIN && !process.argv.includes('--selftest')) {\n  console.log(populationVerdict(a, b));\n}\n").cls,
+        'reports'
+      );
+      /* THE GEOMETRY, read off the pure helper: the flag literal lives in RAW source and the span
+         in the masked copy, so the two texts are one instrument and the pair must align. */
+      var flagMasked = env.argvReads.maskNonCode(flagBlock);
+      var flagBlanked = CR.blankFlagSampleBlocks(flagMasked, flagBlock);
+      T.ok(
+        'the flag-block blanking removes the body and keeps every offset and line around it',
+        flagBlanked.length === flagMasked.length && flagBlanked.split('\n').length === flagMasked.split('\n').length && !/populationVerdict/.test(flagBlanked) && /readdirSync/.test(flagBlanked),
+        'same length · same lines · the call inside gone · the walk outside kept'
+      );
+      var refusedPair = false;
+      try {
+        CR.sampleFlagSpans(flagMasked, flagBlock.slice(1));
+      } catch {
+        refusedPair = true;
+      }
+      T.ok('…and a masked/raw pair of different lengths is refused, not blanked somewhere plausible', refusedPair, 'a misaligned pair blanked a span anyway');
+      /* ── AND THE THIRD RUNG ASKS REACHABILITY, BECAUSE A FIFTH NAME IS THE SAME TRAP ONE HOP OUT
+         The two rungs above are keyed on SPELLING — four helper names, then two flag literals — so a
+         fabricated call inside `function showOffer()` that only the flag block calls used to clear
+         its tool: the body sits outside the block and the name is not one of the four. This leg was
+         that LIMIT, pinned at `reports`. A longer list of names would answer it with the instrument
+         that failed, so the rung blanks instead every local function no live text names, to a
+         fixpoint. Row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper. */
+      T.eq(
+        'a population call in a fifth-named helper called only from the flag block no longer clears its tool',
+        CR.classifyTool(
+          "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(fakeA, fakeB);\n}\nif (process.argv.includes('--verdict-sample')) showOffer();\n"
+        ).cls,
+        'enumerates'
+      );
+      /* …AND A CHAIN, which is what the fixpoint is for: `showOffer` calls `inner`, and `inner` reads
+         unreferenced only once `showOffer` itself has gone. One pass would leave the call standing. */
+      T.eq(
+        'a CHAIN of sample-only helpers clears nothing either, because the walk runs to a fixpoint',
+        CR.classifyTool(
+          "const dir = process.argv[2];\nreaddirSync(dir);\nfunction inner() {\n  return populationVerdict(f, g);\n}\nfunction showOffer() {\n  return inner();\n}\nif (process.argv.includes('--selftest')) showOffer();\n"
+        ).cls,
+        'enumerates'
+      );
+      /* THE THREE DIRECTIONS A REACHABILITY RUNG MUST NOT TAKE. It REMOVES a clearance, so
+         over-blanking states a finding about a tool that reports — the loud direction here. A live
+         caller, an export and a call on BOTH paths each keep the helper. */
+      T.ok(
+        'CONTROL · a live caller, an export, and a call on both paths each leave the helper alone',
+        CR.classifyTool('const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(a, b);\n}\nconsole.log(showOffer());\n').cls === 'reports' &&
+          CR.classifyTool('const dir = process.argv[2];\nreaddirSync(dir);\nexport function showOffer() {\n  return populationVerdict(a, b);\n}\n').cls === 'reports' &&
+          CR.classifyTool(
+            "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(a, b);\n}\nconsole.log(showOffer());\nif (process.argv.includes('--verdict-sample')) showOffer();\n"
+          ).cls === 'reports',
+        'all three report'
+      );
+      /* THE GEOMETRY, read off the pure helper, and the pair that must align. The span list comes
+         from the UNBLANKED masked copy on purpose: `bodyEnd` skips whitespace from the header it is
+         handed, so over an already-blanked body it walks past the blank and returns the NEXT
+         function's closing brace. A first measurement of this shape read 14 occurrences that way
+         against 0 from unblanked text, which is why the rung takes two texts and checks them. */
+      var reachSrc =
+        "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(fakeA, fakeB);\n}\nif (process.argv.includes('--verdict-sample')) showOffer();\n";
+      var reachMasked = env.argvReads.maskNonCode(reachSrc);
+      var reachTwo = CR.blankFlagSampleBlocks(CR.blankSampleHelpers(reachMasked), reachSrc);
+      var reachThree = CR.blankSampleOnlyLocals(reachTwo, reachMasked);
+      var reachRefused = false;
+      try {
+        CR.blankSampleOnlyLocals(reachTwo, reachMasked.slice(1));
+      } catch {
+        reachRefused = true;
+      }
+      T.ok(
+        'the reachability blanking keeps every offset and line, and refuses a pair of different lengths',
+        reachThree.length === reachMasked.length &&
+          reachThree.split('\n').length === reachMasked.split('\n').length &&
+          /populationVerdict/.test(reachTwo) &&
+          !/populationVerdict/.test(reachThree) &&
+          /readdirSync/.test(reachThree) &&
+          reachRefused,
+        'same length · same lines · the call gone · the walk kept · a misaligned pair refused'
+      );
+      /* AND THE EXPORT READER IS THE PART THAT CARRIES THE RISK, so it is read directly: a name
+         bound at the bottom of the file in a list is as exported as one bound at its declaration. */
+      T.ok(
+        'every export form this tree writes is read as reachable',
+        [
+          'export function a() {}',
+          'export const b = () => {};',
+          'export async function* c() {}',
+          'export default function d() {}',
+          'const e = 1;\nexport { e };',
+          'const f = 1;\nexport { f as g };'
+        ].every(function (src, i) {
+          return CR.exportedNames(src).has('abcdef'[i]);
+        }),
+        'declaration · const · generator · default · list · list with an alias'
+      );
+      /* THE WHOLE TREE, BECAUSE THE RUNG IS A SOUNDNESS CLAIM AND NOT A RE-BIN. Measured 2026-10-31
+         over `tools/`: 202 files hold a local nothing live names and 351 bodies blank, and the rung
+         removes NO population call anywhere, so no tool changes class. A tool that one day hides its
+         only population call in an unreferenced local reds this leg, which is the point. */
+      var reachTools = Object.keys(TT).filter(function (k) {
+        return /^tools\/[^/]+\.m?js$/.test(k);
+      });
+      var reachMoved = [];
+      var reachTouched = 0;
+      for (var ri = 0; ri < reachTools.length; ri++) {
+        var rsrc = TT[reachTools[ri]];
+        var rm = env.argvReads.maskNonCode(rsrc);
+        var r2 = CR.blankFlagSampleBlocks(CR.blankSampleHelpers(rm), rsrc);
+        var r3 = CR.blankSampleOnlyLocals(r2, rm);
+        if (r3 !== r2) reachTouched++;
+        var pop = /\b(?:populationVerdict|censusVerdict)\s*\(/;
+        if (pop.test(r2) !== pop.test(r3)) reachMoved.push(reachTools[ri]);
+      }
+      T.ok(
+        'over every tool in the tree the rung removes no population call, and it does reach something',
+        reachMoved.length === 0 && reachTouched > 100 && reachTools.length > 250,
+        reachTouched + ' of ' + reachTools.length + ' tool(s) hold a local nothing live names · ' + reachMoved.length + ' population call(s) removed · ' + JSON.stringify(reachMoved.slice(0, 4))
       );
       /* THE DELEGATION MUST NOT DELETE THE EVIDENCE. Wiring moves the walk behind the helper, which
          also removes the night regex that put the tool in this population. A tool that imports the
@@ -32411,6 +32552,121 @@
       T.ok('CONTROL · …while still carrying recording + ganglior_events', !!light.recording && Array.isArray(light.ganglior_events));
     });
 
+    /* ════ THE DISCIPLINED HALF OF THE HOST AXIS FINALLY HAS A COMMITTED FIXTURE ════════════════
+       (residue `2026-10-29-no-committed-ppgdex-fixture-carries-a-host-axis`)
+       Three committed PpgDex goldens DO publish `recording.hostAxis`, so a change to the block moves
+       fixture bytes. What none of them could reach is the half of the verdict that says YES: every
+       committed input stamps its host column from the device time, so `DexClock.hostAxis` reads
+       `independent:false` on all of them (residual spread 0.75–0.93 ms, one stamp quantum) and the
+       pinned side was always the refusal. `independent:true`, `inertReason:null`, `timingSource
+       'device+host'` and a ppm that REACHES `fs` were exercised only by inputs this file builds
+       inline — the same "a path nothing pins" class the group above exists for.
+
+       `synthetic_ppgdex_verity_twoclock.txt` is the clean Verity twin with ONE column changed: the
+       Phone stamp lags the sample by 9 ms between 14 s and 22 s. That is a LINK STALL, the shape a BLE
+       host column actually takes, and it is deliberately not a drift: a realistic ~30 ppm over a 40 s
+       clip is 1.2 ms, under the 2 ms quantum, so no drift of plausible size can make a clip this short
+       independent. 9 ms is above `CK_AXIS_INERT_MS` and far below `PPG_OFFSET_STEP_BOUND_MS`, so the
+       axis stays ONE segment and this fixture does not silently also become the first committed
+       multi-segment night. The golden is RICH, because the blocks beside the axis are rich-only; the
+       axis itself now travels on BOTH paths, and the last leg below is what pins that. */
+    group('PpgDex two-clock export ≡ its committed golden — the INDEPENDENT host axis', 'ppgdex-dsp · equiv · host-axis · fixture', function (T) {
+      var eq = env.equiv && env.equiv.ppgdex_twoclock;
+      var clean = env.equiv && env.equiv.ppgdex_rich;
+      var P = env.PpgDex;
+      if (!(eq && eq.input && eq.fixture && P && typeof P.compute === 'function')) {
+        T.skip('committed two-clock pair present', 'synthetic_ppgdex_verity_twoclock.txt / _twoclock_golden absent — both are COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      /* The golden is regenerated in the BUNDLE's realm, so the recompute runs there too. */
+      var rich = inBundleRealm('PpgDex', function () {
+        return P.compute({ text: eq.input }, { rich: true });
+      });
+      // The fleet-wide volatile exclusions, identical to the other equiv legs in this file.
+      function strip(o) {
+        var c = JSON.parse(JSON.stringify(o));
+        delete c.kernel;
+        if (c.schema) {
+          delete c.schema.generated;
+          delete c.schema.provenance;
+        }
+        delete c.provenance;
+        if (c.recording) delete c.recording.contentId;
+        if (c.measurement && typeof c.measurement === 'object') {
+          Object.keys(c.measurement).forEach(function (k) {
+            var b = c.measurement[k];
+            if (b && typeof b === 'object') {
+              delete b.code;
+              delete b.codeReason;
+            }
+          });
+        }
+        return c;
+      }
+      T.eq('compute({rich:true}) reproduces the committed golden byte-for-byte (volatile keys aside)', JSON.stringify(strip(rich)), JSON.stringify(strip(eq.fixture)));
+
+      /* THE VALUES, asserted on the COMMITTED bytes — an equality against a recompute would agree just
+         as happily if both sides lost the verdict, which is how the refusal side stayed the only one
+         pinned for so long. */
+      var ha = eq.fixture.recording && eq.fixture.recording.hostAxis;
+      T.ok('the committed golden carries recording.hostAxis at all', !!ha, 'ABSENT — regenerate: node tools/regen-ppgdex-goldens.mjs');
+      if (!ha) return;
+      T.eq('…and DexClock judged its host column INDEPENDENT — the branch no committed fixture reached', ha.independent, true);
+      T.eq('…so it carries NO inertReason', ha.inertReason, null);
+      T.eq('…and the export claims two clocks', ha.timingSource, 'device+host');
+      T.ok('…on a residual spread above the 2 ms quantum, which is WHY it is independent', typeof ha.spreadMs === 'number' && ha.spreadMs > 2, 'spreadMs=' + ha.spreadMs);
+      T.eq('…over a real device axis, not a drawn one', ha.drawn, false);
+      T.ok('…with at least the 3 anchors DexClock refuses below', ha.anchors >= 3, 'anchors=' + ha.anchors);
+      T.eq('…and the correction was APPLIED', ha.applied, true);
+      // The quality-block projection of the same verdict — the field a consumer reads instead.
+      var tq = eq.fixture.recording.timing;
+      T.eq('recording.timing publishes the same verdict', tq && tq.independent, true);
+      T.eq('…and the same source', tq && tq.timingSource, 'device+host');
+      /* ONE SEGMENT, deliberately: the stall sits far below PPG_OFFSET_STEP_BOUND_MS, so this fixture
+         pins the single-segment path and does not quietly carry a second, unrelated first. */
+      T.ok('the stall does NOT cut the axis into offset segments', !eq.fixture.recording.offsetSegments, JSON.stringify(eq.fixture.recording.offsetSegments));
+
+      /* CONTROL — the clean twin takes the OTHER branch. Without it every assertion above would pass
+         on a build that called every axis independent. */
+      if (clean && clean.fixture) {
+        var ch = clean.fixture.recording && clean.fixture.recording.hostAxis;
+        T.eq('CONTROL · the clean twin reads NOT independent', ch && ch.independent, false);
+        T.eq('CONTROL · …and claims one clock', ch && ch.timingSource, 'device');
+        T.ok('CONTROL · …so the two committed fixtures disagree — that disagreement IS the new coverage', ha.independent !== (ch && ch.independent));
+      }
+      /* ANTI-VACUITY on the INPUTS: the two committed files must differ in the Phone column and
+         nowhere else, so what this fixture adds is a host clock and not a second signal. */
+      if (clean && clean.input) {
+        var a = eq.input.trim().split('\n');
+        var b = clean.input.trim().split('\n');
+        T.eq('the two committed inputs carry the same row count', a.length, b.length);
+        var diffCols = {};
+        for (var i = 1; i < Math.min(a.length, b.length); i++) {
+          var ca = a[i].split(';');
+          var cb = b[i].split(';');
+          for (var j = 0; j < Math.max(ca.length, cb.length); j++) if (ca[j] !== cb[j]) diffCols[j] = (diffCols[j] || 0) + 1;
+        }
+        T.eq('…and differ in exactly ONE column', Object.keys(diffCols).length, 1);
+        T.eq('…which is the Phone timestamp, column 0', Object.keys(diffCols)[0], '0');
+      }
+
+      /* THE LIGHT PATH CARRIES THE SAME BLOCK (row
+         `2026-10-31-ppgdex-publishes-the-host-axis-only-under-rich`). The Integrator reads the LIGHT
+         export, and this block hid behind `opts.rich` from the day it was written — so a plain PpgDex
+         export said nothing about the clock it rides, while ECGDex publishes its own axis before its
+         rich gate. RECOMPUTED rather than read off a fixture: every committed light pair stamps its
+         host column from the device time, so none of them can show the YES side on either path. */
+      var lightTwo = inBundleRealm('PpgDex', function () {
+        return P.compute({ text: eq.input });
+      });
+      var lha = lightTwo.recording && lightTwo.recording.hostAxis;
+      T.ok('the LIGHT export carries recording.hostAxis', !!lha, 'ABSENT — the block is gated behind opts.rich again');
+      T.eq('…judged INDEPENDENT there too', lha && lha.independent, true);
+      T.eq('…claiming the same two clocks', lha && lha.timingSource, 'device+host');
+      T.eq('…and identical to the rich block field for field', JSON.stringify(lha), JSON.stringify(rich.recording.hostAxis));
+      T.ok('CONTROL · the export is still LIGHT — no rich hrv block travelled with the axis', !lightTwo.hrv, 'light.hrv=' + JSON.stringify(lightTwo.hrv));
+    });
+
     group('PpgDex O2Ring finger export ≡ its committed golden — the device-crystal DEFAULT (Stage 3b)', 'ppgdex-dsp · equiv · device-crystal', function (T) {
       /* The dynamic (GATE-C) leg for the crystal DEFAULT-flip: compute({text}) on the committed finger
          twin — WITHOUT any timebase opt — must reproduce the golden, which was recorded on the crystal.
@@ -48897,6 +49153,19 @@
           );
           T.ok('§2b · …and --check says out loud that it only inspected the working tree', /compares the working tree/.test(baSrc), 'the misleading "current" is where the caveat belongs');
         }
+        /* §2c · the README release paragraph is GENERATED at the cut. Until 2026-10-31 the cut stamped
+           only a "Since" header and left the body to an author; nobody wrote it after 2.17.0, so the
+           front page described a release seven cuts old. The cut now replaces the whole paragraph in
+           either form, from the changesets it consumes. */
+        T.ok(
+          '§2c · release.mjs writes the README release paragraph through releaseNarrative()',
+          /export function releaseNarrative\(/.test(relSrc) && /t\.replace\(narr\[0\], releaseNarrative\(/.test(relSrc)
+        );
+        T.ok(
+          '§2c · …and matches the paragraph in BOTH forms (Since and In), so a missed cut cannot strand it',
+          /\(Since\|In\) `/.test(relSrc),
+          'an In-only or Since-only match is the stale-paragraph bug'
+        );
       }
 
       /* §2c · DEEP-AUDIT-II §12.2 — gateBEvaluate must FAIL CLOSED on a record with no outputHash.
@@ -71318,7 +71587,8 @@
         ['ppgdex_finger', 'synthetic_ppgdex_o2ring_finger_golden.node-export.json'],
         ['ppgdex_inverted', 'synthetic_ppgdex_inverted_golden.node-export.json'],
         ['ppgdex_gapped', 'synthetic_ppgdex_gapped_golden.node-export.json'],
-        ['ppgdex_rich', 'synthetic_ppgdex_rich_golden.node-export.json']
+        ['ppgdex_rich', 'synthetic_ppgdex_rich_golden.node-export.json'],
+        ['ppgdex_twoclock', 'synthetic_ppgdex_twoclock_golden.node-export.json']
       ];
       var seen = 0;
       CASES.forEach(function (c) {

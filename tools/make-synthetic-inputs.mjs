@@ -493,6 +493,50 @@ const emit = (name, text) => {
     }
     emit('synthetic_ppgdex_verity_gapped.txt', gapRows.join('\n') + '\n');
   }
+
+  /* ── 5a-iv · the TWO-CLOCK Verity twin (row 2026-10-29-no-committed-ppgdex-fixture-carries-a-host-axis) ──
+     EVERY OTHER COMMITTED PpgDex INPUT STAMPS ITS HOST COLUMN FROM THE DEVICE TIME, so `DexClock
+     .hostAxis` reads `independent: false` on all of them: residual spread 0.75-0.93 ms, one stamp
+     quantum, the host column carrying no information the device column did not already carry. Clock
+     Contract §7 makes `independent` the discriminator for whether a second clock exists at all, and
+     the three committed twins that publish the axis block publish only the side of it that says NO.
+     So the disciplined branch — `independent: true`, `inertReason: null`, and the `stability` fields
+     `clock.js` nulls when there is no second clock — reached CI through no fixture.
+
+     THE DIVERGENCE IS A LINK STALL, NOT A DRIFT, and the clip length is why. A Polar's measured
+     device-vs-host rate is ~30 ppm (Verity -0.34 s over 189 min, H10 -0.70 s over 434 min), which
+     over this 40 s clip is 1.2 ms — UNDER the 2 ms inert quantum. A drift twin would therefore need
+     a rate no Polar shows to clear the threshold, and it would pin independence on an implausible
+     number. A stall is the shape the real link actually takes (the O2Ring's divergence is the LINK
+     stalling, non-linear, per the Clock Contract's own note): packets arrive late, so the host stamp
+     falls BEHIND the sample it carries and `hostMs - devMs` climbs, then holds at the new offset.
+
+     9 ms over 8 s, between 14 s and 22 s. The numbers are chosen against the two bounds this file
+     cannot see from here: ABOVE `CK_AXIS_INERT_MS` (2 ms) so the axis reads independent, and well
+     BELOW `PPG_OFFSET_STEP_BOUND_MS` (10 s) so `ppgOffsetSegments` still returns ONE segment. The
+     single-segment path is the control every other twin takes, so this fixture adds the independent
+     axis WITHOUT also becoming the first committed multi-segment night — that gap is its own row.
+
+     Byte-identical to the clean twin except the `Phone timestamp` column, so the pair isolates the
+     host column alone, exactly as the inverted twin isolates polarity. */
+  {
+    const STALL_FROM_S = 14,
+      STALL_TO_S = 22,
+      STALL_MS = 9;
+    const diverge = (t) => (t <= STALL_FROM_S ? 0 : t >= STALL_TO_S ? STALL_MS : (STALL_MS * (t - STALL_FROM_S)) / (STALL_TO_S - STALL_FROM_S));
+    const twoRows = [HEAD];
+    for (let i = 0; i < FS * SECS; i++) {
+      const t = i / FS;
+      const hr = 62 + 4 * Math.sin(t / 20);
+      const ph = 2 * Math.PI * (hr / 60) * t;
+      const pulse = Math.sin(ph) + 0.45 * Math.sin(2 * ph - 0.9);
+      const base = -499500 + 2200 * pulse - 300 * Math.sin(t / 7);
+      const ns = ns0 + BigInt(Math.round((i / FS) * 1e9));
+      // ← the ONE column that differs: the host stamp lags the sample during the stall
+      twoRows.push(`${isoMs(t0 + t * 1000 + diverge(t))};${ns};${Math.round(base)};${Math.round(base - 9340)};${Math.round(base - 17140)};${Math.round(-650690 + 40 * Math.sin(t / 11))};`);
+    }
+    emit('synthetic_ppgdex_verity_twoclock.txt', twoRows.join('\n') + '\n');
+  }
 }
 
 /* ── 5b · PpgDex — Wellue O2Ring FINGER-site PPG (1 channel, 8-bit, ~125.7 Hz) ──

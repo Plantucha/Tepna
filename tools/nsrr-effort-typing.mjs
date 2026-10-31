@@ -48,13 +48,15 @@
  *   node tools/nsrr-effort-typing.mjs --selftest
  *   node tools/nsrr-effort-typing.mjs --limit 200 [--edfs <dir>] [--xml <dir>]
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'tools', 'x.js'));
@@ -318,6 +320,31 @@ function selftest() {
   }
   A('realm: CpapEdf loads headlessly (readEDF, not parseEdf — the name was assumed twice)', !!(ctx && typeof ctx.CpapEdf.readEDF === 'function'));
 
+  /* ── THE POPULATION, TESTED BOTH WAYS ───────────────────────────────────────────────────────
+     The lister IS the rule this tool publishes, so a leg reads it off a real directory in both
+     directions: an annotation is admitted and anything else is passed over. A count would pass a
+     lister that admitted everything. */
+  const tmp = mkdtempSync(join(tmpdir(), 'nsrr-effort-'));
+  try {
+    for (const f of ['rec-0001-nsrr.xml', 'rec-0002-nsrr.xml', 'rec-0003-profusion.xml', 'README.txt']) writeFileSync(join(tmp, f), 'x');
+    A('lister: one record per annotation file, keyed by the stem', listAnnotatedRecords(tmp).join(',') === 'rec-0001,rec-0002');
+    A('lister CONTROL: a non-annotation file in the same tree is passed over', listAnnotatedRecords(tmp).length === 2);
+    const snap = snapshotEntries(tmp, { list: listAnnotatedRecords, unit: 'records' });
+    A('snapshot: the published rule NAMES the lister rather than reading `list`', snap.rule === 'listAnnotatedRecords', String(snap.rule));
+    A('snapshot: the unit is RECORDS, not nights', snap.unit === 'records' && snap.n === 2);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+  const dead = snapshotEntries(join(tmp, 'gone'), { list: listAnnotatedRecords, unit: 'records' });
+  A('snapshot: a tree nobody can enumerate is not a population of 0', dead.ok === false && dead.reason !== null);
+  /* The arithmetic control's key is `record`, and `notCovered` defaults to `night` — a record
+     population addressed through the night key names every offered record as unscored. */
+  A('unscored: the offer minus the score, read through the RECORD key', notCovered({ members: ['a', 'b', 'c'], n: 3, unit: 'records' }, [{ record: 'b' }], { key: 'record' }).join(',') === 'a,c');
+  A('exit: a tree nobody can enumerate exits 2', exitCodeFor({ status: 'NOT_RUN' }, 0, 0) === 2);
+  A('exit: a root that offered nothing exits 2', exitCodeFor({ status: 'PASS' }, 0, 0) === 2);
+  A('exit: a run that scored no record exits 2 \u2014 it exited 0 before', exitCodeFor({ status: 'PASS' }, 150, 0) === 2);
+  A('exit CONTROL: reduced coverage annotates and exits 0 (owner ruling 2026-09-17)', exitCodeFor({ status: 'PASS' }, 5136, 150) === 0);
+
   console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
   return bad ? 1 : 0;
 }
@@ -326,6 +353,34 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) process.
 if (process.argv.includes('--verdict-sample') && isCliEntry(import.meta.url)) {
   console.log(JSON.stringify(verdictSample()));
   process.exit(0);
+}
+
+/* ── THE POPULATION THIS RUN SCORES OVER ──────────────────────────────────────────────────────
+   Row 2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt. `POPULATION_EXCLUSIONS`
+   excused this tool because the NSRR mount is not the capture corpus, while three siblings reading
+   the same two trees publish a population anyway. A population is about the enumeration a run
+   scores over, not about the filesystem the bytes came off, so the exclusion is gone and this is
+   the verdict it was excused from.
+
+   THE OFFER IS THE ANNOTATED RECORDS. An annotation with no EDF has nothing to score, and the
+   pairing below drops it BY NAME rather than shrinking the offer — and `--limit` is reduced
+   coverage, which annotates rather than refusing (owner ruling 2026-09-17, §∅). */
+const POP_TOOL = 'tools/nsrr-effort-typing.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+/* A NAMED lister: `snapshotEntries` publishes `rule: list.name`, and an inline arrow publishes
+   `rule: null`. One record per annotation file, keyed by the stem every path below is built from. */
+export function listAnnotatedRecords(root) {
+  return readdirSync(root)
+    .filter((f) => f.endsWith('-nsrr.xml'))
+    .map((f) => f.slice(0, -9))
+    .sort();
+}
+/* The shared exit rule, pure so the run and a leg read the same one: a tree nobody can enumerate, a
+   root that offered nothing, and a run that scored no record all exit 2. The first of those was an
+   uncaught ENOENT out of `readdirSync` before this, which is a crash rather than a verdict; reduced
+   coverage still annotates and exits 0 (owner ruling 2026-09-17, §∅). */
+export function exitCodeFor(population, offered, scored) {
+  return population.status === 'NOT_RUN' || offered === 0 || scored === 0 ? 2 : 0;
 }
 
 /* ── the run ══════════════════════════════════════════════════════════════════════════════════ */
@@ -339,15 +394,26 @@ function main(argv) {
   const limit = Number(arg('--limit', '150'));
   const beltPref = ['THOR RES', 'ABDO RES'];
 
+  const json = argv.includes('--json');
+
   const ctx = makeRealm();
-  const xmls = readdirSync(xmlDir).filter((f) => f.endsWith('-nsrr.xml'));
-  const ids = xmls.map((f) => f.slice(0, -9)).filter((id) => existsSync(join(edfDir, id + '.edf')));
+  /* ONE WALK FOR THE OFFER, and every path below is rebuilt from its member names rather than taken
+     off a second `readdirSync` — a verdict that describes one walk while the run scores another is
+     the defect this primitive exists to catch (measured 2026-10-21 on `tch-firmware-reference.mjs`). */
+  const commitOf = gitCommitOf();
+  const snapOf = (dir) => snapshotEntries(dir, { list: listAnnotatedRecords, unit: 'records' });
+  const snapBefore = snapOf(xmlDir);
+  const ids = snapBefore.members.filter((id) => existsSync(join(edfDir, id + '.edf')));
 
   console.log('▸ does effort collapse during a central apnea? — RIP belts, SHHS1');
   console.log('  bands (pre-stated)  ≥' + 100 * BAND_TRANSFERS + ' % transfers · ' + 100 * BAND_PARTIAL + '–' + 100 * BAND_TRANSFERS + ' % partial · <' + 100 * BAND_PARTIAL + ' % artifact');
   console.log('  reference figures   accelerometer 16.5 % (measured, 26 nights) · RIP belt 84 % (Nassi 2022, CITED)\n');
 
   const per = { central: [], obstructive: [] };
+  /* A record is SCORED when it contributed at least one amplitude ratio. A record that was read and
+     produced none is covered by the offer and absent from the score, which is what the names below
+     are for. */
+  const scoredRows = [];
   let scanned = 0,
     withCentral = 0,
     noBelt = 0;
@@ -376,13 +442,16 @@ function main(argv) {
     }
     const sig = sigs[key].data,
       fs = sigs[key].fs;
+    let ratios = 0;
     for (const ev of evs) {
       if (ev.kind === 'mixed') continue;
       const during = windowAmp(sig, fs, ev.start, ev.start + ev.dur);
       const base = localBaseline(sig, fs, ev);
       if (during == null || base == null || !(base > 0)) continue;
       per[ev.kind].push(during / base);
+      ratios++;
     }
+    if (ratios) scoredRows.push({ record: id });
   }
 
   const summarise = (v) => {
@@ -392,10 +461,26 @@ function main(argv) {
   };
   const C = summarise(per.central),
     O = summarise(per.obstructive);
+  /* The offer against the score. `notCovered` reads `row[key]`, and the arithmetic THROWS rather
+     than printing a coverage line that contradicts its own headline. */
+  const population = populationVerdict(snapBefore, snapOf(xmlDir), { commit: commitOf.commit, commitReason: commitOf.reason, tool: POP_TOOL, evidence: POP_EV });
+  const unscored = notCovered(snapBefore, scoredRows, { key: 'record' });
+  if (unscored.length !== snapBefore.n - scoredRows.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${scoredRows.length} scored ≠ ${unscored.length} unscored`);
+  const sayPopulation = () => {
+    console.log(`\npopulation: ${snapBefore.n} record(s) offered under ${xmlDir} · ${scoredRows.length} scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+    const popRule = ruleLine(population);
+    if (popRule) console.log(popRule);
+    if (unscored.length)
+      console.log(`  ${unscored.length} offered record(s) produced no amplitude ratio, by name: ${unscored.slice(0, 8).join(' · ')}${unscored.length > 8 ? ` · … (+${unscored.length - 8})` : ''}`);
+    console.log('POPULATION ' + JSON.stringify(population));
+  };
   console.log('  records with ≥1 central apnea scanned: ' + withCentral + (noBelt ? '   (' + noBelt + ' had no usable belt)' : ''));
   if (!C) {
     console.error('✕ no central apnea produced a usable amplitude ratio');
-    if (argv.includes('--json')) console.log(JSON.stringify(verdictObject(null, null, { records: withCentral })));
+    /* A `--json` run stays ONE parseable object, so the population rides inside it rather than on a
+       line beside it. */
+    if (json) console.log(JSON.stringify({ verdict: verdictObject(null, null, { records: withCentral }), population, unscored }));
+    else sayPopulation();
     return 2;
   }
   console.log('');
@@ -408,8 +493,9 @@ function main(argv) {
   console.log('  VERDICT  ' + C.belowHalfPct + ' % of central apneas fall below half baseline → ' + verdict);
   if (O) console.log('  CONTROL  obstructive at ' + O.belowHalfPct + ' % — if this is close to the central figure, the measure is reading low amplitude, not effort');
   // the object IS the verdict (stdout under --json; the report above is its explanation)
-  if (argv.includes('--json')) console.log(JSON.stringify(verdictObject(C, O, { records: withCentral })));
-  return 0;
+  if (json) console.log(JSON.stringify({ verdict: verdictObject(C, O, { records: withCentral }), population, unscored }));
+  else sayPopulation();
+  return exitCodeFor(population, snapBefore.n, scoredRows.length);
 }
 
 /* ⚠️ ENTRY-POINT GUARD. Without it, `import`ing this module RUNS THE WHOLE ANALYSIS — which it did:

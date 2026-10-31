@@ -196,6 +196,15 @@ const FIXTURES = [
     }
   },
   {
+    name: 'synthetic_ppgdex_twoclock_golden.node-export.json',
+    build: () => fromPPGRich('synthetic_ppgdex_verity_twoclock.txt'),
+    newRecord: {
+      added: '2026-10-31',
+      inputs: ['synthetic_ppgdex_verity_twoclock.txt'],
+      note: "Row 2026-10-29-no-committed-ppgdex-fixture-carries-a-host-axis — the TWO-CLOCK twin, the first committed PpgDex input whose host column is an independent clock. Every other committed input stamps the host from the device time, so DexClock.hostAxis reads independent:false on all of them (spread 0.75-0.93 ms, one stamp quantum), and the three goldens carrying the block publish only the side of it that says NO. This one pins the disciplined branch: independent:true, inertReason:null, timingSource 'device+host', spreadMs 9.48, and a 132 ppm rate that REACHES fs (rateApplied true over a 37 s span, the deliberate no-span-gate of board #2180). The divergence is a link stall of 9 ms between 14 s and 22 s, above CK_AXIS_INERT_MS and far below PPG_OFFSET_STEP_BOUND_MS, so the axis stays ONE segment and this fixture does not also become the first committed multi-segment night. Byte-identical to the clean twin except the Phone timestamp column. RICH, because PpgDex publishes recording.hostAxis only under opts.rich."
+    }
+  },
+  {
     name: 'synthetic_ppgdex_rich_golden.node-export.json',
     build: () => fromPPGRich('synthetic_ppgdex_verity.txt'),
     newRecord: {

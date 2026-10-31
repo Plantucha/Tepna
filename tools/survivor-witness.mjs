@@ -34,6 +34,7 @@
  *
  *   node tools/survivor-witness.mjs --minutes 15
  *   node tools/survivor-witness.mjs --minutes 60 --resume    # continues, does not restart
+ *   node tools/survivor-witness.mjs --state-dir <dir>       # reads AND writes that dir, nothing shared
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -41,13 +42,30 @@ import { resolveStatePath, stateDirs, stateJsonFiles } from './mutation-map.mjs'
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { ResumeLedger, etaFromThroughput, fingerprint, fmtDuration } from './run-progress.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* MUTATION-SUITE-FOLLOWUPS §1: reads UNION both state dirs (shared git-common location first,
    legacy in-tree as fallback); writes land in the SHARED dir so every worktree sees them. */
 const STATE_DIRS = stateDirs(ROOT);
 const WRITE_DIR = STATE_DIRS[0];
+const ARGV_SPEC = { valued: ['--minutes', '--state-dir'], boolean: ['--selftest', '--resume'] };
+
+/**
+ * THE THREE PATHS ONE RUN TOUCHES, resolved from `--state-dir` or from the §1 default pair.
+ *
+ * One flag governs all three on purpose. A redirect that moved the READ and left the writes in the
+ * shared lane would publish two artifacts of one run into two different directories, and the
+ * measured form of that defect is in `a-redirect-flag-can-govern-only-some-of-a-tool-writes`:
+ * `--out` governed one tool's exports and not its run ledger, so the ledger named nights whose
+ * exports lived elsewhere. `--state-dir` exists for a drive's sake and for a reproduction's.
+ */
+export function statePaths(root, stateDir = null) {
+  if (stateDir) return { read: [stateDir], writeDir: stateDir, ledger: join(stateDir, 'witness-progress.jsonl') };
+  const dirs = stateDirs(root);
+  return { read: dirs, writeDir: dirs[0], ledger: resolveStatePath(root, 'witness-progress.jsonl') };
+}
+
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
 const MODEL = process.env.DEX_MODEL || 'qwen3.8:27b';
 
@@ -160,6 +178,19 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   /* §1 migration contract: the shared git-common location is tried FIRST. */
   ok('state dirs try the shared tepna-mutation location first', /tepna-mutation$/.test(STATE_DIRS[0]) && /\.mutation-sweeps$/.test(STATE_DIRS[1]));
   ok('writes land in the shared dir', WRITE_DIR === STATE_DIRS[0]);
+  /* CONTROL · no redirect, so all three paths stay on the §1 default pair. */
+  const dflt = statePaths(ROOT);
+  ok('without a redirect the read unions both candidates', dflt.read.join() === STATE_DIRS.join() && dflt.writeDir === WRITE_DIR);
+  /* PLANT · one redirect must move the read, the write dir AND the resume ledger together. */
+  const red = statePaths(ROOT, '/tmp/sw-selftest');
+  ok(
+    'a redirect governs the read, the writes and the ledger',
+    red.read.join() === '/tmp/sw-selftest' && red.writeDir === '/tmp/sw-selftest' && red.ledger === '/tmp/sw-selftest/witness-progress.jsonl'
+  );
+  ok('a redirected ledger does not fall back to the shared dir', !red.ledger.startsWith(WRITE_DIR));
+  /* §1 · the SCAN must honour the redirect too, not only the path arithmetic above. */
+  const scanned = stateJsonFiles(ROOT, { dirs: ['/sw-selftest-dir'], existsFn: () => true, readdirFn: () => ['a.json', 'b.txt'] });
+  ok('a dirs override scans only the named directory', scanned.length === 1 && scanned[0].path === '/sw-selftest-dir/a.json', JSON.stringify(scanned));
 
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
@@ -167,21 +198,23 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
 
 if (IS_MAIN && !process.argv.includes('--selftest')) {
   const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'survivor-witness' });
   const opt = (f, d) => {
     const i = argv.indexOf(f);
     return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
   };
   const minutes = Number(opt('--minutes', '15')) || 15;
+  const paths = statePaths(ROOT, opt('--state-dir', null));
   const files = [];
   /* An absent sweep directory is a SETUP problem, not an empty result. It is gitignored, so a fresh
      worktree has none — and crashing with a readdir stack trace tells the operator nothing about
      what to do, while an empty run would have been worse: indistinguishable from 'nothing is
      killable'. */
-  const sweepEntries = stateJsonFiles(ROOT);
-  if (!sweepEntries.length && !STATE_DIRS.some((d) => existsSync(d))) {
+  const sweepEntries = stateJsonFiles(ROOT, { dirs: paths.read });
+  if (!sweepEntries.length && !paths.read.some((d) => existsSync(d))) {
     console.error('✗ no state directory at either candidate — run the operator sweeps first, or point');
     console.error('  at a checkout that has them. This is a missing INPUT, not a finding of zero.');
-    console.error('  tried: ' + STATE_DIRS.join('  then  '));
+    console.error('  tried: ' + paths.read.join('  then  '));
     process.exit(2);
   }
   for (const e of sweepEntries) {
@@ -193,16 +226,17 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   }
   const probes = probesFrom(files);
   if (!probes.length) {
-    console.error('✗ no probes — .mutation-sweeps holds no survivor records with an `if (…)` condition.');
+    console.error('✗ no probes — the state read holds no survivor records with an `if (…)` condition.');
     console.error('  An empty run here is indistinguishable from "nothing is killable", which is the');
     console.error('  one answer this tool must never fake.');
+    console.error('  read: ' + paths.read.join('  and  '));
     process.exit(2);
   }
   /* Append-only, streamed: a kill costs ONE probe, not the whole run. The previous harness wrote its
      witnesses once at the end and would have lost 423 of them to a Ctrl-C. */
-  const out = join(WRITE_DIR, 'survivor-witnesses.jsonl');
-  mkdirSync(WRITE_DIR, { recursive: true });
-  const led = new ResumeLedger(argv.includes('--resume') ? resolveStatePath(ROOT, 'witness-progress.jsonl') : null, fingerprint({ tool: 'survivor-witness@1', model: MODEL, n: probes.length })).load();
+  const out = join(paths.writeDir, 'survivor-witnesses.jsonl');
+  mkdirSync(paths.writeDir, { recursive: true });
+  const led = new ResumeLedger(argv.includes('--resume') ? paths.ledger : null, fingerprint({ tool: 'survivor-witness@1', model: MODEL, n: probes.length })).load();
   if (led.stale) process.stderr.write('  ⚠ ledger describes different inputs — starting from zero\n');
   led.begin();
   const todo = probes.filter((p) => !led.has(p.key));

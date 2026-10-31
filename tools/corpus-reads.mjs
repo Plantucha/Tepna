@@ -41,6 +41,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -320,7 +321,7 @@ const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'do', '
  * another: a parameter of the function the call sits INSIDE is the binding in force. */
 export function functionSpans(masked) {
   const spans = [];
-  const add = (name, raw, from) => {
+  const add = (name, raw, from, decl, kind) => {
     const params = new Set();
     for (const p of String(raw).split(',')) {
       const n = p
@@ -329,22 +330,25 @@ export function functionSpans(masked) {
         .trim();
       if (/^[A-Za-z_$][\w$]*$/.test(n)) params.add(n);
     }
-    spans.push({ name, params, at: from, end: bodyEnd(masked, from) });
+    spans.push({ name, params, at: from, end: bodyEnd(masked, from), decl, kind });
   };
-  for (const m of masked.matchAll(/(?:\basync\s+)?\bfunction\b\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) add(m[1] || null, m[2], m.index + m[0].length);
-  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|([A-Za-z_$][\w$]*))\s*=>/g)) add(m[1], m[2] ?? m[3] ?? '', m.index + m[0].length);
+  for (const m of masked.matchAll(/(?:\basync\s+)?\bfunction\b\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g))
+    add(m[1] || null, m[2], m.index + m[0].length, m.index, m[1] ? 'declaration' : 'anonymous');
+  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|([A-Za-z_$][\w$]*))\s*=>/g))
+    add(m[1], m[2] ?? m[3] ?? '', m.index + m[0].length, m.index, 'arrow');
   /* THE DECLARATOR FORM OF A FUNCTION EXPRESSION, which the `function` pattern above sees as
      ANONYMOUS because its name is optional there. Without this line `const f = function (…) {}`
      produces a span with a null name, so `localFunctions` drops it and the local-helper rung
      cannot follow argv into the body. The keyword is what makes the name safe to register: `=
      function` binds nothing else. A named expression (`const f = function g(…) {}`) binds BOTH,
      and the pattern above already registers the inner `g`. */
-  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?function\b\s*\*?\s*(?:[A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) add(m[1], m[2], m.index + m[0].length);
-  for (const m of masked.matchAll(/\(([^)]*)\)\s*=>/g)) add(null, m[1], m.index + m[0].length);
-  for (const m of masked.matchAll(/(?:^|[^\w$)])([A-Za-z_$][\w$]*)\s*=>/gm)) add(null, m[1], m.index + m[0].length);
+  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?function\b\s*\*?\s*(?:[A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g))
+    add(m[1], m[2], m.index + m[0].length, m.index, 'expression');
+  for (const m of masked.matchAll(/\(([^)]*)\)\s*=>/g)) add(null, m[1], m.index + m[0].length, m.index, 'anonymous');
+  for (const m of masked.matchAll(/(?:^|[^\w$)])([A-Za-z_$][\w$]*)\s*=>/gm)) add(null, m[1], m.index + m[0].length, m.index, 'anonymous');
   /* Method shorthand, which an object of walkers is written as. The keyword guard is what keeps
      `if (dir) {` from declaring a parameter called `dir`. */
-  for (const m of masked.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{/g)) if (!NOT_A_FUNCTION.has(m[1])) add(m[1], m[2], m.index + m[0].length - 1);
+  for (const m of masked.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{/g)) if (!NOT_A_FUNCTION.has(m[1])) add(m[1], m[2], m.index + m[0].length - 1, m.index, 'method');
   return spans;
 }
 
@@ -615,11 +619,214 @@ export function blankSampleHelpers(masked) {
   return out;
 }
 
+/* ── THE FLAG'S OWN BLOCK, BECAUSE A SAMPLE NEED NOT SIT IN A NAMED HELPER ─────────────────────
+   `SAMPLE_HELPER` above keys the blanking on FOUR function names, so the same fabricated call
+   written under a fifth name clears the tool — and a call written at top level inside
+   `if (argv.includes('--verdict-sample'))` belongs to no function at all, so there is no name to
+   key on. That is the clearance the blanking exists to prevent, reached by spelling.
+   Row 2026-10-28-the-sample-helper-blanking-is-keyed-on-four-spellings.
+
+   So the second rung reads the FLAG rather than a name. Measured 2026-10-31 over the 301 tools in
+   `tools/`: 333 `if` blocks in 229 files test a sample flag positively and now blank — 328 of them
+   through a call (`argv.includes('--selftest')`) and 5 through the equality an argv parser writes
+   (`if (a === '--selftest')`) — while 31 more test one NEGATIVELY and are left alone. The negative half is the direction that matters: `IS_MAIN &&
+   !process.argv.includes('--selftest')` guards the REAL run, and blanking it would gut a reporting
+   tool's own population call. No tool changes class on this tree, so the rung buys soundness, not
+   a re-bin — the point is that no rename or de-naming can reach the clearance any more.
+
+   THE FLAG LITERAL IS READ OFF RAW SOURCE. `maskNonCode` empties every string body, so the masked
+   text this module classifies over no longer holds the word `--verdict-sample`. Masking preserves
+   offsets and lines, which is what lets one text locate a span the other blanks; the pair is
+   checked for alignment rather than assumed.
+
+   ⚠️ THE FIFTH HELPER NAME WAS THE OTHER HALF OF THAT ROW, AND THE THIRD RUNG BELOW ANSWERS IT
+   by reachability rather than by a longer list of names, which is the same spelling trap one hop
+   out. Row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper.
+
+   ⚠️ TWO GUARD SHAPES STAY OUTSIDE THIS RUNG, each measured at 0 population calls today:
+   `argv.includes('--selftest') && selftest();` (33 sites) and the ternary (1 site). Both are
+   statement-level, so there is no block to blank; a population call written into one would clear
+   its tool exactly as the nameless `if` body did. A text census has no parser, and this is where
+   that limit lands. */
+const SAMPLE_FLAG = /--verdict-sample|--selftest\b/;
+
+/** Does `cond` test the sample flag at offset `at` POSITIVELY? PURE. */
+export function positiveFlagTest(cond, at) {
+  const c = String(cond);
+  if (!(at >= 0)) return false;
+  const left = c.slice(0, at);
+  const right = c.slice(at);
+  const callee = left.match(/([A-Za-z_$][\w$.]*)\s*\(\s*['"]?\s*$/);
+  if (callee) {
+    const before = left.slice(0, left.length - callee[0].length).replace(/\s+$/, '');
+    if (before.endsWith('!')) return false;
+    /* `indexOf(flag) === -1` and `< 0` are the same guard spelled by position. */
+    if (/^[^)]*\)\s*(?:===?)\s*(?:-1|false)/.test(right)) return false;
+    if (/^[^)]*\)\s*<\s*0/.test(right)) return false;
+    return true;
+  }
+  /* The equality shape, which an argv parser writes: `if (a === '--selftest')`. The character
+     before the operator is what separates it from `!==`. */
+  if (/(?:[^!=<>]|^)(?:===?)\s*['"]?\s*$/.test(left)) return true;
+  if (/^[^'"]*['"]\s*(?:===?)(?!=)/.test(right)) return true;
+  return false;
+}
+
+/** Spans of every `if` body whose condition positively tests a sample flag. PURE. */
+export function sampleFlagSpans(masked, raw) {
+  const m = String(masked);
+  const r = String(raw);
+  /* OFFSETS ONLY ALIGN WHILE THE TWO TEXTS ARE THE SAME LENGTH. A caller that masked, trimmed and
+     then handed over the untrimmed original would blank a span computed from the wrong text, so
+     this refuses instead of blanking somewhere plausible. */
+  if (m.length !== r.length) throw new Error('sampleFlagSpans: masked and raw source must align (same length)');
+  const out = [];
+  for (const k of m.matchAll(/\bif\s*\(/g)) {
+    const open = k.index + k[0].length - 1;
+    let depth = 0;
+    let close = -1;
+    for (let j = open; j < m.length; j++) {
+      if (m[j] === '(') depth++;
+      else if (m[j] === ')' && --depth === 0) {
+        close = j;
+        break;
+      }
+    }
+    if (close < 0) continue;
+    const cond = r.slice(open, close + 1);
+    if (!positiveFlagTest(cond, cond.search(SAMPLE_FLAG))) continue;
+    out.push({ at: close + 1, end: bodyEnd(m, close + 1) });
+  }
+  return out;
+}
+
+/** The masked source with every sample-FLAG block body blanked. Offsets and lines keep. PURE. */
+export function blankFlagSampleBlocks(masked, raw) {
+  let out = String(masked);
+  for (const s of sampleFlagSpans(out, raw).reverse()) {
+    const blanked = out.slice(s.at, s.end + 1).replace(/[^\n]/g, ' ');
+    out = out.slice(0, s.at) + blanked + out.slice(s.end + 1);
+  }
+  return out;
+}
+
+/* ── THE THIRD RUNG: REACHABILITY, BECAUSE A FIFTH NAME IS THE SAME TRAP ONE HOP OUT ──────────
+   The two rungs above are both keyed on SPELLING: four helper names, then two flag literals. A
+   fabricated call inside `function showOffer()` that only the flag block calls survives both — the
+   body sits outside the block, and the name is not one of the four. A longer list of names answers
+   that with the same instrument that failed, one hop out, so this rung asks a different question.
+
+   THE QUESTION IS WHETHER ANY LIVE TEXT STILL NAMES THE FUNCTION. After the first two rungs the
+   sample regions are whitespace, so a local function nothing outside them mentions cannot be called
+   on the real path at all. Its body is blanked, and the walk repeats to a fixpoint, which is what
+   reaches a chain: a helper called only by a sample-only helper reads unreferenced on the next pass.
+
+   WHAT IS NEVER BLANKED. An exported name is reachable by definition — a selftest or a sibling tool
+   imports it — so `exportedNames` holds every rung off it. A name mentioned anywhere outside its own
+   declaration is live, including a mention through a property (`S.showOffer`) or an object shorthand,
+   because presence is the conservative direction here: this rung REMOVES a clearance, and
+   over-blanking would state a finding about a tool that reports.
+
+   THE SPANS COME FROM UNBLANKED TEXT, AND THAT IS NOT A DETAIL. `bodyEnd` skips whitespace from the
+   header it is handed, so over an already-blanked body it walks past the blank and returns the NEXT
+   function's closing brace. A first measurement of this shape read 14 occurrences that way; the
+   re-measurement from unblanked text reads 0. So the rung takes its span list from the masked source
+   before any blanking and holds it against the progressively blanked copy, and the pair is checked
+   for alignment rather than assumed.
+
+   MEASURED 2026-10-31 over the 305 tracked `.mjs`/`.js` files in `tools/`: 202 of them hold at
+   least one local nothing live names, 493 names blank in all, and 351 of those are a BODY this rung
+   removes rather than a header whose body the first rung had already taken. It removes 0 population
+   calls and moves 0 tools between classes. The suite's own leg reads 200 of the 301 files its
+   source map carries, which is the same figure over a population four files smaller — two
+   instruments, and each prints the population it counted. So the shape the row names is unreached today and the rung
+   buys soundness, not a re-bin — which is why the selftest and the suite carry the shape itself: a
+   rename that used to clear a tool now reds nothing anywhere else.
+   Row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper. */
+
+/** Every name the subject EXPORTS, which no reachability rung may blank. PURE. */
+export function exportedNames(masked) {
+  const out = new Set();
+  const m = String(masked);
+  for (const k of m.matchAll(/\bexport\s+(?:async\s+)?function\b\s*\*?\s*([A-Za-z_$][\w$]*)/g)) out.add(k[1]);
+  for (const k of m.matchAll(/\bexport\s+(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)) out.add(k[1]);
+  for (const k of m.matchAll(/\bexport\s+default\s+(?:async\s+)?(?:function\b\s*\*?\s*)?([A-Za-z_$][\w$]*)/g)) out.add(k[1]);
+  /* The list form, where a name is bound at the bottom of the file rather than at its declaration. */
+  for (const k of m.matchAll(/\bexport\s*\{([^}]*)\}/g)) {
+    for (const part of k[1].split(',')) {
+      const n = part
+        .trim()
+        .split(/\s+as\s+/)[0]
+        .trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(n)) out.add(n);
+    }
+  }
+  return out;
+}
+
+/** The kinds of span a reachability rung may blank — a NAMED local, never an anonymous callback. */
+const REACHABLE_KINDS = new Set(['declaration', 'arrow', 'expression', 'method']);
+
+/** Is `name` mentioned in `text` outside every region `own` covers? PURE. */
+export function namedOutside(text, name, own) {
+  const t = String(text);
+  /* `\b` IS THE WRONG BOUNDARY FOR AN IDENTIFIER, because `$` is not a word character: a helper
+     called `$fmt` bounds at the wrong place under it. The lookarounds spell the alphabet out.
+     The escaper has ONE home in this tree, so the name goes through `escapeRe`. An identifier
+     carries no metacharacter, so a local copy would read as correct and state a rule a caller
+     elsewhere may break. */
+  const re = new RegExp(`(?<![\\w$])${escapeRe(name)}(?![\\w$])`, 'g');
+  for (const k of t.matchAll(re)) {
+    if (own.some((s) => k.index >= s.decl && k.index <= s.end)) continue;
+    return true;
+  }
+  return false;
+}
+
+/** `blanked` with every local function no live text names blanked too. `spanSource` is the masked
+ *  source BEFORE any blanking, because `bodyEnd` cannot read a blanked body. Offsets and lines
+ *  keep. PURE. */
+export function blankSampleOnlyLocals(blanked, spanSource) {
+  let out = String(blanked);
+  const src = String(spanSource);
+  /* The two texts are one instrument, exactly as the masked/raw pair above is. */
+  if (out.length !== src.length) throw new Error('blankSampleOnlyLocals: the blanked and span-source texts must align (same length)');
+  const exported = exportedNames(src);
+  const byName = new Map();
+  for (const s of functionSpans(src)) {
+    if (!s.name || !REACHABLE_KINDS.has(s.kind) || exported.has(s.name)) continue;
+    if (!byName.has(s.name)) byName.set(s.name, []);
+    byName.get(s.name).push(s);
+  }
+  const blankedNames = new Set();
+  /* The pass cap is the candidate count, so a chain of any length in this file reaches its fixpoint
+     and a cycle cannot spin: every pass either blanks one name or ends the walk. */
+  for (let pass = 0; pass <= byName.size; pass++) {
+    let moved = false;
+    for (const [name, spans] of byName) {
+      if (blankedNames.has(name) || namedOutside(out, name, spans)) continue;
+      for (const s of spans) {
+        const blank = out.slice(s.decl, s.end + 1).replace(/[^\n]/g, ' ');
+        out = out.slice(0, s.decl) + blank + out.slice(s.end + 1);
+      }
+      blankedNames.add(name);
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return out;
+}
+
 /** Decide one tool from its source. PURE. */
 export function classifyTool(text) {
   const sites = enumerationSites(text);
   if (sites.length === 0) return { cls: 'no-enumeration', why: 'the file enumerates no directory', sites };
-  const masked = blankSampleHelpers(maskNonCode(text));
+  /* THREE RUNGS: the helper NAMES, then the sample FLAG's own block, then every local function no
+     live text names. The second reads raw source for the flag literal, because the first text has
+     had every string emptied; the third reads the UNBLANKED masked copy for its spans, because
+     `bodyEnd` walks past a blanked body into the next function. */
+  const masked0 = maskNonCode(text);
+  const masked = blankSampleOnlyLocals(blankFlagSampleBlocks(blankSampleHelpers(masked0), text), masked0);
   /* EITHER VERDICT BUILDER COUNTS. `populationVerdict` answers "which nights did this run cover";
      `censusVerdict` answers "which roots did this count search, and which are not on this box" —
      the same question one rung out, and the shape `corpus-scope.mjs`'s own CLI prints. Keying on
@@ -684,35 +891,37 @@ export const SELF = 'tools/corpus-reads.mjs';
      board-corpus.mjs       the same night regex, matching the DATE IN A RESIDUE ROW KEY inside
                             the board's claim protocol (`CLAIM 2026-10-28-some-row`). It
                             enumerates the output folder its own `--out` flag names.
-     nsrr-effort-typing.mjs `.edf`, under `/srv/data/shhs/` — the public NSRR mount, a different
-     nsrr-score-pool.mjs    filesystem from the capture corpus, which the daily re-tier never
-                            touches (`corpus-tier.mjs` is scoped to `/srv/data/tepna-corpus/`).
-
    A row excluded here keeps its CLASS — the scan still reports what it enumerates — and only
-   leaves the corpus population, so nothing is hidden. */
+   leaves the corpus population, so nothing is hidden.
+
+   🔴 A MOUNT IS NOT A REASON, and two rows left this table on 2026-10-31 for saying it was (row
+   2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt). `nsrr-effort-typing.mjs` and
+   `nsrr-score-pool.mjs` were excused because the NSRR mount is a different filesystem from the
+   capture corpus — and three siblings reading the SAME two trees published a population anyway, so
+   one of the two readings had to be wrong. A population is about the enumeration a run scores over,
+   not about the filesystem the bytes came off: both are wired now and neither name belongs here
+   again. Every excuse that remains is about what the tool ENUMERATES, which is the only thing that
+   decides whether it owes one. */
 export const POPULATION_EXCLUSIONS = {
   'argv-survey.mjs': 'names DEX_UPLOADS only to delete it from a probe environment',
   'importer-flag-probe.mjs': 'names DEX_UPLOADS only to scrub it from each probe child; it enumerates the tools/ tree',
   'build-docs.mjs': 'the night-shaped regex validates a release date; it enumerates docs/',
   'board-corpus.mjs': 'the night-shaped regex matches the date in a residue row key; it enumerates the folder --out names',
-  'nsrr-effort-typing.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
-  'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
   'codex-export.mjs':
     'it walks a git-archive export built to EXCLUDE the corpus, and it already publishes its own offer-vs-read population over that export; a second verdict there would name a repo-path unit as a corpus one'
 };
 
-/* ── THE FIVE THE TRACER STILL WILL NOT DECIDE ─────────────────────────────────────────────────
-   Named, with the shape that defeats the tracer, so a SIXTH is a red rather than a shrug. The
-   abstention is the honest answer in each: none of the three shapes can be decided from the
-   masked expression alone, and a guess in either direction would be a verdict over an unexamined
-   path. They group into three kinds, not five special cases:
+/* ── THE FOUR THE TRACER STILL WILL NOT DECIDE ─────────────────────────────────────────────────
+   Named, with the shape that defeats the tracer, so a FIFTH is a red rather than a shrug. The
+   abstention is the honest answer in each: neither shape can be decided from the masked
+   expression alone, and a guess in either direction would be a verdict over an unexamined path.
+   They group into two kinds, not four special cases. (`release.mjs` left on 2026-10-31: it entered
+   the population only through a `\d{4}-\d{2}-\d{2}` header regex in its README audit, and the
+   generated release paragraph retired that regex. It reads no corpus.)
 
      board.mjs            a HOME-DIRECTORY store (`path.join(homedir(), '.npm', '_npx')`,
      fleet-turns.mjs      `join(homedir(), …)` for the transcripts) — neither the repo tree nor a
                           path any flag supplies, and the ladder has no rung for it.
-     release.mjs          a LOCAL HELPER the tracer follows only far enough to look for a run-time
-                          read: `p('changes')` is `join(ROOT, …)`, so abstaining costs a true
-                          repo clearance and claims nothing.
      sigma-corpus-headless.mjs  a WORKLIST walk — `readdirSync(stack.pop())`, whose origin is
      r5-hr-reference.mjs        whatever was pushed; and a TEMPLATE literal root, whose body the
                                 mask blanks (`${REPO}/uploads/trio` reads as an empty backtick
@@ -720,7 +929,6 @@ export const POPULATION_EXCLUSIONS = {
 export const UNDECIDED_CORPUS = {
   'board.mjs': 'a home-directory store under homedir(), neither repo tree nor a flag-supplied path',
   'fleet-turns.mjs': 'a home-directory transcript store under homedir()',
-  'release.mjs': 'the local helper p() joins the repo ROOT; the tracer follows a helper only to find a run-time read',
   'sigma-corpus-headless.mjs': 'a worklist walk over stack.pop(), whose origin is whatever was pushed',
   'r5-hr-reference.mjs': 'a template-literal root; the mask blanks the body, so the expression reads empty'
 };
@@ -864,11 +1072,18 @@ export const UNWIRED_BACKLOG = {
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a `--cache` build pointed
      at nothing, a sweep with no cache, and a run that scored no record now exit 2 where all of
      them exited 0.
-     ⚠️ TWO SIBLINGS ON THE SAME MOUNT ARE STILL EXCLUDED rather than wired —
-     `nsrr-effort-typing.mjs` and `nsrr-score-pool.mjs` sit in `POPULATION_EXCLUSIONS` because the
-     NSRR mount is not the capture corpus, while these three sat here as debt. Wiring these three
-     settles the three; whether the exclusion still reads right for the other two is row
-     2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt. */
+     AND THE TWO SIBLINGS ON THE SAME MOUNT FOLLOWED, 2026-10-31, row
+     2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt. `nsrr-effort-typing.mjs` and
+     `nsrr-score-pool.mjs` sat in `POPULATION_EXCLUSIONS` for reading the NSRR mount while these
+     three sat here as debt for reading the same two trees, and one of the two readings had to be
+     wrong. The exclusions went: the effort tool is offered the ANNOTATED records and the pool is
+     offered the PAIRING, each snapshotted before the read and published after it, so the scan reads
+     both as `reports` and this list must not name them either. The pool's queue is now rebuilt from
+     the offer's member names rather than from a second walk, and a leg pins it against the paths the
+     pairing itself built. AND THE REFUSALS CHANGED SHAPE RATHER THAN COUNT: the effort tool answered an
+     unenumerable annotation tree with an uncaught ENOENT, and the pool RETURNED 0 with every worker
+     erroring. Both now publish a NOT_RUN population and exit 2, and the rule is one pure function a
+     leg reads, so reduced coverage still annotates and exits 0. */
   /* FIVE SINGLE-ROOT NAMES LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `beat-error-recovery.mjs`,
      `deep-desat-falsifier.mjs`, `ppg-autogain-e2.mjs`, `ppg-bridge-hrv-validate.mjs` and
@@ -979,6 +1194,68 @@ function selftest() {
       'enumerates'
     ],
     ['CONTROL · and the NAME alone, in prose, clears nothing either', 'const dir = process.argv[2];\nreaddirSync(dir);\n// censusVerdict(rows) would go here\n', 'enumerates'],
+    /* THE SAMPLE FLAG'S OWN BLOCK, both directions. The first case is the shape row
+       2026-10-28-the-sample-helper-blanking-is-keyed-on-four-spellings names: the fabricated call
+       sits at top level under the flag, so there is no enclosing function to key a name on. The
+       second is the same call on the real path, because a rung that blanked both would clear
+       nothing and still pass the negative half. */
+    [
+      'CONTROL · a population call at top level under the sample flag clears nothing',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) {\n  console.log(populationVerdict(fakeA, fakeB));\n}\n",
+      'enumerates'
+    ],
+    [
+      '…and the same call outside that block still reports',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nconsole.log(populationVerdict(a, b));\nif (process.argv.includes('--verdict-sample')) {\n  console.log('sample');\n}\n",
+      'reports'
+    ],
+    /* THE NEGATED GUARD IS THE REAL RUN. 31 conditions in `tools/` spell `IS_MAIN &&
+       !process.argv.includes('--selftest')`, and blanking one would gut a reporting tool's own
+       population call — the loud direction, but wrong either way. */
+    [
+      'CONTROL · a NEGATED flag test guards the real run, so its block is not blanked',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nif (IS_MAIN && !process.argv.includes('--selftest')) {\n  console.log(populationVerdict(a, b));\n}\n",
+      'reports'
+    ],
+    [
+      'the equality shape an argv parser writes is a flag test too',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nfor (const a of argv) {\n  if (a === '--verdict-sample') {\n    console.log(populationVerdict(fakeA, fakeB));\n  }\n}\n",
+      'enumerates'
+    ],
+    [
+      'a brace-less flag body is one statement, and it ends at the semicolon',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) console.log(populationVerdict(fakeA, fakeB));\nconst after = 1;\n",
+      'enumerates'
+    ],
+    /* THE THIRD RUNG, which answers the fifth-named helper by reachability. The first case is the
+       shape row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper names, and the
+       four after it are the directions a rung keyed on reachability must not take: a live caller,
+       an export, a call on both paths, and a chain one hop longer than the first case. */
+    [
+      'a population call in a fifth-named helper only the flag block calls clears nothing',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(fakeA, fakeB);\n}\nif (process.argv.includes('--verdict-sample')) showOffer();\n",
+      'enumerates'
+    ],
+    [
+      'CONTROL · the same helper with a caller on the real path still reports',
+      'const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(a, b);\n}\nconsole.log(showOffer());\n',
+      'reports'
+    ],
+    [
+      'CONTROL · an EXPORTED helper is reachable by definition, whatever this file calls',
+      'const dir = process.argv[2];\nreaddirSync(dir);\nexport function showOffer() {\n  return populationVerdict(a, b);\n}\n',
+      'reports'
+    ],
+    [
+      'CONTROL · a helper called from BOTH paths is live, and the sample call does not condemn it',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(a, b);\n}\nconsole.log(showOffer());\nif (process.argv.includes('--verdict-sample')) showOffer();\n",
+      'reports'
+    ],
+    [
+      'a CHAIN of sample-only helpers clears nothing either, because the walk runs to a fixpoint',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nfunction inner() {\n  return populationVerdict(f, g);\n}\nfunction showOffer() {\n  return inner();\n}\nif (process.argv.includes('--selftest')) showOffer();\n",
+      'enumerates'
+    ],
     ['no enumeration at all', "const p = '/srv/data/tepna-corpus';\nconsole.log(p);", 'no-enumeration'],
     ['a root named in a COMMENT does not enumerate', '// walks /srv/data/tepna-corpus nightly\nconst x = 1;', 'no-enumeration'],
     ['an unresolvable argument abstains, it does not clear', 'readdirSync(someGlobal);', 'undecidable'],
@@ -1140,9 +1417,34 @@ function selftest() {
   const partition = parts.join(',') === sample && parts.length === 3;
   if (!partition) bad++;
   console.log(`  ${partition ? '✓' : '✗'} the argument spans partition the list exactly (${parts.length} span(s), reconstructed)`);
+  /* THE FLAG RUNG KEEPS THE GEOMETRY. Every other rung reports a position, and the blanking is the
+     only step that rewrites the text the positions index. Measured over all 301 tools in `tools/`:
+     length and line count moved in none. */
+  const flagSrc = "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) {\n  console.log(populationVerdict(a, b));\n}\nconst after = 1;\n";
+  const flagMasked = maskNonCode(flagSrc);
+  const flagBlanked = blankFlagSampleBlocks(flagMasked, flagSrc);
+  const geometry =
+    flagBlanked.length === flagMasked.length &&
+    flagBlanked.split('\n').length === flagMasked.split('\n').length &&
+    !/populationVerdict/.test(flagBlanked) &&
+    /readdirSync/.test(flagBlanked) &&
+    /const after/.test(flagBlanked);
+  if (!geometry) bad++;
+  console.log(`  ${geometry ? '✓' : '✗'} the flag-block blanking removes the body and keeps every offset and line around it`);
+  /* AND IT REFUSES A PAIR THAT CANNOT ALIGN rather than blanking a span computed from the wrong
+     text. The flag literal lives in raw source and the span in the masked copy, so the two texts
+     are one instrument. */
+  let refused = false;
+  try {
+    sampleFlagSpans(flagMasked, flagSrc.slice(1));
+  } catch {
+    refused = true;
+  }
+  if (!refused) bad++;
+  console.log(`  ${refused ? '✓' : '✗'} a masked/raw pair of different lengths is refused, not blanked`);
   /* The count is the point: `tools/selftest-all.mjs` reads PASS either way, and a suite quietly
      shrinking from nine legs to three is visible only in this number. */
-  const total = cases.length + 6;
+  const total = cases.length + 8;
   console.log(bad === 0 ? `all ${total} selftests passed` : `corpus-reads selftest: FAIL (${bad} of ${total})`);
   return bad === 0 ? 0 : 1;
 }

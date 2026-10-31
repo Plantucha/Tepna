@@ -35,6 +35,11 @@
  * its `readFileSync` lives in the `--grids` sweep, so a run without that flag never loads a byte.
  * `riskEnclosure` reads the enclosing top-level statement and demands the predicate.
  *
+ * 🔴 EVERY ONE OF THE 11 IS DRIVEN AS OF 2026-10-31, SO `UNDRIVEN` IS EMPTY. The two that stayed out
+ * fell to their own causes, named at the table below. An empty exclusion set makes every leg that
+ * loops over it vacuous (§4b), so the slug rule is asserted through `namedAsSlug` over plants rather
+ * than over the data, and it still holds for an exclusion added years from now.
+ *
  * ⚠️ THE UNDRIVEN TOOLS APPEAR AS SLUGS, AND THAT ASYMMETRY IS LOAD-BEARING. `spawnedTools()` in the
  * census credits coverage to every `tools/<name>.mjs` string inside a file that spawns a child. It
  * cannot tell a drive from a mention, so writing an undriven tool's full path here would hand it a
@@ -106,6 +111,15 @@ export function plantSweepState(dir, name) {
   return p;
 }
 
+/* A sweep state whose survivors carry NO `if (…)` condition. The reader's risk still executes over
+   it, and the run then refuses BELOW that line without reaching the writes — which matters twice:
+   the writes land in a mutation lane, and reaching them would call the local model for minutes. */
+function plantSweepStateNoProbe(dir, name) {
+  const p = plantDir(dir, name);
+  const rec = { file: 'f.js', survivors: [{ line: 1, op: 'cmp', before: 'var a = 1;', after: 'var a = 2;' }] };
+  writeFileSync(join(p, 'planted.json'), JSON.stringify(rec));
+  return p;
+}
 function plantFile(dir, name, text) {
   const p = join(dir, name);
   writeFileSync(p, text);
@@ -202,22 +216,55 @@ export const RECIPES = [
     marker: 'probes considered',
     enters: (argv) => !argv.includes('--selftest'),
     entersWhy: 'the risk sits in the main block, which the absence of `--selftest` opens; `--max-probes` then bounds the loop inside it'
+  },
+  {
+    tool: 'tools/survivor-witness.mjs',
+    why: 'a bare run reads AND writes the shared mutation-sweep state, which is another session lane, so the recipe plants a state dir and redirects the whole run into it',
+    plant: (d) => ({ dir: plantSweepStateNoProbe(d, 'sweeps') }),
+    argv: (_d, p) => ['--state-dir', p.dir, '--minutes', '1'],
+    code: 2,
+    marker: 'no probes — ',
+    enters: (argv) => !argv.includes('--selftest') && argv.includes('--state-dir'),
+    entersWhy: 'the absence of `--selftest` opens the main block; `--state-dir` then points the read at the planted dir instead of the shared lane'
+  },
+  {
+    tool: 'tools/tch-third-corner.mjs',
+    why: 'the usage exit sits ABOVE the risk, so four paths must be offered; a path need only EXIST to clear that exit, and the parse then fails loudly below the risk',
+    plant: (d) => ({
+      ecg: plantFile(d, 'ecg.txt', 'x\n'),
+      ppg: plantFile(d, 'ppg.txt', 'x\n'),
+      oxy: plantFile(d, 'oxy.txt', 'x\n'),
+      o2p: plantFile(d, 'o2p.txt', 'x\n')
+    }),
+    argv: (_d, p) => ['--ecg', p.ecg, '--ppg', p.ppg, '--oxyframe', p.oxy, '--o2ppg', p.o2p],
+    code: 1,
+    marker: 'INPUT VALIDATION —',
+    enters: (argv) => ['--ecg', '--ppg', '--oxyframe', '--o2ppg'].every((f) => argv.includes(f)),
+    entersWhy: 'each of the four flags clears one usage exit above the risk, and the exit refuses the run when any is absent'
   }
 ];
 
 /* ── the tools this driver will not drive ─────────────────────────────────────────────────────────
    Slugs only. Writing the full path here would credit them in the census for a mention (see above).
    Each reason below rests on a measurement, and §∅ holds them as excluded rather than green. */
-export const UNDRIVEN = [
-  {
-    slug: 'survivor-witness',
-    reason: 'a bare run calls mkdirSync and appendFileSync into the shared mutation-sweep state, which is another session lane'
-  },
-  {
-    slug: 'tch-third-corner',
-    reason: 'its usage exit sits ABOVE the risk line, and entering the branch needs four real capture streams'
-  }
-];
+export const UNDRIVEN = [];
+
+/* Both former exclusions are driven as of 2026-10-31, and each reason failed for its own cause.
+   `survivor-witness` wrote into a shared lane because nothing redirected it, and a `--state-dir`
+   governing the read, the writes and the resume ledger removed the hazard rather than excusing it.
+   `tch-third-corner` was held to need four REAL capture streams, and it needs four PATHS: a
+   one-byte file clears the usage exit, and the loud refusal below the risk is the proof. */
+
+/**
+ * THE GREP-CREDIT SAFEGUARD, as a function rather than a loop over the data.
+ *
+ * An exclusion is named by SLUG because the census credits a tool for a mention of its full path.
+ * A loop over `UNDRIVEN` proves nothing while the set is empty (§4b), so the plants below exercise
+ * this directly and the rule survives an exclusion added years from now.
+ */
+export function namedAsSlug(slug, src) {
+  return !new RegExp(`tools/${slug}\\.mjs`).test(src);
+}
 
 /** Every line where `marker` occurs. The proof needs them all below the risk line. */
 export function markerLines(src, marker) {
@@ -427,8 +474,14 @@ function selftest(parse = jsParse()) {
      would otherwise read the original and report the original's safeguard as its own. */
   const selfSrc = readFileSync(fileURLToPath(import.meta.url), 'utf8');
   for (const u of UNDRIVEN) {
-    ok(`${u.slug} is named as a slug, so the census credits it nothing`, !new RegExp(`tools/${u.slug}\\.mjs`).test(selfSrc));
+    ok(`${u.slug} is named as a slug, so the census credits it nothing`, namedAsSlug(u.slug, selfSrc));
   }
+  /* PLANT · the census spelling must be caught, so the loop above can fail once a set returns. */
+  /* The plants name a tool that does not exist, because a real name written in the census spelling
+     would hand that tool the very green `covered` this leg exists to refuse. */
+  ok('PLANT · a full-path mention of an exclusion is refused', namedAsSlug('no-such-tool', "slug: 'tools/no-such-tool.mjs'") === false);
+  /* CONTROL · the slug spelling passes, so the plant moved one thing. */
+  ok('CONTROL · the slug spelling is accepted', namedAsSlug('no-such-tool', "slug: 'no-such-tool'") === true);
 
   /* PLANT · a wrong expected code must FAIL the leg, so a passing leg can fail. */
   const plant = { ...RECIPES.find((r) => r.tool === 'tools/pat-window-scaling.mjs'), code: 7 };

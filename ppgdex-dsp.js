@@ -6937,6 +6937,140 @@
         scope: r.channelStability.scope
       };
     }
+    /* `nz` is hoisted out of the rich block below, because the host-axis block that reads it now
+       sits on the light path. `var`, as it was: the rich block keeps its one reference set. */
+    var nz = function (v) {
+      return v == null || (typeof v === 'number' && !isFinite(v)) ? null : v;
+    };
+    /* ── THE AXIS MEASUREMENTS, NOT ONLY ITS VERDICT (Heron's cross-family trace, 2026-09-02) ──
+       The rich `quality` block publishes the CONCLUSION — `timingSource`, `axisDrawn`,
+       `axisQuantizedShare` — and dropped every number that produced it. A consumer could read `'device+host'` and had
+       no way to check whether the host column was actually a second clock, which is precisely what
+       CLAUDE.md §7 instructs it to read ("read `independent`, never a ~0 ppm"). ECGDex has emitted
+       the full block at `ecgdex-dsp.js:5210+` all along; PpgDex computed the same values (`:760`)
+       and this reshape named none of them.
+       ⚠️ The comment at `:740` predicted this exact failure — `independent`/`spreadMs`/`inertReason`
+       "DROPPED here … discarded one line after it was computed" — and the block one layer down warns
+       that a reshape drops anything it does not name, citing `stability` vanishing at this very seam
+       on the first real-data run. The file documented the defect and nothing read the file.
+       Field set mirrors ECGDex so the two are comparable by construction; CONDITIONAL on an axis
+       existing, so a night without one omits the block and every committed export stays
+       byte-identical rather than gaining a wall of nulls.
+       ── AND ON THE LIGHT PATH, WHERE A CONSUMER ACTUALLY READS IT (row
+       `2026-10-31-ppgdex-publishes-the-host-axis-only-under-rich`). This block sat inside `opts.rich`
+       from the day it was written, so only a Unifier/OverDex-routed file carried an axis and a plain
+       PpgDex export said nothing about the clock it rides. ECGDex publishes its own axis BEFORE its
+       rich gate for exactly this reason (`ecgdex-dsp.js`, "THE HOST AXIS, ON THE INTEGRATOR-FACING
+       SURFACE"), and the no-divergence handoff keeps the two builders aligned. The rich block inserts
+       no `out.recording` key ahead of this one, so a RICH export keeps today's bytes; a LIGHT export
+       over a host-stamped recording gains the block. */
+    if (r.hostAxis && r.hostAxis.ok) {
+      /* Read BEFORE `nz()` for the rate verdict below: `nz` maps a non-number to null and
+         `isFinite(null)` is TRUE, so an absent span would have read as a measured one. */
+      const haSpanMs = typeof r.hostAxis.spanMs === 'number' && isFinite(r.hostAxis.spanMs) ? r.hostAxis.spanMs : null;
+      out.recording.hostAxis = {
+        anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
+        ppm: nz(r.hostAxis.ppm),
+        /* §7's two companions for a quoted rate, and this block published neither. `spanMs` is the
+           span the ppm was measured over — 173 committed exports of this node quote a ppm with
+           `anchors` and no span. `spanPpm` is the same ratio before the running median, so the pair
+           says how much of the quote the smoother's last window set. Both come from the spine; see
+           `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
+        spanMs: nz(r.hostAxis.spanMs),
+        spanPpm: nz(r.hostAxis.spanPpm),
+        /* THE RATE'S OWN VERDICT, in `ppgOffsetSegments`'s vocabulary rather than a second spelling
+           of one refusal: `rate` reads 'unknown' under `PPG_RATE_MIN_SPAN_S`, the floor this node
+           already applies to a SEGMENT's ppm, and `rateReason` names the span that refused it. The
+           whole-file axis named nothing until now, so a consumer could not tell a rate measured over
+           eight hours from one measured over forty seconds. Computed HERE because it is a pure
+           function of the span one line up; `rateApplied` is not, so it travels from the parse layer
+           that owns it. ⚠️ THIS IS THE SECOND RESHAPE OF ONE BLOCK — the parse layer builds
+           `hostAxis` at `:1641` and this list renames it field by field, so a key the parse layer
+           adds and this list omits is DROPPED. That seam already ate `applied` below and both of
+           `stability`'s names, and it ate these three too — green at the parse layer, absent over an
+           artifact — until the group `ppgdex-dsp · hostaxis-rate · subfloor-annotation` read them
+           through `buildNodeExport`. `== null ? null` on the forward, because a source object
+           without the key is unknown and §∅ forbids answering an unknown with `false`. */
+        rate: haSpanMs == null ? 'unknown' : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000 ? 'measured' : 'unknown',
+        rateReason:
+          haSpanMs == null
+            ? 'no span — the axis published none'
+            : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
+              ? null
+              : 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs',
+        rateApplied: r.hostAxis.rateApplied == null ? null : r.hostAxis.rateApplied === true,
+        maxStepMs: nz(r.hostAxis.maxStepMs),
+        totalMs: nz(r.hostAxis.totalMs),
+        /* The three §7 discriminators. `independent` is the verdict on whether the host column is a
+           SECOND CLOCK at all; `spreadMs` is the residual it was decided on; `inertReason` is the
+           sentence DexClock wrote when it said no. Publishing the reason means a reader sees WHY,
+           not just false. */
+        independent: r.hostAxis.independent == null ? null : r.hostAxis.independent,
+        spreadMs: nz(r.hostAxis.spreadMs),
+        inertReason: r.hostAxis.inertReason || null,
+        drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
+        quantizedShare: nz(r.hostAxis.quantizedShare),
+        /* ── `applied`, WHICH THIS RESHAPE NEVER FORWARDED ────────────────────────────────────────
+           `:1650` already records the cost: `pat-drift-attribution.effectivePpm` reads
+           `hostAxis.applied === true ? 0 : hostAxis.ppm`, so an ABSENT key credits this node's
+           already-absorbed rate correction as outstanding error. That fix landed at the parse layer
+           and stopped at this seam, so over an ARTIFACT the double-count is still live — the three
+           drawn keys below do travel (conditionally, since #3914), and this one does not travel at
+           all. Unconditional, because the arithmetic needs it on every axis and not only on a drawn
+           one; `== null ? null` rather than `=== true`, because a key the source object lacks is
+           unknown and §∅ forbids answering an unknown with `false`. */
+        applied: r.hostAxis.applied == null ? null : r.hostAxis.applied === true,
+        timingSource: r.timingSource || null,
+        /* ⚠️ THE SOURCE KEYS ARE `tau0Sec` AND `noise`, NOT `tau0`/`noiseType`
+           (ALLAN-STABILITY-GAPS §2.1). This block read the EXPORTED names back off the spine object,
+           which never carried them, so `tau0` and `noiseType` were exported as PERMANENT null on
+           every recording — a fabricated absence rather than a measurement, and one that reads
+           exactly like "this pair has no second clock". The exported NAMES are kept for the
+           consumers that already read them; only the source keys are corrected.
+           `nTau` IS exported as of the spine forward (residue `2026-09-07-hostaxis-stability-
+           ntau-not-forwarded`) — it was withheld here only while `hostAxis.stability` dropped it,
+           because reading an absent key would have re-created this very defect one field over. It
+           is the n behind `slopeSE` and is NOT `taus`: the fit drops any τ whose `adev` is exactly
+           zero, so `taus` overstates the SE's sample. */
+        stability: r.hostAxis.stability
+          ? {
+              tau0: nz(r.hostAxis.stability.tau0Sec),
+              noiseType: r.hostAxis.stability.noise || null,
+              slope: nz(r.hostAxis.stability.slope),
+              slopeSE: nz(r.hostAxis.stability.slopeSE),
+              nTau: nz(r.hostAxis.stability.nTau),
+              candidates: r.hostAxis.stability.candidates || null,
+              optimalTauSec: nz(r.hostAxis.stability.optimalTauSec),
+              atLongestPpm: nz(r.hostAxis.stability.atLongestPpm),
+              ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty),
+              /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node) — every field
+                 above is a projection of exactly these points, and none of them can show a KNEE,
+                 which is the shape that makes `slope` unreadable (§7: the slope names the
+                 mechanism). Straight from the spine as `{tauSec, adevPpm, n}`; `[]` only if a spine
+                 older than the curve ever reaches here. */
+              curve: r.hostAxis.stability.curve || []
+            }
+          : null
+      };
+      /* THE PROVENANCE KEYS, CONDITIONAL — ECGDex's discipline and deliberately ECGDex's key names
+         (`ppgdex-dsp.js` already says the field set "mirrors ECGDex so the two are comparable by
+         construction", and then omitted the one key a consumer refuses on). Emitted only when the
+         axis IS drawn, so the 99 committed Verity exports stay byte-identical and only the rail
+         that is drawn gains a field.
+         A reader who finds `deviceDrawn:true` here must not spend `ppm` or this recording as a
+         second clock: `drawn` has always said the same thing, under a name no consumer reads. */
+      /* `!== false`, NOT `=== true` — §∅ at the one seam this condition still had. The verdict is
+         tri-state at the emitter (`drawn` above is published `null` when fewer than 21 ns deltas
+         resolved), and `=== true` omitted the keys for BOTH the measured-not-drawn axis and the
+         never-measured one. So an export carried one absence for two different facts, and a reader
+         could not tell "this column is a clock" from "nobody counted". A measured `false` still
+         omits all three, which is what keeps the clean Verity rail byte-identical. */
+      if (r.hostAxis.deviceDrawn !== false) {
+        out.recording.hostAxis.deviceDrawn = r.hostAxis.deviceDrawn == null ? null : r.hostAxis.deviceDrawn === true;
+        out.recording.hostAxis.drawnShare = nz(r.hostAxis.drawnShare);
+        out.recording.hostAxis.drawnReason = r.hostAxis.drawnReason || null;
+      }
+    }
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / PPGDEX-FOLLOWUPS §1 ──
     // By DEFAULT this builder emits the LIGHT export above and the app's exportGanglior() calls WITHOUT
     // opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the orchestrate emitter
@@ -6947,9 +7081,6 @@
     // populated once companions land, §1b). Field math MIRRORS ppgdex-app.js buildV2 (same `r`, same numbers).
     // SHARED SHAPE with ecgBuildNodeExport (ECGDEX-FOLLOWUPS-II §2) — keep the two aligned (handoff no-divergence).
     if (opts.rich) {
-      var nz = function (v) {
-        return v == null || (typeof v === 'number' && !isFinite(v)) ? null : v;
-      };
       var fq = r.freq || {};
       out.quality = {
         analyzablePct: nz(r.analyzablePct),
@@ -7067,127 +7198,6 @@
         // so every committed Verity export stays byte-identical; only a finger export carries it.
         ...(r.timebase ? { timebase: r.timebase } : {})
       };
-      /* ── THE AXIS MEASUREMENTS, NOT ONLY ITS VERDICT (Heron's cross-family trace, 2026-09-02) ──
-         `quality` above published the CONCLUSION — `timingSource`, `axisDrawn`, `axisQuantizedShare`
-         — and dropped every number that produced it. A consumer could read `'device+host'` and had
-         no way to check whether the host column was actually a second clock, which is precisely what
-         CLAUDE.md §7 instructs it to read ("read `independent`, never a ~0 ppm"). ECGDex has emitted
-         the full block at `ecgdex-dsp.js:5210+` all along; PpgDex computed the same values (`:760`)
-         and this reshape named none of them.
-         ⚠️ The comment at `:740` predicted this exact failure — `independent`/`spreadMs`/`inertReason`
-         "DROPPED here … discarded one line after it was computed" — and the block one layer down warns
-         that a reshape drops anything it does not name, citing `stability` vanishing at this very seam
-         on the first real-data run. The file documented the defect and nothing read the file.
-         Field set mirrors ECGDex so the two are comparable by construction; CONDITIONAL on an axis
-         existing, so a night without one omits the block and every committed export stays
-         byte-identical rather than gaining a wall of nulls. */
-      if (r.hostAxis && r.hostAxis.ok) {
-        /* Read BEFORE `nz()` for the rate verdict below: `nz` maps a non-number to null and
-           `isFinite(null)` is TRUE, so an absent span would have read as a measured one. */
-        const haSpanMs = typeof r.hostAxis.spanMs === 'number' && isFinite(r.hostAxis.spanMs) ? r.hostAxis.spanMs : null;
-        out.recording.hostAxis = {
-          anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
-          ppm: nz(r.hostAxis.ppm),
-          /* §7's two companions for a quoted rate, and this block published neither. `spanMs` is the
-             span the ppm was measured over — 173 committed exports of this node quote a ppm with
-             `anchors` and no span. `spanPpm` is the same ratio before the running median, so the pair
-             says how much of the quote the smoother's last window set. Both come from the spine; see
-             `clock.js` beside `spanPpm:` for why neither is the rate to apply. */
-          spanMs: nz(r.hostAxis.spanMs),
-          spanPpm: nz(r.hostAxis.spanPpm),
-          /* THE RATE'S OWN VERDICT, in `ppgOffsetSegments`'s vocabulary rather than a second spelling
-             of one refusal: `rate` reads 'unknown' under `PPG_RATE_MIN_SPAN_S`, the floor this node
-             already applies to a SEGMENT's ppm, and `rateReason` names the span that refused it. The
-             whole-file axis named nothing until now, so a consumer could not tell a rate measured over
-             eight hours from one measured over forty seconds. Computed HERE because it is a pure
-             function of the span one line up; `rateApplied` is not, so it travels from the parse layer
-             that owns it. ⚠️ THIS IS THE SECOND RESHAPE OF ONE BLOCK — the parse layer builds
-             `hostAxis` at `:1641` and this list renames it field by field, so a key the parse layer
-             adds and this list omits is DROPPED. That seam already ate `applied` below and both of
-             `stability`'s names, and it ate these three too — green at the parse layer, absent over an
-             artifact — until the group `ppgdex-dsp · hostaxis-rate · subfloor-annotation` read them
-             through `buildNodeExport`. `== null ? null` on the forward, because a source object
-             without the key is unknown and §∅ forbids answering an unknown with `false`. */
-          rate: haSpanMs == null ? 'unknown' : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000 ? 'measured' : 'unknown',
-          rateReason:
-            haSpanMs == null
-              ? 'no span — the axis published none'
-              : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
-                ? null
-                : 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs',
-          rateApplied: r.hostAxis.rateApplied == null ? null : r.hostAxis.rateApplied === true,
-          maxStepMs: nz(r.hostAxis.maxStepMs),
-          totalMs: nz(r.hostAxis.totalMs),
-          /* The three §7 discriminators. `independent` is the verdict on whether the host column is a
-             SECOND CLOCK at all; `spreadMs` is the residual it was decided on; `inertReason` is the
-             sentence DexClock wrote when it said no. Publishing the reason means a reader sees WHY,
-             not just false. */
-          independent: r.hostAxis.independent == null ? null : r.hostAxis.independent,
-          spreadMs: nz(r.hostAxis.spreadMs),
-          inertReason: r.hostAxis.inertReason || null,
-          drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
-          quantizedShare: nz(r.hostAxis.quantizedShare),
-          /* ── `applied`, WHICH THIS RESHAPE NEVER FORWARDED ────────────────────────────────────────
-             `:1650` already records the cost: `pat-drift-attribution.effectivePpm` reads
-             `hostAxis.applied === true ? 0 : hostAxis.ppm`, so an ABSENT key credits this node's
-             already-absorbed rate correction as outstanding error. That fix landed at the parse layer
-             and stopped at this seam, so over an ARTIFACT the double-count is still live — the three
-             drawn keys below do travel (conditionally, since #3914), and this one does not travel at
-             all. Unconditional, because the arithmetic needs it on every axis and not only on a drawn
-             one; `== null ? null` rather than `=== true`, because a key the source object lacks is
-             unknown and §∅ forbids answering an unknown with `false`. */
-          applied: r.hostAxis.applied == null ? null : r.hostAxis.applied === true,
-          timingSource: r.timingSource || null,
-          /* ⚠️ THE SOURCE KEYS ARE `tau0Sec` AND `noise`, NOT `tau0`/`noiseType`
-             (ALLAN-STABILITY-GAPS §2.1). This block read the EXPORTED names back off the spine object,
-             which never carried them, so `tau0` and `noiseType` were exported as PERMANENT null on
-             every recording — a fabricated absence rather than a measurement, and one that reads
-             exactly like "this pair has no second clock". The exported NAMES are kept for the
-             consumers that already read them; only the source keys are corrected.
-             `nTau` IS exported as of the spine forward (residue `2026-09-07-hostaxis-stability-
-             ntau-not-forwarded`) — it was withheld here only while `hostAxis.stability` dropped it,
-             because reading an absent key would have re-created this very defect one field over. It
-             is the n behind `slopeSE` and is NOT `taus`: the fit drops any τ whose `adev` is exactly
-             zero, so `taus` overstates the SE's sample. */
-          stability: r.hostAxis.stability
-            ? {
-                tau0: nz(r.hostAxis.stability.tau0Sec),
-                noiseType: r.hostAxis.stability.noise || null,
-                slope: nz(r.hostAxis.stability.slope),
-                slopeSE: nz(r.hostAxis.stability.slopeSE),
-                nTau: nz(r.hostAxis.stability.nTau),
-                candidates: r.hostAxis.stability.candidates || null,
-                optimalTauSec: nz(r.hostAxis.stability.optimalTauSec),
-                atLongestPpm: nz(r.hostAxis.stability.atLongestPpm),
-                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty),
-                /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node) — every field
-                   above is a projection of exactly these points, and none of them can show a KNEE,
-                   which is the shape that makes `slope` unreadable (§7: the slope names the
-                   mechanism). Straight from the spine as `{tauSec, adevPpm, n}`; `[]` only if a spine
-                   older than the curve ever reaches here. */
-                curve: r.hostAxis.stability.curve || []
-              }
-            : null
-        };
-        /* THE PROVENANCE KEYS, CONDITIONAL — ECGDex's discipline and deliberately ECGDex's key names
-           (`ppgdex-dsp.js` already says the field set "mirrors ECGDex so the two are comparable by
-           construction", and then omitted the one key a consumer refuses on). Emitted only when the
-           axis IS drawn, so the 99 committed Verity exports stay byte-identical and only the rail
-           that is drawn gains a field.
-           A reader who finds `deviceDrawn:true` here must not spend `ppm` or this recording as a
-           second clock: `drawn` has always said the same thing, under a name no consumer reads. */
-        /* `!== false`, NOT `=== true` — §∅ at the one seam this condition still had. The verdict is
-           tri-state at the emitter (`drawn` above is published `null` when fewer than 21 ns deltas
-           resolved), and `=== true` omitted the keys for BOTH the measured-not-drawn axis and the
-           never-measured one. So an export carried one absence for two different facts, and a reader
-           could not tell "this column is a clock" from "nobody counted". A measured `false` still
-           omits all three, which is what keeps the clean Verity rail byte-identical. */
-        if (r.hostAxis.deviceDrawn !== false) {
-          out.recording.hostAxis.deviceDrawn = r.hostAxis.deviceDrawn == null ? null : r.hostAxis.deviceDrawn === true;
-          out.recording.hostAxis.drawnShare = nz(r.hostAxis.drawnShare);
-          out.recording.hostAxis.drawnReason = r.hostAxis.drawnReason || null;
-        }
-      }
       out.hrv = {
         time: {
           meanRR: nz(r.meanRR),

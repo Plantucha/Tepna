@@ -87,14 +87,15 @@
  * when its own CLI needs a different signature), with `rec = { id, edf, xml }`.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
-import { cpus } from 'node:os';
+import { cpus, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { isCliEntry } from './argv-guard.mjs';
 import { printVerdict } from './verdict-emit.mjs';
+import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'nsrr-score-checkpoint.json');
@@ -413,6 +414,44 @@ function selftest() {
     A('verdict: a scorer cannot smuggle PASS over checked 0 — the pool decides NOT_RUN first', b.status === 'NOT_RUN', b.status);
   }
 
+  /* ── THE POPULATION, TESTED BOTH WAYS ───────────────────────────────────────────────────────
+     The pairing IS the rule this pool publishes, and the queue is now rebuilt from the OFFER's
+     member names. So the leg that matters is the EQUIVALENCE: the same two paths `pairRecords`
+     built, or the run scores a path nobody enumerated. Planted in a temp tree, both directions. */
+  const ptmp = mkdtempSync(join(tmpdir(), 'nsrr-pool-'));
+  try {
+    const ed = join(ptmp, 'edfs'),
+      xd = join(ptmp, 'anns');
+    mkdirSync(ed);
+    mkdirSync(xd);
+    for (const f of ['rec-0001.edf', 'rec-0002.edf', 'rec-0009.edf']) writeFileSync(join(ed, f), 'x');
+    for (const f of ['rec-0001-nsrr.xml', 'rec-0002-nsrr.xml', 'rec-0008-nsrr.xml', 'notes.txt']) writeFileSync(join(xd, f), 'x');
+    const lister = pairedRecordLister(ed);
+    A('lister: the population is the INTERSECTION, so an unpaired record on either side is out', lister(xd).join(',') === 'rec-0001,rec-0002', lister(xd).join(','));
+    A('lister: the function carries a NAME, so the published rule is not `null`', lister.name === 'pairedWithAnEdf', lister.name);
+    const snap = snapshotEntries(xd, { list: lister, unit: 'records' });
+    A('snapshot: the published rule names the pairing, over a RECORD unit', snap.rule === 'pairedWithAnEdf' && snap.unit === 'records' && snap.n === 2, String(snap.rule));
+    A(
+      'EQUIVALENCE: the queue rebuilt from the offer holds the paths the pairing itself built',
+      JSON.stringify(snap.members.map((id) => recordPaths(id, ed, xd))) === JSON.stringify(pairRecords(ed, xd)),
+      JSON.stringify(snap.members.map((id) => recordPaths(id, ed, xd)))
+    );
+    const gone = snapshotEntries(join(ptmp, 'nowhere'), { list: lister, unit: 'records' });
+    A('snapshot: a tree nobody can enumerate is not a population of 0', gone.ok === false && gone.reason !== null, String(gone.reason));
+  } finally {
+    rmSync(ptmp, { recursive: true, force: true });
+  }
+  /* ⚠️ `notCovered` DROPS A ROW ON `ok === false`, AND AN ERRORED POOL ROW CARRIES `err`, not `ok`.
+     So the caller filters the errors out BEFORE the call; passing `done` whole would count a record
+     that threw as scored and name it nowhere. Both readings are pinned. */
+  const offer3 = { members: ['a', 'b', 'c'], n: 3, unit: 'records' };
+  A('unscored: the offer minus the score, read through the record key the rows carry', notCovered(offer3, [{ id: 'b' }], { key: 'id' }).join(',') === 'a,c');
+  A('unscored CONTROL: an errored row left IN would read as scored, which is why the caller filters', notCovered(offer3, [{ id: 'b' }, { id: 'c', err: 'boom' }], { key: 'id' }).join(',') === 'a');
+  A('exit: a tree nobody can enumerate exits 2', exitCodeFor({ status: 'NOT_RUN' }, 0, 0) === 2);
+  A('exit: a root that offered nothing exits 2', exitCodeFor({ status: 'PASS' }, 0, 0) === 2);
+  A('exit: a pool whose every worker errored exits 2 \u2014 it returned 0 before', exitCodeFor({ status: 'PASS' }, 32, 0) === 2);
+  A('exit CONTROL: an early stop is reduced coverage, which annotates and exits 0', exitCodeFor({ status: 'PASS' }, 5136, 400) === 0);
+
   console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
   return bad ? 1 : 0;
 }
@@ -464,6 +503,37 @@ export function pairRecords(edfDir, xmlDir) {
     if (edf.has(id)) out.push({ id, edf: edf.get(id), xml: join(xmlDir, f) });
   }
   return out.sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+/* ── THE POPULATION THIS POOL SCORES OVER ─────────────────────────────────────────────────────
+   Row 2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt. `POPULATION_EXCLUSIONS`
+   excused this tool because the NSRR mount is not the capture corpus, while three siblings reading
+   the same two trees publish a population anyway. A population is about the enumeration a run
+   scores over, not about the filesystem the bytes came off.
+
+   The OFFER is the PAIRING above, and `snapshotEntries` hands a lister ONE root, so the EDF side is
+   bound here and the returned function carries a name the published rule can state. A shuffle, a
+   `--limit`, a `--precision` stop and a resumed checkpoint are all reduced coverage: they annotate
+   and the unscored records are named, rather than refusing (owner ruling 2026-09-17, §∅). */
+const POP_TOOL = 'tools/nsrr-score-pool.mjs';
+const POP_EV = [POP_TOOL, 'tools/corpus-scope-core.mjs'];
+export function pairedRecordLister(edfDir) {
+  return function pairedWithAnEdf(xmlDir) {
+    return pairRecords(edfDir, xmlDir).map((r) => r.id);
+  };
+}
+/* The queue is rebuilt from the OFFER's member names rather than from a second walk of either tree:
+   a verdict that describes one walk while the run scores another is the defect the primitive exists
+   to catch. The two names are the ones `pairRecords` built, so the paths are identical. */
+export function recordPaths(id, edfDir, xmlDir) {
+  return { id, edf: join(edfDir, id + '.edf'), xml: join(xmlDir, id + '-nsrr.xml') };
+}
+/* The shared exit rule, pure so the run and a leg read the same one: a tree nobody can enumerate, a
+   root that offered nothing, and a run that scored no record all exit 2. This pool RETURNED 0 over
+   the last of those, with every worker erroring and a median over nothing (row
+   2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+export function exitCodeFor(population, offered, scored) {
+  return population.status === 'NOT_RUN' || offered === 0 || scored === 0 ? 2 : 0;
 }
 
 /* ── worker ═══════════════════════════════════════════════════════════════════════════════════
@@ -531,10 +601,19 @@ async function main(argv) {
     process.exit(2);
   }
 
-  let recs = pairRecords(edfDir, xmlDir);
+  const commitOf = gitCommitOf();
+  const snapOf = (dir) => snapshotEntries(dir, { list: pairedRecordLister(edfDir), unit: 'records' });
+  const snapBefore = snapOf(xmlDir);
+  const popOver = () => populationVerdict(snapBefore, snapOf(xmlDir), { commit: commitOf.commit, commitReason: commitOf.reason, tool: POP_TOOL, evidence: POP_EV });
+  const recs = snapBefore.members.map((id) => recordPaths(id, edfDir, xmlDir));
   if (!recs.length) {
     console.error('✕ no paired records under\n    ' + edfDir + '\n    ' + xmlDir);
-    process.exit(2);
+    /* 🔴 A REFUSAL STILL PUBLISHES ITS POPULATION, so the run that scored nothing says which tree
+       offered nothing and whether anyone could read it at all (§∅). */
+    const population = popOver();
+    console.log(`population: ${snapBefore.n} record(s) offered under ${xmlDir} · 0 scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+    console.log('POPULATION ' + JSON.stringify(population));
+    process.exit(exitCodeFor(population, snapBefore.n, 0) || 2);
   }
   const order = noShuffle
     ? recs.map((r) => r.id)
@@ -672,7 +751,14 @@ async function main(argv) {
   saveCheckpoint(CKPT, { done, n: fin, total, seed: runSeed });
   mkdirSync(dirname(outPath), { recursive: true });
   const verdict = poolVerdict(scorerMod, liveStat(done), done, { total }, { scorerSpec, commit: headCommit(), evidence: [edfDir, xmlDir, outPath] });
-  writeFileSync(outPath, JSON.stringify({ generated: new Date().toISOString(), total, scored: fin, stopped, seed: runSeed, verdict, records: done }, null, 1));
+  /* The offer against the score. `notCovered` reads `row[key]`, and the arithmetic THROWS rather
+     than writing a coverage figure that contradicts its own headline. The resumed rows count as
+     scored: they are records this pool scored, under the same order. */
+  const population = popOver();
+  const scoredRows = done.filter((r) => r && !r.err);
+  const unscored = notCovered(snapBefore, scoredRows, { key: 'id' });
+  if (unscored.length !== snapBefore.n - scoredRows.length) throw new Error(`population arithmetic: ${snapBefore.n} offered − ${scoredRows.length} scored ≠ ${unscored.length} unscored`);
+  writeFileSync(outPath, JSON.stringify({ generated: new Date().toISOString(), total, scored: fin, stopped, seed: runSeed, verdict, population, unscored, records: done }, null, 1));
 
   const mins = ((Date.now() - t0) / 60000).toFixed(1);
   const rps = (fin - done0) / Math.max(1e-9, (Date.now() - t0) / 1000);
@@ -691,7 +777,13 @@ async function main(argv) {
   }
   console.log('  results   ' + outPath);
   printVerdict(verdict, { prefix: '' });
-  return 0;
+  console.log(`\npopulation: ${snapBefore.n} record(s) offered under ${xmlDir} · ${scoredRows.length} scored · movement ${population.status}` + (population.reason ? ` — ${population.reason}` : ''));
+  const popRule = ruleLine(population);
+  if (popRule) console.log(popRule);
+  if (unscored.length)
+    console.log(`  ${unscored.length} offered record(s) produced no score, by name: ${unscored.slice(0, 8).join(' · ')}${unscored.length > 8 ? ` · … (+${unscored.length - 8})` : ''}`);
+  console.log('POPULATION ' + JSON.stringify(population));
+  return exitCodeFor(population, snapBefore.n, scoredRows.length);
 }
 
 if (process.argv.includes('--worker-child')) workerMain();
