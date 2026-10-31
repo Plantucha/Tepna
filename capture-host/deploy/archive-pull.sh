@@ -17,6 +17,11 @@
 # WHEN IT RUNS: daily at 13:30 (after the box's 13:00 ez-share harvest settles), NEVER at night —
 # pulling during a recording reads growing files and archives torn tails as if final.
 #
+# MANIFESTS (item 3a, INFRA-STATE-2026-10-31): after a successful pull,
+# tools/archive-manifest.mjs writes a per-file sha256 manifest for each newly
+# archived night, hashed from the source. A manifest failure never fails the
+# pull. It is logged here, and unmanifested nights are the reconciler's finding.
+#
 # WHAT IT DOES NOT DO:
 #   • No --delete, EVER. An archive that mirrors deletions is a replica, not an archive.
 #   • No writes to vigil. rsync runs in pull mode over ssh; the box side is read-only.
@@ -71,5 +76,21 @@ mkdir -p "$DEST" "$(dirname "$LOG")"
   # The verdict is the DESTINATION, not the log (the 2026-08-25 harvest lesson): count what arrived.
   echo "dest files: $(find "$DEST" -type f | wc -l) · dest bytes: $(du -sb "$DEST" | cut -f1)"
   echo "newest: $(find "$DEST" -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)"
+  # Item 3a (INFRA-STATE-2026-10-31): write copy-time hash manifests for newly
+  # archived nights. Best-effort: a manifest failure never fails the pull.
+  if [ "$RC" -eq 0 ]; then
+    MANIFEST_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/archive-manifest.mjs"
+    NODE="$(command -v node || true)"
+    if [ -z "$NODE" ]; then
+      for cand in "$HOME"/.nvm/versions/node/*/bin/node; do
+        [ -x "$cand" ] && NODE="$cand"
+      done
+    fi
+    if [ -n "$NODE" ] && [ -f "$MANIFEST_TOOL" ]; then
+      "$NODE" "$MANIFEST_TOOL" sync-manifests || echo "manifest sync EXIT=$? (pull unaffected)"
+    else
+      echo "manifest sync skipped: node or tools/archive-manifest.mjs not found"
+    fi
+  fi
   exit $RC
 } >> "$LOG" 2>&1
