@@ -361,6 +361,84 @@ def test_an_internal_failure_is_LOGGED_and_swallowed(tmp_path):
     assert lg.exc_calls  # the harvest is unaffected, but the failure is not silent
 
 
+def test_the_log_lines_carry_their_exact_arguments(tmp_path):
+    """One complete night and one gap, so a sum and a difference of the two counts disagree."""
+    root, env = _tree(tmp_path, datalog=["20260826", "20260827"], envelopes=["20260826"])
+    lg = _Log()
+    ad.on_harvest_complete(
+        {"state": "ok", "consulted": True},
+        dest_root=root,
+        envelope_root=env,
+        spool_root=str(tmp_path),
+        qc_path=str(tmp_path / "q.json"),
+        journal_path=str(tmp_path / "j.jsonl"),
+        read_spool=lambda _r: ["20260826", "20260827"],
+        log=lg,
+    )
+    assert lg.info_calls == [("cpap inventory: %d discrepancy(ies) over %d night(s) %s", 1, 2, {"MISSED-LIVE": 1})]
+
+
+def test_a_refusal_logs_the_format_and_the_oracles_reason(tmp_path):
+    root, env = _tree(tmp_path, datalog=[], envelopes=[])
+    lg = _Log()
+    payload = ad.on_harvest_complete(
+        {"state": "barren", "consulted": True},
+        dest_root=root,
+        envelope_root=env,
+        spool_root=str(tmp_path),
+        qc_path=str(tmp_path / "q.json"),
+        journal_path=str(tmp_path / "j.jsonl"),
+        read_spool=lambda _r: [],
+        log=lg,
+    )
+    assert lg.info_calls == [("cpap inventory: %s", payload["reason"])]
+
+
+def test_an_internal_failure_logs_that_the_harvest_is_unaffected():
+    class _Boom:
+        def get(self, *_a, **_k):
+            raise RuntimeError("nope")
+
+    lg = _Log()
+    ad.on_harvest_complete(
+        _Boom(),
+        dest_root="/nonexistent",
+        envelope_root="/nonexistent",
+        spool_root="/nonexistent",
+        qc_path="/x/q.json",
+        journal_path="/x/j.jsonl",
+        log=lg,
+    )
+    assert lg.exc_calls == [("cpap inventory reconciliation failed; the harvest itself is unaffected",)]
+
+
+def test_the_harvest_hook_reads_the_spool_at_the_root_it_was_given(tmp_path):
+    root, env = _tree(tmp_path, datalog=["20260827"], envelopes=["20260827"])
+    seen = []
+    ad.on_harvest_complete(
+        {"state": "ok", "consulted": True},
+        dest_root=root,
+        envelope_root=env,
+        spool_root="/the/spool",
+        qc_path=str(tmp_path / "q.json"),
+        journal_path=str(tmp_path / "j.jsonl"),
+        read_spool=lambda r: seen.append(r) or ["20260827"],
+    )
+    assert seen == ["/the/spool"]
+
+
+def test_an_unconsulted_spool_reaches_the_oracle_as_unconsulted(tmp_path):
+    root, env = _tree(tmp_path, datalog=["20260827"], envelopes=["20260827"])
+    r = ad.reconcile_after_harvest(
+        {"state": "ok", "consulted": True},
+        dest_root=root,
+        envelope_root=env,
+        spool_root=str(tmp_path),
+        read_spool=lambda _r: None,
+    )
+    assert r["consulted"]["spool"] is False
+
+
 # ── a None root is "not consulted", never "looked and found nothing" ──────────────────────────────
 def test_a_None_envelope_root_is_UNCONSULTED_not_an_empty_envelope_set():
     """🔴 `os.listdir(None)` LISTS THE CURRENT WORKING DIRECTORY — not an error, a confident listing of

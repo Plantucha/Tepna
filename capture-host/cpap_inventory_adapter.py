@@ -215,7 +215,7 @@ def on_harvest_complete(
                     "cpap inventory: %d discrepancy(ies) over %d night(s) %s",
                     payload["discrepancies"],
                     payload["complete_nights"] + payload["discrepancies"],
-                    payload.get("by_state", {}),
+                    payload["by_state"],  # qc_field writes it on every ok payload
                 )
         return payload
     except Exception:  # noqa: BLE001 — a reporter must not be able to change a harvest's outcome
