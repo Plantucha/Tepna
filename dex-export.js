@@ -267,6 +267,9 @@
        spanPpm       number | null        — the same ratio BEFORE the running median
        resyncs       int | null           — device-clock resync steps detected
        seams         int | null           — discontinuities in the PUBLISHED axis
+       rate          number | null        — the sample rate the node SPENDS, after any correction
+       rateRaw       number | null        — the rate it parsed, before the correction
+       rateApplied   true | false | null  — did the correction reach the published `rate`?
        reason        string | null        — why a key above is null, or why the source is negative
 
      WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
@@ -310,6 +313,14 @@
     if (Array.isArray(v)) return v.length;
     if (typeof v === 'boolean') return null; // a boolean is a verdict, not a count — do not coerce it
     return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null;
+  }
+
+  /* A RATE, or `null`. Finite and above zero: a sampling rate of `0` is not a slow recording, it is
+     an absent measurement, and §∅ forbids one standing in for the other. The ceiling is deliberate
+     at nothing — a node that parses an implausible rate publishes it, because silently nulling a
+     wrong number hides the parse bug the field exists to expose. */
+  function _tbRate(v) {
+    return typeof v === 'number' && isFinite(v) && v > 0 ? v : null;
   }
 
   function timingBlock(opts) {
@@ -386,6 +397,30 @@
     else if (neverScanned) why.push('this node does not scan for axis seams, so that count is unknown rather than zero');
     if (seamsReason) why.push('the axis-seam scan reported no count: ' + seamsReason);
 
+    /* ── THE RATE THE CORRECTION IS ABOUT (residue row
+       `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`) ──
+       Every key above describes a rate correction: the anchors behind it, the `ppm` it measured, the
+       span that ppm rests on, whether a second clock exists at all. None of them is the rate. Two
+       nodes divide `fs` by `1 + ppm / 1e6` (`ppgdex-dsp.js:1273`, `ecgdex-dsp.js:5472`) and the
+       comment at `ecgdex-dsp.js:5477` names four consumers that spend `fs` AS a rate, so the number
+       is load-bearing rather than diagnostic — and a reader of either export could not say what the
+       rate was, what it became, or whether the division reached it.
+       THE BLOCK COMPUTES NONE OF THE THREE. It reads them from `opts`, exactly as it reads `seams`
+       and `resyncs`: the node owns the measurement, and a shared builder that inferred one would
+       publish a number no node measured (the `seams = resyncs` inheritance U3 ended).
+       `null`, never `0`, where a node spends no sample rate — GlucoDex and CPAPDex sample on their
+       own schedule, so the field cannot be universal and an absent rate is absent, not zero. */
+    var rate = _tbRate(opts.rate);
+    var rateRaw = _tbRate(opts.rateRaw);
+    // A verdict, not a count: anything but a real boolean is "nobody said", which is `null`.
+    var rateApplied = typeof opts.rateApplied === 'boolean' ? opts.rateApplied : null;
+    /* A REFUSED CORRECTION OWES THE GATE THAT REFUSED IT — the `seamsReason` discipline one block up.
+       `rateApplied:false` alone cannot separate a span too short to resolve a crystal from a rate
+       quantised back out at the published step, and those are different problems with different
+       remedies. The sentence is the node's; a node that passes none gets no clause here, because a
+       stock string would read as a measurement this block never made. */
+    if (rateApplied === false && typeof opts.rateReason === 'string' && opts.rateReason) why.push('the rate correction did not reach the published rate: ' + opts.rateReason);
+
     return {
       timingSource: src,
       independent: independent,
@@ -395,6 +430,9 @@
       spanPpm: ok ? _tbNum(ax.spanPpm) : null,
       resyncs: resyncs,
       seams: seams,
+      rate: rate,
+      rateRaw: rateRaw,
+      rateApplied: rateApplied,
       reason: why.length ? why.join('; ') : null
     };
   }

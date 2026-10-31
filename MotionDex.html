@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="250ebd913d08" data-compute-hash="51f4c6b2a10c">
+<html lang="en" data-manifest-hash="7cbf3f0771f5" data-compute-hash="c55552089529">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7sMRffzPZCx7ViKLC/bxsI9hSi0nWLN5H3n4Sm3wu5U=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.25.0</title>
@@ -4120,6 +4120,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
        spanPpm       number | null        — the same ratio BEFORE the running median
        resyncs       int | null           — device-clock resync steps detected
        seams         int | null           — discontinuities in the PUBLISHED axis
+       rate          number | null        — the sample rate the node SPENDS, after any correction
+       rateRaw       number | null        — the rate it parsed, before the correction
+       rateApplied   true | false | null  — did the correction reach the published `rate`?
        reason        string | null        — why a key above is null, or why the source is negative
 
      WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
@@ -4163,6 +4166,14 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     if (Array.isArray(v)) return v.length;
     if (typeof v === 'boolean') return null; // a boolean is a verdict, not a count — do not coerce it
     return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null;
+  }
+
+  /* A RATE, or `null`. Finite and above zero: a sampling rate of `0` is not a slow recording, it is
+     an absent measurement, and §∅ forbids one standing in for the other. The ceiling is deliberate
+     at nothing — a node that parses an implausible rate publishes it, because silently nulling a
+     wrong number hides the parse bug the field exists to expose. */
+  function _tbRate(v) {
+    return typeof v === 'number' && isFinite(v) && v > 0 ? v : null;
   }
 
   function timingBlock(opts) {
@@ -4239,6 +4250,30 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     else if (neverScanned) why.push('this node does not scan for axis seams, so that count is unknown rather than zero');
     if (seamsReason) why.push('the axis-seam scan reported no count: ' + seamsReason);
 
+    /* ── THE RATE THE CORRECTION IS ABOUT (residue row
+       `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`) ──
+       Every key above describes a rate correction: the anchors behind it, the `ppm` it measured, the
+       span that ppm rests on, whether a second clock exists at all. None of them is the rate. Two
+       nodes divide `fs` by `1 + ppm / 1e6` (`ppgdex-dsp.js:1273`, `ecgdex-dsp.js:5472`) and the
+       comment at `ecgdex-dsp.js:5477` names four consumers that spend `fs` AS a rate, so the number
+       is load-bearing rather than diagnostic — and a reader of either export could not say what the
+       rate was, what it became, or whether the division reached it.
+       THE BLOCK COMPUTES NONE OF THE THREE. It reads them from `opts`, exactly as it reads `seams`
+       and `resyncs`: the node owns the measurement, and a shared builder that inferred one would
+       publish a number no node measured (the `seams = resyncs` inheritance U3 ended).
+       `null`, never `0`, where a node spends no sample rate — GlucoDex and CPAPDex sample on their
+       own schedule, so the field cannot be universal and an absent rate is absent, not zero. */
+    var rate = _tbRate(opts.rate);
+    var rateRaw = _tbRate(opts.rateRaw);
+    // A verdict, not a count: anything but a real boolean is "nobody said", which is `null`.
+    var rateApplied = typeof opts.rateApplied === 'boolean' ? opts.rateApplied : null;
+    /* A REFUSED CORRECTION OWES THE GATE THAT REFUSED IT — the `seamsReason` discipline one block up.
+       `rateApplied:false` alone cannot separate a span too short to resolve a crystal from a rate
+       quantised back out at the published step, and those are different problems with different
+       remedies. The sentence is the node's; a node that passes none gets no clause here, because a
+       stock string would read as a measurement this block never made. */
+    if (rateApplied === false && typeof opts.rateReason === 'string' && opts.rateReason) why.push('the rate correction did not reach the published rate: ' + opts.rateReason);
+
     return {
       timingSource: src,
       independent: independent,
@@ -4248,6 +4283,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       spanPpm: ok ? _tbNum(ax.spanPpm) : null,
       resyncs: resyncs,
       seams: seams,
+      rate: rate,
+      rateRaw: rateRaw,
+      rateApplied: rateApplied,
       reason: why.length ? why.join('; ') : null
     };
   }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e256007a8bc2" data-compute-hash="2fb5b1ef2694">
+<html lang="en" data-manifest-hash="66683a521ed4" data-compute-hash="001d03c70a0c">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7sMRffzPZCx7ViKLC/bxsI9hSi0nWLN5H3n4Sm3wu5U=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Dh12yW5g7p6XNnYxi+zrJhMDxlZAQSTlQgTJ2AtPD6k=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fqhp4uoeZeCyCOtsTVvJY/rgoZv+Oo7+GUwjjkOnsqc=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Fbe7VJ7WsGLO3lgiu6lso9z2xdz36ZNxdX91tAdVL14=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fqhp4uoeZeCyCOtsTVvJY/rgoZv+Oo7+GUwjjkOnsqc=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.25.0</title>
@@ -5357,6 +5357,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        spanPpm       number | null        — the same ratio BEFORE the running median
        resyncs       int | null           — device-clock resync steps detected
        seams         int | null           — discontinuities in the PUBLISHED axis
+       rate          number | null        — the sample rate the node SPENDS, after any correction
+       rateRaw       number | null        — the rate it parsed, before the correction
+       rateApplied   true | false | null  — did the correction reach the published `rate`?
        reason        string | null        — why a key above is null, or why the source is negative
 
      WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
@@ -5400,6 +5403,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     if (Array.isArray(v)) return v.length;
     if (typeof v === 'boolean') return null; // a boolean is a verdict, not a count — do not coerce it
     return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null;
+  }
+
+  /* A RATE, or `null`. Finite and above zero: a sampling rate of `0` is not a slow recording, it is
+     an absent measurement, and §∅ forbids one standing in for the other. The ceiling is deliberate
+     at nothing — a node that parses an implausible rate publishes it, because silently nulling a
+     wrong number hides the parse bug the field exists to expose. */
+  function _tbRate(v) {
+    return typeof v === 'number' && isFinite(v) && v > 0 ? v : null;
   }
 
   function timingBlock(opts) {
@@ -5476,6 +5487,30 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     else if (neverScanned) why.push('this node does not scan for axis seams, so that count is unknown rather than zero');
     if (seamsReason) why.push('the axis-seam scan reported no count: ' + seamsReason);
 
+    /* ── THE RATE THE CORRECTION IS ABOUT (residue row
+       `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`) ──
+       Every key above describes a rate correction: the anchors behind it, the `ppm` it measured, the
+       span that ppm rests on, whether a second clock exists at all. None of them is the rate. Two
+       nodes divide `fs` by `1 + ppm / 1e6` (`ppgdex-dsp.js:1273`, `ecgdex-dsp.js:5472`) and the
+       comment at `ecgdex-dsp.js:5477` names four consumers that spend `fs` AS a rate, so the number
+       is load-bearing rather than diagnostic — and a reader of either export could not say what the
+       rate was, what it became, or whether the division reached it.
+       THE BLOCK COMPUTES NONE OF THE THREE. It reads them from `opts`, exactly as it reads `seams`
+       and `resyncs`: the node owns the measurement, and a shared builder that inferred one would
+       publish a number no node measured (the `seams = resyncs` inheritance U3 ended).
+       `null`, never `0`, where a node spends no sample rate — GlucoDex and CPAPDex sample on their
+       own schedule, so the field cannot be universal and an absent rate is absent, not zero. */
+    var rate = _tbRate(opts.rate);
+    var rateRaw = _tbRate(opts.rateRaw);
+    // A verdict, not a count: anything but a real boolean is "nobody said", which is `null`.
+    var rateApplied = typeof opts.rateApplied === 'boolean' ? opts.rateApplied : null;
+    /* A REFUSED CORRECTION OWES THE GATE THAT REFUSED IT — the `seamsReason` discipline one block up.
+       `rateApplied:false` alone cannot separate a span too short to resolve a crystal from a rate
+       quantised back out at the published step, and those are different problems with different
+       remedies. The sentence is the node's; a node that passes none gets no clause here, because a
+       stock string would read as a measurement this block never made. */
+    if (rateApplied === false && typeof opts.rateReason === 'string' && opts.rateReason) why.push('the rate correction did not reach the published rate: ' + opts.rateReason);
+
     return {
       timingSource: src,
       independent: independent,
@@ -5485,6 +5520,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       spanPpm: ok ? _tbNum(ax.spanPpm) : null,
       resyncs: resyncs,
       seams: seams,
+      rate: rate,
+      rateRaw: rateRaw,
+      rateApplied: rateApplied,
       reason: why.length ? why.join('; ') : null
     };
   }
@@ -9360,6 +9398,11 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        because the `device-crystal` branch below overwrites `fs` with the ADC constant and a consumer
        cannot otherwise tell a measured `ppm` that moved the rate from one that moved nothing. */
     let rateAppliedToFs = false;
+    /* THE SENTENCE BESIDE THE FLAG, because `rateApplied:false` names no cause on its own. Three
+       different things stop a measured `ppm` from reaching the published rate here, and each has its
+       own remedy: a refused axis, a non-finite rate, and the 0.01 Hz quantisation below. The shared
+       timing block quotes this where the node wrote one and invents nothing where it did not. */
+    let fsRateReason = null;
     /* ⚠️ THE FLAG READS THE PUBLISHED `fs`, NOT THE DIVISION — a rate quantised back to its old value
        reached nothing, exactly like the crystal overwrite this field was written for. The line below
        rounds to 0.01 Hz, which is 80 ppm at the ring's 125 Hz, so any `|ppm|` under 40 leaves `fs`
@@ -9380,6 +9423,17 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     }
     fs = Math.round(fs * 100) / 100;
     rateAppliedToFs = fsDivided && fs !== fsBeforeCorrection;
+    if (!hostAx.ok) fsRateReason = hostAx.reason || 'the host axis refused and named no reason';
+    else if (!fsDivided) fsRateReason = 'the host axis measured no finite rate to divide by';
+    else if (!rateAppliedToFs)
+      fsRateReason =
+        'the correction rounded out at the 0.01 Hz step the published rate carries — ' +
+        Math.round(hostAx.ppm * 100) / 100 +
+        ' ppm is under the ~' +
+        Math.round((1e6 * 0.01) / fs) +
+        ' ppm that step spans at ' +
+        fs +
+        ' Hz';
     /* `timingSource` is the field a consumer should actually branch on, and the reason this is computed
        rather than assumed. DRAWN + host anchors ⇒ every bit of real timing came from the host, and the
        device contributed only sample ORDER. DRAWN + no anchors ⇒ `'none'`: the recording carries no
@@ -9574,6 +9628,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       fs = O2_ADC_HZ;
       /* The host-axis division above is DISCARDED here, so the export must not claim it was applied. */
       rateAppliedToFs = false;
+      fsRateReason = 'the device-crystal branch overwrote the rate with the ADC constant, so the host correction reached nothing';
       timebase = 'device-crystal';
     }
     return {
@@ -9582,6 +9637,15 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       relSec,
       fs,
       timebase,
+      /* THE RATE THE HOST CORRECTION IS ABOUT (residue row
+         `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). `fs`
+         above is what every consumer spends; these three say where it came from. `fsRaw` is the rate
+         this parse read before the division, `fsRateApplied` whether the division reached `fs`, and
+         `fsRateReason` the gate that stopped it. The shared timing block publishes all three, so a
+         reader of the export no longer has to infer the rate from the correction's diagnostics. */
+      fsRaw: fsBeforeCorrection,
+      fsRateApplied: rateAppliedToFs,
+      fsRateReason,
       n,
       /* PRESENT ONLY WHEN IT HAPPENED, so every clean stream keeps today's bytes and no clean fixture
          moves (the `anchorsDroppedPreResync` discipline ECGDex uses, and MotionDex's `_clockResyncs`).
@@ -14087,6 +14151,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
          parsePPG; null propagates as null and is never back-filled from durSec. */
       endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
       fs: rec.fs,
+      /* THE RATE BEFORE THE HOST DIVISION, AND WHAT HAPPENED TO IT (residue row
+         `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). This
+         literal is a reshape and drops whatever it does not name — the `hostAxis` and
+         `offsetSegments` comments below record what that already cost. `fsRaw` is the rate parsePPG
+         read before dividing by the host rate, `fsRateApplied` says whether the division reached
+         `fs`, and `fsRateReason` names the gate that stopped it. A frame-routed recording never ran
+         the correction, so all three stay null rather than echoing `fs` as if it had. */
+      fsRaw: rec.fsRaw != null ? rec.fsRaw : null,
+      fsRateApplied: rec.fsRateApplied == null ? null : rec.fsRateApplied,
+      fsRateReason: rec.fsRateReason || null,
       n: rec.n,
       t0Ms: rec.t0Ms,
       offsetMin: rec.offsetMin,
@@ -14893,7 +14967,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
                 timingSource: r.timingSource,
                 drawn: r.axisDrawn,
                 resyncs: r.clockResyncs || [],
-                seams: r.clockResyncs || []
+                seams: r.clockResyncs || [],
+                /* The rate, from the node that owns it. `fsRateApplied` is this node's own flag
+                   rather than `hostAxis.rateApplied`, because the refusal branch of that projection
+                   never carried the field and a missing key would read as "nobody said". */
+                rate: r.fs,
+                rateRaw: r.fsRaw,
+                rateApplied: r.fsRateApplied,
+                rateReason: r.fsRateReason
               })
             : null
       },

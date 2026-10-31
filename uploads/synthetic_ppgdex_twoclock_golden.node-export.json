@@ -29,6 +29,9 @@
       "spanPpm": 226.0451990374636,
       "resyncs": 0,
       "seams": 0,
+      "rate": 134.98,
+      "rateRaw": 135,
+      "rateApplied": true,
       "reason": null
     },
     "hostAxis": {
@@ -68,8 +71,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "e256007a8bc2",
-        "computeHash": "2fb5b1ef2694"
+        "manifestHash": "66683a521ed4",
+        "computeHash": "001d03c70a0c"
       },
       "evidence": {
         "envelopeRef": null,
@@ -98,8 +101,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "e256007a8bc2",
-        "computeHash": "2fb5b1ef2694"
+        "manifestHash": "66683a521ed4",
+        "computeHash": "001d03c70a0c"
       },
       "evidence": {
         "envelopeRef": null,

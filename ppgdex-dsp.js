@@ -1255,6 +1255,11 @@
        because the `device-crystal` branch below overwrites `fs` with the ADC constant and a consumer
        cannot otherwise tell a measured `ppm` that moved the rate from one that moved nothing. */
     let rateAppliedToFs = false;
+    /* THE SENTENCE BESIDE THE FLAG, because `rateApplied:false` names no cause on its own. Three
+       different things stop a measured `ppm` from reaching the published rate here, and each has its
+       own remedy: a refused axis, a non-finite rate, and the 0.01 Hz quantisation below. The shared
+       timing block quotes this where the node wrote one and invents nothing where it did not. */
+    let fsRateReason = null;
     /* ⚠️ THE FLAG READS THE PUBLISHED `fs`, NOT THE DIVISION — a rate quantised back to its old value
        reached nothing, exactly like the crystal overwrite this field was written for. The line below
        rounds to 0.01 Hz, which is 80 ppm at the ring's 125 Hz, so any `|ppm|` under 40 leaves `fs`
@@ -1275,6 +1280,17 @@
     }
     fs = Math.round(fs * 100) / 100;
     rateAppliedToFs = fsDivided && fs !== fsBeforeCorrection;
+    if (!hostAx.ok) fsRateReason = hostAx.reason || 'the host axis refused and named no reason';
+    else if (!fsDivided) fsRateReason = 'the host axis measured no finite rate to divide by';
+    else if (!rateAppliedToFs)
+      fsRateReason =
+        'the correction rounded out at the 0.01 Hz step the published rate carries — ' +
+        Math.round(hostAx.ppm * 100) / 100 +
+        ' ppm is under the ~' +
+        Math.round((1e6 * 0.01) / fs) +
+        ' ppm that step spans at ' +
+        fs +
+        ' Hz';
     /* `timingSource` is the field a consumer should actually branch on, and the reason this is computed
        rather than assumed. DRAWN + host anchors ⇒ every bit of real timing came from the host, and the
        device contributed only sample ORDER. DRAWN + no anchors ⇒ `'none'`: the recording carries no
@@ -1469,6 +1485,7 @@
       fs = O2_ADC_HZ;
       /* The host-axis division above is DISCARDED here, so the export must not claim it was applied. */
       rateAppliedToFs = false;
+      fsRateReason = 'the device-crystal branch overwrote the rate with the ADC constant, so the host correction reached nothing';
       timebase = 'device-crystal';
     }
     return {
@@ -1477,6 +1494,15 @@
       relSec,
       fs,
       timebase,
+      /* THE RATE THE HOST CORRECTION IS ABOUT (residue row
+         `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). `fs`
+         above is what every consumer spends; these three say where it came from. `fsRaw` is the rate
+         this parse read before the division, `fsRateApplied` whether the division reached `fs`, and
+         `fsRateReason` the gate that stopped it. The shared timing block publishes all three, so a
+         reader of the export no longer has to infer the rate from the correction's diagnostics. */
+      fsRaw: fsBeforeCorrection,
+      fsRateApplied: rateAppliedToFs,
+      fsRateReason,
       n,
       /* PRESENT ONLY WHEN IT HAPPENED, so every clean stream keeps today's bytes and no clean fixture
          moves (the `anchorsDroppedPreResync` discipline ECGDex uses, and MotionDex's `_clockResyncs`).
@@ -5982,6 +6008,16 @@
          parsePPG; null propagates as null and is never back-filled from durSec. */
       endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
       fs: rec.fs,
+      /* THE RATE BEFORE THE HOST DIVISION, AND WHAT HAPPENED TO IT (residue row
+         `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). This
+         literal is a reshape and drops whatever it does not name — the `hostAxis` and
+         `offsetSegments` comments below record what that already cost. `fsRaw` is the rate parsePPG
+         read before dividing by the host rate, `fsRateApplied` says whether the division reached
+         `fs`, and `fsRateReason` names the gate that stopped it. A frame-routed recording never ran
+         the correction, so all three stay null rather than echoing `fs` as if it had. */
+      fsRaw: rec.fsRaw != null ? rec.fsRaw : null,
+      fsRateApplied: rec.fsRateApplied == null ? null : rec.fsRateApplied,
+      fsRateReason: rec.fsRateReason || null,
       n: rec.n,
       t0Ms: rec.t0Ms,
       offsetMin: rec.offsetMin,
@@ -6788,7 +6824,14 @@
                 timingSource: r.timingSource,
                 drawn: r.axisDrawn,
                 resyncs: r.clockResyncs || [],
-                seams: r.clockResyncs || []
+                seams: r.clockResyncs || [],
+                /* The rate, from the node that owns it. `fsRateApplied` is this node's own flag
+                   rather than `hostAxis.rateApplied`, because the refusal branch of that projection
+                   never carried the field and a missing key would read as "nobody said". */
+                rate: r.fs,
+                rateRaw: r.fsRaw,
+                rateApplied: r.fsRateApplied,
+                rateReason: r.fsRateReason
               })
             : null
       },

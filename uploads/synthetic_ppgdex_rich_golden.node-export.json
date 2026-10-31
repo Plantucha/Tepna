@@ -29,7 +29,10 @@
       "spanPpm": -17.003410682049797,
       "resyncs": 0,
       "seams": 0,
-      "reason": "host ≡ device — residual spread 0.93 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock"
+      "rate": 135,
+      "rateRaw": 135,
+      "rateApplied": false,
+      "reason": "host ≡ device — residual spread 0.93 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: the correction rounded out at the 0.01 Hz step the published rate carries — -11 ppm is under the ~74 ppm that step spans at 135 Hz"
     },
     "hostAxis": {
       "anchors": 11,
@@ -68,8 +71,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "e256007a8bc2",
-        "computeHash": "2fb5b1ef2694"
+        "manifestHash": "66683a521ed4",
+        "computeHash": "001d03c70a0c"
       },
       "evidence": {
         "envelopeRef": null,
@@ -98,8 +101,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "e256007a8bc2",
-        "computeHash": "2fb5b1ef2694"
+        "manifestHash": "66683a521ed4",
+        "computeHash": "001d03c70a0c"
       },
       "evidence": {
         "envelopeRef": null,
