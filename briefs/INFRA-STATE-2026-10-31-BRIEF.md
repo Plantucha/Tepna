@@ -80,8 +80,6 @@ These changes live on hosts, not in git. Muse took a backup beside each edited f
       reindex away from 16 GB lab jobs, or bound its memory.
 - [ ] **nightly-triage hit its 8 h timeout once, on 10-30.** The runs on 10-27, 10-28 and 10-29
       finished, so this is a single observation. Watch it through `unit-health`.
-- [ ] **Vigil `UNSPOOLED-CARD-NIGHT` fires on 292 of 292 nights**, so it separates no real gap. Wren
-      sizes it (2026-10-31).
 - [ ] **Tools/turn sits under the target of 2** for every bird (0.89–0.95 on 10-31). The planned fix is a
       per-unit view in `fleet-turns.mjs` and a `CLAUDE.md` §6 line on line-range reads.
 
@@ -90,12 +88,18 @@ These changes live on hosts, not in git. Muse took a backup beside each edited f
 - **Vigil V3, the CPAP spool cursor stuck at 2026-10-20T16:00Z** (Wren, #2483): PASS. New data arrives
   every night (about 211 B per Summary record), and the cursor moves only at a block end, about every
   16 nights. The next move is near 2026-11-05.
+- **Vigil `UNSPOOLED-CARD-NIGHT` on 292 of 292 nights** (Wren, PR #4170): fixed. The inventory read
+  no spool and no stream nights. It now decodes the spool and reads the stream's night folders. A
+  read-only box run gives 57 `COMPLETE`, 35 `MISSED-LIVE` and 200 pre-spool `UNSPOOLED-CARD-NIGHT`.
+  The fix goes live at the next daemon deploy.
 - **Audit F3, unsupervised services**: wrong. XERJ runs in `tepna-hybrid-index.service`, the reranker
   in `tepna-rerank.service`, and the board views are units.
 - **sudo**: none owed on the rig. No root-owned file exists in any worktree on 2026-10-31.
 
 ## Log
 
+- 2026-10-31 · Wren fixed the CPAP inventory (PR #4170): it reads the decoded spool and the stream's
+  night folders.
 - 2026-10-31 · Muse fixed the three escalation-chain defects (#2508): a TEST prefix, true page text, and a
   Kestrel ack that closes a network escalation.
 - 2026-10-31 · Kestrel decided that Muse starts item 3a, the rig copy-time hash manifest, as a draft PR (#2510).

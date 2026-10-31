@@ -16,11 +16,11 @@
 #                `consulted == True`, while a walk that never happened is `error` and False. The
 #                information is not present in `state` at all, which is why the transport publishes
 #                the flag (Vigil box, 2026-08-28).
-#   spool      — the LEDGER FILE existing and parsing. An absent ledger is "we never transacted the
-#                spool", not "the device listed nothing"; the spool is a once-daily Summary
-#                transaction, so on most therapy-end runs there is simply nothing new to have read.
-#   envelopes  — the envelope DIRECTORY existing. No directory means live capture has never written
-#                here, which is not the same as a night with no envelope.
+#   spool      — the LEDGER FILE existing and every committed round decoding. An absent ledger is
+#                "we never transacted the spool", not "the device listed nothing"; the spool is a
+#                once-daily Summary transaction, so on most therapy-end runs there is nothing new.
+#   envelopes  — the live stream's DIRECTORY existing. No directory means live capture has never
+#                written here, which is not the same as a night the stream did not capture.
 #
 # WHAT THIS DOES NOT DO: it never writes into a night's data, never triggers a harvest or a spool
 # pull, and never raises into its caller. It is a reporter.
@@ -72,41 +72,72 @@ def card_nights(dest_root: str) -> tuple[list[str], bool]:
 
 
 def envelope_nights(envelope_root: str) -> tuple[list[str], bool]:
-    """Nights with a live acquisition envelope — the `*.meta.json` sidecars written beside each live
-    EDF. The night comes from the filename, which `cpap_inventory.night_key` resolves or refuses."""
-    entries = _listdir(envelope_root)
-    if entries is None:
+    """Nights the live stream captured — the `DATALOG/<night>/` folders under `cpap.ble_stream.edf_dir`
+    that hold at least one `.edf`. The stream files its EDFs in the card's own layout, so the folder
+    name IS the night, and `cpap_inventory.night_key` resolves or refuses it.
+
+    ⚠️ NOT `*.meta.json`. The acquisition-evidence sidecar sits beside the RAW RECORD, under
+    `raw_record_dir`, and only when that sink is on. This reader looked for it at the top of `edf_dir`,
+    where no writer puts it, so every box read "consulted, no envelopes" (vigil 2026-10-31: 0 sidecars,
+    58 stream nights). A folder with no `.edf` is a night the stream opened and never wrote."""
+    root = _listdir(envelope_root)
+    if root is None:
         return [], False
-    return [e for e in entries if e.endswith(".meta.json")], True
+    if "DATALOG" not in root:
+        return [], True  # the stream dir exists and has never filed a night: read, and empty is real
+    nights = _listdir(os.path.join(envelope_root, "DATALOG"))
+    if nights is None:
+        return [], False
+    return [
+        n for n in nights if any(e.endswith(".edf") for e in _listdir(os.path.join(envelope_root, "DATALOG", n)) or [])
+    ], True
 
 
-def spool_nights(spool_root: str, *, read_ledger=None) -> tuple[list[str], bool]:
-    """Sessions the DEVICE listed, from the spool ledger.
+def decoded_spool_days(spool_root: str) -> list[str] | None:
+    """The therapy days the DEVICE listed: every committed Summary round, decoded, one day per record
+    that carries a session. None when the spool cannot be read whole.
 
-    Consulted means the ledger was READ, not that it held rows. An unreadable or absent ledger returns
-    `consulted=False` so the oracle refuses to draw spool-shaped conclusions from its silence."""
-    if read_ledger is None:
-        import cpap_spool
+    ⚠️ THE LEDGER ROW DOES NOT NAME A NIGHT. A row's `committed_cursor` is the START of the block the
+    device served, and one block covers ~16 nights, so keying rows named 4 nights for 37 rounds. The
+    nights live inside the round's bytes, which `cpap_spool_decode` reads (vigil 2026-10-31: 92 days,
+    0 unknown bytes). A round whose file is absent makes the list partial, and a partial list would
+    turn every night it lost into a finding — so it returns None, which reads as not consulted."""
+    import cpap_spool
+    import cpap_spool_decode
 
-        read_ledger = cpap_spool.read_ledger
+    if not spool_root or not os.path.exists(cpap_spool.ledger_path(spool_root)):
+        return None
+    days = []
+    for _row, path in cpap_spool_decode.iter_committed(spool_root):
+        if path is None:
+            return None
+        with open(path, "rb") as fh:
+            for rec in cpap_spool_decode.decode_round(fh.read())["records"]:
+                day = cpap_spool_decode.local_day(rec)
+                if day is not None and rec.get("sessions"):
+                    days.append(day)
+    return days
+
+
+def spool_nights(spool_root: str, *, read_spool=None) -> tuple[list[str], bool]:
+    """Nights the DEVICE listed, from the decoded spool.
+
+    Consulted means the spool was READ whole, not that it held rows. An absent ledger, an absent round
+    file or a round that does not decode returns `consulted=False`, so the oracle refuses to draw
+    spool-shaped conclusions from its silence."""
+    if read_spool is None:
+        read_spool = decoded_spool_days
     try:
-        rows = read_ledger(spool_root)
-    except Exception:  # noqa: BLE001 — an unreadable ledger is "not consulted", never "empty"
+        days = read_spool(spool_root)
+    except Exception:  # noqa: BLE001 — an unreadable spool is "not consulted", never "empty"
         return [], False
-    if rows is None:
+    if days is None:
         return [], False
-    out = []
-    for r in rows:
-        for key in ("night", "session_start", "committed_cursor", "cursor"):
-            v = r.get(key) if isinstance(r, dict) else None
-            if v:
-                out.append(str(v))
-                break
-    return out, True
+    return [str(d) for d in days], True
 
 
 def reconcile_after_harvest(
-    result: dict, *, dest_root: str, envelope_root: str, spool_root: str, read_ledger=None
+    result: dict, *, dest_root: str, envelope_root: str, spool_root: str, read_spool=None
 ) -> dict:
     """Collect the three inventories and reconcile them. Returns the oracle's result verbatim.
 
@@ -115,7 +146,7 @@ def reconcile_after_harvest(
     an inventory on disk rather than a fact about one run."""
     card, card_ok = card_nights(dest_root)
     env, env_ok = envelope_nights(envelope_root)
-    spool, spool_ok = spool_nights(spool_root, read_ledger=read_ledger)
+    spool, spool_ok = spool_nights(spool_root, read_spool=read_spool)
     return cpap_inventory.reconcile(
         spool=spool,
         envelopes=env,
@@ -164,7 +195,7 @@ def on_harvest_complete(
     spool_root: str,
     qc_path: str,
     journal_path: str,
-    read_ledger=None,
+    read_spool=None,
     log=None,
 ) -> dict | None:
     """The callee for `capture.py`'s `on_complete` hook. Never raises into its caller.
@@ -173,7 +204,7 @@ def on_harvest_complete(
     against a tmp tree."""
     try:
         res = reconcile_after_harvest(
-            result, dest_root=dest_root, envelope_root=envelope_root, spool_root=spool_root, read_ledger=read_ledger
+            result, dest_root=dest_root, envelope_root=envelope_root, spool_root=spool_root, read_spool=read_spool
         )
         payload = write_reports(res, qc_path=qc_path, journal_path=journal_path)
         if log is not None:

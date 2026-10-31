@@ -11257,8 +11257,10 @@ def _cpap_inventory_report(result, cfg, root, dest):
 
     The four roots are the daemon's, not the reporter's: `dest_root` is where the harvest writes,
     `envelope_root` is the live BLE stream's tree (None on a box with no stream — the adapter reads
-    that as UNCONSULTED, not as an empty card), `spool_root` is the box root, and the two report paths
-    sit in the night dir beside QC-SUMMARY.json so a night's evidence stays in one place."""
+    that as UNCONSULTED, not as an empty card), `spool_root` is the spool the pull writes (the same
+    `resolve_spool_root` the pull uses — the box root holds no ledger, so passing it read the spool
+    as empty on every night), and the two report paths sit in the night dir beside QC-SUMMARY.json
+    so a night's evidence stays in one place."""
     import cpap_inventory_adapter
 
     night = _current_night(
@@ -11272,7 +11274,7 @@ def _cpap_inventory_report(result, cfg, root, dest):
         result,
         dest_root=dest,
         envelope_root=resolve_cpap_dir(((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir"), root),
-        spool_root=root,
+        spool_root=resolve_spool_root(((cfg.get("cpap") or {}).get("spool_pull") or {}).get("root"), root),
         qc_path=os.path.join(nd, "QC-SUMMARY.json"),
         journal_path=os.path.join(nd, "CPAP-INVENTORY.jsonl"),
         log=log,
