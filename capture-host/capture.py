@@ -15647,6 +15647,13 @@ async def main():
         _acfg.get("webhook_url"),
         enabled=bool(_acfg.get("enabled")),
         emails=alerts.configured_emails(_acfg.get("emails")),
+        # Rich-alert schema v1 Where/Handle footer: host and captures root are read at runtime so
+        # the text stays true on any install computer; the board line names this deployment's
+        # alert thread and its owner bird.
+        context=(
+            f"Host: {os.uname().nodename} · Captures root: {cfg.get('root') or '(unset)'}\n"
+            "Daemon: tepna-capture.service · Board: alerts: vigil (@wren)"
+        ),
     )
     # Published every status tick (see status_loop). Module-level rather than threaded through a dozen
     # signatures because the ONE thing this needs is to reach the same surface as everything else it
