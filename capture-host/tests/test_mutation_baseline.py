@@ -57,6 +57,7 @@ def test_baseline_id_folds_both_module_spellings():
     """The ledger holds BOTH, and the gate only ever knows the basename."""
     assert M.baseline_id("nightqc.py", "summarize") == "nightqc.py::summarize"
     assert M.baseline_id("capture-host/nightqc.py", "summarize") == "nightqc.py::summarize"
+    assert M.baseline_id("capture-host/tools/mutate_diff.py", "main") == "mutate_diff.py::main"
 
 
 @pytest.mark.parametrize("module,function", [("", "summarize"), ("nightqc.py", ""), (None, None), ("  ", "f")])
@@ -101,6 +102,23 @@ def test_baseline_from_ledger_refuses_an_entry_it_cannot_check(bad, why):
     assert M.baseline_from_ledger({"entries": [_entry(**bad)]}) == {}, why
 
 
+def test_baseline_from_ledger_accepts_the_lowest_real_pr_number():
+    """#1 is a real PR, so the bound is `pr <= 0`. Only the boundary itself tells it from `pr <= 1`."""
+    b = M.baseline_from_ledger({"entries": [_entry(pr=1)]})
+    assert b == {"nightqc.py::summarize": {"- a = None | + a = ''": [1]}}
+
+
+@pytest.mark.parametrize(
+    "bad", [{"lane": "js"}, {"state": "equivalent"}, {"pr": 0}, {"module": ""}, {"function": ""}, {"key": ""}]
+)
+def test_baseline_from_ledger_skips_an_unusable_entry_and_keeps_reading(bad):
+    """Every refusal is a `continue` and never a `break`: one unusable row must not hide the rows
+    after it. A `break` would silently shrink the baseline to whatever preceded the first bad row,
+    which reads as inherited debt the record does not own."""
+    b = M.baseline_from_ledger({"entries": [_entry(**bad), _entry(pr=4126)]})
+    assert b == {"nightqc.py::summarize": {"- a = None | + a = ''": [4126]}}
+
+
 @pytest.mark.parametrize("raw", [None, [], "", {"entries": None}, {"entries": []}, {}, {"entries": ["x", 7, None]}])
 def test_baseline_from_ledger_reads_an_unusable_document_as_empty(raw):
     """Empty means every survivor blocks — the behaviour before the record existed."""
@@ -124,7 +142,10 @@ def test_split_inherited_names_the_pr_that_recorded_it():
     b = M.baseline_from_ledger({"entries": [_entry()]})
     new, inherited = M.split_inherited([_survivor()], b)
     assert new == []
-    assert [(s["function"], s["inheritedFrom"]) for s in inherited] == [("summarize", 3188)]
+    # EVERY FIELD THE SURVIVOR CARRIED, PLUS THE TWO THIS ADDS. A reader reaches the measurement
+    # through `inheritedFrom`, and the triage tools read `mutant` and `key` off the same row — so
+    # the row is the survivor's own dict extended, never a fresh dict holding only the two keys.
+    assert inherited == [dict(_survivor(), function="summarize", inheritedFrom=3188)]
 
 
 def test_split_inherited_consumes_multiplicity_so_one_occurrence_too_many_is_new():
@@ -233,11 +254,16 @@ def test_inherited_report_names_each_mutant_its_owner_and_the_ratchet():
 
 def test_inherited_report_takes_a_locator_and_caps_the_list():
     many = [{"mutant": f"nightqc.x_summarize__mutmut_{i}", "inheritedFrom": 3188} for i in range(14)]
-    rows = M.inherited_report(many, limit=3, locate=lambda s: "  nightqc.py:91")
-    assert "nightqc.py:91" in rows[1]
+    # THE LOCATOR READS ITS OWN SURVIVOR. A locator that ignores its argument cannot tell `loc(s)`
+    # from `loc(None)`, and the gate injects `survivor_location`, which answers per mutant.
+    rows = M.inherited_report(many, limit=3, locate=lambda s: f"  nightqc.py:{s['mutant'][-1]}")
+    assert "nightqc.py:0" in rows[1]
+    assert "nightqc.py:1" in rows[2]
     assert "… and 11 more" in rows[-2]
+    # AND THE DEFAULT LOCATOR CONTRIBUTES NOTHING — asserted as the WHOLE line, because an
+    # `endswith` cannot see a `None` spliced in ahead of it.
     rows_plain = M.inherited_report(many[:2])
-    assert rows_plain[1].endswith("(recorded by #3188)")
+    assert rows_plain[1] == "  ── nightqc.x_summarize__mutmut_0  (recorded by #3188)"
 
 
 def test_inherited_report_caps_at_twelve_by_default():
@@ -248,6 +274,14 @@ def test_inherited_report_caps_at_twelve_by_default():
     assert M.INHERITED_REPORT_LIMIT == 12
     assert sum(1 for r in rows if r.lstrip().startswith("──")) == 12
     assert "… and 1 more" in rows[-2]
+
+
+def test_inherited_report_names_no_remainder_at_exactly_the_cap():
+    """`>` and not `>=`: at the cap every row is printed, so there is no remainder to name."""
+    many = [{"mutant": f"nightqc.x_summarize__mutmut_{i}", "inheritedFrom": 3188} for i in range(3)]
+    rows = M.inherited_report(many, limit=3)
+    assert sum(1 for r in rows if r.lstrip().startswith("──")) == 3
+    assert "… and" not in "\n".join(rows)
 
 
 # ── the gate's own loader, driven the way the gate loads it ────────────────────────────────────────

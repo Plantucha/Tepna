@@ -1002,7 +1002,11 @@ def baseline_id(module, function) -> str:
     ever knows the basename (`changed_lines` keeps `Path(p).name`). `""` is the fail-closed value — a
     survivor whose module or function cannot be named inherits nothing.
     """
-    mod = str(module or "").rsplit("/", 1)[-1].strip()
+    # THE BASENAME THROUGH A PATH OBJECT, AND NOT `rsplit("/", 1)[-1]`. Measured 2026-10-31 on this
+    # gate's own run against itself: every maxsplit a mutation can write leaves `[-1]` the LAST
+    # field, so `rsplit("/")` and `rsplit("/", 2)` are both indistinguishable from the original and
+    # survive by construction. Two unkillable mutants, for a basename a path object already knows.
+    mod = pathlib.PurePosixPath(str(module or "").strip()).name
     fn = str(function or "").strip()
     if not mod or not fn:
         return ""
@@ -1059,7 +1063,10 @@ def split_inherited(survivors, baseline):
     new: list = []
     inherited: list = []
     for sv in survivors or []:
-        fn = sv.get("function") or function_of_mutant(sv.get("mutant", ""))
+        # `sv.get("mutant")` CARRIES NO DEFAULT ON PURPOSE. `function_of_mutant` reads `None` and
+        # `""` identically (`if not name: return ""`), so a spelled-out `""` default is a mutant
+        # nothing can kill — two of them on this one line, measured 2026-10-31.
+        fn = sv.get("function") or function_of_mutant(sv.get("mutant"))
         owners = pool.get(baseline_id(sv.get("module"), fn), {}).get(str(sv.get("key") or "").strip())
         if owners:
             inherited.append(dict(sv, function=fn, inheritedFrom=owners.pop(0)))
