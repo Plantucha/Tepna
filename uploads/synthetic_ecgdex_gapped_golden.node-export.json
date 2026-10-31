@@ -27,7 +27,10 @@
       "spanPpm": -1.298552876596999,
       "resyncs": 0,
       "seams": 0,
-      "reason": "host ≡ device — the host column tracks the device column inside one stamp quantum, so it is not an independent clock"
+      "rate": 129.99999908798043,
+      "rateRaw": 129.99999908798043,
+      "rateApplied": false,
+      "reason": "host ≡ device — the host column tracks the device column inside one stamp quantum, so it is not an independent clock; the rate correction did not reach the published rate: host column is not a second clock (residual spread 0.92 ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock"
     },
     "hostAxis": {
       "applied": false,
@@ -92,8 +95,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b7e2d34e2a58",
-        "computeHash": "5d9d1622aa52"
+        "manifestHash": "6712ea329ea0",
+        "computeHash": "55efe173558a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -122,8 +125,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b7e2d34e2a58",
-        "computeHash": "5d9d1622aa52"
+        "manifestHash": "6712ea329ea0",
+        "computeHash": "55efe173558a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -152,8 +155,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b7e2d34e2a58",
-        "computeHash": "5d9d1622aa52"
+        "manifestHash": "6712ea329ea0",
+        "computeHash": "55efe173558a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -182,8 +185,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b7e2d34e2a58",
-        "computeHash": "5d9d1622aa52"
+        "manifestHash": "6712ea329ea0",
+        "computeHash": "55efe173558a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -214,8 +217,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "b7e2d34e2a58",
-        "computeHash": "5d9d1622aa52"
+        "manifestHash": "6712ea329ea0",
+        "computeHash": "55efe173558a"
       },
       "evidence": {
         "envelopeRef": null,

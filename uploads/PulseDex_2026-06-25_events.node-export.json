@@ -53,6 +53,9 @@
       "spanPpm": null,
       "resyncs": null,
       "seams": 0,
+      "rate": null,
+      "rateRaw": null,
+      "rateApplied": null,
       "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node does not look for device-clock resyncs, so that count is unknown rather than zero"
     }
   },

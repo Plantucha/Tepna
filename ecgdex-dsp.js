@@ -3249,6 +3249,12 @@
     return {
       source: rec.source,
       fs,
+      /* THE RATE BEFORE THE HOST DIVISION, forwarded through the SECOND reshape (residue row
+         `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). `fs`
+         above is what every consumer spends; a reader that wants to know whether the host axis
+         moved it needs the number it moved FROM, and the comment on `hostAxis` at :3425 records
+         what this reshape costs a field it does not name. */
+      fsRaw: rec.fsRaw != null ? rec.fsRaw : null,
       durSec,
       // Carry the parsed clock end through analyze — like `offsetMin`, it is a property of the
       // RECORDING, not of the analysis, so analyze must pass it rather than re-derive it. Note the
@@ -5581,6 +5587,12 @@
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       fs: fs,
+      /* THE RATE BEFORE THE HOST DIVISION (residue row
+         `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`). `fs`
+         above may carry the `ppm`; this is what the file said. `hostAxis.applied` beside it says
+         whether the division happened and `hostAxis.reason` names the gate that refused it, so the
+         shared timing block can publish the rate and its provenance together. */
+      fsRaw: fsDevice,
       /* §∅ — the rate's PROVENANCE travels with the rate. 'ns-counter' | 'ms-step' | 'ms-delta' are
          measured from the file; 'assumed' means no counter was usable and `fs` is the H10's nominal
          130 with nothing behind it. A consumer that spends `fs` as a timebase can now tell the two
@@ -5842,6 +5854,7 @@
     var rec = {
       int16: arr.slice(0, n),
       fs: t.fs,
+      fsRaw: t.fsRaw,
       fsSource: t.fsSource,
       /* ⚠️ THIS IS A RESHAPE AND IT DROPS WHATEVER IT DOES NOT NAME. `ecgTimingResolve` returns the
          node's whole timing product; this literal copies a fixed list out of it, so a field added
@@ -6447,7 +6460,14 @@
                 resyncs: r.clockResyncs || [],
                 // This node's seam instrument IS its counter-step detector, so the two counts are
                 // the same measurement. The node says so; the shared builder no longer assumes it.
-                seams: r.clockResyncs || []
+                seams: r.clockResyncs || [],
+                /* The rate, and the two fields that say what happened to it. This node's span and
+                   step gates can measure a `ppm` and decline to spend it, so `applied` is the field
+                   that separates a corrected rate from a declined one, and `reason` names the gate. */
+                rate: r.fs,
+                rateRaw: r.fsRaw,
+                rateApplied: r.hostAxis ? r.hostAxis.applied : null,
+                rateReason: r.hostAxis ? r.hostAxis.reason : null
               })
             : null
       },

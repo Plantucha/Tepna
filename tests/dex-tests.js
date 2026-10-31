@@ -21750,12 +21750,12 @@
        from "nobody looked", which are different facts and only one of them is a measurement.
 
        The remedy is one builder (`dex-export.js timingBlock`) and this group is what keeps it one.
-       It checks the SHAPE, not the values: nine keys, in order, on every node-export the repo
+       It checks the SHAPE, not the values: twelve keys, in order, on every node-export the repo
        commits, with the vocabulary closed and §∅'s rule enforced — a null measurement owes a reason,
        and so does an axis that ran and answered negative (section 4b). A node that goes back to hand-rolling fails the source leg
        before any fixture moves. */
-    group('one shared timing block — nine keys, one vocabulary, every node-export', 'dex-export · timing-parity · clock · §∅ · DEVICE-TIME-HANDLING', function (T) {
-      var KEYS = ['timingSource', 'independent', 'anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams', 'reason'];
+    group('one shared timing block — twelve keys, one vocabulary, every node-export', 'dex-export · timing-parity · clock · §∅ · DEVICE-TIME-HANDLING', function (T) {
+      var KEYS = ['timingSource', 'independent', 'anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams', 'rate', 'rateRaw', 'rateApplied', 'reason'];
       var SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
       var MEASURED = ['anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams'];
       var src = env.sources || {};
@@ -21777,7 +21777,7 @@
 
       // ── 2 · the shape is fixed, including the key ORDER a parity claim rests on ──
       var bare = DE.timingBlock();
-      T.ok('a no-argument call still returns all nine keys, in order', String(Object.keys(bare)) === String(KEYS), String(Object.keys(bare)));
+      T.ok('a no-argument call still returns all twelve keys, in order', String(Object.keys(bare)) === String(KEYS), String(Object.keys(bare)));
       T.ok('a node with no host column reads device-only, never silence', bare.timingSource === 'device-only' && bare.independent === false, JSON.stringify(bare));
       T.ok('…and says WHY every number is absent', typeof bare.reason === 'string' && bare.reason.length > 0, String(bare.reason));
 
@@ -21939,6 +21939,49 @@
       });
       T.ok('every node owning a seam instrument passes its own count', noSeamArg.length === 0, noSeamArg.join(', '));
 
+      /* ── 6b · THE RATE THE CORRECTION IS ABOUT (residue row
+         `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`) ──
+         Nine keys described a rate correction and none of them was the rate. Two nodes divide `fs` by
+         `1 + ppm / 1e6`, four consumers spend `fs` as a rate, and a reader of either export could not
+         say what the rate was, what it became, or whether the division reached it. These legs pin the
+         three new keys to the NODE: the builder reads them and derives none, a rate of `0` is an
+         absence rather than a slow recording, and only a refused correction with a node-written
+         sentence gains a clause. */
+      var rated = DE.timingBlock({ rate: 130, rateRaw: 130.0091, rateApplied: true });
+      T.ok('the node’s rate travels, before and after the correction', rated.rate === 130 && rated.rateRaw === 130.0091, JSON.stringify(rated));
+      T.ok('…and an applied correction says so', rated.rateApplied === true);
+      T.ok('…while an applied correction adds no clause', !/rate correction/.test(rated.reason || ''), String(rated.reason));
+      T.ok('\u2205 a node that passes no rate publishes none of the three', bare.rate === null && bare.rateRaw === null && bare.rateApplied === null, JSON.stringify(bare));
+      T.ok('…and says nothing about a rate it never had', !/rate correction/.test(bare.reason || ''), String(bare.reason));
+      T.ok('\u2205 a 0 Hz rate is an absent measurement, not a slow recording', DE.timingBlock({ rate: 0, rateRaw: 0 }).rate === null);
+      T.ok('…and a negative one is not a rate either', DE.timingBlock({ rate: -125 }).rate === null);
+      T.ok('…nor is a numeric string', DE.timingBlock({ rate: '125' }).rate === null);
+      T.ok('…nor NaN', DE.timingBlock({ rate: NaN }).rate === null);
+      T.ok('rateApplied is a verdict, so only a real boolean reaches it', DE.timingBlock({ rate: 125, rateApplied: 'true' }).rateApplied === null);
+      var refusedRate = DE.timingBlock({ rate: 130, rateRaw: 130, rateApplied: false, rateReason: 'span 41 s is under the 2400 s a crystal rate needs' });
+      T.ok('a refused correction names the gate that refused it', /did not reach the published rate: span 41 s/.test(refusedRate.reason || ''), String(refusedRate.reason));
+      T.ok('…and the rate it did not reach is still published', refusedRate.rate === 130 && refusedRate.rateApplied === false);
+      T.ok('a refusal with no node sentence invents none', !/rate correction/.test(DE.timingBlock({ rate: 130, rateApplied: false }).reason || ''));
+      T.ok('a stale rateReason is dropped once the correction applies', !/rate correction/.test(DE.timingBlock({ rate: 130, rateApplied: true, rateReason: 'span 41 s' }).reason || ''));
+      /* CONTROL · the clause is scoped to the RATE. A block that refuses a rate correction still
+         reads its timebase from the axis, so a rate refusal must not move `timingSource`. */
+      T.ok(
+        'CONTROL · a refused rate correction leaves the timebase verdict alone',
+        DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [], rate: 130, rateApplied: false, rateReason: 'span 41 s' }).timingSource === 'device+host'
+      );
+
+      /* A node that CORRECTS a rate must pass it: the builder derives nothing, so a call site that
+         forgets publishes `rate: null` beside an `fs` the node spent. These are the two division
+         sites (`ppgdex-dsp.js`, `ecgdex-dsp.js`); every other node passes no rate and publishes
+         three nulls, which is the measured fact about its input. */
+      var RATE_OWNERS = ['ecgdex-dsp.js', 'ppgdex-dsp.js'];
+      var noRateArg = RATE_OWNERS.filter(function (f) {
+        var t = src[f] || '';
+        var i = t.indexOf('DexExport.timingBlock({');
+        return i < 0 || t.slice(i, i + 1400).indexOf('rate:') === -1;
+      });
+      T.ok('both rate-correcting nodes pass their own rate', noRateArg.length === 0, noRateArg.join(', '));
+
       /* ── 7 · FIXTURE LEG — TWO COMMITTED SETS, ONE CONTRACT, DIFFERENT OBLIGATIONS ──
          `env.equiv[*].fixture` is the golden set the nine `tools/regen-<node>-goldens.mjs` rewrite from
          the committed inputs. Every one of those files is CURRENT BUILD OUTPUT, so every one owes the
@@ -21954,13 +21997,13 @@
           if (required) T.ok(where + ' carries recording.timing', false, 'absent — a builder stopped reaching the shared block');
           return;
         }
-        T.ok(where + ' · nine keys, in order', String(Object.keys(tb)) === String(KEYS), String(Object.keys(tb)));
+        T.ok(where + ' · twelve keys, in order', String(Object.keys(tb)) === String(KEYS), String(Object.keys(tb)));
         T.ok(where + ' · timingSource is in the vocabulary', SOURCES.indexOf(tb.timingSource) >= 0, String(tb.timingSource));
         var absent = MEASURED.filter(function (k) {
           return tb[k] == null;
         });
         /* COMPLETE IS NO LONGER SILENT (residue row
-           `2026-10-30-a-timing-block-that-names-no-timebase-states-no-reason`). A block whose nine
+           `2026-10-30-a-timing-block-that-names-no-timebase-states-no-reason`). A block whose
            measurements are all present still owes a sentence when the axis ran and answered negative:
            a drawn device counter, or a host column inert against it. So the strict half holds from the
            other end — the FULLY POSITIVE block is the one that must carry no reason. */
@@ -30947,7 +30990,7 @@
       });
       T.eq('every timing field the RESOLVER publishes survives the reshape', droppedByReshape.sort(), []);
 
-      var expect = ['fs', 'fsSource', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
+      var expect = ['fs', 'fsRaw', 'fsSource', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
       var missing = expect.filter(function (k) {
         return !(k in recR);
       });

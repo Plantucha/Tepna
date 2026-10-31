@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="50ef5e553514" data-compute-hash="03d252043879"><head>
+<html lang="en" data-manifest-hash="f8c8e296a8b6" data-compute-hash="66425ad92466"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7sMRffzPZCx7ViKLC/bxsI9hSi0nWLN5H3n4Sm3wu5U=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BH58u01qWhNePsiOK1+lcUp7rfOKHeAk0TqZU5vE4VM=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-uPBXSh8bOW0EIESjeEN3ZVzHDWjVCQ1RSoTzI4m2jM0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.25.0</title>
@@ -4020,6 +4020,9 @@ body.light .cov-grid td.cg-node{ background:#fff; }
        spanPpm       number | null        — the same ratio BEFORE the running median
        resyncs       int | null           — device-clock resync steps detected
        seams         int | null           — discontinuities in the PUBLISHED axis
+       rate          number | null        — the sample rate the node SPENDS, after any correction
+       rateRaw       number | null        — the rate it parsed, before the correction
+       rateApplied   true | false | null  — did the correction reach the published `rate`?
        reason        string | null        — why a key above is null, or why the source is negative
 
      WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
@@ -4063,6 +4066,14 @@ body.light .cov-grid td.cg-node{ background:#fff; }
     if (Array.isArray(v)) return v.length;
     if (typeof v === 'boolean') return null; // a boolean is a verdict, not a count — do not coerce it
     return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null;
+  }
+
+  /* A RATE, or `null`. Finite and above zero: a sampling rate of `0` is not a slow recording, it is
+     an absent measurement, and §∅ forbids one standing in for the other. The ceiling is deliberate
+     at nothing — a node that parses an implausible rate publishes it, because silently nulling a
+     wrong number hides the parse bug the field exists to expose. */
+  function _tbRate(v) {
+    return typeof v === 'number' && isFinite(v) && v > 0 ? v : null;
   }
 
   function timingBlock(opts) {
@@ -4139,6 +4150,30 @@ body.light .cov-grid td.cg-node{ background:#fff; }
     else if (neverScanned) why.push('this node does not scan for axis seams, so that count is unknown rather than zero');
     if (seamsReason) why.push('the axis-seam scan reported no count: ' + seamsReason);
 
+    /* ── THE RATE THE CORRECTION IS ABOUT (residue row
+       `2026-10-29-the-timing-block-publishes-every-fact-about-the-rate-except-the-rate`) ──
+       Every key above describes a rate correction: the anchors behind it, the `ppm` it measured, the
+       span that ppm rests on, whether a second clock exists at all. None of them is the rate. Two
+       nodes divide `fs` by `1 + ppm / 1e6` (`ppgdex-dsp.js:1273`, `ecgdex-dsp.js:5472`) and the
+       comment at `ecgdex-dsp.js:5477` names four consumers that spend `fs` AS a rate, so the number
+       is load-bearing rather than diagnostic — and a reader of either export could not say what the
+       rate was, what it became, or whether the division reached it.
+       THE BLOCK COMPUTES NONE OF THE THREE. It reads them from `opts`, exactly as it reads `seams`
+       and `resyncs`: the node owns the measurement, and a shared builder that inferred one would
+       publish a number no node measured (the `seams = resyncs` inheritance U3 ended).
+       `null`, never `0`, where a node spends no sample rate — GlucoDex and CPAPDex sample on their
+       own schedule, so the field cannot be universal and an absent rate is absent, not zero. */
+    var rate = _tbRate(opts.rate);
+    var rateRaw = _tbRate(opts.rateRaw);
+    // A verdict, not a count: anything but a real boolean is "nobody said", which is `null`.
+    var rateApplied = typeof opts.rateApplied === 'boolean' ? opts.rateApplied : null;
+    /* A REFUSED CORRECTION OWES THE GATE THAT REFUSED IT — the `seamsReason` discipline one block up.
+       `rateApplied:false` alone cannot separate a span too short to resolve a crystal from a rate
+       quantised back out at the published step, and those are different problems with different
+       remedies. The sentence is the node's; a node that passes none gets no clause here, because a
+       stock string would read as a measurement this block never made. */
+    if (rateApplied === false && typeof opts.rateReason === 'string' && opts.rateReason) why.push('the rate correction did not reach the published rate: ' + opts.rateReason);
+
     return {
       timingSource: src,
       independent: independent,
@@ -4148,6 +4183,9 @@ body.light .cov-grid td.cg-node{ background:#fff; }
       spanPpm: ok ? _tbNum(ax.spanPpm) : null,
       resyncs: resyncs,
       seams: seams,
+      rate: rate,
+      rateRaw: rateRaw,
+      rateApplied: rateApplied,
       reason: why.length ? why.join('; ') : null
     };
   }
