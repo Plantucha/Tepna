@@ -77,12 +77,23 @@ const EPOCH_DUMP = opt('--epoch-dump', null);
    would compare two instruments, only one of which can be re-run. Measuring both here makes the
    comparison same-instrument and turns 5.92 ms into a CHECK ON THIS TOOL rather than a constant. */
 /* §4 adjudicates CVHR on SLEEP nights specifically — "n=2 waking is not evidence". The capture corpus
-   mixes overnight recordings with daytime segments, so a night is taken as sleep when it STARTS between
-   20:00 and 04:00 local and runs ≥ 4 h. Crude, and deliberately so: it is a property of the filename
-   stamp and the duration, not a stage call, and over-including a borderline night is safer here than
-   silently excluding a real one. Reported alongside the unfiltered figure so the filter's effect is
-   visible rather than assumed. */
+   mixes overnight recordings with daytime segments, so a night qualifies on how much signal it covers
+   INSIDE the 20:00–04:00 window, and it needs ≥ 4 h of it. Crude, and deliberately so: it is a property
+   of the stamps and the covered duration, not a stage call, and over-including a borderline night is
+   safer here than silently excluding a real one. Reported alongside the unfiltered figure so the
+   filter's effect is visible rather than assumed.
+   🔴 IT USED TO TEST THE MERGED WINDOW'S START HOUR, AND THAT TEST RAN BACKWARDS. A merged night
+   starts at its earliest session, so ONE daytime fragment joining the key moved the start into daylight
+   and removed the whole night — a night left the population BECAUSE more of its sessions parsed, which
+   makes a parser improvement shrink the population and biases the median toward the nights that stayed
+   (row 2026-10-28-the-sleep-filter-drops-a-whole-night-for-one-daytime-fragment). Coverage inside the
+   window is monotone in parsing instead: a session can only add nocturnal milliseconds, never remove
+   them, so no night can be displaced by a fragment outside the window. */
 const SLEEP_ONLY = has('--sleep-only');
+const SLEEP_START_H = 20;
+const SLEEP_END_H = 4;
+const SLEEP_MIN_MS = 4 * 3600 * 1000;
+const DAY_MS = 86400000;
 /* SESSION MERGE (default ON; --no-merge reproduces the pre-2026-08-04 single-file behaviour).
    The O2Ring and the Polar loggers split ONE night across many session files — 1632 finger files across
    18 nights, and the early nights are 100-400 fragments with no single continuous recording. Treating
@@ -102,6 +113,41 @@ const SLEEP_ONLY = has('--sleep-only');
    Superseded note (was: ⚠ INCOMPLETE — the FINGER side merges, the ECG side does not yet). */
 const MERGE = !has('--no-merge');
 const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600 * 1000).toISOString().slice(0, 10);
+
+/* NOCTURNAL MILLISECONDS of one span, on the floating wall clock (CLAUDE.md §5: every hour here comes
+   from getUTC*, so the figure does not depend on the reader's zone). The windows are
+   [D 20:00, D+1 04:00) over successive days, which tile without overlap, so a span is never counted
+   twice. ∅ — a span with a non-finite end is UNKNOWN, not zero: a session whose duration nobody
+   measured must not read as a session that covered no night. */
+export function nocturnalMs(t0, t1, startHour = SLEEP_START_H, endHour = SLEEP_END_H) {
+  if (!Number.isFinite(t0) || !Number.isFinite(t1)) return null;
+  if (t1 <= t0) return 0;
+  let acc = 0;
+  const first = Math.floor(t0 / DAY_MS) - 1;
+  const last = Math.floor(t1 / DAY_MS) + 1;
+  for (let d = first; d <= last; d++) {
+    const ws = d * DAY_MS + startHour * 3600 * 1000;
+    const we = (d + 1) * DAY_MS + endHour * 3600 * 1000;
+    const ov = Math.min(t1, we) - Math.max(t0, ws);
+    if (ov > 0) acc += ov;
+  }
+  return acc;
+}
+
+/* THE NIGHT-LEVEL FIGURE, and it is COVERED, not span: a merged night with holes must not claim the
+   holes as sleep — the same rule buildEcgNights already applies to the reference. `knownMs` sums the
+   spans that could be computed and `unknown` counts the ones that could not, so a night that misses
+   the bar with an unknown span in it is UNDECIDED rather than excluded. */
+export function nocturnalCoverage(spans) {
+  let knownMs = 0;
+  let unknown = 0;
+  for (const sp of spans || []) {
+    const n = sp ? nocturnalMs(sp[0], sp[1]) : null;
+    if (n == null) unknown++;
+    else knownMs += n;
+  }
+  return { knownMs, unknown, qualifies: knownMs >= SLEEP_MIN_MS };
+}
 const DEVICE = String(opt('--device', 'o2ring')).toLowerCase();
 const PPG_UNIT = `${DEVICE} PPG files`;
 /* ⚠️ THE SAME DEVICE IS NAMED TWO WAYS, and matching only one reports an EMPTY corpus as no data.
@@ -672,6 +718,36 @@ function selftest() {
     }
   }
 
+  /* THE SLEEP TEST, and the defect it replaces is the third leg: ONE daytime fragment used to remove a
+     whole night, because the test read the merged window's start hour. These legs state the property
+     that fixes it — coverage inside the window is monotone in how much of a night parses. */
+  {
+    const H = 3600 * 1000;
+    const d0 = Date.UTC(2026, 5, 11, 0, 0, 0); // floating wall clock, so every hour below is a UTC hour
+    const span = (h0, h1) => [d0 + h0 * H, d0 + h1 * H];
+    ok('a 22:00→02:00 recording covers 4 h of the sleep window', nocturnalMs(span(22, 26)[0], span(22, 26)[1]) === 4 * H, nocturnalMs(span(22, 26)[0], span(22, 26)[1]));
+    ok('a 14:00→15:00 daytime fragment covers none of it', nocturnalMs(span(14, 15)[0], span(14, 15)[1]) === 0);
+    ok('a 24 h recording counts the window once — 8 h, not 24', nocturnalMs(span(0, 24)[0], span(0, 24)[1]) === 8 * H, nocturnalMs(span(0, 24)[0], span(0, 24)[1]) / H);
+    ok('a span crossing the window counts only the nocturnal part', nocturnalMs(span(18, 34)[0], span(18, 34)[1]) === 8 * H, nocturnalMs(span(18, 34)[0], span(18, 34)[1]) / H);
+    const sleep = [span(21, 27)];
+    const withFragment = [span(14, 15), span(21, 27)];
+    ok('a 21:00→03:00 night qualifies on 6 h of coverage', nocturnalCoverage(sleep).qualifies, nocturnalCoverage(sleep).knownMs / H);
+    ok('…and it STILL qualifies once a daytime fragment joins it — the row this replaces', nocturnalCoverage(withFragment).qualifies, nocturnalCoverage(withFragment).knownMs / H);
+    ok('…while the old start-hour test is what dropped it: the merged window starts at 14:00', new Date(Math.min(...withFragment.map((x) => x[0]))).getUTCHours() === 14);
+    ok('monotone: a span outside the window cannot lower a night’s coverage', nocturnalCoverage(withFragment).knownMs >= nocturnalCoverage(sleep).knownMs);
+    ok('the 4 h bar is real — a 21:00→00:00 night does not qualify (anti-vacuity)', nocturnalCoverage([span(21, 24)]).qualifies === false);
+    /* ∅ — an unmeasured duration is not a session that covered nothing. */
+    ok('an unmeasured span is UNKNOWN, not zero', nocturnalMs(d0, null) === null);
+    ok(
+      '…so a night that reaches the bar on its measured spans still qualifies',
+      nocturnalCoverage([[d0, null], ...sleep]).qualifies === true && nocturnalCoverage([[d0, null], ...sleep]).unknown === 1
+    );
+    ok(
+      '…and one that misses it with an unknown span is UNDECIDED, not rejected',
+      nocturnalCoverage([[d0, null], span(22, 23)]).qualifies === false && nocturnalCoverage([[d0, null], span(22, 23)]).unknown === 1
+    );
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -871,6 +947,9 @@ function buildUnits(files) {
       t1: u.rec.t0Ms + (u.rec.durSec || 0) * 1000,
       beats: u.beats,
       res: u.res,
+      /* The SLEEP test reads these, and it reads a null end as unknown rather than as a zero-length
+         session, so the `|| 0` above cannot quietly turn an unmeasured duration into no coverage. */
+      spans: [[u.rec.t0Ms, Number.isFinite(u.rec.durSec) ? u.rec.t0Ms + u.rec.durSec * 1000 : null]],
       sessions: [u.sess],
       nSess: 1
     }));
@@ -900,6 +979,8 @@ function buildUnits(files) {
          because beat times are comparable across sessions; an interval series is not, so the per-epoch
          arm keeps them separate and refuses any window that is not inside exactly one of them. */
       sessions: us.map((u) => u.sess),
+      // one [t0, t1] per session for the sleep test; a null end is an unmeasured duration (∅)
+      spans: us.map((u) => [u.rec.t0Ms, Number.isFinite(u.rec.durSec) ? u.rec.t0Ms + u.rec.durSec * 1000 : null]),
       nSess: us.length,
       repName: rep.f.p.split('/').pop()
     });
@@ -976,17 +1057,21 @@ const nights = [];
    budget is a fraction of are both corpus-level, so they are computed over this pool rather than over
    per-night medians — a median of medians answers a different question and the paper quotes both. */
 const allEp = [];
+/* ∅ — a night the sleep test COULD NOT DECIDE is not a night it rejected. Named in the population
+   block below, because a count of silent exclusions names nothing to chase. */
+const sleepUndecided = [];
 for (const unit of buildUnits(fingerFiles)) {
   const fres = unit.res;
   const frec = { t0Ms: unit.t0, durSec: (unit.t1 - unit.t0) / 1000 };
   const f = { p: unit.name };
-  /* Sleep filter on the MERGED window, not on a filename stamp: a merged night starts at its earliest
-     session, which is not necessarily the largest file. Read with getUTC* because tMs is floating
-     wall-clock (CLAUDE.md §5) — using local getters would make the filter depend on the reader's zone. */
+  /* Sleep filter on the night's NOCTURNAL COVERAGE, not on the merged window's start hour — see the
+     rule at SLEEP_ONLY. Per session, so a daytime fragment adds nothing and removes nothing. */
   if (SLEEP_ONLY) {
-    const hh = new Date(unit.t0).getUTCHours();
-    const okHour = hh >= 20 || hh < 4;
-    if (!(okHour && (frec.durSec || 0) >= 4 * 3600)) continue; // §4: sleep nights only
+    const noc = nocturnalCoverage(unit.spans);
+    if (!noc.qualifies) {
+      if (noc.unknown) sleepUndecided.push(`${unit.name} (${(noc.knownMs / 3600000).toFixed(1)} h known, ${noc.unknown} span(s) unmeasured)`);
+      continue; // §4: sleep nights only
+    }
   }
   const fBeats = unit.beats;
   if (fBeats.length < 100) continue;
@@ -1223,6 +1308,14 @@ function printPopulation() {
   const missed = notCovered(snap, nights, { key: 'rec' });
   if (missed.length) console.log(`  it removed ${missed.length}, by name: ${missed.slice(0, 8).join(' · ')}${missed.length > 8 ? ` · … (+${missed.length - 8})` : ''}`);
   if (fingerFiles.length < snap.n) console.log(`  ${snap.n - fingerFiles.length} of those left under the --max-nights ${MAX_NIGHTS} cap, largest first`);
+  if (SLEEP_ONLY)
+    console.log(
+      `  --sleep-only kept the nights covering ≥ ${(SLEEP_MIN_MS / 3600000).toFixed(0)} h inside ${SLEEP_START_H}:00–${String(SLEEP_END_H).padStart(2, '0')}:00; a fragment outside that window neither adds a night nor removes one`
+    );
+  if (sleepUndecided.length)
+    console.log(
+      `  ∅ ${sleepUndecided.length} night(s) the sleep test could not decide, by name: ${sleepUndecided.slice(0, 8).join(' · ')}${sleepUndecided.length > 8 ? ` · … (+${sleepUndecided.length - 8})` : ''}`
+    );
 }
 
 /* 🔴 A RUN THAT SCORED NOTHING STILL OWES ITS POPULATION. The early exit below used to be the only
