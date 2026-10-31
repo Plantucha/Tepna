@@ -615,11 +615,109 @@ export function blankSampleHelpers(masked) {
   return out;
 }
 
+/* ── THE FLAG'S OWN BLOCK, BECAUSE A SAMPLE NEED NOT SIT IN A NAMED HELPER ─────────────────────
+   `SAMPLE_HELPER` above keys the blanking on FOUR function names, so the same fabricated call
+   written under a fifth name clears the tool — and a call written at top level inside
+   `if (argv.includes('--verdict-sample'))` belongs to no function at all, so there is no name to
+   key on. That is the clearance the blanking exists to prevent, reached by spelling.
+   Row 2026-10-28-the-sample-helper-blanking-is-keyed-on-four-spellings.
+
+   So the second rung reads the FLAG rather than a name. Measured 2026-10-31 over the 301 tools in
+   `tools/`: 333 `if` blocks in 229 files test a sample flag positively and now blank — 328 of them
+   through a call (`argv.includes('--selftest')`) and 5 through the equality an argv parser writes
+   (`if (a === '--selftest')`) — while 31 more test one NEGATIVELY and are left alone. The negative half is the direction that matters: `IS_MAIN &&
+   !process.argv.includes('--selftest')` guards the REAL run, and blanking it would gut a reporting
+   tool's own population call. No tool changes class on this tree, so the rung buys soundness, not
+   a re-bin — the point is that no rename or de-naming can reach the clearance any more.
+
+   THE FLAG LITERAL IS READ OFF RAW SOURCE. `maskNonCode` empties every string body, so the masked
+   text this module classifies over no longer holds the word `--verdict-sample`. Masking preserves
+   offsets and lines, which is what lets one text locate a span the other blanks; the pair is
+   checked for alignment rather than assumed.
+
+   ⚠️ THE FIFTH HELPER NAME IS THE OTHER HALF OF THAT ROW, AND IT IS NOT THIS RUNG. A fabricated
+   call inside `function showOffer()` that only the flag block calls survives both rungs: the body
+   sits outside the block, and the name is not one of the four. Deciding it wants reachability — a
+   local function whose name appears nowhere on the live path — rather than a longer list, which is
+   the same spelling trap one hop out. Measured 2026-10-31 at 0 occurrences over the 301 tools in
+   `tools/`: no tool holds a population call in a non-exported local function whose name is
+   unreferenced outside a sample span.
+   Row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper.
+
+   ⚠️ TWO GUARD SHAPES STAY OUTSIDE THIS RUNG, each measured at 0 population calls today:
+   `argv.includes('--selftest') && selftest();` (33 sites) and the ternary (1 site). Both are
+   statement-level, so there is no block to blank; a population call written into one would clear
+   its tool exactly as the nameless `if` body did. A text census has no parser, and this is where
+   that limit lands. */
+const SAMPLE_FLAG = /--verdict-sample|--selftest\b/;
+
+/** Does `cond` test the sample flag at offset `at` POSITIVELY? PURE. */
+export function positiveFlagTest(cond, at) {
+  const c = String(cond);
+  if (!(at >= 0)) return false;
+  const left = c.slice(0, at);
+  const right = c.slice(at);
+  const callee = left.match(/([A-Za-z_$][\w$.]*)\s*\(\s*['"]?\s*$/);
+  if (callee) {
+    const before = left.slice(0, left.length - callee[0].length).replace(/\s+$/, '');
+    if (before.endsWith('!')) return false;
+    /* `indexOf(flag) === -1` and `< 0` are the same guard spelled by position. */
+    if (/^[^)]*\)\s*(?:===?)\s*(?:-1|false)/.test(right)) return false;
+    if (/^[^)]*\)\s*<\s*0/.test(right)) return false;
+    return true;
+  }
+  /* The equality shape, which an argv parser writes: `if (a === '--selftest')`. The character
+     before the operator is what separates it from `!==`. */
+  if (/(?:[^!=<>]|^)(?:===?)\s*['"]?\s*$/.test(left)) return true;
+  if (/^[^'"]*['"]\s*(?:===?)(?!=)/.test(right)) return true;
+  return false;
+}
+
+/** Spans of every `if` body whose condition positively tests a sample flag. PURE. */
+export function sampleFlagSpans(masked, raw) {
+  const m = String(masked);
+  const r = String(raw);
+  /* OFFSETS ONLY ALIGN WHILE THE TWO TEXTS ARE THE SAME LENGTH. A caller that masked, trimmed and
+     then handed over the untrimmed original would blank a span computed from the wrong text, so
+     this refuses instead of blanking somewhere plausible. */
+  if (m.length !== r.length) throw new Error('sampleFlagSpans: masked and raw source must align (same length)');
+  const out = [];
+  for (const k of m.matchAll(/\bif\s*\(/g)) {
+    const open = k.index + k[0].length - 1;
+    let depth = 0;
+    let close = -1;
+    for (let j = open; j < m.length; j++) {
+      if (m[j] === '(') depth++;
+      else if (m[j] === ')' && --depth === 0) {
+        close = j;
+        break;
+      }
+    }
+    if (close < 0) continue;
+    const cond = r.slice(open, close + 1);
+    if (!positiveFlagTest(cond, cond.search(SAMPLE_FLAG))) continue;
+    out.push({ at: close + 1, end: bodyEnd(m, close + 1) });
+  }
+  return out;
+}
+
+/** The masked source with every sample-FLAG block body blanked. Offsets and lines keep. PURE. */
+export function blankFlagSampleBlocks(masked, raw) {
+  let out = String(masked);
+  for (const s of sampleFlagSpans(out, raw).reverse()) {
+    const blanked = out.slice(s.at, s.end + 1).replace(/[^\n]/g, ' ');
+    out = out.slice(0, s.at) + blanked + out.slice(s.end + 1);
+  }
+  return out;
+}
+
 /** Decide one tool from its source. PURE. */
 export function classifyTool(text) {
   const sites = enumerationSites(text);
   if (sites.length === 0) return { cls: 'no-enumeration', why: 'the file enumerates no directory', sites };
-  const masked = blankSampleHelpers(maskNonCode(text));
+  /* BOTH RUNGS: the helper NAMES above, then the sample FLAG's own block. The second reads raw
+     source for the flag literal, because the first text has had every string emptied. */
+  const masked = blankFlagSampleBlocks(blankSampleHelpers(maskNonCode(text)), text);
   /* EITHER VERDICT BUILDER COUNTS. `populationVerdict` answers "which nights did this run cover";
      `censusVerdict` answers "which roots did this count search, and which are not on this box" —
      the same question one rung out, and the shape `corpus-scope.mjs`'s own CLI prints. Keying on
@@ -979,6 +1077,39 @@ function selftest() {
       'enumerates'
     ],
     ['CONTROL · and the NAME alone, in prose, clears nothing either', 'const dir = process.argv[2];\nreaddirSync(dir);\n// censusVerdict(rows) would go here\n', 'enumerates'],
+    /* THE SAMPLE FLAG'S OWN BLOCK, both directions. The first case is the shape row
+       2026-10-28-the-sample-helper-blanking-is-keyed-on-four-spellings names: the fabricated call
+       sits at top level under the flag, so there is no enclosing function to key a name on. The
+       second is the same call on the real path, because a rung that blanked both would clear
+       nothing and still pass the negative half. */
+    [
+      'CONTROL · a population call at top level under the sample flag clears nothing',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) {\n  console.log(populationVerdict(fakeA, fakeB));\n}\n",
+      'enumerates'
+    ],
+    [
+      '…and the same call outside that block still reports',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nconsole.log(populationVerdict(a, b));\nif (process.argv.includes('--verdict-sample')) {\n  console.log('sample');\n}\n",
+      'reports'
+    ],
+    /* THE NEGATED GUARD IS THE REAL RUN. 31 conditions in `tools/` spell `IS_MAIN &&
+       !process.argv.includes('--selftest')`, and blanking one would gut a reporting tool's own
+       population call — the loud direction, but wrong either way. */
+    [
+      'CONTROL · a NEGATED flag test guards the real run, so its block is not blanked',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nif (IS_MAIN && !process.argv.includes('--selftest')) {\n  console.log(populationVerdict(a, b));\n}\n",
+      'reports'
+    ],
+    [
+      'the equality shape an argv parser writes is a flag test too',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nfor (const a of argv) {\n  if (a === '--verdict-sample') {\n    console.log(populationVerdict(fakeA, fakeB));\n  }\n}\n",
+      'enumerates'
+    ],
+    [
+      'a brace-less flag body is one statement, and it ends at the semicolon',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) console.log(populationVerdict(fakeA, fakeB));\nconst after = 1;\n",
+      'enumerates'
+    ],
     ['no enumeration at all', "const p = '/srv/data/tepna-corpus';\nconsole.log(p);", 'no-enumeration'],
     ['a root named in a COMMENT does not enumerate', '// walks /srv/data/tepna-corpus nightly\nconst x = 1;', 'no-enumeration'],
     ['an unresolvable argument abstains, it does not clear', 'readdirSync(someGlobal);', 'undecidable'],
@@ -1140,9 +1271,34 @@ function selftest() {
   const partition = parts.join(',') === sample && parts.length === 3;
   if (!partition) bad++;
   console.log(`  ${partition ? '✓' : '✗'} the argument spans partition the list exactly (${parts.length} span(s), reconstructed)`);
+  /* THE FLAG RUNG KEEPS THE GEOMETRY. Every other rung reports a position, and the blanking is the
+     only step that rewrites the text the positions index. Measured over all 301 tools in `tools/`:
+     length and line count moved in none. */
+  const flagSrc = "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) {\n  console.log(populationVerdict(a, b));\n}\nconst after = 1;\n";
+  const flagMasked = maskNonCode(flagSrc);
+  const flagBlanked = blankFlagSampleBlocks(flagMasked, flagSrc);
+  const geometry =
+    flagBlanked.length === flagMasked.length &&
+    flagBlanked.split('\n').length === flagMasked.split('\n').length &&
+    !/populationVerdict/.test(flagBlanked) &&
+    /readdirSync/.test(flagBlanked) &&
+    /const after/.test(flagBlanked);
+  if (!geometry) bad++;
+  console.log(`  ${geometry ? '✓' : '✗'} the flag-block blanking removes the body and keeps every offset and line around it`);
+  /* AND IT REFUSES A PAIR THAT CANNOT ALIGN rather than blanking a span computed from the wrong
+     text. The flag literal lives in raw source and the span in the masked copy, so the two texts
+     are one instrument. */
+  let refused = false;
+  try {
+    sampleFlagSpans(flagMasked, flagSrc.slice(1));
+  } catch {
+    refused = true;
+  }
+  if (!refused) bad++;
+  console.log(`  ${refused ? '✓' : '✗'} a masked/raw pair of different lengths is refused, not blanked`);
   /* The count is the point: `tools/selftest-all.mjs` reads PASS either way, and a suite quietly
      shrinking from nine legs to three is visible only in this number. */
-  const total = cases.length + 6;
+  const total = cases.length + 8;
   console.log(bad === 0 ? `all ${total} selftests passed` : `corpus-reads selftest: FAIL (${bad} of ${total})`);
   return bad === 0 ? 0 : 1;
 }

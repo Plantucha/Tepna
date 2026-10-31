@@ -11869,6 +11869,57 @@
           CR.blankSampleHelpers('function verdictSample() {\n  return populationVerdict(y);\n}\n').split('\n').length === 4,
         'the call inside is gone · the call outside survives · 4 line(s) in, 4 out'
       );
+      /* ── AND THE SECOND RUNG READS THE FLAG, BECAUSE A SAMPLE NEED NOT HAVE A NAME ──────────
+         `SAMPLE_HELPER` keys on four function names, so the same fabricated call under a fifth
+         name clears the tool — and a call at top level inside `if (argv.includes('--verdict-
+         sample'))` has no enclosing function at all. Row
+         2026-10-28-the-sample-helper-blanking-is-keyed-on-four-spellings. Measured 2026-10-31 over
+         the 301 tools in `tools/`: 333 blocks in 229 files blank, 31 negated guards do not, and no
+         tool changes class, so these legs are the whole evidence that the rung does anything. */
+      var flagBlock = "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) {\n  console.log(populationVerdict(fakeA, fakeB));\n}\n";
+      var flagReal = "const dir = process.argv[2];\nreaddirSync(dir);\nconsole.log(populationVerdict(a, b));\nif (process.argv.includes('--verdict-sample')) {\n  console.log('sample');\n}\n";
+      T.ok(
+        'CONTROL · a population call at top level under the sample flag does not clear a tool, and the same call on the real path does',
+        CR.classifyTool(flagBlock).cls === 'enumerates' && CR.classifyTool(flagReal).cls === 'reports',
+        CR.classifyTool(flagBlock).cls + ' · ' + CR.classifyTool(flagReal).cls
+      );
+      /* THE DIRECTION THAT MATTERS. 31 conditions in `tools/` spell the real-run guard as
+         `IS_MAIN && !process.argv.includes('--selftest')`; blanking one guts a reporting tool's
+         own population call, which is a finding about nothing. */
+      T.eq(
+        'CONTROL · a NEGATED flag test guards the real run, so the rung leaves its block alone',
+        CR.classifyTool("const dir = process.argv[2];\nreaddirSync(dir);\nif (IS_MAIN && !process.argv.includes('--selftest')) {\n  console.log(populationVerdict(a, b));\n}\n").cls,
+        'reports'
+      );
+      /* THE GEOMETRY, read off the pure helper: the flag literal lives in RAW source and the span
+         in the masked copy, so the two texts are one instrument and the pair must align. */
+      var flagMasked = env.argvReads.maskNonCode(flagBlock);
+      var flagBlanked = CR.blankFlagSampleBlocks(flagMasked, flagBlock);
+      T.ok(
+        'the flag-block blanking removes the body and keeps every offset and line around it',
+        flagBlanked.length === flagMasked.length && flagBlanked.split('\n').length === flagMasked.split('\n').length && !/populationVerdict/.test(flagBlanked) && /readdirSync/.test(flagBlanked),
+        'same length · same lines · the call inside gone · the walk outside kept'
+      );
+      var refusedPair = false;
+      try {
+        CR.sampleFlagSpans(flagMasked, flagBlock.slice(1));
+      } catch {
+        refusedPair = true;
+      }
+      T.ok('…and a masked/raw pair of different lengths is refused, not blanked somewhere plausible', refusedPair, 'a misaligned pair blanked a span anyway');
+      /* THE NAMED LIMIT, PINNED SO A LATER REPAIR MOVES IT DELIBERATELY. A fabricated call inside a
+         fifth-named helper that only the flag block calls still reads `reports`: the body sits
+         outside the block. Deciding it wants reachability, not a longer list of names, and it is
+         measured at 0 occurrences on this tree. Row
+         2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper — when that row closes,
+         this expectation becomes `enumerates`. */
+      T.eq(
+        'LIMIT · a population call in a fifth-named helper called only from the flag block still clears its tool',
+        CR.classifyTool(
+          "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(fakeA, fakeB);\n}\nif (process.argv.includes('--verdict-sample')) showOffer();\n"
+        ).cls,
+        'reports'
+      );
       /* THE DELEGATION MUST NOT DELETE THE EVIDENCE. Wiring moves the walk behind the helper, which
          also removes the night regex that put the tool in this population. A tool that imports the
          primitive is a corpus consumer whatever else its text says. */
