@@ -21751,8 +21751,8 @@
 
        The remedy is one builder (`dex-export.js timingBlock`) and this group is what keeps it one.
        It checks the SHAPE, not the values: nine keys, in order, on every node-export the repo
-       commits, with the vocabulary closed and §∅'s rule enforced — a null measurement owes a reason
-       and a complete block owes none. A node that goes back to hand-rolling fails the source leg
+       commits, with the vocabulary closed and §∅'s rule enforced — a null measurement owes a reason,
+       and so does an axis that ran and answered negative (section 4b). A node that goes back to hand-rolling fails the source leg
        before any fixture moves. */
     group('one shared timing block — nine keys, one vocabulary, every node-export', 'dex-export · timing-parity · clock · §∅ · DEVICE-TIME-HANDLING', function (T) {
       var KEYS = ['timingSource', 'independent', 'anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams', 'reason'];
@@ -21843,7 +21843,53 @@
       // Every measurement present now means BOTH counts as well as the axis — a block missing either
       // instrument owes a sentence saying which one never reported.
       var full = DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [], seams: [] });
-      T.ok('a block with every measurement present carries NO reason', full.reason === null, String(full.reason));
+      T.ok('a block with every measurement present and a real second clock carries NO reason', full.reason === null, String(full.reason));
+
+      /* ── 4b · AN AXIS THAT LOOKED AND ANSWERED NEGATIVE OWES A SENTENCE TOO ──
+         Residue row `2026-10-30-a-timing-block-that-names-no-timebase-states-no-reason`. Every clause
+         above fires on an ABSENCE, so a block whose nine measurements were all present published the
+         most negative `timingSource` in the vocabulary beside `reason: null`. MotionDex's golden read
+         `timingSource:'none'`, `independent:false`, `anchors:32`, `reason:null` over an axis carrying
+         `deviceDrawn:true` and `drawnShare:0.7097`. Each fact states itself now, both at once where
+         both hold, and the producer's own sentence is quoted where it wrote one. */
+      var axNeg = {
+        ok: true,
+        n: 32,
+        spanMs: 2.8e4,
+        ppm: 1.1,
+        spanPpm: 1.0,
+        independent: false,
+        deviceDrawn: true,
+        drawnShare: 0.7097,
+        drawnReason: 'device axis is DRAWN — 70.97 % of inter-sample deltas share one value',
+        inertReason: 'host ≡ device — residual spread 0.92 ms ≤ 2 ms (one stamp quantum)'
+      };
+      var neg = DE.timingBlock({ hostAxis: axNeg, timingSource: 'none', resyncs: [], seams: [] });
+      T.ok('a complete block over a drawn-and-inert axis is no longer silent', typeof neg.reason === 'string' && neg.reason.length > 0, String(neg.reason));
+      T.ok('…it quotes the producer on the DEVICE column', /70\.97 % of inter-sample deltas/.test(neg.reason || ''), String(neg.reason));
+      T.ok('…and the producer on the HOST column, both at once', /residual spread 0\.92 ms/.test(neg.reason || ''), String(neg.reason));
+      T.ok('…while every measurement it HAS stays published beside the sentence', neg.anchors === 32 && neg.resyncs === 0 && neg.seams === 0, JSON.stringify(neg));
+      var axDrawnOnly = { ok: true, n: 12, spanMs: 1e4, ppm: 2, spanPpm: 2, independent: true, deviceDrawn: true };
+      T.ok(
+        'an axis older than drawnReason gets our fallback, never undefined spliced into the sentence',
+        /synthesised counter, not a clock/.test(DE.timingBlock({ hostAxis: axDrawnOnly, resyncs: [], seams: [] }).reason || ''),
+        String(DE.timingBlock({ hostAxis: axDrawnOnly, resyncs: [], seams: [] }).reason)
+      );
+      var axInertOnly = { ok: true, n: 12, spanMs: 1e4, ppm: 0.1, spanPpm: 0.1, independent: false, deviceDrawn: false };
+      T.ok(
+        '…and an inert axis that named no reason is described in our own words',
+        /inside one stamp quantum/.test(DE.timingBlock({ hostAxis: axInertOnly, drawn: false, resyncs: [], seams: [] }).reason || ''),
+        String(DE.timingBlock({ hostAxis: axInertOnly, drawn: false, resyncs: [], seams: [] }).reason)
+      );
+      T.ok(
+        'CONTROL · a measured, independent, non-drawn axis still carries NO reason — the clause is scoped',
+        DE.timingBlock({ hostAxis: axDrawnFalse, drawn: false, resyncs: [], seams: [] }).reason === null,
+        String(DE.timingBlock({ hostAxis: axDrawnFalse, drawn: false, resyncs: [], seams: [] }).reason)
+      );
+      T.ok(
+        '…and a node-supplied drawn:false keeps the device clause off a drawn axis, as the source does',
+        !/synthesised counter/.test(DE.timingBlock({ hostAxis: axDrawnOnly, drawn: false, resyncs: [], seams: [] }).reason || '')
+      );
 
       // ── 5 · a node that already owns a lattice keeps its verdict — no committed export changes meaning ──
       T.ok('a node-supplied timingSource is honoured, not re-derived', DE.timingBlock({ hostAxis: ax, timingSource: 'device', resyncs: [] }).timingSource === 'device');
@@ -21913,11 +21959,14 @@
         var absent = MEASURED.filter(function (k) {
           return tb[k] == null;
         });
-        T.ok(
-          where + ' · §∅ a null measurement owes a reason',
-          absent.length === 0 ? tb.reason === null : typeof tb.reason === 'string' && tb.reason.length > 0,
-          absent.join(',') + ' → ' + String(tb.reason)
-        );
+        /* COMPLETE IS NO LONGER SILENT (residue row
+           `2026-10-30-a-timing-block-that-names-no-timebase-states-no-reason`). A block whose nine
+           measurements are all present still owes a sentence when the axis ran and answered negative:
+           a drawn device counter, or a host column inert against it. So the strict half holds from the
+           other end — the FULLY POSITIVE block is the one that must carry no reason. */
+        var positive = absent.length === 0 && tb.timingSource === 'device+host' && tb.independent === true;
+        T.ok(where + ' · §∅ a null measurement owes a reason', absent.length === 0 || (typeof tb.reason === 'string' && tb.reason.length > 0), absent.join(',') + ' → ' + String(tb.reason));
+        T.ok(where + ' · a fully positive block carries no reason', !positive || tb.reason === null, String(tb.reason));
       }
       function walk(where, json, required) {
         if (!json || typeof json !== 'object') return 0;
