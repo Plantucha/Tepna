@@ -782,19 +782,22 @@ export const SELF = 'tools/corpus-reads.mjs';
      board-corpus.mjs       the same night regex, matching the DATE IN A RESIDUE ROW KEY inside
                             the board's claim protocol (`CLAIM 2026-10-28-some-row`). It
                             enumerates the output folder its own `--out` flag names.
-     nsrr-effort-typing.mjs `.edf`, under `/srv/data/shhs/` — the public NSRR mount, a different
-     nsrr-score-pool.mjs    filesystem from the capture corpus, which the daily re-tier never
-                            touches (`corpus-tier.mjs` is scoped to `/srv/data/tepna-corpus/`).
-
    A row excluded here keeps its CLASS — the scan still reports what it enumerates — and only
-   leaves the corpus population, so nothing is hidden. */
+   leaves the corpus population, so nothing is hidden.
+
+   🔴 A MOUNT IS NOT A REASON, and two rows left this table on 2026-10-31 for saying it was (row
+   2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt). `nsrr-effort-typing.mjs` and
+   `nsrr-score-pool.mjs` were excused because the NSRR mount is a different filesystem from the
+   capture corpus — and three siblings reading the SAME two trees published a population anyway, so
+   one of the two readings had to be wrong. A population is about the enumeration a run scores over,
+   not about the filesystem the bytes came off: both are wired now and neither name belongs here
+   again. Every excuse that remains is about what the tool ENUMERATES, which is the only thing that
+   decides whether it owes one. */
 export const POPULATION_EXCLUSIONS = {
   'argv-survey.mjs': 'names DEX_UPLOADS only to delete it from a probe environment',
   'importer-flag-probe.mjs': 'names DEX_UPLOADS only to scrub it from each probe child; it enumerates the tools/ tree',
   'build-docs.mjs': 'the night-shaped regex validates a release date; it enumerates docs/',
   'board-corpus.mjs': 'the night-shaped regex matches the date in a residue row key; it enumerates the folder --out names',
-  'nsrr-effort-typing.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
-  'nsrr-score-pool.mjs': 'reads .edf under /srv/data/shhs, the public NSRR mount, not the capture corpus',
   'codex-export.mjs':
     'it walks a git-archive export built to EXCLUDE the corpus, and it already publishes its own offer-vs-read population over that export; a second verdict there would name a repo-path unit as a corpus one'
 };
@@ -962,11 +965,18 @@ export const UNWIRED_BACKLOG = {
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a `--cache` build pointed
      at nothing, a sweep with no cache, and a run that scored no record now exit 2 where all of
      them exited 0.
-     ⚠️ TWO SIBLINGS ON THE SAME MOUNT ARE STILL EXCLUDED rather than wired —
-     `nsrr-effort-typing.mjs` and `nsrr-score-pool.mjs` sit in `POPULATION_EXCLUSIONS` because the
-     NSRR mount is not the capture corpus, while these three sat here as debt. Wiring these three
-     settles the three; whether the exclusion still reads right for the other two is row
-     2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt. */
+     AND THE TWO SIBLINGS ON THE SAME MOUNT FOLLOWED, 2026-10-31, row
+     2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt. `nsrr-effort-typing.mjs` and
+     `nsrr-score-pool.mjs` sat in `POPULATION_EXCLUSIONS` for reading the NSRR mount while these
+     three sat here as debt for reading the same two trees, and one of the two readings had to be
+     wrong. The exclusions went: the effort tool is offered the ANNOTATED records and the pool is
+     offered the PAIRING, each snapshotted before the read and published after it, so the scan reads
+     both as `reports` and this list must not name them either. The pool's queue is now rebuilt from
+     the offer's member names rather than from a second walk, and a leg pins it against the paths the
+     pairing itself built. AND THE REFUSALS CHANGED SHAPE RATHER THAN COUNT: the effort tool answered an
+     unenumerable annotation tree with an uncaught ENOENT, and the pool RETURNED 0 with every worker
+     erroring. Both now publish a NOT_RUN population and exit 2, and the rule is one pure function a
+     leg reads, so reduced coverage still annotates and exits 0. */
   /* FIVE SINGLE-ROOT NAMES LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `beat-error-recovery.mjs`,
      `deep-desat-falsifier.mjs`, `ppg-autogain-e2.mjs`, `ppg-bridge-hrv-validate.mjs` and

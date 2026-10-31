@@ -11575,11 +11575,14 @@
        `corpus-scope.mjs` import, so delegation moves a tool from `enumerates` to `reports` and
        never out of the population.
 
-       TWO NARROWING SETS, BOTH NAMED AND BOTH IN THE TOOL. `POPULATION_EXCLUSIONS` holds the 4
+       TWO NARROWING SETS, BOTH NAMED AND BOTH IN THE TOOL. `POPULATION_EXCLUSIONS` holds the 5
        files the generous vocabulary rule admits that read no capture — `argv-survey.mjs` names
        `DEX_UPLOADS` only to DELETE it from a probe environment, `build-docs.mjs` matches the
-       night regex on a release date, and the two NSRR tools read `.edf` under the public
-       `/srv/data/shhs` mount, which the daily re-tier never touches. `UNDECIDED_CORPUS` holds the
+       night regex on a release date, and `codex-export.mjs` walks an export built to EXCLUDE the
+       corpus. A MOUNT IS NOT A REASON: the two NSRR readers sat here for reading a filesystem the
+       re-tier never touches while three siblings over the SAME two trees published a population,
+       and on 2026-10-31 both were wired instead (row
+       2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt). `UNDECIDED_CORPUS` holds the
        5 the tracer still refuses to decide, each with the shape that defeats it, so a sixth reds
        rather than passing as a shrug.
 
