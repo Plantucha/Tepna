@@ -50,3 +50,23 @@ def test_this_scan_can_actually_see_the_setting():
     anything, so match it against a line that IS there."""
     assert re.search(r"^\s*tmp_path_retention_policy\s*=", 'tmp_path_retention_policy = "failed"\n', re.M)
     assert "[tool.pytest.ini_options]" in _pyproject(), "and the section it would live in exists"
+
+
+def test_the_asyncio_policy_tripwire_is_armed():
+    """`asyncio.get_event_loop_policy()` sat in two test helpers for the whole life of both files,
+    because 3.13 warns nothing about it. The `test (py3.14)` leg printed the warning 33 times on its
+    first run (2026-10-31), and 3.16 removes the call. The filter this test pins turns that one message
+    into an error, so a reintroduction fails where it is written rather than on the interpreter that
+    deletes it.
+
+    Message-scoped ON PURPOSE. `error::DeprecationWarning` suite-wide would bind every PR to the
+    deprecation timing of bleak, aiohttp and pytest. Controlled in an isolated rootdir, 2026-10-31:
+    under 3.14.4 the policy call errors while an unrelated DeprecationWarning stays a warning, and
+    under 3.13.11 both pass — which is why this cannot red the 3.12 and 3.13 matrix legs."""
+    pat = r'^\s*filterwarnings\s*=\s*\[\s*"error:[^"]*get_event_loop_policy[^"]*:DeprecationWarning"'
+    assert re.search(pat, _pyproject(), re.M), (
+        "the asyncio-policy tripwire must stay armed in [tool.pytest.ini_options] — see this test's "
+        "docstring; without it the next policy call reads green until Python 3.16 deletes it"
+    )
+    # The anti-vacuity control, as above: the same regex must match the line it is meant to find.
+    assert re.search(pat, 'filterwarnings = ["error:.*get_event_loop_policy.*:DeprecationWarning"]\n', re.M)
