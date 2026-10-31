@@ -95,6 +95,17 @@ function plantDir(dir, name) {
   return p;
 }
 
+/** A one-file mutation-sweep state dir, which is what a directory-reader in that lane scans. The
+    survivor shape is the one `probesFrom` lifts a condition pair out of, so the drive plants state
+    rather than borrowing the shared lane's, whose contents move between sweeps. */
+export function plantSweepState(dir, name) {
+  const p = join(dir, name);
+  mkdirSync(p, { recursive: true });
+  const survivors = [{ line: 3, op: 'cmp', before: '  if (h < 0) return null;', after: '  if (h <= 0) return null;' }];
+  writeFileSync(join(p, 'planted.json'), `${JSON.stringify({ file: 'planted.js', survivors })}\n`);
+  return p;
+}
+
 function plantFile(dir, name, text) {
   const p = join(dir, name);
   writeFileSync(p, text);
@@ -181,6 +192,16 @@ export const RECIPES = [
     marker: 'ASSERTION STRENGTH —',
     enters: (argv) => !argv.includes('--selftest'),
     entersWhy: 'the branch tests for the ABSENCE of the flag, so a plain run enters it'
+  },
+  {
+    tool: 'tools/witness-baseline.mjs',
+    why: 'the risk is the probe loop over the state files; the whole set is 1939 probes at 73 ms each, measured 2026-10-30, so only a declared budget finishes inside the child cap',
+    plant: (d) => ({ dir: plantSweepState(d, 'sweeps') }),
+    argv: (_d, p) => ['--state-dir', p.dir, '--max-probes', '1'],
+    code: 0,
+    marker: 'probes considered',
+    enters: (argv) => !argv.includes('--selftest'),
+    entersWhy: 'the risk sits in the main block, which the absence of `--selftest` opens; `--max-probes` then bounds the loop inside it'
   }
 ];
 
@@ -188,10 +209,6 @@ export const RECIPES = [
    Slugs only. Writing the full path here would credit them in the census for a mention (see above).
    Each reason below rests on a measurement, and §∅ holds them as excluded rather than green. */
 export const UNDRIVEN = [
-  {
-    slug: 'witness-baseline',
-    reason: 'a bare run printed nothing in 90 s and was killed, measured 2026-10-30; a drive needs a declared budget flag first'
-  },
   {
     slug: 'survivor-witness',
     reason: 'a bare run calls mkdirSync and appendFileSync into the shared mutation-sweep state, which is another session lane'
