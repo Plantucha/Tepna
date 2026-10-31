@@ -3,6 +3,18 @@
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# TRIPWIRE, 2026-10-31. `asyncio.get_event_loop_policy()` sat in two test helpers for the whole life
+# of both files, because 3.13 warns nothing about it. The `test (py3.14)` leg printed the warning 33
+# times on its first run, and 3.16 removes the call outright. This filter turns that ONE message into
+# an error, so a reintroduction fails where it is written rather than on the interpreter that deletes
+# it. The test beside it (tests/test_pytest_config.py) keeps the filter from being quietly removed.
+#
+# Message-scoped ON PURPOSE, never `error::DeprecationWarning` suite-wide: a blanket error binds every
+# PR to the deprecation timing of bleak, aiohttp and pytest. Controlled in an isolated rootdir on
+# 2026-10-31 — under 3.14.4 the policy call errors while an unrelated DeprecationWarning stays a
+# warning, and under 3.13.11 both pass, which is why it cannot red the 3.12 and 3.13 matrix legs.
+filterwarnings = ["error:.*get_event_loop_policy.*:DeprecationWarning"]
 # ⚠️ DO NOT SET `tmp_path_retention_policy` HERE, and the reason is `none`, not `failed`.
 #
 # `none` FAKES KILLS. Measured by A/B over one glob, 116 mutants, same tree, only this setting varied

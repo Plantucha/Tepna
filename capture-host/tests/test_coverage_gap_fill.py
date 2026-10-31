@@ -36,7 +36,10 @@ def test_dbus_hci_returns_empty_when_bluetooth_sysfs_is_absent(monkeypatch):
         raise OSError("no such directory")
 
     monkeypatch.setattr(link_rssi.os, "listdir", boom)
-    assert link_rssi.asyncio.get_event_loop_policy() is not None  # sanity: module imports clean
+    # `asyncio.run` stands in for the old `get_event_loop_policy()` probe: the policy system is
+    # deprecated in 3.14 and removed in 3.16, and this line only ever asserted that the module's
+    # own asyncio import is live.
+    assert link_rssi.asyncio.run is not None  # sanity: module imports clean
     import asyncio
 
     assert asyncio.run(link_rssi.dbus_hci()) == {}
