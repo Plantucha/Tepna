@@ -592,7 +592,8 @@ export function checkWordOnlyClaim(manifest, readSource, ratchet = WO_CLAIM_RATC
 
    So the negative is tested on its own terms: outside its selftest body, a `word-only` producer must
    not CONSTRUCT a verdict object — a literal `schema: 'tepna.verdict/1'`, or a call to a builder
-   (`makeVerdict(`, `Verdict.make(`, `V.make(`, `verdict.make(`, `verdict_object(`). A DEFINITION of a
+   (`makeVerdict(`, `Verdict.make(`, `V.make(`, `verdict.make(`, `verdict_object(`, or `<alias>.make(`
+   for a local name the file bound to the contract module). A DEFINITION of a
    builder is not a call (the shared libraries `verdict-emit.mjs` / `verdict.py` define, they do not
    emit), a comment is not a construction, and a selftest may build objects to feed a validator.
    Applies to EVERY word-only row, claiming or conceding: conceding that words are printed is not
@@ -601,15 +602,51 @@ export function checkWordOnlyClaim(manifest, readSource, ratchet = WO_CLAIM_RATC
    Measured on the tree this landed on: 0 of 83 word-only rows construct one. */
 const BUILDS_OBJECT = [/\bschema['"]?\s*[:=]\s*['"]tepna\.verdict\/1['"]/, /(?<!function\s)\bmakeVerdict\s*\(/, /\b(?:Verdict|V|verdict|VERDICT)\.make\s*\(/, /(?<!def\s)\bverdict_object\s*\(/];
 
+/* ── THE CONTRACT UNDER A LOCAL ALIAS ─────────────────────────────────────────────────────────────
+   `BUILDS_OBJECT`'s third pattern names four spellings of the contract module, so a producer that
+   imports it under any other local name constructs invisibly to the list. Row
+   `2026-10-30-the-object-detector-cannot-name-an-aliased-contract-import` asks for that closed, and
+   an alias is a fact of the FILE's own imports, so this READS it there rather than widening a guess.
+
+   Measured 2026-10-30 at `57f675685` over the 298-producer enumeration: 22 producers call the
+   contract under a name the list cannot say — `VD` 17, `_verdict` 3, `_v` 2 — every one of them a
+   `capture-host/*.py`, and 13 of the 22 showed the old reader NO construction at all. The 33 files
+   that bind an alias are more than the 22 that call `.make(` on it. None of the 22 is `word-only`,
+   so the repair moves no bin today: what it closes is the spelling by which a word-only row could
+   defeat the one negative that bin exists to assert.
+
+   ⚠️ TWO SHAPES STAY NAMED RATHER THAN IMPLIED AWAY, each measured at 0 occurrences on this tree:
+   `from verdict import <name>` binds a constructor directly and no name in it says it constructs, and
+   a `.make(` reached through a value this scanner never resolves is outside a static read either way. */
+export function contractAliases(bare, isPy) {
+  const out = new Set();
+  if (isPy) {
+    for (const m of bare.matchAll(/^[ \t]*import\s+verdict\s+as\s+([A-Za-z_]\w*)/gm)) out.add(m[1]);
+  } else {
+    for (const m of bare.matchAll(/import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s+from\s*['"][^'"]*verdict\.js['"]/g)) out.add(m[1]);
+    for (const m of bare.matchAll(/import\s+([A-Za-z_$][\w$]*)\s+from\s*['"][^'"]*verdict\.js['"]/g)) out.add(m[1]);
+  }
+  return out;
+}
+
+/** Does this text CONSTRUCT a tepna.verdict/1 object, under one of the four named spellings or under
+ *  a local alias the file bound to the contract module? PURE. `aliases` is a `contractAliases` set. */
+export function buildsObject(text, aliases) {
+  if (BUILDS_OBJECT.some((r) => r.test(text))) return true;
+  for (const a of aliases || []) if (new RegExp(`\\b${escapeRe(a)}\\.make\\s*\\(`).test(text)) return true;
+  return false;
+}
+
 /** Lines where the source CONSTRUCTS a tepna.verdict/1 object outside its selftest body. PURE. */
 export function verdictObjectLines(src, isPy) {
   const span = selftestSpan(src, isPy);
   const scanned = span ? src.slice(0, span[0]) + src.slice(span[1]) : src;
+  const aliases = contractAliases(bareSource(src, isPy), isPy);
   const out = [];
   for (const raw of scanned.split('\n')) {
     const s = raw.trim();
     if (/^(\/\/|\/\*|\*|#)/.test(s)) continue;
-    if (BUILDS_OBJECT.some((r) => r.test(s))) out.push(s.slice(0, 120));
+    if (buildsObject(s, aliases)) out.push(s.slice(0, 120));
   }
   return out;
 }
@@ -635,11 +672,10 @@ export function verdictObjectLines(src, isPy) {
    The gate reads `unknown` as a publication. A false red names a tool to re-bin; a false green hides
    an unvalidated verdict, which is the defect the row is about.
 
-   ⚠️ ONE LIMIT STAYS NAMED RATHER THAN IMPLIED AWAY: the contract reached under a LOCAL ALIAS
-   (`_v.make(`, `VD.make(`) is outside `BUILDS_OBJECT`'s four patterns, so a builder that publishes
-   that way reads `unknown` here instead of `true`. Measured 2026-10-30: 22 producers call it under
-   such a name and NOT ONE is word-only, so no bin turns on it today; the widening travels on row
-   `2026-10-30-the-object-detector-cannot-name-an-aliased-contract-import`. */
+   THE LOCAL ALIAS THAT LIMIT NAMED IS NOW READ: the contract reached as `_v.make(` or `VD.make(` was
+   outside `BUILDS_OBJECT`'s four patterns, so a builder that published that way read `unknown` here
+   instead of `true`. `contractAliases` resolves the name from the file's own import, and the row
+   `2026-10-30-the-object-detector-cannot-name-an-aliased-contract-import` closes with it. */
 
 /** One function definition's own body, or null when it cannot be located. PURE. `isPy` picks the
  *  syntax. Returns `{ text, code }`: `text` keeps strings, because a constructed object IS a string
@@ -762,7 +798,7 @@ function constructsIn(file, name, builders, readSource, seen) {
   const isPy = file.endsWith('.py');
   const body = functionBody(src, name, isPy);
   if (body == null) return 'unknown'; // the definition could not be delimited — not a proven absence
-  if (BUILDS_OBJECT.some((r) => r.test(body.text))) return true;
+  if (buildsObject(body.text, contractAliases(bareSource(src, isPy), isPy))) return true;
   let unknown = false;
   for (const call of bareCalls(body.code)) {
     if (call === name || AMBIENT_CALLS.has(call)) continue;
@@ -1807,6 +1843,57 @@ function selftest() {
     ok(!w.ok && w.errors.some((e) => e.startsWith('tools/geometry-scan.mjs: binned word-only')), 'MEASURED CASE: geometry-scan re-binned word-only/exempt is refused on its real source');
     // …and the pre-existing word-only judge is blind to exactly this, which is why a second check exists
     ok(checkWordOnlyClaim(stale, readSource).ok, 'the word-printing judge alone stays GREEN on the stale geometry-scan row (the original defect)');
+
+    /* ── THE CONTRACT UNDER A LOCAL ALIAS (row 2026-10-30-the-object-detector-cannot-name-an-aliased
+       -contract-import) ───────────────────────────────────────────────────────────────────────────
+       The alias comes from the IMPORT, never from the spelling: the control is a file that calls
+       `VD.make(` having bound `VD` to something else entirely, and it must stay clean. */
+    {
+      const AL = {
+        'capture-host/alias-vd.py': 'import verdict as VD\n\ndef run(n):\n    return VD.make(gate=n)\n',
+        'capture-host/alias-underscore.py': 'import verdict as _v\n\ndef run(n):\n    return _v.make(gate=n)\n',
+        'tools/alias-ns.mjs': "import * as Vv from './verdict.js';\nexport function run(g) {\n  return Vv.make({ gate: g });\n}\n",
+        'tools/alias-default.mjs': "import Vq from '../shared/verdict.js';\nexport function run(g) {\n  return Vq.make({ gate: g });\n}\n",
+        // the controls
+        'capture-host/alias-elsewhere.py': 'import telemetry as VD\n\ndef run(n):\n    return VD.make(gate=n)\n',
+        'capture-host/alias-bound-nocall.py': 'import verdict as VD\n\ndef run(n):\n    return n + 1\n'
+      };
+      const aread = (q) => AL[q] ?? null;
+      ok([...contractAliases(AL['capture-host/alias-vd.py'], true)].join(',') === 'VD', 'the Python alias is read off `import verdict as VD`');
+      ok(contractAliases('import verdict\n', true).size === 0, 'a plain `import verdict` binds no alias — `verdict.make(` was always one of the four spellings');
+      ok([...contractAliases(AL['tools/alias-ns.mjs'], false)].join(',') === 'Vv', 'the JS namespace import binds its alias');
+      ok([...contractAliases(AL['tools/alias-default.mjs'], false)].join(',') === 'Vq', 'the JS default import binds its alias');
+      ok(contractAliases(AL['capture-host/alias-elsewhere.py'], true).size === 0, 'an alias bound to ANOTHER module is not a contract alias — the spelling decides nothing');
+      ok(
+        buildsObject('return VD.make(gate=n)', new Set(['VD'])) && !buildsObject('return VD.make(gate=n)', new Set()),
+        'the same line constructs under its own alias and is invisible to the four spellings alone'
+      );
+      ok(buildsObject("const v = { schema: 'tepna.verdict/1' };", new Set()), 'the four spellings still decide without any alias');
+      for (const f of ['capture-host/alias-vd.py', 'capture-host/alias-underscore.py', 'tools/alias-ns.mjs', 'tools/alias-default.mjs']) {
+        const a = checkWordOnlyObject(W({ [f]: wo }), aread, new Set());
+        ok(
+          !a.ok && a.errors[0].startsWith(`${f}: binned word-only`) && /CONSTRUCTS a tepna\.verdict\/1 object/.test(a.errors[0]),
+          `a word-only row that builds under a local alias reds BY NAME (${f}), got ${a.errors[0]}`
+        );
+      }
+      for (const f of ['capture-host/alias-elsewhere.py', 'capture-host/alias-bound-nocall.py']) {
+        const a = checkWordOnlyObject(W({ [f]: wo }), aread, new Set());
+        ok(a.ok, `${f}: a foreign module behind the same name, and a bound alias never called, buy no re-bin (${a.errors.join(' | ')})`);
+      }
+      /* THE MEASURED CASE, on the real source: the producer the row names, and the control that the
+         four spellings alone could not see it. */
+      const realAlias = fs.readFileSync(path.join(ROOT, 'capture-host/solid_night.py'), 'utf8');
+      const aliasLines = verdictObjectLines(realAlias, true);
+      ok(
+        aliasLines.length > 0 && !aliasLines.some((l) => buildsObject(l, new Set())),
+        `MEASURED CASE: capture-host/solid_night.py constructs under \`_v.make(\` on ${aliasLines.length} line(s), none of them visible to the four spellings (${aliasLines[0] ?? 'none'})`
+      );
+      const aliasStale = { ...real, producers: { ...real.producers, 'capture-host/solid_night.py': wo } };
+      ok(
+        !checkWordOnlyObject(aliasStale, readSource).ok,
+        'MEASURED CASE: that real producer re-binned word-only/exempt is refused on its own source — the spelling by which the bin could be defeated'
+      );
+    }
   }
 
   /* THE SCRATCH CHECKOUT IS A REAL IMPORT GRAPH: without the modules this tool imports beside it, the
