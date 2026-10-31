@@ -267,7 +267,7 @@
        spanPpm       number | null        — the same ratio BEFORE the running median
        resyncs       int | null           — device-clock resync steps detected
        seams         int | null           — discontinuities in the PUBLISHED axis
-       reason        string | null        — why any of the above is null; null only when none is
+       reason        string | null        — why a key above is null, or why the source is negative
 
      WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
      of 8 app bundles, and therefore planned a node-local twin for PpgDex, GlucoDex and CPAPDex —
@@ -350,6 +350,21 @@
     if (!ax) why.push('no host stamp column on this input, so there is no second clock to discipline the device rate against');
     else if (!ok) why.push('the host axis refused: ' + (ax.reason || 'the spine named no reason'));
     else if (ax.independent == null) why.push('the host axis published no independence verdict');
+    /* ── AND WHEN THE AXIS DID LOOK, AND THE ANSWER WAS NEGATIVE (residue row
+       `2026-10-30-a-timing-block-that-names-no-timebase-states-no-reason`) ──
+       The three clauses above all fire on an ABSENCE: no host column, a refusal, no verdict. An axis
+       that ran, measured its anchors and found no second clock takes none of them, so the most
+       negative `timingSource` this block can publish arrived beside `reason: null` — the one state a
+       consumer most needs a sentence for. Measured in `synthetic_motiondex_golden.node-export.json`:
+       `timingSource:'none'`, `independent:false`, `anchors:32`, `reason:null`, over a node axis
+       carrying `deviceDrawn:true`, `drawnShare:0.7097` and `spreadMs:0.924`.
+       BOTH clauses fire, and neither is the other's `else`: `drawnReason` answers "is the DEVICE
+       column a clock" while `inertReason` answers "is the HOST column real" — the split `clock.js`
+       states beside the two fields — and MotionDex's golden carries both at once. The producer's own
+       sentence is quoted where it wrote one; a node that passed `opts.drawn` by hand, and an axis
+       object older than those fields, get the fallback instead. */
+    if (ok && drawn === true) why.push(ax.drawnReason || 'the device axis is drawn — a synthesised counter, not a clock, so there is no second timebase to discipline the rate against');
+    if (ok && ax.independent === false) why.push(ax.inertReason || 'host ≡ device — the host column tracks the device column inside one stamp quantum, so it is not an independent clock');
 
     var resyncs = _tbCount(opts.resyncs);
     var seams = _tbCount(opts.seams);

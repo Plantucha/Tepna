@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="98bde17b7214" data-compute-hash="200e4f21d928">
+<html lang="en" data-manifest-hash="250ebd913d08" data-compute-hash="51f4c6b2a10c">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-KLptJEzcGJB/xaRMuGp/5SdDH/bgXnczJV69p60XJAw=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7sMRffzPZCx7ViKLC/bxsI9hSi0nWLN5H3n4Sm3wu5U=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.24.0</title>
@@ -4120,7 +4120,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
        spanPpm       number | null        — the same ratio BEFORE the running median
        resyncs       int | null           — device-clock resync steps detected
        seams         int | null           — discontinuities in the PUBLISHED axis
-       reason        string | null        — why any of the above is null; null only when none is
+       reason        string | null        — why a key above is null, or why the source is negative
 
      WHY IT LIVES HERE AND NOT IN `clock.js`. The unit was written against `clock.js`, which sits in 5
      of 8 app bundles, and therefore planned a node-local twin for PpgDex, GlucoDex and CPAPDex —
@@ -4203,6 +4203,21 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     if (!ax) why.push('no host stamp column on this input, so there is no second clock to discipline the device rate against');
     else if (!ok) why.push('the host axis refused: ' + (ax.reason || 'the spine named no reason'));
     else if (ax.independent == null) why.push('the host axis published no independence verdict');
+    /* ── AND WHEN THE AXIS DID LOOK, AND THE ANSWER WAS NEGATIVE (residue row
+       `2026-10-30-a-timing-block-that-names-no-timebase-states-no-reason`) ──
+       The three clauses above all fire on an ABSENCE: no host column, a refusal, no verdict. An axis
+       that ran, measured its anchors and found no second clock takes none of them, so the most
+       negative `timingSource` this block can publish arrived beside `reason: null` — the one state a
+       consumer most needs a sentence for. Measured in `synthetic_motiondex_golden.node-export.json`:
+       `timingSource:'none'`, `independent:false`, `anchors:32`, `reason:null`, over a node axis
+       carrying `deviceDrawn:true`, `drawnShare:0.7097` and `spreadMs:0.924`.
+       BOTH clauses fire, and neither is the other's `else`: `drawnReason` answers "is the DEVICE
+       column a clock" while `inertReason` answers "is the HOST column real" — the split `clock.js`
+       states beside the two fields — and MotionDex's golden carries both at once. The producer's own
+       sentence is quoted where it wrote one; a node that passed `opts.drawn` by hand, and an axis
+       object older than those fields, get the fallback instead. */
+    if (ok && drawn === true) why.push(ax.drawnReason || 'the device axis is drawn — a synthesised counter, not a clock, so there is no second timebase to discipline the rate against');
+    if (ok && ax.independent === false) why.push(ax.inertReason || 'host ≡ device — the host column tracks the device column inside one stamp quantum, so it is not an independent clock');
 
     var resyncs = _tbCount(opts.resyncs);
     var seams = _tbCount(opts.seams);

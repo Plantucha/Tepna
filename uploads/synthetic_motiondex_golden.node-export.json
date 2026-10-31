@@ -22,7 +22,7 @@
       "spanPpm": -6.438774276186211,
       "resyncs": 0,
       "seams": 0,
-      "reason": null
+      "reason": "device axis is DRAWN — 70.97 % of inter-sample deltas share one value (≥ 67 %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against; host ≡ device — residual spread 0.92 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock"
     },
     "hostAxis": {
       "ok": true,

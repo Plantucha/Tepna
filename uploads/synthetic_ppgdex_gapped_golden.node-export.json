@@ -29,7 +29,7 @@
       "spanPpm": -5.608519349359048,
       "resyncs": 0,
       "seams": 0,
-      "reason": null
+      "reason": "host ≡ device — residual spread 0.81 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock"
     },
     "coverage": {
       "kind": "sparse",
@@ -90,8 +90,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "32103adda874",
-        "computeHash": "06e01c51fea7"
+        "manifestHash": "e256007a8bc2",
+        "computeHash": "2fb5b1ef2694"
       },
       "evidence": {
         "envelopeRef": null,
@@ -120,8 +120,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "32103adda874",
-        "computeHash": "06e01c51fea7"
+        "manifestHash": "e256007a8bc2",
+        "computeHash": "2fb5b1ef2694"
       },
       "evidence": {
         "envelopeRef": null,

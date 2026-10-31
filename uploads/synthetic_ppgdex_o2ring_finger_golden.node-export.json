@@ -29,7 +29,7 @@
       "spanPpm": -6.868177291421405,
       "resyncs": 0,
       "seams": 0,
-      "reason": null
+      "reason": "device inter-sample deltas concentrate on one value (77.91 % share) — a synthesised counter, not a clock, whatever ppm it reports; host ≡ device — residual spread 0.75 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock"
     },
     "hostAxis": {
       "anchors": 11,
@@ -71,8 +71,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "32103adda874",
-        "computeHash": "06e01c51fea7"
+        "manifestHash": "e256007a8bc2",
+        "computeHash": "2fb5b1ef2694"
       },
       "evidence": {
         "envelopeRef": null,
@@ -101,8 +101,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "32103adda874",
-        "computeHash": "06e01c51fea7"
+        "manifestHash": "e256007a8bc2",
+        "computeHash": "2fb5b1ef2694"
       },
       "evidence": {
         "envelopeRef": null,
