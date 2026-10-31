@@ -30,6 +30,25 @@
       "resyncs": 0,
       "seams": 0,
       "reason": null
+    },
+    "hostAxis": {
+      "anchors": 11,
+      "ppm": -11.002189437793822,
+      "spanMs": 37029.62963,
+      "spanPpm": -17.003410682049797,
+      "rate": "unknown",
+      "rateReason": "spans 37 s, under the 2400 s a rate needs",
+      "rateApplied": false,
+      "maxStepMs": 0,
+      "totalMs": -0.40740700000060315,
+      "independent": false,
+      "spreadMs": 0.9259260000035283,
+      "inertReason": "host ≡ device — residual spread 0.93 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock",
+      "drawn": false,
+      "quantizedShare": 0.5925171328023708,
+      "applied": true,
+      "timingSource": "device",
+      "stability": null
     }
   },
   "ganglior_events": [],
@@ -49,8 +68,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "09bba0bbdabf",
-        "computeHash": "f7fd0cacc5dc"
+        "manifestHash": "32103adda874",
+        "computeHash": "06e01c51fea7"
       },
       "evidence": {
         "envelopeRef": null,
@@ -79,8 +98,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "09bba0bbdabf",
-        "computeHash": "f7fd0cacc5dc"
+        "manifestHash": "32103adda874",
+        "computeHash": "06e01c51fea7"
       },
       "evidence": {
         "envelopeRef": null,
