@@ -27,6 +27,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { agentPath } from './home-paths.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { slimTranscripts } from './plan-slim.mjs';
 
 const OUT_DIR = process.env.TEPNA_BOARD_DIR || path.join(homedir(), '.local', 'share', 'tepna', 'board');
 const REPO = process.env.TEPNA_REPO || path.join(homedir(), 'Tepna');
@@ -1227,7 +1228,12 @@ function planEstimate() {
     }
     if (!bin) return fail('ccusage not found (set CCUSAGE_BIN)');
     const since = new Date(weekStartMs - 864e5).toISOString().slice(0, 10).replace(/-/g, '');
-    const out = JSON.parse(sh(process.execPath, [bin, 'blocks', '--json', '--offline', '--since', since]));
+    const roots = (process.env.CLAUDE_CONFIG_DIR ? process.env.CLAUDE_CONFIG_DIR.split(',') : [path.join(homedir(), '.config', 'claude'), path.join(homedir(), '.claude')]).map((d) =>
+      path.join(d.trim(), 'projects')
+    );
+    const slim = path.join(OUT_DIR, 'plan-slim');
+    slimTranscripts(roots, slim, weekStartMs - 2 * 864e5);
+    const out = JSON.parse(sh(process.execPath, [bin, 'blocks', '--json', '--offline', '--since', since], { env: { ...process.env, CLAUDE_CONFIG_DIR: slim } }));
     const blocks = (out.blocks || []).filter((b) => !b.isGap).map((b) => ({ start: Date.parse(b.startTime), end: Date.parse(b.actualEndTime || b.endTime), cost: b.costUSD }));
     return estimatePlan(blocks, readings, weekStartMs, Date.now());
   } catch (e) {
