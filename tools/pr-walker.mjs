@@ -57,22 +57,42 @@ export const KODIAK_IDLE_MIN = 20;
 export const STALE_PENDING_MIN = 180;
 export const MAX_RERUNS_PER_SHA = 1;
 export const HOLD_LABEL = 'do-not-merge';
-/* The `protect-main` ruleset as read on 2026-10-13. Used ONLY when the ruleset cannot be read, and
-   even then every reported check is treated as required (fail closed); this list exists so `stuck`
-   can still name a context that never arrived. */
-export const FALLBACK_REQUIRED = ['test', 'no-network', 'typecheck', 'biome', 'test (py3.12)', 'test (py3.13)', 'browser-gates', 'stale-file', 'mutation (diff-scoped)'];
+/* The `protect-main` required contexts, read 2026-10-31. A MIRROR, and a mirror lags: protection
+   gained `secret-scan` and `test (py3.14)` between 2026-10-13 and 2026-10-31 while this list stood
+   still, and nothing said so. Worse, the list was dead — `classify` substituted the REPORTED check
+   names in the degraded path, so the one thing the old comment promised (naming a context that never
+   arrived) was the one thing it could not do. Two mechanisms keep it honest now: the degraded path
+   UNIONS this list with the reported checks, and `fallbackDrift` names the difference on every pass
+   where the ruleset DOES read. */
+export const FALLBACK_REQUIRED = [
+  'biome',
+  'browser-gates',
+  'mutation (diff-scoped)',
+  'no-network',
+  'secret-scan',
+  'stale-file',
+  'test',
+  'test (py3.12)',
+  'test (py3.13)',
+  'test (py3.14)',
+  'typecheck'
+];
 
 /* ── pure core ─────────────────────────────────────────────────────────────────────────────────
    pr: { number, isDraft, mergeState, labels, checks:[{name,bucket,link}], readable, headSha, updatedAtMs, branch }
-   required: [context] from the ruleset, [] when unreadable. */
-export function classify(pr, required) {
+   required: [context] from the ruleset, [] when unreadable. fallback stands in for the ruleset ONLY
+   when it is unreadable, and even then it only ADDS to the reported names. */
+export function classify(pr, required, fallback = FALLBACK_REQUIRED) {
   const base = { number: pr.number, draft: !!pr.isDraft, headSha: pr.headSha, branch: pr.branch, updatedAtMs: pr.updatedAtMs || 0, behind: pr.mergeState === 'BEHIND', failed: [], runIds: [] };
   if ((pr.labels || []).includes(HOLD_LABEL)) return { ...base, state: 'held', why: `${HOLD_LABEL} label` };
   if (pr.readable === false) return { ...base, state: 'unknown', why: 'checks unreadable (API error) — not an empty list' };
   if (pr.mergeState === 'DIRTY') return { ...base, state: 'conflict', why: 'conflicts with main' };
   const checks = pr.checks || [];
   const ruleset = (required || []).length > 0;
-  const req = ruleset ? new Set(required) : new Set(checks.map((c) => c.name));
+  /* Fail closed in BOTH directions when the ruleset does not read. Every reported check counts, so
+     an advisory red blocks; and the mirror adds the contexts that never arrived, which a set built
+     from the report alone cannot see — an absent required check leaves no name to miss. */
+  const req = ruleset ? new Set(required) : new Set([...(fallback || []), ...checks.map((c) => c.name)]);
   const isReq = (c) => req.has(c.name);
   const failed = checks.filter((c) => c.bucket === 'fail' && isReq(c));
   if (failed.length) {
@@ -94,6 +114,17 @@ export function classify(pr, required) {
   if (unreported.length) return { ...base, state: 'stuck', why: `required never reported: ${unreported.join(', ')}` };
   if (pr.mergeState === 'UNKNOWN') return { ...base, state: 'unknown', why: 'GitHub still computing mergeability' };
   return { ...base, state: 'green', why: base.behind ? 'green, behind main' : 'green, current' };
+}
+
+/* The mirror's tripwire. `missing` is what protection requires and the mirror omits — the lag that
+   made this row. `extra` is what the mirror still names after protection dropped it, which strands a
+   degraded pass on a context that can never arrive. An unreadable ruleset judges nothing: `[]` is
+   absence, not an empty required set, so it reports `readable: false` rather than eleven `extra`. */
+export function fallbackDrift(required, fallback = FALLBACK_REQUIRED) {
+  const live = new Set(required || []);
+  const mirror = new Set(fallback || []);
+  if (live.size === 0) return { readable: false, missing: [], extra: [] };
+  return { readable: true, missing: [...live].filter((c) => !mirror.has(c)).sort(), extra: [...mirror].filter((c) => !live.has(c)).sort() };
 }
 
 export function runIdOf(link) {
@@ -288,6 +319,11 @@ export function act(actions, state, opts) {
 export function landingPage(rows, planned, done, meta) {
   const L = [];
   L.push(`pr-walker pass ${meta.at} · open ${rows.length} · out of draft ${planned.nonDraft}/${planned.cap} · required set: ${meta.requiredSource}`);
+  const d = meta.drift;
+  if (d?.readable && (d.missing.length || d.extra.length))
+    L.push(
+      `DRIFT FALLBACK_REQUIRED vs the ruleset · protection also requires: ${d.missing.join(', ') || 'nothing'} · the mirror still names: ${d.extra.join(', ') || 'nothing'} — edit tools/pr-walker.mjs`
+    );
   for (const r of rows) L.push(`#${r.number} ${r.draft ? 'draft' : 'ready'} ${r.state.padEnd(8)} ${r.why}`);
   L.push(`actions: ${done.length ? done.map((d) => `${d.op} #${d.number} → ${d.result}`).join(' · ') : 'none'}`);
   for (const al of planned.alerts) L.push(`ALERT #${al.number} ${al.kind}: ${al.why}`);
@@ -309,14 +345,19 @@ export function pass(opts) {
   const planned = plan(rows, state, { nowMs: now, mainMovedAtMs: snap.mainMovedAtMs, cap: opts.cap || CAP });
   const done = act(planned.actions, state, opts);
   if (!opts.dryRun) saveState(state);
-  const page = landingPage(rows, planned, done, { at: new Date(now).toISOString(), requiredSource: snap.required.length ? `ruleset(${snap.required.length})` : 'UNREADABLE — every check counts' });
+  const drift = fallbackDrift(snap.required);
+  const page = landingPage(rows, planned, done, {
+    at: new Date(now).toISOString(),
+    drift,
+    requiredSource: snap.required.length ? `ruleset(${snap.required.length})` : 'UNREADABLE — the mirror plus every reported check'
+  });
   if (!opts.dryRun) {
     try {
       mkdirSync(BOARD_DIR, { recursive: true });
       writeFileSync(path.join(BOARD_DIR, 'landing.md'), page);
     } catch {}
   }
-  if (opts.json) console.log(JSON.stringify({ at: now, rows, actions: done, alerts: planned.alerts }));
+  if (opts.json) console.log(JSON.stringify({ at: now, rows, actions: done, alerts: planned.alerts, drift }));
   else process.stdout.write(page);
   return { rows, done, alerts: planned.alerts };
 }
@@ -353,6 +394,10 @@ function selftest() {
   eq(classify(mk({ checks: [{ name: 'mutation', bucket: 'fail' }, ...G] }), req).state, 'green', 'advisory red');
   eq(classify(mk({ checks: [{ name: 'mutation', bucket: 'fail' }, ...G] }), []).state, 'red', 'fail closed');
   eq(classify(mk({ checks: [G[0]] }), req).state, 'stuck', 'stuck');
+  eq(classify(mk({}), []).state, 'stuck', 'degraded: the mirror names what never arrived');
+  eq(classify(mk({}), [], ['test', 'biome']).state, 'green', 'degraded: a satisfied mirror');
+  eq(fallbackDrift(['test', 'biome'], ['test']).missing.join(','), 'biome', 'drift names the lag');
+  eq(fallbackDrift([], ['test']).readable, false, 'an unreadable ruleset judges no mirror');
   eq(classify(mk({ readable: false }), req).state, 'unknown', 'unreadable');
   const p = plan(
     [classify(mk({ number: 5 }), req), classify(mk({ number: 3 }), req), ...[1, 2, 3].map((n) => classify(mk({ number: 10 + n, isDraft: false }), req))],
