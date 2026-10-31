@@ -54,7 +54,9 @@
  *   tag       at the MERGE sha (never the branch tip — squash rewrites it); `-s` when a signing
  *             key is configured, `-a` otherwise; pushed with a plain `git push origin v<X>`
  *   release   gh release create v<X> --title "Tepna v<X>" --notes-file <changelog section>
- *             --verify-tag — the object GitHub's "Latest" badge reads; a tag alone is not a release
+ *             --verify-tag — the object GitHub's "Latest" badge reads; a tag alone is not a release.
+ *             Then it attaches every owned bundle plus `Tepna-v<X>-offline.zip`, read at the merge
+ *             sha (`--attach v<X>` backfills an existing Release; a resume uploads only what is missing)
  *   cleanup   tools/wt-done.mjs on the worktree (refuses if in use — reported, not forced) and a
  *             fast-forward of the primary checkout's main when it is clean
  *
@@ -69,7 +71,8 @@
  * Everything that touches git/gh/the filesystem is in the step runners.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -232,6 +235,45 @@ export function mergeVerdict(view, elapsedMin, graceMin) {
 
 /* ── I/O helpers ──────────────────────────────────────────────────────────────────────────────── */
 
+/* ── release assets ──────────────────────────────────────────────────────────────────────────────
+ * Owner 2026-10-31: "pack html dexes so people with phones dont have to crawl thru repo". A Release
+ * carried notes and no files (v2.25.0: 0 assets), so an offline copy meant cloning the repo. The
+ * release step now attaches each owned bundle as its own download, plus one offline zip that also
+ * holds the two reader pages whose relative links (sibling bundles, screenshots, licence CSS) break
+ * when a page is downloaded alone. Every byte comes from the MERGE sha, so the files match the tag. */
+export const OFFLINE_DOCS = ['How to Collect Data.html', 'Why This Exists.html'];
+export const OFFLINE_DOC_ASSETS = ['how-to-collect/', 'licensing/dex-license.css'];
+
+/** GitHub rewrites a space in an asset name to a dot; name it ourselves so the URL is predictable. */
+export function assetName(path) {
+  return basename(path).replace(/\s+/g, '-');
+}
+export function offlineZipName(version) {
+  return `Tepna-v${version}-offline.zip`;
+}
+/** The bundle downloads, in fleet order, de-duplicated. An empty list is a refusal, never a release with no files. */
+export function bundleAssets(bundles, orchestrators) {
+  const out = [];
+  for (const b of [...(bundles || []), ...(orchestrators || [])]) if (b && !out.includes(b)) out.push(b);
+  if (!out.length) throw new Error('no bundles to attach — the fleet list read empty');
+  return out;
+}
+/** Zip layout: bundles at the root, docs pages and their assets beside them (the paths they link). */
+export function offlineLayout(bundles, docsTree) {
+  const files = bundles.map((b) => ({ from: b, to: b }));
+  for (const d of OFFLINE_DOCS) files.push({ from: 'docs/' + d, to: d });
+  for (const f of docsTree || []) {
+    const rel = f.replace(/^docs\//, '');
+    if (OFFLINE_DOC_ASSETS.some((a) => (a.endsWith('/') ? rel.startsWith(a) : rel === a))) files.push({ from: f, to: rel });
+  }
+  return files;
+}
+/** Asset names still to upload. A name already on the Release is kept, so a resume never re-uploads. */
+export function missingAssets(wanted, have) {
+  const h = new Set(have || []);
+  return wanted.filter((n) => !h.has(n));
+}
+
 function sh(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, ...opts });
   return { code: r.status === null ? 1 : r.status, out: r.stdout || '', err: r.stderr || '' };
@@ -263,6 +305,55 @@ function log(st, line) {
 }
 
 /* ── steps ────────────────────────────────────────────────────────────────────────────────────── */
+
+/* Reads the fleet list from this checkout's builders (the list `build.mjs` and the provenance gate
+   own) and the bytes from `sha`. A bundle absent at `sha` refuses rather than shipping a partial set. */
+function attachAssets(st, tag, sha, version) {
+  const MG = createRequire(import.meta.url)(join(ROOT, 'manifest-gate.js'));
+  const orchSrc = readFileSync(join(ROOT, 'tools/build.mjs'), 'utf8').match(/const\s+ORCHESTRATORS\s*=\s*\[([\s\S]*?)\]/);
+  const orch = orchSrc ? (orchSrc[1].match(/['"]([^'"]+\.html)['"]/g) || []).map((q) => q.slice(1, -1)) : null;
+  if (!orch || !orch.length) throw new Error('could not read ORCHESTRATORS from tools/build.mjs');
+  const bundles = bundleAssets(MG.MANIFEST_BUNDLES, orch);
+  const zipName = offlineZipName(version);
+  const wanted = bundles.map(assetName).concat([zipName]);
+  const view = JSON.parse(must('gh', ['release', 'view', tag, '--json', 'assets'], { cwd: ROOT }));
+  const missing = missingAssets(
+    wanted,
+    (view.assets || []).map((a) => a.name)
+  );
+  if (!missing.length) {
+    log(st, `assets: all ${wanted.length} already on ${tag}`);
+    return;
+  }
+  const dir = join(STATE_DIR, `assets-${tag}`);
+  const zipDir = join(dir, 'offline');
+  mkdirSync(zipDir, { recursive: true });
+  const blob = (path) => {
+    const r = spawnSync('git', ['show', `${sha}:${path}`], { cwd: ROOT, maxBuffer: 256 * 1024 * 1024 });
+    if (r.status !== 0) throw new Error(`${path} is absent at ${sha.slice(0, 8)} — refusing a partial asset set`);
+    return r.stdout;
+  };
+  const upload = [];
+  for (const b of bundles) {
+    const out = join(dir, assetName(b));
+    writeFileSync(out, blob(b));
+    if (missing.includes(assetName(b))) upload.push(out);
+  }
+  if (missing.includes(zipName)) {
+    const tree = must('git', ['ls-tree', '-r', '--name-only', sha, '--', 'docs/how-to-collect', 'docs/licensing'], { cwd: ROOT }).split('\n').filter(Boolean);
+    for (const f of offlineLayout(bundles, tree)) {
+      const out = join(zipDir, f.to);
+      mkdirSync(dirname(out), { recursive: true });
+      writeFileSync(out, blob(f.from));
+    }
+    const zipPath = join(dir, zipName);
+    rmSync(zipPath, { force: true });
+    must('zip', ['-q', '-r', '-X', zipPath, '.'], { cwd: zipDir });
+    upload.push(zipPath);
+  }
+  must('gh', ['release', 'upload', tag, ...upload], { cwd: ROOT });
+  log(st, `assets: uploaded ${upload.length} to ${tag} (${missing.join(', ')})`);
+}
 
 const RUN = {
   plan(st) {
@@ -410,6 +501,7 @@ const RUN = {
     if (exists.code === 0) {
       st.release = JSON.parse(exists.out).url;
       log(st, `Release already exists: ${st.release}`);
+      attachAssets(st, tag, st.mergeSha, st.to);
       return;
     }
     /* Re-scan from the MERGED changelog, not the worktree copy — what main carries is what ships. */
@@ -421,6 +513,7 @@ const RUN = {
     const url = must('gh', ['release', 'create', tag, '--title', `Tepna ${tag}`, '--notes-file', st.notesFile, '--verify-tag'], { cwd: ROOT }).trim();
     st.release = url;
     log(st, `GitHub Release created: ${url}`);
+    attachAssets(st, tag, st.mergeSha, st.to);
   },
   cleanup(st) {
     const r = sh('node', ['tools/wt-done.mjs', st.worktree], { cwd: ROOT });
@@ -511,6 +604,24 @@ function status() {
 
 function main(argv) {
   if (argv.includes('--status')) return status();
+  const ai = argv.indexOf('--attach');
+  if (ai !== -1) {
+    /* Backfill an existing Release: `--attach v2.25.0` attaches whatever it lacks, read at the tag. */
+    const tag = argv[ai + 1] || '';
+    if (!/^v\d+\.\d+\.\d+$/.test(tag)) {
+      console.error('usage: release-land.mjs --attach v<X.Y.Z>');
+      return 2;
+    }
+    const st = { log: [] };
+    try {
+      const sha = must('git', ['rev-list', '-n', '1', tag], { cwd: ROOT }).trim();
+      attachAssets(st, tag, sha, tag.slice(1));
+    } catch (e) {
+      console.error(String(e.message || e));
+      return 1;
+    }
+    return 0;
+  }
   if (argv.includes('--dry-run')) {
     const st = newState(argv);
     try {
@@ -611,6 +722,26 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(mergeVerdict({ state: 'OPEN', mergeStateStatus: 'DIRTY' }, 1, 20).action === 'fail', 'conflict → fail, never update');
   ok(mergeVerdict(null, 1, 20).action === 'wait', 'unreadable → wait');
   ok(mergeVerdict({ state: 'CLOSED' }, 1, 20).action === 'fail', 'closed → fail');
+  // release assets
+  ok(assetName('Data Unifier.html') === 'Data-Unifier.html' && assetName('OxyDex.html') === 'OxyDex.html', 'a space becomes a dash, never the dot GitHub would choose');
+  ok(offlineZipName('2.26.0') === 'Tepna-v2.26.0-offline.zip', 'the zip names its version');
+  ok(bundleAssets(['A.html', 'B.html'], ['B.html', 'C.html']).join() === 'A.html,B.html,C.html', 'bundles then orchestrators, de-duplicated, in order');
+  let threw = false;
+  try {
+    bundleAssets([], []);
+  } catch {
+    threw = true;
+  }
+  ok(threw, 'an empty fleet list REFUSES — a Release with no files is the defect this step fixes');
+  const lay = offlineLayout(['OxyDex.html'], ['docs/how-to-collect/img/a.png', 'docs/licensing/dex-license.css', 'docs/licensing/other.css', 'docs/how-to-collectX/b.png']);
+  ok(
+    lay.some((f) => f.from === 'docs/How to Collect Data.html' && f.to === 'How to Collect Data.html'),
+    'a docs page lands beside the bundles it links'
+  );
+  ok(lay.some((f) => f.to === 'how-to-collect/img/a.png') && lay.some((f) => f.to === 'licensing/dex-license.css'), 'its screenshots and licence CSS keep their relative paths');
+  ok(!lay.some((f) => /other\.css|collectX/.test(f.to)), 'CONTROL · a sibling outside the declared assets stays out');
+  ok(missingAssets(['a', 'b', 'c'], ['b']).join() === 'a,c', 'only absent assets upload, so a resume never doubles one');
+  ok(missingAssets(['a'], ['a']).length === 0, 'a complete Release uploads nothing');
   // every step has a runner, in order
   ok(
     STEPS.every((s) => typeof RUN[s] === 'function'),
