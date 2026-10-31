@@ -778,7 +778,14 @@ def test_the_STAGED_set_is_THE_UNION_of_the_two_instruments():
     uniqueness condition a qualified entry is written under, the same move its `survivorKey` pin
     already makes on `tools/mutate.mjs`. The rest of the 0.49 MB between the two union figures is
     files that grew since 2026-10-25, measured by summing the entries on both days rather than
-    attributed to this one."""
+    attributed to this one.
+
+    Re-measured 2026-10-31: 36 static, 56 declared, 56 staged, 9.96 MB static / 18.36 MB union. The one
+    path added is `mutation-survivors.json` (0.084 MB), a REAL read found by BOTH instruments
+    (`found: ["traced", "named"]`): `tests/test_mutation_baseline.py` opens the committed survivor record
+    to measure the inherited split against the real document rather than a hand-built copy of it. The
+    rest of the distance to 2026-10-28's 9.49 / 17.71 MB is files that grew since, summed over the
+    entries on both days and not attributed to this one."""
     from pathlib import Path
     import pytest
 
@@ -790,7 +797,7 @@ def test_the_STAGED_set_is_THE_UNION_of_the_two_instruments():
     staged = mutation_diff.staged_root_reads(here)
     assert set(staged) == static | declared
     counts = (len(static), len(declared), len(staged))
-    assert counts == (35, 55, 55), counts
+    assert counts == (36, 56, 56), counts
     # A static read the manifest omits means the manifest is stale: re-run the trace and re-fold it.
     assert static - declared == set(), static - declared
     assert ".github/workflows/capture-host-ci.yml" in staged, staged
@@ -872,6 +879,14 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # body. That page kept the phone-app layout for the month after its two siblings were widened and no
     # gate said so, because the table checks only the pages it lists (residue
     # 2026-10-20-sigma-classifier-still-phone-only).
+    # 2026-10-31: ONE new REAL read, `mutation-survivors.json` (0.084 MB, measured; static 9.49 → 9.96 MB
+    # and union 17.71 → 18.36 MB, summed over the entries rather than extrapolated, so most of that
+    # distance is files that grew since 2026-10-28). `tests/test_mutation_baseline.py` opens the committed
+    # survivor record and measures the inherited split against the real document — the gate now reads that
+    # record at its base to decide whose a pre-existing survivor is, and a test that built its own copy of
+    # it would pin the model rather than the record. A read, not a mention: staging it keeps that leg
+    # runnable inside a mutation scratch, which is the purpose of this population (the one dotted read
+    # named above is the measured cost of getting that wrong).
     # 2026-10-28 (#4048): ONE new REAL read, `tools/reanchor-equivalence.mjs` (0.12 MB, measured).
     # `tests/test_equivalence_ledger.py` opens the generator's own source to pin the condition a
     # QUALIFIED entry is written under: exactly one generated mutant carries that identity. A read,
@@ -893,6 +908,7 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
         "hrvdex-dsp.js",
         "index.html",
         "motiondex-dsp.js",
+        "mutation-survivors.json",
         "pat-feasibility.js",
         "ppgdex-dsp.js",
         "provenance/_meta.json",
