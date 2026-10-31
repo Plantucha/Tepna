@@ -26,8 +26,11 @@
  * Rules:
  *   - A manifest certifies equality. On any difference, write nothing, name
  *     the differing paths, exit 1.
- *   - Manifests live beside the nights, in <dest>/.manifests/<night>.json, so
- *     a night directory stays byte-identical to its source.
+ *   - Manifests live in the rig's state dir,
+ *     ~/.local/state/tepna-archive-manifests/<night>.json (override:
+ *     TEPNA_ARCHIVE_MANIFEST_DIR). The archive tree on the Synology is
+ *     read-only to the pull user, and a manifest is the rig's own record of
+ *     what it verified. A night directory stays byte-identical to its source.
  *   - sync-manifests is idempotent and resumable. It skips nights that have a
  *     manifest, skips the current date (the night is not settled), and labels
  *     every manifest with its basis: copy-time-source, or copy-only-backfill
@@ -133,13 +136,17 @@ for dirpath, dirnames, filenames in os.walk(root):
 `;
 
 export function hashRemoteTree(host, root) {
+  if (!/^[\w./-]+$/.test(root)) throw new Error(`refusing shell-unsafe source root: ${root}`);
+  // The walker travels base64-encoded through a plain pipeline. Two plainer
+  // routes failed in the field: a multi-line -c argument is mangled when ssh
+  // flattens argv into one remote shell line, and a script streamed on the
+  // ssh channel's stdin stalled sessions past every timeout (2026-10-31).
+  const b64 = Buffer.from(REMOTE_WALKER).toString('base64');
   return new Promise((resolve, reject) => {
-    // The walker travels on stdin (`python3 -`): ssh flattens argv into one
-    // remote shell line, which mangles a multi-line -c argument.
     execFile(
       'ssh',
-      ['-F', join(homedir(), '.ssh', 'config'), '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', host, 'python3', '-', root],
-      { timeout: 600000, maxBuffer: 64 * 1024 * 1024, input: REMOTE_WALKER },
+      ['-F', join(homedir(), '.ssh', 'config'), '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', host, `echo ${b64} | base64 -d | python3 - ${root}`],
+      { timeout: 240000, maxBuffer: 64 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err) {
           const detail = (stderr || '').trim() || err.message;
@@ -243,15 +250,19 @@ async function hashSourceNight(src, night) {
 
 /* ── modes ────────────────────────────────────────────────────────────── */
 
-async function writeManifest(dest, manifest) {
-  const dir = join(dest, '.manifests');
+function manifestDir() {
+  return process.env.TEPNA_ARCHIVE_MANIFEST_DIR || join(homedir(), '.local', 'state', 'tepna-archive-manifests');
+}
+
+async function writeManifest(manifest) {
+  const dir = manifestDir();
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, `${manifest.night}.json`), JSON.stringify(manifest, null, 1) + '\n');
 }
 
-async function readManifest(dest, night) {
+async function readManifest(night) {
   try {
-    return JSON.parse(await readFile(join(dest, '.manifests', `${night}.json`), 'utf8'));
+    return JSON.parse(await readFile(join(manifestDir(), `${night}.json`), 'utf8'));
   } catch {
     return null;
   }
@@ -280,7 +291,7 @@ async function doWrite(night, { quiet = false } = {}) {
     source: src.host ? `${src.host}:${src.root}` : src.root,
     files: sourceFiles
   });
-  await writeManifest(dest, manifest);
+  await writeManifest(manifest);
   if (!quiet) console.log(`${night}: manifest written · ${manifest.file_count} files · ${manifest.total_bytes} bytes · basis copy-time-source`);
   return { status: 'PASS', findings: [], checked: 1, manifest };
 }
@@ -289,7 +300,7 @@ async function doVerify(night, { quiet = false } = {}) {
   const dest = destRoot();
   const unusable = await destUsable(dest);
   if (unusable) return { status: 'NOT_RUN', reason: unusable, findings: [] };
-  const manifest = await readManifest(dest, night);
+  const manifest = await readManifest(night);
   if (!manifest) return { status: 'FAIL', findings: [`${night}: no manifest`], checked: 1 };
   const destFiles = await hashLocalTree(join(dest, night));
   const cmp = compareTrees(manifest.files, destFiles);
@@ -316,7 +327,7 @@ async function doSync() {
   const findings = [];
   let checked = 0;
   for (const night of nights) {
-    if (await readManifest(dest, night)) continue;
+    if (await readManifest(night)) continue;
     checked++;
     const probe = await probeSourceNight(src, night);
     if (probe === 'error') {
@@ -327,7 +338,7 @@ async function doSync() {
     } else {
       const destFiles = await hashLocalTree(join(dest, night));
       const manifest = buildManifest({ night, basis: 'copy-only-backfill', source: null, files: destFiles });
-      await writeManifest(dest, manifest);
+      await writeManifest(manifest);
       console.log(`${night}: manifest written · ${manifest.file_count} files · basis copy-only-backfill`);
     }
   }
@@ -364,10 +375,11 @@ export async function selftest() {
     }
     process.env.TEPNA_ARCHIVE_SRC = srcRoot;
     process.env.TEPNA_ARCHIVE_DEST = dest;
+    process.env.TEPNA_ARCHIVE_MANIFEST_DIR = join(base, 'manifests');
 
     const r1 = await doWrite(night, { quiet: true });
     t('write passes on identical trees', r1.status === 'PASS');
-    const man = await readManifest(dest, night);
+    const man = await readManifest(night);
     t('manifest exists with source basis', !!man && man.basis === 'copy-time-source');
     t('manifest excludes .part files', !!man && man.file_count === 2);
     t('manifest hashes match sha256 of content', !!man && man.files.find((f) => f.path === 'a.bin')?.sha256 === (await hashFile(join(srcRoot, night, 'a.bin'))));
@@ -384,7 +396,7 @@ export async function selftest() {
     await mkdir(join(dest, night2), { recursive: true });
     await wf(join(srcRoot, night2, 'only-source.bin'), Buffer.alloc(10, 3));
     const r2 = await doWrite(night2, { quiet: true });
-    t('write refuses when the copy is missing a file', r2.status === 'FAIL' && (await readManifest(dest, night2)) === null);
+    t('write refuses when the copy is missing a file', r2.status === 'FAIL' && (await readManifest(night2)) === null);
 
     const cmp = compareTrees(
       [{ path: 'x', bytes: 1, sha256: 'a' }],
@@ -405,6 +417,7 @@ export async function selftest() {
     await rm(base, { recursive: true, force: true });
     delete process.env.TEPNA_ARCHIVE_SRC;
     delete process.env.TEPNA_ARCHIVE_DEST;
+    delete process.env.TEPNA_ARCHIVE_MANIFEST_DIR;
   }
   const line = fail.length ? `archive-manifest selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ran, fail, line };
