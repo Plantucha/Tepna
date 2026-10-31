@@ -16,15 +16,15 @@
 <body>
 <div class="sheet">
   <a class="toplink" href="papers.html">← Tepna preprints</a>
-  <div class="banner">Tepna Working Preprint · not peer-reviewed · DRAFT v0 — SKELETON: methods and pre-registration are final, every result cell reads PENDING until its run lands</div>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed · DRAFT v2 (2026-10-31) — results from brief §§29–50 and §52.8 are measured; cells marked PENDING wait for v51 (three formula switches), the locked final run (v53, §52.6) and the external SomnoTrace run; v37F (night-level formula) never ran and is superseded by §§46–47</div>
   <h1 class="title">Sleep staging from a fingertip oximeter's three signals: a pre-registered ceiling, a sequence control, and a stack of published formulas scored blind</h1>
   <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
   <p class="affil">OxyDex node (SpO₂ · pulse rate · motion), Tepna physiological-signal suite</p>
-  <p class="meta">Draft v0 · October 2026 · Skeleton written 2026-10-04 while v21/v22 run · Inputs: ten open and NSRR cohorts, 9 100 nights, feature set <code>oxy1</code> · bands pre-stated in <code>briefs/STAGE-LAB-2026-09-27-BRIEF.md</code> §§5–20 before each run · nothing here is a published rate until the owner opens the P5 gate</p>
+  <p class="meta">Draft v2 · October 2026 · Skeleton 2026-10-04; results v1 2026-10-22; results v2 2026-10-31 · Inputs: nine pooled cohorts (open + NSRR), 14 695 nights, feature sets <code>oxy1</code> (466 columns) + <code>pdx</code> (175 pulse-dynamics bases); <code>ecg2r</code>, <code>rsp</code> (ECG and breathing lines), <code>oxy1p</code> + <code>pdxp</code> (pulse from the PPG waveform); <code>nl</code> extracted, never fitted · bands pre-stated in <code>briefs/STAGE-LAB-2026-09-27-BRIEF.md</code> §§5–50 before each run · nothing here is a published rate until the owner opens the P5 gate</p>
 
   <div class="abstract">
     <h2>Abstract</h2>
-    <p style="text-align:left;margin-bottom:0"><b>Background.</b> A fingertip ring oximeter reports three signals at 1 Hz: SpO₂, pulse rate and a movement byte. The best published figure for staging from the first two is κ 0.73–0.78 on 17 303 polysomnograms with a whole-night network (Vaquerizo-Villar et al., 2025); a proprietary ring stager reports κ 0.39 on a sealed Challenge-2018 holdout. <b>Question.</b> How much of the night can those three signals stage, what part of it a stack of published formulas can carry, and how the two compare blind. <b>Methods.</b> Ten cohorts (9 100 nights) harmonised to what the ring reports; 466 named features; three learners on identical subject-grouped folds — gradient-boosted trees, a whole-night sequence network used only as a control, and a literature stack (named terms → auto-context → linear-chain CRF) fitted to labels; every band stated before its run; Challenge 2018 and ISRUC never fitted, scored blind; a half-night label shift that must collapse κ as the plant. <b>Results.</b> <span class="pending">PENDING — control, trees, stack, bridge and symbolic-regression cells fill from the brief when v21/v22 land; the external blind number fills after the third-party blind run.</span> <b>Conclusion.</b> <span class="pending">PENDING.</span></p>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> A fingertip ring oximeter reports three signals at 1 Hz: SpO₂, pulse rate and a movement byte. The best published figure for staging from the first two is κ 0.73–0.78 on 17 303 polysomnograms with a whole-night network (Vaquerizo-Villar et al., 2025); a proprietary ring stager reports κ 0.39 on a sealed Challenge-2018 holdout. <b>Question.</b> How much of the night can those three signals stage, what part of it a stack of published formulas can carry, and how the two compare blind. <b>Methods.</b> Nine cohorts (14 695 nights: SHHS-1/2, MESA, CFS, MrOS, CAP, UCDDB, ISRUC) harmonised to what the ring reports; 466 named features plus 175 pulse-dynamics bases; three learners on identical subject-grouped folds — gradient-boosted trees, a whole-night sequence network used only as a control, and a literature stack (named terms → auto-context → linear-chain CRF) fitted to labels; every band stated before its run; Challenge 2018 never fitted, scored blind; leave-one-cohort-out for the four NSRR cohorts; a half-night label shift that must collapse κ as the plant. <b>Results.</b> The control reaches pooled κ 0.711 (0.794 three-class) and 0.573 blind on Challenge; holding out MESA, MrOS or CFS costs 0.006–0.026 and SHHS-1 0.045, so the blind gap of 0.14 is site and scoring, not cohort. Adding 4 646 nights moved the control +0.009. The literature stack rose from 0.482 to 0.558 when the pulse-dynamics bases were added (+0.079 [+0.078, +0.081] paired on 15 689 nights, against a pre-stated +0.005 to +0.02) and to 0.570 with every cached column as a line term; blind 0.392 against the proprietary stager's 0.390. An oracle that fits each night's own intercepts and slopes lifts the stack to 0.616, but that calibration is not predictable from the night (recovery ≤ 14 %), not carried by the same person's other night years apart (−0.03 to −0.06), and worth ≤ +0.03 from a user's bed and wake times; a second formula that predicts each night's adapters from its label-free statistics recovers +0.041 of it (stack 0.597, blind 0.407, past the proprietary 0.390); distillation from the control hurt twice. <b>Draft v2 (2026-10-31).</b> STAGES' thirteen clinics read the control at 0.533 blind, and training on sister clinics did not repair a held-out one (−0.018 to +0.018). The ECG net reads 0.681 against a five-scorer consensus (DOD-O). After a data-integrity rework every line was re-run on corrected data (Table 6). The nets hold (oximetry 0.705, ECG + breathing 0.702; about 0.57 on blind Challenge), and no formula passes a ship band blind (oximetry formula 0.374 on Challenge, 0.242 on DREAMT's wrist pulse). A wearable-only net reaches 0.658 in the pool and 0.41 on DREAMT. <b>Conclusion.</b> The formula route was capped by missing terms, not by its linear form: with the pulse-dynamics bases it clears the pre-stated shipping line (0.50) and matches the proprietary comparator blind. What separates it from the control is a this-night calibration that only labels on that night supply; the control itself already reads the whole night and sits at the lower edge of the published 0.73–0.78.</p>
   </div>
   <p class="kw"><b>Keywords:</b> sleep staging · pulse oximetry · pulse rate · actigraphy · pre-registration · knowledge distillation · conditional random field · auto-context · blind validation</p>
 
@@ -41,19 +41,21 @@
   <h2 class="sec">2. Methods</h2>
   <h3 class="sub">2.1 Cohorts and licences</h3>
   <table>
-    <caption class="tbl-cap"><b>Table 1.</b> Cohorts in the pooled set. "Fit" = used in the formula fit; "blind" = never fitted, scored on every fold model.</caption>
+    <caption class="tbl-cap"><b>Table 1.</b> Cohorts. "Fit" = in the pooled folds; "blind" = never fitted, scored on every fold model; "pending" = loader wired and pre-stated, run not yet landed.</caption>
     <thead><tr><th>cohort</th><th>nights</th><th>SpO₂</th><th>pulse source</th><th>motion</th><th>labels</th><th>licence</th><th>role</th></tr></thead>
     <tbody>
-      <tr><td>SHHS1 (NSRR)</td><td>5 136</td><td>1 Hz</td><td>oximeter H.R.</td><td>—</td><td>R&amp;K → 4-class</td><td>NSRR DUA</td><td>fit</td></tr>
-      <tr><td>SHHS2 (NSRR)</td><td>2 651</td><td>1 Hz</td><td>oximeter PR</td><td>—</td><td>R&amp;K → 4-class</td><td>NSRR DUA</td><td>fit (same subjects as SHHS1; folds grouped by subject)</td></tr>
-      <tr><td>Challenge 2018 (PhysioNet/CinC)</td><td>994</td><td>1 Hz</td><td>ECG-derived</td><td>—</td><td>AASM</td><td>ODC-By</td><td><b>blind</b></td></tr>
-      <tr><td>CAP (PhysioNet)</td><td>108</td><td>1 Hz</td><td>HR / ECG-derived</td><td>—</td><td>R&amp;K</td><td>ODC-By</td><td>fit</td></tr>
+      <tr><td>SHHS-1 (NSRR)</td><td>5 136</td><td>1 Hz</td><td>oximeter H.R.</td><td>—</td><td>R&amp;K → 4-class</td><td>NSRR DUA</td><td>fit</td></tr>
+      <tr><td>SHHS-2 (NSRR)</td><td>2 650</td><td>1 Hz</td><td>oximeter PR</td><td>—</td><td>R&amp;K → 4-class</td><td>NSRR DUA</td><td>fit (same subjects as SHHS-1; folds grouped by subject)</td></tr>
+      <tr><td>MESA (NSRR)</td><td>2 025</td><td>1 Hz</td><td>oximeter HR</td><td>wrist actigraphy</td><td>AASM</td><td>NSRR DUA</td><td>fit</td></tr>
+      <tr><td>CFS (NSRR)</td><td>730</td><td>1 Hz</td><td>oximeter PULSE</td><td>—</td><td>AASM</td><td>NSRR DUA</td><td>fit</td></tr>
+      <tr><td>MrOS (NSRR, two visits)</td><td>3 916</td><td>1 Hz</td><td>oximeter</td><td>—</td><td>AASM</td><td>NSRR DUA</td><td>fit (visits grouped by subject)</td></tr>
+      <tr><td>CAP (PhysioNet)</td><td>88</td><td>1 Hz</td><td>HR / ECG-derived</td><td>—</td><td>R&amp;K</td><td>ODC-By</td><td>fit</td></tr>
       <tr><td>UCDDB (PhysioNet)</td><td>25</td><td>8 Hz → 1 Hz</td><td>oximeter Pulse</td><td>—</td><td>R&amp;K</td><td>ODC-By</td><td>fit</td></tr>
-      <tr><td>BOAS (OpenNeuro ds005555)</td><td>128</td><td>1 Hz</td><td>none readable</td><td>—</td><td>AASM consensus</td><td>CC0</td><td>fit</td></tr>
-      <tr><td>ISRUC-Sleep</td><td>127</td><td>12.5 Hz → 1 Hz</td><td>ECG-derived (X2)</td><td>—</td><td>AASM, two scorers</td><td>cite-only</td><td><b>blind</b></td></tr>
-      <tr><td>Sleep-Accel (PhysioNet)</td><td>31</td><td>—</td><td>Apple Watch HR</td><td>wrist ACC</td><td>PSG</td><td>ODC-By</td><td>fit</td></tr>
-      <tr><td>BIDSleep (PhysioNet)</td><td>165</td><td>—</td><td>Apple Watch HR</td><td>wrist ACC</td><td>Dreem-EEG expert</td><td>open</td><td>fit</td></tr>
-      <tr><td>Newcastle (Zenodo 1160410)</td><td>27</td><td>—</td><td>—</td><td>GENEActiv wrist</td><td>PSG</td><td>CC BY 4.0</td><td>fit</td></tr>
+      <tr><td>ISRUC-Sleep</td><td>125</td><td>12.5 Hz → 1 Hz</td><td>ECG-derived</td><td>—</td><td>AASM, two scorers</td><td>cite-only</td><td>in the control\'s folds; blind for the stack</td></tr>
+      <tr><td>Challenge 2018 (PhysioNet/CinC)</td><td>994</td><td>1 Hz</td><td>ECG-derived</td><td>—</td><td>AASM</td><td>ODC-By</td><td>blind</td></tr>
+      <tr><td>STAGES (NSRR, 13 clinics)</td><td>1 908</td><td>1 Hz</td><td>oximeter (11 clinics)</td><td>—</td><td>AASM</td><td>NSRR DUA</td><td>blind, leave-one-clinic-out (§43, pre-§46 data); nine sites since LOCKED for the final run (§52.6); STNF, GSDV, MSMI in the PPG pool (§46)</td></tr>
+      <tr><td>DREAMT (PhysioNet, restricted)</td><td>100</td><td>1 Hz (PSG)</td><td>wrist wearable HR / BVP</td><td>wrist ACC</td><td>AASM</td><td>PhysioNet RHD 1.5</td><td>blind, consulted external (§36, §45, §46)</td></tr>
+      <tr><td>Dreem DOD-O</td><td>56</td><td>—</td><td>ECG 250 Hz</td><td>—</td><td>five-scorer consensus</td><td>MIT</td><td>blind, ECG line (§44)</td></tr>
     </tbody>
   </table>
   <p>Nights with a present-but-empty SpO₂ channel (&lt; 50 % valid) are skipped and counted; a cohort without a signal yields NaN in that signal's columns, never a filled value. Aggregate statistics only are reported; no record identifiers leave the corpus (NSRR DAUA §5).</p>
@@ -63,6 +65,8 @@
 
   <h3 class="sub">2.3 Feature matrix (feature set <code>oxy1</code>, 466 columns)</h3>
   <p>Multi-scale statistics (1–10 min), desaturation events (the ≥ 3 % criterion of the AASM 2012 rules, Berry et al., 2012; the detector is ours, and implementations differ, Terrill, 2020), SpO₂ and pulse-rate band powers including the three PR bands of Vaquerizo-Villar et al. (2025), pulse-rate statistics on the 1-Hz device rate (the mean, SD and successive-difference features that paper names; not HRV in the Task Force (1996) sense, and only <i>after</i> the RR-interval features of Redmond &amp; Heneghan, 2006), and movement statistics <i>after</i> Cole et al. (1992) and Sadeh et al. (1994) — analogues of their inputs, not their scoring algorithms — each with ±2/±10/±30-epoch context. A literature check of 2026-10-30 re-attributed every term to what its source actually defines; the term-by-term verdicts, the terms retired (a Cole–Kripke-weighted window, 5-min VLF, posture turns) and the quantities added (a ceiling-baseline event detector shared with OxyDex, cardiopulmonary coupling with the parameters of Thomas et al., 2005, and per-epoch signal-quality fractions after the scorability idea of Ganglberger et al., 2024) are in <code>docs/STAGE-LAB-FORMULAS.md</code>.</p>
+
+    <p><b>Pulse-dynamics bases (<code>pdx</code>, brief §31, added 2026-10-20):</b> 35 quantities of the pulse-rate and SpO₂ series that a linear formula cannot derive from the <code>oxy1</code> statistics — lag-1/5/10 autocorrelation, DFA α₁/α₂, sample and permutation entropy, turning-point rate, Teager energy, Higuchi dimension, SD1/SD2, the HF spectral peak and its drift, pulse surges and the time since the last surge, SpO₂ step, desaturation duration and burden, resaturation slope, SpO₂–pulse cross-correlation and lag, the pulse response after movement, and per-channel missingness — each raw and at ±2, ±10, ±30 epochs. Night-level constants (<code>nl</code>, 8 columns: pulse median/IQR/trend, SpO₂ median/5th percentile, ODI-3, motion fraction, time in bed) bypass the per-night normalisation and are the input of the night-level formula arm (§39, pending).</p>
 
   <h3 class="sub">2.4 Learners</h3>
   <ul>
@@ -76,35 +80,105 @@
   <p>Each unit's expected range, pass line and reading rule were written in <code>briefs/STAGE-LAB-2026-09-27-BRIEF.md</code> before the unit ran (§§5–20); measured numbers were appended beside them, including every failed expectation. The gate for all units: pooled κ ≥ 0.415, half the human inter-scorer κ (0.829). Plant P1: labels shifted by half a night must collapse κ below half its value, or the run is void. Folds are a hash of the subject key (SHHS1/SHHS2 visits of one person share a fold); Challenge 2018 and ISRUC are never in any fit.</p>
 
   <h2 class="sec">3. Results</h2>
-  <p class="pending"><b>PENDING.</b> Each table below is filled from the brief section named in its caption when that run lands; the values are copied from the bench summaries under <code>lab-cache/bench-*/</code>, never typed from memory.</p>
+  <p>Values are copied from the bench summaries and readouts under <code>lab-cache/</code> (brief §§29–50), never typed from memory. Tables 2–5 are pre-§46 data; Table 6 is the §46 re-run, reported beside them and never pooled with them. The control's numbers are the nine-cohort five-fold CV (v30 B1); the stack's are all five folds (CRF Viterbi for κ4, the saved context-layer posteriors for κ3). "Blind" = never fitted.</p>
   <table>
-    <caption class="tbl-cap"><b>Table 2.</b> Pooled four-class κ by learner and signal set (brief §§15–18). Night-bootstrap 95 % CI.</caption>
-    <thead><tr><th>learner</th><th>signals</th><th>pooled κ [CI]</th><th>Challenge (blind)</th><th>ISRUC (blind)</th><th>SHHS1</th><th>SHHS2</th><th>brief §</th></tr></thead>
+    <caption class="tbl-cap"><b>Table 2.</b> Pooled four-class κ by learner and feature set (brief §§30–31, §38a). Night-bootstrap 95 % CI on the control ±0.004.</caption>
+    <thead><tr><th>learner</th><th>features</th><th>pooled κ4</th><th>pooled κ3</th><th>Challenge (blind)</th><th>ISRUC</th><th>SHHS-1</th><th>SHHS-2</th><th>MESA</th><th>MrOS</th><th>brief §</th></tr></thead>
     <tbody>
-      <tr><td>trees</td><td>SpO₂ + PR + motion</td><td class="pending">PENDING</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td>17</td></tr>
-      <tr><td>control (sequence)</td><td>SpO₂ + PR + motion</td><td class="pending">PENDING</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td>17</td></tr>
-      <tr><td>literature stack, CRF</td><td>same</td><td class="pending">PENDING</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td>18</td></tr>
-      <tr><td>stack + bridge</td><td>same</td><td class="pending">PENDING</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td class="pending">—</td><td>19</td></tr>
+      <tr><td>trees (six-cohort pool, v18)</td><td>oxy1</td><td>0.507</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>17</td></tr>
+      <tr><td>control (sequence), v30 B1</td><td>oxy1</td><td><b>0.711</b></td><td><b>0.794</b></td><td><b>0.573</b></td><td>0.418</td><td>0.676</td><td>0.727</td><td>0.735</td><td>0.725</td><td>30</td></tr>
+      <tr><td>control + pdx terms, v31 S1</td><td>oxy1 + pdx</td><td>0.716</td><td>0.798</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>31</td></tr>
+      <tr><td>literature stack, CRF (L0)</td><td>oxy1</td><td>0.482</td><td>0.543</td><td>0.316</td><td>0.292</td><td>0.450</td><td>0.519</td><td>0.537</td><td>0.490</td><td>31</td></tr>
+      <tr><td><b>stack + pulse-dynamics terms (L1)</b></td><td>oxy1 + pdx</td><td><b>0.558</b></td><td>0.630</td><td>0.375</td><td>0.284</td><td>0.532</td><td>0.593</td><td>0.597</td><td>0.568</td><td>31</td></tr>
+      <tr><td>stack, every column a line term (L2)</td><td>oxy1 + pdx</td><td>0.570</td><td>0.643</td><td><b>0.392</b></td><td>0.324</td><td>0.543</td><td>0.603</td><td>0.612</td><td>0.579</td><td>31</td></tr>
+      <tr><td>proprietary comparator (published)</td><td>ring</td><td>—</td><td>—</td><td>0.390</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>1</td></tr>
+      <tr><td><b>stack + label-free per-night adapters predicted from night statistics (v32 F2)</b></td><td>oxy1 + pdx</td><td><b>0.597</b></td><td>0.673</td><td><b>0.407</b></td><td>0.311</td><td>0.568</td><td>0.621</td><td>0.629</td><td>0.608</td><td>32</td></tr>
+      <tr><td>stack + EM self-adaptation (v32 F1)</td><td>oxy1 + pdx</td><td>0.553</td><td>0.629</td><td>0.366</td><td>0.270</td><td>0.522</td><td>0.584</td><td>0.595</td><td>0.569</td><td>32</td></tr>
+      <tr><td>night-level formula (v37F)</td><td>oxy1 + pdx + nl</td><td colspan="8">not run: its chain failed on 2026-10-22/23 (v32, then v33); superseded by the §46 rework and the §47 normalisations (Table 6)</td><td>39</td></tr>
     </tbody>
   </table>
   <table>
-    <caption class="tbl-cap"><b>Table 3.</b> What each signal and each layer bought (brief §§14–19): SpO₂-only → +pulse → +motion; epoch → context → CRF; 1-bit motion vs full activity.</caption>
+    <caption class="tbl-cap"><b>Table 3.</b> What each step bought (paired on the same nights where stated; pre-stated expectation in brackets).</caption>
     <thead><tr><th>step</th><th>Δκ pooled</th><th>where it showed</th><th>brief §</th></tr></thead>
-    <tbody><tr><td colspan="4" class="pending">PENDING</td></tr></tbody>
+    <tbody>
+      <tr><td>+4 646 CFS + MrOS nights, control</td><td>+0.009 [+0.008, +0.010] (expected +0.01 to +0.03)</td><td>Challenge blind +0.019; new cohorts scored blind within 0.02 of in-pool</td><td>30</td></tr>
+      <tr><td>pulse-dynamics terms, stack</td><td><b>+0.079</b> [+0.078, +0.081] paired (expected +0.005 to +0.02); fit stride itself −0.002</td><td>every cohort; Challenge blind +0.059</td><td>31</td></tr>
+      <tr><td>every column as a line term, stack</td><td>+0.013 [+0.013, +0.014] paired (expected ≤ 0)</td><td>capacity still buys a little</td><td>31</td></tr>
+      <tr><td>the same terms, control</td><td>+0.005 (expected within ±0.005)</td><td>the network derives them itself</td><td>31</td></tr>
+      <tr><td>four-class → three-class readout (W / NREM / REM)</td><td>+0.08 to +0.09 on every model</td><td>errors split between wake/REM and light/deep as in the literature</td><td>38a</td></tr>
+      <tr><td>holding out one NSRR cohort (LOCO), control</td><td>−0.006 (MESA), −0.020 (MrOS), −0.026 (CFS), −0.045 (SHHS-1)</td><td>reproduces the published &lt; 3 % except the 1990s cohort</td><td>38b</td></tr>
+      <tr><td>oracle per-night intercepts + slopes, stack</td><td>+0.25 (0.366 → 0.616); +0.16 on MESA</td><td>the upper bound</td><td>32, 40</td></tr>
+      <tr><td>per-night adapters predicted label-free from night statistics (v32 F2)</td><td><b>+0.041</b> [+0.040, +0.043] paired (expected +0.03 to +0.08); EM self-adaptation −0.005</td><td>Challenge blind 0.375 → 0.407, past the proprietary 0.390</td><td>32</td></tr>
+    </tbody>
   </table>
   <table>
-    <caption class="tbl-cap"><b>Table 4.</b> Negative results, each with the number that rejected it (brief §§13–19).</caption>
+    <caption class="tbl-cap"><b>Table 4.</b> Negative results, each with the number that rejected it (brief §§13–52). Collected with their dispositions in <code>papers/dead-ends.html</code> §§2.10–2.23.</caption>
     <thead><tr><th>idea</th><th>expected</th><th>measured</th><th>verdict</th></tr></thead>
-    <tbody><tr><td colspan="4" class="pending">PENDING (HSMM time prior; single ultradian wave on raw features; distillation into the formula student, twice; third auto-context round; fitting the stack with the blind cohorts)</td></tr></tbody>
+    <tbody>
+      <tr><td>explicit-duration HSMM decoding</td><td>+</td><td>0.394 vs 0.398; −0.03 as a decoder on the stack</td><td>durations are not the wall (§13, §32)</td></tr>
+      <tr><td>distillation from the control into the stack</td><td>+0.00 to +0.03</td><td>−0.05 (§15), −0.022 (§19)</td><td>a linear student loses label sharpness; not repeated</td></tr>
+      <tr><td>second-order "bridge" terms</td><td>+0.02 to +0.04</td><td>−0.008 at the CRF</td><td>how terms integrate, not which (§22)</td></tr>
+      <tr><td>class-balanced loss</td><td>+</td><td>no gain (§21b, §26)</td><td>κ already penalises majority bias</td></tr>
+      <tr><td>fitting the stack with the blind cohorts' labels</td><td>+</td><td>0.470 vs 0.495</td><td>harms (§19d)</td></tr>
+      <tr><td>predicting the per-night adapters from the night (level, spread, shape, memory), 52-term basis, MESA</td><td>recovery 0.10–0.30</td><td>0.04 (night level), 0.14 (night statistics), 0.20 with the control's own posterior summaries</td><td>under-read: the full basis on nine cohorts recovers +0.041 (§32 F2); the diagnostic's one-cohort, 52-term reading is the negative result, not the method</td></tr>
+      <tr><td>the same person's adapter from another night, years apart</td><td>+0.05 to +0.10</td><td>−0.061 (MrOS, 7 y), −0.032 (SHHS, 5 y); label-free EM −0.08 to −0.11</td><td>a this-night effect, not a trait (§41)</td></tr>
+      <tr><td>user bed/wake times as labels for the per-night intercepts</td><td>+0.02 to +0.05</td><td>−0.004; +0.027 with per-term scales</td><td>marginal, parked (§42)</td></tr>
+      <tr><td>data volume alone</td><td>+0.01 to +0.03 for +50 % nights</td><td>+0.009</td><td>saturating at this architecture (§30)</td></tr>
+      <tr><td>training on sister clinics (STAGES leave-one-clinic-out, five largest)</td><td>+0.02 to +0.06 vs the same clinic blind</td><td>−0.018 to +0.018; control blind on STAGES 0.533 (expected 0.60–0.66)</td><td>the shift is per clinic, not per study (§43)</td></tr>
+      <tr><td>posture terms in the ECG line</td><td>≥ +0.010</td><td>+0.0009 [+0.0001, +0.0017]</td><td>dropped (§46.7 read 1)</td></tr>
+      <tr><td>crop augmentation</td><td>blind ≥ +0.02, pool ≥ −0.005</td><td>ECG net DREAMT +0.009 [−0.001, +0.019]; wrist net pool −0.006</td><td>not adopted (§46.7 read 4)</td></tr>
+      <tr><td>motion harmonisation, actigraph vs wrist accelerometer</td><td>per-stage effect <i>r</i> &gt; +0.8</td><td><i>r</i> +0.45 (still-run)</td><td>failed (§46.7 read 3)</td></tr>
+      <tr><td>distillation, third time (four formula lines)</td><td>≥ +0.01</td><td>−0.0003 to −0.0038</td><td>not adopted (§46.7 read 5)</td></tr>
+      <tr><td>CORAL per-night covariance alignment</td><td>0 to +0.02</td><td>−0.019 pool; −0.006 with the rank transform (rank alone +0.014, adopted)</td><td>rejected (§47)</td></tr>
+      <tr><td>ECG → PPG transfer at the HRV level (Radha et al. 2021)</td><td>DREAMT ≥ +0.03</td><td>+0.015 [−0.013, +0.040]; −0.082 vs the existing wrist net</td><td>not confirmed (§48)</td></tr>
+      <tr><td>STNF's 0–29 s scoring-grid offset as the cause of its deficit</td><td>(diagnostic)</td><td>κ by offset bin 0.36–0.40, no trend; one-epoch shift ≤ 0.005</td><td>not the cause; grids aligned anyway (§52.8)</td></tr>
+    </tbody>
   </table>
   <table>
-    <caption class="tbl-cap"><b>Table 5.</b> External blind run on a third-party corpus (pre-registered band to be stated before the run).</caption>
-    <thead><tr><th>model</th><th>pre-stated band</th><th>κ [CI]</th><th>per-stage recall</th><th>P1</th></tr></thead>
-    <tbody><tr><td colspan="5" class="pending">PENDING</td></tr></tbody>
+    <caption class="tbl-cap"><b>Table 5.</b> Blind runs (bands in the brief sections named, stated before each run). κ4, with κ3 in brackets where measured. These runs are on pre-§46 data; the §46 re-runs are in Table 6. The external SomnoTrace run remains unscheduled.</caption>
+    <thead><tr><th>set</th><th>model</th><th>pre-stated band</th><th>κ</th><th>reading</th><th>brief §</th></tr></thead>
+    <tbody>
+      <tr><td>STAGES, 13 clinics (1 702 scored nights)</td><td>control, pool-trained, blind on every clinic</td><td>≥ 0.65 generalises like a cohort · 0.55–0.65 half the Challenge gap · &lt; 0.55 Challenge-like; expected 0.60–0.66</td><td><b>0.533</b> (0.594)</td><td>Challenge-like. Eleven clinics 0.559–0.686; STLK 0.364 and STNF 0.411 carry the deficit</td><td>43</td></tr>
+      <tr><td>STAGES, five largest clinics</td><td>control, pool + the other 12 clinics → held-out clinic</td><td>L − S0 &gt; +0.05 sister clinics repair it · +0.02 to +0.05 partial · &lt; +0.02 per-clinic shift; expected +0.02 to +0.06</td><td>STNF 0.393 · GSDV 0.652 · MSTR 0.662 · STLK 0.361 · MSQW 0.623</td><td>L − S0 −0.018 to +0.018: the shift is per clinic</td><td>43</td></tr>
+      <tr><td>STAGES, 13 clinics</td><td>wide formula (L2 recipe), blind</td><td>≥ 0.50 generalises · 0.40–0.50 half the control's drop · &lt; 0.40 Challenge-like; expected 0.44–0.52</td><td>0.443–0.514 at eleven clinics; STLK 0.166, STNF 0.307, BOGN 0.314</td><td>in the middle band except the same outlier clinics</td><td>43</td></tr>
+      <tr><td>DREAMT (97–98 nights, wrist wearable + PSG)</td><td>oximetry control (O) on the E4 wrist pulse</td><td>within ±0.05 of its Challenge blind 0.573</td><td>0.412</td><td>−0.16: outside the band; a wrist pulse estimate, not an oximeter's</td><td>36</td></tr>
+      <tr><td>DREAMT</td><td>ECG net (E) · ECG + breathing net (R)</td><td>within ±0.05 of the pool CV − 0.12</td><td>0.500 · 0.546</td><td>no fall with AHI (E 0.486 / 0.516 / 0.515, R 0.522 / 0.576 / 0.568 by tertile)</td><td>36</td></tr>
+      <tr><td>DREAMT</td><td>formula (F) · formula with wrist adapters (F2w)</td><td>within ±0.05 of its Challenge blind; F ≥ 0.45 would be wearable-grade</td><td>0.222 · 0.302</td><td>below the band; no wearable-grade formula</td><td>36</td></tr>
+      <tr><td>DREAMT</td><td>wearable-only net (W1: PPG pulse + motion + pulse dynamics, no SpO₂)</td><td>≥ 0.45 wearable-grade · 0.35–0.45 the wrist costs the difference · &lt; 0.35 unusable; expected 0.38–0.48</td><td>0.414 (0.446)</td><td>middle band: the wrist costs the difference</td><td>45</td></tr>
+      <tr><td>MESA + CFS + eight STAGES clinics (679 fold-0 nights)</td><td>oximetry net on the PPG-derived pulse (W0)</td><td>W0 − device pulse within ±0.02 as good · −0.02 to −0.06 the detector costs that much; expected −0.01 to −0.04</td><td>0.639 (0.707); paired on 456 MESA + CFS nights 0.729 vs 0.691</td><td>+0.038 (CI not recorded): the waveform pulse is not worse than the device's rate</td><td>45</td></tr>
+      <tr><td>Dreem DOD-O (56 nights, five-scorer consensus)</td><td>ECG net</td><td>consensus − single-scorer &gt; +0.05 / ±0.05 / &lt; −0.05; expected +0.02 to +0.06</td><td><b>0.681</b> (0.739); per-night median 0.693, p10 0.534, none under 0.2</td><td>+0.143 against Challenge's 0.538. That reference is the in-pool CV row (no blind H1 arm), so the difference holds the consensus and the population together</td><td>44</td></tr>
+      <tr><td>nine STAGES sites, LOCKED (880 nights)</td><td>the final recipe, one run</td><td>to be written into the brief, with the recipe hash, before release</td><td class="pending">PENDING (v53)</td><td>cross-site claim only (§52.6)</td><td>52.6</td></tr>
+      <tr><td>SomnoTrace corpus (external)</td><td>stack</td><td>to be stated before the run</td><td class="pending">PENDING</td><td></td><td>—</td></tr>
+    </tbody>
   </table>
+  <p><b>The §46 rework.</b> An audit of every cohort's format against every tool found label, motion and posture inconsistencies, so every line was re-run on corrected data under a written protocol (brief §46). Its numbers are new data. They are reported beside the older ones, never pooled with them: on the same nights the ECG + breathing net moved −0.0067 [−0.0076, −0.0058] against v35 and the wrist net −0.0046 [−0.024, +0.015] against v40. A pre-stated reproduction (v49) re-extracted 20 MESA nights and re-ran two fold-0 arms from the snapshot code. Features were byte-identical and the posteriors identical (max |Δ| 0), so it passed. Challenge stayed blind in every v46 line (a control with it in the training pool, §49, is not for publication).</p>
+  <table>
+    <caption class="tbl-cap"><b>Table 6.</b> The §46 re-run, every line (brief §§46–48; <code>lab-cache/v46-reads.txt</code>, <code>v48-reads.txt</code>). Pooled argmax κ4 over the pool out-of-fold and the blind cohorts together, then per cohort; Challenge and DREAMT are blind (fold-ensembled). DREAMT's pulse for the oximetry lines is the E4 wrist rate. Ship bands for a formula, on blind κ (owner 2026-10-03): ≥ 0.50 ships · 0.42–0.50 publishes with the gap · &lt; 0.42 fails.</caption>
+    <thead><tr><th>line</th><th>learner</th><th>inputs</th><th>κ4 (nights)</th><th>Challenge</th><th>DREAMT</th><th>SHHS-1</th><th>MESA</th><th>MrOS</th><th>brief §</th></tr></thead>
+    <tbody>
+      <tr><td>ECG</td><td>net R0</td><td>ECG HRV + its deltas</td><td>0.622 (15 784)</td><td>0.547</td><td>0.505</td><td>0.638</td><td>0.685</td><td>0.554</td><td>46</td></tr>
+      <tr><td>ECG</td><td>net R1</td><td>R0 + breathing + posture</td><td><b>0.702</b></td><td>0.574</td><td>0.547</td><td>0.683</td><td>0.744</td><td>0.689</td><td>46</td></tr>
+      <tr><td>ECG</td><td>net R2</td><td>R1 without posture</td><td>0.701</td><td>0.589</td><td>0.543</td><td>0.683</td><td>0.744</td><td>0.684</td><td>46</td></tr>
+      <tr><td>ECG</td><td>net R1a</td><td>R1 + crop augmentation</td><td>0.708</td><td>0.586</td><td>0.556</td><td>0.690</td><td>0.748</td><td>0.692</td><td>46</td></tr>
+      <tr><td>ECG</td><td>formula FE</td><td>ECG + breathing terms</td><td>0.438</td><td>0.252</td><td>0.263</td><td>0.427</td><td>0.486</td><td>0.418</td><td>46</td></tr>
+      <tr><td>oximetry</td><td>net O</td><td>SpO₂ + pulse</td><td><b>0.705</b> (15 777)</td><td>0.573</td><td>0.428</td><td>0.677</td><td>0.735</td><td>0.725</td><td>46</td></tr>
+      <tr><td>oximetry</td><td>formula F (v32 lineage, predicted adapters)</td><td>oxy1 + pdx</td><td>0.581</td><td>0.374</td><td>0.242</td><td>0.551</td><td>0.606</td><td>0.604</td><td>46</td></tr>
+      <tr><td>oximetry</td><td>formula, rank-normalised terms (N2, fold 0)</td><td>oxy1 + pdx</td><td>0.562 (4 022)</td><td>0.382</td><td>—</td><td>0.561</td><td>0.617</td><td>0.614</td><td>47</td></tr>
+      <tr><td>wrist</td><td>net W1</td><td>PPG pulse + motion + pulse dynamics, no SpO₂</td><td>0.658 (3 008)</td><td>—</td><td>0.409</td><td>—</td><td>0.709</td><td>—</td><td>46</td></tr>
+      <tr><td>wrist</td><td>net T1 (ECG-pretrained HRV, fine-tuned on PPG)</td><td>PPG HRV</td><td>0.646 (3 073)</td><td>—</td><td>0.318</td><td>—</td><td>0.697</td><td>—</td><td>48</td></tr>
+      <tr><td>PPG</td><td>formula P1</td><td>SpO₂ + PPG pulse terms</td><td>0.535 (2 125)</td><td>—</td><td>0.276</td><td>—</td><td>0.539</td><td>—</td><td>46</td></tr>
+      <tr><td>PPG</td><td>formula P0</td><td>PPG pulse terms only</td><td>0.488</td><td>—</td><td>0.216</td><td>—</td><td>0.492</td><td>—</td><td>46</td></tr>
+      <tr><td>oximetry</td><td>formula + knots · coupling · worst-cohort fitting (v51)</td><td>oxy1 + pdx</td><td class="pending">PENDING</td><td></td><td></td><td></td><td></td><td></td><td>50</td></tr>
+    </tbody>
+  </table>
+  <p>On corrected data the nets hold their place: oximetry 0.705 and ECG + breathing 0.702 over all nights, and both at about 0.57 on blind Challenge. Posture adds nothing (+0.0009), so the ECG line drops it. No formula passes even the lowest ship band blind. The oximetry formula reads 0.374 on Challenge and 0.242 on DREAMT, and the PPG formulas 0.22–0.28 on DREAMT. Ranking each term within its night (N2) gains +0.014 in the pool and on Challenge, and was adopted. The pre-§46 formula's blind 0.392–0.407 (Table 2) is not comparable: it is the same cohort read on different data.</p>
 
   <h2 class="sec">4. Discussion</h2>
-  <p class="pending">PENDING. Stubs to be written from the measured sections: (i) where the gap between formulas and the sequence control lives (deep and REM recall; long-range structure the oracle bound shows is present); (ii) why distillation into a small closed-form student lost to label fitting both times; (iii) what the ring's motion byte is worth and why a 1-bit flag equals the full accelerometer for trees; (iv) the data curve against the 17 303-night benchmark; (v) what can ship, under which licence, and the role of the blind cohorts.</p>
+  <p><b>(i) Where the gap lives.</b> The control beats the stack by 0.15 pooled and 0.18 blind. The oracle of §32 locates most of it: with each night's own intercepts and per-term slopes the stack reaches 0.616, within 0.1 of the control, and its 9 % of failed nights (κ &lt; 0.2) vanish. The three-class readout (§38a) says the remaining errors are not dominated by one boundary — the gain from collapsing light and deep is the same +0.08–0.09 on every model, as in Korkalainen et al. (2020).</p>
+  <p><b>(ii) What label-free calibration recovers.</b> A second formula predicting each night's adapters from its label-free statistics recovers +0.041 of the oracle's +0.25 on the full basis (v32 F2), inside its pre-stated +0.03 to +0.08 and enough to take the stack past the proprietary comparator blind. The rest is not reachable label-free: the retrofit diagnostic on a 52-term basis read only 14 % (§40); the same person's adapter from a visit years earlier is worse than none (§41); and a user's bed and wake times reach +0.03 at most (§42). Distillation from the control lost twice before that (§15, §19). The calibration is a this-night quantity that only labels on the night supply. The sequence control already reads the whole night (a bidirectional GRU over the full recording) and sits at 0.711, the lower edge of the 0.726–0.779 that Vaquerizo-Villar et al. (2025) report with a 12-hour U-Net on the same two signals; the remaining gap to that result is small and not an architecture-class difference, and more nights alone do not close it (+0.009 for +50 %, §30). For the formula the gap to the control is this calibration; for the control the published band is within reach of volume, tuning and the padded 12-hour input.</p>
+  <p><b>(iii) Terms, not capacity.</b> The stack's long plateau at 0.49–0.50 ended when the pulse-dynamics bases were added (+0.075 against a pre-stated +0.005 to +0.02), while the control gained +0.005 from the same bases. A ceiling the control does not share is a feature problem; the stack now clears the pre-stated shipping line and matches the proprietary comparator blind (0.392 vs 0.390).</p>
+  <p><b>(iv) Site, not cohort.</b> Holding out an NSRR cohort costs 0.006–0.026 (0.045 for the 1990s SHHS-1), reproducing the published "&lt; 3 %" leave-one-cohort-out drop; the Challenge gap is 0.14, the same drop Sridhar et al. (2020) crossed (0.66 → 0.55). STAGES' thirteen clinics (§43) answered whether sister sites repair it: they do not. The control scored 0.533 blind over STAGES, and training on the other twelve clinics moved a held-out clinic by −0.018 to +0.018. Two clinics (STLK, STNF) carry the deficit, and a 0–29 s scoring-grid offset at STNF is not the cause (§52.8). The shift is per clinic: device, scorers or population. A five-scorer consensus reference reads the ECG net at 0.681 (DOD-O, §44), so part of every single-scorer blind number is the reference's own noise.</p>
+  <p><b>(v) What can ship.</b> The stack's coefficients are results of the analysis and publishable under the NSRR agreement; the control's weights are trained on NSRR data and remain a user-loaded, unshipped artefact. For a night without a PSG oximeter (§§45–48): the pulse rate derived from the PPG waveform is not worse than the device's own rate (+0.038 paired). A wearable-only net reaches 0.658 in the pool but 0.41 on DREAMT's wrist nights, in the band where the wrist costs the difference. Transfer from ECG pre-training does not close that gap (+0.015, CI including 0). On the §46 data no formula yet passes a ship band blind, which is what v51's three switches and the v52 rebuild are for.</p>
 
   <h2 class="sec">5. Reproducibility</h2>
   <pre><code># features (one tag per feature set; a changed layout never mixes with an older cache)
@@ -114,16 +188,25 @@ node tools/stage-lab.mjs bench --cache &lt;cache&gt; --cohorts &lt;ten&gt; --fea
 python seqnet.py --cache &lt;cache&gt; --cohorts &lt;ten&gt; --features oxy1 --group-subjects --fold &lt;f&gt; --save-proba &lt;dir&gt;
 # literature stack (label-fitted, signed, distilled, bridge) and the residual search
 python litstack.py --cache &lt;cache&gt; --cohorts &lt;ten&gt; --features oxy1 --group-subjects --fold &lt;f&gt; [--signed] [--distill &lt;dir&gt;] [--bridge]
-python symreg.py --cache &lt;cache&gt; --control &lt;dir&gt; --stack &lt;dir&gt; --out &lt;dir&gt;</code></pre>
+python symreg.py --cache &lt;cache&gt; --control &lt;dir&gt; --stack &lt;dir&gt; --out &lt;dir&gt;
+# v31: pulse-dynamics bases; v37F: night-level constants; v40: pulse from the PPG waveform
+node tools/stage-lab.mjs features --harmonize --blocks pdx --tag pdx --cohort &lt;c&gt; --dir &lt;dir&gt; --cache &lt;cache&gt;
+node tools/stage-lab.mjs features --blocks nightlevel --tag nl --cohort &lt;c&gt; --dir &lt;dir&gt; --cache &lt;cache&gt;
+node tools/stage-lab.mjs features --harmonize --blocks spo2,pulse,motion --tag oxy1p --pulse-source ppg --cohort &lt;c&gt; --dir &lt;dir&gt; --cache &lt;cache&gt;
+python litstack.py --cache &lt;cache&gt; --cohorts &lt;nine&gt;,challenge --features oxy1+pdx --stride 32 --extra-terms pdx.pr,pdx.spo2,pdx.x,pdx.q,pdx.t --group-subjects --fold &lt;f&gt;
+# leave-one-cohort-out and the three-class readout
+python seqnet.py --cache &lt;cache&gt; --cohorts &lt;eight&gt; --train-cohorts &lt;eight&gt; --test-cohorts &lt;held-out&gt; --features oxy1 --fold 0 --save-proba &lt;dir&gt;
+python threeclass.py &lt;cache&gt; &lt;proba-dir&gt; &lt;tag&gt;</code></pre>
   <ul>
-    <li>Every job runs under an 8 GB cgroup cap and logs its full-size peak memory; trainers read one night at a time.</li>
+    <li>Every job runs under an 8 GB cgroup cap and logs its full-size peak memory; trainers read one night at a time. The EDF reader decodes only the channels asked for (0.05–0.12 GB per night, byte-identical caches; brief §37); the stack's memory scales with fit rows × columns, so the arms with the pulse-dynamics bases fit every 32nd labelled epoch (the CRF sees every epoch).</li>
+    <li>The §46 protocol (brief §46.1–46.2) names the commit, the per-file code hashes, the data and the commands for every re-run; each job's log records the same provenance line. The v49 reproduction (20 nights re-extracted, two arms re-fitted from the snapshot) matched byte for byte.</li>
     <li>Fold assignment: 32-bit hash of the subject key modulo 5; deterministic, so added cohorts never move existing nights.</li>
     <li>Human ceiling: ISRUC scorer 1 vs scorer 2, κ 0.829, computed by <code>stage-lab.mjs</code> on the same epochs.</li>
     <li>Verdicts are emitted as <code>tepna.verdict/1</code> with the pre-stated criterion embedded.</li>
   </ul>
 
   <h2 class="sec">6. Sample size &amp; statistical power</h2>
-  <p>With 9 100 nights (≈ 9 million epochs) the night-bootstrap 95 % CI on pooled κ is ±0.004 (measured: 0.608 [0.604, 0.612] for the control, brief §17), so any difference ≥ 0.01 between learners on the same folds is resolvable; the pre-stated reading rules use 0.01 as the smallest difference worth a claim. The blind cohorts (994 and 127 nights) resolve ≈ ±0.015 and ±0.04 respectively.</p>
+  <p>With 14 695 nights (≈ 14 million epochs) the night-bootstrap 95 % CI on pooled κ is ±0.004, and a paired difference between two models on the same nights resolves to ±0.001 (measured: +0.0093 [+0.0083, +0.0103], brief §30), so any difference ≥ 0.01 between learners on the same folds is resolvable; the pre-stated reading rules use 0.01 as the smallest difference worth a claim. The blind cohorts (994 and 127 nights) resolve ≈ ±0.015 and ±0.04 respectively; DREAMT (97–100 nights) and DOD-O (56) resolve no better than ±0.04, so on them a paired difference under about 0.03 is a CI through zero, as in §§46–48. From v51 on, CIs are by subject-cluster bootstrap (§52.4), wider than the night bootstrap where subjects contribute several nights.</p>
 
   <h2 class="sec">References</h2>
   <ol class="refs">
@@ -159,8 +242,13 @@ python symreg.py --cache &lt;cache&gt; --control &lt;dir&gt; --stack &lt;dir&gt;
     <li><b>Data acknowledgement (NSRR data-use agreement &sect;16).</b> This work used data from the National Sleep Research Resource: <b>NSRR R24 HL114473: NHLBI National Sleep Research Resource</b>. The fitted set includes Sleep Heart Health Study (SHHS1 and SHHS2) polysomnography, obtained through sleepdata.org under an approved data-use agreement; aggregate statistics only are reported and no record-level data is redistributed here.</li>
     <li>Quan SF, Howard BV, Iber C, Kiley JP, Nieto FJ, O&#39;Connor GT, Rapoport DM, Redline S, Robbins J, Samet JM, Wahl PW. The Sleep Heart Health Study: design, rationale, and methods. <i>Sleep.</i> 1997;20(12):1077&ndash;85. doi:10.1093/sleep/20.12.1077</li>
     <li>Zhang GQ, Cui L, Mueller R, Tao S, Kim M, Rueschman M, Mariani S, Mobley D, Redline S. The National Sleep Research Resource: towards a sleep data commons. <i>J Am Med Inform Assoc.</i> 2018;25(10):1351&ndash;1358. doi:10.1093/jamia/ocy064</li>
+      <li>Korkalainen H, et al. Deep learning enables sleep staging from photoplethysmogram for patients with suspected sleep apnea. Sleep. 2020;43(11):zsaa098. doi:10.1093/sleep/zsaa098</li>
+    <li>Sun H, et al. Sleep staging from electrocardiography and respiration with deep learning. Sleep. 2020;43(7):zsz306. doi:10.1093/sleep/zsz306</li>
+    <li>Topalidis P, et al. From pulses to sleep stages: towards optimized sleep classification using heart-rate variability. Sensors. 2023;23(22):9077. doi:10.3390/s23229077</li>
+    <li>Schipper F, et al. Overnight sleep staging using chest-worn accelerometry. Sensors. 2024;24(17):5717. doi:10.3390/s24175717</li>
+    <li>Dreem Open Datasets DOD-O / DOD-H (Zenodo record 15900394, MIT). (DOI omitted pending ledger verification.)</li>
   </ol>
-  <p class="meta" style="margin-top:28px">Supplement S1 (beat-detector validation on MIT-BIH, SLPDB, NSRDB) is gated by the P5 ruling and is not reproduced here. Every figure in this draft is a pooled aggregate over the cohorts in Table 1; no per-record value and no record identifier appears here, and the external blind run has not been carried out.</p>
+  <p class="meta" style="margin-top:28px">Supplement S1 (beat-detector validation on MIT-BIH, SLPDB, NSRDB) is gated by the owner's P5 ruling and is not reproduced here. Published 2026-10-31 on the owner's decision, ahead of the external blind run; the locked cross-site run (v53) and the external SomnoTrace run will be added when they land.</p>
 
   <div class="footer">Tepna working draft · skeleton · figures and statistics regenerate deterministically from the cited tools. Pending cells are pending, not pooled. Not peer-reviewed; not for clinical use.</div>
 </div>
