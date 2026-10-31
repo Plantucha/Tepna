@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — user-timer health check, every 15 minutes
+
+[Timer]
+# OnCalendar, not OnUnitActiveSec. disk-watch.timer used `OnBootSec` + `OnUnitActiveSec`, and when the
+# user manager restarted on 2026-10-18 neither could elapse again: boot was past, and the service had
+# never been active in the new manager. A calendar timer always holds a next elapse.
+OnCalendar=*-*-* *:07/15:00
+RandomizedDelaySec=60
+Persistent=false
+
+[Install]
+WantedBy=timers.target
