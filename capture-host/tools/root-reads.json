@@ -212,6 +212,16 @@
       ]
     },
     {
+      "path": "mutation-survivors.json",
+      "found": [
+        "traced",
+        "named"
+      ],
+      "how": [
+        "read"
+      ]
+    },
+    {
       "path": "pat-feasibility.js",
       "found": [
         "traced",

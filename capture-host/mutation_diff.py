@@ -975,7 +975,133 @@ def kill_attributed_to(entry: dict, key: str, kills) -> bool:
     return False
 
 
-def classify(entries, survivors, killed, generated=(), not_required=(), unchecked=()):
+# ── THE INHERITED SET — residue `2026-10-30-the-mutation-gate-selects-a-whole-entry-point-for-one-line` ──
+# The gate selects whole FUNCTIONS, and these four functions do NOT change that. #1761 measured the
+# alternative and the lead ruling that endorsed function-wide scoping stands: a bound keyed on the
+# changed LINES walks past the holes a one-line edit opens. What moves here is BLAME.
+#
+# Measured 2026-10-30 on #4126: one logging statement added to `radioclock.main` put 27 pre-existing
+# survivors of code that PR never wrote into a red gate, and the second push — the same statement,
+# moved out of `main` — passed the same gate with 0 survivors. The signal was the SELECTION, not the
+# diff. So a survivor that main's record already owns is reported and does not fail the run, and
+# every other survivor fails it exactly as before.
+#
+# The record is `mutation-survivors.json`: entries keyed on lane + module + function + the mutant's
+# diff pair, whose open count is already held down by the two-sided ratchet in
+# `tools/mutation-survivors.mjs`. Nothing here forgives debt. It moves the debt to the ledger that
+# counts it, which is the shape the mypy baseline in `check.sh` already runs.
+BASELINE_SEP = "::"
+INHERITED_REPORT_LIMIT = 12
+
+
+def baseline_id(module, function) -> str:
+    """The per-function identity a baseline is keyed on — `""` when either half is missing.
+
+    The module is reduced to its BASENAME because the ledger holds both spellings: an ingest writes
+    `nightqc.py` and the 2026-09-28 backfill wrote `capture-host/loss_audit.py`, while this gate only
+    ever knows the basename (`changed_lines` keeps `Path(p).name`). `""` is the fail-closed value — a
+    survivor whose module or function cannot be named inherits nothing.
+    """
+    # THE BASENAME THROUGH A PATH OBJECT, AND NOT `rsplit("/", 1)[-1]`. Measured 2026-10-31 on this
+    # gate's own run against itself: every maxsplit a mutation can write leaves `[-1]` the LAST
+    # field, so `rsplit("/")` and `rsplit("/", 2)` are both indistinguishable from the original and
+    # survive by construction. Two unkillable mutants, for a basename a path object already knows.
+    mod = pathlib.PurePosixPath(str(module or "").strip()).name
+    fn = str(function or "").strip()
+    if not mod or not fn:
+        return ""
+    return f"{mod}{BASELINE_SEP}{fn}"
+
+
+def baseline_from_ledger(raw, lane="py") -> dict:
+    """`{module::function: {key: [owning PR, …]}}` — the survivors main's record already owns.
+
+    PURE. Four refusals, every one fail-closed, because an entry that cannot be checked must excuse
+    nothing:
+
+      · a lane that is not this gate's;
+      · a state that is not `open` — `equivalent` is the equivalence ledger's business and
+        `killed #N` is answered, so neither is inherited debt;
+      · an entry naming no FUNCTION, which would otherwise inherit module-wide. That is the exact
+        over-reach `entry_matches_function` is written against, and here it would be worse: a
+        bare-statement key names fourteen occurrences across six functions;
+      · an entry naming no PR. Nobody can attribute it, so nobody can close it, and
+        `mutation-survivors.mjs ratchetVerdict` refuses the same row.
+
+    A LIST PER KEY AND NOT A SET, for `classify`'s own reason: two bare-statement mutants in one
+    function share a key by construction. Three recorded occurrences inherit three survivors and a
+    fourth is new. The list holds the PRs that recorded them, so the report can name an owner.
+    """
+    out: dict = {}
+    entries = raw.get("entries") if isinstance(raw, dict) else None
+    for e in entries or []:
+        if not isinstance(e, dict) or e.get("lane") != lane or e.get("state") != "open":
+            continue
+        pr = e.get("pr")
+        if not isinstance(pr, int) or isinstance(pr, bool) or pr <= 0:
+            continue
+        ident = baseline_id(e.get("module"), e.get("function"))
+        key = str(e.get("key") or "").strip()
+        if not ident or not key:
+            continue
+        out.setdefault(ident, {}).setdefault(key, []).append(pr)
+    return out
+
+
+def split_inherited(survivors, baseline):
+    """`(new, inherited)` over the survivors nobody spoke for. PURE.
+
+    An inherited survivor carries `inheritedFrom` — the PR whose run recorded it — so a reader can
+    reach the measurement that owns it. Multiplicity is CONSUMED: the second survivor sharing a key
+    inherits only while the record holds that key twice.
+
+    ⚠️ EVERY FALL-THROUGH IS NEW, which is this gate's behaviour before a baseline existed. A
+    function the record never saw, a survivor whose function cannot be read, a key the record does
+    not hold, one occurrence too many — each one still fails the run.
+    """
+    pool = {i: {k: list(v) for k, v in m.items()} for i, m in (baseline or {}).items()}
+    new: list = []
+    inherited: list = []
+    for sv in survivors or []:
+        # `sv.get("mutant")` CARRIES NO DEFAULT ON PURPOSE. `function_of_mutant` reads `None` and
+        # `""` identically (`if not name: return ""`), so a spelled-out `""` default is a mutant
+        # nothing can kill — two of them on this one line, measured 2026-10-31.
+        fn = sv.get("function") or function_of_mutant(sv.get("mutant"))
+        owners = pool.get(baseline_id(sv.get("module"), fn), {}).get(str(sv.get("key") or "").strip())
+        if owners:
+            inherited.append(dict(sv, function=fn, inheritedFrom=owners.pop(0)))
+        else:
+            new.append(sv)
+    return new, inherited
+
+
+def inherited_report(inherited, limit=INHERITED_REPORT_LIMIT, locate=None) -> list:
+    """The lines a reader is owed about an inherited set — `[]` when there is nothing to say.
+
+    A function rather than prose inside `main`, because `main` is 1600 lines in a file outside the
+    coverage source roots and nothing measures its branches. `locate` is injected so this module
+    need not import the gate's own `survivor_location`.
+    """
+    rows = list(inherited or [])
+    if not rows:
+        return []
+    loc = locate or (lambda _s: "")
+    out = [
+        f"\n  {len(rows)} survivor(s) are INHERITED — main's record already owns them, so they do not fail this run:"
+    ]
+    for s in rows[:limit]:
+        out.append(f"  ── {s.get('mutant')}{loc(s)}  (recorded by #{s.get('inheritedFrom')})")
+    if len(rows) > limit:
+        out.append(f"     … and {len(rows) - limit} more (all of them in the --json record)")
+    out.append(
+        "     Every one is still `open` in mutation-survivors.json and still counted by\n"
+        "     `tools/mutation-survivors.mjs ratchet`, which lets that number fall and never rise.\n"
+        "     An unrecorded function inherits NOTHING: there, every survivor still fails."
+    )
+    return out
+
+
+def classify(entries, survivors, killed, generated=(), not_required=(), unchecked=(), baseline=None):
     """Split survivors against the recorded classification.
 
     PURE, so `--selftest` can pin it without running a sweep. `survivors` are dicts carrying `key`;
@@ -1022,6 +1148,9 @@ def classify(entries, survivors, killed, generated=(), not_required=(), unchecke
     out = {
         "excused": [],
         "real_gap": [],
+        # ALWAYS PRESENT, EMPTY WHEN THERE IS NOTHING (§∅): an empty list is "looked and found none",
+        # and a missing key would read to a consumer as "this run does not do that".
+        "inherited": [],
         "refuted": [],
         "orphaned": [],
         "unclassified": [],
@@ -1074,6 +1203,11 @@ def classify(entries, survivors, killed, generated=(), not_required=(), unchecke
     for _i, _sv, _fn in _rows:
         if _i not in _claimed_rows:
             out["unclassified"].append(_sv)
+    # THE BLAME SPLIT RUNS LAST, after every entry has spoken. An equivalence entry outranks the
+    # baseline by construction: a claimed survivor never reaches `unclassified`, so a recorded
+    # argument still excuses it and the record is never consulted for it. `baseline=None` — the
+    # default, and every caller that predates the record — splits nothing.
+    out["unclassified"], out["inherited"] = split_inherited(out["unclassified"], baseline)
     return out
 
 
