@@ -17,7 +17,12 @@
 set -u
 # The home directory is READ, never stored: the tracked tree holds no absolute path under it
 # (owner ruling 2026-10-28). Both paths below sit beside the primary checkout on this box.
-WT="$HOME/wt-resweep"                 # the checkout holding the live crawl state + synced tools
+# 🔴 THE PRIMARY CHECKOUT, NOT A ROTATING WORKTREE. This read `$HOME/wt-resweep` until 2026-10-31.
+# That worktree retired, `cd "$WT" || exit 1` failed, and the unit failed every 5 min from
+# 2026-10-26 09:48 (564 failures): the idle Qwen lane did no work for five days, and nothing said so.
+# Measured 2026-10-31 (Osprey, #2443): `$HOME/Tepna/.mutation-crawl` holds all 30 `*.crawl.json`, and
+# no `wt-*` tree holds one. `.mutation-crawl-secondop` holds no crawl state; never point WT there.
+WT="$HOME/Tepna"                      # the checkout holding the live crawl state + synced tools
 LOG="$HOME/Tepna/.git/tepna-mutation/qwen-idle-driver.log"
 # STATE PINS TO ROOT; CODE COMES FROM $WT. `cd "$WT"` below makes every RELATIVE path in this script
 # resolve inside the rotating worktree — right for the code and the crawl state that live there, WRONG
