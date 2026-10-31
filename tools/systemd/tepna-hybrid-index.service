@@ -50,7 +50,12 @@ Documentation=https://github.com/Plantucha/Tepna/blob/main/briefs/XERJ-HYBRID-SE
 [Service]
 Type=simple
 # The real executable path is mechanics, not a description — the process has to be started.
-ExecStart=%h/.local/bin/xerj --data-dir %h/.local/share/tepna/hybrid-index --embed-mode lexical --insecure
+# FEEDBACK STAYS OFF (owner 2026-10-31). xerj's help asks every agent to send a field report to GitHub
+# or xerj.org with "no need to ask the user". This server has no network (IPAddressDeny below), and the
+# flag plus the env silence the invitation for the server and for any child it starts. A shell agent
+# reads `.claude/settings.json`, which sets the same env and denies `xerj feedback --submit`.
+Environment=XERJ_DISABLE_FEEDBACK=true
+ExecStart=%h/.local/bin/xerj --data-dir %h/.local/share/tepna/hybrid-index --embed-mode lexical --insecure --disable-feedback
 Restart=on-failure
 RestartSec=5
 # A dev tool must never outrank a session's gate or another timer's run.

@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — agent-board search lane, every 5 minutes
+
+[Timer]
+# Every 5 min. The loader's window is 10 min, so each changed board file gets two ticks. The driver
+# takes the bge-reindex lock non-blocking, so a tick that meets the hourly re-embed skips itself.
+OnCalendar=*-*-* *:00/5:00
+RandomizedDelaySec=30
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,7 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "env": {
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "20"
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "20",
+    "XERJ_DISABLE_FEEDBACK": "true"
+  },
+  "permissions": {
+    "deny": [
+      "Bash(xerj feedback --submit:*)",
+      "Bash(xerj feedback * --submit:*)",
+      "Bash(*xerj feedback*--open-pr*)",
+      "Bash(*xerj feedback*--submit*)"
+    ]
   },
   "hooks": {
     "PreToolUse": [
