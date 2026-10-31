@@ -320,7 +320,7 @@ const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'do', '
  * another: a parameter of the function the call sits INSIDE is the binding in force. */
 export function functionSpans(masked) {
   const spans = [];
-  const add = (name, raw, from) => {
+  const add = (name, raw, from, decl, kind) => {
     const params = new Set();
     for (const p of String(raw).split(',')) {
       const n = p
@@ -329,22 +329,25 @@ export function functionSpans(masked) {
         .trim();
       if (/^[A-Za-z_$][\w$]*$/.test(n)) params.add(n);
     }
-    spans.push({ name, params, at: from, end: bodyEnd(masked, from) });
+    spans.push({ name, params, at: from, end: bodyEnd(masked, from), decl, kind });
   };
-  for (const m of masked.matchAll(/(?:\basync\s+)?\bfunction\b\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) add(m[1] || null, m[2], m.index + m[0].length);
-  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|([A-Za-z_$][\w$]*))\s*=>/g)) add(m[1], m[2] ?? m[3] ?? '', m.index + m[0].length);
+  for (const m of masked.matchAll(/(?:\basync\s+)?\bfunction\b\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g))
+    add(m[1] || null, m[2], m.index + m[0].length, m.index, m[1] ? 'declaration' : 'anonymous');
+  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|([A-Za-z_$][\w$]*))\s*=>/g))
+    add(m[1], m[2] ?? m[3] ?? '', m.index + m[0].length, m.index, 'arrow');
   /* THE DECLARATOR FORM OF A FUNCTION EXPRESSION, which the `function` pattern above sees as
      ANONYMOUS because its name is optional there. Without this line `const f = function (…) {}`
      produces a span with a null name, so `localFunctions` drops it and the local-helper rung
      cannot follow argv into the body. The keyword is what makes the name safe to register: `=
      function` binds nothing else. A named expression (`const f = function g(…) {}`) binds BOTH,
      and the pattern above already registers the inner `g`. */
-  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?function\b\s*\*?\s*(?:[A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) add(m[1], m[2], m.index + m[0].length);
-  for (const m of masked.matchAll(/\(([^)]*)\)\s*=>/g)) add(null, m[1], m.index + m[0].length);
-  for (const m of masked.matchAll(/(?:^|[^\w$)])([A-Za-z_$][\w$]*)\s*=>/gm)) add(null, m[1], m.index + m[0].length);
+  for (const m of masked.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?function\b\s*\*?\s*(?:[A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g))
+    add(m[1], m[2], m.index + m[0].length, m.index, 'expression');
+  for (const m of masked.matchAll(/\(([^)]*)\)\s*=>/g)) add(null, m[1], m.index + m[0].length, m.index, 'anonymous');
+  for (const m of masked.matchAll(/(?:^|[^\w$)])([A-Za-z_$][\w$]*)\s*=>/gm)) add(null, m[1], m.index + m[0].length, m.index, 'anonymous');
   /* Method shorthand, which an object of walkers is written as. The keyword guard is what keeps
      `if (dir) {` from declaring a parameter called `dir`. */
-  for (const m of masked.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{/g)) if (!NOT_A_FUNCTION.has(m[1])) add(m[1], m[2], m.index + m[0].length - 1);
+  for (const m of masked.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{/g)) if (!NOT_A_FUNCTION.has(m[1])) add(m[1], m[2], m.index + m[0].length - 1, m.index, 'method');
   return spans;
 }
 
@@ -635,14 +638,9 @@ export function blankSampleHelpers(masked) {
    offsets and lines, which is what lets one text locate a span the other blanks; the pair is
    checked for alignment rather than assumed.
 
-   ⚠️ THE FIFTH HELPER NAME IS THE OTHER HALF OF THAT ROW, AND IT IS NOT THIS RUNG. A fabricated
-   call inside `function showOffer()` that only the flag block calls survives both rungs: the body
-   sits outside the block, and the name is not one of the four. Deciding it wants reachability — a
-   local function whose name appears nowhere on the live path — rather than a longer list, which is
-   the same spelling trap one hop out. Measured 2026-10-31 at 0 occurrences over the 301 tools in
-   `tools/`: no tool holds a population call in a non-exported local function whose name is
-   unreferenced outside a sample span.
-   Row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper.
+   ⚠️ THE FIFTH HELPER NAME WAS THE OTHER HALF OF THAT ROW, AND THE THIRD RUNG BELOW ANSWERS IT
+   by reachability rather than by a longer list of names, which is the same spelling trap one hop
+   out. Row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper.
 
    ⚠️ TWO GUARD SHAPES STAY OUTSIDE THIS RUNG, each measured at 0 population calls today:
    `argv.includes('--selftest') && selftest();` (33 sites) and the ternary (1 site). Both are
@@ -711,13 +709,120 @@ export function blankFlagSampleBlocks(masked, raw) {
   return out;
 }
 
+/* ── THE THIRD RUNG: REACHABILITY, BECAUSE A FIFTH NAME IS THE SAME TRAP ONE HOP OUT ──────────
+   The two rungs above are both keyed on SPELLING: four helper names, then two flag literals. A
+   fabricated call inside `function showOffer()` that only the flag block calls survives both — the
+   body sits outside the block, and the name is not one of the four. A longer list of names answers
+   that with the same instrument that failed, one hop out, so this rung asks a different question.
+
+   THE QUESTION IS WHETHER ANY LIVE TEXT STILL NAMES THE FUNCTION. After the first two rungs the
+   sample regions are whitespace, so a local function nothing outside them mentions cannot be called
+   on the real path at all. Its body is blanked, and the walk repeats to a fixpoint, which is what
+   reaches a chain: a helper called only by a sample-only helper reads unreferenced on the next pass.
+
+   WHAT IS NEVER BLANKED. An exported name is reachable by definition — a selftest or a sibling tool
+   imports it — so `exportedNames` holds every rung off it. A name mentioned anywhere outside its own
+   declaration is live, including a mention through a property (`S.showOffer`) or an object shorthand,
+   because presence is the conservative direction here: this rung REMOVES a clearance, and
+   over-blanking would state a finding about a tool that reports.
+
+   THE SPANS COME FROM UNBLANKED TEXT, AND THAT IS NOT A DETAIL. `bodyEnd` skips whitespace from the
+   header it is handed, so over an already-blanked body it walks past the blank and returns the NEXT
+   function's closing brace. A first measurement of this shape read 14 occurrences that way; the
+   re-measurement from unblanked text reads 0. So the rung takes its span list from the masked source
+   before any blanking and holds it against the progressively blanked copy, and the pair is checked
+   for alignment rather than assumed.
+
+   MEASURED 2026-10-31 over the 305 tracked `.mjs`/`.js` files in `tools/`: 202 of them hold at
+   least one local nothing live names, 493 names blank in all, and 351 of those are a BODY this rung
+   removes rather than a header whose body the first rung had already taken. It removes 0 population
+   calls and moves 0 tools between classes. The suite's own leg reads 200 of the 301 files its
+   source map carries, which is the same figure over a population four files smaller — two
+   instruments, and each prints the population it counted. So the shape the row names is unreached today and the rung
+   buys soundness, not a re-bin — which is why the selftest and the suite carry the shape itself: a
+   rename that used to clear a tool now reds nothing anywhere else.
+   Row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper. */
+
+/** Every name the subject EXPORTS, which no reachability rung may blank. PURE. */
+export function exportedNames(masked) {
+  const out = new Set();
+  const m = String(masked);
+  for (const k of m.matchAll(/\bexport\s+(?:async\s+)?function\b\s*\*?\s*([A-Za-z_$][\w$]*)/g)) out.add(k[1]);
+  for (const k of m.matchAll(/\bexport\s+(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)) out.add(k[1]);
+  for (const k of m.matchAll(/\bexport\s+default\s+(?:async\s+)?(?:function\b\s*\*?\s*)?([A-Za-z_$][\w$]*)/g)) out.add(k[1]);
+  /* The list form, where a name is bound at the bottom of the file rather than at its declaration. */
+  for (const k of m.matchAll(/\bexport\s*\{([^}]*)\}/g)) {
+    for (const part of k[1].split(',')) {
+      const n = part
+        .trim()
+        .split(/\s+as\s+/)[0]
+        .trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(n)) out.add(n);
+    }
+  }
+  return out;
+}
+
+/** The kinds of span a reachability rung may blank — a NAMED local, never an anonymous callback. */
+const REACHABLE_KINDS = new Set(['declaration', 'arrow', 'expression', 'method']);
+
+/** Is `name` mentioned in `text` outside every region `own` covers? PURE. */
+export function namedOutside(text, name, own) {
+  const t = String(text);
+  /* `\b` IS THE WRONG BOUNDARY FOR AN IDENTIFIER, because `$` is not a word character: a helper
+     called `$fmt` bounds at the wrong place under it. The lookarounds spell the alphabet out. */
+  const re = new RegExp(`(?<![\\w$])${String(name).replace(/\$/g, '\\$')}(?![\\w$])`, 'g');
+  for (const k of t.matchAll(re)) {
+    if (own.some((s) => k.index >= s.decl && k.index <= s.end)) continue;
+    return true;
+  }
+  return false;
+}
+
+/** `blanked` with every local function no live text names blanked too. `spanSource` is the masked
+ *  source BEFORE any blanking, because `bodyEnd` cannot read a blanked body. Offsets and lines
+ *  keep. PURE. */
+export function blankSampleOnlyLocals(blanked, spanSource) {
+  let out = String(blanked);
+  const src = String(spanSource);
+  /* The two texts are one instrument, exactly as the masked/raw pair above is. */
+  if (out.length !== src.length) throw new Error('blankSampleOnlyLocals: the blanked and span-source texts must align (same length)');
+  const exported = exportedNames(src);
+  const byName = new Map();
+  for (const s of functionSpans(src)) {
+    if (!s.name || !REACHABLE_KINDS.has(s.kind) || exported.has(s.name)) continue;
+    if (!byName.has(s.name)) byName.set(s.name, []);
+    byName.get(s.name).push(s);
+  }
+  const blankedNames = new Set();
+  /* The pass cap is the candidate count, so a chain of any length in this file reaches its fixpoint
+     and a cycle cannot spin: every pass either blanks one name or ends the walk. */
+  for (let pass = 0; pass <= byName.size; pass++) {
+    let moved = false;
+    for (const [name, spans] of byName) {
+      if (blankedNames.has(name) || namedOutside(out, name, spans)) continue;
+      for (const s of spans) {
+        const blank = out.slice(s.decl, s.end + 1).replace(/[^\n]/g, ' ');
+        out = out.slice(0, s.decl) + blank + out.slice(s.end + 1);
+      }
+      blankedNames.add(name);
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return out;
+}
+
 /** Decide one tool from its source. PURE. */
 export function classifyTool(text) {
   const sites = enumerationSites(text);
   if (sites.length === 0) return { cls: 'no-enumeration', why: 'the file enumerates no directory', sites };
-  /* BOTH RUNGS: the helper NAMES above, then the sample FLAG's own block. The second reads raw
-     source for the flag literal, because the first text has had every string emptied. */
-  const masked = blankFlagSampleBlocks(blankSampleHelpers(maskNonCode(text)), text);
+  /* THREE RUNGS: the helper NAMES, then the sample FLAG's own block, then every local function no
+     live text names. The second reads raw source for the flag literal, because the first text has
+     had every string emptied; the third reads the UNBLANKED masked copy for its spans, because
+     `bodyEnd` walks past a blanked body into the next function. */
+  const masked0 = maskNonCode(text);
+  const masked = blankSampleOnlyLocals(blankFlagSampleBlocks(blankSampleHelpers(masked0), text), masked0);
   /* EITHER VERDICT BUILDER COUNTS. `populationVerdict` answers "which nights did this run cover";
      `censusVerdict` answers "which roots did this count search, and which are not on this box" —
      the same question one rung out, and the shape `corpus-scope.mjs`'s own CLI prints. Keying on
@@ -1118,6 +1223,35 @@ function selftest() {
     [
       'a brace-less flag body is one statement, and it ends at the semicolon',
       "const dir = process.argv[2];\nreaddirSync(dir);\nif (process.argv.includes('--verdict-sample')) console.log(populationVerdict(fakeA, fakeB));\nconst after = 1;\n",
+      'enumerates'
+    ],
+    /* THE THIRD RUNG, which answers the fifth-named helper by reachability. The first case is the
+       shape row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper names, and the
+       four after it are the directions a rung keyed on reachability must not take: a live caller,
+       an export, a call on both paths, and a chain one hop longer than the first case. */
+    [
+      'a population call in a fifth-named helper only the flag block calls clears nothing',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(fakeA, fakeB);\n}\nif (process.argv.includes('--verdict-sample')) showOffer();\n",
+      'enumerates'
+    ],
+    [
+      'CONTROL · the same helper with a caller on the real path still reports',
+      'const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(a, b);\n}\nconsole.log(showOffer());\n',
+      'reports'
+    ],
+    [
+      'CONTROL · an EXPORTED helper is reachable by definition, whatever this file calls',
+      'const dir = process.argv[2];\nreaddirSync(dir);\nexport function showOffer() {\n  return populationVerdict(a, b);\n}\n',
+      'reports'
+    ],
+    [
+      'CONTROL · a helper called from BOTH paths is live, and the sample call does not condemn it',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(a, b);\n}\nconsole.log(showOffer());\nif (process.argv.includes('--verdict-sample')) showOffer();\n",
+      'reports'
+    ],
+    [
+      'a CHAIN of sample-only helpers clears nothing either, because the walk runs to a fixpoint',
+      "const dir = process.argv[2];\nreaddirSync(dir);\nfunction inner() {\n  return populationVerdict(f, g);\n}\nfunction showOffer() {\n  return inner();\n}\nif (process.argv.includes('--selftest')) showOffer();\n",
       'enumerates'
     ],
     ['no enumeration at all', "const p = '/srv/data/tepna-corpus';\nconsole.log(p);", 'no-enumeration'],

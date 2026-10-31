@@ -11910,18 +11910,105 @@
         refusedPair = true;
       }
       T.ok('…and a masked/raw pair of different lengths is refused, not blanked somewhere plausible', refusedPair, 'a misaligned pair blanked a span anyway');
-      /* THE NAMED LIMIT, PINNED SO A LATER REPAIR MOVES IT DELIBERATELY. A fabricated call inside a
-         fifth-named helper that only the flag block calls still reads `reports`: the body sits
-         outside the block. Deciding it wants reachability, not a longer list of names, and it is
-         measured at 0 occurrences on this tree. Row
-         2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper — when that row closes,
-         this expectation becomes `enumerates`. */
+      /* ── AND THE THIRD RUNG ASKS REACHABILITY, BECAUSE A FIFTH NAME IS THE SAME TRAP ONE HOP OUT
+         The two rungs above are keyed on SPELLING — four helper names, then two flag literals — so a
+         fabricated call inside `function showOffer()` that only the flag block calls used to clear
+         its tool: the body sits outside the block and the name is not one of the four. This leg was
+         that LIMIT, pinned at `reports`. A longer list of names would answer it with the instrument
+         that failed, so the rung blanks instead every local function no live text names, to a
+         fixpoint. Row 2026-10-31-the-sample-blanking-cannot-reach-a-fifth-named-helper. */
       T.eq(
-        'LIMIT · a population call in a fifth-named helper called only from the flag block still clears its tool',
+        'a population call in a fifth-named helper called only from the flag block no longer clears its tool',
         CR.classifyTool(
           "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(fakeA, fakeB);\n}\nif (process.argv.includes('--verdict-sample')) showOffer();\n"
         ).cls,
-        'reports'
+        'enumerates'
+      );
+      /* …AND A CHAIN, which is what the fixpoint is for: `showOffer` calls `inner`, and `inner` reads
+         unreferenced only once `showOffer` itself has gone. One pass would leave the call standing. */
+      T.eq(
+        'a CHAIN of sample-only helpers clears nothing either, because the walk runs to a fixpoint',
+        CR.classifyTool(
+          "const dir = process.argv[2];\nreaddirSync(dir);\nfunction inner() {\n  return populationVerdict(f, g);\n}\nfunction showOffer() {\n  return inner();\n}\nif (process.argv.includes('--selftest')) showOffer();\n"
+        ).cls,
+        'enumerates'
+      );
+      /* THE THREE DIRECTIONS A REACHABILITY RUNG MUST NOT TAKE. It REMOVES a clearance, so
+         over-blanking states a finding about a tool that reports — the loud direction here. A live
+         caller, an export and a call on BOTH paths each keep the helper. */
+      T.ok(
+        'CONTROL · a live caller, an export, and a call on both paths each leave the helper alone',
+        CR.classifyTool('const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(a, b);\n}\nconsole.log(showOffer());\n').cls === 'reports' &&
+          CR.classifyTool('const dir = process.argv[2];\nreaddirSync(dir);\nexport function showOffer() {\n  return populationVerdict(a, b);\n}\n').cls === 'reports' &&
+          CR.classifyTool(
+            "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(a, b);\n}\nconsole.log(showOffer());\nif (process.argv.includes('--verdict-sample')) showOffer();\n"
+          ).cls === 'reports',
+        'all three report'
+      );
+      /* THE GEOMETRY, read off the pure helper, and the pair that must align. The span list comes
+         from the UNBLANKED masked copy on purpose: `bodyEnd` skips whitespace from the header it is
+         handed, so over an already-blanked body it walks past the blank and returns the NEXT
+         function's closing brace. A first measurement of this shape read 14 occurrences that way
+         against 0 from unblanked text, which is why the rung takes two texts and checks them. */
+      var reachSrc =
+        "const dir = process.argv[2];\nreaddirSync(dir);\nfunction showOffer() {\n  return populationVerdict(fakeA, fakeB);\n}\nif (process.argv.includes('--verdict-sample')) showOffer();\n";
+      var reachMasked = env.argvReads.maskNonCode(reachSrc);
+      var reachTwo = CR.blankFlagSampleBlocks(CR.blankSampleHelpers(reachMasked), reachSrc);
+      var reachThree = CR.blankSampleOnlyLocals(reachTwo, reachMasked);
+      var reachRefused = false;
+      try {
+        CR.blankSampleOnlyLocals(reachTwo, reachMasked.slice(1));
+      } catch {
+        reachRefused = true;
+      }
+      T.ok(
+        'the reachability blanking keeps every offset and line, and refuses a pair of different lengths',
+        reachThree.length === reachMasked.length &&
+          reachThree.split('\n').length === reachMasked.split('\n').length &&
+          /populationVerdict/.test(reachTwo) &&
+          !/populationVerdict/.test(reachThree) &&
+          /readdirSync/.test(reachThree) &&
+          reachRefused,
+        'same length · same lines · the call gone · the walk kept · a misaligned pair refused'
+      );
+      /* AND THE EXPORT READER IS THE PART THAT CARRIES THE RISK, so it is read directly: a name
+         bound at the bottom of the file in a list is as exported as one bound at its declaration. */
+      T.ok(
+        'every export form this tree writes is read as reachable',
+        [
+          'export function a() {}',
+          'export const b = () => {};',
+          'export async function* c() {}',
+          'export default function d() {}',
+          'const e = 1;\nexport { e };',
+          'const f = 1;\nexport { f as g };'
+        ].every(function (src, i) {
+          return CR.exportedNames(src).has('abcdef'[i]);
+        }),
+        'declaration · const · generator · default · list · list with an alias'
+      );
+      /* THE WHOLE TREE, BECAUSE THE RUNG IS A SOUNDNESS CLAIM AND NOT A RE-BIN. Measured 2026-10-31
+         over `tools/`: 202 files hold a local nothing live names and 351 bodies blank, and the rung
+         removes NO population call anywhere, so no tool changes class. A tool that one day hides its
+         only population call in an unreferenced local reds this leg, which is the point. */
+      var reachTools = Object.keys(TT).filter(function (k) {
+        return /^tools\/[^/]+\.m?js$/.test(k);
+      });
+      var reachMoved = [];
+      var reachTouched = 0;
+      for (var ri = 0; ri < reachTools.length; ri++) {
+        var rsrc = TT[reachTools[ri]];
+        var rm = env.argvReads.maskNonCode(rsrc);
+        var r2 = CR.blankFlagSampleBlocks(CR.blankSampleHelpers(rm), rsrc);
+        var r3 = CR.blankSampleOnlyLocals(r2, rm);
+        if (r3 !== r2) reachTouched++;
+        var pop = /\b(?:populationVerdict|censusVerdict)\s*\(/;
+        if (pop.test(r2) !== pop.test(r3)) reachMoved.push(reachTools[ri]);
+      }
+      T.ok(
+        'over every tool in the tree the rung removes no population call, and it does reach something',
+        reachMoved.length === 0 && reachTouched > 100 && reachTools.length > 250,
+        reachTouched + ' of ' + reachTools.length + ' tool(s) hold a local nothing live names · ' + reachMoved.length + ' population call(s) removed · ' + JSON.stringify(reachMoved.slice(0, 4))
       );
       /* THE DELEGATION MUST NOT DELETE THE EVIDENCE. Wiring moves the walk behind the helper, which
          also removes the night regex that put the tool in this population. A tool that imports the
