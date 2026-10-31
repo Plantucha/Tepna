@@ -493,3 +493,27 @@ def test_the_measured_window_is_PLANTED_not_asserted_in_prose():
     cannot quietly relax it into the 40-60 s band, which would be measuring ourselves."""
     assert 116.0 < alerts.RING_IDLE_TIMER_S < 124.0
     assert alerts.RING_IDLE_EXPECT_MAX_S > alerts.RING_IDLE_TIMER_S * 200, "expiry must outlast a night"
+
+
+def test_notifier_appends_context_footer_when_configured():
+    seen = {}
+
+    async def fake_post(url, payload):
+        seen.update(payload)
+        return True
+
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=fake_post, context="Host: testbox")
+    assert _run(n.send("Tepna: disk low", "Only 1 GB free.")) is True
+    assert seen["message"] == "Only 1 GB free.\n\nHost: testbox"
+
+
+def test_notifier_without_context_sends_message_byte_identical():
+    seen = {}
+
+    async def fake_post(url, payload):
+        seen.update(payload)
+        return True
+
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=fake_post)
+    assert _run(n.send("Tepna: disk low", "Only 1 GB free.")) is True
+    assert seen["message"] == "Only 1 GB free."

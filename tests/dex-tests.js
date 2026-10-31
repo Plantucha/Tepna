@@ -46287,6 +46287,36 @@
       T.eq('GitHub still computing mergeability ⇒ unknown', cl(P({ mergeState: 'UNKNOWN' }), REQ).state, 'unknown');
       T.eq('BEHIND is carried as a flag on green', cl(P({ mergeState: 'BEHIND' }), REQ).behind, true);
 
+      /* ── the mirror: FALLBACK_REQUIRED, which stood dead while protection moved twice ────── */
+      /* THE DEFECT (measured 2026-10-31): the list named nine contexts where protection required
+         eleven, and `classify` never read the list at all — the degraded path built its required set
+         from the REPORTED check names, so a required context that never arrived left no name to miss
+         and the PR read GREEN. A walker that undrafts on protection's blind spot is worse than one
+         that does nothing. The degraded set is now the mirror UNION the reported names: fail closed
+         on an advisory red AND on a check that never came. */
+      var MIRROR = ['test', 'biome', 'never-arrives'];
+      T.eq('degraded: a mirror context that never reported ⇒ stuck, not green', cl(P({}), [], MIRROR).state, 'stuck');
+      T.eq('and the state NAMES it, which is the only reason to keep a mirror', cl(P({}), [], MIRROR).why.indexOf('never-arrives') >= 0, true);
+      T.eq('degraded: with something still running it is pending, not stuck', cl(P({ checks: GREEN.concat([{ name: 'other', bucket: 'pending' }]) }), [], MIRROR).state, 'pending');
+      T.eq('degraded: a satisfied mirror is still green', cl(P({}), [], ['test', 'biome']).state, 'green');
+      T.eq('degraded: every REPORTED check counts ON TOP of the mirror', cl(P({ checks: [{ name: 'advisory', bucket: 'fail' }].concat(GREEN) }), [], ['test', 'biome']).state, 'red');
+      T.eq('a READABLE ruleset ignores the mirror entirely', cl(P({}), REQ, MIRROR).state, 'green');
+      T.eq(
+        'the shipped mirror carries the two contexts the lag omitted',
+        env.pwFallbackRequired.filter(function (c) {
+          return c === 'secret-scan' || c === 'test (py3.14)';
+        }).length,
+        2
+      );
+      /* No gate can hold the mirror against protection — CI reads no ruleset. The walker does, every
+         pass, so the drift report is the mechanism that stops this row recurring. */
+      var drift = env.pwFallbackDrift(['test', 'biome', 'added-later'], ['test', 'biome', 'dropped']);
+      T.eq('drift names what protection requires and the mirror omits', drift.missing.join(','), 'added-later');
+      T.eq('drift names what the mirror keeps after protection dropped it', drift.extra.join(','), 'dropped');
+      T.eq('an agreeing mirror drifts not at all', [env.pwFallbackDrift(['a'], ['a']).missing.length, env.pwFallbackDrift(['a'], ['a']).extra.length].join(','), '0,0');
+      T.eq('an UNREADABLE ruleset judges no mirror — [] is absence, not an empty required set', env.pwFallbackDrift([], ['a']).readable, false);
+      T.eq('and it calls no mirror entry extra, which an empty set would', env.pwFallbackDrift([], ['a']).extra.length, 0);
+
       /* ── plan: ready under the cap, oldest first ─────────────────────────────────────────── */
       var three = [11, 12, 13].map(function (n) {
         return cl(P({ number: n, isDraft: false }), REQ);
@@ -46376,6 +46406,21 @@
       T.ok('one line per PR with its state and why', /\n#1 draft red {6}required red: test\n/.test(txt));
       T.ok('the actions line names what was done and its result', /\nactions: merge #20 → ok\n/.test(txt));
       T.ok('alerts are the last lines, prefixed so the board can colour them', /\nALERT #7 red: test red after 1 rerun\(s\)\n$/.test(txt));
+      var DM = function (o) {
+        return { at: '2026-10-31T22:00:00Z', requiredSource: 'ruleset(11)', drift: o };
+      };
+      var txtD = page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], DM({ readable: true, missing: ['test (py3.14)'], extra: [] }));
+      T.ok(
+        'a drifted mirror is reported above the PR lines, and names the file to edit',
+        /\nDRIFT FALLBACK_REQUIRED vs the ruleset · protection also requires: test \(py3\.14\) · the mirror still names: nothing — edit tools\/pr-walker\.mjs\n/.test(txtD)
+      );
+      T.eq('an agreeing mirror prints no DRIFT line', /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], DM({ readable: true, missing: [], extra: [] }))), false);
+      T.eq(
+        'an unreadable ruleset prints none either — it judged nothing',
+        /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], DM({ readable: false, missing: [], extra: [] }))),
+        false
+      );
+      T.eq('and a page written before drift existed still renders', /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], { at: 'x', requiredSource: 'ruleset(11)' })), false);
     });
     group('Queue-doctor — the red ledger writes a line once per change, and a clear is named', 'tools · queue-doctor-ledger', function (T) {
       var rl = env.qdRedLedger;
