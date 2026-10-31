@@ -153,14 +153,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.13 = the box (Vigil, 3.13.11). 3.12 = the older baseline. 3.14 = the version the box has
-        # NOT moved to yet, added under the rule in the note above: CI proves a version before the
-        # hardware runs it. The three legs answer three different questions, so read a red by its leg:
-        # 3.12 means the floor broke, 3.13 means the box breaks TODAY, and 3.14 means the box’s next
-        # move is. Keep 3.13 until someone pins the vigil venv to 3.14 (owner decision, 2026-10-31).
-        # ⚠️ `test (py3.14)` is NOT a required context, and this file cannot make it one — branch
-        # protection is a repo setting the owner holds. So the leg reports and does not block, and
-        # `tools/pr-walker.mjs FALLBACK_REQUIRED` keeps mirroring protection rather than this matrix.
+        # ⚠️ 3.14 IS THE BOX. The line above read `3.13 = the box (Vigil, 3.13.11)` until 2026-10-31,
+        # and that figure belonged to the RIG's venv. The box runs CPython 3.14.4: its
+        # `/opt/tepna/capture-host/.venv/pyvenv.cfg` reads `version = 3.14.4` and
+        # `executable = /usr/bin/python3.14`, `tepna-capture.service` names that venv in its own
+        # ExecStart, and the box carries NO python3.13 package at all. Residue row
+        # `2026-10-18-third-party-runtime-versions-match-neither-venv` (fixed #3666) measured both
+        # venvs on 2026-10-18 and said so; the figure never reached this file, so the note above
+        # defended an invariant this matrix had already broken for thirteen days.
+        #
+        # So read a red by its leg. 3.14 means THE BOX IS BROKEN TODAY — the owner made it a required
+        # context in ruleset protect-main on 2026-10-31. 3.13 is the one-version-back floor and the
+        # rig's own venv, so a red there means a developer checkout breaks. 3.12 means the older
+        # floor broke. Keep all three: the box moved once with nothing watching, and the leg that
+        # catches the NEXT move is the one for a version the hardware does not run yet.
+        # ⚠️ `test (py3.14)` IS a required context, and this file did not make it one — branch
+        # protection is a repo setting the owner holds, and the owner set it on 2026-10-31. Read the
+        # ruleset and never this comment: `gh api repos/:owner/:repo/rulesets/<id>` listed all three
+        # py legs among 11 required contexts that day. `tools/pr-walker.mjs FALLBACK_REQUIRED` still
+        # mirrors protection rather than this matrix, and that same read showed it lagging by two.
         python-version: ['3.12', '3.13', '3.14']
     name: test (py${{ matrix.python-version }})
     steps:
@@ -282,7 +293,12 @@ jobs:
           fetch-depth: 0            # the gate diffs against the merge base; a shallow clone has none
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.13'    # the box's version; see the matrix note above
+          # DELIBERATELY 3.13 AND NOT THE BOX'S 3.14. The mutant GENERATOR is the gate, and
+          # requirements-dev.txt pins `mutmut==3.8.0` exactly because two generators disagree on the
+          # mutant set. An interpreter change is the same hazard by another route, and nothing here
+          # has measured mutmut 3.8.0's mutant set under 3.14. Moving this pin is its own unit:
+          # generate on a known-clean module under both, diff the sets, then re-baseline survivors.
+          python-version: '3.13'
       - name: Install tooling + runtime deps
         run: |
           python -m pip install --upgrade pip
@@ -390,7 +406,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.13'   # the box (Vigil, 3.13.11) — the version whose type errors matter
+          # 3.14 IS THE VERSION WHOSE TYPE ERRORS MATTER, because the box runs it (see the matrix
+          # note). This pin read 3.13 until 2026-10-31, so the ratchet graded a Python the hardware
+          # does not execute. Measured before the move: `capture-host/check.sh` under CPython 3.14.4
+          # reports `mypy: 0 errors — at the 0 baseline`, so the ratchet does not move with the pin.
+          python-version: '3.14'
       - name: Not relevant to this PR — reporting green without running mypy
         if: needs.changes.outputs.run != 'true'
         run: echo "No capture-host/ or workflow change in this PR; the mypy ratchet is not run."
