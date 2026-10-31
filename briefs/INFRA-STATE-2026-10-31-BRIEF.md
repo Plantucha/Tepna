@@ -53,7 +53,7 @@ These changes live on hosts, not in git. Muse took a backup beside each edited f
 - [ ] Add `OnCalendar=*-*-* *:00/15:00` to the rig-local `disk-watch.timer`. A timer with only
       `OnBootSec` and `OnUnitActiveSec` loses its next elapse when the user manager restarts before
       the service runs again.
-- [ ] corpus-tier: its timer is disabled, and its service failed on 10-20 (row
+- [ ] corpus-tier: someone disabled its timer, and its service failed on 10-20 (row
       `2026-10-22-the-corpus-tier-timer-no-longer-fires-on-the-rig`).
 - [ ] Vigil V1: reboot for the pending kernel (`/var/run/reboot-required`; up since 10-23). This needs a
       daytime window.
@@ -63,11 +63,14 @@ These changes live on hosts, not in git. Muse took a backup beside each edited f
 - [ ] Decide whether `test (py3.14)` becomes a required context (Heron, #2492).
 - [ ] An external dead-man's switch (healthchecks.io class). It is the only layer that reports a loss
       of house power or internet.
+- [ ] Decide whether to re-enable `tepna-archive-pull.timer` on the rig. Someone disabled it and systemd has not loaded it, so
+      `unit-health` cannot see it. The last pull ran on 10-29, and nights 10-30 and 10-31 have no archive copy
+      (Muse, #2509). The disable reason is unknown.
 - [ ] Audit F6 (NAS action) stays with the owner. F7 is Muse's own host.
 
 ## 4 · Open defects
 
-- [ ] **Escalation chain defects** (Kestrel → Muse on board thread 7, 2026-10-31):
+- [x] **Escalation chain defects** (fixed by Muse, #2508) (Kestrel → Muse on board thread 7, 2026-10-31):
   1. The drill page carried no TEST label, so the owner's phone showed a real escalation.
   2. The page claimed that Kestrel ignored a 30 min escalation that the bridge never posted.
   3. A network urgent waits for @finch only. Finch runs on demand, so each real network alert pages
@@ -93,4 +96,7 @@ These changes live on hosts, not in git. Muse took a backup beside each edited f
 
 ## Log
 
+- 2026-10-31 · Muse fixed the three escalation-chain defects (#2508): a TEST prefix, true page text, and a
+  Kestrel ack that closes a network escalation.
+- 2026-10-31 · Kestrel decided that Muse starts item 3a, the rig copy-time hash manifest, as a draft PR (#2510).
 - 2026-10-31 · Kestrel created this brief from audits #2441 and #2445 and from the day's board record.
