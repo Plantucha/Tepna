@@ -30,6 +30,101 @@ changesets.)
 
 ---
 
+## [2.25.0] — 2026-10-31
+
+### Added
+- Add `trio-batch --check-markers`, which runs the production resolver against every `.superseded` marker under a root and reports one verdict.
+- Restore the ring's recording state after a host restart, with the counter the close measured. (`O2RING-BOOT-RECOVERY-DECISION-2026-10-28-BRIEF.md`)
+- Confirm the ring's recording close against the pulled session's own declared duration. (`O2RING-BOOT-RECOVERY-DECISION-2026-10-28-BRIEF.md`)
+- Give the paper's per-epoch rMSSD bias, SDNN bias and jitter-budget k-fit a committed producer. Re-cut the published panels from it. The jitter model does not reproduce, so the paper retracts it.
+- Publish PpgDex's offset segmentation on the analysis result and in the node-export, so a reader can see it.
+- Census the ring host axis per raw fragment behind every folded night.
+- Decompose each ring night's published host-axis rate into five named causes.
+- Every node-export now carries `recording.timing`, nine keys built by one function (`DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md`)
+- `DexClock.hostAxis` publishes `spanMs` and `spanPpm` beside its `ppm`, and PpgDex and ECGDex forward
+- Add a shared clock-seam tripwire and wire it into OxyDex and PulseDex, refusing windows a mid-file step crosses. (`DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md`)
+- Drive each flag-exit census tool past the statement its health flag skips, and exclude the three it cannot drive with a measured reason.
+- Measure which tools exit a health flag above module-scope evaluation it never reaches, and ratchet the count.
+- Add a `radioclock` verb to the capture-host restart helper, which restarts the radio-clock collector alone and reports its journal line.
+- Add `rebase-safe --resolve <path>`, which takes the ref's bytes only for a path a builder
+- Add an opt-in `--tree` walk to `secret-scan.mjs`. Every verdict now names its walk, so a diff green states no claim about the tree.
+- Commit a PpgDex twin whose host column is an independent clock, so a fixture pins the disciplined axis.
+
+### Changed
+- Publish the enumeration each of the three CPAP-corpus readers walked. Name the members nothing scored, and exit 2 on a run that scored nothing.
+- Remove every home-directory path from the tracked tree. Executable code reads `homedir()`, `$HOME` or `Path.home()`, and `tools/home-paths.mjs` holds one definition and one selftest for each default. Docs, briefs and the dated audit records carry a `~/` prefix instead. Behaviour on this machine is unchanged, and git history is untouched.
+- OxyDex publishes its retracted respiration rate as a null with a named reason, `proxy-uninformative`, in the export and on reload. The estimate reads r = 0.046 against two inductance belts, so it publishes no number. The reason lets a reader tell a withheld value from an unmeasured one.
+- Publish the trio night population behind the four readers that score over it, and exit 2 when a run enumerated nothing or scored nothing.
+- Give the journal severity prefix one owner, so both capture-host units express the same scale.
+- MotionDex now disciplines its device counter against the host column. It detected a counter resync and corrected nothing. Every position it published rode the device crystal, because `relSecOf` divides `relNs` by 1e9 and reads nothing else. (`DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md`)
+- PpgDex publishes `rate`, `rateReason` and `rateApplied` beside the host axis `ppm`, so a reader sees (`PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md`)
+- Pin the shared timing block's sanitisers at the edges the mutation lane found unexamined. (`DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md`)
+- Give `witness-baseline` a declared `--max-probes` budget and `--state-dir`, so the flag-exit drive reaches its risk line.
+
+### Fixed
+- A journal clock record reaches both A5 arms when it names the device by address.
+- State how many journal clock records named only an address, so the A5 record set stops reporting a source that matched nothing.
+- Pair the H10 chest ACC with its `…_ACCRUNS.txt` sidecar by exact name, and refuse every respiratory window that leans on a recorded blank span. (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- Mark a board post the board itself replaced. Read the claim protocol and an active reference. Print the abstentions beside the marks.
+- Shell the board renderer's own copy of each tool, so a pinned renderer runs current release and usage code.
+- Compare each renderer file in the tree it would load from. An import loads from the board's own tree and a shelled tool from the checkout it reports on. Name the tree beside every drifted file. Report a derived name that resolves nowhere as the reader's artifact.
+- Read the brief guard's verdict off the write target, not off the write verb. A program that names a guarded doc inside the data it writes elsewhere no longer denies. The scan resolves one level of literal assignment, so a target behind a variable still denies. An unresolved target, a shell-out and an unreadable literal all fail closed.
+- Measure the era census against every reader triple, not only the three the fold itself writes. (`FOLD-ERA-STAMP-CONTRACT-2026-10-28-BRIEF.md`)
+- Five single-root capture readers now publish the files they walked, name the remainder they left unread, and refuse a root they cannot enumerate.
+- Four fold-and-cohort corpus readers publish the population they walked.
+- Say which recorded fields the fold held each `.superseded` marker to, and count the markers it held to none.
+- Hold the capture daemon out of needrestart, so an apt upgrade stops restarting it mid-night.
+- Report the night population four corpus walkers read, and refuse an unreadable root instead of reporting zero nights.
+- Point eleven corpus runs at the shared `NIGHT_RE` instead of a hard-coded year, so each one scores a night from any year.
+- Publish the record population the three NSRR cohort readers walked, and refuse where they scored nothing.
+- Publish one population object per unit from `tools/oxy-hr-bias.mjs`: the O2Ring CSV files under
+- Pair each PAT waveform with its `…RUNS.txt` validity sidecar by exact stamp. Refuse the R-peaks and PPG feet inside a recorded span. Divide the leg's rate by the time it measured. (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- Publish the file population `pin-coverage` scored over, summed across every `--dir` root by file set, and keep the throw count a resume inherits.
+- Name the condition behind the re-judge tear: the bracket's work ran in the capture process before #3554.
+- Sink a board post the board itself replaced below its unmarked peers in both Rule 0 lanes, and name the successor that replaced it.
+- The ring's signal witness now reads its counter by header name, and after a stall it reads the settled (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- Five single-root corpus enumerators publish the population they walked, each through the primitive that matches its unit. An unreadable root now refuses.
+- Place each timeline bar at its stream's first landed row when the acquisition sidecar states it, and name the source of every start.
+- Four recursive corpus walkers publish the tree they walked. Three name the files their one root offered and refuse a root they cannot enumerate. `edge-settle.mjs` counts every night directory the walk offers, rather than dividing by the nights that survived its read.
+- Carry the offset segmentation and the clock resyncs of every ring fragment into the folded night, on the merged axis.
+- The trio fold now reads the validity sidecars the box writes. `tools/trio-batch.mjs` hands `_ECGRUNS.txt` to the H10 ECG parse and `_PPGRUNS.txt` to the Verity and the ring PPG parses. Before this change a blanking run the box recorded reached ECGDex and PpgDex as signal. (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- Collapse the walked root at both population publish boundaries, so no committed verdict carries a home directory.
+- The PpgDex app now corrects its sample rate against the host clock. `PpgDex.src.html` inlines `clock.js`, so the `typeof DexClock` guards in `ppgdex-dsp.js` reach `DexClock.hostAxis` in the browser. Before this change the app refused the axis with `no clock spine in this bundle` and kept the device rate. The fold and the test suite loaded `clock.js` and corrected the rate. So the app and the corpus disagreed on every Verity night and every host-disciplined ring night. An unstamped finger night stays on the 125 Hz crystal by design (`ppgdex-dsp.js:1446`). (`DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md`)
+- Scope the published AS11 clock offset to the capture session, so it no longer medians two months of anchors. (`DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md`)
+- Close the CPAP link when the live stream ends on its own.
+- Read the flag-exit census risk outside every function body, so a declaration counts as no load.
+- Deny a stale-brief write whose target the program reads from argv, when the interpreter's arguments name a guarded doc.
+- Deny a stale-brief write whose target the program builds from literal pieces, when the join names a guarded doc.
+- Teach the mutation hygiene scan the read that names its module only through an import alias.
+- Open the O2Ring PPG from the Nights table when the Verity recorded nothing.
+- PpgDex's `rateApplied` now reads the published rate, so a correction the 0.01 Hz rounding erases reports false.
+- Read a controller's address from the kernel when sysfs publishes none.
+- Refuse an unknown argv token in `rebase-safe.mjs` instead of reading it as nothing and rebasing.
+- Run the rebase-safe checkout refusal on a CLI run only, so an import survives.
+- Give the regex escaper one home in the tools tree, and import it at every site.
+- Escape every metacharacter in a function name the adoption gate puts into a regex, not only the dollar sign.
+- Sweep `selftest-all.mjs` as a member of its own population, so the local gate runs the
+- Stamp the night directories a webmon fixture compares, so its control no longer rides filesystem timer granularity.
+- `DexExport.timingBlock` no longer borrows the resync count when a node reports no seam count. OxyDex (`DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md`)
+- Load `clock-seam.js` in the ten inline tool realms that run OxyDex or PulseDex, so a run through them scans for a mid-file clock step. A suite group reds a realm that omits the module or loads it after the DSP. (`DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md`)
+- Prepare the unwired-name corpus with acorn when the checkout resolves one, and keep the hand tokenizer when it does not.
+- Bucket each wearable ACC file on its first data row, and keep the filename stamp as the named fallback.
+- Anchor each `wearable-sync` night on the two streams' first data rows, so a stream that opened after its capture session keeps its rows.
+- End the comparison window at the earlier of the two streams' last rows, capped at 24 h.
+- Refuse a `word-only` adoption row that builds its verdict object through an imported helper.
+- Read a source-only diff in `wt-done --landed`, so the hatch reaches its verdict on a branch that re-bundled an app.
+- Read the contract's local alias off a producer's own import, so the object detector sees a verdict built as `VD.make(`.
+- Escape an identifier through the escaper's one home, so a partial copy reports no corpus read.
+- Blank every local function no live text names, so a renamed sample helper clears no corpus tool.
+- Blank the sample flag's own block, so a fabricated population call clears no tool for want of a helper name.
+- Drive the last two census tools past their risk statement, so the flag-exit gate excludes nothing.
+- Publish the population both NSRR cohort readers score over, and exit 2 where each scored nothing.
+- Publish `recording.hostAxis` on PpgDex's light export, so a plain export names the clock it rides.
+- Generate the README release paragraph at every cut, so the front page names the release just shipped. The paragraph had described 2.17.0 for seven releases, because the cut stamped only its header and left the body to an author.
+- Qualify a `--sleep-only` night by the signal it covers inside the sleep window, so a daytime fragment cannot remove it.
+
+---
+
 ## [2.24.0] — 2026-10-28
 
 ### Added
@@ -3597,7 +3692,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.24.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.25.0...HEAD
+[2.25.0]: https://github.com/Plantucha/Tepna/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/Plantucha/Tepna/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/Plantucha/Tepna/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/Plantucha/Tepna/compare/v2.21.0...v2.22.0

@@ -1681,6 +1681,32 @@
         "EQUIVALENCE-ORPHAN-RULING-2026-10-28-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.25.0",
+      "date": "2026-10-31",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "6f5fe2ce08bb",
+        "OxyDex": "1f0e6b445b4a",
+        "PulseDex": "f21baabaafdc",
+        "GlucoDex": "46b55cde7375",
+        "PpgDex": "32103adda874",
+        "HRVDex": "237fa9c575d4",
+        "CPAPDex": "41be73015a48",
+        "Integrator": "b26b0269a972",
+        "MotionDex": "98bde17b7214"
+      },
+      "briefs": [
+        "SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md",
+        "FOLD-ERA-STAMP-CONTRACT-2026-10-28-BRIEF.md",
+        "O2RING-BOOT-RECOVERY-DECISION-2026-10-28-BRIEF.md",
+        "SOLID-NIGHT-2026-09-23-BRIEF.md",
+        "DEVICE-TIME-HANDLING-2026-10-29-BRIEF.md",
+        "PPGDEX-SUBFLOOR-RATE-TEST-2026-10-29-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
