@@ -14,6 +14,9 @@
  *   node tools/xerj-load.mjs --dry-run       # count and classify, write nothing
  *   node tools/xerj-load.mjs --selftest      # the properties below
  *   node tools/xerj-load.mjs --json          # one tepna.verdict/1 on stdout
+ *   node tools/xerj-load.mjs --only ext:agent-board/ --newer-than 10
+ *                                            # UPSERT the files under a prefix that changed in the
+ *                                            # last N minutes into the generation that serves now
  *
  * ⚠️ NEVER RE-CHUNK AND NEVER RE-EMBED. `doc-search.mjs`'s `chunk()` is the single source of truth:
  * the cache stores ONE 1024-dim vector per chunk, positionally, so the i-th vector describes the
@@ -35,7 +38,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -377,6 +380,28 @@ export function bulkBody(index, docs) {
   return `${out.join('\n')}\n`;
 }
 
+/* THE FAST LANE (owner, 2026-10-31: board posts reach search within minutes, not on the hourly
+   reload). `--only <prefix> --newer-than <min>` writes into the generation that serves the alias NOW,
+   and only the files under `prefix` whose mtime falls inside the window. It never creates or promotes a
+   generation, so the hourly full load stays the source of truth and resets whatever this lane wrote.
+   ⚠️ It OVERWRITES ids, which is the write the engine never reclaims (xerj-org/xerj#2796, measured
+   again on rc.100 2026-10-31: an 87.7 MB graph for 1,000 live vectors after 20 overwrites). The
+   window keeps that to the files that changed — a few board posts per tick — and the next hourly
+   generation discards the growth. A file that LEFT the prefix keeps its old docs until that reload. */
+export function inFastLane(file, only, mtimeMs, nowMs, newerMin) {
+  if (!only) return true;
+  if (!String(file).startsWith(only)) return false;
+  if (!(newerMin > 0)) return true;
+  return Number.isFinite(mtimeMs) && nowMs - mtimeMs <= newerMin * 60000;
+}
+
+/** The one generation the alias points at, or null when no alias holds the name. */
+export function servingGeneration(aliasJson) {
+  if (!aliasJson || typeof aliasJson !== 'object' || Array.isArray(aliasJson)) return null;
+  const k = Object.keys(aliasJson).filter((n) => !aliasJson[n]?.error);
+  return k.length === 1 ? k[0] : null;
+}
+
 /** One index per load: `<alias>-<UTC second stamp>`. `alias` is the name readers keep using. */
 export function generationName(alias, at = new Date()) {
   return `${alias}-${at
@@ -610,6 +635,20 @@ export function selftest() {
     ok(jsScopes('function (', realParse) === null, 'the real parser gives null on a file that does not parse');
   } else notRun = 3;
 
+  /* THE FAST LANE takes only files under its prefix, and only inside the window. A file whose mtime
+     cannot be read is OUT, never in — an unreadable stamp does not count as a change. */
+  const now = 1_000_000_000;
+  ok(inFastLane('docs/a.md', '', Number.NaN, now, 0), 'without --only every file is in');
+  ok(!inFastLane('docs/a.md', 'ext:agent-board/', now, now, 10), 'a file outside the prefix is out');
+  ok(inFastLane('ext:agent-board/7/1.md', 'ext:agent-board/', now - 9 * 60000, now, 10), 'a file changed inside the window is in');
+  ok(!inFastLane('ext:agent-board/7/1.md', 'ext:agent-board/', now - 11 * 60000, now, 10), 'a file older than the window is out');
+  ok(!inFastLane('ext:agent-board/7/1.md', 'ext:agent-board/', Number.NaN, now, 10), 'an unreadable mtime is out');
+  ok(inFastLane('ext:agent-board/7/1.md', 'ext:agent-board/', Number.NaN, now, 0), 'no window means every file under the prefix');
+  ok(servingGeneration({ 'tepna-hybrid-20261031t102147z': { aliases: { 'tepna-hybrid': {} } } }) === 'tepna-hybrid-20261031t102147z', 'the alias names the generation it serves');
+  ok(servingGeneration({ error: { type: 'alias_not_found' }, status: 404 }) === null || servingGeneration({}) === null, 'no alias, no generation');
+  ok(servingGeneration({ a: {}, b: {} }) === null, 'an alias over two generations is refused, not guessed');
+  ok(servingGeneration(null) === null && servingGeneration([]) === null, 'a malformed answer is no generation');
+
   const absent = notRun ? ` (${notRun} JS parser checks not run: the parser is absent)` : '';
   const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED${absent}` : `all ${ran} selftests passed${absent}`;
   return { ok: fail.length === 0, ran, fail, line };
@@ -677,6 +716,13 @@ async function main() {
   const index = flag('--index', DEFAULT_INDEX);
   const limit = Number(flag('--limit', '0')) || 0;
   const batch = Number(flag('--batch', '64')) || 64;
+  const only = flag('--only', '');
+  const newerMin = Number(flag('--newer-than', '0')) || 0;
+  const nowMs = Date.now();
+  if (newerMin && !only) {
+    process.stderr.write('xerj-load: REFUSING — --newer-than needs --only <prefix>; a full load reads every file.\n');
+    process.exit(2);
+  }
 
   if (!isLoopback(url)) {
     process.stderr.write(`xerj-load: REFUSING — ${url} is not loopback. This tool is dev-only and never leaves the box.\n`);
@@ -704,8 +750,21 @@ async function main() {
      disk. A `--limit` probe loads into `<index>-probe`, which is deleted at the end and never
      promoted — a slice must not become what every reader sees. */
   const probe = limit > 0;
-  const target = dry ? index : probe ? `${index}-probe` : generationName(index);
-  if (!dry) {
+  let target = dry ? index : probe ? `${index}-probe` : generationName(index);
+  if (only && !dry) {
+    const held = await req(url, `/_alias/${index}`, 'GET');
+    const serving = held.status === 200 ? servingGeneration(held.json) : null;
+    if (!serving) {
+      process.stderr.write(`xerj-load: REFUSING — --only writes into the generation serving ${index}, and none does (${held.status}). Run a full load first.\n`);
+      if (asJson)
+        process.stdout.write(
+          `${JSON.stringify(verdictOf({ status: 'NOT_RUN', counts: { files: 0, loaded: 0, skipped: 0, docs: 0, skips: {} }, reason: `no generation serves ${index}` }), null, 1)}\n`
+        );
+      process.exit(2);
+    }
+    target = serving;
+  }
+  if (!dry && !only) {
     if (probe) await req(url, `/${target}`, 'DELETE');
     const made = await req(url, `/${target}`, 'PUT', JSON.stringify(mapping()));
     if (made.status >= 300) {
@@ -737,7 +796,7 @@ async function main() {
     /* A half-built generation is never promoted, so readers still have the previous one; delete it
        so it does not sit on disk, and let the error surface. If even that fails, the next successful
        promotion retires it by name (`isGeneration`). */
-    if (!dry) await req(url, `/${target}`, 'DELETE').catch(() => {});
+    if (!dry && !only) await req(url, `/${target}`, 'DELETE').catch(() => {});
     throw e;
   }
 
@@ -763,6 +822,16 @@ async function main() {
         continue;
       }
       if (!entry.file) continue;
+      if (only) {
+        const a = entry.file.startsWith(EXT_PREFIX) ? extAbs().get(entry.file) : join(ROOT, entry.file);
+        let m = Number.NaN;
+        try {
+          m = a ? statSync(a).mtimeMs : Number.NaN;
+        } catch {
+          m = Number.NaN;
+        }
+        if (!inFastLane(entry.file, only, m, nowMs, newerMin)) continue;
+      }
       counts.files += 1;
       /* EXTERNAL DOCS ARE IN SCOPE, and that is a fairness requirement rather than a convenience.
        doc-search ranks over repo AND external roots (today's own Rule 0 answer came from
@@ -807,13 +876,24 @@ async function main() {
      the corpus or the staleness rule stopped matching. Reporting PASS over 0 is the failure shape
      this repo refuses, so it is a FAIL with the skip histogram as the evidence. */
   const nothing = counts.docs === 0;
-  const status = nothing ? 'FAIL' : 'PASS';
-  const reason = nothing ? `loaded 0 documents from ${counts.files} cache entries — skips: ${JSON.stringify(counts.skips)}` : null;
+  /* In the fast lane an empty window is the common case — no board post changed — and it is not a
+     broken cache: nothing in scope was eligible, so the rule does not bind. A window that HELD files
+     and loaded none of them is still the failure above. */
+  const quiet = only && counts.files === 0;
+  const status = quiet ? 'NOT_APPLICABLE' : nothing ? 'FAIL' : 'PASS';
+  const reason = quiet
+    ? `no file under ${only} changed in the last ${newerMin || '∞'} min`
+    : nothing
+      ? `loaded 0 documents from ${counts.files} cache entries — skips: ${JSON.stringify(counts.skips)}`
+      : null;
 
   /* PROMOTE OR DISCARD. Readers move only to a generation that loaded something; a load of zero or a
      probe is deleted and the alias stays where it was. */
   let generation = null;
-  if (!dry) {
+  if (only && !dry) {
+    if (!nothing) await req(url, `/${target}/_refresh`, 'POST');
+    generation = { index: target, promoted: false, upserted: counts.docs };
+  } else if (!dry) {
     if (nothing || probe) {
       await req(url, `/${target}`, 'DELETE');
       generation = { index: target, promoted: false, deleted: true };
@@ -832,12 +912,14 @@ async function main() {
     process.stdout.write(`  chunks with a split pair repaired : ${counts.repairedChunks}\n`);
     process.stdout.write(`  files / chunks naming a symbol : ${counts.tagged} / ${counts.symbolDocs}\n`);
     for (const [k, n] of Object.entries(counts.skips).sort((a, b) => b[1] - a[1])) process.stdout.write(`    ${k.padEnd(16)} ${n}\n`);
-    if (generation?.promoted)
+    if (only && generation) process.stdout.write(`  fast lane: ${counts.docs} doc(s) under ${only} upserted into ${generation.index}\n`);
+    else if (generation?.promoted)
       process.stdout.write(`  generation ${generation.index} now serves ${index} · replaced ${generation.replaced.join(', ') || 'nothing'} · retired ${generation.retired.length}\n`);
     else if (generation) process.stdout.write(`  ${probe ? 'probe' : 'empty generation'} ${generation.index} deleted · ${index} untouched\n`);
-    if (nothing) process.stdout.write('  ✕ loaded NOTHING — see the skip histogram above\n');
+    if (quiet) process.stdout.write(`  · ${reason}\n`);
+    else if (nothing) process.stdout.write('  ✕ loaded NOTHING — see the skip histogram above\n');
   }
-  process.exit(nothing ? 1 : 0);
+  process.exit(nothing && !quiet ? 1 : 0);
 }
 
 /**

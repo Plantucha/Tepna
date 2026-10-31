@@ -25,6 +25,20 @@ node tools/xerj-load.mjs                                          # the first fi
 node tools/doc-search.mjs --hybrid "a question"                   # the one-line check
 ```
 
+### The board lane — new board posts in search within minutes (owner, 2026-10-31)
+
+```sh
+cp tools/systemd/tepna-board-search.service ~/.config/systemd/user/
+cp tools/systemd/tepna-board-search.timer   ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now tepna-board-search.timer            # every 5 min
+```
+
+The tick runs `tools/bge-reindex-driver.sh --board`: the board export, an embed of what changed, and
+`xerj-load.mjs --only ext:agent-board/ --newer-than 10`. That load upserts into the generation that
+serves the alias now, and it never builds or promotes one. The hourly reload stays the source of truth.
+A quiet tick reports `NOT_APPLICABLE` and writes no log line.
+
 ## The reranker server — the OWNER enables it too
 
 Rule 0 asks this server on every hybrid search (owner, 2026-10-12). It scores the fused top 20 and

@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — bring new agent-board posts into search within minutes (primary dev machine only).
+#
+# WHY. Before this lane a board post reached `--hybrid` search only after the hourly re-embed AND the
+# :20 reload, so a ruling posted at :21 stayed invisible for up to ~80 min. This unit runs
+# `bge-reindex-driver.sh --board`: the board export, an embed of what changed, then an upsert of the
+# board files changed in the last 10 min into the generation that serves search now. The window is
+# two ticks wide, so one failed tick does not lose a post.
+#
+# IT WRITES NO GENERATION. The hourly reload stays the source of truth and discards whatever this lane
+# wrote. The upsert overwrites ids, which grows the engine's vector graph (xerj-org/xerj#2796); a few
+# board files per tick, reset every hour, keeps that growth small.
+[Unit]
+Description=Tepna — upsert changed agent-board posts into the hybrid-search index
+After=tepna-hybrid-index.service
+Wants=tepna-hybrid-index.service
+
+[Service]
+Type=oneshot
+Nice=15
+IOSchedulingClass=idle
+ExecStart=%h/Tepna/tools/bge-reindex-driver.sh --board
