@@ -16,7 +16,7 @@
 <body>
 <div class="sheet">
   <a class="toplink" href="papers.html">← Tepna preprints</a>
-  <div class="banner">Tepna Working Preprint · not peer-reviewed · DRAFT v2 (2026-10-31) — results from brief §§29–50 and §52.8 are measured; cells marked PENDING wait for v51 (three formula switches), the locked final run (v53, §52.6) and the external SomnoTrace run; v37F (night-level formula) never ran and is superseded by §§46–47</div>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed · DRAFT v2 (2026-10-31) — results from brief §§29–50 and §52.8 are measured; cells marked PENDING wait for v51 (three formula switches), the locked final run (v53, §52.6) and the external third-party blind run; v37F (night-level formula) never ran and is superseded by §§46–47</div>
   <h1 class="title">Sleep staging from a fingertip oximeter's three signals: a pre-registered ceiling, a sequence control, and a stack of published formulas scored blind</h1>
   <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
   <p class="affil">OxyDex node (SpO₂ · pulse rate · motion), Tepna physiological-signal suite</p>
@@ -135,7 +135,7 @@
     </tbody>
   </table>
   <table>
-    <caption class="tbl-cap"><b>Table 5.</b> Blind runs (bands in the brief sections named, stated before each run). κ4, with κ3 in brackets where measured. These runs are on pre-§46 data; the §46 re-runs are in Table 6. The external SomnoTrace run remains unscheduled.</caption>
+    <caption class="tbl-cap"><b>Table 5.</b> Blind runs (bands in the brief sections named, stated before each run). κ4, with κ3 in brackets where measured. These runs are on pre-§46 data; the §46 re-runs are in Table 6. The external third-party blind run remains unscheduled.</caption>
     <thead><tr><th>set</th><th>model</th><th>pre-stated band</th><th>κ</th><th>reading</th><th>brief §</th></tr></thead>
     <tbody>
       <tr><td>STAGES, 13 clinics (1 702 scored nights)</td><td>control, pool-trained, blind on every clinic</td><td>≥ 0.65 generalises like a cohort · 0.55–0.65 half the Challenge gap · &lt; 0.55 Challenge-like; expected 0.60–0.66</td><td><b>0.533</b> (0.594)</td><td>Challenge-like. Eleven clinics 0.559–0.686; STLK 0.364 and STNF 0.411 carry the deficit</td><td>43</td></tr>
@@ -148,7 +148,7 @@
       <tr><td>MESA + CFS + eight STAGES clinics (679 fold-0 nights)</td><td>oximetry net on the PPG-derived pulse (W0)</td><td>W0 − device pulse within ±0.02 as good · −0.02 to −0.06 the detector costs that much; expected −0.01 to −0.04</td><td>0.639 (0.707); paired on 456 MESA + CFS nights 0.729 vs 0.691</td><td>+0.038 (CI not recorded): the waveform pulse is not worse than the device's rate</td><td>45</td></tr>
       <tr><td>Dreem DOD-O (56 nights, five-scorer consensus)</td><td>ECG net</td><td>consensus − single-scorer &gt; +0.05 / ±0.05 / &lt; −0.05; expected +0.02 to +0.06</td><td><b>0.681</b> (0.739); per-night median 0.693, p10 0.534, none under 0.2</td><td>+0.143 against Challenge's 0.538. That reference is the in-pool CV row (no blind H1 arm), so the difference holds the consensus and the population together</td><td>44</td></tr>
       <tr><td>nine STAGES sites, LOCKED (880 nights)</td><td>the final recipe, one run</td><td>to be written into the brief, with the recipe hash, before release</td><td class="pending">PENDING (v53)</td><td>cross-site claim only (§52.6)</td><td>52.6</td></tr>
-      <tr><td>SomnoTrace corpus (external)</td><td>stack</td><td>to be stated before the run</td><td class="pending">PENDING</td><td></td><td>—</td></tr>
+      <tr><td>third-party corpus (external)</td><td>stack</td><td>to be stated before the run</td><td class="pending">PENDING</td><td></td><td>—</td></tr>
     </tbody>
   </table>
   <p><b>The §46 rework.</b> An audit of every cohort's format against every tool found label, motion and posture inconsistencies, so every line was re-run on corrected data under a written protocol (brief §46). Its numbers are new data. They are reported beside the older ones, never pooled with them: on the same nights the ECG + breathing net moved −0.0067 [−0.0076, −0.0058] against v35 and the wrist net −0.0046 [−0.024, +0.015] against v40. A pre-stated reproduction (v49) re-extracted 20 MESA nights and re-ran two fold-0 arms from the snapshot code. Features were byte-identical and the posteriors identical (max |Δ| 0), so it passed. Challenge stayed blind in every v46 line (a control with it in the training pool, §49, is not for publication).</p>
@@ -248,7 +248,7 @@ python threeclass.py &lt;cache&gt; &lt;proba-dir&gt; &lt;tag&gt;</code></pre>
     <li>Schipper F, et al. Overnight sleep staging using chest-worn accelerometry. Sensors. 2024;24(17):5717. doi:10.3390/s24175717</li>
     <li>Dreem Open Datasets DOD-O / DOD-H (Zenodo record 15900394, MIT). (DOI omitted pending ledger verification.)</li>
   </ol>
-  <p class="meta" style="margin-top:28px">Supplement S1 (beat-detector validation on MIT-BIH, SLPDB, NSRDB) is gated by the owner's P5 ruling and is not reproduced here. Published 2026-10-31 on the owner's decision, ahead of the external blind run; the locked cross-site run (v53) and the external SomnoTrace run will be added when they land.</p>
+  <p class="meta" style="margin-top:28px">Supplement S1 (beat-detector validation on MIT-BIH, SLPDB, NSRDB) is gated by the owner's P5 ruling and is not reproduced here. Published 2026-10-31 on the owner's decision, ahead of the external blind run; the locked cross-site run (v53) and the external third-party blind run will be added when they land.</p>
 
   <div class="footer">Tepna working draft · skeleton · figures and statistics regenerate deterministically from the cited tools. Pending cells are pending, not pooled. Not peer-reviewed; not for clinical use.</div>
 </div>
