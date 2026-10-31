@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**302 tools** · 301 with a purpose line · **1 without**
+**303 tools** · 302 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -23,6 +23,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`analysis-rerun.mjs`](../tools/analysis-rerun.mjs) | RE-RUN THE SYNTHETIC ANALYSIS TOOLS HEADLESSLY AND CAPTURE THEIR RESULT OBJECTS. |
 | [`aperiodic-method-compare.mjs`](../tools/aperiodic-method-compare.mjs) | EXTERNAL-METHODS-SURVEY §2's measurement. The question: our aperiodic alignment failed with a correlation/argmax method, and Schranz et al. |
 | [`aperiodic-offset.mjs`](../tools/aperiodic-offset.mjs) | aperiodic-offset — target 1 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE, finally testable. |
+| [`archive-manifest.mjs`](../tools/archive-manifest.mjs) | archive-manifest — a hash manifest for every archived capture night, written at copy time on the rig. |
 | [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
 | [`argv-reads.mjs`](../tools/argv-reads.mjs) | WHICH TOOLS IGNORE AN UNKNOWN ARGV TOKEN BY CONSTRUCTION. WHY. |
 | [`argv-survey.mjs`](../tools/argv-survey.mjs) | WHICH TOOLS CAN TELL AN UNKNOWN FLAG FROM AN ABSENT ONE. Executable, controlled, and bounded to the tools it can prove are inert. |
