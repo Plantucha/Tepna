@@ -41,6 +41,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -770,8 +771,11 @@ const REACHABLE_KINDS = new Set(['declaration', 'arrow', 'expression', 'method']
 export function namedOutside(text, name, own) {
   const t = String(text);
   /* `\b` IS THE WRONG BOUNDARY FOR AN IDENTIFIER, because `$` is not a word character: a helper
-     called `$fmt` bounds at the wrong place under it. The lookarounds spell the alphabet out. */
-  const re = new RegExp(`(?<![\\w$])${String(name).replace(/\$/g, '\\$')}(?![\\w$])`, 'g');
+     called `$fmt` bounds at the wrong place under it. The lookarounds spell the alphabet out.
+     The escaper has ONE home in this tree, so the name goes through `escapeRe`. An identifier
+     carries no metacharacter, so a local copy would read as correct and state a rule a caller
+     elsewhere may break. */
+  const re = new RegExp(`(?<![\\w$])${escapeRe(name)}(?![\\w$])`, 'g');
   for (const k of t.matchAll(re)) {
     if (own.some((s) => k.index >= s.decl && k.index <= s.end)) continue;
     return true;
