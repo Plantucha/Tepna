@@ -32568,7 +32568,8 @@
        clip is 1.2 ms, under the 2 ms quantum, so no drift of plausible size can make a clip this short
        independent. 9 ms is above `CK_AXIS_INERT_MS` and far below `PPG_OFFSET_STEP_BOUND_MS`, so the
        axis stays ONE segment and this fixture does not silently also become the first committed
-       multi-segment night. RICH, because PpgDex publishes the block only under `opts.rich`. */
+       multi-segment night. The golden is RICH, because the blocks beside the axis are rich-only; the
+       axis itself now travels on BOTH paths, and the last leg below is what pins that. */
     group('PpgDex two-clock export ≡ its committed golden — the INDEPENDENT host axis', 'ppgdex-dsp · equiv · host-axis · fixture', function (T) {
       var eq = env.equiv && env.equiv.ppgdex_twoclock;
       var clean = env.equiv && env.equiv.ppgdex_rich;
@@ -32648,6 +32649,22 @@
         T.eq('…and differ in exactly ONE column', Object.keys(diffCols).length, 1);
         T.eq('…which is the Phone timestamp, column 0', Object.keys(diffCols)[0], '0');
       }
+
+      /* THE LIGHT PATH CARRIES THE SAME BLOCK (row
+         `2026-10-31-ppgdex-publishes-the-host-axis-only-under-rich`). The Integrator reads the LIGHT
+         export, and this block hid behind `opts.rich` from the day it was written — so a plain PpgDex
+         export said nothing about the clock it rides, while ECGDex publishes its own axis before its
+         rich gate. RECOMPUTED rather than read off a fixture: every committed light pair stamps its
+         host column from the device time, so none of them can show the YES side on either path. */
+      var lightTwo = inBundleRealm('PpgDex', function () {
+        return P.compute({ text: eq.input });
+      });
+      var lha = lightTwo.recording && lightTwo.recording.hostAxis;
+      T.ok('the LIGHT export carries recording.hostAxis', !!lha, 'ABSENT — the block is gated behind opts.rich again');
+      T.eq('…judged INDEPENDENT there too', lha && lha.independent, true);
+      T.eq('…claiming the same two clocks', lha && lha.timingSource, 'device+host');
+      T.eq('…and identical to the rich block field for field', JSON.stringify(lha), JSON.stringify(rich.recording.hostAxis));
+      T.ok('CONTROL · the export is still LIGHT — no rich hrv block travelled with the axis', !lightTwo.hrv, 'light.hrv=' + JSON.stringify(lightTwo.hrv));
     });
 
     group('PpgDex O2Ring finger export ≡ its committed golden — the device-crystal DEFAULT (Stage 3b)', 'ppgdex-dsp · equiv · device-crystal', function (T) {
