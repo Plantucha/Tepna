@@ -153,7 +153,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12', '3.13']   # 3.13 = the box (Vigil, 3.13.11); 3.12 = the older baseline
+        # 3.13 = the box (Vigil, 3.13.11). 3.12 = the older baseline. 3.14 = the version the box has
+        # NOT moved to yet, added under the rule in the note above: CI proves a version before the
+        # hardware runs it. The three legs answer three different questions, so read a red by its leg:
+        # 3.12 means the floor broke, 3.13 means the box breaks TODAY, and 3.14 means the box’s next
+        # move is. Keep 3.13 until someone pins the vigil venv to 3.14 (owner decision, 2026-10-31).
+        # ⚠️ `test (py3.14)` is NOT a required context, and this file cannot make it one — branch
+        # protection is a repo setting the owner holds. So the leg reports and does not block, and
+        # `tools/pr-walker.mjs FALLBACK_REQUIRED` keeps mirroring protection rather than this matrix.
+        python-version: ['3.12', '3.13', '3.14']
     name: test (py${{ matrix.python-version }})
     steps:
       - uses: actions/checkout@v7
