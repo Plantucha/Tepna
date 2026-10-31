@@ -24,8 +24,9 @@
  * capture-host seal phase B and is not claimed here.
  *
  * Rules:
- *   - A manifest certifies equality. On any difference, write nothing, name
- *     the differing paths, exit 1.
+ *   - A manifest certifies exact equality. A file absent from the copy, a
+ *     file that differs, and a file the copy holds beyond the source each
+ *     fail. On any of them, write nothing, name the paths, exit 1.
  *   - Manifests live in the rig's state dir,
  *     ~/.local/state/tepna-archive-manifests/<night>.json (override:
  *     TEPNA_ARCHIVE_MANIFEST_DIR). The archive tree on the Synology is
@@ -121,6 +122,8 @@ export async function hashLocalTree(root) {
 const REMOTE_WALKER = `
 import hashlib, json, os, sys
 root = sys.argv[1]
+if not os.path.isdir(root):
+    sys.exit('not a directory: ' + root)
 for dirpath, dirnames, filenames in os.walk(root):
     dirnames.sort()
     for name in sorted(filenames):
@@ -177,6 +180,13 @@ export function compareTrees(source, dest) {
   }
   for (const p of dMap.keys()) if (!sMap.has(p)) extra.push(p);
   return { missing: missing.sort(), differ: differ.sort(), extra: extra.sort() };
+}
+
+// Equality is exact: a file absent from the copy, a file that differs, and a
+// file the copy holds beyond the source each fail. A manifest certifies that
+// the night directory IS the source night, not that it covers it.
+export function treeFindings(night, cmp) {
+  return [...cmp.missing.map((p) => `${night}: missing in copy: ${p}`), ...cmp.differ.map((p) => `${night}: differs: ${p}`), ...cmp.extra.map((p) => `${night}: extra in copy: ${p}`)];
 }
 
 export function buildManifest({ night, basis, source, files }) {
@@ -283,7 +293,7 @@ async function doWrite(night, { quiet = false } = {}) {
   const sourceFiles = await hashSourceNight(src, night);
   const destFiles = await hashLocalTree(join(dest, night));
   const cmp = compareTrees(sourceFiles, destFiles);
-  const bad = [...cmp.missing.map((p) => `${night}: missing in copy: ${p}`), ...cmp.differ.map((p) => `${night}: differs: ${p}`)];
+  const bad = treeFindings(night, cmp);
   if (bad.length) return { status: 'FAIL', findings: bad, checked: 1 };
   const manifest = buildManifest({
     night,
@@ -304,8 +314,7 @@ async function doVerify(night, { quiet = false } = {}) {
   if (!manifest) return { status: 'FAIL', findings: [`${night}: no manifest`], checked: 1 };
   const destFiles = await hashLocalTree(join(dest, night));
   const cmp = compareTrees(manifest.files, destFiles);
-  const bad = [...cmp.missing.map((p) => `${night}: missing in copy: ${p}`), ...cmp.differ.map((p) => `${night}: differs: ${p}`)];
-  if (cmp.extra.length && !quiet) console.log(`${night}: note · ${cmp.extra.length} extra file(s) in copy, not in manifest: ${cmp.extra.slice(0, 5).join(', ')}`);
+  const bad = treeFindings(night, cmp);
   if (bad.length) return { status: 'FAIL', findings: bad, checked: 1 };
   if (!quiet) console.log(`${night}: verified · ${manifest.file_count} files match the manifest`);
   return { status: 'PASS', findings: [], checked: 1 };
@@ -351,7 +360,7 @@ async function doSync() {
 /* ── selftest ─────────────────────────────────────────────────────────── */
 
 export async function selftest() {
-  const { mkdtemp, writeFile: wf, rm } = await import('node:fs/promises');
+  const { chmod, mkdtemp, writeFile: wf, rm } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   let ran = 0;
   const fail = [];
@@ -405,7 +414,41 @@ export async function selftest() {
         { path: 'y', bytes: 2, sha256: 'b' }
       ]
     );
-    t('compareTrees reports extras without failing equality', cmp.extra.length === 1 && cmp.missing.length === 0 && cmp.differ.length === 0);
+    t('compareTrees reports an extra file', cmp.extra.length === 1 && cmp.missing.length === 0 && cmp.differ.length === 0);
+    t('an extra file fails exact equality', treeFindings('n', cmp).length === 1 && treeFindings('n', cmp)[0] === 'n: extra in copy: y');
+
+    const night3 = '2026-01-03';
+    await mkdir(join(srcRoot, night3), { recursive: true });
+    await mkdir(join(dest, night3), { recursive: true });
+    await wf(join(srcRoot, night3, 'a.bin'), Buffer.alloc(20, 4));
+    await wf(join(dest, night3, 'a.bin'), Buffer.alloc(20, 4));
+    await wf(join(dest, night3, 'stray.bin'), Buffer.alloc(5, 5));
+    const r3 = await doWrite(night3, { quiet: true });
+    t('write refuses when the copy holds an extra file', r3.status === 'FAIL' && (await readManifest(night3)) === null);
+
+    // The real transport: hashRemoteTree spawns `ssh` from PATH. A stand-in
+    // ssh runs its last argument as the remote shell line, so the base64 and
+    // python3 pipeline executes for real; only the network is replaced.
+    const bin = join(base, 'bin');
+    await mkdir(bin);
+    await wf(join(bin, 'ssh'), '#!/bin/sh\nfor a; do last="$a"; done\nexec sh -c "$last"\n');
+    await chmod(join(bin, 'ssh'), 0o755);
+    const savedPath = process.env.PATH;
+    process.env.PATH = `${bin}:${savedPath}`;
+    try {
+      const remote = await hashRemoteTree('stand-in', join(srcRoot, night));
+      const local = await hashLocalTree(join(srcRoot, night));
+      t('the ssh transport runs the walker and returns the local hashes', remote.length === 2 && JSON.stringify(remote) === JSON.stringify(local));
+      let refused = false;
+      try {
+        await hashRemoteTree('stand-in', join(base, 'no-such-night'));
+      } catch {
+        refused = true;
+      }
+      t('the ssh transport refuses an absent root instead of returning no files', refused);
+    } finally {
+      process.env.PATH = savedPath;
+    }
 
     const v = verdictOf({ status: 'PASS', findings: [], checked: 1 });
     t('verdict validates as tepna.verdict/1', v && v.gate === 'archive-manifest');
