@@ -29,6 +29,13 @@
 # nobody works in — never a peer's working tree, never a non-git tree).
 # ════════════════════════════════════════════════════════════════════════
 set -u
+# THE BOARD LANE (owner 2026-10-31: "board search lag"). `--board` is the 5-min tick
+# (tepna-board-search.timer): the board export, an embed of what changed, then an upsert of
+# the changed board files into the generation that serves search now. It skips the external pull,
+# and it never builds a generation — the hourly :20 reload still does that, and resets what this lane
+# wrote. It takes the same lock, so it never runs beside the hourly tick.
+MODE=full
+[ "${1:-}" = "--board" ] && MODE=board
 # THE CHECKOUT THAT GETS INDEXED IS A DEDICATED, ALWAYS-CURRENT ONE — not the shared root.
 # Measured 2026-09-24: the shared root sat on a feature branch 170 commits behind origin/main, so
 # this timer re-embedded stale briefs and tools every hour, and because the cache is keyed by
@@ -73,6 +80,28 @@ cd "$ROOT" || exit 0
 # Markdown file per entry into the folder the `agent-board` external root names. Best-effort: a board
 # failure is logged and the index tick still runs.
 board=$(timeout 120 node tools/board-corpus.mjs 2>&1 | tail -1)
-echo "$(date -Is) ${board:-board-corpus: no output}" >>"$LOG"
-out=$(timeout 900 node tools/doc-search.mjs --pull-ext "index freshness tick" 2>&1 | grep -iE "embed|chunk|ext:" | head -8 | tr '\n' ' ')
-echo "$(date -Is) [$ROOT @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)] ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"
+[ "$MODE" = full ] && echo "$(date -Is) ${board:-board-corpus: no output}" >>"$LOG"
+# THE EMBED LINE IS THE STATS LINE AND THE CACHE WARNINGS, NOTHING ELSE. This grep read
+# `embed|chunk|ext:` until 2026-10-31, and every search hit carries `ext:` and the word "chunk", so
+# the log recorded the query's top hits and never the count of newly embedded chunks.
+pull=--pull-ext
+[ "$MODE" = board ] && pull=
+# 🔴 `--semantic` IS THE WHOLE POINT OF THE TICK. Since #3414 (2026-10-11) doc-search answers from
+# the hybrid lane by default and exits BEFORE it builds the semantic index, so this tick embedded
+# nothing for three weeks: the cache moved only when some session's query fell back to the semantic
+# lane, and the hourly reload re-loaded a stale cache. Measured 2026-10-31: the first `--semantic` tick
+# embedded 29,062 of 72,318 chunks (9 min 23 s). Only the semantic lane embeds.
+# shellcheck disable=SC2086 # $pull is one flag or empty, never a word list
+out=$(timeout 900 node tools/doc-search.mjs --semantic $pull "index freshness tick" 2>&1 | grep -E ' newly embedded|^  ⚠ (index cache|external root)' | head -4 | tr '\n' ' ')
+if [ "$MODE" = full ]; then
+  echo "$(date -Is) [$ROOT @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)] ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"
+  exit 0
+fi
+# The board lane logs only when it moved something: 288 quiet ticks a day would bury the hourly lines.
+# The loader runs from the PRIMARY, which holds the cache the embed just wrote.
+load=$(timeout 120 node "$PRIMARY/tools/xerj-load.mjs" --only ext:agent-board/ --newer-than 10 2>&1)
+rc=$?
+case "$load" in
+*"fast lane: 0 doc"* | *"changed in the last"*) [ "$rc" = 0 ] && exit 0 ;;
+esac
+echo "$(date -Is) board lane rc=$rc ${board:-} | ${out:-} | $(printf '%s' "$load" | grep -E 'fast lane|REFUSING|✕' | head -2 | tr '\n' ' ')" >>"$LOG"
