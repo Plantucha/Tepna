@@ -148,12 +148,7 @@ Per-device capture instructions without the box live in [`how-to-collect/`](how-
   purpose and report what the suite fails to notice; the ledger records each surviving mutant with
   the probe that excused it, and never waves one through.
 
-**In `2.17.0` (2026-09-27 → 2026-10-05, 125 commits, 99 changesets).** The capture lane learned to
-judge a night on its own: the loss audit got its bar, SOLID-NIGHT its tripwire for unrecorded clock
-shifts, the ring its honest completeness model and a declared clock stream, and the box judges a
-night twenty minutes after its data goes quiet instead of the next evening. The mutation gate stopped
-hiding survivors behind timeouts, declared the one module it cannot measure, and started reading
-Codex as a second opinion under mechanical verification. Full history in the **[changelog](CHANGELOG.md)**.
+**In `2.24.0` (2026-10-26 → 2026-10-28, 102 commits, 88 changesets).** 11 added · 12 changed · 65 fixed. Full history in the **[changelog](CHANGELOG.md)**.
 
 ---
 

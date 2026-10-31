@@ -128,25 +128,28 @@ function readmeAudit(txt, ctx) {
   const pyt = txt.match(/\*\*([\d,]+)\+ Python tests\*\*/);
   const pyFloor = ctx.pyTests != null ? fmtInt(Math.floor(ctx.pyTests / 100) * 100) + '+' : null;
   row('Python tests', pyt ? pyt[1] + '+' : '(marker missing)', pyFloor, pyFloor, pyt ? (t) => t.replace(pyt[0], '**' + pyFloor + ' Python tests**') : null);
-  // The narrative header. "Since `X` (…)" is the between-releases form and is converted to the shipped
-  // form "In `Y` (…)" at the cut. An "In" form already present means the narrative was never rewritten
-  // after the LAST cut — it describes the previous release, and only its author can fix that.
-  const since = txt.match(/\*\*Since `(\d+\.\d+\.\d+)` \((\d{4}-\d{2}-\d{2}) → (\d{4}-\d{2}-\d{2}), (\d+) commits, (\d+) changesets\)\.\*\*/);
-  const inHdr = txt.match(/\*\*In `(\d+\.\d+\.\d+)` \(([^)]*)\)\.\*\*/);
+  // The release narrative. Until 2026-10-31 its body was authored prose and the cut stamped only a
+  // "Since `X`" header; an "In `Y`" header meant nobody had rewritten the body. Nobody did after
+  // 2.17.0, so the front page described a release seven cuts old. The cut now writes the whole
+  // paragraph from the changesets it consumes (releaseNarrative), so no clause in it is authored.
+  const narr = txt.match(/\*\*(Since|In) `(\d+\.\d+\.\d+)` \(([^)]*)\)\.\*\*[\s\S]*?Full history in the \*\*\[changelog\]\(CHANGELOG\.md\)\*\*\./);
   const span = ctx.fromDate + ' → ' + ctx.date + ', ' + (ctx.commits == null ? '?' : ctx.commits) + ' commits, ' + split.n + ' changesets';
-  const cutHdr = 'In `' + ctx.to + '` (' + span + ')';
   row(
-    'release narrative header',
-    since
-      ? 'Since `' + since[1] + '` (' + since[2] + ' → ' + since[3] + ', ' + since[4] + ' commits, ' + since[5] + ' changesets)'
-      : inHdr
-        ? 'In `' + inHdr[1] + '` (' + inHdr[2] + ')'
-        : '(marker missing)',
-    since ? 'Since `' + ctx.from + '` (' + span + ')' : inHdr ? 'STALE — describes ' + inHdr[1] + '; the ' + ctx.to + ' paragraph is authored prose, write it' : null,
-    since ? cutHdr : null,
-    since ? (t) => t.replace(since[0], '**' + cutHdr + '.**') : null
+    'release narrative',
+    narr ? narr[1] + ' `' + narr[2] + '` (' + narr[3] + ')' : '(marker missing)',
+    narr ? (narr[2] === ctx.from ? 'In `' + ctx.from + '` — the last cut' : 'STALE — describes ' + narr[2] + ', the last cut is ' + ctx.from) : null,
+    narr ? 'In `' + ctx.to + '` (' + span + ')' : null,
+    narr ? (t) => t.replace(narr[0], releaseNarrative(ctx.to, span, ctx.typeCounts || [])) : null
   );
   return rows;
+}
+
+/* The release paragraph the cut writes into README.md. Every clause is counted from the changesets
+   the cut consumes, so none of it can go stale. typeCounts is [[label, n], …] in Keep-a-Changelog
+   order with the zero counts dropped. */
+export function releaseNarrative(version, span, typeCounts) {
+  const body = typeCounts.length ? typeCounts.map(([label, n]) => n + ' ' + label).join(' · ') + '.' : 'No changesets.';
+  return '**In `' + version + '` (' + span + ').** ' + body + ' Full history in the **[changelog](CHANGELOG.md)**.';
 }
 
 function printReadmeAudit(rows, dry) {
@@ -159,7 +162,7 @@ function printReadmeAudit(rows, dry) {
     if (r.cut != null && r.cut !== r.now) line += (dry ? '   → cut writes: ' : '   → written: ') + r.cut;
     console.log(line);
   }
-  console.log('  ! prose claims in the release narrative are authored — re-read them; nothing here can check a sentence.');
+  console.log('  ! the release narrative is generated from the changesets; any other README sentence is authored — re-read it.');
 }
 
 function bumpVersion(v, level) {
@@ -267,6 +270,7 @@ function main() {
         fromDate: prev ? prev.date : '?',
         commits,
         pendingSplit: { n: changesets.length, minor: count('minor'), patch: count('patch'), major: count('major'), level },
+        typeCounts: CATS.map(([cat, head]) => [head.toLowerCase(), changesets.filter((c) => c.type === cat).length]).filter(([, n]) => n > 0),
         assertions: measured.assertions,
         groups: measured.groups,
         pyTests: measured.pyTests

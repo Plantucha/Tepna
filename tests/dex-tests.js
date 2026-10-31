@@ -11583,7 +11583,7 @@
        re-tier never touches while three siblings over the SAME two trees published a population,
        and on 2026-10-31 both were wired instead (row
        2026-10-28-two-nsrr-readers-are-excluded-where-three-were-debt). `UNDECIDED_CORPUS` holds the
-       5 the tracer still refuses to decide, each with the shape that defeats it, so a sixth reds
+       4 the tracer still refuses to decide, each with the shape that defeats it, so a fifth reds
        rather than passing as a shrug.
 
        The NAMED SET below is what makes this a gate rather than a ratchet: a count would pass a new
@@ -49136,6 +49136,19 @@
           );
           T.ok('§2b · …and --check says out loud that it only inspected the working tree', /compares the working tree/.test(baSrc), 'the misleading "current" is where the caveat belongs');
         }
+        /* §2c · the README release paragraph is GENERATED at the cut. Until 2026-10-31 the cut stamped
+           only a "Since" header and left the body to an author; nobody wrote it after 2.17.0, so the
+           front page described a release seven cuts old. The cut now replaces the whole paragraph in
+           either form, from the changesets it consumes. */
+        T.ok(
+          '§2c · release.mjs writes the README release paragraph through releaseNarrative()',
+          /export function releaseNarrative\(/.test(relSrc) && /t\.replace\(narr\[0\], releaseNarrative\(/.test(relSrc)
+        );
+        T.ok(
+          '§2c · …and matches the paragraph in BOTH forms (Since and In), so a missed cut cannot strand it',
+          /\(Since\|In\) `/.test(relSrc),
+          'an In-only or Since-only match is the stale-paragraph bug'
+        );
       }
 
       /* §2c · DEEP-AUDIT-II §12.2 — gateBEvaluate must FAIL CLOSED on a record with no outputHash.

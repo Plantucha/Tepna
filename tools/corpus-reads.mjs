@@ -911,18 +911,17 @@ export const POPULATION_EXCLUSIONS = {
     'it walks a git-archive export built to EXCLUDE the corpus, and it already publishes its own offer-vs-read population over that export; a second verdict there would name a repo-path unit as a corpus one'
 };
 
-/* ── THE FIVE THE TRACER STILL WILL NOT DECIDE ─────────────────────────────────────────────────
-   Named, with the shape that defeats the tracer, so a SIXTH is a red rather than a shrug. The
-   abstention is the honest answer in each: none of the three shapes can be decided from the
-   masked expression alone, and a guess in either direction would be a verdict over an unexamined
-   path. They group into three kinds, not five special cases:
+/* ── THE FOUR THE TRACER STILL WILL NOT DECIDE ─────────────────────────────────────────────────
+   Named, with the shape that defeats the tracer, so a FIFTH is a red rather than a shrug. The
+   abstention is the honest answer in each: neither shape can be decided from the masked
+   expression alone, and a guess in either direction would be a verdict over an unexamined path.
+   They group into two kinds, not four special cases. (`release.mjs` left on 2026-10-31: it entered
+   the population only through a `\d{4}-\d{2}-\d{2}` header regex in its README audit, and the
+   generated release paragraph retired that regex. It reads no corpus.)
 
      board.mjs            a HOME-DIRECTORY store (`path.join(homedir(), '.npm', '_npx')`,
      fleet-turns.mjs      `join(homedir(), …)` for the transcripts) — neither the repo tree nor a
                           path any flag supplies, and the ladder has no rung for it.
-     release.mjs          a LOCAL HELPER the tracer follows only far enough to look for a run-time
-                          read: `p('changes')` is `join(ROOT, …)`, so abstaining costs a true
-                          repo clearance and claims nothing.
      sigma-corpus-headless.mjs  a WORKLIST walk — `readdirSync(stack.pop())`, whose origin is
      r5-hr-reference.mjs        whatever was pushed; and a TEMPLATE literal root, whose body the
                                 mask blanks (`${REPO}/uploads/trio` reads as an empty backtick
@@ -930,7 +929,6 @@ export const POPULATION_EXCLUSIONS = {
 export const UNDECIDED_CORPUS = {
   'board.mjs': 'a home-directory store under homedir(), neither repo tree nor a flag-supplied path',
   'fleet-turns.mjs': 'a home-directory transcript store under homedir()',
-  'release.mjs': 'the local helper p() joins the repo ROOT; the tracer follows a helper only to find a run-time read',
   'sigma-corpus-headless.mjs': 'a worklist walk over stack.pop(), whose origin is whatever was pushed',
   'r5-hr-reference.mjs': 'a template-literal root; the mask blanks the body, so the expression reads empty'
 };
