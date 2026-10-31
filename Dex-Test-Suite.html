@@ -454,6 +454,10 @@ async function main(){
     ['ppgdex_inverted', 'synthetic_ppgdex_verity_inverted.txt', 'synthetic_ppgdex_inverted_golden.node-export.json'],  // PPG-FOOT-PLACEMENT §0: the real-hardware polarity
     ['ppgdex_gapped', 'synthetic_ppgdex_verity_gapped.txt', 'synthetic_ppgdex_gapped_golden.node-export.json'],  // §2.2 fragmented Verity twin
     ['ppgdex_rich', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_rich_golden.node-export.json'],  // §1 INTEGRATOR-facing rich export
+    // The TWO-CLOCK Verity twin (residue 2026-10-29-no-committed-ppgdex-fixture-carries-a-host-axis) —
+    // the clean twin with ONE column changed, so the host axis reads independent:true somewhere
+    // COMMITTED. Every other committed input stamps its host from the device time.
+    ['ppgdex_twoclock', 'synthetic_ppgdex_verity_twoclock.txt', 'synthetic_ppgdex_twoclock_golden.node-export.json'],
     ['ecgdex_rich', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_rich_golden.node-export.json'],  // §7.4 ECGDex rich export
     ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json'],
     // ADVERSARIAL ECGDex twin — a FRAGMENTED recording, WITH a golden (INTEGRATOR-GAP-AWARE-OVERLAP

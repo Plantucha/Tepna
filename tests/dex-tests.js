@@ -32465,6 +32465,104 @@
       T.ok('CONTROL · …while still carrying recording + ganglior_events', !!light.recording && Array.isArray(light.ganglior_events));
     });
 
+    /* ════ THE DISCIPLINED HALF OF THE HOST AXIS FINALLY HAS A COMMITTED FIXTURE ════════════════
+       (residue `2026-10-29-no-committed-ppgdex-fixture-carries-a-host-axis`)
+       Three committed PpgDex goldens DO publish `recording.hostAxis`, so a change to the block moves
+       fixture bytes. What none of them could reach is the half of the verdict that says YES: every
+       committed input stamps its host column from the device time, so `DexClock.hostAxis` reads
+       `independent:false` on all of them (residual spread 0.75–0.93 ms, one stamp quantum) and the
+       pinned side was always the refusal. `independent:true`, `inertReason:null`, `timingSource
+       'device+host'` and a ppm that REACHES `fs` were exercised only by inputs this file builds
+       inline — the same "a path nothing pins" class the group above exists for.
+
+       `synthetic_ppgdex_verity_twoclock.txt` is the clean Verity twin with ONE column changed: the
+       Phone stamp lags the sample by 9 ms between 14 s and 22 s. That is a LINK STALL, the shape a BLE
+       host column actually takes, and it is deliberately not a drift: a realistic ~30 ppm over a 40 s
+       clip is 1.2 ms, under the 2 ms quantum, so no drift of plausible size can make a clip this short
+       independent. 9 ms is above `CK_AXIS_INERT_MS` and far below `PPG_OFFSET_STEP_BOUND_MS`, so the
+       axis stays ONE segment and this fixture does not silently also become the first committed
+       multi-segment night. RICH, because PpgDex publishes the block only under `opts.rich`. */
+    group('PpgDex two-clock export ≡ its committed golden — the INDEPENDENT host axis', 'ppgdex-dsp · equiv · host-axis · fixture', function (T) {
+      var eq = env.equiv && env.equiv.ppgdex_twoclock;
+      var clean = env.equiv && env.equiv.ppgdex_rich;
+      var P = env.PpgDex;
+      if (!(eq && eq.input && eq.fixture && P && typeof P.compute === 'function')) {
+        T.skip('committed two-clock pair present', 'synthetic_ppgdex_verity_twoclock.txt / _twoclock_golden absent — both are COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      /* The golden is regenerated in the BUNDLE's realm, so the recompute runs there too. */
+      var rich = inBundleRealm('PpgDex', function () {
+        return P.compute({ text: eq.input }, { rich: true });
+      });
+      // The fleet-wide volatile exclusions, identical to the other equiv legs in this file.
+      function strip(o) {
+        var c = JSON.parse(JSON.stringify(o));
+        delete c.kernel;
+        if (c.schema) {
+          delete c.schema.generated;
+          delete c.schema.provenance;
+        }
+        delete c.provenance;
+        if (c.recording) delete c.recording.contentId;
+        if (c.measurement && typeof c.measurement === 'object') {
+          Object.keys(c.measurement).forEach(function (k) {
+            var b = c.measurement[k];
+            if (b && typeof b === 'object') {
+              delete b.code;
+              delete b.codeReason;
+            }
+          });
+        }
+        return c;
+      }
+      T.eq('compute({rich:true}) reproduces the committed golden byte-for-byte (volatile keys aside)', JSON.stringify(strip(rich)), JSON.stringify(strip(eq.fixture)));
+
+      /* THE VALUES, asserted on the COMMITTED bytes — an equality against a recompute would agree just
+         as happily if both sides lost the verdict, which is how the refusal side stayed the only one
+         pinned for so long. */
+      var ha = eq.fixture.recording && eq.fixture.recording.hostAxis;
+      T.ok('the committed golden carries recording.hostAxis at all', !!ha, 'ABSENT — regenerate: node tools/regen-ppgdex-goldens.mjs');
+      if (!ha) return;
+      T.eq('…and DexClock judged its host column INDEPENDENT — the branch no committed fixture reached', ha.independent, true);
+      T.eq('…so it carries NO inertReason', ha.inertReason, null);
+      T.eq('…and the export claims two clocks', ha.timingSource, 'device+host');
+      T.ok('…on a residual spread above the 2 ms quantum, which is WHY it is independent', typeof ha.spreadMs === 'number' && ha.spreadMs > 2, 'spreadMs=' + ha.spreadMs);
+      T.eq('…over a real device axis, not a drawn one', ha.drawn, false);
+      T.ok('…with at least the 3 anchors DexClock refuses below', ha.anchors >= 3, 'anchors=' + ha.anchors);
+      T.eq('…and the correction was APPLIED', ha.applied, true);
+      // The quality-block projection of the same verdict — the field a consumer reads instead.
+      var tq = eq.fixture.recording.timing;
+      T.eq('recording.timing publishes the same verdict', tq && tq.independent, true);
+      T.eq('…and the same source', tq && tq.timingSource, 'device+host');
+      /* ONE SEGMENT, deliberately: the stall sits far below PPG_OFFSET_STEP_BOUND_MS, so this fixture
+         pins the single-segment path and does not quietly carry a second, unrelated first. */
+      T.ok('the stall does NOT cut the axis into offset segments', !eq.fixture.recording.offsetSegments, JSON.stringify(eq.fixture.recording.offsetSegments));
+
+      /* CONTROL — the clean twin takes the OTHER branch. Without it every assertion above would pass
+         on a build that called every axis independent. */
+      if (clean && clean.fixture) {
+        var ch = clean.fixture.recording && clean.fixture.recording.hostAxis;
+        T.eq('CONTROL · the clean twin reads NOT independent', ch && ch.independent, false);
+        T.eq('CONTROL · …and claims one clock', ch && ch.timingSource, 'device');
+        T.ok('CONTROL · …so the two committed fixtures disagree — that disagreement IS the new coverage', ha.independent !== (ch && ch.independent));
+      }
+      /* ANTI-VACUITY on the INPUTS: the two committed files must differ in the Phone column and
+         nowhere else, so what this fixture adds is a host clock and not a second signal. */
+      if (clean && clean.input) {
+        var a = eq.input.trim().split('\n');
+        var b = clean.input.trim().split('\n');
+        T.eq('the two committed inputs carry the same row count', a.length, b.length);
+        var diffCols = {};
+        for (var i = 1; i < Math.min(a.length, b.length); i++) {
+          var ca = a[i].split(';');
+          var cb = b[i].split(';');
+          for (var j = 0; j < Math.max(ca.length, cb.length); j++) if (ca[j] !== cb[j]) diffCols[j] = (diffCols[j] || 0) + 1;
+        }
+        T.eq('…and differ in exactly ONE column', Object.keys(diffCols).length, 1);
+        T.eq('…which is the Phone timestamp, column 0', Object.keys(diffCols)[0], '0');
+      }
+    });
+
     group('PpgDex O2Ring finger export ≡ its committed golden — the device-crystal DEFAULT (Stage 3b)', 'ppgdex-dsp · equiv · device-crystal', function (T) {
       /* The dynamic (GATE-C) leg for the crystal DEFAULT-flip: compute({text}) on the committed finger
          twin — WITHOUT any timebase opt — must reproduce the golden, which was recorded on the crystal.
@@ -71372,7 +71470,8 @@
         ['ppgdex_finger', 'synthetic_ppgdex_o2ring_finger_golden.node-export.json'],
         ['ppgdex_inverted', 'synthetic_ppgdex_inverted_golden.node-export.json'],
         ['ppgdex_gapped', 'synthetic_ppgdex_gapped_golden.node-export.json'],
-        ['ppgdex_rich', 'synthetic_ppgdex_rich_golden.node-export.json']
+        ['ppgdex_rich', 'synthetic_ppgdex_rich_golden.node-export.json'],
+        ['ppgdex_twoclock', 'synthetic_ppgdex_twoclock_golden.node-export.json']
       ];
       var seen = 0;
       CASES.forEach(function (c) {
