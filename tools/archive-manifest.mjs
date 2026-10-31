@@ -271,11 +271,11 @@ async function readManifest(night) {
 async function doWrite(night, { quiet = false } = {}) {
   const dest = destRoot();
   const unusable = await destUsable(dest);
-  if (unusable) return { status: 'NOT_RUN', reason: unusable, findings: [] };
+  if (unusable) return { status: 'NOT_RUN', reason: unusable, findings: [], checked: 0 };
   const src = parseSrc();
   const probe = await probeSourceNight(src, night);
   if (probe === 'error') {
-    return { status: 'NOT_RUN', reason: `source unreachable over ssh: ${src.host}`, findings: [] };
+    return { status: 'NOT_RUN', reason: `source unreachable over ssh: ${src.host}`, findings: [], checked: 0 };
   }
   if (probe === 'no') {
     return { status: 'FAIL', reason: `source night not found: ${night}`, findings: [`${night}: source missing`] };
@@ -299,7 +299,7 @@ async function doWrite(night, { quiet = false } = {}) {
 async function doVerify(night, { quiet = false } = {}) {
   const dest = destRoot();
   const unusable = await destUsable(dest);
-  if (unusable) return { status: 'NOT_RUN', reason: unusable, findings: [] };
+  if (unusable) return { status: 'NOT_RUN', reason: unusable, findings: [], checked: 0 };
   const manifest = await readManifest(night);
   if (!manifest) return { status: 'FAIL', findings: [`${night}: no manifest`], checked: 1 };
   const destFiles = await hashLocalTree(join(dest, night));
@@ -314,7 +314,7 @@ async function doVerify(night, { quiet = false } = {}) {
 async function doSync() {
   const dest = destRoot();
   const unusable = await destUsable(dest);
-  if (unusable) return { status: 'NOT_RUN', reason: unusable, findings: [] };
+  if (unusable) return { status: 'NOT_RUN', reason: unusable, findings: [], checked: 0 };
   const src = parseSrc();
   const popBefore = snapshotNights(dest);
   const now = new Date();
@@ -413,6 +413,14 @@ export async function selftest() {
     t('FAIL verdict validates and carries its reason', vf.status === 'FAIL' && typeof vf.reason === 'string' && vf.reason.includes('a.bin'));
     const vn = verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, reason: 'archive dest does not exist' });
     t('NOT_RUN verdict validates', vn.status === 'NOT_RUN' && vn.result === null);
+
+    process.env.TEPNA_ARCHIVE_DEST = join(base, 'absent-dest');
+    const rv = await doVerify('2000-01-01', { quiet: true });
+    let vr = null;
+    try {
+      vr = verdictOf(rv);
+    } catch {}
+    t('verify over an absent dest yields a valid NOT_RUN verdict', rv.status === 'NOT_RUN' && vr !== null && vr.population.checked === 0);
   } finally {
     await rm(base, { recursive: true, force: true });
     delete process.env.TEPNA_ARCHIVE_SRC;
