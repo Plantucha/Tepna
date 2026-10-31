@@ -1414,6 +1414,13 @@ function readEquiv() {
   /* INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §1 — the INTEGRATOR-FACING rich export. Same committed
      input as `ppgdex_synth`; only `compute`'s `{rich:true}` differs, so the pair isolates that flag. */
   pairCommitted('ppgdex_rich', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_rich_golden.node-export.json');
+  /* The TWO-CLOCK Verity twin (residue 2026-10-29-no-committed-ppgdex-fixture-carries-a-host-axis).
+     Every other committed PpgDex input stamps its host column from the device time, so
+     `DexClock.hostAxis` reads `independent:false` on all of them and the three goldens carrying the
+     block pinned only the refusal. This twin changes ONE column — the Phone stamp lags the sample by
+     9 ms between 14 s and 22 s — so the disciplined branch has committed bytes. pairCommitted, so a
+     DEX_UPLOADS real-corpus override cannot turn the leg into a silent skip. */
+  pairCommitted('ppgdex_twoclock', 'synthetic_ppgdex_verity_twoclock.txt', 'synthetic_ppgdex_twoclock_golden.node-export.json');
   /* ECGDEX-EDR-RESP-ACCURACY §7.4 — the ECGDex half of the same hole. Same committed input as
      `ecgdex_synth`; only `compute`'s `{rich:true}` differs, so the pair isolates that flag. */
   pairCommitted('ecgdex_rich', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_rich_golden.node-export.json');

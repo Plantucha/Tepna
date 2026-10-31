@@ -97,6 +97,13 @@ uploads/*
 # the gap derivation was gated only by inputs hand-built inside the test, which can drift with it.
 # Same 40 s stream with two arm-off holes cut out, so diffing the two shows the gap and nothing else.
 !uploads/synthetic_ppgdex_verity_gapped.txt
+# The TWO-CLOCK Verity twin (row 2026-10-29-no-committed-ppgdex-fixture-carries-a-host-axis). Every
+# other committed input stamps its host column from the device time, so DexClock.hostAxis reads
+# independent:false on all of them and no committed fixture reached the disciplined branch. Here the
+# host stamp lags the sample by 9 ms between 14 s and 22 s — a link stall, above CK_AXIS_INERT_MS and
+# far below PPG_OFFSET_STEP_BOUND_MS, so the axis stays ONE segment. Byte-identical to the clean twin
+# except the Phone timestamp column.
+!uploads/synthetic_ppgdex_verity_twoclock.txt
 # O2Ring FINGER twin (PPGDEX-O2RING-FINGER-SITE §6) — single optical column, 8-bit, ~125.7 Hz,
 # carrying BOTH sentinel classes. Closed-form, no recording of any person.
 !uploads/synthetic_ppgdex_o2ring_finger.txt
@@ -126,6 +133,9 @@ uploads/*
 # two-hole Verity twin, so recording.coverage has a committed equiv/GATE-C leg like ECGDex's.
 !uploads/synthetic_ppgdex_gapped_golden.node-export.json
 !uploads/synthetic_ppgdex_rich_golden.node-export.json
+# …and the TWO-CLOCK golden — the RICH export of the twin above, because PpgDex publishes
+# recording.hostAxis only under opts.rich. It pins independent:true and inertReason:null.
+!uploads/synthetic_ppgdex_twoclock_golden.node-export.json
 # …and the O2Ring FINGER golden (O2RING-ADAPTIVE-TIMEBASE Stage 3b) — pins PpgDex's device-crystal
 # DEFAULT (the crystal path had no committed leg; every other PpgDex golden is a Verity).
 !uploads/synthetic_ppgdex_o2ring_finger_golden.node-export.json
