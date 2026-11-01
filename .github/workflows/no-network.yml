@@ -47,7 +47,7 @@ jobs:
       # mismatch this key exists to prevent, so a miss must be a clean download.
       - name: Cache the Playwright chromium build
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: ms-playwright-chromium-1.48.0-${{ runner.os }}
