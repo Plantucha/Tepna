@@ -12,6 +12,7 @@ import types
 import pytest
 
 import capture
+from _srcscan import module_source
 
 
 class _Clock:
@@ -506,3 +507,62 @@ def test_the_absorbed_shift_REACHES_status_json(monkeypatch):
         "sub-second resolution is load-bearing — a rounded report hides a small absorbed shift entirely"
     )
     assert hc.get("trust") == "ntp", "and it must ride ALONGSIDE the host facts, not replace them"
+
+
+def test_the_device_clock_stays_civil_while_the_capture_frame_absorbs_a_fall_back(monkeypatch):
+    """A DEVICE RTC TAKES CIVIL TIME, NEVER THE CAPTURE FRAME. Measured 2026-11-01: a session that
+    opened before the 02:00 fall-back pushed `2026-11-01 06:43:05` at 05:43:05 EST, so the ring stamped
+    its own stored header an hour ahead. `_now()` must still read the absorbed frame here — the open
+    recording may not rewind — so the two answers differ by exactly the absorbed shift, and that
+    difference is the whole content of `device_clock_now`. Fails against the pre-fix code, which read
+    one clock for both jobs."""
+    clk = _ZonedClock(_NY_FALLBACK_EVE, "America/New_York")
+    _install_zoned(monkeypatch, clk)
+    capture._now()
+    clk.advance(3600)  # through the fall-back, with a writer still open
+    absorbed = capture._now()
+    assert absorbed == dt.datetime(2026, 11, 1, 2, 30), "the open recording must not rewind"
+    assert clk.wall == dt.datetime(2026, 11, 1, 1, 30), "the zone did fall back"
+    assert capture.absorbed_shift_sec() == -3600, (
+        "the shift must be REAL here, or this test proves nothing about a frame nobody absorbed"
+    )
+    pushed = capture.device_clock_now()
+    assert pushed == clk.wall, "the ring must be given true civil time"
+    assert (pushed - absorbed).total_seconds() == capture.absorbed_shift_sec(), (
+        "and the gap between the two clocks must be the absorbed shift itself, not a second story"
+    )
+
+
+def test_the_device_clock_equals_the_capture_frame_in_the_steady_state(monkeypatch):
+    """THE CONTROL. With nothing absorbed the two clocks must agree, so the test above cannot pass by
+    reading some other clock entirely."""
+    clk = _ZonedClock(_NY_FALLBACK_EVE, "America/New_York")
+    _install_zoned(monkeypatch, clk)
+    capture._now()
+    clk.advance(60)  # still before the transition
+    assert capture.absorbed_shift_sec() == 0, "nothing to absorb yet"
+    assert capture.device_clock_now() == capture._now() == clk.wall
+
+
+def test_the_ring_push_and_the_rtc_offset_both_read_the_device_clock():
+    """AGENT-NEUTRAL CONTROL over the two call sites. The fix is a one-word choice at each of them, so
+    a later edit can revert it with no test failing anywhere else: the push would write the capture
+    frame into the ring, and the offset read would report an absorbed session's own shift as the ring's
+    error. The planted leg at the end is what keeps this honest — an absence check passes the moment
+    its own scan stops matching.
+
+    The read goes through `tests/_srcscan.module_source`, never `inspect.getsource` or a bare open: a raw
+    read of a mutatable module makes mutmut report the WHOLE module as "failed to collect stats", and the
+    `not in` and `count == 1` legs below are two of the three shapes that break against a generated file.
+    The helper skips this one test there and leaves the rest of the module measurable."""
+    src = module_source("capture.py")
+    assert src.count("def device_clock_now()") == 1, "one home for the decision"
+    assert "_clk = device_clock_now()" in src, "the 0xC0 push must take civil time"
+    assert "ring_clock_offset_s(_rtc, device_clock_now())" in src, "and so must the readback comparison"
+    assert "_clk = _now()" not in src, "the push must not read the capture frame"
+    assert "ring_clock_offset_s(_rtc, _now())" not in src, "nor may the comparison"
+    planted = src.replace("ring_clock_offset_s(_rtc, device_clock_now())", "ring_clock_offset_s(_rtc, _now())").replace(
+        "_clk = device_clock_now()", "_clk = _now()"
+    )
+    assert "ring_clock_offset_s(_rtc, _now())" in planted, "the scan still matches the defect it looks for"
+    assert "_clk = _now()" in planted, "both legs of the scan are live"
