@@ -218,7 +218,15 @@ your diff.
 - **Kodiak merges** (`.kodiak.toml`, `require_automerge_label = false`): every non-draft PR without a
   `do-not-merge` label sits in its serial queue — it updates the front PR when BEHIND, waits for CI,
   merges, repeats. A PR sitting BEHIND while the front is mid-CI is serialising, not stalling. To HOLD:
-  Draft or `do-not-merge`. Arming `--auto` adds nothing.
+  `do-not-merge` — a draft holds only until it is green (next bullet). Arming `--auto` adds nothing.
+- **The walker undrafts — no person does** (owner, 2026-11-01: "you constantly asking about it").
+  `tepna-pr-walker.timer` (rig user unit, about every 90 s) runs `tools/pr-walker.mjs` under the shared
+  `Plantucha` login. Each pass marks a green draft ready while fewer than 4 PRs are out of draft, oldest
+  first; it also re-runs a red required check once per head, rebases a conflict via `rebase-safe`, and
+  merges when Kodiak sits idle. So a `ready_for_review` by `Plantucha` is the walker — read
+  `journalctl --user -u tepna-pr-walker.service` (local time), never ask the owner. A bird asking for
+  an undraft is usually already served: read `gh pr view` first. **A capture-host PR the walker lands
+  deploys to vigil**, so a deploy that needs the owner's yes carries `do-not-merge` until he gives it.
 - Without Kodiak, `strict` status checks make an armed green BEHIND PR a **deadlock** (auto-merge never
   updates a branch): `node tools/queue-doctor.mjs --dry-run` names the green-and-stuck state and
   `node tools/land-pr.mjs <PR#>` drives one PR to merge. A merge queue is **not available** (user-owned
