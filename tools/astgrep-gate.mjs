@@ -6,11 +6,12 @@
  * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
  * project root, or http://www.apache.org/licenses/LICENSE-2.0
  * ══════════════════════════════════════════════════════════════════════════════════════════
- * FOUR REVIEWER BUGS, MATCHED ON THE SYNTAX TREE — §∅ and the Clock Contract, mechanised.
+ * FIVE REVIEWER BUGS, MATCHED ON THE SYNTAX TREE — §∅, the Clock Contract and §🧾, mechanised.
  *
- * Four shapes that a reviewer reads as a defect, matched on the syntax tree rather than on text.
+ * Five shapes that a reviewer reads as a defect, matched on the syntax tree rather than on text.
  * CLAUDE.md names them: `?? 0` and `.get(k, 0)` standing in for absence (§∅), and `new Date(str)` or
- * `Date.parse` standing in for a parse (§🔒 §2.4). A regex finds
+ * `Date.parse` standing in for a parse (§🔒 §2.4). The fifth is §🧾's: a `.length` read of a
+ * `validate` result, which answers `{ ok, errors, checked }`, so the guard behind it is dead. A regex finds
  * three of them and cannot find the fourth honestly: `new Date($A)` is legal on a number and the root
  * modules make 126 such calls, so the ARGUMENT'S KIND is the rule. ast-grep matches the tree, so the
  * string and the template literal match and the number does not.
@@ -65,6 +66,17 @@ export const SCOPES = {
   py: {
     label: 'capture-host/**.py (tests excluded)',
     keep: (f) => /^capture-host\/(?:tools\/|deploy\/)?[^/]+\.py$/.test(f)
+  },
+  /* THE `js` SCOPE DOES NOT REACH `tools/`, AND THAT IS WHERE THE VERDICT CONSUMERS LIVE. Measured
+     2026-11-01 over the tree: all 80 bindings of a `validate` result sit in `tools/*.mjs` and
+     `tests/dex-tests.js`, and all five defective ones are in `tools/`. So this scope is `js` plus the
+     top-level tools, for the one rule that needs it. It is ADDITIVE: widening `js` itself would put
+     306 more files under the four standing rules and turn their empty allow-lists into a backlog.
+     `tools/probe-batteries/**` stays out — those are per-node DSP copies and none of them calls
+     `validate`, so a hit there could only be a duplicate of its root module's. */
+  jsTools: {
+    label: 'root *.js + tests/*.{js,mjs} + codegen/*.{js,mjs} + tools/*.mjs',
+    keep: (f) => SCOPES.js.keep(f) || /^tools\/[^/]+\.mjs$/.test(f)
   }
 };
 
@@ -72,7 +84,8 @@ export const RULES = [
   { id: 'no-nullish-zero', scope: 'js' },
   { id: 'no-new-date-string', scope: 'js' },
   { id: 'no-date-parse', scope: 'js' },
-  { id: 'no-dict-get-zero', scope: 'py' }
+  { id: 'no-dict-get-zero', scope: 'py' },
+  { id: 'no-verdict-validate-length', scope: 'jsTools' }
 ];
 
 /* PLANT AND LEGAL TWIN PER RULE. The twin is the half that matters: a rule that matched everything
@@ -85,7 +98,19 @@ export const CONTROLS = {
     twin: 'const c = new Date(tMs);\nconst d = new Date(Date.UTC(2026, 4, 13));\n'
   },
   'no-date-parse': { ext: 'js', plant: 'const a = Date.parse(raw);\n', twin: 'const b = parseTimestamp(raw);\n' },
-  'no-dict-get-zero': { ext: 'py', plant: 'a = d.get(k, 0)\nb = d.get(k, 0.0)\n', twin: 'c = d.get(k)\ne = d.get(k, None)\n' }
+  'no-dict-get-zero': { ext: 'py', plant: 'a = d.get(k, 0)\nb = d.get(k, 0.0)\n', twin: 'c = d.get(k)\ne = d.get(k, None)\n' },
+  /* The twin carries BOTH legal reads of the object and a real array's `.length`, because a rule
+     keyed on `.length` alone would match every array in the tree. */
+  'no-verdict-validate-length': {
+    ext: 'mjs',
+    plant:
+      'function a() {\n  const bad = Verdict.validate(v);\n  if (bad.length) process.exit(2);\n}\n' +
+      'function b() {\n  const bad = Verdict.validate(v);\n  if (bad && bad.length) process.exit(2);\n}\n',
+    twin:
+      'function c() {\n  const ck = Verdict.validate(v);\n  if (!ck.ok) throw new Error(ck.errors.join("; "));\n}\n' +
+      'function d() {\n  const chk = Verdict.validate(v);\n  if (!chk.ok) console.error(chk.errors.length);\n}\n' +
+      'function e() {\n  const list = xs.filter(Boolean);\n  if (list.length) process.exit(2);\n}\n'
+  }
 };
 
 /* ── PURE CORE ────────────────────────────────────────────────────────────────────────────────────
