@@ -65,6 +65,7 @@ import { fileURLToPath } from 'node:url';
 import { BAND_ABS, BAND_REL, MIN_NIGHTS, PASS_FRAC, median, withinBand } from './tch-firmware-reference.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { PRODUCER_COMMIT_NOTE } from './fold-generation.mjs';
+import { LEDGER_PATH, parseRows } from './residue-ids.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
@@ -792,13 +793,57 @@ function selftest() {
     top: {
       referenceAxisCanonical: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
       referenceAxisNote: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
-      producerCommitNote: { row: '2026-10-21-a-producer-commit-can-name-a-tree-it-never-held', declared: '2026-11-01' }
+      producerCommitNote: { row: '2026-11-01-the-published-records-predate-the-producer-commit-note', declared: '2026-11-01' }
     },
     pairedDrift: {
       referenceAxis: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' },
       refused: { row: '2026-10-20-the-published-tch-reference-figures-ride-the-mismatched-axis', declared: '2026-10-26' }
     }
   };
+  /* 🔴 A RATCHET KEYED TO A ROW DIES WITH THAT ROW. The ratchet below reds the day the record is
+     re-published, so an exemption cannot outlive its fix. Nothing guarded the OTHER end. The
+     `producerCommitNote` entry named `2026-10-21-a-producer-commit-can-name-a-tree-it-never-held`
+     until #4203 settled it: the producers were fixed, so the row was answered, while the records
+     already published still carry a bare sha. An entry naming a settled row reads as live and tracks
+     nothing, so these legs hold every named row to an OPEN state and the entry now points at the row
+     carrying the remaining half. They stay local to this list rather than sweeping the tree, because a
+     sweep would have to decide what a `row:` property means in code it does not own. `parseRows` is
+     imported so the state vocabulary is read from the tool that defines it, never re-spelled here.
+     Residue 2026-11-01-the-published-records-predate-the-producer-commit-note. */
+  {
+    const named = Object.entries(PUBLISHED_FIELD_GAP.top)
+      .map(([k, v]) => ['top.' + k, v])
+      .concat(Object.entries(PUBLISHED_FIELD_GAP.pairedDrift).map(([k, v]) => ['pairedDrift.' + k, v]));
+    ok(named.length >= 3, 'ANTI-VACUITY · the gap list carries entries whose rows can be resolved (' + named.length + ')');
+    const ledgerPath = path.join(ROOT, LEDGER_PATH);
+    if (fs.existsSync(ledgerPath)) {
+      const rows = parseRows(fs.readFileSync(ledgerPath, 'utf8'));
+      ok(rows.length >= 500, 'ANTI-VACUITY · the ledger parsed (' + rows.length + ' row(s)) — an unparsed table would pass the two legs below by vacuity');
+      const state = new Map(rows.map((r) => [r.id, r.state]));
+      /* ONE classifier, read twice: once over the real list and once over a plant, so a control cannot
+         drift away from the check it is controlling. */
+      const classify = (entries) => ({
+        absent: entries.filter(([, v]) => !state.has(v.row)).map(([k, v]) => k + ' → ' + v.row),
+        settled: entries.filter(([, v]) => state.has(v.row) && state.get(v.row) !== 'OPEN').map(([k, v]) => k + ' → ' + v.row + ' [' + state.get(v.row) + ']')
+      });
+      const real = classify(named);
+      ok(real.absent.length === 0, 'every held-back field names a row this ledger carries — absent: ' + (real.absent.join(', ') || 'none'));
+      ok(real.settled.length === 0, 'every held-back field names a row that is still OPEN — a settled row tracks nothing: ' + (real.settled.join(', ') || 'none'));
+      const aSettled = rows.find((r) => r.state !== 'OPEN' && r.state !== '');
+      ok(!!aSettled, 'ANTI-VACUITY · the ledger carries a settled row for the plant to borrow');
+      const plant = classify([
+        ['top.plantAbsent', { row: '1970-01-01-no-such-row', declared: '1970-01-01' }],
+        ['top.plantSettled', { row: aSettled ? aSettled.id : 'top.plantAbsent', declared: '1970-01-01' }]
+      ]);
+      ok(plant.absent.length === 1 && plant.absent[0].indexOf('top.plantAbsent') === 0, 'CONTROL · the absent leg fires on a key no ledger carries (' + (plant.absent.join(', ') || 'nothing') + ')');
+      ok(
+        plant.settled.length === 1 && plant.settled[0].indexOf('top.plantSettled') === 0,
+        'CONTROL · the settled leg fires on a row this ledger reads as settled (' + (plant.settled.join(', ') || 'nothing') + ')'
+      );
+    } else {
+      ok(false, 'briefs/RESIDUE.md is not beside this tool — the gap-row legs examined nothing (§4b)');
+    }
+  }
   /* The dated record filename is read out of the twin's own header, so this test pins no run. */
   const twinOnDisk = path.join(ROOT, 'codegen', 'generated', 'tch-reference-record.js');
   if (fs.existsSync(twinOnDisk)) {
