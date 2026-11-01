@@ -39,6 +39,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { functionSpan, recordedLineState, splitKey } from './mutation-key-core.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -218,7 +219,7 @@ export function bodyStart(masked, span) {
 }
 
 export function readContexts(masked, span, name) {
-  const tok = new RegExp(`(?<![A-Za-z0-9_])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_])`, 'g');
+  const tok = new RegExp(`(?<![A-Za-z0-9_])${escapeRe(name)}(?![A-Za-z0-9_])`, 'g');
   const reads = [];
   for (let i = bodyStart(masked, span); i < span[1]; i += 1) {
     const whole = masked[i];
