@@ -686,6 +686,23 @@ function verdict(o) {
   };
 }
 
+/* A REFUSAL IS A READING TOO. A caller that polls this tool must tell "it never looked" from "it
+   looked and wrote nothing", and three prose lines cannot carry that. Both refusals print the
+   NOT_RUN object and keep exit 2 — exit 1 stays reserved for a draft that failed its own check. */
+export function refusalVerdict(reason, commit) {
+  return verdict({
+    status: 'NOT_RUN',
+    checked: 0,
+    eligible: 0,
+    kept: 0,
+    rejected: 0,
+    gone: 0,
+    evidence: ['tools/mutation-draft-py.mjs'],
+    reason,
+    commit
+  });
+}
+
 function headCommit() {
   const r = spawnSync('git', ['-C', ROOT, 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8' });
   return r.status === 0 ? r.stdout.trim() : null;
@@ -718,6 +735,7 @@ async function main() {
       log('✗ REFUSED — local hour ' + hour + ' is outside the ' + NIGHT_FROM + ':00–' + NIGHT_TO + ':00 night window.');
       log("  A 30B model evicts bge-m3, and bge-m3 is every session's Rule 0 search (owner, 2026-10-04).");
       log('  `--dry-run --candidate <f.py>` exercises the whole harness and calls no model.');
+      log(JSON.stringify(refusalVerdict('local hour ' + hour + ' is outside the ' + NIGHT_FROM + ':00-' + NIGHT_TO + ':00 night window', headCommit())));
       process.exitCode = 2;
       return;
     }
@@ -727,6 +745,7 @@ async function main() {
   const keys = base[ident];
   if (!keys) {
     log('✗ ' + ident + ' carries no open survivor in the baseline — nothing to draft (a refusal, not an empty result)');
+    log(JSON.stringify(refusalVerdict(ident + ' carries no open survivor in the baseline', headCommit())));
     process.exitCode = 2;
     return;
   }
@@ -990,6 +1009,11 @@ function selftest() {
   eq(/    assert s\["files"\] == 6/.test(dr2), true, 'renderDraft compares a number with ==, never with is');
   eq(/^\n\ndef test_draft_m2/.test(dr2), true, 'renderDraft opens with the two newlines that give a joined file its blank lines');
   eq(/tmp_path \/ "n"/.test(dr), true, "renderDraft hands the fixture pytest's own tmp_path");
+  const rv = refusalVerdict('local hour 20 is outside the 0:00-8:00 night window', 'abcdef12');
+  eq(rv.status, 'NOT_RUN', 'a refusal reports NOT_RUN, never a zero result that reads as a measurement');
+  eq(rv.result, null, 'a NOT_RUN refusal carries result null');
+  eq(rv.population, { checked: 0, eligible: 0, excluded: 0 }, 'a refusal examined nothing and says so');
+  eq(typeof rv.reason === 'string' && rv.reason.length > 0, true, 'every non-PASS verdict names its reason');
   /* THE COUNT IS THE HELPER'S, NEVER A LITERAL — `selftest-all.mjs` reads this line as this tool's
      assertion total, and a typed figure would keep printing after an assertion was deleted. */
   log(process.exitCode ? 'SELFTEST FAILED after ' + n + ' assertions' : n + ' assertions passed');
