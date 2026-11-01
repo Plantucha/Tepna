@@ -44407,6 +44407,30 @@
         T.eq('ECGDex compute(text) · no sidecar, no blanking-run refusal', blanked(E.compute(etxt)), 0);
         T.eq('ECGDex compute(text, { runsText }) · the recorded span REFUSES its epoch', blanked(E.compute(etxt, { runsText: ERUNS })), 1);
         T.eq('ECGDex compute({ text, runsText }) · the sidecar beside the text reaches the parser too', blanked(E.compute({ text: etxt, runsText: ERUNS })), 1);
+        /* …and an UNREAD sidecar reaches the EXPORT, because a folded artefact reads the export and
+           not the record (row 2026-11-01-no-folded-artefact-names-an-unread-ecg-sidecar). An optical
+           companion's rows cannot be placed on an ECG stream, so `parseECG` answers `null` plus a
+           reason, `analyze` carries it, and the builder names it. */
+        var EOPT = [
+          '# stream=ppg1 rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 total_runs=1 examined=' + syn.int16.length,
+          'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact',
+          '# stream=ppg1 channel=channel 0 class=variable ratio=5.3 top2=1,2 share=0.922 decided_at=64runs window=0 confirmed=1 at=' + iso(e0 + 400000),
+          iso(e0 + 400000) + ';channel 0;100;' + 400 * fs + ';' + 30 * fs + ';30000;1;stuck;unavailable/varied;1'
+        ].join('\n');
+        var exUnread = E.compute({ text: etxt, runsText: EOPT });
+        T.ok(
+          '∅ · an UNREAD ECG sidecar is NAMED on the export, so a folded artefact tells it from a night the box recorded clean',
+          /channel 0/.test(String(exUnread && exUnread.recording && exUnread.recording.validity && exUnread.recording.validity.blankingSpansReason)),
+          JSON.stringify(exUnread && exUnread.recording && exUnread.recording.validity)
+        );
+        T.ok(
+          '∅ · …and it refuses no value: the key ANNOTATES coverage, with `blankingSpans` null beside the reason',
+          exUnread && exUnread.recording && exUnread.recording.validity && exUnread.recording.validity.blankingSpans === null
+        );
+        T.ok(
+          'control · a sidecar that PARSED carries no `validity` key, and neither does a parse without one, so no clean export moves a byte',
+          !('validity' in E.compute({ text: etxt, runsText: ERUNS }).recording) && !('validity' in E.compute(etxt).recording)
+        );
       } else T.skip('ECGDSP.compute / genSynthetic unavailable');
       // (3) SOURCE-MIRRORS — the ACC ingest routes pass the `_ACCRUNS` text (no multi-file drop runs headless).
       var src = env.sources || {};

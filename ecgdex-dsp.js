@@ -3264,6 +3264,12 @@
       // …and the SEGMENTS inside that span (INTEGRATOR-GAP-AWARE-OVERLAP part 2). Also a property of
       // the recording, not the analysis — null whenever the link never dropped.
       coverage: ecgCoverage(rec),
+      /* …and whether the validity sidecar BESIDE that recording went unread. Same rule as
+         `endEpochMs` and `coverage` above: it is a property of the recording, so analyze carries it
+         rather than leaving each consumer to re-derive it — and `ecgBuildNodeExport` is not the only
+         caller that needs it. `null` whenever the sidecar parsed, or the parse ran without one, so
+         the export's conditional key stays absent and no clean export moves a byte. */
+      blankingSpansReason: rec && typeof rec.blankingSpansReason === 'string' && rec.blankingSpansReason ? rec.blankingSpansReason : null,
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -6688,6 +6694,20 @@
        provenance fixtures, to say nothing. Absent ⇒ no coverage claim ⇒ the Integrator uses the
        envelope, which for a contiguous recording IS the coverage. */
     if (r.coverage) out.recording.coverage = r.coverage;
+    /* AN UNREAD VALIDITY SIDECAR SAYS SO ON THE EXPORT — §∅ (owner ruling 2026-09-17: a
+       discontinuity refuses, reduced COVERAGE annotates) and residue row
+       2026-11-01-no-folded-artefact-names-an-unread-ecg-sidecar. `parseECG` answers
+       `blankingSpans: []` when the box recorded no blanking, and `null` plus a reason when it could
+       not place a `_ECGRUNS.txt` row — so the state is readable in memory, while a folded artefact
+       over an unread sidecar still read like a clean night, because no key carried it. The exclusion
+       that sidecar would have driven never ran, so every metric above covers seconds the box may
+       have marked blank. That ANNOTATES rather than refuses: the numbers stand, and this names what
+       widened them. ASSIGNED CONDITIONALLY, like `coverage` above and for the same reason — a
+       recording whose sidecar parsed, and one parsed without a sidecar at all, carry no key and
+       their bytes do not move, the committed provenance fixtures included. */
+    if (typeof r.blankingSpansReason === 'string' && r.blankingSpansReason) {
+      out.recording.validity = { blankingSpans: null, blankingSpansReason: r.blankingSpansReason };
+    }
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / ECGDEX-FOLLOWUPS-II §2 ──
     // By DEFAULT this builder emits the LIGHT export above (recording + ganglior_events) and the app's
     // exportGanglior() calls WITHOUT opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the
