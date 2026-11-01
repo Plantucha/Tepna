@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**308 tools** · 307 with a purpose line · **1 without**
+**309 tools** · 308 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -143,6 +143,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-crawl.mjs`](../tools/mutation-crawl.mjs) | MUTATION CRAWL — run the MEASUREMENT unattended, so a person only does the judgement. |
 | [`mutation-draft-py.mjs`](../tools/mutation-draft-py.mjs) | THE PYTHON LANE'S DRAFTER — a local model proposes the INPUT, and this harness decides everything else. |
 | [`mutation-excused-rate.mjs`](../tools/mutation-excused-rate.mjs) | mutation-excused-rate — COUNT the exclusion the diff-scoped mutation gate makes, over the verdicts CI has already uploaded. |
+| [`mutation-key-core.mjs`](../tools/mutation-key-core.mjs) | ONE HOME for reading a mutmut key against today's source. Residue: 2026-11-01-the-absence-reader-has-two-homes-and-one-cannot-tell-edited-from-gone |
 | [`mutation-map.mjs`](../tools/mutation-map.mjs) | WHERE THE COVERAGE MAP LIVES, AND WHETHER IT STILL DESCRIBES THIS CODE. |
 | [`mutation-reach.mjs`](../tools/mutation-reach.mjs) | REACHED vs ASSERTED — the two halves of a survivor, which the queue currently fuses. |
 | [`mutation-suite.mjs`](../tools/mutation-suite.mjs) | ONE FRONT END FOR THE MUTATION LANE — fast, resumable, killable, and it does not sit there. |

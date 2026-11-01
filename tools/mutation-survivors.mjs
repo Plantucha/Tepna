@@ -34,7 +34,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
-import { escapeRe } from './regex-escape-core.mjs';
+import { functionSpan, recordedLineState, splitKey, RETIRABLE_STATES } from './mutation-key-core.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const LEDGER_PATH = path.join(HERE, '..', 'mutation-survivors.json');
@@ -400,8 +400,6 @@ export function orphanedEntries(ledger, presentKeys, scope = {}) {
   return ((ledger && ledger.entries) || []).filter((e) => e.state === 'open' && (!scope.lane || e.lane === scope.lane) && (!scope.module || e.module === scope.module) && !present.has(survivorKey(e)));
 }
 
-const normWs = (s) => String(s).replace(/\s+/g, ' ').trim();
-
 /* THE OTHER WAY AN ENTRY ORPHANS — and the only one a session can check with no mutmut run.
  *
  * `orphanedEntries` above needs the keys a RUN generated, so it can answer only while a verdict is
@@ -424,53 +422,31 @@ export const ABSENCE_LANES = ['py'];
 export function recordedLineAbsence(entry, root) {
   const fname = entry.function || entry.fn;
   if (!ABSENCE_LANES.includes(entry.lane)) {
-    return { absent: false, reason: `the ${entry.lane} lane has no body reader here — only ${ABSENCE_LANES.join(', ')}` };
+    return { absent: false, state: 'no-reader', reason: `the ${entry.lane} lane has no body reader here \u2014 only ${ABSENCE_LANES.join(', ')}` };
   }
-  /* SPLIT ON THE SEPARATOR, NEVER ON `|`. A python annotation carries its own pipes, and one of the
-     three this measured is keyed `- _cur_end: float | None = None | + _cur_end: float | None = ""`,
-     which a split on `|` tears into five pieces. ` | + ` occurs once in a well-formed pair. */
-  const halves = String(entry.key || '').split(' | + ');
-  if (halves.length !== 2 || !halves[0].trimStart().startsWith('- ')) {
-    return { absent: false, reason: 'the key is not a `- old | + new` pair, so it names no line to look for' };
+  /* SPLIT ON THE SEPARATOR, NEVER ON `|` \u2014 a python annotation carries its own pipes, and one of
+     the three this measured is keyed `- _cur_end: float | None = None | + _cur_end: float | None = ""`.
+     `splitKey` is the drafter's own split, shared so the two tools cannot disagree about a key. */
+  const halves = splitKey(String(entry.key || '').trimStart());
+  if (!halves) {
+    return { absent: false, state: 'no-key', reason: 'the key is not a `- old | + new` pair, so it names no line to look for' };
   }
-  const want = normWs(halves[0].trimStart().slice(2));
-  if (!want) return { absent: false, reason: 'the pair records an empty original line' };
   /* TWO SPELLINGS, BOTH COMMITTED: the ledger holds `nightqc.py` and `capture-host/loss_audit.py`,
      so a module is repo-relative on one entry and capture-host-relative on the next. Both are tried
      and neither is assumed. */
-  const resolved = [entry.module, path.join('capture-host', String(entry.module || ''))].map((r) => path.join(root, r)).find((p) => fs.existsSync(p));
-  if (!resolved) return { absent: false, reason: `the module ${entry.module} resolves to no file under ${root}` };
-  const body = pyFunctionBody(fs.readFileSync(resolved, 'utf8'), fname);
-  if (body === null) return { absent: true, reason: `${entry.module} no longer defines a top-level \`${fname}\``, resolved };
-  if (body === undefined) {
-    return { absent: false, reason: `\`${fname}\` appears only indented in ${entry.module}, and this reads top-level bodies only`, resolved };
-  }
-  return { absent: !normWs(body).includes(want), reason: null, resolved, line: want };
-}
-
-/**
- * One top-level python function's own lines — `null` when the module defines no such name,
- * `undefined` when the name appears only indented (a method or a closure), which this does not read.
- *
- * A top-level `def` ends at the next line starting in column 0, which is what makes the nested
- * functions and comment blocks inside a 700-line `summarize` part of its body rather than its end.
- */
-export function pyFunctionBody(src, fname) {
-  const lines = String(src).split('\n');
-  const esc = escapeRe(fname || '');
-  if (!esc) return null;
-  const at = lines.findIndex((l) => new RegExp('^def\\s+' + esc + '\\s*\\(').test(l));
-  if (at < 0) {
-    return lines.some((l) => new RegExp('^\\s+def\\s+' + esc + '\\s*\\(').test(l)) ? undefined : null;
-  }
-  let end = lines.length;
-  for (let i = at + 1; i < lines.length; i++) {
-    if (/^\S/.test(lines[i])) {
-      end = i;
-      break;
-    }
-  }
-  return lines.slice(at, end).join('\n');
+  const resolved = [entry.module, path.join('capture-host', String(entry.module || ''))].map((r) => path.join(root, r)).find((f) => fs.existsSync(f));
+  if (!resolved) return { absent: false, state: 'no-module', reason: `the module ${entry.module} resolves to no file under ${root}` };
+  /* ONE READER, SIX STATES, AND ONLY TWO OF THEM RETIRE. `absent` is `RETIRABLE_STATES`, never
+     "the line did not match": an EDITED line matched nothing either, and it owes a re-recorded
+     mutant id rather than a retirement, so its state and reason travel out with it. */
+  const st = recordedLineState(fs.readFileSync(resolved, 'utf8'), fname, halves.before);
+  return {
+    absent: RETIRABLE_STATES.includes(st.state),
+    state: st.state,
+    reason: st.reason,
+    resolved,
+    line: String(halves.before).trim()
+  };
 }
 
 // ── I/O ────────────────────────────────────────────────────────────────────────────────────────
@@ -717,6 +693,7 @@ function cmdOrphans(argv) {
   const open = (ledger.entries || []).filter((e) => e.state === 'open' && (!lane || e.lane === lane));
   const root = path.join(HERE, '..');
   let gone = 0;
+  let edited = 0;
   let unexamined = 0;
   for (const e of open) {
     const ab = recordedLineAbsence(e, root);
@@ -724,13 +701,21 @@ function cmdOrphans(argv) {
       gone++;
       console.log(`ORPHANED   ${e.mutant || '(no id)'}  ${keyLabel(survivorKey(e))}`);
       console.log(`           ${ab.reason || "the recorded line is gone from today's source"}`);
+    } else if (ab.state === 'edited') {
+      /* NOT AN ORPHAN AND NOT LIVE. The recorded text survives inside a longer line, so the mutant
+         this entry names cannot be generated again either — but the finding may still be real, and
+         only a fresh run can say. Retiring it would discard a live survivor. */
+      edited++;
+      console.log(`EDITED     ${e.mutant || '(no id)'}  ${keyLabel(survivorKey(e))}`);
+      console.log(`           ${ab.reason}`);
     } else if (ab.reason) {
       unexamined++;
       console.log(`UNEXAMINED ${e.mutant || '(no id)'}  ${ab.reason}`);
     }
   }
-  console.log(`\n${gone} of ${open.length} open entr(ies) record a line today's source no longer carries · ${unexamined} unexamined`);
+  console.log(`\n${gone} of ${open.length} open entr(ies) record a line today's source no longer carries · ${edited} edited · ${unexamined} unexamined`);
   if (gone) console.log('  close each: node tools/mutation-survivors.mjs close <mutant-id> --orphaned');
+  if (edited) console.log('  an EDITED entry needs its mutant id re-recorded from a fresh run — --orphaned refuses it');
   return 0;
 }
 
@@ -1018,11 +1003,14 @@ function selftest() {
     'def summarize(night_dir, devices):',
     '    span = None',
     '    _cur_end: float | None = None',
+    '    _span_reason = None if span else "under the minimum judgeable span"',
     '',
     '    def inner(x):',
     '        return x',
     '',
     '    return {"span": span}',
+    '',
+    'basis = "measured"',
     '',
     'def other():',
     '    before = [s for s in others if s[1] <= cur[0]]',
@@ -1031,9 +1019,12 @@ function selftest() {
   ].join('\n');
   fs.writeFileSync(path.join(tmp, 'nightqc.py'), MOD);
   const ent = (key, fn = 'summarize', over = {}) => ({ lane: 'py', module: 'nightqc.py', function: fn, key, ...over });
-  /* EVERY `absent: false` BELOW IS A CONTROL THAT BITES: an implementation answering `true` whenever
-     it could not find the line — the obvious way to write this — reds five of them, measured by
-     flipping every fail-closed return in `recordedLineAbsence` and re-running this file. */
+  /* EVERY `absent: false` BELOW IS A CONTROL THAT BITES: an implementation answering `true`
+     whenever it could not find the line — the obvious way to write this — reds SEVEN of them
+     (MEASURED 2026-11-01 by returning `absent: true` from every non-`present` branch of
+     `recordedLineAbsence` and `recordedLineState` and re-running this file). Two of the seven are the
+     states #4214 could not name: an EDITED line and a module-level twin, both of which that version
+     answered `absent: false, reason: null` — not retired, and not reported either. */
   ck('a line still in the body is NOT absent', recordedLineAbsence(ent('- span = None | + span = ""'), tmp).absent, false);
   ck(
     '…and an ANNOTATED line splits on the separator, not on its own pipes',
@@ -1053,10 +1044,31 @@ function selftest() {
   ck('a lane with no body reader is UNEXAMINED', recordedLineAbsence(ent('- span = None | + span = ""', 'summarize', { lane: 'js' }), tmp).absent, false);
   ck('a key that is not a pair names no line to look for', recordedLineAbsence(ent('not a pair'), tmp).absent, false);
   ck('a pair whose original half is empty names nothing either', recordedLineAbsence(ent('-  | + x'), tmp).absent, false);
-  ck('pyFunctionBody stops at the next top-level def', pyFunctionBody(MOD, 'summarize').includes('def other'), false);
-  ck('…and keeps a nested def INSIDE the body', pyFunctionBody(MOD, 'summarize').includes('def inner'), true);
-  ck('pyFunctionBody answers null for a name the module lacks', pyFunctionBody(MOD, 'vanished'), null);
-  ck('…and undefined for one that is only ever indented', pyFunctionBody(MOD, 'inner'), undefined);
+  /* THE TWO STATES #4214 COLLAPSED. Both answer `absent: false`, like every control above, but a
+     silent `false` is what told the operator an edited entry was live, so each owes its own reason. */
+  const edited = recordedLineAbsence(ent('- _span_reason = None | + _span_reason = ""'), tmp);
+  ck('a line that merely GREW is not absent', edited.absent, false);
+  ck('…and it is reported as edited, never as live', edited.state, 'edited');
+  ck('…and its reason asks for a re-recorded id, not a retirement', /re-recording/.test(edited.reason), true);
+  const twin = recordedLineAbsence(ent('- basis = "measured" | + basis = ""'), tmp);
+  ck('a module-level twin of the recorded text never retires the entry', twin.absent, false);
+  ck('…and it is not reported as present either', twin.state === 'present', false);
+  /* The span reader itself, which the core now owns for both tools. */
+  const LN = MOD.split('\n');
+  const SPAN = functionSpan(LN, 'summarize');
+  ck(
+    'a top-level body stops at the next top-level def',
+    LN.slice(SPAN[0], SPAN[1]).some((l) => l.startsWith('def other')),
+    false
+  );
+  ck(
+    '…and keeps a nested def INSIDE the body',
+    LN.slice(SPAN[0], SPAN[1]).some((l) => l.includes('def inner(')),
+    true
+  );
+  ck('a name the module lacks has no span at all', functionSpan(LN, 'vanished'), null);
+  ck('a name that is only ever indented reads as indented-only', recordedLineState(MOD, 'inner', 'return x').state, 'indented-only');
+  ck('only a gone line and a gone function retire an entry', RETIRABLE_STATES, ['gone', 'no-function']);
   fs.rmSync(tmp, { recursive: true, force: true });
   ck('an orphaned entry is not an open one', openCount({ entries: [{ state: 'orphaned' }, { state: 'open' }] }), 1);
   ck('the ratchet keeps `answered` clear of the orphans', ratchetVerdictObject({ expect: 1, actual: 1, eligible: 4, noPr: 0, orphaned: 2 }).result, { open: 1, expected: 1, answered: 1, orphaned: 2 });

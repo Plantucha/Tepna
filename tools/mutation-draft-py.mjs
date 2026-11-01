@@ -56,6 +56,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { diffPaths } from './mutation-suite.mjs';
 import { checkArgv, isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { functionSpan, locate, splitKey, whyAbsent } from './mutation-key-core.mjs';
 import { classify } from './js-lex.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -443,52 +444,9 @@ except BaseException:
 
 /* ══ PURE PARTS (all --selftest'd) ═════════════════════════════════════════════════════════════════ */
 
-/** `[start, end)` over the source lines of a top-level `def <fn>(`. `null` when it is not there. */
-export function functionSpan(lines, fn) {
-  const start = lines.findIndex((l) => l.startsWith('def ' + fn + '('));
-  if (start < 0) return null;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (lines[i].startsWith('def ') || lines[i].startsWith('class ')) {
-      end = i;
-      break;
-    }
-  }
-  return [start, end];
-}
-
-/** The mutmut key `- <before> | + <after>` split into its two halves. `null` when it is not a key. */
-export function splitKey(key) {
-  const s = String(key || '');
-  const at = s.indexOf(' | + ');
-  if (!s.startsWith('- ') || at < 0) return null;
-  return { before: s.slice(2, at), after: s.slice(at + 5) };
-}
-
-/** Every line index inside `[start,end)` whose text equals `before`, compared without indentation. */
-export function locate(lines, span, before) {
-  const want = String(before).trim();
-  if (!span || !want) return [];
-  const out = [];
-  for (let i = span[0]; i < span[1]; i++) if (lines[i].trim() === want) out.push(i);
-  return out;
-}
-
-/**
- * Why a recorded line does not match: `'edited'` or `'gone'`.
- *
- * The baseline pins the line's TEXT, so `locate` compares whole trimmed lines and misses a line that
- * merely GREW. Measured 2026-10-31 over the 30 open rows: `_span_reason = None` still occurs inside
- * `_span_reason = None if span else "..."`. Reporting that as deleted code would be a false claim
- * about the repo, and the two states owe different remedies — an edited line wants a re-recorded
- * mutant id, a deleted one wants the row withdrawn.
- */
-export function whyAbsent(lines, span, before) {
-  const want = String(before).trim();
-  if (!span || !want) return 'gone';
-  for (let i = span[0]; i < span[1]; i++) if (lines[i].includes(want)) return 'edited';
-  return 'gone';
-}
+/* THE KEY READERS LIVE IN ONE PLACE. `functionSpan`, `splitKey`, `locate` and `whyAbsent` moved to
+   `tools/mutation-key-core.mjs` when #4214 gave the ledger a second copy of the same question.
+   Row `2026-11-01-the-absence-reader-has-two-homes-and-one-cannot-tell-edited-from-gone`. */
 
 /** The mutant source: line `idx` becomes `after`, keeping the original line's own indentation. */
 export function mutantSource(lines, idx, after) {
