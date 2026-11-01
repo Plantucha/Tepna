@@ -43892,7 +43892,24 @@
         } else T.skip('SignalOrchestrate.pairCompanions unavailable');
         // (5) THE READER — planted sidecar in, spans out; absent, the record is untouched.
         if (E && typeof E.parseECG === 'function') {
+          /* 🔴 THESE ARE THE BOX'S OWN BYTES, AND THEY DID NOT USED TO BE. This plant read
+             `;ecg;` in the channel column, the reader matched that column against the literal
+             `ecg`, and the two agreed with each other while disagreeing with the device: the writer
+             puts its per-channel key there, which for the H10's single lead is `ecg [uV]`. Measured
+             2026-11-01 over the capture corpus — 335 of 335 recorded ECG blanking rows carry
+             `ecg [uV]`, over the 36 nights holding one — so the reader placed NONE of 463 s of
+             recorded non-measurement, and every consumer the fleet wired for this row received an
+             empty span list. A fixture that the production writer cannot produce is why. The
+             per-channel declaration line below is the writer's too, and the accept rule reads it. */
           var SC = [
+            '# stream=ecg rule=stuck min_run=30 merge_gap_max=4 total_runs=1 examined=90000',
+            'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact',
+            '# stream=ecg channel=ecg [uV] class=variable ratio=1.0 top2=1,2 share=1.000 decided_at=64runs window=0 confirmed=1 at=2026-06-17T01:00:04.000',
+            '2026-06-17T01:00:04.000;ecg [uV];19164;520;130;1000.0;1;stuck;varied/varied;none'
+          ].join('\n');
+          /* The shape the plant used to carry. It is not in the corpus, and a reader that stopped
+             placing it would still be wrong — so it stays, as the back-compatibility leg. */
+          var SC_LEGACY = [
             '# stream=ecg rule=stuck min_run=30 merge_gap_max=4 total_runs=1 examined=90000',
             'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
             '2026-06-17T01:00:04.000;ecg;19164;520;130;1000;1;stuck'
@@ -43903,11 +43920,45 @@
           T.ok('parseECG · ONE argument is byte-identical — no sidecar fields appear', bare.blankingSpans === undefined && bare.runsSidecar === undefined);
           T.eq('parseECG · the planted span is carried, in SAMPLES as the box wrote it', JSON.stringify(withSc.blankingSpans), JSON.stringify([{ first: 520, n: 130, value: 19164 }]));
           T.eq('parseECG · the sidecar publishes its own rule, so a reader can tell WHICH threshold looked', withSc.runsSidecar.minRun, 30);
+          /* ── THE CHANNEL RULE, in both directions. A classifier that accepts everything would pass
+             the leg above and every real night; the rejection legs are what tell the two apart. ── */
+          T.eq('parseECG · the channel label the BOX writes is carried as written, not lowercased away', JSON.stringify(withSc.runsSidecar.channels), JSON.stringify(['ecg [uV]']));
+          T.eq("parseECG · …and the file's own declaration pairs that channel with its stream", withSc.runsSidecar.declared['ecg [uv]'], 'ecg');
+          T.eq('parseECG · every data row was placed, so nothing was refused', withSc.runsSidecar.rejected + '/' + withSc.runsSidecar.dataRows, '0/1');
+          T.eq(
+            'BACK-COMPAT · the bare `ecg` label of the older plant still places its span',
+            JSON.stringify(E.parseECG(HDR, { runsText: SC_LEGACY }).blankingSpans),
+            JSON.stringify([{ first: 520, n: 130, value: 19164 }])
+          );
+          /* The wrong-companion case #4069 pairs by stamp to avoid. The guard the old literal filter
+             MEANT to be now reads the file's own declaration, so it still refuses — and says so. */
+          var wrong = E.parseECG(HDR, {
+            runsText: [
+              '# stream=ppg1 rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 total_runs=3 examined=90000',
+              'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact',
+              '# stream=ppg1 channel=channel 0 class=variable ratio=5.3 top2=1,2 share=0.922 decided_at=64runs window=0 confirmed=1 at=2026-06-17T01:00:04.000',
+              '2026-06-17T01:00:04.000;channel 0;100;0;250;1992.0;1;stuck;unavailable/varied;1'
+            ].join('\n')
+          });
+          T.eq("parseECG · an OPTICAL sidecar's rows are not this signal's, and the refusal is counted", wrong.runsSidecar.rejected + '/' + wrong.runsSidecar.dataRows, '1/1');
+          T.eq('…and the refused channel is NAMED, so the next naming change is visible rather than silent', JSON.stringify(wrong.runsSidecar.rejectedChannels), JSON.stringify(['channel 0']));
+          /* §∅ — the two ways a span list comes back empty must not read alike. */
+          T.eq('∅ · rows present and NONE placed yields null, never an empty list that reads as a clean stream', wrong.blankingSpans, null);
+          T.ok('∅ · …with the reason naming what went unplaced', /channel 0/.test(String(wrong.blankingSpansReason)), String(wrong.blankingSpansReason));
           T.ok(
             'parseECG · an EMPTY but comparable sidecar is "looked and found nothing", not "never looked"',
             (function () {
               var e = E.parseECG(HDR, { runsText: '# stream=ecg rule=stuck min_run=30 total_runs=0 examined=90000\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' });
-              return e.runsSidecar.comparable === true && e.runsSidecar.emitted === 0 && e.runsSidecar.examined === 90000;
+              /* and the span list STAYS `[]` here, which is the honest answer for a writer that
+                 looked and emitted nothing — the one case the null above must not swallow */
+              return (
+                e.runsSidecar.comparable === true &&
+                e.runsSidecar.emitted === 0 &&
+                e.runsSidecar.examined === 90000 &&
+                e.runsSidecar.placedNone === false &&
+                Array.isArray(e.blankingSpans) &&
+                e.blankingSpans.length === 0
+              );
             })()
           );
           T.ok(
