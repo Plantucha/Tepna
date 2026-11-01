@@ -38,17 +38,45 @@ const lenOf = (r, key) => {
 };
 
 /* ECGDex `rec.blankingSpans` (`{ first, n, value }`, sample indices) of every fragment, on the merged
-   axis. `recs` arrives sorted and filtered exactly as `mergeEcg` holds it. Returns `undefined` when no
-   fragment carried a sidecar, so a night with no sidecar keeps today's record shape. An empty array
-   means a sidecar was read and recorded no run, which is a measurement, not an absence. */
+   axis. `recs` arrives sorted and filtered exactly as `mergeEcg` holds it.
+
+   §∅: a FRAGMENT states three things, and this merge keeps all three apart. `ecgdex-dsp.js` writes no
+   field at all for a one-argument parse, writes `null` plus a `blankingSpansReason` naming the channels
+   it rejected when the sidecar's rows all went unplaced, and writes `[]` when the sidecar recorded no
+   run. So the merged record states one of three things too:
+
+   - `undefined` — no fragment carried a sidecar, so the night keeps today's record shape.
+   - `spans: null` with a `reason` — a sidecar reached the parse, and no fragment yielded a readable
+     row. Nothing was measured, and an empty list here would read as a clean stream.
+   - `spans: [...]` with `refused > 0` and a `reason` — the fold read part of the night and could not
+     read the rest. The reason travels, so a consumer of the merged record can tell which it holds.
+
+   The direction is the harmful one. Until the reason travelled, a night this reader could not place
+   looked exactly like a night the box never wrote a sidecar for
+   (`2026-11-01-the-ecg-fold-cannot-tell-an-absent-sidecar-from-an-unreadable-one`). The capture host
+   has drawn this line since `capture.py`'s `session_meta`, which answers `unreadable: True` plus a
+   reason rather than the bare `{}` that made the two states one. */
 export function mergeBlankingSpans(recs) {
   const list = Array.isArray(recs) ? recs : [];
-  if (!list.some((r) => r && Array.isArray(r.blankingSpans))) return undefined;
+  /* A fragment CARRIES a sidecar when it states either a list or a refusal. `undefined` is the
+     one-argument parse, which states nothing, so a list of those is the absence above. */
+  const carried = list.filter((r) => r && (Array.isArray(r.blankingSpans) || r.blankingSpans === null));
+  if (!carried.length) return undefined;
+  const reasons = [];
+  let refused = 0;
+  for (const r of carried) {
+    if (r.blankingSpans !== null) continue;
+    refused++;
+    const why = typeof r.blankingSpansReason === 'string' && r.blankingSpansReason ? r.blankingSpansReason : 'no reason stated';
+    if (!reasons.includes(why)) reasons.push(why);
+  }
   const spans = [];
   let idx = 0;
   let placeable = true;
   let unplaced = 0;
+  let read = 0;
   for (const r of list) {
+    if (r && Array.isArray(r.blankingSpans)) read++;
     for (const s of (r && Array.isArray(r.blankingSpans) && r.blankingSpans) || []) {
       if (!s) continue;
       if (placeable && Number.isFinite(s.first)) spans.push({ ...s, first: s.first + idx });
@@ -58,7 +86,10 @@ export function mergeBlankingSpans(recs) {
     if (k == null) placeable = false;
     else idx += k;
   }
-  return { spans, unplaced };
+  const reason = refused ? `${refused} of ${carried.length} fragment(s) with a sidecar went unread: ${reasons.join(' \u00b7 ')}` : null;
+  /* `read` counts the fragments that yielded a list. At zero the merge measured nothing, and `spans`
+     says so with `null` rather than with the empty list that means a clean stream. */
+  return { spans: read ? spans : null, unplaced, refused, reason };
 }
 
 /* PpgDex `rec.spans` — one entry per optical channel, `{ spans: [{ first, n }], lo, hi }` or `null` —

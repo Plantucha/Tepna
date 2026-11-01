@@ -3965,11 +3965,16 @@ for (const p of work) {
         `  ⚠ ECG merge: ${overlaps.length} negative session boundary(ies), total ${(overlaps.reduce((a, o) => a + o.ms, 0) / 1000).toFixed(2)} s — merged elapsed time is OVER-stated by that much`
       );
     /* The `_ECGRUNS.txt` blanking spans of every fragment, on the merged sample axis
-       (`tools/trio-fold-validity.mjs`). Absent when no fragment carried a sidecar. */
+       (`tools/trio-fold-validity.mjs`). Absent when no fragment carried a sidecar; `null` plus a
+       `blankingSpansReason` when a sidecar reached the parse and no fragment yielded a readable row.
+       ∅ Those two are different facts, and the reason is what tells a reader of the merged record
+       which one it holds. */
     const blank = mergeBlankingSpans(recs);
     if (blank && blank.unplaced) console.warn(`  ⚠ ECG merge: ${blank.unplaced} blanking span(s) after a fragment of unknown length — dropped, not placed`);
+    if (blank && blank.reason) console.warn(`  ⚠ ECG merge: ${blank.reason}`);
     return {
       blankingSpans: blank ? blank.spans : undefined,
+      ...(blank && blank.reason ? { blankingSpansReason: blank.reason } : {}),
       int16: out,
       fs,
       gaps,
