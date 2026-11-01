@@ -79,6 +79,7 @@ export const STEPS = [
   'verify:flag-drive',
   'verify:absence',
   'verify:seals',
+  'verify:port-parity',
   'verify:hook-contract',
   'test:guards',
   'test:tools',

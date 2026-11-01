@@ -166,6 +166,15 @@ function ecgRpeakTimes(text) {
   for (let i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
   return { fs: rec.fs, times: Array.from(t), n: peaks.length };
 }
+/* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────────────────────
+   @port-sha 8282b1de745f
+   @port-behind aa2336fd1179 2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition
+   The copy below agrees with the worker's pre-#4069 text. #4069 (2026-10-28) gave the worker a
+   pinned-span refusal and this copy carries none, so `tools/port-parity.mjs` reads SHORTFALL against
+   that row rather than a pass. Re-pin the sha only after READING both sides, never to quiet the gate.
+   This copy claims behaviour rather than text, and it was revised ten hours after #4069 with none of
+   it — which is why the sha names the text the copy agrees with and not its own commit date.
+ */
 function ppgFootTimes(text) {
   const rec = PPGDSP.parsePPG(text);
   if (!rec || rec.t0Ms == null) return null;
