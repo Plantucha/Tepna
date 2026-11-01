@@ -27,6 +27,10 @@
  *   merge   a green, current, non-draft PR Kodiak has left for KODIAK_IDLE_MIN is merged by SHA
  *   alert   stuck, red-after-rerun, hand-rebase and a required check pending over STALE_PENDING_MIN
  *           are written to the landing page the board shows and to the journal
+ * SIGNED. Every action that changed a PR leaves one comment on it naming the walker, the action, the UTC
+ * time and the reason (owner, 2026-11-01: "it will sign everything what it does … It will increase
+ * visibility"). A failed or dry-run action signs nothing; a comment that cannot post never changes the
+ * action's result, it only reads `signed: false` on the landing page.
  * A `do-not-merge` label HOLDS a PR: the walker never readies, reruns, rebases or merges it. It still
  * UPDATES a held PR that falls BEHIND main, at once and with no idleness gate, because Kodiak never
  * updates a held PR and the owner's merge button otherwise reads "out-of-date" after every merge to
@@ -311,9 +315,43 @@ export function act(actions, state, opts) {
         .split('\n')[0]
         .slice(0, 160)}`;
     }
-    done.push({ ...a, result });
+    const row = { ...a, result };
+    const body = opts.dryRun ? null : signature(row, opts.at || new Date().toISOString());
+    if (body) {
+      try {
+        gh(['pr', 'comment', String(a.number), '--body', body]);
+        row.signed = true;
+      } catch {
+        row.signed = false;
+      }
+    }
+    done.push(row);
   }
   return done;
+}
+
+/* The signature comment, pure. `at` is an ISO instant; the walker runs on real UTC time (it is not a
+   capture stamp), so the comment says UTC. Returns null for an action that changed nothing. */
+const SIGN_VERB = {
+  ready: 'Marked ready for review (undrafted)',
+  rerun: 'Re-ran the failed required jobs',
+  rebase: 'Rebased onto main with `tools/rebase-safe.mjs` and pushed',
+  update: 'Updated the branch from main',
+  merge: 'Squash-merged'
+};
+export function signature(a, at) {
+  const ok = a.result === 'ok' || /^pushed:/.test(a.result || '');
+  if (!ok || !SIGN_VERB[a.op]) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(at || '');
+  const when = m ? `${m[2]} UTC, ${m[1]}` : 'an unknown time';
+  const head = a.op === 'rebase' ? ` New head \`${a.result.slice(7, 16)}\`.` : '';
+  return [
+    `🚶 **${SIGN_VERB[a.op]} by the fleet walker** at ${when}.${head}`,
+    '',
+    `Reason: ${a.why}.`,
+    '',
+    '<sub>`tools/pr-walker.mjs` under `tepna-pr-walker.timer` on rig-x870, about every 90 s. No person took this action. A `do-not-merge` label holds a PR from the walker.</sub>'
+  ].join('\n');
 }
 
 export function landingPage(rows, planned, done, meta) {
@@ -325,7 +363,7 @@ export function landingPage(rows, planned, done, meta) {
       `DRIFT FALLBACK_REQUIRED vs the ruleset · protection also requires: ${d.missing.join(', ') || 'nothing'} · the mirror still names: ${d.extra.join(', ') || 'nothing'} — edit tools/pr-walker.mjs`
     );
   for (const r of rows) L.push(`#${r.number} ${r.draft ? 'draft' : 'ready'} ${r.state.padEnd(8)} ${r.why}`);
-  L.push(`actions: ${done.length ? done.map((d) => `${d.op} #${d.number} → ${d.result}`).join(' · ') : 'none'}`);
+  L.push(`actions: ${done.length ? done.map((d) => `${d.op} #${d.number} → ${d.result}${d.signed === false ? ' (signed: false)' : ''}`).join(' · ') : 'none'}`);
   for (const al of planned.alerts) L.push(`ALERT #${al.number} ${al.kind}: ${al.why}`);
   return `${L.join('\n')}\n`;
 }
@@ -343,7 +381,7 @@ export function pass(opts) {
     else delete state.firstPending[r.number];
   }
   const planned = plan(rows, state, { nowMs: now, mainMovedAtMs: snap.mainMovedAtMs, cap: opts.cap || CAP });
-  const done = act(planned.actions, state, opts);
+  const done = act(planned.actions, state, { ...opts, at: new Date(now).toISOString() });
   if (!opts.dryRun) saveState(state);
   const drift = fallbackDrift(snap.required);
   const page = landingPage(rows, planned, done, {
@@ -409,6 +447,10 @@ function selftest() {
   const held = plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL], mergeState: 'BEHIND' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
   eq(held.actions.map((a) => `${a.op}:${a.number}`).join(','), 'update:7', 'held behind ⇒ update at once');
   eq(plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL] }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 }).actions.length, 0, 'held current ⇒ nothing');
+  const sig = signature({ op: 'ready', number: 3, result: 'ok', why: 'green draft, pool 1/4' }, '2026-11-01T11:45:09.000Z');
+  eq(/^🚶 \*\*Marked ready for review \(undrafted\) by the fleet walker\*\* at 11:45 UTC, 2026-11-01\./.test(sig), true, 'signature names the walker, the action and the time');
+  eq(signature({ op: 'ready', number: 3, result: 'failed: x', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a failed action signs nothing');
+  eq(signature({ op: 'rebase', number: 3, result: 'stopped', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a stopped rebase signs nothing');
   console.log(`all ${ran} selftests passed`);
 }
 
