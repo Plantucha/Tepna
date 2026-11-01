@@ -1791,7 +1791,7 @@ function readNodeSurfaces() {
    `CLAIM` is right for a number in a sentence and far too heavy for a 20-number table. A table wants
    ONE footer carrying GATE-B's triple — producer, inputs, output — in a form Markdown already holds:
 
-     <!-- TABLE-PROVENANCE producer=<path> invocation="<argv>" inputs=<path|12hex> [inputsDigest=<12hex>] output=<12hex> generated=<YYYY-MM-DD> -->
+     <!-- TABLE-PROVENANCE producer=<path> invocation="<argv>" inputs=<path|12hex> [inputsDigest=<12hex>] [foldGeneration=<12hex>] output=<12hex> generated=<YYYY-MM-DD> -->
    `inputsDigest=` (beside a resolvable `inputs=` path) is the upstream-DAG hash: recomputed over the
    git-tracked files under that path on every run, so the stamp can CLEAR, not only flag.
 

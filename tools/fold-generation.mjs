@@ -194,6 +194,28 @@ export function corpusBlock(identity) {
   };
 }
 
+/* The TABLE-PROVENANCE attributes a corpus-reading producer already knows, built in ONE place so the
+   printer cannot drift from the gate. Residue `2026-09-22-corpus-consumers-have-no-staleness-stamp`:
+   four published stamps record `inputs`, `inputsDigest` and `output`, and none records which fold
+   produced the nights — a field that was derivable at every cut and derived at none.
+   ∅ TWO ABSENCES, TWO ANSWERS. An unresolvable corpus yields no attributes at all. A resolvable one
+   whose read nights are not all stamped yields the attributes WITHOUT a generation, plus the reason
+   where the value would have been — never a zero, never the word null pasted into a stamp.
+   `output=` is the copier's: that hash covers the table text pasted above the marker, so it is named
+   as owed rather than printed as a placeholder a gate would read as a value. */
+export const STAMP_OUTPUT_OWED = 'output= is yours: sha12 over the table text you paste above the marker';
+
+export function stampFields(block, { producer = SELF, invocation = '', day } = {}) {
+  if (!day) return { attrs: null, reason: 'no generated= day was given, and a stamp dated by the reader is not provenance' };
+  if (!block || block.resolvable !== true) return { attrs: null, reason: block?.reason ?? 'the corpus block is absent' };
+  const head = `producer=${producer} invocation="${invocation}" inputs=${block.root} inputsDigest=${block.dataDigest}`;
+  if (block.foldGeneration) return { attrs: `${head} foldGeneration=${block.foldGeneration} generated=${day}`, reason: null };
+  return {
+    attrs: `${head} generated=${day}`,
+    reason: `${block.unstamped} of the ${block.nights} night(s) read carry no fold stamp, so no generation describes this population`
+  };
+}
+
 /* ═══ ERA ATTRIBUTION, PER EXPORT ═══
    Residue `2026-10-12-rejected-trio-nights-keep-exports-no-fold-rewrites`: a night the fold REJECTS
    keeps the exports of whenever it last passed, and `--force` never offers that night again, so no
@@ -1072,6 +1094,30 @@ function selftest() {
       ok('the whole-root generation is kept under its OWN name, never as the comparable one', block.foldGenerationAtCut === cut.generation);
       ok('the block says how it proved itself, by quoting the digest it reproduced', block.recovered.verifiedBy.includes(cut.allFilesDigest));
       ok('∅ a refused recovery yields no block at all', recoveredBlock({ ok: false }) === null);
+
+      /* ── THE STAMP FIELDS A PUBLISHED TABLE OWES. Both branches run here, because the corpus the
+         fleet reads has every read night stamped, so the ∅ branch is unreachable from a real run and
+         would otherwise ship unexercised. */
+      const stampedBlock = { root: TRIO, resolvable: true, dataDigest: 'aaaaaaaaaaaa', foldGeneration: 'bbbbbbbbbbbb', nights: 2, unstamped: 0 };
+      const sf = stampFields(stampedBlock, { producer: 'tools/p.mjs', invocation: '--dir x', day: '2026-11-01' });
+      ok(
+        'the stamp line carries the producer, the inputs, the digest, the generation and the day',
+        sf.attrs === 'producer=tools/p.mjs invocation="--dir x" inputs=' + TRIO + ' inputsDigest=aaaaaaaaaaaa foldGeneration=bbbbbbbbbbbb generated=2026-11-01',
+        sf.attrs
+      );
+      ok('a resolvable generation leaves no reason to state', sf.reason === null);
+      const holey = stampFields({ ...stampedBlock, foldGeneration: null, unstamped: 5, nights: 90 }, { producer: 'tools/p.mjs', day: '2026-11-01' });
+      ok('∅ an unstamped night read drops the ATTRIBUTE, never the stamp', holey.attrs !== null && !holey.attrs.includes('foldGeneration'), holey.attrs);
+      ok('∅ and the reason counts the nights that cannot be attributed', holey.reason === '5 of the 90 night(s) read carry no fold stamp, so no generation describes this population', holey.reason);
+      ok(
+        '∅ an unresolvable corpus yields NO attributes, and quotes the block’s own reason',
+        (() => {
+          const r = stampFields({ resolvable: false, reason: 'the corpus is outside this checkout' }, { day: '2026-11-01' });
+          return r.attrs === null && r.reason === 'the corpus is outside this checkout';
+        })()
+      );
+      ok('∅ a stamp dated by the reader is refused: no day, no attributes', stampFields(stampedBlock, {}).attrs === null);
+      ok('the owed-output note names the one field the producer cannot know', STAMP_OUTPUT_OWED.includes('output=') && STAMP_OUTPUT_OWED.includes('paste'));
 
       /* A record carrying a recovered block is judged on the data half ALONE. */
       const atCutRec = { inputs: { path: TRIO }, corpus: block };

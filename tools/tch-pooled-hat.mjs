@@ -36,7 +36,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { solveNight } from './tch-fused-corpus.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { corpusBlock, corpusIdentity, repoRelative } from './fold-generation.mjs';
+import { STAMP_OUTPUT_OWED, corpusBlock, corpusIdentity, repoRelative, stampFields } from './fold-generation.mjs';
 import { gitCommitOf, notCovered, populationVerdict, ruleLine, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -238,6 +238,14 @@ function main() {
   if (corpus.resolvable) {
     console.log(`    dataDigest ${corpus.dataDigest} over ${corpus.dataFiles} export file(s) · foldGeneration ${corpus.foldGeneration}`);
     console.log(`    ${corpus.stamped} of ${corpus.nights} night(s) carry a fold stamp under ${corpus.codeDigests.length} code digest(s); ${corpus.unstamped} carry none and cannot be attributed.`);
+    /* ── THE STAMP FIELDS, so a published table carries the generation by COPY. The attributes are
+       built by `stampFields` in `fold-generation.mjs`, beside the block they describe, so the printer
+       here cannot drift from the gate that reads the pasted marker. */
+    const stamp = stampFields(corpus, { producer: 'tools/tch-pooled-hat.mjs', invocation: process.argv.slice(2).join(' '), day: new Date().toISOString().slice(0, 10) });
+    console.log('\n  TABLE-PROVENANCE fields for a table cut from this run');
+    if (stamp.attrs) console.log(`    ${stamp.attrs}`);
+    if (stamp.reason) console.log(`    no foldGeneration: ${stamp.reason}`);
+    console.log(`    ${STAMP_OUTPUT_OWED}`);
   } else {
     console.log(`    unresolvable — ${corpus.reason}`);
   }
