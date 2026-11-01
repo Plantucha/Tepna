@@ -846,12 +846,16 @@ def test_STORAGE_POLLER_WALKS_THE_NIGHTS_OFF_THE_EVENT_LOOP(_fresh, tmp_path, mo
 
 
 def test_EVERY_PER_POLL_TREE_WALK_IS_TO_THREADED():
-    """The other three sites (qc_poller's `_current_night`, archive_poller's two `pending_nights`) are
-    pinned by source shape: an inline call on any of them is the regression."""
+    """The other sites are pinned by source shape, and an inline call on any of them is the regression:
+    qc_poller's `_current_night`, the archiver's two `pending_nights`, its two `copy_blocked_nights`
+    and the stalled-protection scan. Every one is a listdir+getmtime over every night."""
     src = module_source("capture.py")
     assert "await asyncio.to_thread(_current_night, captures, settle)" in src
-    assert src.count("await asyncio.to_thread(nightarchive.pending_nights, captures, active)") == 2
+    assert src.count("await asyncio.to_thread(nightarchive.pending_nights, captures, blocked)") == 2
     assert src.count("await asyncio.to_thread(diskguard.active_nights, captures, settle)") >= 2
+    # the archiver's own two gates read the NARROWER question, and both walk a tree (2026-10-29 row)
+    assert src.count("await asyncio.to_thread(nightarchive.copy_blocked_nights, captures, settle)") == 2
+    assert "await asyncio.to_thread(nightarchive.stalled_protection, captures, settle)" in src
     # and no poller calls them inline any more
     assert not re.search(r"^\s+(?:protect|current) = (?:diskguard\.active_nights|_current_night)\(", src, re.M)
     assert not re.search(r"for night in nightarchive\.pending_nights\(", src)

@@ -27,8 +27,10 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
 
 import diskguard
+import nightqc
 
 _MARKER = ".archived"
 
@@ -93,6 +95,113 @@ def _grew_since_marker(night_dir: str, marker: str) -> bool:
         except OSError:
             return True
     return False
+
+
+# How long a night may sit with its DEVICE data settled while something else in the folder keeps being
+# written, before the protection that holds it is reported as stalled. A stated constant, not a config
+# key: the number answers "is one lone writer parking a finished night", and that question does not
+# change per box. Six hours is well past any real doff-to-settle gap and well short of the measured
+# stall (one `OXYLIFE*.csv` moved 14 h after the night's other 89 files settled, 2026-10-29).
+COPY_STALL_AFTER_SEC = 6 * 3600.0
+
+
+def copy_blocked_nights(
+    captures_dir: str, settle_sec: float, _now=time.time, _newest=nightqc.newest_data_mtime
+) -> set[str]:
+    """The nights a non-destructive COPY must skip: those whose DEVICE data is still arriving.
+
+    🔴 NOT `diskguard.active_nights`, AND THAT IS THE WHOLE POINT. That set answers "is ANYTHING
+    writing in this folder" and is right to count any file, because its contract is a protect-list for
+    DESTRUCTIVE work (prune, retention) where a folder someone writes to must be left alone. A mirror
+    or a push is not destructive. `archive_night` is idempotent and size-diffed and `pending_nights`
+    re-offers a night whose source grew, so a copy taken while a sidecar is mid-write costs the next
+    cycle the changed bytes and nothing else. `nightqc.data_settled` already drew this line for the QC
+    poller, which borrowed the wider answer and therefore never judged a night at all.
+
+    The protection had NO CEILING, so one periodic writer parked a whole night without bound: measured
+    on the capture box 2026-10-29, the 2026-10-28 night held 1.1 GB over 90 files, 89 of them settled
+    at 05:14, and one 284 KB `OXYLIFE*.csv` moved at 19:24 the next evening. The deployed selector
+    returned that night active and `pending_nights` empty, 6.5 h after the last push, while
+    `status.recording` read false and `status.live_loss.open_files` read 0.
+
+    A folder with NO device-capture file is NOT blocked, which is a deliberate difference from
+    `data_settled`, where `None` means "nothing to judge" and so cannot be settled. Here the question
+    is whether a DEVICE is still appending; no capture file means no device append and nothing a copy
+    can tear. The midnight decoy folder — sidecars only, no data — is exactly that case, and holding a
+    copy for it is how the stall reproduces.
+
+    Fails SAFE in the same direction as `active_nights`: a night we cannot read counts as blocked,
+    because the doubt must not license the copy of a half-written file we then mark confirmed.
+    `_now` and `_newest` are injectable for tests."""
+    now = _now()
+    out: set[str] = set()
+    for n in diskguard.list_nights(captures_dir):
+        d = os.path.join(captures_dir, n)
+        try:
+            newest = _newest(d)
+        except OSError:
+            out.add(n)
+            continue
+        if newest is not None and (now - newest) < settle_sec:
+            out.add(n)
+    return out
+
+
+def stalled_protection(
+    captures_dir: str,
+    settle_sec: float,
+    stall_after_sec: float = COPY_STALL_AFTER_SEC,
+    _now=time.time,
+    _newest=nightqc.newest_data_mtime,
+) -> list[dict]:
+    """The nights `diskguard.active_nights` still holds although their DEVICE data settled long ago.
+
+    One row per night, oldest settled first: `{night, data_age_sec, any_age_sec}`. A night qualifies
+    when all three hold — its device data exists and settled (`data_age_sec >= settle_sec`), something
+    else in the folder is still fresh (`any_age_sec < settle_sec`), and the data has been settled past
+    `stall_after_sec`. That is the shape of the measured defect: a lone periodic writer, every device
+    file long quiet, the folder held active without bound.
+
+    This REPORTS; it does not gate. `copy_blocked_nights` above already unblocks the copy, so this
+    exists because the stall was SILENT for 6.5 h: `archive.ok` describes the last ATTEMPT, which
+    passed, so nothing anywhere said a night had stopped being offered. A bound with no alarm trades a
+    stall you can measure for one you cannot.
+
+    Ages are `None`-free by construction — a night with no device data never qualifies, so no row
+    carries a measurement that was not taken."""
+    now = _now()
+    rows: list[dict] = []
+    for n in diskguard.list_nights(captures_dir):
+        d = os.path.join(captures_dir, n)
+        try:
+            newest = _newest(d)
+            any_m = _newest_any_mtime(d)
+        except OSError:
+            continue  # unreadable is not evidence of a stall — copy_blocked_nights holds it instead
+        if newest is None or any_m is None:
+            continue
+        data_age = now - newest
+        any_age = now - any_m
+        if data_age >= settle_sec and any_age < settle_sec and data_age > stall_after_sec:
+            rows.append({"night": n, "data_age_sec": data_age, "any_age_sec": any_age})
+    rows.sort(key=lambda r: -r["data_age_sec"])
+    return rows
+
+
+def _newest_any_mtime(night_dir: str) -> float | None:
+    """Newest mtime among ANY file directly in `night_dir`, or None when it holds none.
+
+    The counterpart to `nightqc.newest_data_mtime`, which excludes sidecars by tag. The pair is what
+    lets a caller say "the devices are quiet AND something else is not" without re-deriving either
+    rule. Top level only, matching `diskguard.active_nights`, whose verdict this explains."""
+    newest = None
+    for f in os.listdir(night_dir):
+        p = os.path.join(night_dir, f)
+        if os.path.isfile(p):
+            m = os.path.getmtime(p)
+            if newest is None or m > newest:
+                newest = m
+    return newest
 
 
 def pending_nights(captures_dir: str, active: "str | set[str]", marker: str = _MARKER) -> list[str]:
