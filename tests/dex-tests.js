@@ -23382,6 +23382,48 @@
         (r.unrecordedNights || []).length + ' nights'
       );
 
+      /* ── A COUNT WITHOUT A REASON DECIDES NOTHING ──────────────────────────────────────
+         The unstamped count was published for three weeks with no per-night reason, and the reason is
+         what decides the remedy: `tools/trio-batch.mjs` stamps only a night it PLANS, so a re-fold
+         cures `folded-not-stamped` and reaches `no-fold-record` not at all. Measured 2026-11-01, the
+         tracked fold ledger names none of the unstamped nights, so the owner's re-fold ruling reaches
+         none of them (`briefs/FOLD-ERA-STAMP-CONTRACT-2026-10-28-BRIEF.md`). These legs pin the
+         VOCABULARY and the identities, never the split itself — a night that gets folded without a
+         stamp moves into the curable column and must still add up. */
+      var VOCAB = (modE.ERA_UNSTAMPED_REASONS || []).concat(['unknown-no-ledger']),
+        fl = r.foldLedger || {};
+      T.ok('the closed reason vocabulary comes from the producer, not from this file', (modE.ERA_UNSTAMPED_REASONS || []).length === 2, JSON.stringify(modE.ERA_UNSTAMPED_REASONS));
+      T.ok(
+        'every unstamped night carries a reason from that vocabulary',
+        (r.unrecordedNights || []).every(function (n) {
+          return VOCAB.indexOf(n.reason) >= 0 || (n.reason === null && fl.ok === false);
+        }),
+        JSON.stringify(
+          (r.unrecordedNights || [])
+            .filter(function (n) {
+              return VOCAB.indexOf(n.reason) < 0;
+            })
+            .slice(0, 3)
+        )
+      );
+      T.eq(
+        'the per-reason tally sums to the unstamped count',
+        Object.keys(r.unstampedByReason || {}).reduce(function (a, k) {
+          return a + r.unstampedByReason[k];
+        }, 0),
+        r.unstamped
+      );
+      T.ok(
+        '∅ a census that could not read the ledger says so, and reads no night as never-folded',
+        fl.ok === true ? fl.reason === null && typeof fl.nights === 'number' : typeof fl.reason === 'string' && !(r.unstampedByReason || {})['no-fold-record'],
+        JSON.stringify(fl)
+      );
+      T.ok(
+        'the live census agrees with the committed one on both the count and the reasons',
+        liveE.unstamped === r.unstamped && JSON.stringify(liveE.unstampedByReason) === JSON.stringify(r.unstampedByReason),
+        liveE.unstamped + '/' + JSON.stringify(liveE.unstampedByReason) + ' vs ' + r.unstamped + '/' + JSON.stringify(r.unstampedByReason)
+      );
+
       /* THE PROXY FACT, asserted rather than assumed — this is what confines the exposure to the
          partial-leg consumers, so it is the one equality worth a tripwire. */
       T.eq('a three-export night and a stamped night are the same set', px.threeLegNights, px.stampedNights);
