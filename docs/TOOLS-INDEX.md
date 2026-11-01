@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**305 tools** · 304 with a purpose line · **1 without**
+**306 tools** · 305 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -91,6 +91,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`eegdex-selftest.mjs`](../tools/eegdex-selftest.mjs) | Assertions for `eegdex-dsp.js`, on PLANTED signals rather than the corpus — a staging engine that only demonstrates itself on real EEG cannot show WHY it is right, and a corpus test cannot… |
 | [`eqc-power.mjs`](../tools/eqc-power.mjs) | how many simultaneous epochs does Extended Quadruple Collocation need before it can say WHICH pair of sources shares error? |
 | [`eqc-run.mjs`](../tools/eqc-run.mjs) | Extended Quadruple Collocation on the real 4-stream corpus. WHAT IT ANSWERS. |
+| [`estate-drift.mjs`](../tools/estate-drift.mjs) | estate-drift — config truth for the fleet's systemd estate: the unit files the repo tracks against the unit files actually installed, per host. |
 | [`extreme-mutate.mjs`](../tools/extreme-mutate.mjs) | PSEUDO-TESTED FUNCTIONS — delete the whole body and see whether anything notices. |
 | [`find-copied-bodies.mjs`](../tools/find-copied-bodies.mjs) | FIND TESTS THAT EXERCISE A PRIVATE COPY INSTEAD OF THE SHIPPED SYMBOL. |
 | [`find-unwired-js.mjs`](../tools/find-unwired-js.mjs) | THE JS SIBLING OF `capture-host/tools/find_unwired.py`. Finds machinery that exists, is tested, and is connected to NOTHING — on the JS side, which that tool does not reach. |
