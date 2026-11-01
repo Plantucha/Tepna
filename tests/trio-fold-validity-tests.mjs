@@ -30,7 +30,7 @@ same(runsSidecarPath(undefined, 'ECG'), null, 'no path → null');
 /* ── THE ECG BLANKING SPANS ── */
 const ecg = (len, spans) => ({ int16: new Int16Array(len), ...(spans ? { blankingSpans: spans } : {}) });
 same(mergeBlankingSpans([ecg(10), ecg(20)]), undefined, 'no fragment carried a sidecar → undefined, today’s record shape');
-same(mergeBlankingSpans([ecg(10, []), ecg(20)]), { spans: [], unplaced: 0 }, 'a sidecar that recorded no run is an empty list, not an absence');
+same(mergeBlankingSpans([ecg(10, []), ecg(20)]), { spans: [], unplaced: 0, refused: 0, reason: null }, 'a sidecar that recorded no run is an empty list, not an absence');
 same(
   mergeBlankingSpans([ecg(100, [{ first: 5, n: 30, value: 7 }]), ecg(50), ecg(40, [{ first: 2, n: 30, value: 9 }])]),
   {
@@ -38,14 +38,43 @@ same(
       { first: 5, n: 30, value: 7 },
       { first: 152, n: 30, value: 9 }
     ],
-    unplaced: 0
+    unplaced: 0,
+    refused: 0,
+    reason: null
   },
   'the third fragment’s span moves by the 150 samples before it; the value rides through'
 );
 same(
   mergeBlankingSpans([{ blankingSpans: [{ first: 1, n: 30 }] }, ecg(10, [{ first: 2, n: 30 }])]),
-  { spans: [{ first: 1, n: 30 }], unplaced: 1 },
+  { spans: [{ first: 1, n: 30 }], unplaced: 1, refused: 0, reason: null },
   'after a fragment of unknown length a span is dropped and counted, never placed'
+);
+
+/* ── ∅ AN UNREAD SIDECAR AND AN ABSENT ONE MUST NOT FOLD ALIKE ──
+   Row `2026-11-01-the-ecg-fold-cannot-tell-an-absent-sidecar-from-an-unreadable-one`. `ecgdex-dsp.js`
+   spells a sidecar it could not place as `null` plus a `blankingSpansReason`, and this merge read that
+   refusal as the one-argument parse that states nothing. The direction was the harmful one: a night the
+   parse could not place looked like a night the box never wrote a sidecar for. */
+const refus = (len, why) => ({ int16: new Int16Array(len), blankingSpans: null, ...(why ? { blankingSpansReason: why } : {}) });
+same(
+  mergeBlankingSpans([refus(10, 'sidecar rows unplaced: channel 0'), ecg(20)]),
+  { spans: null, unplaced: 0, refused: 1, reason: '1 of 1 fragment(s) with a sidecar went unread: sidecar rows unplaced: channel 0' },
+  'the only sidecar placed no row → null and the fragment’s own reason, never an empty list'
+);
+ok(
+  JSON.stringify(mergeBlankingSpans([refus(10, 'sidecar rows unplaced: channel 0'), ecg(20)])) !== JSON.stringify(mergeBlankingSpans([ecg(10), ecg(20)])),
+  'the unread sidecar and the absent one do not fold alike'
+);
+same(mergeBlankingSpans([ecg(10), ecg(20)]), undefined, 'and the absent one still reads undefined, so a sidecar-less night keeps its record shape');
+same(
+  mergeBlankingSpans([refus(10)]),
+  { spans: null, unplaced: 0, refused: 1, reason: '1 of 1 fragment(s) with a sidecar went unread: no reason stated' },
+  'a refusal carrying no reason still says a sidecar went unread'
+);
+same(
+  mergeBlankingSpans([refus(100, 'sidecar rows unplaced: channel 0'), ecg(40, [{ first: 2, n: 30 }])]),
+  { spans: [{ first: 102, n: 30 }], unplaced: 0, refused: 1, reason: '1 of 2 fragment(s) with a sidecar went unread: sidecar rows unplaced: channel 0' },
+  'a part-read night keeps the spans it placed, rebased past the refusing fragment, and says the rest went unread'
 );
 
 /* ── THE PPG PINNED SPANS ── */
@@ -90,6 +119,7 @@ const tb = readFileSync(join(here, '..', 'tools', 'trio-batch.mjs'), 'utf8');
 ok(/import\s*\{[^}]*\bmergeBlankingSpans\b[^}]*\}\s*from\s*'\.\/trio-fold-validity\.mjs'/.test(tb), 'trio-batch.mjs imports mergeBlankingSpans');
 ok(/import\s*\{[^}]*\bmergePinnedSpans\b[^}]*\}\s*from\s*'\.\/trio-fold-validity\.mjs'/.test(tb), 'trio-batch.mjs imports mergePinnedSpans');
 ok(/blankingSpans: blank \? blank\.spans : undefined/.test(tb), 'the merged ECG record publishes blankingSpans');
+ok(/blankingSpansReason: blank\.reason/.test(tb), 'the merged ECG record publishes the refusal reason beside the spans');
 ok(/spans: pinned\.spans,/.test(tb), 'the merged PPG record publishes spans');
 ok(/ECGDex\.parseECGLines\(readLinesBounded\(f\.full\), \{ runsText: readRuns\(f\.full, 'ECG'\) \}\)/.test(tb), 'the fold hands _ECGRUNS.txt to the ECG parser');
 ok(
