@@ -1029,7 +1029,7 @@ def _floating_mtime(path: str, recorded: dict) -> float:
 
 
 def _recordings(
-    root: str, deadline: float | None = None, unread: set[float] | None = None
+    root: str, deadline: float | None = None, unread: set[float] | None = None, ends: dict | None = None
 ) -> list[tuple[str, frozenset[float]]]:
     """`[(band_evening_date, stamps)]` — one entry per RECORDING, newest first. PURE given the tree.
 
@@ -1046,6 +1046,10 @@ def _recordings(
     # `deadline` bounds the span pass alone and is `index_nights`' own budget: the spans come first, so a
     # tree whose ends are already cached leaves the whole budget to the per-night stats.
     spans = _session_spans(root, deadline, unread)
+    # `ends` hands the caller each session's end from this one pass, so `index_nights` can publish a
+    # recording's span without a second walk. New, optional and last: every other caller keeps its call.
+    if ends is not None:
+        ends.update(spans)
     by_band: dict[str, list[float]] = {}
     # 🔴 A NIGHT WITH NO SESSION STAMP ANYWHERE STILL GETS A ROW, and leaving this out LOST one. The CPAP
     # trees are DATE-KEYED and carry no stamp (`session_epoch` returns None and says why), so a night
@@ -1129,15 +1133,59 @@ def index_nights(root: str, limit: int = 60, budget_s: float | None = 15.0) -> l
     captures = os.path.join(root, "captures")
     deadline = None if budget_s is None else time.monotonic() + budget_s
     unread: set[float] = set()
-    recs = _recordings(root, deadline, unread)[: max(1, limit)]
-    rows = [_night_row(captures, os.path.join(captures, band), deadline, stamps) for band, stamps in recs]
-    # A recording whose chain rests on a session the budget left without an end is not settled: its row
-    # may split or merge on the next call. `span` is a node-shaped `pending`, so `pending_count` counts it
-    # and the page asks again instead of keeping a cold pass's chain.
-    for row, (_band, stamps) in zip(rows, recs):
+    ends: dict[float, float] = {}
+    nights = _nights(_recordings(root, deadline, unread, ends))[: max(1, limit)]
+    rows = [
+        _night_row(captures, os.path.join(captures, band), deadline, frozenset().union(*chains))
+        for band, chains in nights
+    ]
+    for row, (_band, chains) in zip(rows, nights):
+        stamps = frozenset().union(*chains)
+        if stamps:
+            row["sessions"] = [_session_of(chain, ends) for chain in sorted(chains, key=min)]
+        # A recording whose chain rests on a session the budget left without an end is not settled: its
+        # recordings may split or merge on the next call. `span` is a node-shaped `pending`, so
+        # `pending_count` counts it and the page asks again instead of keeping a cold pass's chain.
         if stamps & unread:
             row["span"] = {"pending": True}
     return list(reversed(rows))
+
+
+def _nights(recs: list[tuple[str, frozenset[float]]]) -> list[tuple[str, list[frozenset[float]]]]:
+    """`_recordings`' chains grouped into ONE ENTRY PER NIGHT BAND, newest band first.
+
+    🔴 THE ROW IS THE NIGHT, AND A RECORDING IS A SESSION INSIDE IT (owner ruling 2026-11-01, which
+    reverses the 2026-10-10 row identity `(night band, recording start)`). A gap over
+    `nightqc._SESSION_GAP_SEC` still splits two recordings, but inside the row, so one night never shows
+    twice on the page. `_recordings` sorts by band first, so one band's chains are adjacent. A date-keyed
+    night keeps its one empty chain."""
+    out: list[tuple[str, list[frozenset[float]]]] = []
+    for band, stamps in recs:
+        if out and out[-1][0] == band:
+            out[-1][1].append(stamps)
+        else:
+            out.append((band, [stamps]))
+    return out
+
+
+def _session_of(chain: frozenset[float], ends: dict[float, float]) -> dict:
+    """One recording of a night: its first start, the latest end of its sessions, and its daytime flag.
+
+    FLOATING, like `recording_start`: the epochs are wall-clock encoded as UTC, so `timezone.utc` reads
+    them back as the device's own screen showed them. `daytime` is `night_entry`'s rule over this chain
+    alone, so the page can say which recording the sleep band keeps out of the cells."""
+
+    def clock(t: float) -> str:
+        return _dt.datetime.fromtimestamp(t, _dt.timezone.utc).strftime("%Y-%m-%d %H:%M")
+
+    return {
+        "start": clock(min(chain)),
+        "end": clock(max(ends[t] for t in chain)),
+        "daytime": all(
+            nightqc._DAYTIME_BEGIN_H <= _dt.datetime.fromtimestamp(t, _dt.timezone.utc).hour < nightqc._DAYTIME_END_H
+            for t in chain
+        ),
+    }
 
 
 def _night_row(captures: str, night_dir: str, deadline: float | None, stamps: frozenset[float] | None = None) -> dict:
