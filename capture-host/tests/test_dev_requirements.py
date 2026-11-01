@@ -115,3 +115,77 @@ def test_the_mutation_job_pins_the_pytest_it_installs():
     floor = re.search(r"^pytest>=([^\s#]+)", REQ_DEV.read_text(encoding="utf-8"), re.MULTILINE)
     assert floor, "requirements-dev.txt declares no pytest floor"
     assert pinned.group(1) == floor.group(1), (pinned.group(1), floor.group(1))
+
+
+# ── the equality above names no DIRECTION, so this is the direction ─────────────────────────────
+#
+# `test_the_mutation_job_pins_the_pytest_it_installs` is satisfied by moving the pin UP into the
+# broken pair exactly as well as by holding the floor down, and that is what a Dependabot bump asked
+# for on #4239. The incompatibility itself lives here as data, and it FAILS CLOSED: a mutmut version
+# earns its way out of the rule by a recorded verification, never by being newer than the last one.
+
+PYTEST_DROPPED_PRIVATE_NODEID = "9.2.0"
+# Verified reads, newest first. mutmut 3.8.0: `item._nodeid` at `mutmut/runners/harness.py:157`.
+MUTMUT_VERIFIED_CLEAR_OF_PRIVATE_NODEID: tuple[str, ...] = ()
+
+
+def _release(spec: str) -> tuple[int, ...]:
+    """The numeric release prefix of a version, so `9.2.0rc1` and `9.2.0` compare equal."""
+    m = re.match(r"(\d+(?:\.\d+)*)", spec)
+    if not m:
+        raise ValueError(f"not a version: {spec!r}")
+    return tuple(int(p) for p in m.group(1).split("."))
+
+
+def floor_is_legal(
+    mutmut_pin: str,
+    pytest_floor: str,
+    clear: tuple[str, ...] = MUTMUT_VERIFIED_CLEAR_OF_PRIVATE_NODEID,
+) -> tuple[bool, str | None]:
+    """Does this pytest FLOOR admit a release the pinned mutmut cannot run?
+
+    The rule stops binding only for a mutmut pin listed in `clear`, so a bump that nobody has read
+    keeps the floor held. Below the dropping release the rule never binds at all."""
+    if mutmut_pin in clear:
+        return True, None
+    if _release(pytest_floor) >= _release(PYTEST_DROPPED_PRIVATE_NODEID):
+        return False, (
+            f"mutmut {mutmut_pin} is not verified clear of pytest's private `Item._nodeid`, which "
+            f"pytest {PYTEST_DROPPED_PRIVATE_NODEID} dropped, so a floor of {pytest_floor} admits a "
+            "release the mutation gate cannot run — move mutmut first and record the read that clears it"
+        )
+    return True, None
+
+
+def test_the_pytest_floor_stays_below_the_release_mutmut_cannot_run():
+    """The real pair, read from `requirements-dev.txt`: the floor may not pass what mutmut cannot run."""
+    text = REQ_DEV.read_text(encoding="utf-8")
+    pin = re.search(r"^mutmut==([^\s#]+)", text, re.MULTILINE)
+    assert pin, "requirements-dev.txt pins no mutmut, so the mutation gate's runner is unknown"
+    floor = re.search(r"^pytest>=([^\s#]+)", text, re.MULTILINE)
+    assert floor, "requirements-dev.txt declares no pytest floor"
+    legal, reason = floor_is_legal(pin.group(1), floor.group(1))
+    assert legal, reason
+
+
+@pytest.mark.parametrize(
+    ("mutmut_pin", "pytest_floor", "clear", "legal"),
+    [
+        ("3.8.0", "9.1.1", (), True),  # the held floor of #4239
+        ("3.8.0", "9.2.0", (), False),  # the bump that re-creates the #4032 outage
+        ("3.8.0", "9.3.1", (), False),  # and anything past it
+        ("3.8.0", "9.2.0rc1", (), False),  # a pre-release of the dropping release still drops it
+        ("3.8.1", "9.2.0", (), False),  # FAIL CLOSED: a bump nobody read does not clear the rule
+        ("3.9.0", "9.2.0", ("3.9.0",), True),  # CONTROL: a verified pin makes the floor move legal
+        ("3.9.0", "9.1.1", (), True),  # below the dropping release the rule never binds
+    ],
+)
+def test_the_direction_permits_a_floor_move_once_mutmut_moves_first(mutmut_pin, pytest_floor, clear, legal):
+    got, reason = floor_is_legal(mutmut_pin, pytest_floor, clear)
+    assert got is legal, (mutmut_pin, pytest_floor, clear, reason)
+    assert (reason is None) is legal, reason
+
+
+def test_a_version_that_is_not_a_version_is_refused_rather_than_ordered():
+    with pytest.raises(ValueError, match="not a version"):
+        _release("not-a-version")
