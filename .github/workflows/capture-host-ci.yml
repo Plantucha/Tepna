@@ -260,6 +260,19 @@ jobs:
         # It is here as well as in check.sh because CI does NOT run check.sh; a bound on one side
         # only is half a bound, and the missing half is the side nobody watches.
         run: pytest -q -n 4 --timeout=180 --cov --cov-branch --cov-report=term-missing --cov-fail-under=100
+      - name: Coverage scope (covscope — every tools/*.py measured or pinned)
+        if: needs.changes.outputs.run == 'true'
+        # ⚠️ IT READS THE PYTEST STEP'S `.coverage` AND CANNOT PRODUCE IT, so it runs after that step
+        # and nowhere else. No readable data is a REFUSAL (exit 2), never a pass — the same
+        # object-not-exit-code contract check.sh reads this child under.
+        # 🔴 IT WAS A BLOCKING LEG OF check.sh FROM #3788 AND RAN IN NO CI JOB UNTIL THIS STEP. CI does
+        # not run check.sh (see the pytest step's note above), so every leg is replicated here by hand,
+        # and a leg added locally is a leg CI never gains. The cost: a `tools/*.py` measured nowhere and
+        # pinned nowhere reds on a contributor's box and is green on main, which is the direction that
+        # teaches a contributor to distrust the local gate. Residue
+        # `2026-11-01-a-blocking-check-sh-leg-ran-in-no-ci-job`. The parity is asserted from now on by
+        # tests/test_check_script.py, so the next leg cannot arrive alone.
+        run: python tools/covscope.py --check
 
   # ── DIFF-SCOPED MUTATION GATE ──────────────────────────────────────────────────────────────────────
   # Coverage answers "did this line run?". This answers "would any test NOTICE if it were wrong?", and
