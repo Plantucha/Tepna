@@ -17,6 +17,7 @@
  *   node tools/mutation-survivors.mjs ingest <verdict.json> --pr N --lane py|js [--run-id X] [--sha Y]
  *   node tools/mutation-survivors.mjs list [--lane L] [--open]
  *   node tools/mutation-survivors.mjs close <key> --killed N | --equivalent "<probe>"
+ *   node tools/mutation-survivors.mjs orphans [--lane py]
  *   node tools/mutation-survivors.mjs ratchet --expect N
  *   node tools/mutation-survivors.mjs --selftest
  *
@@ -27,6 +28,7 @@
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -397,6 +399,79 @@ export function orphanedEntries(ledger, presentKeys, scope = {}) {
   return ((ledger && ledger.entries) || []).filter((e) => e.state === 'open' && (!scope.lane || e.lane === scope.lane) && (!scope.module || e.module === scope.module) && !present.has(survivorKey(e)));
 }
 
+const normWs = (s) => String(s).replace(/\s+/g, ' ').trim();
+
+/* THE OTHER WAY AN ENTRY ORPHANS — and the only one a session can check with no mutmut run.
+ *
+ * `orphanedEntries` above needs the keys a RUN generated, so it can answer only while a verdict is
+ * being ingested. An entry also orphans BETWEEN runs: the mutated line is edited away, and no
+ * invocation of mutmut can generate that diff again. Measured 2026-11-01 over the committed ledger —
+ * 3 of the 30 open `nightqc.py::summarize` entries record a line the module no longer carries, among
+ * them `before = [s for s in others if s[1] <= cur[0]]`, whose partition now reads `excluded` and
+ * `_judged_start`. The drafting program already reports each as GONE on every pass (`v: 'GONE'`) and
+ * nothing could close one, so all three were re-read by every night run and drafted against never.
+ *
+ * IT FAILS CLOSED, because the cost of a wrong `absent: true` is retiring a live finding. Anything
+ * this cannot read — an unresolvable module, a lane whose bodies it cannot delimit, a name that is
+ * not a top-level `def` — answers `absent: false` WITH A REASON, never silence (§4c: a check that
+ * could not look says so instead of returning a verdict). A deleted or renamed function is the one
+ * absence it does assert, which is the brief's own case: "an entry whose function is renamed WILL
+ * orphan, and it must be reported as orphaned rather than silently dropped".
+ */
+export const ABSENCE_LANES = ['py'];
+
+export function recordedLineAbsence(entry, root) {
+  const fname = entry.function || entry.fn;
+  if (!ABSENCE_LANES.includes(entry.lane)) {
+    return { absent: false, reason: `the ${entry.lane} lane has no body reader here — only ${ABSENCE_LANES.join(', ')}` };
+  }
+  /* SPLIT ON THE SEPARATOR, NEVER ON `|`. A python annotation carries its own pipes, and one of the
+     three this measured is keyed `- _cur_end: float | None = None | + _cur_end: float | None = ""`,
+     which a split on `|` tears into five pieces. ` | + ` occurs once in a well-formed pair. */
+  const halves = String(entry.key || '').split(' | + ');
+  if (halves.length !== 2 || !halves[0].trimStart().startsWith('- ')) {
+    return { absent: false, reason: 'the key is not a `- old | + new` pair, so it names no line to look for' };
+  }
+  const want = normWs(halves[0].trimStart().slice(2));
+  if (!want) return { absent: false, reason: 'the pair records an empty original line' };
+  /* TWO SPELLINGS, BOTH COMMITTED: the ledger holds `nightqc.py` and `capture-host/loss_audit.py`,
+     so a module is repo-relative on one entry and capture-host-relative on the next. Both are tried
+     and neither is assumed. */
+  const resolved = [entry.module, path.join('capture-host', String(entry.module || ''))].map((r) => path.join(root, r)).find((p) => fs.existsSync(p));
+  if (!resolved) return { absent: false, reason: `the module ${entry.module} resolves to no file under ${root}` };
+  const body = pyFunctionBody(fs.readFileSync(resolved, 'utf8'), fname);
+  if (body === null) return { absent: true, reason: `${entry.module} no longer defines a top-level \`${fname}\``, resolved };
+  if (body === undefined) {
+    return { absent: false, reason: `\`${fname}\` appears only indented in ${entry.module}, and this reads top-level bodies only`, resolved };
+  }
+  return { absent: !normWs(body).includes(want), reason: null, resolved, line: want };
+}
+
+/**
+ * One top-level python function's own lines — `null` when the module defines no such name,
+ * `undefined` when the name appears only indented (a method or a closure), which this does not read.
+ *
+ * A top-level `def` ends at the next line starting in column 0, which is what makes the nested
+ * functions and comment blocks inside a 700-line `summarize` part of its body rather than its end.
+ */
+export function pyFunctionBody(src, fname) {
+  const lines = String(src).split('\n');
+  const esc = String(fname || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!esc) return null;
+  const at = lines.findIndex((l) => new RegExp('^def\\s+' + esc + '\\s*\\(').test(l));
+  if (at < 0) {
+    return lines.some((l) => new RegExp('^\\s+def\\s+' + esc + '\\s*\\(').test(l)) ? undefined : null;
+  }
+  let end = lines.length;
+  for (let i = at + 1; i < lines.length; i++) {
+    if (/^\S/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(at, end).join('\n');
+}
+
 // ── I/O ────────────────────────────────────────────────────────────────────────────────────────
 const EMPTY = {
   _README:
@@ -519,8 +594,9 @@ function cmdClose(argv) {
   const label = argv[1];
   const killed = arg('--killed', argv);
   const equiv = arg('--equivalent', argv);
-  if (!label || (!killed && !equiv)) {
-    console.error('close <mutant-id | label text> --killed N | --equivalent "<probe>"');
+  const orphaned = argv.includes('--orphaned');
+  if (!label || (!killed && !equiv && !orphaned)) {
+    console.error('close <mutant-id | label text> --killed N | --equivalent "<probe>" | --orphaned');
     return 2;
   }
   const ledger = readLedger();
@@ -530,7 +606,18 @@ function cmdClose(argv) {
     return 2;
   }
   const hits = sel.hits;
-  hits[0].state = killed ? `killed #${Number(killed)}` : 'equivalent';
+  /* THE OPERATOR DOES NOT GET TO ASSERT THIS ONE. `--killed` is backed by a run and `--equivalent`
+     by a probe the reviewer reads, but "the line is gone" is a fact about today's source, so the
+     tool checks it and refuses its own flag when the line is still there. */
+  if (orphaned) {
+    const gone = recordedLineAbsence(hits[0], path.join(HERE, '..'));
+    if (!gone.absent) {
+      console.error(`mutation-survivors: REFUSING — ${gone.reason || "the recorded line is still in today's source, so the entry is live"}`);
+      return 2;
+    }
+    hits[0].orphan_evidence = gone.reason || `${hits[0].module} no longer carries the recorded line`;
+  }
+  hits[0].state = killed ? `killed #${Number(killed)}` : orphaned ? 'orphaned' : 'equivalent';
   if (equiv) hits[0].probe = equiv;
   // WHERE the closure was made, so a later run can be placed before or after it. The PR number is
   // what survives a squash merge; the branch sha is only the fallback until that PR lands.
@@ -549,7 +636,7 @@ function cmdClose(argv) {
 /** The ONE verdict object this tool emits. Shared by `ratchet` and `--verdict-sample` so the
  * sample cannot drift from the thing it is a sample of — a sample that is not the real shape is
  * exactly the partial adoption `verdict-adoption` exists to catch. */
-export function ratchetVerdictObject({ expect, actual, eligible, noPr }) {
+export function ratchetVerdictObject({ expect, actual, eligible, noPr, orphaned = 0 }) {
   const v = ratchetVerdict(expect, actual, noPr);
   // 🔴 THE POPULATION IS EVERY ENTRY, NOT THE OPEN ONES. It was `checked: actual` (the open count),
   // which is a modelling error the verdict contract caught the first time a drain answered ALL of
@@ -568,7 +655,10 @@ export function ratchetVerdictObject({ expect, actual, eligible, noPr }) {
     criterion: { name: 'open_survivors', threshold: expect, unit: 'entries', direction: 'lte' },
     // NOT_APPLICABLE carries result: null — the criterion does not bind, so there IS no result.
     // (The contract refused this too; both refusals are the type system doing the reviewing.)
-    result: eligible === 0 ? null : { open: actual, expected: expect, answered: eligible - actual },
+    /* `answered` STAYS "killed or declared equivalent", so the orphans come off it rather than
+       inflating it: an entry retired because its line was edited away answered nothing about the
+       code, and a reader comparing the two numbers is reading the difference that matters. */
+    result: eligible === 0 ? null : { open: actual, expected: expect, answered: eligible - actual - orphaned, orphaned },
     evidence: ['mutation-survivors.json'],
     reason
   });
@@ -617,6 +707,32 @@ function cmdMigrate(argv) {
   return 0;
 }
 
+/* The census the close path acts on, so finding an orphan needs neither a model nor a mutmut run.
+   A REPORT: it exits 0 whatever it finds, because an orphan is not a failure — it is debt that can
+   now be retired, and the gate that reads the consequence is the ratchet once the count moves. */
+function cmdOrphans(argv) {
+  const ledger = readLedger();
+  const lane = arg('--lane', argv);
+  const open = (ledger.entries || []).filter((e) => e.state === 'open' && (!lane || e.lane === lane));
+  const root = path.join(HERE, '..');
+  let gone = 0;
+  let unexamined = 0;
+  for (const e of open) {
+    const ab = recordedLineAbsence(e, root);
+    if (ab.absent) {
+      gone++;
+      console.log(`ORPHANED   ${e.mutant || '(no id)'}  ${keyLabel(survivorKey(e))}`);
+      console.log(`           ${ab.reason || "the recorded line is gone from today's source"}`);
+    } else if (ab.reason) {
+      unexamined++;
+      console.log(`UNEXAMINED ${e.mutant || '(no id)'}  ${ab.reason}`);
+    }
+  }
+  console.log(`\n${gone} of ${open.length} open entr(ies) record a line today's source no longer carries · ${unexamined} unexamined`);
+  if (gone) console.log('  close each: node tools/mutation-survivors.mjs close <mutant-id> --orphaned');
+  return 0;
+}
+
 function cmdRatchet(argv) {
   const expect = Number(arg('--expect', argv));
   if (!Number.isInteger(expect)) {
@@ -626,7 +742,8 @@ function cmdRatchet(argv) {
   const ledger = readLedger();
   const actual = openCount(ledger);
   const noPr = (ledger.entries || []).filter((e) => e.state === 'open' && !e.pr).length;
-  const obj = ratchetVerdictObject({ expect, actual, eligible: (ledger.entries || []).length, noPr });
+  const orphaned = (ledger.entries || []).filter((e) => e.state === 'orphaned').length;
+  const obj = ratchetVerdictObject({ expect, actual, eligible: (ledger.entries || []).length, noPr, orphaned });
   console.log(JSON.stringify(obj));
   return obj.status === 'PASS' ? 0 : 1;
 }
@@ -892,11 +1009,62 @@ function selftest() {
   );
   ck('open counting ignores closed rows', openCount(led), 2);
 
+  console.log('\nan entry ALSO orphans when its LINE is edited away, and that one needs no run');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'survivor-absence-'));
+  const MOD = [
+    'import os',
+    '',
+    'def summarize(night_dir, devices):',
+    '    span = None',
+    '    _cur_end: float | None = None',
+    '',
+    '    def inner(x):',
+    '        return x',
+    '',
+    '    return {"span": span}',
+    '',
+    'def other():',
+    '    before = [s for s in others if s[1] <= cur[0]]',
+    '    return before',
+    ''
+  ].join('\n');
+  fs.writeFileSync(path.join(tmp, 'nightqc.py'), MOD);
+  const ent = (key, fn = 'summarize', over = {}) => ({ lane: 'py', module: 'nightqc.py', function: fn, key, ...over });
+  /* EVERY `absent: false` BELOW IS A CONTROL THAT BITES: an implementation answering `true` whenever
+     it could not find the line — the obvious way to write this — reds five of them, measured by
+     flipping every fail-closed return in `recordedLineAbsence` and re-running this file. */
+  ck('a line still in the body is NOT absent', recordedLineAbsence(ent('- span = None | + span = ""'), tmp).absent, false);
+  ck(
+    '…and an ANNOTATED line splits on the separator, not on its own pipes',
+    recordedLineAbsence(ent('- _cur_end: float | None = None | + _cur_end: float | None = ""'), tmp).line,
+    '_cur_end: float | None = None'
+  );
+  ck('a line edited away IS absent', recordedLineAbsence(ent('- sessions = merge(x) | + sessions = merge(None)'), tmp).absent, true);
+  ck(
+    'a line that now lives in ANOTHER top-level function is absent from this one',
+    recordedLineAbsence(ent('- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] <= cur[1]]'), tmp).absent,
+    true
+  );
+  ck('a function the module no longer defines orphans the entry', recordedLineAbsence(ent('- span = None | + span = ""', 'vanished'), tmp).absent, true);
+  ck('an indented-only name is UNEXAMINED, never absent', recordedLineAbsence(ent('- return x | + return None', 'inner'), tmp).absent, false);
+  ck('…and it says which way it could not look', /only indented/.test(recordedLineAbsence(ent('- return x | + return None', 'inner'), tmp).reason), true);
+  ck('a module that resolves to nothing is UNEXAMINED', recordedLineAbsence(ent('- span = None | + span = ""', 'summarize', { module: 'absent.py' }), tmp).absent, false);
+  ck('a lane with no body reader is UNEXAMINED', recordedLineAbsence(ent('- span = None | + span = ""', 'summarize', { lane: 'js' }), tmp).absent, false);
+  ck('a key that is not a pair names no line to look for', recordedLineAbsence(ent('not a pair'), tmp).absent, false);
+  ck('a pair whose original half is empty names nothing either', recordedLineAbsence(ent('-  | + x'), tmp).absent, false);
+  ck('pyFunctionBody stops at the next top-level def', pyFunctionBody(MOD, 'summarize').includes('def other'), false);
+  ck('…and keeps a nested def INSIDE the body', pyFunctionBody(MOD, 'summarize').includes('def inner'), true);
+  ck('pyFunctionBody answers null for a name the module lacks', pyFunctionBody(MOD, 'vanished'), null);
+  ck('…and undefined for one that is only ever indented', pyFunctionBody(MOD, 'inner'), undefined);
+  fs.rmSync(tmp, { recursive: true, force: true });
+  ck('an orphaned entry is not an open one', openCount({ entries: [{ state: 'orphaned' }, { state: 'open' }] }), 1);
+  ck('the ratchet keeps `answered` clear of the orphans', ratchetVerdictObject({ expect: 1, actual: 1, eligible: 4, noPr: 0, orphaned: 2 }).result, { open: 1, expected: 1, answered: 1, orphaned: 2 });
+
   console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);
   return fail ? 1 : 0;
 }
 
-const CMDS = { ingest: cmdIngest, list: cmdList, close: cmdClose, ratchet: cmdRatchet, migrate: cmdMigrate };
+const CMDS = { ingest: cmdIngest, list: cmdList, close: cmdClose, orphans: cmdOrphans, ratchet: cmdRatchet, migrate: cmdMigrate };
 
 if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
@@ -907,7 +1075,7 @@ if (isCliEntry(import.meta.url)) {
     argv,
     {
       valued: ['--pr', '--lane', '--run-id', '--sha', '--killed', '--equivalent', '--expect'],
-      boolean: ['--selftest', '--verdict-sample', '--open', '--check'],
+      boolean: ['--selftest', '--verdict-sample', '--open', '--check', '--orphaned'],
       positional: true
     },
     { tool: 'mutation-survivors' }
@@ -921,7 +1089,7 @@ if (isCliEntry(import.meta.url)) {
   }
   const fn = CMDS[argv[0]];
   if (!fn) {
-    console.error('usage: mutation-survivors.mjs ingest <verdict.json> --pr N --lane py|js | list | close | ratchet --expect N | migrate [--check] | --selftest');
+    console.error('usage: mutation-survivors.mjs ingest <verdict.json> --pr N --lane py|js | list | close | orphans [--lane py] | ratchet --expect N | migrate [--check] | --selftest');
     process.exit(2);
   }
   process.exit(fn(argv));
