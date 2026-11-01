@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Daily 13:30 archive pull (after the box's 13:00 SD harvest)
+[Timer]
+OnCalendar=*-*-* 13:30:00
+Persistent=true
+[Install]
+WantedBy=timers.target

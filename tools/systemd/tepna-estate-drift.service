@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — config truth for the systemd estate (rig + vigil), primary dev machine only.
+#
+# WHY (owner's infra review 2026-10-31, item 5; Kestrel ruling, board #2564). Production behaviour
+# lived in hand-edited unit files the repo did not track: the rig ran about ten tepna-* units that
+# tools/systemd never held, and vigil runs the capture daemon from an untracked unit file. This
+# unit runs `tools/estate-drift.mjs --post`, which compares the tracked copies against the
+# installed ones and posts to board thread 7 only when the comparison CHANGES. The checker
+# reports only; it converges nothing, and vigil is read over ssh, never written.
+#
+# Install (the OWNER does this; a session must not):
+#   cp tools/systemd/tepna-estate-drift.service tools/systemd/tepna-estate-drift.timer ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now tepna-estate-drift.timer
+[Unit]
+Description=Tepna — report drift between tracked and installed systemd units
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/bin/sh -c 'T=%h/Tepna/tools/estate-drift.mjs; [ -f "$T" ] || { echo "estate-drift.mjs not on main yet"; exit 0; }; node "$T" --post; r=$?; [ "$r" -le 1 ] && exit 0; exit "$r"'
+TimeoutStartSec=5min

@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — estate drift check, daily
+
+[Timer]
+# OnCalendar with Persistent=true: a calendar timer always holds a next elapse, and a run the
+# rig slept through still lands once on wake — drift found late beats drift never reported.
+OnCalendar=*-*-* 05:37:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

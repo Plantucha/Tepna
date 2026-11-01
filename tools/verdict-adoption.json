@@ -2921,6 +2921,18 @@
     ]
    },
    "note": "the python lane's drafter (owner order 2026-10-31, board #2562): a local model proposes a fixture for each open survivor in the per-function baseline #4173 inherits from, and this tool records the real module's output and each mutant's and keeps only the fixtures whose outputs differ. Two verdicts, one object each: the drafting run (criterion drafts_written_without_a_machine_check, population = the baseline's survivors, excluded = rows whose line is gone from today's source) and --verify-kills, which re-proves every written draft through pytest in a private copy of the tree and reds unless each mutant's own draft exits 1 there."
+  },
+  "tools/estate-drift.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/estate-drift.mjs",
+     "--json"
+    ]
+   },
+   "note": "ESTATE-DRIFT (infra item 5, Kestrel ruling #2564, brief INFRA-STATE-2026-10-31): --json prints ONE tepna.verdict/1 over the systemd estate. PASS = every installed unit matches its tracked copy on the rig and on vigil; FAIL names each untracked, absent, differing or disabled unit and each unreadable host-local script (scripts are hashed into the verdict, never copied); NOT_RUN (exit 2) where the rig inventory cannot be read, which is CI and every fresh clone, so the sample there examines nothing and says so."
   }
  }
 }
