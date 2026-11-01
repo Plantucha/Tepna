@@ -1035,7 +1035,18 @@ export const UNWIRED_BACKLOG = {
      nothing, a run invoked with no arguments at all, and an argument that is not a directory, now
      exit 2 naming the errno where three of the four either threw an uncaught stack trace or read an
      unreadable root as an empty one. */
-  'corpus-tier.mjs': 1,
+  /* `corpus-tier.mjs` STAYS, AND THE COST IS THE REASON, 2026-11-01, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. Its walk is an ASYNC recursive
+     traversal of the whole canonical corpus root — `await fs.readdir(dir, { withFileTypes: true })`
+     — and `snapshotEntries` takes a SYNC lister, so wiring it means a second, synchronous walk of
+     tens of thousands of entries written to a rule that must not drift from the async one. It is
+     also the job that MOVES every other tool's population: it re-tiers daily under
+     `tepna-corpus-tier.service`, it REPLACES files with symlinks under the owner's ruling, and it
+     already publishes a verdict over the files it replaced and the files it refused. A second walk
+     of a 174 GB tree on a mutating daily timer is a cost the owner carries and not a wiring, so the
+     remaining debt here is ONE name, and it is named with its reason rather than left as a bare
+     key. */
+  'corpus-tier.mjs': 1
   /* THE THREE CPAP-CORPUS READERS LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `cpap-corpus.mjs`,
      `cpap-oxy-couple.mjs` and `cpap-sa2-agreement.mjs` read the SAME ResMed card from three
@@ -1051,8 +1062,27 @@ export const UNWIRED_BACKLOG = {
      figure and carries an arithmetic control (offered − scored === named).
      THE EXITS MOVED WITH THE POPULATIONS: a tree nobody can enumerate, a root that offered
      nothing, and an agreement pass that compared nothing, now exit 2 where all three exited 0. */
-  'geometry-scan.mjs': 1,
-  'hostaxis-estimator-bakeoff.mjs': 1
+  /* TWO SELECTION-OVER-THE-OFFER READERS LEFT TOGETHER, 2026-11-01, row
+     2026-10-21-forty-one-corpus-enumerators-report-no-population. `geometry-scan.mjs` and
+     `hostaxis-estimator-bakeoff.mjs` both enumerate a directory in order to TAKE ONE FILE out of it
+     — the largest match per probed pattern, and the first PSL export by name — so each now snapshots
+     that directory before the read and publishes the comparison after it. The scan reads both as
+     `reports` and this list must not name them.
+     THEIR UNIT IS A FILE, which is why both take `snapshotEntries` through a NAMED lister,
+     `listNightFiles` and `listPslEcg`: a night rule over a night directory's CONTENTS, or over a
+     Polar Sensor Logger export directory, would publish a rule nobody wrote.
+     THE SELECTION WAS THE WHOLE DEFECT. The bakeoff scores ONE geometry and `hits.sort()[0]` said
+     nothing about the rest, so a width sweep standing on one arbitrary night out of a corpus printed
+     the same geometry line as one standing on the only file there. Each run now names the file it
+     took, the count it was taken from, and the remainder it passed over — and `geometry-scan.mjs`'s
+     three selection patterns are ONE definition, read by the probe and by the population line, so
+     the figure cannot drift from the files that were read.
+     BOTH PICKS NOW READ THE SNAPSHOT'S OWN MEMBERS instead of walking the directory a second time:
+     two walks can offer two different sets, and a file scored must be one the published offer names.
+     THE REFUSALS SPLIT IN TWO. `fs.existsSync(dir) ? … : []` read an absent root as a root holding
+     no export, and `geometry-scan.mjs` met an unopenable directory as a caught ENOENT out of `pick`
+     with no population published at all. Both now publish a NOT_RUN population naming the errno and
+     keep the exit 2 they had (§∅ — an absent root is not a zero). */
   /* THE THREE NSRR COHORT READERS LEFT TOGETHER, 2026-10-28, row
      2026-10-21-forty-one-corpus-enumerators-report-no-population. `nsrr-criterion-sweep.mjs`,
      `nsrr-oxydex-odi.mjs` and `nsrr-stage-validate.mjs` read ONE population from three angles —
