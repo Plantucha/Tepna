@@ -23094,6 +23094,98 @@
         /* THE CLEARING LEG. */
         T.eq(where + ' · the git-tracked inputs still hash to the recorded inputsDigest (this stamp CLEARS)', st.actualInputsDigest, st.inputsDigest);
       });
+      /* ── A STAMP NAMES THE FILES IT READ AND NOT THE FOLD THAT PRODUCED THEM.
+         Residue 2026-09-22-corpus-consumers-have-no-staleness-stamp: `inputs`/`inputsDigest` answer
+         "did the measurement inputs move?" and nothing in a stamp answers "which pipeline folded
+         them?". The 2026-09-22 whole-corpus re-fold moved 288 of 288 comparable exports while every
+         input PATH stayed the same, so the two questions are not one question. The optional
+         `foldGeneration=` attribute is where the answer goes, and `tools/tch-pooled-hat.mjs` now
+         prints the field beside the digest it already printed.
+         🔴 FORWARD-ONLY BY DESIGN. The four stamps in the trio paper brief predate the attribute, and
+         writing a generation onto them would claim a provenance nobody recorded at the cut — the same
+         reasoning that keeps a recovered record's scoped generation null with its reason beside it.
+         So the requirement binds by the stamp's OWN `generated=` date.
+         ⚠️ THE COVERED SET IS DECLARED, NEVER INFERRED: a stamp whose `inputs` resolves under
+         `uploads/`, plus the named corpus producers below. A corpus-reading tool outside that list is
+         not covered, which is a limit of this leg and not a property of the tree. */
+      var FOLD_GEN_FROM = '2026-11-01';
+      var CORPUS_PRODUCERS = ['tools/tch-pooled-hat.mjs'];
+      var corpusStamps = TP.stamps.filter(function (x) {
+        return (x.inputs && x.inputs.indexOf('uploads/') === 0) || CORPUS_PRODUCERS.indexOf(x.producer) >= 0;
+      });
+      var before = corpusStamps.filter(function (x) {
+        return !x.generated || x.generated < FOLD_GEN_FROM;
+      });
+      var onOrAfter = corpusStamps.filter(function (x) {
+        return x.generated && x.generated >= FOLD_GEN_FROM;
+      });
+      /* THE POPULATION IS THE MESSAGE. A requirement over an empty set reads as a pass, so the count
+         travels with the verdict: today every corpus stamp predates the attribute, and this leg is
+         dormant by arithmetic rather than by silence. */
+      T.eq(
+        'every corpus stamp falls on one side of ' + FOLD_GEN_FROM + ' (the partition is the population this leg judges)',
+        before.length + onOrAfter.length,
+        corpusStamps.length,
+        corpusStamps.length + ' corpus stamp(s): ' + before.length + ' predate the attribute, ' + onOrAfter.length + ' are bound by it'
+      );
+      T.eq(
+        'a corpus stamp generated on or after ' + FOLD_GEN_FROM + ' records its fold generation',
+        onOrAfter
+          .filter(function (x) {
+            return !x.foldGeneration;
+          })
+          .map(function (x) {
+            return x.file + ':' + x.line;
+          })
+          .join(' \u00b7 '),
+        ''
+      );
+      /* A RECORDED GENERATION IS A DIGEST OR IT IS NOTHING — the shape check runs on every stamp that
+         carries one, whatever its date, so a hand-typed value reds on the day it lands. */
+      TP.stamps
+        .filter(function (x) {
+          return x.foldGeneration;
+        })
+        .forEach(function (st) {
+          T.ok(st.file + ':' + st.line + ' \u00b7 foldGeneration is a 12-hex digest', /^[0-9a-f]{12}$/.test(st.foldGeneration), 'foldGeneration=' + st.foldGeneration);
+        });
+      /* CONTROL \u00b7 the parser must actually SURFACE the attribute, or every leg above judges a field
+         that never arrives. The marker text is parsed by the same regex the runner uses. */
+      var genProbe = /<!--\s*TABLE-PROVENANCE\s+([^>]*?)-->/.exec('<!-- TABLE-PROVENANCE producer=p output=0123456789ab foldGeneration=4983a1aa452c generated=2026-11-01 -->');
+      var genAttrs = {};
+      if (genProbe) {
+        var mm = genProbe[1].match(/(\w[\w-]*)=("([^"]*)"|\S+)/g) || [];
+        mm.forEach(function (one) {
+          var ix = one.indexOf('=');
+          genAttrs[one.slice(0, ix)] = one.slice(ix + 1).replace(/^"|"$/g, '');
+        });
+      }
+      T.eq('CONTROL \u00b7 the attribute regex captures foldGeneration from a marker', genAttrs.foldGeneration, '4983a1aa452c');
+      /* ONE VOCABULARY, TWO SIDES. The gate above reads an attribute name; `stampFields` writes one.
+         A test that only reads cannot catch the day the writer renames it, so the writer is called
+         here and its line is matched by the same name. */
+      var FGM = (env.trioEra || {}).mod;
+      if (FGM && FGM.stampFields) {
+        var built = FGM.stampFields(
+          { root: 'uploads/trio', resolvable: true, dataDigest: 'aaaaaaaaaaaa', foldGeneration: 'bbbbbbbbbbbb', nights: 1, unstamped: 0 },
+          { producer: 'tools/p.mjs', invocation: '-x', day: FOLD_GEN_FROM }
+        );
+        T.ok('the producer writes the attribute this gate reads', /(^| )foldGeneration=bbbbbbbbbbbb( |$)/.test(built.attrs || ''), built.attrs);
+        T.ok(
+          '\u2205 and it drops the attribute, not the stamp, when a read night carries no fold stamp',
+          (function () {
+            var h = FGM.stampFields(
+              { root: 'uploads/trio', resolvable: true, dataDigest: 'aaaaaaaaaaaa', foldGeneration: null, nights: 90, unstamped: 5 },
+              { producer: 'tools/p.mjs', day: FOLD_GEN_FROM }
+            );
+            return !!h.attrs && h.attrs.indexOf('foldGeneration') < 0 && typeof h.reason === 'string' && h.reason.indexOf('5 of the 90') === 0;
+          })(),
+          'the reason counts the nights that cannot be attributed'
+        );
+      } else {
+        T.skip('env.trioEra.mod exposes stampFields', 'Node-lane only — the browser lane loads no tool module');
+      }
+
       /* PLANT — one moved input must move the digest, and the digest must be over the FILES, not the
          path string. The tree cannot be mutated inside a test, so the recipe is exercised on a planted
          file list: same paths, one byte flipped in one file, and the digest must differ. */
