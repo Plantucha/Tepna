@@ -22,8 +22,10 @@
 
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { resolveStatePath } from './mutation-map.mjs';
 export const DEFAULT_URL = 'http://127.0.0.1:9200';
 export const DEFAULT_INDEX = 'tepna-hybrid';
 export const OLLAMA = process.env.DEX_OLLAMA || 'http://127.0.0.1:11434';
@@ -240,7 +242,6 @@ export function capSourceShare(hits, topK = 5, { prefix = CAPPED_PREFIX, share =
  * and `supersededBy` names the successor of each. It never promotes a successor the ranker did not
  * return — the cap does not invent a hit and neither does this. */
 export const BOARD_CORPUS = process.env.TEPNA_BOARD_CORPUS || join(homedir(), '.local/share/tepna/board-corpus');
-const SUPERSEDED_BY = /^- superseded-by: #(\d{1,6})\s*$/m;
 const readCorpusFile = (file) => {
   try {
     return readFileSync(file, 'utf-8');
@@ -250,19 +251,107 @@ const readCorpusFile = (file) => {
 };
 export const pathOfHit = (h) => String(h?.path ?? h?.file ?? '');
 
-/** `{ by: Map<path, successorId>, unreadable: string[] }` over the board paths in `paths`. */
-export function supersededMarks(paths, { root = BOARD_CORPUS, prefix = CAPPED_PREFIX, readFn = readCorpusFile } = {}) {
+/* ── THE MEMORY CORPUS CARRIES THE SAME HAZARD, AND ITS MARK IS A DECLARATION (row
+   `2026-10-28-a-replaced-owner-ruling-ranks-first-from-the-memory-corpus`) ──
+   De-ranking the board's replaced posts PROMOTED a memory file that says the same replaced thing.
+   Measured 2026-11-01: `--brief "how many open PRs may each bird hold at once"` ranks
+   `ext:memory/two-open-prs-per-bird.md` at 0.033 above `ext:agent-board/1/605.md`, the post that
+   replaced the two-PR cap, at 0.032. That memory file states the replaced cap in its name, its
+   `description` and its first paragraph, and the owner's one-PR correction sits in a later
+   paragraph of the same file.
+
+   NEITHER BOARD SIGNAL TRANSFERS. A session edits a memory file IN PLACE, so there is no later file
+   to read a claim protocol or a back-reference from. What transfers is the shape of the remedy: a
+   mark the file DECLARES about itself, read per path, moving the score.
+
+   ⚠ THE MARK COUNTS ONLY INSIDE THE FRONTMATTER. The body of a memory file is prose, and prose
+   ABOUT this mechanism would otherwise become a mark: `magpie-state-2026-10-18.md` carries the
+   sentence that `board-corpus.mjs` writes `- superseded-by: #N` into the header, and a reader that
+   matched raw text would retire that whole lesson file on its own documentation — the defect of
+   row `2026-10-28-the-board-closure-reader-matches-its-own-documentation`, one corpus over. A
+   declaration is not prose, exactly as a comment is not code.
+
+   A SUCCESSOR IS A DISPLAY STRING, not a number. A board post is replaced by `#605`; a memory
+   lesson is replaced by another LESSON, whose name is no number. The board reader therefore returns
+   `#605` where it used to return `605`, so one banner can name either successor without knowing
+   which corpus it came from.
+
+   NOTHING WRITES A MEMORY MARK, and no tool may: the directory is shared, un-versioned and owned by
+   no session, so a tool write there leaves no conflict and no symptom. `tools/memory-supersession.mjs`
+   REPORTS which files owe a mark, by joining their cited board posts against the board's own
+   supersession map, and a session writes it. */
+export const MEMORY_PREFIX = 'ext:memory/';
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/* The same per-machine config doc-search indexes the external roots from, read for ONE field. This
+   module does not import doc-search: doc-search imports THIS one, and the edge runs that way only. */
+const EXTERNAL_CONFIG = resolveStatePath(ROOT, 'doc-search-external.json');
+const BOARD_MARK = /^- superseded-by: #(\d{1,6})\s*$/m;
+const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
+const MEMORY_MARK = /^superseded-by:[ \t]*["']?([^"'\n]+?)["']?[ \t]*$/m;
+
+/** The board's header mark, as a display string: `#605`, or `null`. */
+export function boardMark(text) {
+  const m = BOARD_MARK.exec(String(text ?? ''));
+  return m ? `#${m[1]}` : null;
+}
+
+/** A memory file's own declaration, read from the frontmatter block ALONE, or `null`. */
+export function memoryMark(text) {
+  const fm = FRONTMATTER.exec(String(text ?? ''));
+  if (!fm) return null;
+  const m = MEMORY_MARK.exec(fm[1]);
+  /* A PRESENT-BUT-EMPTY FIELD IS ABSENCE, NOT A SUCCESSOR. `superseded-by:` with nothing after it
+     names no replacement, so it defers nothing and the file ranks where it scored. */
+  const name = m ? m[1].trim() : '';
+  return name || null;
+}
+
+/** One external root's absolute path from the config, or `null` when it does not resolve here. */
+export function externalRootPath(name, { configPath = EXTERNAL_CONFIG, readFn = readCorpusFile } = {}) {
+  const raw = readFn(configPath);
+  if (raw === null || raw === undefined) return null;
+  try {
+    const roots = JSON.parse(raw).roots;
+    if (!Array.isArray(roots)) return null;
+    const hit = roots.find((r) => r && r.name === name && typeof r.path === 'string');
+    return hit ? resolve(hit.path) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The corpora that carry a supersession mark, each with its prefix, its root and its own reader. */
+export function defaultCorpora({ boardRoot = BOARD_CORPUS, memoryRoot = externalRootPath('memory') } = {}) {
+  return [
+    { prefix: CAPPED_PREFIX, root: boardRoot, mark: boardMark },
+    { prefix: MEMORY_PREFIX, root: memoryRoot, mark: memoryMark }
+  ];
+}
+
+/**
+ * `{ by: Map<path, successor>, unreadable: string[] }` over the marked corpora in `paths`.
+ * A legacy `{ root, prefix }` selects the board corpus alone, which is what it always meant.
+ */
+export function supersededMarks(paths, { root, prefix, corpora: list, readFn = readCorpusFile, memoryRoot } = {}) {
+  const corpora = list ?? (root || prefix ? [{ prefix: prefix ?? CAPPED_PREFIX, root: root ?? BOARD_CORPUS, mark: boardMark }] : defaultCorpora({ memoryRoot }));
   const by = new Map();
   const unreadable = [];
   for (const p of new Set((paths || []).map((x) => String(x ?? '')))) {
-    if (!p.startsWith(prefix)) continue;
-    const text = readFn(join(root, p.slice(prefix.length)));
+    const c = corpora.find((x) => x?.prefix && p.startsWith(x.prefix));
+    if (!c) continue;
+    /* A root that does not resolve on this machine means the rule could not LOOK, which is not the
+       same as finding no mark — fail closed into `unreadable`, like a file it cannot read. */
+    if (!c.root) {
+      unreadable.push(p);
+      continue;
+    }
+    const text = readFn(join(c.root, p.slice(c.prefix.length)));
     if (text === null || text === undefined) {
       unreadable.push(p);
       continue;
     }
-    const m = SUPERSEDED_BY.exec(text);
-    if (m) by.set(p, Number(m[1]));
+    const s = c.mark(text);
+    if (s) by.set(p, s);
   }
   return { by, unreadable };
 }
@@ -567,7 +656,7 @@ export async function selftest() {
   const corpusRead = (file) => CORPUS[(/(\d+\/\d+\.md)$/.exec(String(file)) ?? [])[1]] ?? null;
   const bpath = (n) => `ext:agent-board/7/${n}.md`;
   const marks = supersededMarks([bpath(1), bpath(2), bpath(3), 'briefs/a.md'], { readFn: corpusRead });
-  ok(marks.by.get(bpath(1)) === 605 && marks.by.get(bpath(3)) === 900, 'the mark is read from the corpus file and names the successor');
+  ok(marks.by.get(bpath(1)) === '#605' && marks.by.get(bpath(3)) === '#900', 'the mark is read from the corpus file and names the successor');
   ok(!marks.by.has(bpath(2)) && !marks.by.has('briefs/a.md'), 'an unmarked post and a repo document carry no mark');
   ok(marks.unreadable.length === 0, 'CONTROL: every board path here was readable');
   ok(supersededMarks([bpath(9)], { readFn: () => null }).unreadable.join() === bpath(9), 'a board file this cannot read is REPORTED, never assumed clean');
@@ -588,7 +677,7 @@ export async function selftest() {
     dr.hits.map((h) => h.path).join() === [bpath(2), 'briefs/a.md', 'briefs/b.md', bpath(1), bpath(3)].join(),
     'marked posts sink below their unmarked peers, and relative order survives inside each group'
   );
-  ok(dr.supersededHeld === 2 && dr.supersededBy.join() === '605,900', 'the two posts that lost a top-3 slot are counted, and each successor is named');
+  ok(dr.supersededHeld === 2 && dr.supersededBy.join() === '#605,#900', 'the two posts that lost a top-3 slot are counted, and each successor is named');
   ok(deferSuperseded(pool, 9, { readFn: corpusRead }).supersededHeld === 0, 'a list long enough to hold every hit loses no slot, so nothing is reported held');
   ok(deferSuperseded([{ path: bpath(1) }], 5, { readFn: corpusRead }).hits.length === 1, 'a replaced post is the answer when it is the ONLY answer — this never hides the last hit');
   const cleanPool = [{ path: bpath(2) }, { path: 'briefs/a.md' }];
@@ -597,6 +686,54 @@ export async function selftest() {
     deferSuperseded([{ file: bpath(1) }, { file: bpath(2) }], 1, { readFn: corpusRead }).hits[0].file === bpath(2),
     'the semantic lane shape is read too: a hit keyed `file` de-ranks like one keyed `path`'
   );
+
+  /* ── THE MEMORY CORPUS, WHOSE MARK IS A DECLARATION AND WHOSE SUCCESSOR IS A NAME (row
+     `2026-10-28-a-replaced-owner-ruling-ranks-first-from-the-memory-corpus`) ── */
+  const memFile = (fm, body) => `---\nname: x\ndescription: y\n${fm}metadata:\n  type: feedback\n---\n\n${body}\n`;
+  ok(memoryMark(memFile('superseded-by: one-pr-per-bird\n', 'text')) === 'one-pr-per-bird', 'a memory file declares its successor in its frontmatter, and the successor is a NAME');
+  ok(memoryMark(memFile('superseded-by: "#605"\n', 'text')) === '#605', '…and a board post is a legal successor too, quoted as the frontmatter allows');
+  /* THE PROSE HAZARD, MEASURED ON A REAL FILE. `magpie-state-2026-10-18.md` carries a sentence about
+     this very mechanism, and a reader matching raw text would retire that whole lesson on its own
+     documentation — row `2026-10-28-the-board-closure-reader-matches-its-own-documentation`, one
+     corpus over. A declaration is not prose. */
+  ok(memoryMark(memFile('', 'superseded-by: #605 is what board-corpus writes into the header')) === null, 'a `superseded-by` line in the BODY is prose about the mechanism, never a mark');
+  ok(memoryMark('no frontmatter here\nsuperseded-by: #605\n') === null, 'a file with no frontmatter block declares nothing');
+  ok(memoryMark(memFile('superseded-by:   \n', 'text')) === null, 'an empty declaration marks nothing');
+  ok(boardMark('# Board #1\n\n- superseded-by: #605\n') === '#605' && boardMark('# Board #1\n') === null, 'the board mark is the same reader, returning a display string');
+
+  const MEM = { 'two-open-prs-per-bird.md': memFile('superseded-by: one-pr-per-bird\n', 'the two-PR cap'), 'fresh.md': memFile('', 'current advice') };
+  const memRead = (file) => MEM[(/([a-z0-9-]+\.md)$/.exec(String(file)) ?? [])[1]] ?? null;
+  const mpath = (n) => `ext:memory/${n}.md`;
+  const bothRead = (file) => (String(file).includes('/board-corpus/') || /\d+\/\d+\.md$/.test(String(file)) ? corpusRead(file) : memRead(file));
+  const memOpts = { readFn: bothRead, corpora: defaultCorpora({ boardRoot: '/b', memoryRoot: '/m' }) };
+  const mm = supersededMarks([mpath('two-open-prs-per-bird'), mpath('fresh'), bpath(1)], memOpts);
+  ok(mm.by.get(mpath('two-open-prs-per-bird')) === 'one-pr-per-bird' && mm.by.get(bpath(1)) === '#605', 'one reader serves both corpora, and each names its own kind of successor');
+  ok(!mm.by.has(mpath('fresh')) && mm.unreadable.length === 0, 'CONTROL: an unmarked memory file carries no mark and reads fine');
+  const noRoot = supersededMarks([mpath('two-open-prs-per-bird')], { readFn: bothRead, corpora: defaultCorpora({ memoryRoot: null }) });
+  ok(noRoot.unreadable.join() === mpath('two-open-prs-per-bird') && noRoot.by.size === 0, 'a corpus root that does not resolve HERE defers nothing and is reported — it could not look');
+  ok(supersededMarks([mpath('two-open-prs-per-bird')], { readFn: bothRead, root: '/b' }).by.size === 0, 'a legacy {root} call still selects the board corpus alone, which is what it always meant');
+
+  /* THE ROW'S OWN SCENARIO: the de-rank of #560 promoted a memory file that states the same replaced
+     ruling, so the stale answer moved from rank 3 to rank 1. */
+  const rowPool = [{ path: mpath('two-open-prs-per-bird') }, { path: bpath(2) }, { path: 'briefs/a.md' }];
+  const rowOut = deferSuperseded(rowPool, 2, memOpts);
+  ok(rowOut.hits.map((h) => h.path).join() === [bpath(2), 'briefs/a.md', mpath('two-open-prs-per-bird')].join(), 'a marked memory file sinks below the current post and the repo document');
+  ok(rowOut.supersededHeld === 1 && rowOut.supersededBy.join() === 'one-pr-per-bird', '…and the banner names the lesson that replaced it, with no `#` in front of a name');
+  ok(deferSuperseded([{ path: mpath('two-open-prs-per-bird') }], 5, memOpts).hits.length === 1, 'a replaced lesson is the answer when it is the ONLY answer');
+
+  const extCfg = JSON.stringify({
+    roots: [
+      { name: 'memory', path: '/tmp/mem' },
+      { name: 'agent-board', path: '/tmp/b' }
+    ]
+  });
+  ok(externalRootPath('memory', { readFn: () => extCfg }) === '/tmp/mem', 'the memory root comes from the same config doc-search indexes it from');
+  ok(externalRootPath('nothing', { readFn: () => extCfg }) === null, 'a root the config does not name resolves to null');
+  ok(
+    externalRootPath('memory', { readFn: () => '{ not json' }) === null && externalRootPath('memory', { readFn: () => null }) === null,
+    'a malformed or absent config resolves to null, and the paths above then read as unexamined'
+  );
+  ok(/deferSuperseded\(list, topK, \{ readFn \}\)/.test(readFileSync(new URL(import.meta.url), 'utf-8')), 'the hybrid lane passes no corpus override, so it takes every marked corpus');
 
   /* …and it reaches the search, BEFORE the cap, with the switch that turns it off. */
   const srOrder = [bpath(1), bpath(3), bpath(2), bpath(4), 'briefs/a.md', 'briefs/b.md', 'briefs/c.md'];
@@ -616,8 +753,8 @@ export async function selftest() {
       .join() === [bpath(1), bpath(3)].join(),
     'CONTROL: `--keep-superseded` passes superseded:false and the two replaced posts take the slots back'
   );
-  ok(srOn.supersededHeld === 2 && srOn.supersededBy.join() === '605,900', 'the search reports what it held and which post replaced each one');
-  ok(render(srOn, 'q').includes('2 replaced board post(s) held below their successors (#605, #900)'), 'the reader is told the replaced posts exist and which posts replaced them');
+  ok(srOn.supersededHeld === 2 && srOn.supersededBy.join() === '#605,#900', 'the search reports what it held and which post replaced each one');
+  ok(render(srOn, 'q').includes('2 replaced source(s) held below their successors (#605, #900)'), 'the reader is told the replaced sources exist and which ones replaced them');
   ok(!render(srOff, 'q').includes('held below their successors'), 'CONTROL: nothing is said when the de-rank held nothing back');
   const srBad = await hybridSearch({ query: 'q', fetchFn: boardFake([bpath(1), 'briefs/a.md']), embedFn: emb, readFn: () => null });
   ok(render(srBad, 'q').includes('could not be read for a supersession mark'), 'an unreadable corpus reaches the reader as a named abstention, not as a clean answer');
@@ -655,7 +792,7 @@ export function render(out, query, { brief = false } = {}) {
   /* Replaced is not absent either, and the successor is the useful half: a reader who wanted the
      old ruling now has the post number that replaced it. */
   if (out.supersededHeld > 0)
-    lines.push(`  ⚠ ${out.supersededHeld} replaced board post(s) held below their successors (#${(out.supersededBy || []).join(', #')}) — \`--keep-superseded\` ranks them where they scored`, '');
+    lines.push(`  ⚠ ${out.supersededHeld} replaced source(s) held below their successors (${(out.supersededBy || []).join(', ')}) — \`--keep-superseded\` ranks them where they scored`, '');
   if (out.supersededUnreadable?.length) lines.push(`  ⚠ ${out.supersededUnreadable.length} board post(s) could not be read for a supersession mark, so none was applied to them`, '');
   for (const h of out.hits) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
