@@ -3014,6 +3014,18 @@
     ]
    },
    "note": "holds every `consensusBeats` call site to a READABLE polarity decision. PASS = every site applies the decision, verified in the code. SHORTFALL = a site declares `@polarity-decision behind <row>` and the row holds the debt. FAIL = a site declares nothing, or its declaration disagrees with its code. Row 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers."
+  },
+  "tools/mutation-equiv-source.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/mutation-equiv-source.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the source-reading census of the open python survivors (residue 2026-11-01-drafted-fixtures-discriminate-nothing-on-a-single-mutant-key) \u2014 PASS when every entry in scope receives one of the six named classes, UNKNOWN when any entry carries a side whose truth the reader refuses to decide, NOT_APPLICABLE over an empty scope; an entry whose recorded line today's source does not carry is EXCLUDED and named, because it belongs to the orphan path"
   }
  }
 }
