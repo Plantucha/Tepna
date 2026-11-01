@@ -156,6 +156,10 @@ def stalled_protection(
 ) -> list[dict]:
     """The nights `diskguard.active_nights` still holds although their DEVICE data settled long ago.
 
+    The population is a SUBSET of what `active_nights` holds. A night that only the box's own verdict
+    files keep fresh (`_BOX_DERIVED`, see `_newest_any_mtime`) is held there but gets no row here. That
+    hold ends at `settle_sec`, so it costs nothing.
+
     One row per night, oldest settled first: `{night, data_age_sec, any_age_sec}`. A night qualifies
     when all three hold — its device data exists and settled (`data_age_sec >= settle_sec`), something
     else in the folder is still fresh (`any_age_sec < settle_sec`), and the data has been settled past
@@ -188,14 +192,42 @@ def stalled_protection(
     return rows
 
 
+# THE BOX'S OWN VERDICTS ON A NIGHT ARE NOT A WRITER HOLDING IT OPEN. When the code that judges a night
+# changes, the daemon re-judges every night in its window and rewrites these files in the night folder.
+# Measured on the capture box 2026-11-01: the 06:01 deploy re-judged 2026-10-01 at 06:31, and at 06:37
+# `stalled_protection` named that night "held open", with device data quiet 723 h. The only fresh
+# file was SOLID-VERDICT.json. The re-judge walks one night about every 30 min, so each deploy would
+# raise one false alarm per night it reaches. The names are the writers' own constants; a test holds
+# the two lists equal. `_MARKER` is this module's own push stamp.
+_BOX_DERIVED = frozenset(
+    {
+        "SOLID-VERDICT.json",
+        "SOLID-VERDICT-WITHDRAWN.jsonl",
+        "LOSS-AUDIT.json",
+        "LOSS-VERDICT.json",
+        "LOSS-VERDICT-WITHDRAWN.jsonl",
+        "QC-SUMMARY.json",
+        "QC-VERDICT.json",
+        "BACKCHECK-VERDICT.json",
+        "ADAPTERHCI-VERDICT.json",
+        _MARKER,
+    }
+)
+
+
 def _newest_any_mtime(night_dir: str) -> float | None:
     """Newest mtime among ANY file directly in `night_dir`, or None when it holds none.
 
     The counterpart to `nightqc.newest_data_mtime`, which excludes sidecars by tag. The pair is what
     lets a caller say "the devices are quiet AND something else is not" without re-deriving either
-    rule. Top level only, matching `diskguard.active_nights`, whose verdict this explains."""
+    rule. Top level only, matching `diskguard.active_nights`. The box's own verdict files
+    (`_BOX_DERIVED`) do not count here, because a re-judge rewrites them in long-finished nights.
+    `active_nights` still counts them, so the two populations differ: a night that only a re-judge
+    keeps active is held there until `settle_sec` passes, and no stall row names it."""
     newest = None
     for f in os.listdir(night_dir):
+        if f in _BOX_DERIVED:
+            continue
         p = os.path.join(night_dir, f)
         if os.path.isfile(p):
             m = os.path.getmtime(p)
