@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**307 tools** · 306 with a purpose line · **1 without**
+**308 tools** · 307 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -205,6 +205,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pin-coverage.mjs`](../tools/pin-coverage.mjs) | HOW MUCH OF THE CORPUS IS IN-BAND BLANKING? — the denominator behind `nPinSpanIntervals`. |
 | [`plan-slim.mjs`](../tools/plan-slim.mjs) | A SLIM COPY OF THE CLAUDE CODE SESSION LOGS, FOR THE BOARD'S PLAN PRICER. |
 | [`pletha-marker-oracle.mjs`](../tools/pletha-marker-oracle.mjs) | SCORE THE "ISOLATED 156 IS A MARKER" HEURISTIC AGAINST THE DEVICE'S OWN BEAT FLAG. |
+| [`port-parity.mjs`](../tools/port-parity.mjs) | "PORTED VERBATIM FROM X" IS A CLAIM, AND NOTHING IN THE TREE READ IT. |
 | [`ppg-autogain-e2.mjs`](../tools/ppg-autogain-e2.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-2, punch-list item 9 |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |

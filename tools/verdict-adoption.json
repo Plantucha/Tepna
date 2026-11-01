@@ -2969,6 +2969,18 @@
     ]
    },
    "note": "ESTATE-DRIFT (infra item 5, Kestrel ruling #2564, brief INFRA-STATE-2026-10-31): --json prints ONE tepna.verdict/1 over the systemd estate. PASS = every installed unit matches its tracked copy on the rig and on vigil; FAIL names each untracked, absent, differing or disabled unit and each unreadable host-local script (scripts are hashed into the verdict, never copied); NOT_RUN (exit 2) where the rig inventory cannot be read, which is CI and every fresh clone, so the sample there examines nothing and says so."
+  },
+  "tools/port-parity.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/port-parity.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "holds every declared port to the SOURCE TEXT it was reconciled against. PASS = every declaration matches; SHORTFALL = a copy declares itself behind a named source text and names the row that holds the debt; FAIL = a source moved with nothing declaring it, or a declaration names a file or symbol this cannot read. The sample runs the real scan over a root that cannot exist, so it examines nothing and says NOT_RUN \u2014 the same builder the real run prints."
   }
  }
 }

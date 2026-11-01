@@ -68,6 +68,7 @@
     "verify:commit-shape": "node tools/commit-shape.mjs",
     "verify:hook-contract": "node tools/hook-contract.mjs",
     "verify:seals": "node tools/verify-seals.mjs --vectors",
+    "verify:port-parity": "node tools/port-parity.mjs",
     "verify:residue-ids": "node tools/residue-ids.mjs --base origin/main",
     "verify:residue-claims": "node tools/residue-ids.mjs --full-tree",
     "verify:residue-citations": "node tools/residue-citations.mjs",
