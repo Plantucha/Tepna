@@ -1665,7 +1665,10 @@
       "run_id": "36399889018",
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "orphaned",
+      "orphan_evidence": "nightqc.py no longer carries the recorded line",
+      "closed_commit": "6d45a0a255e14fb01044ca0ddfbb3b390cbcc1bb",
+      "closed_commit_source": "session HEAD at close (pre-squash)"
     },
     {
       "lane": "py",
@@ -1707,7 +1710,10 @@
       "run_id": "36399889018",
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "orphaned",
+      "orphan_evidence": "nightqc.py no longer carries the recorded line",
+      "closed_commit": "6d45a0a255e14fb01044ca0ddfbb3b390cbcc1bb",
+      "closed_commit_source": "session HEAD at close (pre-squash)"
     },
     {
       "lane": "py",
@@ -1808,7 +1814,10 @@
       "run_id": "36399889018",
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "orphaned",
+      "orphan_evidence": "nightqc.py no longer carries the recorded line",
+      "closed_commit": "6d45a0a255e14fb01044ca0ddfbb3b390cbcc1bb",
+      "closed_commit_source": "session HEAD at close (pre-squash)"
     },
     {
       "lane": "py",
