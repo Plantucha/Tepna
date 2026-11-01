@@ -11849,6 +11849,43 @@
         return /readdirSync[\s\S]{0,200}?\\d\{4\}-\\d\{2\}-\\d\{2\}/.test(TT['tools/' + t] || '');
       });
       T.eq('a tool that reports its population does not enumerate the same root a second time by hand', twoWalks.join(', '), '');
+      /* AND THE SAME DEFECT WHERE THE LEG ABOVE CANNOT SEE IT. That tell keys on a night-shaped
+         regex beside the walk, which a FILE-unit reader does not carry, so two tools that enumerate
+         a directory in order to TAKE ONE FILE out of it fell outside it: `geometry-scan.mjs` picks
+         the largest match per probed pattern and `hostaxis-estimator-bakeoff.mjs` takes the first
+         PSL export by name. Both walked the directory a second time at the pick, so the offer they
+         published and the file they read came off two different listings, and a file that arrived
+         between the two could be scored by a run whose population never saw it. The site count is
+         read through `enumerationSites`, which works on the MASKED text — a reader that derives its
+         population from raw source reads its own documentation. */
+      var pickSites = ['geometry-scan.mjs', 'hostaxis-estimator-bakeoff.mjs'].map(function (t) {
+        var sites = CR.enumerationSites(TT['tools/' + t] || '');
+        return (
+          t +
+          ': ' +
+          sites.length +
+          ' site(s) [' +
+          sites
+            .map(function (x) {
+              return x.arg;
+            })
+            .join(' ') +
+          ']'
+        );
+      });
+      T.eq(
+        'a reader that takes ONE file out of a directory enumerates it once, at its named lister',
+        pickSites.join(' \u00b7 '),
+        'geometry-scan.mjs: 1 site(s) [root] \u00b7 hostaxis-estimator-bakeoff.mjs: 1 site(s) [root]'
+      );
+      /* CONTROL, because a leg that counted every file as one site would read green over a tool
+         that walks twice. The plant is the shape those two carried: a named lister plus a bare
+         second walk of a name the file never declares. */
+      T.ok(
+        'CONTROL \u00b7 a second hand walk of the same directory is a second enumeration site',
+        CR.enumerationSites('function listX(root) {\n  return readdirSync(root);\n}\nconst names = readdirSync(dir);').length === 2,
+        'lister + bare walk \u2192 2 sites'
+      );
       /* AND THE CLEARANCE MUST COME OFF A CALL THE RUN MAKES. Every wired tool carries a
          `verdictSample` helper, because the adoption gate has to read one verdict object on a box
          with no corpus mounted, and that FABRICATED call was clearing the tool here: measured

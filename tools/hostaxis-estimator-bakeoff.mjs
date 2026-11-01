@@ -57,6 +57,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -233,15 +234,63 @@ const arg = (k, d) => {
 };
 const TRIALS = Number(arg('--trials', '12'));
 
+/* ── THE OFFER BESIDE THE READ (row 2026-10-21-forty-one-corpus-enumerators-report-no-population) ──
+   THE BAKEOFF SCORES ONE GEOMETRY, AND THE DIRECTORY IT TAKES THAT GEOMETRY FROM HOLDS MANY.
+   `hits.sort()[0]` published nothing about the rest, so a run over a directory holding forty PSL
+   exports and a run over a directory holding one printed the same geometry line — and a reader could
+   not tell that a width sweep stands on one arbitrary night out of a corpus. The offer is now stated
+   beside the read, and the passed-over remainder is counted.
+   THE LISTER CARRIES A NAME ON PURPOSE: `snapshotEntries` publishes the rule the run applied, and an
+   inline arrow publishes `rule: null` — a rule nobody wrote.
+   ∅ AN ABSENT ROOT IS NOT AN EMPTY ONE. `fs.existsSync(dir) ? … : []` read a directory this machine
+   does not hold as a directory holding no export, so a missing mount and a readable-but-empty mount
+   refused with one sentence. The snapshot refuses by errno and the two cases now say different
+   things. */
+const PSL_ECG = /_ECG\.txt$/;
+const PSL_UNIT = 'PSL ECG exports';
+function listPslEcg(root) {
+  return fs.readdirSync(root).filter((f) => PSL_ECG.test(f));
+}
+/* 🔴 STAMP THE CODE THAT RAN. The sweep takes minutes, so a commit can land in this worktree while
+   it runs, and the lookup is taken once here rather than at publish time. */
+const COMMIT_OF = gitCommitOf(ROOT);
+const POP_OPTS = {
+  commit: COMMIT_OF.commit,
+  commitReason: COMMIT_OF.reason,
+  tool: 'tools/hostaxis-estimator-bakeoff.mjs',
+  evidence: ['tools/hostaxis-estimator-bakeoff.mjs', 'tools/corpus-scope-core.mjs']
+};
+
+/* `--verdict-sample` exists for the adoption gate, which needs ONE valid object without a corpus.
+   The sample is built by the SAME builder the real refusal path calls, over a root that cannot
+   exist, so there is no second copy of the object to drift from the one a real run publishes.
+   NOT_RUN over an empty population is the honest sample: nothing was examined, and §🧾 forbids a
+   PASS over `checked: 0`. It exits 0 because emitting the sample succeeded; the SWEEP is what
+   exits 2 when it cannot look. */
+if (argv.includes('--verdict-sample')) {
+  const snap = snapshotEntries(path.join(ROOT, '.no-psl-root-for-the-sample'), { list: listPslEcg, unit: PSL_UNIT });
+  console.log(JSON.stringify(populationVerdict(snap, snap, POP_OPTS), null, 1));
+  process.exit(0);
+}
+
 let file = arg('--file', null);
+let dir = null,
+  popBefore = null;
 if (!file) {
-  const dir = process.env.DEX_PSL || '/run/media/michal/647A504F7A50205A/Ecg nightly';
-  const hits = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /_ECG\.txt$/.test(f)) : [];
-  if (!hits.length) {
-    console.error('no PSL *_ECG.txt found. Pass --file <path> or set DEX_PSL=<dir>.');
+  dir = process.env.DEX_PSL || '/run/media/michal/647A504F7A50205A/Ecg nightly';
+  popBefore = snapshotEntries(dir, { list: listPslEcg, unit: PSL_UNIT });
+  /* A REFUSAL PUBLISHES ITS POPULATION TOO: a run that could not look says so in the object, never
+     by printing nothing (§🧾 — the prose explains, the object is the API). */
+  if (!popBefore.ok || !popBefore.n) {
+    console.error(popBefore.ok ? `no PSL *_ECG.txt under ${dir}. Pass --file <path> or set DEX_PSL=<dir>.` : `\u2715 hostaxis-estimator-bakeoff: ${popBefore.reason} — ${dir}`);
+    console.log(`POPULATION ${JSON.stringify(populationVerdict(popBefore, popBefore, POP_OPTS))}`);
     process.exit(2);
   }
-  file = path.join(dir, hits.sort()[0]);
+  /* THE PICK READS THE SNAPSHOT'S OWN MEMBERS, not a second walk of the directory: two walks can
+     offer two different sets, and the file scored must be one the published offer names. The members
+     arrive sorted, so the geometry this bakeoff has always taken is unchanged. */
+  file = path.join(dir, popBefore.members[0]);
+  console.log(`selection: ${popBefore.members[0]} of ${popBefore.n} ${PSL_UNIT} under ${dir} · ${popBefore.n - 1} passed over`);
 }
 
 const spine = await loadSpine();
@@ -284,4 +333,24 @@ for (const noiseKind of ['symmetric', 'oneSided']) {
     `  → best ${best.k} at ${best.worst.toFixed(1)} ms vs shipped median-21 at ${shipped.worst.toFixed(1)} ms` +
       ` (${shipped.worst > 0 ? (((shipped.worst - best.worst) / shipped.worst) * 100).toFixed(1) : '0'} % better)`
   );
+}
+
+/* ── THE POPULATION THE FIGURES ABOVE WERE TAKEN OVER ──────────────────────────────────────────────
+   THE CLOSING WALK IS WHAT SAYS THE SET MOVED. `tepna-corpus-tier.service` re-tiers the corpus
+   daily, so a long run can open over one export set and close over another, and without the second
+   walk an offer that moved because a capture arrived is indistinguishable from one that moved
+   because this tool changed. Reduced coverage annotates rather than refusing (§∅, owner ruling
+   2026-09-17): the geometry scored is a member of the intersection either way. */
+if (popBefore) {
+  const population = populationVerdict(popBefore, snapshotEntries(dir, { list: listPslEcg, unit: PSL_UNIT }), POP_OPTS);
+  console.log(
+    `\npopulation: ${population.population.checked} of ${population.population.eligible} ${PSL_UNIT} offered under ${dir}` +
+      ` · scored ${popBefore.members[0]} · ${population.population.eligible - 1} offered export(s) passed over · movement ${population.status}${population.reason ? ` — ${population.reason}` : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log(`POPULATION ${JSON.stringify(population)}`);
+} else {
+  /* ∅ `--file` ENUMERATES NOTHING, and "no population" is not "an empty population". */
+  console.log(`\npopulation: no directory was enumerated — the geometry came from --file ${path.basename(file)}`);
 }

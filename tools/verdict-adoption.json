@@ -1466,6 +1466,18 @@
    },
    "note": "residue 2026-10-21-a-landed-hook-fix-is-inert-until-the-primary-checkout-pulls: every hook entry runs its script under the PRIMARY checkout, so a landed guard fix is inert in every session until that tree pulls. The verdict is over the scripts named in .claude/settings.json, read three ways (the bytes on disk, the bytes at that tree's HEAD, the bytes at the ref): PASS when none is behind, FAIL naming each script that would run older code, UNKNOWN when the ref does not resolve or nothing is comparable, NOT_RUN with no result when there are no settings to read. `modified` is reported beside the criterion and never inside it, because an uncommitted edit and an unpulled tree need opposite remedies. --verdict-sample prints the object alone and reads no checkout."
   },
+  "tools/hostaxis-estimator-bakeoff.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/hostaxis-estimator-bakeoff.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the host-axis estimator width sweep, which scores ONE PSL ECG geometry out of a directory holding many. BINNED 2026-11-01, when the tool gained a population: `hits.sort()[0]` published nothing about the rest, so a run over a directory holding forty PSL exports and a run over a directory holding one printed the same geometry line, and a reader could not tell that a width sweep stands on one arbitrary night out of a corpus. It now enumerates once, through `snapshotEntries` at a named lister, and publishes the offer beside the read with the passed-over remainder counted (row 2026-10-21-forty-one-corpus-enumerators-report-no-population). The pick reads the snapshot's own `members`, because two walks can offer two different sets. \u2205 An absent root is no longer read as an empty one: `fs.existsSync(dir) ? \u2026 : []` answered a directory this machine does not hold with the same sentence as a readable empty one, and the snapshot now refuses by errno while the refusal still publishes its population. `--verdict-sample` is what this gate reads, because the sweep needs a corpus and takes minutes; it is built by the same builder the real refusal path calls, over a root that cannot exist, so no second copy of the object can drift."
+  },
   "tools/importer-flag-probe.mjs": {
    "bin": "decides",
    "status": "adopted",
