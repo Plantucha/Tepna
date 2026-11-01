@@ -5,9 +5,14 @@
 # archive-pull.sh — PULL vigil's capture tree to the dev box, so every night exists on TWO disks.
 #
 # WHY PULL, WHY HERE (owner decision 2026-08-25, VIGIL-OFFLOAD-AND-RETENTION lineage):
-#   • The box's own archive machinery (`storage_targets.py`) is BUILT but its config points
-#     `archive.dest` at THE SAME DISK (`/srv/tepna/archive`) — enabling it as configured would
-#     produce two copies on one spindle, the exact failure it exists to prevent.
+#   • The box's own archive machinery (`storage_targets.py`) IS ENABLED, and it pushes every night
+#     to the NAS export a rig reader mounts. Measured 2026-11-01, read-only: the live vigil config
+#     reads `archive.enabled: true`, `protocol: rsync`, the NAS host and a `share` on the NAS pool.
+#     The 2026-08-25 wording said the box never pushes, because `archive.dest` then pointed at the
+#     box's own disk. That claim is RETRACTED — the config decides it, never this header. Read
+#     `docs/CORPUS-LOCATIONS.md` for the measured state, and the box config for the live one.
+#   • So this pull is the SECOND copy, on a disk that neither the box nor the NAS pool holds. The
+#     NAS copy has a writer, and a reader who finds none has trusted a header over a config.
 #   • PULL over `ssh vigil` means NO key is installed on the box and nothing on the box changes —
 #     the dev box initiates, the box only serves what it already serves.
 #   • Destination is a SUBDIRECTORY of the corpus, never uploads/ flat: docs/CORPUS-LOCATIONS.md

@@ -13397,6 +13397,31 @@
        The KNOWN ANSWER is the refusal shape: pointed at an empty directory the sensitivity tool
        publishes NOT_RUN over `checked: 0` and still exits 2 — a population verdict reports corpus
        movement, and a readable corpus is a separate question. ════ */
+    /* A HEADER IS A CLAIM ABOUT THE BOX, AND THIS ONE DENIED A PUSH THE BOX MAKES NIGHTLY. Row
+       2026-11-01-the-pull-script-header-denies-the-box-archive-push: the 2026-08-25 wording said the
+       box's own archive machinery stays off, because `archive.dest` then pointed at the box's own
+       disk. The live config enables that push and aims it at the NAS export a rig reader mounts, so
+       a reader who trusts the header over the config reads a daily-growing copy as an unattributed
+       one — the error board decision #2761 made. The live config is NOT tracked, so these legs pin
+       the retraction and the citation rather than any config value. */
+    group('the archive-pull header does not deny the box push', 'capture-host · deploy · source-scan', function (T) {
+      var sh = env.archivePullScript;
+      if (sh == null) {
+        T.skip('capture-host/deploy/archive-pull.sh not injected in this lane — Node-lane only (run-tests.mjs _readOpt)');
+        return;
+      }
+      var cut = sh.indexOf('\nset ');
+      var head = cut === -1 ? sh.slice(0, 6000) : sh.slice(0, cut);
+      T.ok("ANTI-VACUITY · the header arrived and is this script's header", head.length > 400 && head.indexOf('archive-pull.sh') !== -1, head.length + ' char(s) before the first `set`');
+      T.ok('the header names the box-side push by its config key', head.indexOf('archive.enabled') !== -1, 'archive.enabled present: ' + (head.indexOf('archive.enabled') !== -1));
+      T.ok('the header RETRACTS the never-pushes claim rather than deleting it', /RETRACTED/.test(head), 'RETRACTED present: ' + /RETRACTED/.test(head));
+      T.ok('the header sends a reader to the measured state', head.indexOf('docs/CORPUS-LOCATIONS.md') !== -1, 'citation present: ' + (head.indexOf('docs/CORPUS-LOCATIONS.md') !== -1));
+      T.ok('the header no longer asserts two copies on one spindle', head.indexOf('one spindle') === -1, 'stale phrase absent: ' + (head.indexOf('one spindle') === -1));
+      /* CONTROL. An absence leg over a phrase reads as a pass when the scan itself stops matching,
+         so the same scan is run against a planted copy of the retracted sentence. */
+      T.ok('CONTROL · the same scan MATCHES a planted copy of the retracted claim', '# produce two copies on one spindle, the exact failure'.indexOf('one spindle') !== -1, 'planted text matches');
+    });
+
     group('the four tch corpus readers publish their population without a corpus', 'tools · corpus-reads · verdict-sample', function (T) {
       var TT = env.toolTexts;
       if (!TT) {

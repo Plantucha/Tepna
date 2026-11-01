@@ -3095,6 +3095,11 @@ async function main() {
     ecgdexDspSource: _readOpt('ecgdex-dsp.js'),
     oxydexDspSource: _readOpt('oxydex-dsp.js'),
     nightqcSource: _readOpt('capture-host/nightqc.py'),
+    /* The pull script's header is a CLAIM about the box, so a group reads it like one. Row
+       2026-11-01-the-pull-script-header-denies-the-box-archive-push: the header denied a push the
+       box has made nightly since. The live config is not tracked, so the leg pins the retraction
+       and the citation, never a config value. */
+    archivePullScript: _readOpt('capture-host/deploy/archive-pull.sh'),
     PatStrict: PatStrict,
     PatFiducial: PatFiducial,
     StageLab: StageLab,
