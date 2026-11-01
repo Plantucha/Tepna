@@ -49,6 +49,34 @@
  * path in `missing-file`, which is the class that still decides `--strict`. Nothing becomes
  * `off-tree` unless the history was read and came back empty.
  *
+ * ── `--base <ref>`: THE GATE, AND IT JUDGES ONLY THE ROWS A BRANCH ADDS ─────────────────────────
+ *
+ * This file was a census nothing invoked. Four rows refined its classification — #3956 named the
+ * unanchored class, #3968 inverted the strict ordering, #3987 split `off-tree` out of
+ * `missing-file` — while `grep` over `package.json`, `.github/workflows/` and every `*.sh` named no
+ * caller, so the exit those rows argued about could not fire anywhere. Row
+ * `2026-10-26-three-of-six-cited-printer-lines-name-no-printer` states the harm the tool exists to
+ * catch, and three of that row's own six citations named no printer at its own commit, which is the
+ * class a gate at APPEND time catches and a census never does.
+ *
+ * THE WHOLE LEDGER CAN NEVER GO GREEN, SO THE GATE DOES NOT ASK IT TO. §📌 forbids editing a row
+ * cell, so the 79 defect-class citations standing on `origin/main` may not be repaired where they
+ * sit, and a gate over every row would be red forever on work nobody is allowed to do. `--base`
+ * reads the ledger at that ref, keeps the rows whose KEY it does not carry, and judges only those.
+ * Rows are append-only, so a key absent from the base is a row this branch wrote. That is the idiom
+ * of `verify:residue-ids`, `verify:xss-sink` and `verify:absence-regression`: the debt stands and
+ * the growth stops.
+ *
+ * THE EXIT IS NOT A SECOND FLAG HERE. `--strict` was latent because nothing passed it; a gate whose
+ * exit needs one more flag than its caller passes is that same defect wearing a mode name. So
+ * `--base` decides on the defect classes with no `--strict`, and the files are read at `HEAD` by
+ * default, because a row this branch adds must point into the tree this branch has.
+ *
+ * ∅ A BASE THAT CANNOT BE READ IS NOT AN EMPTY SET OF ADDED ROWS. An unfetched ref or a clone
+ * without the base would otherwise report `0 rows added` and pass, which is CLAUDE.md §4b's
+ * examined-nothing. The mode emits `NOT_RUN` with its reason and exits 2 — it could not look —
+ * where exit 1 means it looked and a citation failed.
+ *
  * ADVISORY: exits 0 and prints the list. `--strict` exits 1 on the three classes this file ranks as
  * defects — `missing-file`, `unanchored`, `beyond-eof` — and never on `moved`. A row's line hint
  * moving is not a defect in the row; it is the reason the identifier rule exists. The flag read
@@ -60,13 +88,20 @@
  *   node tools/residue-cite-drift.mjs --ref HEAD      # against the checkout's HEAD
  *   node tools/residue-cite-drift.mjs --json
  *   node tools/residue-cite-drift.mjs --selftest      # the plants: moved · anchored · unanchored · eof · missing · off-tree
+ *   node tools/residue-cite-drift.mjs --base origin/main   # THE GATE: only the rows this branch ADDS
+ *   node tools/residue-cite-drift.mjs --verdict-sample     # the tepna.verdict/1 object alone
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/* `verdict.js` is CommonJS and sits at the repo root; this is the idiom `tools/residue-citations.mjs` uses. */
+const Verdict = createRequire(import.meta.url)('../verdict.js');
+const LEDGER = 'briefs/RESIDUE.md';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const arg = (f, d) => {
@@ -235,6 +270,88 @@ export function strictFailures(r) {
   return r.missing.length + r.unanchored.length + r.beyondEof.length;
 }
 
+/* THE ROWS A BRANCH ADDED, BY KEY. Rows are append-and-close, so a key the base ledger does not
+   carry is a row this branch wrote, and a key both carry is a row whose state cell may have moved —
+   which is not this tool's business. Keying on the key rather than on the row TEXT is deliberate: a
+   closure edits the state cell, and a text diff would hand every closed row back to the gate. */
+export function addedRows(rows, baseRows) {
+  const seen = new Set(baseRows.map((r) => r.key));
+  return rows.filter((r) => !seen.has(r.key));
+}
+
+/* THE CRITERION NAMES ITS OWN SCOPE AND ITS OWN COUNT. Two modes judge two populations, so one
+   shared name would have to lie about one of them (the lesson of residue
+   `2026-10-31-the-mutation-verdicts-criterion-names-lines-not-functions`): `--base` bounds the
+   citations of the ADDED rows and the plain run bounds every row's. Both count the three classes
+   this file ranks as defects, never the advisory `moved` or the external `off-tree`. */
+export const CRITERION = {
+  added: { name: 'defect_class_citations_in_added_rows', threshold: 0, unit: 'citations', direction: 'lte' },
+  ledger: { name: 'defect_class_citations_in_every_row', threshold: 0, unit: 'citations', direction: 'lte' }
+};
+
+export function verdictFor(r, commit, opts = {}) {
+  const n = r ? strictFailures(r) : 0;
+  const criterion = opts.base ? CRITERION.added : CRITERION.ledger;
+  let status = 'PASS';
+  let reason = null;
+  if (opts.notRun) {
+    status = 'NOT_RUN';
+    reason = opts.notRun;
+  } else if (!r.citations) {
+    /* ∅ EXAMINED AND THE RULE DOES NOT BIND — never PASS over a population of nothing. */
+    status = 'NOT_APPLICABLE';
+    reason = opts.base ? `no row added against ${opts.base} cites a file:line, so the cite-by-identifier rule binds nothing here` : 'no row in the ledger cites a file:line';
+  } else if (n) {
+    status = 'FAIL';
+    reason = `${n} citation(s) in the classes this tool ranks as defects (missing-file ${r.missing.length} · unanchored ${r.unanchored.length} · beyond-eof ${r.beyondEof.length}); cite by identifier, with the line as a dated hint`;
+  }
+  const notMeasured = status === 'NOT_RUN' || status === 'NOT_APPLICABLE';
+  return Verdict.make({
+    gate: 'residue-cite-drift',
+    status,
+    scope: 'internal',
+    population: { checked: r ? r.citations : 0, eligible: r ? r.citations : 0, excluded: 0 },
+    criterion,
+    /* THE CONTRACT REFUSES A RESULT NOBODY MEASURED. `NOT_RUN` examined nothing and
+       `NOT_APPLICABLE` examined a population the criterion does not bind, so both carry
+       `result: null` rather than a tidy row of zeros that reads like a measurement. */
+    result: notMeasured
+      ? null
+      : {
+          rows: r ? r.rows : 0,
+          base: opts.base || null,
+          ref: opts.ref || null,
+          ...(r ? r.byVerdict : {}),
+          defectClass: n,
+          missingFile: r ? r.missing.length : 0,
+          unanchored: r ? r.unanchored.length : 0,
+          beyondEof: r ? r.beyondEof.length : 0,
+          moved: r ? r.moved.length : 0,
+          offTree: r ? r.offTree.length : 0
+        },
+    evidence: [LEDGER, 'tools/residue-cite-drift.mjs'],
+    reason,
+    producedBy: { tool: 'tools/residue-cite-drift.mjs', commit }
+  });
+}
+
+function commitSha() {
+  try {
+    return execFileSync('git', ['-C', REPO, 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/* ∅ THE BASE LEDGER IS A MEASUREMENT AND ITS ABSENCE IS NOT AN EMPTY DIFF. */
+export function readLedgerAt(ref) {
+  try {
+    return execFileSync('git', ['show', `${ref}:${LEDGER}`], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 });
+  } catch {
+    return null;
+  }
+}
+
 export function sweep(rows, reader, provenance = null) {
   const cache = new Map();
   const provCache = new Map();
@@ -351,8 +468,12 @@ function selftest() {
       const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
       /* MATCH THE STATEMENT, NOT ITS NAME. A first version searched for the exit's own text and
          found THIS leg's string literal instead — the §4 self-match, one layer up. */
-      const line = src.split('\n').find((l) => /^\s*process\.exit\(has\(/.test(l));
-      return Boolean(line) && line.includes('strictN') && !line.includes('moved');
+      const line = src.split('\n').find((l) => /^\s*process\.exit\(/.test(l) && l.includes('strictN'));
+      /* AND THE GATE'S EXIT TAKES NO SECOND FLAG. The pin read `process.exit(has(` until the
+         `--base` mode landed; `decides` is that mode OR the flag, so a later edit making the gate
+         flag-dependent again reds here under its own name rather than passing silently. */
+      const wiring = src.split('\n').find((l) => /^\s*const decides = /.test(l));
+      return Boolean(line) && !line.includes('moved') && Boolean(wiring) && wiring.includes('base !== null') && wiring.includes("has('--strict')");
     })()
   );
   /* ── THE MISSING BIN SPLITS BY EVIDENCE (row
@@ -422,6 +543,45 @@ function selftest() {
       return n === 2;
     })()
   );
+  /* ── THE GATE: `--base` judges the ADDED rows, and its exit needs no second flag ─────────── */
+  const SYN_B = '2026-09-20-b';
+  /* HOISTED, never inlined below: `residue-citations.mjs` reads a key literal as a CITATION once
+     the bare word `rows` sits within 40 characters before it (`CITE_WORDS` + `CITE_WINDOW`). An
+     inlined key beside `rows.filter` therefore cited a line this selftest alone invents, and reded
+     that gate at step 6 of 46. A hoisted name keeps the plant and leaves the scan nothing to read. */
+  const baseRows = rows.filter((x) => x.key !== SYN_B);
+  check('addedRows keeps the one key the base does not carry', JSON.stringify(addedRows(rows, baseRows).map((x) => x.key)) === JSON.stringify([SYN_B]));
+  check('addedRows keeps nothing when the base carries every key', addedRows(rows, rows).length === 0);
+  /* A CLOSURE MOVES A STATE CELL, AND THAT IS NOT A ROW THIS BRANCH WROTE. Keying on the row TEXT
+     would hand every closed row back to the gate, which is the whole open ledger on a RESIDUE-only
+     PR. The base copy here carries the same key with the state it had before the close. */
+  const closed = rows.map((x) => (x.key === SYN_B ? { ...x, state: 'fixed #9', text: x.text.replace(/OPEN/, 'fixed #9') } : x));
+  check('a row whose state cell moved is NOT an added row', addedRows(closed, rows).length === 0);
+
+  const vAdded = verdictFor(r, '3b32a759', { base: 'origin/main', ref: 'HEAD' });
+  check('the gate FAILS on the defect classes with no --strict passed', vAdded.status === 'FAIL');
+  check('the failing verdict counts the three classes and not the advisory moved', vAdded.result.defectClass === 3 && vAdded.result.moved === 1);
+  check('the criterion names the ADDED-row scope', vAdded.criterion.name === 'defect_class_citations_in_added_rows');
+  check('…and never the whole-ledger scope, whose population is every row', verdictFor(r, '3b32a759', {}).criterion.name === 'defect_class_citations_in_every_row');
+  check('every non-PASS verdict carries a reason', typeof vAdded.reason === 'string' && vAdded.reason.length > 0);
+  check('the emitted verdict validates against the contract', Verdict.validate(vAdded).ok);
+  /* ANTI-VACUITY: a gate that reds on everything proves nothing, so the same judge is pointed at a
+     citation whose identifier IS on the cited line and must come back green. */
+  const anchoredOnly = parseRows(['| 2026-09-20-z | 2026-09-20 | `src` | cites `beta` at `mod.py:5` | ev | OPEN |'].join('\n'));
+  const rOk = sweep(anchoredOnly, (q) => (q === 'mod.py' ? file : null));
+  const vOk = verdictFor(rOk, '3b32a759', { base: 'origin/main', ref: 'HEAD' });
+  check('CONTROL: one anchored citation passes the same gate', rOk.citations === 1 && vOk.status === 'PASS' && vOk.reason === null);
+  /* ∅ A POPULATION OF NOTHING IS NOT A PASS, AND AN UNREADABLE BASE IS NOT AN EMPTY DIFF. */
+  const vNone = verdictFor(
+    sweep([], () => null),
+    '3b32a759',
+    { base: 'origin/main' }
+  );
+  check('no added citation reads NOT_APPLICABLE, never PASS over checked 0', vNone.status === 'NOT_APPLICABLE' && vNone.population.checked === 0);
+  const vNR = verdictFor(null, '3b32a759', { base: 'origin/main', notRun: 'the ledger could not be read at origin/main' });
+  check('an unreadable base reads NOT_RUN with its reason', vNR.status === 'NOT_RUN' && /could not be read/.test(vNR.reason));
+  check('both refusal verdicts validate', Verdict.validate(vNone).ok && Verdict.validate(vNR).ok);
+
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${ran}`);
@@ -483,22 +643,56 @@ function repoProvenance(ref) {
 
 function main() {
   if (has('--selftest')) return selftest();
-  const ref = arg('--ref', 'origin/main');
+  const base = arg('--base', null);
+  /* A row this branch ADDS must point into the tree this branch HAS, so the gate reads files at the
+     checkout; the census keeps judging the ref, which is what its four refinement rows measured. */
+  const ref = arg('--ref', base ? 'HEAD' : 'origin/main');
   const ledger = fs.readFileSync(path.join(REPO, 'briefs', 'RESIDUE.md'), 'utf8');
-  const rows = parseRows(ledger);
+  let rows = parseRows(ledger);
+  if (base) {
+    const baseText = readLedgerAt(base);
+    if (baseText === null) {
+      const v = verdictFor(null, commitSha(), {
+        base,
+        ref,
+        notRun: `the ledger could not be read at ${base}, so the set of added rows is unknown — an unfetched ref, or a clone that does not carry it`
+      });
+      console.log(`residue-cite-drift: ⏱ UNEXAMINED — ${v.reason}`);
+      console.log(`\nVERDICT (tepna.verdict/1): ${JSON.stringify(v)}`);
+      process.exit(2);
+    }
+    rows = addedRows(rows, parseRows(baseText));
+  }
   const { probe, reason: probeReason } = repoProvenance(ref);
   const r = sweep(rows, (p) => readAt(ref, p), probe);
+  const v = verdictFor(r, commitSha(), { base, ref });
+  /* `Verdict.validate` answers `{ ok, errors }`. A truth test on `.length` would read `undefined`
+     and never fire, which is CLAUDE.md §4b: a check reporting a verdict about what it never read. */
+  const checkedV = Verdict.validate(v);
+  if (!checkedV.ok) {
+    console.error(`invalid verdict: ${checkedV.errors.join('; ')}`);
+    process.exit(2);
+  }
+  if (has('--verdict-sample')) {
+    console.log(JSON.stringify(v));
+    process.exit(0);
+  }
   if (has('--json')) {
-    console.log(JSON.stringify({ ref, ...r }, null, 2));
+    console.log(JSON.stringify({ ref, base: base || null, verdict: v, ...r }, null, 2));
   } else {
-    console.log(`residue-cite-drift: ${r.rows} rows · ${r.citations} file:line citations judged against ${ref}`);
     console.log(
-      '  ' +
-        Object.entries(r.byVerdict)
-          .sort()
-          .map(([k, v]) => `${k} ${v}`)
-          .join(' · ')
+      base
+        ? `residue-cite-drift: ${r.rows} row(s) added against ${base} · ${r.citations} file:line citation(s) judged against ${ref}`
+        : `residue-cite-drift: ${r.rows} rows · ${r.citations} file:line citations judged against ${ref}`
     );
+    if (r.citations)
+      console.log(
+        '  ' +
+          Object.entries(r.byVerdict)
+            .sort()
+            .map(([k, v]) => `${k} ${v}`)
+            .join(' · ')
+      );
     if (r.moved.length) {
       console.log(`\n  MOVED — the cited line no longer carries the row's identifier; it is now at:`);
       for (const m of r.moved)
@@ -531,11 +725,19 @@ function main() {
     }
     console.log('\n  Advisory: a moved hint is not a defect in the row — grep the identifier; the line was only ever a shortcut.');
   }
+  /* THE EXIT IS NOT A SECOND FLAG IN GATE MODE. `--strict` sat latent because no caller passed it,
+     and a mode that needed one more flag than its caller passes would be that defect renamed. */
   const strictN = strictFailures(r);
-  if (has('--strict') && strictN)
-    console.log(
-      `\n  --strict: ${strictN} citation(s) in the classes this tool ranks as defects (missing-file ${r.missing.length} · unanchored ${r.unanchored.length} · beyond-eof ${r.beyondEof.length}). The ${r.moved.length} moved hint(s) and the ${r.offTree.length} off-tree citation(s) do not decide this exit.`
-    );
-  process.exit(has('--strict') && strictN ? 1 : 0);
+  const decides = base !== null || has('--strict');
+  if (!has('--json')) {
+    if (decides && strictN)
+      console.log(
+        `\n  ${base !== null ? `--base ${base}` : '--strict'}: ${strictN} citation(s) in the classes this tool ranks as defects (missing-file ${r.missing.length} · unanchored ${r.unanchored.length} · beyond-eof ${r.beyondEof.length}). The ${r.moved.length} moved hint(s) and the ${r.offTree.length} off-tree citation(s) do not decide this exit.`
+      );
+    console.log(`\nVERDICT (tepna.verdict/1): ${JSON.stringify(v)}`);
+  }
+  process.exit(decides && strictN ? 1 : 0);
 }
-main();
+/* `isCliEntry` is the one sanctioned predicate — this file exports its judge, so an importer must
+   not pay for the whole census. A raw `process.argv[1]` test breaks through a symlink. */
+if (isCliEntry(import.meta.url)) main();
