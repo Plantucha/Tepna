@@ -30557,6 +30557,46 @@
          the gate that fired. A reason naming a different gate than the one that fired is worse than
          no reason: a consumer would go looking for a longer recording. */
       T.ok('…and the derived refusal names the HOST COLUMN, not the span', /not a second clock/.test(dAx.reason || '') && !/span/.test(dAx.reason || ''), dAx.reason);
+
+      /* ── THE SPINE'S SENTENCE REACHES THE CONSUMER, NOT ITS GENERIC TWIN ────────────────────────
+         RESIDUE `2026-10-31-ecgdex-drops-the-inert-reason-its-projection-does-not-name`. `clock.js`
+         writes `inertReason` with the measured residual spread in it, and `dex-export.js timingBlock`
+         quotes that sentence where the producer wrote one, falling back to a stock sentence otherwise.
+         The projection at `ecgdex-dsp.js:5640` renames field by field and its own comment says an
+         unlisted field is dropped — these two were, so every ECGDex export published the fallback
+         beside a `spreadMs` the same block forwards two keys away. Measured on the committed goldens:
+         the PpgDex export quoted "residual spread 0.93 ms" while ECGDex's read the stock sentence
+         over `hostAxis.spreadMs` 0.9232177734375 in the same file. The first two legs run the
+         PROJECTION; the last runs the real shared consumer over it, because a forwarded field that
+         the builder still does not quote would pass the first two. */
+      T.ok(
+        'the inert verdict carries the spine’s own sentence, with the measured spread in it',
+        typeof dAx.inertReason === 'string' && /residual spread/.test(dAx.inertReason),
+        String(dAx.inertReason)
+      );
+      T.ok(
+        '…and the number in that sentence IS the spread the same block publishes',
+        typeof dAx.spreadMs === 'number' && String(dAx.inertReason).indexOf(dAx.spreadMs.toFixed(2)) >= 0,
+        dAx.spreadMs + ' vs ' + String(dAx.inertReason)
+      );
+      T.eq('…an independent host column has no inert reason to give', iAx.inertReason, null);
+      /* …AND THE DRAWN TWIN, on the same fixture. Both files lay the device column down as
+         `i * 1000`, so `clock.js` measures it as DRAWN (80 % of inter-sample deltas share one value
+         against a 67 % bound) and writes a second sentence with that share in it. A projection that
+         forwards one reason and drops the other would pass every leg above. */
+      T.ok(
+        'the drawn verdict carries its own sentence too, with the measured share in it',
+        typeof dAx.drawnReason === 'string' && String(dAx.drawnReason).indexOf((dAx.drawnShare * 100).toFixed(2)) >= 0,
+        dAx.drawnShare + ' vs ' + String(dAx.drawnReason)
+      );
+      var DEt = env.DexExport || (typeof globalThis !== 'undefined' && globalThis.DexExport) || null;
+      if (!DEt || typeof DEt.timingBlock !== 'function') {
+        T.skip('dex-export.js timingBlock reachable', 'not co-loaded in this runner');
+      } else {
+        var tb = DEt.timingBlock({ hostAxis: dAx, timingSource: dAx.timingSource, drawn: dAx.deviceDrawn, resyncs: [], seams: [] });
+        T.ok('the shared timing block quotes the measured sentence over this projection', /residual spread/.test(String(tb.reason)), String(tb.reason));
+        T.ok('…and no longer falls back to the stock one that names no number', !/tracks the device column inside one stamp quantum/.test(String(tb.reason)), String(tb.reason));
+      }
     });
 
     /* ════ A DRAWN DEVICE AXIS IS PLACED ON THE HOST TIMELINE, NEVER SPENT AS A CLOCK (§7) ═══════════
