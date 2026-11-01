@@ -45,6 +45,7 @@
  *   node tools/mutation-draft-py.mjs --dry-run --candidate <f.py>   # harness end to end, no model
  *   node tools/mutation-draft-py.mjs --limit 4             # night window only
  *   node tools/mutation-draft-py.mjs --verdict-sample      # the verdict object alone
+ *   node tools/mutation-draft-py.mjs --help                # the flags, and nothing else runs
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -54,6 +55,8 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { diffPaths } from './mutation-suite.mjs';
+import { checkArgv, isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { classify } from './js-lex.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CH = join(ROOT, 'capture-host');
@@ -68,6 +71,57 @@ const opt = (f, d) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
 const log = (s) => process.stdout.write(s + '\n');
+
+/* ── THE FLAGS, DECLARED ONCE ──────────────────────────────────────────────────────────────────────
+   THE DEFAULT BRANCH OF THIS TOOL IS THE MOST EXPENSIVE ACTION IT HAS. The dispatch at the foot of
+   the file falls through to `main()`, which drafts against a 30B local model for every open row in
+   the baseline, and the tool may only run between 00:00 and 08:00 — so the cost of a mistyped token
+   is a night window, not an error message. Measured 2026-11-01 04:44Z (board #2640): `--help`
+   started that run, because no branch read the token and nothing refused it.
+   `refuseUnknownArgvOrExit` answers it — a typo names its nearest flag and exits 2 before anything
+   is read or written — and the selftest holds this list, the reads below and the usage text to each
+   other, so a flag cannot be read without being documented or documented without being read. */
+const ARGV_SPEC = {
+  boolean: ['-h', '--drain', '--dry-run', '--field-census', '--help', '--no-drain', '--selftest', '--selftest-realm', '--verdict-sample', '--verify-kills'],
+  valued: ['--attempts', '--candidate', '--ctx', '--function', '--keep-alive', '--limit', '--model', '--run-timeout', '--window-from', '--window-to']
+};
+
+/* THE USAGE TEXT IS A VALUE, NOT A COMMENT, because `--help` has to answer at RUN time: the caller
+   who types it is the caller about to start the night program by accident. A comment answers a
+   reader of the file and nobody else. `usageLines` stays pure so the selftest reads the real text
+   rather than a copy of it. */
+export function usageLines() {
+  return [
+    'tools/mutation-draft-py.mjs — the python lane\u2019s survivor drafter (owner order, board #2562)',
+    '',
+    'WHAT RUNS WITHOUT A MODEL',
+    '  --help  -h              print this and exit 0',
+    '  --selftest              the pure parts: no python, no model, no night window',
+    '  --selftest-realm        the realm check, through real pytest',
+    '  --field-census          per survivor, the reported field its line feeds (no model)',
+    '  --verify-kills          re-run every committed draft against its mutant',
+    '  --verdict-sample        the verdict object alone, for the adoption check',
+    '  --dry-run               the harness end to end with no model call',
+    '  --candidate <f.py>      use this fixture instead of asking the model',
+    '',
+    'THE MODEL RUN (00:00\u201308:00 local only)',
+    '  --limit <n>             draft at most n survivors',
+    '  --function <name>       restrict to one function of the baseline',
+    '  --attempts <n>          model calls per survivor',
+    '  --model <name>          the ollama model',
+    '  --ctx <n>               context window',
+    '  --keep-alive <s>        how long ollama holds the model (short, so bge-m3 comes back)',
+    '  --run-timeout <ms>      per-candidate subprocess timeout',
+    '  --window-from <h>       night-window start hour',
+    '  --window-to <h>         night-window end hour',
+    '  --drain                 drain the embed backlog even under --dry-run',
+    '  --no-drain              skip the drain (it is a courtesy, never a gate)'
+  ];
+}
+
+function usage() {
+  for (const l of usageLines()) log(l);
+}
 
 const LOCAL_HOST = 'http://127.0.0.1:11434';
 const MODEL = opt('--model', 'qwen3-coder:30b');
@@ -1452,6 +1506,59 @@ function selftest() {
   eq(rv.result, null, 'a NOT_RUN refusal carries result null');
   eq(rv.population, { checked: 0, eligible: 0, excluded: 0 }, 'a refusal examined nothing and says so');
   eq(typeof rv.reason === 'string' && rv.reason.length > 0, true, 'every non-PASS verdict names its reason');
+  /* ── THE FLAGS: DECLARED ≡ READ ≡ DOCUMENTED ────────────────────────────────────────────────────
+     Row 2026-11-01-the-drafter-took-an-unknown-flag-and-started-its-night-program. The three sets have
+     to agree, and the population is DERIVED from this file's own text rather than typed, so a flag
+     added later cannot escape any of the three. The derivation reads CODE ONLY: a `has('--x')` spelled
+     inside a comment or a string literal is prose, and a reader that counted it would be reading its
+     own documentation (#4184, one corpus over). `js-lex.mjs` is the repo's one regex-aware lexer, so
+     the enclosure comes from there and not from a second hand-rolled scanner. */
+  const SELF = fileURLToPath(import.meta.url);
+  const selfSrc = readFileSync(SELF, 'utf8');
+  const selfCls = classify(selfSrc);
+  const readFlags = new Set();
+  for (const m of selfSrc.matchAll(/\b(?:has|opt)\('(--?[a-z][\w-]*)'/g)) if (selfCls[m.index] === 0) readFlags.add(m[1]);
+  const declared = [...ARGV_SPEC.boolean, ...ARGV_SPEC.valued];
+  const longDeclared = declared.filter((f) => f.startsWith('--')).sort();
+  eq(readFlags.size >= 18, true, 'CONTROL · the flag derivation found the real set, not an empty one');
+  eq([...readFlags].filter((f) => !declared.includes(f)).sort(), [], 'every flag the code reads is declared in ARGV_SPEC');
+  eq(declared.filter((f) => !readFlags.has(f)).sort(), [], 'every declared flag is one the code reads');
+  const PLANT = "const t = \"has('--planted')\";\nif (has('--real')) {\n}\n";
+  const plantCls = classify(PLANT);
+  eq(
+    [...PLANT.matchAll(/\b(?:has|opt)\('(--?[a-z][\w-]*)'/g)].filter((m) => plantCls[m.index] === 0).map((m) => m[1]),
+    ['--real'],
+    'CONTROL · a flag read spelled inside a string literal is prose, and the derivation skips it'
+  );
+  const usageText = usageLines().join('\n');
+  eq([...new Set(usageText.match(/--[a-z][\w-]*/g) || [])].filter((f) => !declared.includes(f)).sort(), [], 'every flag the usage text names is declared');
+  eq(
+    longDeclared.filter((f) => !usageText.includes(f)),
+    [],
+    'every declared long flag appears in the usage text'
+  );
+  /* THE SPEC ITSELF, over the four shapes a caller gets wrong. `positional` is absent on purpose: this
+     tool reads no positional argument, so a bare word is a typo and never a path. */
+  eq(checkArgv(['--selftest'], ARGV_SPEC).ok, true, 'a documented boolean passes the spec');
+  eq(checkArgv(['--limit', '4', '--dry-run'], ARGV_SPEC).ok, true, 'a valued flag and a boolean pass together');
+  eq(checkArgv(['--halp'], ARGV_SPEC).reason.includes('--help'), true, 'a near-miss names the flag it meant');
+  eq(checkArgv(['--limit'], ARGV_SPEC).ok, false, 'a valued flag with no value refuses rather than defaulting');
+  eq(checkArgv(['nightqc.py'], ARGV_SPEC).ok, false, 'a positional refuses — this tool takes flags only');
+  /* ── THE REFUSAL THROUGH THE REAL ENTRY POINT ─────────────────────────────────────────────────────
+     The spec legs above judge the declaration; these two judge the tool. `--halp` must spend NOTHING:
+     no banner on stdout is the observable that separates "refused" from "started and then died",
+     which is what the measured failure did — it ran until `head` closed the pipe. */
+  const bad = spawnSync(process.execPath, [SELF, '--halp'], { encoding: 'utf8', timeout: 60000 });
+  eq(bad.status, 2, 'an unknown flag exits 2 — a usage error is not a failed run');
+  eq(bad.stdout, '', 'nothing ran: the refusal precedes the banner, the night-window check and the model');
+  eq(bad.stderr.includes('unknown flag --halp'), true, 'the refusal names the token it refused');
+  const help = spawnSync(process.execPath, [SELF, '--help'], { encoding: 'utf8', timeout: 60000 });
+  eq(help.status, 0, '`--help` answers and exits 0');
+  eq(
+    longDeclared.filter((f) => !help.stdout.includes(f)),
+    [],
+    'the printed usage names every declared long flag'
+  );
   /* THE COUNT IS THE HELPER'S, NEVER A LITERAL — `selftest-all.mjs` reads this line as this tool's
      assertion total, and a typed figure would keep printing after an assertion was deleted. */
   log(process.exitCode ? 'SELFTEST FAILED after ' + n + ' assertions' : n + ' assertions passed');
@@ -1551,8 +1658,22 @@ function selftestRealm() {
   log(process.exitCode ? 'REALM SELFTEST FAILED after ' + n + ' checks' : n + ' realm checks passed');
 }
 
-if (has('--selftest-realm')) selftestRealm();
-else if (has('--selftest')) selftest();
-else if (has('--field-census')) fieldCensus();
-else if (has('--verify-kills')) verifyKills();
-else await main();
+/* ── THE DISPATCH, BEHIND THE GUARD ───────────────────────────────────────────────────────────────
+   The refusal sits INSIDE a function, never at module scope, so an importer's own flags are never
+   judged as this tool's (row 2026-10-30-a-module-level-guard-travels-with-the-import) and the
+   repo-wide scan holds every adopter to that shape. `isCliEntry` guards the dispatch itself: the
+   bare `await main()` this replaces started the whole program on an `import` of this file. */
+async function cli() {
+  refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'mutation-draft-py' });
+  if (has('--help') || has('-h')) {
+    usage();
+    return;
+  }
+  if (has('--selftest-realm')) selftestRealm();
+  else if (has('--selftest')) selftest();
+  else if (has('--field-census')) fieldCensus();
+  else if (has('--verify-kills')) verifyKills();
+  else await main();
+}
+
+if (isCliEntry(import.meta.url)) await cli();
