@@ -176,10 +176,11 @@ names it (`ok: ax.ok === true`). Three publishers shipped two shapes, which is w
 block's presence IS the verdict" was never the remedy — that contract would describe one publisher and
 misdescribe two.
 
-**The harm had two faces, both measured.** A reader FILTERING the 452 committed exports on `hostAxis.ok`
-matches ONE file and reads clean. `tools/pat-drift-attribution.mjs:126` fails closed
-(`!hostAxis.ok` → `ppm: null, reason: 'axis refused'`), so over a PpgDex or ECGDex artifact it reported a
-refusal against a good axis.
+**The harm had two faces, both measured.** Of the 443 node-exports tracked under `uploads/`, 242 carry
+the block — PpgDex 180, ECGDex 61, MotionDex 1 — and exactly ONE of those 242 names `ok`: the single
+MotionDex artifact. A reader FILTERING on `hostAxis.ok` therefore matched one file and read clean.
+`tools/pat-drift-attribution.mjs:126` fails closed (`!hostAxis.ok` → `ppm: null, reason: 'axis
+refused'`), so over a PpgDex or ECGDex block it reported a refusal against a good axis.
 
 **The line FORWARDS the gate's value; it never writes a literal `true`.** The value states what the gate
 read, so a later change that publishes this block on a REFUSAL travels through the same line. A source
