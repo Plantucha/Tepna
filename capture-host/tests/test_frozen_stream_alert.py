@@ -236,3 +236,26 @@ def test_the_explanation_is_NAMED_and_each_state_has_its_own_word():
     # the charger wins over the pull, and that order is not arbitrary: a docked device is silent for the
     # whole dock, while a pull ends in seconds — the longer-lived state is the one worth naming.
     assert alerts.explained_silence(_st(charging=True, address="AA:BB"), ["AA:BB"]) == "charging"
+
+
+# ── THE TWO BOUNDARIES THE MUTATION GATE FOUND UNOBSERVED (#4242, 2026-11-01) ───────────────────────
+# The unit is the FUNCTION, so touching `frozen_devices` put its whole body in scope and two mutants
+# survived on lines this diff never edited. Both are real gaps rather than equivalences, and each one
+# names a behaviour a reader would assume was already pinned.
+def test_frozen_devices_reports_a_device_silent_EXACTLY_as_long_as_the_threshold():
+    """`silent < threshold_sec` skips, so the threshold itself REPORTS. Flipping that one comparison to
+    `<=` moves the boundary by one device-poll and no test saw it. The threshold is the point at which a
+    silence becomes a fault, not the last moment it is still forgiven."""
+    qc = _qc({"H10": 600})
+    live = {"H10": _st()}
+    assert alerts.frozen_devices(qc, live, 600) == ["H10"]
+    assert alerts.frozen_devices(qc, live, 600.5) == [], "just under the threshold is still forgiven"
+
+
+def test_frozen_devices_keeps_WALKING_past_a_device_it_skips():
+    """The skip is a `continue`, and a `break` there passed every test — because no test had a reportable
+    device AFTER a skipped one. One quiet device first in the summary would then have hidden every frozen
+    device behind it, which is a false all-clear and the worst failure this rule has."""
+    qc = _qc({"quiet": 1, "H10": 900})
+    live = {"quiet": _st(), "H10": _st()}
+    assert alerts.frozen_devices(qc, live, 600) == ["H10"]
