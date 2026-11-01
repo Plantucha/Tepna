@@ -44,14 +44,7 @@ import { makeVerdict } from './verdict-emit.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** The closed set of answers. A class outside it is a bug, not a new case. */
-export const CLASSES = [
-  'truthiness-equivalent',
-  'write-only',
-  'observable',
-  'not-an-initialiser',
-  'undecided',
-  'unresolved'
-];
+export const CLASSES = ['truthiness-equivalent', 'write-only', 'observable', 'not-an-initialiser', 'undecided', 'unresolved'];
 
 /** The two classes that are PROOFS of equivalence — the only ones a closure may rest on. */
 export const PROVEN_EQUIVALENT = ['truthiness-equivalent', 'write-only'];
@@ -238,9 +231,8 @@ export function readContexts(masked, span, name) {
        target counts too — `hz, basis = _expected_hz(d, s), "expected"` writes `basis`, and reading it
        as a read made the census cite a write as its evidence that two values differ there. */
     const text = blankTargets(whole, name);
-    tok.lastIndex = 0;
-    let m;
-    while ((m = tok.exec(text)) !== null) {
+    // `matchAll` clones the regex, so one `tok` carries no lastIndex from the line before it.
+    for (const m of text.matchAll(tok)) {
       reads.push({ line: i, col: m.index, context: contextOf(text.slice(0, m.index), text.slice(m.index + name.length)), text: whole.trim() });
     }
   }
@@ -507,13 +499,20 @@ export function selftest() {
   eq(seen.firstDistinguishing.context, 'identity', 'and it is named an identity read');
   const spanV = classifyEntry(FIX, E('span = None', 'span = ""'));
   eq(spanV.firstDistinguishing.context, 'value', 'an arithmetic read is a value read');
-  ok(spanV.publishedFields.some((f) => f.field === 'span_sec'), 'the field hint names span_sec');
+  ok(
+    spanV.publishedFields.some((f) => f.field === 'span_sec'),
+    'the field hint names span_sec'
+  );
   ok(spanV.reason.includes('span_sec'), 'and the reason carries it');
 
   // ── a tuple target is a WRITE, not a read ──
   const lab = classifyEntry(FIX, E('label = "x"', 'label = "XXxXX"'));
   eq(lab.class, 'observable', 'label is published, so it is observable');
-  eq(FIX.split('\n')[lab.firstDistinguishing.line], '    out = {"span_sec": round(span) if span else None, "label": label, "msg": msg}', 'CONTROL: the cited read is the dict line, never the tuple assignment that writes it');
+  eq(
+    FIX.split('\n')[lab.firstDistinguishing.line],
+    '    out = {"span_sec": round(span) if span else None, "label": label, "msg": msg}',
+    'CONTROL: the cited read is the dict line, never the tuple assignment that writes it'
+  );
   eq(blankTargets('    hz, label = 1, "expected"', 'label'), '    hz,       = 1, "expected"', 'blankTargets blanks a tuple target');
   eq(blankTargets('    out["label"] = label', 'label'), '    out["label"] = label', 'CONTROL: a subscript target is not a write to the bare name');
   eq(blankTargets('    if label == "x":', 'label'), '    if label == "x":', 'CONTROL: a comparison is not an assignment');
@@ -602,9 +601,7 @@ export function resolveModule(moduleName, root) {
 }
 
 function openEntries(ledger, { lane, fn }) {
-  return (ledger.entries || []).filter(
-    (e) => e.state === 'open' && (!lane || e.lane === lane) && (!fn || e.function === fn)
-  );
+  return (ledger.entries || []).filter((e) => e.state === 'open' && (!lane || e.lane === lane) && (!fn || e.function === fn));
 }
 
 function cmdCensus(argv) {
@@ -638,7 +635,9 @@ function cmdCensus(argv) {
     const counts = countClasses(rows);
     console.log(
       `\n${rows.length} open entr(ies) in scope · ` +
-        CLASSES.filter((c) => counts[c]).map((c) => `${c}: ${counts[c]}`).join(' · ')
+        CLASSES.filter((c) => counts[c])
+          .map((c) => `${c}: ${counts[c]}`)
+          .join(' · ')
     );
     console.log('\nPROVEN equivalent (closeable): ' + rows.filter((r) => PROVEN_EQUIVALENT.includes(r.verdict.class)).length);
   }
@@ -650,11 +649,7 @@ export { cmdCensus };
 
 if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
-  refuseUnknownArgvOrExit(
-    argv,
-    { valued: ['--lane', '--function'], boolean: ['--selftest', '--verdict-sample', '--json'], positional: false },
-    { tool: 'mutation-equiv-source' }
-  );
+  refuseUnknownArgvOrExit(argv, { valued: ['--lane', '--function'], boolean: ['--selftest', '--verdict-sample', '--json'], positional: false }, { tool: 'mutation-equiv-source' });
   if (argv.includes('--selftest')) process.exit(selftest());
   if (argv.includes('--verdict-sample')) {
     // A SAMPLE over a two-entry stand-in, built by the SAME function the real census calls, so no
