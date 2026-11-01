@@ -1737,10 +1737,13 @@
                ppm branch and credited this node's drift as an outstanding error the axis had
                already absorbed — a double-count. ECGDex has always written it; PpgDex never did,
                so the reader was correct by accident on one node and wrong on the other.
-               ⚠️ Inert in the SHIPPED BUNDLE and that is expected: `PpgDex.html` inlines no
-               `clock.js` (CLAUDE.md §✅ — `DexClock` is undefined there), so `hostAx.ok` is false
-               and this whole block never builds. It is live only where the analysis tools co-load
-               the spine in Node, which is exactly where the defect was.
+               ⚠️ LIVE IN THE SHIPPED BUNDLE SINCE 2026-10-29, and this comment said the opposite
+               until 2026-11-01. `PpgDex.html` now inlines `clock.js` for `DexClock.hostAxis`
+               (CLAUDE.md §✅ lists ppgdex among the bundles that carry it; `PpgDex.src.html` loads
+               it), so `hostAx.ok` resolves in the browser too and this block builds there. It was
+               written when the spine reached this node only through the analysis tools in Node,
+               which is where the defect was found — so read a claim of inertness here as dated,
+               never as a reason to leave the block unverified.
                ⚠️ The `fs` correction two lines up IS erased by the 2 dp rounding at `:557` (181.8 ppm
                per step at 55 Hz), and that is NOT a reason to call this key false: the beat times the
                PAT tools measure ride `relSec`, not `idx / fs`. Measured 2026-09-05 through
@@ -7011,6 +7014,62 @@
       /* Read BEFORE `nz()` for the rate verdict below: `nz` maps a non-number to null and
          `isFinite(null)` is TRUE, so an absent span would have read as a measured one. */
       const haSpanMs = typeof r.hostAxis.spanMs === 'number' && isFinite(r.hostAxis.spanMs) ? r.hostAxis.spanMs : null;
+      /* ── THE TWO FLOORS THIS NODE ALREADY OWNS, AND §7's FIRST QUESTION ───────────────────────────
+         This verdict read `spanMs` and nothing else, so a fragment spanning eight hours over a device
+         column the node had itself classified DRAWN published `rate:'measured'`. Row
+         `2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied` measured the
+         population it matters over: `analysis/ring_rate_cause.json` rates 523 ring fragments and puts
+         444 outside the node's own two floors, of which 12 clear the span floor while the device
+         column is drawn. A recording the offset model never segmented publishes NO `offsetSegments`
+         at all — that block appears only above one segment — so THIS is the only surface such a
+         recording's rate reaches, and the per-segment floors never see it.
+         THE ORDER IS §7's: ask whether there IS a second clock before quoting a rate measured between
+         two. `drawn` says the device column is a counter the writer accumulated; `independent` says
+         the host column is the device time rounded. Either one leaves no pair of clocks for a rate to
+         be measured ACROSS, whatever the span, so both precede the span test — which keeps its own
+         sentence, byte for byte, because it refuses for its own reason.
+         ⚠️ BOTH SPELLINGS, because this block is a RESHAPE and the two layers name the fact
+         differently: the parse layer writes `drawn`, a raw spine axis carries only `deviceDrawn`, and
+         reading one of them would have scored the other layer's axis as unmeasured.
+         ⚠️ TRI-STATE, and §∅ is why. `drawn !== false` and `independent !== true` both refuse, so an
+         UNMEASURED verdict publishes 'unknown' rather than certifying a rate — the rule this file
+         already applies to `timingSource` ("we never measured whether it is a clock" is no licence to
+         publish one) and to `quality.axisDrawn`. A real spine axis is never null in either
+         (`clock.js` computes `independent` for every `ok` axis), so a null here means this reshape
+         dropped the key, which is the state this one block has eaten three times.
+         ⚠️ IT ANNOTATES AND NEVER REFUSES (owner, board #2180, quoted at `rateApplied` in the parse
+         layer). `ppm` is still published beside this verdict, the `fs` division upstream is untouched
+         and no value becomes null. Whether a rate like this should be `null` or merely labelled is
+         the owner's open choice under row
+         `2026-10-29-per-segment-model-leaves-fifty-of-sixty-five-ring-nights-impossible`; this makes
+         the label say what the node already knew, and decides nothing. */
+      const haDrawnKey = r.hostAxis.drawn != null ? r.hostAxis.drawn : r.hostAxis.deviceDrawn;
+      const haDrawn = haDrawnKey == null ? null : haDrawnKey === true;
+      const haIndep = r.hostAxis.independent == null ? null : r.hostAxis.independent === true;
+      const haRate =
+        haDrawn !== false
+          ? {
+              rate: 'unknown',
+              reason:
+                haDrawn === true
+                  ? 'the device column is drawn' +
+                    (r.hostAxis.quantizedShare != null ? ' (' + Math.round(r.hostAxis.quantizedShare * 1000) / 10 + ' % of its deltas are one value)' : '') +
+                    ' — a rate over it measures a counter with no oscillator, whatever the span'
+                  : 'the device delta concentration was never measured, so whether that column is a clock is unknown'
+            }
+          : haIndep !== true
+            ? {
+                rate: 'unknown',
+                reason:
+                  haIndep === false
+                    ? r.hostAxis.inertReason || 'the host column is not an independent clock, so no second clock exists to measure a rate against'
+                    : 'the host column was never tested for independence, so whether a second clock exists is unknown'
+              }
+            : haSpanMs == null
+              ? { rate: 'unknown', reason: 'no span — the axis published none' }
+              : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
+                ? { rate: 'measured', reason: null }
+                : { rate: 'unknown', reason: 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs' };
       out.recording.hostAxis = {
         anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
         ppm: nz(r.hostAxis.ppm),
@@ -7034,13 +7093,8 @@
            artifact — until the group `ppgdex-dsp · hostaxis-rate · subfloor-annotation` read them
            through `buildNodeExport`. `== null ? null` on the forward, because a source object
            without the key is unknown and §∅ forbids answering an unknown with `false`. */
-        rate: haSpanMs == null ? 'unknown' : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000 ? 'measured' : 'unknown',
-        rateReason:
-          haSpanMs == null
-            ? 'no span — the axis published none'
-            : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
-              ? null
-              : 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs',
+        rate: haRate.rate,
+        rateReason: haRate.reason,
         rateApplied: r.hostAxis.rateApplied == null ? null : r.hostAxis.rateApplied === true,
         maxStepMs: nz(r.hostAxis.maxStepMs),
         totalMs: nz(r.hostAxis.totalMs),

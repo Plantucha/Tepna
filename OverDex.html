@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2395f623a454" data-compute-hash="e06d97dcac5f"><head>
+<html lang="en" data-manifest-hash="b6b22c07fe8d" data-compute-hash="e200d604ac01"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-Fbe7VJ7WsGLO3lgiu6lso9z2xdz36ZNxdX91tAdVL14=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-gIPFMu/SlrlXEK8GDHMLsi+r6Nj20mNiyqtwHj8U2Jk=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+iskltdbf7/UUg8Y6ZfcamkqkNKvnVyfhKrlKyBzwKE=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4H9qbwJg0Px/ddF5s19lSEh0lobH/6PK1pgCZ+NZiHI=' 'sha256-6f85C28BTIAdWBrVBSCTqiDlgEUZZvCfBlJGXVI6LrA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HzpXWOPOmYq1yS+1Lwu7KL6HoGmEkgy2vwnzL5usAbA=' 'sha256-IOGPMbRcH864r7zf4ZB3jn1uFqtYSY8DqWp2YdgZWag=' 'sha256-LLgboXd2yVxQuxadbV6/XakvyuElnwPqqeK60I9qEBg=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-RvqN2r4JXRFcPjgEqhy7aHQJAbjKRTZwBnI4olVweec=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Txun41gY7Q17AkzPbaB+JKrshJ1RBXlECKfWnsbyF+U=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-XeM139aCzQDSzEaQuQBVa+zEhnOSgXP/4pqlC0h9wO4=' 'sha256-ZXcSUPmdNX+PI5tNnnDW/vQNEDiDXjF3XV977vxYNoU=' 'sha256-b/3cr3fEKA226qKxIKH9duRTbo6viskcVfqeOMzUwtA=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-gIPFMu/SlrlXEK8GDHMLsi+r6Nj20mNiyqtwHj8U2Jk=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-jHB+Vbnq13/OqiREytNt1VT0oXPXPmhrehzKnnu7PDA=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rIcm4jQwZdAp6l3SdrzI0nizBN01Nhu8bJROOQanTRo=' 'sha256-wPiR0mHERwqCZR4gMZnRtTm1BC+vsdDwOsTq7ombnvc=' 'sha256-ymWNG1fe6A9fVnBAn01eHLqgiZnCfxijVdDQPf6xLlQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -31202,10 +31202,13 @@ __exports.GlucoDex = window.GlucoDex;
                ppm branch and credited this node's drift as an outstanding error the axis had
                already absorbed — a double-count. ECGDex has always written it; PpgDex never did,
                so the reader was correct by accident on one node and wrong on the other.
-               ⚠️ Inert in the SHIPPED BUNDLE and that is expected: `PpgDex.html` inlines no
-               `clock.js` (CLAUDE.md §✅ — `DexClock` is undefined there), so `hostAx.ok` is false
-               and this whole block never builds. It is live only where the analysis tools co-load
-               the spine in Node, which is exactly where the defect was.
+               ⚠️ LIVE IN THE SHIPPED BUNDLE SINCE 2026-10-29, and this comment said the opposite
+               until 2026-11-01. `PpgDex.html` now inlines `clock.js` for `DexClock.hostAxis`
+               (CLAUDE.md §✅ lists ppgdex among the bundles that carry it; `PpgDex.src.html` loads
+               it), so `hostAx.ok` resolves in the browser too and this block builds there. It was
+               written when the spine reached this node only through the analysis tools in Node,
+               which is where the defect was found — so read a claim of inertness here as dated,
+               never as a reason to leave the block unverified.
                ⚠️ The `fs` correction two lines up IS erased by the 2 dp rounding at `:557` (181.8 ppm
                per step at 55 Hz), and that is NOT a reason to call this key false: the beat times the
                PAT tools measure ride `relSec`, not `idx / fs`. Measured 2026-09-05 through
@@ -36476,6 +36479,62 @@ __exports.GlucoDex = window.GlucoDex;
       /* Read BEFORE `nz()` for the rate verdict below: `nz` maps a non-number to null and
          `isFinite(null)` is TRUE, so an absent span would have read as a measured one. */
       const haSpanMs = typeof r.hostAxis.spanMs === 'number' && isFinite(r.hostAxis.spanMs) ? r.hostAxis.spanMs : null;
+      /* ── THE TWO FLOORS THIS NODE ALREADY OWNS, AND §7's FIRST QUESTION ───────────────────────────
+         This verdict read `spanMs` and nothing else, so a fragment spanning eight hours over a device
+         column the node had itself classified DRAWN published `rate:'measured'`. Row
+         `2026-10-29-the-implied-single-segment-publishes-a-rate-with-no-floor-applied` measured the
+         population it matters over: `analysis/ring_rate_cause.json` rates 523 ring fragments and puts
+         444 outside the node's own two floors, of which 12 clear the span floor while the device
+         column is drawn. A recording the offset model never segmented publishes NO `offsetSegments`
+         at all — that block appears only above one segment — so THIS is the only surface such a
+         recording's rate reaches, and the per-segment floors never see it.
+         THE ORDER IS §7's: ask whether there IS a second clock before quoting a rate measured between
+         two. `drawn` says the device column is a counter the writer accumulated; `independent` says
+         the host column is the device time rounded. Either one leaves no pair of clocks for a rate to
+         be measured ACROSS, whatever the span, so both precede the span test — which keeps its own
+         sentence, byte for byte, because it refuses for its own reason.
+         ⚠️ BOTH SPELLINGS, because this block is a RESHAPE and the two layers name the fact
+         differently: the parse layer writes `drawn`, a raw spine axis carries only `deviceDrawn`, and
+         reading one of them would have scored the other layer's axis as unmeasured.
+         ⚠️ TRI-STATE, and §∅ is why. `drawn !== false` and `independent !== true` both refuse, so an
+         UNMEASURED verdict publishes 'unknown' rather than certifying a rate — the rule this file
+         already applies to `timingSource` ("we never measured whether it is a clock" is no licence to
+         publish one) and to `quality.axisDrawn`. A real spine axis is never null in either
+         (`clock.js` computes `independent` for every `ok` axis), so a null here means this reshape
+         dropped the key, which is the state this one block has eaten three times.
+         ⚠️ IT ANNOTATES AND NEVER REFUSES (owner, board #2180, quoted at `rateApplied` in the parse
+         layer). `ppm` is still published beside this verdict, the `fs` division upstream is untouched
+         and no value becomes null. Whether a rate like this should be `null` or merely labelled is
+         the owner's open choice under row
+         `2026-10-29-per-segment-model-leaves-fifty-of-sixty-five-ring-nights-impossible`; this makes
+         the label say what the node already knew, and decides nothing. */
+      const haDrawnKey = r.hostAxis.drawn != null ? r.hostAxis.drawn : r.hostAxis.deviceDrawn;
+      const haDrawn = haDrawnKey == null ? null : haDrawnKey === true;
+      const haIndep = r.hostAxis.independent == null ? null : r.hostAxis.independent === true;
+      const haRate =
+        haDrawn !== false
+          ? {
+              rate: 'unknown',
+              reason:
+                haDrawn === true
+                  ? 'the device column is drawn' +
+                    (r.hostAxis.quantizedShare != null ? ' (' + Math.round(r.hostAxis.quantizedShare * 1000) / 10 + ' % of its deltas are one value)' : '') +
+                    ' — a rate over it measures a counter with no oscillator, whatever the span'
+                  : 'the device delta concentration was never measured, so whether that column is a clock is unknown'
+            }
+          : haIndep !== true
+            ? {
+                rate: 'unknown',
+                reason:
+                  haIndep === false
+                    ? r.hostAxis.inertReason || 'the host column is not an independent clock, so no second clock exists to measure a rate against'
+                    : 'the host column was never tested for independence, so whether a second clock exists is unknown'
+              }
+            : haSpanMs == null
+              ? { rate: 'unknown', reason: 'no span — the axis published none' }
+              : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
+                ? { rate: 'measured', reason: null }
+                : { rate: 'unknown', reason: 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs' };
       out.recording.hostAxis = {
         anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
         ppm: nz(r.hostAxis.ppm),
@@ -36499,13 +36558,8 @@ __exports.GlucoDex = window.GlucoDex;
            artifact — until the group `ppgdex-dsp · hostaxis-rate · subfloor-annotation` read them
            through `buildNodeExport`. `== null ? null` on the forward, because a source object
            without the key is unknown and §∅ forbids answering an unknown with `false`. */
-        rate: haSpanMs == null ? 'unknown' : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000 ? 'measured' : 'unknown',
-        rateReason:
-          haSpanMs == null
-            ? 'no span — the axis published none'
-            : haSpanMs >= PPG_RATE_MIN_SPAN_S * 1000
-              ? null
-              : 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs',
+        rate: haRate.rate,
+        rateReason: haRate.reason,
         rateApplied: r.hostAxis.rateApplied == null ? null : r.hostAxis.rateApplied === true,
         maxStepMs: nz(r.hostAxis.maxStepMs),
         totalMs: nz(r.hostAxis.totalMs),

@@ -40,7 +40,7 @@
       "spanMs": 388353.353088,
       "spanPpm": -0.909192613290939,
       "rate": "unknown",
-      "rateReason": "spans 388 s, under the 2400 s a rate needs",
+      "rateReason": "host ≡ device — residual spread 0.99 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock",
       "rateApplied": false,
       "maxStepMs": 0.1860480000032112,
       "totalMs": -0.35308799997437745,
@@ -71,8 +71,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "66683a521ed4",
-        "computeHash": "001d03c70a0c"
+        "manifestHash": "c36a3d522072",
+        "computeHash": "ea4817278776"
       },
       "evidence": {
         "envelopeRef": null,
@@ -101,8 +101,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "66683a521ed4",
-        "computeHash": "001d03c70a0c"
+        "manifestHash": "c36a3d522072",
+        "computeHash": "ea4817278776"
       },
       "evidence": {
         "envelopeRef": null,

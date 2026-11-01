@@ -2529,6 +2529,107 @@
          so rather than reading an absent key as `false`. */
       T.eq('a raw spine axis reports rateApplied as unknown, never false', shortRun.out.rateApplied, null);
 
+      /* ── §7's FIRST QUESTION, ON SPANS THAT CLEAR THE FLOOR ───────────────────────────────────────
+         The span test above cannot reach any of these: every axis below spans well over 2400 s, so
+         the span-only verdict this group used to pin published 'measured' over a column that is not a
+         clock. `analysis/ring_rate_cause.json` rates 523 ring fragments and puts 12 in exactly that
+         state — the span floor cleared, the device column drawn. Each arm asserts its own premise
+         first, because a verdict read over an axis that did not reach the state proves nothing. */
+      /* ITS OWN GENERATOR, deliberately. These arms draw from `rnd()` too, and the shared stream
+         drives the finger-twin controls further down — inserting here moved that group's supra-step
+         control ppm from 1331.89 to 942.66 before this split. A later edit that shifts how many draws
+         this block takes must not be able to re-roll an assertion it never touched. */
+      var seed2 = 20261101;
+      var rnd2 = function () {
+        seed2 = (seed2 * 16807) % 2147483647;
+        return seed2 / 2147483647 - 0.5;
+      };
+      var mkAx = function (build) {
+        var a = [];
+        for (var m = 0; m < 400; m++) a.push(build(m, 10000));
+        var ha = C.hostAxis(a, {});
+        return ha;
+      };
+      // Device deltas EXACTLY uniform — the `sample_index × assumed_rate` grid a drawn column is.
+      var drawnAx = mkAx(function (m, stepMs) {
+        return { devMs: m * stepMs, hostMs: m * stepMs * (1 + 30e-6) + 40 * rnd2() };
+      });
+      // Host ≡ device inside one stamp quantum: the host column is the device time rounded.
+      var inertAx = mkAx(function (m, stepMs) {
+        /* ONE draw, used for BOTH columns — the host column IS the device time, plus sub-millisecond
+           rounding. Drawing the jitter twice made them two independent noisy clocks (74.8 ms of
+           residual spread, `independent:true`), which the anti-vacuity leg below caught. */
+        var devMs = m * stepMs + Math.round(40 * rnd2());
+        return { devMs: devMs, hostMs: devMs + 0.3 * rnd2() };
+      });
+      var expOf = function (ha) {
+        var ex = P.buildNodeExport({ hostAxis: ha, t0Ms: Date.UTC(2026, 8, 7, 0, 0, 0), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] }, { rich: true });
+        return ex && ex.recording && ex.recording.hostAxis;
+      };
+      var drawnOut = expOf(drawnAx),
+        inertOut = expOf(inertAx);
+      T.ok(
+        'ANTI-VACUITY · the drawn arm really spans OVER the floor and really reads deviceDrawn',
+        !!drawnOut && drawnAx.spanMs >= 2400e3 && drawnAx.deviceDrawn === true,
+        'spanMs=' + drawnAx.spanMs + ' deviceDrawn=' + drawnAx.deviceDrawn + ' share=' + drawnAx.drawnShare
+      );
+      T.ok(
+        'ANTI-VACUITY · the inert arm really spans OVER the floor, is NOT drawn, and reads independent:false',
+        !!inertOut && inertAx.spanMs >= 2400e3 && inertAx.deviceDrawn === false && inertAx.independent === false,
+        'spanMs=' + inertAx.spanMs + ' deviceDrawn=' + inertAx.deviceDrawn + ' independent=' + inertAx.independent + ' spreadMs=' + inertAx.spreadMs
+      );
+      if (drawnOut) {
+        T.eq('a DRAWN device column publishes rate "unknown" however long the span', drawnOut.rate, 'unknown');
+        T.ok(
+          '…with its own reason — the counter, not the span',
+          typeof drawnOut.rate === 'string' && typeof drawnOut.rateReason === 'string' && /counter with no oscillator/.test(drawnOut.rateReason) && !/a rate needs/.test(drawnOut.rateReason),
+          'rateReason=' + JSON.stringify(drawnOut.rateReason)
+        );
+        T.ok('…and the ppm is still published beside it — this annotates, it does not refuse', typeof drawnOut.ppm === 'number' && isFinite(drawnOut.ppm), 'ppm=' + drawnOut.ppm);
+      }
+      if (inertOut) {
+        T.eq('a host column that is no second clock publishes rate "unknown" too', inertOut.rate, 'unknown');
+        T.ok(
+          "…and the reason is the spine's own inert sentence, not a second spelling of it",
+          typeof inertOut.rateReason === 'string' && inertOut.rateReason === inertAx.inertReason,
+          'rateReason=' + JSON.stringify(inertOut.rateReason) + ' inertReason=' + JSON.stringify(inertAx.inertReason)
+        );
+        T.ok('…and its ppm travels as well', typeof inertOut.ppm === 'number' && isFinite(inertOut.ppm), 'ppm=' + inertOut.ppm);
+      }
+      /* §∅ · the state this reshape has eaten three times — the key never arrived. An UNMEASURED
+         drawn verdict may not certify a rate, which is the rule the sibling group pins for
+         `timingSource` and `quality.axisDrawn`. Built by DROPPING both spellings off an axis that
+         otherwise reads 'measured', so the arm differs from the control in exactly one fact. */
+      var cleanLong = longRun.ha;
+      T.ok('ANTI-VACUITY · the control axis this arm is built from really reads "measured"', longRun.out.rate === 'measured', 'rate=' + longRun.out.rate);
+      var stripped = {};
+      for (var kk in cleanLong) if (Object.prototype.hasOwnProperty.call(cleanLong, kk)) stripped[kk] = cleanLong[kk];
+      delete stripped.drawn;
+      delete stripped.deviceDrawn;
+      var strippedOut = expOf(stripped);
+      if (strippedOut) {
+        T.eq('an UNMEASURED drawn verdict publishes "unknown", never "measured"', strippedOut.rate, 'unknown');
+        T.ok(
+          '…and the reason says never measured rather than naming a floor it did not miss',
+          typeof strippedOut.rateReason === 'string' && /never measured/.test(strippedOut.rateReason),
+          'rateReason=' + JSON.stringify(strippedOut.rateReason)
+        );
+      }
+      /* THE FALLBACK SPELLING, EXECUTED. The parse layer writes `drawn`; a raw spine axis carries only
+         `deviceDrawn`. Reading one spelling would have scored the other layer's axis as unmeasured, so
+         the drawn arm above — a raw spine axis — is itself the control for the `deviceDrawn` read, and
+         this leg pins the `drawn` spelling against the same fact. */
+      var nodeSpelling = expOf(
+        (function () {
+          var o = {};
+          for (var k2 in drawnAx) if (Object.prototype.hasOwnProperty.call(drawnAx, k2)) o[k2] = drawnAx[k2];
+          delete o.deviceDrawn;
+          o.drawn = true;
+          return o;
+        })()
+      );
+      T.eq("the parse layer's `drawn` spelling reaches the same verdict as the spine's `deviceDrawn`", nodeSpelling && nodeSpelling.rate, 'unknown');
+
       /* ── `rateApplied` FROM A FILE, where the fs division either survives or does not ──────────────
          The committed finger twin is the one fixture that takes both branches: `device-crystal`
          overwrites `fs` with the 125.000 ADC constant AFTER the division, so its measured ppm reaches
@@ -80614,7 +80715,10 @@
         T.eq('CONTROL · a measured low share is a real negative', axL.drawn, false);
         T.eq('CONTROL · …and the tier it earns is unchanged', axL.timingSource, 'device+host');
       } else {
-        T.skip('the measured-share control', 'no resolvable axis in this lane (PpgDex inlines no clock.js) — the null arm above is lane-independent');
+        T.skip(
+          'the measured-share control',
+          'no resolvable axis in this lane — the null arm above is lane-independent. PpgDex HAS inlined clock.js since #3914, so this reason no longer names a bundle fact'
+        );
       }
       /* ── THE `quality` PROJECTION, EXECUTED. It reshapes the verdict, and `=== true` there turned
          the unknown back into `false` one layer out from the fix above. */
@@ -80653,7 +80757,10 @@
         T.eq('RUNTIME · the export says whether the correction was applied, which effectivePpm reads', mk({ applied: true }).hostAxis.applied, true);
         T.eq('RUNTIME · …and an unknown one is null there too, never false', mk({ applied: null }).hostAxis.applied, null);
       } else {
-        T.skip('the exported axis block', 'no resolvable axis in this lane (PpgDex inlines no clock.js) — the null arms above are lane-independent');
+        T.skip(
+          'the exported axis block',
+          'no resolvable axis in this lane — the null arms above are lane-independent. PpgDex HAS inlined clock.js since #3914, so this reason no longer names a bundle fact'
+        );
       }
     });
     group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {
