@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living) · **Created:** 2026-07-04 · last-verified 2026-10-29 · **Origin:** `briefs/SELF-INGEST-FOLLOWUPS-II-2026-07-04-BRIEF.md` F3
+**Status:** REFERENCE (living) · **Created:** 2026-07-04 · last-verified 2026-11-01 · **Origin:** `briefs/SELF-INGEST-FOLLOWUPS-II-2026-07-04-BRIEF.md` F3
 
 # Export shapes per node — the light-vs-rich contract
 
@@ -162,6 +162,36 @@ key set and its ORDER, the closed `timingSource` vocabulary, the ∅ rule, and a
 eight node-export builders reach `DexExport.timingBlock`. A node that goes back to hand-rolling reds there
 before a single fixture moves.
 
+## `recording.hostAxis` — the older per-node block, and the one key all three publishers now name (additive, PATCH; 2026-11-01)
+
+`recording.timing` above is the shared block, and it carries no `ok`. `recording.hostAxis` predates it.
+Three nodes still publish one: `ppgdex-dsp.js`, `ecgdex-dsp.js` and `motiondex-dsp.js`
+(`_mdExportAxis`). Each is a hand-written field list over the same `DexClock.hostAxis` result, so each
+drops whatever it does not name — the seam the section above describes.
+
+**Every publisher emits the block only when the gate passed, and two of the three dropped that verdict
+until 2026-11-01.** The `if` one line above each field list tests `r.hostAxis.ok`. The PpgDex and ECGDex
+lists never named `ok`, so the key read `undefined` over every artifact they wrote. MotionDex's list
+names it (`ok: ax.ok === true`). Three publishers shipped two shapes, which is why documenting "the
+block's presence IS the verdict" was never the remedy — that contract would describe one publisher and
+misdescribe two.
+
+**The harm had two faces, both measured.** Of the 443 node-exports tracked under `uploads/`, 242 carry
+the block — PpgDex 180, ECGDex 61, MotionDex 1 — and exactly ONE of those 242 names `ok`: the single
+MotionDex artifact. A reader FILTERING on `hostAxis.ok` therefore matched one file and read clean.
+`tools/pat-drift-attribution.mjs:126` fails closed (`!hostAxis.ok` → `ppm: null, reason: 'axis
+refused'`), so over a PpgDex or ECGDex block it reported a refusal against a good axis.
+
+**The line FORWARDS the gate's value; it never writes a literal `true`.** The value states what the gate
+read, so a later change that publishes this block on a REFUSAL travels through the same line. A source
+object without the key exports `null` per CLAUDE.md §∅, because unknown is not false. `anchors` beside it
+already carries the spine's own `n`.
+
+**Gate.** The suite group `the exported host-axis block names the gate it was built under`
+(`dsp · node-export · hostaxis-ok · three-publishers`) builds one real axis through `DexClock.hostAxis`,
+asserts its own premises, and holds all three publishers to the same key with the same type. Removing
+either forward reds three of its thirteen legs.
+
 ## Rules that fall out of this (for a new node / a reviewer)
 
 1. **Decide the clinical export shape up front.** If the node's value is a derived table (HRV rows, glycemic
@@ -177,6 +207,10 @@ before a single fixture moves.
 5. **Never hand-roll `recording.timing`.** Call `DexExport.timingBlock` and pass what your node measured.
    A node that owns a `timingSource` lattice already passes its own value and the builder validates it;
    a node that owns none passes nothing and gets `'device-only'` with a reason, never silence.
+
+6. **A hand-rolled `recording.hostAxis` names `ok`.** The block ships only when the gate passed, so a
+   list that omits the key makes every consumer read `undefined` — falsy — over a good axis. Forward the
+   gate's own value; never write a literal.
 
 > Cross-refs: `docs/CROSSNIGHT-ENVELOPE-SPEC.md` (the `crossNight` aggregate header), `CLAUDE.md` §🔒 Clock
 > Contract §6 (the export currency), `ARCHITECTURE-PRINCIPLES.md` §8 (adding a new Dex — this table is the

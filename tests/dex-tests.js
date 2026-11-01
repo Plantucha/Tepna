@@ -2889,6 +2889,88 @@
       );
     });
 
+    /* ── THE GATE'S VERDICT MUST REACH THE ARTIFACT, AND THE PUBLISHERS MUST AGREE ON IT ─────────
+       Row `2026-11-01-the-exported-host-axis-block-drops-the-ok-it-was-gated-on`. PpgDex and ECGDex
+       gate `recording.hostAxis` on `r.hostAxis.ok`, and neither field list named `ok`, so over an
+       artifact the key read `undefined` — falsy. MotionDex's `_mdExportAxis` is a field list of the
+       same kind and it DOES name it, so one key had two shapes across three publishers. Measured on
+       the corpus: 242 of 452 committed exports carry the block, and `ok` read `undefined` on every
+       one but the MotionDex golden.
+       These legs drive the REAL builders. A hand-built export object would restore exactly the
+       blindness, which is the lesson the group `dsp · node-export · integrator-facing` carries.
+       ⚠️ A PRESENCE LEG WOULD NOT HOLD THIS — `hasOwnProperty` passes on `ok: undefined`, so every
+       leg below reads the VALUE. */
+    group('the exported host-axis block names the gate it was built under', 'dsp · node-export · hostaxis-ok · three-publishers', function (T) {
+      var C = env.DexClock;
+      var P = env.PPGDSP || env.PpgDSP;
+      var E = env.ECGDSP || env.EcgDsp;
+      var M = env.MOTIONDSP;
+      if (!C || typeof C.hostAxis !== 'function' || !P || typeof P.buildNodeExport !== 'function' || !E || typeof E.buildNodeExport !== 'function') {
+        T.skip('DexClock.hostAxis + both node-export builders available', 'not loaded');
+        return;
+      }
+      var seedOk = 110111;
+      var rndOk = function () {
+        seedOk = (seedOk * 16807) % 2147483647;
+        return seedOk / 2147483647 - 0.5;
+      };
+      /* 400 anchors 10 s apart: a 66 min span over the 2400 s floor, and ±40 ms of delivery jitter so
+         the host is an INDEPENDENT clock (spread ≫ 2 ms) rather than the device stamp rounded. */
+      var anchorsOk = [];
+      for (var iOk = 0; iOk < 400; iOk++) {
+        var devOk = iOk * 10000;
+        anchorsOk.push({ devMs: devOk, hostMs: devOk * (1 + 30e-6) + 40 * rndOk() });
+      }
+      var axOk = C.hostAxis(anchorsOk, {});
+      T.eq('ANTI-VACUITY · the spine built an axis for these legs to export', axOk.ok, true);
+      T.ok('ANTI-VACUITY · …and the host column is a second clock, not the device stamp', axOk.independent === true, 'spreadMs ' + axOk.spreadMs);
+
+      var exP = P.buildNodeExport({ hostAxis: axOk, t0Ms: Date.UTC(2026, 10, 1), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] }, { rich: true });
+      T.ok('ANTI-VACUITY · the PpgDex export carries the block at all', !!(exP.recording && exP.recording.hostAxis), 'recording keys: ' + Object.keys(exP.recording || {}).join(','));
+      T.eq('PpgDex forwards the gate its block was built under', exP.recording.hostAxis.ok, true);
+
+      var exE = E.buildNodeExport({ hostAxis: axOk, nn: [], tt: [], epochs: [], events: [], fs: 130, n: 400, durSec: 400, t0Ms: Date.UTC(2026, 10, 1) }, {});
+      T.ok('ANTI-VACUITY · the ECGDex export carries the block at all', !!(exE.recording && exE.recording.hostAxis), 'recording keys: ' + Object.keys(exE.recording || {}).join(','));
+      T.eq('…and so does ECGDex', exE.recording.hostAxis.ok, true);
+
+      /* THE THIRD PUBLISHER, through its own builder. `_mdExportAxis` is private, so this leg reads
+         MotionDex's forward of an axis shaped the way that projection shapes one — which is the half
+         a reader of the artifacts meets. */
+      if (M && typeof M.buildNodeExport === 'function') {
+        var exM = M.buildNodeExport(
+          { exportAxis: { ok: true, applied: false, stream: 'ACC', anchors: axOk.n, ppm: axOk.ppm, spanMs: axOk.spanMs, independent: true, spreadMs: axOk.spreadMs, timingSource: 'device+host' } },
+          {}
+        );
+        T.ok('ANTI-VACUITY · the MotionDex export carries the block at all', !!(exM.recording && exM.recording.hostAxis), 'recording keys: ' + Object.keys(exM.recording || {}).join(','));
+        T.eq('…and MotionDex, which never dropped it', exM.recording.hostAxis.ok, true);
+        T.ok(
+          'all THREE publishers answer the same key with the same type',
+          typeof exP.recording.hostAxis.ok === 'boolean' && typeof exE.recording.hostAxis.ok === 'boolean' && typeof exM.recording.hostAxis.ok === 'boolean',
+          [typeof exP.recording.hostAxis.ok, typeof exE.recording.hostAxis.ok, typeof exM.recording.hostAxis.ok].join('/')
+        );
+      } else {
+        T.skip('the MotionDex publisher', 'MotionDex not co-loaded in this runner — the two legs above are node-local');
+      }
+
+      /* THE OTHER HALF OF THE CONTRACT, PINNED SO A LATER CHANGE HAS TO MEAN IT. Today the block is
+         emitted ONLY under a built axis, so its ABSENCE carries the refusal and the spine's `reason`
+         reaches no artifact at all. Row
+         `2026-11-01-no-artifact-carries-the-host-axis-refusal-the-spine-published` proposes emitting
+         `ok: false` plus that reason; until it lands, absence is what a reader gets. */
+      var axRef = C.hostAxis(
+        [
+          { devMs: 0, hostMs: 0 },
+          { devMs: 1000, hostMs: 1000 }
+        ],
+        {}
+      );
+      T.eq('ANTI-VACUITY · two anchors are below the spine floor, so this axis REFUSED', axRef.ok, false);
+      T.ok('ANTI-VACUITY · …and the refusal names its reason', typeof axRef.reason === 'string' && axRef.reason.length > 0, String(axRef.reason));
+      var exRef = P.buildNodeExport({ hostAxis: axRef, t0Ms: Date.UTC(2026, 10, 1), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] }, { rich: true });
+      T.eq('a refused axis publishes NO block, so absence is still the refusal', Object.prototype.hasOwnProperty.call(exRef.recording, 'hostAxis'), false);
+      T.eq('…and the spine reason reaches no artifact, which is what that row is for', exRef.recording.hostAxisReason === undefined, true);
+    });
+
     group('hostAxis stability — the spine Allan core, and it refuses when there is no second clock', 'clock · hostaxis-stability', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.hostAxis !== 'function' || typeof C.allanFromPhase !== 'function') {
