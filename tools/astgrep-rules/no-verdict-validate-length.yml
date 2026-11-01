@@ -1,0 +1,37 @@
+# tepna — ast-grep rule
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+id: no-verdict-validate-length
+language: js
+severity: error
+message: "`validate()` answers `{ ok, errors, checked }` — the `.length` read of this binding is `undefined`, so the guard is dead"
+note: |
+  CLAUDE.md §🧾. `Verdict.validate` (`verdict.js:159`) answers an OBJECT. A guard written
+  `const bad = Verdict.validate(v); if (bad.length)` therefore reads `undefined`, which is falsy, so
+  the guard never fires and the `process.exit(2)` behind it never runs. The `bad && bad.length`
+  spelling is the same defect: an object is always truthy, so the second half decides it. Written
+  correctly the guard reads `if (!ck.ok) …` and reports `ck.errors` (`tools/residue-ids.mjs:683`).
+
+  THE BINDING IS THE ROOT, AND THAT IS A COST DECISION. The two directions of this query find the
+  same five sites and differ 650-fold in price, measured 2026-11-01 over the 458-file scope: rooted
+  on `$N.length` the scan ran 324 s, because every `.length` read in the tree becomes a candidate
+  and each one walks its ancestor blocks; rooted on the binding it ran 0.50 s, because the tree
+  holds 80 bindings. Root a relational rule on the RARE node and look for the common one from
+  there. The report anchors on the binding line, which is the line to rewrite.
+
+  THE FAILURE IS SILENT AND IT RECURS. JavaScript answers a missing key with `undefined` rather than
+  an error, so the tool stays green and the invalid object it was built to refuse is published. The
+  class has been measured three times: `tools/reanchor-equivalence.mjs` (Heron, unit 92),
+  `tools/tch-degeneracy-d7.mjs` (Osprey, 2026-10-12), and the five sites this rule was written over
+  (`2026-11-01-the-citation-gates-own-verdict-guard-cannot-fire`). Three times is a rule, not a bug.
+
+  WHY THE OBJECT'S OWN `.errors.length` IS LEGAL. `errors` IS an array, so `ck.errors.length` is a
+  correct read and this rule ignores it: the pattern binds the name the `validate` call was assigned
+  to, and `ck.errors` is a different node. A `.length` on any other binding is equally out of scope.
+rule:
+  pattern: const $N = $OBJ.validate($$$ARGS)
+  inside:
+    kind: statement_block
+    stopBy: end
+    has:
+      pattern: $N.length
+      stopBy: end

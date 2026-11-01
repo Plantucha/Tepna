@@ -1389,8 +1389,8 @@ function benchSummary(dir, tag = 'spo2h') {
     evidence: ['tools/stage-lab.mjs', 'briefs/STAGE-LAB-2026-09-27-BRIEF.md'],
     producedBy: { tool: 'tools/stage-lab.mjs', commit, commitReason: commit ? undefined : 'git unavailable' }
   });
-  const errs = V.validate(v);
-  if (errs && errs.length) console.error('verdict does not validate: ' + errs.join('; '));
+  const ck = V.validate(v);
+  if (!ck.ok) console.error('verdict does not validate: ' + ck.errors.join('; '));
   console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify(v));
 }
 /* ── verdict (tepna.verdict/1). Criterion PRE-STATED in the brief: kappa >= 0.390 (the proprietary oximeter-only comparator,
@@ -1429,8 +1429,8 @@ function emitVerdict(a, results, nCv, nExtra, sample = false) {
     evidence: ['tools/stage-lab.mjs', 'briefs/STAGE-LAB-2026-09-27-BRIEF.md'],
     producedBy: { tool: 'tools/stage-lab.mjs', commit, commitReason: commit ? undefined : sample ? '--verdict-sample: synthetic result, no code identity claimed' : 'git unavailable' }
   });
-  const errs = V.validate(v);
-  if (errs && errs.length) console.error('verdict does not validate: ' + errs.join('; '));
+  const ck = V.validate(v);
+  if (!ck.ok) console.error('verdict does not validate: ' + ck.errors.join('; '));
   console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify(v));
   return v;
 }
