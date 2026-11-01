@@ -5753,7 +5753,18 @@
       runsDetected: null,
       examined: null,
       sawHeader: false,
-      comparable: false
+      comparable: false,
+      /* The file's own names: the rule line's `stream=`, and every `stream=<s> channel=<c>` pair it
+         declares. The accept rule below reads THESE rather than a literal — see its comment. */
+      stream: null,
+      declared: {},
+      channels: [],
+      /* A row this reader refused, counted and named. Silence here is what hid the defect the
+         accept rule's comment records: a dropped row left no trace of its own. */
+      dataRows: 0,
+      rejected: 0,
+      rejectedChannels: [],
+      placedNone: false
     });
     var lines = String(text).split(/\r?\n/);
     for (var i = 0; i < lines.length; i++) {
@@ -5766,7 +5777,13 @@
           var mg = /\bmerge_gap_max=(\d+)/.exec(line);
           if (mr) out.minRun = +mr[1];
           if (mg) out.mergeGapMax = +mg[1];
+          var st = /\bstream=(\S+)/.exec(line);
+          if (st) out.stream = st[1].trim().toLowerCase();
         }
+        /* `# stream=ecg channel=ecg [uV] class=variable …` — the ONE place the file pairs a channel
+           label with the stream it belongs to. The channel may carry spaces, so it runs to `class=`. */
+        var dec = /\bstream=(\S+)\s+channel=(.*?)\s+class=/.exec(line);
+        if (dec) out.declared[dec[2].trim().toLowerCase()] = dec[1].trim().toLowerCase();
         var fin = /\btotal_runs=(\d+)/.exec(line);
         if (fin) out.runsDetected = (out.runsDetected || 0) + +fin[1];
         var ex = /\bexamined=(\d+)/.exec(line);
@@ -5782,18 +5799,44 @@
         out.malformed = true;
         continue;
       }
+      out.dataRows++;
       var first = +c[3];
       var n = +c[4];
       if (!isFinite(first) || !isFinite(n) || n <= 0) {
         out.malformed = true;
         continue;
       }
-      var stream = (c[1] || '').trim().toLowerCase();
-      if (stream && stream !== 'ecg') continue; // a sibling stream's rows are not this signal's
-      out.rows.push({ stream: stream, value: +c[2], first: first, n: n });
+      /* 🔴 COLUMN 1 IS THE CHANNEL, WHATEVER THE HEADER CALLS IT. The writer's header names the
+         field `stream` and `_RunSidecar.emit_run` passes its per-channel key through it: the box
+         writes `ecg [uV]` for the H10's single lead and `channel 0` for an optical channel, and the
+         file's own `# stream=… channel=…` line states which stream each one belongs to. A rule
+         comparing this column with the literal `ecg` therefore matched nothing the box has ever
+         written — measured 2026-11-01 over the capture corpus: 335 of 335 recorded ECG blanking
+         rows carry `ecg [uV]`, across the 36 nights that hold one, so EVERY real H10 night reached
+         every consumer as an empty span list. The PPG sibling `parsePinnedRuns` already keys its
+         rows by this column instead of matching a literal.
+         The wrong-companion guard the old filter meant to be survives, keyed on what the FILE
+         declares: a row is this signal's when the stream its own header pairs the channel with is
+         an ECG stream. An undeclared channel falls back to the rule line's stream, and a sidecar
+         that names no stream at all (the oldest vintage) is taken at its filename's word. */
+      var channel = (c[1] || '').trim();
+      var key = channel.toLowerCase();
+      var owner = Object.prototype.hasOwnProperty.call(out.declared, key) ? out.declared[key] : out.stream;
+      if (owner != null && !/^ecg/.test(owner)) {
+        out.rejected++;
+        if (out.rejectedChannels.indexOf(channel) < 0) out.rejectedChannels.push(channel);
+        continue;
+      }
+      out.rows.push({ stream: key, channel: channel, value: +c[2], first: first, n: n });
+      if (out.channels.indexOf(channel) < 0) out.channels.push(channel);
       out.spans.push({ first: first, n: n, value: +c[2] });
       out.emitted++;
     }
+    /* ∅ — ROWS PRESENT AND NONE PLACED IS NOT A CLEAN STREAM. An empty `spans` is the right answer
+       for a sidecar that looked and emitted nothing, and the wrong one for a sidecar whose rows this
+       reader could not place: the two read identically to every consumer, which is exactly how the
+       channel rule above stayed green for six weeks. */
+    out.placedNone = out.dataRows > 0 && out.emitted === 0;
     /* A sidecar with no rule line cannot be compared against anything; an EMPTY one that DOES carry
        its rule is a real observation at that rule — the writer looked and emitted nothing. Those are
        different facts and the flag keeps them apart. (Mirrors `parsePinnedRuns`'s own note.) */
@@ -5894,7 +5937,12 @@
     var runs = parseEcgRuns(opts && opts.runsText);
     if (runs) {
       rec.runsSidecar = runs;
-      rec.blankingSpans = runs.spans;
+      /* §∅ — a sidecar whose rows went unplaced measured nothing here, and `[]` would report that
+         the box found no blanking. `null` is the absence; every consumer already guards for it
+         (`Array.isArray`, or `runRanges`, which answers `[]` to a null), and the reason names what
+         this reader could not place. */
+      rec.blankingSpans = runs.placedNone ? null : runs.spans;
+      if (runs.placedNone) rec.blankingSpansReason = 'sidecar rows unplaced: ' + (runs.rejectedChannels.join(', ') || 'malformed rows only');
     }
     return rec;
   }
