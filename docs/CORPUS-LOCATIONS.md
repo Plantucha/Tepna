@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living) · **last-verified:** 2026-09-20 · **Serves:**
+**Status:** REFERENCE (living) · **last-verified:** 2026-11-01 · **Serves:**
 `FIXTURE-CORPUS-REACHABILITY-2026-08-09-BRIEF.md` §3
 
 # Where the raw recordings actually are
@@ -56,8 +56,60 @@ and the workshop's `night-2026-07-26/*`. `corpusSearch` and `DEX_UPLOADS` need n
 primary checkout's `uploads/` still satisfies them, through the links.
 
 **vigil feeds it daily:** `tepna-archive-pull.timer` (13:30, after the box's 13:00 SD harvest)
-pulls `vigil:/srv/tepna/captures/` → `uploads/vigil-archive/captures/`, which now lands on
-`/srv/data` through the symlink — the old fill-the-root-disk hazard is gone by construction.
+pulls `vigil:/srv/tepna/captures/` → `$TEPNA_ARCHIVE_DEST`. The owner's drop-in
+`tepna-archive-pull.service.d/synology.conf` (2026-10-18) sets that to
+`/mnt/synology/tepna-backup/vigil-archive/captures`, because the script's default destination
+(`capture-host/deploy/archive-pull.sh:58`, the checkout's own `uploads/vigil-archive/captures/`)
+filled the rig disk from 2026-10-07. Eleven runs in a row then exited 11 on `No space left on
+device (28)`, which is why the old target's newest night reads 2026-10-07 — eleven days before the
+drop-in.
+
+🟢 **`uploads/vigil-archive` → `/mnt/nas/vigil-archive` since 2026-11-01 (Heron, §7 decision).**
+Three copies of the box archive exist. The old target froze eleven days before that drop-in, so the
+redirect kept it frozen rather than causing it. Measured 2026-11-01 on rig:
+
+| copy | nights | apparent | newest | writer |
+|---|---|---|---|---|
+| `/mnt/nas/vigil-archive/captures` — **canonical for a rig reader** | 100 | 92 G | 2026-11-01 | the box writes it, by rsync over SSH to this very export (below) |
+| `/mnt/synology/tepna-backup/vigil-archive/captures` | 98 | 91 G | 2026-10-30 | the pull targets it and cannot write it (below); its nights appeared at 04:44–13:11 on 2026-10-30 and at 14:01 on 2026-10-31, as uid 1027, when no logged run ran |
+| `/mnt/nas/tepna-corpus/uploads/vigil-archive/captures` — the link's old target, frozen | 75 | 68 G | 2026-10-07 | none since 2026-10-07, when the disk behind it filled |
+
+So a rig reader of `uploads/` saw 25 fewer nights, and the newest night it could reach was 25 days
+old. The two NAS paths sit on different mounts (device 137 and 136), so the frozen tree is a separate
+dataset rather than a view of the live one. Both are NFSv4.2 exports of ONE TrueNAS pool
+(`/mnt/Storage10TB` on the NAS host), so the pair buys no second disk — 92 G and 68 G share one pool. I deleted nothing on the NAS — a deletion there is the owner's
+call, sent as a script.
+
+🟢 **The box writes the canonical copy itself.** `tepna-capture.service` pushes each settled night
+to the NAS by rsync over SSH. It needs no mount for that. The live vigil config reads
+`archive.enabled: true`, `protocol: rsync`, the NAS host and
+`share: /mnt/Storage10TB/vigil-archive/captures`, which is the export rig mounts at
+`/mnt/nas/vigil-archive`. Its journal carries 79 `archive: pushed … (copied and verified
+byte-for-byte)` lines over three days, from `capture-host/capture.py:10213`.
+
+⚠️ `capture-host/deploy/archive-pull.sh`'s header still says this machinery stays off, because
+`archive.dest` would land on the same disk. That claim is stale. It also costs a reader the writer:
+measure the box for a MOUNT and you find none, because the box pushes over the network. I made that
+error first, and residue row `2026-11-01-the-pull-script-header-denies-the-box-archive-push` holds
+the script side of it.
+
+⚠️ **The 2026-10-31 17:50 EDT pull exited 23 on DESTINATION permissions, never on the source.** All
+59 path-bearing error lines name paths under `/mnt/synology`, and none names the source: 47 `mkstemp`
+refusals, 7 `failed to set times`, 3 `recv_generator: mkdir`, 2 `failed to open`. The destination
+tree carries uid 1027 and gid 100, with 755 directories and 644 files, and the pull runs as uid 1000
+over NFSv3 `sec=sys`. So it holds no write bit anywhere in that tree.
+
+It cannot replace a file: 33 of the 35 night-directory errors name one per-night marker,
+`.archived`. It cannot add a night either —
+`mkdir "…/2026-10-31" failed: Permission denied`. **34 night directories appear in the errors, so the
+failure reaches the whole tree rather than one subtree.** The remedy needs no chown. uid 1000 already
+sits in gid 100, so `g+w` on the tree and `g+s` on its directories admit the pull and leave the uid
+1027 writer intact. Only the owner runs it, from a script this fleet sends.
+
+⚠️ **The pull fails far more often than its last run suggests.** Over 67 logged runs it exited 0 just
+32 times: 16 runs timed out at code 30 on a Tailscale SSH re-auth prompt, 16 exited 11 on the full
+rig disk, 2 exited 255, and 1 exited 23. The timer skipped 2026-10-30 altogether, and the 10-31 run
+fired at 17:50 as a catch-up rather than at 13:30. Read the run census, never the last line.
 
 **Backups:** the sdb NTFS disk (`/run/media/michal/data/tepna-archive/` — checksum-verified
 contained, plus a full `corpus/` mirror refreshed from the canonical root) and the Windows volume
@@ -124,7 +176,11 @@ makes `df` read ~40 % low and produced a "27 % done" progress report when the co
 Apparent size is **173.8 GB**, not the 162 GB `du` reports in blocks. ⚠️ **This is a BACKUP, not the
 primary.** Every tool still resolves to `/srv/data/tepna-corpus/` through the 391 symlinks; repointing
 to NFS is an architecture decision (latency on a 60k-file tree), and until it is made, deleting the
-local copy would break every reader. `/srv/data` sits at 96 %, ~8 days of headroom at 0.6 GB/12 h.
+local copy would break every reader. `/srv/data` sits at 96 %, ~8 days of headroom at 0.6 GB/12 h. — **Superseded 2026-10-21:**
+`/srv/data/tepna-corpus` is itself a symlink to `/mnt/nas/tepna-corpus`, so the canonical root IS
+the NFS copy and no local corpus remains on `/srv/data`, which read 83 % with 40 G free on
+2026-11-01. The latency question the paragraph above defers therefore has a
+practical answer; the numbers in it describe the pre-2026-10-21 arrangement.
 
 **Capacity is no longer the constraint; the local disk is.** The corpus grew **22.5 GB in the last
 30 days** (`find -mtime -30`), so 7.5 TB is ~27 years before zstd (3.75× on this data), while

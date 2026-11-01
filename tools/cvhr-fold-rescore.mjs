@@ -42,7 +42,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ECG_FILES, PPG_FILES, hostWindowMs, realm } from './gap-s-sweep.mjs';
@@ -53,7 +53,10 @@ import { notANight, populationVerdict, ruleLine, snapshotNights } from './corpus
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 export const CONTROL_DEFAULT = join(ROOT, 'audits', 'GAP-S-SWEEP-2026-09-22.json');
-export const TREE_DEFAULT = '/srv/data/tepna-corpus/uploads/vigil-archive/captures';
+/* The primary checkout's own link, never an absolute NAS path: `uploads/vigil-archive` moved to
+   `/mnt/nas/vigil-archive` on 2026-11-01 and the old target froze at 2026-10-07, so a tool that
+   pins the path reads 25 fewer nights while the link reads all of them. */
+export const TREE_DEFAULT = join(homedir(), 'Tepna', 'uploads', 'vigil-archive', 'captures');
 export const ECG_GLOB = /^Polar_H10.*_ECG\.txt$/;
 export const PPG_GLOB = /^Polar_VeritySense.*_PPG\.txt$/;
 export const NIGHT_RE = /^\d{4}-\d\d-\d\d$/;
