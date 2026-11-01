@@ -9493,6 +9493,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     data_grace = float(acfg.get("data_stale_sec", 120))
     down_since: dict[str, float] = {}
     alerted: set[str] = set()
+    # NIGHT-ENDED NOTES (owner 2026-11-01: "Night is done sensors are off you should got notifications").
+    # `stream_since` is the monotonic time of the first sample of the current recording episode, so the
+    # span to the last sample says how long the device recorded. `ended_noted` latches one note per
+    # episode, on the delivery, the same discipline as `alerted`.
+    stream_since: dict[str, float] = {}
+    ended_noted: set[str] = set()
     # Devices seen connected at least once this session. An `optional: true` device that never joined is
     # not something capture is "missing" (alerts.offline_alert_suppressed holds the reasoning); one that
     # joined and then dropped is, so the distinction has to be remembered rather than re-derived.
@@ -9572,6 +9578,11 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             # connect→drop cycle. Only flowing samples clear the alarm.
             recording = alerts.device_is_recording(connected, _LAST_DATA.get(name), now, data_grace)
             if recording:
+                if name in down_since:
+                    stream_since[name] = now  # back after a gap: a new episode starts here
+                else:
+                    stream_since.setdefault(name, now)
+                ended_noted.discard(name)
                 down_since.pop(name, None)
                 _IDLE_TIMER_NAMED.discard(name)  # re-worn: the next power-off is a new event
                 if name in alerted:  # it had alerted → tell the operator it is back
@@ -9600,7 +9611,32 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             "charger; its stored session was already pulled)",
                             name,
                         )
+                    if name not in ended_noted:
+                        delivered = await notifier.send(
+                            f"Tepna: {name} night ended",
+                            f"{name} powered off after a completed pull. Its stored session is on the box.",
+                        )
+                        if delivered or not notifier.enabled:
+                            ended_noted.add(name)
                     continue
+                last = _LAST_DATA.get(name)
+                first = stream_since.get(name)
+                if not connected and last is not None and first is not None:
+                    stop = _dt.datetime.now() - _dt.timedelta(seconds=now - last)
+                    if alerts.stream_ended_in_the_morning(last - first, stop.hour):
+                        if name not in ended_noted:
+                            mins = int((last - first) / 60)
+                            log.info("%s: live stream ended at %s after %d min", name, stop.strftime("%H:%M"), mins)
+                            delivered = await notifier.send(
+                                f"Tepna: {name} night ended",
+                                f"{name} streamed for {mins // 60} h {mins % 60:02d} min and stopped at "
+                                f"{stop.strftime('%H:%M')}. The live record on the box runs up to that minute. "
+                                "No pull completed for this device, so anything it stored stays on it for "
+                                "the charger pull. If it is still worn, check it.",
+                            )
+                            if delivered or not notifier.enabled:
+                                ended_noted.add(name)
+                        continue
                 if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
                     mins = int((now - down_since[name]) / 60)
                     # NAME THE FAILURE. "offline" and "linked but silent" want different responses from

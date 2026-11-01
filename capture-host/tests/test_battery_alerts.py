@@ -127,7 +127,7 @@ def _notifier(emails, results=None, payloads=None):
     results = list(results or [])
 
     async def post(url, payload, **kw):
-        seen.append((url, kw.get("headers")))
+        seen.append((url, payload.get("topic"), kw.get("headers")))
         if payloads is not None:
             payloads.append(payload)
         r = results.pop(0) if results else True
@@ -143,9 +143,9 @@ def test_the_first_address_rides_the_push_and_the_rest_use_the_mail_topic():
     n, seen = _notifier(["a@example.org", "b@example.org", "c@example.org"])
     assert asyncio.run(n.send("T", "M", email=True)) is True
     assert seen == [
-        ("https://ntfy.example/t", {"Email": "a@example.org"}),
-        ("https://ntfy.example/t-mail", {"Email": "b@example.org"}),
-        ("https://ntfy.example/t-mail", {"Email": "c@example.org"}),
+        ("https://ntfy.example/", "t", {"Email": "a@example.org"}),
+        ("https://ntfy.example/", "t-mail", {"Email": "b@example.org"}),
+        ("https://ntfy.example/", "t-mail", {"Email": "c@example.org"}),
     ]
     assert n.stats()["emails"] == 3 and n.stats()["email_failed"] == 0
 
@@ -153,13 +153,13 @@ def test_the_first_address_rides_the_push_and_the_rest_use_the_mail_topic():
 def test_a_push_without_email_reaches_only_the_topic():
     n, seen = _notifier(["a@example.org", "b@example.org"])
     assert asyncio.run(n.send("T", "M")) is True
-    assert seen == [("https://ntfy.example/t", None)]
+    assert seen == [("https://ntfy.example/", "t", None)]
 
 
 def test_with_no_address_an_email_alert_is_a_plain_push():
     n, seen = _notifier([])
     assert asyncio.run(n.send("T", "M", email=True)) is True
-    assert seen == [("https://ntfy.example/t", None)]
+    assert seen == [("https://ntfy.example/", "t", None)]
     assert n.stats()["emails"] == 0
 
 
@@ -311,7 +311,21 @@ def test_every_publish_carries_the_alert_body():
     n, seen = _notifier(["a@example.org", "b@example.org"], payloads=payloads)
     assert asyncio.run(n.send("T", "M", email=True)) is True
     assert len(seen) == 2
-    assert payloads == [{"title": "T", "message": "M"}] * 2, "the push AND the mail-topic publish"
+    assert payloads == [
+        {"title": "T", "message": "M", "topic": "t"},
+        {"title": "T", "message": "M", "topic": "t-mail"},
+    ], "the push AND the mail-topic publish"
+
+
+def test_an_ntfy_topic_is_published_at_the_root_so_the_body_is_not_shown_as_json():
+    """MEASURED 2026-11-01: 29 of 31 vigil alerts reached the phone and the email copy as raw JSON,
+    because ntfy reads a JSON body as a message only at the server root with a `topic` field."""
+    p = {"title": "T", "message": "M"}
+    assert alerts.ntfy_publish("https://ntfy.example/t", p) == ("https://ntfy.example/", {**p, "topic": "t"})
+    assert alerts.ntfy_publish("https://h:8080/t/?auth=x", p) == ("https://h:8080/?auth=x", {**p, "topic": "t"})
+    # Anything that is not one path segment is not an ntfy topic, so it posts unchanged.
+    for url in ("https://hook", "https://hook/", "https://discord.example/api/webhooks/1/tok"):
+        assert alerts.ntfy_publish(url, p) == (url, p), url
 
 
 def test_a_raising_extra_email_is_logged_with_its_error_and_not_as_a_rejection(caplog):

@@ -42,6 +42,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { probeAll, saturation, sawtooth, censoring, drawnAxis, stepiness } from './geometry-probe.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const PHYS_LO = 200,
@@ -110,9 +111,38 @@ function feet(bp, peaks, fsHz, winMs) {
   }
   return out;
 }
-const pick = (dir, re) => {
-  const c = fs
-    .readdirSync(dir)
+/* ── THE THREE SELECTIONS THIS SCAN MAKES OVER A DIRECTORY'S OFFER ────────────────────────────────
+   Each pattern below took the LARGEST match and said nothing about the rest, and the regexes sat
+   inline at the two call sites — so the population line and the read could have drifted apart. They
+   are one definition now, read by both (row
+   2026-10-21-forty-one-corpus-enumerators-report-no-population). */
+const H10_ECG = /Polar_H10_.*_ECG\.txt$/i;
+const PPG_SITES = [
+  ['finger', /O2Ring.*_PPG\.txt$/i],
+  ['ankle', /veritysense.*_PPG\.txt$/i]
+];
+/* THE LISTER IS THE POPULATION RULE AND IT CARRIES A NAME: `snapshotEntries` publishes `rule: null`
+   for an inline arrow, which states that nobody chose the rule the run applied. The unit is a FILE,
+   because the question is what each directory OFFERED the three selections above — a night rule over
+   a night directory's contents would publish a rule nobody wrote. */
+function listNightFiles(root) {
+  return fs.readdirSync(root);
+}
+const POP_UNIT = 'night-directory files';
+const POP = { list: listNightFiles, unit: POP_UNIT };
+/* 🔴 STAMP THE CODE THAT RAN: a scan over several directories takes long enough for a commit to land
+   in this worktree, and the lookup is taken once, here. */
+const COMMIT_OF = gitCommitOf(ROOT);
+const POP_OPTS = {
+  commit: COMMIT_OF.commit,
+  commitReason: COMMIT_OF.reason,
+  tool: 'tools/geometry-scan.mjs',
+  evidence: ['tools/geometry-scan.mjs', 'tools/corpus-scope-core.mjs']
+};
+/* `names` IS THE ENUMERATION THE SNAPSHOT PUBLISHED, never a second walk of the same directory: two
+   walks can offer two different sets, and a file read must be one the published offer names. */
+const pick = (dir, re, names) => {
+  const c = names
     .filter((f) => re.test(f))
     .map((f) => ({ f: path.join(dir, f), s: fs.statSync(path.join(dir, f)).size }))
     .sort((a, b) => b.s - a.s);
@@ -120,9 +150,9 @@ const pick = (dir, re) => {
 };
 const verdict = (fired) => (fired.length ? fired.join(', ').toUpperCase() : 'ok');
 
-function scan(dir, dsp) {
+function scan(dir, dsp, names) {
   const { E, P } = dsp;
-  const ef = pick(dir, /Polar_H10_.*_ECG\.txt$/i);
+  const ef = pick(dir, H10_ECG, names);
   /* 🔴 NOT "scanned and clean" — NOTHING WAS SCANNED. This returned bare `undefined`, so the caller
      counted the directory as examined and the run could report PASS over a folder it never opened. The
      skip is now named and the caller excludes it from `checked`. */
@@ -165,11 +195,8 @@ function scan(dir, dsp) {
     row('2 ECG beat times', { fired: [s.hasStep && 'step'].filter(Boolean), note: 'step-ratio ' + s.ratio.toFixed(1) + '  n=' + R.length });
   }
 
-  for (const [site, re] of [
-    ['finger', /O2Ring.*_PPG\.txt$/i],
-    ['ankle', /veritysense.*_PPG\.txt$/i]
-  ]) {
-    const pf = pick(dir, re);
+  for (const [site, re] of PPG_SITES) {
+    const pf = pick(dir, re, names);
     if (!pf) continue;
     const pr = P.parsePPG(fs.readFileSync(pf, 'utf8'));
     const det = P.detectChannel(pr.ch[0], pr.fs),
@@ -378,8 +405,21 @@ console.log('stage                       probes fired');
 const errored = [];
 const firedDirs = [];
 for (const d of dirs) {
+  /* ── THE OFFER, TAKEN BEFORE THE READ ──────────────────────────────────────────────────────────
+     ∅ A DIRECTORY NOBODY CAN OPEN IS NOT A DIRECTORY HOLDING NOTHING. The ENOENT used to come out
+     of `pick` inside `scan` as a caught throw, which named the errno but published no population at
+     all, so a run over a mount this machine does not hold reported the same silence as a run over a
+     night with no ECG file. The snapshot refuses by name and the directory stays excluded exactly as
+     the throw excluded it. */
+  const popBefore = snapshotEntries(d, POP);
+  if (!popBefore.ok) {
+    errored.push({ dir: d, reason: popBefore.reason });
+    console.log('\n=== ' + path.basename(d) + '  ERROR: ' + popBefore.reason);
+    console.log('POPULATION ' + JSON.stringify(populationVerdict(popBefore, popBefore, POP_OPTS)));
+    continue;
+  }
   try {
-    const res = scan(d, dsp);
+    const res = scan(d, dsp, popBefore.members);
     /* A NAMED SKIP IS AN EXCLUSION, NOT A CLEAN SCAN. `scan` returns `{ skipped }` when the directory
        holds no ECG file, and that directory must not land in `checked` — counting it would let the run
        report PASS over a folder nothing was read from. */
@@ -393,6 +433,24 @@ for (const d of dirs) {
     errored.push({ dir: d, reason: (e && e.message) || String(e) });
     console.log('\n=== ' + path.basename(d) + '  ERROR: ' + ((e && e.message) || e));
   }
+  /* ── THE POPULATION THIS DIRECTORY'S ROWS WERE READ OVER ─────────────────────────────────────────
+     ONE LARGEST FILE PER PATTERN IS A SELECTION OVER THE OFFER, never the walk's rule, so the
+     remainder is counted rather than implied: a night holding six ECG fragments and a night holding
+     one printed the same table. The closing walk is what says the set MOVED while the probes ran —
+     `tepna-corpus-tier.service` re-tiers the corpus daily, and reduced coverage annotates rather
+     than refusing (§∅, owner ruling 2026-09-17). */
+  const population = populationVerdict(popBefore, snapshotEntries(d, POP), POP_OPTS);
+  const chosen = [['H10 ECG', H10_ECG], ...PPG_SITES.map(([site, re]) => [site + ' PPG', re])];
+  const counts = chosen.map(([label, re]) => label + ' ' + popBefore.members.filter((f) => re.test(f)).length);
+  const matched = popBefore.members.filter((f) => chosen.some(([, re]) => re.test(f))).length;
+  console.log(
+    `  population: ${population.population.checked} of ${population.population.eligible} ${POP_UNIT} offered` +
+      ` · ${counts.join(' · ')} · the largest match per pattern was probed · ${popBefore.n - matched} file(s) matched no probed pattern` +
+      ` · movement ${population.status}${population.reason ? ` — ${population.reason}` : ''}`
+  );
+  const rl = ruleLine(population);
+  if (rl) console.log(rl);
+  console.log('POPULATION ' + JSON.stringify(population));
 }
 const checked = dirs.length - errored.length;
 const r = classifyRun({ eligible: dirs.length, checked, firedDirs, errored });
