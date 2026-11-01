@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-09-21 (Wren, box + tree; the last two boxes: the aperiodic-buzz correlation was RUN and is a NULL — §7; the opt-in/`0x83` box is gate-backed — `test_run_oxyii_fires_a_queued_buzz_exactly_once` pins one `0x83` per operator command, `check.sh` EXIT=0 2026-09-21 on this tree) · **Residue:** 2026-09-21-buzz-motion-byte-sparse-in-daemon-stream · **Created:** 2026-08-19
+**Status:** DONE — 2026-09-21 (**2026-11-01 (Wren): the §5d prescription RAN on the box evening — SWAMPED on all three legs, §5e.** Wren, box + tree; the last two boxes: the aperiodic-buzz correlation was RUN and is a NULL — §7; the opt-in/`0x83` box is gate-backed — `test_run_oxyii_fires_a_queued_buzz_exactly_once` pins one `0x83` per operator command, `check.sh` EXIT=0 2026-09-21 on this tree) · **Residue:** 2026-09-21-buzz-motion-byte-sparse-in-daemon-stream · **Created:** 2026-08-19
 
 # The commanded buzz as a self-written timing fiducial — removing the human from the marker
 
@@ -125,6 +125,18 @@ assumption at the scale the dip needs.
 and the 04:34:13+ intensity-sweep fires (motor 40/20 — mostly undetectable, and the xcorr then locks on
 spurious −512 ms peaks with r above the 0.3 floor). Sweep fires must be excluded by command list, not
 trusted to the r-filter.
+
+### §5e · The prescription run (2026-11-01) — SWAMPED on all three legs, with no drift seen
+
+The owner stacked the ring, the H10 and the Sense, with the H10 as the rigid leg. A script sent 10 motor-60 fires on one ring connection, with aperiodic gaps of 29 s to 61 s. The daemon logged 10 of 10 fires over 410 s. `pat-buzz-stability.mjs` read the daemon fire stamps as `--cmds`, and each leg kept 10 of 10 events.
+
+| leg | drift (ms/min) | noise SD (ms) | drift charge, 60 s (ms) | verdict |
+|---|---|---|---|---|
+| fire → H10 ACC | −5.6 ± 6.1 | 42.8 | 17.9 | SWAMPED |
+| fire → Sense ACC | −0.1 ± 17.2 | 120.0 | 34.4 | SWAMPED |
+| H10 ↔ Sense | −1.1 ± 21.7 | 151.7 | 44.4 | SWAMPED |
+
+The H10 leg met the required span of about 6.2 min, and its slope SE alone fits the budget. The point slope, inside one SE of zero, pushed the charge over 15 ms. The Sense legs need spans of 17.5 min and 22.2 min. For `pat-align.js:335`, the run does not support constancy at the 15 ms budget, and it shows no drift. Full record: `BOX-EVENING-2026-10-26-BRIEF.md` §6.
 
 ### §5c · The marker closes KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS' open box
 
