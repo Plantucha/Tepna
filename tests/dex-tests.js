@@ -2952,11 +2952,15 @@
         T.skip('the MotionDex publisher', 'MotionDex not co-loaded in this runner — the two legs above are node-local');
       }
 
-      /* THE OTHER HALF OF THE CONTRACT, PINNED SO A LATER CHANGE HAS TO MEAN IT. Today the block is
-         emitted ONLY under a built axis, so its ABSENCE carries the refusal and the spine's `reason`
-         reaches no artifact at all. Row
-         `2026-11-01-no-artifact-carries-the-host-axis-refusal-the-spine-published` proposes emitting
-         `ok: false` plus that reason; until it lands, absence is what a reader gets. */
+      /* THE OTHER HALF OF THE CONTRACT, PINNED SO A LATER CHANGE HAS TO MEAN IT. Two of the three
+         publishers emit this block ONLY under a built axis, so a PpgDex or ECGDex refusal carries no
+         block here. The refusal's own sentence travels in `recording.timing.reason` instead, which
+         the `hostaxis-refusal` group below measures over all three publishers.
+         ⚠️ THE LEG BELOW REPLACES ONE THAT READ A KEY NOBODY WROTE. It asserted
+         `exRef.recording.hostAxisReason === undefined` and called that proof the spine's reason
+         reaches no artifact. No node has ever published `hostAxisReason`, so the leg passed whatever
+         the truth was — and the truth was the opposite. Read the VALUE a producer writes, never a
+         name a row's prose invented. */
       var axRef = C.hostAxis(
         [
           { devMs: 0, hostMs: 0 },
@@ -2967,8 +2971,358 @@
       T.eq('ANTI-VACUITY · two anchors are below the spine floor, so this axis REFUSED', axRef.ok, false);
       T.ok('ANTI-VACUITY · …and the refusal names its reason', typeof axRef.reason === 'string' && axRef.reason.length > 0, String(axRef.reason));
       var exRef = P.buildNodeExport({ hostAxis: axRef, t0Ms: Date.UTC(2026, 10, 1), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] }, { rich: true });
-      T.eq('a refused axis publishes NO block, so absence is still the refusal', Object.prototype.hasOwnProperty.call(exRef.recording, 'hostAxis'), false);
-      T.eq('…and the spine reason reaches no artifact, which is what that row is for', exRef.recording.hostAxisReason === undefined, true);
+      T.eq('a refused axis publishes no hostAxis block from this node', Object.prototype.hasOwnProperty.call(exRef.recording, 'hostAxis'), false);
+      T.ok(
+        '…and the refusal is not silent: the declared timing block quotes the spine',
+        !!(exRef.recording.timing && String(exRef.recording.timing.reason || '').indexOf(axRef.reason) >= 0),
+        'timing.reason = ' + (exRef.recording.timing && exRef.recording.timing.reason)
+      );
+    });
+
+    /* ── A REFUSED HOST AXIS NAMES ITS REFUSAL, AND THE NAME IS THE SPINE'S OWN ──────────────────
+       Row `2026-11-01-no-artifact-carries-the-host-axis-refusal-the-spine-published` read the
+       artifacts and found no refusal in any of them: over 455 committed node-exports, 0 carry a
+       refusing axis and 0 of the 26 `recording.timing` blocks name one. The row concluded from that
+       silence that the spine's reason reaches no consumer.
+       MEASURED, IT REACHES ONE. `dex-export.js timingBlock` pushes `'the host axis refused: ' +
+       ax.reason` whenever the axis exists and `ok` is falsy, and every node's parse-layer refusal
+       branch carries `reason` through the reshape that drops an unlisted field. The corpus says
+       nothing because no committed fixture refuses — a gap in the FIXTURES, not in the path. This
+       group is what the corpus could not say, and it is the row's whole remedy.
+       §∅ 2026-09-17, BOTH HALVES. A refusal reduces COVERAGE rather than breaking continuity, so the
+       block annotates: every measurement the refused axis could not make reads `null`, never 0, which
+       a consumer would otherwise spend as "measured, and it is zero". And the sentence stays distinct
+       from the one a node with NO host column publishes, because "the gate refused, here is why" and
+       "there was never a second clock" are different facts a consumer branches on differently. */
+    group('a refused host axis names its refusal in the declared timing block', 'dsp · node-export · hostaxis-refusal · three-publishers', function (T) {
+      var C = env.DexClock;
+      var P = env.PPGDSP || env.PpgDSP;
+      var E = env.ECGDSP || env.EcgDsp;
+      var M = env.MOTIONDSP;
+      if (!C || typeof C.hostAxis !== 'function' || !P || typeof P.buildNodeExport !== 'function' || !E || typeof E.buildNodeExport !== 'function') {
+        T.skip('DexClock.hostAxis + both node-export builders available', 'not loaded');
+        return;
+      }
+      // Two anchors sit below the spine's floor of three, so this is a REAL refusal carrying a real
+      // sentence rather than a hand-written `{ ok: false }` that assumes the shape under test.
+      var ax = C.hostAxis(
+        [
+          { devMs: 0, hostMs: 0 },
+          { devMs: 1000, hostMs: 1000 }
+        ],
+        {}
+      );
+      T.eq('ANTI-VACUITY · the spine refused this axis', ax.ok, false);
+      T.ok('ANTI-VACUITY · …and named a reason for these legs to look for', typeof ax.reason === 'string' && ax.reason.length > 0, String(ax.reason));
+      T.eq('ANTI-VACUITY · …and that reason is the spine’s, not the builder fallback', String(ax.reason).indexOf('the spine named no reason') < 0, true);
+
+      function timingOf(ex) {
+        return (ex && ex.recording && ex.recording.timing) || null;
+      }
+      function reasonOf(ex) {
+        var t = timingOf(ex);
+        return t && typeof t.reason === 'string' ? t.reason : '';
+      }
+      function assertAnnotates(label, ex) {
+        var t = timingOf(ex);
+        T.ok(label + ' publishes the declared timing block at all', !!t, 'recording keys: ' + Object.keys((ex && ex.recording) || {}).join(','));
+        if (!t) return;
+        T.ok(label + ' quotes the spine’s own refusal sentence', String(t.reason || '').indexOf(ax.reason) >= 0, 'timing.reason = ' + t.reason);
+        T.eq(label + ' reports the anchor count it could not measure as null', t.anchors, null);
+        T.eq(label + ' …the ppm as null', t.ppm, null);
+        T.eq(label + ' …and the span as null', t.spanMs, null);
+      }
+
+      var recP = { hostAxis: ax, t0Ms: Date.UTC(2026, 10, 1), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] };
+      assertAnnotates('PpgDex', P.buildNodeExport(recP, { rich: true }));
+      assertAnnotates('ECGDex', E.buildNodeExport({ hostAxis: ax, nn: [], tt: [], epochs: [], events: [], fs: 130, n: 400, durSec: 400, t0Ms: Date.UTC(2026, 10, 1) }, {}));
+
+      /* THE THIRD PUBLISHER. `_mdExportAxis` is private, so this leg hands `buildNodeExport` an axis
+         shaped the way that projection shapes a refusal. MotionDex gates the hand-rolled block on the
+         axis EXISTING rather than on `ok`, so unlike the other two it publishes `recording.hostAxis`
+         on a refusal with `ok:false` and the reason beside it. Both blocks are asserted here. */
+      if (M && typeof M.buildNodeExport === 'function') {
+        var exM = M.buildNodeExport(
+          {
+            hostAxis: ax,
+            exportAxis: {
+              ok: false,
+              applied: false,
+              stream: 'ACC',
+              anchors: ax.n,
+              ppm: null,
+              spanMs: null,
+              independent: null,
+              spreadMs: null,
+              timingSource: null,
+              stability: null,
+              reason: ax.reason,
+              resyncs: null
+            }
+          },
+          {}
+        );
+        assertAnnotates('MotionDex', exM);
+        var haM = exM.recording && exM.recording.hostAxis;
+        T.ok('MotionDex publishes the hand-rolled block on a refusal, unlike the other two', !!haM, 'hostAxis = ' + typeof haM);
+        if (haM) {
+          T.eq('…carrying the gate it was built under', haM.ok, false);
+          T.eq('…and the spine reason beside it', haM.reason, ax.reason);
+        }
+      } else {
+        T.skip('the MotionDex publisher', 'MotionDex not co-loaded in this runner — the two publishers above are node-local');
+      }
+
+      /* THE DISTINCTION §∅ ASKS FOR, asserted rather than assumed. A node with no host column at all
+         publishes a DIFFERENT sentence, so a consumer separates "the gate refused" from "there was
+         never a second clock". One sentence for both states is the conflation this row was filed
+         against, and it would pass every leg above. */
+      var recNone = { t0Ms: Date.UTC(2026, 10, 1), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] };
+      var noneReason = reasonOf(P.buildNodeExport(recNone, { rich: true }));
+      T.ok('a recording with NO host column states its own reason', noneReason.length > 0, 'timing.reason = ' + noneReason);
+      T.eq('…and that reason claims no refusal', noneReason.indexOf('refused') < 0, true);
+      T.ok('…so a consumer can tell the two states apart', noneReason !== reasonOf(P.buildNodeExport(recP, { rich: true })), 'both read: ' + noneReason);
+    });
+
+    /* ── THE HAND-ROLLED BLOCK'S KEY SET IS DECLARED HERE, AND THE DECLARATION IS CLOSED ──────────
+       Row `2026-11-01-the-hand-rolled-host-axis-block-has-no-declared-key-set`. `recording.hostAxis`
+       is three hand-written field lists in three nodes. `recording.timing` is the DECLARED block —
+       one builder, `DexExport.timingBlock`, a fixed key list in a fixed order — and this one is not.
+       WHAT THAT COSTS, MEASURED over the 242 committed blocks: 30 distinct keys appear across them,
+       and only 13 of the 28 the sources declare sit in all three publishers. A consumer meeting an
+       absent key cannot tell "this node does not measure it" from "this artifact predates it", and
+       the reshape seam has already eaten `applied`, both `stability` names, `independent`, `spreadMs`,
+       `inertReason` and `ok`, one at a time.
+       THE GATE A FEW GROUPS OVER IS A FLOOR, NOT A SET. `ppgdex-dsp · ecgdex-dsp · export-boundary ·
+       host-axis` requires six §7 discriminators of two publishers. A floor cannot red on a key nobody
+       declared, and it never read MotionDex at all.
+       So the three sets below are the contract, asserted in BOTH directions: a new key reds until an
+       author declares it, and a dropped key reds the node that lost it. Divergence stays allowed and
+       NAMED — a node publishes what it measures — and never silent. */
+    group('the hand-rolled host-axis block has a declared key set, per publisher', 'dsp · node-export · hostaxis-keyset · three-publishers', function (T) {
+      var src = env.sources || {};
+      function stripComments(s) {
+        return String(s)
+          .replace(/\/\*[\s\S]*?\*\//g, ' ')
+          .replace(/^[ \t]*\/\/.*$/gm, ' ');
+      }
+      /* BALANCED-BRACE extraction, the discipline the parity group one block over learned the hard
+         way: its first version matched a fixed indent and overshot PpgDex's block by 4.5 kB into
+         `out.hrv`, so every field assertion read text from another object and still passed. */
+      function blockFrom(s, needle) {
+        var at = s.indexOf(needle);
+        if (at < 0) return '';
+        var i = s.indexOf('{', at),
+          depth = 0;
+        for (var k = i; k < s.length; k++) {
+          if (s[k] === '{') depth++;
+          else if (s[k] === '}') {
+            depth--;
+            if (depth === 0) return s.slice(i, k + 1);
+          }
+        }
+        return '';
+      }
+      /* A TOP-LEVEL KEY IS PRECEDED BY `{` OR `,` — nothing else. A bare `/name\s*:/` scan also takes
+         the `null` of a `x != null ? x : null` ternary and the member of `ax.n :`, both of which sit
+         at depth 1 and neither of which any node publishes. Measured on these three files: the loose
+         rule declares three keys that do not exist. */
+      function topKeys(block) {
+        var out = [],
+          depth = 0,
+          i = 0;
+        while (i < block.length) {
+          var c = block[i];
+          if (c === '{' || c === '[' || c === '(') {
+            depth++;
+            i++;
+            continue;
+          }
+          if (c === '}' || c === ']' || c === ')') {
+            depth--;
+            i++;
+            continue;
+          }
+          if (c === "'" || c === '"') {
+            var q = c;
+            i++;
+            while (i < block.length && block[i] !== q) {
+              if (block[i] === '\\') i++;
+              i++;
+            }
+            i++;
+            continue;
+          }
+          if (depth === 1 && /[A-Za-z_$]/.test(c)) {
+            var j = i - 1;
+            while (j >= 0 && /\s/.test(block[j])) j--;
+            var prev = j >= 0 ? block[j] : '';
+            var m = /^([A-Za-z_$][\w$]*)\s*:/.exec(block.slice(i));
+            if (m && (prev === '{' || prev === ',')) {
+              out.push(m[1]);
+              i += m[0].length;
+              continue;
+            }
+          }
+          i++;
+        }
+        return out;
+      }
+      /* THE LITERAL IS NOT THE WHOLE SET. PpgDex and ECGDex both add conditional keys AFTER the field
+         list (`out.recording.hostAxis.deviceDrawn = …`), which a reader of the literal alone would
+         report as absent — three keys in PpgDex and two in ECGDex. */
+      function keySet(text, needle, nested) {
+        var s = stripComments(text);
+        var b = blockFrom(s, needle);
+        if (nested) b = blockFrom(b, nested);
+        var keys = topKeys(b);
+        var re = /out\.recording\.hostAxis\.([A-Za-z_$][\w$]*)\s*=/g,
+          m2;
+        while ((m2 = re.exec(s))) keys.push(m2[1]);
+        var seen = {},
+          uniq = [];
+        for (var i2 = 0; i2 < keys.length; i2++) {
+          if (!seen[keys[i2]]) {
+            seen[keys[i2]] = 1;
+            uniq.push(keys[i2]);
+          }
+        }
+        return { keys: uniq.sort(), chars: b.length };
+      }
+
+      /* THE READER, PLANTED. Every equality below rests on it, so it answers a block whose keys are
+         known first: a nested object, a ternary `null`, a block comment, a string and an array of
+         objects each carry a `name:` shape that is NOT a top-level key. A reader that took any of them
+         would declare keys no node writes, and the three equalities would then be about nothing. */
+      var PLANT = '/* ignored: 1 */ out.recording.hostAxis = {\n  a: 1,\n  b: x != null ? x : null,\n  c: { d: 2 },\n  e: "f: 3",\n  g: [{ h: 4 }]\n};';
+      T.eq('ANTI-VACUITY · the key reader takes exactly the top-level keys of a planted block', keySet(PLANT, 'out.recording.hostAxis = {').keys, ['a', 'b', 'c', 'e', 'g']);
+
+      var PK = keySet(src['ppgdex-dsp.js'] || '', 'out.recording.hostAxis = {');
+      var EK = keySet(src['ecgdex-dsp.js'] || '', 'out.recording.hostAxis = {');
+      var MK = keySet(src['motiondex-dsp.js'] || '', 'function _mdExportAxis', 'return {');
+      T.ok(
+        'all three publisher sources are readable in this lane',
+        PK.chars > 0 && EK.chars > 0 && MK.chars > 0,
+        'ppg=' + PK.chars + ' ecg=' + EK.chars + ' motion=' + MK.chars + 'B — wire the 0 into readSources()'
+      );
+      if (!PK.chars || !EK.chars || !MK.chars) return;
+
+      /* ── THE DECLARATION. Sorted, closed, one array per publisher ────────────────────────────────
+         PpgDex is the widest because it owns the rate it corrects: `rate`, `rateApplied` and
+         `rateReason` say what happened to `fs`, and `drawn`/`quantizedShare`/`totalMs` are its own
+         provenance lattice (Clock Contract §7). ECGDex measures `ppmUncertainty` and `tMsCorrected`
+         instead, because it is the node that spends `ppm` as a crystal figure, and `note` carries the
+         sentence its span gate wrote. MotionDex names the `stream` its axis belongs to, since the node
+         carries several, and `resyncs`/`anchorsDroppedPreResync` are its seam accounting. */
+      var DECLARED_PPG = [
+        'anchors',
+        'applied',
+        'deviceDrawn',
+        'drawn',
+        'drawnReason',
+        'drawnShare',
+        'independent',
+        'inertReason',
+        'maxStepMs',
+        'ok',
+        'ppm',
+        'quantizedShare',
+        'rate',
+        'rateApplied',
+        'rateReason',
+        'spanMs',
+        'spanPpm',
+        'spreadMs',
+        'stability',
+        'timingSource',
+        'totalMs'
+      ];
+      var DECLARED_ECG = [
+        'anchors',
+        'applied',
+        'deviceDrawn',
+        'drawnShare',
+        'independent',
+        'maxStepMs',
+        'note',
+        'ok',
+        'ppm',
+        'ppmUncertainty',
+        'spanMs',
+        'spanPpm',
+        'spreadMs',
+        'stability',
+        'tMsCorrected',
+        'timingSource'
+      ];
+      var DECLARED_MOTION = [
+        'anchors',
+        'anchorsDroppedPreResync',
+        'applied',
+        'deviceDrawn',
+        'drawnShare',
+        'independent',
+        'maxStepMs',
+        'ok',
+        'ppm',
+        'reason',
+        'resyncs',
+        'spanMs',
+        'spanPpm',
+        'spreadMs',
+        'stability',
+        'stream',
+        'timingSource'
+      ];
+      T.eq('PpgDex publishes exactly its declared key set', PK.keys, DECLARED_PPG);
+      T.eq('ECGDex publishes exactly its declared key set', EK.keys, DECLARED_ECG);
+      T.eq('MotionDex publishes exactly its declared key set', MK.keys, DECLARED_MOTION);
+
+      /* THE SHARED SPINE, AND THE DIVERGENCE NAMED. A key that leaves the intersection reds here as
+         well as above, which is the half a per-node equality cannot see: moving `applied` out of one
+         node keeps all three sets self-consistent and silently ends the parity. */
+      function interOf(a, b) {
+        return a.filter(function (k) {
+          return b.indexOf(k) >= 0;
+        });
+      }
+      function onlyIn(a, b, c) {
+        return a.filter(function (k) {
+          return b.indexOf(k) < 0 && c.indexOf(k) < 0;
+        });
+      }
+      T.eq('thirteen keys sit in all three publishers', interOf(interOf(DECLARED_PPG, DECLARED_ECG), DECLARED_MOTION), [
+        'anchors',
+        'applied',
+        'deviceDrawn',
+        'drawnShare',
+        'independent',
+        'maxStepMs',
+        'ok',
+        'ppm',
+        'spanMs',
+        'spanPpm',
+        'spreadMs',
+        'stability',
+        'timingSource'
+      ]);
+      T.eq('PpgDex alone publishes the eight fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
+        'drawn',
+        'drawnReason',
+        'inertReason',
+        'quantizedShare',
+        'rate',
+        'rateApplied',
+        'rateReason',
+        'totalMs'
+      ]);
+      T.eq('ECGDex alone publishes the three fields only it measures', onlyIn(DECLARED_ECG, DECLARED_PPG, DECLARED_MOTION), ['note', 'ppmUncertainty', 'tMsCorrected']);
+      T.eq('MotionDex alone publishes the four fields only it measures', onlyIn(DECLARED_MOTION, DECLARED_PPG, DECLARED_ECG), ['anchorsDroppedPreResync', 'reason', 'resyncs', 'stream']);
+      T.ok(
+        'ANTI-VACUITY · the declared sets are long enough to be sets',
+        DECLARED_PPG.length >= 14 && DECLARED_ECG.length >= 14 && DECLARED_MOTION.length >= 14,
+        [DECLARED_PPG.length, DECLARED_ECG.length, DECLARED_MOTION.length].join('/')
+      );
     });
 
     group('hostAxis stability — the spine Allan core, and it refuses when there is no second clock', 'clock · hostaxis-stability', function (T) {
