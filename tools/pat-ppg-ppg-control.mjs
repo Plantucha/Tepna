@@ -108,6 +108,8 @@ function fiducialTimes(text) {
       refIdx = i;
     }
   });
+  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+     The control’s Verity pulse train then rides a 2-of-3 vote. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const rel = rec.relSec;
   const at =

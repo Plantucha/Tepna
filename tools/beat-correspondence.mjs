@@ -410,6 +410,8 @@ function ppgFootTimes(text) {
       refIdx = i;
     }
   });
+  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+     The edit distance is then computed between a 2-of-3 vote’s train and the ECG’s. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   /* Per-ELEMENT guard on relSec, copied from pat-matchrate-strict verbatim — the array can exist with
      non-finite entries, and an array-level truthiness check propagates NaN into every downstream time. */

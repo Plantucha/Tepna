@@ -194,7 +194,9 @@ function ecgRpeakTimes(text, opts) {
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
    @port-sha aa2336fd1179
-   @port-behind 15e9ff8df936 2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual
+   @port-behind 43679618f5a2 2026-11-01-the-pat-foot-ports-cannot-run-the-recompute-counterfactual
+   RE-READ 2026-11-01 at `43679618f5a2`: the only move is the `@polarity-decision` comment this unit
+   added inside the worker, so the ported logic is unchanged.
    BEHIND SINCE 2026-11-01: the worker's `ppgFootTimes` now takes an optional
    `opts.pinnedFromRecompute`, which builds the pinned ranges from `rec.spans` instead of waiting
    for a `_PPGRUNS.txt` companion. This copy carries no such switch, so it cannot run that

@@ -187,6 +187,8 @@ function ppgFeet(text) {
       refIdx = i;
     }
   });
+  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+     The timing points this reads the host offset from then come from a 2-of-3 vote. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const pts = TIMING_POINT === 'peak' ? cons.peaks : cons.feet;
   if (!pts) throw new Error('consensusBeats exposed no `' + TIMING_POINT + '` series');

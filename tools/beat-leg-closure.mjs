@@ -358,6 +358,8 @@ export function verityBeats(path, ctx) {
       ri = i;
     }
   });
+  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+     Leg C’s device-axis beat times then come from a 2-of-3 vote. */
   const cons = ctx.PPGDSP.consensusBeats(per, ri, rec.fs);
   const idx = cons && (cons.feet && cons.feet.length ? cons.feet : cons.peaks);
   if (!idx || !idx.length) return null;

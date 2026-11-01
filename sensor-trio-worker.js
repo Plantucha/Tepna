@@ -890,6 +890,8 @@ function ppgHrMapReal(text, onPhase, runsText) {
       }
     }
     if (onPhase) onPhase('3-LED consensus');
+    /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+       The trio export’s 3-LED consensus then runs as a 2-LED one, silently, on the nights where one LED dissents. */
     var cons = PPGDSP.consensusBeats(perCh, sel, rec.fs);
     if (!cons || !cons.feet || cons.feet.length < 20) {
       self.__ppgErr = 'consensus <20 feet';

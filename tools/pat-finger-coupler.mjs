@@ -94,6 +94,8 @@ function ppgFiducialTimes(text, which) {
       refIdx = i;
     }
   });
+  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+     The ring finger stream carries one channel today, where the re-detection is a no-op, and nothing in this call reads the channel count. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const src = cons.peaks;
   const t = new Float64Array(src.length);
