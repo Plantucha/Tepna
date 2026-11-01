@@ -870,8 +870,46 @@ def test_the_nights_view_is_the_owner_approved_design():
     assert "v.coverage==null) return v.hours ? 'rec' : 'unk'" in html
 
 
-def test_TWO_ROWS_IN_ONE_BAND_get_distinct_keys_and_every_keyed_site_uses_them(tmp_path):
-    """🔴 ONE BAND CAN CARRY SEVERAL ROWS AND THE PAGE KEYED THEM ALL BY THE BAND. Measured on the
+def test_a_night_row_LISTS_EACH_RECORDING_with_its_own_start_and_end():
+    """Owner ruling 2026-11-01: one row per night, each recording listed inside it with its own start and
+    end. A recording the sleep band keeps out of the cells says so, and a date-keyed night prints nothing."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    fn = _extract_fn(html, "nSessions", "\nfunction nRingPpgCell")
+    rows = [
+        {
+            "night": "2026-10-09",
+            "sessions": [
+                {"start": "2026-10-09 21:25", "end": "2026-10-10 06:45", "daytime": False},
+                {"start": "2026-10-10 09:18", "end": "2026-10-10 10:15", "daytime": False},
+            ],
+        },
+        {
+            "night": "2026-10-10",
+            "sessions": [{"start": "2026-10-10 13:00", "end": "2026-10-10 13:30", "daytime": True}],
+        },
+        {"night": "2026-10-11"},
+    ]
+    prog = fn + "\nconst rows = " + json.dumps(rows) + ";\nconsole.log(JSON.stringify(rows.map(nSessions)));"
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout.strip()) == [" · 21:25–06:45, 09:18–10:15", " · 13:00–13:30 daytime", ""], r.stdout
+    assert "bandN" not in html, "the per-band row count left with the second row"
+
+
+def test_ONE_ROW_PER_NIGHT_gets_distinct_keys_and_lists_its_recordings(tmp_path):
+    """⏪ THE OWNER'S 2026-11-01 RULING: ONE ROW PER NIGHT, its recordings listed inside it. The history
+    below is why the key carries the start at all. A date-keyed night has none, and the key survives a
+    future second row per band. Measured on the
     owner's screenshot night: the 10-09 ring at 21:25 with the after-midnight Polar sessions and a 09:18
     ring session both key to `2026-10-09`, so `/api/nights` returns two rows with
     `night: "2026-10-09"`. The page emitted two `id="nrow-2026-10-09"` and two identical `data-night`,
@@ -921,10 +959,8 @@ def test_TWO_ROWS_IN_ONE_BAND_get_distinct_keys_and_every_keyed_site_uses_them(t
     put("2026-10-10", "Wellue_O2Ring-S_S8AW_20261010091800_SPO2.csv", "Time,SpO2,PR\n", "20261010094800")
     put("2026-10-10", "Polar_H10_0284_20261010130000_ECG.txt", ROWS, "20261010133000")
     rows = ni.index_nights(str(tmp_path), budget_s=None)
-    assert len(rows) == 3, [r["night"] for r in rows]
-    assert sorted(r["night"] for r in rows) == ["2026-10-09", "2026-10-09", "2026-10-10"], (
-        "two rows collide in the 10-09 key band and the 13:00 sitting keys to its own day: "
-        + str([r["night"] for r in rows])
+    assert sorted(r["night"] for r in rows) == ["2026-10-09", "2026-10-10"], (
+        "the 10-09 key band is ONE row and the 13:00 sitting keys to its own day: " + str([r["night"] for r in rows])
     )
 
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -934,9 +970,9 @@ def test_TWO_ROWS_IN_ONE_BAND_get_distinct_keys_and_every_keyed_site_uses_them(t
     r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     keys = json.loads(r.stdout.strip())
-    assert len(set(keys)) == 3, f"three rows, three keys — the band alone collides: {keys}"
-    assert sorted(k.split("@")[1] for k in keys) == ["09:18", "13:00", "21:25"], keys
-    assert sorted(k.split("@")[0] for k in keys) == ["2026-10-09", "2026-10-09", "2026-10-10"], keys
+    assert len(set(keys)) == 2, f"two rows, two keys: {keys}"
+    assert sorted(k.split("@")[1] for k in keys) == ["13:00", "21:25"], keys
+    assert sorted(k.split("@")[0] for k in keys) == ["2026-10-09", "2026-10-10"], keys
 
     # A ROW WITH NO RECORDING START (the CPAP trees carry no session stamp) keys by the band alone —
     # unique, because `_recordings` never emits a date-keyed row for a band that has recordings.
