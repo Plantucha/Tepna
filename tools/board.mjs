@@ -388,6 +388,33 @@ export function shellRoots(rootIdent) {
   return ['self', 'data'];
 }
 
+/* 🔴 AND THE READER MUST NOT READ ITS OWN DOCUMENTATION. The two rules above read RAW TEXT, so
+   the call-site example in the comment above and the plant fixtures in the selftest below joined the
+   population as `tools/x` and `tools/inner-helper` (residue
+   `2026-10-28-the-board-closure-reader-matches-its-own-documentation`). Reporting them as
+   `unresolved` told an operator "I could not compare it" about two files that were never there, and
+   two ghosts crowded out the three members that matter.
+
+   MEASURED on this file at 1b6dd7f38: of the six shell-pattern matches, THREE execute (the usage
+   card, the release card and the selftest's own entry path) and three sit in ONE block comment; of
+   the three mid-line relative imports, all three are the selftest plant. So two rules, each one a
+   distinction the language already makes:
+   · A COMMENT IS NOT CODE. Block comments and statement-position line comments are BLANKED —
+     blanked, never deleted, so every line number and every `^` anchor still lands where it did.
+   · AN IMPORT IS AN EDGE ONLY AT STATEMENT POSITION. The plant string that spells an import IS an
+     import when `readText` hands it over as a file, and is DATA when it sits inside another file.
+     Anchoring to `^` separates the two with no list of exceptions.
+
+   A MID-LINE `//` example is still derived, deliberately: stripping one means telling a comment from
+   a `//` inside a string, and this file carries URLs in strings. The guard against an OVER-tightened
+   reader is the refusal below — a rule that stops matching takes `edges` to 0 and refuses, never
+   reporting a clean empty population — plus the real-tree leg, which names every file it must still
+   reach. */
+export function executableText(text) {
+  const blanked = text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+  return blanked.replace(/^([ \t]*)\/\/.*$/gm, '$1');
+}
+
 export function rendererClosure(entryRel, readText) {
   const via = new Map();
   const unreadable = [];
@@ -411,8 +438,9 @@ export function rendererClosure(entryRel, readText) {
       continue;
     }
     readOk.add(rel);
-    const imported = [...text.matchAll(/from\s+'(\.\.?\/[^']+\.mjs)'/g)].map((m) => normaliseRel(rel, m[1]));
-    const shelled = [...text.matchAll(/(?:([A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*)?'tools',\s*'([A-Za-z0-9._-]+\.mjs)'/g)].map((m) => ({ rel: `tools/${m[2]}`, root: m[1] ?? null }));
+    const code = executableText(text);
+    const imported = [...code.matchAll(/^[ \t]*import\b[^;]*?\bfrom\s+'(\.\.?\/[^']+\.mjs)'/gm)].map((m) => normaliseRel(rel, m[1]));
+    const shelled = [...code.matchAll(/(?:([A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*)?'tools',\s*'([A-Za-z0-9._-]+\.mjs)'/g)].map((m) => ({ rel: `tools/${m[2]}`, root: m[1] ?? null }));
     edges += imported.length + shelled.length;
     for (const d of imported) queue.push([d, kind]);
     for (const d of shelled) for (const k of shellRoots(d.root)) queue.push([d.rel, k]);
@@ -2142,10 +2170,35 @@ function runSelftest() {
       ok(shellRoots('REPO').join() === 'data', 'a REPO call site loads from the checkout the renderer reports on');
       ok(shellRoots('SOME_OTHER_ROOT').join() === 'self,data', 'an UNRECOGNISED root is compared in BOTH trees — dropping the one it loads from would report code that is not running as current');
       ok(shellRoots(null).join() === 'self,data', 'a bare call with no root takes the same fail-closed path');
+      /* THE GHOSTS ARE GONE, AND THIS LEG IS WHY THE READER STAYS HONEST. It read
+         `tools/inner-helper,tools/x` until 2026-10-31 and asked to be tightened and updated;
+         `executableText` plus the statement-position import did that. MEASURED on this tree: the
+         same 8 real files before and after the tightening, 2 unresolvable names before, 0 after. A
+         non-zero count here means the reader matched its own prose again. */
+      ok(real.unresolved.join() === '', `the REAL closure derives no name that is no file, so the reader no longer reads its own documentation, got ${real.unresolved.join()}`);
+
+      /* ONE CONTROL PER HAZARD. Every ghost name is ASSEMBLED, for the reason the plant above gives:
+         a literal one would enter the REAL closure and the leg above would never go red again. */
+      const GHOST = `ghost${'.mjs'}`;
+      const SHELLED_GHOST = `'tools', '${GHOST}'`;
+      const planted = (board) => rendererClosure('tools/board.mjs', (rel) => (rel === 'tools/board.mjs' ? board : readPlant(rel)));
+      const REAL_EDGE = `import { isCliEntry } from './argv-guard.mjs';\n`;
+      const blockGhost = planted(`/* path.join(SELF_REPO, ${SHELLED_GHOST}) */\n${REAL_EDGE}`);
+      ok(blockGhost.ok && !blockGhost.unresolved.includes(`tools/${GHOST}`), `a shell call inside a BLOCK COMMENT documents the rule, it is not an edge, got ${blockGhost.unresolved.join()}`);
+      ok(blockGhost.ok && blockGhost.files.includes('tools/argv-guard.mjs'), 'CONTROL · the real import beside that comment still binds');
+      const lineGhost = planted(`  // path.join(SELF_REPO, ${SHELLED_GHOST})\n${REAL_EDGE}`);
+      ok(lineGhost.ok && !lineGhost.unresolved.includes(`tools/${GHOST}`), 'a shell call in a LINE comment at statement position is documentation too');
+      const nested = planted(`${REAL_EDGE}const P = { 'tools/plant.mjs': "import { h } from './${GHOST}';" };\nconst st = sh('node', [path.join(SELF_REPO, 'tools', 'release-land.mjs')]);\n`);
+      ok(nested.ok && !nested.unresolved.includes(`tools/${GHOST}`), `an import INSIDE a string literal is data, never an edge, got ${nested.unresolved.join()}`);
       ok(
-        real.unresolved.join() === 'tools/inner-helper.mjs,tools/x.mjs',
-        `the REAL closure's unresolvable names are exactly the comment example and the selftest plant — tighten the reader and update this leg, got ${real.unresolved.join()}`
+        nested.ok && nested.files.includes('tools/argv-guard.mjs') && nested.files.includes('tools/release-land.mjs'),
+        `CONTROL · the statement-position import and the executable shell call beside it both bind, got ${nested.files.join(',')}`
       );
+      const urlInString = planted(`${REAL_EDGE}const u = 'https://example.invalid/x'; const st = sh('node', [path.join(SELF_REPO, 'tools', 'release-land.mjs')]);\n`);
+      ok(urlInString.ok && urlInString.files.includes('tools/release-land.mjs'), 'CONTROL · a URL in a string blanks nothing, so a shell call sharing its line still binds');
+      ok(planted(`/* ${REAL_EDGE}   path.join(SELF_REPO, ${SHELLED_GHOST}) */\n`).ok === false, 'a file whose only edges sit in a comment REFUSES, because an empty population reads clean');
+      const kept = executableText('a /* b\nc */ d\n');
+      ok(kept.split('\n').length === 3 && /d/.test(kept.split('\n')[1]) && !/b/.test(kept), 'a blanked comment keeps its line count and the code beside it, so a later line number still lands');
 
       /* TWO TREES. An import loads from the file's own directory; a shelled call loads from `REPO`.
          The remedy the row names separates them, so each file must be compared where it loads. */

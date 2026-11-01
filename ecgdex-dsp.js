@@ -5647,6 +5647,12 @@
                never had a second clock — different problems with different remedies. */
             independent: ecgHostAx.independent != null ? ecgHostAx.independent : null,
             spreadMs: ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs : null,
+            /* The spine's sentence for "this host column is not an independent clock", FORWARDED.
+               This block RENAMES, so an unlisted field is dropped — and these two were. `dex-export.js
+               timingBlock` quotes `inertReason` where the producer wrote one and falls back to a generic
+               sentence otherwise, so dropping it published the fallback over an axis whose measured
+               `spreadMs` sits two keys away in the same export. PpgDex forwards both fields. */
+            inertReason: ecgHostAx.inertReason || null,
             /* PpgDex's provenance lattice (Clock Contract §7). `independent === false` (every phone
                capture: the host column is the device stamp rounded, spread ≈ one quantum) means one
                clock ⇒ 'device'; a genuinely independent host column ⇒ 'device+host'; a DRAWN device
@@ -5662,6 +5668,9 @@
                `stability` below). Read `deviceDrawn` before quoting `ppm` as a crystal figure. */
             deviceDrawn: ecgHostAx.deviceDrawn === true,
             drawnShare: ecgHostAx.drawnShare != null ? ecgHostAx.drawnShare : null,
+            /* The DRAWN twin of `inertReason` above, forwarded on the same ground. Both can be
+               non-null and neither implies the other — the split `clock.js` states beside the fields. */
+            drawnReason: ecgHostAx.drawnReason || null,
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
             /* The unsmoothed twin of the `ppm` above, forwarded from the spine (`spanMs` below stays this

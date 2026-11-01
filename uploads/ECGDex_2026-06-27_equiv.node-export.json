@@ -30,7 +30,7 @@
       "rate": 129.95770788823395,
       "rateRaw": 129.95770788823395,
       "rateApplied": false,
-      "reason": "host ≡ device — the host column tracks the device column inside one stamp quantum, so it is not an independent clock; the rate correction did not reach the published rate: host column is not a second clock (residual spread 1.00 ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock"
+      "reason": "host ≡ device — residual spread 1.00 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: host column is not a second clock (residual spread 1.00 ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock"
     },
     "hostAxis": {
       "applied": false,
@@ -66,8 +66,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "6712ea329ea0",
-        "computeHash": "55efe173558a"
+        "manifestHash": "2effa9158929",
+        "computeHash": "ece3f7566cef"
       },
       "evidence": {
         "envelopeRef": null,
@@ -96,8 +96,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "6712ea329ea0",
-        "computeHash": "55efe173558a"
+        "manifestHash": "2effa9158929",
+        "computeHash": "ece3f7566cef"
       },
       "evidence": {
         "envelopeRef": null,
@@ -126,8 +126,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "6712ea329ea0",
-        "computeHash": "55efe173558a"
+        "manifestHash": "2effa9158929",
+        "computeHash": "ece3f7566cef"
       },
       "evidence": {
         "envelopeRef": null,
@@ -156,8 +156,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "6712ea329ea0",
-        "computeHash": "55efe173558a"
+        "manifestHash": "2effa9158929",
+        "computeHash": "ece3f7566cef"
       },
       "evidence": {
         "envelopeRef": null,
@@ -188,8 +188,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "6712ea329ea0",
-        "computeHash": "55efe173558a"
+        "manifestHash": "2effa9158929",
+        "computeHash": "ece3f7566cef"
       },
       "evidence": {
         "envelopeRef": null,
