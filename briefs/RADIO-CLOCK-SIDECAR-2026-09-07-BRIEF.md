@@ -1,5 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (owner-requested 2026-09-07 — "wire up holyiot with time improvement, but keep in mind that not everybody will have same ability so original functionality must be kept"; firmware image with the anchor reports is BUILT and **FLASHED 2026-09-07 21:30** — `iProduct` reads `Zephyr USBD BT HCI anchor` on vigil, address `99:67:24:2E:CD:98` unchanged; **§5(a) MEASURED 2026-09-07 21:34: `0xfd1f enable=1` → Command Complete status 0x00 in 0.8 ms**, sent from uid 1000 on a RAW HCI socket with `CAP_NET_RAW` alone while bluetoothd kept the adapter, monitor file `/srv/tepna/captures/probe-fd1f-20260907T213441.btsnoop`; §5(b)/(c) still owed — they need a strap connected on the Holyiot; **2026-09-11 — `CONFIG_BT_CTLR_PRIVACY=n` flashed to all three dongles on the rig and the anchor report re-confirmed under it (`0xfd1f` → status `0x00`, echo `1F FD`, 3/3; `ll-privacy` absent from supported settings, 3/3), BUT ALL THREE were first flashed with the FEM-LESS dongle image by mistake, which left them deaf (0/7/16 live peers) — corrected image since FLASHED to all three 2026-09-11 and the fix measured — the deaf unit went 0 -> 82 live peers, the set beats the Realtek control by ~30 dB, and one of them opened the AS11 link UNBONDED (5 services / 14 characteristics); see §2.1**) · **Created:** 2026-09-07 · **TRIAGED 2026-09-25 (Magpie) — the COLLECTOR IS BUILT AND TEST-BACKED; 4 of 5 done-when items verified DONE by reading the code:** §0.1 `capture.py` carries **zero** radioclock references, so the collector is fully isolated; §0.2 `config.example.yaml:483` is `enabled: false` and `deploy/install-services.sh` installs the unit WITHOUT enabling it, stating why; §0.3 is test-backed by `test_main_exits_0_and_writes_NOTHING_on_every_way_this_box_cannot` (99 tests in `tests/test_radioclock.py`); the `dex-ingest.js` exclusion is DONE — `RADIOCLOCK` sits in the `nonSignalName` alternation at line 92. ⚠ **A grep for the brief's own string `_RADIOCLOCK` returns 0 and is a FALSE NEGATIVE** — the literal never appears because it is an alternation branch. Remainder: the `verify-fixtures` item, which waits on a CONSUMER; no node consumes the sidecar yet (`dex-ingest.js` only excludes it).
+**Status:** IN-PROGRESS — 2026-11-01 (owner-requested 2026-09-07 — "wire up holyiot with time improvement, but keep in mind that not everybody will have same ability so original functionality must be kept"; firmware image with the anchor reports is BUILT and **FLASHED 2026-09-07 21:30** — `iProduct` reads `Zephyr USBD BT HCI anchor` on vigil, address `99:67:24:2E:CD:98` unchanged; **§5(a) MEASURED 2026-09-07 21:34: `0xfd1f enable=1` → Command Complete status 0x00 in 0.8 ms**, sent from uid 1000 on a RAW HCI socket with `CAP_NET_RAW` alone while bluetoothd kept the adapter, monitor file `/srv/tepna/captures/probe-fd1f-20260907T213441.btsnoop`; §5(b)/(c) still owed — they need a strap connected on the Holyiot; **2026-09-11 — `CONFIG_BT_CTLR_PRIVACY=n` flashed to all three dongles on the rig and the anchor report re-confirmed under it (`0xfd1f` → status `0x00`, echo `1F FD`, 3/3; `ll-privacy` absent from supported settings, 3/3), BUT ALL THREE were first flashed with the FEM-LESS dongle image by mistake, which left them deaf (0/7/16 live peers) — corrected image since FLASHED to all three 2026-09-11 and the fix measured — the deaf unit went 0 -> 82 live peers, the set beats the Realtek control by ~30 dB, and one of them opened the AS11 link UNBONDED (5 services / 14 characteristics); see §2.1**) · **Created:** 2026-09-07 · **TRIAGED 2026-09-25 (Magpie) — the COLLECTOR IS BUILT AND TEST-BACKED; 4 of 5 done-when items verified DONE by reading the code:** §0.1 `capture.py` carries **zero** radioclock references, so the collector is fully isolated; §0.2 `config.example.yaml:483` is `enabled: false` and `deploy/install-services.sh` installs the unit WITHOUT enabling it, stating why; §0.3 is test-backed by `test_main_exits_0_and_writes_NOTHING_on_every_way_this_box_cannot` (99 tests in `tests/test_radioclock.py`); the `dex-ingest.js` exclusion is DONE — `RADIOCLOCK` sits in the `nonSignalName` alternation at line 92. ⚠ **A grep for the brief's own string `_RADIOCLOCK` returns 0 and is a FALSE NEGATIVE** — the literal never appears because it is an alternation branch. Remainder: the `verify-fixtures` item, which waits on a CONSUMER; no node consumes the sidecar yet (`dex-ingest.js` only excludes it).
+· **§3 DEPLOYED 2026-10-30 and §4's READER BUILT 2026-11-01 (Magpie).** The collector has run on vigil since 2026-10-30. `radio-clock.js` reads the sidecar and classifies one axis per `<device>|<meas>` against §4's pre-stated bands. **§5(b) and §5(c) now read MEASURED over six sidecars: 938 176 rows, 0 non-monotonic anchors, and `acl_rx_ns` on 938 176 of 938 176 rows.** **NO stream reaches the under-2 ms band.** The best is the H10 accelerometer at 12.43 ms, and the four H10 streams are the only ones in the 2-50 ms band. `timingSource:'radio'` stays reachable in code and unreached on this corpus, which §4's own Done-when calls a result. The per-stream numbers, the delta grid and the three degenerate shapes sit in §4.1. Remainder for DONE: the node ingest (PPGDex, ECGDex), the Integrator `timed` vocabulary, the committed twin fixtures and the corpus `verify-fixtures` run — each moves a DSP, so each lands as its own unit.
 
 # Radio-clock sidecar — controller-side connection-event timestamps as an OPTIONAL second clock
 
@@ -280,6 +281,61 @@ corpus; changeset `minor` — additive `timingSource` value).
 - **What NOT to do:** no `!= 0` / `?? 0` anywhere in the join; a missing anchor is a missing anchor. Do not
   let `ppm` be quoted without span and `n`. Do not hand-roll a rate from the anchors — `hostAxis` only.
 
+### 4.1 · MEASURED 2026-11-01 (Magpie) — the first real corpus, and what it rejects
+
+Six sidecars, two nights, three sensors, 938 176 rows, 142 device streams. One axis per
+`<device>|<meas>`, each through `DexClock.hostAxis`. The band statistic is the spine's own
+`stackJitterMs`: the half-IQR of the residual its width-21 running median removed. Re-deriving an
+estimator here would fork one whose MAD variant already read 1.2 ms against a 5.5 ms plant.
+
+| device | stream | n (10-30 / 10-31) | band statistic | band |
+|---|---|---|---|---|
+| Polar H10 | ACC | 97 954 / 99 106 | 12.43 / 15.20 ms | 2-50 ms |
+| Polar H10 | ECG | 30 982 / 31 435 | 16.39 / 18.82 ms | 2-50 ms |
+| Verity | PPG | 25 910 / 25 578 | 82.47 / 84.23 ms | over 50 ms |
+| Verity | ACC | 7 981 / 8 086 | refused / refused | discontinuity · rate |
+| Verity | PPI | 5 708 / 5 624 | refused / refused | zero device span |
+| O2Ring | 128 streams | 153 117 / 153 424 rows | refused | rate |
+
+**0 radio · 4 jitter-aid · 138 rejected.** The O2Ring contributes 128 of the 142 streams because its
+frames carry no device clock: the collector writes payload bytes into `last_sensor_ns` AND into `meas`,
+so one ring file reads as 64 measurement types.
+
+**§5(b) and §5(c), measured over the same six files.** `anchor_us` rises monotonically in all 938 176
+rows, and `acl_rx_ns` carries a value in 938 176 of 938 176. `vs_rx_ns` carries one in **0** of them, so
+the reader publishes `offsetFrom: 'acl_rx_ns'` rather than §4's `ctrl_host_offset` column. The anchor
+deltas fall on a 30 ms grid for the Verity, 40 and 50 ms for the H10, and 20 ms for the ring — each a
+legal BLE connection interval. The collector logs only events that carried data, so the delta grid names
+the interval and the negotiated value still owes a box-side `btmon` read.
+
+| device | anchor delta median | p95 | controller-host offset spread | offset step p95 |
+|---|---|---|---|---|
+| Verity | 720 / 750 ms | 1440 ms | 6473.9 / 6146.1 ms | 32.16 / 32.10 ms |
+| Polar H10 | 200 / 200 ms | 360 / 400 ms | 3615.9 / 3700.3 ms | 2.80 / 2.75 ms |
+| O2Ring | 60 / 80 ms | 500.0 / 487.5 ms | 7359.7 / 6176.0 ms | 21.72 / 22.05 ms |
+
+**The O2Ring's p95 step reads 500.0 and 487.5 ms, not 300 ms.** Its controller-host offset steps 21.72
+and 22.05 ms at p95. The nearest 300 ms figure in the corpus belongs to the H10, whose anchor delta p95
+reads 360.1 and 393.3 ms.
+
+**ONE WILD ANCHOR SURVIVES BOTH SPINE STATISTICS.** `stackJitterMs` is a half-IQR and `maxStepMs` walks
+the SMOOTHED series, so a single corrupt anchor passes both. A planted twin proves it: the spine returns
+`ok:true` with 1.04 ms of jitter and 0.88 ms of max step while the raw divergence steps
+885 000 000 001 ms, and the band read `'radio'`. The real Verity ACC stamp does the same thing, and
+`maxStepMs` on that file reads 120.45 ms. §∅ decides it — a discontinuity refuses, reduced coverage
+annotates — so `radio-clock.js` adds ONE criterion of its own, after the spine accepts: a divergence step
+between two ADJACENT anchors may not reach the span it happened in. The denominator is the SMALLER of the
+host and device spans, because a corrupt sample inflates its own column's span by about as much as the
+step it creates. Against that column alone the ratio reads 1.00003 and passes by luck.
+
+**THE READER REFUSES A DRAWN DEVICE COLUMN ON PROVENANCE.** `clock.js` publishes `deviceDrawn`
+additively and leaves `independent` true for a drawn axis, because a synthetic fixture's uniform device
+counter reads the same way. A reader that mints `'radio'` claims two clocks exist, so `radio-clock.js`
+refuses a drawn column and names it. The arm costs no verdict here: of the 7 streams the spine accepts,
+0 read `deviceDrawn:true`, and all 142 band verdicts match the arm-free run. An axis that
+publishes no flag at all refuses as well, because board #1687 measured that read defaulting to admit. The suite's own plants carry
+a realistic device axis, so they earn the flag rather than trip it.
+
 ## 5 · Box-side verification BEFORE §3/§4 are built (Wren, physical-vigil step; ~15 min, daytime)
 
 After the reflash (confirmed by the product string in §2, not by the USB ID): with one Polar strap
@@ -311,8 +367,8 @@ being pinned as capture adapter.
 - [ ] `radio_clock.enabled` defaults to `false`; `install-services.sh` does not enable the unit unless it is true (§0.2).
 - [ ] Collector on a non-Nordic controller exits 0, logs one line, creates no file — test-backed (§0.3).
 - [ ] `verify-fixtures` reports **0 outputs moved** on the corpus after the consumer lands; the committed twin reds if either band is mis-assigned (§0.4, §4).
-- [ ] `dex-ingest.js` excludes `_RADIOCLOCK` (test in the existing sidecar-exclusion group).
+- [x] `dex-ingest.js` excludes `_RADIOCLOCK` — `dex-ingest.js:117`, both alternations (verified 2026-11-01).
 - [x] §5(a) `0xfd1f` → status 0x00 on the flashed image (2026-09-07 21:34; `probe-fd1f-20260907T213441.btsnoop`).
-- [ ] §5 spread measured and written into this header with `n` and the strap's connection interval.
-- [ ] `timingSource:'radio'` appears on ≥1 real night with spread < 2 ms — or the header records the measured spread and which band it fell in, and the brief is DONE either way (a measured "no" is a result).
+- [x] §5 spread measured and written into §4.1 with `n` and the delta grid (2026-11-01). The negotiated interval owes a box-side `btmon` read.
+- [x] The measured answer is NO: §4.1 records every stream's spread and band. The best reads 12.43 ms, and 0 of 142 streams reach the under-2 ms band.
 - [ ] Residue rows in `briefs/RESIDUE.md` for anything surfaced (O2Ring frames, the Sena-vs-Holyiot production decision).

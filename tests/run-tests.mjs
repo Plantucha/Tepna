@@ -671,6 +671,7 @@ function readSources() {
     'cohort-runner.html',
     'clock.js',
     'clock-seam.js',
+    'radio-clock.js',
     'oxydex-util.js',
     'pulsedex-dsp.js',
     'oxydex-dsp.js',
@@ -2741,6 +2742,7 @@ async function main() {
       'kernel-constants.js',
       'clock.js',
       'clock-seam.js',
+      'radio-clock.js',
       'metric-registry.js',
       'dex-escape.js', // RENDER-HARNESS (§RN): escapeHTML — a top-level dep of the *-render.js review builders
       'dex-profile.js',
@@ -3173,6 +3175,7 @@ async function main() {
     escapeHTML: ctx.escapeHTML || (ctx.DexEsc && ctx.DexEsc.escapeHTML),
     DexClock: ctx.DexClock,
     DexSeam: ctx.DexSeam,
+    DexRadio: ctx.DexRadio,
     /* THE REALM GLOBAL — the object the co-loaded modules actually hang their globals on. The suite
        runs in the HOST context here (`require('./dex-tests.js')`) while the modules run inside the vm,
        so a group that must recompute the way a BUNDLE computes cannot reach them through its own
