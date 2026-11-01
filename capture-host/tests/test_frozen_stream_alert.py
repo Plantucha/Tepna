@@ -171,3 +171,68 @@ def test_a_well_formed_summary_still_works():
     assert out == ["H10"]
     assert alerts.frozen_devices({"devices": []}, {}, 1.0) == []
     assert alerts.frozen_devices({}, {}, 1.0) == []
+
+
+# ── A SILENCE THE BOX ITSELF CAUSED (measured 2026-11-01 15:00) ────────────────────────────────
+# The ring and the Sense had written nothing for ~1750 s, the rule fired, and the watchdog restarted
+# the daemon mid-afternoon. The Sense was in an offline-recording op and the ring was off the finger.
+# Neither state was readable here, though the charger clause had always been the same kind of clause.
+
+
+def _st(**kw):
+    """One STATUS["devices"] entry. `connected` defaults to True — every test below is about a device
+    whose link is up, which is the only state this rule judges."""
+    return {"connected": True, **kw}
+
+
+def test_a_device_in_an_offline_recording_op_is_not_frozen():
+    """THE Sense at 15:00. A PS-FTP download holds the link and the device sends no live sample."""
+    qc = _qc({"Sense": 1750})
+    live = {"Sense": _st(address="AA:BB")}
+    assert alerts.frozen_devices(qc, live, 600, ["AA:BB"]) == []
+
+
+def test_a_device_off_the_body_is_not_frozen():
+    """THE ring at 15:00. `worn is False` is the device's own word for "nothing to send"."""
+    assert alerts.frozen_devices(_qc({"Ring": 1750}), {"Ring": _st(worn=False)}, 600) == []
+
+
+def test_an_unknown_wear_state_explains_nothing():
+    """§∅ — absence is not an explanation. `worn` is absent on a device with no wear detection and None
+    before the first frame, so neither may suppress the one alert that sees a mid-night freeze."""
+    assert alerts.frozen_devices(_qc({"V": 1750}), {"V": _st()}, 600) == ["V"]
+    assert alerts.frozen_devices(_qc({"V": 1750}), {"V": _st(worn=None)}, 600) == ["V"]
+
+
+def test_another_devices_pause_explains_nothing():
+    """ANTI-VACUITY: the offline slot is global, so the pause list names addresses rather than meaning
+    "a pull is running somewhere". A device that is not in it is still judged."""
+    qc = _qc({"Sense": 1750})
+    live = {"Sense": _st(address="AA:BB")}
+    assert alerts.frozen_devices(qc, live, 600, ["CC:DD"]) == ["Sense"]
+
+
+def test_a_device_with_no_address_is_not_matched_against_the_pauses():
+    """A device status with no address cannot be in the pause list, and `None in [...]` must never be
+    the question asked."""
+    assert alerts.frozen_devices(_qc({"X": 1750}), {"X": _st()}, 600, [None]) == ["X"]
+
+
+def test_the_pause_argument_is_optional_and_defaults_to_nothing_known():
+    """Back-compatible: the three-argument call keeps the charger-and-worn answer, never a wrong one."""
+    live = {"Sense": _st(address="AA:BB")}
+    assert alerts.frozen_devices(_qc({"Sense": 1750}), live, 600) == ["Sense"]
+    assert alerts.frozen_devices(_qc({"Sense": 1750}), live, 600, None) == ["Sense"]
+
+
+def test_the_explanation_is_NAMED_and_each_state_has_its_own_word():
+    """A suppression owes a reason of its own. A borrowed one sends the next reader after the wrong
+    subsystem, which is §∅'s rule about a named `null` applied to a silence."""
+    assert alerts.explained_silence(_st(charging=True)) == "charging"
+    assert alerts.explained_silence(_st(worn=False)) == "not-worn"
+    assert alerts.explained_silence(_st(address="AA:BB"), ["AA:BB"]) == "offline-op"
+    assert alerts.explained_silence(_st(address="AA:BB"), ["CC:DD"]) is None
+    assert alerts.explained_silence(_st()) is None
+    # the charger wins over the pull, and that order is not arbitrary: a docked device is silent for the
+    # whole dock, while a pull ends in seconds — the longer-lived state is the one worth naming.
+    assert alerts.explained_silence(_st(charging=True, address="AA:BB"), ["AA:BB"]) == "charging"

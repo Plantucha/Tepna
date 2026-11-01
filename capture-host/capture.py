@@ -10159,7 +10159,12 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # "produced nothing all night" and therefore cannot see a mid-night freeze) and from the
             # offline alert (which needs the link to actually drop). This is the 2026-07-25 Verity:
             # four streams acknowledged `ok`, link up for 4 h 25 m, zero bytes, nothing said a word.
-            for _name in alerts.frozen_devices(summ, STATUS.get("devices") or {}, frozen_after):
+            # `gate_state()` carries the offline-op pauses, and this rule could not see them: a Sense
+            # mid-download writes nothing BY DESIGN, and on 2026-11-01 15:00 that silence reached the
+            # watchdog as a fault. `alerts.explained_silence` is the one home for every such state.
+            for _name in alerts.frozen_devices(
+                summ, STATUS.get("devices") or {}, frozen_after, gate_state()["polar_paused"]
+            ):
                 _key = f"{n}:{_name}"
                 if _key in frozen_alerted:
                     continue
