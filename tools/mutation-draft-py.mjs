@@ -41,6 +41,7 @@
  *
  * ── USAGE ─────────────────────────────────────────────────────────────────────────────────────────
  *   node tools/mutation-draft-py.mjs --selftest            # pure parts, no python, no model
+ *   node tools/mutation-draft-py.mjs --selftest-realm      # the realm check, through real pytest
  *   node tools/mutation-draft-py.mjs --dry-run --candidate <f.py>   # harness end to end, no model
  *   node tools/mutation-draft-py.mjs --limit 4             # night window only
  *   node tools/mutation-draft-py.mjs --verdict-sample      # the verdict object alone
@@ -73,6 +74,8 @@ const MODEL = opt('--model', 'qwen3-coder:30b');
 const CTX = Number(opt('--ctx', '12288'));
 const KEEP_ALIVE = opt('--keep-alive', '30s');
 const ATTEMPTS = Number(opt('--attempts', '3'));
+/* 1.2 s, so the pair cannot share a one-second clock tick whatever the phase. */
+const VOLATILE_GAP_MS = 1200;
 /* A greedy retry is a re-run, not a second try (the JS lane measured this), so each attempt samples
    differently. */
 const SAMPLING = [{ temperature: 0 }, { temperature: 0.7, top_p: 0.8, top_k: 20 }, { temperature: 1.0, top_p: 0.95, top_k: 20 }];
@@ -81,6 +84,18 @@ const NIGHT_TO = Number(opt('--window-to', '8'));
 const RUN_TIMEOUT_MS = Number(opt('--run-timeout', '120')) * 1000;
 const ZONES = ['UTC', 'America/New_York', 'Asia/Kolkata'];
 const MAX_ASSERT_PATHS = 3;
+
+/* ONE ENVIRONMENT, DECLARED ONCE — a fixture is verified inside RUNNER_PY and lands in DRAFTS, and
+   the two provided different names. The runner's globals carried `Path` and `json`; the drafts file
+   imported neither, so the first fixture the machine check ever kept used `Path(night)` and could
+   not run where it landed (measured 2026-11-01 on mutant 20). Both sides are built from this list
+   and a selftest holds the committed file against it, so a name cannot reach one side alone. */
+export const FIXTURE_ENV = [
+  { name: 'json', imp: 'import json  # noqa: F401  — the runner offers every fixture these names' },
+  { name: 'os', imp: 'import os' },
+  { name: 'time', imp: 'import time' },
+  { name: 'Path', imp: 'from pathlib import Path  # noqa: F401  — the runner offers every fixture these names' }
+];
 
 /* ══ THE RUNNER ════════════════════════════════════════════════════════════════════════════════════
    Written to the scratch dir and executed with `-I`, so neither the cwd nor PYTHONPATH can inject a
@@ -106,7 +121,7 @@ try:
         raise SystemExit(3)
     import test_nightqc as H
     code = Path(CAND).read_text()
-    g = {"N": N, "H": H, "json": json, "os": os, "Path": Path, "time": time}
+    g = {"N": N, "H": H, ${FIXTURE_ENV.map((e) => '"' + e.name + '": ' + e.name).join(', ')}}
     exec(compile("def _candidate(TMP, N, H):\\n" + textwrap.indent(code, "    "), "<candidate>", "exec"), g)
     TMP = Path(tempfile.mkdtemp(prefix="cand-", dir=os.environ.get("TEPNA_CAND_TMP") or None))
     res = g["_candidate"](TMP, N, H)
@@ -289,6 +304,38 @@ function scratch() {
   return d;
 }
 
+/* A REJECTION THAT DOES NOT CARRY THE PROPOSAL CANNOT BE DIAGNOSED. The first real model run
+   rejected 4 of 4 with one identical TypeError, and the fixture text survived only because the
+   scratch directory happened to outlive the run in /tmp. The journal now holds the proposal. */
+export function rejectionRecord(mutant, why, fixture, trace) {
+  return {
+    mutant,
+    v: 'NO-KILL',
+    why,
+    fixture: String(fixture || '').slice(0, 4000),
+    ...(trace ? { trace: String(trace).slice(0, 1600) } : {})
+  };
+}
+
+/* A RETRY THAT CARRIES NO FEEDBACK ASKS THE SAME QUESTION TWICE. The attempt loop used to retry only
+   an unparseable reply, so the failure that actually happens — a fixture that RUNS and discriminates
+   nothing — got one shot in silence. This block is the whole difference between attempt 1 and 2, so
+   it is pure and selftested: no feedback means the first attempt, and the prompt is unchanged. */
+export function feedbackBlock(body, why) {
+  if (!why) return '';
+  const out = ['YOUR PREVIOUS ATTEMPT WAS REJECTED. The harness ran it and measured the result.'];
+  if (body) out.push('', 'The body you sent:', '```python', String(body).slice(0, 1500), '```');
+  out.push(
+    '',
+    'Why it was rejected: ' + why,
+    '',
+    'Write a DIFFERENT body. A fixture that merely runs is not enough: the mutated line must CHANGE a',
+    'value the returned dict reports, so build a night where that line runs and its effect reaches the',
+    'output. Do not repeat the body above.'
+  );
+  return out.join('\n');
+}
+
 function runCandidate(dir, mutDir, candFile, tz) {
   const r = spawnSync('python3', ['-I', join(dir, 'runner.py'), mutDir || '-', CH, candFile, tz], {
     encoding: 'utf8',
@@ -314,7 +361,17 @@ function runCandidate(dir, mutDir, candFile, tz) {
         .split('\n')
         .slice(-2)
         .join(' ')
-        .slice(0, 220)
+        .slice(0, 220),
+      /* THE LAST TWO LINES CUT THE LINE THAT FAILED. A TypeError's final frame is the caret row, so
+         the log line names the exception and says nothing about which call raised it. The journal
+         keeps a longer tail, because a rejection nobody can diagnose costs a whole night window. */
+      trace: out
+        .slice(err + 9)
+        .trim()
+        .split('\n')
+        .slice(-14)
+        .join('\n')
+        .slice(0, 1600)
     };
   if (r.error) return { ok: false, why: 'python did not run: ' + r.error.message.slice(0, 120) };
   return { ok: false, why: 'no result and no error marker (exit ' + r.status + ')' };
@@ -352,7 +409,7 @@ function rowsFor(ident) {
 
 /* ══ THE MODEL ═════════════════════════════════════════════════════════════════════════════════════ */
 
-function promptFor(row, before, context) {
+function promptFor(row, before, context, feedback) {
   return [
     'You write ONE pytest fixture body for the python function `nightqc.summarize(night_dir, devices, wear=None, writer_offset=None)`.',
     '',
@@ -368,10 +425,20 @@ function promptFor(row, before, context) {
     '```',
     '',
     'HELPERS you may use (they are module-level in capture-host/tests/test_nightqc.py, reachable as `H.`):',
-    '  H._cap(night, name, rows, header=None) -> path    writes a capture file with `rows` data lines',
+    '  H._cap(night, name, n_rows, header=None) -> path  writes a capture file with `n_rows` data lines.',
+    '                                                    `n_rows` is an INT COUNT, never a list of row',
+    '                                                    strings: the helper does `for i in range(n_rows)`.',
     '  H._utime(path, epoch)                             sets a file mtime',
-    '  H._stamp_epoch(stamp=...)                         the epoch of the standard 2026-07-19 22:00 stamp',
-    '  H._devices()                                      two declared devices: H10 (ecg,acc,hr), Ring (spo2,ppg)',
+    '  H._stamp_epoch()                                  the floating epoch of the standard stamp',
+    '                                                    20260719220000. Its argument is the 14-DIGIT',
+    '                                                    FILENAME STAMP and nothing else, so write',
+    '                                                    H._stamp_epoch("20260719223000"). Any other',
+    '                                                    spelling returns None, and H._utime then raises',
+    '                                                    TypeError on the None.',
+    '  H._devices()                                      two declared devices. H10 device_id 02849638 carries',
+    '                                                    ecg, acc and hr. Ring device_id S8AW carries spo2',
+    '                                                    and ppg. A capture file whose device_id matches',
+    '                                                    neither belongs to no declared device.',
     '  H._summarize_floating(night, devices, wear=None)  calls summarize with a declared writer offset',
     '  H._summarize(night, devices, wear=None)           the same, declared from the reader frame',
     '  N                                                 the nightqc module itself (N._MIN_SPAN_SEC = 300.0,',
@@ -383,9 +450,13 @@ function promptFor(row, before, context) {
     '  · A capture file name looks like `Polar_H10_02849638_20260719220000_ECG.txt` —',
     '    `<vendor>_<model>_<device_id>_<YYYYMMDDHHMMSS>_<STREAM>.<ext>`.',
     '  · Build the night folder under TMP, e.g. `night = str(TMP / "2026-07-19"); os.makedirs(night)`.',
+    '  · Pass a helper only the shape its signature names. A helper that reads an unexpected spelling',
+    '    returns None, and the next call raises on the None rather than telling you which argument',
+    '    was wrong.',
     '  · Assert NOTHING and print NOTHING. Do not invent an expected value: the harness records the',
     '    real output itself and compares it against the mutant.',
     '',
+    ...(feedback ? [feedback, ''] : []),
     'Reply with the python body inside one ```python fence and nothing else.'
   ].join('\n');
 }
@@ -479,8 +550,7 @@ const DRAFTS_HEADER = [
   '#',
   '# ⚠️ A DRAFT STATES BEHAVIOUR, NOT INTENT. One of these can pin a bug in place; read the docstring',
   '# before treating an assertion as a requirement.',
-  'import os',
-  'import time',
+  ...FIXTURE_ENV.map((e) => e.imp),
   '',
   'import pytest',
   '',
@@ -556,6 +626,31 @@ function pytestIn(dir, target, timeoutS = 600) {
   });
   const out = ((r.stdout || '') + (r.stderr || '')).trim().split('\n');
   return { status: r.status, tail: out.slice(-2).join(' ').slice(0, 200) };
+}
+
+/* THE REALM THAT WILL RUN IT IS THE ONLY ONE THAT COUNTS. The JS lane measured this first:
+   `tools/verify-drafts.mjs` found 2 of 48 drafts recording a value the suite's realm cannot produce,
+   because the DRAFTING realm differed from it. This lane had the same hole — a fixture is verified
+   inside `RUNNER_PY`, which hands it `Path` and a scratch TMP, and it lands in pytest. So the run
+   itself now appends the rendered draft to a copy of the drafts file inside a private copy of the
+   tree and runs pytest over it. A draft that cannot run there, or whose recorded literal is not
+   reproducible there, is never written. `--verify-kills` stays the INDEPENDENT re-check, not the
+   first one. */
+function suiteRealm(draftText, slug) {
+  mkdirSync(KILL_CACHE, { recursive: true });
+  const tree = join(KILL_CACHE, 'realm');
+  spawnSync('rm', ['-rf', tree]);
+  const cp = spawnSync('cp', ['-a', CH, tree], { encoding: 'utf8', timeout: 300000 });
+  if (cp.status !== 0) return { ok: false, why: 'the private tree could not be copied: ' + String(cp.stderr).slice(0, 160) };
+  const name = DRAFTS.split('/').pop();
+  const f = join(tree, 'tests', name);
+  const head = existsSync(f) ? readFileSync(f, 'utf8') : DRAFTS_HEADER;
+  writeFileSync(f, head.replace(/\s*$/, '\n') + draftText);
+  const r = pytestIn(tree, 'tests/' + name + '::test_draft_' + slug, 300);
+  if (r.status === 0) return { ok: true };
+  /* pytest exits 0 only when it RAN the draft and it passed; 1 is a failing assertion, 4 a usage
+     error and 5 "collected nothing". None of them is a pass, and each names a different hole. */
+  return { ok: false, why: 'the draft does not pass in the realm that will run it (pytest exit ' + r.status + '): ' + r.tail };
 }
 
 function verifyKills() {
@@ -814,86 +909,113 @@ async function main() {
       return d;
     });
 
+    /* AN ATTEMPT IS A MEASUREMENT, NOT A PARSE. The loop used to break on the first reply that
+       PARSED and ran the machine check once, outside it — so the failure that actually happens (a
+       fixture that executes and discriminates nothing: 4 of 4 on the first real model run) got one
+       shot and the model was never told why. The check now runs INSIDE the loop and each rejection
+       becomes the next attempt's feedback. */
+    const cf = join(dir, 'cand.py');
+    const ctxLines = dry ? '' : lines.slice(Math.max(span[0], occ[0] - 14), Math.min(span[1], occ[0] + 8)).join('\n');
+    const tries = dry ? 1 : ATTEMPTS;
     let fixture = null;
     let note = '';
-    let why = '';
-    if (dry) {
-      if (!candFile || !existsSync(candFile)) {
-        log('✗ --dry-run needs --candidate <file.py>');
-        process.exitCode = 2;
-        return;
-      }
-      fixture = readFileSync(candFile, 'utf8');
-      note = 'hand-written dry-run candidate, no model involved';
-    } else {
-      const ctxLines = lines.slice(Math.max(span[0], occ[0] - 14), Math.min(span[1], occ[0] + 8)).join('\n');
-      for (let a = 0; a < ATTEMPTS && !fixture; a++) {
+    let lastWhy = '';
+    let lastBody = '';
+    log('  · ' + tag);
+    for (let a = 0; a < tries; a++) {
+      let cand = '';
+      if (dry) {
+        if (!candFile || !existsSync(candFile)) {
+          log('✗ --dry-run needs --candidate <file.py>');
+          process.exitCode = 2;
+          return;
+        }
+        cand = readFileSync(candFile, 'utf8');
+        note = 'hand-written dry-run candidate, no model involved';
+      } else {
         let reply = '';
         try {
-          reply = await askLocal(promptFor(row, parts.before, ctxLines), a);
+          reply = await askLocal(promptFor(row, parts.before, ctxLines, feedbackBlock(lastBody, lastWhy)), a);
         } catch (e) {
           log('✗ the local model is unreachable at ' + LOCAL_HOST + ' — stopping. No drafts are produced (a refusal, not an empty result).');
           log('  ' + String(e.message).slice(0, 140));
           return;
         }
         const p = parseFixture(reply);
-        if (p.ok) {
-          fixture = p.body;
-          note = 'proposed by ' + MODEL + ' on attempt ' + (a + 1);
-        } else why = p.why;
+        if (!p.ok) {
+          jrec({ mutant: row.mutant, v: 'NO-FIXTURE', why: p.why, attempt: a + 1 });
+          log('      attempt ' + (a + 1) + '/' + tries + ' ✗ ' + p.why);
+          lastWhy = p.why;
+          lastBody = '';
+          continue;
+        }
+        cand = p.body;
+        note = 'proposed by ' + MODEL + ' on attempt ' + (a + 1);
       }
-      if (!fixture) {
-        jrec({ mutant: row.mutant, v: 'NO-FIXTURE', why });
-        log('  ✗ ' + tag + ' — ' + why);
-        rejected++;
+      writeFileSync(cf, cand);
+      /* THE MUTANT IS COMPARED AGAINST AN UNMUTATED COPY IN THE SAME KIND OF PLACE, never against the
+         repo's own module — see `controlPaths`. The repo run still happens, because the drafted test
+         will run there and its recorded values must be the ones it will see. */
+      const twin = runCandidate(dir, twinDir, cf, 'UTC');
+      /* THE VOLATILE CONTROL HAS TO STRADDLE A SECOND BOUNDARY. A value the module derives from NOW
+         — a file mtime with no stamp in its name resolves to the moment the fixture wrote it — has
+         second granularity, so two runs inside one second read identical and the control calls it
+         stable. Mutant 20's first kept draft asserted three such epochs as literals. */
+      await new Promise((r) => setTimeout(r, VOLATILE_GAP_MS));
+      const twin2 = runCandidate(dir, twinDir, cf, 'UTC');
+      const rep = runCandidate(dir, null, cf, 'UTC');
+      const muts = mutDirs.map((md) => runCandidate(dir, md, cf, 'UTC'));
+      const ctl = controlPaths(twin, twin2, rep);
+      if (!rep.ok) {
+        const bad = 'the fixture failed against the repo module: ' + rep.why;
+        jrec({ ...rejectionRecord(row.mutant, bad, cand, rep.trace), attempt: a + 1 });
+        log('      attempt ' + (a + 1) + '/' + tries + ' ✗ ' + bad);
+        lastWhy = bad;
+        lastBody = cand;
         continue;
       }
-    }
-
-    const cf = join(dir, 'cand.py');
-    writeFileSync(cf, fixture);
-    /* THE MUTANT IS COMPARED AGAINST AN UNMUTATED COPY IN THE SAME KIND OF PLACE, never against the
-       repo's own module — see `controlPaths`. The repo run still happens, because the drafted test
-       will run there and its recorded values must be the ones it will see. */
-    const twin = runCandidate(dir, twinDir, cf, 'UTC');
-    const twin2 = runCandidate(dir, twinDir, cf, 'UTC');
-    const inRepo = runCandidate(dir, null, cf, 'UTC');
-    const muts = mutDirs.map((d) => runCandidate(dir, d, cf, 'UTC'));
-    const control = controlPaths(twin, twin2, inRepo);
-    if (!inRepo.ok) {
-      jrec({ mutant: row.mutant, v: 'NO-KILL', why: 'the fixture failed against the repo module: ' + inRepo.why });
-      log('  ✗ ' + tag);
-      log('      the fixture failed against the repo module: ' + inRepo.why);
-      rejected++;
-      continue;
-    }
-    const d = decide(twin, muts, control, inRepo.result);
-    if (!d.keep) {
-      jrec({ mutant: row.mutant, v: 'NO-KILL', why: d.why });
-      log('  ✗ ' + tag);
-      log('      ' + d.why);
-      rejected++;
-      continue;
-    }
-    /* A zone-dependent projection would pass here and fail in CI, which runs UTC while the rig runs
-       EDT. The draft declares UTC either way; this records whether the value is zone-free. */
-    const zoneStable = ZONES.every((tz) => {
-      const r = runCandidate(dir, null, cf, tz);
-      return r.ok && d.paths.every((p) => JSON.stringify(valueAt(r.result, p).value) === JSON.stringify(valueAt(inRepo.result, p).value));
-    });
-    jrec({ mutant: row.mutant, v: 'KEPT', paths: d.paths, zoneStable, occurrences: occ.length, controlDropped: control.length });
-    kept.push({
-      row,
-      text: renderDraft(
+      const dd = decide(twin, muts, ctl, rep.result);
+      if (!dd.keep) {
+        jrec({ ...rejectionRecord(row.mutant, dd.why, cand, null), attempt: a + 1 });
+        log('      attempt ' + (a + 1) + '/' + tries + ' ✗ ' + dd.why);
+        lastWhy = dd.why;
+        lastBody = cand;
+        continue;
+      }
+      /* A zone-dependent projection would pass here and fail in CI, which runs UTC while the rig runs
+         EDT. The draft declares UTC either way; this records whether the value is zone-free. */
+      const zoneStable = ZONES.every((tz) => {
+        const r = runCandidate(dir, null, cf, tz);
+        return r.ok && dd.paths.every((pp) => JSON.stringify(valueAt(r.result, pp).value) === JSON.stringify(valueAt(rep.result, pp).value));
+      });
+      const text = renderDraft(
         row,
-        fixture,
-        d.paths,
-        inRepo.result,
+        cand,
+        dd.paths,
+        rep.result,
         note + (zoneStable ? '; the asserted value is the same in all three zones' : '; the asserted value is zone-dependent, so the draft declares UTC')
-      )
-    });
-    log('  ✓ ' + tag);
-    log('      killed on ' + d.paths.join(', ') + (occ.length > 1 ? '  (both occurrences of this key)' : '') + '  [' + control.length + ' control path(s) dropped]');
+      );
+      const realm = suiteRealm(text, mslug);
+      if (!realm.ok) {
+        jrec({ ...rejectionRecord(row.mutant, realm.why, cand, null), attempt: a + 1 });
+        log('      attempt ' + (a + 1) + '/' + tries + ' ✗ ' + realm.why);
+        lastWhy = realm.why;
+        lastBody = cand;
+        continue;
+      }
+      jrec({ mutant: row.mutant, v: 'KEPT', paths: dd.paths, zoneStable, occurrences: occ.length, controlDropped: ctl.length, attempt: a + 1 });
+      kept.push({ row, text });
+      log('  ✓ ' + tag);
+      log('      killed on ' + dd.paths.join(', ') + (occ.length > 1 ? '  (both occurrences of this key)' : '') + '  [' + ctl.length + ' control path(s) dropped, realm-checked]');
+      fixture = cand;
+      break;
+    }
+    if (!fixture) {
+      log('  ✗ ' + tag);
+      log('      ' + (lastWhy || 'the model returned no parseable fixture') + '  [' + tries + ' attempt(s), none kept]');
+      rejected++;
+      continue;
+    }
   }
 
   if (kept.length) {
@@ -1009,6 +1131,31 @@ function selftest() {
   eq(/    assert s\["files"\] == 6/.test(dr2), true, 'renderDraft compares a number with ==, never with is');
   eq(/^\n\ndef test_draft_m2/.test(dr2), true, 'renderDraft opens with the two newlines that give a joined file its blank lines');
   eq(/tmp_path \/ "n"/.test(dr), true, "renderDraft hands the fixture pytest's own tmp_path");
+  const rr = rejectionRecord('m1', 'boom', 'night = str(TMP / "n")\nreturn 1', 'Traceback\n  TypeError');
+  eq(rr.fixture, 'night = str(TMP / "n")\nreturn 1', 'a rejection carries the model proposal that failed');
+  eq(rr.trace, 'Traceback\n  TypeError', 'a rejection carries the longer trace when one exists');
+  eq('trace' in rejectionRecord('m1', 'boom', 'x', null), false, 'a rejection with no trace omits the key rather than writing null');
+  eq(rejectionRecord('m1', 'boom', 'y'.repeat(5000), null).fixture.length, 4000, 'a huge proposal is bounded in the journal');
+  eq(feedbackBlock('return 1', ''), '', 'no rejection means no feedback block, so attempt 1 asks the stock question');
+  eq(feedbackBlock('', 'it did not discriminate').includes('The body you sent'), false, 'an unparseable attempt has no body to quote back');
+  eq(feedbackBlock('return H._summarize(n, d)', 'it did not discriminate').includes('return H._summarize(n, d)'), true, 'the feedback quotes the rejected body back');
+  eq(feedbackBlock('x', 'it did not discriminate').includes('it did not discriminate'), true, 'the feedback names the measured reason');
+  eq(feedbackBlock('y'.repeat(4000), 'why').length < 2200, true, 'a huge rejected body is bounded before it reaches the context window');
+  eq(
+    FIXTURE_ENV.filter((e) => !RUNNER_PY.includes('"' + e.name + '": ' + e.name)).map((e) => e.name),
+    [],
+    'the runner offers a fixture every name the declared environment lists'
+  );
+  eq(
+    FIXTURE_ENV.filter((e) => !DRAFTS_HEADER.includes(e.imp)).map((e) => e.name),
+    [],
+    'a fresh drafts file imports every name the runner offers a fixture'
+  );
+  eq(
+    existsSync(DRAFTS) ? FIXTURE_ENV.filter((e) => !readFileSync(DRAFTS, 'utf8').includes(e.imp)).map((e) => e.name) : [],
+    [],
+    'the COMMITTED drafts file imports every name the runner offers a fixture'
+  );
   const rv = refusalVerdict('local hour 20 is outside the 0:00-8:00 night window', 'abcdef12');
   eq(rv.status, 'NOT_RUN', 'a refusal reports NOT_RUN, never a zero result that reads as a measurement');
   eq(rv.result, null, 'a NOT_RUN refusal carries result null');
@@ -1019,6 +1166,35 @@ function selftest() {
   log(process.exitCode ? 'SELFTEST FAILED after ' + n + ' assertions' : n + ' assertions passed');
 }
 
-if (has('--selftest')) selftest();
+/* THE REALM CHECK IS THE ONE PART `--selftest` CANNOT REACH, because it spawns pytest over a copy
+   of the tree. An unexercised guard is the `find_unwired` defect in a new place, so it has its own
+   entry point rather than none. Leg 2 is the regression proof for the measured defect: a draft that
+   touches `Path` passed inside the runner and could not run in the destination. */
+function selftestRealm() {
+  let n = 0;
+  const show = (okWanted, got, what) => {
+    n++;
+    if (okWanted !== got.ok) {
+      log('✗ ' + what + ': wanted ok=' + okWanted + ', got ' + JSON.stringify(got));
+      process.exitCode = 1;
+    } else log('  ✓ ' + what + (got.why ? ' — ' + got.why.slice(0, 90) : ''));
+  };
+  show(
+    true,
+    suiteRealm('\n\ndef test_draft_realm_probe(tmp_path, _draft_utc):\n    assert isinstance(_devices(), list)\n', 'realm_probe'),
+    'a draft reaching the header helpers runs in the realm that will run it'
+  );
+  show(
+    true,
+    suiteRealm('\n\ndef test_draft_realm_path(tmp_path, _draft_utc):\n    assert Path(str(tmp_path)).exists()\n', 'realm_path'),
+    'a draft reaching `Path` runs there too — the name the runner offered and the file lacked'
+  );
+  show(false, suiteRealm('\n\ndef test_draft_realm_fail(tmp_path, _draft_utc):\n    assert 1 == 2\n', 'realm_fail'), 'a draft whose recorded value is not reproducible there is refused');
+  show(false, suiteRealm('\n\ndef test_draft_realm_absent(tmp_path, _draft_utc):\n    assert 1 == 1\n', 'no_such_test'), 'a draft pytest cannot collect is refused, never counted as a pass');
+  log(process.exitCode ? 'REALM SELFTEST FAILED after ' + n + ' checks' : n + ' realm checks passed');
+}
+
+if (has('--selftest-realm')) selftestRealm();
+else if (has('--selftest')) selftest();
 else if (has('--verify-kills')) verifyKills();
 else await main();
