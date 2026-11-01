@@ -6562,6 +6562,14 @@
        axis, rather than a null key: no committed fixture has one. */
     if (r.hostAxis && r.hostAxis.ok) {
       out.recording.hostAxis = {
+        /* THE GATE'S OWN VERDICT. The `if` one line up tests `r.hostAxis.ok` and this list dropped the
+           key, so over an artifact it read `undefined` — row
+           `2026-11-01-the-exported-host-axis-block-drops-the-ok-it-was-gated-on`, which measured the
+           same drop in `ppgdex-dsp.js` and names both faces of the harm there. MotionDex's own field
+           list names `ok` (`_mdExportAxis`), so the three publishers disagreed on one key.
+           Forwarded rather than written as `true`, and `== null ? null` per §∅. `anchors` below
+           carries the spine's `n`. */
+        ok: r.hostAxis.ok == null ? null : r.hostAxis.ok === true,
         applied: r.hostAxis.applied,
         anchors: r.hostAxis.anchors,
         ppm: r.hostAxis.ppm,

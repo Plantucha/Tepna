@@ -57,6 +57,7 @@
       "source": "ble-dropout"
     },
     "hostAxis": {
+      "ok": true,
       "anchors": 9,
       "ppm": -7.478025799256342,
       "spanMs": 39622.222222,
@@ -93,8 +94,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "c36a3d522072",
-        "computeHash": "ea4817278776"
+        "manifestHash": "3988e3711521",
+        "computeHash": "ad90e0b2b715"
       },
       "evidence": {
         "envelopeRef": null,
@@ -123,8 +124,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "c36a3d522072",
-        "computeHash": "ea4817278776"
+        "manifestHash": "3988e3711521",
+        "computeHash": "ad90e0b2b715"
       },
       "evidence": {
         "envelopeRef": null,

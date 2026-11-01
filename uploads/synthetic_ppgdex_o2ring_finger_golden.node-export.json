@@ -35,6 +35,7 @@
       "reason": "device inter-sample deltas concentrate on one value (77.91 % share) — a synthesised counter, not a clock, whatever ppm it reports; host ≡ device — residual spread 0.75 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: the device-crystal branch overwrote the rate with the ADC constant, so the host correction reached nothing"
     },
     "hostAxis": {
+      "ok": true,
       "anchors": 11,
       "ppm": -6.868177291421405,
       "spanMs": 39757.27306,
@@ -74,8 +75,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "c36a3d522072",
-        "computeHash": "ea4817278776"
+        "manifestHash": "3988e3711521",
+        "computeHash": "ad90e0b2b715"
       },
       "evidence": {
         "envelopeRef": null,
@@ -104,8 +105,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "c36a3d522072",
-        "computeHash": "ea4817278776"
+        "manifestHash": "3988e3711521",
+        "computeHash": "ad90e0b2b715"
       },
       "evidence": {
         "envelopeRef": null,

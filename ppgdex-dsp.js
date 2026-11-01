@@ -7071,6 +7071,23 @@
                 ? { rate: 'measured', reason: null }
                 : { rate: 'unknown', reason: 'spans ' + Math.round(haSpanMs / 1000) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs' };
       out.recording.hostAxis = {
+        /* ── THE GATE'S OWN VERDICT, WHICH THIS RESHAPE DROPPED UNTIL 2026-11-01 ──────────────────
+           The `if` one line up tests `r.hostAxis.ok`, and this list never named `ok`, so over an
+           artifact the key read `undefined`, which is falsy. Row
+           `2026-11-01-the-exported-host-axis-block-drops-the-ok-it-was-gated-on`, and the harm has two
+           measured faces. A reader FILTERING the 452 committed exports on `hostAxis.ok` matched ONE
+           file and read clean. `tools/pat-drift-attribution.mjs:126` fails closed, so handed an
+           artifact's block it answers `ppm: null, reason: 'axis refused'` over a good axis.
+           THE SHAPES ALSO DISAGREED ACROSS PUBLISHERS, which is why documenting "the block's presence
+           is the verdict" was not the fix. `motiondex-dsp.js:_mdExportAxis` is a field list exactly
+           like this one and it NAMES the key (`ok: ax.ok === true`), so a MotionDex artifact always
+           carried `ok` while this node and ECGDex dropped it. Three publishers, two shapes.
+           FORWARDED, never a literal `true` — the value states what the gate read, so a later change
+           that emits this block on a REFUSAL (`ok: false` plus the spine's own `reason`, row
+           `2026-11-01-no-artifact-carries-the-host-axis-refusal-the-spine-published`) travels through
+           this same line. `== null ? null` per §∅, because a source object without the key is unknown
+           and never false. `anchors` below already carries the spine's `n`. */
+        ok: r.hostAxis.ok == null ? null : r.hostAxis.ok === true,
         anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
         ppm: nz(r.hostAxis.ppm),
         /* §7's two companions for a quoted rate, and this block published neither. `spanMs` is the
