@@ -46734,6 +46734,26 @@
         /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], DM({ readable: false, missing: [], extra: [] }))),
         false
       );
+      /* ── the signature comment (owner, 2026-11-01: "it will sign everything what it does") ──── */
+      var sg = env.pwSignature;
+      var AT = '2026-11-01T11:45:09.000Z';
+      T.ok(
+        'an undraft is signed with the walker, the action and the UTC time',
+        /^🚶 \*\*Marked ready for review \(undrafted\) by the fleet walker\*\* at 11:45 UTC, 2026-11-01\.\n\nReason: green draft, pool 1\/4\.\n/.test(
+          sg({ op: 'ready', number: 3, result: 'ok', why: 'green draft, pool 1/4' }, AT)
+        )
+      );
+      T.ok('a merge is signed too', /^🚶 \*\*Squash-merged by the fleet walker\*\*/.test(sg({ op: 'merge', number: 3, result: 'ok', why: 'w' }, AT)));
+      T.ok('a pushed rebase names its new head', /New head `abcdef012`\./.test(sg({ op: 'rebase', number: 3, result: 'pushed:abcdef0123456789', why: 'w' }, AT)));
+      T.eq('a failed action signs nothing', sg({ op: 'update', number: 3, result: 'failed: x', why: 'w' }, AT), null);
+      T.eq('a stopped rebase signs nothing', sg({ op: 'rebase', number: 3, result: 'stopped', why: 'w' }, AT), null);
+      T.eq('a dry-run signs nothing', sg({ op: 'ready', number: 3, result: 'dry-run', why: 'w' }, AT), null);
+      T.ok(
+        'a comment that failed to post shows on the actions line',
+        /\nactions: ready #3 → ok \(signed: false\)\n/.test(
+          page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [{ op: 'ready', number: 3, result: 'ok', signed: false }], { at: 'x', requiredSource: 'ruleset(11)' })
+        )
+      );
       T.eq('and a page written before drift existed still renders', /DRIFT/.test(page([quietCur], { nonDraft: 1, cap: 4, alerts: [] }, [], { at: 'x', requiredSource: 'ruleset(11)' })), false);
     });
     group('Queue-doctor — the red ledger writes a line once per change, and a clear is named', 'tools · queue-doctor-ledger', function (T) {
