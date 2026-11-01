@@ -16,7 +16,10 @@
  *
  * 1 · FIDUCIAL — the intersecting-tangent FOOT, from the 3-LED consensus, on the host-disciplined
  *     per-sample axis. This is exactly `pat-feasibility-worker.js ppgFootTimes`:
- *       detectChannel per LED → consensusBeats → cons.feet → rec.relSec[idx].
+ *       detectChannel per LED → consensusBeats → cons.feet → rec.relSec INTERPOLATED at the
+ *       sub-sample foot position. A plain `rel[idx]` subscript misses at a fractional index,
+ *       which is the correction #4069 made in the worker and this tool carried until
+ *       2026-11-01.
  *     NOT `PPGDSP.analyze().tt`, which is the Malik-corrected PPI series — a different, coarser
  *     quantity. Substituting it is what produced a 5× inflated scatter in an earlier attempt here.
  *     Ranked fiducials (Physiol. Meas. 2019, doi:10.1088/1361-6579/ab009b): tangent-intersection and
@@ -125,7 +128,7 @@ const ctx = vm.createContext({
 ctx.window = ctx;
 ctx.self = ctx;
 ctx.globalThis = ctx;
-for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']) {
+for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'pat-gate.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']) {
   try {
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(ROOT, f), 'utf8')), ctx, { filename: f });
   } catch (e) {
@@ -166,17 +169,33 @@ function ecgRpeakTimes(text) {
   for (let i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
   return { fs: rec.fs, times: Array.from(t), n: peaks.length };
 }
-/* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────────────────────
-   @port-sha 8282b1de745f
-   @port-behind aa2336fd1179 2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition
-   The copy below agrees with the worker's pre-#4069 text. #4069 (2026-10-28) gave the worker a
-   pinned-span refusal and this copy carries none, so `tools/port-parity.mjs` reads SHORTFALL against
-   that row rather than a pass. Re-pin the sha only after READING both sides, never to quiet the gate.
-   This copy claims behaviour rather than text, and it was revised ten hours after #4069 with none of
-   it — which is why the sha names the text the copy agrees with and not its own commit date.
+/* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
+   @port-sha aa2336fd1179
+   READ against that text on 2026-11-01, for row
+   2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition. Two of the worker's corrections
+   now live here.
+
+   1 · THE `relSec` LOOKUP INTERPOLATES. `cons.feet` are sub-sample positions, so a plain `rel[idx]`
+       subscript misses at EVERY fractional index and the old copy fell through to `idx / fs` on all
+       of them — trading the measured per-sample axis for a synthesised constant-rate one. Measured
+       2026-11-01 before this edit: 43 of 43 feet on `uploads/synthetic_ppgdex_verity.txt` and 9559 of
+       9559 on a real 11,279 s Verity night took the fallback. That night's MEASURED axis spans
+       23,606.9 s against the synthesised 11,279.4 s, so the two placements sit 3.4 h apart at the
+       last foot. The worker names the same defect and its own measurement; this is the same fix.
+   2 · THE PINNED-SPAN REFUSAL (#4069). A consensus foot every channel was pinned through was
+       measured by nothing and is refused; one pinned channel of three is reduced COVERAGE and is
+       annotated (§∅). `runsText` is OPTIONAL and LAST per §🧪, so a caller that hands over no
+       `_PPGRUNS.txt` gets the record above unchanged. This tool's own call site hands over none
+       today, which row 2026-10-17-sample-parsers-called-without-their-sidecar holds.
+
+   DELIBERATELY NOT PORTED. The worker's `beatSQI` / `beatConfidence` / `unmeasuredSec` / `validity`
+   block serves the worker's own consumers, and nothing here reads those fields: a port is not a
+   merge. The worker applies no consensus polarity and neither does this copy —
+   `tools/pat-matchrate-strict.mjs` does, and row
+   2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers holds that difference.
  */
-function ppgFootTimes(text) {
-  const rec = PPGDSP.parsePPG(text);
+function ppgFootTimes(text, runsText) {
+  const rec = runsText ? PPGDSP.parsePPG(text, { runsText }) : PPGDSP.parsePPG(text);
   if (!rec || rec.t0Ms == null) return null;
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
   let refIdx = 0,
@@ -187,17 +206,65 @@ function ppgFootTimes(text) {
       refIdx = i;
     }
   });
-  const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
+  let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
+  const chRanges = [];
+  if (rec.pinnedCrossCheck && Array.isArray(rec.spans)) {
+    for (const sp of rec.spans) chRanges.push(PATGate.runRanges((sp && sp.spans) || []));
+  }
+  const chCursors = chRanges.map((r) => PATGate.inRunsCursor(r));
+  const footIdx = [];
+  let nAllPinned = 0,
+    nPartPinned = 0;
+  for (let fi = 0; fi < cons.feet.length; fi++) {
+    let hits = 0;
+    for (let cj = 0; cj < chCursors.length; cj++) if (chCursors[cj](cons.feet[fi])) hits++;
+    if (chCursors.length && hits === chCursors.length) {
+      nAllPinned++;
+      continue;
+    }
+    if (hits) nPartPinned++;
+    footIdx.push(fi);
+  }
+  if (nAllPinned) {
+    /* `agree` is index-aligned with `feet`, so it is cut with the same index list — the worker's
+       reason, and the same trap here. */
+    cons = {
+      ...cons,
+      feet: footIdx.map((i) => cons.feet[i]),
+      agree: cons.agree ? footIdx.map((i) => cons.agree[i]) : cons.agree
+    };
+  }
   const rel = rec.relSec,
     fs = rec.fs,
     t0 = rec.t0Ms;
+  const relOk = (k) => rel && rel[k] != null && isFinite(rel[k]);
   const t = [];
+  let nViaRel = 0;
   for (let i = 0; i < cons.feet.length; i++) {
     const idx = cons.feet[i];
-    const sec = rel && rel[idx] != null && isFinite(rel[idx]) ? rel[idx] : idx / fs;
+    const lo = Math.floor(idx),
+      hi = Math.ceil(idx),
+      fr = idx - lo;
+    let sec;
+    if (relOk(lo) && relOk(hi)) {
+      sec = rel[lo] + fr * (rel[hi] - rel[lo]);
+      nViaRel++;
+    } else sec = idx / fs;
     t.push(t0 + sec * 1000);
   }
-  return { fs: rec.fs, times: t, n: cons.feet.length, usedRelSec: !!(rel && rel.length) };
+  /* §∅ `usedRelSec` USED TO READ "the array was present", and it printed `yes` on a night where
+     every foot took the fallback. It now means what the column claims: EVERY foot resolved through
+     the measured axis. The two counts travel beside it so a partial night reads as one. */
+  return {
+    fs: rec.fs,
+    times: t,
+    n: cons.feet.length,
+    usedRelSec: cons.feet.length > 0 && nViaRel === cons.feet.length,
+    feetViaRelSec: nViaRel,
+    feetViaSampleRate: cons.feet.length - nViaRel,
+    droppedAllPinned: rec.pinnedCrossCheck ? nAllPinned : null,
+    partialPinned: rec.pinnedCrossCheck ? nPartPinned : null
+  };
 }
 /* coupleRtoFoot — the REJECTING form. A beat whose foot is not inside the window contributes nothing. */
 function coupleRtoFoot(R, F, lo, hi) {
@@ -232,7 +299,7 @@ const RE = { ankle: /veritysense.*_PPG\.txt$/i, ring: /o2ring.*_PPG\.txt$/i };
 console.log(`PAT TO THE PUBLISHED SPEC — ECG R-peak → intersecting-tangent consensus FOOT (${SITE})`);
 console.log(`  window [${PHYS_LO}, ${PHYS_HI}] ms, a beat with no foot inside it is REJECTED (never paired to the next cycle)`);
 console.log(`  target: literature beat-to-beat SD 7.21 ms (optimised) … 15.4 ms (worst traditional); repo's own prior run 18.68 ms\n`);
-console.log('  night        R-peaks   feet   paired  yield  |  PAT med   SD    IQR   | relSec');
+console.log('  night        R-peaks   feet   paired  yield  |  PAT med   SD    IQR   | feet via relSec');
 console.log('  ' + '-'.repeat(88));
 
 /* ONE WALK, AND THE WALK IS THE POPULATION. The two filters that used to sit in one `.filter()`
@@ -274,7 +341,7 @@ for (const n of nights) {
   }
   console.log(
     `  ${n}  ${String(E.n).padStart(7)} ${String(P.n).padStart(6)} ${String(c.lags.length).padStart(8)}  ${(100 * c.yield).toFixed(0).padStart(4)}%  | ` +
-      `${med(c.lags).toFixed(0).padStart(6)}ms ${sd(c.lags).toFixed(1).padStart(6)} ${iqr(c.lags).toFixed(0).padStart(5)}   | ${P.usedRelSec ? 'yes' : 'NO'}`
+      `${med(c.lags).toFixed(0).padStart(6)}ms ${sd(c.lags).toFixed(1).padStart(6)} ${iqr(c.lags).toFixed(0).padStart(5)}   | ${P.feetViaRelSec}/${P.n}`
   );
   ALL.push(...c.lags);
   covered.push(n);
