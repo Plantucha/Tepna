@@ -55,6 +55,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 import { makeVerdict, printVerdict } from './verdict-emit.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -126,7 +127,7 @@ function matchBracket(masked, from, open, close) {
    declaration nobody can evaluate, and a gate that cannot look must say so (§4b). */
 export function extractSymbol(text, name) {
   const masked = maskNonCode(text);
-  const n = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const n = escapeRe(name);
   const re = new RegExp(`(?:^|[^\\w$.])(?:function\\s+${n}\\s*\\(|(?:const|let|var)\\s+${n}\\s*=|${n}\\s*[:=]\\s*function\\b)`, 'g');
   const hits = [];
   for (let m = re.exec(masked); m; m = re.exec(masked)) {
