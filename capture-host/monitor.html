@@ -1569,6 +1569,15 @@ function nRowKey(n){
   const rs = n && typeof n.recording_start === 'string' ? n.recording_start : '';
   return (n && n.night ? n.night : '') + (rs ? '@' + rs.slice(11) : '');
 }
+/* ── ONE ROW PER NIGHT, ITS RECORDINGS LISTED INSIDE IT (owner ruling 2026-11-01) ───────────────────
+   The 2026-10-10 ruling gave each recording of a band its own row, so a doff gap showed one night
+   twice ("10-31 is there 2x"). The server now merges a band's recordings into one row and publishes
+   each one's own span in `sessions`; this prints them as `start–end`. A recording the sleep band keeps
+   out of the cells says `daytime`. A date-keyed night carries no sessions and prints nothing. */
+function nSessions(n){
+  const ss = n && Array.isArray(n.sessions) ? n.sessions : [];
+  return ss.length ? ' · ' + ss.map(x => String(x.start||'').slice(11) + '–' + String(x.end||'').slice(11) + (x.daytime ? ' daytime' : '')).join(', ') : '';
+}
 /* ── THE RING'S PPG HAS A DOOR OF ITS OWN WHEN THE VERITY IS ABSENT ─────────────────────────────────
    The Verity column is the only door into PPGDex, and the ring's `_PPG.txt` is filed under PPGDex too.
    So a night the Verity missed hid a pleth the ring did record: on 2026-10-29 the Sense stayed off all
@@ -1712,10 +1721,8 @@ function renderNights(){
     : 'The tools that need more than one device. ✓ opens the tool with the night\'s inputs loaded and run; a dash names what was missing.';
   const open = new Set([...document.querySelectorAll('tr.ndrawer:not([hidden])')].map(e=>e.id));
   const span = cols.length + 2;
-  // how many rows this BAND carries — the recording's own start is shown only when it has to disambiguate
-  const bandN = {}; for(const n of NIGHTS) bandN[n.night] = (bandN[n.night]|0) + 1;
-  const row = (n, i) => { const k = nRowKey(n), rs = typeof n.recording_start === 'string' ? n.recording_start.slice(11) : '';
-    const sub = nWd(n.night) + (bandN[n.night] > 1 && rs ? ' · from '+rs : '') + (n.daytime ? ' · daytime, outside the band' : '')
+  const row = (n, i) => { const k = nRowKey(n);
+    const sub = nWd(n.night) + nSessions(n) + (n.daytime ? ' · daytime, outside the band' : '')
               + (dev ? ' · longest '+nHrs(nSpan(n)) : '');
     return `<tr class="${i%2?'nz':''}" id="nrow-${esc(k)}"><td><button type="button" class="ndate" data-drawer="${esc(k)}" aria-expanded="${open.has('ndr-'+k)}">${esc(n.night)}<small>${esc(sub)}</small></button></td>${nSolidCell(n)}${cols.map(c=>dev?nDevCell(n,c):nFusCell(n,c)).join('')}</tr>`
       + `<tr class="ndrawer" id="ndr-${esc(k)}"${open.has('ndr-'+k)?'':' hidden'}><td colspan="${span}"><div class="ndr">${nDrawer(n)}</div></td></tr>`; };
