@@ -605,7 +605,12 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # 334 → 336 on 2026-11-01 (the alert quiet state survives a restart): `_read_quiet_state` and
     # `_write_quiet_state`, the file a restarted poller reads back. +2, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 336, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 336 → 337 on 2026-11-01 (row `2026-11-01-the-ring-rtc-push-carries-the-absorbed-dst-shift`):
+    # `device_clock_now`, the true civil clock a DEVICE RTC takes. It exists as a named function because
+    # which clock the 0xC0 push reads is the whole content of the decision, and a bare expression at the
+    # call site cannot be tested without re-implementing it in the test. +1, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 337, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
