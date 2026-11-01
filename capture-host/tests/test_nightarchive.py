@@ -619,6 +619,48 @@ def test_stalled_protection_is_silent_unless_all_three_conditions_hold(tmp_path)
     assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: now) == []
 
 
+def test_stalled_protection_ignores_the_box_rewriting_its_own_verdicts_on_an_old_night(tmp_path):
+    """MEASURED 2026-11-01: a deploy re-judged 2026-10-01 and rewrote SOLID-VERDICT.json in it; the box
+    then alerted "a finished night is held open" with device data quiet 723 h. A re-judge is the box
+    talking about the night, not a writer parking it."""
+    cap = str(tmp_path / "captures")
+    now = 100_000.0
+    names = sorted(nightarchive._BOX_DERIVED)
+    d = _night(cap, "2026-10-01", {_DEV: "x", **{n: "{}" for n in names}})
+    _touch(os.path.join(d, _DEV), now - 723 * 3600)
+    for n in names:
+        _touch(os.path.join(d, n), now - 1)
+    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: now) == []
+    # a REAL lone writer beside the fresh verdicts still raises the row
+    with open(os.path.join(d, _SIDE), "w") as fh:
+        fh.write("y")
+    _touch(os.path.join(d, _SIDE), now - 2)
+    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: now)
+    assert [(r["night"], r["any_age_sec"]) for r in rows] == [("2026-10-01", 2.0)], rows
+
+
+def test_the_box_derived_names_are_the_writers_own_constants():
+    import adapter_hci
+    import loss_audit
+    import solid_night
+    import solid_night_inputs
+
+    writers_say = {
+        solid_night.VERDICT_NAME,
+        solid_night.WITHDRAWN_NAME,
+        loss_audit.AUDIT_NAME,
+        loss_audit.VERDICT_NAME,
+        loss_audit.WITHDRAWN_NAME,
+        solid_night_inputs.LOSS_AUDIT_NAME,
+        nightarchive.nightqc._SUMMARY_NAME,
+        nightarchive.nightqc._QC_VERDICT_NAME,
+        nightarchive.nightqc._BACKCHECK_VERDICT_NAME,
+        adapter_hci.VERDICT_NAME,
+        nightarchive._MARKER,
+    }
+    assert nightarchive._BOX_DERIVED == writers_say
+
+
 def test_stalled_protection_skips_a_night_with_no_device_data_and_an_unreadable_one(tmp_path):
     cap = str(tmp_path / "captures")
     d = _night(cap, "2026-10-29", {_SIDE: "y"})
