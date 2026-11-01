@@ -171,10 +171,18 @@ class Notifier:
     `key`+`dedupe_sec` suppress a repeat of the SAME alert within a window so one flapping sensor cannot
     spam the operator. `_post` is injectable for tests (defaults to the real webhook)."""
 
-    def __init__(self, url: str | None = None, enabled: bool = False, _post=None, emails: list[str] | None = None):
+    def __init__(
+        self,
+        url: str | None = None,
+        enabled: bool = False,
+        _post=None,
+        emails: list[str] | None = None,
+        context: str = "",
+    ):
         self.url = url
         self.emails: list[str] = list(emails or [])  # ntfy `Email:` recipients for `send(..., email=True)`
         self.enabled = bool(enabled and url)
+        self.context = context  # rich-alert schema v1: Where/Handle footer, appended by send()
         self._post = _post or _http_post  # resolved here (not a default arg) so tests can patch it
         self._last: dict[str, float] = {}  # dedupe key → monotonic ts of the last send
         # ── DELIVERY IS RECORDED, NOT JUST ATTEMPTED ────────────────────────────────────────────────
@@ -240,6 +248,8 @@ class Notifier:
             self._last[key] = now
         self.last_title = title
         try:
+            if self.context:
+                message = f"{message}\n\n{self.context}"
             payload = {"title": title, "message": message}
             if email and self.emails:
                 ok = bool(await self._post(self.url, payload, headers={"Email": self.emails[0]}))

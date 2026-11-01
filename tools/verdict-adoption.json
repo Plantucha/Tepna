@@ -777,6 +777,21 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/archive-manifest.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/archive-manifest.mjs",
+     "verify",
+     "--night",
+     "2000-01-01",
+     "--json"
+    ]
+   },
+   "note": "ARCHIVE-MANIFEST (infra item 3a, Kestrel ruling #2507, brief INFRA-STATE-2026-10-31): --json prints ONE tepna.verdict/1 over archived capture nights. PASS = the copy matches the source-hashed manifest; FAIL names the missing or differing files; NOT_RUN (exit 2) where the archive dest is absent or unmounted, or the source does not answer over ssh, which is CI and every fresh clone, so the sample there examines nothing and says so. The sample night 2000-01-01 was never archived: the verdict is the tool's true answer for it on any box."
+  },
   "tools/argv-reads.mjs": {
    "bin": "decides",
    "status": "adopted",
