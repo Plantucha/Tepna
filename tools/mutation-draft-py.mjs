@@ -536,14 +536,67 @@ export function pyLiteral(v) {
   );
 }
 
+/** How many of the most-covering paths the bounded cover search may draw from. */
+export const COVER_CANDIDATES = 20;
+
+/**
+ * The smallest set of at most `limit` paths witnessing EVERY mutant, or `null` when the bounded
+ * search finds none. `witnesses[i]` is the list of paths that discriminate mutant i and resolve in
+ * the output the draft will assert on.
+ *
+ * The search is EXACT within its bound and the bound is reported, never silent: candidates are the
+ * paths covering the most mutants, ties by path order, capped at `COVER_CANDIDATES`. A refusal
+ * therefore says that no cover was found among a NAMED population, which is a different claim from
+ * no cover existing.
+ */
+export function coverPaths(witnesses, limit = MAX_ASSERT_PATHS, candidates = COVER_CANDIDATES) {
+  if (!witnesses.length || witnesses.some((w) => !w.length)) return null;
+  const sets = witnesses.map((w) => new Set(w));
+  const freq = new Map();
+  for (const set of sets) for (const path of set) freq.set(path, (freq.get(path) || 0) + 1);
+  const pool = [...freq.keys()].sort((a, b) => freq.get(b) - freq.get(a) || (a < b ? -1 : a > b ? 1 : 0)).slice(0, candidates);
+  const covers = (pick) => sets.every((set) => pick.some((path) => set.has(path)));
+  for (let k = 1; k <= limit; k++) {
+    let found = null;
+    const walk = (start, pick) => {
+      if (found) return;
+      if (pick.length === k) {
+        if (covers(pick)) found = [...pick];
+        return;
+      }
+      for (let i = start; i < pool.length && !found; i++) {
+        pick.push(pool[i]);
+        walk(i + 1, pick);
+        pick.pop();
+      }
+    };
+    walk(0, []);
+    if (found) return found.sort();
+  }
+  return null;
+}
+
 /**
  * The decision, as a pure function of what was recorded. A draft is kept only when the real run
- * succeeded in every zone, every mutant run produced a result, and at least one path differs between
- * the real output and EVERY mutant sharing this key.
+ * succeeded in every zone, every mutant run produced a result, and EVERY mutant sharing this key
+ * differs from the real output at a path the draft will assert on.
  *
  * ⚠️ A KEY WITH TWO OCCURRENCES NEEDS BOTH DEAD. `baseline_from_ledger` keeps a LIST per key because
  * two mutants in one function can share one diff, and the gate counts survivors by key — so a
  * fixture that kills one occurrence and not the other leaves the key surviving.
+ *
+ * 🔴 A SHARED PATH IS NOT WHAT "BOTH DEAD" REQUIRES. Until 2026-11-01 this function intersected the
+ * differing paths over the mutants and refused the moment that intersection emptied. A rendered draft
+ * is ONE test holding one assert per path, and pytest fails that test when ANY assert fails — so a
+ * mutant differing at `.a` and a mutant differing at `.b` BOTH die on a draft asserting both paths.
+ * The intersection refused exactly that fixture. Measured on this tool's own night run of 2026-11-01
+ * over 28 keys: 20 of the 24 rejections read "does not discriminate every mutant on this key", and
+ * none of the 24 was kept. The criterion is now a COVER, and the intersection stays the PREFERRED
+ * branch, so a fixture that passed before yields the same paths it did before.
+ *
+ * Every refusal here now carries the arithmetic. "NO-KILL" alone cannot tell a fixture that killed
+ * nothing from one that killed all but one, and that number is the whole difference between a bad
+ * fixture and a criterion that is too strong.
  */
 export function decide(real, mutants, excluded = [], record = null) {
   if (!real || !real.ok) return { keep: false, why: 'the real run failed: ' + ((real && real.why) || 'no result') };
@@ -551,29 +604,51 @@ export function decide(real, mutants, excluded = [], record = null) {
   const bad = mutants.find((m) => !m.ok);
   if (bad) return { keep: false, why: 'a mutant run failed: ' + bad.why };
   const dead = new Set(excluded);
-  let common = null;
+  const against = record || real.result;
+  const witnesses = [];
   let droppedAll = false;
+  let unresolved = false;
+  let blind = 0;
+  /* EVERY MUTANT IS MEASURED, never the first one that empties an intersection — the count in the
+     refusal is the point, and an early return cannot report one. */
   for (const m of mutants) {
     const raw = diffPaths(real.result, m.result, { max: 60 })
       .map((d) => d.path)
       .filter((p) => p !== '');
-    const paths = raw.filter((p) => !dead.has(p));
-    if (raw.length && !paths.length) droppedAll = true;
-    const set = new Set(paths);
-    common = common === null ? set : new Set([...common].filter((p) => set.has(p)));
-    if (!common.size) {
-      return {
-        keep: false,
-        why: droppedAll
-          ? 'every differing path is a control artefact (volatile between two runs, or sensitive to where the module file sits)'
-          : 'the fixture does not discriminate every mutant on this key'
-      };
-    }
+    const live = raw.filter((p) => !dead.has(p));
+    if (raw.length && !live.length) droppedAll = true;
+    const usable = live.filter((p) => valueAt(against, p).ok);
+    if (live.length && !usable.length) unresolved = true;
+    if (!usable.length) blind++;
+    witnesses.push(usable);
   }
-  const against = record || real.result;
-  const usable = [...common].filter((p) => valueAt(against, p).ok).slice(0, MAX_ASSERT_PATHS);
-  if (!usable.length) return { keep: false, why: 'the differing paths do not resolve in the output the draft will assert on' };
-  return { keep: true, paths: usable };
+  const stats = { mutants: mutants.length, discriminated: mutants.length - blind };
+  const arith = ' — ' + stats.discriminated + ' of ' + stats.mutants + ' mutant(s) on this key are discriminated';
+  if (blind) {
+    return {
+      keep: false,
+      stats,
+      why:
+        (droppedAll
+          ? 'every differing path is a control artefact (volatile between two runs, or sensitive to where the module file sits)'
+          : unresolved
+            ? 'the differing paths do not resolve in the output the draft will assert on'
+            : 'the fixture does not discriminate every mutant on this key') + arith
+    };
+  }
+  /* THE INTERSECTION FIRST, so a fixture that passed the old criterion asserts exactly what it did
+     before — and so a draft keeps asserting several shared paths rather than the one a minimal cover
+     would pick. The cover is the fallback, not the replacement. */
+  const common = witnesses.reduce((acc, w) => acc.filter((p) => w.includes(p)), witnesses[0]);
+  const paths = common.length ? common.slice(0, MAX_ASSERT_PATHS) : coverPaths(witnesses);
+  if (!paths) {
+    return {
+      keep: false,
+      stats,
+      why: 'every mutant is discriminated and no set of at most ' + MAX_ASSERT_PATHS + ' of the ' + COVER_CANDIDATES + ' most-covering path(s) witnesses them all' + arith
+    };
+  }
+  return { keep: true, paths, stats };
 }
 
 /**
@@ -1299,7 +1374,9 @@ async function main() {
       }
       const dd = decide(twin, muts, ctl, rep.result);
       if (!dd.keep) {
-        jrec({ ...rejectionRecord(row.mutant, dd.why, cand, null), attempt: a + 1 });
+        /* THE COUNT IS JOURNALLED AS A NUMBER, not only inside the prose reason — a histogram over
+           `why` cannot tell a fixture that killed none from one that killed all but one. */
+        jrec({ ...rejectionRecord(row.mutant, dd.why, cand, null), attempt: a + 1, ...(dd.stats || {}) });
         log('      attempt ' + (a + 1) + '/' + tries + ' ✗ ' + dd.why);
         lastWhy = dd.why;
         lastBody = cand;
@@ -1326,7 +1403,7 @@ async function main() {
         lastBody = cand;
         continue;
       }
-      jrec({ mutant: row.mutant, v: 'KEPT', paths: dd.paths, zoneStable, occurrences: occ.length, controlDropped: ctl.length, attempt: a + 1 });
+      jrec({ mutant: row.mutant, v: 'KEPT', paths: dd.paths, zoneStable, occurrences: occ.length, controlDropped: ctl.length, attempt: a + 1, ...(dd.stats || {}) });
       kept.push({ row, text });
       log('  ✓ ' + tag);
       log('      killed on ' + dd.paths.join(', ') + (occ.length > 1 ? '  (both occurrences of this key)' : '') + '  [' + ctl.length + ' control path(s) dropped, realm-checked]');
@@ -1412,29 +1489,74 @@ function selftest() {
   eq(decide({ ok: true, result: { a: 1 } }, []).keep, false, 'decide refuses with no mutant');
   eq(decide({ ok: true, result: { a: 1 } }, [{ ok: false, why: 'x' }]).keep, false, 'decide refuses when a mutant run failed');
   eq(decide({ ok: true, result: { a: 1 } }, [{ ok: true, result: { a: 1 } }]).keep, false, 'decide refuses a fixture that discriminates nothing');
-  eq(decide({ ok: true, result: { a: 1 } }, [{ ok: true, result: { a: 2 } }]), { keep: true, paths: ['.a'] }, 'decide keeps a discriminating fixture');
+  eq(decide({ ok: true, result: { a: 1 } }, [{ ok: true, result: { a: 2 } }]), { keep: true, paths: ['.a'], stats: { mutants: 1, discriminated: 1 } }, 'decide keeps a discriminating fixture');
+  /* THE CRITERION MOVED ON 2026-11-01, and this is the leg that moved with it. The two mutants are
+     discriminated by DIFFERENT paths, the rendered draft asserts both, and pytest fails that one test
+     when either assert fails — so both occurrences die and the old refusal was too strong. */
   eq(
     decide({ ok: true, result: { a: 1, b: 1 } }, [
       { ok: true, result: { a: 2, b: 1 } },
       { ok: true, result: { a: 1, b: 2 } }
-    ]).keep,
-    false,
-    'decide refuses when no single path kills BOTH occurrences of one key'
+    ]),
+    { keep: true, paths: ['.a', '.b'], stats: { mutants: 2, discriminated: 2 } },
+    'decide covers two occurrences with one path each when no path is shared'
+  );
+  eq(
+    decide({ ok: true, result: { a: 1, b: 1, c: 1, d: 1 } }, [
+      { ok: true, result: { a: 2, b: 1, c: 1, d: 1 } },
+      { ok: true, result: { a: 1, b: 2, c: 1, d: 1 } },
+      { ok: true, result: { a: 1, b: 1, c: 2, d: 1 } },
+      { ok: true, result: { a: 1, b: 1, c: 1, d: 2 } }
+    ]).why,
+    'every mutant is discriminated and no set of at most 3 of the 20 most-covering path(s) witnesses them all — 4 of 4 mutant(s) on this key are discriminated',
+    'decide refuses a cover wider than the draft may assert, and names the bound it searched'
+  );
+  eq(
+    decide({ ok: true, result: { a: 1, b: 1 } }, [
+      { ok: true, result: { a: 2, b: 1 } },
+      { ok: true, result: { a: 1, b: 1 } }
+    ]).why,
+    'the fixture does not discriminate every mutant on this key — 1 of 2 mutant(s) on this key are discriminated',
+    'a refusal carries the arithmetic, so one mutant short is not read as nothing killed'
+  );
+  eq(
+    coverPaths([
+      ['.a', '.b'],
+      ['.b', '.c']
+    ]),
+    ['.b'],
+    'coverPaths prefers the one path witnessing every mutant'
+  );
+  eq(coverPaths([['.a'], ['.b']]), ['.a', '.b'], 'coverPaths returns a cover in path order');
+  eq(coverPaths([['.a'], []]), null, 'CONTROL · coverPaths refuses when one mutant has no witness at all');
+  eq(coverPaths([['.a'], ['.b'], ['.c']], 2), null, 'CONTROL · coverPaths refuses a cover wider than the limit');
+  eq(coverPaths([['.a'], ['.b'], ['.c']], 3), ['.a', '.b', '.c'], 'coverPaths uses the whole width when it needs it');
+  eq(
+    coverPaths([
+      ['.z', '.a'],
+      ['.a', '.z']
+    ]),
+    ['.a'],
+    'coverPaths breaks a frequency tie by path order, so the choice is deterministic'
   );
   eq(
     decide({ ok: true, result: { a: 1, b: 1 } }, [
       { ok: true, result: { a: 2, b: 2 } },
       { ok: true, result: { a: 2, b: 1 } }
     ]),
-    { keep: true, paths: ['.a'] },
+    { keep: true, paths: ['.a'], stats: { mutants: 2, discriminated: 2 } },
     'decide keeps the path common to every occurrence'
   );
   eq(
     decide({ ok: true, result: { a: 1, v: 1 } }, [{ ok: true, result: { a: 1, v: 2 } }], ['.v']).why,
-    'every differing path is a control artefact (volatile between two runs, or sensitive to where the module file sits)',
+    'every differing path is a control artefact (volatile between two runs, or sensitive to where the module file sits) — 0 of 1 mutant(s) on this key are discriminated',
     'decide refuses a kill that lives only on a control path'
   );
-  eq(decide({ ok: true, result: { a: 1, v: 1 } }, [{ ok: true, result: { a: 2, v: 2 } }], ['.v']), { keep: true, paths: ['.a'] }, 'decide keeps the real path and drops the control path beside it');
+  eq(
+    decide({ ok: true, result: { a: 1, v: 1 } }, [{ ok: true, result: { a: 2, v: 2 } }], ['.v']),
+    { keep: true, paths: ['.a'], stats: { mutants: 1, discriminated: 1 } },
+    'decide keeps the real path and drops the control path beside it'
+  );
   eq(decide({ ok: true, result: { a: 1 } }, [{ ok: true, result: { a: 2 } }], [], { b: 1 }).keep, false, 'decide refuses when the differing path is absent from the output the draft asserts on');
   eq(
     controlPaths({ ok: true, result: { a: 1, v: 1 } }, { ok: true, result: { a: 1, v: 2 } }, { ok: true, result: { a: 1, w: 1, v: 1 } }),
