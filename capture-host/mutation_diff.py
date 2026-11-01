@@ -2263,7 +2263,22 @@ def verdict_object(
         "status": status,
         "scope": "internal",
         "population": {"checked": checked, "eligible": eligible, "excluded": excluded},
-        "criterion": {"name": "survivors_on_changed_lines", "threshold": 0, "unit": "mutants", "direction": "lte"},
+        # THE NAME STATES THIS LANE'S SCOPE AND THIS LANE'S COUNT. It was
+        # `survivors_on_changed_lines` until 2026-11-01, and both halves of that name were wrong here
+        # (residue `2026-10-31-the-mutation-verdicts-criterion-names-lines-not-functions`). Selection is
+        # per FUNCTION by `entry_matches_function`, deliberately and by this gate's own header, so
+        # "changed_lines" named a scope the gate never had. And the bound counts the BLOCKING subset:
+        # `split_inherited` subtracts the survivors main's record already owns and `classify` subtracts
+        # the ones an equivalence entry excuses, so "survivors" over-stated the count. The JS lane keeps
+        # `on_changed_lines`, because `tools/mutate.mjs` really does filter each mutant through the
+        # touched line set — one shared name would have to lie about one lane's scope. A criterion is
+        # pre-stated, so this move is declared in its changeset and never made quietly.
+        "criterion": {
+            "name": "blocking_survivors_in_changed_functions",
+            "threshold": 0,
+            "unit": "mutants",
+            "direction": "lte",
+        },
         "result": None if status in ("NOT_RUN", "NOT_APPLICABLE") else result,
         "evidence": evidence,
         "reason": reason,

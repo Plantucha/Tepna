@@ -2667,7 +2667,7 @@ async function runFile(file) {
                        validator refuses it at the type level, so the gate now says what it is
      · UNKNOWN         the canary survived (kills were not being detected) or mutants never ran — the
                        run could not prove anything either way; never a kill, never a pass
-     · FAIL            a mutant on a changed line survived
+     · FAIL            a BLOCKING mutant on a changed line survived — one no equivalence entry excuses
      · PASS            every mutant on the changed lines was killed, over checked > 0
    Population is MUTANTS on the changed lines: eligible = tested, checked = tested − invalid,
    excluded = invalid. Exit codes are unchanged (VOID/INCONCLUSIVE 3 · survivors 1 · else 0); the
@@ -2687,7 +2687,12 @@ export function verdictObject(status, { checked, eligible, result, reason, evide
     status,
     scope: 'internal',
     population: { checked, eligible, excluded },
-    criterion: { name: 'survivors_on_changed_lines', threshold: 0, unit: 'mutants', direction: 'lte' },
+    /* `on_changed_lines` is THIS lane's real scope: line 1890 filters every generated mutant through
+       the touched line set. What moved on 2026-11-01 is `survivors` → `blocking_survivors`, because the
+       bound takes `blockingSurvivors` and an excused survivor leaves the list. The Python gate selects
+       whole FUNCTIONS and names itself `blocking_survivors_in_changed_functions`; the two names differ
+       because the two scopes do. Residue `2026-10-31-the-mutation-verdicts-criterion-names-lines-not-functions`. */
+    criterion: { name: 'blocking_survivors_on_changed_lines', threshold: 0, unit: 'mutants', direction: 'lte' },
     result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : result,
     evidence,
     reason: reason == null ? null : reason,
@@ -3777,6 +3782,18 @@ function selftest() {
       threw = e.message;
     }
     ck('PASS with a reason is refused', /reason: null/.test(threw), true);
+    /* THE CRITERION NAME IS A PUBLISHED KEY, so it is pinned and not merely emitted. Both halves of
+       it are a claim about THIS lane: `blocking_survivors` because the bound takes
+       `blockingSurvivors` and an excused survivor leaves the list, and `on_changed_lines` because
+       line 1890 filters every generated mutant through the touched line set. The Python gate selects
+       whole functions and so carries a DIFFERENT name; a pin here is what makes the pair deliberate
+       rather than a copy. Residue `2026-10-31-the-mutation-verdicts-criterion-names-lines-not-functions`. */
+    ck(
+      'the criterion names this lane: the blocking subset, scoped to the changed lines',
+      JSON.stringify(smp.criterion),
+      JSON.stringify({ name: 'blocking_survivors_on_changed_lines', threshold: 0, unit: 'mutants', direction: 'lte' })
+    );
+    ck('…and it is NOT the Python lane name, whose scope is whole functions', smp.criterion.name === 'blocking_survivors_in_changed_functions', false);
   }
 
   /* ── SIGTERM MID-MUTANT: THE FILE COMES BACK, AND THE SENTINEL SAYS WHAT WAS UNDONE ────────────
