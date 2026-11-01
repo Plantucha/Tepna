@@ -94,6 +94,7 @@
 <script src="kernel-constants.js"></script>
 <script src="clock.js"></script>
 <script src="clock-seam.js"></script>
+<script src="radio-clock.js"></script>
 <script src="provenance-ledger.js"></script>
 <script src="metric-registry.js"></script>
 <!-- dex-escape.js was in SOURCE_FILES (readable as TEXT) but never LOADED here, so `window.escapeHTML`
@@ -228,7 +229,7 @@ const ADAPTER_SOURCES = (function () {
   return m.slice();
 })();
 const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/verify-fixtures.mjs',
-      'tools/drift-report.js','clock.js','clock-seam.js','oxydex-util.js','integrator-longitudinal.js','hrvdex-profile.js','oxydex-profile.js','overdex-walk.js','resp-acc-analysis.js',/* resp-acc-analysis-app.js — BOTH LANES OR NEITHER. The Node lane reads it for free, because readSources() walks the analysis-tool bundles it is inlined into (run-tests.mjs, 2026-09-27); this lane reads only what SOURCE_FILES names, so the same scan saw 60 kB there and 0 here and the `done-when 4` source legs reded in CI alone. Same asymmetry as motiondex-dsp.js and pat-feasibility-worker.js below. */'resp-acc-analysis-app.js','tools/tch-corpus.js','oxydex-registry.js','ecgdex-registry.js','ppgdex-registry.js','pulsedex-registry.js','hrvdex-registry.js','glucodex-registry.js','motiondex-registry.js','cpapdex-registry.js','metric-registry.js','pulsedex-dsp.js','oxydex-dsp.js','oxydex-accuracy.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
+      'tools/drift-report.js','clock.js','clock-seam.js','radio-clock.js','oxydex-util.js','integrator-longitudinal.js','hrvdex-profile.js','oxydex-profile.js','overdex-walk.js','resp-acc-analysis.js',/* resp-acc-analysis-app.js — BOTH LANES OR NEITHER. The Node lane reads it for free, because readSources() walks the analysis-tool bundles it is inlined into (run-tests.mjs, 2026-09-27); this lane reads only what SOURCE_FILES names, so the same scan saw 60 kB there and 0 here and the `done-when 4` source legs reded in CI alone. Same asymmetry as motiondex-dsp.js and pat-feasibility-worker.js below. */'resp-acc-analysis-app.js','tools/tch-corpus.js','oxydex-registry.js','ecgdex-registry.js','ppgdex-registry.js','pulsedex-registry.js','hrvdex-registry.js','glucodex-registry.js','motiondex-registry.js','cpapdex-registry.js','metric-registry.js','pulsedex-dsp.js','oxydex-dsp.js','oxydex-accuracy.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
   'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','motiondex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','dex-coload.js','provenance-ledger.js','cohort-full.js','dex-contracts.js','provenance-banner.js','support.js','xmt-fixture.js','sensor-trio-worker.js',
  /* THE WHOLE `*-registry.js` FAMILY, completed 2026-10-06. `oxydex-registry.js` arrived first (the day
@@ -758,6 +759,7 @@ async function main(){
     escapeHTML: window.escapeHTML || (window.DexEsc && window.DexEsc.escapeHTML),
     DexClock: window.DexClock,
     DexSeam: window.DexSeam,
+    DexRadio: window.DexRadio,
     PulseDex: window.PulseDex,
     OxyDex: window.OxyDex,
     OxyAccuracy: window.OxyAccuracy,

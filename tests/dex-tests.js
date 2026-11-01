@@ -1121,6 +1121,297 @@
       }
     });
 
+    /* RADIO-CLOCK-SIDECAR-2026-09-07 §4, the consumer. The bands are the brief's,
+       pre-stated before anyone measured the corpus (§🧾): under 2 ms the controller
+       anchors ARE the second clock and a node may publish `timingSource:'radio'`;
+       2 to 50 ms they are a lower-jitter host stamp; over 50 ms, under three
+       anchors, or on a refusal the sidecar is ignored with a named reason.
+       Every degenerate case below was MEASURED on the first real corpus (6
+       sidecars, 142 device streams, 938 176 rows, 2026-11-01), and four of them
+       would have forged the best tier: a constant device key whose residual about
+       the running median reads 0.000 ms, a stream carrying payload bytes where a
+       stamp belongs, a `null` jitter that is smaller than 2 in JS, and one corrupt
+       anchor that both of the spine's median statistics walk straight past. */
+    group('∅ radio-clock sidecar — the under-2 ms band, and the four streams that would have forged it', 'clock · radio-clock · absence', function (T) {
+      var DR = env.DexRadio || (typeof DexRadio !== 'undefined' ? DexRadio : null);
+      if (!DR || typeof DR.radioAxis !== 'function') {
+        T.ok('DexRadio.radioAxis is reachable', false, 'radio-clock.js not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+
+      /* A planted stream: a drift the running median removes, plus a uniform
+         ±jitterMs delivery wobble it cannot. The generator is an exact 16-bit
+         Lehmer LCG (every product under 2^23), so both suite lanes and every rig
+         plant the same numbers — a `Math.sin` hash would not. */
+      function plant(n, jitterMs, driftPpm) {
+        var seed = 11213;
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          seed = (seed * 75 + 74) % 65537;
+          var u = seed / 65537 - 0.5;
+          out.push({ devMs: i * 1000, hostMs: 5000 + i * 1000 * (1 + driftPpm / 1e6) + u * 2 * jitterMs });
+        }
+        return out;
+      }
+
+      /* ── the three bands, each with its own premise asserted ───────────── */
+      var best = DR.radioAxis(plant(601, 2, 20));
+      T.ok(
+        'a ±2 ms plant is INDEPENDENT (the drift makes the host column a real second clock)',
+        best.axis && best.axis.independent === true,
+        JSON.stringify({ spreadMs: best.axis && best.axis.spreadMs, independent: best.axis && best.axis.independent })
+      );
+      T.ok(
+        'and its jitter lands under the pre-stated 2 ms band bound',
+        typeof best.spreadMs === 'number' && Math.abs(best.spreadMs) < DR.CK_RADIO_BEST_MS,
+        JSON.stringify({ jitter: best.spreadMs, bound: DR.CK_RADIO_BEST_MS })
+      );
+      T.ok(
+        "so the reader MINTS timingSource:'radio' — the tier is reachable in code",
+        best.band === 'radio' && best.timingSource === 'radio' && best.ok === true && best.reason === null,
+        JSON.stringify({ band: best.band, timingSource: best.timingSource, reason: best.reason })
+      );
+
+      var aid = DR.radioAxis(plant(601, 30, 20));
+      T.ok(
+        'a ±30 ms plant lands in the 2-50 ms band',
+        typeof aid.spreadMs === 'number' && Math.abs(aid.spreadMs) >= DR.CK_RADIO_BEST_MS && Math.abs(aid.spreadMs) < DR.CK_RADIO_AID_MS,
+        JSON.stringify({ jitter: aid.spreadMs })
+      );
+      T.ok(
+        'the 2-50 ms band is a jitter aid and NEVER a timing source',
+        aid.band === 'jitter-aid' && aid.timingSource === null && /band/.test(String(aid.reason)),
+        JSON.stringify({ band: aid.band, timingSource: aid.timingSource, reason: aid.reason })
+      );
+
+      var over = DR.radioAxis(plant(601, 160, 20));
+      T.ok(
+        'a ±160 ms plant is over the 50 ms bound and the sidecar is IGNORED by name',
+        over.band === 'rejected' && over.ok === false && over.timingSource === null && Math.abs(over.spreadMs) > DR.CK_RADIO_AID_MS && /over the 50 ms bound/.test(String(over.reason)),
+        JSON.stringify({ jitter: over.spreadMs, band: over.band, reason: over.reason })
+      );
+
+      /* ── `null` IS NOT A SMALL NUMBER ─────────────────────────────────────
+         `hostAxis.stackJitterMs` is null whenever `independent` is false. In JS
+         `null < 2` is TRUE, so a band written as a bare comparison publishes the
+         BEST tier on an axis with no second clock. Both halves are asserted: the
+         trap is real, and `classify` does not fall into it. */
+      T.ok('the trap is real: null < 2 reads true in JS', null < DR.CK_RADIO_BEST_MS, 'a bare band comparison would admit an absent jitter');
+      T.ok('classify(null, true) is REJECTED, never radio', DR.classify(null, true) === 'rejected', String(DR.classify(null, true)));
+      T.ok('classify(1.3, false) is REJECTED — a tight spread on a dependent axis is not a clock', DR.classify(1.3, false) === 'rejected', String(DR.classify(1.3, false)));
+      T.ok('classify(NaN, true) is REJECTED', DR.classify(NaN, true) === 'rejected', String(DR.classify(NaN, true)));
+
+      /* ── control 1: the PPI shape, measured ──────────────────────────────
+         5707 of 5708 Polar PPI rows share one `last_sensor_ns`, so the device
+         axis has zero span. The residual about a running median over a CONSTANT
+         key reads 0.000 ms, and the counterfactual below shows what that would
+         have bought: the best tier, on a stream with no clock at all. The spine
+         refuses it first, which is why this reader delegates. */
+      var ppi = [];
+      for (var p = 0; p < 300; p++) ppi.push({ devMs: 1234.5, hostMs: 7000 + p * 1000 });
+      var ppiOut = DR.radioAxis(ppi);
+      T.ok(
+        'a CONSTANT device key is refused, with the spine reason carried out',
+        ppiOut.band === 'rejected' && ppiOut.timingSource === null && /host axis refused/.test(String(ppiOut.reason)),
+        JSON.stringify({ band: ppiOut.band, reason: ppiOut.reason })
+      );
+      T.ok("the counterfactual: a 0.000 ms residual WOULD have classified as 'radio'", DR.classify(0, true) === 'radio', 'so the refusal, not the band table, is what stops a clockless stream');
+
+      /* ── control 2: the O2Ring shape, measured ───────────────────────────
+         The ring's frames carry no device clock, so the collector writes eight
+         payload bytes into `last_sensor_ns`: 131 747 of 153 424 rows repeat a
+         value and the rate reads about −996 000 ppm. The plausibility bound is
+         what catches it; a value-keyed check never would. */
+      var ring = [];
+      var rseed = 7919;
+      for (var r = 0; r < 300; r++) {
+        rseed = (rseed * 75 + 74) % 65537;
+        ring.push({ devMs: (rseed % 4096) * 1000, hostMs: 9000 + r * 500 });
+      }
+      var ringOut = DR.radioAxis(ring);
+      T.ok(
+        'payload bytes where a device stamp belongs are refused, not averaged',
+        ringOut.band === 'rejected' && ringOut.ok === false && ringOut.timingSource === null && String(ringOut.reason).length > 0,
+        JSON.stringify({ band: ringOut.band, reason: ringOut.reason, n: ringOut.n })
+      );
+
+      /* ── control 3: ONE wild anchor, which the SPINE accepts ─────────────
+         Both spine statistics are median-based — `stackJitterMs` is a half-IQR
+         and `maxStepMs` walks the SMOOTHED series — so neither sees a single
+         corrupt anchor. Measured on the twin below: the spine returns ok:true,
+         jitter 1.04 ms and maxStepMs 0.88 ms while the RAW divergence steps
+         885 000 000 001 ms. That is the real Verity ACC defect, and §∅'s owner
+         ruling decides it: a DISCONTINUITY refuses, reduced COVERAGE annotates. */
+      var hostBad = plant(601, 2, 20);
+      hostBad[300] = { devMs: hostBad[300].devMs, hostMs: hostBad[300].hostMs + 8.85e11 };
+      var hb = DR.radioAxis(hostBad);
+      T.ok(
+        'the premise: the SPINE accepts the wild anchor and both its statistics read clean',
+        hb.axis && hb.axis.ok === true && Math.abs(hb.axis.stackJitterMs) < DR.CK_RADIO_BEST_MS && hb.axis.maxStepMs < DR.CK_RADIO_BEST_MS,
+        JSON.stringify({ spineOk: hb.axis && hb.axis.ok, jitter: hb.axis && hb.axis.stackJitterMs, maxStepMs: hb.axis && hb.axis.maxStepMs })
+      );
+      T.ok(
+        'so the reader refuses it ITSELF, as a named discontinuity',
+        hb.band === 'rejected' && hb.timingSource === null && hb.spreadMs === null && /discontinuity/.test(String(hb.reason)),
+        JSON.stringify({ band: hb.band, reason: hb.reason })
+      );
+      T.ok(
+        'and the clean twin of that same stream still reads radio (the control is the row, not the plant)',
+        DR.radioAxis(plant(601, 2, 20)).band === 'radio',
+        'the only difference between the two calls is row 300'
+      );
+
+      /* THE DENOMINATOR IS THE SMALLER OF THE TWO SPANS, and each column's twin
+         proves why: a corrupt sample inflates its own column's span by about as
+         much as the step it creates, so that column's ratio reads 0.9999997 and
+         passes by luck. The real corpus carries the DEVICE-column form; the
+         planted pair below carries both. */
+      var devBad = plant(601, 2, 20);
+      devBad[300] = { devMs: devBad[300].devMs + 8.85e11, hostMs: devBad[300].hostMs };
+      var db = DR.radioAxis(devBad);
+      T.ok('the device-column twin refuses too', db.band === 'rejected' && /discontinuity/.test(String(db.reason)), JSON.stringify({ band: db.band, reason: db.reason }));
+      T.ok(
+        'a HOST-span denominator would have passed the host-column twin (ratio under 1)',
+        hb.step.rawStepMs / hb.step.hostSpanMs < DR.CK_RADIO_STEP_OVER_SPAN,
+        String(hb.step.rawStepMs / hb.step.hostSpanMs)
+      );
+      T.ok(
+        'a DEVICE-span denominator would have passed the device-column twin (ratio under 1)',
+        db.step.rawStepMs / db.step.devSpanMs < DR.CK_RADIO_STEP_OVER_SPAN,
+        String(db.step.rawStepMs / db.step.devSpanMs)
+      );
+      T.ok('the smaller span refuses both, by five orders of magnitude', hb.step.ratio > 1e5 && db.step.ratio > 1e5, JSON.stringify({ hostTwin: hb.step.ratio, devTwin: db.step.ratio }));
+
+      /* DRIFT IS NOT A DISCONTINUITY. A 1000 ppm ramp moves the divergence by
+         599 ms over the plant's 600 s, which is 1000 times the band bound — and
+         it keeps its band, because the criterion reads the step between
+         NEIGHBOURS and not the night's total divergence (§∅ — coverage
+         annotates, only a discontinuity refuses). */
+      var drift = DR.radioAxis(plant(601, 2, 1000));
+      T.ok(
+        'a 1000 ppm drift moves the divergence far past the 50 ms bound',
+        drift.axis && Math.abs(drift.axis.spreadMs) > 10 * DR.CK_RADIO_AID_MS,
+        JSON.stringify({ spreadMs: drift.axis && drift.axis.spreadMs })
+      );
+      T.ok(
+        "and still reads 'radio', because drift is not a seam",
+        drift.band === 'radio' && drift.timingSource === 'radio' && drift.step.ratio < DR.CK_RADIO_STEP_OVER_SPAN,
+        JSON.stringify({ band: drift.band, jitter: drift.spreadMs, ratio: drift.step.ratio })
+      );
+
+      /* ── the floors: too few anchors, and an absent spine ────────────────── */
+      var few = DR.radioAxis([
+        { devMs: 0, hostMs: 1 },
+        { devMs: 1000, hostMs: 1002 }
+      ]);
+      T.ok(
+        'two anchors refuse against the 3-anchor floor, by name',
+        few.band === 'rejected' && few.n === 2 && /≥3 radio anchors/.test(String(few.reason)),
+        JSON.stringify({ reason: few.reason, n: few.n })
+      );
+      T.ok('and the refusal publishes no jitter at all (§∅ — an absent estimate is null)', few.spreadMs === null, String(few.spreadMs));
+      var noSpine = DR.radioAxis(plant(601, 2, 20), { hostAxis: null });
+      T.ok(
+        'an absent clock.js is a NAMED refusal, never a silent disablement (§👥.3)',
+        noSpine.band === 'rejected' && /clock\.js is not loaded/.test(String(noSpine.reason)),
+        JSON.stringify({ reason: noSpine.reason })
+      );
+
+      /* ── the sidecar parser: BY NAME, and a blank cell is not a zero ─────── */
+      function sidecar(rows, head) {
+        return '# radio-clock sidecar, synthetic twin\n' + (head || DR.RC_COLUMNS.join(';')) + '\n' + rows.join('\n') + '\n';
+      }
+      var good = [];
+      for (var g = 0; g < 40; g++) {
+        good.push('2026-11-01T22:00:0' + (g % 10) + '.000;AA:BB;ECG;' + g * 1000000000 + ';1;' + g + ';' + (9000000 + g * 1000000) + ';;' + (17000000 + g * 1000000));
+        good.push('2026-11-01T22:00:0' + (g % 10) + '.500;AA:BB;ACC;' + (g * 1000000000 + 5e8) + ';1;' + g + ';' + (9500000 + g * 1000000) + ';;' + (17500000 + g * 1000000));
+      }
+      var pr = DR.parseRadioClock(sidecar(good));
+      T.ok(
+        'the parser reads 80 rows and keys TWO streams by <device>|<meas>',
+        pr.ok === true && pr.rows === 80 && Object.keys(pr.streams).length === 2 && !!pr.streams['AA:BB|ECG'] && !!pr.streams['AA:BB|ACC'],
+        JSON.stringify({ ok: pr.ok, rows: pr.rows, keys: Object.keys(pr.streams || {}) })
+      );
+      T.ok(
+        'interleaving does not corrupt either stream — 40 anchors each',
+        pr.streams['AA:BB|ECG'].anchors.length === 40 && pr.streams['AA:BB|ACC'].anchors.length === 40,
+        JSON.stringify({ ecg: pr.streams['AA:BB|ECG'].anchors.length, acc: pr.streams['AA:BB|ACC'].anchors.length })
+      );
+      T.ok("vs_rx_ns is blank on every row, so offsetFrom names acl_rx_ns and does not assume the brief's column", pr.offsetFrom === 'acl_rx_ns', String(pr.offsetFrom));
+
+      var blanked = good.slice(0, 20).concat(['2026-11-01T22:01:00.000;AA:BB;ECG;;1;99;;;17000000']);
+      var pb = DR.parseRadioClock(sidecar(blanked));
+      T.ok(
+        'a row with a blank stamp and a blank anchor is SKIPPED, never placed at 0 (§∅)',
+        pb.rows === 21 && pb.streams['AA:BB|ECG'].anchors.length === 10 && pb.streams['AA:BB|ACC'].anchors.length === 10,
+        JSON.stringify({ rows: pb.rows, ecg: pb.streams['AA:BB|ECG'].anchors.length, acc: pb.streams['AA:BB|ACC'].anchors.length })
+      );
+      T.ok(
+        'and no anchor pair reads 0/0',
+        pb.streams['AA:BB|ECG'].anchors.every(function (a) {
+          return a.devMs !== 0 || a.hostMs !== 0;
+        }),
+        'a 0 ms anchor pair is the absence bug'
+      );
+
+      var shuffled = DR.RC_COLUMNS.slice().reverse().join(';');
+      var ps = DR.parseRadioClock(
+        sidecar(
+          good.map(function (l) {
+            return l.split(';').reverse().join(';');
+          }),
+          shuffled
+        )
+      );
+      T.ok(
+        'the header is read BY NAME: a reversed column order parses identically',
+        ps.ok === true && ps.rows === 80 && Object.keys(ps.streams).length === 2,
+        JSON.stringify({ ok: ps.ok, rows: ps.rows, keys: Object.keys(ps.streams || {}) })
+      );
+
+      var pm = DR.parseRadioClock(sidecar(good, 'Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;vs_rx_ns;acl_rx_ns'));
+      T.ok(
+        'a header with no anchor_us column refuses and NAMES the column',
+        pm.ok === false && /anchor_us/.test(String(pm.reason)) && pm.streams === null,
+        JSON.stringify({ ok: pm.ok, reason: pm.reason })
+      );
+      var pe = DR.parseRadioClock('');
+      T.ok('empty sidecar text refuses by name', pe.ok === false && pe.rows === 0 && String(pe.reason).length > 0, JSON.stringify({ reason: pe.reason }));
+      var pz = DR.parseRadioClock(
+        sidecar(
+          good.map(function (l) {
+            var f = l.split(';');
+            f[8] = '';
+            return f.join(';');
+          })
+        )
+      );
+      T.ok(
+        'both host receive columns blank refuses and says so, rather than reading a stream with no host clock',
+        pz.ok === false && /vs_rx_ns and acl_rx_ns are both blank/.test(String(pz.reason)),
+        JSON.stringify({ reason: pz.reason })
+      );
+
+      /* ── end to end: the file, then the band ────────────────────────────── */
+      var pl = plant(601, 2, 20);
+      var e2e = [];
+      for (var k = 0; k < pl.length; k++) {
+        e2e.push('2026-11-01T22:00:00.000;CC:DD;ECG;' + Math.round(pl[k].devMs * 1e6) + ';1;' + k + ';' + Math.round(pl[k].hostMs * 1e3) + ';;' + (17000000 + k * 1000000));
+      }
+      var pp = DR.parseRadioClock(sidecar(e2e));
+      var axe = DR.radioAxis(pp.streams['CC:DD|ECG'].anchors);
+      T.ok(
+        "a sidecar FILE carrying a sub-2 ms stream reads timingSource:'radio' end to end",
+        pp.ok === true && axe.band === 'radio' && axe.timingSource === 'radio' && axe.n >= 600,
+        JSON.stringify({ rows: pp.rows, band: axe.band, jitter: axe.spreadMs, n: axe.n })
+      );
+      T.ok(
+        "the bands are the brief's pre-stated numbers, not literals at a call site",
+        DR.CK_RADIO_BEST_MS === 2 && DR.CK_RADIO_AID_MS === 50 && DR.CK_RADIO_MIN_ANCHORS === 3 && DR.CK_RADIO_STEP_OVER_SPAN === 1,
+        JSON.stringify({ best: DR.CK_RADIO_BEST_MS, aid: DR.CK_RADIO_AID_MS, min: DR.CK_RADIO_MIN_ANCHORS, step: DR.CK_RADIO_STEP_OVER_SPAN })
+      );
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
