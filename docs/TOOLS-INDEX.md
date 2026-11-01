@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**310 tools** · 309 with a purpose line · **1 without**
+**311 tools** · 310 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -59,6 +59,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`codex-export.mjs`](../tools/codex-export.mjs) | THE SOURCE-ONLY EXPORT AN EXTERNAL READER MAY SEE. Owner ruling 2026-10-04: an external model (Codex) may read SOURCE, never the CORPUS. |
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | DOES THE SYNTHETIC COHORT LOOK LIKE A REAL ONE? — and what would it take to project it onto one. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
+| [`consensus-polarity-wiring.mjs`](../tools/consensus-polarity-wiring.mjs) | THE WIRING IS WHERE A FIX STOPS BEING APPLIED, AND NOTHING COUNTED THE WIRING. |
 | [`corpus-census.mjs`](../tools/corpus-census.mjs) | A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue `2026-09-20-census-file-list-not-retained`. |
 | [`corpus-reads.mjs`](../tools/corpus-reads.mjs) | decide, from a tool's SOURCE, whether it enumerates a corpus root it was handed at run time, and whether it reports the population it actually covered. |
 | [`corpus-scope-core.mjs`](../tools/corpus-scope-core.mjs) | the population half of corpus-scope: snapshots, verdicts, rule lines and the code identity they stamp. |

@@ -189,6 +189,8 @@ async function main() {
         refIdx = i;
       }
     });
+    /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+       The feet whose index-to-time conversion this audits are then the ones a 2-of-3 vote produced. */
     const feet = PPGDSP.consensusBeats(per, refIdx, rec.fs).feet;
     const ax = axisIsNominal(rec.relSec, rec.n, rec.fs);
     const a = auditFeet(rec.relSec, feet, rec.fs);

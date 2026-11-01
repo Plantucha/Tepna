@@ -3002,6 +3002,18 @@
     ]
    },
    "note": "holds every declared port to the SOURCE TEXT it was reconciled against. PASS = every declaration matches; SHORTFALL = a copy declares itself behind a named source text and names the row that holds the debt; FAIL = a source moved with nothing declaring it, or a declaration names a file or symbol this cannot read. The sample runs the real scan over a root that cannot exist, so it examines nothing and says NOT_RUN \u2014 the same builder the real run prints."
+  },
+  "tools/consensus-polarity-wiring.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/consensus-polarity-wiring.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "holds every `consensusBeats` call site to a READABLE polarity decision. PASS = every site applies the decision, verified in the code. SHORTFALL = a site declares `@polarity-decision behind <row>` and the row holds the debt. FAIL = a site declares nothing, or its declaration disagrees with its code. Row 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers."
   }
  }
 }

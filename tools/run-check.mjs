@@ -80,6 +80,7 @@ export const STEPS = [
   'verify:absence',
   'verify:seals',
   'verify:port-parity',
+  'verify:consensus-polarity',
   'verify:hook-contract',
   'test:guards',
   'test:tools',
