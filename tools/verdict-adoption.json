@@ -2320,6 +2320,18 @@
    },
    "note": "the residue-citations verdict (row 2026-10-25-the-dangling-key-check-reads-commit-messages-only). It asks whether a residue key CITED IN CODE resolves to a row, which is the direction tools/residue-cite-drift.mjs does not cover. Criterion pre-stated: an unresolved citation outside tools/residue-citations-baseline.json, a baseline key that resolves now, or a near miss of a real row reds the gate."
   },
+  "tools/residue-cite-drift.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/residue-cite-drift.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the residue citation-drift verdict (row 2026-10-26-three-of-six-cited-printer-lines-name-no-printer). Every row in briefs/RESIDUE.md cites source lines, and this tool re-resolves each citation against a ref by the identifiers the ROW ITSELF names. Criterion pre-stated, and TWO SCOPES CARRY TWO NAMES: `--base <ref>` keeps only the rows whose key the base ledger does not carry, which is the rows a branch added, and bounds `defect_class_citations_in_added_rows` at 0; a plain run judges every row and bounds `defect_class_citations_in_every_row`. The defect classes are missing-file, unanchored and beyond-eof, and the advisory `moved` plus the external `off-tree` never decide the exit. Population = the file:line citations in scope, excluded 0. The whole ledger can never go green, because CLAUDE.md \\u00a7\\U0001f4cc forbids editing a row cell, so `npm run check` runs the --base origin/main form and the standing debt stops growing rather than being repaired where it sits. An added-row set citing no line is NOT_APPLICABLE with result null, and a base ledger that cannot be read is NOT_RUN at exit 2 rather than an empty diff that passes. The sample below is the whole-ledger census, which FAILs on that standing debt."
+  },
   "tools/resp-cardiac-suppression-e8.mjs": {
    "bin": "decides",
    "status": "adopted",
