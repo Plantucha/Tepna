@@ -192,6 +192,91 @@ already carries the spine's own `n`.
 asserts its own premises, and holds all three publishers to the same key with the same type. Removing
 either forward reds three of its thirteen legs.
 
+## A refused host axis — where its reason travels (2026-11-01)
+
+PpgDex and ECGDex emit `recording.hostAxis` only under a built axis, so a refusal leaves no block there.
+**That absence is not the refusal.** The spine's own sentence travels in the DECLARED block instead.
+`DexExport.timingBlock` writes `the host axis refused: <ax.reason>` into `recording.timing.reason`
+whenever the axis exists and `ok` reads falsy.
+
+Running the real builders over a real refusal — `DexClock.hostAxis` on two anchors, under its floor of
+three — all three publishers answer:
+
+    the host axis refused: need ≥3 host anchors, got 2
+
+**The corpus stays silent and the path does not.** Over 455 tracked JSON files declaring the schema, none
+carries a refusing axis. None of the 26 `recording.timing` blocks names a refusal either. That population
+is the 443 under `uploads/` plus 12 elsewhere. No committed fixture refuses, so nothing exercised the
+path — a gap in the FIXTURES rather than in the code. Residue row
+`2026-11-01-no-artifact-carries-the-host-axis-refusal-the-spine-published` read that silence as an absent
+path, and the measurement says otherwise.
+
+**∅ 2026-09-17, both halves.** A refusal reduces COVERAGE rather than breaking continuity, so the block
+ANNOTATES: `anchors`, `ppm` and `spanMs` read `null`, never 0. The sentence also stays distinct from the
+one a node with no host column publishes. "The gate refused, here is why" and "there was never a second
+clock" are different facts, and a consumer branches on them differently.
+
+**MotionDex differs on purpose.** `_mdExportAxis` gates on the axis EXISTING rather than on `ok`. So that
+node publishes `recording.hostAxis` on a refusal too, carrying `ok:false` and the spine's `reason`.
+
+**Gate.** The suite group `a refused host axis names its refusal in the declared timing block`
+(`dsp · node-export · hostaxis-refusal · three-publishers`). Deleting `timingBlock`'s refusal clause reds
+4 legs across this group and `hostaxis-ok`.
+
+## `recording.hostAxis` — the declared key set, per publisher (2026-11-01)
+
+The block is three hand-written field lists, so its key set is per NODE. These are the declared sets. The
+gate reads each one out of its source and holds it to the declaration in both directions.
+
+| key | PpgDex | ECGDex | MotionDex |
+|---|---|---|---|
+| `anchors` | ✓ | ✓ | ✓ |
+| `anchorsDroppedPreResync` | — | — | ✓ |
+| `applied` | ✓ | ✓ | ✓ |
+| `deviceDrawn` | ✓ | ✓ | ✓ |
+| `drawn` | ✓ | — | — |
+| `drawnReason` | ✓ | — | — |
+| `drawnShare` | ✓ | ✓ | ✓ |
+| `independent` | ✓ | ✓ | ✓ |
+| `inertReason` | ✓ | — | — |
+| `maxStepMs` | ✓ | ✓ | ✓ |
+| `note` | — | ✓ | — |
+| `ok` | ✓ | ✓ | ✓ |
+| `ppm` | ✓ | ✓ | ✓ |
+| `ppmUncertainty` | — | ✓ | — |
+| `quantizedShare` | ✓ | — | — |
+| `rate` | ✓ | — | — |
+| `rateApplied` | ✓ | — | — |
+| `rateReason` | ✓ | — | — |
+| `reason` | — | — | ✓ |
+| `resyncs` | — | — | ✓ |
+| `spanMs` | ✓ | ✓ | ✓ |
+| `spanPpm` | ✓ | ✓ | ✓ |
+| `spreadMs` | ✓ | ✓ | ✓ |
+| `stability` | ✓ | ✓ | ✓ |
+| `stream` | — | — | ✓ |
+| `tMsCorrected` | — | ✓ | — |
+| `timingSource` | ✓ | ✓ | ✓ |
+| `totalMs` | ✓ | — | — |
+
+**Thirteen keys sit in all three publishers.** Each node's own keys name what only that node measures.
+PpgDex owns the rate it corrects, so `rate`, `rateApplied` and `rateReason` say what happened to `fs`.
+Its `drawn`, `quantizedShare` and `totalMs` carry the §7 provenance lattice. ECGDex spends `ppm` as a
+crystal figure, so it measures `ppmUncertainty` and `tMsCorrected`, and `note` holds the sentence its span
+gate wrote. MotionDex names the `stream` its axis belongs to, because that node carries several, and
+`resyncs` with `anchorsDroppedPreResync` are its seam accounting.
+
+**Why a declaration, and why a closed one.** A consumer meeting an absent key could not tell "this node
+does not measure it" from "this artifact predates the key". The committed artifacts show both states: 30
+distinct keys appear over the 242 blocks, and 7 PpgDex keys sit in 7 of its 180 artifacts. The reshape
+seam has also eaten `applied`, both `stability` names, `independent`, `spreadMs`, `inertReason` and `ok`,
+one at a time. A FLOOR gate sees none of that, because a floor cannot red on a key nobody declared.
+
+**Gate.** The suite group `the hand-rolled host-axis block has a declared key set, per publisher`
+(`dsp · node-export · hostaxis-keyset · three-publishers`). A planted block proves the key reader first.
+Three closed equalities then hold each publisher to its set, and three more name the keys only one node
+publishes. Adding one undeclared key to a field list reds it.
+
 ## Rules that fall out of this (for a new node / a reviewer)
 
 1. **Decide the clinical export shape up front.** If the node's value is a derived table (HRV rows, glycemic
@@ -211,6 +296,10 @@ either forward reds three of its thirteen legs.
 6. **A hand-rolled `recording.hostAxis` names `ok`.** The block ships only when the gate passed, so a
    list that omits the key makes every consumer read `undefined` — falsy — over a good axis. Forward the
    gate's own value; never write a literal.
+7. **A refusal's reason lives in `recording.timing.reason`.** The absent `recording.hostAxis` block never
+   carries it. Pass the raw axis to `DexExport.timingBlock` and let it quote the spine.
+8. **A hand-rolled `recording.hostAxis` declares its key set.** Add the key to the declaration in the
+   `hostaxis-keyset` group, and say in the table above which nodes measure it.
 
 > Cross-refs: `docs/CROSSNIGHT-ENVELOPE-SPEC.md` (the `crossNight` aggregate header), `CLAUDE.md` §🔒 Clock
 > Contract §6 (the export currency), `ARCHITECTURE-PRINCIPLES.md` §8 (adding a new Dex — this table is the
