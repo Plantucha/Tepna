@@ -2,7 +2,13 @@
 # Install on top of the runtime venv:  .venv/bin/pip install -r requirements-dev.txt
 mypy>=2.4.1          # advisory type gate (PYTHON-TYPES-AND-FORMAT-2026-08-27) — flips blocking at 0 errors
 ruff>=0.17.3           # lint (blocking) + `ruff format` (black-compatible style; changed-files advisory)
-pytest>=9.2.0
+pytest>=9.1.1          # ⚠️ HELD at 9.1.1 while `mutmut` is pinned 3.8.0 below, and the mutation job's
+                       # own `pytest==` pin follows this floor (capture-host-ci.yml, enforced by
+                       # tests/test_dev_requirements.py). mutmut 3.8.0's stats harness reads pytest's
+                       # PRIVATE `Item._nodeid` (runners/harness.py:157, verified in this venv); pytest
+                       # 9.2.0 dropped that attribute, and the run that took it generated 642 mutants,
+                       # tested 0, and returned NOT_RUN over 24 functions (#4032, 2026-10-27). Raising
+                       # this line alone re-creates that pair: move mutmut FIRST, then this.
 pytest-cov>=7.1.0
 pytest-xdist>=3.8.0    # CI runs the suite `-n 4` (see capture-host-ci.yml); check.sh uses it when present
 pytest-asyncio>=1.4.1
