@@ -9,11 +9,13 @@
 
 import asyncio
 import contextlib
+import json
 import logging
 import os
 
 import pytest
 
+import alerts
 import capture
 from tests._srcscan import module_source, split_segment, until_anchor
 
@@ -10123,3 +10125,163 @@ def test_run_oxyii_off_the_finger_writes_no_PPG_and_books_no_sample_as_lost(tmp_
     ppg_rows = sum(len(p.read_text().splitlines()) - 1 for p in _ring_files(tmp_path, "*_PPG.txt"))
     assert ppg_rows == 2 * N, f"the first (inside the grace) and the worn frame only: {ppg_rows}"
     assert f"declared {2 * N} sample(s), delivered {2 * N} (0 truncated)" in caplog.text
+
+
+_WALL = 5_000_000.0
+
+
+def _quiet_poll(monkeypatch, cfg, polls=3, mono=1060.0, on_poll=None):
+    """Run the alert poller for `polls` polls with fixed clocks; return the alert titles it sent."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if on_poll:
+            on_poll(calls["n"])
+        if calls["n"] >= polls:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: mono)
+    monkeypatch.setattr(capture._time, "time", lambda: _WALL)
+    _run(capture.alert_poller(cfg, _N()))
+    return sent
+
+
+def _quiet_setup(tmp_path, nm, saved=None, status=None):
+    """A clean device state; with `saved`, the quiet-state file a previous run left behind."""
+    if saved is not None:
+        p = tmp_path / "captures" / alerts.QUIET_STATE_NAME
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(saved if isinstance(saved, str) else json.dumps(saved))
+    capture.STATUS["devices"][nm] = status or {"connected": False}
+    capture._LAST_DATA.pop(nm, None)
+    capture._LAST_PULL_OK.pop(nm, None)
+    capture._IDLE_TIMER_NAMED.discard(nm)
+    return {"root": str(tmp_path), "alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name=nm)]}
+
+
+def _quiet_teardown(nm):
+    capture._LAST_DATA.pop(nm, None)
+    capture._LAST_PULL_OK.pop(nm, None)
+    capture._IDLE_TIMER_NAMED.discard(nm)
+
+
+def test_alert_poller_keeps_a_completed_pull_quiet_across_a_restart(tmp_path, monkeypatch):
+    """MEASURED 2026-11-01: the H10 powered off after a completed pull at 05:44:57. The deploy restart at
+    07:01:46 cleared the poller's memory, and at 07:07:45 the box sent "has been offline for ~5 min —
+    capture is missing it". The restored stamps keep it quiet, and the night-ended note is not sent twice."""
+    nm = "Polar H10 TEST0001"
+    cfg = _quiet_setup(tmp_path, nm, {"pull_ok": {nm: _WALL - 7200}, "ended": {nm: _WALL - 7100}})
+    try:
+        sent = _quiet_poll(monkeypatch, cfg)
+        restored = capture._LAST_PULL_OK.get(nm)
+    finally:
+        _quiet_teardown(nm)
+    assert sent == [], sent
+    assert restored == 1060.0 - 7200
+
+
+def test_alert_poller_keeps_a_stream_that_ended_quiet_across_a_restart(tmp_path, monkeypatch):
+    """The Sense has no completed pull: its night-ended note came from the live stream. After a restart
+    `stream_since` and `_LAST_DATA` are empty, so only the saved note stamp can keep it quiet."""
+    nm = "Polar Sense TEST0001"
+    cfg = _quiet_setup(tmp_path, nm, {"pull_ok": {}, "ended": {nm: _WALL - 3600}})
+    try:
+        sent = _quiet_poll(monkeypatch, cfg)
+    finally:
+        _quiet_teardown(nm)
+    assert sent == [], sent
+
+
+def test_alert_poller_alarms_again_when_the_saved_state_is_older_than_8_h(tmp_path, monkeypatch):
+    nm = "Polar H10 TEST0001"
+    old = _WALL - 9 * 3600
+    cfg = _quiet_setup(tmp_path, nm, {"pull_ok": {nm: old}, "ended": {nm: old}})
+    try:
+        sent = _quiet_poll(monkeypatch, cfg)
+        restored = nm in capture._LAST_PULL_OK
+    finally:
+        _quiet_teardown(nm)
+    assert sent == ["Tepna: sensor offline"], sent
+    assert restored is False
+
+
+def test_alert_poller_saves_the_quiet_state_in_wall_clock_seconds(tmp_path, monkeypatch):
+    nm = "Polar H10 TEST0001"
+    cfg = _quiet_setup(tmp_path, nm)
+    capture._LAST_PULL_OK[nm] = 1000.0  # a pull completed one minute ago
+    try:
+        sent = _quiet_poll(monkeypatch, cfg)
+    finally:
+        _quiet_teardown(nm)
+    assert sent == ["Tepna: " + nm + " night ended"], sent
+    saved = json.loads((tmp_path / "captures" / alerts.QUIET_STATE_NAME).read_text())
+    assert saved == {"pull_ok": {nm: _WALL - 60}, "ended": {nm: _WALL}}
+    assert not (tmp_path / "captures" / (alerts.QUIET_STATE_NAME + ".tmp")).exists()
+
+
+def test_alert_poller_starts_empty_when_the_saved_state_is_not_json(tmp_path, monkeypatch, caplog):
+    nm = "Polar H10 TEST0001"
+    cfg = _quiet_setup(tmp_path, nm, "{")
+    try:
+        with caplog.at_level(logging.WARNING):
+            sent = _quiet_poll(monkeypatch, cfg)
+    finally:
+        _quiet_teardown(nm)
+    assert sent == ["Tepna: sensor offline"], sent
+    assert "the quiet state starts empty" in caplog.text
+
+
+def test_alert_poller_goes_on_when_the_state_file_can_be_neither_read_nor_written(tmp_path, monkeypatch, caplog):
+    nm = "Polar H10 TEST0001"
+    cfg = _quiet_setup(tmp_path, nm)
+    (tmp_path / "captures" / alerts.QUIET_STATE_NAME).mkdir(parents=True)  # a directory where the file goes
+    try:
+        with caplog.at_level(logging.WARNING):
+            sent = _quiet_poll(monkeypatch, cfg)
+    finally:
+        _quiet_teardown(nm)
+    assert sent == ["Tepna: sensor offline"], sent
+    assert "the quiet state starts empty" in caplog.text
+    assert "a restart will forget the quiet state" in caplog.text
+
+
+def test_alert_poller_does_not_alarm_for_a_device_on_its_charger(tmp_path, monkeypatch):
+    """MEASURED 2026-11-01 08:09:52: the ring and the Sense, linked and on their chargers, raised
+    "linked but recording nothing for ~5 min — capture is missing it"."""
+    nm = "Wellue O2Ring TEST0001"
+    cfg = _quiet_setup(tmp_path, nm, status={"connected": True, "charging": True})
+    try:
+        sent = _quiet_poll(monkeypatch, cfg)
+    finally:
+        _quiet_teardown(nm)
+    assert sent == [], sent
+
+
+def test_alert_poller_names_the_charger_instead_of_calling_it_recording(tmp_path, monkeypatch):
+    """MEASURED 2026-11-01 07:21:45: the ring on its charger sent PPG samples, so the box sent "is
+    recording again" while the ring logged that it was on its charger and not recording."""
+    nm = "Wellue O2Ring TEST0001"
+    cfg = _quiet_setup(tmp_path, nm)
+    st = capture.STATUS["devices"][nm]
+
+    def dock(n):
+        if n == 2:  # after the alarm: it is docked, linked, and sends samples
+            st.update(connected=True, charging=True)
+            capture._LAST_DATA[nm] = 1060.0
+
+    try:
+        sent = _quiet_poll(monkeypatch, cfg, polls=4, on_poll=dock)
+    finally:
+        _quiet_teardown(nm)
+    assert sent == ["Tepna: sensor offline", "Tepna: sensor on charger"], sent

@@ -677,6 +677,62 @@ def stream_ended_in_the_morning(streamed_sec: float | None, stop_hour: int) -> b
     return streamed_sec is not None and streamed_sec >= STREAM_NIGHT_MIN_S and stop_hour in STREAM_MORNING_HOURS
 
 
+# A DOCKED DEVICE IS NEITHER RECORDING NOR MISSING. Measured on the capture box 2026-11-01: the ring on
+# its charger kept a link and sent PPG samples, so at 07:21:45 the box sent "is recording again" while the
+# ring logged that it was on its charger and not recording. At 08:09:52 the ring and the Sense, both
+# linked and on their chargers, raised "linked but recording nothing". `charging` is the device's own
+# flag (ring batt_state, Polar PMD "in charger"). The flag is read only while the link is up: a
+# disconnected device keeps its last value, which can be stale.
+def on_charger(connected: bool, charging) -> bool:
+    """PURE: is this device linked and on its charger right now?"""
+    return bool(connected and charging)
+
+
+# THE QUIET STATE SURVIVES A RESTART. The poller holds in memory which device completed a pull and which
+# night it already reported as ended. Measured on the capture box 2026-11-01: the deploy restart at
+# 07:01:46 cleared that memory, and at 07:07:45 the box sent three "sensor offline" alarms for devices
+# whose night had ended and been pulled at 05:44 to 05:47. The 08:03:52 restart did it again at 08:09:52.
+# The box saves the stamps as wall-clock epoch seconds, because a monotonic clock does not carry across
+# a restart or a reboot. A stamp keeps its 8 h expiry.
+QUIET_STATE_NAME = "alert-quiet.json"
+
+
+def quiet_licence_holds(stamp: float | None, now: float, expiry_sec: float = RING_IDLE_EXPECT_MAX_S) -> bool:
+    """PURE: does a monotonic `stamp` (a night-ended note) still license silence at `now`?"""
+    return stamp is not None and 0 <= now - stamp < expiry_sec
+
+
+def quiet_state_to_save(pull_ok: dict, ended_at: dict, mono_now: float, wall_now: float) -> dict:
+    """PURE: the monotonic stamps as wall-clock epoch seconds, for the file a restart reads back."""
+    return {
+        "pull_ok": {n: wall_now - (mono_now - t) for n, t in sorted(pull_ok.items())},
+        "ended": {n: wall_now - (mono_now - t) for n, t in sorted(ended_at.items())},
+    }
+
+
+def quiet_state_restored(
+    saved, mono_now: float, wall_now: float, max_age: float = RING_IDLE_EXPECT_MAX_S
+) -> tuple[dict, dict]:
+    """PURE: `(pull_ok, ended)`, each `{name: monotonic stamp}`, from what `quiet_state_to_save` wrote.
+
+    A stamp older than `max_age`, a stamp in the future (the wall clock moved back) and a value that is
+    not a number are dropped. A dropped stamp costs one alarm; a kept wrong stamp costs a false all-clear."""
+    out: tuple[dict, dict] = ({}, {})
+    if not isinstance(saved, dict):
+        return out
+    for i, key in enumerate(("pull_ok", "ended")):
+        rows = saved.get(key)
+        if not isinstance(rows, dict):
+            continue
+        for name, wall in rows.items():
+            if isinstance(wall, bool) or not isinstance(wall, (int, float)):
+                continue
+            age = wall_now - wall
+            if 0 <= age < max_age:
+                out[i][name] = mono_now - age
+    return out
+
+
 def powered_off_after_pull(
     last_pull_ok_sec: float | None, now: float, expiry_sec: float = RING_IDLE_EXPECT_MAX_S
 ) -> bool:

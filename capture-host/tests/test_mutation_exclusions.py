@@ -602,7 +602,10 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # installer, and nothing held the two equal. −2, which is the whole delta. A fall shrinks the blind spot
     # this pin measures, so it is updated the same deliberate way a rise is.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 334, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 334 → 336 on 2026-11-01 (the alert quiet state survives a restart): `_read_quiet_state` and
+    # `_write_quiet_state`, the file a restarted poller reads back. +2, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 336, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

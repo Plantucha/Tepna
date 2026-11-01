@@ -9468,6 +9468,30 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
         await asyncio.sleep(interval)
 
 
+def _read_quiet_state(path):
+    """The saved quiet state (`alerts.quiet_state_to_save`), or None. Never raises: a lost file costs one
+    false alarm, and capture must go on."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        return None  # the first start, or a box that has not pulled yet
+    except (OSError, ValueError):
+        log.warning("alert: %s is unreadable; the quiet state starts empty", path, exc_info=True)
+        return None
+
+
+def _write_quiet_state(path, state):
+    """Atomic write of the quiet state. A failure is logged and capture goes on."""
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump(state, fh, indent=1, sort_keys=True)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        log.warning("alert: could not save %s; a restart will forget the quiet state", path, exc_info=True)
+
+
 async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     """Push a webhook alert when a configured sensor goes OFFLINE and stays offline past `offline_sec`
     (edge-triggered, so a flapping link cannot spam), and a 'recovered' note when it returns. A lost night
@@ -9503,6 +9527,21 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # not something capture is "missing" (alerts.offline_alert_suppressed holds the reasoning); one that
     # joined and then dropped is, so the distinction has to be remembered rather than re-derived.
     ever_connected: set[str] = set()
+    # When each night-ended note went out (monotonic). It licenses silence until the device records
+    # again, for 8 h. With `_LAST_PULL_OK` it is the state a restart reads back (`alerts.QUIET_STATE_NAME`).
+    ended_at: dict[str, float] = {}
+    quiet_path = os.path.join(cfg["root"], "captures", alerts.QUIET_STATE_NAME) if cfg.get("root") else None
+    saved_key = None
+    if quiet_path:
+        pull_ok, ended = alerts.quiet_state_restored(_read_quiet_state(quiet_path), _time.monotonic(), _time.time())
+        for n, t in pull_ok.items():
+            _LAST_PULL_OK.setdefault(n, t)
+        ended_at.update(ended)
+        ended_noted.update(ended)
+        if pull_ok or ended:
+            log.info(
+                "alert: restored the quiet state of %d device(s) from %s", len(set(pull_ok) | set(ended)), quiet_path
+            )
     # Per-episode latch for the ring identity alarm below — same discipline as `alerted`, separate set
     # because the two alarms have independent episodes (a wrong ring can be perfectly "recording").
     identity_alerted: set[str] = set()
@@ -9573,6 +9612,18 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             connected = bool(STATUS["devices"].get(name, {}).get("connected"))
             if connected:
                 ever_connected.add(name)
+            # ON ITS CHARGER: not recording, and not missing (see `alerts.on_charger`). The operator who had
+            # an alarm is told where the device is, never that it "is recording again".
+            if alerts.on_charger(connected, dst.get("charging")):
+                down_since.pop(name, None)
+                stream_since.pop(name, None)  # the next wear starts a new episode
+                if name in alerted:
+                    alerted.discard(name)
+                    log.info("alert: %s is on its charger", name)
+                    await notifier.send(
+                        "Tepna: sensor on charger", f"{name} is on its charger, so it is not recording."
+                    )
+                continue
             # RECORDING, not merely LINKED. Keying recovery on `connected` turned a 4.5 h outage into
             # four "resolved" blips, because an unbonded H10 is briefly connected inside every doomed
             # connect→drop cycle. Only flowing samples clear the alarm.
@@ -9583,6 +9634,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 else:
                     stream_since.setdefault(name, now)
                 ended_noted.discard(name)
+                ended_at.pop(name, None)
                 down_since.pop(name, None)
                 _IDLE_TIMER_NAMED.discard(name)  # re-worn: the next power-off is a new event
                 if name in alerted:  # it had alerted → tell the operator it is back
@@ -9618,6 +9670,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                         )
                         if delivered or not notifier.enabled:
                             ended_noted.add(name)
+                            ended_at[name] = now
                     continue
                 last = _LAST_DATA.get(name)
                 first = stream_since.get(name)
@@ -9636,7 +9689,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             )
                             if delivered or not notifier.enabled:
                                 ended_noted.add(name)
+                                ended_at[name] = now
                         continue
+                # A NIGHT ALREADY REPORTED AS ENDED STAYS QUIET until the device records again or 8 h pass.
+                # After a restart this stamp is the only witness: `stream_since` and `_LAST_DATA` start empty.
+                if not connected and alerts.quiet_licence_holds(ended_at.get(name), now):
+                    continue
                 if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
                     mins = int((now - down_since[name]) / 60)
                     # NAME THE FAILURE. "offline" and "linked but silent" want different responses from
@@ -9655,6 +9713,11 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     # off there is nothing to retry, and re-logging every 60 s all night is noise.
                     if delivered or not notifier.enabled:
                         alerted.add(name)
+        # Save only on a change, so an idle box does not rewrite the file every poll.
+        key = (dict(_LAST_PULL_OK), dict(ended_at))
+        if quiet_path and key != saved_key:
+            _write_quiet_state(quiet_path, alerts.quiet_state_to_save(_LAST_PULL_OK, ended_at, now, _time.time()))
+            saved_key = key
 
 
 def qc_digest_due(now, digest_hour: int, last_sent_date) -> bool:
