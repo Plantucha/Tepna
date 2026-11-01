@@ -46845,11 +46845,12 @@
       var AT = '2026-11-01T11:45:09.000Z';
       T.ok(
         'an undraft is signed with the walker, the action and the UTC time',
-        /^🚶 \*\*Marked ready for review \(undrafted\) by the fleet walker\*\* at 11:45 UTC, 2026-11-01\.\n\nReason: green draft, pool 1\/4\.\n/.test(
+        /^🚶 \*\*The fleet walker marked this PR ready for review \(undrafted\)\*\* at 11:45 UTC, 2026-11-01\.\n\nReason: green draft, pool 1\/4\.\n/.test(
           sg({ op: 'ready', number: 3, result: 'ok', why: 'green draft, pool 1/4' }, AT)
         )
       );
-      T.ok('a merge is signed too', /^🚶 \*\*Squash-merged by the fleet walker\*\*/.test(sg({ op: 'merge', number: 3, result: 'ok', why: 'w' }, AT)));
+      T.ok('a merge is signed too', /^🚶 \*\*The fleet walker squash-merged this PR\*\*/.test(sg({ op: 'merge', number: 3, result: 'ok', why: 'w' }, AT)));
+      T.ok('a rerun names the walker as the actor', /^🚶 \*\*The fleet walker re-ran the failed required jobs\*\* at 11:45 UTC/.test(sg({ op: 'rerun', number: 3, result: 'ok', why: 'w' }, AT)));
       T.ok('a pushed rebase names its new head', /New head `abcdef012`\./.test(sg({ op: 'rebase', number: 3, result: 'pushed:abcdef0123456789', why: 'w' }, AT)));
       T.eq('a failed action signs nothing', sg({ op: 'update', number: 3, result: 'failed: x', why: 'w' }, AT), null);
       T.eq('a stopped rebase signs nothing', sg({ op: 'rebase', number: 3, result: 'stopped', why: 'w' }, AT), null);
