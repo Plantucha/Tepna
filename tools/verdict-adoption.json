@@ -131,6 +131,11 @@
    },
    "note": "the emitter CLI for both nightly gates; this row validates night-backcheck (BACKCHECK-VERDICT.json): population = every PPG/PPG2W/ECG file, checked = files with a class-B block, excluded = files the check skipped \u2014 eligible>0 with checked==0 is UNKNOWN, never an empty-list ok"
   },
+  "capture-host/nightarchive.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "names the box verdict FILES (SOLID-VERDICT.json and the rest) only to skip them in the stall check; it reads no verdict and decides nothing"
+  },
   "capture-host/nightqc.py": {
    "bin": "decides",
    "status": "adopted",
@@ -379,6 +384,10 @@
    "status": "exempt"
   },
   "capture-host/tests/test_night_verdicts_cli.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_nightarchive.py": {
    "bin": "test",
    "status": "exempt"
   },
