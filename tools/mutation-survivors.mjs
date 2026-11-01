@@ -34,6 +34,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { escapeRe } from './regex-escape-core.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const LEDGER_PATH = path.join(HERE, '..', 'mutation-survivors.json');
@@ -456,7 +457,7 @@ export function recordedLineAbsence(entry, root) {
  */
 export function pyFunctionBody(src, fname) {
   const lines = String(src).split('\n');
-  const esc = String(fname || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const esc = escapeRe(fname || '');
   if (!esc) return null;
   const at = lines.findIndex((l) => new RegExp('^def\\s+' + esc + '\\s*\\(').test(l));
   if (at < 0) {
