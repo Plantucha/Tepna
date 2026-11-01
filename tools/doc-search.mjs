@@ -1341,7 +1341,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   console.log(`\n▸ ${qv ? 'semantic' : 'TOKEN-FALLBACK (embedder unreachable)'} · "${query}"\n`);
   if (capped.held > 0) console.log(`  ⚠ ${capped.held} board post(s) held below the share cap (at most ${capMax(8)} of 8) — \`--board-all\` ranks them with everything else\n`);
   if (deferred.supersededHeld > 0)
-    console.log(`  ⚠ ${deferred.supersededHeld} replaced board post(s) held below their successors (#${deferred.supersededBy.join(', #')}) — \`--keep-superseded\` ranks them where they scored\n`);
+    console.log(`  ⚠ ${deferred.supersededHeld} replaced source(s) held below their successors (${deferred.supersededBy.join(', ')}) — \`--keep-superseded\` ranks them where they scored\n`);
   if (deferred.unreadable?.length) console.log(`  ⚠ ${deferred.unreadable.length} board post(s) could not be read for a supersession mark, so none was applied to them\n`);
   for (const h of hits) console.log(brief ? `  ${h.score.toFixed(3)}  ${h.file}` : `  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
   if (readMode) {
