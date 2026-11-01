@@ -294,9 +294,11 @@ async function main() {
     reason: status === 'PASS' ? null : `${parityDisagreements} of ${checked} planted case(s) disagree between the two nodes by up to ${parityMaxAbs} event(s)`,
     producedBy: { tool: 'tools/cvhr-gap-edge.mjs', commit }
   });
-  const bad = Verdict.validate(v);
-  if (bad && bad.length) {
-    console.error('verdict does not validate: ' + bad.join('; '));
+  /* `.ok` is the guard: `validate` answers an object, so `bad && bad.length` read `undefined` and
+     this `exit(2)` could never run (gate rule `no-verdict-validate-length`). */
+  const ck = Verdict.validate(v);
+  if (!ck.ok) {
+    console.error('verdict does not validate: ' + ck.errors.join('; '));
     process.exit(2);
   }
   console.log(JSON.stringify(v));

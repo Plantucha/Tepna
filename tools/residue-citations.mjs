@@ -513,9 +513,12 @@ if (isCliEntry(import.meta.url)) {
   } else {
     const r = run(REPO);
     const v = verdictFor(r, commitSha());
-    const bad = Verdict.validate(v);
-    if (bad.length) {
-      console.error(`invalid verdict: ${bad.join('; ')}`);
+    /* `validate` answers `{ ok, errors, checked }`, so `.ok` is the guard and `.errors` the report.
+       A `.length` read of the object is `undefined`, which never fires (gate rule
+       `no-verdict-validate-length`; row 2026-11-01-the-citation-gates-own-verdict-guard-cannot-fire). */
+    const ck = Verdict.validate(v);
+    if (!ck.ok) {
+      console.error(`invalid verdict: ${ck.errors.join('; ')}`);
       process.exit(2);
     }
     if (has('--verdict-sample')) {

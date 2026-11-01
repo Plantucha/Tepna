@@ -56,6 +56,7 @@ import { readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { PRODUCER_COMMIT_NOTE } from './fold-generation.mjs';
 import { launch } from './pw-launch.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -169,6 +170,7 @@ export function buildRecord({ corpus, conc, entries, acceptedPairs, index, hat, 
     schema: 'tepna.published-number-record/1',
     producer: 'tools/sigma-corpus-headless.mjs',
     producerCommit: commit,
+    producerCommitNote: PRODUCER_COMMIT_NOTE,
     invocation,
     generated: new Date().toISOString().slice(0, 10),
     inputs: {

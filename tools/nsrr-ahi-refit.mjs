@@ -47,6 +47,7 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { PRODUCER_COMMIT_NOTE } from './fold-generation.mjs';
 
 const argv = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -615,8 +616,7 @@ async function main() {
       schema: 'tepna.published-number-record/1',
       producer: 'tools/nsrr-ahi-refit.mjs',
       producerCommit: prov.commit ? prov.commit.slice(0, 8) : null,
-      producerCommitNote:
-        'the branch commit HEAD sat at when the tool ran; a squash merge replaces it, so resolve the record through publishedIn and the pull request that carried it rather than expecting this sha on main',
+      producerCommitNote: PRODUCER_COMMIT_NOTE,
       invocation: `node tools/nsrr-score-pool.mjs --scorer ./nsrr-oxydex-odi.mjs --out <scored-visitN.json> (per visit) · node tools/nsrr-ahi-refit.mjs --scored=<v1>,<v2> --boot=${BOOT_REPS} --seed=${BOOT_SEED} --min-holdout=${MIN_HOLDOUT_SUBJECTS} --out=<this file>`,
       generated: summary.generated.slice(0, 10),
       inputs: {
@@ -624,7 +624,7 @@ async function main() {
         committed: false,
         files: summary.split.fitRows + summary.split.holdoutRows,
         digest,
-        note: 'digest = sha256[0:12] over the bytes of the scored pool files this refit reads; the corpus itself is not in the tree, so the record is recorded-only and reproducible from the same corpus + producerCommit'
+        note: 'digest = sha256[0:12] over the bytes of the scored pool files this refit reads; the corpus itself is not in the tree, so the record is recorded-only and reproduces over the same corpus at the producer this record names, resolved the way producerCommitNote says and never from the sha alone'
       },
       publishedIn: 'briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4',
       claims: claimsOf(summary),

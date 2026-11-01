@@ -163,7 +163,7 @@ function selftest() {
     gate: 'mutate-diff-js',
     scope: 'internal',
     population: { checked: 10, eligible: 10, excluded: 0 },
-    criterion: { name: 'survivors_on_changed_lines', threshold: 0, unit: 'mutants', direction: 'lte' },
+    criterion: { name: 'blocking_survivors_on_changed_lines', threshold: 0, unit: 'mutants', direction: 'lte' },
     evidence: ['tools/mutate.mjs', 'clock.js'],
     producedBy: { tool: 'tools/mutate.mjs', commit: 'c6a8e913' },
     at: '2026-09-22T00:00:00Z',

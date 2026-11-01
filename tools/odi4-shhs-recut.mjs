@@ -45,6 +45,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { PRODUCER_COMMIT_NOTE } from './fold-generation.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -267,6 +268,7 @@ function main(argv) {
     schema: 'tepna.published-number-record/1',
     producer: 'tools/odi4-shhs-recut.mjs',
     producerCommit: headCommit(),
+    producerCommitNote: PRODUCER_COMMIT_NOTE,
     invocation: 'node tools/nsrr-score-pool.mjs --scorer ./nsrr-oxydex-odi.mjs --workers 8 --out <results.json> · node tools/odi4-shhs-recut.mjs --results <results.json>',
     generated: new Date().toISOString().slice(0, 10),
     inputs: {
@@ -274,7 +276,7 @@ function main(argv) {
       committed: false,
       files: R.records.total,
       digest: sha12(raw),
-      note: 'digest = sha256[0:12] over the pool results file bytes (the per-record rows this re-cut reads) — recorded-only, since the corpus itself is not in the tree; the pool run is reproducible from the same corpus + producerCommit'
+      note: 'digest = sha256[0:12] over the pool results file bytes (the per-record rows this re-cut reads) — recorded-only, since the corpus itself is not in the tree; the pool run reproduces over the same corpus at the producer this record names, resolved the way producerCommitNote says and never from the sha alone'
     },
     publishedIn: 'papers/odi4-ahi-bias.html §3.2 (re-cut correction block, 2026-09-22) · docs/SHHS-COHORT-REFERENCE.md',
     claims: { note: 'values EXACTLY as the prose states them (published precision), so CLAIM … FROM … #claims/<key> compares equal; full precision is under result', ...claimsOf(R) },

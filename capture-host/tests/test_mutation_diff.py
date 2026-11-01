@@ -995,12 +995,21 @@ def test_verdict_object_maps_every_gate_outcome_onto_the_closed_enum():
     assert o["population"] == {"checked": 3, "eligible": 4, "excluded": 1}, (
         "population is an equality — excluded is derived, never guessed"
     )
+    # THE NAME IS A PUBLISHED KEY and both halves of it are a claim about THIS lane. `blocking` is
+    # the subset the bound takes, after `split_inherited` drops what main's record owns and `classify`
+    # drops what an equivalence entry excuses. `changed_functions` is the selection, which
+    # `entry_matches_function` makes per function and not per line. The JS gate filters by line and so
+    # carries `blocking_survivors_on_changed_lines`; the two names differ because the two scopes do.
+    # Residue `2026-10-31-the-mutation-verdicts-criterion-names-lines-not-functions`.
     assert o["criterion"] == {
-        "name": "survivors_on_changed_lines",
+        "name": "blocking_survivors_in_changed_functions",
         "threshold": 0,
         "unit": "mutants",
         "direction": "lte",
     }
+    assert o["criterion"]["name"] != "blocking_survivors_on_changed_lines", (
+        "that is the JS lane's name, whose scope is the changed LINES"
+    )
     assert (
         o["result"]["killed"] == 1
         and o["reason"] is None

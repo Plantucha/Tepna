@@ -22754,6 +22754,91 @@
           ).join(', ')
       );
 
+      /* ── WHAT THE `producerCommit` IS WORTH, SAID IN THE RECORD. Residue
+         2026-10-21-a-producer-commit-can-name-a-tree-it-never-held asked whether a producer should
+         write the field at all. Measured 2026-11-01 over the 13 committed records that carry it: ONE
+         said what it was worth, EIGHT promised reproducibility from it, and FOUR carry no content
+         identity at all — so for those four the weak pointer is the only address the record has, and
+         dropping the field would leave them with none. The remedy is therefore the inverse of the
+         row's: every producer states the field's worth from one shared constant.
+
+         🔴 THIS GUARD BINDS THE PRODUCERS, NOT THE RECORDS. A published record is an immutable
+         artefact and most of the thirteen were cut over corpora no checkout holds, so a records leg
+         would red on work nobody can do. The next cut flows through the producer, which is where the
+         note has to live. */
+      var PRD = PC.producers || { files: [], note: '', owner: '', ownerHits: 0 };
+      T.ok(
+        'the producer scan found the write sites (not vacuous)',
+        PRD.files.length >= 6,
+        PRD.files.length +
+          ' producer(s): ' +
+          PRD.files
+            .map(function (f) {
+              return f.name;
+            })
+            .join(', ')
+      );
+      var bare = PRD.files.filter(function (f) {
+        return !/^[ \t]*producerCommitNote: PRODUCER_COMMIT_NOTE,$/m.test(f.text);
+      });
+      T.eq(
+        'every producer writing producerCommit writes the shared producerCommitNote beside it',
+        bare
+          .map(function (f) {
+            return f.name;
+          })
+          .join(', '),
+        ''
+      );
+      var unimported = PRD.files.filter(function (f) {
+        return f.text.indexOf('PRODUCER_COMMIT_NOTE } from') < 0;
+      });
+      T.eq(
+        'the note is imported, so no producer can drift from the owner module',
+        unimported
+          .map(function (f) {
+            return f.name;
+          })
+          .join(', '),
+        ''
+      );
+      /* A COPIED NOTE DRIFTS. The literal belongs to the owner module alone. */
+      var copied = PRD.files.filter(function (f) {
+        return PRD.note && f.text.indexOf(PRD.note) >= 0;
+      });
+      T.eq(
+        'no producer copies the note text',
+        copied
+          .map(function (f) {
+            return f.name;
+          })
+          .join(', '),
+        ''
+      );
+      /* THE SECOND HALF OF THE DEFECT: eight records' own `inputs.note` promised the run reproduces
+         from the sha, which is the weak pointer promising to be proof. No producer may say it. */
+      var promises = PRD.files.filter(function (f) {
+        return /(?:from|\+) producerCommit\b/.test(f.text);
+      });
+      T.eq(
+        'no producer promises reproducibility from producerCommit alone',
+        promises
+          .map(function (f) {
+            return f.name;
+          })
+          .join(', '),
+        ''
+      );
+      /* CONTROL · the owner module is excluded by name, and that exclusion drops nothing: it carries
+         no `producerCommit:` property at statement position. A hit here means the exclusion started
+         hiding a real write site and the population needs re-deriving. */
+      T.eq('CONTROL · excluding the owner module (' + PRD.owner + ') drops no write site', PRD.ownerHits, 0);
+      /* 🔴 AND NO LEG HOLDS A RECORD TO THE SHARED TEXT. `ahi-refit-2026-10-13.json` carries the note
+         its producer wrote at cut time, which named one of the two failure modes; the shared constant
+         names both. A record is a historical artefact, so its note is a fact about that cut and not an
+         invariant to ratchet. Single-sourcing stops the PRODUCERS drifting, which is all a guard can
+         honestly bind here. */
+
       /* The verdict is the API (§🧾). */
       var v = PC.verdict;
       T.eq('the verdict validates under verdict.js', (PC.verdictErrors || []).join(' | '), '');

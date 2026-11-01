@@ -71,6 +71,7 @@
     "verify:residue-ids": "node tools/residue-ids.mjs --base origin/main",
     "verify:residue-claims": "node tools/residue-ids.mjs --full-tree",
     "verify:residue-citations": "node tools/residue-citations.mjs",
+    "verify:residue-cite-drift": "node tools/residue-cite-drift.mjs --base origin/main",
     "verify:defect-pins": "node tools/defect-pin-census.mjs",
     "verify:survivor-ratchet": "node tools/mutation-survivors.mjs ratchet --expect 30",
     "verify:flag-exit": "node tools/flag-exit-scan.mjs --check",

@@ -11,6 +11,7 @@ transfer form. Every gate here FAILS SAFE: unreachable means protect everything,
 import datetime as _dt
 import logging
 import os
+import time
 
 import capture
 import storage_targets as st
@@ -95,8 +96,8 @@ def test_confirm_nights_stops_at_the_first_link_failure_and_protects_the_rest(tm
 
 # ── (1) the poller: transfer target + keep_nights — held, pruned, unreachable ─────────────────────
 def _nights(tmp_path, names, marked=()):
-    """Settled nights: every file and dir backdated a week, or `diskguard.active_nights` would protect
-    them as still-being-written and the gate under test would never see a candidate."""
+    """Settled nights: every file and dir backdated a week, or `nightarchive.copy_blocked_nights` would
+    protect them as still being written and the gate under test would never see a candidate."""
     cap = tmp_path / "captures"
     old = 1_700_000_000
     for n in names:
@@ -216,7 +217,7 @@ def test_archive_transfer_pushes_include_subtrees_after_the_nights_and_never_inc
         return {"ok": True, "verified": True, "detail": "copied and verified byte-for-byte"}
 
     monkeypatch.setattr(capture.storage_targets, "push_night", fake_push)
-    monkeypatch.setattr(capture.diskguard, "active_nights", lambda captures, settle: set())
+    monkeypatch.setattr(capture.nightarchive, "copy_blocked_nights", lambda captures, settle: set())
     _run(
         capture._archive_transfer(
             str(cap), _target(), 0.0, {"mode": "after_settle"}, ["stored", "cpap", "incoming", "absent"]
@@ -241,7 +242,7 @@ def test_archive_transfer_stops_at_the_first_failing_subtree(tmp_path, monkeypat
         return {"ok": False, "verified": False, "detail": "rsync exit 255"}
 
     monkeypatch.setattr(capture.storage_targets, "push_night", fake_push)
-    monkeypatch.setattr(capture.diskguard, "active_nights", lambda captures, settle: set())
+    monkeypatch.setattr(capture.nightarchive, "copy_blocked_nights", lambda captures, settle: set())
     with caplog.at_level("WARNING"):
         _run(capture._archive_transfer(str(cap), _target(), 0.0, {"mode": "after_settle"}, ["stored", "cpap"]))
     assert pushed == ["stored"], "a failing link fails for every tree; stop rather than hammer"
@@ -315,3 +316,73 @@ def test_archive_disabled_is_SAID_not_silent(tmp_path, monkeypatch, caplog):
 def test_archive_enabled_with_nowhere_to_go_is_SAID_not_silent(tmp_path, monkeypatch, caplog):
     got, lines = _poller_once(monkeypatch, {"archive": {"enabled": True}}, caplog, tmp_path)
     assert "target" not in got and lines == ["archive: OFF — no dest and no transfer target configured"]
+
+
+# ── the stalled-protection alarm (row 2026-10-29-one-live-writer-holds-a-settled-night-active) ────
+def _stalled_night(cap, name, now, data_age_h):
+    """A night whose device data went quiet `data_age_h` ago while one sidecar still moves."""
+    d = os.path.join(cap, name)
+    os.makedirs(d, exist_ok=True)
+    dev = os.path.join(d, "Polar_H10_1_20260701010101_ECG.txt")
+    side = os.path.join(d, "OXYLIFE.csv")
+    for p in (dev, side):
+        open(p, "w").close()
+    os.utime(dev, (now - data_age_h * 3600, now - data_age_h * 3600))
+    os.utime(side, (now - 1, now - 1))
+    return d
+
+
+def test_the_poller_alerts_once_per_night_held_open_by_a_lone_writer(tmp_path, monkeypatch, caplog):
+    """The bound owes an alarm. The deployed stall was silent for 6.5 h because `archive.ok` describes
+    the last ATTEMPT, which had passed — so no surface said a night had stopped being offered."""
+    cap = os.path.join(str(tmp_path), "captures")
+    _stalled_night(cap, "2026-10-28", time.time(), 14)
+    sent = []
+
+    class _N:
+        async def send(self, subject, body):
+            sent.append((subject, body))
+            return True
+
+    monkeypatch.setattr(capture, "_NOTIFIER", _N())
+    ticks = {"n": 0}
+
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
+        ticks["n"] += 1
+        if ticks["n"] >= 2:
+            capture._STOP.set()  # two ticks, so the latch is what the second one proves
+
+    monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
+
+    async def no_sleep(_s):
+        pass
+
+    monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
+    with caplog.at_level(logging.WARNING, logger=capture.log.name):
+        _run(capture.archive_poller({"archive": {"enabled": True, "target": dict(RSYNC)}}, str(tmp_path)))
+    assert ticks["n"] == 2
+    assert len(sent) == 1, f"one alert per night, not one per tick: {sent}"
+    assert sent[0][0] == "Tepna: a finished night is held open"
+    assert "2026-10-28" in sent[0][1] and "14.0 h" in sent[0][1]
+    assert capture.STATUS["archive"]["stalled_protection"][0]["night"] == "2026-10-28"
+    assert any("held active by a lone writer" in r.getMessage() for r in caplog.records)
+
+
+def test_the_poller_reports_a_stall_with_no_notifier_configured(tmp_path, monkeypatch, caplog):
+    cap = os.path.join(str(tmp_path), "captures")
+    _stalled_night(cap, "2026-10-27", time.time(), 9)
+    monkeypatch.setattr(capture, "_NOTIFIER", None)
+
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
+        capture._STOP.set()
+
+    monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
+
+    async def no_sleep(_s):
+        pass
+
+    monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
+    with caplog.at_level(logging.WARNING, logger=capture.log.name):
+        _run(capture.archive_poller({"archive": {"enabled": True, "target": dict(RSYNC)}}, str(tmp_path)))
+    assert capture.STATUS["archive"]["stalled_protection"][0]["night"] == "2026-10-27"
+    assert any("held active by a lone writer" in r.getMessage() for r in caplog.records)

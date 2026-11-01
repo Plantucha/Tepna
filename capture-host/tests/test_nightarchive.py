@@ -537,3 +537,217 @@ def test_the_marker_is_looked_for_inside_the_night_not_at_the_root(tmp_path):
     d = _night(root, "2026-07-21", {"a.csv": "x"})
     open(os.path.join(d, nightarchive._MARKER), "w").close()
     assert nightarchive.pending_nights(root, active=set()) == [], "the marker inside the night dir must be found"
+
+
+# ── copy_blocked_nights / stalled_protection — the COPY question, not the protect-list ────────────
+# Row 2026-10-29-one-live-writer-holds-a-settled-night-active-and-blocks-every-offload. The archiver
+# gated on `diskguard.active_nights`, which counts ANY file because its contract is destructive work.
+# One periodic writer therefore parked a finished night's offload without bound and nothing said so.
+_DEV = "Polar_H10_1_20260701010101_ECG.txt"  # a device-capture file: newest_data_mtime counts it
+_SIDE = "OXYLIFE.csv"  # a sidecar: excluded by tag, and the file that parked the measured night
+
+
+def test_copy_blocked_nights_blocks_only_a_night_whose_device_data_is_still_arriving(tmp_path):
+    cap = str(tmp_path / "captures")
+    live = _night(cap, "2026-10-29", {_DEV: "x"})
+    _touch(os.path.join(live, _DEV), 9_990)  # 10 s old against a 60 s settle
+    done = _night(cap, "2026-10-28", {_DEV: "x"})
+    _touch(os.path.join(done, _DEV), 5_000)
+    got = nightarchive.copy_blocked_nights(cap, 60.0, _now=lambda: 10_000.0)
+    assert got == {"2026-10-29"}, got
+
+
+def test_copy_blocked_nights_ignores_the_lone_sidecar_writer_that_parked_the_offload(tmp_path):
+    # THE REGRESSION. 89 device files settled at 05:14; one 284 KB OXYLIFE csv moved 14 h later, and
+    # the deployed selector returned the night ACTIVE with pending empty.
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-28", {_DEV: "x", _SIDE: "y"})
+    _touch(os.path.join(d, _DEV), 10_000 - 14 * 3600)
+    _touch(os.path.join(d, _SIDE), 9_999)  # one second ago
+    assert nightarchive.copy_blocked_nights(cap, 60.0, _now=lambda: 10_000.0) == set()
+    # and the night is therefore OFFERED, which is the whole point of the row
+    assert nightarchive.pending_nights(cap, nightarchive.copy_blocked_nights(cap, 60.0, _now=lambda: 10_000.0)) == [
+        "2026-10-28"
+    ]
+
+
+def test_copy_blocked_nights_does_not_block_the_midnight_decoy_folder(tmp_path):
+    # sidecars only, no device file at all — `newest_data_mtime` is None and nothing can be torn
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-29", {_SIDE: "y"})
+    _touch(os.path.join(d, _SIDE), 9_999)
+    assert nightarchive.copy_blocked_nights(cap, 60.0, _now=lambda: 10_000.0) == set()
+
+
+def test_copy_blocked_nights_fails_safe_on_an_unreadable_night(tmp_path):
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-10-28", {_DEV: "x"})
+
+    def boom(_d):
+        raise OSError("EIO")
+
+    got = nightarchive.copy_blocked_nights(cap, 60.0, _now=lambda: 10_000.0, _newest=boom)
+    assert got == {"2026-10-28"}, "unknown must mean blocked — the doubt may not license the copy"
+
+
+def test_stalled_protection_names_the_night_one_writer_holds_open(tmp_path):
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-28", {_DEV: "x", _SIDE: "y"})
+    _touch(os.path.join(d, _DEV), 100_000 - 14 * 3600)
+    _touch(os.path.join(d, _SIDE), 99_999)
+    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: 100_000.0)
+    assert [r["night"] for r in rows] == ["2026-10-28"]
+    assert round(rows[0]["data_age_sec"] / 3600.0, 1) == 14.0
+    assert rows[0]["any_age_sec"] == 1.0
+
+
+def test_stalled_protection_is_silent_unless_all_three_conditions_hold(tmp_path):
+    cap = str(tmp_path / "captures")
+    now = 100_000.0
+    # (a) device data still arriving — not a stall, just a live night
+    live = _night(cap, "2026-10-29", {_DEV: "x", _SIDE: "y"})
+    _touch(os.path.join(live, _DEV), now - 10)
+    _touch(os.path.join(live, _SIDE), now - 1)
+    # (b) nothing fresh at all — the night is settled and offered; no protection to stall
+    quiet = _night(cap, "2026-10-27", {_DEV: "x", _SIDE: "y"})
+    _touch(os.path.join(quiet, _DEV), now - 14 * 3600)
+    _touch(os.path.join(quiet, _SIDE), now - 14 * 3600)
+    # (c) held active, but only just — under the stated ceiling, so not yet worth an alarm
+    young = _night(cap, "2026-10-26", {_DEV: "x", _SIDE: "y"})
+    _touch(os.path.join(young, _DEV), now - 3600)
+    _touch(os.path.join(young, _SIDE), now - 1)
+    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: now) == []
+
+
+def test_stalled_protection_skips_a_night_with_no_device_data_and_an_unreadable_one(tmp_path):
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-29", {_SIDE: "y"})
+    _touch(os.path.join(d, _SIDE), 99_999)
+    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: 100_000.0) == []
+
+    def boom(_d):
+        raise OSError("EACCES")
+
+    assert nightarchive.stalled_protection(cap, 60.0, _now=lambda: 100_000.0, _newest=boom) == []
+
+
+def test_stalled_protection_skips_a_night_whose_folder_reports_no_file_at_all(tmp_path):
+    # The defensive half of the pair: a device mtime with no file behind it cannot happen on disk, so
+    # it is reachable only by injection — and the row must not carry an age that was never measured.
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-10-28", {})
+    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: 100_000.0, _newest=lambda _d: 1_000.0)
+    assert rows == []
+
+
+def test_stalled_protection_reports_the_longest_held_night_first(tmp_path):
+    cap = str(tmp_path / "captures")
+    now = 200_000.0
+    for name, age_h in (("2026-10-26", 20), ("2026-10-27", 30), ("2026-10-28", 10)):
+        d = _night(cap, name, {_DEV: "x", _SIDE: "y"})
+        _touch(os.path.join(d, _DEV), now - age_h * 3600)
+        _touch(os.path.join(d, _SIDE), now - 1)
+    rows = nightarchive.stalled_protection(cap, 60.0, _now=lambda: now)
+    assert [r["night"] for r in rows] == ["2026-10-27", "2026-10-26", "2026-10-28"]
+
+
+def test_newest_any_mtime_counts_files_only_and_reports_an_empty_folder_as_none(tmp_path):
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-28", {_DEV: "x", _SIDE: "y"})
+    os.makedirs(os.path.join(d, "nested"), exist_ok=True)
+    os.utime(os.path.join(d, "nested"), (500_000, 500_000))  # a DIRECTORY is not a write
+    _touch(os.path.join(d, _DEV), 1_000)
+    _touch(os.path.join(d, _SIDE), 2_000)
+    assert nightarchive._newest_any_mtime(d) == 2_000
+    empty = _night(cap, "2026-10-27", {})
+    assert nightarchive._newest_any_mtime(empty) is None
+
+
+# ── the boundaries and the scan, pinned because the mutation gate read them as survivors ──────────
+# mutate_diff reported 8 survivors over these three functions on the first push. Seven were real gaps:
+# two `continue → break` on a SKIP arm (a skip that ends the scan loses every later night), and five
+# comparison boundaries nothing exercised at equality. The eighth is a `>` → `>=` inside a max fold,
+# which no input distinguishes; it is recorded in `tools/mutate-equivalence.json`, not here.
+def test_copy_blocked_nights_reads_the_settle_window_as_a_half_open_interval(tmp_path):
+    """A night settled EXACTLY `settle_sec` ago is settled. `<=` would hold it one more cycle for no
+    reason, which is the direction the whole row is about."""
+    cap = str(tmp_path / "captures")
+    now = 100_000.0
+    d = _night(cap, "2026-10-28", {_DEV: "x"})
+    _touch(os.path.join(d, _DEV), now - 600.0)
+    assert nightarchive.copy_blocked_nights(cap, 600.0, _now=lambda: now) == set()
+    _touch(os.path.join(d, _DEV), now - 599.5)
+    assert nightarchive.copy_blocked_nights(cap, 600.0, _now=lambda: now) == {"2026-10-28"}
+
+
+def test_copy_blocked_nights_keeps_scanning_after_a_night_it_cannot_read(tmp_path):
+    """The OSError arm is a SKIP, not an exit. One unreadable night ending the walk would report every
+    later night as copyable — the unsafe direction, and silently."""
+    cap = str(tmp_path / "captures")
+    now = 100_000.0
+    for n in ("2026-10-26", "2026-10-27"):
+        _night(cap, n, {_DEV: "x"})
+
+    def newest(d):
+        if d.endswith("2026-10-26"):
+            raise OSError("EIO")
+        return now - 1.0
+
+    got = nightarchive.copy_blocked_nights(cap, 600.0, _now=lambda: now, _newest=newest)
+    assert got == {"2026-10-26", "2026-10-27"}
+
+
+def test_stalled_protection_keeps_scanning_past_both_of_its_skip_arms(tmp_path):
+    """Two skips sit above the test, and either one ending the loop hides every later night. The
+    stalled night deliberately sorts LAST: an unreadable night first, then one with no device data."""
+    import nightqc
+
+    cap = str(tmp_path / "captures")
+    now = 200_000.0
+    for name in ("2026-10-25", "2026-10-26", "2026-10-28"):
+        d = _night(cap, name, {_DEV: "x", _SIDE: "y"})
+        _touch(os.path.join(d, _DEV), now - 40_000.0)
+        _touch(os.path.join(d, _SIDE), now - 1.0)
+    os.remove(os.path.join(cap, "2026-10-26", _DEV))  # sidecars only: newest_data_mtime reads None
+
+    def newest(d):
+        if d.endswith("2026-10-25"):
+            raise OSError("EIO")
+        return nightqc.newest_data_mtime(d)
+
+    rows = nightarchive.stalled_protection(cap, 60.0, 3600.0, _now=lambda: now, _newest=newest)
+    assert [r["night"] for r in rows] == ["2026-10-28"]
+
+
+def _one_night(tmp_path, data_age, any_age, now):
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-10-21", {_DEV: "x", _SIDE: "y"})
+    _touch(os.path.join(d, _DEV), now - data_age)
+    _touch(os.path.join(d, _SIDE), now - any_age)
+    return cap
+
+
+def test_stalled_protection_counts_data_settled_exactly_at_the_window(tmp_path):
+    """`data_age >= settle_sec`, never `>`. A night that settled on the boundary is settled, and the
+    stall it is held by is the same stall."""
+    now = 500_000.0
+    cap = _one_night(tmp_path, 600.0, 1.0, now)
+    rows = nightarchive.stalled_protection(cap, 600.0, 300.0, _now=lambda: now)
+    assert [r["night"] for r in rows] == ["2026-10-21"]
+
+
+def test_stalled_protection_is_silent_when_nothing_in_the_folder_is_still_fresh(tmp_path):
+    """`any_age < settle_sec`, never `<=`. With every file settled there is no lone writer, so there is
+    no protection to report — `copy_blocked_nights` already offers the night."""
+    now = 500_000.0
+    cap = _one_night(tmp_path, 600.0, 600.0, now)
+    assert nightarchive.stalled_protection(cap, 600.0, 300.0, _now=lambda: now) == []
+
+
+def test_stalled_protection_waits_until_the_stall_bound_is_passed_not_reached(tmp_path):
+    """`data_age > stall_after_sec`, never `>=`. The bound is how long a hold is tolerated, so the
+    alarm fires past it, not on it."""
+    now = 500_000.0
+    cap = _one_night(tmp_path, 600.0, 1.0, now)
+    assert nightarchive.stalled_protection(cap, 300.0, 600.0, _now=lambda: now) == []
+    assert [r["night"] for r in nightarchive.stalled_protection(cap, 300.0, 599.0, _now=lambda: now)] == ["2026-10-21"]
