@@ -1022,3 +1022,68 @@ def test_a_COMPLETE_interpreter_is_not_refused(tmp_path):
     assert p.returncode == 0, p.stdout + p.stderr
     assert set(ran) == {"ruff", "format", "shellcheck", "pytest"}, ran
     assert "REFUSED" not in p.stdout + p.stderr
+
+
+# ── CI PARITY: every blocking leg of check.sh has a step in the workflow ───────────────────────────
+# CI does not run check.sh — it replicates each leg as its own step, and the pytest step's own note
+# says why the bound is therefore written twice. What nothing watched is the SET. `run_gate` is the one
+# way a blocking leg enters the aggregate, so a leg added locally is a leg CI never gains, and the
+# direction of that gap is the harmful one: the contributor's box reds and main stays green.
+# 🔴 MEASURED 2026-11-01 — `covscope` had been a blocking leg since #3788 (2026-10-20) and ran in no CI
+# job at all. Residue `2026-11-01-a-blocking-check-sh-leg-ran-in-no-ci-job`.
+# The population is read from the CALLS and never from the prose: every `run_gate` call in check.sh
+# sits at statement position, so `^run_gate "…"` cannot reach a comment or this file's own words. A
+# reader that derives its population from source text otherwise ends up reading its own documentation.
+CI_EVIDENCE = {
+    "ruff": r"^\s*run: ruff check \.\s*$",
+    "format": r"^\s*run: ruff format --check \.\s*$",
+    "shellcheck": r"^\s*run: shellcheck --severity=style ",
+    "pytest": r"^\s*run: pytest -q .*--cov-fail-under=100",
+    "unwired": r"^\s*run: python tools/find_unwired\.py --check",
+    "covscope": r"^\s*run: python tools/covscope\.py --check",
+    # The ratchet is replicated INLINE in the `mypy (advisory ratchet)` job rather than called, so its
+    # evidence is the invocation inside that job's script. ⚠️ PRESENT IN THE WORKFLOW IS NOT PRESENT IN
+    # A REQUIRED CONTEXT — that job is not in `protect-main`'s required set, so a red there informs a
+    # reviewer and does not hold the merge. The ruleset is the owner's, and the remainder is residue
+    # `2026-10-20-the-mypy-ratchet-job-is-not-a-required-context`.
+    "mypy-ratchet": r"^\s*python -m mypy --ignore-missing-imports",
+}
+# Every pattern anchors on a `run:` line or on a shell line inside one, so the workflow's prose cannot
+# satisfy it. The file names `ruff`, `pytest` and `check.sh` dozens of times in comments.
+
+
+def _legs(src):
+    return re.findall(r'^run_gate "([a-z-]+)"', src, re.M)
+
+
+def _ci_gap(legs, evidence, wf):
+    """ONE classifier, read twice — over the real legs and over a plant — so a control cannot drift
+    away from the check it is controlling."""
+    return {
+        "undeclared": [leg for leg in legs if leg not in evidence],
+        "unused": [name for name in evidence if name not in legs],
+        "absent": [name for name, pat in evidence.items() if re.search(pat, wf, re.M) is None],
+    }
+
+
+def test_EVERY_BLOCKING_LEG_OF_check_sh_HAS_A_STEP_IN_CI():
+    """THREE ways the two sides drift, and the one that bit is the first: a leg with no declared CI
+    home. `unused` catches the map outliving a leg, `absent` catches a step renamed or deleted under a
+    declaration that still reads live."""
+    wf = _wf_text()
+    legs = _legs(open(CHECK, encoding="utf-8").read())
+    assert len(legs) >= 7, f"only {legs} — the legs are no longer readable here, so nothing below means anything"
+    real = _ci_gap(legs, CI_EVIDENCE, wf)
+    assert real["undeclared"] == [], f"blocking leg(s) with no declared CI step: {real['undeclared']}"
+    assert real["unused"] == [], f"declared CI step(s) for no blocking leg: {real['unused']}"
+    assert real["absent"] == [], f"declared CI step(s) the workflow no longer runs: {real['absent']}"
+    plant = _ci_gap(
+        ["ruff", "plantleg"],
+        {"ruff": CI_EVIDENCE["ruff"], "plantdeclared": r"^\s*run: no-such-step-exists\b"},
+        wf,
+    )
+    assert plant == {
+        "undeclared": ["plantleg"],
+        "unused": ["plantdeclared"],
+        "absent": ["plantdeclared"],
+    }, f"CONTROL: the classifier no longer names a planted gap: {plant}"
