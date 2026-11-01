@@ -182,6 +182,11 @@ function ecgRpeakTimes(text) {
        9559 on a real 11,279 s Verity night took the fallback. That night's MEASURED axis spans
        23,606.9 s against the synthesised 11,279.4 s, so the two placements sit 3.4 h apart at the
        last foot. The worker names the same defect and its own measurement; this is the same fix.
+       POPULATION, measured 2026-11-01 by running this tool over the 100 archive nights before and
+       after: 71 nights scored on both sides and ALL 71 moved. Median PAT fell on 42 and rose on 28
+       (p50 -7 ms, range -278 to +196 ms); SD fell on 46 and rose on 25 (p50 -6.6 ms); yield rose on
+       48 and fell on 19 (p50 +9 points), and one further night began to score. Before the edit the
+       report column read `yes` on all 71 while NO foot took the measured axis.
    2 · THE PINNED-SPAN REFUSAL (#4069). A consensus foot every channel was pinned through was
        measured by nothing and is refused; one pinned channel of three is reduced COVERAGE and is
        annotated (§∅). `runsText` is OPTIONAL and LAST per §🧪, so a caller that hands over no
