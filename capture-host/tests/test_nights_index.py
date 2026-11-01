@@ -1572,7 +1572,8 @@ def test_a_FILE_THAT_VANISHES_does_not_abandon_the_files_after_it(tmp_path, monk
     read, so one racing unlink must cost one file — not every file the sorted scan had not reached yet.
 
     ⚠️ The raising file must sort BEFORE the one that matters, which is what the now-sorted scan makes
-    possible to guarantee: `AAA` precedes `Polar_…`, so a `break` loses the session entirely.
+    possible to guarantee: the 20:00 stamp precedes the 22:00 one, so a `break` loses the session entirely.
+    Both are `_ECG.txt` names, because only a file an analyzer reads opens a session.
 
     🔴 THE ARM MOVED TO THE BUDGET-EXHAUSTED BRANCH, because the steady state never stats a capture file:
     the end is the last stamped ROW, and a file that has vanished simply carries none. So the input is
@@ -1583,15 +1584,15 @@ def test_a_FILE_THAT_VANISHES_does_not_abandon_the_files_after_it(tmp_path, monk
 
     root = str(tmp_path)
     c = os.path.join(root, "captures")
-    a = "AAA_Polar_H10_02849638_20261009200000_ECG.txt"
+    a = "Polar_H10_0284_20261009200000_ECG.txt"
     _put(c, "2026-10-09", a, "t\n1\n", "20261009210000", stamp_end=False)
-    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", "t\n1\n", "20261009230000", stamp_end=False)
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009220000_ECG.txt", "t\n1\n", "20261009230000", stamp_end=False)
     # The night RECORDED its offset: without it no stampless file reaches `getmtime` past the deadline.
     _starts(os.path.join(c, "2026-10-09"), 43200)
     real = ni.os.path.getmtime
 
     def vanishing(p):
-        if os.path.basename(p).startswith("AAA_"):
+        if os.path.basename(p) == a:
             raise OSError(2, "No such file or directory")
         return real(p)
 
@@ -2172,10 +2173,69 @@ def test_a_session_with_NO_STAMP_IN_ANY_FILE_reaches_only_its_OWN_START(tmp_path
 
     root = str(tmp_path)
     c = os.path.join(root, "captures")
-    _put(c, "2026-10-09", "Polar_H10_0284_20261009220000_PMDARRIVAL.csv", "t\n1\n", "20261010070000", stamp_end=False)
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009220000_ECG.txt", "t\n1\n", "20261010070000", stamp_end=False)
     t = nightqc.floating_stamp_s("20261009220000")
     spans = ni._session_spans(root)
     assert spans[t] == t, (spans[t], t, "no stamp anywhere, so the span is the start itself")
+
+
+# ══ ONLY A FILE AN ANALYZER READS OPENS A RECORDING (owner report 2026-10-31: "10-31 is there 2x") ══
+# The box listed 2026-10-31 twice. The second row began 12:31 and every cell was None: the ring writes a
+# `_RTCLOG.csv` clock log each hour while idle, and each stamped name opened a session of its own.
+
+
+def test_SIDECARS_alone_open_NO_RECORDING_and_a_real_daytime_session_still_does(tmp_path):
+    """🔴 THE PLANT, red on main: there the clock logs, the link log and the arrival stub make a 10:01 row.
+
+    The control is the 13:00 ECG beside them. It keeps its own daytime row, and that row starts at 13:00:
+    on main the 12:01 clock log chains into it and moves its start to 10:01."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    for hh in ("10", "11", "12"):
+        _put(
+            c,
+            "2026-10-24",
+            f"Wellue_O2Ring-S_S8AW_202610241{hh[1]}0100_RTCLOG.csv",
+            "Phone timestamp;v\n",
+            f"20261024{hh}0130",
+        )
+    _put(c, "2026-10-24", "Tepna_20261024120000_LINK.csv", "Phone timestamp;v\n", "20261024123000")
+    _put(
+        c, "2026-10-24", "Polar_VeritySense_A1B2_20261024120500_PMDARRIVAL.csv", "Phone timestamp;v\n", "20261024120600"
+    )
+    assert ni.index_nights(root, budget_s=None) == [], "a folder of sidecars recorded no analyzer input"
+
+    _put(c, "2026-10-24", "Polar_H10_0284_20261024130000_ECG.txt", "Phone timestamp;v\n", "20261024133000")
+    rows = ni.index_nights(root, budget_s=None)
+    assert [(r["night"], r["recording_start"], r["daytime"]) for r in rows] == [
+        ("2026-10-24", "2026-10-24 13:00", True)
+    ], rows
+
+
+def test_a_session_of_EMPTY_stream_files_opens_NO_RECORDING(tmp_path):
+    """∅ The screenshot of 2026-10-31: a Verity on its charger refused every stream, so its 20:38 session
+    left six 0-byte files, and the evening row offered PPGDex and MotionDex a run over them.
+
+    One byte is enough to open a session, so the 22:00 file has exactly one: a `> 1` bound drops it."""
+    import nightqc
+
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-31")
+    for suf in ("PPG.txt", "ACC.txt", "PPI.txt", "PMDARRIVAL.csv"):
+        _w(os.path.join(d, f"Polar_VeritySense_A1B2_20261031203805_{suf}"), "")
+    _w(os.path.join(d, "Polar_VeritySense_A1B2_20261031220000_PPG.txt"), "x")
+    t22 = nightqc.floating_stamp_s("20261031220000")
+    assert ni._session_spans(root) == {t22: t22}
+
+
+def test_a_FOLDER_or_a_DANGLING_LINK_with_an_analyzer_name_opens_nothing(tmp_path):
+    """A name alone is not a file. A directory reads as non-empty to `stat`, and a dangling link cannot be
+    read at all, so neither may open a session."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-09")
+    os.makedirs(os.path.join(d, "Polar_H10_0284_20261009220000_ECG.txt"))
+    os.symlink(os.path.join(d, "gone"), os.path.join(d, "Polar_H10_0284_20261009230000_ECG.txt"))
+    assert ni._session_spans(root) == {}
 
 
 def test_a_file_with_NO_HOST_COLUMN_votes_with_its_OWN_LEADING_STAMP(tmp_path):
