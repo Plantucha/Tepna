@@ -90,8 +90,26 @@ def test_the_report_writes_into_TONIGHTS_dir_beside_the_qc_summary(tmp_path, mon
     assert out == {"discrepancies": 0}
     assert seen["qc_path"] == str(night / "QC-SUMMARY.json")
     assert seen["journal_path"] == str(night / "CPAP-INVENTORY.jsonl")
-    assert seen["envelope_root"] == "/e" and seen["spool_root"] == str(tmp_path)
+    assert seen["envelope_root"] == "/e"
+    # no `cpap.spool_pull.root`: the pull's own default, never the box root (which holds no ledger)
+    assert seen["spool_root"] == str(tmp_path / "cpap-spool")
     assert seen["dest_root"].endswith("captures/cpap") and seen["result"] == {"files": 3}
+
+
+def test_the_report_reads_the_spool_the_PULL_writes(tmp_path, monkeypatch):
+    """The same `resolve_spool_root` as the pull: a relative root joins the box root, an absolute one
+    stands. The box root itself held no ledger, so the spool read as consulted and empty."""
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    (tmp_path / "captures" / "2026-07-19").mkdir(parents=True)
+    seen = {}
+    import cpap_inventory_adapter
+
+    monkeypatch.setattr(cpap_inventory_adapter, "on_harvest_complete", lambda result, **kw: seen.update(kw) or None)
+    box = str(tmp_path)
+    capture._cpap_inventory_report({}, {"cpap": {"spool_pull": {"root": "captures/cpap-spool"}}}, box, "/d")
+    assert seen["spool_root"] == str(tmp_path / "captures" / "cpap-spool")
+    capture._cpap_inventory_report({}, {"cpap": {"spool_pull": {"root": "/abs/spool"}}}, box, "/d")
+    assert seen["spool_root"] == "/abs/spool"
 
 
 def test_a_box_with_NO_live_stream_passes_envelope_root_None_not_a_guess(tmp_path, monkeypatch):
