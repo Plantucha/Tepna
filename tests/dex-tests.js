@@ -80695,7 +80695,10 @@
         T.eq('CONTROL · a measured low share is a real negative', axL.drawn, false);
         T.eq('CONTROL · …and the tier it earns is unchanged', axL.timingSource, 'device+host');
       } else {
-        T.skip('the measured-share control', 'no resolvable axis in this lane — the null arm above is lane-independent. PpgDex HAS inlined clock.js since #3914, so this reason no longer names a bundle fact');
+        T.skip(
+          'the measured-share control',
+          'no resolvable axis in this lane — the null arm above is lane-independent. PpgDex HAS inlined clock.js since #3914, so this reason no longer names a bundle fact'
+        );
       }
       /* ── THE `quality` PROJECTION, EXECUTED. It reshapes the verdict, and `=== true` there turned
          the unknown back into `false` one layer out from the fix above. */
@@ -80734,7 +80737,10 @@
         T.eq('RUNTIME · the export says whether the correction was applied, which effectivePpm reads', mk({ applied: true }).hostAxis.applied, true);
         T.eq('RUNTIME · …and an unknown one is null there too, never false', mk({ applied: null }).hostAxis.applied, null);
       } else {
-        T.skip('the exported axis block', 'no resolvable axis in this lane — the null arms above are lane-independent. PpgDex HAS inlined clock.js since #3914, so this reason no longer names a bundle fact');
+        T.skip(
+          'the exported axis block',
+          'no resolvable axis in this lane — the null arms above are lane-independent. PpgDex HAS inlined clock.js since #3914, so this reason no longer names a bundle fact'
+        );
       }
     });
     group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {
