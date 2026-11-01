@@ -18,11 +18,13 @@ from __future__ import annotations
 
 import calendar as _cal
 import datetime as _dt
+import fnmatch
 import hashlib
 import glob
 import json
 import os
 import re
+import stat
 import time
 
 import nightqc
@@ -110,6 +112,40 @@ COLUMNS = tuple(NODES) + tuple(DERIVED)
 # device added later cannot fall out again. Deciding whether a given sidecar is USABLE belongs to the
 # consumer, which already refuses by name (`ring-offset-never-advances`) rather than ignoring the file.
 ARRIVAL: tuple[str, ...] = ("*_PMDARRIVAL.csv",)
+
+
+# 🔴 ONLY A FILE AN ANALYZER READS OPENS A SESSION. Every `NODES` glob, flattened, minus the date-keyed
+# CPAP trees, which carry no session stamp. Any stamped name used to open one, so the ring's hourly
+# `_RTCLOG.csv`, the host's `Tepna_<stamp>_LINK.csv` and an 86-byte `_PMDARRIVAL.csv` stub each made a
+# recording with no node file in it. Measured 2026-10-31 on the box: a second 2026-10-31 row at 12:31
+# from the ring's clock logs alone, every cell None (residue 2026-10-31-a-sidecar-stamp-opens-a-recording).
+_OPENS: tuple[str, ...] = tuple(
+    sorted(
+        {
+            g
+            for globs, _ in NODES.values()
+            for p in globs
+            for g in ((p,) if isinstance(p, str) else p)
+            if "{ymd}" not in g
+        }
+    )
+)
+
+
+def _opens_session(path: str) -> bool:
+    """True when `path` is a regular, NON-EMPTY file that an analyzer reads.
+
+    ∅ A 0-byte stream file holds no sample. `StreamWriter` flushes only from `_row`, so its header stays
+    in the buffer until the first sample lands (NIGHT-IS-THE-RECORDING-2026-10-05 §④′). A Verity on its
+    charger refuses every stream and leaves six such files per connect, and a session of them is a
+    recording of nothing. A vanished file opens nothing either: it has no bytes to read."""
+    if not any(fnmatch.fnmatchcase(os.path.basename(path), g) for g in _OPENS):
+        return False
+    try:
+        st = os.stat(path)
+    except OSError:
+        return False
+    return stat.S_ISREG(st.st_mode) and st.st_size > 0
 
 
 # ── THE FOLDER IS NOT THE RECORDING (NIGHT-IS-THE-RECORDING-2026-10-05 §⑥) ────────────────────────
@@ -928,7 +964,7 @@ def _session_spans(root: str, deadline: float | None = None, unread: set[float] 
         # walk cannot guarantee it. Determinism is also the cheaper property to reason about.
         for f in sorted(glob.glob(os.path.join(d, "*"))):
             t = session_epoch(f)
-            if t is None or not os.path.isfile(f):
+            if t is None or not _opens_session(f):
                 continue
             starts.add(t)
             spent = deadline is not None and time.monotonic() > deadline
