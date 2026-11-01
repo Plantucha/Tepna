@@ -70,7 +70,8 @@ export function whyAbsent(lines, span, before) {
  * The state of one recorded line inside one named top-level function, as six named answers:
  *
  *   `present`       — the line is there, at `at` (line indices, 0-based)
- *   `edited`        — its text survives inside a LONGER line, so the mutant id needs re-recording
+ *   `edited`        — its text survives inside a LONGER line, so the mutant id needs re-recording;
+ *                     `at` and `text` carry the containing line, which is what a re-record reads
  *   `gone`          — no line in the function carries the text at all
  *   `no-function`   — the module no longer defines a top-level `def <fname>(`
  *   `indented-only` — `fname` appears only indented (a method or a closure), which this does not read
@@ -98,9 +99,18 @@ export function recordedLineState(src, fname, before) {
   }
   const at = locate(lines, span, want).filter((i) => /^\s/.test(lines[i]));
   if (at.length) return { state: 'present', at, reason: null };
-  return whyAbsent(lines, span, want) === 'edited'
-    ? { state: 'edited', reason: `the recorded line survives inside a longer line in \`${fname}\`, so the mutant id needs re-recording rather than a retirement` }
-    : { state: 'gone', reason: `no line in \`${fname}\` carries the recorded text` };
+  if (whyAbsent(lines, span, want) !== 'edited') return { state: 'gone', reason: `no line in \`${fname}\` carries the recorded text` };
+  /* THE CONTAINING LINE TRAVELS WITH THE STATE. Re-recording the mutant id reads today's text, and a
+     caller told only `edited` has to find that line again by hand — which is the same losing-the-remedy
+     shape the six states exist to prevent. `text` is the line the recorded half now lives inside. */
+  const grew = [];
+  for (let i = span[0]; i < span[1]; i++) if (lines[i].includes(want)) grew.push(i);
+  return {
+    state: 'edited',
+    at: grew,
+    text: lines[grew[0]].trim(),
+    reason: `the recorded line survives inside a longer line in \`${fname}\`, so the mutant id needs re-recording rather than a retirement`
+  };
 }
 
 /** The states that mean no invocation can produce the recorded mutant again. */

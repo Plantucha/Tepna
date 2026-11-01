@@ -445,8 +445,36 @@ export function recordedLineAbsence(entry, root) {
     state: st.state,
     reason: st.reason,
     resolved,
-    line: String(halves.before).trim()
+    line: String(halves.before).trim(),
+    // `null` on every state but `edited`, because no other state HAS a containing line — never '',
+    // which would read as "today's line is empty" (∅).
+    todayLine: st.text || null
   };
+}
+
+/* ── THE THIRD STATE, AND THE ONLY CLOSURE THAT FITS IT ──────────────────────────────────────────
+ *
+ * An entry whose recorded line was EDITED can be closed by nobody. `--killed` wants a run, and no
+ * invocation of mutmut can generate that diff again. `--equivalent` wants a probe, and the finding may
+ * still be real. `--orphaned` checks today's source and REFUSES, correctly: the line is live. So the
+ * entry sat `open` forever and the ratchet counted it as debt a session could discharge.
+ *
+ * ∅ `stale-line` is neither open debt nor a kill. It says the mutant this entry names cannot be
+ * produced again, and the finding is unjudged — so the ratchet EXCLUDES it and the verdict's population
+ * says so, rather than the count quietly shrinking as though something had been answered.
+ *
+ * It fails closed in the same shape `--orphaned` does: the operator asserts nothing, and the one state
+ * that admits the closure is read from today's source. Measured 2026-11-01 over the committed ledger:
+ * exactly one of the 27 open entries reads `edited`.
+ */
+export const STALE_LINE_STATE = 'edited';
+
+export function staleLineDecision(ab) {
+  const st = (ab && ab.state) || 'unreadable';
+  if (st === STALE_LINE_STATE) return { ok: true, reason: null };
+  if (st === 'present') return { ok: false, reason: "the recorded line is still in today's source verbatim, so the entry is live" };
+  if (RETIRABLE_STATES.includes(st)) return { ok: false, reason: `the recorded line reads ${st}, which retires the entry outright — use --orphaned` };
+  return { ok: false, reason: `the recorded line reads ${st}, so this could not tell an edit from anything else${ab && ab.reason ? ` — ${ab.reason}` : ''}` };
 }
 
 // ── I/O ────────────────────────────────────────────────────────────────────────────────────────
@@ -572,8 +600,9 @@ function cmdClose(argv) {
   const killed = arg('--killed', argv);
   const equiv = arg('--equivalent', argv);
   const orphaned = argv.includes('--orphaned');
-  if (!label || (!killed && !equiv && !orphaned)) {
-    console.error('close <mutant-id | label text> --killed N | --equivalent "<probe>" | --orphaned');
+  const staleLine = argv.includes('--stale-line');
+  if (!label || (!killed && !equiv && !orphaned && !staleLine)) {
+    console.error('close <mutant-id | label text> --killed N | --equivalent "<probe>" | --orphaned | --stale-line');
     return 2;
   }
   const ledger = readLedger();
@@ -594,7 +623,21 @@ function cmdClose(argv) {
     }
     hits[0].orphan_evidence = gone.reason || `${hits[0].module} no longer carries the recorded line`;
   }
-  hits[0].state = killed ? `killed #${Number(killed)}` : orphaned ? 'orphaned' : 'equivalent';
+  /* SAME RULE, DIFFERENT STATE: the operator does not get to assert this one either. The evidence
+     records BOTH texts, because that pair is what a later run needs to re-record the mutant id —
+     and a closure that keeps only the verdict leaves the next session to find the line again. */
+  if (staleLine) {
+    const ab = recordedLineAbsence(hits[0], path.join(HERE, '..'));
+    const d = staleLineDecision(ab);
+    if (!d.ok) {
+      console.error(`mutation-survivors: REFUSING — ${d.reason}`);
+      return 2;
+    }
+    hits[0].stale_line_evidence = ab.reason;
+    hits[0].recorded_line = ab.line;
+    hits[0].today_line = ab.todayLine;
+  }
+  hits[0].state = killed ? `killed #${Number(killed)}` : orphaned ? 'orphaned' : staleLine ? 'stale-line' : 'equivalent';
   if (equiv) hits[0].probe = equiv;
   // WHERE the closure was made, so a later run can be placed before or after it. The PR number is
   // what survives a squash merge; the branch sha is only the fallback until that PR lands.
@@ -613,7 +656,7 @@ function cmdClose(argv) {
 /** The ONE verdict object this tool emits. Shared by `ratchet` and `--verdict-sample` so the
  * sample cannot drift from the thing it is a sample of — a sample that is not the real shape is
  * exactly the partial adoption `verdict-adoption` exists to catch. */
-export function ratchetVerdictObject({ expect, actual, eligible, noPr, orphaned = 0 }) {
+export function ratchetVerdictObject({ expect, actual, eligible, noPr, orphaned = 0, staleLine = 0 }) {
   const v = ratchetVerdict(expect, actual, noPr);
   // 🔴 THE POPULATION IS EVERY ENTRY, NOT THE OPEN ONES. It was `checked: actual` (the open count),
   // which is a modelling error the verdict contract caught the first time a drain answered ALL of
@@ -628,14 +671,17 @@ export function ratchetVerdictObject({ expect, actual, eligible, noPr, orphaned 
     tool: 'tools/mutation-survivors.mjs',
     status,
     scope: 'internal',
-    population: { checked: eligible, eligible, excluded: 0 },
+    /* ∅ A `stale-line` ENTRY IS EXAMINED AND UNJUDGEABLE, so it is an EXCLUSION rather than a
+       silent shrink. No run can produce its mutant again, so the criterion cannot bind on it — and a
+       reader who sees only a lower count cannot tell that from a survivor somebody killed. */
+    population: { checked: eligible - staleLine, eligible, excluded: staleLine },
     criterion: { name: 'open_survivors', threshold: expect, unit: 'entries', direction: 'lte' },
     // NOT_APPLICABLE carries result: null — the criterion does not bind, so there IS no result.
     // (The contract refused this too; both refusals are the type system doing the reviewing.)
     /* `answered` STAYS "killed or declared equivalent", so the orphans come off it rather than
        inflating it: an entry retired because its line was edited away answered nothing about the
        code, and a reader comparing the two numbers is reading the difference that matters. */
-    result: eligible === 0 ? null : { open: actual, expected: expect, answered: eligible - actual - orphaned, orphaned },
+    result: eligible === 0 ? null : { open: actual, expected: expect, answered: eligible - actual - orphaned - staleLine, orphaned, staleLine },
     evidence: ['mutation-survivors.json'],
     reason
   });
@@ -715,7 +761,10 @@ function cmdOrphans(argv) {
   }
   console.log(`\n${gone} of ${open.length} open entr(ies) record a line today's source no longer carries · ${edited} edited · ${unexamined} unexamined`);
   if (gone) console.log('  close each: node tools/mutation-survivors.mjs close <mutant-id> --orphaned');
-  if (edited) console.log('  an EDITED entry needs its mutant id re-recorded from a fresh run — --orphaned refuses it');
+  if (edited) {
+    console.log('  close each: node tools/mutation-survivors.mjs close <mutant-id> --stale-line');
+    console.log('  that EXCLUDES it from the ratchet and keeps both texts — re-recording the id still needs a fresh run');
+  }
   return 0;
 }
 
@@ -729,7 +778,8 @@ function cmdRatchet(argv) {
   const actual = openCount(ledger);
   const noPr = (ledger.entries || []).filter((e) => e.state === 'open' && !e.pr).length;
   const orphaned = (ledger.entries || []).filter((e) => e.state === 'orphaned').length;
-  const obj = ratchetVerdictObject({ expect, actual, eligible: (ledger.entries || []).length, noPr, orphaned });
+  const staleLine = (ledger.entries || []).filter((e) => e.state === 'stale-line').length;
+  const obj = ratchetVerdictObject({ expect, actual, eligible: (ledger.entries || []).length, noPr, orphaned, staleLine });
   console.log(JSON.stringify(obj));
   return obj.status === 'PASS' ? 0 : 1;
 }
@@ -1069,9 +1119,45 @@ function selftest() {
   ck('a name the module lacks has no span at all', functionSpan(LN, 'vanished'), null);
   ck('a name that is only ever indented reads as indented-only', recordedLineState(MOD, 'inner', 'return x').state, 'indented-only');
   ck('only a gone line and a gone function retire an entry', RETIRABLE_STATES, ['gone', 'no-function']);
+
+  /* THE CLOSURE FOR THE ONE STATE NOBODY COULD STATE. Every leg below that reads `ok: false` is a
+     control: an implementation that admitted it would retire a live finding, or claim a kill. */
+  console.log('\nan edited line closes to stale-line, and nothing else does');
+  ck('the containing line travels out with the edited state', edited.todayLine, '_span_reason = None if span else "under the minimum judgeable span"');
+  ck('…so an edited line admits the closure', staleLineDecision(edited).ok, true);
+  const live = recordedLineAbsence(ent('- span = None | + span = ""'), tmp);
+  ck('a line still carried verbatim refuses it', staleLineDecision(live).ok, false);
+  ck('…and says the entry is live', /is live/.test(staleLineDecision(live).reason), true);
+  const goneAb = recordedLineAbsence(ent('- before = [s for s in others if s[1] <= cur[0]] | + before = None'), tmp);
+  ck('a gone line refuses it too', staleLineDecision(goneAb).ok, false);
+  ck('…and is sent to --orphaned instead', /--orphaned/.test(staleLineDecision(goneAb).reason), true);
+  ck('a state this could not read fails closed', staleLineDecision({ state: 'no-module', reason: 'resolves to no file' }).ok, false);
+  ck('…and so does an absence it was never given', staleLineDecision(undefined).ok, false);
+  ck('the one admitting state is named, never inferred', STALE_LINE_STATE, 'edited');
   fs.rmSync(tmp, { recursive: true, force: true });
+  ck('a stale-line entry is not an open one', openCount({ entries: [{ state: 'stale-line' }, { state: 'open' }] }), 1);
+  /* ∅ THE EXCLUSION IS THE POINT: a lower count with no exclusion reads as a survivor somebody
+     killed, which is the one thing a stale line does NOT mean. */
+  ck('the ratchet excludes a stale line rather than banking it', ratchetVerdictObject({ expect: 1, actual: 1, eligible: 4, noPr: 0, orphaned: 1, staleLine: 1 }).population, {
+    checked: 3,
+    eligible: 4,
+    excluded: 1
+  });
+  ck('…and `answered` counts neither the orphans nor the stale lines', ratchetVerdictObject({ expect: 1, actual: 1, eligible: 4, noPr: 0, orphaned: 1, staleLine: 1 }).result, {
+    open: 1,
+    expected: 1,
+    answered: 1,
+    orphaned: 1,
+    staleLine: 1
+  });
   ck('an orphaned entry is not an open one', openCount({ entries: [{ state: 'orphaned' }, { state: 'open' }] }), 1);
-  ck('the ratchet keeps `answered` clear of the orphans', ratchetVerdictObject({ expect: 1, actual: 1, eligible: 4, noPr: 0, orphaned: 2 }).result, { open: 1, expected: 1, answered: 1, orphaned: 2 });
+  ck('the ratchet keeps `answered` clear of the orphans', ratchetVerdictObject({ expect: 1, actual: 1, eligible: 4, noPr: 0, orphaned: 2 }).result, {
+    open: 1,
+    expected: 1,
+    answered: 1,
+    orphaned: 2,
+    staleLine: 0
+  });
 
   console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);
   return fail ? 1 : 0;
@@ -1088,7 +1174,7 @@ if (isCliEntry(import.meta.url)) {
     argv,
     {
       valued: ['--pr', '--lane', '--run-id', '--sha', '--killed', '--equivalent', '--expect'],
-      boolean: ['--selftest', '--verdict-sample', '--open', '--check', '--orphaned'],
+      boolean: ['--selftest', '--verdict-sample', '--open', '--check', '--orphaned', '--stale-line'],
       positional: true
     },
     { tool: 'mutation-survivors' }
