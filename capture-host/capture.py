@@ -10154,8 +10154,12 @@ async def _archive_transfer(
     the local mirror: "we ran a copy" is not "a second copy exists", and only the latter may release a
     night to the retention gate. An unverified push leaves the night unmarked, so it is retried next
     cycle and retention keeps holding it — the safe direction."""
-    active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
-    for night in await asyncio.to_thread(nightarchive.pending_nights, captures, active):
+    # NOT diskguard.active_nights. That set is the protect-list for DESTRUCTIVE work and counts ANY
+    # file, so one periodic writer inside a finished night parked its whole offload without bound
+    # (measured 2026-10-29). A push is not destructive, and `copy_blocked_nights` asks the narrower
+    # question a copy needs: is a DEVICE still appending.
+    blocked = await asyncio.to_thread(nightarchive.copy_blocked_nights, captures, settle)
+    for night in await asyncio.to_thread(nightarchive.pending_nights, captures, blocked):
         src = os.path.join(captures, night)
         res = await storage_targets.push_night(src, target)
         STATUS.setdefault("archive", {}).update(
@@ -10638,6 +10642,7 @@ async def archive_poller(cfg: dict, root: str):
         schedule = {"mode": "after_settle"}
     last_run: _dt.datetime | None = None
     _archive_dest_warned = False  # edge-trigger the "dest not present" warning, one per absence
+    _stall_warned: set[str] = set()  # one stalled-protection alert per night, not one per poll tick
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
@@ -10647,6 +10652,33 @@ async def archive_poller(cfg: dict, root: str):
             # link is not also carrying three live BLE streams.
             if not storage_targets.due(schedule, _now(), last_run):
                 continue
+            # THE BOUND OWES AN ALARM. `copy_blocked_nights` below unblocks the copy, but the stall it
+            # replaces was SILENT for 6.5 h: `archive.ok` describes the last ATTEMPT, which passed on
+            # the night before, so no surface anywhere said a night had stopped being offered. Report
+            # a night whose devices went quiet long ago while one writer keeps the folder active.
+            # Before the transfer branch, so it covers both offload paths, and latched per night.
+            stalled = await asyncio.to_thread(nightarchive.stalled_protection, captures, settle)
+            STATUS.setdefault("archive", {})["stalled_protection"] = [
+                {"night": r["night"], "data_age_sec": round(r["data_age_sec"], 1)} for r in stalled
+            ]
+            for r in stalled:
+                if r["night"] in _stall_warned:
+                    continue
+                _stall_warned.add(r["night"])
+                hrs = r["data_age_sec"] / 3600.0
+                log.warning(
+                    "archive: %s held active by a lone writer — device data quiet %.1f h, newest file %.0f s ago",
+                    r["night"],
+                    hrs,
+                    r["any_age_sec"],
+                )
+                if _NOTIFIER is not None:
+                    await _NOTIFIER.send(
+                        "Tepna: a finished night is held open",
+                        f"{r['night']}: device data quiet {hrs:.1f} h, one writer still touching the "
+                        f"folder {r['any_age_sec']:.0f} s ago. The copy now proceeds; the writer is "
+                        f"what to look at.",
+                    )
             if xfer is not None:
                 await _archive_transfer(captures, xfer, settle, schedule, subtrees)
                 last_run = _now()
@@ -10671,7 +10703,7 @@ async def archive_poller(cfg: dict, root: str):
                 continue
             _archive_dest_warned = False
             STATUS.setdefault("archive", {})["dest_present"] = True
-            active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
+            blocked = await asyncio.to_thread(nightarchive.copy_blocked_nights, captures, settle)
             # OFF THE EVENT LOOP. archive_night() is a synchronous shutil.copy2 walk over a whole
             # night — ~2 GB across ~1500 files — and everything else this daemon does shares this one
             # loop: the BLE runners, the stream stall watchdogs, the status poller, and the sd_notify
@@ -10686,7 +10718,7 @@ async def archive_poller(cfg: dict, root: str):
             # stay inline "because it only stats the LOCAL captures dir" — but `_grew_since_marker`
             # walks every archived night's files, and local is not the same as cheap on an SD card
             # under a concurrent copy (§L3). Off the loop as well.
-            for night in await asyncio.to_thread(nightarchive.pending_nights, captures, active):
+            for night in await asyncio.to_thread(nightarchive.pending_nights, captures, blocked):
                 n = await asyncio.to_thread(nightarchive.archive_night, captures, night, dest)
                 log.info("archive: mirrored %s (%d file(s)) → %s", night, n, dest)
                 STATUS.setdefault("archive", {}).update({"last": night, "dest": dest})

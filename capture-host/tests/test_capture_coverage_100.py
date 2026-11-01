@@ -894,7 +894,7 @@ def test_a_verified_push_marks_the_night_and_an_unverified_one_does_not(tmp_path
     _night(tmp_path, "2026-07-01")
     _night(tmp_path, "2026-07-02")
     captures = str(tmp_path / "captures")
-    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.nightarchive, "copy_blocked_nights", lambda c, s: set())
     results = {
         "2026-07-01": {"ok": True, "verified": True, "detail": "12 files"},
         "2026-07-02": {"ok": True, "verified": False, "detail": "remote still differs"},
@@ -922,7 +922,7 @@ def test_a_failing_push_stops_rather_than_hammering_the_link(tmp_path, monkeypat
     for n in ("2026-07-01", "2026-07-02", "2026-07-03"):
         _night(tmp_path, n)
     captures = str(tmp_path / "captures")
-    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.nightarchive, "copy_blocked_nights", lambda c, s: set())
     tried = []
 
     async def fake_push(src, target, timeout=1800.0):
@@ -1873,7 +1873,7 @@ def test_the_transfer_offload_does_nothing_when_every_night_is_already_pushed(tm
     all. Otherwise every poll wakes the NAS and re-walks the tree for nothing."""
     d = _night(tmp_path, "2026-07-01")
     (d / ".archived").write_text("")
-    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.nightarchive, "copy_blocked_nights", lambda c, s: set())
     called = []
 
     async def fake_push(src, target, timeout=1800.0):
