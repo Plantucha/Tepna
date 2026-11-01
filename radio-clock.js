@@ -86,6 +86,25 @@
  * twin. The smaller span stays the recording's real duration, and the two then
  * read 17469 and 1.5e6. Both halves are planted in the suite.
  *
+ * ════ A DRAWN DEVICE COLUMN IS REFUSED ON PROVENANCE ══════════════════════
+ * `clock.js:623` publishes `deviceDrawn` ADDITIVELY and deliberately does not
+ * let it gate `independent`, because a synthetic fixture's uniform
+ * `devMs = i * 1000` cannot be told from a fabricated counter. A reader that
+ * MINTS a timing source cannot inherit that choice: `'radio'` asserts the
+ * device stamps and the controller anchors are two clocks, and a drawn device
+ * column makes the assertion false. ECGDex's remedy — relabel to `'host'` —
+ * does not transfer, because there are no samples to place here, only the
+ * question of which clock placed them. So this reader refuses and names the
+ * provenance. The flag is forwarded on every answer, and `null` where the
+ * spine refused and never decided it.
+ *
+ * IT COSTS NOTHING ON THE CORPUS ABOVE, measured: of the 7 streams whose
+ * anchors the spine accepts, 0 read `deviceDrawn:true`, and all 142 band
+ * verdicts are byte-identical before and after the arm. It is the hole the
+ * suite's `clock · drawn-axis · source-scan` ratchet exists to keep shut, and
+ * the suite's own plants were re-cut to a realistic device axis to earn it —
+ * the discipline `clock.js:638` asks of a node adopting the flag.
+ *
  * ════ `null` IS NOT A SMALL NUMBER ════════════════════════════════════════
  * `hostAxis.stackJitterMs` is `null` when `independent` is false, because a
  * host column that is the device stamp rounded would report its own rounding
@@ -299,6 +318,7 @@
         spreadMs: null,
         n: anchors && anchors.length ? anchors.length : 0,
         reason: 'clock.js is not loaded, so DexClock.hostAxis cannot build the radio axis',
+        deviceDrawn: null,
         axis: null
       };
     }
@@ -311,6 +331,7 @@
         spreadMs: null,
         n: n,
         reason: 'need ≥' + CK_RADIO_MIN_ANCHORS + ' radio anchors, got ' + n,
+        deviceDrawn: null,
         axis: null
       };
     }
@@ -323,7 +344,55 @@
         spreadMs: null,
         n: ax && ax.n != null ? ax.n : n,
         reason: 'the host axis refused the radio anchors: ' + ((ax && ax.reason) || 'the spine named no reason'),
+        /* A refused axis publishes no `deviceDrawn`, and an absent flag is `null`
+           here rather than `false` — the provenance was never decided. Measured
+           on the real corpus: 135 of 142 streams take this path. */
+        deviceDrawn: ax && ax.deviceDrawn != null ? ax.deviceDrawn : null,
         axis: ax || null
+      };
+    }
+    /* §7 — A DRAWN DEVICE COLUMN IS NOT A SECOND CLOCK, AND THE SPINE SAYS SO
+       WITHOUT GATING ON IT. `clock.js:623` publishes `deviceDrawn` additively,
+       because a synthetic fixture's uniform `devMs = i * 1000` is by
+       construction indistinguishable from a fabricated counter, so `independent`
+       stays true for a drawn axis. A reader that MINTS a timing source cannot
+       inherit that: `'radio'` claims the device stamps and the controller
+       anchors are two clocks, and a drawn device column makes that claim false.
+       ECGDex's remedy (relabel to `'host'`) does not transfer — there are no
+       samples to place here, only the question of which clock placed them, so
+       this reader refuses and names the provenance.
+       Measured 2026-11-01 over the 6 deployed sidecars: of the 7 streams whose
+       anchors the spine accepts, 0 read `deviceDrawn:true`, so this arm costs no
+       band verdict on the corpus it was written against. It is the hole the
+       suite's `clock · drawn-axis · source-scan` ratchet exists to keep shut. */
+    /* FAIL CLOSED ON AN UNRESOLVED FLAG. Board #1687 measured the other shape of
+       this read: a `deviceDrawn !== true` test over artifacts that carry no such
+       key read TRUE of all 173 and defaulted to ADMIT. The spine writes the flag
+       on every axis it accepts, so the arm below fires only for a shim or an
+       older `clock.js` in a bundle that predates it (§☎·✅ — 6 of 8 app bundles
+       carry the spine at all). An undecided provenance is not a clean one. */
+    if (ax.deviceDrawn !== true && ax.deviceDrawn !== false) {
+      return {
+        ok: false,
+        band: 'rejected',
+        timingSource: null,
+        spreadMs: null,
+        n: ax.n,
+        reason: "the host axis published no deviceDrawn flag, so the device column's provenance is undecided and 'radio' cannot be minted",
+        deviceDrawn: null,
+        axis: ax
+      };
+    }
+    if (ax.deviceDrawn === true) {
+      return {
+        ok: false,
+        band: 'rejected',
+        timingSource: null,
+        spreadMs: null,
+        n: ax.n,
+        reason: 'the device column is DRAWN (' + (ax.drawnReason || 'its inter-anchor deltas concentrate on one value') + '), so the anchors and the device stamps are not two clocks',
+        deviceDrawn: true,
+        axis: ax
       };
     }
     /* The spine ACCEPTED these anchors, and both of its statistics are blind to
@@ -346,6 +415,7 @@
               ' times the ' +
               st.spanMs.toFixed(0) +
               ' ms the stream spans',
+        deviceDrawn: ax.deviceDrawn == null ? null : ax.deviceDrawn,
         axis: ax,
         step: st
       };
@@ -373,6 +443,7 @@
       spreadMs: jitter,
       n: ax.n,
       reason: reason,
+      deviceDrawn: ax.deviceDrawn == null ? null : ax.deviceDrawn,
       axis: ax,
       step: st
     };
