@@ -185,6 +185,10 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # threshold in [0, 8) admits the same set; the probe is 400 randomized pooled runs, 399 segmented, minimum
 # published `n` of 24. `get_date_time` keeps one: dropping its explicit `None` passes `rpc`'s own `params=None`
 # and builds a byte-identical envelope. The other 16 survivors of those two functions are killed by new tests.
+# nightarchive.py ENTERS at 1 on 2026-11-01 (residue 2026-10-29-one-live-writer-holds-a-settled-night-
+# active-and-blocks-every-offload). The diff-scoped gate judged the two new functions and reported 8
+# survivors; 7 were real gaps and each is killed by a named test. The one entry is the MAXIMUM fold in
+# `_newest_any_mtime`, where `>=` differs from `>` only on a tie and a tie assigns the value already held.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "acq_evidence_o2ring.py": 1,
@@ -217,6 +221,7 @@ RATCHET = {
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,
+    "nightarchive.py": 1,
     "nightqc.py": 52,
     "nights_index.py": 6,
     "oxy_inventory.py": 4,

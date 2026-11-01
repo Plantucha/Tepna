@@ -6211,5 +6211,15 @@
       "why": "`rpc`'s own signature is `def rpc(method, params=None, *, rpc_id, version)`, so dropping the explicit `None` passes the identical default and builds a byte-identical envelope. The explicit argument is there to SAY that GetDateTime omits params on purpose (the docstring's `params omitted`), which is documentation, not behaviour.",
       "probe": "tests/test_as11_link.py::test_each_builder_puts_its_documented_defaults_on_the_wire asserts `\"params\" not in msg` for GetDateTime; the mutant passes it, because `params is not None` is false either way."
     }
+  ],
+  "nightarchive.py": [
+    {
+      "brief": "the archive copy's settled-night gate (residue 2026-10-29-one-live-writer-holds-a-settled-night-active-and-blocks-every-offload)",
+      "class": "no-distinguishing-input",
+      "function": "_newest_any_mtime",
+      "key": "- if newest is None or m > newest: | + if newest is None or m >= newest:",
+      "probe": "Ran BOTH folds over 4681 input tuples — every combination of length 0 to 4 drawn from {0.0, 1.0, 1.0, 2.5, 2.5, -1.0, 1e9, 1e9}, so ties, repeats, ascending, descending and negative values all appear — and over all 720 permutations of the tie-heavy multiset {3,3,3,1,7,7}. 0 of 5401 produced a different result. Run empirically 2026-11-01.",
+      "why": "The loop is a MAXIMUM fold over `os.path.getmtime` floats. `>=` differs from `>` only on a tie, and on a tie it assigns a value equal to the one already held, so `newest` is identical either way. The seven other survivors this gate reported in the same diff WERE real gaps, and each is killed by a named test in tests/test_nightarchive.py; this is the only member of its class here."
+    }
   ]
 }
