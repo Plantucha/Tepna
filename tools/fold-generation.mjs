@@ -304,8 +304,44 @@ export function nodeOfExport(base) {
   return cut < 0 ? stem : stem.slice(0, cut);
 }
 
+/* ═══ WHY AN UNSTAMPED NIGHT CARRIES NO ERA ═══
+   The census below names the unstamped nights and says nothing about the remedy, and the remedy is
+   the whole question. `tools/trio-batch.mjs` writes a stamp only for a night it PLANS, so a night
+   the fold REFUSES never reaches a stamp and re-folding it stamps nothing. The fold run ledger
+   records the nights each recorded fold planned, which splits the unstamped into two populations
+   that owe different remedies:
+
+     folded-not-stamped  a recorded fold planned the night and no stamp followed — a re-fold stamps it
+     no-fold-record      no recorded fold planned the night — a re-fold has no night to plan
+
+   ∅ An absent or unreadable ledger gives every night `null` plus one named `foldLedger.reason`,
+   never `no-fold-record` by default: "the ledger does not say" and "the fold never planned it" are
+   different facts. Measured 2026-11-01 over `uploads/trio`, the TRACKED ledger records 89 nights
+   and none of the 57 unstamped sits among them, which is why the owner's re-fold ruling reaches
+   none of them (`briefs/FOLD-ERA-STAMP-CONTRACT-2026-10-28-BRIEF.md`). The rig's own unpushed
+   ledger names 3 of the 57, and those three are the `exports-missing` cases the fold's own census
+   already calls incurable — so the tracked split under-reports the curable population by at most
+   what a relay has yet to land, and never over-reports it. */
+export const FOLD_LEDGER = 'provenance/trio-fold.json';
+export const ERA_UNSTAMPED_REASONS = ['folded-not-stamped', 'no-fold-record'];
+
+/** Every night any recorded fold PLANNED, read from the fold run ledger. ∅ never a guess. */
+export function foldLedgerNights(ledger = FOLD_LEDGER, { cwd = ROOT, commit = null } = {}) {
+  const read = readerFor({ cwd, commit });
+  let doc = null;
+  try {
+    doc = JSON.parse(read(ledger).toString());
+  } catch {
+    return { ok: false, reason: `${ledger} is absent or unreadable`, planned: null, folds: null };
+  }
+  if (!Array.isArray(doc.folds)) return { ok: false, reason: `${ledger} records no folds array`, planned: null, folds: null };
+  const planned = new Set();
+  for (const f of doc.folds) for (const n of f?.nights ?? []) if (n?.key) planned.add(String(n.key));
+  return { ok: true, reason: null, planned, folds: doc.folds.length };
+}
+
 /* ∅ An unlistable tree returns nulls and `ok:false`, never a census of zero exports. */
-export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
+export function eraCensus(root = TRIO, { cwd = ROOT, commit = null, ledger = FOLD_LEDGER } = {}) {
   const files = trackedFiles(root, { cwd, commit });
   const empty = {
     root,
@@ -318,11 +354,14 @@ export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
     exports: null,
     unrecordedByNode: null,
     unrecordedNights: null,
+    unstampedByReason: null,
+    foldLedger: null,
     proxy: null,
     proxies: null
   };
   if (files == null || files.all.length === 0) return empty;
   const read = readerFor({ cwd, commit });
+  const led = foldLedgerNights(ledger, { cwd, commit });
   const era = new Map();
   for (const sPath of files.stamps) {
     const night = sPath.slice(root.length + 1).split('/')[0];
@@ -346,6 +385,7 @@ export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
   let recorded = 0;
   let unrecorded = 0;
   const tally = new Map();
+  const reasons = new Map();
   const unrecordedNights = [];
   const disagreements = [];
   let threeLegNights = 0;
@@ -360,12 +400,17 @@ export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
       continue;
     }
     unrecorded += nodes.length;
-    unrecordedNights.push({ night, nodes });
+    const reason = led.ok ? (led.planned.has(night) ? 'folded-not-stamped' : 'no-fold-record') : null;
+    unrecordedNights.push({ night, nodes, reason });
+    reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
     for (const n of nodes) tally.set(n, (tally.get(n) ?? 0) + 1);
   }
   /* Sorted keys, because the artifact is committed and compared byte for byte. */
   const unrecordedByNode = {};
   for (const n of [...tally.keys()].sort()) unrecordedByNode[n] = tally.get(n);
+  /* ∅ The key for "the ledger could not say" is spelled, so a null reason is countable too. */
+  const unstampedByReason = {};
+  for (const r of [...reasons.keys()].sort((x, y) => String(x).localeCompare(String(y)))) unstampedByReason[r == null ? 'unknown-no-ledger' : r] = reasons.get(r);
   const allNights = new Set([...byNight.keys(), ...era.keys()]);
   /* Every triple a three-leg reader requires, each under its own test. `proxy` stays the fold
      triple's own numbers, because the committed artifact and the suite read that spelling. */
@@ -382,6 +427,8 @@ export function eraCensus(root = TRIO, { cwd = ROOT, commit = null } = {}) {
     exports: { total: recorded + unrecorded, recorded, unrecorded },
     unrecordedByNode,
     unrecordedNights,
+    unstampedByReason,
+    foldLedger: { path: ledger, ok: led.ok, reason: led.reason, folds: led.folds, nights: led.planned == null ? null : led.planned.size },
     proxy: { threeLegNights, stampedNights: era.size, disagreements },
     proxies
   };
@@ -492,6 +539,8 @@ export function eraVerdict(census, { commit = null, at = null } = {}) {
           exports: census.exports,
           unrecordedByNode: census.unrecordedByNode,
           unrecordedNights: census.unrecordedNights,
+          unstampedByReason: census.unstampedByReason,
+          foldLedger: census.foldLedger,
           proxy: census.proxy,
           proxies: census.proxies
         }
@@ -1085,6 +1134,34 @@ function selftest() {
       ok(
         'the unrecorded nights are named in order, each with its own nodes sorted',
         c.unrecordedNights.map((r) => r.night).join() === '2026-07-02,2026-07-03' && c.unrecordedNights[0].nodes.join() === 'OxyDex,PpgDex,PpgDexFinger'
+      );
+
+      /* ── WHY, NOT ONLY HOW MANY ────────────────────────────────────────────────
+         A re-fold stamps a night the fold PLANS, so the remedy for an unstamped night turns on
+         whether any recorded fold ever planned it. ∅ With no ledger the census reports that it could
+         not look, and never reads an absent ledger as "no fold ever planned this night". */
+      ok(
+        '∅ no fold ledger ⇒ every unstamped night reads null, under one named reason',
+        c.foldLedger.ok === false &&
+          /absent or unreadable/.test(c.foldLedger.reason) &&
+          c.unrecordedNights.every((r) => r.reason === null) &&
+          JSON.stringify(c.unstampedByReason) === JSON.stringify({ 'unknown-no-ledger': 2 }),
+        `${c.foldLedger.reason} · ${JSON.stringify(c.unstampedByReason)}`
+      );
+      mk(FOLD_LEDGER, JSON.stringify({ folds: [{ nights: [{ key: '2026-07-02' }] }] }));
+      execFileSync('git', ['add', '-A'], { cwd });
+      execFileSync('git', ['commit', '-qm', 'a fold ledger naming one of the two unstamped nights'], { cwd });
+      const cL = eraCensus(ERA, { cwd });
+      const byN = (n) => cL.unrecordedNights.find((r) => r.night === n);
+      ok(
+        '🔴 a night a recorded fold planned is curable by a re-fold; a night it never planned is not',
+        cL.foldLedger.ok && cL.foldLedger.nights === 1 && byN('2026-07-02').reason === 'folded-not-stamped' && byN('2026-07-03').reason === 'no-fold-record',
+        JSON.stringify(cL.unrecordedNights)
+      );
+      ok(
+        'the per-reason tally sums to the unstamped count, over the stated vocabulary only',
+        Object.keys(cL.unstampedByReason).every((k) => ERA_UNSTAMPED_REASONS.indexOf(k) >= 0) && Object.values(cL.unstampedByReason).reduce((a, b) => a + b, 0) === cL.unstamped,
+        JSON.stringify(cL.unstampedByReason)
       );
 
       const v = eraVerdict(c, { commit: 'abcd1234', at: '2026-10-27T00:00:00Z' });
