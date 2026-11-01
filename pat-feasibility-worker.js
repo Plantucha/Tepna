@@ -216,6 +216,8 @@ function ppgFootTimes(text, runsText, opts) {
       refIdx = i;
     }
   });
+  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+     The shipped PAT feet then ride a 2-of-3 vote, and this worker’s own kept33 reads 0 for what is a phase offset. */
   var cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   /* ── §∅ A FOOT EVERY CHANNEL WAS PINNED THROUGH IS NOT A BEAT ───────────────────────────────────
      `rec.spans` is per optical channel, and `parsePPG` publishes it with or without a sidecar: the

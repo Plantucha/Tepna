@@ -216,6 +216,8 @@ function ppgFootTimes(text, runsText) {
       refIdx = i;
     }
   });
+  /* @polarity-decision behind 2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers
+     The residuals this spec holds against the literature then come from a 2-of-3 vote on an affected night. */
   let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const chRanges = [];
   if (rec.pinnedCrossCheck && Array.isArray(rec.spans)) {
