@@ -122,12 +122,27 @@ most what a relay has yet to land.
 This recovers no era. It names the nights whose era a later fold could still record, which the
 ranking below needs.
 
+### The consumer half of the stamp landed 2026-11-01
+
+A published table now records which fold produced the nights it read. `tools/fold-generation.mjs`
+exports `stampFields`, and `tools/tch-pooled-hat.mjs` prints the TABLE-PROVENANCE attributes for a
+table cut from its own run. Over the 90-night corpus the printer reads
+`foldGeneration=825bf5d03ceb`, because every night it read carries a fold stamp under one code
+digest. A population without one gets the other attributes plus a counted reason, never the word
+null in a stamp.
+
+Two residue rows close here on a measurement, not on a fix. The census counts `PpgDexFinger` as a
+node, so the nine three-node nights hold two trio exports beside the finger export.
+`trio-batch.mjs` writes `.trio-stamp` only when a night carries three trio nodes, by design. So the
+remedy those two rows name cannot fire on the nine.
+
 ## Acceptance
 
 - [x] The owner picks 1, 2, 3 or 4, and the ruling lands in this brief. **Option 2, 2026-11-01.**
 - [x] Option 2 or 3 names the stamp writer and the era gate. **`trio-batch.mjs` writes; `fold-generation.mjs --era` proves.**
 - [x] A reader tells a measured era from an asserted one. **The fold ledger holds the difference.**
 - [x] The census names a reason per unstamped night. **`eraCensus.unstampedByReason`, 2026-11-01.**
+- [x] A measurement holds the nine unstamped trio-shaped nights against the stamp writer's own condition. **2026-11-01.**
 - [ ] The owner ranks 1, 3 and 4 over the 57, now that option 2 reaches none of them.
 
 ## Why this is not a tool fix
