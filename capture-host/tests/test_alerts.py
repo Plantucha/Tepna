@@ -548,6 +548,11 @@ def test_quiet_state_restored_drops_what_it_cannot_trust():
     assert alerts.quiet_state_restored(None, 0.0, 100.0) == ({}, {})
     assert alerts.quiet_state_restored([1], 0.0, 100.0) == ({}, {})
     assert alerts.quiet_state_restored({"pull_ok": [1], "ended": "x"}, 0.0, 100.0) == ({}, {})
+    # A bad pull_ok section does not hide a good ended section.
+    assert alerts.quiet_state_restored({"pull_ok": [1], "ended": {"ring": 90.0}}, 0.0, 100.0) == (
+        {},
+        {"ring": -10.0},
+    )
     wall = 1_000_000.0
     saved = {
         "pull_ok": {
