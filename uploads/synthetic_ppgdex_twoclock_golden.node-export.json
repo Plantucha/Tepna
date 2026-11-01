@@ -35,6 +35,7 @@
       "reason": null
     },
     "hostAxis": {
+      "ok": true,
       "anchors": 11,
       "ppm": 132.02640828038045,
       "spanMs": 37029.62963,
@@ -71,8 +72,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "c36a3d522072",
-        "computeHash": "ea4817278776"
+        "manifestHash": "3988e3711521",
+        "computeHash": "ad90e0b2b715"
       },
       "evidence": {
         "envelopeRef": null,
@@ -101,8 +102,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "c36a3d522072",
-        "computeHash": "ea4817278776"
+        "manifestHash": "3988e3711521",
+        "computeHash": "ad90e0b2b715"
       },
       "evidence": {
         "envelopeRef": null,

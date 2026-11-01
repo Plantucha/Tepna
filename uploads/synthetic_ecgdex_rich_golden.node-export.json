@@ -33,6 +33,7 @@
       "reason": "host ≡ device — residual spread 0.92 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: host column is not a second clock (residual spread 0.92 ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock"
     },
     "hostAxis": {
+      "ok": true,
       "applied": false,
       "anchors": 16,
       "ppm": -6.6680440095983435,
@@ -66,8 +67,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "3e86ba1c8020",
-        "computeHash": "b5c77b094ab8"
+        "manifestHash": "d38176034702",
+        "computeHash": "66149df6c4c3"
       },
       "evidence": {
         "envelopeRef": null,
@@ -96,8 +97,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "3e86ba1c8020",
-        "computeHash": "b5c77b094ab8"
+        "manifestHash": "d38176034702",
+        "computeHash": "66149df6c4c3"
       },
       "evidence": {
         "envelopeRef": null,
@@ -126,8 +127,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "3e86ba1c8020",
-        "computeHash": "b5c77b094ab8"
+        "manifestHash": "d38176034702",
+        "computeHash": "66149df6c4c3"
       },
       "evidence": {
         "envelopeRef": null,
@@ -156,8 +157,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "3e86ba1c8020",
-        "computeHash": "b5c77b094ab8"
+        "manifestHash": "d38176034702",
+        "computeHash": "66149df6c4c3"
       },
       "evidence": {
         "envelopeRef": null,
@@ -188,8 +189,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "3e86ba1c8020",
-        "computeHash": "b5c77b094ab8"
+        "manifestHash": "d38176034702",
+        "computeHash": "66149df6c4c3"
       },
       "evidence": {
         "envelopeRef": null,
