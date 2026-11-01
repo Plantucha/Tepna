@@ -1755,6 +1755,37 @@ def test_THREE_recordings_in_one_band_each_get_their_own_row(tmp_path):
     assert [k for k, _ in recs] == ["2026-10-09"] * 3, recs
     starts = sorted(min(s) for _k, s in recs)
     assert len(set(starts)) == 3, f"each row carries its own start: {starts}"
+    # NEWEST FIRST inside one band too. `out.sort(key=None)` survived the gate: a tuple compare reaches
+    # the frozensets on a band tie, disjoint sets compare neither less nor greater, and the stable sort
+    # leaves the chains oldest first.
+    firsts = [min(s) for _k, s in recs]
+    assert firsts == sorted(firsts, reverse=True), f"a band's recordings run newest first: {firsts}"
+
+
+def test_a_SESSION_reads_FLOATING_and_its_daytime_edges_are_10_00_in_and_18_00_out(monkeypatch):
+    """`_session_of` reads each epoch back as the device's own screen showed it, so the reader's zone
+    moves nothing. Survivors of the gate on 2026-11-01: `fromtimestamp(t, None)` and `(t, )` read the
+    local zone, which CI's UTC runner cannot tell from `timezone.utc`; `<=` became `<` at 10:00 and `<`
+    became `<=` at 18:00, and no fixture sat on either edge.
+
+    🔴 THE READER'S ZONE IS SET FAR FROM UTC, so a local read would move every clock by 13 h."""
+    import time as _time
+
+    import nightqc
+
+    monkeypatch.setenv("TZ", "Pacific/Auckland")
+    _time.tzset()
+    try:
+        ten, eighteen = nightqc.floating_stamp_s("20261010100000"), nightqc.floating_stamp_s("20261010180000")
+        late = nightqc.floating_stamp_s("20261010103000")
+        got = ni._session_of(frozenset({ten}), {ten: late})
+        assert got == {"start": "2026-10-10 10:00", "end": "2026-10-10 10:30", "daytime": True}, got
+        assert ni._session_of(frozenset({eighteen}), {eighteen: eighteen})["daytime"] is False, (
+            "18:00 opens the sleep band, so it is not daytime"
+        )
+    finally:
+        monkeypatch.delenv("TZ")
+        _time.tzset()
 
 
 def _span_rows(start, minutes):
