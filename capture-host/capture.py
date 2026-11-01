@@ -271,6 +271,25 @@ def absorbed_shift_sec() -> float:
     return _civil_shift
 
 
+def device_clock_now() -> _dt.datetime:
+    """True civil time, for a stamp that LEAVES this host and lands in another device's clock.
+
+    A separate function because which clock this reads is the whole content of the decision, and it
+    differs from `_now()` by exactly `absorbed_shift_sec()`. `_now()` absorbs a DST relabelling to keep
+    an open recording monotonic, which is right for OUR axis: every file of that session shares the one
+    frame, and `absorbed_shift_sec()` says how wrong its absolute stamps are. A device RTC shares none
+    of that. The ring stores `set_time_frame`'s fields verbatim and stamps its own STORED `.dat` header
+    with them, so pushing the absorbed frame writes the shift into captured data, where no later reader
+    can see it as a frame at all. Measured 2026-11-01: a session that opened before the 02:00 fall-back
+    pushed `2026-11-01 06:43:05` at 05:43:05 EST, an hour ahead. Row
+    2026-11-01-the-ring-rtc-push-carries-the-absorbed-dst-shift.
+
+    `_now()` runs FIRST and may itself move `_civil_shift`, so the shift is read after it, never before.
+    PURE apart from that call."""
+    at = _now()
+    return at + _dt.timedelta(seconds=absorbed_shift_sec())
+
+
 def heartbeat_ms() -> int:
     """Wall-clock ms for the LIVENESS heartbeat — real time, never the capture frame.
 
@@ -5816,7 +5835,10 @@ def _oxyii_nonlive_frame(cx: _OxyiiLink, r) -> bool:
                     (_info or {}).get("firmware_version"),
                 )
         _rtc = _info.get("rtc") if _info else None
-        _off = round(ring_clock_offset_s(_rtc, _now()), 1) if _rtc else None
+        # The ring holds CIVIL time because that is what the push writes (`device_clock_now`), so the
+        # offset is ring-vs-civil. Reading `_now()` here would report an absorbed session's own shift
+        # as the ring's error, and on a fall-back night that is a whole hour of invented drift.
+        _off = round(ring_clock_offset_s(_rtc, device_clock_now()), 1) if _rtc else None
         _set(name, ring_rtc_offset_s=_off, ring_rtc_read=_now().isoformat(timespec="seconds"))
         if _off is not None:
             # 🔴 THE READ IS WHAT CONFIRMS OR REFUTES THE PUSH. The 0xC0 write is
@@ -7021,12 +7043,19 @@ async def run_oxyii(dev: dict, root: str):
                 # session"` duplicates a literal that can never fire. If the invariant ever breaks the
                 # log says so instead of printing "None".
                 async def _rtc_sync(why: str | None) -> None:
-                    _clk = _now()
+                    # TWO CLOCKS, AND THE DIFFERENCE IS THE POINT. `_at` is our own axis: it says when
+                    # the push happened, so the sidecar row and the cadence bookkeeping stay on the
+                    # frame every other row of this session carries. `_clk` is what the RING must read,
+                    # and a device clock takes civil time (`device_clock_now`). They differ only while
+                    # a session absorbs a DST relabelling, which is exactly when the old single read
+                    # wrote the shift into the ring's own stored header.
+                    _at = _now()
+                    _clk = device_clock_now()
                     await _bounded_setup(
                         client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)
                     )  # 0xC0
-                    rtcwr.write(_now(), "push")
-                    _OXYII_RTC_AT[addr] = _clk
+                    rtcwr.write(_at, "push")
+                    _OXYII_RTC_AT[addr] = _at
                     # 🔴 THIS WRITE IS UNACKNOWLEDGED, SO IT IS A REQUEST AND NOT A MEASUREMENT.
                     # `response=False` above asks the ring for nothing back, so the only honest claim
                     # here is that we pushed. `clock_synced` is stamped by the READ that agrees
