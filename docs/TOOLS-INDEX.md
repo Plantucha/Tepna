@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**306 tools** · 305 with a purpose line · **1 without**
+**307 tools** · 306 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -132,6 +132,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
 | [`measurement-emitter-perf-oxydex.mjs`](../tools/measurement-emitter-perf-oxydex.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §10 for the OXYDEX emitter and the Integrator adapter — runtime, peak memory, export size, against bands written BEFORE the run. |
 | [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | WALK A MEASUREMENT BACK TO ITS RAW INPUT — the roadmap §3 backward walk-through, as a check. |
+| [`memory-supersession.mjs`](../tools/memory-supersession.mjs) | WHICH MEMORY LESSON LEADS WITH A RULING THE FLEET HAS ALREADY REPLACED (residue `2026-10-28-a-replaced-owner-ruling-ranks-first-from-the-memory-corpus`). |
 | [`motion-rho-vs-minrho.mjs`](../tools/motion-rho-vs-minrho.mjs) | is the shipped correlation proxy in the right range, on the right nights? |
 | [`mutate-ledger-merge.mjs`](../tools/mutate-ledger-merge.mjs) | mutate-ledger-merge — a git merge driver for the mutation ledgers. |
 | [`mutate-recover.mjs`](../tools/mutate-recover.mjs) | ONE DEFINITION OF THE RECOVERY, imported by `mutate.mjs` AND `mutation-crawl.mjs`. |
