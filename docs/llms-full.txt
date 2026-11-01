@@ -70,7 +70,7 @@ the always-on, one-clock upgrade, not the entry fee.
 
 | App | Signal | Device | What it reports | Guide |
 |---|---|---|---|---|
-| **OxyDex** | SpO₂ | Wellue O2Ring | ODI-4 · T90 · hypoxic burden | [reference](OxyDex%20Reference.html) |
+| **OxyDex** | SpO₂ · motion | Wellue O2Ring | ODI-4 · T90 · hypoxic burden · motion % · arousal index | [reference](OxyDex%20Reference.html) |
 | **ECGDex** | raw ECG | Polar H10 | QTc · rMSSD · beat-level RR | [reference](ECGDex%20Reference.html) |
 | **PulseDex** | RR intervals | Polar H10 · Coospo · Wahoo | rMSSD · SDNN · nonlinear HRV | [reference](PulseDex%20Reference.html) |
 | **PpgDex** | raw PPG | Polar Verity Sense · O2Ring | PPI → HRV · pulse-wave morphology | [reference](PpgDex%20Reference.html) |
@@ -179,7 +179,7 @@ construction. Approximate US street prices, 2026:
 | Hardware | Role | Price |
 |---|---|---:|
 | Lenovo ThinkCentre M900 Tiny (used) | the Health Box | ~$120 |
-| Wellue O2Ring-S | overnight SpO₂ · pulse · raw PPG | ~$170 |
+| Wellue O2Ring-S | overnight SpO₂ · pulse · motion · raw PPG | ~$170 |
 | Polar H10 | raw ECG · RR · IMU | ~$90 |
 | Polar Verity Sense | raw PPG · IMU | ~$105 |
 | nRF52840 dongles ×3 (open-source Zephyr HCI image) | the box's Bluetooth radios | ~$30 |
