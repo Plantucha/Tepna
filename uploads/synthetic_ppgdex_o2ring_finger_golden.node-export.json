@@ -40,7 +40,7 @@
       "spanMs": 39757.27306,
       "spanPpm": -6.868177291421405,
       "rate": "unknown",
-      "rateReason": "spans 40 s, under the 2400 s a rate needs",
+      "rateReason": "the device column is drawn (77.9 % of its deltas are one value) — a rate over it measures a counter with no oscillator, whatever the span",
       "rateApplied": false,
       "maxStepMs": 0,
       "totalMs": -0.273059999999532,
@@ -74,8 +74,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "66683a521ed4",
-        "computeHash": "001d03c70a0c"
+        "manifestHash": "c36a3d522072",
+        "computeHash": "ea4817278776"
       },
       "evidence": {
         "envelopeRef": null,
@@ -104,8 +104,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "66683a521ed4",
-        "computeHash": "001d03c70a0c"
+        "manifestHash": "c36a3d522072",
+        "computeHash": "ea4817278776"
       },
       "evidence": {
         "envelopeRef": null,

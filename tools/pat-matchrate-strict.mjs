@@ -192,6 +192,16 @@ function ecgRpeakTimes(text, opts) {
     maxStepMs: rec.hostAxis ? rec.hostAxis.maxStepMs : null
   };
 }
+/* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────────────────────
+   @port-sha 8282b1de745f
+   @port-behind aa2336fd1179 2026-11-01-the-pat-foot-ports-stand-behind-the-shipped-definition
+   The copy below agrees with the worker's pre-#4069 text. #4069 (2026-10-28) gave the worker a
+   pinned-span refusal and this copy carries none, so `tools/port-parity.mjs` reads SHORTFALL against
+   that row rather than a pass. Re-pin the sha only after READING both sides, never to quiet the gate.
+   The polarity pass below is the deliberate difference in the other direction: the node's `analyze`
+   applies it, this copy applies it, and the worker applies it nowhere (row
+   2026-11-01-the-consensus-polarity-wiring-reached-one-of-ten-callers).
+ */
 function ppgFootTimes(text) {
   const rec = PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
